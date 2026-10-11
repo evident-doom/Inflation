@@ -20,6 +20,8 @@ class AnimalGroup(
     var freshShare = 1f
     /** Days the group stays on alert after being attacked: watchful, skittish and hard to approach. */
     var alert = 0
+    /** On a march today: covering long distances and eating little (see [Ecology]). */
+    var marching = false
     /** Meat a pack has killed but not yet eaten, kg. */
     var stored = 0f
     /** Food gained over need on the last day, 0 = starving, 1 = full. */

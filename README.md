@@ -49,20 +49,25 @@ through a `Policy`: a hand-written baseline now, learned policies later, from th
 | Fish | Resident fish in sea and lakes follow primary production (shelves and river mouths far richer than open water); river fish scale with channel size and warmth, shrink with low water, die where the bed nearly dries and come back from downstream. Shellfish beds within about 3 km of the shore in water under 10 m. A spring spawning run (shad-like) gathers off each river mouth and moves upstream about 20 km a day for two months, through lakes, until a cascade or a dam stops it |
 | Soil life | Plant litter from turnover, die-back, frost, floods and ash decomposes at a rate set by warmth and moisture; part becomes soil organic matter, which raises the fertility plants grow on. Carcasses rot in days to weeks and feed scavengers |
 | Small animals | Plant-eating insects (active above 10 °C), biting insects (in warm wetlands and floodwater) and rodents (logistic on food, hit by cold and snow), in kg/km², spreading to neighbouring land |
-| Gazelle | Herds of about 12 that split above 40. Each day a herd walks as far as a day's effort takes it over the terrain and weighs forage, water, snow, crowding, cover (it keeps to open ground) and the scent of wolves, or the sight of them where cover allows. They eat palatable young growth, which regrows over a month, and drink. Births in spring, scaled by body condition |
-| Wolf | Southern-type wolves (22 kg) in packs of about 3. Packs follow prey scent, chase herds within 4 km (young and weak gazelles are much easier to catch, big herds spot them sooner, and stalking in cover works better), and fill gaps with rodents and carrion. Packs that meet spend the day in confrontation instead of hunting and sometimes lose a wolf, so crowded packs feed worse |
+| Water | Ground wetness per cell from soil moisture, recent rain, shade, floods and wetland. Animals drink at rivers, fresh lakes, floodwater, the pools and seeps of very wet ground, and at springs. In dry country, rain that sinks in upslope flows underground and comes up as year-round springs and water holes at the foot of hills, along faults and from limestone; the largest in the driest land are oases that keep the ground around them damp. Herds also get water from fresh food and dew, browsers and gazelles most, aurochs and onagers least, so in the wet season water is everywhere and in the dry season herds gather at rivers and springs |
+| Large herbivores | Gazelle, roe, fallow and red deer, ibex, wild boar, aurochs and onager, each with its own diet (grass, browse, roots and mast), favoured ground (cover, rugged, wet) and defence against wolves. Each day a herd walks as far as a day's effort takes it over the terrain and weighs forage, water, snow, crowding, its favoured ground and the scent or sight of wolves. Where a day's walk finds far too little food, or no water for a thirsty herd, it sets off on a march instead: about 60% of its longest day's travel, day after day, eating a third of its need on the way. Young growth regrows over a month; in lean months they fall back on dead grass and twigs, which big animals digest better (Jarman-Bell) and pigs poorly, but only as much as fits in the gut. Births in season, scaled by condition; most piglets die in their first year |
+| Wolf | Southern-type wolves (22 kg) in packs of about 3. Packs follow prey scent and chase herds within 4 km. The young and weak are much easier to catch, big herds spot them sooner, well-armed prey (aurochs, boar) rarely fall, and ibex on cliffs cannot be followed; wolves are coursing hunters, so cover helps them only a little. They fill gaps with rodents and carrion. Packs that meet spend the day in confrontation instead of hunting and sometimes lose a wolf, so crowded packs feed worse |
 
 Body mass sets food needs (Kleiber scaling) and starting densities (Damuth's rule). The species
 figures are mid-range literature values recalled from memory, not yet checked against sources.
 
-On a 400 km test island (seed 7), gazelles and wolves coexist over 25 simulated years. Gazelles
-settle at roughly 40,000 to 60,000 (about 2 per km² of land), held below their food supply by
-wolves. Wolves dip to about 30 and recover to about 90-100, roughly one per 260 km².
+On 400 km test islands (seeds 1, 3, 7 and 11, 21,000–38,000 km² of land), all nine species persist
+over 20 simulated years. After 20 years, per km² of land: roe deer 3–6, gazelle 0.3–1.1, ibex 0.9–1.3,
+wild boar 0.9–1.6, fallow and red deer 0.1–0.4, aurochs 0.1–0.5 and still rising, onagers 0.002–0.04
+(rare on the wetter islands, where thirst keeps them down), and wolves one per 110–145 km².
+In the dry season 10–30% of herds are on the march.
 
 ![animals](docs/img/fauna.png)
 ![visibility](docs/img/visibility.png)
 
-The animal layer makes a full-size step about five times slower: roughly 0.5 s instead of 0.1 s.
+Groups decide where to go in parallel, so the animal step uses every CPU core. On a 16-thread
+desktop a 6-day step takes about 65 ms on the 400 km test island and 0.8 s on the full 1000 km map
+(about 1.3 million animals), of which the animals take 90%.
 
 Measured on seed 7 (`summary.txt`): no lowland below 300 m keeps snow lying even at 40°N. Land at
 300–1000 m has it about 10 days a year in the north, land at 1000–2000 m 80–120 days, and mountains
@@ -111,8 +116,11 @@ dams, dig canals, irrigate and clear vegetation. Scroll to zoom, drag to pan.
   only where traffic converges (around water). Trampling scales with the mass of animals passing.
 - The gazelle's food supply ("palatable growth", a fixed share of standing herbs and shrubs) is a
   calibration constant, not derived from plant physiology.
-- Wolves only hunt gazelles; other large prey come with later layers. Pack territories are not
-  modelled as such; spacing comes from avoiding other packs' scent and from confrontations.
+- Pack territories are not modelled as such; spacing comes from avoiding other packs' scent and
+  from confrontations. Wolf numbers therefore barely follow their prey, and wolves almost never take
+  aurochs, which keep increasing for 20 years or more.
+- Seasonal migrations are not scripted; marches arise only from local shortage. Whether longer
+  migrations emerge needs a larger map and learned behaviour.
 - Visibility ignores weather, haze and night for now; the line-of-sight model sees only relief the
   1 km grid resolves, and the finer broken ground enters only through ruggedness.
 - The moon's cycle is exactly 30 days to keep months and moons aligned (the real one is 29.53).

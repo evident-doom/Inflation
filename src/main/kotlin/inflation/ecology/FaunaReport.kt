@@ -27,7 +27,7 @@ fun main(args: Array<String>) {
     val sim = Simulation(world)
     val e = sim.ecology
     val land = (0 until world.grid.size).count { sim.vegetation.isVegetated(it) } * world.grid.cellKm * world.grid.cellKm
-    println("land %.0f km²".format(land))
+    println("land %.0f km², %d springs and water holes in dry country, %d of them oases".format(land, e.spring.count { it }, e.oasis.count { it }))
     println("%-28s ".format("date") + Catalogue.all.joinToString(" ") { "%9s".format(it.name.take(9)) } + "  kills  fish t/km² shellfish run t")
     val stepsPerSeason = 90 / cfg.daysPerStep
     var kills = 0
@@ -43,6 +43,7 @@ fun main(args: Array<String>) {
             println("   kills  " + Catalogue.herbivores.joinToString(" ") { "%9d".format(e.killsBy[it] ?: 0) })
             println("   cond   " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(if (gs.isEmpty()) 0f else gs.map { it.condition }.average().toFloat()) })
             println("   young% " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(gs.sumOf { it.young }.toFloat() / max(1, gs.sumOf { it.size })) })
+            println("   march% " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(gs.count { it.marching }.toFloat() / max(1, gs.size)) })
             val cells = (0 until world.grid.size).filter { sim.vegetation.isVegetated(it) }
             println("   water  land with drinking water %.0f%%, within 5 km %.0f%%, mean wetness %.2f".format(
                 100f * cells.count { e.waterKm[it] == 0f } / cells.size, 100f * cells.count { e.waterKm[it] <= 5f } / cells.size,

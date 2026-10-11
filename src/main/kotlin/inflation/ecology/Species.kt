@@ -64,6 +64,11 @@ class Species(
     val yearsToMaturity: Float,
     /** Adult mortality per year from causes not modelled (age, accident, disease); predation and hunger are modelled. */
     val backgroundMortality: Float,
+    /**
+     * Extra yearly mortality of the young from causes not modelled (cold, wet, disease, falls), on
+     * top of the adults'. Species with big litters lose most of them: half of all piglets die in their first year.
+     */
+    val youngMortality: Float = backgroundMortality,
     /** Snow depth (mm water equivalent) that stops it feeding and slows it badly. */
     val snowLimitMm: Float,
     /** Distance at which it notices a predator and flees, km. */
@@ -78,6 +83,11 @@ class Species(
      * runs prey down in the open) to 1 (a stalker like the leopard, which needs cover to strike).
      */
     val stalking: Float = 0f,
+    /**
+     * How well it digests coarse fibre (straw, twigs) relative to a ruminant or horse of its size:
+     * pigs, with a simple stomach, get far less from it.
+     */
+    val fibreDigestion: Float = 1f,
     /** Breeds as a pack: one litter a year from the breeding pair, of this size in good condition. */
     val packLitter: Int = 0,
     /** Diamond's criteria, 0..1 each: diet breadth, growth, captive breeding, temperament, calm, hierarchy. */
@@ -186,16 +196,18 @@ object Catalogue {
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
         name = "wild boar", massKg = 80f,
-        diet = Diet(grass = 0.2f, browse = 0.2f, roots = 0.6f),
+        diet = Diet(grass = 0.2f, browse = 0.1f, roots = 0.7f),
         groupSize = 6, maxGroupSize = 20,
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 2, waterFromFood = 0.4f,
         birthMonth = 1, birthMonths = 2, youngPerFemale = 4f, yearsToMaturity = 1.5f,
-        backgroundMortality = 0.2f, snowLimitMm = 200f, flightKm = 0.2f, dangerToHumans = 0.3f,
+        backgroundMortality = 0.2f, youngMortality = 0.6f,
+        snowLimitMm = 200f, flightKm = 0.2f, dangerToHumans = 0.3f,
         products = Products(meat = 45f, fat = 8f, hide = 5f, bone = 9f, sinew = 0.5f, hornOrAntler = 0.5f),
         domestication = floatArrayOf(0.9f, 0.9f, 0.8f, 0.4f, 0.6f, 0.6f), // became the pig
         habitat = Habitat(cover = 0.8f, wet = 0.6f),
         defence = 0.6f,
+        fibreDigestion = 0.5f,
     )
 
     /** Aurochs: huge wild cattle of wet lowlands, floodplains and open woodland; formidable when cornered. */
@@ -220,11 +232,11 @@ object Catalogue {
         groupSize = 8, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 4f,
         daysWithoutWater = 3, waterFromFood = 0.3f,
-        birthMonth = 2, birthMonths = 2, youngPerFemale = 0.5f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.07f, snowLimitMm = 150f, flightKm = 1f, dangerToHumans = 0.1f,
+        birthMonth = 2, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2f,
+        backgroundMortality = 0.05f, snowLimitMm = 150f, flightKm = 1f, dangerToHumans = 0.1f,
         products = Products(meat = 110f, fat = 8f, hide = 15f, bone = 25f, sinew = 2f),
         domestication = floatArrayOf(0.7f, 0.4f, 0.3f, 0.1f, 0.2f, 0.4f), // too wild to tame; the donkey came from Africa
-        habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.5f),
+        habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.1f), // shuns marsh, not the water's edge
         defence = 0.4f,
     )
 

@@ -50,6 +50,13 @@ class Ecology(private val sim: Simulation) {
     val wetness = FloatArray(n)
     /** Distance to drinkable fresh water now (rivers, fresh lakes, floodwater, pools and seeps), km. */
     val waterKm = FloatArray(n)
+    /**
+     * Springs and water holes that flow all year in dry country, where groundwater from the hills
+     * comes up: at the foot of a slope, along a fault, out of limestone. Fixed for the world.
+     */
+    val spring = BooleanArray(n)
+    /** The biggest springs in the driest land: oases, whose water keeps the ground around them damp. */
+    val oasis = BooleanArray(n)
     /** [inflation.world.Terrain.concealmentKm] and [Terrain.sightKm] for this step: plants change only between steps. */
     private val concealKm = FloatArray(n)
     private val sightKm = FloatArray(n)
@@ -89,6 +96,7 @@ class Ecology(private val sim: Simulation) {
             browse[i] = PALATABLE_SHARE * 1e6f * woody(i) * 0.7f
             roots[i] = rootsCap(i) * 0.7f
         }
+        findSprings()
         updateWater()
         updateSight()
         populate()
@@ -167,6 +175,42 @@ class Ecology(private val sim: Simulation) {
     // ---------------------------------------------------------------- water
 
     /**
+     * Places [spring]s and [oasis]es in dry land (rain under about two thirds of what could
+     * evaporate), away from rivers that flow all year. Rain that sinks in upslope flows through
+     * the ground below dry valleys and comes up where the slope eases at the foot of hills, along
+     * faults, and from limestone. Each candidate gets a chance from its upslope recharge and rock;
+     * on average about one water hole per [SPRING_KM2] of dry country where groundwater is ample.
+     */
+    private fun findSprings() {
+        val c = world.climate
+        val dr = world.water.drainage
+        val area = grid.cellAreaM2.toFloat()
+        val r = Random(world.config.seed * 131 + 11)
+        // Groundwater carried below each cell: a share of the runoff of everything upslope, m³/yr.
+        val recharge = dr.accumulate(FloatArray(n) { if (world.isSea[it]) 0f else GROUND_SHARE * c.runoff[it] / 1000f * area })
+        val reach = max(1, (4 / cellKm).toInt())
+        for (i in 0 until n) {
+            if (world.isSea[i] || world.water.isLake(i)) continue
+            val aridity = c.annualPrecip[i] / max(1f, c.annualPet[i])
+            if (aridity > 0.65f || world.water.discharge[i] >= 0.1f || recharge[i] < MIN_SPRING_FLOW) continue
+            // Hills close above: the slope eases here.
+            var high = world.elevation[i]
+            val x = grid.x(i); val y = grid.y(i)
+            for (dy in -reach..reach) for (dx in -reach..reach)
+                if (grid.inBounds(x + dx, y + dy)) high = max(high, world.elevation[grid.index(x + dx, y + dy)])
+            val foothill = ((high - world.elevation[i]) / 200f).coerceIn(0f, 1f)
+            val fault = if (world.tectonics.boundaryDistKm[i] < 10f) 0.5f else 0f
+            val karst = if (world.geology.rock[i] == inflation.world.Rock.LIMESTONE) 0.5f else 0f
+            val flow = min(1f, recharge[i] / (10f * MIN_SPRING_FLOW))
+            val p = cellKm2 / SPRING_KM2 * 3f * flow * (0.2f + foothill + fault + karst)
+            if (r.nextFloat() < p) {
+                spring[i] = true
+                oasis[i] = aridity < 0.3f && recharge[i] > 10f * MIN_SPRING_FLOW
+            }
+        }
+    }
+
+    /**
      * Updates [wetness] and the distance to drinking water. Fresh water: flowing rivers and creeks,
      * open (not salt) lakes, floodwater, and the pools and seeps of very wet ground that is not
      * frozen. In the wet season water is everywhere; in the dry season herds gather at rivers and
@@ -185,9 +229,11 @@ class Ecology(private val sim: Simulation) {
                 world.floodplain.isFloodplain[i] -> max(0.6f, ground)
                 else -> ground
             }.coerceIn(0f, 1f)
+            if (oasis[i]) wetness[i] = max(wetness[i], 0.9f) else if (spring[i]) wetness[i] = max(wetness[i], 0.6f)
             val lake = world.water.isLake(i)
-            val pools = wetness[i] >= POOL_WETNESS && sim.weather.temperature[i] > 0f
-            val fresh = (lake && !world.water.lakeClosed[i]) || (!lake && sim.water.discharge[i] >= 0.1f) || sim.water.flood[i] > 0f || pools
+            val thawed = sim.weather.temperature[i] > 0f
+            val pools = wetness[i] >= POOL_WETNESS && thawed
+            val fresh = (lake && !world.water.lakeClosed[i]) || (!lake && sim.water.discharge[i] >= 0.1f) || sim.water.flood[i] > 0f || pools || (spring[i] && thawed)
             waterKm[i] = if (fresh) 0f else big
         }
         val d1 = cellKm; val d2 = cellKm * 1.4142f
@@ -417,6 +463,36 @@ class Ecology(private val sim: Simulation) {
         // A herd that sees wolves close by runs; in cover it may not see them in time.
         val threatened = !carnivore && nearest(predator, g.x, g.y, 2f * s.flightKm).let { (w, km) -> w != null && visible(here, cellOf(w), km) }
         val budget = if (threatened) s.maxDailyTravelKm / 3f else s.dailyTravelKm
+        val policy = policies.getValue(s)
+        gather(g, budget, sc)
+        var choice = policy.choose(g, sc.options)
+        // Grazing herds drift a few km a day. Where a day's drift finds neither enough food nor, for a
+        // thirsty herd, water, they set off on a march instead: many times as far, eating little on
+        // the way, day after day until they reach better ground, as herds cross a dry plain.
+        g.marching = false
+        if (!carnivore && !threatened && mustMarch(g, sc.options[choice])) {
+            gather(g, MARCH_SHARE * s.maxDailyTravelKm, sc)
+            choice = policy.choose(g, sc.options)
+            g.marching = choice != 0 && sc.options[choice].cell >= 0
+        }
+        if (sc.options[choice].cell < 0 || choice == 0) { planX[slot] = Double.NaN; return }
+        planX[slot] = sc.tx[choice]; planY[slot] = sc.ty[choice]
+    }
+
+    /** Whether the best place within an ordinary day's walk still leaves [g] hungry or thirsty. */
+    private fun mustMarch(g: AnimalGroup, best: Option): Boolean {
+        if (best.cell < 0) return true
+        val s = g.species
+        val thirsty = g.daysWithoutWater >= s.daysWithoutWater - 1
+        // Food within grazing reach (3 x 3 cells) far short of a day's need, or no water within reach today.
+        return best.forage * 9f * cellKm2 < MARCH_FOOD * g.dailyNeedKg || (thirsty && best.waterKm > s.dailyTravelKm)
+    }
+
+    /** Fills [sc] with the stay option and eight directions walked with effort [budget]. */
+    private fun gather(g: AnimalGroup, budget: Float, sc: Scratch) {
+        val s = g.species
+        val carnivore = s.carnivore
+        val predator = Catalogue.WOLF
         // Others the group can perceive around today's possible destinations, gathered once.
         val others = if (carnivore) Catalogue.herbivores else Catalogue.predators
         val radius = if (carnivore) s.senseKm else 3f
@@ -446,9 +522,6 @@ class Ecology(private val sim: Simulation) {
             val kin = scentAt(s, x, y, 3f * s.groupSize) * if (k < 0) 0.5f else 1f // own scent counts less where it stands
             options += Option(cell, km, forage, danger, preySig, kin, waterKm[cell], sim.weather.snowpack[cell], cover(cell), terrain.ruggedness[cell], wetness[cell])
         }
-        val choice = policies.getValue(s).choose(g, options)
-        if (options[choice].cell < 0 || choice == 0) { planX[slot] = Double.NaN; return }
-        planX[slot] = tx[choice]; planY[slot] = ty[choice]
     }
 
     /** Moves [g] to (x, y), trampling the cells along the way: repeated, the passage wears a trail. */
@@ -467,7 +540,8 @@ class Ecology(private val sim: Simulation) {
     private fun graze(g: AnimalGroup) {
         val s = g.species
         val c = cellOf(g)
-        val want = g.dailyNeedKg
+        // On the march they snatch a few mouthfuls on the way.
+        val want = g.dailyNeedKg * if (g.marching) MARCH_APPETITE else 1f
         var got = 0f
         if (sim.weather.snowpack[c] <= s.snowLimitMm) {
             val total = plantDiet(s)
@@ -481,10 +555,12 @@ class Ecology(private val sim: Simulation) {
                 got += 0.5f * (if (s.diet.grass >= s.diet.browse) eat(c, browse, short, LifeForm.SHRUB) else eat(c, graze, short, LifeForm.HERB))
             }
             val fresh = got
-            if (got < want) got += roughage(c, want - got, roughageValue(s))
+            // The stomach holds only so much: coarse food fills it before it nourishes.
+            val value = roughageValue(s)
+            if (got < want) got += roughage(c, min(want - got, max(0f, GUT_FILL * want - fresh) * value), value)
             g.freshShare = if (got > 0f) fresh / got else 0f
         } else g.freshShare = 0f
-        feed(g, min(1f, got / want))
+        feed(g, min(1f, got / g.dailyNeedKg))
     }
 
     /**
@@ -508,7 +584,7 @@ class Ecology(private val sim: Simulation) {
      * food longer and digests fibre better, while a small animal's high metabolism needs rich food.
      * Aurochs and wild asses live through the dry season on straw that starves a gazelle.
      */
-    private fun roughageValue(s: Species) = (ROUGHAGE_VALUE * (s.massKg / 100f).pow(0.25f)).coerceAtMost(0.75f)
+    private fun roughageValue(s: Species) = (ROUGHAGE_VALUE * s.fibreDigestion * (s.massKg / 100f).pow(0.25f)).coerceAtMost(0.75f)
 
     /** Eats up to [kg] from [stock] over the 3 x 3 cells around [c], taking it from plants of [form]; returns kg eaten. */
     private fun eat(c: Int, stock: FloatArray, kg: Float, form: LifeForm?): Float {
@@ -681,7 +757,7 @@ class Ecology(private val sim: Simulation) {
             // Young die twice as often, and far more when the group is hungry: for wolves, pup
             // survival is what tracks the food supply.
             val hunger = ((0.5f - g.condition) / 0.3f).coerceIn(0f, 1f)
-            val pYoung = min(1f, pAdult + s.backgroundMortality * years + 0.1f * hunger)
+            val pYoung = min(1f, pAdult + s.youngMortality * years + 0.1f * hunger)
             val deadA = binomial(g.adults, pAdult)
             val deadY = binomial(g.young, pYoung)
             if (deadA + deadY > 0) {
@@ -739,6 +815,8 @@ class Ecology(private val sim: Simulation) {
         const val ROOTS_SHARE = 0.0003f
         /** Nourishment of dead grass and twigs relative to fresh growth, for a 100 kg animal. */
         const val ROUGHAGE_VALUE = 0.4f
+        /** Most a herbivore can eat in a day, as a multiple of its daily need: coarse food fills the gut before it nourishes. */
+        const val GUT_FILL = 1.5f
         /** Days for dug-up roots and mast to be replaced. */
         const val ROOTS_DAYS = 180f
         /** Distance at which a pack can stalk and chase a herd it has found, km. */
@@ -749,6 +827,18 @@ class Ecology(private val sim: Simulation) {
         private val SIN = DoubleArray(8) { kotlin.math.sin(it * Math.PI / 4) }
         /** Ground wetter than this has rain pools, seeps or springs to drink from (when not frozen). */
         const val POOL_WETNESS = 0.8f
+        /** A march covers this share of a species' longest day's travel, day after day. */
+        const val MARCH_SHARE = 0.6f
+        /** Share of its daily food a marching herd eats on the way. */
+        const val MARCH_APPETITE = 0.3f
+        /** A herd marches when the food within reach covers less than this share of a day's need. */
+        const val MARCH_FOOD = 0.3f
+        /** Share of runoff that sinks in and flows on underground. */
+        const val GROUND_SHARE = 0.3f
+        /** Groundwater flow below a cell that can feed a spring, m³/yr (about a litre a second). */
+        const val MIN_SPRING_FLOW = 3e4f
+        /** Dry country per spring or water hole where groundwater is ample, km². */
+        const val SPRING_KM2 = 150f
         /** Days a herd stays watchful after an attack. */
         const val ALERT_DAYS = 5
     }
