@@ -18,12 +18,24 @@ enum class Layer(val label: String) {
     RIVER_FLOW("River flow vs normal (live)"),
     GEOLOGY("Rock"),
     SEDIMENT("Sediment thickness"),
+    RUGGEDNESS("Ruggedness"),
+    TRAVEL_COST("Travel effort (live)"),
+    VISIBILITY("Visibility on the ground (live)"),
+    VIEWSHED("View from each place"),
+    DEFENSIBILITY("Defensibility"),
+    GRAZING("Grazing: palatable young growth (live)"),
+    PLANKTON("Plankton (live)"),
+    FISH("Fish, shellfish and spawning runs (live)"),
+    INSECTS("Plant-eating insects (live)"),
+    RODENTS("Rodents and small mammals (live)"),
+    SOIL_LIFE("Soil: litter and organic matter (live)"),
 }
 
 /** Turns simulation state into pixels, one per cell. */
 class LayerPainter(private val sim: Simulation) {
     private val world = sim.world
     private val n = world.grid.size
+    private val t = world.terrain
     private val terrain = IntArray(n) { shadedLand(it) }
     private val biomes = IntArray(n) { Render.withRivers(world, it, Render.shade(world, it, world.biome[it].rgb)) }
     private val geology = IntArray(n) { Render.withRivers(world, it, Render.shade(world, it, Render.rockColour(world.geology.rock[it], world.isSea[it]))) }
@@ -40,7 +52,34 @@ class LayerPainter(private val sim: Simulation) {
             Layer.PRECIPITATION -> for (i in 0 until n) out[i] = Render.ramp(ln(1 + sim.weather.precipitation[i]), 0f, ln(1 + 150f), Render.DRY_WET)
             Layer.SOIL_MOISTURE -> for (i in 0 until n) out[i] = if (world.isSea[i]) SEA else Render.ramp(sim.water.soil[i], 0f, 150f, Render.DRY_WET)
             Layer.RIVER_FLOW -> for (i in 0 until n) out[i] = flow(i)
+            Layer.RUGGEDNESS -> live(out) { Render.shade(world, it, Render.ramp(t.ruggedness[it], 0f, 1f, RUGGED)) }
+            Layer.TRAVEL_COST -> live(out) { Render.ramp(ln(t.travelCost(it, sim.vegetation, sim.weather.snowpack[it])), 0f, ln(20f), EASY_HARD) }
+            Layer.VISIBILITY -> live(out) { Render.ramp(ln(t.sightKm(it, sim.vegetation) * 20f), 0f, ln(20f * 10f), BLIND_CLEAR) }
+            Layer.VIEWSHED -> live(out) { Render.shade(world, it, Render.ramp(ln(1 + t.viewAreaKm2[it]), 0f, ln(1 + 2000f), BLIND_CLEAR)) }
+            Layer.DEFENSIBILITY -> live(out) { Render.shade(world, it, Render.ramp(t.defensibility[it], 0f, 1f, RUGGED)) }
+            Layer.GRAZING -> live(out) { Render.ramp(sim.ecology.palatable[it], 0f, 250f, FAUNA) }
+            Layer.PLANKTON -> for (i in 0 until n) out[i] =
+                if (sim.ecology.plankton.isWater[i]) Render.ramp(ln(1 + sim.ecology.plankton.phyto[i]), 0f, ln(1 + 15f), PLANKTON) else terrain[i]
+            Layer.FISH -> for (i in 0 until n) out[i] = fishColour(i)
+            Layer.INSECTS -> live(out) { Render.ramp(ln(1 + sim.ecology.small.insects[it]), 0f, ln(1 + 3000f), FAUNA) }
+            Layer.RODENTS -> live(out) { Render.ramp(sim.ecology.small.rodents[it], 0f, 500f, FAUNA) }
+            Layer.SOIL_LIFE -> live(out) { Render.ramp(sim.ecology.soil.organicMatter[it] + sim.ecology.soil.litter[it], 0f, 10f, SOIL) }
         }
+    }
+
+    private fun fishColour(i: Int): Int {
+        val f = sim.ecology.fish
+        return when {
+            f.run[i] > 1f -> Render.ramp(ln(1 + f.run[i]), 0f, ln(1 + 4000f), RUN)
+            f.shellfish[i] > 100f -> Render.ramp(f.shellfish[i], 0f, 20000f, SHELL)
+            f.fish[i] > 0f -> Render.ramp(ln(1 + f.fish[i]), 0f, ln(1 + 6000f), PLANKTON)
+            else -> if (sim.vegetation.isVegetated(i)) Render.lerp(terrain[i], 0x808080, 0.5f) else terrain[i]
+        }
+    }
+
+    /** Paints land cells with [colour] and water as it looks on the terrain map. */
+    private inline fun live(out: IntArray, colour: (Int) -> Int) {
+        for (i in 0 until n) out[i] = if (sim.vegetation.isVegetated(i)) colour(i) else terrain[i]
     }
 
     private fun shadedLand(i: Int): Int {
@@ -101,6 +140,14 @@ class LayerPainter(private val sim: Simulation) {
     companion object {
         const val SEA = 0x1f3f6f
         private val SEDIMENT = intArrayOf(0x606060, 0xc8b88a, 0xe8d8a0, 0xffffe0)
+        private val RUGGED = intArrayOf(0xf0ecd8, 0xd8c890, 0xb07840, 0x703020, 0x301010)
+        private val EASY_HARD = intArrayOf(0xf0f0d0, 0xe0c060, 0xc06030, 0x802020, 0x200808)
+        private val BLIND_CLEAR = intArrayOf(0x102010, 0x305030, 0x80a060, 0xd0e0a0, 0xffffff)
+        private val FAUNA = intArrayOf(0x202020, 0x604080, 0xc06040, 0xf0d040, 0xffffc0)
+        private val RUN = intArrayOf(0x804000, 0xff8000, 0xffff40)
+        private val SHELL = intArrayOf(0x606080, 0xc080c0, 0xffd0ff)
+        private val PLANKTON = intArrayOf(0x0a1a40, 0x1f3f6f, 0x2f7f7f, 0x5fbf5f, 0xbfef6f)
+        private val SOIL = intArrayOf(0xe8d8a8, 0xb08850, 0x704020, 0x301808)
         private val LOW_HIGH = intArrayOf(0xb03020, 0xe0a060, 0xf0f0f0, 0x60a0e0, 0x1030b0)
     }
 }

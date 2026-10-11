@@ -19,6 +19,9 @@ class World(
     val biome: Array<Biome>,
     val soilFertility: FloatArray,
 ) {
+    /** Ruggedness, travel cost, visibility and defensibility; computed on first use. */
+    val terrain: Terrain by lazy { Terrain(this) }
+
     fun latitude(i: Int): Double = climate.latitude[grid.y(i)]
     fun isRiver(i: Int): Boolean = !isSea[i] && !water.isLake(i) && water.discharge[i] >= SurfaceWater.RIVER_THRESHOLD
     fun riverClass(i: Int): RiverClass = if (isSea[i] || water.isLake(i)) RiverClass.NONE else RiverClass.of(water.discharge[i])

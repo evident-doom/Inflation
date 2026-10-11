@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.ecology.Ecology
+
 /**
  * The living world over time: weather, rivers and floods, eruptions and vegetation, advanced
  * together one step ([WorldConfig.daysPerStep] days) at a time.
@@ -9,6 +11,8 @@ class Simulation(val world: World) {
     val water = LiveWater(world)
     val eruptions = Eruptions(world.grid, world.volcanoes, world.config.seed)
     val vegetation = Vegetation(world, world.config.seed)
+    /** Animals, from plankton to wolves. */
+    val ecology = Ecology(this)
     /** Notable events, newest last, as readable lines. */
     val log = ArrayList<String>()
     private var knownEvents = 0
@@ -24,6 +28,12 @@ class Simulation(val world: World) {
         }
         water.step(weather)
         vegetation.step(weather, water, eruptions.ash)
+        ecology.step()
+        if (stepDate.dayOfYear < world.config.daysPerStep) {
+            val c = inflation.ecology.Catalogue
+            log += "$stepDate: ${ecology.count(c.GAZELLE)} gazelles in ${ecology.groupCount(c.GAZELLE)} herds, " +
+                "${ecology.count(c.WOLF)} wolves in ${ecology.groupCount(c.WOLF)} packs"
+        }
         while (knownEvents < weather.events.size) {
             val e = weather.events[knownEvents++]
             val years = (e.endDay - e.startDay) / Date.DAYS_PER_YEAR.toDouble()

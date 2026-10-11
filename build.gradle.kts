@@ -36,3 +36,12 @@ tasks.test {
     useJUnitPlatform()
     maxHeapSize = "4g"
 }
+
+tasks.register<JavaExec>("fauna") {
+    description = "Runs the living world for some years and prints animal populations."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.ecology.FaunaReportKt")
+    maxHeapSize = "6g"
+    args = (project.findProperty("faunaArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
