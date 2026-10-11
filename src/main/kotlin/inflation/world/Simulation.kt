@@ -19,20 +19,24 @@ class Simulation(val world: World) {
 
     val date: Date get() = weather.date
 
+    /** Nanoseconds spent in weather, eruptions, water, vegetation and ecology, summed over all steps. */
+    val timings = LongArray(5)
+
     fun step() {
         val stepDate = weather.date
-        weather.step()
+        var t = System.nanoTime()
+        fun lap(k: Int) { val now = System.nanoTime(); timings[k] += now - t; t = now }
+        weather.step(); lap(0)
         for (e in eruptions.step(stepDate, world.config.daysPerStep)) {
             weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
             log += "$stepDate: ${e.volcano.kind.name.lowercase().replace('_', ' ')} volcano at (${e.volcano.x}, ${e.volcano.y}) erupts, VEI ${e.vei}"
         }
-        water.step(weather)
-        vegetation.step(weather, water, eruptions.ash)
-        ecology.step()
+        lap(1)
+        water.step(weather); lap(2)
+        vegetation.step(weather, water, eruptions.ash); lap(3)
+        ecology.step(); lap(4)
         if (stepDate.dayOfYear < world.config.daysPerStep) {
-            val c = inflation.ecology.Catalogue
-            log += "$stepDate: ${ecology.count(c.GAZELLE)} gazelles in ${ecology.groupCount(c.GAZELLE)} herds, " +
-                "${ecology.count(c.WOLF)} wolves in ${ecology.groupCount(c.WOLF)} packs"
+            log += "$stepDate: ${ecology.census()}"
         }
         while (knownEvents < weather.events.size) {
             val e = weather.events[knownEvents++]

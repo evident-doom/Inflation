@@ -105,7 +105,7 @@ class Vegetation(private val world: World, seed: Long) {
      * Returns what was actually taken.
      */
     fun consume(i: Int, form: LifeForm, kgPerM2: Float): Float {
-        val b = forms.getValue(form)
+        val b = when (form) { LifeForm.HERB -> herb; LifeForm.SHRUB -> shrub; LifeForm.TREE -> tree }
         val taken = min(b[i], max(0f, kgPerM2))
         b[i] -= taken
         return taken

@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.world.Simulation
 import inflation.world.World
 import inflation.world.WorldConfig
+import kotlin.math.max
 
 /**
  * Runs the living world for some years and prints the animal populations each season.
@@ -27,29 +28,31 @@ fun main(args: Array<String>) {
     val e = sim.ecology
     val land = (0 until world.grid.size).count { sim.vegetation.isVegetated(it) } * world.grid.cellKm * world.grid.cellKm
     println("land %.0f km²".format(land))
-    println("date (cond = mean gazelle condition, fed = mean share of food need met)")
-    println("date                          gazelle  herds   wolf packs  kills/season  rodents kg/km²  insects kg/km²  plankton g/m²  litter kg/m²  carrion t  cond  fed  wolfcond herb")
+    println("%-28s ".format("date") + Catalogue.all.joinToString(" ") { "%9s".format(it.name.take(9)) } + "  kills  fish t/km² shellfish run t")
     val stepsPerSeason = 90 / cfg.daysPerStep
     var kills = 0
     val t0 = System.nanoTime()
+    val water = (0 until world.grid.size).filter { e.plankton.isWater[it] }
     repeat(years * 4) {
         repeat(stepsPerSeason) { sim.step(); kills += e.kills }
-        val veg = (0 until world.grid.size).filter { sim.vegetation.isVegetated(it) }
-        val water = (0 until world.grid.size).filter { e.plankton.isWater[it] }
-        println("%-28s %8d %6d %6d %5d %13d %15.0f %15.0f %14.2f %13.2f %10.1f %5.2f %4.2f %5.2f %5.3f".format(
-            sim.date.toString(), e.count(Catalogue.GAZELLE), e.groupCount(Catalogue.GAZELLE),
-            e.count(Catalogue.WOLF), e.groupCount(Catalogue.WOLF), kills,
-            veg.sumOf { e.small.rodents[it].toDouble() } / veg.size, veg.sumOf { e.small.insects[it].toDouble() } / veg.size,
-            water.sumOf { e.plankton.phyto[it].toDouble() } / water.size, veg.sumOf { e.soil.litter[it].toDouble() } / veg.size,
-            veg.sumOf { e.soil.carrion[it].toDouble() } * world.grid.cellAreaM2 / 1000,
-            mean(e, Catalogue.GAZELLE) { it.condition }, mean(e, Catalogue.GAZELLE) { it.lastIntakeRatio }, mean(e, Catalogue.WOLF) { it.condition }, veg.sumOf { sim.vegetation.herb[it].toDouble() } / veg.size))
+        println("%-28s ".format(sim.date.toString()) + Catalogue.all.joinToString(" ") { "%9d".format(e.count(it)) } +
+            " %6d %11.2f %9.1f %5.0f".format(kills, water.sumOf { e.fish.fish[it].toDouble() } / water.size / 1000,
+                e.fish.shellfish.sumOf { it.toDouble() } / 1e6, e.fish.run.sumOf { it.toDouble() } / 1000))
         kills = 0
+        if (System.getenv("FAUNA_DETAIL") != null) {
+            println("   kills  " + Catalogue.herbivores.joinToString(" ") { "%9d".format(e.killsBy[it] ?: 0) })
+            println("   cond   " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(if (gs.isEmpty()) 0f else gs.map { it.condition }.average().toFloat()) })
+            println("   young% " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(gs.sumOf { it.young }.toFloat() / max(1, gs.sumOf { it.size })) })
+            val cells = (0 until world.grid.size).filter { sim.vegetation.isVegetated(it) }
+            println("   water  land with drinking water %.0f%%, within 5 km %.0f%%, mean wetness %.2f".format(
+                100f * cells.count { e.waterKm[it] == 0f } / cells.size, 100f * cells.count { e.waterKm[it] <= 5f } / cells.size,
+                cells.map { e.wetness[it] }.average()))
+            println("   deaths " + e.deathsBy.entries.sortedByDescending { it.value }.filter { System.getenv("FAUNA_SPECIES")?.let { s -> it.key.startsWith(s) } ?: true }.take(12).joinToString { "${it.key} ${it.value}" })
+            e.killsBy.clear(); e.deathsBy.clear()
+        }
     }
     println("%.0f ms per step".format((System.nanoTime() - t0) / 1e6 / (years * 4 * stepsPerSeason)))
-    sim.log.filter { "gazelles" !in it }.takeLast(10).forEach(::println)
-}
-
-private fun mean(e: Ecology, s: Species, f: (AnimalGroup) -> Float): Float {
-    val gs = e.groups.filter { it.species == s }
-    return if (gs.isEmpty()) 0f else gs.sumOf { f(it).toDouble() * it.size }.toFloat() / gs.sumOf { it.size }
+    println("time: " + listOf("weather", "eruptions", "water", "vegetation", "ecology").zip(sim.timings.toList())
+        .joinToString { (k, ns) -> "%s %.0f ms".format(k, ns / 1e6 / (years * 4 * stepsPerSeason)) } + " per step")
+    sim.log.filter { "wolf" !in it }.takeLast(10).forEach(::println)
 }

@@ -14,7 +14,10 @@ class AnimalGroup(
 ) {
     /** Fat reserves and health, 0..1. Below about 0.2 animals start to die of hunger. */
     var condition = 0.7f
-    var daysWithoutWater = 0
+    /** Days' worth of water the group is short of: drinking resets it, moist food slows its rise. */
+    var daysWithoutWater = 0f
+    /** Share of yesterday's food that was fresh and moist (green growth, roots, meat) rather than dry. */
+    var freshShare = 1f
     /** Days the group stays on alert after being attacked: watchful, skittish and hard to approach. */
     var alert = 0
     /** Meat a pack has killed but not yet eaten, kg. */
@@ -52,6 +55,10 @@ class Option(
     val snowMm: Float,
     /** How well broken ground and plants hide things there, 0 (open plain) to 1 (thicket, forest, lava). */
     val cover: Float,
+    /** Terrain ruggedness there, 0..1. */
+    val rugged: Float,
+    /** Wetness there, 0 (dry upland) to 1 (marsh, floodplain). */
+    val wet: Float,
 )
 
 /** Chooses where a group goes today. Implementations: [BaselinePolicy]; learned networks later. */
@@ -62,10 +69,13 @@ fun interface Policy {
 
 /**
  * Hand-written behaviour to calibrate the ecology against and for learned policies to beat:
- * herbivores go to the best forage within reach, away from predators, cover and deep snow, and
- * head for water when thirsty; predators follow the smell of prey.
+ * herbivores go to the best forage within reach on the kind of ground they favour, away from
+ * predators and deep snow, and head for water when thirsty; predators follow the smell of prey.
  */
-class BaselinePolicy(private val noise: () -> Float) : Policy {
+class BaselinePolicy(
+    /** Random noise in -0.5..0.5 for [group] and option [k], so ties break and herds spread out. */
+    private val noise: (group: AnimalGroup, k: Int) -> Float,
+) : Policy {
     override fun choose(group: AnimalGroup, options: List<Option>): Int {
         val s = group.species
         val thirsty = group.daysWithoutWater >= s.daysWithoutWater - 1
@@ -73,13 +83,19 @@ class BaselinePolicy(private val noise: () -> Float) : Policy {
         var best = 0; var bestScore = Float.NEGATIVE_INFINITY
         for ((k, o) in options.withIndex()) {
             if (o.cell < 0) continue
+            val h = s.habitat
             var score = if (carnivore) 2f * o.prey + 0.2f * o.forage / (o.forage + 100f) - 1.5f * o.kin
-                // Gazelles keep to open ground, where they see a predator coming.
-                else o.forage / (o.forage + 50f) - 3f * o.danger - 0.3f * o.kin - 0.3f * o.cover
+                // Each kind keeps to its own ground: gazelles open plains, ibex cliffs, boar thickets.
+                // Big, well-armed animals fear predators less.
+                else o.forage / (o.forage + 50f) - 3f * (1f - s.defence) * o.danger - 0.3f * o.kin +
+                    0.3f * (h.cover * o.cover + h.rugged * o.rugged + h.wet * o.wet)
             if (o.snowMm > s.snowLimitMm) score -= 1f
+            // Keep within a few days' walk of water, more so the longer since the last drink.
+            val urgency = group.daysWithoutWater / s.daysWithoutWater
+            score -= (0.02f + 0.3f * urgency) * o.waterKm / s.dailyTravelKm
             if (thirsty) score -= 0.2f * o.waterKm
             score -= 0.01f * o.km // moving costs energy
-            score += 0.05f * noise()
+            score += 0.05f * noise(group, k)
             if (score > bestScore) { bestScore = score; best = k }
         }
         return best

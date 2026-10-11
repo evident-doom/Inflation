@@ -8,16 +8,18 @@ import kotlin.math.ceil
 import kotlin.math.sqrt
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.random.Random
 
 /**
  * Animal life on top of the vegetation: plankton, soil life and small fauna as fields, and large
  * animals as groups that decide where to go each day (several days per world step).
  *
- * Herbivores eat from [palatable]: the young, nutritious part of the plants that they select,
- * which regrows over about a month. Standing biomass is far larger than what grazers can use;
- * this stock is what limits them. Its size per unit of plant biomass ([PALATABLE_SHARE]) is a
- * calibration constant, chosen so that grazer densities settle near Damuth's rule.
+ * Herbivores eat from [graze] (young grass and herbs) and [browse] (shoots and leaves of shrubs
+ * and low trees; for boar also roots and mast), in the shares of their diet: the nutritious part
+ * of the plants that they select, which regrows over about a month. Standing biomass is far
+ * larger than what herbivores can use; these stocks are what limit them. Their size per unit of
+ * plant biomass ([PALATABLE_SHARE]) is a calibration constant.
  */
 class Ecology(private val sim: Simulation) {
     private val world = sim.world
@@ -34,10 +36,23 @@ class Ecology(private val sim: Simulation) {
     val small = SmallFauna(sim)
     val fish = Fish(sim, plankton)
 
-    /** Edible young plant growth, kg per km². */
-    val palatable = FloatArray(n)
-    /** Distance to drinkable fresh water, km. */
+    /** Edible young grass and herbs, kg per km². */
+    val graze = FloatArray(n)
+    /** Edible shoots and leaves of shrubs and low trees, kg per km². */
+    val browse = FloatArray(n)
+    /** Bulbs, roots and fallen mast that rooting animals dig up, kg per km²; slow to replace. */
+    val roots = FloatArray(n)
+    /**
+     * How wet the ground is now, 0 (parched) to 1 (marsh, standing water): from soil moisture,
+     * recent rain, shade, floodwater and wetland. Animals get dew and moisture from plants on wet
+     * ground; very wet ground has rain pools, seeps and springs to drink from.
+     */
+    val wetness = FloatArray(n)
+    /** Distance to drinkable fresh water now (rivers, fresh lakes, floodwater, pools and seeps), km. */
     val waterKm = FloatArray(n)
+    /** [inflation.world.Terrain.concealmentKm] and [Terrain.sightKm] for this step: plants change only between steps. */
+    private val concealKm = FloatArray(n)
+    private val sightKm = FloatArray(n)
 
     val groups = ArrayList<AnimalGroup>()
     val policies = HashMap<Species, Policy>()
@@ -48,27 +63,34 @@ class Ecology(private val sim: Simulation) {
     var kills = 0; private set
     var births = 0; private set
     var deaths = 0; private set
+    /** Kills by prey species since the counter was last cleared. */
+    val killsBy = HashMap<Species, Int>()
+    /** Deaths other than predation, by "species:cause", since last cleared. */
+    val deathsBy = HashMap<String, Int>()
 
     // Coarse scent grids: each species leaves scent where it goes; it fades within days.
     private val scentKm = 4f
     private val sw = ceil(grid.width * cellKm / scentKm).toInt()
     private val sh = ceil(grid.height * cellKm / scentKm).toInt()
-    private val scent = HashMap<Species, FloatArray>()
+    private val scent = Array(Catalogue.all.size) { FloatArray(sw * sh) }
 
     // Spatial buckets per species, rebuilt each day, for finding nearby groups.
     private val bucketKm = 8f
     private val bw = ceil(grid.width * cellKm / bucketKm).toInt()
     private val bh = ceil(grid.height * cellKm / bucketKm).toInt()
-    private val buckets = HashMap<Species, Array<ArrayList<AnimalGroup>>>()
+    private val buckets = Array(Catalogue.all.size) { Array(bw * bh) { ArrayList<AnimalGroup>() } }
 
     init {
         for (s in Catalogue.all) {
-            scent[s] = FloatArray(sw * sh)
-            buckets[s] = Array(bw * bh) { ArrayList() }
-            policies[s] = BaselinePolicy { rnd.nextFloat() - 0.5f }
+            policies[s] = BaselinePolicy(::noise)
         }
-        for (i in 0 until n) if (sim.vegetation.isVegetated(i)) palatable[i] = palatableCap(i) * 0.7f
+        for (i in 0 until n) if (sim.vegetation.isVegetated(i)) {
+            graze[i] = PALATABLE_SHARE * 1e6f * sim.vegetation.herb[i] * 0.7f
+            browse[i] = PALATABLE_SHARE * 1e6f * woody(i) * 0.7f
+            roots[i] = rootsCap(i) * 0.7f
+        }
         updateWater()
+        updateSight()
         populate()
     }
 
@@ -79,43 +101,93 @@ class Ecology(private val sim: Simulation) {
         soil.step()
         small.step()
         regrow()
-        if (stepCount++ % 5 == 0) updateWater()
+        stepCount++
+        updateWater()
+        updateSight()
         repeat(days) { day() }
         demography()
         groups.removeAll { !it.alive }
     }
 
     fun count(s: Species) = groups.filter { it.species == s }.sumOf { it.size }
+
+    /** One line: animals of each species, for logs. */
+    fun census() = Catalogue.all.joinToString(", ") { "${count(it)} ${it.name}" }
     fun groupCount(s: Species) = groups.count { it.species == s }
 
     // ---------------------------------------------------------------- plants as food
 
-    /** Palatable growth produced per day at [i], kg/km²: green, growing herbs and shrub shoots. */
-    private fun palatableProduction(i: Int): Float {
-        val v = sim.vegetation
-        val t = sim.weather.temperature[i]
-        val green = ((t - 2f) / 10f).coerceIn(0f, 1f) * (sim.water.soil[i] / 60f).coerceIn(0.1f, 1f)
-        return PALATABLE_SHARE * 1e6f * (v.herb[i] + 0.3f * v.shrub[i]) * green / REGROWTH_DAYS
-    }
+    /** Browse within reach of a deer: shrubs and the lowest branches of trees, kg/m². */
+    private fun woody(i: Int) = 0.3f * sim.vegetation.shrub[i] + 0.02f * sim.vegetation.tree[i]
 
-    private fun palatableCap(i: Int) = PALATABLE_SHARE * 1e6f * (sim.vegetation.herb[i] + 0.3f * sim.vegetation.shrub[i])
-
+    /**
+     * Grass and herbs grow only when it is warm and moist enough; evergreen scrub and trees keep
+     * some browse through the dry summer and the winter.
+     */
     private fun regrow() {
         val v = sim.vegetation
         for (i in 0 until n) {
-            if (!v.isVegetated(i)) { palatable[i] = 0f; continue }
-            palatable[i] = max(0f, palatable[i] + days * (palatableProduction(i) - palatable[i] / REGROWTH_DAYS))
+            if (!v.isVegetated(i)) { graze[i] = 0f; browse[i] = 0f; continue }
+            val t = sim.weather.temperature[i]
+            val warm = ((t - 2f) / 10f).coerceIn(0f, 1f)
+            val wet = (sim.water.soil[i] / 60f).coerceIn(0.1f, 1f)
+            val g = PALATABLE_SHARE * 1e6f * v.herb[i] * warm * wet / REGROWTH_DAYS
+            val b = PALATABLE_SHARE * 1e6f * woody(i) * max(0.3f, warm) * max(0.5f, wet) / REGROWTH_DAYS
+            graze[i] = max(0f, graze[i] + days * (g - graze[i] / REGROWTH_DAYS))
+            browse[i] = max(0f, browse[i] + days * (b - browse[i] / REGROWTH_DAYS))
+            val autumn = sim.weather.date.month in 6..8
+            val r = rootsCap(i) * (if (autumn) 3f else 0.5f) / ROOTS_DAYS
+            roots[i] = max(0f, roots[i] + days * (r - roots[i] / ROOTS_DAYS))
+        }
+    }
+
+    /**
+     * Bulbs, roots and mast a rooting animal can find, kg/km²: from herbs (geophytes) and trees
+     * (acorns, nuts). Replaced over about a year, with mast falling in autumn.
+     */
+    private fun rootsCap(i: Int) = ROOTS_SHARE * 1e6f * (sim.vegetation.herb[i] + 0.05f * sim.vegetation.tree[i])
+
+    private fun plantDiet(s: Species) = max(1e-3f, s.diet.grass + s.diet.browse + s.diet.roots)
+
+    /** Food for [s] at [i] in the shares of its diet, kg/km². */
+    fun food(s: Species, i: Int) = (s.diet.grass * graze[i] + s.diet.browse * browse[i] + s.diet.roots * roots[i]) / plantDiet(s)
+
+    // ---------------------------------------------------------------- sight
+
+
+    /** Caches [concealKm] and [sightKm] for this step. */
+    private fun updateSight() {
+        val v = sim.vegetation
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            concealKm[i] = terrain.concealmentKm(i, v)
+            sightKm[i] = terrain.sightKm(i, v)
         }
     }
 
     // ---------------------------------------------------------------- water
 
-    /** Fresh water: flowing rivers and creeks, open (not salt) lakes, floodwater. Distance by chamfer transform. */
+    /**
+     * Updates [wetness] and the distance to drinking water. Fresh water: flowing rivers and creeks,
+     * open (not salt) lakes, floodwater, and the pools and seeps of very wet ground that is not
+     * frozen. In the wet season water is everywhere; in the dry season herds gather at rivers and
+     * the few springs. Distance by chamfer transform.
+     */
     private fun updateWater() {
         val big = 1e6f
+        val v = sim.vegetation
         for (i in 0 until n) {
+            if (world.isSea[i]) { wetness[i] = 0f; waterKm[i] = big; continue }
+            val soilWet = sim.water.soil[i] / inflation.world.LiveWater.SOIL_CAPACITY
+            val rain = min(1f, sim.weather.precipitation[i] / days / 3f) // 3 mm a day soaks everything
+            val ground = 0.75f * soilWet + 0.15f * rain + 0.1f * v.canopy(i)
+            wetness[i] = when {
+                isWetland(i) || sim.water.flood[i] > 0f || world.water.isLake(i) -> 1f
+                world.floodplain.isFloodplain[i] -> max(0.6f, ground)
+                else -> ground
+            }.coerceIn(0f, 1f)
             val lake = world.water.isLake(i)
-            val fresh = !world.isSea[i] && ((lake && !world.water.lakeClosed[i]) || (!lake && sim.water.discharge[i] >= 0.1f) || sim.water.flood[i] > 0f)
+            val pools = wetness[i] >= POOL_WETNESS && sim.weather.temperature[i] > 0f
+            val fresh = (lake && !world.water.lakeClosed[i]) || (!lake && sim.water.discharge[i] >= 0.1f) || sim.water.flood[i] > 0f || pools
             waterKm[i] = if (fresh) 0f else big
         }
         val d1 = cellKm; val d2 = cellKm * 1.4142f
@@ -146,30 +218,32 @@ class Ecology(private val sim: Simulation) {
 
     // ---------------------------------------------------------------- initial populations
 
-    private fun suitable(s: Species, i: Int): Boolean {
+    /** How well cell [i] suits species [s] to start in, 0..1, from its food and favoured ground. */
+    private fun suitability(s: Species, i: Int): Float {
         val v = sim.vegetation
-        if (!v.isVegetated(i) || world.elevation[i] > 2000f) return false
-        return when (s) {
-            Catalogue.GAZELLE -> v.canopy(i) < 0.35f && v.herb[i] > 0.1f && !isWetland(i) && waterKm[i] < 15f
-            else -> true
-        }
+        if (!v.isVegetated(i) || world.elevation[i] > 2500f || waterKm[i] > 15f) return 0f
+        val food = ((s.diet.grass * v.herb[i] / 0.3f + s.diet.browse * woody(i) / 0.45f + s.diet.roots * (v.herb[i] + 0.05f * v.tree[i]) / 0.7f) / plantDiet(s)).coerceIn(0f, 1f)
+        val h = s.habitat
+        val ground = 0.5f + h.cover * (cover(i) - 0.5f) + h.rugged * (terrain.ruggedness[i] - 0.3f) * 1.5f + h.wet * (wetness[i] - 0.3f)
+        return food * ground.coerceIn(0f, 1f)
     }
 
     private fun isWetland(i: Int) = world.biome[i].name.let { it == "MARSH" || it == "SWAMP_FOREST" || it == "BOG" || it == "SALT_MARSH" || it == "MANGROVE" }
 
     private fun populate() {
-        val g = Catalogue.GAZELLE
-        val density = 0.3f * Allometry.herbivoreDensityPerKm2(g.massKg)
-        val perCell = density * cellKm2 / g.groupSize
-        var preyKg = 0f
-        for (i in 0 until n) {
-            if (!suitable(g, i) || rnd.nextFloat() >= perCell) continue
-            val group = spawn(g, i, g.groupSize)
-            preyKg += group.biomassKg
+        for (s in Catalogue.herbivores) {
+            // Several species share the plants, so each starts well below its density alone.
+            val perCell = 0.15f * Allometry.herbivoreDensityPerKm2(s.massKg) * cellKm2 / s.groupSize
+            for (i in 0 until n) {
+                val p = perCell * suitability(s, i)
+                if (p <= 0f || rnd.nextFloat() >= p) continue
+                spawn(s, i, s.groupSize)
+            }
         }
         val w = Catalogue.WOLF
-        val packs = (PREDATOR_PER_PREY_KG * preyKg / w.massKg / w.groupSize).toInt()
-        val herds = groups.filter { it.species == g }
+        val land = (0 until n).count { sim.vegetation.isVegetated(it) } * cellKm2
+        val packs = (land / KM2_PER_WOLF / w.groupSize).toInt()
+        val herds = groups.toList()
         repeat(min(packs, herds.size)) {
             val h = herds[rnd.nextInt(herds.size)]
             spawn(w, grid.index(h.x.toInt(), h.y.toInt()), w.groupSize)
@@ -193,26 +267,65 @@ class Ecology(private val sim: Simulation) {
         (y * cellKm / bucketKm).toInt().coerceIn(0, bh - 1) * bw + (x * cellKm / bucketKm).toInt().coerceIn(0, bw - 1)
 
     private fun day() {
-        for ((_, f) in scent) for (k in f.indices) f[k] *= 0.5f
-        for ((_, b) in buckets) for (l in b) l.clear()
+        dayCount++
+        for (f in scent) for (k in f.indices) f[k] *= 0.5f
+        for (b in buckets) for (l in b) l.clear()
         for (g in groups) if (g.alive) {
-            scent.getValue(g.species)[scentIndex(g.x, g.y)] += g.size.toFloat()
-            buckets.getValue(g.species)[bucketIndex(g.x, g.y)] += g
+            scent[g.species.index][scentIndex(g.x, g.y)] += g.size.toFloat()
+            buckets[g.species.index][bucketIndex(g.x, g.y)] += g
         }
-        // Random order each day so no group always moves first.
-        groups.shuffle(rnd)
-        for (g in groups) {
+        // Every group decides where to go from what it perceives at dawn. Deciding only reads the
+        // world, so all groups decide at once, in parallel; then they move, eat and hunt one at a
+        // time in a random order, so no group always goes first.
+        val size = groups.size
+        if (planX.size < size) { planX = DoubleArray(size * 2); planY = DoubleArray(size * 2) }
+        java.util.stream.IntStream.range(0, size).parallel().forEach { k ->
+            val g = groups[k]
+            if (g.alive) plan(g, k, scratch.get()) else planX[k] = Double.NaN
+        }
+        val order = IntArray(size) { it }
+        for (k in size - 1 downTo 1) { val j = rnd.nextInt(k + 1); val t = order[k]; order[k] = order[j]; order[j] = t }
+        val startX = DoubleArray(size) { groups[it].x }; val startY = DoubleArray(size) { groups[it].y }
+        for (k in order) {
+            val g = groups[k]
             if (!g.alive) continue
-            move(g)
+            // A herd that bolted from a pack earlier today has already gone elsewhere.
+            if (!planX[k].isNaN() && g.x == startX[k] && g.y == startY[k]) go(g, planX[k], planY[k])
             if (g.species.carnivore) hunt(g, contested = meet(g)) else graze(g)
             drink(g)
             if (g.alert > 0) g.alert--
         }
     }
 
+    private var dayCount = 0
+    private var planX = DoubleArray(0)
+    private var planY = DoubleArray(0)
+
+    /** Per-thread buffers for [plan]. */
+    private class Scratch {
+        val around = ArrayList<AnimalGroup>()
+        val walkTo = DoubleArray(2)
+        val tx = DoubleArray(9)
+        val ty = DoubleArray(9)
+        val options = ArrayList<Option>(9)
+    }
+    private val scratch = ThreadLocal.withInitial { Scratch() }
+
+    /**
+     * Deterministic noise in -0.5..0.5 for [g]'s option [k] today: a hash of the seed, the day and
+     * the group, so results do not depend on which thread decided for which group.
+     */
+    private fun noise(g: AnimalGroup, k: Int): Float {
+        var h = world.config.seed.toLong() * -0x61c8864680b583ebL + dayCount * 0x9E3779B97F4A7C15uL.toLong() + g.id * 0x632BE59BD9B4E019L + k
+        h = (h xor (h ushr 33)) * -0xae502812aa7333L
+        h = (h xor (h ushr 33)) * -0x3b314601e57a13adL
+        h = h xor (h ushr 33)
+        return (h ushr 40).toFloat() / (1L shl 24).toFloat() - 0.5f
+    }
+
     /** The nearest live group of species [s] to (x, y) within [km], and its distance. */
     private fun nearest(s: Species, x: Double, y: Double, km: Float, except: AnimalGroup? = null): Pair<AnimalGroup?, Float> {
-        val b = buckets.getValue(s)
+        val b = buckets[s.index]
         val bx = (x * cellKm / bucketKm).toInt(); val by = (y * cellKm / bucketKm).toInt()
         val r = ceil(km / bucketKm).toInt()
         var best: AnimalGroup? = null; var bestKm = km
@@ -231,10 +344,14 @@ class Ecology(private val sim: Simulation) {
 
     private fun dist(dx: Double, dy: Double) = sqrt(dx * dx + dy * dy)
 
-    /** Collects into [out] the live groups of species [s] within [km] of (x, y). */
-    private fun within(s: Species, x: Double, y: Double, km: Float, out: ArrayList<AnimalGroup>) {
+    /** Collects into [out] the live groups of any of [species] within [km] of (x, y). */
+    private fun within(species: List<Species>, x: Double, y: Double, km: Float, out: ArrayList<AnimalGroup>) {
         out.clear()
-        val b = buckets.getValue(s)
+        for (s in species) collect(s, x, y, km, out)
+    }
+
+    private fun collect(s: Species, x: Double, y: Double, km: Float, out: ArrayList<AnimalGroup>) {
+        val b = buckets[s.index]
         val bx = (x * cellKm / bucketKm).toInt(); val by = (y * cellKm / bucketKm).toInt()
         val r = ceil(km / bucketKm).toInt()
         val lim = km / cellKm
@@ -242,30 +359,41 @@ class Ecology(private val sim: Simulation) {
             for (o in b[yy * bw + xx]) if (o.alive && dist(o.x - x, o.y - y) < lim) out += o
     }
 
+    /** Scent of all prey at (x, y), weighted by body mass, normalised 0..1. */
+    private fun preyScent(x: Double, y: Double): Float {
+        val k = scentIndex(x, y)
+        var v = 0f
+        for (s in Catalogue.herbivores) v += scent[s.index][k] * s.massKg / 20f
+        return v / (v + 30f)
+    }
+
     private fun scentAt(s: Species, x: Double, y: Double, norm: Float): Float {
-        val v = scent.getValue(s)[scentIndex(x, y)]
+        val v = scent[s.index][scentIndex(x, y)]
         return v / (v + norm)
     }
 
     /** How well the ground and plants at [i] hide things, 0 (seen from 2 km or more) to 1. */
-    private fun cover(i: Int) = 1f - min(1f, terrain.concealmentKm(i, sim.vegetation) / 2f)
+    private fun cover(i: Int) = 1f - min(1f, concealKm[i] / 2f)
 
     /** Whether a group at distance [km] in cell [at] can be seen from cell [from]. */
     private fun visible(from: Int, at: Int, km: Float) =
-        km <= terrain.concealmentKm(at, sim.vegetation) && km <= terrain.sightKm(from, sim.vegetation)
+        km <= concealKm[at] && km <= sightKm[from]
 
     /**
      * Walks from (x, y) in direction [k] until a day's effort [budgetKm] (km of flat open ground)
-     * is spent or water blocks the way. Fills [walkTo] with the end point and returns the effort used.
+     * is spent or water blocks the way. Puts the end point in [walkTo] and returns the effort used.
      */
-    private fun walk(x0: Double, y0: Double, k: Int, budgetKm: Float): Float {
+    private fun walk(s: Species, x0: Double, y0: Double, k: Int, budgetKm: Float, walkTo: DoubleArray): Float {
         var x = x0; var y = y0; var spent = 0f
         val v = sim.vegetation
+        // Deer and boar slip through thickets, ibex climb rock: their favoured ground costs them less.
+        val thicketEase = max(0f, s.habitat.cover) * 0.8f
+        val rockEase = max(0f, s.habitat.rugged) * 0.8f
         while (true) {
             val nx = x + COS[k]; val ny = y + SIN[k]
             if (nx < 0 || ny < 0 || !grid.inBounds(nx.toInt(), ny.toInt())) break
             val c = grid.index(nx.toInt(), ny.toInt())
-            val cost = terrain.travelCost(c, v, sim.weather.snowpack[c]) * cellKm
+            val cost = terrain.travelCost(c, v, sim.weather.snowpack[c], thicketEase, rockEase) * cellKm
             if (!cost.isFinite() || spent + cost > budgetKm) {
                 // Part of a cell: go as far as the remaining effort allows.
                 if (cost.isFinite() && spent < budgetKm) {
@@ -279,48 +407,54 @@ class Ecology(private val sim: Simulation) {
         walkTo[0] = x; walkTo[1] = y
         return spent
     }
-    private val walkTo = DoubleArray(2)
 
-    private fun move(g: AnimalGroup) {
+    /** Chooses where [g] goes today and stores the target in [planX], [planY] at [slot] (NaN to stay put). */
+    private fun plan(g: AnimalGroup, slot: Int, sc: Scratch) {
         val s = g.species
         val carnivore = s.carnivore
         val predator = Catalogue.WOLF
-        val prey = Catalogue.GAZELLE
         val here = cellOf(g)
         // A herd that sees wolves close by runs; in cover it may not see them in time.
         val threatened = !carnivore && nearest(predator, g.x, g.y, 2f * s.flightKm).let { (w, km) -> w != null && visible(here, cellOf(w), km) }
         val budget = if (threatened) s.maxDailyTravelKm / 3f else s.dailyTravelKm
         // Others the group can perceive around today's possible destinations, gathered once.
-        val other = if (carnivore) prey else predator
+        val others = if (carnivore) Catalogue.herbivores else Catalogue.predators
         val radius = if (carnivore) s.senseKm else 3f
-        within(other, g.x, g.y, budget + radius, around)
-        val options = ArrayList<Option>(9)
-        val tx = DoubleArray(9); val ty = DoubleArray(9)
+        val around = sc.around
+        within(others, g.x, g.y, budget + radius, around)
+        val options = sc.options
+        options.clear()
+        val tx = sc.tx; val ty = sc.ty; val walkTo = sc.walkTo
         for (k in -1 until 8) {
-            val km = if (k < 0) { walkTo[0] = g.x; walkTo[1] = g.y; 0f } else walk(g.x, g.y, k, budget)
+            val km = if (k < 0) { walkTo[0] = g.x; walkTo[1] = g.y; 0f } else walk(s, g.x, g.y, k, budget, walkTo)
             val x = walkTo[0]; val y = walkTo[1]
             tx[k + 1] = x; ty[k + 1] = y
             val xi = x.toInt(); val yi = y.toInt()
             val cell = if (x >= 0 && y >= 0 && grid.inBounds(xi, yi) && sim.vegetation.isVegetated(grid.index(xi, yi))) grid.index(xi, yi) else -1
-            if (cell < 0 || (k >= 0 && km == 0f)) { options += Option(-1, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f); continue }
-            val forage = if (carnivore) small.rodents[cell] else palatable[cell]
+            if (cell < 0 || (k >= 0 && km == 0f)) { options += Option(-1, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f); continue }
+            val forage = if (carnivore) small.rodents[cell] else food(s, cell)
             // Sight of the others from there; scent carries regardless of cover.
             var near = radius
+            val sight = sightKm[cell]
             for (o in around) {
                 val d = (dist(o.x - x, o.y - y) * cellKm).toFloat()
-                if (d < near && visible(cell, cellOf(o), d)) near = d
+                if (d < near && d <= sight && d <= concealKm[cellOf(o)]) near = d
             }
             val seen = 1f - near / radius
             val danger = if (carnivore) 0f else max(scentAt(predator, x, y, 6f), seen)
-            val preySig = if (!carnivore) 0f else max(scentAt(prey, x, y, 30f), seen)
+            val preySig = if (!carnivore) 0f else max(preyScent(x, y), seen)
             val kin = scentAt(s, x, y, 3f * s.groupSize) * if (k < 0) 0.5f else 1f // own scent counts less where it stands
-            options += Option(cell, km, forage, danger, preySig, kin, waterKm[cell], sim.weather.snowpack[cell], cover(cell))
+            options += Option(cell, km, forage, danger, preySig, kin, waterKm[cell], sim.weather.snowpack[cell], cover(cell), terrain.ruggedness[cell], wetness[cell])
         }
         val choice = policies.getValue(s).choose(g, options)
-        if (options[choice].cell < 0) return
+        if (options[choice].cell < 0 || choice == 0) { planX[slot] = Double.NaN; return }
+        planX[slot] = tx[choice]; planY[slot] = ty[choice]
+    }
+
+    /** Moves [g] to (x, y), trampling the cells along the way: repeated, the passage wears a trail. */
+    private fun go(g: AnimalGroup, x: Double, y: Double) {
         val from = cellOf(g)
-        g.x = tx[choice]; g.y = ty[choice]
-        // Trampling along the way: a herd crossing a cell beats it down and, repeated, wears a trail.
+        g.x = x; g.y = y
         val to = cellOf(g)
         val steps = max(1, max(abs(grid.x(to) - grid.x(from)), abs(grid.y(to) - grid.y(from))))
         for (t in 0..steps) {
@@ -333,55 +467,107 @@ class Ecology(private val sim: Simulation) {
     private fun graze(g: AnimalGroup) {
         val s = g.species
         val c = cellOf(g)
-        var need = g.dailyNeedKg
-        val want = need
-        val snowBlocked = sim.weather.snowpack[c] > s.snowLimitMm
-        if (!snowBlocked) {
-            // Feed over the 3 x 3 cells around: palatable kg/km² times cell area.
-            val cx = grid.x(c); val cy = grid.y(c)
-            var available = 0f
-            for (dy in -1..1) for (dx in -1..1) if (grid.inBounds(cx + dx, cy + dy)) available += palatable[grid.index(cx + dx, cy + dy)] * cellKm2
-            if (available > 0f) {
-                val share = min(1f, need / available)
-                for (dy in -1..1) for (dx in -1..1) {
-                    if (!grid.inBounds(cx + dx, cy + dy)) continue
-                    val i = grid.index(cx + dx, cy + dy)
-                    val eat = palatable[i] * share
-                    palatable[i] -= eat
-                    val kgPerM2 = (eat * cellKm2 / grid.cellAreaM2).toFloat()
-                    sim.vegetation.consume(i, LifeForm.HERB, kgPerM2 * s.diet.grass / (s.diet.grass + s.diet.browse))
-                    sim.vegetation.consume(i, LifeForm.SHRUB, kgPerM2 * s.diet.browse / (s.diet.grass + s.diet.browse))
-                    need -= eat * cellKm2
-                }
+        val want = g.dailyNeedKg
+        var got = 0f
+        if (sim.weather.snowpack[c] <= s.snowLimitMm) {
+            val total = plantDiet(s)
+            // Each part of the diet from its own stock; a shortfall in one is partly made up from the other.
+            val fromGrass = eat(c, graze, want * s.diet.grass / total, LifeForm.HERB)
+            val fromBrowse = eat(c, browse, want * s.diet.browse / total, LifeForm.SHRUB)
+            val fromRoots = eat(c, roots, want * s.diet.roots / total, null)
+            got = fromGrass + fromBrowse + fromRoots
+            if (got < want) {
+                val short = want - got
+                got += 0.5f * (if (s.diet.grass >= s.diet.browse) eat(c, browse, short, LifeForm.SHRUB) else eat(c, graze, short, LifeForm.HERB))
             }
+            val fresh = got
+            if (got < want) got += roughage(c, want - got, roughageValue(s))
+            g.freshShare = if (got > 0f) fresh / got else 0f
+        } else g.freshShare = 0f
+        feed(g, min(1f, got / want))
+    }
+
+    /**
+     * Winter and dry-season fallback: dead grass, stems and twigs, eaten straight from the standing
+     * plants. Plentiful but poor: it fills the stomach with [value] of the nourishment, so animals
+     * live through lean months on it while losing condition. Returns nourishment in kg of good food.
+     */
+    private fun roughage(c: Int, nourishmentKg: Float, value: Float): Float {
+        val v = sim.vegetation
+        val kg = nourishmentKg / value
+        val m2 = grid.cellAreaM2.toFloat()
+        // Eat at most a small share of what stands in the cell.
+        val fromHerb = v.consume(c, LifeForm.HERB, min(kg / m2, 0.02f * v.herb[c]))
+        val left = kg - fromHerb * m2
+        val fromShrub = if (left > 0f) v.consume(c, LifeForm.SHRUB, min(left / m2, 0.01f * v.shrub[c])) else 0f
+        return value * (fromHerb + fromShrub) * m2
+    }
+
+    /**
+     * How much a species gets out of coarse forage (the Jarman-Bell principle): a big gut holds
+     * food longer and digests fibre better, while a small animal's high metabolism needs rich food.
+     * Aurochs and wild asses live through the dry season on straw that starves a gazelle.
+     */
+    private fun roughageValue(s: Species) = (ROUGHAGE_VALUE * (s.massKg / 100f).pow(0.25f)).coerceAtMost(0.75f)
+
+    /** Eats up to [kg] from [stock] over the 3 x 3 cells around [c], taking it from plants of [form]; returns kg eaten. */
+    private fun eat(c: Int, stock: FloatArray, kg: Float, form: LifeForm?): Float {
+        if (kg <= 0f) return 0f
+        val cx = grid.x(c); val cy = grid.y(c)
+        var available = 0f
+        for (dy in -1..1) for (dx in -1..1) if (grid.inBounds(cx + dx, cy + dy)) available += stock[grid.index(cx + dx, cy + dy)] * cellKm2
+        if (available <= 0f) return 0f
+        val share = min(1f, kg / available)
+        var eaten = 0f
+        for (dy in -1..1) for (dx in -1..1) {
+            if (!grid.inBounds(cx + dx, cy + dy)) continue
+            val i = grid.index(cx + dx, cy + dy)
+            val e = stock[i] * share
+            stock[i] -= e
+            if (form != null) sim.vegetation.consume(i, form, (e * cellKm2 / grid.cellAreaM2).toFloat())
+            eaten += e * cellKm2
         }
-        feed(g, 1f - max(0f, need) / want)
+        return eaten
     }
 
     private fun hunt(g: AnimalGroup, contested: Boolean) {
         val s = g.species
         val c = cellOf(g)
         val need = g.dailyNeedKg
-        // A hungry pack tests the herds it can reach today, up to four chases. Healthy adult
-        // gazelles usually outrun wolves; the young and the weak are caught far more often, and a
-        // big herd spots the pack sooner.
+        // A hungry pack tests the herds it can reach today, up to four chases, picking the one
+        // that promises most meat for the risk. Healthy adults usually outrun or fight off wolves;
+        // the young and the weak are caught far more often, a big herd spots the pack sooner,
+        // large and well-armed animals are rarely worth it, and ibex on cliffs cannot be followed.
         var attempts = 0
+        val packKg = g.adults * s.massKg
         while (!contested && g.stored < need && g.adults > 0 && attempts++ < 4) {
-            val (prey, _) = nearest(Catalogue.GAZELLE, g.x, g.y, HUNT_KM)
+            within(Catalogue.herbivores, g.x, g.y, HUNT_KM, around)
+            var prey: AnimalGroup? = null; var bestValue = 0f; var bestP = 0f; var bestYoung = false
+            for (o in around) {
+                if (!o.alive) continue
+                val ps = o.species
+                val at = cellOf(o)
+                val eyes = 1f - 0.3f * min(1f, o.size / 40f)
+                val wary = if (o.alert > 0) 0.3f else 1f
+                // Cover lets a stalker get close unseen; a coursing pack gains less, as it must still run the prey down.
+                val ambush = 1f + 0.8f * s.stalking * cover(at)
+                val refuge = 1f - 0.8f * max(0f, ps.habitat.rugged) * terrain.ruggedness[at]
+                val young = o.young > 0 && rnd.nextFloat() < 2f * o.young / (o.size + o.young)
+                val kg = if (young) 0.3f * ps.massKg else ps.massKg
+                val size = min(1f, packKg / (1.5f * kg))
+                val base = if (young) 0.4f * (1f - 0.5f * ps.defence) else (0.15f + 0.5f * (1f - o.condition)) * (1f - ps.defence)
+                val p = min(1f, g.adults / 2f) * eyes * wary * ambush * refuge * size * base
+                val value = p * min(kg, 4f * need)
+                if (value > bestValue) { bestValue = value; prey = o; bestP = p; bestYoung = young }
+            }
             if (prey == null) break
-            val pack = min(1f, g.adults / 2f)
-            val eyes = 1f - 0.3f * min(1f, prey.size / 40f)
-            val wary = if (prey.alert > 0) 0.3f else 1f
-            // Stalking works better in cover, where the herd sees the pack late.
-            val ambush = 1f + 0.8f * cover(cellOf(prey))
-            val young = prey.young > 0 && rnd.nextFloat() < 2f * prey.young / (prey.size + prey.young)
-            val p = pack * eyes * wary * ambush * if (young) 0.4f else 0.15f + 0.5f * (1f - prey.condition)
             // Caught or not, the herd bolts and stays watchful for days.
             prey.alert = ALERT_DAYS
             bolt(prey, g)
-            if (rnd.nextFloat() >= p) continue
-            if (young) { prey.young--; g.stored += 0.5f * prey.species.massKg } else { prey.adults--; g.stored += prey.species.massKg }
+            if (rnd.nextFloat() >= bestP) continue
+            if (bestYoung) { prey.young--; g.stored += 0.3f * prey.species.massKg } else { prey.adults--; g.stored += prey.species.massKg }
             kills++
+            killsBy.merge(prey.species, 1, Int::plus)
         }
         var eaten = min(g.stored, need)
         g.stored -= eaten
@@ -395,6 +581,7 @@ class Ecology(private val sim: Simulation) {
             soil.carrion[c] += ((g.stored - cap) / grid.cellAreaM2).toFloat()
             g.stored = cap
         }
+        g.freshShare = min(1f, eaten / need)
         feed(g, eaten / need)
         if (g.stored > 0f) g.stored *= 0.9f // spoilage and theft
     }
@@ -434,12 +621,20 @@ class Ecology(private val sim: Simulation) {
 
     private fun feed(g: AnimalGroup, ratio: Float) {
         g.lastIntakeRatio = ratio
-        g.condition = if (ratio >= 0.9f) min(1f, g.condition + 0.01f) else max(0f, g.condition - 0.02f * (1f - ratio))
+        // Losing condition is slower than for a starving animal: on poor food they cut their metabolism.
+        g.condition = if (ratio >= 0.9f) min(1f, g.condition + 0.01f) else max(0f, g.condition - 0.012f * (1f - ratio))
     }
 
+    /**
+     * Drinks if water is near; otherwise fresh food and dew cover part of the day's need (more on
+     * wet ground), and the rest adds to the group's thirst. Past its limit it loses condition fast.
+     */
     private fun drink(g: AnimalGroup) {
-        if (waterKm[cellOf(g)] <= 1.5f) g.daysWithoutWater = 0
-        else if (++g.daysWithoutWater > g.species.daysWithoutWater) g.condition = max(0f, g.condition - 0.05f)
+        val c = cellOf(g)
+        if (waterKm[c] <= 1.5f) { g.daysWithoutWater = 0f; return }
+        val fromFood = g.species.waterFromFood * g.freshShare * (0.5f + 0.5f * wetness[c])
+        g.daysWithoutWater += max(0f, 1f - fromFood)
+        if (g.daysWithoutWater > g.species.daysWithoutWater) g.condition = max(0f, g.condition - 0.05f)
     }
 
     // ---------------------------------------------------------------- births, deaths, splitting
@@ -465,8 +660,8 @@ class Ecology(private val sim: Simulation) {
             // Births in the season.
             val inSeason = (date.month - s.birthMonth + 12) % 12 < s.birthMonths
             if (inSeason) {
-                val born = if (s == Catalogue.WOLF) {
-                    if (firstStepOfMonth && date.month == s.birthMonth && g.adults >= 2) (4f * fit + rnd.nextFloat()).toInt() else 0
+                val born = if (s.packLitter > 0) {
+                    if (firstStepOfMonth && date.month == s.birthMonth && g.adults >= 2) (s.packLitter * fit + rnd.nextFloat()).toInt() else 0
                 } else {
                     val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
                     binomial(g.adults, 0.5f * s.youngPerFemale * fit / stepsInSeason)
@@ -489,9 +684,21 @@ class Ecology(private val sim: Simulation) {
             val pYoung = min(1f, pAdult + s.backgroundMortality * years + 0.1f * hunger)
             val deadA = binomial(g.adults, pAdult)
             val deadY = binomial(g.young, pYoung)
+            if (deadA + deadY > 0) {
+                val cause = when {
+                    sim.eruptions.ash[c] > 300f -> "ash"
+                    g.condition < 0.2f && g.daysWithoutWater > s.daysWithoutWater -> "thirst"
+                    g.condition < 0.2f -> "hunger"
+                    flood > 1.5f -> "flood"
+                    sim.weather.snowpack[c] > 3f * s.snowLimitMm && sim.weather.temperature[c] < -5f -> "snow"
+                    else -> "other"
+                }
+                deathsBy.merge("${s.name}:$cause", deadA + deadY, Int::plus)
+            }
             // A pack or herd without adults does not survive.
             g.adults -= deadA
             val orphaned = if (g.adults == 0) g.young - deadY else 0
+            if (orphaned > 0) deathsBy.merge("${s.name}:orphaned", orphaned, Int::plus)
             g.young -= deadY + orphaned
             val dead = deadA + deadY + orphaned
             deaths += dead
@@ -508,7 +715,7 @@ class Ecology(private val sim: Simulation) {
         groups += newcomers
         // Joining: small remnants merge into a nearby group of their kind.
         for (s in Catalogue.all) {
-            val b = buckets.getValue(s)
+            val b = buckets[s.index]
             for (l in b) l.clear()
             for (g in groups) if (g.species == s && g.alive) b[bucketIndex(g.x, g.y)] += g
             for (g in groups) {
@@ -526,14 +733,22 @@ class Ecology(private val sim: Simulation) {
         const val PALATABLE_SHARE = 0.0003f
         /** Days for grazed palatable growth to come back. */
         const val REGROWTH_DAYS = 30f
-        /** Predator biomass per kg of prey biomass at the start (about 1:100). */
-        const val PREDATOR_PER_PREY_KG = 0.004f
+        /** Land per wolf at the start, km²: about what the gazelle-wolf runs settled at. */
+        const val KM2_PER_WOLF = 250f
+        /** Bulbs, roots and mast available to rooting animals, per kg/m² of herbs (and trees x 0.05). */
+        const val ROOTS_SHARE = 0.0003f
+        /** Nourishment of dead grass and twigs relative to fresh growth, for a 100 kg animal. */
+        const val ROUGHAGE_VALUE = 0.4f
+        /** Days for dug-up roots and mast to be replaced. */
+        const val ROOTS_DAYS = 180f
         /** Distance at which a pack can stalk and chase a herd it has found, km. */
         const val HUNT_KM = 4f
         /** Animal mass whose passage counts as trampling intensity 1 (see Vegetation.trample). */
         const val TRAMPLE_KG = 150_000f
         private val COS = DoubleArray(8) { kotlin.math.cos(it * Math.PI / 4) }
         private val SIN = DoubleArray(8) { kotlin.math.sin(it * Math.PI / 4) }
+        /** Ground wetter than this has rain pools, seeps or springs to drink from (when not frozen). */
+        const val POOL_WETNESS = 0.8f
         /** Days a herd stays watchful after an attack. */
         const val ALERT_DAYS = 5
     }

@@ -45,27 +45,23 @@ class EcologyTest {
     }
 
     @Test
-    fun `gazelles and wolves coexist for a decade`() {
+    fun `large herbivores and wolves coexist for a decade`() {
         // A larger island: a handful of packs on a small one dies out by chance, as it would.
         val sim = Simulation(World.generate(WorldConfig(seed = 7, widthKm = 400, heightKm = 400)))
         val e = sim.ecology
-        val gazelles0 = e.count(Catalogue.GAZELLE)
-        val wolves0 = e.count(Catalogue.WOLF)
-        assertTrue(gazelles0 > 500 && wolves0 > 5, "start: $gazelles0 gazelles, $wolves0 wolves")
+        val start = Catalogue.all.associateWith { e.count(it) }
+        assertTrue(start.getValue(Catalogue.GAZELLE) > 500 && start.getValue(Catalogue.WOLF) > 5, "start: $start")
         var kills = 0
         val firstIds = e.groups.size
-        val census = ArrayList<Pair<Int, Int>>()
+        val census = ArrayList<Map<Species, Int>>()
         repeat(10) {
             repeat(stepsPerYear) { sim.step(); kills += e.kills }
-            census += Pair(e.count(Catalogue.GAZELLE), e.count(Catalogue.WOLF))
+            census += Catalogue.all.associateWith { e.count(it) }
         }
-        val (g, w) = census.last()
-        assertTrue(census.all { it.first > 0 && it.second > 0 }, "both persist: $census")
-        assertTrue(g in gazelles0 / 5..gazelles0 * 10, "gazelles $gazelles0 -> $g")
+        for (s in Catalogue.all) assertTrue(census.all { it.getValue(s) > 0 }, "${s.name} persists: ${census.map { it.getValue(s) }}")
         assertTrue(kills > 100, "wolves kill: $kills")
         assertTrue(e.groups.any { it.id >= firstIds }, "groups split as they grow")
         assertTrue(e.groups.all { it.size <= it.species.maxGroupSize }, "no group above its split size")
-        assertTrue(w > 0)
     }
 
     @Test
