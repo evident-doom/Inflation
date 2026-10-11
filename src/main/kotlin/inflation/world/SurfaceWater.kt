@@ -22,7 +22,7 @@ class SurfaceWater(
     companion object {
         const val SECONDS_PER_YEAR = 3.1536e7
         /** Discharge above which a cell counts as a river, m^3/s. */
-        const val RIVER_THRESHOLD = 0.5f
+        const val RIVER_THRESHOLD = 0.3f
 
         fun generate(grid: Grid, elevation: FloatArray, isSea: BooleanArray, climate: Climate): SurfaceWater {
             val n = grid.size

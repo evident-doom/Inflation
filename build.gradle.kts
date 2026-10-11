@@ -23,6 +23,15 @@ application {
     applicationDefaultJvmArgs = listOf("-Xmx4g")
 }
 
+tasks.register<JavaExec>("viewer") {
+    description = "Opens the world viewer with time controls."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.ui.ViewerKt")
+    maxHeapSize = "6g"
+    args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
 tasks.test {
     useJUnitPlatform()
     maxHeapSize = "4g"

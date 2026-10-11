@@ -22,7 +22,9 @@ class Climate(
     /** [month][cell], mm per month. */
     val monthlyPrecip: Array<FloatArray>,
     val annualPrecip: FloatArray,
-    /** Potential evapotranspiration, mm/yr (Thornthwaite). */
+    /** [month][cell], potential evapotranspiration, mm per month (Thornthwaite). */
+    val monthlyPet: Array<FloatArray>,
+    /** Potential evapotranspiration, mm/yr. */
     val annualPet: FloatArray,
     /** Actual evapotranspiration, mm/yr (Fu–Budyko). */
     val annualAet: FloatArray,
@@ -82,7 +84,7 @@ class Climate(
                         val i = y * w + x
                         if (isSea[i]) {
                             // Air picks up moisture over open water; a narrow inland sea adds little.
-                            q += (q0 - q) * min(1.0, 0.006 * grid.cellKm)
+                            q += (q0 - q) * min(1.0, 0.02 * grid.cellKm)
                             precip[m][i] = (coastAnnual / 12.0 * wet * 0.8).toFloat()
                             continue
                         }
@@ -102,11 +104,14 @@ class Climate(
             for (m in 0 until 12) precip[m] = blur(grid, precip[m], (20 / grid.cellKm).toInt().coerceAtLeast(1))
             val annualP = FloatArray(n) { i -> (0 until 12).sumOf { precip[it][i].toDouble() }.toFloat() }
             val pet = FloatArray(n)
+            val monthlyPet = Array(12) { FloatArray(n) }
             val aet = FloatArray(n)
             val runoff = FloatArray(n)
             for (i in 0 until n) {
                 val l = lat[grid.y(i)]
-                pet[i] = thornthwaite(DoubleArray(12) { temp[it][i].toDouble() }, l).toFloat()
+                val monthly = thornthwaite(DoubleArray(12) { temp[it][i].toDouble() }, l)
+                for (m in 0 until 12) monthlyPet[m][i] = monthly[m].toFloat()
+                pet[i] = monthly.sum().toFloat()
                 val p = annualP[i].toDouble()
                 if (isSea[i] || p <= 0) continue
                 val ratio = pet[i] / p
@@ -114,23 +119,23 @@ class Climate(
                 aet[i] = (p * fu).toFloat()
                 runoff[i] = (p - aet[i]).toFloat().coerceAtLeast(0f)
             }
-            return Climate(lat, dSea, temp, precip, annualP, pet, aet, runoff)
+            return Climate(lat, dSea, temp, precip, annualP, monthlyPet, pet, aet, runoff)
         }
 
-        /** Thornthwaite (1948) potential evapotranspiration in mm/yr from monthly mean temperatures. */
-        fun thornthwaite(monthlyTemp: DoubleArray, latitudeDeg: Double): Double {
+        /** Thornthwaite (1948) potential evapotranspiration in mm per month from monthly mean temperatures. */
+        fun thornthwaite(monthlyTemp: DoubleArray, latitudeDeg: Double): DoubleArray {
+            val out = DoubleArray(12)
             val heat = monthlyTemp.sumOf { t -> if (t > 0) (t / 5).pow(1.514) else 0.0 }
-            if (heat <= 0) return 0.0
+            if (heat <= 0) return out
             val a = 6.75e-7 * heat.pow(3) - 7.71e-5 * heat.pow(2) + 1.792e-2 * heat + 0.49239
-            var total = 0.0
             for (m in 0 until 12) {
                 val t = monthlyTemp[m]
                 if (t <= 0) continue
                 val daylight = Date(m * 30L + 15).dayLengthHours(latitudeDeg)
                 val base = if (t < 26.5) 16 * (10 * t / heat).pow(a) else -415.85 + 32.24 * t - 0.43 * t * t
-                total += base * daylight / 12
+                out[m] = base * daylight / 12
             }
-            return total
+            return out
         }
 
         /** Chamfer distance (3-4) from every cell to the nearest [target] cell, in km. */
