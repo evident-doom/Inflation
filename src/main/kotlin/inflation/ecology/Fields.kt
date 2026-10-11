@@ -60,8 +60,9 @@ class Plankton(private val sim: Simulation) {
         val days = world.config.daysPerStep
         val date = sim.weather.date
         val light = (Date(date.absoluteDay).dayLengthHours(35.0) / 12.0).toFloat()
-        for (i in 0 until n) {
-            if (!isWater[i]) continue
+        // Cells are independent of each other, so they are stepped in parallel.
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            if (!isWater[i]) return@forEach
             val t = sim.weather.temperature[i]
             // Cold water mixes deep; warm water stratifies.
             val mixing = if (t < 14f) 0.25f else if (t < 20f) 0.08f else 0.02f

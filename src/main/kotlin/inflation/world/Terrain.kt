@@ -178,11 +178,15 @@ class Terrain(private val world: World) {
 
     /**
      * Walking effort to cross cell [i] now, relative to flat open ground: [baseCost] plus thickets,
-     * forest undergrowth and snow.
+     * forest undergrowth and snow. Animals at home in cover or on rock are slowed less:
+     * [thicketEase] and [rockEase] (0..1) take that share of the extra effort away.
      */
-    fun travelCost(i: Int, v: Vegetation, snowMm: Float): Float {
+    fun travelCost(i: Int, v: Vegetation, snowMm: Float, thicketEase: Float = 0f, rockEase: Float = 0f): Float {
         val scrub = min(1f, v.shrub[i] / 2f)
-        return baseCost[i] * (1f + 1.5f * scrub * scrub + 0.5f * v.canopy(i)) * (1f + snowMm / 150f)
+        var base = baseCost[i]
+        if (rockEase > 0f && base.isFinite()) base = 1f + (base - 1f) * (1f - rockEase)
+        val thicket = (1.5f * scrub * scrub + 0.5f * v.canopy(i)) * (1f - thicketEase)
+        return base * (1f + thicket) * (1f + snowMm / 150f)
     }
 
     companion object {

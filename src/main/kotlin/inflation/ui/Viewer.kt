@@ -1,5 +1,6 @@
 package inflation.ui
 
+import inflation.ecology.Catalogue
 import inflation.world.Date
 import inflation.world.LifeForm
 import inflation.world.Simulation
@@ -94,6 +95,13 @@ enum class Tool(val label: String) {
     CLEAR("Clear vegetation (5 km)"),
 }
 
+/** Dot colours for herds on the map. */
+private val SPECIES_COLOUR = mapOf(
+    Catalogue.GAZELLE to 0xf0e0b0, Catalogue.ROE_DEER to 0xc08040, Catalogue.FALLOW_DEER to 0xe0a060,
+    Catalogue.RED_DEER to 0xa04020, Catalogue.IBEX to 0xb0b0c0, Catalogue.BOAR to 0x404040,
+    Catalogue.AUROCHS to 0x2040a0, Catalogue.ONAGER to 0xe0e0e0,
+)
+
 class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : JPanel(BorderLayout()) {
     private val world = sim.world
     private val grid = world.grid
@@ -178,10 +186,10 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                 dirty = false
                 painter.paint(layer, pixels)
                 val herds = sim.ecology.groups.filter { it.alive }
-                val snapshot = FloatArray(herds.size * 3)
+                val snapshot = FloatArray(herds.size * 4)
                 for ((k, g) in herds.withIndex()) {
-                    snapshot[3 * k] = g.x.toFloat(); snapshot[3 * k + 1] = g.y.toFloat()
-                    snapshot[3 * k + 2] = if (g.species.carnivore) -g.size.toFloat() else g.size.toFloat()
+                    snapshot[4 * k] = g.x.toFloat(); snapshot[4 * k + 1] = g.y.toFloat()
+                    snapshot[4 * k + 2] = g.size.toFloat(); snapshot[4 * k + 3] = Catalogue.all.indexOf(g.species).toFloat()
                 }
                 synchronized(image) { image.setRGB(0, 0, grid.width, grid.height, pixels, 0, grid.width); animals = snapshot }
                 SwingUtilities.invokeLater { updateLabels(); map.repaint() }
@@ -238,20 +246,21 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
         }
         val e = sim.ecology
         if (v.isVegetated(i)) {
-            appendLine("Grazing %.0f kg/km² · insects %.0f · rodents %.0f kg/km²".format(e.palatable[i], e.small.insects[i], e.small.rodents[i]))
+            appendLine("Graze %.0f, browse %.0f kg/km² · insects %.0f · rodents %.0f kg/km²".format(e.graze[i], e.browse[i], e.small.insects[i], e.small.rodents[i]))
             appendLine("Litter %.2f kg/m², organic matter %.1f kg/m²".format(e.soil.litter[i], e.soil.organicMatter[i]))
             if (e.small.biting[i] > 50f) appendLine("Mosquitoes and midges")
             if (e.soil.carrion[i] > 0f) appendLine("Carcasses %.0f kg".format(e.soil.carrion[i] * grid.cellAreaM2))
             appendLine("Water %.0f km away".format(e.waterKm[i]))
         }
         val a = synchronized(image) { animals }
-        var herds = 0; var gazelles = 0; var packs = 0; var wolves = 0
-        for (k in 0 until a.size / 3) {
-            if (abs(a[3 * k] - x - 0.5f) > 5 || abs(a[3 * k + 1] - y - 0.5f) > 5) continue
-            val size = a[3 * k + 2].toInt()
-            if (size < 0) { packs++; wolves -= size } else { herds++; gazelles += size }
+        val near = IntArray(Catalogue.all.size); val nearGroups = IntArray(Catalogue.all.size)
+        for (k in 0 until a.size / 4) {
+            if (abs(a[4 * k] - x - 0.5f) > 5 || abs(a[4 * k + 1] - y - 0.5f) > 5) continue
+            val sp = a[4 * k + 3].toInt()
+            near[sp] += a[4 * k + 2].toInt(); nearGroups[sp]++
         }
-        if (herds + packs > 0) appendLine("Within 5 km: $gazelles gazelles in $herds herds, $wolves wolves in $packs packs")
+        if (nearGroups.any { it > 0 }) appendLine("Within 5 km: " + Catalogue.all.indices.filter { nearGroups[it] > 0 }
+            .joinToString(", ") { "${near[it]} ${Catalogue.all[it].name} (${nearGroups[it]} groups)" })
         world.volcanoes.firstOrNull { abs(it.x - x) <= 3 && abs(it.y - y) <= 3 }?.let {
             appendLine("Volcano: ${it.kind.name.lowercase().replace('_', ' ')}, ${if (it.active) "active" else "extinct"}, %.1f Myr old".format(it.ageMyr))
         }
@@ -381,16 +390,17 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             if (showAnimals) {
                 val a = synchronized(image) { animals }
-                for (k in 0 until a.size / 3) {
-                    val x = (ox + a[3 * k] * scale).toInt(); val y = (oy + a[3 * k + 1] * scale).toInt()
-                    val size = a[3 * k + 2]
-                    if (size < 0) {
+                for (k in 0 until a.size / 4) {
+                    val x = (ox + a[4 * k] * scale).toInt(); val y = (oy + a[4 * k + 1] * scale).toInt()
+                    val size = a[4 * k + 2]
+                    val species = Catalogue.all[a[4 * k + 3].toInt()]
+                    if (species.carnivore) {
                         g2.color = Color.WHITE; g2.fillRect(x - 3, y - 3, 7, 7)
                         g2.color = Color(0xd01010); g2.fillRect(x - 2, y - 2, 5, 5)
                     } else {
                         val r = if (size > 25) 2 else 1
                         g2.color = Color(0x101010); g2.fillOval(x - r - 1, y - r - 1, 2 * r + 3, 2 * r + 3)
-                        g2.color = Color(0xf0e0b0); g2.fillOval(x - r, y - r, 2 * r + 1, 2 * r + 1)
+                        g2.color = Color(SPECIES_COLOUR[species] ?: 0xffffff); g2.fillOval(x - r, y - r, 2 * r + 1, 2 * r + 1)
                     }
                 }
             }
@@ -435,7 +445,7 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                 Layer.VISIBILITY -> "How far one sees on the ground through broken ground and plants: 50 m (dark) to 10 km (white)"
                 Layer.VIEWSHED -> "Area in view over the bare terrain within 30 km: valley floors dark, summits and open plains light"
                 Layer.DEFENSIBILITY -> "Defensibility: height over surroundings, broken ground, approaches cut by water or cliffs"
-                Layer.GRAZING -> "Palatable young plant growth, 0 to 250 kg/km² (dark to yellow) · cream dots: gazelle herds, red squares: wolf packs (on every layer)"
+                Layer.GRAZING -> "Graze plus browse, 0 to 250 kg/km² (dark to yellow) · dots: herds (gazelle cream, onager white, ibex grey, roe/fallow/red deer browns, boar black, aurochs blue), red squares: wolves"
                 Layer.FISH -> "Fish (blue to green, up to 6 t/km²) · shellfish beds (pink) · spring spawning run in rivers (orange to yellow)"
                 Layer.PLANKTON -> "Phytoplankton: dark blue sparse to green bloom"
                 Layer.INSECTS -> "Plant-eating insects, 0 to 3000 kg/km² (log scale)"

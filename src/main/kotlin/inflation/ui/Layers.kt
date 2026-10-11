@@ -23,6 +23,7 @@ enum class Layer(val label: String) {
     VISIBILITY("Visibility on the ground (live)"),
     VIEWSHED("View from each place"),
     DEFENSIBILITY("Defensibility"),
+    WETNESS("Ground wetness and drinking water (live)"),
     GRAZING("Grazing: palatable young growth (live)"),
     PLANKTON("Plankton (live)"),
     FISH("Fish, shellfish and spawning runs (live)"),
@@ -57,7 +58,11 @@ class LayerPainter(private val sim: Simulation) {
             Layer.VISIBILITY -> live(out) { Render.ramp(ln(t.sightKm(it, sim.vegetation) * 20f), 0f, ln(20f * 10f), BLIND_CLEAR) }
             Layer.VIEWSHED -> live(out) { Render.shade(world, it, Render.ramp(ln(1 + t.viewAreaKm2[it]), 0f, ln(1 + 2000f), BLIND_CLEAR)) }
             Layer.DEFENSIBILITY -> live(out) { Render.shade(world, it, Render.ramp(t.defensibility[it], 0f, 1f, RUGGED)) }
-            Layer.GRAZING -> live(out) { Render.ramp(sim.ecology.palatable[it], 0f, 250f, FAUNA) }
+            Layer.WETNESS -> live(out) {
+                // Drinkable water bright blue; elsewhere parched brown to damp green.
+                if (sim.ecology.waterKm[it] == 0f) 0x2a6fdb else Render.ramp(sim.ecology.wetness[it], 0f, 1f, DRY_WET)
+            }
+            Layer.GRAZING -> live(out) { Render.ramp(sim.ecology.graze[it] + sim.ecology.browse[it], 0f, 250f, FAUNA) }
             Layer.PLANKTON -> for (i in 0 until n) out[i] =
                 if (sim.ecology.plankton.isWater[i]) Render.ramp(ln(1 + sim.ecology.plankton.phyto[i]), 0f, ln(1 + 15f), PLANKTON) else terrain[i]
             Layer.FISH -> for (i in 0 until n) out[i] = fishColour(i)
@@ -148,6 +153,7 @@ class LayerPainter(private val sim: Simulation) {
         private val SHELL = intArrayOf(0x606080, 0xc080c0, 0xffd0ff)
         private val PLANKTON = intArrayOf(0x0a1a40, 0x1f3f6f, 0x2f7f7f, 0x5fbf5f, 0xbfef6f)
         private val SOIL = intArrayOf(0xe8d8a8, 0xb08850, 0x704020, 0x301808)
+        private val DRY_WET = intArrayOf(0xc89858, 0xe0d090, 0xa0c070, 0x408050, 0x205848)
         private val LOW_HIGH = intArrayOf(0xb03020, 0xe0a060, 0xf0f0f0, 0x60a0e0, 0x1030b0)
     }
 }
