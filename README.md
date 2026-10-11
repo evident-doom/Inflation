@@ -41,7 +41,8 @@ One step is 6 days (5 steps per month), configurable in `WorldConfig`.
 
 Animals come in three levels of detail. Small, numerous life is a density field per cell; large
 animals live in groups (herds, packs) that decide each day where to go. Group behaviour goes
-through a `Policy`: a hand-written baseline now, learned policies later, from the same inputs.
+through a `Policy`: a hand-written baseline, or small networks trained to copy it and then to
+improve on it (see Learned behaviour below).
 
 | Layer | Model |
 | --- | --- |
@@ -50,17 +51,20 @@ through a `Policy`: a hand-written baseline now, learned policies later, from th
 | Soil life | Plant litter from turnover, die-back, frost, floods and ash decomposes at a rate set by warmth and moisture; part becomes soil organic matter, which raises the fertility plants grow on. Carcasses rot in days to weeks and feed scavengers |
 | Small animals | Plant-eating insects (active above 10 °C), biting insects (in warm wetlands and floodwater) and rodents (logistic on food, hit by cold and snow), in kg/km², spreading to neighbouring land |
 | Water | Ground wetness per cell from soil moisture, recent rain, shade, floods and wetland. Animals drink at rivers, fresh lakes, floodwater, the pools and seeps of very wet ground, and at springs. In dry country, rain that sinks in upslope flows underground and comes up as year-round springs and water holes at the foot of hills, along faults and from limestone; the largest in the driest land are oases that keep the ground around them damp. Herds also get water from fresh food and dew, browsers and gazelles most, aurochs and onagers least, so in the wet season water is everywhere and in the dry season herds gather at rivers and springs |
-| Large herbivores | Gazelle, roe, fallow and red deer, ibex, wild boar, aurochs and onager, each with its own diet (grass, browse, roots and mast), favoured ground (cover, rugged, wet) and defence against wolves. Each day a herd walks as far as a day's effort takes it over the terrain and weighs forage, water, snow, crowding, its favoured ground and the scent or sight of wolves. Where a day's walk finds far too little food, or no water for a thirsty herd, it sets off on a march instead: about 60% of its longest day's travel, day after day, eating a third of its need on the way. Young growth regrows over a month; in lean months they fall back on dead grass and twigs, which big animals digest better (Jarman-Bell) and pigs poorly, but only as much as fits in the gut. Births in season, scaled by condition; most piglets die in their first year |
-| Wolf | Southern-type wolves (22 kg) in packs of about 3. Packs follow prey scent and chase herds within 4 km. The young and weak are much easier to catch, big herds spot them sooner, well-armed prey (aurochs, boar) rarely fall, and ibex on cliffs cannot be followed; wolves are coursing hunters, so cover helps them only a little. They fill gaps with rodents and carrion. Packs that meet spend the day in confrontation instead of hunting and sometimes lose a wolf, so crowded packs feed worse |
+| Large herbivores | Gazelle, roe, fallow and red deer, ibex, wild boar, aurochs, onager and hippo, each with its own diet (grass, browse, roots and mast), favoured ground (cover, rugged, wet), running speed and defence against predators. Hippos keep within 1.5 km of water. Each day a herd walks as far as a day's effort takes it over the terrain and weighs forage, water, snow, crowding, its favoured ground and the scent or sight of predators that could kill them. Where a day's walk finds far too little food, or no water for a thirsty herd, it sets off on a march instead: about 60% of its longest day's travel, day after day, eating a third of its need on the way. Young growth regrows over a month; in lean months they fall back on standing dead grass and twigs, a stock that builds up over months and is eaten down where herds crowd, so the dry season sets how many grazers the land carries. Big animals digest it better (Jarman-Bell), pigs poorly, and only as much as fits in the gut. Births in season, scaled by condition; most piglets die in their first year |
+| Predators | Wolf (packs of 3, coursers), lion (prides of 5, which take the largest prey and rob everyone), leopard (pairs, stalkers of broken and wooded ground), striped hyena (mostly a scavenger) and golden jackal (pairs living on rodents, carrion and fawns). Each follows the scent of prey it can catch and avoids much stronger predators, which kill weaker ones now and then and drive them off. Groups chase herds within 4 km: the young and weak are easier to catch, big herds spot them sooner, a courser must outrun its prey while a stalker needs cover, horns and bulk deter a few hunters more than a big pack or pride, and hunters much lighter than their quarry rarely bring it down. Big, armed prey fight back: an adult boar, aurochs or red deer brought down sometimes kills a hunter. A kill draws rivals, and a stronger group nearby takes most of it. Scavengers eat carrion first. Groups of a species that meet contest their ground, so each keeps a territory |
+| Crocodiles and eagles | Not tracked as animals. Crocodiles live in warm rivers and lakes; a herd drinking there may lose one, the young most often, except in the cold months. Eagles hunt over cliff country and take the young of the smaller hoofed animals in the open |
 
 Body mass sets food needs (Kleiber scaling) and starting densities (Damuth's rule). The species
 figures are mid-range literature values recalled from memory, not yet checked against sources.
 
-On 400 km test islands (seeds 1, 3, 7 and 11, 21,000–38,000 km² of land), all nine species persist
-over 20 simulated years. After 20 years, per km² of land: roe deer 3–6, gazelle 0.3–1.1, ibex 0.9–1.3,
-wild boar 0.9–1.6, fallow and red deer 0.1–0.4, aurochs 0.1–0.5 and still rising, onagers 0.002–0.04
-(rare on the wetter islands, where thirst keeps them down), and wolves one per 110–145 km².
-In the dry season 10–30% of herds are on the march.
+On 400 km test islands (seeds 1, 3, 7 and 11, 21,000–38,000 km² of land), 13 of the 14 species
+persist over 20 simulated years on all four; lions die out on two of them. After 20 years, per km²
+of land: ibex 0.9–1.4, wild boar 1.0–1.7, roe deer 0.2–3, gazelle 0.2–1.4, red deer 0.1–0.25,
+aurochs 0.1–0.25, fallow deer 0.03–0.08, onager up to 0.05, and 180–240 hippos per island. Per
+predator: one wolf per 120–245 km², one leopard per 600–1,900 km², one striped hyena per 340–700 km²
+and one jackal per 95–140 km². Wild boar are killed most often, then roe deer, ibex and gazelle. In the dry season
+10–30% of herds are on the march.
 
 ![animals](docs/img/fauna.png)
 ![visibility](docs/img/visibility.png)
@@ -76,6 +80,22 @@ above 2000 m most of the year.
 ![relief](docs/img/relief-seed7.png)
 ![biomes](docs/img/biomes-seed7.png)
 ![rivers](docs/img/rivers-seed7.png)
+
+## Learned behaviour (`inflation.learning`)
+
+Each species can decide with a small network (17 inputs, two hidden layers of 32, about 1,700
+weights) that scores each place the group could go from the same inputs as the hand-written
+baseline. Plain Kotlin, no dependencies; groups decide in parallel on the CPU.
+
+1. **Copying the baseline.** `imitate` runs the world, records a sample of decisions with the
+   baseline's score for every option, and fits each species' network to those scores. Held out,
+   the networks pick the baseline's best option 90–99% of the time, and populations over 20 years
+   stay close to the baseline's. The copies are in `policies/`.
+2. **Evolving wolves.** Evolution strategies: each generation draws random directions in weight
+   space and tries each in both signs; every wolf pack in a world gets one variant, passed on when
+   the pack splits, so one world run compares all of them. Fitness is the wolf-days a variant's
+   lineages live per pack they started with: survival and offspring, with no reward for any
+   particular way of hunting. Prey keep the baseline. EVOLVE_PLACEHOLDER
 
 ## Running
 
@@ -93,6 +113,11 @@ Generation takes 45–60 seconds for the full region; `--size 400` makes a small
 
 `./gradlew fauna -PfaunaArgs="--seed 7 --size 400 --years 25"` runs the living world and prints
 animal populations, kills, food and soil each season.
+Add `--policies policies` to let the species with a saved network use it.
+
+`./gradlew imitate` records the baseline's decisions and trains one network per species to copy
+them, into `policies/`. `./gradlew evolve` (main class `inflation.learning.EvolveKt`) improves the
+wolves' network by evolution strategies; see Learned behaviour.
 
 `viewer` opens the map with time controls (play, pause, step, one year ahead, speed), layers
 (terrain with live rivers, floods and snow; live vegetation, temperature, rain, soil moisture and
@@ -114,11 +139,12 @@ dams, dig canals, irrigate and clear vegetation. Scroll to zoom, drag to pan.
 - Volcanic cones are idealised shapes with noise; lava flows are not modelled, only ash.
 - Animal groups move in one of eight directions a day and do not follow paths, so trails form
   only where traffic converges (around water). Trampling scales with the mass of animals passing.
-- The gazelle's food supply ("palatable growth", a fixed share of standing herbs and shrubs) is a
-  calibration constant, not derived from plant physiology.
-- Pack territories are not modelled as such; spacing comes from avoiding other packs' scent and
-  from confrontations. Wolf numbers therefore barely follow their prey, and wolves almost never take
-  aurochs, which keep increasing for 20 years or more.
+- The herbivores' food supply ("palatable growth" and standing dead fodder, fixed shares of
+  standing herbs and shrubs) is a calibration constant, not derived from plant physiology.
+- Territories are not mapped; spacing comes from avoiding scent and from confrontations within a
+  set distance per species. Predator numbers follow their prey only loosely.
+- The predator guild was balanced by hand over a night of runs: all species persist, but lions
+  stay rare (a few prides) on 400 km islands and the small deer are kept low.
 - Seasonal migrations are not scripted; marches arise only from local shortage. Whether longer
   migrations emerge needs a larger map and learned behaviour.
 - Visibility ignores weather, haze and night for now; the line-of-sight model sees only relief the

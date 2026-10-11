@@ -97,6 +97,10 @@ class Species(
     val territoryKm: Float = 3f,
     /** For predators: land per animal at the start, km². */
     val startKm2PerAnimal: Float = 0f,
+    /** Top running speed, km/h: in a chase, a courser must outrun its prey; a stalker needs only surprise. */
+    val speedKmh: Float = 60f,
+    /** Keeps within this distance of drinking water, km (hippos graze at night near their river). */
+    val maxWaterKm: Float = Float.POSITIVE_INFINITY,
     /** Breeds as a pack: one litter a year from the breeding pair, of this size in good condition. */
     val packLitter: Int = 0,
     /** Diamond's criteria, 0..1 each: diet breadth, growth, captive breeding, temperament, calm, hierarchy. */
@@ -140,6 +144,7 @@ object Catalogue {
         birthMonth = 1, birthMonths = 2, youngPerFemale = 1f, yearsToMaturity = 1f,
         backgroundMortality = 0.08f, snowLimitMm = 40f, flightKm = 1f, dangerToHumans = 0f,
         products = Products(meat = 9f, fat = 0.5f, hide = 1.2f, bone = 2.5f, sinew = 0.2f, hornOrAntler = 0.3f),
+        speedKmh = 80f,
         domestication = floatArrayOf(0.6f, 0.6f, 0.2f, 0.5f, 0.05f, 0.2f), // panics and leaps fences
         habitat = Habitat(cover = -1f, wet = -0.5f),
     )
@@ -154,6 +159,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 1, youngPerFemale = 1.6f, yearsToMaturity = 1f,
         backgroundMortality = 0.12f, snowLimitMm = 150f, flightKm = 0.2f, dangerToHumans = 0f,
         products = Products(meat = 12f, fat = 0.5f, hide = 1.5f, bone = 3f, sinew = 0.2f, hornOrAntler = 0.3f),
+        speedKmh = 70f,
         domestication = floatArrayOf(0.4f, 0.6f, 0.1f, 0.3f, 0.1f, 0.1f),
         habitat = Habitat(cover = 0.6f),
     )
@@ -168,6 +174,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 1.5f,
         backgroundMortality = 0.1f, snowLimitMm = 150f, flightKm = 0.4f, dangerToHumans = 0f,
         products = Products(meat = 32f, fat = 2f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 2f),
+        speedKmh = 65f,
         domestication = floatArrayOf(0.5f, 0.5f, 0.4f, 0.4f, 0.3f, 0.4f), // kept in parks, never domesticated
         habitat = Habitat(cover = 0.3f),
         defence = 0.1f,
@@ -183,6 +190,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.08f, snowLimitMm = 300f, flightKm = 0.5f, dangerToHumans = 0.05f,
         products = Products(meat = 75f, fat = 6f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 5f),
+        speedKmh = 70f,
         domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.3f, 0.2f, 0.3f),
         habitat = Habitat(cover = 0.5f, rugged = 0.2f),
         defence = 0.25f,
@@ -198,6 +206,7 @@ object Catalogue {
         birthMonth = 1, birthMonths = 1, youngPerFemale = 1.1f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.1f, snowLimitMm = 300f, flightKm = 0.5f, dangerToHumans = 0f,
         products = Products(meat = 28f, fat = 1.5f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 4f),
+        speedKmh = 55f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.4f, 0.4f, 0.4f, 0.6f), // its cousin became the goat
         habitat = Habitat(cover = -0.3f, rugged = 1f),
         defence = 0.1f,
@@ -214,6 +223,7 @@ object Catalogue {
         backgroundMortality = 0.2f, youngMortality = 0.6f,
         snowLimitMm = 200f, flightKm = 0.2f, dangerToHumans = 0.3f,
         products = Products(meat = 45f, fat = 8f, hide = 5f, bone = 9f, sinew = 0.5f, hornOrAntler = 0.5f),
+        speedKmh = 45f,
         domestication = floatArrayOf(0.9f, 0.9f, 0.8f, 0.4f, 0.6f, 0.6f), // became the pig
         habitat = Habitat(cover = 0.8f, wet = 0.6f),
         defence = 0.6f,
@@ -230,6 +240,7 @@ object Catalogue {
         birthMonth = 1, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 3f,
         backgroundMortality = 0.06f, snowLimitMm = 300f, flightKm = 0.3f, dangerToHumans = 0.5f,
         products = Products(meat = 370f, fat = 40f, hide = 40f, bone = 80f, sinew = 4f, hornOrAntler = 6f),
+        speedKmh = 50f,
         domestication = floatArrayOf(0.8f, 0.5f, 0.7f, 0.2f, 0.4f, 0.9f), // became cattle
         habitat = Habitat(cover = 0.1f, rugged = -0.5f, wet = 0.8f),
         defence = 0.9f,
@@ -245,9 +256,30 @@ object Catalogue {
         birthMonth = 2, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2f,
         backgroundMortality = 0.05f, snowLimitMm = 150f, flightKm = 1f, dangerToHumans = 0.1f,
         products = Products(meat = 110f, fat = 8f, hide = 15f, bone = 25f, sinew = 2f),
+        speedKmh = 70f,
         domestication = floatArrayOf(0.7f, 0.4f, 0.3f, 0.1f, 0.2f, 0.4f), // too wild to tame; the donkey came from Africa
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.1f), // shuns marsh, not the water's edge
         defence = 0.4f,
+    )
+
+    /**
+     * Hippopotamus: lived in the Levant's coastal rivers into historical times. Spends the day in
+     * water and grazes the banks at night; adults fear nothing, calves fall to lions and crocodiles.
+     */
+    val HIPPO = Species(
+        name = "hippo", massKg = 1400f,
+        diet = Diet(grass = 0.95f, browse = 0.05f),
+        groupSize = 10, maxGroupSize = 30,
+        dailyTravelKm = 4f, maxDailyTravelKm = 10f, senseKm = 1f,
+        daysWithoutWater = 1, waterFromFood = 0f,
+        birthMonth = 3, birthMonths = 4, youngPerFemale = 0.4f, yearsToMaturity = 5f,
+        backgroundMortality = 0.04f, snowLimitMm = 20f, flightKm = 0.1f, dangerToHumans = 0.9f,
+        products = Products(meat = 600f, fat = 80f, hide = 100f, bone = 150f, sinew = 5f, hornOrAntler = 3f),
+        speedKmh = 30f,
+        domestication = floatArrayOf(0.6f, 0.2f, 0.2f, 0.0f, 0.1f, 0.3f),
+        habitat = Habitat(cover = -0.2f, rugged = -1f, wet = 1f),
+        defence = 1f,
+        maxWaterKm = 1.5f,
     )
 
     /**
@@ -263,6 +295,7 @@ object Catalogue {
         birthMonth = 1, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
         backgroundMortality = 0.15f, snowLimitMm = 400f, flightKm = 0.3f, dangerToHumans = 0.2f,
         products = Products(meat = 9f, fat = 0.4f, hide = 1.5f, bone = 2.2f, sinew = 0.2f, fur = true),
+        speedKmh = 60f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.6f, 0.4f, 0.6f, 0.9f), // became the dog
         packLitter = 4,
         stalking = 0.3f,
@@ -282,6 +315,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 3f,
         backgroundMortality = 0.1f, snowLimitMm = 200f, flightKm = 0.2f, dangerToHumans = 0.9f,
         products = Products(meat = 60f, fat = 5f, hide = 8f, bone = 18f, sinew = 1f, fur = true),
+        speedKmh = 60f,
         domestication = floatArrayOf(0.1f, 0.4f, 0.2f, 0.0f, 0.3f, 0.5f),
         habitat = Habitat(cover = -0.2f, rugged = -0.3f),
         packLitter = 3,
@@ -301,6 +335,7 @@ object Catalogue {
         birthMonth = 3, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.07f, snowLimitMm = 300f, flightKm = 0.3f, dangerToHumans = 0.4f,
         products = Products(meat = 18f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
+        speedKmh = 58f,
         domestication = floatArrayOf(0.1f, 0.4f, 0.1f, 0.0f, 0.2f, 0.0f),
         habitat = Habitat(cover = 0.7f, rugged = 0.6f),
         packLitter = 3,
@@ -320,6 +355,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
         backgroundMortality = 0.07f, snowLimitMm = 200f, flightKm = 0.5f, dangerToHumans = 0.1f,
         products = Products(meat = 14f, fat = 1f, hide = 2.5f, bone = 4f, sinew = 0.2f, fur = true),
+        speedKmh = 50f,
         domestication = floatArrayOf(0.8f, 0.3f, 0.2f, 0.3f, 0.3f, 0.2f),
         habitat = Habitat(rugged = 0.3f),
         packLitter = 3,
@@ -339,6 +375,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 1f,
         backgroundMortality = 0.25f, snowLimitMm = 150f, flightKm = 0.5f, dangerToHumans = 0f,
         products = Products(meat = 4f, fat = 0.2f, hide = 0.6f, bone = 1f, sinew = 0.1f, fur = true),
+        speedKmh = 45f,
         domestication = floatArrayOf(0.8f, 0.6f, 0.4f, 0.4f, 0.4f, 0.6f),
         habitat = Habitat(cover = 0.2f, wet = 0.2f),
         packLitter = 4,
@@ -348,7 +385,7 @@ object Catalogue {
         startKm2PerAnimal = 200f,
     )
 
-    val herbivores = listOf(GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER)
+    val herbivores = listOf(GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO)
     val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL)
     val all = herbivores + predators
 

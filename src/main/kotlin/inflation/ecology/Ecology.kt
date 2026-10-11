@@ -63,6 +63,15 @@ class Ecology(private val sim: Simulation) {
     val spring = BooleanArray(n)
     /** The biggest springs in the driest land: oases, whose water keeps the ground around them damp. */
     val oasis = BooleanArray(n)
+    /**
+     * Crocodiles per cell, 0..1 of the most a river holds: in warm rivers and lakes big enough for
+     * them. Not tracked as animals: they wait at the water, and a herd that drinks there may lose one.
+     */
+    val crocodiles = FloatArray(n)
+    /** Distance to crocodile water, km. */
+    private val crocKm = FloatArray(n)
+    /** Eagles hunting over each cell, 0..1: they nest on cliffs and take kids, fawns and lambs in the open. */
+    val eagles = FloatArray(n)
     /** [inflation.world.Terrain.concealmentKm] and [Terrain.sightKm] for this step: plants change only between steps. */
     private val concealKm = FloatArray(n)
     private val sightKm = FloatArray(n)
@@ -125,6 +134,7 @@ class Ecology(private val sim: Simulation) {
             straw[i] = strawCap(i) * 0.7f
         }
         findSprings()
+        findCrocodilesAndEagles()
         updateWater()
         updateSight()
         populate()
@@ -298,7 +308,7 @@ class Ecology(private val sim: Simulation) {
     /** How well cell [i] suits species [s] to start in, 0..1, from its food and favoured ground. */
     private fun suitability(s: Species, i: Int): Float {
         val v = sim.vegetation
-        if (!v.isVegetated(i) || world.elevation[i] > 2500f || waterKm[i] > 15f) return 0f
+        if (!v.isVegetated(i) || world.elevation[i] > 2500f || waterKm[i] > min(15f, s.maxWaterKm)) return 0f
         val food = ((s.diet.grass * v.herb[i] / 0.3f + s.diet.browse * woody(i) / 0.45f + s.diet.roots * (v.herb[i] + 0.05f * v.tree[i]) / 0.7f) / plantDiet(s)).coerceIn(0f, 1f)
         val h = s.habitat
         val ground = 0.5f + h.cover * (cover(i) - 0.5f) + h.rugged * (terrain.ruggedness[i] - 0.3f) * 1.5f + h.wet * (wetness[i] - 0.3f)
@@ -556,7 +566,8 @@ class Ecology(private val sim: Simulation) {
             tx[k + 1] = x; ty[k + 1] = y
             val xi = x.toInt(); val yi = y.toInt()
             val cell = if (x >= 0 && y >= 0 && grid.inBounds(xi, yi) && sim.vegetation.isVegetated(grid.index(xi, yi))) grid.index(xi, yi) else -1
-            if (cell < 0 || (k >= 0 && km == 0f)) { options += Option(-1, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f); continue }
+            val tooDry = k >= 0 && cell >= 0 && waterKm[cell] > max(s.maxWaterKm, waterKm[cellOf(g)])
+            if (cell < 0 || (k >= 0 && km == 0f) || tooDry) { options += Option(-1, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f); continue }
             val forage = if (carnivore) small.rodents[cell] else food(s, cell)
             // Sight of the others from there; scent carries regardless of cover.
             var near = radius
@@ -680,7 +691,10 @@ class Ecology(private val sim: Simulation) {
                 val size = min(1f, packKg / (1.5f * kg)).let { it * it }
                 val defence = effectiveDefence(ps, packKg)
                 val base = if (young) YOUNG_CATCH * (1f - 0.5f * defence) else (0.15f + 0.5f * (1f - o.condition)) * (1f - defence)
-                val p = min(1f, g.adults / 2f) * eyes * wary * ambush * refuge * size * base
+                // A courser must outrun its quarry; a stalker strikes before the chase begins. The young run slower.
+                val preySpeed = if (young) 0.7f * ps.speedKmh else ps.speedKmh
+                val chase = s.stalking + (1f - s.stalking) * (s.speedKmh / preySpeed).coerceIn(0.5f, 1.3f)
+                val p = min(1f, g.adults / 2f) * eyes * wary * ambush * refuge * size * base * chase
                 // Big, armed prey fight back: horns and tusks kill hunters. Worth it only for much meat.
                 val risk = if (young) 0f else fightBack(ps, s)
                 val value = p * min(kg, 4f * need) * max(0f, 1f - 5f * risk)
@@ -813,10 +827,69 @@ class Ecology(private val sim: Simulation) {
      */
     private fun drink(g: AnimalGroup) {
         val c = cellOf(g)
-        if (waterKm[c] <= 1.5f) { g.daysWithoutWater = 0f; return }
+        if (waterKm[c] <= 1.5f) {
+            g.daysWithoutWater = 0f
+            crocodile(g, c)
+            return
+        }
         val fromFood = g.species.waterFromFood * g.freshShare * (0.5f + 0.5f * wetness[c])
         g.daysWithoutWater += max(0f, 1f - fromFood)
         if (g.daysWithoutWater > g.species.daysWithoutWater) g.condition = max(0f, g.condition - 0.05f)
+    }
+
+    /**
+     * A group drinking at crocodile water may lose one of its number, the young most often; adult
+     * hippos are too big. Crocodiles lie still in the cold months.
+     */
+    private fun crocodile(g: AnimalGroup, c: Int) {
+        if (crocKm[c] > 1.5f || sim.weather.temperature[c] < 16f || g.species.carnivore) return
+        val p = CROC_DAILY * (1f - crocKm[c] / 1.5f) * crocodiles[c].coerceAtLeast(0.3f)
+        if (rnd.nextFloat() >= p) return
+        val young = g.young > 0 && (g.species.massKg > 500f || rnd.nextFloat() < 0.6f)
+        if (young) g.young-- else if (g.species.massKg <= 500f) g.adults-- else return
+        deaths++
+        deathsBy.merge("${g.species.name}:crocodile", 1, Int::plus)
+    }
+
+    /**
+     * Crocodiles live in rivers carrying at least [CROC_RIVER] m³/s and in fresh lakes, where the
+     * coldest month stays above 12 °C; eagles where cliffs and steep ground are near.
+     */
+    private fun findCrocodilesAndEagles() {
+        val c = world.climate
+        val big = 1e6f
+        for (i in 0 until n) {
+            val coldest = c.monthlyTemp.minOf { it[i] }
+            val water = !world.isSea[i] && ((world.water.isLake(i) && !world.water.lakeClosed[i]) || world.water.discharge[i] >= CROC_RIVER)
+            crocodiles[i] = if (water && coldest >= 12f) min(1f, (coldest - 12f) / 6f + 0.2f) else 0f
+            crocKm[i] = if (crocodiles[i] > 0f) 0f else big
+        }
+        val d1 = cellKm; val d2 = cellKm * 1.4142f
+        val w = grid.width; val h = grid.height
+        for (y in 0 until h) for (x in 0 until w) {
+            val i = y * w + x
+            var d = crocKm[i]
+            if (x > 0) d = min(d, crocKm[i - 1] + d1)
+            if (y > 0) { d = min(d, crocKm[i - w] + d1); if (x > 0) d = min(d, crocKm[i - w - 1] + d2); if (x < w - 1) d = min(d, crocKm[i - w + 1] + d2) }
+            crocKm[i] = d
+        }
+        for (y in h - 1 downTo 0) for (x in w - 1 downTo 0) {
+            val i = y * w + x
+            var d = crocKm[i]
+            if (x < w - 1) d = min(d, crocKm[i + 1] + d1)
+            if (y < h - 1) { d = min(d, crocKm[i + w] + d1); if (x < w - 1) d = min(d, crocKm[i + w + 1] + d2); if (x > 0) d = min(d, crocKm[i + w - 1] + d2) }
+            crocKm[i] = d
+        }
+        // Eagles: share of rugged ground within about 5 km.
+        val r = max(1, (5 / cellKm).toInt())
+        val step = max(1, r / 2)
+        for (i in 0 until n) {
+            if (world.isSea[i]) continue
+            val x = grid.x(i); val y = grid.y(i)
+            var sum = 0f; var cnt = 0
+            for (dy in -r..r step step) for (dx in -r..r step step) if (grid.inBounds(x + dx, y + dy)) { sum += terrain.ruggedness[grid.index(x + dx, y + dy)]; cnt++ }
+            eagles[i] = min(1f, 2f * sum / max(1, cnt))
+        }
     }
 
     // ---------------------------------------------------------------- births, deaths, splitting
@@ -863,7 +936,9 @@ class Ecology(private val sim: Simulation) {
             // Young die twice as often, and far more when the group is hungry: for wolves, pup
             // survival is what tracks the food supply.
             val hunger = ((0.5f - g.condition) / 0.3f).coerceIn(0f, 1f)
-            val pYoung = min(1f, pAdult + s.youngMortality * years + 0.1f * hunger)
+            // Eagles take the young of the smaller hoofed animals in the open.
+            val eagle = if (!s.carnivore && s.massKg <= 80f) EAGLE_RATE * years * eagles[c] * (1f - cover(c)) else 0f
+            val pYoung = min(1f, pAdult + s.youngMortality * years + 0.1f * hunger + eagle)
             val deadA = binomial(g.adults, pAdult)
             val deadY = binomial(g.young, pYoung)
             if (deadA + deadY > 0) {
@@ -924,6 +999,12 @@ class Ecology(private val sim: Simulation) {
         const val THEFT_KM = 2f
         /** Chance a much stronger predator kills one of a weaker group it meets. */
         const val INTRAGUILD_KILL = 0.005f
+        /** Chance a group drinking at the most crocodile-rich water loses one, per day. */
+        const val CROC_DAILY = 0.01f
+        /** Smallest river that holds crocodiles, m³/s mean flow. */
+        const val CROC_RIVER = 3f
+        /** Yearly share of young taken by eagles in open, cliff-rich country. */
+        const val EAGLE_RATE = 0.15f
         /** Chance a chase after a young animal succeeds, before its group's defence: most are hidden or guarded. */
         const val YOUNG_CATCH = 0.15f
         /** Bulbs, roots and mast available to rooting animals, per kg/m² of herbs (and trees x 0.05). */
