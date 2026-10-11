@@ -32,6 +32,7 @@ class Ecology(private val sim: Simulation) {
     val plankton = Plankton(sim)
     val soil = SoilLife(sim)
     val small = SmallFauna(sim)
+    val fish = Fish(sim, plankton)
 
     /** Edible young plant growth, kg per km². */
     val palatable = FloatArray(n)
@@ -74,6 +75,7 @@ class Ecology(private val sim: Simulation) {
     fun step() {
         kills = 0; births = 0; deaths = 0
         plankton.step()
+        fish.step()
         soil.step()
         small.step()
         regrow()

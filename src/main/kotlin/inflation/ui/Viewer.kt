@@ -207,6 +207,10 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
         val x = grid.x(i); val y = grid.y(i)
         appendLine("Cell ($x, $y)  %.2f°N".format(world.latitude(i)))
         appendLine("Elevation %.0f m".format(world.elevation[i]))
+        val f = sim.ecology.fish
+        if (f.fish[i] > 0f) appendLine("Fish %.0f kg/km²".format(f.fish[i]))
+        if (f.shellfish[i] > 0f) appendLine("Shellfish %.0f kg/km²".format(f.shellfish[i]))
+        if (f.run[i] > 0f) appendLine("SPAWNING RUN %.0f kg/km²".format(f.run[i]))
         if (world.isSea[i]) { appendLine("Sea"); return@buildString }
         appendLine("Rock ${world.geology.rock[i].name.lowercase()}, sediment %.0f m".format(world.geology.sediment[i]))
         appendLine("Potential biome ${world.biome[i].name.lowercase().replace('_', ' ')}")
@@ -432,6 +436,7 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                 Layer.VIEWSHED -> "Area in view over the bare terrain within 30 km: valley floors dark, summits and open plains light"
                 Layer.DEFENSIBILITY -> "Defensibility: height over surroundings, broken ground, approaches cut by water or cliffs"
                 Layer.GRAZING -> "Palatable young plant growth, 0 to 250 kg/km² (dark to yellow) · cream dots: gazelle herds, red squares: wolf packs (on every layer)"
+                Layer.FISH -> "Fish (blue to green, up to 6 t/km²) · shellfish beds (pink) · spring spawning run in rivers (orange to yellow)"
                 Layer.PLANKTON -> "Phytoplankton: dark blue sparse to green bloom"
                 Layer.INSECTS -> "Plant-eating insects, 0 to 3000 kg/km² (log scale)"
                 Layer.RODENTS -> "Rodents, 0 to 500 kg/km²"

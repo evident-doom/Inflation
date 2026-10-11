@@ -25,6 +25,7 @@ enum class Layer(val label: String) {
     DEFENSIBILITY("Defensibility"),
     GRAZING("Grazing: palatable young growth (live)"),
     PLANKTON("Plankton (live)"),
+    FISH("Fish, shellfish and spawning runs (live)"),
     INSECTS("Plant-eating insects (live)"),
     RODENTS("Rodents and small mammals (live)"),
     SOIL_LIFE("Soil: litter and organic matter (live)"),
@@ -59,9 +60,20 @@ class LayerPainter(private val sim: Simulation) {
             Layer.GRAZING -> live(out) { Render.ramp(sim.ecology.palatable[it], 0f, 250f, FAUNA) }
             Layer.PLANKTON -> for (i in 0 until n) out[i] =
                 if (sim.ecology.plankton.isWater[i]) Render.ramp(ln(1 + sim.ecology.plankton.phyto[i]), 0f, ln(1 + 15f), PLANKTON) else terrain[i]
+            Layer.FISH -> for (i in 0 until n) out[i] = fishColour(i)
             Layer.INSECTS -> live(out) { Render.ramp(ln(1 + sim.ecology.small.insects[it]), 0f, ln(1 + 3000f), FAUNA) }
             Layer.RODENTS -> live(out) { Render.ramp(sim.ecology.small.rodents[it], 0f, 500f, FAUNA) }
             Layer.SOIL_LIFE -> live(out) { Render.ramp(sim.ecology.soil.organicMatter[it] + sim.ecology.soil.litter[it], 0f, 10f, SOIL) }
+        }
+    }
+
+    private fun fishColour(i: Int): Int {
+        val f = sim.ecology.fish
+        return when {
+            f.run[i] > 1f -> Render.ramp(ln(1 + f.run[i]), 0f, ln(1 + 4000f), RUN)
+            f.shellfish[i] > 100f -> Render.ramp(f.shellfish[i], 0f, 20000f, SHELL)
+            f.fish[i] > 0f -> Render.ramp(ln(1 + f.fish[i]), 0f, ln(1 + 6000f), PLANKTON)
+            else -> if (sim.vegetation.isVegetated(i)) Render.lerp(terrain[i], 0x808080, 0.5f) else terrain[i]
         }
     }
 
@@ -132,6 +144,8 @@ class LayerPainter(private val sim: Simulation) {
         private val EASY_HARD = intArrayOf(0xf0f0d0, 0xe0c060, 0xc06030, 0x802020, 0x200808)
         private val BLIND_CLEAR = intArrayOf(0x102010, 0x305030, 0x80a060, 0xd0e0a0, 0xffffff)
         private val FAUNA = intArrayOf(0x202020, 0x604080, 0xc06040, 0xf0d040, 0xffffc0)
+        private val RUN = intArrayOf(0x804000, 0xff8000, 0xffff40)
+        private val SHELL = intArrayOf(0x606080, 0xc080c0, 0xffd0ff)
         private val PLANKTON = intArrayOf(0x0a1a40, 0x1f3f6f, 0x2f7f7f, 0x5fbf5f, 0xbfef6f)
         private val SOIL = intArrayOf(0xe8d8a8, 0xb08850, 0x704020, 0x301808)
         private val LOW_HIGH = intArrayOf(0xb03020, 0xe0a060, 0xf0f0f0, 0x60a0e0, 0x1030b0)
