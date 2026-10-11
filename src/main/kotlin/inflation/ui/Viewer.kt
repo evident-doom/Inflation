@@ -102,6 +102,7 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
     private val image = BufferedImage(grid.width, grid.height, BufferedImage.TYPE_INT_RGB)
     @Volatile private var layer = startLayer
     @Volatile private var running = false
+    @Volatile private var showAnimals = true
     @Volatile private var stepsPerSecond = 5
     @Volatile private var dirty = true
     private val commands = ConcurrentLinkedQueue<() -> Unit>()
@@ -126,13 +127,15 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
         val layers = JComboBox(Layer.entries.map { it.label }.toTypedArray())
         layers.selectedIndex = startLayer.ordinal
         layers.addActionListener { layer = Layer.entries[layers.selectedIndex]; dirty = true }
+        val animalsBox = javax.swing.JCheckBox("Animals", true)
+        animalsBox.addActionListener { showAnimals = animalsBox.isSelected; map.repaint() }
         val tools = JComboBox(Tool.entries.map { it.label }.toTypedArray())
         tools.addActionListener { tool = Tool.entries[tools.selectedIndex]; canalStart = -1 }
 
         val bar = JPanel()
         bar.add(play); bar.add(step); bar.add(year)
         bar.add(JLabel("Speed (steps/s)")); bar.add(speed)
-        bar.add(JLabel("Layer")); bar.add(layers)
+        bar.add(JLabel("Layer")); bar.add(layers); bar.add(animalsBox)
         bar.add(JLabel("Tool")); bar.add(tools)
 
         dateLabel.font = dateLabel.font.deriveFont(Font.BOLD, 15f)
@@ -158,6 +161,9 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
 
     private fun titled(c: javax.swing.JComponent, title: String) = c.also { it.border = BorderFactory.createTitledBorder(title) }
 
+    /** Animal groups at the last repaint: x, y, size (negative for predators), per group. */
+    private var animals = FloatArray(0)
+
     /** Simulation thread: runs commands and steps, repaints the image after each change. */
     private fun loop() {
         var last = System.nanoTime()
@@ -171,7 +177,13 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
             if (changed || dirty) {
                 dirty = false
                 painter.paint(layer, pixels)
-                synchronized(image) { image.setRGB(0, 0, grid.width, grid.height, pixels, 0, grid.width) }
+                val herds = sim.ecology.groups.filter { it.alive }
+                val snapshot = FloatArray(herds.size * 3)
+                for ((k, g) in herds.withIndex()) {
+                    snapshot[3 * k] = g.x.toFloat(); snapshot[3 * k + 1] = g.y.toFloat()
+                    snapshot[3 * k + 2] = if (g.species.carnivore) -g.size.toFloat() else g.size.toFloat()
+                }
+                synchronized(image) { image.setRGB(0, 0, grid.width, grid.height, pixels, 0, grid.width); animals = snapshot }
                 SwingUtilities.invokeLater { updateLabels(); map.repaint() }
             } else Thread.sleep(5)
         }
@@ -214,6 +226,22 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
         if (sim.water.flood[i] > 0f) appendLine("FLOODED %.1f m".format(sim.water.flood[i]))
         if (sim.water.submerged[i]) appendLine("Under a reservoir")
         if (world.water.isLake(i)) appendLine(if (world.water.lakeClosed[i]) "Salt lake" else "Lake")
+        val e = sim.ecology
+        if (v.isVegetated(i)) {
+            appendLine("Grazing %.0f kg/km² · insects %.0f · rodents %.0f kg/km²".format(e.palatable[i], e.small.insects[i], e.small.rodents[i]))
+            appendLine("Litter %.2f kg/m², organic matter %.1f kg/m²".format(e.soil.litter[i], e.soil.organicMatter[i]))
+            if (e.small.biting[i] > 50f) appendLine("Mosquitoes and midges")
+            if (e.soil.carrion[i] > 0f) appendLine("Carcasses %.0f kg".format(e.soil.carrion[i] * grid.cellAreaM2))
+            appendLine("Water %.0f km away".format(e.waterKm[i]))
+        }
+        val a = synchronized(image) { animals }
+        var herds = 0; var gazelles = 0; var packs = 0; var wolves = 0
+        for (k in 0 until a.size / 3) {
+            if (abs(a[3 * k] - x - 0.5f) > 5 || abs(a[3 * k + 1] - y - 0.5f) > 5) continue
+            val size = a[3 * k + 2].toInt()
+            if (size < 0) { packs++; wolves -= size } else { herds++; gazelles += size }
+        }
+        if (herds + packs > 0) appendLine("Within 5 km: $gazelles gazelles in $herds herds, $wolves wolves in $packs packs")
         world.volcanoes.firstOrNull { abs(it.x - x) <= 3 && abs(it.y - y) <= 3 }?.let {
             appendLine("Volcano: ${it.kind.name.lowercase().replace('_', ' ')}, ${if (it.active) "active" else "extinct"}, %.1f Myr old".format(it.ageMyr))
         }
@@ -341,6 +369,21 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                 g2.drawImage(image, ox.toInt(), oy.toInt(), (grid.width * scale).toInt(), (grid.height * scale).toInt(), null)
             }
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            if (showAnimals) {
+                val a = synchronized(image) { animals }
+                for (k in 0 until a.size / 3) {
+                    val x = (ox + a[3 * k] * scale).toInt(); val y = (oy + a[3 * k + 1] * scale).toInt()
+                    val size = a[3 * k + 2]
+                    if (size < 0) {
+                        g2.color = Color.WHITE; g2.fillRect(x - 3, y - 3, 7, 7)
+                        g2.color = Color(0xd01010); g2.fillRect(x - 2, y - 2, 5, 5)
+                    } else {
+                        val r = if (size > 25) 2 else 1
+                        g2.color = Color(0x101010); g2.fillOval(x - r - 1, y - r - 1, 2 * r + 3, 2 * r + 3)
+                        g2.color = Color(0xf0e0b0); g2.fillOval(x - r, y - r, 2 * r + 1, 2 * r + 1)
+                    }
+                }
+            }
             for (v in world.volcanoes) {
                 if (world.elevation[grid.index(v.x, v.y)] < -200f) continue
                 val x = (ox + (v.x + 0.5) * scale).toInt(); val y = (oy + (v.y + 0.5) * scale).toInt()
@@ -377,6 +420,11 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                 Layer.SOIL_MOISTURE -> "Soil water: tan dry to blue saturated"
                 Layer.TEMPERATURE -> "Air temperature this step, -20 °C (blue) to 40 °C (red)"
                 Layer.PRECIPITATION -> "Rain and snow this step"
+                Layer.GRAZING -> "Palatable young plant growth, 0 to 250 kg/km² (dark to yellow) · cream dots: gazelle herds, red squares: wolf packs (on every layer)"
+                Layer.PLANKTON -> "Phytoplankton: dark blue sparse to green bloom"
+                Layer.INSECTS -> "Plant-eating insects, 0 to 3000 kg/km² (log scale)"
+                Layer.RODENTS -> "Rodents, 0 to 500 kg/km²"
+                Layer.SOIL_LIFE -> "Litter plus soil organic matter, 0 to 10 kg/m²"
                 else -> layer.label
             }
             g2.font = g2.font.deriveFont(12f)

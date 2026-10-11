@@ -18,6 +18,11 @@ enum class Layer(val label: String) {
     RIVER_FLOW("River flow vs normal (live)"),
     GEOLOGY("Rock"),
     SEDIMENT("Sediment thickness"),
+    GRAZING("Grazing: palatable young growth (live)"),
+    PLANKTON("Plankton (live)"),
+    INSECTS("Plant-eating insects (live)"),
+    RODENTS("Rodents and small mammals (live)"),
+    SOIL_LIFE("Soil: litter and organic matter (live)"),
 }
 
 /** Turns simulation state into pixels, one per cell. */
@@ -40,7 +45,18 @@ class LayerPainter(private val sim: Simulation) {
             Layer.PRECIPITATION -> for (i in 0 until n) out[i] = Render.ramp(ln(1 + sim.weather.precipitation[i]), 0f, ln(1 + 150f), Render.DRY_WET)
             Layer.SOIL_MOISTURE -> for (i in 0 until n) out[i] = if (world.isSea[i]) SEA else Render.ramp(sim.water.soil[i], 0f, 150f, Render.DRY_WET)
             Layer.RIVER_FLOW -> for (i in 0 until n) out[i] = flow(i)
+            Layer.GRAZING -> live(out) { Render.ramp(sim.ecology.palatable[it], 0f, 250f, FAUNA) }
+            Layer.PLANKTON -> for (i in 0 until n) out[i] =
+                if (sim.ecology.plankton.isWater[i]) Render.ramp(ln(1 + sim.ecology.plankton.phyto[i]), 0f, ln(1 + 15f), PLANKTON) else terrain[i]
+            Layer.INSECTS -> live(out) { Render.ramp(ln(1 + sim.ecology.small.insects[it]), 0f, ln(1 + 3000f), FAUNA) }
+            Layer.RODENTS -> live(out) { Render.ramp(sim.ecology.small.rodents[it], 0f, 500f, FAUNA) }
+            Layer.SOIL_LIFE -> live(out) { Render.ramp(sim.ecology.soil.organicMatter[it] + sim.ecology.soil.litter[it], 0f, 10f, SOIL) }
         }
+    }
+
+    /** Paints land cells with [colour] and water as it looks on the terrain map. */
+    private inline fun live(out: IntArray, colour: (Int) -> Int) {
+        for (i in 0 until n) out[i] = if (sim.vegetation.isVegetated(i)) colour(i) else terrain[i]
     }
 
     private fun shadedLand(i: Int): Int {
@@ -101,6 +117,9 @@ class LayerPainter(private val sim: Simulation) {
     companion object {
         const val SEA = 0x1f3f6f
         private val SEDIMENT = intArrayOf(0x606060, 0xc8b88a, 0xe8d8a0, 0xffffe0)
+        private val FAUNA = intArrayOf(0x202020, 0x604080, 0xc06040, 0xf0d040, 0xffffc0)
+        private val PLANKTON = intArrayOf(0x0a1a40, 0x1f3f6f, 0x2f7f7f, 0x5fbf5f, 0xbfef6f)
+        private val SOIL = intArrayOf(0xe8d8a8, 0xb08850, 0x704020, 0x301808)
         private val LOW_HIGH = intArrayOf(0xb03020, 0xe0a060, 0xf0f0f0, 0x60a0e0, 0x1030b0)
     }
 }

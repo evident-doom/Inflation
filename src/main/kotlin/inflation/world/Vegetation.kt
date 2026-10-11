@@ -58,6 +58,10 @@ class Vegetation(private val world: World, seed: Long) {
     private val trampling = FloatArray(n)
     /** Soil fertility including ash enrichment, 0..1. */
     val fertility = world.soilFertility.copyOf()
+    /** Extra fertility from decomposed organic matter, set by the soil life (0..0.3). */
+    val organicFertility = FloatArray(n)
+    /** Dead plant matter shed during the last step, kg/m²: turnover, die-back, frost, flood and ash kill. */
+    val litterfall = FloatArray(n)
     private var treeSeed = FloatArray(n)
     private var shrubSeed = FloatArray(n)
     private var stepCount = 0
@@ -87,7 +91,7 @@ class Vegetation(private val world: World, seed: Long) {
     fun ceiling(form: LifeForm, i: Int): Float {
         val m = ((moisture[i] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
         val t = ((warmth[i] - form.warmthMin) / (form.warmthFull - form.warmthMin)).coerceIn(0f, 1f)
-        val soil = 0.3f + 0.7f * fertility[i]
+        val soil = 0.3f + 0.7f * min(1f, fertility[i] + organicFertility[i])
         // Waterlogged ground: woody plants drown where the soil is saturated much of the year.
         val logged = when (world.biome[i]) {
             Biome.MARSH, Biome.BOG, Biome.SALT_MARSH -> if (form == LifeForm.HERB) 1f else if (form == LifeForm.SHRUB) 0.4f else 0.05f
@@ -107,7 +111,10 @@ class Vegetation(private val world: World, seed: Long) {
         return taken
     }
 
-    /** Records passage through cell [i]; [intensity] 1 is a herd crossing the cell. */
+    /**
+     * Records passage through cell [i]. [intensity] 1 is about 150 tonnes of animals (or people)
+     * passing, a large herd of big game; a dozen gazelles crossing is about 0.002.
+     */
     fun trample(i: Int, intensity: Float) { trampling[i] += intensity }
 
     /** Advances one step using the weather, water and eruptions of that step. */
@@ -118,9 +125,11 @@ class Vegetation(private val world: World, seed: Long) {
         if (stepCount++ % 5 == 0) seedSources()
         for (i in 0 until n) {
             if (!isVegetated(i) || water.submerged[i]) {
+                litterfall[i] = biomass(i)
                 herb[i] = 0f; shrub[i] = 0f; tree[i] = 0f
                 continue
             }
+            val before = biomass(i)
             val t = weather.temperature[i]
             val wet = water.soil[i] / LiveWater.SOIL_CAPACITY
             moisture[i] += (wet - moisture[i]) * memory
@@ -148,13 +157,15 @@ class Vegetation(private val world: World, seed: Long) {
             if (a > 300f) tree[i] *= exp(-a / 800f)
             if (a > 1f) fertility[i] = min(1f, fertility[i] + a * 1e-6f) // weathered ash makes rich soil
 
-            fire(i, t, wet, years)
+            val burned = fire(i, t, wet, years)
+            // Living plants shed leaves, stems and roots all the time; deaths add the rest. Burned matter is gone.
+            litterfall[i] = max(0f, before - biomass(i) - burned) + years * (herb[i] + 0.2f * shrub[i] + 0.04f * tree[i])
 
             // Trampling beats down herbs and shrubs and wears a path; paths fade in a few years.
             val tr = trampling[i]
             if (tr > 0f) {
                 herb[i] *= exp(-0.05f * tr); shrub[i] *= exp(-0.1f * tr)
-                trails[i] = min(1f, trails[i] + 0.02f * tr)
+                trails[i] = min(1f, trails[i] + 0.5f * tr)
                 trampling[i] = 0f
             } else if (trails[i] > 0f) trails[i] = max(0f, trails[i] - 0.3f * years)
             if (burnt[i] > 0f) burnt[i] = max(0f, burnt[i] - 0.4f * years)
@@ -175,14 +186,17 @@ class Vegetation(private val world: World, seed: Long) {
         if (b[i] < 0f) b[i] = 0f
     }
 
-    private fun fire(i: Int, t: Float, wet: Float, years: Float) {
+    /** Returns the biomass burned, kg/m². */
+    private fun fire(i: Int, t: Float, wet: Float, years: Float): Float {
         val fuel = herb[i] + 0.5f * shrub[i]
-        if (fuel < 0.2f || wet > 0.3f || t < 18f) return
+        if (fuel < 0.2f || wet > 0.3f || t < 18f) return 0f
         // A few % per year in dry, hot, fuel-rich Mediterranean scrub; far less elsewhere.
         val p = 0.04f * years * min(1f, fuel / 1.5f) * ((t - 18f) / 15f).coerceIn(0f, 1f) * (1 - wet / 0.3f)
-        if (rnd.nextFloat() >= p) return
+        if (rnd.nextFloat() >= p) return 0f
+        val before = biomass(i)
         herb[i] *= 0.1f; shrub[i] *= 0.2f; tree[i] *= 0.7f
         burnt[i] = 1f
+        return before - biomass(i)
     }
 
     /** Seed availability for trees and shrubs: biomass within ~5 km, normalised. */
