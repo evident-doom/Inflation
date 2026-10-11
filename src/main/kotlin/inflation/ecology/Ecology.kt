@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.world.Date
 import inflation.world.LifeForm
 import inflation.world.Simulation
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.sqrt
 import kotlin.math.max
@@ -21,6 +22,7 @@ import kotlin.random.Random
 class Ecology(private val sim: Simulation) {
     private val world = sim.world
     private val grid = world.grid
+    private val terrain = world.terrain
     private val n = grid.size
     private val days = world.config.daysPerStep
     private val rnd = Random(world.config.seed * 31 + 7)
@@ -155,7 +157,7 @@ class Ecology(private val sim: Simulation) {
 
     private fun populate() {
         val g = Catalogue.GAZELLE
-        val density = 0.5f * Allometry.herbivoreDensityPerKm2(g.massKg)
+        val density = 0.3f * Allometry.herbivoreDensityPerKm2(g.massKg)
         val perCell = density * cellKm2 / g.groupSize
         var preyKg = 0f
         for (i in 0 until n) {
@@ -243,35 +245,74 @@ class Ecology(private val sim: Simulation) {
         return v / (v + norm)
     }
 
+    /** How well the ground and plants at [i] hide things, 0 (seen from 2 km or more) to 1. */
+    private fun cover(i: Int) = 1f - min(1f, terrain.concealmentKm(i, sim.vegetation) / 2f)
+
+    /** Whether a group at distance [km] in cell [at] can be seen from cell [from]. */
+    private fun visible(from: Int, at: Int, km: Float) =
+        km <= terrain.concealmentKm(at, sim.vegetation) && km <= terrain.sightKm(from, sim.vegetation)
+
+    /**
+     * Walks from (x, y) in direction [k] until a day's effort [budgetKm] (km of flat open ground)
+     * is spent or water blocks the way. Fills [walkTo] with the end point and returns the effort used.
+     */
+    private fun walk(x0: Double, y0: Double, k: Int, budgetKm: Float): Float {
+        var x = x0; var y = y0; var spent = 0f
+        val v = sim.vegetation
+        while (true) {
+            val nx = x + COS[k]; val ny = y + SIN[k]
+            if (nx < 0 || ny < 0 || !grid.inBounds(nx.toInt(), ny.toInt())) break
+            val c = grid.index(nx.toInt(), ny.toInt())
+            val cost = terrain.travelCost(c, v, sim.weather.snowpack[c]) * cellKm
+            if (!cost.isFinite() || spent + cost > budgetKm) {
+                // Part of a cell: go as far as the remaining effort allows.
+                if (cost.isFinite() && spent < budgetKm) {
+                    val f = (budgetKm - spent) / cost
+                    x += COS[k] * f; y += SIN[k] * f; spent = budgetKm
+                }
+                break
+            }
+            x = nx; y = ny; spent += cost
+        }
+        walkTo[0] = x; walkTo[1] = y
+        return spent
+    }
+    private val walkTo = DoubleArray(2)
+
     private fun move(g: AnimalGroup) {
         val s = g.species
         val carnivore = s.carnivore
         val predator = Catalogue.WOLF
         val prey = Catalogue.GAZELLE
+        val here = cellOf(g)
+        // A herd that sees wolves close by runs; in cover it may not see them in time.
+        val threatened = !carnivore && nearest(predator, g.x, g.y, 2f * s.flightKm).let { (w, km) -> w != null && visible(here, cellOf(w), km) }
+        val budget = if (threatened) s.maxDailyTravelKm / 3f else s.dailyTravelKm
         // Others the group can perceive around today's possible destinations, gathered once.
         val other = if (carnivore) prey else predator
         val radius = if (carnivore) s.senseKm else 3f
-        val threatened = !carnivore && nearest(predator, g.x, g.y, 2f * s.flightKm).first != null
-        val reach = if (threatened) s.maxDailyTravelKm / 3f else s.dailyTravelKm
-        within(other, g.x, g.y, reach + radius, around)
+        within(other, g.x, g.y, budget + radius, around)
         val options = ArrayList<Option>(9)
         val tx = DoubleArray(9); val ty = DoubleArray(9)
         for (k in -1 until 8) {
-            val x = if (k < 0) g.x else g.x + COS[k] * reach / cellKm
-            val y = if (k < 0) g.y else g.y + SIN[k] * reach / cellKm
+            val km = if (k < 0) { walkTo[0] = g.x; walkTo[1] = g.y; 0f } else walk(g.x, g.y, k, budget)
+            val x = walkTo[0]; val y = walkTo[1]
             tx[k + 1] = x; ty[k + 1] = y
             val xi = x.toInt(); val yi = y.toInt()
             val cell = if (x >= 0 && y >= 0 && grid.inBounds(xi, yi) && sim.vegetation.isVegetated(grid.index(xi, yi))) grid.index(xi, yi) else -1
-            if (cell < 0) { options += Option(-1, 0f, 0f, 0f, 0f, 0f, 0f, 0f); continue }
-            val km = if (k < 0) 0f else reach
+            if (cell < 0 || (k >= 0 && km == 0f)) { options += Option(-1, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f); continue }
             val forage = if (carnivore) small.rodents[cell] else palatable[cell]
+            // Sight of the others from there; scent carries regardless of cover.
             var near = radius
-            for (o in around) near = min(near, (dist(o.x - x, o.y - y) * cellKm).toFloat())
+            for (o in around) {
+                val d = (dist(o.x - x, o.y - y) * cellKm).toFloat()
+                if (d < near && visible(cell, cellOf(o), d)) near = d
+            }
             val seen = 1f - near / radius
             val danger = if (carnivore) 0f else max(scentAt(predator, x, y, 6f), seen)
             val preySig = if (!carnivore) 0f else max(scentAt(prey, x, y, 30f), seen)
             val kin = scentAt(s, x, y, 3f * s.groupSize) * if (k < 0) 0.5f else 1f // own scent counts less where it stands
-            options += Option(cell, km, forage, danger, preySig, kin, waterKm[cell], sim.weather.snowpack[cell])
+            options += Option(cell, km, forage, danger, preySig, kin, waterKm[cell], sim.weather.snowpack[cell], cover(cell))
         }
         val choice = policies.getValue(s).choose(g, options)
         if (options[choice].cell < 0) return
@@ -279,7 +320,7 @@ class Ecology(private val sim: Simulation) {
         g.x = tx[choice]; g.y = ty[choice]
         // Trampling along the way: a herd crossing a cell beats it down and, repeated, wears a trail.
         val to = cellOf(g)
-        val steps = max(1, (options[choice].km / cellKm).toInt())
+        val steps = max(1, max(abs(grid.x(to) - grid.x(from)), abs(grid.y(to) - grid.y(from))))
         for (t in 0..steps) {
             val xi = grid.x(from) + (grid.x(to) - grid.x(from)) * t / steps
             val yi = grid.y(from) + (grid.y(to) - grid.y(from)) * t / steps
@@ -329,8 +370,10 @@ class Ecology(private val sim: Simulation) {
             val pack = min(1f, g.adults / 2f)
             val eyes = 1f - 0.3f * min(1f, prey.size / 40f)
             val wary = if (prey.alert > 0) 0.3f else 1f
+            // Stalking works better in cover, where the herd sees the pack late.
+            val ambush = 1f + 0.8f * cover(cellOf(prey))
             val young = prey.young > 0 && rnd.nextFloat() < 2f * prey.young / (prey.size + prey.young)
-            val p = pack * eyes * wary * if (young) 0.4f else 0.15f + 0.5f * (1f - prey.condition)
+            val p = pack * eyes * wary * ambush * if (young) 0.4f else 0.15f + 0.5f * (1f - prey.condition)
             // Caught or not, the herd bolts and stays watchful for days.
             prey.alert = ALERT_DAYS
             bolt(prey, g)

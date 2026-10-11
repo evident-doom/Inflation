@@ -226,6 +226,12 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
         if (sim.water.flood[i] > 0f) appendLine("FLOODED %.1f m".format(sim.water.flood[i]))
         if (sim.water.submerged[i]) appendLine("Under a reservoir")
         if (world.water.isLake(i)) appendLine(if (world.water.lakeClosed[i]) "Salt lake" else "Lake")
+        val t = world.terrain
+        if (v.isVegetated(i)) {
+            appendLine("Ruggedness %.2f (slope %.0f%%, relief %.0f m, rock roughness %.2f)".format(t.ruggedness[i], t.slope[i] * 100, t.relief[i], t.roughness[i]))
+            appendLine("Travel effort %.1f× flat ground · defensibility %.2f".format(t.travelCost(i, v, sim.weather.snowpack[i]), t.defensibility[i]))
+            appendLine("Sight on the ground %.2f km · view over terrain %.1f km, %.0f km²".format(t.sightKm(i, v), t.viewKm[i], t.viewAreaKm2[i]))
+        }
         val e = sim.ecology
         if (v.isVegetated(i)) {
             appendLine("Grazing %.0f kg/km² · insects %.0f · rodents %.0f kg/km²".format(e.palatable[i], e.small.insects[i], e.small.rodents[i]))
@@ -420,6 +426,11 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                 Layer.SOIL_MOISTURE -> "Soil water: tan dry to blue saturated"
                 Layer.TEMPERATURE -> "Air temperature this step, -20 °C (blue) to 40 °C (red)"
                 Layer.PRECIPITATION -> "Rain and snow this step"
+                Layer.RUGGEDNESS -> "Ruggedness from slope, relief and rock: pale smooth to dark broken (lava, karst, gorges)"
+                Layer.TRAVEL_COST -> "Walking effort vs flat open ground, 1× (pale) to 20× (dark): slope, rock, wetland, rivers, thickets, snow"
+                Layer.VISIBILITY -> "How far one sees on the ground through broken ground and plants: 50 m (dark) to 10 km (white)"
+                Layer.VIEWSHED -> "Area in view over the bare terrain within 30 km: valley floors dark, summits and open plains light"
+                Layer.DEFENSIBILITY -> "Defensibility: height over surroundings, broken ground, approaches cut by water or cliffs"
                 Layer.GRAZING -> "Palatable young plant growth, 0 to 250 kg/km² (dark to yellow) · cream dots: gazelle herds, red squares: wolf packs (on every layer)"
                 Layer.PLANKTON -> "Phytoplankton: dark blue sparse to green bloom"
                 Layer.INSECTS -> "Plant-eating insects, 0 to 3000 kg/km² (log scale)"
