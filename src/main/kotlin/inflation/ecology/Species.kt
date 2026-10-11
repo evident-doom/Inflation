@@ -88,6 +88,15 @@ class Species(
      * pigs, with a simple stomach, get far less from it.
      */
     val fibreDigestion: Float = 1f,
+    /**
+     * For predators: fighting weight per kg compared with a wolf, for fights over carcasses and
+     * ground: a hyena clan bites above its weight, a jackal below.
+     */
+    val ferocity: Float = 1f,
+    /** For predators: distance within which two groups of the species meet and contest their ground, km. */
+    val territoryKm: Float = 3f,
+    /** For predators: land per animal at the start, km². */
+    val startKm2PerAnimal: Float = 0f,
     /** Breeds as a pack: one litter a year from the breeding pair, of this size in good condition. */
     val packLitter: Int = 0,
     /** Diamond's criteria, 0..1 each: diet breadth, growth, captive breeding, temperament, calm, hierarchy. */
@@ -161,6 +170,7 @@ object Catalogue {
         products = Products(meat = 32f, fat = 2f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 2f),
         domestication = floatArrayOf(0.5f, 0.5f, 0.4f, 0.4f, 0.3f, 0.4f), // kept in parks, never domesticated
         habitat = Habitat(cover = 0.3f),
+        defence = 0.1f,
     )
 
     /** Red deer: woodland and hills, grazing and browsing, herds split by sex outside the rut. */
@@ -175,7 +185,7 @@ object Catalogue {
         products = Products(meat = 75f, fat = 6f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 5f),
         domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.3f, 0.2f, 0.3f),
         habitat = Habitat(cover = 0.5f, rugged = 0.2f),
-        defence = 0.2f,
+        defence = 0.25f,
     )
 
     /** Nubian or Caucasian-type ibex: cliffs and steep rock, where nothing can follow it. */
@@ -256,10 +266,90 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.5f, 0.6f, 0.4f, 0.6f, 0.9f), // became the dog
         packLitter = 4,
         stalking = 0.3f,
+        startKm2PerAnimal = 400f,
+    )
+
+    /**
+     * Lion: still in the Levant at the time, in prides that take the largest prey, aurochs
+     * included, and drive other predators off their kills.
+     */
+    val LION = Species(
+        name = "lion", massKg = 150f,
+        diet = Diet(meat = 0.9f, carrion = 0.1f),
+        groupSize = 5, maxGroupSize = 12,
+        dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 8f,
+        daysWithoutWater = 4, waterFromFood = 0.6f,
+        birthMonth = 2, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 3f,
+        backgroundMortality = 0.1f, snowLimitMm = 200f, flightKm = 0.2f, dangerToHumans = 0.9f,
+        products = Products(meat = 60f, fat = 5f, hide = 8f, bone = 18f, sinew = 1f, fur = true),
+        domestication = floatArrayOf(0.1f, 0.4f, 0.2f, 0.0f, 0.3f, 0.5f),
+        habitat = Habitat(cover = -0.2f, rugged = -0.3f),
+        packLitter = 3,
+        stalking = 0.7f,
+        ferocity = 1.2f,
+        territoryKm = 6f,
+        startKm2PerAnimal = 400f,
+    )
+
+    /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
+    val LEOPARD = Species(
+        name = "leopard", massKg = 45f,
+        diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
+        groupSize = 2, maxGroupSize = 4,
+        dailyTravelKm = 6f, maxDailyTravelKm = 20f, senseKm = 4f,
+        daysWithoutWater = 6, waterFromFood = 0.8f,
+        birthMonth = 3, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 2.5f,
+        backgroundMortality = 0.07f, snowLimitMm = 300f, flightKm = 0.3f, dangerToHumans = 0.4f,
+        products = Products(meat = 18f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
+        domestication = floatArrayOf(0.1f, 0.4f, 0.1f, 0.0f, 0.2f, 0.0f),
+        habitat = Habitat(cover = 0.7f, rugged = 0.6f),
+        packLitter = 3,
+        stalking = 1f,
+        ferocity = 1.1f,
+        territoryKm = 5f,
+        startKm2PerAnimal = 400f,
+    )
+
+    /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
+    val HYENA = Species(
+        name = "striped hyena", massKg = 35f,
+        diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.65f),
+        groupSize = 2, maxGroupSize = 5,
+        dailyTravelKm = 12f, maxDailyTravelKm = 40f, senseKm = 10f,
+        daysWithoutWater = 4, waterFromFood = 0.6f,
+        birthMonth = 2, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
+        backgroundMortality = 0.07f, snowLimitMm = 200f, flightKm = 0.5f, dangerToHumans = 0.1f,
+        products = Products(meat = 14f, fat = 1f, hide = 2.5f, bone = 4f, sinew = 0.2f, fur = true),
+        domestication = floatArrayOf(0.8f, 0.3f, 0.2f, 0.3f, 0.3f, 0.2f),
+        habitat = Habitat(rugged = 0.3f),
+        packLitter = 3,
+        stalking = 0.2f,
+        ferocity = 1.4f,
+        territoryKm = 5f,
+        startKm2PerAnimal = 500f,
+    )
+
+    /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
+    val JACKAL = Species(
+        name = "jackal", massKg = 10f,
+        diet = Diet(meat = 0.1f, smallPrey = 0.6f, carrion = 0.3f),
+        groupSize = 2, maxGroupSize = 6,
+        dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 4f,
+        daysWithoutWater = 4, waterFromFood = 0.6f,
+        birthMonth = 2, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 1f,
+        backgroundMortality = 0.25f, snowLimitMm = 150f, flightKm = 0.5f, dangerToHumans = 0f,
+        products = Products(meat = 4f, fat = 0.2f, hide = 0.6f, bone = 1f, sinew = 0.1f, fur = true),
+        domestication = floatArrayOf(0.8f, 0.6f, 0.4f, 0.4f, 0.4f, 0.6f),
+        habitat = Habitat(cover = 0.2f, wet = 0.2f),
+        packLitter = 4,
+        stalking = 0.4f,
+        ferocity = 0.8f,
+        territoryKm = 4f,
+        startKm2PerAnimal = 200f,
     )
 
     val herbivores = listOf(GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER)
-    val predators = listOf(WOLF)
+    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL)
     val all = herbivores + predators
 
     init {

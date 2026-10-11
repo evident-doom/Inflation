@@ -8,17 +8,21 @@ import kotlin.math.max
 /**
  * Runs the living world for some years and prints the animal populations each season.
  *
- * Usage: fauna [--seed N] [--size KM] [--years N]
+ * Usage: fauna [--seed N] [--size KM] [--years N] [--policies DIR]
+ *
+ * With --policies, species that have a saved network in DIR (see [inflation.learning.NetworkPolicy]) use it.
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig()
     var years = 10
+    var policies: java.io.File? = null
     var k = 0
     while (k < args.size) {
         when (args[k]) {
             "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
             "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
             "--years" -> years = args[++k].toInt()
+            "--policies" -> policies = java.io.File(args[++k])
             else -> error("unknown argument ${args[k]}")
         }
         k++
@@ -26,6 +30,12 @@ fun main(args: Array<String>) {
     val world = World.generate(cfg)
     val sim = Simulation(world)
     val e = sim.ecology
+    policies?.let { dir ->
+        val nets = inflation.learning.NetworkPolicy.load(dir)
+        val policy = inflation.learning.NetworkPolicy(nets, e::noise, e.policies.getValue(Catalogue.GAZELLE))
+        for (s in nets.keys) e.policies[s] = policy
+        println("networks for " + nets.keys.joinToString { it.name })
+    }
     val land = (0 until world.grid.size).count { sim.vegetation.isVegetated(it) } * world.grid.cellKm * world.grid.cellKm
     println("land %.0f km², %d springs and water holes in dry country, %d of them oases".format(land, e.spring.count { it }, e.oasis.count { it }))
     println("%-28s ".format("date") + Catalogue.all.joinToString(" ") { "%9s".format(it.name.take(9)) } + "  kills  fish t/km² shellfish run t")
@@ -41,6 +51,7 @@ fun main(args: Array<String>) {
         kills = 0
         if (System.getenv("FAUNA_DETAIL") != null) {
             println("   kills  " + Catalogue.herbivores.joinToString(" ") { "%9d".format(e.killsBy[it] ?: 0) })
+            println("   hunters " + Catalogue.predators.joinToString { "${it.name} ${e.killsByPredator[it] ?: 0} kills, ${e.stolen[it] ?: 0} stolen" })
             println("   cond   " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(if (gs.isEmpty()) 0f else gs.map { it.condition }.average().toFloat()) })
             println("   young% " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(gs.sumOf { it.young }.toFloat() / max(1, gs.sumOf { it.size })) })
             println("   march% " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(gs.count { it.marching }.toFloat() / max(1, gs.size)) })
@@ -48,8 +59,8 @@ fun main(args: Array<String>) {
             println("   water  land with drinking water %.0f%%, within 5 km %.0f%%, mean wetness %.2f".format(
                 100f * cells.count { e.waterKm[it] == 0f } / cells.size, 100f * cells.count { e.waterKm[it] <= 5f } / cells.size,
                 cells.map { e.wetness[it] }.average()))
-            println("   deaths " + e.deathsBy.entries.sortedByDescending { it.value }.filter { System.getenv("FAUNA_SPECIES")?.let { s -> it.key.startsWith(s) } ?: true }.take(12).joinToString { "${it.key} ${it.value}" })
-            e.killsBy.clear(); e.deathsBy.clear()
+            println("   deaths " + e.deathsBy.entries.sortedByDescending { it.value }.filter { System.getenv("FAUNA_SPECIES")?.split(",")?.any { s -> it.key.startsWith(s) } ?: true }.take(12).joinToString { "${it.key} ${it.value}" })
+            e.killsBy.clear(); e.deathsBy.clear(); e.killsByPredator.clear(); e.stolen.clear()
         }
     }
     println("%.0f ms per step".format((System.nanoTime() - t0) / 1e6 / (years * 4 * stepsPerSeason)))

@@ -43,6 +43,12 @@ class Ecology(private val sim: Simulation) {
     /** Bulbs, roots and fallen mast that rooting animals dig up, kg per km²; slow to replace. */
     val roots = FloatArray(n)
     /**
+     * Standing dead grass, stems and twigs that grazers fall back on in lean months, kg per km²:
+     * plentiful but poor, and eaten down where herds crowd, so the dry season sets how many
+     * grazers the land carries. Builds up over months as plants grow and die back.
+     */
+    val straw = FloatArray(n)
+    /**
      * How wet the ground is now, 0 (parched) to 1 (marsh, standing water): from soil moisture,
      * recent rain, shade, floodwater and wetland. Animals get dew and moisture from plants on wet
      * ground; very wet ground has rain pools, seeps and springs to drink from.
@@ -63,6 +69,24 @@ class Ecology(private val sim: Simulation) {
 
     val groups = ArrayList<AnimalGroup>()
     val policies = HashMap<Species, Policy>()
+
+    /**
+     * For each species, the predators that can kill it: for prey, any predator group heavy enough
+     * to bring down at least its young; for predators, much stronger rivals, which kill them when
+     * they meet and drive them off their kills.
+     */
+    val enemies: Map<Species, List<Species>> = Catalogue.all.associateWith { s -> Catalogue.predators.filter { p -> p != s && threatens(p, s) } }
+    /**
+     * How much the scent of each prey species draws each predator, by species index: its mass,
+     * scaled down for prey too big for the group to take.
+     */
+    private val lure: Map<Species, FloatArray> = Catalogue.predators.associateWith { p ->
+        FloatArray(Catalogue.all.size) { i ->
+            val q = Catalogue.all[i]
+            val packKg = p.massKg * p.groupSize
+            if (q.carnivore) 0f else min(1f, packKg / (1.5f * q.massKg)) * (1f - effectiveDefence(q, packKg)) * q.massKg / 20f
+        }
+    }
     private var nextId = 0
     private var stepCount = 0
 
@@ -72,6 +96,9 @@ class Ecology(private val sim: Simulation) {
     var deaths = 0; private set
     /** Kills by prey species since the counter was last cleared. */
     val killsBy = HashMap<Species, Int>()
+    /** Kills by predator species, and kills taken from others by predator species, since last cleared. */
+    val killsByPredator = HashMap<Species, Int>()
+    val stolen = HashMap<Species, Int>()
     /** Deaths other than predation, by "species:cause", since last cleared. */
     val deathsBy = HashMap<String, Int>()
 
@@ -95,6 +122,7 @@ class Ecology(private val sim: Simulation) {
             graze[i] = PALATABLE_SHARE * 1e6f * sim.vegetation.herb[i] * 0.7f
             browse[i] = PALATABLE_SHARE * 1e6f * woody(i) * 0.7f
             roots[i] = rootsCap(i) * 0.7f
+            straw[i] = strawCap(i) * 0.7f
         }
         findSprings()
         updateWater()
@@ -146,6 +174,7 @@ class Ecology(private val sim: Simulation) {
             val autumn = sim.weather.date.month in 6..8
             val r = rootsCap(i) * (if (autumn) 3f else 0.5f) / ROOTS_DAYS
             roots[i] = max(0f, roots[i] + days * (r - roots[i] / ROOTS_DAYS))
+            straw[i] = max(0f, straw[i] + days * (strawCap(i) - straw[i]) / STRAW_DAYS)
         }
     }
 
@@ -153,6 +182,8 @@ class Ecology(private val sim: Simulation) {
      * Bulbs, roots and mast a rooting animal can find, kg/km²: from herbs (geophytes) and trees
      * (acorns, nuts). Replaced over about a year, with mast falling in autumn.
      */
+    private fun strawCap(i: Int) = STRAW_SHARE * 1e6f * (sim.vegetation.herb[i] + 0.3f * sim.vegetation.shrub[i])
+
     private fun rootsCap(i: Int) = ROOTS_SHARE * 1e6f * (sim.vegetation.herb[i] + 0.05f * sim.vegetation.tree[i])
 
     private fun plantDiet(s: Species) = max(1e-3f, s.diet.grass + s.diet.browse + s.diet.roots)
@@ -286,13 +317,15 @@ class Ecology(private val sim: Simulation) {
                 spawn(s, i, s.groupSize)
             }
         }
-        val w = Catalogue.WOLF
+        // Predators start among the herds, at densities from field studies (from memory).
         val land = (0 until n).count { sim.vegetation.isVegetated(it) } * cellKm2
-        val packs = (land / KM2_PER_WOLF / w.groupSize).toInt()
         val herds = groups.toList()
-        repeat(min(packs, herds.size)) {
-            val h = herds[rnd.nextInt(herds.size)]
-            spawn(w, grid.index(h.x.toInt(), h.y.toInt()), w.groupSize)
+        for (p in Catalogue.predators) {
+            val packs = (land / p.startKm2PerAnimal / p.groupSize).toInt()
+            repeat(min(packs, herds.size)) {
+                val h = herds[rnd.nextInt(herds.size)]
+                spawn(p, grid.index(h.x.toInt(), h.y.toInt()), p.groupSize)
+            }
         }
     }
 
@@ -337,7 +370,7 @@ class Ecology(private val sim: Simulation) {
             if (!g.alive) continue
             // A herd that bolted from a pack earlier today has already gone elsewhere.
             if (!planX[k].isNaN() && g.x == startX[k] && g.y == startY[k]) go(g, planX[k], planY[k])
-            if (g.species.carnivore) hunt(g, contested = meet(g)) else graze(g)
+            if (g.species.carnivore) hunt(g, contested = meetEnemy(g) || meet(g)) else graze(g)
             drink(g)
             if (g.alert > 0) g.alert--
         }
@@ -361,7 +394,7 @@ class Ecology(private val sim: Simulation) {
      * Deterministic noise in -0.5..0.5 for [g]'s option [k] today: a hash of the seed, the day and
      * the group, so results do not depend on which thread decided for which group.
      */
-    private fun noise(g: AnimalGroup, k: Int): Float {
+    fun noise(g: AnimalGroup, k: Int): Float {
         var h = world.config.seed.toLong() * -0x61c8864680b583ebL + dayCount * 0x9E3779B97F4A7C15uL.toLong() + g.id * 0x632BE59BD9B4E019L + k
         h = (h xor (h ushr 33)) * -0xae502812aa7333L
         h = (h xor (h ushr 33)) * -0x3b314601e57a13adL
@@ -405,18 +438,35 @@ class Ecology(private val sim: Simulation) {
             for (o in b[yy * bw + xx]) if (o.alive && dist(o.x - x, o.y - y) < lim) out += o
     }
 
-    /** Scent of all prey at (x, y), weighted by body mass, normalised 0..1. */
-    private fun preyScent(x: Double, y: Double): Float {
+    /** Scent of prey worth hunting for predator [p] at (x, y), weighted by [lure], normalised 0..1. */
+    private fun preyScent(p: Species, x: Double, y: Double): Float {
         val k = scentIndex(x, y)
+        val w = lure.getValue(p)
         var v = 0f
-        for (s in Catalogue.herbivores) v += scent[s.index][k] * s.massKg / 20f
+        for (s in Catalogue.herbivores) v += scent[s.index][k] * w[s.index]
         return v / (v + 30f)
+    }
+
+    /** Scent of [s]'s enemies at (x, y), normalised 0..1. */
+    private fun enemyScent(s: Species, x: Double, y: Double): Float {
+        var v = 0f
+        for (e in enemies.getValue(s)) v = max(v, scentAt(e, x, y, 6f))
+        return v
     }
 
     private fun scentAt(s: Species, x: Double, y: Double, norm: Float): Float {
         val v = scent[s.index][scentIndex(x, y)]
         return v / (v + norm)
     }
+
+    /** How well adults of [prey] fend off hunters weighing [packKg] together: horns and bulk deter a few hunters more than a big pack or pride. */
+    private fun effectiveDefence(prey: Species, packKg: Float) = prey.defence * sqrt(min(1f, prey.massKg / (2f * packKg)))
+
+    private fun threatens(p: Species, s: Species) =
+        if (s.carnivore) strength(p, p.groupSize) > 1.5f * strength(s, s.groupSize) else p.massKg * p.groupSize >= 0.3f * s.massKg
+
+    /** Fighting weight of [adults] of predator species [s]. */
+    private fun strength(s: Species, adults: Int) = s.massKg * adults * s.ferocity
 
     /** How well the ground and plants at [i] hide things, 0 (seen from 2 km or more) to 1. */
     private fun cover(i: Int) = 1f - min(1f, concealKm[i] / 2f)
@@ -458,10 +508,9 @@ class Ecology(private val sim: Simulation) {
     private fun plan(g: AnimalGroup, slot: Int, sc: Scratch) {
         val s = g.species
         val carnivore = s.carnivore
-        val predator = Catalogue.WOLF
         val here = cellOf(g)
-        // A herd that sees wolves close by runs; in cover it may not see them in time.
-        val threatened = !carnivore && nearest(predator, g.x, g.y, 2f * s.flightKm).let { (w, km) -> w != null && visible(here, cellOf(w), km) }
+        // A herd that sees a predator close by runs; in cover it may not see it in time.
+        val threatened = !carnivore && enemies.getValue(s).any { p -> nearest(p, g.x, g.y, 2f * s.flightKm).let { (w, km) -> w != null && visible(here, cellOf(w), km) } }
         val budget = if (threatened) s.maxDailyTravelKm / 3f else s.dailyTravelKm
         val policy = policies.getValue(s)
         gather(g, budget, sc)
@@ -492,9 +541,9 @@ class Ecology(private val sim: Simulation) {
     private fun gather(g: AnimalGroup, budget: Float, sc: Scratch) {
         val s = g.species
         val carnivore = s.carnivore
-        val predator = Catalogue.WOLF
-        // Others the group can perceive around today's possible destinations, gathered once.
-        val others = if (carnivore) Catalogue.herbivores else Catalogue.predators
+        // Others the group can perceive around today's possible destinations, gathered once:
+        // prey for a predator, enemies for prey.
+        val others = if (carnivore) Catalogue.herbivores else enemies.getValue(s)
         val radius = if (carnivore) s.senseKm else 3f
         val around = sc.around
         within(others, g.x, g.y, budget + radius, around)
@@ -517,8 +566,8 @@ class Ecology(private val sim: Simulation) {
                 if (d < near && d <= sight && d <= concealKm[cellOf(o)]) near = d
             }
             val seen = 1f - near / radius
-            val danger = if (carnivore) 0f else max(scentAt(predator, x, y, 6f), seen)
-            val preySig = if (!carnivore) 0f else max(preyScent(x, y), seen)
+            val danger = if (carnivore) enemyScent(s, x, y) else max(enemyScent(s, x, y), seen)
+            val preySig = if (!carnivore) 0f else max(preyScent(s, x, y), seen)
             val kin = scentAt(s, x, y, 3f * s.groupSize) * if (k < 0) 0.5f else 1f // own scent counts less where it stands
             options += Option(cell, km, forage, danger, preySig, kin, waterKm[cell], sim.weather.snowpack[cell], cover(cell), terrain.ruggedness[cell], wetness[cell])
         }
@@ -550,7 +599,8 @@ class Ecology(private val sim: Simulation) {
             val fromBrowse = eat(c, browse, want * s.diet.browse / total, LifeForm.SHRUB)
             val fromRoots = eat(c, roots, want * s.diet.roots / total, null)
             got = fromGrass + fromBrowse + fromRoots
-            if (got < want) {
+            // Grazers and browsers partly make up a shortfall from the other's food; rooting animals do not.
+            if (got < want && s.diet.roots < 0.5f) {
                 val short = want - got
                 got += 0.5f * (if (s.diet.grass >= s.diet.browse) eat(c, browse, short, LifeForm.SHRUB) else eat(c, graze, short, LifeForm.HERB))
             }
@@ -564,20 +614,12 @@ class Ecology(private val sim: Simulation) {
     }
 
     /**
-     * Winter and dry-season fallback: dead grass, stems and twigs, eaten straight from the standing
-     * plants. Plentiful but poor: it fills the stomach with [value] of the nourishment, so animals
-     * live through lean months on it while losing condition. Returns nourishment in kg of good food.
+     * Winter and dry-season fallback: [straw]. Poor food: it fills the stomach with [value] of the
+     * nourishment, so animals live through lean months on it while losing condition, and only
+     * while it lasts. Returns nourishment in kg of good food.
      */
-    private fun roughage(c: Int, nourishmentKg: Float, value: Float): Float {
-        val v = sim.vegetation
-        val kg = nourishmentKg / value
-        val m2 = grid.cellAreaM2.toFloat()
-        // Eat at most a small share of what stands in the cell.
-        val fromHerb = v.consume(c, LifeForm.HERB, min(kg / m2, 0.02f * v.herb[c]))
-        val left = kg - fromHerb * m2
-        val fromShrub = if (left > 0f) v.consume(c, LifeForm.SHRUB, min(left / m2, 0.01f * v.shrub[c])) else 0f
-        return value * (fromHerb + fromShrub) * m2
-    }
+    private fun roughage(c: Int, nourishmentKg: Float, value: Float): Float =
+        value * eat(c, straw, nourishmentKg / value, LifeForm.HERB)
 
     /**
      * How much a species gets out of coarse forage (the Jarman-Bell principle): a big gut holds
@@ -614,11 +656,15 @@ class Ecology(private val sim: Simulation) {
         // that promises most meat for the risk. Healthy adults usually outrun or fight off wolves;
         // the young and the weak are caught far more often, a big herd spots the pack sooner,
         // large and well-armed animals are rarely worth it, and ibex on cliffs cannot be followed.
+        // Carrion first, up to its share of the diet: a scavenger finds most of its food this way.
+        if (g.stored < need) g.stored += soil.scavenge(c, (s.diet.carrion * need / grid.cellAreaM2).toFloat()) * grid.cellAreaM2.toFloat()
+        // Scavengers and small hunters chase big game only for their smaller share of meat.
         var attempts = 0
         val packKg = g.adults * s.massKg
-        while (!contested && g.stored < need && g.adults > 0 && attempts++ < 4) {
+        val wantMeat = need * min(1f, 2f * s.diet.meat)
+        while (!contested && g.stored < wantMeat && g.adults > 0 && attempts++ < 4) {
             within(Catalogue.herbivores, g.x, g.y, HUNT_KM, around)
-            var prey: AnimalGroup? = null; var bestValue = 0f; var bestP = 0f; var bestYoung = false
+            var prey: AnimalGroup? = null; var bestValue = 0f; var bestP = 0f; var bestYoung = false; var bestRisk = 0f
             for (o in around) {
                 if (!o.alive) continue
                 val ps = o.species
@@ -630,20 +676,32 @@ class Ecology(private val sim: Simulation) {
                 val refuge = 1f - 0.8f * max(0f, ps.habitat.rugged) * terrain.ruggedness[at]
                 val young = o.young > 0 && rnd.nextFloat() < 2f * o.young / (o.size + o.young)
                 val kg = if (young) 0.3f * ps.massKg else ps.massKg
-                val size = min(1f, packKg / (1.5f * kg))
-                val base = if (young) 0.4f * (1f - 0.5f * ps.defence) else (0.15f + 0.5f * (1f - o.condition)) * (1f - ps.defence)
+                // Hunters much lighter than their quarry rarely bring it down.
+                val size = min(1f, packKg / (1.5f * kg)).let { it * it }
+                val defence = effectiveDefence(ps, packKg)
+                val base = if (young) YOUNG_CATCH * (1f - 0.5f * defence) else (0.15f + 0.5f * (1f - o.condition)) * (1f - defence)
                 val p = min(1f, g.adults / 2f) * eyes * wary * ambush * refuge * size * base
-                val value = p * min(kg, 4f * need)
-                if (value > bestValue) { bestValue = value; prey = o; bestP = p; bestYoung = young }
+                // Big, armed prey fight back: horns and tusks kill hunters. Worth it only for much meat.
+                val risk = if (young) 0f else fightBack(ps, s)
+                val value = p * min(kg, 4f * need) * max(0f, 1f - 5f * risk)
+                if (value > bestValue) { bestValue = value; prey = o; bestP = p; bestYoung = young; bestRisk = risk }
             }
             if (prey == null) break
             // Caught or not, the herd bolts and stays watchful for days.
             prey.alert = ALERT_DAYS
             bolt(prey, g)
             if (rnd.nextFloat() >= bestP) continue
-            if (bestYoung) { prey.young--; g.stored += 0.3f * prey.species.massKg } else { prey.adults--; g.stored += prey.species.massKg }
+            // Brought to bay, a big animal may take one of its killers with it.
+            if (bestRisk > 0f && rnd.nextFloat() < bestRisk) {
+                g.adults--; deaths++
+                deathsBy.merge("${s.name}:fought back", 1, Int::plus)
+                soil.carrion[c] += (s.massKg / grid.cellAreaM2).toFloat()
+            }
+            val meat = if (bestYoung) { prey.young--; 0.3f * prey.species.massKg } else { prey.adults--; prey.species.massKg }
+            g.stored += meat - steal(g, meat)
             kills++
             killsBy.merge(prey.species, 1, Int::plus)
+            killsByPredator.merge(s, 1, Int::plus)
         }
         var eaten = min(g.stored, need)
         g.stored -= eaten
@@ -663,13 +721,66 @@ class Ecology(private val sim: Simulation) {
     }
 
     /**
+     * Chance per kill that an adult of [prey] kills one of the hunting [predator]s: grows with its
+     * defence and with how much heavier it is than one hunter.
+     */
+    private fun fightBack(prey: Species, predator: Species) = FIGHT_BACK * prey.defence * min(2f, prey.massKg / predator.massKg)
+
+    /**
+     * A kill draws rivals: the strongest other predator group within [THEFT_KM], if it outweighs
+     * the killers, drives them off and takes most of the meat (hyenas rob leopards, lions rob
+     * everyone). Returns the kg taken from [g].
+     */
+    private fun steal(g: AnimalGroup, kg: Float): Float {
+        var thief: AnimalGroup? = null; var best = strength(g.species, g.adults)
+        for (p in Catalogue.predators) {
+            if (p == g.species) continue
+            val (o, _) = nearest(p, g.x, g.y, THEFT_KM)
+            if (o != null && o.adults > 0 && strength(p, o.adults) * (0.7f + 0.6f * rnd.nextFloat()) > best) { thief = o; best = strength(p, o.adults) }
+        }
+        if (thief == null) return 0f
+        val taken = 0.7f * kg
+        thief.stored += taken
+        stolen.merge(thief.species, 1, Int::plus)
+        return taken
+    }
+
+    /**
+     * A much stronger predator met close by kills now and then, and drives the weaker off for the
+     * day: lions kill leopards, hyenas and wolves; all of them kill jackals. Returns whether [g] met one.
+     */
+    private fun meetEnemy(g: AnimalGroup): Boolean {
+        for (p in enemies.getValue(g.species)) {
+            val (o, _) = nearest(p, g.x, g.y, 1f)
+            if (o == null || o.adults == 0) continue
+            if (g.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL) {
+                g.adults--; deaths++
+                deathsBy.merge("${g.species.name}:killed by ${p.name}", 1, Int::plus)
+                o.stored += g.species.massKg * 0.5f
+            }
+            flee(g, o)
+            return true
+        }
+        return false
+    }
+
+    /** Moves [loser] a day's walk directly away from [winner], if there is land there. */
+    private fun flee(loser: AnimalGroup, winner: AnimalGroup) {
+        val dx = loser.x - winner.x; val dy = loser.y - winner.y
+        val d = max(1e-3, dist(dx, dy))
+        val run = loser.species.dailyTravelKm / cellKm
+        val nx = loser.x + dx / d * run; val ny = loser.y + dy / d * run
+        if (grid.inBounds(nx.toInt(), ny.toInt()) && nx >= 0 && ny >= 0 && sim.vegetation.isVegetated(grid.index(nx.toInt(), ny.toInt()))) { loser.x = nx; loser.y = ny }
+    }
+
+    /**
      * Packs defend their ground: when two meet, they spend the day in threat and chase instead of
      * hunting, the smaller pack is usually driven off, and now and then a wolf is killed. Crowded
      * packs therefore hunt less each; in studied wolf populations strife is a leading cause of death.
      * Returns whether the pack met another.
      */
     private fun meet(g: AnimalGroup): Boolean {
-        val (other, _) = nearest(g.species, g.x, g.y, 3f, except = g)
+        val (other, _) = nearest(g.species, g.x, g.y, g.species.territoryKm, except = g)
         if (other == null) return false
         val loser = if (rnd.nextFloat() < g.adults / (g.adults + other.adults + 1e-3f)) other else g
         // Most meetings end in a chase; a few in a death.
@@ -677,12 +788,7 @@ class Ecology(private val sim: Simulation) {
             loser.adults--; deaths++
             soil.carrion[cellOf(loser)] += (loser.species.massKg / grid.cellAreaM2).toFloat()
         }
-        val winner = if (loser === g) other else g
-        val dx = loser.x - winner.x; val dy = loser.y - winner.y
-        val d = max(1e-3, dist(dx, dy))
-        val flee = loser.species.dailyTravelKm / cellKm
-        val nx = loser.x + dx / d * flee; val ny = loser.y + dy / d * flee
-        if (grid.inBounds(nx.toInt(), ny.toInt()) && nx >= 0 && ny >= 0 && sim.vegetation.isVegetated(grid.index(nx.toInt(), ny.toInt()))) { loser.x = nx; loser.y = ny }
+        flee(loser, if (loser === g) other else g)
         return true
     }
 
@@ -785,6 +891,7 @@ class Ecology(private val sim: Simulation) {
                 g.adults -= a; g.young -= y
                 val child = AnimalGroup(nextId++, s, g.x + rnd.nextDouble() - 0.5, g.y + rnd.nextDouble() - 0.5, a, y)
                 child.condition = g.condition
+                child.tag = g.tag
                 newcomers += child
             }
         }
@@ -795,8 +902,10 @@ class Ecology(private val sim: Simulation) {
             for (l in b) l.clear()
             for (g in groups) if (g.species == s && g.alive) b[bucketIndex(g.x, g.y)] += g
             for (g in groups) {
-                if (g.species != s || !g.alive || g.size >= s.groupSize / 3) continue
-                val (other, _) = nearest(s, g.x, g.y, 5f, except = g)
+                // A pair-breeding predator left without a mate looks for one as well.
+                val alone = g.size < s.groupSize / 3 || (s.packLitter > 0 && g.adults < 2)
+                if (g.species != s || !g.alive || !alone) continue
+                val (other, _) = nearest(s, g.x, g.y, if (s.packLitter > 0) 3f * s.dailyTravelKm else 5f, except = g)
                 if (other == null || other.size + g.size > s.maxGroupSize) continue
                 other.adults += g.adults; other.young += g.young
                 g.adults = 0; g.young = 0
@@ -809,14 +918,24 @@ class Ecology(private val sim: Simulation) {
         const val PALATABLE_SHARE = 0.0003f
         /** Days for grazed palatable growth to come back. */
         const val REGROWTH_DAYS = 30f
-        /** Land per wolf at the start, km²: about what the gazelle-wolf runs settled at. */
-        const val KM2_PER_WOLF = 250f
+        /** Chance per kill that a dangerous adult prey (defence 1, at least twice a hunter's mass) kills a hunter. */
+        const val FIGHT_BACK = 0.02f
+        /** Distance from which rivals notice a kill and come to take it, km. */
+        const val THEFT_KM = 2f
+        /** Chance a much stronger predator kills one of a weaker group it meets. */
+        const val INTRAGUILD_KILL = 0.005f
+        /** Chance a chase after a young animal succeeds, before its group's defence: most are hidden or guarded. */
+        const val YOUNG_CATCH = 0.15f
         /** Bulbs, roots and mast available to rooting animals, per kg/m² of herbs (and trees x 0.05). */
         const val ROOTS_SHARE = 0.0003f
         /** Nourishment of dead grass and twigs relative to fresh growth, for a 100 kg animal. */
         const val ROUGHAGE_VALUE = 0.4f
         /** Most a herbivore can eat in a day, as a multiple of its daily need: coarse food fills the gut before it nourishes. */
         const val GUT_FILL = 1.5f
+        /** Dead grass and twigs standing as fodder, per kg/m² of herbs (and shrubs x 0.3). Calibration constant. */
+        const val STRAW_SHARE = 0.0025f
+        /** Days for eaten-down straw to build up again. */
+        const val STRAW_DAYS = 180f
         /** Days for dug-up roots and mast to be replaced. */
         const val ROOTS_DAYS = 180f
         /** Distance at which a pack can stalk and chase a herd it has found, km. */

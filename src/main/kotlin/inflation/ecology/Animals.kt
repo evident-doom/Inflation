@@ -22,6 +22,8 @@ class AnimalGroup(
     var alert = 0
     /** On a march today: covering long distances and eating little (see [Ecology]). */
     var marching = false
+    /** Lineage label for trainers comparing behaviours within one world; passed on when the group splits. */
+    var tag = -1
     /** Meat a pack has killed but not yet eaten, kg. */
     var stored = 0f
     /** Food gained over need on the last day, 0 = starving, 1 = full. */
@@ -78,28 +80,36 @@ class BaselinePolicy(
     /** Random noise in -0.5..0.5 for [group] and option [k], so ties break and herds spread out. */
     private val noise: (group: AnimalGroup, k: Int) -> Float,
 ) : Policy {
-    override fun choose(group: AnimalGroup, options: List<Option>): Int {
+    override fun choose(group: AnimalGroup, options: List<Option>): Int = pickBest(group, options, noise) { o, _ -> score(group, o) }
+
+    /** How much [group] wants to go to [o], before noise; higher is better. */
+    fun score(group: AnimalGroup, o: Option): Float {
         val s = group.species
         val thirsty = group.daysWithoutWater >= s.daysWithoutWater - 1
-        val carnivore = s.carnivore
-        var best = 0; var bestScore = Float.NEGATIVE_INFINITY
-        for ((k, o) in options.withIndex()) {
-            if (o.cell < 0) continue
-            val h = s.habitat
-            var score = if (carnivore) 2f * o.prey + 0.2f * o.forage / (o.forage + 100f) - 1.5f * o.kin
-                // Each kind keeps to its own ground: gazelles open plains, ibex cliffs, boar thickets.
-                // Big, well-armed animals fear predators less.
-                else o.forage / (o.forage + 50f) - 3f * (1f - s.defence) * o.danger - 0.3f * o.kin +
-                    0.3f * (h.cover * o.cover + h.rugged * o.rugged + h.wet * o.wet)
-            if (o.snowMm > s.snowLimitMm) score -= 1f
-            // Keep within a few days' walk of water, more so the longer since the last drink.
-            val urgency = group.daysWithoutWater / s.daysWithoutWater
-            score -= (0.02f + 0.3f * urgency) * o.waterKm / s.dailyTravelKm
-            if (thirsty) score -= 0.2f * o.waterKm
-            score -= 0.01f * o.km // moving costs energy
-            score += 0.05f * noise(group, k)
-            if (score > bestScore) { bestScore = score; best = k }
-        }
-        return best
+        val h = s.habitat
+        var score = if (s.carnivore) 2f * o.prey + 0.2f * o.forage / (o.forage + 100f) - 1.5f * o.kin - 2f * o.danger
+            // Each kind keeps to its own ground: gazelles open plains, ibex cliffs, boar thickets.
+            // Big, well-armed animals fear predators less.
+            else o.forage / (o.forage + 50f) - 3f * (1f - s.defence) * o.danger - 0.3f * o.kin +
+                0.3f * (h.cover * o.cover + h.rugged * o.rugged + h.wet * o.wet)
+        if (o.snowMm > s.snowLimitMm) score -= 1f
+        // Keep within a few days' walk of water, more so the longer since the last drink.
+        val urgency = group.daysWithoutWater / s.daysWithoutWater
+        score -= (0.02f + 0.3f * urgency) * o.waterKm / s.dailyTravelKm
+        if (thirsty) score -= 0.2f * o.waterKm
+        score -= 0.01f * o.km // moving costs energy
+        return score
     }
+}
+
+/** The option with the highest [score] plus a little [noise], skipping places it cannot go. */
+inline fun pickBest(group: AnimalGroup, options: List<Option>, noise: (AnimalGroup, Int) -> Float, score: (Option, Int) -> Float): Int {
+    var best = 0; var bestScore = Float.NEGATIVE_INFINITY
+    for (k in options.indices) {
+        val o = options[k]
+        if (o.cell < 0) continue
+        val v = score(o, k) + 0.05f * noise(group, k)
+        if (v > bestScore) { bestScore = v; best = k }
+    }
+    return best
 }
