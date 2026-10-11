@@ -3,7 +3,7 @@ package inflation.world
 import kotlin.random.Random
 
 /** Min-heap of (float key, int value) pairs for priority-flood. */
-private class FloatHeap(capacity: Int) {
+internal class FloatHeap(capacity: Int) {
     private var keys = FloatArray(capacity)
     private var vals = IntArray(capacity)
     var size = 0; private set

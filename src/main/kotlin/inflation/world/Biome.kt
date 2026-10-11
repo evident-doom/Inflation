@@ -20,8 +20,18 @@ enum class Biome(val rgb: Int) {
     SHRUBLAND(0xc8b46e),
     SEMI_DESERT(0xd9c48f),
     DESERT(0xeed9a6),
-    WETLAND(0x4f8f7f),
-    RIPARIAN_FOREST(0x2f7f5f),
+    /** Reed and sedge marsh: open, waterlogged or seasonally flooded. */
+    MARSH(0x5f9f8f),
+    /** Forested wetland in warm, wet lowlands. */
+    SWAMP_FOREST(0x2f6f5f),
+    /** Peat bog or fen where it is cold and wet. */
+    BOG(0x7f8f6f),
+    /** Tidal flats and salt marsh on low, sheltered coasts. */
+    SALT_MARSH(0x9fbfaf),
+    /** Mangrove on warm tidal coasts. */
+    MANGROVE(0x3f6f3f),
+    /** Gallery forest on the floodplains of rivers. */
+    FLOODPLAIN_FOREST(0x2f7f5f),
 }
 
 object Biomes {
@@ -31,11 +41,20 @@ object Biomes {
         isSea: BooleanArray,
         climate: Climate,
         water: SurfaceWater,
+        floodplain: Floodplain,
     ): Array<Biome> = Array(grid.size) { i ->
         val ai = climate.aridity(i)
         val warm = climate.warmestMonthTemp(i)
         val cold = climate.coldestMonthTemp(i)
-        val q = water.discharge[i]
+        val s = if (isSea[i]) 0f else slope(grid, elevation, i)
+        val r = floodplain.riverOf[i]
+        val riverQ = if (r >= 0) water.discharge[r] else 0f
+        val flat = s < 0.003f
+        // Waterlogged: flat, barely above the river, and either a wet climate or a river's floods.
+        val waterlogged = flat && floodplain.hand[i] < 3f && (ai > 0.8f || (floodplain.isFloodplain[i] && riverQ > 10f))
+        val lakeShore = flat && !water.isLake(i) && nextTo(grid, i) { water.isLake(it) && !water.lakeClosed[it] }
+        // Tidal marsh on the low ground of deltas; elsewhere the coast is beach or cliff.
+        val tidal = flat && elevation[i] < 2f && climate.distanceToSeaKm[i] < 3f && riverQ > 3f
         when {
             isSea[i] -> Biome.OCEAN
             water.isLake(i) && water.lakeClosed[i] && ai < 0.15f -> Biome.SALT_FLAT
@@ -43,8 +62,13 @@ object Biomes {
             water.isLake(i) -> Biome.LAKE
             warm < 0f -> Biome.ICE_AND_ROCK
             warm < 10f -> Biome.ALPINE_MEADOW
-            q > 30f && slope(grid, elevation, i) < 0.002f -> Biome.WETLAND
-            q > 3f && ai < 0.5f -> Biome.RIPARIAN_FOREST
+            tidal -> if (cold > 16f) Biome.MANGROVE else Biome.SALT_MARSH
+            waterlogged || lakeShore -> when {
+                cold < -3f && warm < 20f -> Biome.BOG
+                warm > 20f && ai > 1f && !lakeShore -> Biome.SWAMP_FOREST
+                else -> Biome.MARSH
+            }
+            floodplain.isFloodplain[i] && riverQ > 3f && ai < 0.75f -> Biome.FLOODPLAIN_FOREST
             ai < 0.05f -> Biome.DESERT
             ai < 0.2f -> Biome.SEMI_DESERT
             ai < 0.45f -> if (cold < 2f) Biome.STEPPE else Biome.SHRUBLAND
@@ -52,6 +76,12 @@ object Biomes {
             cold < -6f -> Biome.CONIFER_FOREST
             else -> Biome.TEMPERATE_FOREST
         }
+    }
+
+    private inline fun nextTo(grid: Grid, i: Int, test: (Int) -> Boolean): Boolean {
+        var hit = false
+        grid.forNeighbours(i) { j, _ -> if (test(j)) hit = true }
+        return hit
     }
 
     /** Steepest downhill gradient, m/m. */

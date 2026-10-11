@@ -7,6 +7,7 @@ class World(
     val config: WorldConfig,
     val grid: Grid,
     val tectonics: Tectonics,
+    val volcanoes: List<Volcano>,
     /** Metres above sea level. */
     val elevation: FloatArray,
     /** Connected open sea. Land below sea level that is cut off from it (rift basins) is not sea. */
@@ -14,43 +15,61 @@ class World(
     val geology: Geology,
     val climate: Climate,
     val water: SurfaceWater,
+    val floodplain: Floodplain,
     val biome: Array<Biome>,
     val soilFertility: FloatArray,
 ) {
     fun latitude(i: Int): Double = climate.latitude[grid.y(i)]
     fun isRiver(i: Int): Boolean = !isSea[i] && !water.isLake(i) && water.discharge[i] >= SurfaceWater.RIVER_THRESHOLD
+    fun riverClass(i: Int): RiverClass = if (isSea[i] || water.isLake(i)) RiverClass.NONE else RiverClass.of(water.discharge[i])
+
+    /** Passable by dugout or raft at mean flow: deep enough, and not a rapid. */
+    fun isNavigable(i: Int): Boolean {
+        if (!isRiver(i)) return false
+        val r = water.drainage.receiver[i]
+        val gradient = if (r == i) 0f else (elevation[i] - elevation[r]) / water.drainage.receiverDistM[i]
+        return Channel.depthM(water.discharge[i]) >= Channel.NAVIGABLE_DEPTH_M && gradient < Channel.RAPIDS_GRADIENT
+    }
 
     companion object {
         fun generate(cfg: WorldConfig, log: (String) -> Unit = {}): World {
             val grid = Grid(cfg.width, cfg.height, cfg.cellKm)
             val noise = Noise(cfg.seed)
 
-            log("tectonics")
+            log("tectonics and volcanoes")
             val tect = Tectonics.generate(grid, cfg, noise)
             val elevation = tect.elevation.copyOf()
+            val volcanoes = Volcanism.generate(grid, cfg, tect)
+            Volcanism.build(grid, elevation, volcanoes, young = false, noise)
             val geology = Geology.bedrock(grid, tect, noise)
+            Volcanism.applyRock(grid, geology, volcanoes, noise)
 
-            log("erosion (${cfg.erosionSteps} steps of ${cfg.erosionStepYears.toInt()} years)")
-            var sea = seaMask(grid, elevation)
-            val seaAtStart = sea
-            Erosion.run(grid, elevation, tect.uplift, geology.erodibility(), cfg.erosionSteps, cfg.erosionStepYears, cfg.seed) {
+            log("erosion and sediment (${cfg.erosionSteps} steps of ${cfg.erosionStepYears.toInt()} years)")
+            val seaAtStart = seaMask(grid, elevation)
+            val sediment = Erosion.run(grid, elevation, tect.uplift, geology.erodibility(), cfg.erosionSteps, cfg.erosionStepYears, cfg.seed) {
                 seaAtStart[it] || grid.isEdge(it)
             }
+            System.arraycopy(sediment, 0, geology.sediment, 0, grid.size)
 
-            log("recent deformation")
+            log("recent deformation and young volcanoes")
             youngDeformation(grid, tect, noise, elevation)
-            sea = seaMask(grid, elevation)
+            Volcanism.build(grid, elevation, volcanoes, young = true, noise)
+            val sea = seaMask(grid, elevation)
 
             log("climate")
             val climate = Climate.generate(grid, cfg, elevation, sea, noise)
-            log("rivers and lakes")
-            val water = SurfaceWater.generate(grid, elevation, sea, climate)
-            depositSediments(grid, elevation, sea, geology, water)
+            log("rivers, lakes and floodplains")
+            var water = SurfaceWater.generate(grid, elevation, sea, climate)
+            if (Floodplain.planeValleyFloors(grid, elevation, sea, water, geology.sediment)) {
+                water = SurfaceWater.generate(grid, elevation, sea, climate)
+            }
+            val floodplain = Floodplain.generate(grid, elevation, sea, water)
+            depositSediments(grid, sea, geology, water, floodplain)
 
             log("biomes and soils")
-            val biome = Biomes.classify(grid, elevation, sea, climate, water)
+            val biome = Biomes.classify(grid, elevation, sea, climate, water, floodplain)
             val soil = Biomes.soilFertility(grid, elevation, sea, geology, climate)
-            return World(cfg, grid, tect, elevation, sea, geology, climate, water, biome, soil)
+            return World(cfg, grid, tect, volcanoes, elevation, sea, geology, climate, water, floodplain, biome, soil)
         }
 
         /** Cells at or below sea level connected to a map edge that is itself below sea level. */
@@ -75,22 +94,23 @@ class World(
             for (i in 0 until grid.size) {
                 val x = grid.x(i).toDouble(); val y = grid.y(i).toDouble()
                 val conv = tect.convergence[i]
-                val rift = if (conv < 0 && tect.plates[tect.plateId[i]].continental) conv * 12_000.0 * exp(-tect.boundaryDistKm[i] / 12.0) else 0.0
-                val warp = 35.0 * noise.fbm(x - 3001, y + 1999, 60.0 / grid.cellKm, 3)
+                val rift = if (conv < 0 && tect.isContinental(i)) conv * 12_000.0 * exp(-tect.boundaryDistKm[i] / 12.0) else 0.0
+                // Coastal plains and deltas stay flat; warping grows with height.
+                val warp = 35.0 * noise.fbm(x - 3001, y + 1999, 60.0 / grid.cellKm, 3) * (elevation[i] / 40.0).coerceIn(0.0, 1.0)
                 if (elevation[i] > 0f) elevation[i] = (elevation[i] + rift + warp).toFloat()
             }
         }
 
-        /** Alluvium on floodplains and deltas; salt and evaporites in closed lake beds. */
-        private fun depositSediments(grid: Grid, elevation: FloatArray, sea: BooleanArray, geology: Geology, water: SurfaceWater) {
+        /** Alluvium where sediment is thick or floods reach; salt and evaporites in closed lake beds. */
+        private fun depositSediments(grid: Grid, sea: BooleanArray, geology: Geology, water: SurfaceWater, floodplain: Floodplain) {
             for (i in 0 until grid.size) {
                 if (sea[i]) continue
                 if (water.isLake(i) && water.lakeClosed[i]) {
                     geology.rock[i] = Rock.EVAPORITE
                     geology.minerals[i] = geology.minerals[i] or Mineral.SALT
-                } else if (water.discharge[i] > 5f && Biomes.slope(grid, elevation, i) < 0.004f) {
+                } else if (geology.sediment[i] > Erosion.COVER || floodplain.isFloodplain[i]) {
                     geology.rock[i] = Rock.ALLUVIUM
-                    geology.minerals[i] = geology.minerals[i] or Mineral.CLAY
+                    if (floodplain.isFloodplain[i]) geology.minerals[i] = geology.minerals[i] or Mineral.CLAY
                 }
             }
         }

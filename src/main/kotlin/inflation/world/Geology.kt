@@ -27,7 +27,11 @@ object Mineral {
     val names = listOf("flint", "clay", "obsidian", "ochre", "salt", "copper", "tin", "bitumen")
 }
 
-class Geology(val rock: Array<Rock>, val minerals: IntArray) {
+/**
+ * Surface rock and minerals per cell. [sediment] is the thickness of loose sediment over bedrock
+ * in metres: alluvium in valleys and basins, deltas, and mud on the sea floor.
+ */
+class Geology(val rock: Array<Rock>, val minerals: IntArray, val sediment: FloatArray) {
     fun erodibility(): FloatArray = FloatArray(rock.size) { rock[it].erodibility }
 
     companion object {
@@ -39,14 +43,13 @@ class Geology(val rock: Array<Rock>, val minerals: IntArray) {
             for (i in 0 until n) {
                 val x = grid.x(i).toDouble(); val y = grid.y(i).toDouble()
                 val plate = tect.plates[tect.plateId[i]]
-                val other = tect.plates[tect.neighbourPlateId[i]]
                 val dist = tect.boundaryDistKm[i]
                 val conv = tect.convergence[i]
                 val strata = noise.fbm(x + 4001, y - 2203, 180.0 / grid.cellKm, 4)
                 val local = noise.fbm(x - 777, y + 1555, 15.0 / grid.cellKm, 3)
                 rock[i] = when {
                     !plate.continental -> Rock.BASALT
-                    conv > 0.005 && dist < 40 && !other.continental -> Rock.VOLCANIC // subduction arc
+                    tect.isOverriding(i) && dist in 60f..180f && strata > -0.1 -> Rock.VOLCANIC // subduction arc
                     conv < -0.005 && dist < 30 -> if (strata > 0.1) Rock.BASALT else Rock.VOLCANIC // rift flows
                     conv > 0.01 && dist < 50 -> if (strata > 0) Rock.GRANITE else Rock.METAMORPHIC // belt core
                     strata > 0.15 -> Rock.SANDSTONE
@@ -68,7 +71,7 @@ class Geology(val rock: Array<Rock>, val minerals: IntArray) {
                 }
                 minerals[i] = m
             }
-            return Geology(rock, minerals)
+            return Geology(rock, minerals, FloatArray(n))
         }
     }
 }

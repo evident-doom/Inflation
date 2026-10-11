@@ -5,7 +5,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertTrue
 
 class WorldTest {
-    private val cfg = WorldConfig(seed = 42, widthKm = 300, heightKm = 300, erosionSteps = 10)
+    private val cfg = WorldConfig(seed = 42, widthKm = 300, heightKm = 300, erosionSteps = 10, plates = 6, oceanMarginKm = 40.0)
     private val world by lazy { World.generate(cfg) }
 
     @Test
@@ -18,8 +18,23 @@ class WorldTest {
     @Test
     fun `world has sea, land and a plausible relief`() {
         val land = world.isSea.count { !it }
-        assertTrue(land in world.grid.size / 5..world.grid.size * 19 / 20, "land fraction")
+        assertTrue(land in world.grid.size / 10..world.grid.size * 19 / 20, "land fraction ${land.toDouble() / world.grid.size}")
         assertTrue(world.elevation.max() in 300f..7000f, "highest point ${world.elevation.max()}")
+    }
+
+    @Test
+    fun `the region is surrounded by ocean`() {
+        val g = world.grid
+        for (i in 0 until g.size) if (g.isEdge(i)) assertTrue(world.isSea[i], "edge cell ${g.x(i)},${g.y(i)} is sea")
+        assertTrue(world.elevation.min() < -3000f, "deep ocean floor")
+    }
+
+    @Test
+    fun `eroded rock ends up as sediment on land and on the shelf`() {
+        val sea = (0 until world.grid.size).filter { world.isSea[it] }
+        val land = (0 until world.grid.size).filter { !world.isSea[it] }
+        assertTrue(sea.sumOf { world.geology.sediment[it].toDouble() } > 0, "marine sediment")
+        assertTrue(land.any { world.geology.rock[it] == Rock.ALLUVIUM }, "alluvium on land")
     }
 
     @Test
