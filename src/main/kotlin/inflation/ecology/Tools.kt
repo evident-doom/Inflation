@@ -38,3 +38,19 @@ enum class Tool(val recipe: Map<Material, Float>, val skill: Making, val wearPer
     /** Sewn, fitted clothes and footwear of hide and fur: winter becomes bearable. */
     CLOTHES(mapOf(Material.HIDE to 4f, Material.SINEW to 0.3f, Material.BONE to 0.05f), Making.HIDEWORK, 0.5f),
 }
+
+/**
+ * A tradition: a practice or belief a band holds, passed on to both halves when it splits, copied
+ * from neighbours who do well, and now and then taken up or dropped. Each has a concrete effect.
+ */
+enum class Tradition(val about: String) {
+    BURIAL("the dead are buried near camp: the band is loath to leave its place"),
+    SKY_LORE("sun, moon and stars are watched: the band keeps its seasonal round on time"),
+    TABOO_YOUNG("mothers and young are not hunted: game is spared in its breeding years"),
+    ORAL_TRADITION("songs, stories and genealogies: knowledge and skills fade more slowly"),
+    FEASTS("dance, song and shared feasts: bands grow larger before they split and seek each other out"),
+    MEDICINE("herbs, setting bones, care of the sick: fewer die of wounds and illness"),
+    EXOGAMY("partners are taken from other bands: less inbreeding, skills travel"),
+    HYGIENE("middens and water kept apart, camps cleaned: a kept camp fouls slowly"),
+    SHARING("food is shared with neighbouring bands in bad times: insurance against hunger"),
+}

@@ -94,6 +94,11 @@ class AnimalGroup(
     var tools: FloatArray? = null
     /** For people: skill at each kind of [Making], 0..1. */
     var making: FloatArray? = null
+    /** For people: the [Tradition]s the band holds. */
+    var traditions: BooleanArray? = null
+    /** For people: how well the band has been doing lately, its growth per head per year, smoothed. */
+    var prosper = 0f
+    fun holds(t: Tradition) = traditions?.get(t.ordinal) == true
     val size: Int get() = adults + young
     val alive: Boolean get() = size > 0
     /** Body mass of the group, kg; young count as half. */
@@ -203,15 +208,16 @@ class BaselinePolicy(
     private fun scorePeople(group: AnimalGroup, o: Option): Float {
         val s = group.species
         var score = 1.2f * o.prey + o.forage / (o.forage + 300f) - 2f * o.danger
-        score += 1.5f * (group.fare - 0.7f) * o.kin
+        score += (if (group.holds(Tradition.FEASTS)) 2.5f else 1.5f) * (group.fare - 0.7f) * o.kin
         if (o.snowMm > s.snowLimitMm) score -= 1f
         score -= 2f * o.hazard
-        score += 1.5f * o.pull
+        score += (if (group.holds(Tradition.SKY_LORE)) 2.2f else 1.5f) * o.pull
         score -= 0.5f * min(2f, o.thermal)
         val urgency = group.daysWithoutWater / s.daysWithoutWater
         score -= (0.05f + 0.3f * urgency) * o.waterKm / s.dailyTravelKm
         val storedDays = group.larder / kotlin.math.max(1e-3f, group.dailyNeedKg)
-        score -= 0.1f * (1f + storedDays / 30f) * o.km / s.dailyTravelKm
+        val graves = if (group.holds(Tradition.BURIAL)) 1.5f else 1f
+        score -= 0.1f * graves * (1f + storedDays / 30f) * o.km / s.dailyTravelKm
         return score
     }
 }

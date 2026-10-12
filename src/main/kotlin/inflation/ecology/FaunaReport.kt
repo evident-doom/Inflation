@@ -66,6 +66,7 @@ fun main(args: Array<String>) {
                 bands.map { it.campWeeks }.average(), 100.0 * bands.count { it.campWeeks > 26 } / bands.size,
                 bands.mapNotNull { b -> b.craft?.let { c -> Catalogue.herbivores.map { c[it.index] }.average() } }.average(),
                 bands.mapNotNull { b -> b.forageCraft?.average() }.average()))
+            println("   ways   " + Tradition.entries.joinToString { tr -> "%s %.0f%%".format(tr.name.lowercase(), 100.0 * bands.count { it.holds(tr) } / bands.size) })
             println("   tools  " + Tool.entries.joinToString { tl -> "%s %.2f".format(tl.name.lowercase(), bands.mapNotNull { it.tools?.get(tl.ordinal)?.toDouble() }.average()) } +
                 "; goods kg/adult " + Material.entries.joinToString { m -> "%s %.1f".format(m.name.lowercase(), bands.sumOf { (it.goods?.get(m.ordinal) ?: 0f).toDouble() } / max(1, bands.sumOf { it.adults })) })
         }

@@ -438,6 +438,9 @@ class Ecology(private val sim: Simulation) {
             group.goods = FloatArray(Material.entries.size) { 5f }
             group.tools = FloatArray(Tool.entries.size) { 0.6f }
             group.making = FloatArray(Making.entries.size) { 0.5f }
+            // Traditions are regional: neighbouring bands mostly share them.
+            val region = java.util.Random(world.config.seed * 31L + (grid.x(cell) / (LINEAGE_KM / cellKm)).toInt() + 7 * (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt())
+            group.traditions = BooleanArray(Tradition.entries.size) { region.nextFloat() < TRADITION_START }
             // Neighbouring bands share descent; distant ones do not.
             group.lineage = FloatArray(LINEAGES).also { it[((grid.x(cell) / (LINEAGE_KM / cellKm)).toInt() + 7 * (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt()) % LINEAGES] = 1f }
             group.forageCraft = FloatArray(Forage.entries.size) { f ->
@@ -1335,8 +1338,9 @@ class Ecology(private val sim: Simulation) {
             if (caught > 0f) fc[Forage.FISH.ordinal] += PRACTICE * (1f - fs)
             got += caught
         }
-        for (f in fc.indices) fc[f] *= 1f - FORGET
-        g.craft?.let { for (q in it.indices) it[q] *= 1f - FORGET }
+        val forget = if (g.holds(Tradition.ORAL_TRADITION)) FORGET * 0.4f else FORGET
+        for (f in fc.indices) fc[f] *= 1f - forget
+        g.craft?.let { for (q in it.indices) it[q] *= 1f - forget }
         return got
     }
 
@@ -1367,6 +1371,14 @@ class Ecology(private val sim: Simulation) {
         val (o, d) = nearest(g.species, g.x, g.y, g.rangeKm * 2f, except = g)
         if (o == null || o.adults < 2 || g.adults < 2) return
         if (r.nextFloat() >= MARRY_WEEKLY * overlap(d, g.rangeKm, o.rangeKm)) return
+        imitate(g, o, r); imitate(o, g, r)
+        // Bands that share food give to the hungrier in bad times.
+        if (g.holds(Tradition.SHARING) && o.holds(Tradition.SHARING)) {
+            val (rich, poor) = if (g.condition > o.condition) g to o else o to g
+            if (poor.condition < 0.5f && rich.larder > 0f) { val gift = 0.3f * rich.larder; rich.larder -= gift; poor.larder += gift }
+        }
+        // Partners are exchanged only where both bands marry out.
+        if (!g.holds(Tradition.EXOGAMY) || !o.holds(Tradition.EXOGAMY)) return
         val la = g.lineage ?: return; val lb = o.lineage ?: return
         // One young adult moves each way: their share of each band.
         val ma = 1f / g.adults; val mb = 1f / o.adults
@@ -1434,7 +1446,21 @@ class Ecology(private val sim: Simulation) {
         }
         // A band carries only so much: the rest is left at old camps.
         for (m in gd.indices) gd[m] = min(gd[m], GOODS_PER_PERSON * people)
-        for (m in mk.indices) mk[m] *= 1f - FORGET
+        for (m in mk.indices) mk[m] *= 1f - if (g.holds(Tradition.ORAL_TRADITION)) FORGET * 0.4f else FORGET
+    }
+
+    /**
+     * Cultural evolution at a meeting: [g] copies, now and then, a tradition from [o] if [o] has been
+     * doing better, and drops one [o] lacks; and every band occasionally tries something new.
+     */
+    private fun imitate(g: AnimalGroup, o: AnimalGroup, r: Random) {
+        val mine = g.traditions ?: return; val theirs = o.traditions ?: return
+        val better = o.prosper - g.prosper
+        if (better > 0f) {
+            val k = r.nextInt(mine.size)
+            if (mine[k] != theirs[k] && r.nextFloat() < IMITATE * min(1f, better / 0.02f)) mine[k] = theirs[k]
+        }
+        if (r.nextFloat() < INNOVATE) { val k = r.nextInt(mine.size); mine[k] = !mine[k] }
     }
 
     /** Whether any band's range overlaps [g]'s. */
@@ -1596,8 +1622,10 @@ class Ecology(private val sim: Simulation) {
             val ps = o.species
             val adult = pAdult[k] * max(0f, 1f - caution * risk[k]) * min(ps.massKg, need)
             val young = if (o.young > 0) pYoung[k] * min(0.3f * ps.massKg, need) * min(1f, 2f * o.young / (o.size + o.young)) else 0f
-            takeYoung[k] = young > adult
-            value[k] = contact[k] * max(adult, young)
+            // A band that spares mothers and young takes only adults, and fewer of those in the birth season.
+            val spare = g.holds(Tradition.TABOO_YOUNG)
+            takeYoung[k] = !spare && young > adult
+            value[k] = contact[k] * if (spare) adult * (if (o.young > 0) 0.5f else 1f) else max(adult, young)
         }
         val ranked = near.indices.filter { value[it] > 0f }.sortedByDescending { value[it] }
         var attempts = 0
@@ -1917,6 +1945,7 @@ class Ecology(private val sim: Simulation) {
             val s = g.species
             val c = cellOf(g)
             val fit = ((g.condition - 0.3f) / 0.4f).coerceIn(0f, 1f)
+            val before = g.size
             g.elders = min(g.elders, g.adults) // losses elsewhere (hunting accidents, attacks) fall on any adult
             // The group remembers how good each month's food was, and over the years shifts its
             // births towards the months that feed mothers and young best.
@@ -1980,7 +2009,8 @@ class Ecology(private val sim: Simulation) {
             val careOfElders = if (s.human) 1f - ELDER_CARE * min(1f, g.elders * ELDER_MOTHERS / max(1, g.adults - g.elders).toFloat()) else 1f
             val inbreeding = if (s.human) INBREEDING_DEATHS * g.inbred * years else 0f
             // A camp kept for months fouls: waste, worms and fevers, children first.
-            val fouled = if (s.human) CAMP_FOULING * years * min(1f, max(0, g.campWeeks - 8) / 52f) else 0f
+            val fouled = if (s.human) CAMP_FOULING * years * min(1f, max(0, g.campWeeks - 8) / 52f) * (if (g.holds(Tradition.HYGIENE)) 0.4f else 1f) else 0f
+            if (g.holds(Tradition.MEDICINE)) pAdult *= MEDICINE_SAVES
             val pYoung = min(1f, pAdult + s.youngMortality * years * careOfElders + inbreeding + fouled + 0.1f * hunger + eagle + THERMAL_DEATHS * years * stress)
             // Elders die faster than adults in their prime.
             val deadE = if (s.human) binomial(g.elders, min(1f, pAdult + ELDER_DEATHS * years), r) else 0
@@ -2006,10 +2036,11 @@ class Ecology(private val sim: Simulation) {
             if (orphaned > 0) deathsBy.merge("${s.name}:orphaned", orphaned, Int::plus)
             g.young -= deadY + orphaned
             val dead = deadA + deadY + orphaned
+            if (s.human) g.prosper += 0.05f * ((g.size - before).toFloat() / max(1, before) / years - g.prosper)
             deathCount.addAndGet(dead)
             if (dead > 0) carrionKg[gi] = s.massKg * (deadA + 0.5f * (deadY + orphaned))
             // Splitting: a group too big for its food divides.
-            if (g.size > s.maxGroupSize) {
+            if (g.size > s.maxGroupSize * (if (g.holds(Tradition.FEASTS)) 1.4f else 1f)) {
                 splitA[gi] = g.adults / 2; splitY[gi] = g.young / 2
                 g.adults -= splitA[gi]; g.young -= splitY[gi]
             }
@@ -2034,6 +2065,7 @@ class Ecology(private val sim: Simulation) {
             child.lineage = g.lineage?.copyOf(); child.inbred = g.inbred
             child.campWeeks = 0
             child.making = g.making?.copyOf()
+            child.traditions = g.traditions?.copyOf(); child.prosper = g.prosper
             child.tools = g.tools?.copyOf()?.also { k -> for (tl in Tool.entries) if (tl.heavy) k[tl.ordinal] = 0f }
             child.goods = g.goods?.let { gd -> FloatArray(gd.size) { gd[it] * share }.also { for (m in gd.indices) gd[m] -= it[m] } }
             // A new group carries its parents' temper, give or take: the variation selection works on.
@@ -2124,6 +2156,14 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Share of traditions a region's bands start with. */
+        const val TRADITION_START = 0.5f
+        /** Chance, at a meeting, of copying a differing tradition from a band doing clearly better. */
+        const val IMITATE = 0.3f
+        /** Chance, at a meeting, of taking up or dropping a tradition on one's own. */
+        const val INNOVATE = 0.01f
+        /** Adult deaths left where a band practises medicine. */
+        const val MEDICINE_SAVES = 0.8f
         /** Hunting success of a band with no weapons at all, against one fully armed with spears. */
         const val WEAPONLESS = 0.3f
         /** Extra hunting success from bows against the fastest quarry, in practised hands. */
