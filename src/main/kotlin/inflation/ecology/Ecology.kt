@@ -292,7 +292,8 @@ class Ecology(private val sim: Simulation) {
         val c = cellOf(g)
         if (!sim.vegetation.burning[c]) return
         val s = g.species
-        val slow = (40f / s.speedKmh).coerceIn(0.5f, 2f)
+        // People know fire: they see it coming, burn breaks and step onto the burnt ground behind it.
+        val slow = (40f / s.speedKmh).coerceIn(0.5f, 2f) * if (s.human) 0.1f else 1f
         val r = groupRandom(g, 3)
         val deadY = binomial(g.young, min(1f, FIRE_YOUNG * slow), r)
         val deadA = binomial(g.adults, min(1f, FIRE_ADULT * slow * if (g.torpid) 4f else 1f), r)
