@@ -50,7 +50,23 @@ A set encoder (attention over tokens) handles any number of each and doesn't car
 
 This is a hierarchy: the model decides *what and where*, and engineered skills carry out *how*. New technology adds or changes skills underneath. The model sees their predicted outcomes and adapts.
 
-### Growing the model over time
+#### Actions as tokens too
+Each action the band could take this week is itself a token. It is described by its properties: what kind of act it is, what it needs (people, days, tools, materials), what it targets, and what it is expected to bring.
+- The model scores the action tokens and picks one, or a few in parallel for different parts of the band.
+- A new action ("sail to", "ride out", "sow", "pen the herd") is a new token with a new property vector, not a new output head.
+- Only the actions possible for this band this week are offered. A band without boats is never shown "sail".
+
+### Negotiation as an exchange of utterances
+When bands meet, they negotiate in a few turns inside the week:
+- **Taking turns.** Each side in turn chooses an utterance token: offer goods, ask for leave to use land, ask for food, propose a marriage, an alliance, a joint drive or a gathering, threaten, accept, or refuse.
+- **The language is the channel.** What one side says reaches the other only as far as they understand each other, so misunderstanding is part of the game.
+- **Outcomes are binding moves in the world:** goods change hands, leave is given, partners move, a grudge is set or eased.
+- **Reputation comes from memory.** Renown, grudges and past dealings are part of each side's observation, so lying or breaking a deal has a cost later.
+- **One shared model plays both sides,** each trained on its own band's lineage reward. The game is not zero-sum, so cooperation can pay.
+
+This follows the line of work on learned negotiation and communication (deal-or-no-deal negotiation agents, emergent-language signalling games, and the Diplomacy agents that bargain in natural language). It starts small: a handful of utterance kinds with typed arguments, grown as the world grows.
+
+## Growing the model over time
 Ways to add capacity without starting again, roughly in order of how often they're used:
 - **Property embeddings** (above): new items and skills cost nothing structurally.
 - **Adapters:** small extra layers trained for a new domain (trade, farming, herding) while the core stays frozen. Then fine-tune everything gently.
