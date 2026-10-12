@@ -84,11 +84,12 @@ fun main(args: Array<String>) {
             }
             println("   renown %.2f on average, %.0f%% of bands know a kite, people's kills by kite drives this period %d".format(
                 bands.map { it.renown.toDouble() }.average(), 100.0 * bands.count { b -> b.places?.any { it.kind == PlaceKind.KITE } == true } / bands.size, e.kiteKills))
-            println("   land   %.0f named places per band (water %.0f, stone %.0f, camps %.0f), furthest known %.0f km away on average".format(
+            println("   land   %.0f named places per band (water %.0f, stone %.0f, camps %.0f, gathering places %.1f), furthest known %.0f km away on average".format(
                 bands.map { it.places?.size ?: 0 }.average(),
                 bands.map { b -> b.places?.count { it.kind == PlaceKind.WATER } ?: 0 }.average(),
                 bands.map { b -> b.places?.count { it.kind == PlaceKind.STONE } ?: 0 }.average(),
                 bands.map { b -> b.places?.count { it.kind == PlaceKind.CAMP } ?: 0 }.average(),
+                bands.map { b -> b.places?.count { it.kind == PlaceKind.GATHERING } ?: 0 }.average(),
                 bands.map { b -> b.places?.maxOfOrNull { kotlin.math.hypot(it.x - b.x, it.y - b.y) } ?: 0.0 }.average()))
             println("   ways   " + Tradition.entries.joinToString { tr -> "%s %.0f%%".format(tr.name.lowercase(), 100.0 * bands.count { it.holds(tr) } / bands.size) })
             println("   tools  " + Tool.entries.joinToString { tl -> "%s %.2f".format(tl.name.lowercase(), bands.mapNotNull { it.tools?.get(tl.ordinal)?.toDouble() }.average()) } +

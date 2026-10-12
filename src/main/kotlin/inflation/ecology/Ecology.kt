@@ -34,6 +34,25 @@ class Ecology(private val sim: Simulation) {
     private val cellKm = grid.cellKm.toFloat()
     private val cellKm2 = cellKm * cellKm
 
+    /** Which landmass each cell is on (connected land), for the tongues people start with. */
+    private val landmass: IntArray by lazy {
+        val id = IntArray(n) { -1 }
+        var next = 0
+        val queue = IntArray(n)
+        for (start in 0 until n) {
+            if (id[start] >= 0 || world.isSea[start]) continue
+            var head = 0; var tail = 0
+            queue[tail++] = start; id[start] = next
+            while (head < tail) {
+                val c = queue[head++]
+                grid.forNeighbours(c) { nb, _ -> if (id[nb] < 0 && !world.isSea[nb]) { id[nb] = next; queue[tail++] = nb } }
+            }
+            next++
+        }
+        id
+    }
+
+
     val plankton = Plankton(sim)
     val soil = SoilLife(sim)
     val small = SmallFauna(sim)
@@ -444,13 +463,11 @@ class Ecology(private val sim: Simulation) {
             // Traditions are regional: neighbouring bands mostly share them.
             val region = java.util.Random(world.config.seed * 31L + (grid.x(cell) / (LINEAGE_KM / cellKm)).toInt() + 7 * (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt())
             group.traditions = BooleanArray(Tradition.entries.size) { region.nextFloat() < TRADITION_START }
-            // Each region speaks its own tongue; neighbouring regions share about half their words.
-            val rx = (grid.x(cell) / (LINEAGE_KM / cellKm)).toInt(); val ry = (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt()
+            // One ancestral tongue per landmass: people who reached it long ago spoke alike. Separate
+            // landmasses were settled separately. Dialects grow from here, by distance and barriers.
+            val mass = landmass[cell]
             group.places = ArrayList()
-            group.words = IntArray(Language.CONCEPTS) { k ->
-                val home = java.util.Random(world.config.seed * 977L + k * 131L + (if (k % 2 == 0) rx / 2 * 7919 + ry / 2 else rx * 7919 + ry)).nextInt(Language.FORMS)
-                home
-            }
+            group.words = IntArray(Language.CONCEPTS) { k -> java.util.Random(world.config.seed * 977L + k * 131L + mass * 7919L).nextInt(Language.FORMS) }
             // Neighbouring bands share descent; distant ones do not.
             group.lineage = FloatArray(LINEAGES).also { it[((grid.x(cell) / (LINEAGE_KM / cellKm)).toInt() + 7 * (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt()) % LINEAGES] = 1f }
             group.forageCraft = FloatArray(Forage.entries.size) { f ->
@@ -812,6 +829,25 @@ class Ecology(private val sim: Simulation) {
                 val x = g.x + (known.x - g.x) * step; val y = g.y + (known.y - g.y) * step
                 sc.tx[k] = x; sc.ty[k] = y; k++
                 options += describe(g, x, y, min(toGo, reach), sc.box)
+            } else { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++ }
+        }
+        // In good times bands go to their gathering place: feasting bands most of all.
+        if (s.human) {
+            val site = g.places?.filter { it.kind == PlaceKind.GATHERING }?.minByOrNull { dist(it.x - g.x, it.y - g.y) }
+            // Gatherings fall in the season of plenty: the band's best month for food, and the one before and after.
+            val best = g.foodByMonth.indices.maxByOrNull { g.foodByMonth[it] } ?: 0
+            val season = (sim.weather.date.month - best + 12) % 12 in setOf(0, 1, 11)
+            // A settled band with full stores stays put and is visited: its base is the gathering place.
+            val settled = g.campWeeks > 8 && g.larder > 20f * g.dailyNeedKg
+            val festive = season && !settled && g.fare > (if (g.holds(Tradition.FEASTS)) 0.6f else 0.75f)
+            if (site != null && festive && dist(site.x - g.x, site.y - g.y) * cellKm in r.toDouble()..GATHER_KM.toDouble()) {
+                val toGo = (dist(site.x - g.x, site.y - g.y) * cellKm).toFloat()
+                val step = min(toGo, reach) / toGo
+                val x = g.x + (site.x - g.x) * step; val y = g.y + (site.y - g.y) * step
+                sc.tx[k] = x; sc.ty[k] = y; k++
+                val o = describe(g, x, y, min(toGo, reach), sc.box)
+                // The pull of a gathering: partners, news, exchange and feasting.
+                options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, GATHER_PULL, o.hazard, o.rainAhead)
             } else { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++ }
         }
         // The season's range: a week's march towards where it remembers doing well in the coming weeks.
@@ -1592,7 +1628,7 @@ class Ecology(private val sim: Simulation) {
         if (spare <= 0f) return
         val gift = 0.5f * spare
         gd[Material.ORNAMENT.ordinal] -= gift; td[Material.ORNAMENT.ordinal] += gift
-        giver.renown = min(1f, giver.renown + 0.1f * gift / (ORNAMENTS_KEPT * max(1, giver.adults)))
+        giver.renown = min(1f, giver.renown + 0.02f * gift / (ORNAMENTS_KEPT * max(1, giver.adults)))
         val gl = giver.lineage ?: return
         taker.grudge?.let { gr -> for (k in gr.indices) gr[k] *= 1f - min(1f, gift / max(1, taker.adults)) * gl[k] }
     }
@@ -1635,6 +1671,7 @@ class Ecology(private val sim: Simulation) {
                 spring[i] || oasis[i] || (world.water.discharge[i] >= 1f && !world.isSea[i]) -> PlaceKind.WATER
                 world.geology.minerals[i] and inflation.world.Mineral.OCHRE != 0 || (!world.isSea[i] && waterKm[i] < 1f && nearSea(i)) -> PlaceKind.ORNAMENT
                 world.geology.minerals[i] and (inflation.world.Mineral.FLINT or inflation.world.Mineral.OBSIDIAN) != 0 -> PlaceKind.STONE
+                gatheringSite(i) -> PlaceKind.GATHERING
                 terrain.defensibility[i] > 0.6f -> PlaceKind.CAMP
                 else -> return@repeat
             }
@@ -1663,6 +1700,18 @@ class Ecology(private val sim: Simulation) {
         val herds = KITE_QUARRY.sumOf { mOcc[it.index].box(box.x0, box.y0, box.x1, box.y1) }
         if (herds < KITE_HERDS) return
         addPlace(ps, Place(g.x.toFloat(), g.y.toFloat(), PlaceKind.KITE, 1f, stepCount))
+    }
+
+    /**
+     * A good place to gather: where rivers meet (and with them the routes along their valleys), or a
+     * landmark that stands out over the country around, with water at hand.
+     */
+    private fun gatheringSite(i: Int): Boolean {
+        if (world.isSea[i] || waterKm[i] > 2f) return false
+        val drainage = world.water.drainage
+        var feeders = 0
+        grid.forNeighbours(i) { nb, _ -> if (drainage.receiver[nb] == i && world.water.discharge[nb] >= 0.5f) feeders++ }
+        return feeders >= 2 || terrain.prominence[i] > 150f
     }
 
     private fun nearSea(i: Int): Boolean {
@@ -2413,7 +2462,7 @@ class Ecology(private val sim: Simulation) {
         /** Moving the centre further than this many range radii in a week is a march. */
         const val MARCH_RANGES = 3.5f
         /** Candidate ranges per decision: staying, 8 directions at 3 distances, and the season's range. */
-        const val CANDIDATES = 27
+        const val CANDIDATES = 28
         /** Predator mass per km² over a range at which danger reads one half. */
         const val DANGER_KG_KM2 = 3f
         /** Lure-weighted prey per km² at which the draw of prey reads one half. */
@@ -2448,6 +2497,9 @@ class Ecology(private val sim: Simulation) {
         /** How much renown (0..1) counts against growth when bands decide whom to copy, and its weekly keep. */
         const val RENOWN_WEIGHT = 0.02f
         const val RENOWN_KEEP = 0.995f
+        /** How far a band will go to a gathering, km, and how strongly a gathering draws it (as a season's pull). */
+        const val GATHER_KM = 100f
+        const val GATHER_PULL = 0.5f
         /** Places a band can know by name at once, and years it remembers one not seen. */
         const val MAX_PLACES = 40
         const val PLACE_MEMORY_YEARS = 20f

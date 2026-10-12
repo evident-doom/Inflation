@@ -79,6 +79,8 @@ enum class PlaceKind {
     ORNAMENT,
     /** A desert kite: long low walls funnelling herds into an enclosure or pits, built by many hands. */
     KITE,
+    /** Where bands gather: a confluence of rivers and routes, or a landmark seen from afar, with water. */
+    GATHERING,
 }
 
 /** A place a band knows and has a name for: where, what, how good, and when last seen or heard of (step). */
