@@ -50,6 +50,7 @@ it (see Learned behaviour below). The design is in `docs/design/weekly-ranges.md
 | --- | --- |
 | Plankton | Nutrients, phytoplankton and zooplankton in sea and lake cells, stepped daily. Nutrients are rich on shallow shelves and at river mouths, poor over deep water; cold water mixes nutrients up, warm water stratifies. Gives a spring bloom and coasts far richer than open sea |
 | Fish | Resident fish in sea and lakes follow primary production (shelves and river mouths far richer than open water); river fish scale with channel size and warmth, shrink with low water, die where the bed nearly dries and come back from downstream. Shellfish beds within about 3 km of the shore in water under 10 m. A spring spawning run (shad-like) gathers off each river mouth and moves upstream about 20 km a day for two months, through lakes, until a cascade or a dam stops it |
+| Sea | Upwelling: the wind drags surface water, and the earth's turning bends the drift to the right; where it carries water away from a coast, deep water rich in nutrients wells up (westerlies most of the year, steady north winds in summer), as it does at shelf edges, and the plankton blooms there. Sea fish breed fast on it. Sea animals roam weekly ranges like herds: fin whales strain krill and remember where each month fed them best; dolphin pods and porpoises (on the shelf) hunt fish; monk seals fish along the coast; sharks live mostly on fish and now and then take a seal, porpoise or dolphin whose range overlaps theirs. Crowded waters breed disease. Sea-bird colonies on cliffs fish within 40 km of the nest and breed as their waters allow |
 | Soil life | Plant litter from turnover, die-back, frost, floods and ash decomposes at a rate set by warmth and moisture; part becomes soil organic matter, which raises the fertility plants grow on. Carcasses rot in days to weeks and feed scavengers |
 | Small animals | Plant-eating insects (active above 10 °C, waiting out cold and hot droughts as eggs), biting insects (in warm wetlands and floodwater), rodents (logistic on food, hit by cold and snow) and reptiles and amphibians (breeding in warm, moist weeks, torpid through cold winters and hot, dry summers, when hunters cannot find them), in kg/km², spreading to neighbouring land |
 | Water | Ground wetness per cell from soil moisture, recent rain, shade, floods and wetland. Animals drink at rivers, fresh lakes, floodwater, the pools and seeps of very wet ground, and at springs. In dry country, rain that sinks in upslope flows underground and comes up as year-round springs and water holes at the foot of hills, along faults and from limestone; the largest in the driest land are oases that keep the ground around them damp. Herds also get water from fresh food and dew, browsers and gazelles most, aurochs and onagers least, so in the wet season water is everywhere and in the dry season herds gather at rivers and springs |
@@ -71,7 +72,10 @@ per km² of land: roe deer 0.9–1.4, wild boar about 0.9, gazelle 0.5–0.9, ib
 deer about 0.5, red deer 0.23–0.29, onager 0.14–0.18, aurochs 0.06–0.1, and one brown bear per
 40–45 km²; 120–380 hippos per island. One wolf per 155–190 km², one leopard per 570–1,030 km²,
 one striped hyena per 225–405 km² and one jackal per 105–125 km². Herbivores are held by food in
-the lean season, crowding disease and predators together.
+the lean season, crowding disease and predators together. At sea over the same 20 years: fin whales
+100–145 per island's waters (slowly declining), dolphins 10,000–15,000, porpoises 500–900 (slowly
+declining), monk seals 500–1,000, sharks 90–105, and 60,000–130,000 sea birds; sea fish hold at
+about 2.7–2.9 t/km².
 
 ![animals](docs/img/fauna.png)
 ![visibility](docs/img/visibility.png)

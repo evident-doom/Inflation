@@ -111,7 +111,9 @@ class Fish(private val sim: Simulation, private val plankton: Plankton) {
             if (!habitat[i]) return@forEach
             val k = capacity(i)
             var f = fish[i]
-            f += FISH_GROWTH * years * f * (1 - f / max(k, 1f))
+            // Small shoaling fish at sea breed fast; river and lake fish slower.
+            val growth = if (world.isSea[i]) SEA_FISH_GROWTH else FISH_GROWTH
+            f += growth * years * f * (1 - f / max(k, 1f))
             if (isRiver[i]) {
                 // Low water shrinks the river and what it can carry (see capacity); a nearly dry
                 // bed leaves only what survives in pools.
@@ -208,6 +210,8 @@ class Fish(private val sim: Simulation, private val plankton: Plankton) {
         const val RIVER_FISH_PER_KM2_WATER = 15_000f
         const val MAX_SHELLFISH = 20_000f
         const val FISH_GROWTH = 0.6f
+        /** Yearly growth rate of sea fish (anchovy, sardine and the like) when scarce. */
+        const val SEA_FISH_GROWTH = 2f
         /**
          * Mean gradient over a kilometre reach that run fish cannot climb: a cascade or waterfall.
          * Rivers on a 1 km grid average over pools and riffles, so ordinary steep reaches pass.

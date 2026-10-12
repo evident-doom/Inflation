@@ -37,6 +37,7 @@ class Ecology(private val sim: Simulation) {
     val soil = SoilLife(sim)
     val small = SmallFauna(sim)
     val fish = Fish(sim, plankton)
+    val marine = Marine(sim, plankton, fish)
 
     /** Edible young grass and herbs, kg per km². */
     val graze = FloatArray(n)
@@ -154,6 +155,7 @@ class Ecology(private val sim: Simulation) {
     fun step() {
         killCount.set(0); birthCount.set(0); deathCount.set(0)
         timed("fields") { plankton.step(); fish.step(); soil.step(); small.step() }
+        timed("sea") { marine.step() }
         timed("regrow") { regrow() }
         stepCount++
         timed("water") { updateWater() }

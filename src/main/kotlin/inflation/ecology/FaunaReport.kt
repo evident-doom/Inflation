@@ -49,6 +49,17 @@ fun main(args: Array<String>) {
             " %6d %11.2f %9.1f %5.0f".format(kills, water.sumOf { e.fish.fish[it].toDouble() } / water.size / 1000,
                 e.fish.shellfish.sumOf { it.toDouble() } / 1e6, e.fish.run.sumOf { it.toDouble() } / 1000))
         kills = 0
+        val sea = e.marine
+        println("   sea    " + SeaCatalogue.all.joinToString { "${it.name} ${sea.count(it)}" } + ", sea birds %.0f, shark kills %d".format(sea.birdCount(), sea.sharkKills))
+        sea.sharkKills = 0
+        if (System.getenv("FAUNA_DETAIL") != null) {
+            println("   sea deaths " + sea.deathsBy.entries.sortedByDescending { it.value }.take(8).joinToString { "${it.key} ${it.value}" })
+            sea.deathsBy.clear()
+            println("   sea cond " + SeaCatalogue.all.joinToString { s ->
+                val gs = sea.groups.filter { it.species == s }
+                "%s %.2f/%.2f".format(s.name, if (gs.isEmpty()) 0.0 else gs.map { it.condition }.average(), if (gs.isEmpty()) 0.0 else gs.map { it.lastIntake.toDouble() }.average())
+            })
+        }
         if (System.getenv("FAUNA_DETAIL") != null) {
             println("   kills  " + Catalogue.herbivores.joinToString(" ") { "%9d".format(e.killsBy[it] ?: 0) })
             println("   hunters " + Catalogue.predators.joinToString { "${it.name} ${e.killsByPredator[it] ?: 0} kills, ${e.stolen[it] ?: 0} stolen" })
