@@ -102,7 +102,10 @@ class Ecology(private val sim: Simulation) {
      * to bring down at least its young; for predators, much stronger rivals, which kill them when
      * they meet and drive them off their kills.
      */
-    val enemies: Map<Species, List<Species>> = Catalogue.all.associateWith { s -> Catalogue.predators.filter { p -> p != s && threatens(p, s) } }
+    val enemies: Map<Species, List<Species>> = Catalogue.all.associateWith { s ->
+        // Camp followers and people leave each other be.
+        Catalogue.predators.filter { p -> p != s && threatens(p, s) && !(p.human && s.followsPeople) && !(s.human && p.followsPeople) }
+    }
     /**
      * How much the presence of each prey species draws each predator, by species index: its mass,
      * scaled down for prey too big for the group to take.
@@ -485,7 +488,7 @@ class Ecology(private val sim: Simulation) {
         timed("graze") { graze(); shapePlants() }
         timed("prowl") { prowlAll() }
         timed("drink") { for (g in groups) if (g.alive) drink(g) }
-        timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) endure(g) } }
+        timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) { endure(g); g.wary *= WARY_KEEP } } }
         timed("fire") { for (g in groups) if (g.alive) flee(g) }
         timed("seasons") { groups.parallelStream().forEach { g -> if (g.alive && (!g.species.carnivore || g.species.human)) learnSeason(g) } }
     }
@@ -709,6 +712,8 @@ class Ecology(private val sim: Simulation) {
                 pv.fill(0f)
                 val w = lure.getValue(s)
                 for (q in Catalogue.herbivores) { val o = mOcc[q.index].cell; val wq = w[q.index]; for (m in pv.indices) pv[m] += o[m] * wq }
+                // Camp followers are drawn to people's camps and their scraps.
+                if (s.followsPeople) { val o = mOcc[Catalogue.HUMAN.index].cell; for (m in pv.indices) pv[m] += o[m] * CAMP_LURE }
             }
             perSpecies[si].build()
         }
@@ -1242,6 +1247,8 @@ class Ecology(private val sim: Simulation) {
         if (s.human) {
             eaten += gather(g, need - min(eaten, need))
             burnOff(g, r)
+            // Bones, offal and spoiled food go on the camp's midden, for jackals, wolves and vultures.
+            soil.carrion[c] += (REFUSE * eaten / grid.cellAreaM2).toFloat()
         }
         if (eaten < need) eaten += catchRodents(c, min(need - eaten, s.diet.smallPrey * need))
         if (eaten < need) eaten += scavenge(c, need - eaten)
@@ -1463,7 +1470,10 @@ class Ecology(private val sim: Simulation) {
             // Caught or not, the herd is alarmed for weeks, keeps watch and moves off out of reach.
             prey.alert = ALERT_WEEKS
             contact[best] = 0f
-            g.craft?.let { it[prey.species.index] += PRACTICE * (1f - it[prey.species.index]) }
+            g.craft?.let {
+                it[prey.species.index] += PRACTICE * (1f - it[prey.species.index])
+                prey.wary += WARY_GAIN * (1f - prey.wary)
+            }
             if (r.nextFloat() >= bestP) { shove(prey, g); continue }
             // Brought to bay, a big animal may take one of its killers with it.
             if (bestRisk > 0f && r.nextFloat() < bestRisk) {
@@ -1487,7 +1497,9 @@ class Ecology(private val sim: Simulation) {
         // Surprise: cover lets a stalker close in unseen; a watchful herd is seldom surprised.
         // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
         val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moonlight)
-        val surprise = (SURPRISE_BASE + s.stalking * cov) * dark * (1f - WATCH_EFFECT * o.posture)
+        // Herds that people hunt often learn to keep their distance from them.
+        val shy = if (s.human) 1f - WARY_EFFECT * o.wary else 1f
+        val surprise = (SURPRISE_BASE + s.stalking * cov) * dark * shy * (1f - WATCH_EFFECT * o.posture)
         // An aware herd in its element bunches, faces the hunters and defends: on cliffs, in thickets
         // or marsh, wherever it is at home. In open ground it can only run.
         val inElement = habitatMatch(ps, cov, terrain.ruggedness[at], wetness[at])
@@ -1835,6 +1847,7 @@ class Ecology(private val sim: Simulation) {
             child.fare = g.fare
             child.fat = g.fat
             child.craft = g.craft?.copyOf(); child.forageCraft = g.forageCraft?.copyOf()
+            child.wary = g.wary
             newcomers += child
         }
         groups += newcomers
@@ -1919,6 +1932,16 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Share of a band's food that ends on the midden. */
+        const val REFUSE = 0.1f
+        /** How strongly a person in the range draws a camp follower, against a 20 kg prey animal (1). */
+        const val CAMP_LURE = 0.5f
+        /** How far one hunt by people closes a herd's gap to full shyness. */
+        const val WARY_GAIN = 0.3f
+        /** Share of shyness kept from week to week (half gone in about half a year). */
+        const val WARY_KEEP = 0.97f
+        /** How much a fully shy herd cuts people's chance of surprising it. */
+        const val WARY_EFFECT = 0.6f
         /** Chance a band burns off grass in a dry-season week. */
         const val BURN_WEEKLY = 0.1f
         /** Share of the danger of a cornered quarry that reaches hunters armed with spears and bows. */

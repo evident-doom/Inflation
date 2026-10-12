@@ -65,6 +65,11 @@ class AnimalGroup(
      * food ([Forage]), 0 (never done it) to 1 (masters). Practice raises it, disuse lets it fade.
      */
     var craft: FloatArray? = null
+    /**
+     * How shy of people the group has become, 0 (bold, never hunted) to 1: each hunt by a band
+     * raises it, and it fades over months where no one hunts.
+     */
+    var wary = 0f
     var forageCraft: FloatArray? = null
     val size: Int get() = adults + young
     val alive: Boolean get() = size > 0

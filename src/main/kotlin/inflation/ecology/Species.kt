@@ -127,6 +127,8 @@ class Species(
     val human: Boolean = false,
     /** Daily food, kg of prey or plant food, where the allometric rule does not fit (people, who cook). */
     val intakeKg: Float = 0f,
+    /** Hangs about people's camps for scraps and keeps clear of trouble with them: wolves (future dogs), jackals. */
+    val followsPeople: Boolean = false,
 ) {
     /** Position in [Catalogue.all], for array lookups. */
     var index = -1
@@ -367,6 +369,7 @@ object Catalogue {
         packLitter = 4,
         stalking = 0.3f,
         startKm2PerAnimal = 400f,
+        followsPeople = true,
     )
 
     /**
@@ -454,6 +457,7 @@ object Catalogue {
         ferocity = 0.8f,
         territoryKm = 4f,
         startKm2PerAnimal = 200f,
+        followsPeople = true,
     )
 
     // ---------------------------------------------------------------- the cold north
