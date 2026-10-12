@@ -607,7 +607,7 @@ class Ecology(private val sim: Simulation) {
     private fun homeRangeKm(g: AnimalGroup) = HOME_RANGE * g.rangeKm
 
     /** Whether hunger, thirst, cold or heat press [g] to shift its range. */
-    private fun needy(g: AnimalGroup) = g.lastIntakeRatio < RESIDENT_HUNGER || g.daysWithoutWater > 0.5f * g.species.daysWithoutWater || g.thermal > 0.2f
+    private fun needy(g: AnimalGroup) = g.lastIntakeRatio < RESIDENT_HUNGER || g.daysWithoutWater > 0.3f * g.species.daysWithoutWater || g.thermal > 0.2f
 
     /** Whether hunger, thirst or a recent attack has [g] ready to leave the ground it knows. */
     private fun roused(g: AnimalGroup) = g.lastIntakeRatio < STARVING || g.alert > 0 || g.daysWithoutWater > 0.5f * g.species.daysWithoutWater
@@ -962,7 +962,7 @@ class Ecology(private val sim: Simulation) {
                 if (ring == 3 && (reach <= 3f * r || !restless)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
                 // A resident herd lives where it is: it shifts a short way only when hunger, thirst, cold or
                 // heat press it; frightened, it hides where it is rather than run.
-                if (ring > 0 && Catalogue.resident(s) && (ring > 1 || !needy(g))) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
+                if (ring > 0 && Catalogue.resident(s) && (ring > 2 || !needy(g))) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
                 // A herd that is only frightened scatters and hides nearby; only on open plains does it run farther.
                 if (ring == 2 && !s.carnivore && g.alert > 0 && g.lastIntakeRatio >= MARCH_HUNGER && g.daysWithoutWater <= 0.5f * s.daysWithoutWater &&
                     terrain.ruggedness[cellOf(g)] + cover(cellOf(g)) > OPEN_GROUND) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
@@ -1033,10 +1033,12 @@ class Ecology(private val sim: Simulation) {
         // The season's range: a week's march towards where it remembers doing well in the coming weeks.
         val m = seasonAhead()
         val sx = g.seasonX[m]; val sy = g.seasonY[m]
-        if (sx.isNaN() || (s.carnivore && !s.human) || Catalogue.resident(s)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
+        if (sx.isNaN() || (s.carnivore && !s.human)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
         val dx = sx - g.x; val dy = sy - g.y
         val toGo = (dist(dx, dy) * cellKm).toFloat()
-        if (toGo < r) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
+        // Resident kinds shift with the seasons only within their own country: up the mountain in
+        // summer, down to the valley in winter.
+        if (toGo < r || (Catalogue.resident(s) && toGo > RESIDENT_SEASON * r)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
         val step = min(toGo, reach) / toGo
         val x = g.x + dx * step; val y = g.y + dy * step
         sc.tx[k] = x; sc.ty[k] = y
@@ -2780,7 +2782,9 @@ class Ecology(private val sim: Simulation) {
         /** Intake below which a herd will weigh a forced march to new country. */
         const val MARCH_HUNGER = 0.6f
         /** Intake below which a resident herd shifts its range; how far young residents disperse, in ranges. */
-        const val RESIDENT_HUNGER = 0.5f
+        const val RESIDENT_HUNGER = 0.7f
+        /** Farthest a resident herd shifts with the seasons, in ranges. */
+        const val RESIDENT_SEASON = 5f
         const val DISPERSE_MIN = 1.5f
         const val DISPERSE_MAX = 4f
         /** Weeks a herd off its range still means to return; how strongly it is drawn home. */
