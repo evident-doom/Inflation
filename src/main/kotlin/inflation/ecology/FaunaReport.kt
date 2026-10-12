@@ -93,6 +93,8 @@ fun main(args: Array<String>) {
                 bands.map { b -> b.places?.maxOfOrNull { kotlin.math.hypot(it.x - b.x, it.y - b.y) } ?: 0.0 }.average()))
             val took = e.peopleKills.values.sum().coerceAtLeast(1)
             println("   prey   people's kills so far: " + e.peopleKills.entries.sortedByDescending { it.value }.take(10).joinToString { "%s %.0f%%".format(it.key.name, 100.0 * it.value / took) })
+            val met = e.peopleContacts.values.sum().coerceAtLeast(1)
+            println("   met    herds people's parties came across: " + e.peopleContacts.entries.sortedByDescending { it.value }.take(10).joinToString { "%s %.0f%%".format(it.key.name, 100.0 * it.value / met) })
             println("   ways   " + Tradition.entries.joinToString { tr -> "%s %.0f%%".format(tr.name.lowercase(), 100.0 * bands.count { it.holds(tr) } / bands.size) })
             println("   tools  " + Tool.entries.joinToString { tl -> "%s %.2f".format(tl.name.lowercase(), bands.mapNotNull { it.tools?.get(tl.ordinal)?.toDouble() }.average()) } +
                 "; goods kg/adult " + Material.entries.joinToString { m -> "%s %.1f".format(m.name.lowercase(), bands.sumOf { (it.goods?.get(m.ordinal) ?: 0f).toDouble() } / max(1, bands.sumOf { it.adults })) })

@@ -159,6 +159,8 @@ class Ecology(private val sim: Simulation) {
     val killsByPredator = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     /** What people have killed, by species, since the start. */
     val peopleKills = java.util.concurrent.ConcurrentHashMap<Species, Int>()
+    /** Herds people's hunting parties came across, by species, since the start. */
+    val peopleContacts = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     val stolen = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     /** Deaths other than predation, by "species:cause", since last cleared. */
     val deathsBy = java.util.concurrent.ConcurrentHashMap<String, Int>()
@@ -1897,6 +1899,7 @@ class Ecology(private val sim: Simulation) {
         for (q in Catalogue.herbivores) collect(q, g.x, g.y, reachKm + rangeKm(q), near)
         if (near.isEmpty()) return
         val contact = FloatArray(near.size) { overlap(kmBetween(g, near[it]), reachKm, near[it].rangeKm) }
+        if (s.human) for ((k, o) in near.withIndex()) if (contact[k] > 0f) peopleContacts.merge(o.species, 1, Int::plus)
         val chances = min(MAX_CHASES * free / days, CHASES_PER_CONTACT * free * contact.sum()).toInt()
         // What the party brings to the fight: weight, times its weapons (teeth and claws, or spears and bows).
         val packKg = g.adults * s.massKg * armed(g)
