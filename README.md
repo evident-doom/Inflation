@@ -5,9 +5,12 @@ The design brief lives in the project's Claude Doc. This repository starts with 
 
 ## The world
 
-`inflation.world` generates a 1000 × 1000 km region on a 1 km grid (one million cells), spanning
-roughly 40°N to 31°N: temperate in the north, hot and dry in the south. The region is an
-archipelago of larger landmasses and islands with ocean on every side.
+`inflation.world` generates a region 1000 km wide and 2000 km from north to south on a 1 km grid
+(two million cells), spanning about 45°N to 27°N, the latitudes from the Black Sea and the Balkans
+down to northern Arabia and Sinai: cold continental and alpine in the north, hot and dry in the
+south. Latitude follows distance (1° per 111 km), so smaller test maps span fewer degrees around
+36°N. The region is an archipelago of larger landmasses and islands with ocean on every side.
+`--size KM` makes a square map, and `--height KM` sets its north–south extent.
 
 ### Generated once
 

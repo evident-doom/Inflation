@@ -26,18 +26,23 @@ class SimulationTest {
     @Test
     fun `a dam stores water and evens out the flow below it`() {
         val g = world.grid
-        val site = (0 until g.size).filter {
+        // The biggest river site where a 40 m dam backs up a real reservoir (not a steep gorge).
+        val candidates = (0 until g.size).filter {
             val r = world.water.drainage.receiver[it]
             world.isRiver(it) && world.water.discharge[it] > 1f && world.isRiver(r)
-        }.maxBy { world.water.discharge[it] }
+        }.sortedByDescending { world.water.discharge[it] }
+        val probe = Simulation(world)
+        val site = candidates.first { probe.water.addDam(it, 40f)?.capacityM3?.let { c -> c > 1e6f } == true }
         val below = world.water.drainage.receiver[site]
         fun flows(sim: Simulation) = List(stepsPerYear * 2) { sim.step(); sim.water.discharge[below].toDouble() }
         val natural = flows(Simulation(world))
         val dammed = Simulation(world)
         val dam = assertNotNull(dammed.water.addDam(site, 40f))
-        val regulated = flows(dammed)
+        var stored = 0f
+        val regulated = List(stepsPerYear * 2) { dammed.step(); stored = maxOf(stored, dam.storage); dammed.water.discharge[below].toDouble() }
         fun spread(xs: List<Double>) = xs.max() - xs.min()
-        assertTrue(dam.storage > 0f, "reservoir holds water")
+        // A dry-season reservoir may be drawn down by the end; it must have filled at some point.
+        assertTrue(stored > 0f, "reservoir holds water")
         assertTrue(dammed.water.submerged.any { it }, "reservoir floods land")
         assertTrue(spread(regulated) < spread(natural), "flow range ${spread(regulated)} vs natural ${spread(natural)}")
     }

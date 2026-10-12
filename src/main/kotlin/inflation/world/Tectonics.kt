@@ -54,7 +54,7 @@ class Tectonics(
         fun generate(grid: Grid, cfg: WorldConfig, noise: Noise): Tectonics {
             val rnd = Random(cfg.seed * 7919 + 13)
             val w = grid.width.toDouble(); val h = grid.height.toDouble()
-            val seeds = List(cfg.plates) {
+            val seeds = List(cfg.plateCount) {
                 val px = rnd.nextDouble() * w
                 val py = rnd.nextDouble() * h
                 val angle = rnd.nextDouble() * 2 * Math.PI
@@ -62,9 +62,10 @@ class Tectonics(
                 Triple(px, py, angle to speed)
             }
             // Plates seeded nearer the centre are likelier to be continental; the edges are ocean.
-            val continentalCount = (cfg.plates * cfg.continentalShare).toInt().coerceAtLeast(2)
+            // Distance is measured against the map's own proportions, so a tall map has land along its length.
+            val continentalCount = (cfg.plateCount * cfg.continentalShare).toInt().coerceAtLeast(2)
             val continental = seeds.indices.sortedBy { k ->
-                hypot(seeds[k].first - w / 2, seeds[k].second - h / 2) / (0.5 * min(w, h)) + 0.6 * rnd.nextDouble()
+                hypot((seeds[k].first - w / 2) / (0.5 * w), (seeds[k].second - h / 2) / (0.5 * h)) + 0.6 * rnd.nextDouble()
             }.take(continentalCount).toSet()
             val plates = seeds.mapIndexed { k, (px, py, motion) ->
                 val (angle, speed) = motion

@@ -44,7 +44,7 @@ import kotlin.math.pow
  * Desktop viewer: the world map with layers, time controls, a cell inspector, an event log and
  * tools to build dams, dig canals and irrigate.
  *
- * Usage: viewer [--seed N] [--size KM] [--layer NAME] [--screenshot FILE --steps N]
+ * Usage: viewer [--seed N] [--size KM] [--height KM] [--layer NAME] [--screenshot FILE --steps N]
  *
  * With --screenshot the viewer runs N steps, saves an image of its window and exits.
  */
@@ -58,6 +58,7 @@ fun main(args: Array<String>) {
         when (args[k]) {
             "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
             "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
+            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--screenshot" -> screenshot = File(args[++k])
             "--steps" -> shotSteps = args[++k].toInt()
             "--layer" -> startLayer = Layer.valueOf(args[++k].uppercase())

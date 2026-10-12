@@ -8,7 +8,7 @@ import kotlin.math.max
 /**
  * Runs the living world for some years and prints the animal populations each season.
  *
- * Usage: fauna [--seed N] [--size KM] [--years N] [--policies DIR]
+ * Usage: fauna [--seed N] [--size KM] [--height KM] [--years N] [--policies DIR]
  *
  * With --policies, species that have a saved network in DIR (see [inflation.learning.NetworkPolicy]) use it.
  */
@@ -21,6 +21,7 @@ fun main(args: Array<String>) {
         when (args[k]) {
             "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
             "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
+            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--years" -> years = args[++k].toInt()
             "--policies" -> policies = java.io.File(args[++k])
             else -> error("unknown argument ${args[k]}")

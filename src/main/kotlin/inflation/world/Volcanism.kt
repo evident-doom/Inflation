@@ -68,7 +68,7 @@ object Volcanism {
         }
 
         // Hotspot chains: the plate drifts over a fixed plume, so older volcanoes trail behind.
-        repeat(cfg.hotspots) {
+        repeat(cfg.hotspotCount) {
             val hx = (0.15 + 0.7 * rnd.nextDouble()) * grid.width
             val hy = (0.15 + 0.7 * rnd.nextDouble()) * grid.height
             val plate = tect.plates[tect.plateId[grid.index(hx.toInt(), hy.toInt())]]

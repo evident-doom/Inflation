@@ -14,7 +14,7 @@ import kotlin.math.max
  * neighbours), and which grow without limit (and what fails to check them). The point is not to
  * keep every species alive by tuning, but to see where the world offers each a place.
  *
- * Usage: audit [--seed N] [--size KM] [--years N] [--out FILE]
+ * Usage: audit [--seed N] [--size KM] [--height KM] [--years N] [--out FILE]
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig()
@@ -25,6 +25,7 @@ fun main(args: Array<String>) {
         when (args[k]) {
             "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
             "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
+            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--years" -> years = args[++k].toInt()
             "--out" -> out = File(args[++k])
             else -> error("unknown argument ${args[k]}")
