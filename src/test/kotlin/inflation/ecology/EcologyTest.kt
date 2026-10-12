@@ -59,9 +59,11 @@ class EcologyTest {
             repeat(stepsPerYear) { sim.step(); kills += e.kills }
             census += Catalogue.all.associateWith { e.count(it) }
         }
-        // Species without a niche on this island may die out (lions often do); the herds and the wolf
-        // must hold, and nothing may grow without limit.
-        for (s in Catalogue.herbivores + Catalogue.WOLF) assertTrue(census.all { it.getValue(s) > 0 }, "${s.name} persists: ${census.map { it.getValue(s) }}")
+        // Species without a niche on this island may die out (lions often do, and the northern and
+        // desert species have no climate for them here); the temperate herds and the wolf must hold,
+        // and nothing may grow without limit.
+        val temperate = with(Catalogue) { listOf(GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR, WOLF) }
+        for (s in temperate) assertTrue(census.all { it.getValue(s) > 0 }, "${s.name} persists: ${census.map { it.getValue(s) }}")
         for (s in Catalogue.all) assertTrue(census.last().getValue(s) < 10 * max(1, start.getValue(s)), "${s.name} bounded: ${census.map { it.getValue(s) }}")
         assertTrue(kills > 100, "wolves kill: $kills")
         assertTrue(e.groups.any { it.id >= firstIds }, "groups split as they grow")

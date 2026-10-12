@@ -399,7 +399,14 @@ class Ecology(private val sim: Simulation) {
         val food = ((s.diet.grass * v.herb[i] / 0.3f + s.diet.browse * woody(i) / 0.45f + s.diet.roots * (v.herb[i] + 0.05f * v.tree[i]) / 0.7f) / plantDiet(s)).coerceIn(0f, 1f)
         val h = s.habitat
         val ground = 0.5f + h.cover * (cover(i) - 0.5f) + h.rugged * (terrain.ruggedness[i] - 0.3f) * 1.5f + h.wet * (wetness[i] - 0.3f)
-        return food * ground.coerceIn(0f, 1f)
+        // Each starts where the climate suits it: the coldest month within its range with a full
+        // winter coat, the warmest within it outright; each 10 °C beyond halves the chance.
+        val coat = if (s.winterCoat) 10f else 0f
+        val t = world.climate.monthlyTemp
+        val cold = max(0f, s.comfortC.start - coat - t.minOf { it[i] })
+        val hot = max(0f, t.maxOf { it[i] } - s.comfortC.endInclusive)
+        val climate = 1f / (1f + (cold + hot) / 10f)
+        return food * ground.coerceIn(0f, 1f) * climate
     }
 
     private fun isWetland(i: Int) = world.biome[i].name.let { it == "MARSH" || it == "SWAMP_FOREST" || it == "BOG" || it == "SALT_MARSH" || it == "MANGROVE" }

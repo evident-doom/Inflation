@@ -102,6 +102,9 @@ private val SPECIES_COLOUR = mapOf(
     Catalogue.GAZELLE to 0xf0e0b0, Catalogue.ROE_DEER to 0xc08040, Catalogue.FALLOW_DEER to 0xe0a060,
     Catalogue.RED_DEER to 0xa04020, Catalogue.IBEX to 0xb0b0c0, Catalogue.BOAR to 0x404040,
     Catalogue.AUROCHS to 0x2040a0, Catalogue.ONAGER to 0xe0e0e0,
+    Catalogue.ELK to 0x503020, Catalogue.REINDEER to 0xd0d0f0, Catalogue.HORSE to 0x806040,
+    Catalogue.MOUFLON to 0xa06030, Catalogue.ORYX to 0xfff8e0, Catalogue.OSTRICH to 0x202020,
+    Catalogue.HARTEBEEST to 0xc06030, Catalogue.DROMEDARY to 0xd0b080,
 )
 
 /** Dot colours for sea animals. */

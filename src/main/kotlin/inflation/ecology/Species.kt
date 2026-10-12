@@ -452,8 +452,204 @@ object Catalogue {
         startKm2PerAnimal = 200f,
     )
 
-    val herbivores = listOf(GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR)
-    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL)
+    // ---------------------------------------------------------------- the cold north
+
+    /**
+     * Elk (moose): a browser of wet northern forest, willow carr and lake shores, wading for water
+     * plants in summer. Long legs carry it through deep snow; it suffers in summer heat above about
+     * 15–20 °C. Adults kick hard enough to keep wolves at bay.
+     */
+    val ELK = Species(
+        name = "elk", massKg = 400f,
+        diet = Diet(grass = 0.1f, browse = 0.75f, roots = 0.15f),
+        groupSize = 2, maxGroupSize = 5,
+        dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 1.5f,
+        daysWithoutWater = 3, waterFromFood = 0.6f,
+        birthMonth = 4, birthMonths = 1, youngPerFemale = 1.2f, yearsToMaturity = 2f,
+        backgroundMortality = 0.07f, snowLimitMm = 900f, flightKm = 0.2f, dangerToHumans = 0.4f,
+        products = Products(meat = 200f, fat = 15f, hide = 25f, bone = 45f, sinew = 3f, hornOrAntler = 15f),
+        comfortC = -30f..17f, winterCoat = true,
+        speedKmh = 55f,
+        domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.4f, 0.3f, 0.1f),
+        habitat = Habitat(cover = 0.6f, rugged = -0.2f, wet = 0.8f),
+        defence = 0.6f,
+    )
+
+    /**
+     * Reindeer: herds of tundra and the alpine zone above the trees, digging through snow for
+     * lichen and grazing the summer flush; the one deer people herd. Heat is its limit.
+     */
+    val REINDEER = Species(
+        name = "reindeer", massKg = 100f,
+        diet = Diet(grass = 0.6f, browse = 0.4f),
+        groupSize = 20, maxGroupSize = 200,
+        dailyTravelKm = 10f, maxDailyTravelKm = 50f, senseKm = 3f,
+        daysWithoutWater = 4, waterFromFood = 0.7f,
+        birthMonth = 4, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, snowLimitMm = 800f, flightKm = 0.4f, dangerToHumans = 0.05f,
+        products = Products(meat = 45f, fat = 6f, hide = 6f, bone = 10f, sinew = 1f, hornOrAntler = 4f, fur = true),
+        comfortC = -40f..13f, winterCoat = true,
+        speedKmh = 75f,
+        foresight = 0.6f,
+        domestication = floatArrayOf(0.6f, 0.5f, 0.6f, 0.6f, 0.6f, 0.7f), // herded, barely changed
+        habitat = Habitat(cover = -0.4f, rugged = 0.2f),
+        defence = 0.2f,
+    )
+
+    /**
+     * Wild horse: herds of cold steppe and open grassland, pawing through snow to winter grass; the
+     * future mount. A family band of a stallion and his mares, roaming far between grazing and water.
+     */
+    val HORSE = Species(
+        name = "wild horse", massKg = 300f,
+        diet = Diet(grass = 0.9f, browse = 0.1f),
+        groupSize = 10, maxGroupSize = 25,
+        dailyTravelKm = 12f, maxDailyTravelKm = 50f, senseKm = 3f,
+        daysWithoutWater = 2, waterFromFood = 0.3f,
+        birthMonth = 3, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2.5f,
+        backgroundMortality = 0.06f, snowLimitMm = 250f, flightKm = 0.8f, dangerToHumans = 0.1f,
+        products = Products(meat = 140f, fat = 10f, hide = 18f, bone = 30f, sinew = 2f),
+        comfortC = -25f..30f, winterCoat = true,
+        speedKmh = 70f,
+        foresight = 0.6f,
+        domestication = floatArrayOf(0.8f, 0.5f, 0.6f, 0.5f, 0.6f, 0.8f), // became the horse
+        habitat = Habitat(cover = -0.8f, rugged = -0.2f),
+        defence = 0.4f,
+    )
+
+    /**
+     * Mouflon: wild sheep of rolling hills and open slopes, less of a cliff-dweller than the ibex;
+     * the ancestor of the sheep.
+     */
+    val MOUFLON = Species(
+        name = "mouflon", massKg = 40f,
+        diet = Diet(grass = 0.8f, browse = 0.2f),
+        groupSize = 10, maxGroupSize = 40,
+        dailyTravelKm = 5f, maxDailyTravelKm = 25f, senseKm = 3f,
+        daysWithoutWater = 3, waterFromFood = 0.6f,
+        birthMonth = 2, birthMonths = 1, youngPerFemale = 1.2f, yearsToMaturity = 2f,
+        backgroundMortality = 0.12f, snowLimitMm = 200f, flightKm = 0.6f, dangerToHumans = 0f,
+        products = Products(meat = 18f, fat = 2f, hide = 3f, bone = 5f, sinew = 0.3f, hornOrAntler = 2f),
+        comfortC = -15f..32f, winterCoat = true,
+        speedKmh = 55f,
+        foresight = 0.5f,
+        domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f), // became the sheep
+        habitat = Habitat(cover = -0.6f, rugged = 0.6f),
+        defence = 0.1f,
+    )
+
+    // ---------------------------------------------------------------- the hot, dry south
+
+    /**
+     * Arabian oryx: open gravel plains and dunes; barely drinks, living on dew and the water in
+     * plants, and tracks distant rain. Its long horns make adults dangerous to tackle.
+     */
+    val ORYX = Species(
+        name = "oryx", massKg = 70f,
+        diet = Diet(grass = 0.7f, browse = 0.3f),
+        groupSize = 10, maxGroupSize = 30,
+        dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 4f,
+        daysWithoutWater = 30, waterFromFood = 0.95f,
+        birthMonth = 0, birthMonths = 6, youngPerFemale = 0.8f, yearsToMaturity = 2.5f,
+        backgroundMortality = 0.08f, snowLimitMm = 20f, flightKm = 0.8f, dangerToHumans = 0.1f,
+        products = Products(meat = 30f, fat = 2f, hide = 5f, bone = 8f, sinew = 0.6f, hornOrAntler = 2f),
+        comfortC = 8f..45f,
+        speedKmh = 60f,
+        foresight = 0.8f,
+        domestication = floatArrayOf(0.6f, 0.5f, 0.4f, 0.3f, 0.4f, 0.5f), // kept in Egyptian herds, never bred on
+        habitat = Habitat(cover = -1f, rugged = -0.2f, wet = -0.8f),
+        defence = 0.4f,
+    )
+
+    /**
+     * Arabian ostrich: a big flightless bird of the desert steppe, grazing, browsing and taking
+     * seeds and fruit; outruns almost everything and kicks hard. Large clutches, most chicks lost.
+     */
+    val OSTRICH = Species(
+        name = "ostrich", massKg = 110f,
+        diet = Diet(grass = 0.5f, browse = 0.3f, fruit = 0.2f),
+        groupSize = 5, maxGroupSize = 30,
+        dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
+        daysWithoutWater = 7, waterFromFood = 0.8f,
+        birthMonth = 2, birthMonths = 3, youngPerFemale = 3f, yearsToMaturity = 3f,
+        backgroundMortality = 0.07f, youngMortality = 0.7f,
+        snowLimitMm = 30f, flightKm = 1f, dangerToHumans = 0.2f,
+        products = Products(meat = 50f, fat = 3f, hide = 10f, bone = 10f, sinew = 1f),
+        comfortC = 5f..45f,
+        speedKmh = 70f,
+        foresight = 0.6f,
+        domestication = floatArrayOf(0.6f, 0.6f, 0.5f, 0.2f, 0.3f, 0.3f),
+        habitat = Habitat(cover = -1f, wet = -0.5f),
+        defence = 0.4f,
+    )
+
+    /** Bubal hartebeest: a grazer of dry grassland and semi-desert edges, in herds; kept by the Egyptians. */
+    val HARTEBEEST = Species(
+        name = "hartebeest", massKg = 150f,
+        diet = Diet(grass = 0.95f, browse = 0.05f),
+        groupSize = 12, maxGroupSize = 40,
+        dailyTravelKm = 8f, maxDailyTravelKm = 40f, senseKm = 3f,
+        daysWithoutWater = 3, waterFromFood = 0.4f,
+        birthMonth = 1, birthMonths = 2, youngPerFemale = 0.8f, yearsToMaturity = 2f,
+        backgroundMortality = 0.08f, snowLimitMm = 30f, flightKm = 0.6f, dangerToHumans = 0.05f,
+        products = Products(meat = 70f, fat = 4f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 2f),
+        comfortC = 5f..40f,
+        speedKmh = 70f,
+        domestication = floatArrayOf(0.6f, 0.5f, 0.4f, 0.3f, 0.4f, 0.5f),
+        habitat = Habitat(cover = -0.8f, rugged = -0.3f),
+        defence = 0.2f,
+    )
+
+    /**
+     * Wild dromedary: a browser of desert and thorn scrub that goes two weeks without drinking and
+     * then drinks a hundred litres; the future beast of burden of the desert routes.
+     */
+    val DROMEDARY = Species(
+        name = "dromedary", massKg = 450f,
+        diet = Diet(grass = 0.3f, browse = 0.7f),
+        groupSize = 8, maxGroupSize = 20,
+        dailyTravelKm = 15f, maxDailyTravelKm = 60f, senseKm = 4f,
+        daysWithoutWater = 14, waterFromFood = 0.5f,
+        birthMonth = 11, birthMonths = 3, youngPerFemale = 0.4f, yearsToMaturity = 4f,
+        backgroundMortality = 0.05f, snowLimitMm = 40f, flightKm = 0.5f, dangerToHumans = 0.2f,
+        products = Products(meat = 200f, fat = 40f, hide = 30f, bone = 50f, sinew = 3f),
+        comfortC = 5f..48f,
+        speedKmh = 60f,
+        foresight = 0.7f,
+        domestication = floatArrayOf(0.7f, 0.3f, 0.5f, 0.6f, 0.6f, 0.7f), // became the camel
+        habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.5f),
+        defence = 0.6f,
+    )
+
+    /**
+     * Asiatic cheetah: a sprinter of open plains that runs down gazelle and young antelope in the
+     * open; it loses its kills to anything bigger and cannot hunt in cover or broken ground.
+     */
+    val CHEETAH = Species(
+        name = "cheetah", massKg = 45f,
+        diet = Diet(meat = 0.8f, smallPrey = 0.2f),
+        groupSize = 2, maxGroupSize = 4,
+        dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 6f,
+        daysWithoutWater = 10, waterFromFood = 0.8f,
+        birthMonth = 2, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, snowLimitMm = 50f, flightKm = 0.3f, dangerToHumans = 0.05f,
+        products = Products(meat = 20f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
+        comfortC = 3f..42f,
+        speedKmh = 105f,
+        domestication = floatArrayOf(0.2f, 0.4f, 0.0f, 0.5f, 0.3f, 0.2f), // tamed for the hunt, never bred
+        habitat = Habitat(cover = -0.8f, rugged = -0.5f),
+        packLitter = 3,
+        stalking = 0.3f,
+        ferocity = 0.6f,
+        territoryKm = 8f,
+        startKm2PerAnimal = 600f,
+    )
+
+    val herbivores = listOf(
+        GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR,
+        ELK, REINDEER, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
+    )
+    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH)
     val all = herbivores + predators
 
     init {
