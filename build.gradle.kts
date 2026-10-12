@@ -45,3 +45,21 @@ tasks.register<JavaExec>("fauna") {
     maxHeapSize = "6g"
     args = (project.findProperty("faunaArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
+
+tasks.register<JavaExec>("imitate") {
+    description = "Trains one network per species to copy the hand-written baseline behaviour."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.learning.ImitateKt")
+    maxHeapSize = "8g"
+    args = (project.findProperty("imitateArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
+tasks.register<JavaExec>("audit") {
+    description = "Runs the living world and reports which species found a niche, which died out and which grow without limit."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.ecology.NicheAuditKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("auditArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}

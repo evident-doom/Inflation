@@ -1,6 +1,7 @@
 package inflation.ui
 
 import inflation.ecology.Catalogue
+import inflation.ecology.SeaCatalogue
 import inflation.world.Date
 import inflation.world.LifeForm
 import inflation.world.Simulation
@@ -43,7 +44,7 @@ import kotlin.math.pow
  * Desktop viewer: the world map with layers, time controls, a cell inspector, an event log and
  * tools to build dams, dig canals and irrigate.
  *
- * Usage: viewer [--seed N] [--size KM] [--layer NAME] [--screenshot FILE --steps N]
+ * Usage: viewer [--seed N] [--size KM] [--height KM] [--layer NAME] [--screenshot FILE --steps N]
  *
  * With --screenshot the viewer runs N steps, saves an image of its window and exits.
  */
@@ -57,6 +58,7 @@ fun main(args: Array<String>) {
         when (args[k]) {
             "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
             "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
+            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--screenshot" -> screenshot = File(args[++k])
             "--steps" -> shotSteps = args[++k].toInt()
             "--layer" -> startLayer = Layer.valueOf(args[++k].uppercase())
@@ -100,7 +102,19 @@ private val SPECIES_COLOUR = mapOf(
     Catalogue.GAZELLE to 0xf0e0b0, Catalogue.ROE_DEER to 0xc08040, Catalogue.FALLOW_DEER to 0xe0a060,
     Catalogue.RED_DEER to 0xa04020, Catalogue.IBEX to 0xb0b0c0, Catalogue.BOAR to 0x404040,
     Catalogue.AUROCHS to 0x2040a0, Catalogue.ONAGER to 0xe0e0e0,
+    Catalogue.ELK to 0x503020, Catalogue.REINDEER to 0xd0d0f0, Catalogue.HORSE to 0x806040,
+    Catalogue.MOUFLON to 0xa06030, Catalogue.ORYX to 0xfff8e0, Catalogue.OSTRICH to 0x202020,
+    Catalogue.HARTEBEEST to 0xc06030, Catalogue.DROMEDARY to 0xd0b080,
 )
+
+/** Dot colours for sea animals. */
+private val SEA_COLOUR = mapOf(
+    SeaCatalogue.FIN_WHALE to 0x203050, SeaCatalogue.DOLPHIN to 0xd0e0f0, SeaCatalogue.PORPOISE to 0x8090a0,
+    SeaCatalogue.SEAL to 0x806040, SeaCatalogue.SHARK to 0xd01010,
+)
+
+/** Names of land and sea species, in the order the viewer indexes them. */
+private val ALL_NAMES = Catalogue.all.map { it.name } + SeaCatalogue.all.map { it.name }
 
 class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : JPanel(BorderLayout()) {
     private val world = sim.world
@@ -186,10 +200,16 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                 dirty = false
                 painter.paint(layer, pixels)
                 val herds = sim.ecology.groups.filter { it.alive }
-                val snapshot = FloatArray(herds.size * 4)
+                val pods = sim.ecology.marine.groups.filter { it.alive }
+                val snapshot = FloatArray((herds.size + pods.size) * 4)
                 for ((k, g) in herds.withIndex()) {
                     snapshot[4 * k] = g.x.toFloat(); snapshot[4 * k + 1] = g.y.toFloat()
                     snapshot[4 * k + 2] = g.size.toFloat(); snapshot[4 * k + 3] = Catalogue.all.indexOf(g.species).toFloat()
+                }
+                for ((j, g) in pods.withIndex()) {
+                    val k = herds.size + j
+                    snapshot[4 * k] = g.x.toFloat(); snapshot[4 * k + 1] = g.y.toFloat()
+                    snapshot[4 * k + 2] = g.size.toFloat(); snapshot[4 * k + 3] = (Catalogue.all.size + g.species.index).toFloat()
                 }
                 synchronized(image) { image.setRGB(0, 0, grid.width, grid.height, pixels, 0, grid.width); animals = snapshot }
                 SwingUtilities.invokeLater { updateLabels(); map.repaint() }
@@ -241,7 +261,7 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
         val t = world.terrain
         if (v.isVegetated(i)) {
             appendLine("Ruggedness %.2f (slope %.0f%%, relief %.0f m, rock roughness %.2f)".format(t.ruggedness[i], t.slope[i] * 100, t.relief[i], t.roughness[i]))
-            appendLine("Travel effort %.1f× flat ground · defensibility %.2f".format(t.travelCost(i, v, sim.weather.snowpack[i]), t.defensibility[i]))
+            appendLine("Travel effort %.1f× flat ground · defensibility %.2f".format(t.travelCost(i, v, sim.weather.snowpack[i], dischargeNow = sim.water.discharge[i]), t.defensibility[i]))
             appendLine("Sight on the ground %.2f km · view over terrain %.1f km, %.0f km²".format(t.sightKm(i, v), t.viewKm[i], t.viewAreaKm2[i]))
         }
         val e = sim.ecology
@@ -253,14 +273,14 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
             appendLine("Water %.0f km away".format(e.waterKm[i]))
         }
         val a = synchronized(image) { animals }
-        val near = IntArray(Catalogue.all.size); val nearGroups = IntArray(Catalogue.all.size)
+        val near = IntArray(ALL_NAMES.size); val nearGroups = IntArray(ALL_NAMES.size)
         for (k in 0 until a.size / 4) {
             if (abs(a[4 * k] - x - 0.5f) > 5 || abs(a[4 * k + 1] - y - 0.5f) > 5) continue
             val sp = a[4 * k + 3].toInt()
             near[sp] += a[4 * k + 2].toInt(); nearGroups[sp]++
         }
-        if (nearGroups.any { it > 0 }) appendLine("Within 5 km: " + Catalogue.all.indices.filter { nearGroups[it] > 0 }
-            .joinToString(", ") { "${near[it]} ${Catalogue.all[it].name} (${nearGroups[it]} groups)" })
+        if (nearGroups.any { it > 0 }) appendLine("Within 5 km: " + ALL_NAMES.indices.filter { nearGroups[it] > 0 }
+            .joinToString(", ") { "${near[it]} ${ALL_NAMES[it]} (${nearGroups[it]} groups)" })
         world.volcanoes.firstOrNull { abs(it.x - x) <= 3 && abs(it.y - y) <= 3 }?.let {
             appendLine("Volcano: ${it.kind.name.lowercase().replace('_', ' ')}, ${if (it.active) "active" else "extinct"}, %.1f Myr old".format(it.ageMyr))
         }
@@ -393,7 +413,17 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                 for (k in 0 until a.size / 4) {
                     val x = (ox + a[4 * k] * scale).toInt(); val y = (oy + a[4 * k + 1] * scale).toInt()
                     val size = a[4 * k + 2]
-                    val species = Catalogue.all[a[4 * k + 3].toInt()]
+                    val idx = a[4 * k + 3].toInt()
+                    if (idx >= Catalogue.all.size) {
+                        // Sea animals: diamonds, whales larger.
+                        val s = SeaCatalogue.all[idx - Catalogue.all.size]
+                        val r = if (s == SeaCatalogue.FIN_WHALE) 4 else 2
+                        val xs = intArrayOf(x, x + r, x, x - r); val ys = intArrayOf(y - r, y, y + r, y)
+                        g2.color = Color(0x101010); g2.drawPolygon(xs, ys, 4)
+                        g2.color = Color(SEA_COLOUR[s] ?: 0xffffff); g2.fillPolygon(xs, ys, 4)
+                        continue
+                    }
+                    val species = Catalogue.all[idx]
                     if (species.carnivore) {
                         g2.color = Color.WHITE; g2.fillRect(x - 3, y - 3, 7, 7)
                         g2.color = Color(0xd01010); g2.fillRect(x - 2, y - 2, 5, 5)
@@ -445,6 +475,7 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                 Layer.VISIBILITY -> "How far one sees on the ground through broken ground and plants: 50 m (dark) to 10 km (white)"
                 Layer.VIEWSHED -> "Area in view over the bare terrain within 30 km: valley floors dark, summits and open plains light"
                 Layer.DEFENSIBILITY -> "Defensibility: height over surroundings, broken ground, approaches cut by water or cliffs"
+                Layer.UPWELLING -> "Upwelling feeding the plankton this month, none to full (dark to bright) · diamonds: fin whales (large, dark), dolphins (pale), porpoises (grey), monk seals (brown), sharks (red)"
                 Layer.GRAZING -> "Graze plus browse, 0 to 250 kg/km² (dark to yellow) · dots: herds (gazelle cream, onager white, ibex grey, roe/fallow/red deer browns, boar black, aurochs blue), red squares: wolves"
                 Layer.FISH -> "Fish (blue to green, up to 6 t/km²) · shellfish beds (pink) · spring spawning run in rivers (orange to yellow)"
                 Layer.PLANKTON -> "Phytoplankton: dark blue sparse to green bloom"

@@ -48,11 +48,12 @@ object Volcanism {
         val out = ArrayList<Volcano>()
         fun farFromOthers(x: Int, y: Int, km: Double) = out.none { hypot((it.x - x).toDouble(), (it.y - y).toDouble()) * grid.cellKm < km }
 
-        // Arcs: 90–160 km behind the trench on the overriding plate, spaced 40–60 km apart.
+        // Arcs: a line of volcanoes about 110–130 km behind the trench on the overriding plate, where
+        // the sinking slab reaches the depth that melts the mantle above it; spaced 40–60 km apart.
         repeat(grid.size / 8) {
             val i = rnd.nextInt(grid.size)
             val d = tect.boundaryDistKm[i]
-            if (!tect.isOverriding(i) || d !in 90f..160f) return@repeat
+            if (!tect.isOverriding(i) || tect.convergence[i] < 0.008f || d !in 105f..135f) return@repeat
             val x = grid.x(i); val y = grid.y(i)
             if (!farFromOthers(x, y, 40.0 + 20 * rnd.nextDouble())) return@repeat
             val continental = tect.isContinental(i)
@@ -68,7 +69,7 @@ object Volcanism {
         }
 
         // Hotspot chains: the plate drifts over a fixed plume, so older volcanoes trail behind.
-        repeat(cfg.hotspots) {
+        repeat(cfg.hotspotCount) {
             val hx = (0.15 + 0.7 * rnd.nextDouble()) * grid.width
             val hy = (0.15 + 0.7 * rnd.nextDouble()) * grid.height
             val plate = tect.plates[tect.plateId[grid.index(hx.toInt(), hy.toInt())]]
@@ -162,18 +163,34 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
     val ash = FloatArray(grid.size)
     val history = ArrayList<Eruption>()
 
+    private var pending: List<Eruption>? = null
+
+    /**
+     * Eruptions due in the coming step: decided a step ahead, as a volcano gives warning in tremors
+     * and gas that animals with keen senses notice.
+     */
+    val upcoming: List<Eruption> get() = pending ?: emptyList()
+
     fun step(date: Date, days: Int): List<Eruption> {
         val decay = exp(-days / 720.0).toFloat() // about two years' residence
         for (i in ash.indices) if (ash[i] > 0f) ash[i] = if (ash[i] < 0.05f) 0f else ash[i] * decay
+        val now = pending ?: draw(date, days)
+        for (e in now) {
+            history += e
+            fallAsh(e.volcano, e.vei)
+        }
+        pending = draw(date.plusDays(days), days)
+        return now
+    }
+
+    private fun draw(date: Date, days: Int): List<Eruption> {
         val now = ArrayList<Eruption>()
         for (v in volcanoes) {
             if (!v.active) continue
             val p = v.eruptionsPerCentury / 100.0 * days / Date.DAYS_PER_YEAR
             if (rnd.nextDouble() >= p) continue
             val vei = min(6, (-ln(max(rnd.nextDouble(), 1e-9)) / ln(5.0)).toInt() + if (v.kind == VolcanoKind.HOTSPOT) 0 else 1)
-            val e = Eruption(date, v, vei)
-            now += e; history += e
-            fallAsh(v, vei)
+            now += Eruption(date, v, vei)
         }
         return now
     }

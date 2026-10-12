@@ -39,7 +39,7 @@ enum class LifeForm(
  * - Animals and people act through [consume] and [trample]: grazing and browsing remove biomass,
  *   and repeated passage beats down vegetation and wears [trails].
  */
-class Vegetation(private val world: World, seed: Long) {
+class Vegetation(private val world: World, private val seed: Long) {
     private val grid = world.grid
     private val n = grid.size
     private val rnd = Random(seed * 13 + 1)
@@ -53,8 +53,23 @@ class Vegetation(private val world: World, seed: Long) {
     private val warmth = FloatArray(n)
     /** Recently burnt, 0..1, fading over a few years. */
     val burnt = FloatArray(n)
+    /** Cells burning this step. */
+    val burning = BooleanArray(n)
+    /** Fires this step: the cell each started in and the km² it burned. */
+    val fires = ArrayList<Pair<Int, Float>>()
     /** Worn paths, 0..1: rises with trampling, fades when unused. */
     val trails = FloatArray(n)
+    /**
+     * Browsing and grazing by animals lately, kg of food per km² per day (set by the ecology).
+     * Browsing holds back seedlings, saplings and shrubs; grazing keeps grass short and removes the
+     * dry fuel fires need.
+     */
+    val browsing = FloatArray(n)
+    val grazing = FloatArray(n)
+    /** Rooting by boar lately, kg of roots dug per km² per day: churned soil, seedbeds, thinned turf. */
+    val rooting = FloatArray(n)
+    /** Seed of shrubs and trees carried here by fruit-eating animals lately, 0..1. */
+    val animalSeed = FloatArray(n)
     private val trampling = FloatArray(n)
     /** Soil fertility including ash enrichment, 0..1. */
     val fertility = world.soilFertility.copyOf()
@@ -123,11 +138,13 @@ class Vegetation(private val world: World, seed: Long) {
         val years = days / Date.DAYS_PER_YEAR.toFloat()
         val memory = 1 - exp(-days / 360f)
         if (stepCount++ % 5 == 0) seedSources()
-        for (i in 0 until n) {
+        spreadFires(weather, water, years)
+        // Cells are independent of each other, so they are stepped in parallel.
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             if (!isVegetated(i) || water.submerged[i]) {
                 litterfall[i] = biomass(i)
                 herb[i] = 0f; shrub[i] = 0f; tree[i] = 0f
-                continue
+                return@forEach
             }
             val before = biomass(i)
             val t = weather.temperature[i]
@@ -140,9 +157,19 @@ class Vegetation(private val world: World, seed: Long) {
             val season = ((t - 2f) / 13f).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
             val water0 = (wet / 0.5f).coerceIn(0f, 1f)
             val shade = canopy(i)
-            grow(LifeForm.TREE, tree, i, season * water0 * years, treeSeed[i])
-            grow(LifeForm.SHRUB, shrub, i, season * water0 * years * (1 - 0.6f * shade), shrubSeed[i])
-            grow(LifeForm.HERB, herb, i, season * water0 * years * (1 - 0.8f * shade), 1f) // seed bank and roots everywhere
+            // Browsers eat seedlings and saplings first: young stands and seed establishment suffer
+            // most, so heavily browsed land stays open and lightly browsed land grows over.
+            val browsed = 1f - exp(-browsing[i] / BROWSE_SCALE)
+            val young = 1f - min(1f, tree[i] / (0.3f * ceiling(LifeForm.TREE, i).coerceAtLeast(1e-3f)))
+            // Rooted, churned soil makes a seedbed; fruit-eaters drop seed far from any parent tree.
+            val rooted = 1f - exp(-rooting[i] / ROOT_SCALE)
+            val treeSeedHere = max(treeSeed[i], 0.5f * animalSeed[i]) * (1f + 1.5f * rooted)
+            val shrubSeedHere = max(shrubSeed[i], animalSeed[i]) * (1f + 1.5f * rooted)
+            grow(LifeForm.TREE, tree, i, season * water0 * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed))
+            grow(LifeForm.SHRUB, shrub, i, season * water0 * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed))
+            // Years of hard grazing make a lawn: short turf, less standing grass. Rooting thins it too.
+            val lawn = 1f - exp(-grazing[i] / LAWN_SCALE)
+            grow(LifeForm.HERB, herb, i, season * water0 * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted) // seed bank and roots everywhere
 
             // Killing frost: well below what the plants here are used to.
             for ((form, b) in forms) if (t < form.frostKill) b[i] *= 0.3f
@@ -157,7 +184,7 @@ class Vegetation(private val world: World, seed: Long) {
             if (a > 300f) tree[i] *= exp(-a / 800f)
             if (a > 1f) fertility[i] = min(1f, fertility[i] + a * 1e-6f) // weathered ash makes rich soil
 
-            val burned = fire(i, t, wet, years)
+            val burned = if (burning[i]) burn(i) else 0f
             // Living plants shed leaves, stems and roots all the time; deaths add the rest. Burned matter is gone.
             litterfall[i] = max(0f, before - biomass(i) - burned) + years * (herb[i] + 0.2f * shrub[i] + 0.04f * tree[i])
 
@@ -172,8 +199,8 @@ class Vegetation(private val world: World, seed: Long) {
         }
     }
 
-    private fun grow(form: LifeForm, b: FloatArray, i: Int, time: Float, seedRain: Float) {
-        val cap = ceiling(form, i)
+    private fun grow(form: LifeForm, b: FloatArray, i: Int, time: Float, seedRain: Float, capFactor: Float = 1f) {
+        val cap = ceiling(form, i) * capFactor
         val v = b[i]
         if (v < cap) {
             val r = form.growthPerYear * time
@@ -186,23 +213,109 @@ class Vegetation(private val world: World, seed: Long) {
         if (b[i] < 0f) b[i] = 0f
     }
 
-    /** Returns the biomass burned, kg/m². */
-    private fun fire(i: Int, t: Float, wet: Float, years: Float): Float {
-        val fuel = herb[i] + 0.5f * shrub[i]
-        if (fuel < 0.2f || wet > 0.3f || t < 18f) return 0f
-        // A few % per year in dry, hot, fuel-rich Mediterranean scrub; far less elsewhere.
-        val p = 0.04f * years * min(1f, fuel / 1.5f) * ((t - 18f) / 15f).coerceIn(0f, 1f) * (1 - wet / 0.3f)
-        if (rnd.nextFloat() >= p) return 0f
+    /** A uniform 0..1 draw for cell [i] this step: a hash, so that cells can be stepped in any order. */
+    private fun cellRandom(i: Int): Float {
+        var h = seed * -0x61c8864680b583ebL + stepCount * 0x9E3779B97F4A7C15uL.toLong() + i * 0x632BE59BD9B4E019L
+        h = (h xor (h ushr 33)) * -0xae502812aa7333L
+        h = (h xor (h ushr 33)) * -0x3b314601e57a13adL
+        h = h xor (h ushr 33)
+        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+    }
+
+    /** Fuel in cell [i] that can carry a fire, kg/m²: grass and shrubs, less what grazing has removed. */
+    private fun fuel(i: Int) = (herb[i] + 0.5f * shrub[i]) * (1f - 0.8f * (1f - exp(-grazing[i] / GRAZE_SCALE)))
+
+    /** Whether cell [i] is dry and hot enough to burn this step. */
+    private fun canBurn(i: Int, weather: Weather, water: LiveWater): Boolean {
+        if (!isVegetated(i) || water.submerged[i] || water.flood[i] > 0f || water.discharge[i] >= 1f) return false
+        val wet = water.soil[i] / LiveWater.SOIL_CAPACITY
+        return fuel(i) >= 0.2f && wet < 0.3f && weather.temperature[i] > 15f && weather.precipitation[i] < 5f
+    }
+
+    /**
+     * Fires: lightning and dry-season sparks start them in hot, dry, fuel-rich ground, and each
+     * spreads through the step from cell to cell, fastest downwind (the westerlies carry it east),
+     * until it runs out of fuel, reaches wet or grazed-down ground, water or bare rock, or has
+     * burned for the step. Many fires stay small; a few run for tens of km.
+     */
+    private fun spreadFires(weather: Weather, water: LiveWater, years: Float) {
+        burning.fill(false)
+        fires.clear()
+        val days = world.config.daysPerStep
+        val maxSteps = (days * SPREAD_KM_PER_DAY / grid.cellKm).toInt()
+        val queue = ArrayDeque<Int>()
+        for (i in 0 until n) {
+            if (burning[i] || !canBurn(i, weather, water)) continue
+            val heat = ((weather.temperature[i] - 15f) / 20f).coerceIn(0f, 1f)
+            val p = IGNITIONS_PER_KM2_YEAR * (grid.cellKm * grid.cellKm).toFloat() * years * min(1f, fuel(i) / 1.5f) * heat
+            if (cellRandom(i) >= p) continue
+            // A fire: spread breadth-first, each front cell lighting its neighbours by chance.
+            var cells = 0
+            queue.clear(); queue += i; burning[i] = true
+            val depth = HashMap<Int, Int>(); depth[i] = 0
+            while (queue.isNotEmpty()) {
+                val c = queue.removeFirst(); cells++
+                val d = depth.getValue(c)
+                if (d >= maxSteps) continue
+                val cx = grid.x(c); val cy = grid.y(c)
+                for (k in 0 until 8) {
+                    val dx = DX[k]; val dy = DY[k]
+                    if (!grid.inBounds(cx + dx, cy + dy)) continue
+                    val nb = grid.index(cx + dx, cy + dy)
+                    if (burning[nb] || !canBurn(nb, weather, water)) continue
+                    // Downwind (east) burns readily, upwind barely; dense fuel carries it on.
+                    val wind = 0.35f + 0.25f * dx
+                    val chance = SPREAD * wind * min(1f, fuel(nb) / 1.0f)
+                    if (hash(nb, k) >= chance) continue
+                    burning[nb] = true; depth[nb] = d + 1; queue += nb
+                }
+            }
+            fires += Pair(i, cells * (grid.cellKm * grid.cellKm).toFloat())
+        }
+    }
+
+    /** Burns cell [i]: grass and shrubs mostly gone, trees scorched; returns the biomass burned, kg/m². */
+    private fun burn(i: Int): Float {
         val before = biomass(i)
         herb[i] *= 0.1f; shrub[i] *= 0.2f; tree[i] *= 0.7f
         burnt[i] = 1f
+        // The ash briefly enriches the soil.
+        fertility[i] = min(1f, fertility[i] + 0.01f)
         return before - biomass(i)
     }
+
+    private fun hash(i: Int, salt: Int): Float {
+        var h = seed * -0x61c8864680b583ebL + stepCount * 0x9E3779B97F4A7C15uL.toLong() + i * 0x632BE59BD9B4E019L + salt * 0x165667B19E3779F9L
+        h = (h xor (h ushr 33)) * -0xae502812aa7333L
+        h = (h xor (h ushr 33)) * -0x3b314601e57a13adL
+        h = h xor (h ushr 33)
+        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+    }
+
 
     /** Seed availability for trees and shrubs: biomass within ~5 km, normalised. */
     private fun seedSources() {
         val r = (5 / grid.cellKm).toInt().coerceAtLeast(1)
         treeSeed = blur(grid, FloatArray(n) { min(1f, tree[it] / 5f) }, r)
         shrubSeed = blur(grid, FloatArray(n) { min(1f, shrub[it] / 1f) }, r)
+    }
+
+    companion object {
+        /** Browsing, kg/km²/day, at which seedlings and saplings are mostly eaten (a few deer per km²). */
+        const val BROWSE_SCALE = 3f
+        /** Grazing, kg/km²/day, at which most dry fuel is gone. */
+        const val GRAZE_SCALE = 5f
+        /** Grazing, kg/km²/day, that over years turns grassland into short lawn. */
+        const val LAWN_SCALE = 8f
+        /** Rooting, kg/km²/day, at which most of the ground is churned. */
+        const val ROOT_SCALE = 2f
+        /** Fires started per km² per year in hot, dry, fuel-rich ground. */
+        const val IGNITIONS_PER_KM2_YEAR = 0.01f
+        /** How far a fire front can run in a day, km. */
+        const val SPREAD_KM_PER_DAY = 5f
+        /** Chance a burning cell lights a downwind neighbour with full fuel. */
+        const val SPREAD = 0.9f
+        private val DX = intArrayOf(1, 1, 0, -1, -1, -1, 0, 1)
+        private val DY = intArrayOf(0, 1, 1, 1, 0, -1, -1, -1)
     }
 }

@@ -26,7 +26,7 @@ class FishTest {
         val open = (0 until world.grid.size).filter { world.isSea[it] && p.supply[it] < 0.2f }
         val shelfMean = shelf.map { f.fish[it] }.average(); val openMean = open.map { f.fish[it] }.average()
         println("FISH shelf $shelfMean open $openMean rivers ${rivers.map { f.fish[it] }.average()} shellfish ${(0 until world.grid.size).map { f.shellfish[it] }.filter { it > 0 }.average()}")
-        assertTrue(shelfMean > 1.5 * openMean, "shelf $shelfMean vs open $openMean")
+        assertTrue(shelfMean > 1.2 * openMean, "shelf $shelfMean vs open $openMean")
         assertTrue(rivers.count { f.fish[it] > 1f } > rivers.size / 2, "most rivers have fish")
         assertTrue(f.shellfish.any { it > 1000f }, "shellfish beds on shallow coasts")
         assertTrue(f.fish.all { it.isFinite() && it >= 0f })

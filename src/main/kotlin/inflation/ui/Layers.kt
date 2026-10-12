@@ -27,6 +27,7 @@ enum class Layer(val label: String) {
     GRAZING("Grazing: palatable young growth (live)"),
     PLANKTON("Plankton (live)"),
     FISH("Fish, shellfish and spawning runs (live)"),
+    UPWELLING("Upwelling and sea animals (live)"),
     INSECTS("Plant-eating insects (live)"),
     RODENTS("Rodents and small mammals (live)"),
     SOIL_LIFE("Soil: litter and organic matter (live)"),
@@ -54,7 +55,7 @@ class LayerPainter(private val sim: Simulation) {
             Layer.SOIL_MOISTURE -> for (i in 0 until n) out[i] = if (world.isSea[i]) SEA else Render.ramp(sim.water.soil[i], 0f, 150f, Render.DRY_WET)
             Layer.RIVER_FLOW -> for (i in 0 until n) out[i] = flow(i)
             Layer.RUGGEDNESS -> live(out) { Render.shade(world, it, Render.ramp(t.ruggedness[it], 0f, 1f, RUGGED)) }
-            Layer.TRAVEL_COST -> live(out) { Render.ramp(ln(t.travelCost(it, sim.vegetation, sim.weather.snowpack[it])), 0f, ln(20f), EASY_HARD) }
+            Layer.TRAVEL_COST -> live(out) { Render.ramp(ln(t.travelCost(it, sim.vegetation, sim.weather.snowpack[it], dischargeNow = sim.water.discharge[it])), 0f, ln(20f), EASY_HARD) }
             Layer.VISIBILITY -> live(out) { Render.ramp(ln(t.sightKm(it, sim.vegetation) * 20f), 0f, ln(20f * 10f), BLIND_CLEAR) }
             Layer.VIEWSHED -> live(out) { Render.shade(world, it, Render.ramp(ln(1 + t.viewAreaKm2[it]), 0f, ln(1 + 2000f), BLIND_CLEAR)) }
             Layer.DEFENSIBILITY -> live(out) { Render.shade(world, it, Render.ramp(t.defensibility[it], 0f, 1f, RUGGED)) }
@@ -66,6 +67,8 @@ class LayerPainter(private val sim: Simulation) {
             Layer.PLANKTON -> for (i in 0 until n) out[i] =
                 if (sim.ecology.plankton.isWater[i]) Render.ramp(ln(1 + sim.ecology.plankton.phyto[i]), 0f, ln(1 + 15f), PLANKTON) else terrain[i]
             Layer.FISH -> for (i in 0 until n) out[i] = fishColour(i)
+            Layer.UPWELLING -> for (i in 0 until n) out[i] =
+                if (world.isSea[i]) Render.ramp(sim.ecology.marine.upwelling[i], 0f, 1f, PLANKTON) else terrain[i]
             Layer.INSECTS -> live(out) { Render.ramp(ln(1 + sim.ecology.small.insects[it]), 0f, ln(1 + 3000f), FAUNA) }
             Layer.RODENTS -> live(out) { Render.ramp(sim.ecology.small.rodents[it], 0f, 500f, FAUNA) }
             Layer.SOIL_LIFE -> live(out) { Render.ramp(sim.ecology.soil.organicMatter[it] + sim.ecology.soil.litter[it], 0f, 10f, SOIL) }

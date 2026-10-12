@@ -119,8 +119,9 @@ class SoilLife(private val sim: Simulation) {
     fun step() {
         val years = world.config.daysPerStep / Date.DAYS_PER_YEAR.toFloat()
         val v = sim.vegetation
-        for (i in 0 until n) {
-            if (!v.isVegetated(i)) { litter[i] = 0f; carrion[i] = 0f; continue }
+        // Cells are independent of each other, so they are stepped in parallel.
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            if (!v.isVegetated(i)) { litter[i] = 0f; carrion[i] = 0f; return@forEach }
             val t = sim.weather.temperature[i]
             val wet = (sim.water.soil[i] / 75f).coerceIn(0f, 1f)
             // Decomposition doubles every 10 °C up to about 30 °C, and stops in dry or frozen soil.
@@ -166,6 +167,20 @@ class SmallFauna(private val sim: Simulation) {
     val insects = FloatArray(n)
     val biting = FloatArray(n)
     val rodents = FloatArray(n)
+    /**
+     * Reptiles and amphibians, kg/km²: lizards, snakes, tortoises, frogs and toads. Cold-blooded:
+     * active and breeding in warm, moist weeks, hidden and torpid through cold winters and hot,
+     * dry summers, when hunters cannot find them.
+     */
+    val herps = FloatArray(n)
+    /**
+     * Pollinators, kg/km²: wild bees, hoverflies, butterflies and beetles at flowers. Active in
+     * warm weather while herbs and shrubs flower (spring into early summer), overwintering in nests
+     * and as larvae. Heavy grazing leaves fewer flowers.
+     */
+    val pollinators = FloatArray(n)
+    /** How well this year's flowers were pollinated, 0..1: sets the summer and autumn fruit crop. */
+    val pollination = FloatArray(n) { 0.6f }
     private var steps = 0
     private val wetland = BooleanArray(n) {
         val b = world.biome[it]
@@ -178,6 +193,8 @@ class SmallFauna(private val sim: Simulation) {
             if (!v.isVegetated(i)) continue
             insects[i] = 300f * min(1f, v.herb[i] / 0.4f)
             rodents[i] = 150f * min(1f, v.herb[i] / 0.4f)
+            herps[i] = 20f * min(1f, v.herb[i] / 0.4f)
+            pollinators[i] = 10f * min(1f, v.herb[i] / 0.4f)
         }
     }
 
@@ -185,8 +202,9 @@ class SmallFauna(private val sim: Simulation) {
         val days = world.config.daysPerStep.toFloat()
         val years = days / Date.DAYS_PER_YEAR
         val v = sim.vegetation
-        for (i in 0 until n) {
-            if (!v.isVegetated(i)) { insects[i] = 0f; rodents[i] = 0f; biting[i] = 0f; continue }
+        // Cells are independent of each other, so they are stepped in parallel.
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            if (!v.isVegetated(i)) { insects[i] = 0f; rodents[i] = 0f; biting[i] = 0f; return@forEach }
             val t = sim.weather.temperature[i]
             val food = v.herb[i] + 0.3f * v.shrub[i] // kg/m²
             val snow = sim.weather.snowpack[i]
@@ -195,7 +213,11 @@ class SmallFauna(private val sim: Simulation) {
             // in the cold to an egg bank. They eat about a quarter of their own mass a day (dry food
             // per fresh body mass), some 5-15% of what grassland grows in a year.
             var ins = insects[i]
-            if (t > 10f) {
+            val dry = sim.water.soil[i] < 10f
+            if (t > 32f && dry) {
+                // Too hot and dry: they wait it out as eggs and pupae, as in the cold.
+                ins -= ins * min(0.5f, 2f * years)
+            } else if (t > 10f) {
                 val ceiling = 2000f * food / (food + 0.15f)
                 val g = 15f * years * ((t - 10f) / 15f).coerceIn(0f, 1f)
                 ins += ins * g * (1 - ins / ceiling.coerceAtLeast(10f)) - ins * 2f * years
@@ -218,17 +240,55 @@ class SmallFauna(private val sim: Simulation) {
             r += r * birth * (1 - r / ceiling.coerceAtLeast(1f)) - r * death
             rodents[i] = r.coerceIn(1f, 3000f)
             v.consume(i, LifeForm.HERB, rodents[i] * 0.1f * days / 1e6f)
+
+            // Reptiles and amphibians: grow and breed on insects in warm, moist weeks; torpid in
+            // the cold (hibernation) and in hot drought (aestivation), when they barely die.
+            var h = herps[i]
+            if (herpsActive(i)) {
+                val wet = (sim.water.soil[i] / 40f).coerceIn(0.2f, 1f)
+                val grow = 4f * years * wet * insects[i] / (insects[i] + 400f)
+                val ceiling = 80f * food / (food + 0.3f)
+                h += h * grow * (1 - h / ceiling.coerceAtLeast(1f)) - h * 1f * years
+                insects[i] = max(5f, insects[i] - h * 0.05f * days)
+            } else h -= h * 0.3f * years
+            herps[i] = h.coerceIn(0.5f, 200f)
+
+            // Fire kills what cannot flee: most insects, many reptiles, rodents caught above ground.
+            if (v.burning[i]) { insects[i] *= 0.2f; herps[i] *= 0.3f; rodents[i] *= 0.5f; pollinators[i] *= 0.5f }
+            // Pollinators: build up on flowers in warm weeks, die back to their nests in the cold.
+            val month = sim.weather.date.month
+            val flowering = month in 0..4
+            val flowers = (v.herb[i] + 0.5f * v.shrub[i]) * (if (flowering) 1f else 0.2f) * (1f - 0.5f * (1f - exp(-v.grazing[i] / 5f)))
+            var po = pollinators[i]
+            if (t > 12f) {
+                val ceiling = 50f * flowers / (flowers + 0.3f)
+                po += po * 10f * years * (1 - po / ceiling.coerceAtLeast(0.5f)) - po * 1f * years
+            } else po -= po * min(0.5f, 2f * years)
+            pollinators[i] = po.coerceIn(0.2f, 100f)
+            // Flowers visited while they are open set the fruit.
+            if (flowering) pollination[i] += 0.2f * (min(1f, pollinators[i] / 20f) - pollination[i])
         }
         if (++steps % 5 == 0) {
-            spread(insects); spread(rodents)
+            spread(insects); spread(rodents); spread(herps); spread(pollinators)
         }
     }
 
-    /** Takes up to [kgPerKm2] of rodents at [i] (predation); returns what was caught. */
+    /** Whether reptiles and amphibians at [i] are out and about: warm, and not baking in a drought. */
+    fun herpsActive(i: Int): Boolean {
+        val t = sim.weather.temperature[i]
+        return t in 12f..34f && !(t > 28f && sim.water.soil[i] < 10f)
+    }
+
+    /**
+     * Takes up to [kgPerKm2] of small prey at [i]: rodents, and reptiles and amphibians when they
+     * are active; returns what was caught.
+     */
     fun catchRodents(i: Int, kgPerKm2: Float): Float {
-        val taken = min(rodents[i] * 0.5f, kgPerKm2)
+        val fromHerps = if (herpsActive(i)) min(herps[i] * 0.5f, 0.3f * kgPerKm2) else 0f
+        herps[i] -= fromHerps
+        val taken = min(rodents[i] * 0.5f, kgPerKm2 - fromHerps)
         rodents[i] -= taken
-        return taken
+        return taken + fromHerps
     }
 
     private fun spread(f: FloatArray) {

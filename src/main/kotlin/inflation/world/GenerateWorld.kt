@@ -6,7 +6,7 @@ import kotlin.system.measureTimeMillis
 /**
  * Generates a world and writes maps and a summary.
  *
- * Usage: generate [--seed N] [--size KM] [--out DIR] [--weather-years N]
+ * Usage: generate [--seed N] [--size KM] [--height KM] [--out DIR] [--weather-years N]
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig()
@@ -17,6 +17,7 @@ fun main(args: Array<String>) {
         when (args[k]) {
             "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
             "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
+            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--out" -> out = File(args[++k])
             "--weather-years" -> weatherYears = args[++k].toInt()
             else -> error("unknown argument ${args[k]}")

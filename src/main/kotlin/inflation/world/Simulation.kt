@@ -34,6 +34,8 @@ class Simulation(val world: World) {
         lap(1)
         water.step(weather); lap(2)
         vegetation.step(weather, water, eruptions.ash); lap(3)
+        for ((cell, km2) in vegetation.fires) if (km2 >= 50f)
+            log += "$stepDate: wildfire burns %.0f km² from (%d, %d)".format(km2, world.grid.x(cell), world.grid.y(cell))
         ecology.step(); lap(4)
         if (stepDate.dayOfYear < world.config.daysPerStep) {
             log += "$stepDate: ${ecology.census()}"
