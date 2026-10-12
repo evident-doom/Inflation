@@ -47,7 +47,7 @@ import kotlin.math.pow
  * Desktop viewer: the world map with layers, time controls, a cell inspector, an event log and
  * tools to build dams, dig canals and irrigate.
  *
- * Usage: viewer [--seed N] [--size KM] [--width KM] [--height KM] [--layer NAME] [--people FILE]
+ * Usage: viewer [--seed N] [--size KM] [--width KM] [--height KM] [--layer NAME] [--people FILE] [--fauna DIR]
  *               [--screenshot FILE --steps N]
  *
  * With --people the bands choose their camps with that network, and the viewer reloads it whenever
@@ -61,6 +61,7 @@ fun main(args: Array<String>) {
     var shotSteps = 0
     var startLayer = Layer.TERRAIN
     var people: File? = null
+    var fauna: File? = null
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -69,6 +70,7 @@ fun main(args: Array<String>) {
             "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
             "--people" -> people = File(args[++k])
+            "--fauna" -> fauna = File(args[++k])
             "--screenshot" -> screenshot = File(args[++k])
             "--steps" -> shotSteps = args[++k].toInt()
             "--layer" -> startLayer = Layer.valueOf(args[++k].uppercase())
@@ -89,6 +91,8 @@ fun main(args: Array<String>) {
         SwingUtilities.invokeLater { status.text = "Starting the simulation…" }
         val sim = Simulation(world)
         SwingUtilities.invokeLater {
+            // Animals with a learned network (from fauna-evolve) behave by it.
+            fauna?.let { inflation.learning.useFauna(sim.ecology, it) }
             val viewer = Viewer(sim, startLayer, people)
             frame.contentPane.removeAll()
             frame.contentPane.add(viewer)
