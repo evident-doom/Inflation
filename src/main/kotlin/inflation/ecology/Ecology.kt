@@ -104,16 +104,19 @@ class Ecology(private val sim: Simulation) {
     private var stepCount = 0
 
     /** Running totals for the last step, for logs and tests. */
-    var kills = 0; private set
-    var births = 0; private set
-    var deaths = 0; private set
+    private val killCount = java.util.concurrent.atomic.AtomicInteger()
+    private val deathCount = java.util.concurrent.atomic.AtomicInteger()
+    val kills: Int get() = killCount.get()
+    private val birthCount = java.util.concurrent.atomic.AtomicInteger()
+    val births: Int get() = birthCount.get()
+    val deaths: Int get() = deathCount.get()
     /** Kills by prey species since the counter was last cleared. */
-    val killsBy = HashMap<Species, Int>()
+    val killsBy = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     /** Kills by predator species, and kills taken from others by predator species, since last cleared. */
-    val killsByPredator = HashMap<Species, Int>()
-    val stolen = HashMap<Species, Int>()
+    val killsByPredator = java.util.concurrent.ConcurrentHashMap<Species, Int>()
+    val stolen = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     /** Deaths other than predation, by "species:cause", since last cleared. */
-    val deathsBy = HashMap<String, Int>()
+    val deathsBy = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     // Spatial buckets per species, rebuilt each week, for finding nearby groups.
     private val bucketKm = 8f
@@ -149,7 +152,7 @@ class Ecology(private val sim: Simulation) {
     }
 
     fun step() {
-        kills = 0; births = 0; deaths = 0
+        killCount.set(0); birthCount.set(0); deathCount.set(0)
         timed("fields") { plankton.step(); fish.step(); soil.step(); small.step() }
         timed("regrow") { regrow() }
         stepCount++
@@ -177,8 +180,8 @@ class Ecology(private val sim: Simulation) {
      */
     private fun regrow() {
         val v = sim.vegetation
-        for (i in 0 until n) {
-            if (!v.isVegetated(i)) { graze[i] = 0f; browse[i] = 0f; continue }
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            if (!v.isVegetated(i)) { graze[i] = 0f; browse[i] = 0f; return@forEach }
             val t = sim.weather.temperature[i]
             val warm = ((t - 2f) / 10f).coerceIn(0f, 1f)
             val wet = (sim.water.soil[i] / 60f).coerceIn(0.1f, 1f)
@@ -300,8 +303,9 @@ class Ecology(private val sim: Simulation) {
     private fun updateWater() {
         val big = 1e6f
         val v = sim.vegetation
-        for (i in 0 until n) {
-            if (world.isSea[i]) { wetness[i] = 0f; waterKm[i] = big; continue }
+        // Each cell's wetness and water on its own, in parallel; distances after.
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            if (world.isSea[i]) { wetness[i] = 0f; waterKm[i] = big; return@forEach }
             val soilWet = sim.water.soil[i] / inflation.world.LiveWater.SOIL_CAPACITY
             val rain = min(1f, sim.weather.precipitation[i] / days / 3f) // 3 mm a day soaks everything
             val ground = 0.75f * soilWet + 0.15f * rain + 0.1f * v.canopy(i)
@@ -429,11 +433,7 @@ class Ecology(private val sim: Simulation) {
         timed("occupancy") { occupancy() }
         timed("watch") { watch() }
         timed("graze") { graze() }
-        timed("prowl") {
-            val order = groups.indices.filter { groups[it].species.carnivore && groups[it].alive }.toMutableList()
-            order.shuffle(rnd)
-            for (k in order) prowl(groups[k])
-        }
+        timed("prowl") { prowlAll() }
         timed("drink") { for (g in groups) if (g.alive) drink(g) }
         timed("weather") { for (g in groups) if (g.alive) endure(g) }
         timed("seasons") { for (g in groups) if (g.alive && !g.species.carnivore) learnSeason(g) }
@@ -550,6 +550,9 @@ class Ecology(private val sim: Simulation) {
     private val mHazard = maps.layer()
     /** Animals of each species per coarse cell, each group spread over its range. */
     private val mOcc = Array(Catalogue.all.size) { maps.layer() }
+    /** Per species: mass of its enemies per coarse cell; for predators, lure-weighted prey. */
+    private val mDanger = Array(Catalogue.all.size) { maps.layer() }
+    private val mPrey = Array(Catalogue.all.size) { maps.layer() }
     private val fineLayers = listOf(mTempAhead, mRainAhead, mHazard, mTemp, mLand, mGraze, mBrowse, mRoots, mFruit, mStraw, mWater, mWaterKm, mCover, mRugged, mWet, mSnow, mCost, mRodents, mCroc)
 
     /** Sums this week's ground, plants and water onto the coarse grid. */
@@ -614,7 +617,24 @@ class Ecology(private val sim: Simulation) {
             val cell = mOcc[g.species.index].cell
             for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) cell[y * maps.w + x] += per
         }
-        for (l in mOcc) l.build()
+        // Per species: the mass of its enemies over the map, and for predators the draw of prey there.
+        java.util.stream.IntStream.range(0, Catalogue.all.size).parallel().forEach { si ->
+            mOcc[si].build()
+        }
+        java.util.stream.IntStream.range(0, Catalogue.all.size).parallel().forEach { si ->
+            val s = Catalogue.all[si]
+            val d = mDanger[si].cell
+            d.fill(0f)
+            for (e in enemies.getValue(s)) { val o = mOcc[e.index].cell; for (m in d.indices) d[m] += o[m] * e.massKg }
+            mDanger[si].build()
+            if (s.carnivore) {
+                val pv = mPrey[si].cell
+                pv.fill(0f)
+                val w = lure.getValue(s)
+                for (q in Catalogue.herbivores) { val o = mOcc[q.index].cell; val wq = w[q.index]; for (m in pv.indices) pv[m] += o[m] * wq }
+                mPrey[si].build()
+            }
+        }
     }
 
     // ---------------------------------------------------------------- choosing a range
@@ -773,15 +793,10 @@ class Ecology(private val sim: Simulation) {
                 s.diet.roots * mRoots.box(box.x0, box.y0, box.x1, box.y1) + s.diet.fruit * mFruit.box(box.x0, box.y0, box.x1, box.y1)) / plantDiet(s)).toFloat() / areaKm2
         val boxKm2 = box.cells * COARSE_KM * COARSE_KM
         // Enemies: their mass per km² over the range, against this group's own mass.
-        var enemyKg = 0.0
-        for (e in enemies.getValue(s)) enemyKg += mOcc[e.index].box(box.x0, box.y0, box.x1, box.y1) * e.massKg
+        val enemyKg = mDanger[s.index].box(box.x0, box.y0, box.x1, box.y1)
         val enemyDensity = (enemyKg / boxKm2).toFloat()
         val danger = enemyDensity / (enemyDensity + DANGER_KG_KM2)
-        var preyValue = 0.0
-        if (s.carnivore) {
-            val w = lure.getValue(s)
-            for (q in Catalogue.herbivores) preyValue += mOcc[q.index].box(box.x0, box.y0, box.x1, box.y1) * w[q.index]
-        }
+        val preyValue = if (s.carnivore) mPrey[s.index].box(box.x0, box.y0, box.x1, box.y1) else 0.0
         val preyDensity = (preyValue / boxKm2).toFloat()
         val prey = preyDensity / (preyDensity + PREY_NORM)
         // Others of its kind, not counting itself where it stands.
@@ -803,7 +818,8 @@ class Ecology(private val sim: Simulation) {
 
     /** Mean travel cost on the straight line from (x0, y0) to (x1, y1), sampled on the coarse grid; open water is very costly. */
     private fun pathCost(x0: Double, y0: Double, x1: Double, y1: Double): Float {
-        val steps = (dist(x1 - x0, y1 - y0) * cellKm / COARSE_KM).toInt().coerceIn(2, 12)
+        // A few samples along the way: enough to see a lake or a mountain range in the path.
+        val steps = (dist(x1 - x0, y1 - y0) * cellKm / (4f * COARSE_KM)).toInt().coerceIn(1, 6)
         var sum = 0f
         for (t in 1..steps) {
             val f = t.toDouble() / steps
@@ -842,8 +858,7 @@ class Ecology(private val sim: Simulation) {
         for (g in groups) {
             if (!g.alive) continue
             box.set(maps, g.x, g.y, g.rangeKm)
-            var enemyKg = 0.0
-            for (e in enemies.getValue(g.species)) enemyKg += mOcc[e.index].box(box.x0, box.y0, box.x1, box.y1) * e.massKg
+            val enemyKg = mDanger[g.species.index].box(box.x0, box.y0, box.x1, box.y1)
             val density = (enemyKg / (box.cells * COARSE_KM * COARSE_KM)).toFloat()
             val danger = density / (density + DANGER_KG_KM2)
             // A hungry herd cannot afford to stand watching: it grazes and takes its chances.
@@ -861,54 +876,66 @@ class Ecology(private val sim: Simulation) {
      */
     private fun graze() {
         val herds = groups.filter { it.alive && !it.species.carnivore }
-        val box = CoarseMaps.Box()
         val stocks = listOf(mGraze, mBrowse, mRoots, mFruit)
-        val asked = Array(4) { FloatArray(maps.size) }
         val want = FloatArray(herds.size)
-        for ((h, g) in herds.withIndex()) {
+        // What each herd wants of each food, and how much of it its range offers: in parallel.
+        val split = Array(herds.size) { FloatArray(4) }
+        val offered = Array(herds.size) { FloatArray(4) }
+        val boxes = Array(herds.size) { CoarseMaps.Box() }
+        val autumn = sim.weather.date.month in 5..8
+        java.util.stream.IntStream.range(0, herds.size).parallel().forEach { h ->
+            val g = herds[h]
             val s = g.species
+            if (g.torpid) return@forEach
             val c = cellOf(g)
             // On the march they snatch a few mouthfuls on the way; watchful herds graze less.
             val appetite = (1f - (1f - MARCH_APPETITE) * g.walking) * (1f - POSTURE_FEED_COST * g.posture)
             // Room to fatten: more in late summer and autumn, when animals eat all they can before winter.
-            val autumn = sim.weather.date.month in 5..8
             val fatten = if (g.fat < s.maxFatDays) (if (autumn) FATTEN_AUTUMN else FATTEN) else 0f
             want[h] = if (sim.weather.snowpack[c] > s.snowLimitMm) 0f else g.dailyNeedKg * days * appetite * (1f + fatten)
+            val box = boxes[h]
             box.set(maps, g.x, g.y, g.rangeKm)
-            val split = split(s, want[h], stocks, box)
+            for (k in 0..3) offered[h][k] = if (diet(s)[k] > 0f) reachable(s, stocks[k], box) else 0f
+            split(s, want[h], offered[h], split[h])
+        }
+        // Each herd's demand spread over its range, where the food is that it can reach.
+        val asked = Array(4) { FloatArray(maps.size) }
+        forEachByTile(herds.indices.toList(), { herds[it] }) { h ->
+            val g = herds[h]
+            val box = boxes[h]
             for (k in 0..3) {
-                val wantK = split[k]
-                if (wantK <= 0f) continue
-                val total = reachable(s, stocks[k], box)
-                if (total <= 0f) continue
+                val wantK = split[h][k]; val total = offered[h][k]
+                if (wantK <= 0f || total <= 0f) continue
+                val cell = stocks[k].cell
                 for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) {
                     val m = y * maps.w + x
-                    asked[k][m] += wantK * stocks[k].cell[m] * access(s, m) / total
+                    asked[k][m] += wantK * cell[m] * access(g.species, m) / total
                 }
             }
         }
-        // Share of each cell's stock that each asker gets.
+        // Share of each cell's stock that each asker gets, and what is eaten there.
         val share = Array(4) { k -> FloatArray(maps.size) { m -> if (asked[k][m] <= 0f) 0f else min(1f, stocks[k].cell[m] / asked[k][m]) } }
-        val eaten = Array(4) { FloatArray(maps.size) }
+        val eaten = Array(4) { k -> FloatArray(maps.size) { m -> asked[k][m] * share[k][m] } }
         val got = FloatArray(herds.size)
-        for ((h, g) in herds.withIndex()) {
-            // A hibernating bear lives on its fat at a quarter of its need.
-            if (g.torpid) { g.freshShare = 1f; feed(g, 1f - HIBERNATION_NEED); continue }
-            if (want[h] <= 0f) { g.freshShare = 0f; feed(g, 0f); continue }
-            val s = g.species
-            box.set(maps, g.x, g.y, g.rangeKm)
-            val split = split(s, want[h], stocks, box)
+        java.util.stream.IntStream.range(0, herds.size).parallel().forEach { h ->
+            val g = herds[h]
+            val box = boxes[h]
+            var sum = 0f
             for (k in 0..3) {
-                val wantK = split[k]
-                if (wantK <= 0f) continue
-                val total = reachable(s, stocks[k], box)
-                if (total <= 0f) continue
+                val wantK = split[h][k]; val total = offered[h][k]
+                if (wantK <= 0f || total <= 0f) continue
+                val cell = stocks[k].cell
                 for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) {
                     val m = y * maps.w + x
-                    val e = wantK * stocks[k].cell[m] * access(s, m) / total * share[k][m]
-                    got[h] += e; eaten[k][m] += e
+                    sum += wantK * cell[m] * access(g.species, m) / total * share[k][m]
                 }
             }
+            got[h] = sum
+        }
+        for ((h, g) in herds.withIndex()) {
+            // A hibernating bear lives on its fat at a quarter of its need.
+            if (g.torpid) { g.freshShare = 1f; feed(g, 1f - HIBERNATION_NEED) }
+            else if (want[h] <= 0f) { g.freshShare = 0f; feed(g, 0f) }
         }
         // Take what was eaten from the fine cells, in proportion to what each held.
         val v = sim.vegetation
@@ -926,8 +953,9 @@ class Ecology(private val sim: Simulation) {
             }
         }
         // Straw fills the gap, as far as the gut allows: from the centre cell's neighbourhood.
-        for ((h, g) in herds.withIndex()) {
-            if (want[h] <= 0f) continue
+        forEachByTile(herds.indices.toList(), { herds[it] }) { h ->
+            val g = herds[h]
+            if (want[h] <= 0f || g.torpid) return@forEachByTile
             val s = g.species
             var food = got[h]
             val fresh = food
@@ -952,20 +980,18 @@ class Ecology(private val sim: Simulation) {
      * shifted towards what the range actually offers, so that a herd eats fruit in autumn and more
      * browse when the grass is gone, as far as its diet allows.
      */
-    private fun split(s: Species, want: Float, stocks: List<CoarseMaps.Layer>, box: CoarseMaps.Box): FloatArray {
+    private fun split(s: Species, want: Float, offered: FloatArray, out: FloatArray) {
         val d = diet(s)
-        val w = FloatArray(4)
         var sum = 0f
         for (k in 0..3) {
+            out[k] = 0f
             if (d[k] <= 0f) continue
-            val offered = reachable(s, stocks[k], box)
             // How fully this food could cover its share of the diet: up to twice as much if plentiful.
-            val avail = (offered / max(1e-3f, 3f * want * d[k] / plantDiet(s))).coerceIn(0f, 2f)
-            w[k] = d[k] * avail; sum += w[k]
+            val avail = (offered[k] / max(1e-3f, 3f * want * d[k] / plantDiet(s))).coerceIn(0f, 2f)
+            out[k] = d[k] * avail; sum += out[k]
         }
-        if (sum <= 0f) return w
-        for (k in 0..3) w[k] = want * w[k] / sum
-        return w
+        if (sum <= 0f) return
+        for (k in 0..3) out[k] = want * out[k] / sum
     }
 
     /** [s]'s diet shares of grass, browse, roots and fruit. */
@@ -1046,24 +1072,23 @@ class Ecology(private val sim: Simulation) {
 
     // ---------------------------------------------------------------- predators
 
-    private val near = ArrayList<AnimalGroup>()
 
     /**
      * A predator group's week: rivals and stronger enemies whose ranges overlap its own cost it
      * days and sometimes lives; then it hunts the herds in contact, eats carrion and small prey.
      */
-    private fun prowl(g: AnimalGroup) {
+    private fun prowl(g: AnimalGroup, r: Random) {
         if (!g.alive) return
         val s = g.species
         val c = cellOf(g)
         val need = g.dailyNeedKg * days
         var free = days.toFloat()
-        free -= meetEnemies(g)
-        if (g.alive) free -= meetRivals(g)
+        free -= meetEnemies(g, r)
+        if (g.alive) free -= meetRivals(g, r)
         if (g.adults == 0) return
         // Carrion first, up to its share of the diet: a scavenger finds most of its food this way.
         if (g.stored < need) g.stored += scavenge(c, s.diet.carrion * need)
-        if (free > 0f) hunt(g, free)
+        if (free > 0f) hunt(g, free, r)
         // A pack gorges when there is meat: some of it goes on as fat.
         val room = if (g.fat < s.maxFatDays) 1f + FATTEN else 1f
         var eaten = min(g.stored, need * room)
@@ -1081,6 +1106,38 @@ class Ecology(private val sim: Simulation) {
         g.freshShare = min(1f, eaten / need)
         feed(g, eaten / need)
     }
+
+    /**
+     * Every predator group's week. Groups more than [TILE_KM] apart cannot touch each other's prey,
+     * rivals or carcasses this week, so the map is cut into tiles of that size and coloured like a
+     * chessboard of four colours; the tiles of one colour are worked in parallel, each tile's
+     * groups one at a time in a shuffled order. Each group draws from its own random stream, so
+     * the result does not depend on the threads.
+     */
+    private fun prowlAll() {
+        val hunters = groups.filter { it.species.carnivore && it.alive }.toMutableList()
+        hunters.shuffle(rnd)
+        forEachByTile(hunters, { it }) { g -> prowl(g, groupRandom(g)) }
+    }
+
+    /**
+     * Runs [action] on [items] (located by their group, [at]) tile by tile: the tiles of one of four
+     * chessboard colours in parallel, each tile's items in their given order. Items in different
+     * tiles of a colour are too far apart to touch the same ground in a week.
+     */
+    private fun <T> forEachByTile(items: List<T>, at: (T) -> AnimalGroup, action: (T) -> Unit) {
+        val tile = TILE_KM / cellKm
+        val tw = (grid.width / tile).toInt() + 1
+        val byTile = LinkedHashMap<Int, MutableList<T>>()
+        for (it in items) { val g = at(it); byTile.getOrPut((g.y / tile).toInt() * tw + (g.x / tile).toInt()) { ArrayList() } += it }
+        for (colour in 0 until 4) {
+            val lists = byTile.entries.filter { (k, _) -> (k % tw) % 2 + 2 * ((k / tw) % 2) == colour }.map { it.value }
+            lists.parallelStream().forEach { list -> for (it in list) action(it) }
+        }
+    }
+
+    /** A random stream for [g] this week, the same whichever thread uses it. */
+    private fun groupRandom(g: AnimalGroup, salt: Int = 0) = Random(world.config.seed * 1_000_003L + stepCount * 7_919L + g.id * 104_729L + salt * 15_485_863L)
 
     /** Carrion within a few km of [c], up to [kg]; returns kg eaten. */
     private fun scavenge(c: Int, kg: Float): Float {
@@ -1115,13 +1172,13 @@ class Ecology(private val sim: Simulation) {
      * for a stalker, a herd that was not watchful. The young and the weak are always easier. Hunters
      * outside their own element do worse and are more often hurt.
      */
-    private fun hunt(g: AnimalGroup, free: Float) {
+    private fun hunt(g: AnimalGroup, free: Float, r: Random) {
         val s = g.species
         val c = cellOf(g)
         val need = g.dailyNeedKg * days
         val wantMeat = need * min(1f, 2f * s.diet.meat)
         if (g.stored >= wantMeat || g.adults == 0) return
-        near.clear()
+        val near = ArrayList<AnimalGroup>()
         for (q in Catalogue.herbivores) collect(q, g.x, g.y, g.rangeKm + rangeKm(q), near)
         if (near.isEmpty()) return
         val contact = FloatArray(near.size) { overlap(kmBetween(g, near[it]), g.rangeKm, near[it].rangeKm) }
@@ -1138,36 +1195,41 @@ class Ecology(private val sim: Simulation) {
             // Big, armed prey fight back: horns and tusks kill hunters. Worth it only for much meat.
             risk[k] = fightBack(o.species, s) * (2f - home) * (1f + youngShare(o)) * fitness(o)
         }
+        // Each herd in contact is tried at most once a week (after a chase it moves off), so the
+        // herds are ranked once by what they promise: chance times meat, for its young or an adult,
+        // whichever is better. A hungry hunter takes on prey it would leave alone when fed.
+        val caution = 5f * g.condition
+        val value = FloatArray(near.size); val takeYoung = BooleanArray(near.size)
+        for ((k, o) in near.withIndex()) {
+            if (contact[k] <= 0f) continue
+            val ps = o.species
+            val adult = pAdult[k] * max(0f, 1f - caution * risk[k]) * min(ps.massKg, need)
+            val young = if (o.young > 0) pYoung[k] * min(0.3f * ps.massKg, need) * min(1f, 2f * o.young / (o.size + o.young)) else 0f
+            takeYoung[k] = young > adult
+            value[k] = contact[k] * max(adult, young)
+        }
+        val ranked = near.indices.filter { value[it] > 0f }.sortedByDescending { value[it] }
         var attempts = 0
-        while (g.stored < wantMeat && g.adults > 0 && attempts++ < chances) {
-            var best = -1; var bestValue = 0f; var bestYoung = false
-            for ((k, o) in near.withIndex()) {
-                if (!o.alive || contact[k] <= 0f) continue
-                val ps = o.species
-                val young = o.young > 0 && rnd.nextFloat() < 2f * o.young / (o.size + o.young)
-                val kg = if (young) 0.3f * ps.massKg else ps.massKg
-                // A hungry hunter takes on prey it would leave alone when fed.
-                val caution = 5f * g.condition
-                val value = contact[k] * (if (young) pYoung[k] else pAdult[k] * max(0f, 1f - caution * risk[k])) * min(kg, need)
-                if (value > bestValue) { bestValue = value; best = k; bestYoung = young }
-            }
-            if (best < 0) break
+        for (best in ranked) {
+            if (g.stored >= wantMeat || g.adults == 0 || attempts++ >= chances) break
             val prey = near[best]
+            if (!prey.alive) continue
+            val bestYoung = takeYoung[best] && prey.young > 0
             val bestP = if (bestYoung) pYoung[best] else pAdult[best]
             val bestRisk = if (bestYoung) 0f else risk[best]
             // Caught or not, the herd is alarmed for weeks, keeps watch and moves off out of reach.
             prey.alert = ALERT_WEEKS
             contact[best] = 0f
-            if (rnd.nextFloat() >= bestP) { shove(prey, g); continue }
+            if (r.nextFloat() >= bestP) { shove(prey, g); continue }
             // Brought to bay, a big animal may take one of its killers with it.
-            if (bestRisk > 0f && rnd.nextFloat() < bestRisk) {
-                g.adults--; deaths++
+            if (bestRisk > 0f && r.nextFloat() < bestRisk) {
+                g.adults--; deathCount.incrementAndGet()
                 deathsBy.merge("${s.name}:fought back", 1, Int::plus)
                 soil.carrion[c] += (s.massKg / grid.cellAreaM2).toFloat()
             }
             val meat = if (bestYoung) { prey.young--; 0.3f * prey.species.massKg } else { prey.adults--; prey.species.massKg }
-            g.stored += meat - steal(g, meat)
-            kills++
+            g.stored += meat - steal(g, meat, r)
+            killCount.incrementAndGet()
             killsBy.merge(prey.species, 1, Int::plus)
             killsByPredator.merge(s, 1, Int::plus)
             shove(prey, g)
@@ -1222,14 +1284,14 @@ class Ecology(private val sim: Simulation) {
      * killers, drives them off and takes most of the meat (hyenas rob leopards, lions rob everyone).
      * Returns the kg taken from [g].
      */
-    private fun steal(g: AnimalGroup, kg: Float): Float {
+    private fun steal(g: AnimalGroup, kg: Float, r: Random): Float {
         var thief: AnimalGroup? = null; var best = strength(g)
         for (p in Catalogue.predators) {
             if (p == g.species) continue
             val (o, d) = nearest(p, g.x, g.y, g.rangeKm + rangeKm(p))
             if (o == null || o.adults == 0) continue
-            if (rnd.nextFloat() >= THEFT * overlap(d, g.rangeKm, o.rangeKm)) continue
-            if (strength(o) * (0.7f + 0.6f * rnd.nextFloat()) > best) { thief = o; best = strength(o) }
+            if (r.nextFloat() >= THEFT * overlap(d, g.rangeKm, o.rangeKm)) continue
+            if (strength(o) * (0.7f + 0.6f * r.nextFloat()) > best) { thief = o; best = strength(o) }
         }
         if (thief == null) return 0f
         val taken = 0.7f * kg
@@ -1243,17 +1305,17 @@ class Ecology(private val sim: Simulation) {
      * meet; a meeting may cost [g] one of its number (less when it is watchful and at home) and
      * drives it off. Returns the days lost to it.
      */
-    private fun meetEnemies(g: AnimalGroup): Float {
+    private fun meetEnemies(g: AnimalGroup, r: Random): Float {
         var lost = 0f
         for (p in enemies.getValue(g.species)) {
             val (o, d) = nearest(p, g.x, g.y, g.rangeKm + rangeKm(p))
             if (o == null || o.adults == 0) continue
             val ov = overlap(d, g.rangeKm, o.rangeKm)
-            if (rnd.nextFloat() >= ov) continue
+            if (r.nextFloat() >= ov) continue
             val c = cellOf(g)
             val home = habitatMatch(g.species, cover(c), terrain.ruggedness[c], wetness[c])
-            if (g.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * (1.5f - home) * (1f - 0.5f * g.posture)) {
-                g.adults--; deaths++
+            if (g.adults > 0 && r.nextFloat() < INTRAGUILD_KILL * (1.5f - home) * (1f - 0.5f * g.posture)) {
+                g.adults--; deathCount.incrementAndGet()
                 deathsBy.merge("${g.species.name}:killed by ${p.name}", 1, Int::plus)
                 o.stored += g.species.massKg * 0.5f
             }
@@ -1269,14 +1331,14 @@ class Ecology(private val sim: Simulation) {
      * killed. Crowded packs therefore hunt less each; in studied wolf populations strife is a leading
      * cause of death. Returns the days lost.
      */
-    private fun meetRivals(g: AnimalGroup): Float {
+    private fun meetRivals(g: AnimalGroup, r: Random): Float {
         val (other, d) = nearest(g.species, g.x, g.y, g.species.territoryKm + g.rangeKm, except = g)
         if (other == null || other.adults == 0) return 0f
-        if (rnd.nextFloat() >= overlap(d, g.species.territoryKm, other.rangeKm)) return 0f
-        val loser = if (rnd.nextFloat() < strength(g) / (strength(g) + strength(other) + 1e-3f)) other else g
+        if (r.nextFloat() >= overlap(d, g.species.territoryKm, other.rangeKm)) return 0f
+        val loser = if (r.nextFloat() < strength(g) / (strength(g) + strength(other) + 1e-3f)) other else g
         // Most meetings end in a chase; a few in a death.
-        if (loser.adults > 0 && rnd.nextFloat() < RIVAL_KILL) {
-            loser.adults--; deaths++
+        if (loser.adults > 0 && r.nextFloat() < RIVAL_KILL) {
+            loser.adults--; deathCount.incrementAndGet()
             soil.carrion[cellOf(loser)] += (loser.species.massKg / grid.cellAreaM2).toFloat()
         }
         shove(loser, if (loser === g) other else g)
@@ -1318,7 +1380,7 @@ class Ecology(private val sim: Simulation) {
         if (rnd.nextFloat() >= p) return
         val young = g.young > 0 && (g.species.massKg > 500f || rnd.nextFloat() < 0.6f)
         if (young) g.young-- else if (g.species.massKg <= 500f) g.adults-- else return
-        deaths++
+        deathCount.incrementAndGet()
         deathsBy.merge("${g.species.name}:crocodile", 1, Int::plus)
     }
 
@@ -1402,9 +1464,15 @@ class Ecology(private val sim: Simulation) {
         if (ahead != 0) g.birthMonth = (g.birthMonth + if (ahead <= 6) 1 else 11) % 12
     }
 
-    private fun binomial(n: Int, p: Float): Int {
+    private fun binomial(n: Int, p: Float, rnd: Random = this.rnd): Int {
         if (n <= 0 || p <= 0f) return 0
         if (p >= 1f) return n
+        if (n > 30) {
+            // Large groups: the normal approximation, not one draw per animal.
+            val mean = n * p; val sd = sqrt(n * p * (1f - p))
+            val u = max(rnd.nextDouble(), 1e-12); val z = sqrt(-2 * kotlin.math.ln(u)) * kotlin.math.cos(2 * Math.PI * rnd.nextDouble())
+            return (mean + sd * z + 0.5).toInt().coerceIn(0, n)
+        }
         var k = 0
         repeat(n) { if (rnd.nextFloat() < p) k++ }
         return k
@@ -1415,8 +1483,17 @@ class Ecology(private val sim: Simulation) {
         val date = sim.weather.date
         val firstStepOfMonth = date.dayOfMonth <= days
         val newcomers = ArrayList<AnimalGroup>()
-        for (g in groups) {
-            if (!g.alive) continue
+        // Crowding for every group at once: it only reads this week's maps.
+        val crowds = FloatArray(groups.size)
+        java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k -> if (groups[k].alive) crowds[k] = crowding(groups[k]) }
+        // Each group's births and deaths are its own affair: all groups at once, each with its own
+        // random stream; what they leave on the ground and how they split is applied after.
+        val carrionKg = FloatArray(groups.size)
+        val splitA = IntArray(groups.size); val splitY = IntArray(groups.size)
+        java.util.stream.IntStream.range(0, groups.size).parallel().forEach { gi ->
+            val g = groups[gi]
+            if (!g.alive) return@forEach
+            val r = groupRandom(g, 1)
             val s = g.species
             val c = cellOf(g)
             val fit = ((g.condition - 0.3f) / 0.4f).coerceIn(0f, 1f)
@@ -1431,15 +1508,15 @@ class Ecology(private val sim: Simulation) {
                 val inSeason = (date.month - start + 12) % 12 < s.birthMonths
                 if (!inSeason) continue
                 val born = if (s.packLitter > 0) {
-                    if (firstStepOfMonth && date.month == start && g.adults >= 2) (s.packLitter * fit + rnd.nextFloat()).toInt() else 0
+                    if (firstStepOfMonth && date.month == start && g.adults >= 2) (s.packLitter * fit + r.nextFloat()).toInt() else 0
                 } else {
                     val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                    binomial(g.adults, 0.5f * s.youngPerFemale / s.littersPerYear * fit / stepsInSeason)
+                    binomial(g.adults, 0.5f * s.youngPerFemale / s.littersPerYear * fit / stepsInSeason, r)
                 }
-                g.young += born; births += born
+                g.young += born; birthCount.addAndGet(born)
             }
             // Growing up.
-            val matured = binomial(g.young, years / s.yearsToMaturity)
+            val matured = binomial(g.young, years / s.yearsToMaturity, r)
             g.young -= matured; g.adults += matured
             // Deaths: background, hunger, and the world.
             var pAdult = s.backgroundMortality * years
@@ -1453,14 +1530,14 @@ class Ecology(private val sim: Simulation) {
             val hunger = ((0.5f - g.condition) / 0.3f).coerceIn(0f, 1f)
             // Crowding breeds parasites and disease: beyond what its ground carries, deaths rise,
             // and a crowded population now and then suffers an outbreak.
-            val crowd = crowding(g)
+            val crowd = crowds[gi]
             pAdult += DISEASE * years * max(0f, crowd - 1f)
-            if (crowd > OUTBREAK_CROWDING && rnd.nextFloat() < OUTBREAK_WEEKLY * (crowd - OUTBREAK_CROWDING)) {
-                val severity = 0.1f + 0.3f * rnd.nextFloat()
-                val sick = binomial(g.adults, severity) + binomial(g.young, min(1f, 1.5f * severity))
+            if (crowd > OUTBREAK_CROWDING && r.nextFloat() < OUTBREAK_WEEKLY * (crowd - OUTBREAK_CROWDING)) {
+                val severity = 0.1f + 0.3f * r.nextFloat()
+                val sick = binomial(g.adults, severity, r) + binomial(g.young, min(1f, 1.5f * severity), r)
                 if (sick > 0) {
                     val a = min(g.adults, sick); g.adults -= a; g.young = max(0, g.young - (sick - a))
-                    deaths += sick; deathsBy.merge("${s.name}:outbreak", sick, Int::plus)
+                    deathCount.addAndGet(sick); deathsBy.merge("${s.name}:outbreak", sick, Int::plus)
                 }
             }
             // Hard cold or heat kills the young and the weak first.
@@ -1469,8 +1546,8 @@ class Ecology(private val sim: Simulation) {
             // Eagles take the young of the smaller hoofed animals in the open.
             val eagle = if (!s.carnivore && s.massKg <= 80f) EAGLE_RATE * years * eagles[c] * (1f - cover(c)) else 0f
             val pYoung = min(1f, pAdult + s.youngMortality * years + 0.1f * hunger + eagle + THERMAL_DEATHS * years * stress)
-            val deadA = binomial(g.adults, pAdult)
-            val deadY = binomial(g.young, pYoung)
+            val deadA = binomial(g.adults, pAdult, r)
+            val deadY = binomial(g.young, pYoung, r)
             if (deadA + deadY > 0) {
                 val cause = when {
                     sim.eruptions.ash[c] > 300f -> "ash"
@@ -1490,33 +1567,39 @@ class Ecology(private val sim: Simulation) {
             if (orphaned > 0) deathsBy.merge("${s.name}:orphaned", orphaned, Int::plus)
             g.young -= deadY + orphaned
             val dead = deadA + deadY + orphaned
-            deaths += dead
-            if (dead > 0) soil.carrion[c] += (s.massKg * (deadA + 0.5f * (deadY + orphaned)) / grid.cellAreaM2).toFloat()
+            deathCount.addAndGet(dead)
+            if (dead > 0) carrionKg[gi] = s.massKg * (deadA + 0.5f * (deadY + orphaned))
             // Splitting: a group too big for its food divides.
             if (g.size > s.maxGroupSize) {
-                val a = g.adults / 2; val y = g.young / 2
-                g.adults -= a; g.young -= y
-                val child = AnimalGroup(nextId++, s, g.x + rnd.nextDouble() - 0.5, g.y + rnd.nextDouble() - 0.5, a, y)
-                child.condition = g.condition
-                child.tag = g.tag
-                child.birthMonth = g.birthMonth
-                g.foodByMonth.copyInto(child.foodByMonth)
-                g.seasonX.copyInto(child.seasonX); g.seasonY.copyInto(child.seasonY); g.seasonQ.copyInto(child.seasonQ)
-                child.fare = g.fare
-                child.fat = g.fat
-                newcomers += child
+                splitA[gi] = g.adults / 2; splitY[gi] = g.young / 2
+                g.adults -= splitA[gi]; g.young -= splitY[gi]
             }
+        }
+        for ((gi, g) in groups.withIndex()) {
+            if (carrionKg[gi] > 0f) soil.carrion[cellOf(g)] += (carrionKg[gi] / grid.cellAreaM2).toFloat()
+            if (splitA[gi] + splitY[gi] == 0) continue
+            val child = AnimalGroup(nextId++, g.species, g.x + rnd.nextDouble() - 0.5, g.y + rnd.nextDouble() - 0.5, splitA[gi], splitY[gi])
+            child.condition = g.condition
+            child.tag = g.tag
+            child.birthMonth = g.birthMonth
+            g.foodByMonth.copyInto(child.foodByMonth)
+            g.seasonX.copyInto(child.seasonX); g.seasonY.copyInto(child.seasonY); g.seasonQ.copyInto(child.seasonQ)
+            child.fare = g.fare
+            child.fat = g.fat
+            newcomers += child
         }
         groups += newcomers
         // Joining: small remnants merge into a nearby group of their kind.
-        for (s in Catalogue.all) {
+        val bySpecies = groups.filter { it.alive }.groupBy { it.species }
+        for ((s, list) in bySpecies) {
+            fun alone(g: AnimalGroup) = g.size < s.groupSize / 3 || (s.packLitter > 0 && g.adults < 2)
+            if (list.none { alone(it) }) continue
             val b = buckets[s.index]
             for (l in b) l.clear()
-            for (g in groups) if (g.species == s && g.alive) b[bucketIndex(g.x, g.y)] += g
-            for (g in groups) {
+            for (g in list) b[bucketIndex(g.x, g.y)] += g
+            for (g in list) {
                 // A pair-breeding predator left without a mate looks for one as well.
-                val alone = g.size < s.groupSize / 3 || (s.packLitter > 0 && g.adults < 2)
-                if (g.species != s || !g.alive || !alone) continue
+                if (!g.alive || !alone(g)) continue
                 val (other, _) = nearest(s, g.x, g.y, if (s.packLitter > 0) 3f * s.dailyTravelKm else 5f, except = g)
                 if (other == null || other.size + g.size > s.maxGroupSize) continue
                 other.adults += g.adults; other.young += g.young
@@ -1620,6 +1703,8 @@ class Ecology(private val sim: Simulation) {
         const val HIBERNATION_NEED = 0.25f
         /** Weekly mean temperature below which hibernators den up, °C. */
         const val HIBERNATE_C = 2f
+        /** Size of the tiles predators are worked in, km: more than twice the furthest a group reaches in a week. */
+        const val TILE_KM = 80f
         /** Stands for a place a group cannot go. */
         val NOWHERE = Option(-1, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
         /** Animal mass whose passage counts as trampling intensity 1 (see Vegetation.trample). */

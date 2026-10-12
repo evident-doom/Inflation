@@ -119,8 +119,9 @@ class SoilLife(private val sim: Simulation) {
     fun step() {
         val years = world.config.daysPerStep / Date.DAYS_PER_YEAR.toFloat()
         val v = sim.vegetation
-        for (i in 0 until n) {
-            if (!v.isVegetated(i)) { litter[i] = 0f; carrion[i] = 0f; continue }
+        // Cells are independent of each other, so they are stepped in parallel.
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            if (!v.isVegetated(i)) { litter[i] = 0f; carrion[i] = 0f; return@forEach }
             val t = sim.weather.temperature[i]
             val wet = (sim.water.soil[i] / 75f).coerceIn(0f, 1f)
             // Decomposition doubles every 10 °C up to about 30 °C, and stops in dry or frozen soil.
@@ -192,8 +193,9 @@ class SmallFauna(private val sim: Simulation) {
         val days = world.config.daysPerStep.toFloat()
         val years = days / Date.DAYS_PER_YEAR
         val v = sim.vegetation
-        for (i in 0 until n) {
-            if (!v.isVegetated(i)) { insects[i] = 0f; rodents[i] = 0f; biting[i] = 0f; continue }
+        // Cells are independent of each other, so they are stepped in parallel.
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            if (!v.isVegetated(i)) { insects[i] = 0f; rodents[i] = 0f; biting[i] = 0f; return@forEach }
             val t = sim.weather.temperature[i]
             val food = v.herb[i] + 0.3f * v.shrub[i] // kg/m²
             val snow = sim.weather.snowpack[i]

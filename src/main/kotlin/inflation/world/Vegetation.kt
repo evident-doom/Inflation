@@ -39,7 +39,7 @@ enum class LifeForm(
  * - Animals and people act through [consume] and [trample]: grazing and browsing remove biomass,
  *   and repeated passage beats down vegetation and wears [trails].
  */
-class Vegetation(private val world: World, seed: Long) {
+class Vegetation(private val world: World, private val seed: Long) {
     private val grid = world.grid
     private val n = grid.size
     private val rnd = Random(seed * 13 + 1)
@@ -123,11 +123,12 @@ class Vegetation(private val world: World, seed: Long) {
         val years = days / Date.DAYS_PER_YEAR.toFloat()
         val memory = 1 - exp(-days / 360f)
         if (stepCount++ % 5 == 0) seedSources()
-        for (i in 0 until n) {
+        // Cells are independent of each other, so they are stepped in parallel.
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             if (!isVegetated(i) || water.submerged[i]) {
                 litterfall[i] = biomass(i)
                 herb[i] = 0f; shrub[i] = 0f; tree[i] = 0f
-                continue
+                return@forEach
             }
             val before = biomass(i)
             val t = weather.temperature[i]
@@ -186,13 +187,22 @@ class Vegetation(private val world: World, seed: Long) {
         if (b[i] < 0f) b[i] = 0f
     }
 
+    /** A uniform 0..1 draw for cell [i] this step: a hash, so that cells can be stepped in any order. */
+    private fun cellRandom(i: Int): Float {
+        var h = seed * -0x61c8864680b583ebL + stepCount * 0x9E3779B97F4A7C15uL.toLong() + i * 0x632BE59BD9B4E019L
+        h = (h xor (h ushr 33)) * -0xae502812aa7333L
+        h = (h xor (h ushr 33)) * -0x3b314601e57a13adL
+        h = h xor (h ushr 33)
+        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+    }
+
     /** Returns the biomass burned, kg/m². */
     private fun fire(i: Int, t: Float, wet: Float, years: Float): Float {
         val fuel = herb[i] + 0.5f * shrub[i]
         if (fuel < 0.2f || wet > 0.3f || t < 18f) return 0f
         // A few % per year in dry, hot, fuel-rich Mediterranean scrub; far less elsewhere.
         val p = 0.04f * years * min(1f, fuel / 1.5f) * ((t - 18f) / 15f).coerceIn(0f, 1f) * (1 - wet / 0.3f)
-        if (rnd.nextFloat() >= p) return 0f
+        if (cellRandom(i) >= p) return 0f
         val before = biomass(i)
         herb[i] *= 0.1f; shrub[i] *= 0.2f; tree[i] *= 0.7f
         burnt[i] = 1f

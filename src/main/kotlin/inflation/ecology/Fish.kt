@@ -106,8 +106,9 @@ class Fish(private val sim: Simulation, private val plankton: Plankton) {
         val days = world.config.daysPerStep
         val years = days / Date.DAYS_PER_YEAR.toFloat()
         updateDams()
-        for (i in 0 until n) {
-            if (!habitat[i]) continue
+        // Cells are independent of each other, so they are stepped in parallel.
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            if (!habitat[i]) return@forEach
             val k = capacity(i)
             var f = fish[i]
             f += FISH_GROWTH * years * f * (1 - f / max(k, 1f))

@@ -140,7 +140,7 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
         val stepShare = days.toFloat() / Date.DAYS_PER_MONTH
         val rainBias = (0.8f * 0.8f + 0.3f * 0.3f) / 2 // keeps the lognormal mean at the climate normal
         val cooling = volcanicCooling.toFloat()
-        for (i in 0 until grid.size) {
+        java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
             val x = grid.x(i) * grid.cellKm / coarseKm; val y = grid.y(i) * grid.cellKm / coarseKm
             val t = tNow[i] * (1 - f) + tNext[i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) - cooling
             val p = pNow[i] * stepShare * exp(sample(rainAnomaly, x, y) - rainBias + sample(yearAnomaly, x, y) + sample(rainShock, x, y))

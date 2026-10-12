@@ -65,8 +65,8 @@ class Recorder(private val baseline: BaselinePolicy) : Policy {
 
     override fun choose(group: AnimalGroup, options: List<Option>): Int {
         val s = group.species
-        // Wolves decide far less often than all the herds together, so keep more of theirs.
-        val rate = if (s.carnivore) 0.5f else 0.02f
+        // Predators decide far less often than all the herds together, so keep all of theirs.
+        val rate = if (s.carnivore) 1f else 0.25f
         if (ThreadLocalRandom.current().nextFloat() < rate && counts.getValue(s).incrementAndGet() <= MAX) {
             val rec = FloatArray(Imitation.SLOTS * Imitation.STRIDE)
             val f = FloatArray(Features.SIZE)
