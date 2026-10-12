@@ -712,11 +712,13 @@ class Ecology(private val sim: Simulation) {
 
     /**
      * Fills [sc] with the candidate ranges: staying, and eight directions at a short drift, a long
-     * drift and as far as a forced march reaches in a week. Each is described by its totals.
+     * drift and as far as a forced march reaches in a week. Each is described by its totals. A
+     * group that is fed, watered, comfortable and unalarmed does not weigh a forced march.
      */
     private fun gather(g: AnimalGroup, sc: Scratch) {
         val s = g.species
         val r = g.rangeKm
+        val restless = s.carnivore || g.lastIntakeRatio < 0.9f || g.daysWithoutWater > 0.5f * s.daysWithoutWater || g.thermal > 0.2f || g.alert > 0
         val reach = MARCH_SHARE * s.maxDailyTravelKm * days
         val options = sc.options
         options.clear()
@@ -725,7 +727,7 @@ class Ecology(private val sim: Simulation) {
             val d = when (ring) { 0 -> 0f; 1 -> r; 2 -> min(reach, 3f * r); else -> reach }
             val dirs = if (ring == 0) 1 else 8
             for (dir in 0 until dirs) {
-                if (ring == 3 && reach <= 3f * r) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
+                if (ring == 3 && (reach <= 3f * r || !restless)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
                 val x = g.x + COS[dir] * d / cellKm; val y = g.y + SIN[dir] * d / cellKm
                 sc.tx[k] = x; sc.ty[k] = y; k++
                 options += describe(g, x, y, d, sc.box)

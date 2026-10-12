@@ -1,5 +1,6 @@
 package inflation.world
 
+import kotlin.math.min
 import kotlin.math.sqrt
 
 /**
@@ -36,14 +37,14 @@ class Grid(val width: Int, val height: Int, val cellKm: Double) {
     }
 }
 
-/** Box blur with the given radius in cells, applied separably; edges are clamped. */
+/** Box blur with the given radius in cells, applied separably; edges are clamped. Rows, then strips of columns, in parallel. */
 fun blur(grid: Grid, src: FloatArray, radius: Int): FloatArray {
     if (radius <= 0) return src.copyOf()
     val w = grid.width; val h = grid.height
     val tmp = FloatArray(src.size)
     val out = FloatArray(src.size)
     val norm = 1f / (2 * radius + 1)
-    for (y in 0 until h) {
+    java.util.stream.IntStream.range(0, h).parallel().forEach { y ->
         var acc = 0f
         for (k in -radius..radius) acc += src[y * w + k.coerceIn(0, w - 1)]
         for (x in 0 until w) {
@@ -51,12 +52,18 @@ fun blur(grid: Grid, src: FloatArray, radius: Int): FloatArray {
             acc += src[y * w + (x + radius + 1).coerceAtMost(w - 1)] - src[y * w + (x - radius).coerceAtLeast(0)]
         }
     }
-    for (x in 0 until w) {
-        var acc = 0f
-        for (k in -radius..radius) acc += tmp[k.coerceIn(0, h - 1) * w + x]
+    // Columns a strip at a time, so each pass down the rows reads whole cache lines.
+    val strip = 16
+    java.util.stream.IntStream.range(0, (w + strip - 1) / strip).parallel().forEach { b ->
+        val x0 = b * strip; val x1 = min(w, x0 + strip)
+        val acc = FloatArray(x1 - x0)
+        for (x in x0 until x1) for (k in -radius..radius) acc[x - x0] += tmp[k.coerceIn(0, h - 1) * w + x]
         for (y in 0 until h) {
-            out[y * w + x] = acc * norm
-            acc += tmp[(y + radius + 1).coerceAtMost(h - 1) * w + x] - tmp[(y - radius).coerceAtLeast(0) * w + x]
+            val add = (y + radius + 1).coerceAtMost(h - 1) * w; val sub = (y - radius).coerceAtLeast(0) * w
+            for (x in x0 until x1) {
+                out[y * w + x] = acc[x - x0] * norm
+                acc[x - x0] += tmp[add + x] - tmp[sub + x]
+            }
         }
     }
     return out
