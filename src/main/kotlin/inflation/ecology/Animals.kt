@@ -218,6 +218,8 @@ class BaselinePolicy(
                 0.3f * (h.cover * o.cover + h.rugged * o.rugged + h.wet * o.wet)
         // Hunters work their ground in turn: where they have hunted for weeks the game is on its guard.
         if (s.carnivore && o.km == 0f) score -= ROTATE * min(1f, group.weeksHere / 3f)
+        // A frightened herd makes for cover.
+        if (!s.carnivore && group.alert > 0) score += 0.5f * o.cover
         if (o.snowMm > s.snowLimitMm) score -= 1f
         // Get out of the way of what is coming; in dry weeks, go towards the rain.
         score -= 2f * o.hazard

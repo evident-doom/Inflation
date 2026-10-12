@@ -929,6 +929,9 @@ class Ecology(private val sim: Simulation) {
             val dirs = if (ring == 0) 1 else 8
             for (dir in 0 until dirs) {
                 if (ring == 3 && (reach <= 3f * r || !restless)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
+                // A herd that is only frightened scatters and hides nearby; only on open plains does it run farther.
+                if (ring == 2 && !s.carnivore && g.alert > 0 && g.lastIntakeRatio >= MARCH_HUNGER && g.daysWithoutWater <= 0.5f * s.daysWithoutWater &&
+                    terrain.ruggedness[cellOf(g)] + cover(cellOf(g)) > OPEN_GROUND) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
                 val x = g.x + COS[dir] * d / cellKm; val y = g.y + SIN[dir] * d / cellKm
                 sc.tx[k] = x; sc.ty[k] = y; k++
                 // A territorial pack keeps to its ground unless hunger drives it out.
@@ -2730,6 +2733,8 @@ class Ecology(private val sim: Simulation) {
         const val HOME_RANGE = 1.5f
         /** Intake below which a herd will weigh a forced march to new country. */
         const val MARCH_HUNGER = 0.6f
+        /** Ruggedness plus cover below which ground is open enough for a frightened herd to run. */
+        const val OPEN_GROUND = 0.3f
         /** Extra yearly deaths among hunters without a territory of their own. */
         const val DISPERSAL_DEATHS = 0.4f
         /** How much harder a pack fights on its own ground. */
