@@ -157,6 +157,8 @@ class Ecology(private val sim: Simulation) {
     val killsBy = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     /** Kills by predator species, and kills taken from others by predator species, since last cleared. */
     val killsByPredator = java.util.concurrent.ConcurrentHashMap<Species, Int>()
+    /** What people have killed, by species, since the start. */
+    val peopleKills = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     val stolen = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     /** Deaths other than predation, by "species:cause", since last cleared. */
     val deathsBy = java.util.concurrent.ConcurrentHashMap<String, Int>()
@@ -1900,7 +1902,7 @@ class Ecology(private val sim: Simulation) {
         val packKg = g.adults * s.massKg * armed(g)
         val home = habitatMatch(s, cover(c), terrain.ruggedness[c], wetness[c])
         // Each herd's chances, worked out once for the week: for an adult and for a young one.
-        val pAdult = FloatArray(near.size); val pYoung = FloatArray(near.size); val risk = FloatArray(near.size)
+        val pAdult = FloatArray(near.size); val pYoung = FloatArray(near.size); val risk = FloatArray(near.size); val fear = FloatArray(near.size)
         for ((k, o) in near.withIndex()) {
             if (contact[k] <= 0f) continue
             val at = cellOf(o)
@@ -1908,19 +1910,24 @@ class Ecology(private val sim: Simulation) {
             pYoung[k] = if (o.young > 0) catchChance(g, o, at, true, packKg, home) else 0f
             // Big, armed prey fight back: horns and tusks kill hunters. Worth it only for much meat.
             risk[k] = fightBack(o.species, packKg) * (2f - home) * (1f + youngShare(o)) * fitness(o)
-            // People kill from a distance with spears and arrows, and a band that knows the quarry
+            // People weigh what a beast could do to them, not what it is likely to: a hunter lost is a
+            // family without meat for years. Experience with the quarry calms them a little.
+            g.craft?.let { fear[k] = risk[k] * (1f - 0.4f * it[o.species.index]) }
+            // But they kill from a distance with spears and arrows, and a band that knows the quarry
             // knows when to stand off: a cornered aurochs rarely reaches them.
             g.craft?.let { risk[k] *= RANGED_RISK * (1f - 0.7f * it[o.species.index]) }
         }
         // Each herd in contact is tried at most once a week (after a chase it moves off), so the
         // herds are ranked once by what they promise: chance times meat, for its young or an adult,
         // whichever is better. A hungry hunter takes on prey it would leave alone when fed.
-        val caution = 5f * g.condition
+        // People are far more careful than other hunters, and opportunistic: they go for the young,
+        // the weak and the stragglers, and leave big dangerous beasts alone unless hunger drives them.
+        val caution = (if (s.human) PEOPLE_CAUTION else 5f) * g.condition
         val value = FloatArray(near.size); val takeYoung = BooleanArray(near.size)
         for ((k, o) in near.withIndex()) {
             if (contact[k] <= 0f) continue
             val ps = o.species
-            val adult = pAdult[k] * max(0f, 1f - caution * risk[k]) * min(ps.massKg, need)
+            val adult = pAdult[k] * max(0f, 1f - caution * (if (s.human) fear[k] else risk[k])) * min(ps.massKg, need)
             val young = if (o.young > 0) pYoung[k] * min(0.3f * ps.massKg, need) * min(1f, 2f * o.young / (o.size + o.young)) else 0f
             // A band that spares mothers and young takes only adults, and fewer of those in the birth season.
             val spare = g.holds(Tradition.TABOO_YOUNG)
@@ -1945,6 +1952,7 @@ class Ecology(private val sim: Simulation) {
                 soil.carrion[c] += ((meat - fresh - dried) / grid.cellAreaM2).toFloat()
                 killCount.addAndGet(taken + takenY); killsBy.merge(o.species, taken + takenY, Int::plus); killsByPredator.merge(s, taken + takenY, Int::plus)
                 kiteCount.addAndGet(taken + takenY)
+                peopleKills.merge(o.species, taken + takenY, Int::plus)
                 break
             }
         }
@@ -1982,6 +1990,7 @@ class Ecology(private val sim: Simulation) {
             killCount.incrementAndGet()
             killsBy.merge(prey.species, 1, Int::plus)
             killsByPredator.merge(s, 1, Int::plus)
+            if (s.human) peopleKills.merge(prey.species, 1, Int::plus)
             shove(prey, g)
         }
     }
@@ -2608,6 +2617,8 @@ class Ecology(private val sim: Simulation) {
         const val BOLD_DRIFT = 0.0002f
         /** Chance a band burns off grass in a dry-season week. */
         const val BURN_WEEKLY = 0.1f
+        /** How much people let danger put them off a quarry, against 5 for other hunters. */
+        const val PEOPLE_CAUTION = 15f
         /** Share of the danger of a cornered quarry that reaches hunters armed with spears and bows. */
         const val RANGED_RISK = 0.2f
         /** Share of the success an untrained band still has at a hunt or a harvest. */
