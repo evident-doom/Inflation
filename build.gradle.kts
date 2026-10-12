@@ -54,3 +54,12 @@ tasks.register<JavaExec>("imitate") {
     maxHeapSize = "8g"
     args = (project.findProperty("imitateArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
+
+tasks.register<JavaExec>("audit") {
+    description = "Runs the living world and reports which species found a niche, which died out and which grow without limit."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.ecology.NicheAuditKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("auditArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}

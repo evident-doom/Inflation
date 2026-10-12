@@ -41,14 +41,22 @@ fun main(args: Array<String>) {
     println("%-28s ".format("date") + Catalogue.all.joinToString(" ") { "%9s".format(it.name.take(9)) } + "  kills  fish t/km² shellfish run t")
     val stepsPerSeason = 90 / cfg.daysPerStep
     var kills = 0
+    var fires = 0; var burnedKm2 = 0.0
     val t0 = System.nanoTime()
     val water = (0 until world.grid.size).filter { e.plankton.isWater[it] }
     repeat(years * 4) {
-        repeat(stepsPerSeason) { sim.step(); kills += e.kills }
+        repeat(stepsPerSeason) { sim.step(); kills += e.kills; fires += sim.vegetation.fires.size; burnedKm2 += sim.vegetation.fires.sumOf { it.second.toDouble() } }
         println("%-28s ".format(sim.date.toString()) + Catalogue.all.joinToString(" ") { "%9d".format(e.count(it)) } +
             " %6d %11.2f %9.1f %5.0f".format(kills, water.sumOf { e.fish.fish[it].toDouble() } / water.size / 1000,
                 e.fish.shellfish.sumOf { it.toDouble() } / 1e6, e.fish.run.sumOf { it.toDouble() } / 1000))
         kills = 0
+        val veg = sim.vegetation
+        val landCells = (0 until world.grid.size).filter { veg.isVegetated(it) }
+        println("   plants trees %.2f shrubs %.2f herbs %.2f kg/m², grass quality %.2f, browsing %.2f grazing %.2f kg/km²/day, %d fires burned %.0f km²".format(
+            landCells.map { veg.tree[it].toDouble() }.average(), landCells.map { veg.shrub[it].toDouble() }.average(), landCells.map { veg.herb[it].toDouble() }.average(),
+            landCells.map { e.grassQuality[it].toDouble() }.average(), landCells.map { veg.browsing[it].toDouble() }.average(), landCells.map { veg.grazing[it].toDouble() }.average(), fires, burnedKm2))
+        fires = 0; burnedKm2 = 0.0
+        println("   game   " + e.game.summary())
         val sea = e.marine
         println("   sea    " + SeaCatalogue.all.joinToString { "${it.name} ${sea.count(it)}" } + ", sea birds %.0f, shark kills %d".format(sea.birdCount(), sea.sharkKills))
         sea.sharkKills = 0

@@ -173,6 +173,14 @@ class SmallFauna(private val sim: Simulation) {
      * dry summers, when hunters cannot find them.
      */
     val herps = FloatArray(n)
+    /**
+     * Pollinators, kg/km²: wild bees, hoverflies, butterflies and beetles at flowers. Active in
+     * warm weather while herbs and shrubs flower (spring into early summer), overwintering in nests
+     * and as larvae. Heavy grazing leaves fewer flowers.
+     */
+    val pollinators = FloatArray(n)
+    /** How well this year's flowers were pollinated, 0..1: sets the summer and autumn fruit crop. */
+    val pollination = FloatArray(n) { 0.6f }
     private var steps = 0
     private val wetland = BooleanArray(n) {
         val b = world.biome[it]
@@ -186,6 +194,7 @@ class SmallFauna(private val sim: Simulation) {
             insects[i] = 300f * min(1f, v.herb[i] / 0.4f)
             rodents[i] = 150f * min(1f, v.herb[i] / 0.4f)
             herps[i] = 20f * min(1f, v.herb[i] / 0.4f)
+            pollinators[i] = 10f * min(1f, v.herb[i] / 0.4f)
         }
     }
 
@@ -243,9 +252,24 @@ class SmallFauna(private val sim: Simulation) {
                 insects[i] = max(5f, insects[i] - h * 0.05f * days)
             } else h -= h * 0.3f * years
             herps[i] = h.coerceIn(0.5f, 200f)
+
+            // Fire kills what cannot flee: most insects, many reptiles, rodents caught above ground.
+            if (v.burning[i]) { insects[i] *= 0.2f; herps[i] *= 0.3f; rodents[i] *= 0.5f; pollinators[i] *= 0.5f }
+            // Pollinators: build up on flowers in warm weeks, die back to their nests in the cold.
+            val month = sim.weather.date.month
+            val flowering = month in 0..4
+            val flowers = (v.herb[i] + 0.5f * v.shrub[i]) * (if (flowering) 1f else 0.2f) * (1f - 0.5f * (1f - exp(-v.grazing[i] / 5f)))
+            var po = pollinators[i]
+            if (t > 12f) {
+                val ceiling = 50f * flowers / (flowers + 0.3f)
+                po += po * 10f * years * (1 - po / ceiling.coerceAtLeast(0.5f)) - po * 1f * years
+            } else po -= po * min(0.5f, 2f * years)
+            pollinators[i] = po.coerceIn(0.2f, 100f)
+            // Flowers visited while they are open set the fruit.
+            if (flowering) pollination[i] += 0.2f * (min(1f, pollinators[i] / 20f) - pollination[i])
         }
         if (++steps % 5 == 0) {
-            spread(insects); spread(rodents); spread(herps)
+            spread(insects); spread(rodents); spread(herps); spread(pollinators)
         }
     }
 

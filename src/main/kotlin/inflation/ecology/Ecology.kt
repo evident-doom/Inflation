@@ -5,6 +5,7 @@ import inflation.world.LifeForm
 import inflation.world.Simulation
 import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.exp
 import kotlin.math.sqrt
 import kotlin.math.max
 import kotlin.math.min
@@ -38,6 +39,7 @@ class Ecology(private val sim: Simulation) {
     val small = SmallFauna(sim)
     val fish = Fish(sim, plankton)
     val marine = Marine(sim, plankton, fish)
+    val game = SmallGame(sim, small, soil)
 
     /** Edible young grass and herbs, kg per km². */
     val graze = FloatArray(n)
@@ -53,6 +55,17 @@ class Ecology(private val sim: Simulation) {
      * grazers the land carries. Builds up over months as plants grow and die back.
      */
     val straw = FloatArray(n)
+    /**
+     * How nourishing the grass is, 0..1: protein-rich in the spring flush and where grazing keeps
+     * it short and growing, poor once it has matured and dried.
+     */
+    val grassQuality = FloatArray(n) { 0.6f }
+    /** Grass and browse eaten this week, kg/km², passed on to the plants. */
+    private val grazedNow = FloatArray(n)
+    private val browsedNow = FloatArray(n)
+    private val rootedNow = FloatArray(n)
+    /** Fruit eaten this week per coarse cell, spread over the eaters' ranges: where their seed lands. */
+    private val seedDrop by lazy { FloatArray(maps.size) }
     /**
      * How wet the ground is now, 0 (parched) to 1 (marsh, standing water): from soil moisture,
      * recent rain, shade, floodwater and wetland. Animals get dew and moisture from plants on wet
@@ -154,7 +167,7 @@ class Ecology(private val sim: Simulation) {
 
     fun step() {
         killCount.set(0); birthCount.set(0); deathCount.set(0)
-        timed("fields") { plankton.step(); fish.step(); soil.step(); small.step() }
+        timed("fields") { plankton.step(); fish.step(); soil.step(); small.step(); game.step() }
         timed("sea") { marine.step() }
         timed("regrow") { regrow() }
         stepCount++
@@ -194,9 +207,16 @@ class Ecology(private val sim: Simulation) {
             // Deciduous leaves fall in the cold; only evergreen scrub and trees keep some browse.
             val b = PALATABLE_SHARE * 1e6f * woody(i) * max(0.15f, warm) * max(0.5f, wet) / REGROWTH_DAYS
             // Fruit ripens from midsummer to autumn and rots or is gone by winter.
-            val ripe = if (month in 4..7) FRUIT_SHARE * 1e6f * fruitBearing(i) / FRUIT_DAYS else 0f
+            // How big the crop is depends on how well the spring's flowers were pollinated.
+            val ripe = if (month in 4..7) FRUIT_SHARE * 1e6f * fruitBearing(i) * (0.3f + 0.7f * small.pollination[i]) / FRUIT_DAYS else 0f
             fruit[i] = max(0f, fruit[i] + days * (ripe - fruit[i] / FRUIT_DAYS))
             graze[i] = max(0f, graze[i] + days * (g - graze[i] / REGROWTH_DAYS))
+            // Growing grass is rich; mature, dry grass poor. Grazing keeps a lawn short and green.
+            val growing = warm * wet * if (month in 0..1) 1.2f else 1f
+            val lawn = 1f - exp(-v.grazing[i] / 5f)
+            // After a fire the new grass comes up green and rich: grazers come to the burn.
+            val flushAfterFire = 0.3f * v.burnt[i] * warm
+            grassQuality[i] += 0.3f * ((0.3f + 0.6f * growing.coerceAtMost(1f) + 0.15f * lawn + flushAfterFire).coerceAtMost(1f) - grassQuality[i])
             browse[i] = max(0f, browse[i] + days * (b - browse[i] / REGROWTH_DAYS))
             val autumn = sim.weather.date.month in 6..8
             val r = rootsCap(i) * (if (autumn) 3f else 0.5f) / ROOTS_DAYS
@@ -231,6 +251,27 @@ class Ecology(private val sim: Simulation) {
             concealKm[i] = terrain.concealmentKm(i, v)
             sightKm[i] = terrain.sightKm(i, v)
         }
+    }
+
+    // ---------------------------------------------------------------- fire
+
+    /**
+     * A group whose ground is burning runs: most get away, but the young, the slow and the small
+     * are caught by the flames now and then.
+     */
+    private fun flee(g: AnimalGroup) {
+        val c = cellOf(g)
+        if (!sim.vegetation.burning[c]) return
+        val s = g.species
+        val slow = (40f / s.speedKmh).coerceIn(0.5f, 2f)
+        val r = groupRandom(g, 3)
+        val deadY = binomial(g.young, min(1f, FIRE_YOUNG * slow), r)
+        val deadA = binomial(g.adults, min(1f, FIRE_ADULT * slow * if (g.torpid) 4f else 1f), r)
+        if (deadA + deadY == 0) return
+        g.young -= deadY; g.adults -= deadA
+        deathCount.addAndGet(deadA + deadY)
+        deathsBy.merge("${s.name}:fire", deadA + deadY, Int::plus)
+        soil.carrion[c] += (s.massKg * (deadA + 0.5f * deadY) / grid.cellAreaM2).toFloat()
     }
 
     // ---------------------------------------------------------------- warmth
@@ -434,10 +475,11 @@ class Ecology(private val sim: Simulation) {
         }
         timed("occupancy") { occupancy() }
         timed("watch") { watch() }
-        timed("graze") { graze() }
+        timed("graze") { graze(); shapePlants() }
         timed("prowl") { prowlAll() }
         timed("drink") { for (g in groups) if (g.alive) drink(g) }
         timed("weather") { for (g in groups) if (g.alive) endure(g) }
+        timed("fire") { for (g in groups) if (g.alive) flee(g) }
         timed("seasons") { for (g in groups) if (g.alive && !g.species.carnivore) learnSeason(g) }
     }
 
@@ -535,6 +577,8 @@ class Ecology(private val sim: Simulation) {
     private val mBrowse = maps.layer()
     private val mRoots = maps.layer()
     private val mFruit = maps.layer()
+    /** Grass weighted by its quality, to average quality over a range. */
+    private val mGrazeQ = maps.layer()
     private val mStraw = maps.layer()
     private val mWater = maps.layer()
     private val mWaterKm = maps.layer()
@@ -555,7 +599,7 @@ class Ecology(private val sim: Simulation) {
     /** Per species: mass of its enemies per coarse cell; for predators, lure-weighted prey. */
     private val mDanger = Array(Catalogue.all.size) { maps.layer() }
     private val mPrey = Array(Catalogue.all.size) { maps.layer() }
-    private val fineLayers = listOf(mTempAhead, mRainAhead, mHazard, mTemp, mLand, mGraze, mBrowse, mRoots, mFruit, mStraw, mWater, mWaterKm, mCover, mRugged, mWet, mSnow, mCost, mRodents, mCroc)
+    private val fineLayers = listOf(mTempAhead, mRainAhead, mHazard, mTemp, mLand, mGraze, mGrazeQ, mBrowse, mRoots, mFruit, mStraw, mWater, mWaterKm, mCover, mRugged, mWet, mSnow, mCost, mRodents, mCroc)
 
     /** Sums this week's ground, plants and water onto the coarse grid. */
     private fun summarise() {
@@ -573,9 +617,12 @@ class Ecology(private val sim: Simulation) {
             val normal = world.climate.monthlyPrecip[sim.weather.date.month][i] * days / Date.DAYS_PER_MONTH
             val ahead = sim.weather.forecastRain(i) / max(1f, normal)
             mRainAhead.cell[m] += ahead
+            // Fire burning now drives everything away.
+            if (sim.vegetation.burning[i]) mHazard.cell[m] += 1f
             // A flood is coming where heavy rain is due on a floodplain or where water already stands.
             if (world.floodplain.isFloodplain[i] || sim.water.flood[i] > 0f) mHazard.cell[m] += ((ahead - 1.5f) / 2f).coerceIn(0f, 1f)
             mGraze.cell[m] += graze[i] * cellKm2
+            mGrazeQ.cell[m] += graze[i] * cellKm2 * grassQuality[i]
             mBrowse.cell[m] += browse[i] * cellKm2
             mRoots.cell[m] += roots[i] * cellKm2
             mFruit.cell[m] += fruit[i] * cellKm2
@@ -791,7 +838,7 @@ class Ecology(private val sim: Simulation) {
         if (d > 0f && waterKm[centre] > max(s.maxWaterKm, waterKm[cellOf(g)])) return NOWHERE
         val waterCells = mWater.box(box.x0, box.y0, box.x1, box.y1).toFloat()
         val forage = if (s.carnivore) mRodents.box(box.x0, box.y0, box.x1, box.y1).toFloat() / areaKm2
-            else ((s.diet.grass * mGraze.box(box.x0, box.y0, box.x1, box.y1) + s.diet.browse * mBrowse.box(box.x0, box.y0, box.x1, box.y1) +
+            else ((s.diet.grass * mGraze.box(box.x0, box.y0, box.x1, box.y1) * worth(s, foodQuality(0, box)) + s.diet.browse * mBrowse.box(box.x0, box.y0, box.x1, box.y1) +
                 s.diet.roots * mRoots.box(box.x0, box.y0, box.x1, box.y1) + s.diet.fruit * mFruit.box(box.x0, box.y0, box.x1, box.y1)) / plantDiet(s)).toFloat() / areaKm2
         val boxKm2 = box.cells * COARSE_KM * COARSE_KM
         // Enemies: their mass per km² over the range, against this group's own mass.
@@ -919,6 +966,7 @@ class Ecology(private val sim: Simulation) {
         val share = Array(4) { k -> FloatArray(maps.size) { m -> if (asked[k][m] <= 0f) 0f else min(1f, stocks[k].cell[m] / asked[k][m]) } }
         val eaten = Array(4) { k -> FloatArray(maps.size) { m -> asked[k][m] * share[k][m] } }
         val got = FloatArray(herds.size)
+        val fruitKg = FloatArray(herds.size)
         java.util.stream.IntStream.range(0, herds.size).parallel().forEach { h ->
             val g = herds[h]
             val box = boxes[h]
@@ -927,12 +975,24 @@ class Ecology(private val sim: Simulation) {
                 val wantK = split[h][k]; val total = offered[h][k]
                 if (wantK <= 0f || total <= 0f) continue
                 val cell = stocks[k].cell
+                var kg = 0f
                 for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) {
                     val m = y * maps.w + x
-                    sum += wantK * cell[m] * access(g.species, m) / total * share[k][m]
+                    kg += wantK * cell[m] * access(g.species, m) / total * share[k][m]
                 }
+                // What the food is worth to this animal: poor food cannot meet a small grazer's needs.
+                sum += kg * worth(g.species, foodQuality(k, box))
+                if (k == 3) fruitKg[h] = kg
             }
             got[h] = sum
+        }
+        // Fruit-eaters pass the seed wherever they roam.
+        seedDrop.fill(0f)
+        for ((h, g) in herds.withIndex()) {
+            if (fruitKg[h] <= 0f) continue
+            val box = boxes[h]
+            val per = fruitKg[h] / box.cells
+            for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) seedDrop[y * maps.w + x] += per
         }
         for ((h, g) in herds.withIndex()) {
             // A hibernating bear lives on its fat at a quarter of its need.
@@ -952,6 +1012,7 @@ class Ecology(private val sim: Simulation) {
                 val e = fine[k][i] * f
                 fine[k][i] -= e
                 forms[k]?.let { v.consume(i, it, (e * cellKm2 / grid.cellAreaM2).toFloat()) }
+                when (k) { 0 -> grazedNow[i] += e; 1 -> browsedNow[i] += e; 2 -> rootedNow[i] += e }
             }
         }
         // Straw fills the gap, as far as the gut allows: from the centre cell's neighbourhood.
@@ -974,6 +1035,38 @@ class Ecology(private val sim: Simulation) {
             }
             g.freshShare = if (food > 0f) fresh / food else 0f
             feed(g, food / (g.dailyNeedKg * days))
+        }
+    }
+
+    /** Quality of food kind [k] (grass, browse, roots, fruit) over [box], 0..1. */
+    private fun foodQuality(k: Int, box: CoarseMaps.Box): Float = when (k) {
+        0 -> { val kg = mGraze.box(box.x0, box.y0, box.x1, box.y1); if (kg > 0.0) (mGrazeQ.box(box.x0, box.y0, box.x1, box.y1) / kg).toFloat() else 0.5f }
+        1 -> BROWSE_QUALITY
+        2 -> ROOTS_QUALITY
+        else -> FRUIT_QUALITY
+    }
+
+    /**
+     * What a kg of food of [quality] is worth to [s], 0..1: a small animal's fast metabolism needs
+     * rich food (about 0.75 for a gazelle), a big gut makes do with poorer (about 0.45 for an aurochs).
+     */
+    private fun worth(s: Species, quality: Float): Float {
+        val big = ((kotlin.math.log10(s.massKg) - 1.3f) / 1.7f).coerceIn(0f, 1f)
+        val needs = 0.75f - 0.3f * big
+        return min(1f, quality / needs)
+    }
+
+    /** Passes the week's grazing and browsing on to the plants, as a running mean per day. */
+    private fun shapePlants() {
+        val v = sim.vegetation
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            v.grazing[i] += 0.3f * (grazedNow[i] / days - v.grazing[i])
+            v.browsing[i] += 0.3f * (browsedNow[i] / days - v.browsing[i])
+            v.rooting[i] += 0.3f * (rootedNow[i] / days - v.rooting[i])
+            // Seed dropped this week, per km², against what makes a good seed rain.
+            val drop = seedDrop[maps.of(grid.x(i), grid.y(i))] / (COARSE_KM * COARSE_KM)
+            v.animalSeed[i] += 0.05f * (min(1f, drop / SEED_RAIN_KG) - v.animalSeed[i])
+            grazedNow[i] = 0f; browsedNow[i] = 0f; rootedNow[i] = 0f
         }
     }
 
@@ -1022,7 +1115,7 @@ class Ecology(private val sim: Simulation) {
      * while it lasts. Returns nourishment in kg of good food.
      */
     private fun roughage(c: Int, nourishmentKg: Float, value: Float): Float =
-        value * eat(c, straw, nourishmentKg / value, LifeForm.HERB, STRAW_REACH)
+        value * eat(c, straw, nourishmentKg / value, LifeForm.HERB, STRAW_REACH, grazedNow)
 
     /**
      * How much a species gets out of coarse forage (the Jarman-Bell principle): a big gut holds
@@ -1032,7 +1125,7 @@ class Ecology(private val sim: Simulation) {
     private fun roughageValue(s: Species) = (ROUGHAGE_VALUE * s.fibreDigestion * (s.massKg / 100f).pow(0.25f)).coerceAtMost(0.75f)
 
     /** Eats up to [kg] from [stock] over the cells within [reach] of [c], taking it from plants of [form]; returns kg eaten. */
-    private fun eat(c: Int, stock: FloatArray, kg: Float, form: LifeForm?, reach: Int): Float {
+    private fun eat(c: Int, stock: FloatArray, kg: Float, form: LifeForm?, reach: Int, record: FloatArray? = null): Float {
         if (kg <= 0f) return 0f
         val cx = grid.x(c); val cy = grid.y(c)
         var available = 0f
@@ -1046,6 +1139,7 @@ class Ecology(private val sim: Simulation) {
             val e = stock[i] * share
             stock[i] -= e
             if (form != null) sim.vegetation.consume(i, form, (e * cellKm2 / grid.cellAreaM2).toFloat())
+            if (record != null) record[i] += e
             eaten += e * cellKm2
         }
         return eaten
@@ -1160,8 +1254,12 @@ class Ecology(private val sim: Simulation) {
         val cx = grid.x(c); val cy = grid.y(c)
         val r = STRAW_REACH
         val per = kg / ((2 * r + 1) * (2 * r + 1))
-        for (dy in -r..r) for (dx in -r..r) if (grid.inBounds(cx + dx, cy + dy))
-            got += small.catchRodents(grid.index(cx + dx, cy + dy), per / cellKm2) * cellKm2
+        for (dy in -r..r) for (dx in -r..r) if (grid.inBounds(cx + dx, cy + dy)) {
+            val i = grid.index(cx + dx, cy + dy)
+            // Hares, hyrax, game birds and tortoises for half, rodents and lizards for the rest.
+            val fromGame = game.catch(i, 0.5f * per / cellKm2) * cellKm2
+            got += fromGame + small.catchRodents(i, (per - fromGame) / cellKm2) * cellKm2
+        }
         return got
     }
 
@@ -1707,6 +1805,15 @@ class Ecology(private val sim: Simulation) {
         const val HIBERNATE_C = 2f
         /** Size of the tiles predators are worked in, km: more than twice the furthest a group reaches in a week. */
         const val TILE_KM = 80f
+        /** Food value of browse, roots and mast, and fruit, 0..1 (grass varies, see [grassQuality]). */
+        const val BROWSE_QUALITY = 0.65f
+        const val ROOTS_QUALITY = 0.8f
+        const val FRUIT_QUALITY = 0.95f
+        /** Chance a young animal, and an adult, of a group whose ground burns dies in the fire (more for slow kinds). */
+        const val FIRE_YOUNG = 0.15f
+        const val FIRE_ADULT = 0.02f
+        /** Fruit eaten per km² in a week that spreads a full seed rain. */
+        const val SEED_RAIN_KG = 5f
         /** Stands for a place a group cannot go. */
         val NOWHERE = Option(-1, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
         /** Animal mass whose passage counts as trampling intensity 1 (see Vegetation.trample). */
