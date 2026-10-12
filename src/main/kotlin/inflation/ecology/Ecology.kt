@@ -104,7 +104,11 @@ class Ecology(private val sim: Simulation) {
      */
     val enemies: Map<Species, List<Species>> = Catalogue.all.associateWith { s ->
         // Camp followers and people leave each other be.
-        Catalogue.predators.filter { p -> p != s && threatens(p, s) && !(p.human && s.followsPeople) && !(s.human && p.followsPeople) }
+        Catalogue.predators.filter { p ->
+            p != s && !(p.human && s.followsPeople) && !(s.human && p.followsPeople) &&
+                // People keep clear of the big cats, which take a sleeper or a straggler now and then.
+                (threatens(p, s) || (s.human && p.dangerToHumans >= DANGEROUS_TO_PEOPLE))
+        }
     }
     /**
      * How much the presence of each prey species draws each predator, by species index: its mass,
@@ -432,6 +436,7 @@ class Ecology(private val sim: Simulation) {
                 when (Forage.entries[f]) {
                     Forage.FRUIT, Forage.ROOTS, Forage.SMALL_GAME -> 0.6f
                     Forage.FISH -> if (waterKm[cell] < 3f) 0.5f else 0.1f
+                    Forage.STORE -> 0.4f
                 }
             }
         }
@@ -881,7 +886,8 @@ class Ecology(private val sim: Simulation) {
         // Enemies: their mass per km² over the range, against this group's own mass.
         val enemyKg = mDanger[s.index].box(box.x0, box.y0, box.x1, box.y1)
         val enemyDensity = (enemyKg / boxKm2).toFloat()
-        val danger = enemyDensity / (enemyDensity + DANGER_KG_KM2)
+        // People camp where they can defend themselves, which takes the edge off a dangerous range.
+        val danger = enemyDensity / (enemyDensity + DANGER_KG_KM2) * if (s.human) 1f - 0.5f * terrain.defensibility[centre] else 1f
         val preyValue = if (s.carnivore) mPrey[s.index].box(box.x0, box.y0, box.x1, box.y1) else 0.0
         val preyDensity = (preyValue / boxKm2).toFloat()
         val prey = preyDensity / (preyDensity + PREY_NORM)
@@ -1247,6 +1253,7 @@ class Ecology(private val sim: Simulation) {
         // the small-prey share of the diet.
         if (s.human) {
             eaten += gather(g, need - min(eaten, need))
+            larder(g, need, eaten).let { eaten += it }
             burnOff(g, r)
             // Bones, offal and spoiled food go on the camp's midden, for jackals, wolves and vultures.
             soil.carrion[c] += (REFUSE * eaten / grid.cellAreaM2).toFloat()
@@ -1270,13 +1277,13 @@ class Ecology(private val sim: Simulation) {
      * the band's skill with it and the season allow. Returns the kg gathered. Gathering is practice,
      * and skills not used this week fade a little.
      */
-    private fun gather(g: AnimalGroup, kg: Float): Float {
+    private fun gather(g: AnimalGroup, kg: Float, plantsOnly: Boolean = false): Float {
         val fc = g.forageCraft ?: return 0f
         val s = g.species
         val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
         var got = 0f
         // Fruit, nuts and seeds in season, and roots and bulbs dug the year round, from the fine cells of the range.
-        val wantPlants = kg * (s.diet.fruit + s.diet.roots) / (s.diet.fruit + s.diet.roots + s.diet.smallPrey).coerceAtLeast(1e-3f)
+        val wantPlants = if (plantsOnly) kg else kg * (s.diet.fruit + s.diet.roots) / (s.diet.fruit + s.diet.roots + s.diet.smallPrey).coerceAtLeast(1e-3f)
         for ((stock, skill, share) in listOf(Triple(fruit, Forage.FRUIT, s.diet.fruit), Triple(roots, Forage.ROOTS, s.diet.roots))) {
             val want = wantPlants * share / (s.diet.fruit + s.diet.roots)
             if (want <= 0f) continue
@@ -1291,6 +1298,7 @@ class Ecology(private val sim: Simulation) {
             }
             got += take
         }
+        if (plantsOnly) return got
         // Small game: hares, birds, tortoises, hyrax, by snare, net and throwing stick.
         val sg = fc[Forage.SMALL_GAME.ordinal]
         val c = cellOf(g)
@@ -1333,6 +1341,28 @@ class Ecology(private val sim: Simulation) {
     private fun peopleNear(g: AnimalGroup): Boolean {
         val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
         return mOcc[Catalogue.HUMAN.index].box(box.x0, box.y0, box.x1, box.y1) > 0.0
+    }
+
+    /**
+     * A band's stores: in lean weeks it eats from them; in good weeks it gathers beyond the day's
+     * need and lays the rest by, as far as its storing skill (drying, pits, baskets) allows. Stores
+     * spoil slowly. Returns the kg eaten from store.
+     */
+    private fun larder(g: AnimalGroup, need: Float, eaten: Float): Float {
+        val fc = g.forageCraft ?: return 0f
+        var fromStore = 0f
+        if (eaten < need && g.larder > 0f) {
+            fromStore = min(g.larder, need - eaten)
+            g.larder -= fromStore
+        }
+        val k = fc[Forage.STORE.ordinal]
+        val cap = LARDER_DAYS * g.dailyNeedKg * k
+        if (g.larder < cap) {
+            val extra = gather(g, min(cap - g.larder, need), plantsOnly = true)
+            if (extra > 0f) { g.larder += extra; fc[Forage.STORE.ordinal] += PRACTICE * (1f - k) }
+        }
+        g.larder *= 1f - SPOIL
+        return fromStore
     }
 
     /** Takes share [f] of [stock] (kg/km² per fine cell) from every fine cell under [box]. */
@@ -1566,6 +1596,8 @@ class Ecology(private val sim: Simulation) {
             if (strength(o) * (0.7f + 0.6f * r.nextFloat()) > best) { thief = o; best = strength(o) }
         }
         if (thief == null) return 0f
+        // People drive big cats off a kill only by day, in numbers, and not without risk: they seldom try.
+        if (thief.species.human && g.species.dangerToHumans >= DANGEROUS_TO_PEOPLE && r.nextFloat() >= PEOPLE_TAKE_KILLS) return 0f
         val taken = 0.7f * kg
         thief.stored += taken
         stolen.merge(thief.species, 1, Int::plus)
@@ -1586,7 +1618,9 @@ class Ecology(private val sim: Simulation) {
             if (r.nextFloat() >= ov) continue
             val c = cellOf(g)
             val home = habitatMatch(g.species, cover(c), terrain.ruggedness[c], wetness[c])
-            if (g.adults > 0 && r.nextFloat() < INTRAGUILD_KILL * (1.5f - home) * (1f - 0.5f * g.posture)) {
+            // People's camps: a fire through the night, and a site with a cliff at the back and a view out.
+            val camp = if (g.species.human) 1f - CAMPFIRE - (1f - CAMPFIRE) * terrain.defensibility[c] else 1f
+            if (g.adults > 0 && r.nextFloat() < INTRAGUILD_KILL * camp * (1.5f - home) * (1f - 0.5f * g.posture)) {
                 g.adults--; deathCount.incrementAndGet()
                 deathsBy.merge("${g.species.name}:killed by ${p.name}", 1, Int::plus)
                 o.stored += g.species.massKg * 0.5f
@@ -1709,7 +1743,11 @@ class Ecology(private val sim: Simulation) {
         // Others of its kind over its range: its own group does not crowd itself.
         val others = max(0f, mOcc[s.index].box(box.x0, box.y0, box.x1, box.y1).toFloat() - g.size)
         val density = others / (box.cells * COARSE_KM * COARSE_KM)
-        val full = if (s.startKm2PerAnimal > 0f) CROWD_PREDATOR / s.startKm2PerAnimal else Allometry.herbivoreDensityPerKm2(s.massKg) * CROWD_HERBIVORE
+        val full = when {
+            s.human -> PEOPLE_FULL_KM2 // foragers' camps move before waste and fevers build up
+            s.startKm2PerAnimal > 0f -> CROWD_PREDATOR / s.startKm2PerAnimal
+            else -> Allometry.herbivoreDensityPerKm2(s.massKg) * CROWD_HERBIVORE
+        }
         return density / full
     }
 
@@ -1860,6 +1898,9 @@ class Ecology(private val sim: Simulation) {
             child.fat = g.fat
             child.craft = g.craft?.copyOf(); child.forageCraft = g.forageCraft?.copyOf()
             child.wary = g.wary
+            // The stores are shared out by heads.
+            val share = child.size.toFloat() / (child.size + g.size).coerceAtLeast(1)
+            child.larder = g.larder * share; g.larder -= child.larder
             // A new group carries its parents' temper, give or take: the variation selection works on.
             child.bold = (g.bold * (0.8f + 0.4f * rnd.nextFloat())).coerceIn(0f, 1f)
             newcomers += child
@@ -1879,6 +1920,7 @@ class Ecology(private val sim: Simulation) {
                 val (other, _) = nearest(s, g.x, g.y, if (s.packLitter > 0) 3f * s.dailyTravelKm else 5f, except = g)
                 if (other == null || other.size + g.size > s.maxGroupSize) continue
                 other.adults += g.adults; other.young += g.young
+                other.larder += g.larder; g.larder = 0f
                 g.adults = 0; g.young = 0
             }
         }
@@ -1946,6 +1988,18 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Days of food a band with full storing skill can keep. */
+        const val LARDER_DAYS = 120f
+        /** Share of stores lost each week to damp, mould and mice. */
+        const val SPOIL = 0.01f
+        /** Share of night attacks on a camp that its fire keeps off. */
+        const val CAMPFIRE = 0.6f
+        /** Predators at least this dangerous to people (lions, leopards) are avoided by bands. */
+        const val DANGEROUS_TO_PEOPLE = 0.4f
+        /** Share of the chances to take a big cat's kill that people actually take. */
+        const val PEOPLE_TAKE_KILLS = 0.3f
+        /** People per km² over a band's range at which crowding brings sickness (rich foraging country holds 0.5 and more). */
+        const val PEOPLE_FULL_KM2 = 0.5f
         /** Share of a band's food that ends on the midden. */
         const val REFUSE = 0.1f
         /** How strongly a person in the range draws a camp follower, against a 20 kg prey animal (1). */

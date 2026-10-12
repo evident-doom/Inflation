@@ -76,6 +76,8 @@ class AnimalGroup(
      */
     var bold = 0f
     var forageCraft: FloatArray? = null
+    /** For people: nuts, seeds, dried roots and fruit laid by for the lean season, kg. */
+    var larder = 0f
     val size: Int get() = adults + young
     val alive: Boolean get() = size > 0
     /** Body mass of the group, kg; young count as half. */
@@ -85,7 +87,11 @@ class AnimalGroup(
 }
 
 /** Kinds of food people gather, each a skill of its own. */
-enum class Forage { FRUIT, ROOTS, SMALL_GAME, FISH }
+enum class Forage {
+    FRUIT, ROOTS, SMALL_GAME, FISH,
+    /** Laying food by: drying, pits, baskets, keeping it from damp and mice. */
+    STORE,
+}
 
 /**
  * What a group perceives about one place it could go: the inputs a policy decides from.
