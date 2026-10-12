@@ -135,6 +135,8 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
     @Volatile private var layer = startLayer
     @Volatile private var running = false
     @Volatile private var showAnimals = true
+    /** Which kinds are drawn, by the viewer's index (land species, then sea species). */
+    private val shown = BooleanArray(ALL_NAMES.size) { true }
     @Volatile private var stepsPerSecond = 5
     @Volatile private var dirty = true
     private val commands = ConcurrentLinkedQueue<() -> Unit>()
@@ -174,8 +176,32 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
         val layers = JComboBox(Layer.entries.map { it.label }.toTypedArray())
         layers.selectedIndex = startLayer.ordinal
         layers.addActionListener { layer = Layer.entries[layers.selectedIndex]; dirty = true }
-        val animalsBox = javax.swing.JCheckBox("Animals", true)
-        animalsBox.addActionListener { showAnimals = animalsBox.isSelected; map.repaint() }
+        // Animals: a menu of groups (people, plant-eaters, hunters, sea life) and of each kind.
+        val animalsBox = JButton("Animals ▾")
+        val menu = javax.swing.JPopupMenu()
+        val items = HashMap<Int, javax.swing.JCheckBoxMenuItem>()
+        fun group(label: String, members: List<Int>) {
+            val item = javax.swing.JCheckBoxMenuItem(label, true)
+            item.addActionListener { for (i in members) { shown[i] = item.isSelected; items[i]?.isSelected = item.isSelected }; map.repaint() }
+            menu.add(item)
+        }
+        val all = javax.swing.JCheckBoxMenuItem("Show animals", true)
+        all.addActionListener { showAnimals = all.isSelected; map.repaint() }
+        menu.add(all)
+        menu.addSeparator()
+        val land = Catalogue.all.indices
+        group("People", land.filter { Catalogue.all[it].human })
+        group("Plant-eaters", land.filter { !Catalogue.all[it].carnivore })
+        group("Hunters", land.filter { Catalogue.all[it].carnivore && !Catalogue.all[it].human })
+        group("Sea life", SeaCatalogue.all.indices.map { Catalogue.all.size + it })
+        menu.addSeparator()
+        for (i in ALL_NAMES.indices) {
+            val item = javax.swing.JCheckBoxMenuItem(ALL_NAMES[i], true)
+            item.addActionListener { shown[i] = item.isSelected; map.repaint() }
+            items[i] = item
+            menu.add(item)
+        }
+        animalsBox.addActionListener { menu.show(animalsBox, 0, animalsBox.height) }
         val tools = JComboBox(Tool.entries.map { it.label }.toTypedArray())
         tools.addActionListener { tool = Tool.entries[tools.selectedIndex]; canalStart = -1 }
 
@@ -445,6 +471,7 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
                     val x = (ox + a[4 * k] * scale).toInt(); val y = (oy + a[4 * k + 1] * scale).toInt()
                     val size = a[4 * k + 2]
                     val idx = a[4 * k + 3].toInt()
+                    if (!shown[idx]) continue
                     if (idx >= Catalogue.all.size) {
                         // Sea animals: diamonds, whales larger.
                         val s = SeaCatalogue.all[idx - Catalogue.all.size]
