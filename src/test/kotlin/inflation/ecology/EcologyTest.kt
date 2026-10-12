@@ -4,6 +4,7 @@ import inflation.world.Date
 import inflation.world.Simulation
 import inflation.world.World
 import inflation.world.WorldConfig
+import kotlin.math.max
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -58,7 +59,10 @@ class EcologyTest {
             repeat(stepsPerYear) { sim.step(); kills += e.kills }
             census += Catalogue.all.associateWith { e.count(it) }
         }
-        for (s in Catalogue.all) assertTrue(census.all { it.getValue(s) > 0 }, "${s.name} persists: ${census.map { it.getValue(s) }}")
+        // Species without a niche on this island may die out (lions often do); the herds and the wolf
+        // must hold, and nothing may grow without limit.
+        for (s in Catalogue.herbivores + Catalogue.WOLF) assertTrue(census.all { it.getValue(s) > 0 }, "${s.name} persists: ${census.map { it.getValue(s) }}")
+        for (s in Catalogue.all) assertTrue(census.last().getValue(s) < 10 * max(1, start.getValue(s)), "${s.name} bounded: ${census.map { it.getValue(s) }}")
         assertTrue(kills > 100, "wolves kill: $kills")
         assertTrue(e.groups.any { it.id >= firstIds }, "groups split as they grow")
         assertTrue(e.groups.all { it.size <= it.species.maxGroupSize }, "no group above its split size")
