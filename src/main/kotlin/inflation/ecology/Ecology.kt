@@ -1069,7 +1069,10 @@ class Ecology(private val sim: Simulation) {
     private fun worth(s: Species, quality: Float): Float {
         val big = ((kotlin.math.log10(s.massKg) - 1.3f) / 1.7f).coerceIn(0f, 1f)
         val needs = 0.75f - 0.3f * big
-        return min(1f, quality / needs)
+        // Small animals with narrow muzzles pick the best bites (green leaf, buds, seed heads) out of
+        // a sward a big grazer must take whole: what they eat is richer than the average around them.
+        val picked = quality + SELECTIVITY * (1f - big) * (1f - quality)
+        return min(1f, picked / needs)
     }
 
     /** Passes the week's grazing and browsing on to the plants, as a running mean per day. */
@@ -1786,6 +1789,8 @@ class Ecology(private val sim: Simulation) {
         /** Weeks a herd stays alarmed after an attack. */
         const val ALERT_WEEKS = 2
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
+        /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
+        const val SELECTIVITY = 0.5f
         /** How much darker nights add to a full stalker's surprise (and full moon takes away). */
         const val MOON_DARK = 0.3f
         const val SURPRISE_BASE = 0.2f

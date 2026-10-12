@@ -562,12 +562,13 @@ object Catalogue {
     )
 
     /**
-     * Arabian ostrich: a big flightless bird of the desert steppe, grazing, browsing and taking
+     * Arabian ostrich: a big flightless bird of the desert steppe, picking green shoots, flowers,
      * seeds and fruit; outruns almost everything and kicks hard. Large clutches, but a pair rears about one chick a year.
      */
     val OSTRICH = Species(
         name = "ostrich", massKg = 110f,
-        diet = Diet(grass = 0.5f, browse = 0.3f, fruit = 0.2f),
+        // A picky feeder on green shoots, flowers, seeds and fruit, not a bulk grazer.
+        diet = Diet(grass = 0.2f, browse = 0.4f, roots = 0.1f, fruit = 0.3f),
         groupSize = 5, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
         daysWithoutWater = 7, waterFromFood = 0.8f,
@@ -581,6 +582,7 @@ object Catalogue {
         domestication = floatArrayOf(0.6f, 0.6f, 0.5f, 0.2f, 0.3f, 0.3f),
         habitat = Habitat(cover = -1f, wet = -0.5f),
         defence = 0.4f,
+        fibreDigestion = 0.5f, // a bird's short gut gets little from straw
     )
 
     /** Bubal hartebeest: a grazer of dry grassland and semi-desert edges, in herds; kept by the Egyptians. */
