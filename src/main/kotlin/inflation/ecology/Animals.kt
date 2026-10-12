@@ -192,6 +192,9 @@ fun interface Policy {
  */
 /** How much better a new range must look before a fed, unthreatened group leaves the one it knows. */
 const val SITE_FIDELITY = 0.3f
+/** Whether option [k] carries on in the direction [g] last moved (options 1..24 are rings of eight directions). */
+fun headingMatches(g: AnimalGroup, k: Int) = g.heading >= 0 && k in 1..24 && (k - 1) % 8 == g.heading
+
 /** Preference for carrying on in the direction a herd last moved. */
 const val HEADING = 0.05f
 /** How much a hunter that has stayed for weeks wants to move on to another part of its ground. */
@@ -201,10 +204,11 @@ class BaselinePolicy(
     /** Random noise in -0.5..0.5 for [group] and option [k], so ties break and herds spread out. */
     private val noise: (group: AnimalGroup, k: Int) -> Float,
 ) : Policy {
-    override fun choose(group: AnimalGroup, options: List<Option>): Int = pickBest(group, options, noise) { o, k ->
-        // A herd on the move grazes on the way it was going rather than turning about.
-        score(group, o) + if (!group.species.carnivore && group.heading >= 0 && k in 1..24 && (k - 1) % 8 == group.heading) HEADING else 0f
-    }
+    override fun choose(group: AnimalGroup, options: List<Option>): Int = pickBest(group, options, noise) { o, k -> scoreAt(group, o, k) }
+
+    /** [score] for option number [k], which also tells the direction: a herd on the move grazes on the way it was going. */
+    fun scoreAt(group: AnimalGroup, o: Option, k: Int): Float =
+        score(group, o) + if (!group.species.carnivore && headingMatches(group, k)) HEADING else 0f
 
     /** How much [group] wants to go to [o], before noise; higher is better. */
     fun score(group: AnimalGroup, o: Option): Float {

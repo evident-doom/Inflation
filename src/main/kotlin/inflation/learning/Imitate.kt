@@ -76,7 +76,7 @@ class Recorder(private val baseline: BaselinePolicy) : Policy {
                 Features.encode(group, o, k, f)
                 rec[at] = 1f
                 f.copyInto(rec, at + 1)
-                rec[at + 1 + Features.SIZE] = baseline.score(group, o)
+                rec[at + 1 + Features.SIZE] = baseline.scoreAt(group, o, k)
             }
             data.getValue(s) += rec
         }
@@ -89,8 +89,8 @@ class Recorder(private val baseline: BaselinePolicy) : Policy {
 }
 
 object Imitation {
-    /** Options per decision: stay and eight directions. */
-    const val SLOTS = 9
+    /** Options per decision: all the candidates a group weighs. */
+    const val SLOTS = 28
     /** Per option: valid flag, features, target score. */
     const val STRIDE = 1 + Features.SIZE + 1
     val SIZES = intArrayOf(Features.SIZE, 32, 32, 1)

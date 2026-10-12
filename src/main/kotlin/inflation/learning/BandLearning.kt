@@ -122,7 +122,7 @@ class BandRecorder(private val baseline: BaselinePolicy, private val date: () ->
                 BandFeatures.encode(group, o, k, d, f)
                 rec[at] = 1f
                 f.copyInto(rec, at + 1)
-                rec[at + 1 + BandFeatures.SIZE] = baseline.score(group, o)
+                rec[at + 1 + BandFeatures.SIZE] = baseline.scoreAt(group, o, k)
             }
             data += rec
         }

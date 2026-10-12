@@ -554,6 +554,7 @@ class Ecology(private val sim: Simulation) {
      */
     private fun keepTerritory(g: AnimalGroup) {
         val s = g.species
+        if (Catalogue.resident(s)) { g.homeX = g.x; g.homeY = g.y; return }
         if (!s.carnivore) {
             // A herd that has left its home range (on its season's trek, or driven off) makes a new one where it is.
             // A new herd (split off, or one that has left its range) roams until it finds ground no
@@ -579,8 +580,34 @@ class Ecology(private val sim: Simulation) {
         g.homeX += HOME_DRIFT * (g.x - g.homeX); g.homeY += HOME_DRIFT * (g.y - g.homeY)
     }
 
+    /**
+     * A young resident herd leaves its mother's range for the least crowded side within a few ranges,
+     * and makes its home there: this is how resident kinds spread into empty ground.
+     */
+    private fun disperse(g: AnimalGroup, rnd: Random) {
+        val r = rangeKm(g.species)
+        var bestX = g.x; var bestY = g.y; var best = Int.MAX_VALUE
+        val near = ArrayList<AnimalGroup>()
+        val start = rnd.nextInt(8)
+        for (j in 0 until 8) {
+            val dir = (start + j) % 8
+            val d = r * (DISPERSE_MIN + (DISPERSE_MAX - DISPERSE_MIN) * rnd.nextFloat())
+            val x = g.x + COS[dir] * d / cellKm; val y = g.y + SIN[dir] * d / cellKm
+            if (x < 0 || y < 0 || !grid.inBounds(x.toInt(), y.toInt())) continue
+            val c = grid.index(x.toInt(), y.toInt())
+            if (!sim.vegetation.isVegetated(c) || waterKm[c] > g.species.maxWaterKm) continue
+            near.clear(); collect(g.species, x, y, r, near)
+            val crowd = near.sumOf { it.size }
+            if (crowd < best) { best = crowd; bestX = x; bestY = y }
+        }
+        g.x = bestX; g.y = bestY; g.homeX = bestX; g.homeY = bestY
+    }
+
     /** Radius of a herd's home range, km: a little more than one week's range around its centre. */
     private fun homeRangeKm(g: AnimalGroup) = HOME_RANGE * g.rangeKm
+
+    /** Whether hunger, thirst, cold or heat press [g] to shift its range. */
+    private fun needy(g: AnimalGroup) = g.lastIntakeRatio < RESIDENT_HUNGER || g.daysWithoutWater > 0.5f * g.species.daysWithoutWater || g.thermal > 0.2f
 
     /** Whether hunger, thirst or a recent attack has [g] ready to leave the ground it knows. */
     private fun roused(g: AnimalGroup) = g.lastIntakeRatio < STARVING || g.alert > 0 || g.daysWithoutWater > 0.5f * g.species.daysWithoutWater
@@ -933,6 +960,9 @@ class Ecology(private val sim: Simulation) {
             val dirs = if (ring == 0) 1 else 8
             for (dir in 0 until dirs) {
                 if (ring == 3 && (reach <= 3f * r || !restless)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
+                // A resident herd lives where it is: it shifts a short way only when hunger, thirst, cold or
+                // heat press it; frightened, it hides where it is rather than run.
+                if (ring > 0 && Catalogue.resident(s) && (ring > 1 || !needy(g))) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
                 // A herd that is only frightened scatters and hides nearby; only on open plains does it run farther.
                 if (ring == 2 && !s.carnivore && g.alert > 0 && g.lastIntakeRatio >= MARCH_HUNGER && g.daysWithoutWater <= 0.5f * s.daysWithoutWater &&
                     terrain.ruggedness[cellOf(g)] + cover(cellOf(g)) > OPEN_GROUND) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
@@ -1003,7 +1033,7 @@ class Ecology(private val sim: Simulation) {
         // The season's range: a week's march towards where it remembers doing well in the coming weeks.
         val m = seasonAhead()
         val sx = g.seasonX[m]; val sy = g.seasonY[m]
-        if (sx.isNaN() || (s.carnivore && !s.human)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
+        if (sx.isNaN() || (s.carnivore && !s.human) || Catalogue.resident(s)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
         val dx = sx - g.x; val dy = sy - g.y
         val toGo = (dist(dx, dy) * cellKm).toFloat()
         if (toGo < r) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
@@ -2623,6 +2653,7 @@ class Ecology(private val sim: Simulation) {
             child.lineage = g.lineage?.copyOf(); child.inbred = g.inbred
             child.campWeeks = 0
             child.homeX = Double.NaN; child.homeY = Double.NaN // the young disperse and look for ground of their own
+            if (Catalogue.resident(g.species)) disperse(child, rnd)
             child.making = g.making?.copyOf()
             child.traditions = g.traditions?.copyOf(); child.prosper = g.prosper; child.grudge = g.grudge?.copyOf()
             child.words = g.words?.copyOf()
@@ -2748,6 +2779,10 @@ class Ecology(private val sim: Simulation) {
         const val HOME_RANGE = 1.5f
         /** Intake below which a herd will weigh a forced march to new country. */
         const val MARCH_HUNGER = 0.6f
+        /** Intake below which a resident herd shifts its range; how far young residents disperse, in ranges. */
+        const val RESIDENT_HUNGER = 0.5f
+        const val DISPERSE_MIN = 1.5f
+        const val DISPERSE_MAX = 4f
         /** Weeks a herd off its range still means to return; how strongly it is drawn home. */
         const val HOME_MEMORY_WEEKS = 8
         const val HOME_PULL = 0.4f
