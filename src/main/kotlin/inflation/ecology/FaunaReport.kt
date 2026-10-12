@@ -54,6 +54,9 @@ fun main(args: Array<String>) {
             println("   hunters " + Catalogue.predators.joinToString { "${it.name} ${e.killsByPredator[it] ?: 0} kills, ${e.stolen[it] ?: 0} stolen" })
             println("   cond   " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(if (gs.isEmpty()) 0f else gs.map { it.condition }.average().toFloat()) })
             println("   young% " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(gs.sumOf { it.young }.toFloat() / max(1, gs.sumOf { it.size })) })
+            println("   intake " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(if (gs.isEmpty()) 0f else gs.map { it.lastIntakeRatio }.average().toFloat()) })
+            println("   watch  " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(if (gs.isEmpty()) 0f else gs.map { it.posture }.average().toFloat()) })
+            println("   seasonkm " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s && !it.seasonX[1].isNaN() && !it.seasonX[7].isNaN() }; "%9.0f".format(if (gs.isEmpty()) 0.0 else gs.map { kotlin.math.hypot((it.seasonX[1] - it.seasonX[7]).toDouble(), (it.seasonY[1] - it.seasonY[7]).toDouble()) * world.grid.cellKm }.average()) })
             println("   march% " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(gs.count { it.marching }.toFloat() / max(1, gs.size)) })
             val cells = (0 until world.grid.size).filter { sim.vegetation.isVegetated(it) }
             println("   water  land with drinking water %.0f%%, within 5 km %.0f%%, mean wetness %.2f".format(
@@ -66,5 +69,6 @@ fun main(args: Array<String>) {
     println("%.0f ms per step".format((System.nanoTime() - t0) / 1e6 / (years * 4 * stepsPerSeason)))
     println("time: " + listOf("weather", "eruptions", "water", "vegetation", "ecology").zip(sim.timings.toList())
         .joinToString { (k, ns) -> "%s %.0f ms".format(k, ns / 1e6 / (years * 4 * stepsPerSeason)) } + " per step")
+    println("ecology: " + e.timings.entries.joinToString { (k, ns) -> "%s %.0f ms".format(k, ns / 1e6 / (years * 4 * stepsPerSeason)) } + " per step")
     sim.log.filter { "wolf" !in it }.takeLast(10).forEach(::println)
 }

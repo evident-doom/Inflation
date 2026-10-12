@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import kotlin.math.min
+
 /**
  * A herd, pack or flock: the unit that decides. Individuals are counted, not tracked:
  * adults and young (below maturity). [x], [y] are in cells, fractional.
@@ -18,7 +20,33 @@ class AnimalGroup(
     var daysWithoutWater = 0f
     /** Share of yesterday's food that was fresh and moist (green growth, roots, meat) rather than dry. */
     var freshShare = 1f
-    /** Days the group stays on alert after being attacked: watchful, skittish and hard to approach. */
+    /** Radius of the range it roams this week, km, around its centre [x], [y]. */
+    var rangeKm = 3f
+    /** From roaming freely (0) to bunched up, watchful and ready to defend (1), this week. */
+    var posture = 0f
+    /**
+     * Its map of the seasons: for each month, the centre of the range where it (or the herd it came
+     * from) has done best then, in fine cells, and how good it was there (0..1). NaN where unknown.
+     * Passed on when the group splits; lost when the lineage dies.
+     */
+    val seasonX = FloatArray(12) { Float.NaN }
+    val seasonY = FloatArray(12) { Float.NaN }
+    val seasonQ = FloatArray(12)
+    /** How well it has fed lately, 0..1: food and its quality, a few weeks' memory. */
+    var fare = 0.8f
+    /** First month of its birth season: starts at the species' and drifts towards the best food. */
+    var birthMonth = -1
+    /** Remembered quality of food in each month of the year, 0..1. */
+    val foodByMonth = FloatArray(12) { 0.7f }
+    /** Heat or cold stress this week: degrees outside its comfort range / 10. */
+    var thermal = 0f
+    /** Winter coat grown, 0 (summer coat) to 1 (full winter coat). */
+    var coat = 0f
+    /** Share of this week spent walking rather than grazing, 0..1: from how far beyond its usual drift it moved. */
+    var walking = 0f
+    /** Km its centre moved this week. */
+    var movedKm = 0f
+    /** Weeks the group stays on alert after being attacked: watchful, skittish and hard to approach. */
     var alert = 0
     /** On a march today: covering long distances and eating little (see [Ecology]). */
     var marching = false
@@ -63,6 +91,13 @@ class Option(
     val rugged: Float,
     /** Wetness there, 0 (dry upland) to 1 (marsh, floodplain). */
     val wet: Float,
+    /** Heat or cold stress there for this group, 0 (comfortable) upward: degrees outside its comfort range / 10. */
+    val thermal: Float = 0f,
+    /**
+     * Pull of the season, 0..1: how much better the place it remembers for the coming weeks is than
+     * how it fares now, for the option that heads there; 0 for the others.
+     */
+    val pull: Float = 0f,
 )
 
 /** Chooses where a group goes today. Implementations: [BaselinePolicy]; learned networks later. */
@@ -90,14 +125,20 @@ class BaselinePolicy(
         var score = if (s.carnivore) 2f * o.prey + 0.2f * o.forage / (o.forage + 100f) - 1.5f * o.kin - 2f * o.danger
             // Each kind keeps to its own ground: gazelles open plains, ibex cliffs, boar thickets.
             // Big, well-armed animals fear predators less.
-            else o.forage / (o.forage + 50f) - 3f * (1f - s.defence) * o.danger - 0.3f * o.kin +
+            // A hungry herd accepts more danger for food.
+            else o.forage / (o.forage + 50f) - 3f * (1f - s.defence) * (0.3f + 0.7f * group.condition) * o.danger - 0.3f * o.kin +
                 0.3f * (h.cover * o.cover + h.rugged * o.rugged + h.wet * o.wet)
         if (o.snowMm > s.snowLimitMm) score -= 1f
+        // Head for the season's range when it promises much better than here.
+        score += 1.5f * o.pull
+        // Out of the cold or the heat: up the valley in summer, down in winter.
+        score -= 0.5f * min(2f, o.thermal)
         // Keep within a few days' walk of water, more so the longer since the last drink.
         val urgency = group.daysWithoutWater / s.daysWithoutWater
         score -= (0.02f + 0.3f * urgency) * o.waterKm / s.dailyTravelKm
         if (thirsty) score -= 0.2f * o.waterKm
-        score -= 0.01f * o.km // moving costs energy
+        // Shifting the range costs energy, and a long march costs most of a week's grazing.
+        score -= 0.1f * o.km / s.dailyTravelKm
         return score
     }
 }

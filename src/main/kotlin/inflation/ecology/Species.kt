@@ -59,6 +59,8 @@ class Species(
     /** Birth season: first month (0-based) and length in months. */
     val birthMonth: Int,
     val birthMonths: Int,
+    /** Litters a year in good years: small breeders fit in several. */
+    val littersPerYear: Int = 1,
     /** Young per adult female per year in good condition. */
     val youngPerFemale: Float,
     val yearsToMaturity: Float,
@@ -97,6 +99,13 @@ class Species(
     val territoryKm: Float = 3f,
     /** For predators: land per animal at the start, km². */
     val startKm2PerAnimal: Float = 0f,
+    /**
+     * Weekly mean air temperatures it is comfortable in, °C. Outside them it needs more food and
+     * the young and weak die; a [winterCoat] stretches the cold end as it grows in.
+     */
+    val comfortC: ClosedFloatingPointRange<Float> = -10f..30f,
+    /** Grows a winter coat in the cold months, worth about 10 °C of cold, shed in spring. */
+    val winterCoat: Boolean = false,
     /** Top running speed, km/h: in a chase, a courser must outrun its prey; a stalker needs only surprise. */
     val speedKmh: Float = 60f,
     /** Keeps within this distance of drinking water, km (hippos graze at night near their river). */
@@ -144,6 +153,7 @@ object Catalogue {
         birthMonth = 1, birthMonths = 2, youngPerFemale = 1f, yearsToMaturity = 1f,
         backgroundMortality = 0.08f, snowLimitMm = 40f, flightKm = 1f, dangerToHumans = 0f,
         products = Products(meat = 9f, fat = 0.5f, hide = 1.2f, bone = 2.5f, sinew = 0.2f, hornOrAntler = 0.3f),
+        comfortC = 5f..36f, 
         speedKmh = 80f,
         domestication = floatArrayOf(0.6f, 0.6f, 0.2f, 0.5f, 0.05f, 0.2f), // panics and leaps fences
         habitat = Habitat(cover = -1f, wet = -0.5f),
@@ -159,6 +169,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 1, youngPerFemale = 1.6f, yearsToMaturity = 1f,
         backgroundMortality = 0.12f, snowLimitMm = 150f, flightKm = 0.2f, dangerToHumans = 0f,
         products = Products(meat = 12f, fat = 0.5f, hide = 1.5f, bone = 3f, sinew = 0.2f, hornOrAntler = 0.3f),
+        comfortC = -8f..25f, winterCoat = true,
         speedKmh = 70f,
         domestication = floatArrayOf(0.4f, 0.6f, 0.1f, 0.3f, 0.1f, 0.1f),
         habitat = Habitat(cover = 0.6f),
@@ -174,6 +185,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 1.5f,
         backgroundMortality = 0.1f, snowLimitMm = 150f, flightKm = 0.4f, dangerToHumans = 0f,
         products = Products(meat = 32f, fat = 2f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 2f),
+        comfortC = -5f..28f, winterCoat = true,
         speedKmh = 65f,
         domestication = floatArrayOf(0.5f, 0.5f, 0.4f, 0.4f, 0.3f, 0.4f), // kept in parks, never domesticated
         habitat = Habitat(cover = 0.3f),
@@ -190,6 +202,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.08f, snowLimitMm = 300f, flightKm = 0.5f, dangerToHumans = 0.05f,
         products = Products(meat = 75f, fat = 6f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 5f),
+        comfortC = -12f..25f, winterCoat = true,
         speedKmh = 70f,
         domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.3f, 0.2f, 0.3f),
         habitat = Habitat(cover = 0.5f, rugged = 0.2f),
@@ -206,6 +219,7 @@ object Catalogue {
         birthMonth = 1, birthMonths = 1, youngPerFemale = 1.1f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.1f, snowLimitMm = 300f, flightKm = 0.5f, dangerToHumans = 0f,
         products = Products(meat = 28f, fat = 1.5f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 4f),
+        comfortC = -12f..30f, winterCoat = true,
         speedKmh = 55f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.4f, 0.4f, 0.4f, 0.6f), // its cousin became the goat
         habitat = Habitat(cover = -0.3f, rugged = 1f),
@@ -219,10 +233,11 @@ object Catalogue {
         groupSize = 6, maxGroupSize = 20,
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 2, waterFromFood = 0.4f,
-        birthMonth = 1, birthMonths = 2, youngPerFemale = 4f, yearsToMaturity = 1.5f,
+        birthMonth = 1, birthMonths = 2, littersPerYear = 2, youngPerFemale = 4f, yearsToMaturity = 1.5f,
         backgroundMortality = 0.2f, youngMortality = 0.6f,
         snowLimitMm = 200f, flightKm = 0.2f, dangerToHumans = 0.3f,
         products = Products(meat = 45f, fat = 8f, hide = 5f, bone = 9f, sinew = 0.5f, hornOrAntler = 0.5f),
+        comfortC = -8f..30f, winterCoat = true,
         speedKmh = 45f,
         domestication = floatArrayOf(0.9f, 0.9f, 0.8f, 0.4f, 0.6f, 0.6f), // became the pig
         habitat = Habitat(cover = 0.8f, wet = 0.6f),
@@ -240,6 +255,7 @@ object Catalogue {
         birthMonth = 1, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 3f,
         backgroundMortality = 0.06f, snowLimitMm = 300f, flightKm = 0.3f, dangerToHumans = 0.5f,
         products = Products(meat = 370f, fat = 40f, hide = 40f, bone = 80f, sinew = 4f, hornOrAntler = 6f),
+        comfortC = -12f..28f, winterCoat = true,
         speedKmh = 50f,
         domestication = floatArrayOf(0.8f, 0.5f, 0.7f, 0.2f, 0.4f, 0.9f), // became cattle
         habitat = Habitat(cover = 0.1f, rugged = -0.5f, wet = 0.8f),
@@ -256,6 +272,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2f,
         backgroundMortality = 0.05f, snowLimitMm = 150f, flightKm = 1f, dangerToHumans = 0.1f,
         products = Products(meat = 110f, fat = 8f, hide = 15f, bone = 25f, sinew = 2f),
+        comfortC = -8f..38f, winterCoat = true,
         speedKmh = 70f,
         domestication = floatArrayOf(0.7f, 0.4f, 0.3f, 0.1f, 0.2f, 0.4f), // too wild to tame; the donkey came from Africa
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.1f), // shuns marsh, not the water's edge
@@ -275,6 +292,7 @@ object Catalogue {
         birthMonth = 3, birthMonths = 4, youngPerFemale = 0.4f, yearsToMaturity = 5f,
         backgroundMortality = 0.04f, snowLimitMm = 20f, flightKm = 0.1f, dangerToHumans = 0.9f,
         products = Products(meat = 600f, fat = 80f, hide = 100f, bone = 150f, sinew = 5f, hornOrAntler = 3f),
+        comfortC = 14f..36f, 
         speedKmh = 30f,
         domestication = floatArrayOf(0.6f, 0.2f, 0.2f, 0.0f, 0.1f, 0.3f),
         habitat = Habitat(cover = -0.2f, rugged = -1f, wet = 1f),
@@ -295,6 +313,7 @@ object Catalogue {
         birthMonth = 1, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
         backgroundMortality = 0.15f, snowLimitMm = 400f, flightKm = 0.3f, dangerToHumans = 0.2f,
         products = Products(meat = 9f, fat = 0.4f, hide = 1.5f, bone = 2.2f, sinew = 0.2f, fur = true),
+        comfortC = -20f..30f, winterCoat = true,
         speedKmh = 60f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.6f, 0.4f, 0.6f, 0.9f), // became the dog
         packLitter = 4,
@@ -310,11 +329,12 @@ object Catalogue {
         name = "lion", massKg = 150f,
         diet = Diet(meat = 0.9f, carrion = 0.1f),
         groupSize = 5, maxGroupSize = 12,
-        dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 8f,
+        dailyTravelKm = 12f, maxDailyTravelKm = 30f, senseKm = 8f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
         birthMonth = 2, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 3f,
         backgroundMortality = 0.1f, snowLimitMm = 200f, flightKm = 0.2f, dangerToHumans = 0.9f,
         products = Products(meat = 60f, fat = 5f, hide = 8f, bone = 18f, sinew = 1f, fur = true),
+        comfortC = 0f..38f, 
         speedKmh = 60f,
         domestication = floatArrayOf(0.1f, 0.4f, 0.2f, 0.0f, 0.3f, 0.5f),
         habitat = Habitat(cover = -0.2f, rugged = -0.3f),
@@ -335,6 +355,7 @@ object Catalogue {
         birthMonth = 3, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.07f, snowLimitMm = 300f, flightKm = 0.3f, dangerToHumans = 0.4f,
         products = Products(meat = 18f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
+        comfortC = -8f..35f, 
         speedKmh = 58f,
         domestication = floatArrayOf(0.1f, 0.4f, 0.1f, 0.0f, 0.2f, 0.0f),
         habitat = Habitat(cover = 0.7f, rugged = 0.6f),
@@ -355,6 +376,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
         backgroundMortality = 0.07f, snowLimitMm = 200f, flightKm = 0.5f, dangerToHumans = 0.1f,
         products = Products(meat = 14f, fat = 1f, hide = 2.5f, bone = 4f, sinew = 0.2f, fur = true),
+        comfortC = 0f..38f, 
         speedKmh = 50f,
         domestication = floatArrayOf(0.8f, 0.3f, 0.2f, 0.3f, 0.3f, 0.2f),
         habitat = Habitat(rugged = 0.3f),
@@ -375,6 +397,7 @@ object Catalogue {
         birthMonth = 2, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 1f,
         backgroundMortality = 0.25f, snowLimitMm = 150f, flightKm = 0.5f, dangerToHumans = 0f,
         products = Products(meat = 4f, fat = 0.2f, hide = 0.6f, bone = 1f, sinew = 0.1f, fur = true),
+        comfortC = -5f..38f, winterCoat = true,
         speedKmh = 45f,
         domestication = floatArrayOf(0.8f, 0.6f, 0.4f, 0.4f, 0.4f, 0.6f),
         habitat = Habitat(cover = 0.2f, wet = 0.2f),
