@@ -857,6 +857,7 @@ class Ecology(private val sim: Simulation) {
             else ((s.diet.grass * mGraze.box(box.x0, box.y0, box.x1, box.y1) * worth(s, foodQuality(0, box)) + s.diet.browse * mBrowse.box(box.x0, box.y0, box.x1, box.y1) +
                 s.diet.roots * mRoots.box(box.x0, box.y0, box.x1, box.y1) + s.diet.fruit * mFruit.box(box.x0, box.y0, box.x1, box.y1)) / plantDiet(s)).toFloat() / areaKm2
         val boxKm2 = box.cells * COARSE_KM * COARSE_KM
+        val fed = if (s.carnivore) forage else forage * tether(s, waterHere)
         // Enemies: their mass per km² over the range, against this group's own mass.
         val enemyKg = mDanger[s.index].box(box.x0, box.y0, box.x1, box.y1)
         val enemyDensity = (enemyKg / boxKm2).toFloat()
@@ -870,7 +871,7 @@ class Ecology(private val sim: Simulation) {
         val kin = kinDensity / (kinDensity + s.groupSize / (3.14f * r * r))
         // Effort to shift the range there: distance times the ground's travel cost along the way.
         val effort = if (d == 0f) 0f else d * pathCost(g.x, g.y, x, y) / days
-        return Option(centre, effort, forage, danger, prey, kin, if (waterCells > 0f) 0f else waterHere,
+        return Option(centre, effort, fed, danger, prey, kin, if (waterCells > 0f) 0f else waterHere,
             mSnow.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land, mCover.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land,
             mRugged.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land, mWet.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land,
             // Now and, as far as it can sense it, next week.
@@ -957,9 +958,11 @@ class Ecology(private val sim: Simulation) {
             val appetite = (1f - (1f - MARCH_APPETITE) * g.walking) * (1f - POSTURE_FEED_COST * g.posture)
             // Room to fatten: more in late summer and autumn, when animals eat all they can before winter.
             val fatten = if (g.fat < s.maxFatDays) (if (autumn) FATTEN_AUTUMN else FATTEN) else 0f
-            want[h] = if (sim.weather.snowpack[c] > s.snowLimitMm) 0f else g.dailyNeedKg * days * appetite * (1f + fatten)
             val box = boxes[h]
             box.set(maps, g.x, g.y, g.rangeKm)
+            // Animals that must drink often spend the week walking to water, not grazing far from it.
+            val waterKmHere = (mWaterKm.box(box.x0, box.y0, box.x1, box.y1) / max(1.0, mLand.box(box.x0, box.y0, box.x1, box.y1))).toFloat()
+            want[h] = if (sim.weather.snowpack[c] > s.snowLimitMm) 0f else g.dailyNeedKg * days * appetite * (1f + fatten) * tether(s, waterKmHere)
             for (k in 0..3) offered[h][k] = if (diet(s)[k] > 0f) reachable(s, stocks[k], box) else 0f
             split(s, want[h], offered[h], split[h])
         }
@@ -1052,6 +1055,18 @@ class Ecology(private val sim: Simulation) {
             g.freshShare = if (food > 0f) fresh / food else 0f
             feed(g, food / (g.dailyNeedKg * days))
         }
+    }
+
+    /**
+     * Share of a range's food that [s] can use when its water is [waterKm] away on average: grazers
+     * that must drink every day or two graze out from water and back, and leave the far country to
+     * animals that live on dew and the water in their food (gazelle, oryx, camels).
+     */
+    private fun tether(s: Species, waterKm: Float): Float {
+        if (s.maxWaterKm.isFinite()) return 1f // already kept beside its water (hippos)
+        val reachKm = s.dailyTravelKm * s.daysWithoutWater / 4f * (1f + 10f * s.waterFromFood * s.waterFromFood)
+        val r = waterKm / reachKm
+        return 1f / (1f + r * r)
     }
 
     /** Quality of food kind [k] (grass, browse, roots, fruit) over [box], 0..1. */
