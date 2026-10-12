@@ -78,6 +78,14 @@ class AnimalGroup(
     var forageCraft: FloatArray? = null
     /** For people: nuts, seeds, dried roots and fruit laid by for the lean season, kg. */
     var larder = 0f
+    /** For people: how many of the [adults] are elders past bearing children (grandmothers and grandfathers). */
+    var elders = 0
+    /**
+     * For people: the band's descent, as shares of a few founding lineages (summing to 1), and how
+     * inbred its children are (the inbreeding coefficient, 0 = unrelated parents, 0.25 = siblings).
+     */
+    var lineage: FloatArray? = null
+    var inbred = 0f
     val size: Int get() = adults + young
     val alive: Boolean get() = size > 0
     /** Body mass of the group, kg; young count as half. */

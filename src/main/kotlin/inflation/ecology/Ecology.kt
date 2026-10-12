@@ -432,6 +432,9 @@ class Ecology(private val sim: Simulation) {
                 val q = Catalogue.all[k]
                 if (q.carnivore) 0f else (0.2f + 0.6f * suitability(q, cell)).coerceIn(0f, 1f)
             }
+            group.elders = (group.adults * 0.15f).toInt()
+            // Neighbouring bands share descent; distant ones do not.
+            group.lineage = FloatArray(LINEAGES).also { it[((grid.x(cell) / (LINEAGE_KM / cellKm)).toInt() + 7 * (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt()) % LINEAGES] = 1f }
             group.forageCraft = FloatArray(Forage.entries.size) { f ->
                 when (Forage.entries[f]) {
                     Forage.FRUIT, Forage.ROOTS, Forage.SMALL_GAME -> 0.6f
@@ -1240,7 +1243,7 @@ class Ecology(private val sim: Simulation) {
         val need = g.dailyNeedKg * days
         var free = days.toFloat()
         free -= meetEnemies(g, r)
-        if (g.alive) free -= meetRivals(g, r)
+        if (g.alive) free -= if (s.human) { meetBands(g, r); 0f } else meetRivals(g, r)
         if (g.adults == 0) return
         // Carrion first, up to its share of the diet: a scavenger finds most of its food this way.
         if (g.stored < need) g.stored += scavenge(c, s.diet.carrion * need)
@@ -1335,6 +1338,34 @@ class Ecology(private val sim: Simulation) {
             if (v.herb[i] > bestGrass) { bestGrass = v.herb[i]; best = i }
         }
         if (best >= 0) v.ignite(best)
+    }
+
+    /**
+     * Two bands whose ranges overlap meet now and then. Young people marry out: a few adults move
+     * each way, bringing their descent and their skills; the children of the next generation are
+     * less inbred for it. Bands that never meet others pay in dead children and lost skills.
+     */
+    private fun meetBands(g: AnimalGroup, r: Random) {
+        val (o, d) = nearest(g.species, g.x, g.y, g.rangeKm * 2f, except = g)
+        if (o == null || o.adults < 2 || g.adults < 2) return
+        if (r.nextFloat() >= MARRY_WEEKLY * overlap(d, g.rangeKm, o.rangeKm)) return
+        val la = g.lineage ?: return; val lb = o.lineage ?: return
+        // One young adult moves each way: their share of each band.
+        val ma = 1f / g.adults; val mb = 1f / o.adults
+        val kin = la.indices.sumOf { (la[it] * lb[it]).toDouble() }.toFloat()
+        val inA = g.inbred; val inB = o.inbred
+        g.inbred = (1f - ma) * inA + ma * OUTSIDER_KIN * kin
+        o.inbred = (1f - mb) * inB + mb * OUTSIDER_KIN * kin
+        val a0 = la.copyOf()
+        for (k in la.indices) { la[k] += ma * (lb[k] - la[k]); lb[k] += mb * (a0[k] - lb[k]) }
+        // Partners bring what they know how to do.
+        fun learnFrom(to: FloatArray?, from: FloatArray?, m: Float) {
+            if (to == null || from == null) return
+            for (k in to.indices) if (from[k] > to[k]) to[k] += m * (from[k] - to[k])
+        }
+        val ca = g.craft?.copyOf(); val fa = g.forageCraft?.copyOf()
+        learnFrom(g.craft, o.craft, ma); learnFrom(g.forageCraft, o.forageCraft, ma)
+        learnFrom(o.craft, ca, mb); learnFrom(o.forageCraft, fa, mb)
     }
 
     /** Whether any band's range overlaps [g]'s. */
@@ -1807,6 +1838,7 @@ class Ecology(private val sim: Simulation) {
             val s = g.species
             val c = cellOf(g)
             val fit = ((g.condition - 0.3f) / 0.4f).coerceIn(0f, 1f)
+            g.elders = min(g.elders, g.adults) // losses elsewhere (hunting accidents, attacks) fall on any adult
             // The group remembers how good each month's food was, and over the years shifts its
             // births towards the months that feed mothers and young best.
             if (g.birthMonth < 0) g.birthMonth = s.birthMonth
@@ -1821,13 +1853,21 @@ class Ecology(private val sim: Simulation) {
                     if (firstStepOfMonth && date.month == start && g.adults >= 2) (s.packLitter * fit + r.nextFloat()).toInt() else 0
                 } else {
                     val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                    binomial(g.adults, 0.5f * s.youngPerFemale / s.littersPerYear * fit / stepsInSeason, r)
+                    // Grandmothers feed the weaned children, so mothers can wean sooner and bear again.
+                    val mothers = g.adults - g.elders
+                    val help = if (s.human) 1f + GRANDMOTHERS * min(1f, g.elders * ELDER_MOTHERS / max(1, mothers).toFloat()) else 1f
+                    binomial(mothers, 0.5f * s.youngPerFemale * help / s.littersPerYear * fit / stepsInSeason, r)
                 }
                 g.young += born; birthCount.addAndGet(born)
             }
-            // Growing up.
+            // Growing up, and for people growing old: adults become elders after some decades.
             val matured = binomial(g.young, years / s.yearsToMaturity, r)
             g.young -= matured; g.adults += matured
+            if (s.human) {
+                g.elders += binomial(g.adults - g.elders, years / ADULT_YEARS, r)
+                // Inbreeding builds up in a band that marries within itself.
+                g.inbred += (1f - g.inbred) * years / (GENERATION_YEARS * 2f * max(1, g.adults))
+            }
             // Deaths: background, hunger, and the world.
             var pAdult = s.backgroundMortality * years
             if (g.condition < 0.2f) pAdult += 0.15f
@@ -1855,8 +1895,14 @@ class Ecology(private val sim: Simulation) {
             pAdult += THERMAL_DEATHS * years * stress * (1.5f - g.condition)
             // Eagles take the young of the smaller hoofed animals in the open.
             val eagle = if (!s.carnivore && s.massKg <= 80f) EAGLE_RATE * years * eagles[c] * (1f - cover(c)) else 0f
-            val pYoung = min(1f, pAdult + s.youngMortality * years + 0.1f * hunger + eagle + THERMAL_DEATHS * years * stress)
-            val deadA = binomial(g.adults, pAdult, r)
+            // People: grandmothers keep children fed and watched; inbred children die more often.
+            val careOfElders = if (s.human) 1f - ELDER_CARE * min(1f, g.elders * ELDER_MOTHERS / max(1, g.adults - g.elders).toFloat()) else 1f
+            val inbreeding = if (s.human) INBREEDING_DEATHS * g.inbred * years else 0f
+            val pYoung = min(1f, pAdult + s.youngMortality * years * careOfElders + inbreeding + 0.1f * hunger + eagle + THERMAL_DEATHS * years * stress)
+            // Elders die faster than adults in their prime.
+            val deadE = if (s.human) binomial(g.elders, min(1f, pAdult + ELDER_DEATHS * years), r) else 0
+            g.elders -= deadE; g.adults -= deadE
+            val deadA = binomial(g.adults - g.elders, pAdult, r) + deadE
             val deadY = binomial(g.young, pYoung, r)
             if (deadA + deadY > 0) {
                 val cause = when {
@@ -1872,7 +1918,7 @@ class Ecology(private val sim: Simulation) {
                 deathsBy.merge("${s.name}:$cause", deadA + deadY, Int::plus)
             }
             // A pack or herd without adults does not survive.
-            g.adults -= deadA
+            g.adults -= deadA - deadE
             val orphaned = if (g.adults == 0) g.young - deadY else 0
             if (orphaned > 0) deathsBy.merge("${s.name}:orphaned", orphaned, Int::plus)
             g.young -= deadY + orphaned
@@ -1898,9 +1944,11 @@ class Ecology(private val sim: Simulation) {
             child.fat = g.fat
             child.craft = g.craft?.copyOf(); child.forageCraft = g.forageCraft?.copyOf()
             child.wary = g.wary
-            // The stores are shared out by heads.
+            // The stores are shared out by heads, and the elders go with both halves.
             val share = child.size.toFloat() / (child.size + g.size).coerceAtLeast(1)
             child.larder = g.larder * share; g.larder -= child.larder
+            child.elders = min(child.adults, (g.elders * share).toInt()); g.elders = min(g.adults, g.elders - child.elders)
+            child.lineage = g.lineage?.copyOf(); child.inbred = g.inbred
             // A new group carries its parents' temper, give or take: the variation selection works on.
             child.bold = (g.bold * (0.8f + 0.4f * rnd.nextFloat())).coerceIn(0f, 1f)
             newcomers += child
@@ -1921,6 +1969,7 @@ class Ecology(private val sim: Simulation) {
                 if (other == null || other.size + g.size > s.maxGroupSize) continue
                 other.adults += g.adults; other.young += g.young
                 other.larder += g.larder; g.larder = 0f
+                other.elders += g.elders; g.elders = 0
                 g.adults = 0; g.young = 0
             }
         }
@@ -1988,6 +2037,26 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Founding lineages tracked in a band's descent, and the size of the blocks they start in, km. */
+        const val LINEAGES = 8
+        const val LINEAGE_KM = 150f
+        /** Years in a generation, for how fast inbreeding builds in a closed band. */
+        const val GENERATION_YEARS = 25f
+        /** Extra yearly deaths among children per unit of inbreeding (first cousins' children: F = 0.0625). */
+        const val INBREEDING_DEATHS = 0.3f
+        /** Kinship with a partner from another band, per unit of shared descent (about second cousins). */
+        const val OUTSIDER_KIN = 0.03f
+        /** Weekly chance that two bands whose ranges fully overlap meet and exchange partners. */
+        const val MARRY_WEEKLY = 0.1f
+        /** Years an adult spends bearing and raising children before becoming an elder. */
+        const val ADULT_YEARS = 30f
+        /** Extra yearly deaths among elders. */
+        const val ELDER_DEATHS = 0.05f
+        /** Mothers one elder can help. */
+        const val ELDER_MOTHERS = 3f
+        /** Most that grandmothers raise births, and cut children's deaths, when there are enough of them. */
+        const val GRANDMOTHERS = 0.3f
+        const val ELDER_CARE = 0.3f
         /** Days of food a band with full storing skill can keep. */
         const val LARDER_DAYS = 120f
         /** Share of stores lost each week to damp, mould and mice. */
