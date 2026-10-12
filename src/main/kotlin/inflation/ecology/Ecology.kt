@@ -917,7 +917,9 @@ class Ecology(private val sim: Simulation) {
     private fun gather(g: AnimalGroup, sc: Scratch) {
         val s = g.species
         val r = g.rangeKm
-        val restless = s.carnivore || g.lastIntakeRatio < 0.9f || g.daysWithoutWater > 0.5f * s.daysWithoutWater || g.thermal > 0.2f || g.alert > 0
+        // A forced march is for real need: hunger, thirst, cold or heat. A herd that is attacked flees a
+        // short way, not across the country.
+        val restless = s.carnivore || g.lastIntakeRatio < (if (s.human) 0.9f else MARCH_HUNGER) || g.daysWithoutWater > 0.5f * s.daysWithoutWater || g.thermal > 0.2f || (s.human && g.alert > 0)
         val reach = MARCH_SHARE * s.maxDailyTravelKm * days
         val options = sc.options
         options.clear()
@@ -2726,6 +2728,8 @@ class Ecology(private val sim: Simulation) {
         const val MARK_VACANT = 0.1f
         /** A herd's home range as a multiple of its weekly range radius. */
         const val HOME_RANGE = 1.5f
+        /** Intake below which a herd will weigh a forced march to new country. */
+        const val MARCH_HUNGER = 0.6f
         /** Extra yearly deaths among hunters without a territory of their own. */
         const val DISPERSAL_DEATHS = 0.4f
         /** How much harder a pack fights on its own ground. */

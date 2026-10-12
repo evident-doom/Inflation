@@ -324,7 +324,7 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
         if (f.fish[i] > 0f) appendLine("Fish %.0f kg/km²".format(f.fish[i]))
         if (f.shellfish[i] > 0f) appendLine("Shellfish %.0f kg/km²".format(f.shellfish[i]))
         if (f.run[i] > 0f) appendLine("SPAWNING RUN %.0f kg/km²".format(f.run[i]))
-        if (world.isSea[i]) { appendLine("Sea"); return@buildString }
+        if (world.isSea[i]) { appendLine("Sea"); nearby(x, y); return@buildString }
         appendLine("Rock ${world.geology.rock[i].name.lowercase()}, sediment %.0f m".format(world.geology.sediment[i]))
         appendLine("Potential biome ${world.biome[i].name.lowercase().replace('_', ' ')}")
         appendLine("Soil fertility %.2f".format(sim.vegetation.fertility[i]))
@@ -357,6 +357,14 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
             if (e.soil.carrion[i] > 0f) appendLine("Carcasses %.0f kg".format(e.soil.carrion[i] * grid.cellAreaM2))
             appendLine("Water %.0f km away".format(e.waterKm[i]))
         }
+        nearby(x, y)
+        world.volcanoes.firstOrNull { abs(it.x - x) <= 3 && abs(it.y - y) <= 3 }?.let {
+            appendLine("Volcano: ${it.kind.name.lowercase().replace('_', ' ')}, ${if (it.active) "active" else "extinct"}, %.1f Myr old".format(it.ageMyr))
+        }
+    }
+
+    /** The animal groups within 5 km of cell (x, y), by kind. */
+    private fun StringBuilder.nearby(x: Int, y: Int) {
         val a = synchronized(image) { animals }
         val near = IntArray(ALL_NAMES.size); val nearGroups = IntArray(ALL_NAMES.size)
         for (k in 0 until a.size / STRIDE) {
@@ -367,9 +375,6 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
         }
         if (nearGroups.any { it > 0 }) appendLine("Within 5 km: " + ALL_NAMES.indices.filter { nearGroups[it] > 0 }
             .joinToString(", ") { "${near[it]} ${ALL_NAMES[it]} (${nearGroups[it]} groups)" })
-        world.volcanoes.firstOrNull { abs(it.x - x) <= 3 && abs(it.y - y) <= 3 }?.let {
-            appendLine("Volcano: ${it.kind.name.lowercase().replace('_', ' ')}, ${if (it.active) "active" else "extinct"}, %.1f Myr old".format(it.ageMyr))
-        }
     }
 
     private fun apply(i: Int) {

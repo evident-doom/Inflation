@@ -371,7 +371,10 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
         val own = if (d == 0f) g.massKg else 0f
         val kin = max(0f, mOcc[s.index].box(box.x0, box.y0, box.x1, box.y1).toFloat() - own) / km2
         val crowd = kin / (kin + g.massKg / (3.14f * g.rangeKm * g.rangeKm))
-        return plenty - 2f * danger - 0.3f * crowd - 0.05f * d / (s.dailyKm * days) + 0.02f * noise(g.id, x, y)
+        // Shifting costs effort, and a fed school keeps to the water it knows rather than shuttling
+        // between two patches as each recovers.
+        val stay = if (d == 0f) SEA_FIDELITY * min(1f, g.lastIntake) else 0f
+        return plenty - 2f * danger - 0.3f * crowd - 0.15f * d / (s.dailyKm * days) + stay + 0.02f * noise(g.id, x, y)
     }
 
     private fun noise(id: Int, x: Double, y: Double): Float {
@@ -557,6 +560,8 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
         const val COARSE_KM = 8f
         /** A sea group's weekly range radius, in days' travel. */
         const val RANGE_FACTOR = 0.5f
+        /** How much a fed sea group prefers the water it is in to a new patch. */
+        const val SEA_FIDELITY = 0.15f
         /** How far from the shore coastal upwelling reaches, km (e-folding). */
         const val UPWELL_KM = 20f
         /** Nutrient supply added by full upwelling. */
