@@ -66,6 +66,17 @@ Dates and attributions here are from memory, not looked up. They should be check
 | Collecting shellfish and eggs | low tides expose shellfish beds; when birds lay | timing, finding | tide and moon lore | MP |
 | Game calls and disguise | imitated calls and skins draw animals close | voice, movement | animal knowledge | UP |
 
+### Each quarry and each food is its own skill
+The hunting methods above are general. On top of them, each band holds a skill per kind of quarry, and the same for foraging.
+- **Hunting each species.** Hunting ibex, gazelle, aurochs, boar, hare, waterfowl, fish or seals are separate skills, one per species in the simulation.
+  - *Knowing:* where and when it feeds, drinks, rests and moves; what it fears; which wind gives you away; how it defends itself (aurochs turn and charge, boar ambush, ibex climb out of reach); which method works on it; and how it behaves in each season and at each moon.
+  - *Doing:* approaching it on its own ground, the shot or thrust that drops it, and handling it when it fights back.
+  - Success against a species depends on the band's craft for that species, and every hunt of it, kill or miss, is practice.
+- **Foraging each food.** Acorns and nuts, wild cereals, bulbs and roots, fruit and berries, greens, mushrooms, honey, eggs, shellfish and insects are separate skills.
+  - *Knowing:* where each grows, when it is ripe, the look-alikes and poisons, and how much a patch yields before it needs rest.
+  - *Doing:* finding it quickly, harvesting without waste, and processing it (leaching acorns, threshing grain, digging bulbs).
+- **Craft gathers where a band lives.** A band that has wintered on acorns and gazelle for generations is expert at both and clumsy with fish. A band moving to new country has to relearn its quarry and plants, by practice and by talk with the bands already there.
+
 ### Butchery, food and fire
 | Skill | Knowing | Doing | Needs | Era |
 |---|---|---|---|---|
