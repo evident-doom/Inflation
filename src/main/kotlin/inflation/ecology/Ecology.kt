@@ -597,7 +597,18 @@ class Ecology(private val sim: Simulation) {
     private fun strength(s: Species, adults: Int) = s.massKg * adults * s.ferocity
 
     /** Fighting weight of group [g]: hungry, thirsty animals fight poorly. */
-    private fun strength(g: AnimalGroup) = strength(g.species, g.adults) * fitness(g)
+    private fun strength(g: AnimalGroup) = strength(g.species, g.adults) * fitness(g) * (if (g.species.human) armed(g) / g.species.ferocity else 1f)
+
+    /**
+     * Fighting weight per kg of [g], from its natural or made weapons: a predator's [Species.ferocity]
+     * (a lion's claws and jaws against a wolf's bite), or for people their spears and bows, without
+     * which they are no match for anything their size.
+     */
+    private fun armed(g: AnimalGroup): Float {
+        val s = g.species
+        val k = g.tools ?: return s.ferocity
+        return UNARMED_PEOPLE + (s.ferocity - UNARMED_PEOPLE) * k[Tool.SPEAR.ordinal] + 0.5f * k[Tool.BOW.ordinal]
+    }
 
     /** How fit [g] is to fight or run, 0.3..1: from its condition and thirst. */
     private fun fitness(g: AnimalGroup): Float {
@@ -1639,7 +1650,8 @@ class Ecology(private val sim: Simulation) {
         if (near.isEmpty()) return
         val contact = FloatArray(near.size) { overlap(kmBetween(g, near[it]), reachKm, near[it].rangeKm) }
         val chances = min(MAX_CHASES * free / days, CHASES_PER_CONTACT * free * contact.sum()).toInt()
-        val packKg = g.adults * s.massKg
+        // What the party brings to the fight: weight, times its weapons (teeth and claws, or spears and bows).
+        val packKg = g.adults * s.massKg * armed(g)
         val home = habitatMatch(s, cover(c), terrain.ruggedness[c], wetness[c])
         // Each herd's chances, worked out once for the week: for an adult and for a young one.
         val pAdult = FloatArray(near.size); val pYoung = FloatArray(near.size); val risk = FloatArray(near.size)
@@ -2216,6 +2228,8 @@ class Ecology(private val sim: Simulation) {
         const val INNOVATE = 0.01f
         /** Adult deaths left where a band practises medicine. */
         const val MEDICINE_SAVES = 0.8f
+        /** Fighting weight per kg of people with no weapons (a wolf is 1). */
+        const val UNARMED_PEOPLE = 0.3f
         /** Hunting success of a band with no weapons at all, against one fully armed with spears. */
         const val WEAPONLESS = 0.3f
         /** Extra hunting success from bows against the fastest quarry, in practised hands. */
