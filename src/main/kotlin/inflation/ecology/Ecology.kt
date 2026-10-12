@@ -128,6 +128,9 @@ class Ecology(private val sim: Simulation) {
     private val killCount = java.util.concurrent.atomic.AtomicInteger()
     private val deathCount = java.util.concurrent.atomic.AtomicInteger()
     val kills: Int get() = killCount.get()
+    /** Animals taken in kite drives since the start. */
+    private val kiteCount = java.util.concurrent.atomic.AtomicInteger()
+    val kiteKills: Int get() = kiteCount.get()
     private val birthCount = java.util.concurrent.atomic.AtomicInteger()
     val births: Int get() = birthCount.get()
     val deaths: Int get() = deathCount.get()
@@ -521,7 +524,7 @@ class Ecology(private val sim: Simulation) {
         timed("graze") { graze(); shapePlants() }
         timed("prowl") { prowlAll() }
         timed("drink") { for (g in groups) if (g.alive) drink(g) }
-        timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) { endure(g); g.wary *= WARY_KEEP; g.grudge?.let { gr -> for (k in gr.indices) gr[k] *= GRUDGE_KEEP }; g.words?.let { w -> driftWords(g, w) } } } }
+        timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) { endure(g); g.wary *= WARY_KEEP; g.grudge?.let { gr -> for (k in gr.indices) gr[k] *= GRUDGE_KEEP }; g.words?.let { w -> driftWords(g, w) }; g.renown *= RENOWN_KEEP } } }
         timed("fire") { for (g in groups) if (g.alive) flee(g) }
         timed("seasons") { groups.parallelStream().forEach { g -> if (g.alive && (!g.species.carnivore || g.species.human)) learnSeason(g) } }
     }
@@ -1308,6 +1311,7 @@ class Ecology(private val sim: Simulation) {
             larder(g, need, eaten).let { eaten += it }
             burnOff(g, r)
             explore(g, r)
+            buildKite(g, r)
             collectAndMake(g)
             claim(g)
             // Bones, offal and spoiled food go on the camp's midden, for jackals, wolves and vultures.
@@ -1360,8 +1364,17 @@ class Ecology(private val sim: Simulation) {
         val sg = fc[Forage.SMALL_GAME.ordinal]
         val c = cellOf(g)
         if (got < kg) {
-            val nets = 1f + NET_GAIN * (g.tools?.get(Tool.NET.ordinal) ?: 0f)
-            val caught = game.catch(c, (kg - got) / cellKm2 * nets * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * sg)) * cellKm2
+            // Snare lines and nets set across the range and checked every few days: more cells, more catch.
+            val snares = g.tools?.get(Tool.NET.ordinal) ?: 0f
+            val lines = 1 + (SNARE_LINES * snares).toInt()
+            var caught = 0f
+            for (k in 0 until lines) {
+                val cell = if (k == 0) c else {
+                    val a = k * 2.399; val d = g.rangeKm / cellKm * kotlin.math.sqrt(k.toDouble() / lines)
+                    grid.index((g.x + kotlin.math.cos(a) * d).toInt().coerceIn(0, grid.width - 1), (g.y + kotlin.math.sin(a) * d).toInt().coerceIn(0, grid.height - 1))
+                }
+                caught += game.catch(cell, (kg - got - caught) / lines / cellKm2 * (1f + snares) * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * sg)) * cellKm2
+            }
             if (caught > 0f) fc[Forage.SMALL_GAME.ordinal] += PRACTICE * (1f - sg)
             got += caught
         }
@@ -1408,6 +1421,7 @@ class Ecology(private val sim: Simulation) {
         if (r.nextFloat() >= MARRY_WEEKLY * overlap(d, g.rangeKm, o.rangeKm)) return
         if (fight(g, o, r)) return
         val understood = talk(g, o, r)
+        give(g, o); give(o, g)
         if (r.nextFloat() < understood) { imitate(g, o, r); imitate(o, g, r) }
         // Bands that share food give to the hungrier in bad times.
         if (g.holds(Tradition.SHARING) && o.holds(Tradition.SHARING)) {
@@ -1466,6 +1480,7 @@ class Ecology(private val sim: Simulation) {
         val herby = mGraze.box(box.x0, box.y0, box.x1, box.y1) / land
         val people = g.adults.toFloat()
         // What a few hands bring in a week, kg per adult, if the range has it.
+        g.places?.firstOrNull { it.kind == PlaceKind.ORNAMENT && dist(it.x - g.x, it.y - g.y) * cellKm < STONE_TRIP_KM }?.let { gd[Material.ORNAMENT.ordinal] += 0.005f * people }
         if (mStone.box(box.x0, box.y0, box.x1, box.y1) > 0.0) gd[Material.STONE.ordinal] += 1f * people
         // Otherwise a party fetches stone from a known outcrop within a few days' walk.
         else g.places?.firstOrNull { it.kind == PlaceKind.STONE && dist(it.x - g.x, it.y - g.y) * cellKm < STONE_TRIP_KM }?.let { gd[Material.STONE.ordinal] += 0.3f * people }
@@ -1568,12 +1583,28 @@ class Ecology(private val sim: Simulation) {
     }
 
     /**
+     * Gifts: a band with ornaments to spare gives some to the other. Giving wins renown, and the
+     * receivers let go of some of their grievance against the givers' people.
+     */
+    private fun give(giver: AnimalGroup, taker: AnimalGroup) {
+        val gd = giver.goods ?: return; val td = taker.goods ?: return
+        val spare = gd[Material.ORNAMENT.ordinal] - ORNAMENTS_KEPT * giver.adults
+        if (spare <= 0f) return
+        val gift = 0.5f * spare
+        gd[Material.ORNAMENT.ordinal] -= gift; td[Material.ORNAMENT.ordinal] += gift
+        giver.renown = min(1f, giver.renown + 0.1f * gift / (ORNAMENTS_KEPT * max(1, giver.adults)))
+        val gl = giver.lineage ?: return
+        taker.grudge?.let { gr -> for (k in gr.indices) gr[k] *= 1f - min(1f, gift / max(1, taker.adults)) * gl[k] }
+    }
+
+    /**
      * Cultural evolution at a meeting: [g] copies, now and then, a tradition from [o] if [o] has been
      * doing better, and drops one [o] lacks; and every band occasionally tries something new.
      */
     private fun imitate(g: AnimalGroup, o: AnimalGroup, r: Random) {
         val mine = g.traditions ?: return; val theirs = o.traditions ?: return
-        val better = o.prosper - g.prosper
+        // People copy the successful and the renowned.
+        val better = o.prosper - g.prosper + RENOWN_WEIGHT * (o.renown - g.renown)
         if (better > 0f) {
             val k = r.nextInt(mine.size)
             if (mine[k] != theirs[k] && r.nextFloat() < IMITATE * min(1f, better / 0.02f)) mine[k] = theirs[k]
@@ -1602,6 +1633,7 @@ class Ecology(private val sim: Simulation) {
             val i = grid.index(x, y)
             val kind = when {
                 spring[i] || oasis[i] || (world.water.discharge[i] >= 1f && !world.isSea[i]) -> PlaceKind.WATER
+                world.geology.minerals[i] and inflation.world.Mineral.OCHRE != 0 || (!world.isSea[i] && waterKm[i] < 1f && nearSea(i)) -> PlaceKind.ORNAMENT
                 world.geology.minerals[i] and (inflation.world.Mineral.FLINT or inflation.world.Mineral.OBSIDIAN) != 0 -> PlaceKind.STONE
                 terrain.defensibility[i] > 0.6f -> PlaceKind.CAMP
                 else -> return@repeat
@@ -1613,6 +1645,30 @@ class Ecology(private val sim: Simulation) {
         val keepYears = PLACE_MEMORY_YEARS * (if (g.elders > 0) 1.5f else 1f) * (if (g.holds(Tradition.ORAL_TRADITION)) 2f else 1f)
         val stepsPerYear = Date.DAYS_PER_YEAR / days
         ps.removeAll { stepCount - it.seen > keepYears * stepsPerYear }
+    }
+
+    /**
+     * Desert kites: a large band, or one that holds feasts and can call on its neighbours, builds
+     * long converging walls across open, dry ground where herds pass, over a season of work. Once
+     * built a kite stands for generations and can be used by whoever knows it.
+     */
+    private fun buildKite(g: AnimalGroup, r: Random) {
+        val ps = g.places ?: return
+        if (g.adults < KITE_HANDS && !g.holds(Tradition.FEASTS)) return
+        if (ps.any { it.kind == PlaceKind.KITE && dist(it.x - g.x, it.y - g.y) * cellKm < 30.0 }) return
+        val c = cellOf(g)
+        if (cover(c) > 0.3f || r.nextFloat() >= KITE_WEEKLY) return
+        // Where herds of the open plains pass in numbers.
+        val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
+        val herds = KITE_QUARRY.sumOf { mOcc[it.index].box(box.x0, box.y0, box.x1, box.y1) }
+        if (herds < KITE_HERDS) return
+        addPlace(ps, Place(g.x.toFloat(), g.y.toFloat(), PlaceKind.KITE, 1f, stepCount))
+    }
+
+    private fun nearSea(i: Int): Boolean {
+        val x = grid.x(i); val y = grid.y(i)
+        for (dy in -1..1) for (dx in -1..1) if (grid.inBounds(x + dx, y + dy) && world.isSea[grid.index(x + dx, y + dy)]) return true
+        return false
     }
 
     private fun addPlace(ps: ArrayList<Place>, p: Place) {
@@ -1820,6 +1876,27 @@ class Ecology(private val sim: Simulation) {
             val spare = g.holds(Tradition.TABOO_YOUNG)
             takeYoung[k] = !spare && young > adult
             value[k] = contact[k] * if (spare) adult * (if (o.young > 0) 0.5f else 1f) else max(adult, young)
+        }
+        // A drive: open-country herds near a kite the band knows are funnelled in, a large share at once.
+        g.places?.filter { it.kind == PlaceKind.KITE }?.let { kites ->
+            if (kites.isEmpty()) return@let
+            for (o in near) {
+                if (!o.alive || o.species !in KITE_QUARRY || o.alert > 0) continue
+                if (kites.none { dist(it.x - o.x, it.y - o.y) * cellKm < KITE_KM }) continue
+                val taken = binomial(o.adults, KITE_TAKE, r) ; val takenY = binomial(o.young, KITE_TAKE, r)
+                if (taken + takenY == 0) continue
+                o.adults -= taken; o.young -= takenY; o.alert = ALERT_WEEKS
+                o.wary += WARY_GAIN * (1f - o.wary)
+                val meat = o.species.massKg * (taken + 0.3f * takenY)
+                // What cannot be eaten fresh is dried for the stores; the rest goes to the scavengers.
+                val fresh = min(meat, wantMeat - g.stored).coerceAtLeast(0f)
+                g.stored += fresh
+                val dried = min(meat - fresh, 0.5f * (meat - fresh)); g.larder += dried
+                soil.carrion[c] += ((meat - fresh - dried) / grid.cellAreaM2).toFloat()
+                killCount.addAndGet(taken + takenY); killsBy.merge(o.species, taken + takenY, Int::plus); killsByPredator.merge(s, taken + takenY, Int::plus)
+                kiteCount.addAndGet(taken + takenY)
+                break
+            }
         }
         val ranked = near.indices.filter { value[it] > 0f }.sortedByDescending { value[it] }
         var attempts = 0
@@ -2356,6 +2433,21 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Snare lines a band fully equipped with nets and snares keeps across its range. */
+        const val SNARE_LINES = 4f
+        /** Adults needed to build a kite without calling on neighbours, and weekly chance of starting one where it fits. */
+        const val KITE_HANDS = 30
+        const val KITE_WEEKLY = 0.02f
+        /** Open-country herds kites are built for, how many animals must pass, how near a herd must come, and the share taken in a drive. */
+        val KITE_QUARRY by lazy { with(Catalogue) { listOf(GAZELLE, ONAGER, ORYX, HARTEBEEST, HORSE) } }
+        const val KITE_HERDS = 200.0
+        const val KITE_KM = 8f
+        const val KITE_TAKE = 0.4f
+        /** Ornaments a band keeps per adult before giving the rest away, kg. */
+        const val ORNAMENTS_KEPT = 0.2f
+        /** How much renown (0..1) counts against growth when bands decide whom to copy, and its weekly keep. */
+        const val RENOWN_WEIGHT = 0.02f
+        const val RENOWN_KEEP = 0.995f
         /** Places a band can know by name at once, and years it remembers one not seen. */
         const val MAX_PLACES = 40
         const val PLACE_MEMORY_YEARS = 20f

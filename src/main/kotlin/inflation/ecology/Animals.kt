@@ -98,6 +98,8 @@ class AnimalGroup(
     var traditions: BooleanArray? = null
     /** For people: how well the band has been doing lately, its growth per head per year, smoothed. */
     var prosper = 0f
+    /** For people: renown among other bands, won by giving (ornaments, feasts) and fading if not renewed. */
+    var renown = 0f
     /**
      * For people: the band's words for the [Language.CONCEPTS] things it talks about, each an
      * arbitrary form. Bands that meet often come to share them; bands that never meet drift apart.

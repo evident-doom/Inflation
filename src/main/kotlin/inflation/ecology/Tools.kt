@@ -12,6 +12,8 @@ enum class Material {
     FIBRE,
     /** Tree resin and bitumen for glue. */
     RESIN,
+    /** Shell beads, ochre, fine obsidian: valued for beauty and meaning, given to win renown and friends. */
+    ORNAMENT,
 }
 
 /** Making skills: the *doing* behind every tool, built by practice like hunting and gathering. */
@@ -71,7 +73,13 @@ object Language {
 }
 
 /** Kinds of named places a band knows. */
-enum class PlaceKind { WATER, STONE, CAMP }
+enum class PlaceKind {
+    WATER, STONE, CAMP,
+    /** Ochre seams and shell beaches: where ornaments come from. */
+    ORNAMENT,
+    /** A desert kite: long low walls funnelling herds into an enclosure or pits, built by many hands. */
+    KITE,
+}
 
 /** A place a band knows and has a name for: where, what, how good, and when last seen or heard of (step). */
 class Place(val x: Float, val y: Float, val kind: PlaceKind, var quality: Float, var seen: Int)

@@ -82,6 +82,8 @@ fun main(args: Array<String>) {
                 }
                 println("   speech neighbours understand each other %.0f%%, any two bands %.0f%%".format(100 * near / spoken.size, 100 * all / max(1, pairs)))
             }
+            println("   renown %.2f on average, %.0f%% of bands know a kite, people's kills by kite drives this period %d".format(
+                bands.map { it.renown.toDouble() }.average(), 100.0 * bands.count { b -> b.places?.any { it.kind == PlaceKind.KITE } == true } / bands.size, e.kiteKills))
             println("   land   %.0f named places per band (water %.0f, stone %.0f, camps %.0f), furthest known %.0f km away on average".format(
                 bands.map { it.places?.size ?: 0 }.average(),
                 bands.map { b -> b.places?.count { it.kind == PlaceKind.WATER } ?: 0 }.average(),
