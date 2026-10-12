@@ -28,7 +28,7 @@ tasks.register<JavaExec>("viewer") {
     group = "application"
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("inflation.ui.ViewerKt")
-    maxHeapSize = "6g"
+    maxHeapSize = "16g" // the full 1000 x 2000 km map needs about 10 GB
     args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
