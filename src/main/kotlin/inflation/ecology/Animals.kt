@@ -86,6 +86,8 @@ class AnimalGroup(
      */
     var lineage: FloatArray? = null
     var inbred = 0f
+    /** For people: weeks the band has kept its camp in the same place. */
+    var campWeeks = 0
     val size: Int get() = adults + young
     val alive: Boolean get() = size > 0
     /** Body mass of the group, kg; young count as half. */
@@ -163,6 +165,7 @@ class BaselinePolicy(
         val s = group.species
         val thirsty = group.daysWithoutWater >= s.daysWithoutWater - 1
         val h = s.habitat
+        if (s.human) return scorePeople(group, o)
         var score = if (s.carnivore) 2f * o.prey + 0.2f * o.forage / (o.forage + 100f) - 1.5f * o.kin - 2f * o.danger
             // Each kind keeps to its own ground: gazelles open plains, ibex cliffs, boar thickets.
             // Big, well-armed animals fear predators less.
@@ -183,6 +186,26 @@ class BaselinePolicy(
         if (thirsty) score -= 0.2f * o.waterKm
         // Shifting the range costs energy, and a long march costs most of a week's grazing.
         score -= 0.1f * o.km / s.dailyTravelKm
+        return score
+    }
+
+    /**
+     * A band weighs game and plant food, keeps clear of lions, and in good times seeks out other
+     * bands (gatherings: partners, news, exchange) while in lean times it spreads out. Moving camp
+     * is a real cost, and more so the more it has stored: stores tie a band to its place.
+     */
+    private fun scorePeople(group: AnimalGroup, o: Option): Float {
+        val s = group.species
+        var score = 1.2f * o.prey + o.forage / (o.forage + 300f) - 2f * o.danger
+        score += 1.5f * (group.fare - 0.7f) * o.kin
+        if (o.snowMm > s.snowLimitMm) score -= 1f
+        score -= 2f * o.hazard
+        score += 1.5f * o.pull
+        score -= 0.5f * min(2f, o.thermal)
+        val urgency = group.daysWithoutWater / s.daysWithoutWater
+        score -= (0.05f + 0.3f * urgency) * o.waterKm / s.dailyTravelKm
+        val storedDays = group.larder / kotlin.math.max(1e-3f, group.dailyNeedKg)
+        score -= 0.1f * (1f + storedDays / 30f) * o.km / s.dailyTravelKm
         return score
     }
 }

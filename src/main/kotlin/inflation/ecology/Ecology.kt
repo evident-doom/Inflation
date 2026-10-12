@@ -485,6 +485,10 @@ class Ecology(private val sim: Simulation) {
             val g = groups[k]
             if (!g.alive) continue
             val moved = if (planX[k].isNaN()) 0f else go(g, planX[k], planY[k])
+            if (g.species.human) {
+                // Moving camp: what cannot be carried is left behind (cached stores are lost to mice and thieves).
+                if (moved > g.rangeKm) { g.campWeeks = 0; g.larder = min(g.larder, CARRY_DAYS * g.dailyNeedKg) } else g.campWeeks++
+            }
             g.marching = moved > MARCH_RANGES * g.rangeKm
             // The further beyond its usual drift, the more of the week goes into walking, not grazing.
             val reach = MARCH_SHARE * g.species.maxDailyTravelKm * days
@@ -881,7 +885,8 @@ class Ecology(private val sim: Simulation) {
         // Water-bound animals do not leave the river.
         if (d > 0f && waterKm[centre] > max(s.maxWaterKm, waterKm[cellOf(g)])) return NOWHERE
         val waterCells = mWater.box(box.x0, box.y0, box.x1, box.y1).toFloat()
-        val forage = if (s.carnivore) mRodents.box(box.x0, box.y0, box.x1, box.y1).toFloat() / areaKm2
+        val forage = if (s.human) ((mFruit.box(box.x0, box.y0, box.x1, box.y1) + mRoots.box(box.x0, box.y0, box.x1, box.y1) + mRodents.box(box.x0, box.y0, box.x1, box.y1)) / areaKm2).toFloat()
+            else if (s.carnivore) mRodents.box(box.x0, box.y0, box.x1, box.y1).toFloat() / areaKm2
             else ((s.diet.grass * mGraze.box(box.x0, box.y0, box.x1, box.y1) * worth(s, foodQuality(0, box)) + s.diet.browse * mBrowse.box(box.x0, box.y0, box.x1, box.y1) +
                 s.diet.roots * mRoots.box(box.x0, box.y0, box.x1, box.y1) + s.diet.fruit * mFruit.box(box.x0, box.y0, box.x1, box.y1)) / plantDiet(s)).toFloat() / areaKm2
         val boxKm2 = box.cells * COARSE_KM * COARSE_KM
@@ -1496,9 +1501,11 @@ class Ecology(private val sim: Simulation) {
         val wantMeat = need * min(1f, 2f * s.diet.meat)
         if (g.stored >= wantMeat || g.adults == 0) return
         val near = ArrayList<AnimalGroup>()
-        for (q in Catalogue.herbivores) collect(q, g.x, g.y, g.rangeKm + rangeKm(q), near)
+        // People send hunting parties out for days, well beyond the camp's daily round.
+        val reachKm = if (s.human) TASK_REACH * g.rangeKm else g.rangeKm
+        for (q in Catalogue.herbivores) collect(q, g.x, g.y, reachKm + rangeKm(q), near)
         if (near.isEmpty()) return
-        val contact = FloatArray(near.size) { overlap(kmBetween(g, near[it]), g.rangeKm, near[it].rangeKm) }
+        val contact = FloatArray(near.size) { overlap(kmBetween(g, near[it]), reachKm, near[it].rangeKm) }
         val chances = min(MAX_CHASES * free / days, CHASES_PER_CONTACT * free * contact.sum()).toInt()
         val packKg = g.adults * s.massKg
         val home = habitatMatch(s, cover(c), terrain.ruggedness[c], wetness[c])
@@ -1855,7 +1862,9 @@ class Ecology(private val sim: Simulation) {
                     val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
                     // Grandmothers feed the weaned children, so mothers can wean sooner and bear again.
                     val mothers = g.adults - g.elders
-                    val help = if (s.human) 1f + GRANDMOTHERS * min(1f, g.elders * ELDER_MOTHERS / max(1, mothers).toFloat()) else 1f
+                    // Settled mothers carry infants less and wean them on gruel from the stores: births come closer.
+                    val settled = if (s.human) 1f + SETTLED_FERTILITY * min(1f, g.campWeeks / 26f) * min(1f, g.larder / max(1e-3f, 30f * g.dailyNeedKg)) else 1f
+                    val help = settled * if (s.human) 1f + GRANDMOTHERS * min(1f, g.elders * ELDER_MOTHERS / max(1, mothers).toFloat()) else 1f
                     binomial(mothers, 0.5f * s.youngPerFemale * help / s.littersPerYear * fit / stepsInSeason, r)
                 }
                 g.young += born; birthCount.addAndGet(born)
@@ -1898,7 +1907,9 @@ class Ecology(private val sim: Simulation) {
             // People: grandmothers keep children fed and watched; inbred children die more often.
             val careOfElders = if (s.human) 1f - ELDER_CARE * min(1f, g.elders * ELDER_MOTHERS / max(1, g.adults - g.elders).toFloat()) else 1f
             val inbreeding = if (s.human) INBREEDING_DEATHS * g.inbred * years else 0f
-            val pYoung = min(1f, pAdult + s.youngMortality * years * careOfElders + inbreeding + 0.1f * hunger + eagle + THERMAL_DEATHS * years * stress)
+            // A camp kept for months fouls: waste, worms and fevers, children first.
+            val fouled = if (s.human) CAMP_FOULING * years * min(1f, max(0, g.campWeeks - 8) / 52f) else 0f
+            val pYoung = min(1f, pAdult + s.youngMortality * years * careOfElders + inbreeding + fouled + 0.1f * hunger + eagle + THERMAL_DEATHS * years * stress)
             // Elders die faster than adults in their prime.
             val deadE = if (s.human) binomial(g.elders, min(1f, pAdult + ELDER_DEATHS * years), r) else 0
             g.elders -= deadE; g.adults -= deadE
@@ -1949,6 +1960,7 @@ class Ecology(private val sim: Simulation) {
             child.larder = g.larder * share; g.larder -= child.larder
             child.elders = min(child.adults, (g.elders * share).toInt()); g.elders = min(g.adults, g.elders - child.elders)
             child.lineage = g.lineage?.copyOf(); child.inbred = g.inbred
+            child.campWeeks = 0
             // A new group carries its parents' temper, give or take: the variation selection works on.
             child.bold = (g.bold * (0.8f + 0.4f * rnd.nextFloat())).coerceIn(0f, 1f)
             newcomers += child
@@ -2037,6 +2049,14 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Days of food a band can carry when it moves camp. */
+        const val CARRY_DAYS = 20f
+        /** How far a band's hunting parties go, in multiples of its daily foraging range. */
+        const val TASK_REACH = 2f
+        /** Most that settled life with stores raises births (birth spacing about 4 years to under 3). */
+        const val SETTLED_FERTILITY = 0.4f
+        /** Extra yearly deaths among children in a camp kept for a year or more. */
+        const val CAMP_FOULING = 0.04f
         /** Founding lineages tracked in a band's descent, and the size of the blocks they start in, km. */
         const val LINEAGES = 8
         const val LINEAGE_KM = 150f

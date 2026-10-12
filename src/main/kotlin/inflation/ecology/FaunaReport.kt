@@ -60,9 +60,10 @@ fun main(args: Array<String>) {
         println("   game   " + e.game.summary())
         e.groups.filter { it.species.human && it.alive }.takeIf { it.isNotEmpty() }?.let { bands ->
             val people = bands.sumOf { it.size }
-            println("   people %d bands, %d people (%.0f%% children, %.0f%% elders), inbreeding %.3f, stores %.0f days, hunting craft %.2f, gathering craft %.2f".format(
+            println("   people %d bands, %d people (%.0f%% children, %.0f%% elders), inbreeding %.3f, stores %.0f days, camps kept %.0f weeks (%.0f%% over half a year), hunting craft %.2f, gathering craft %.2f".format(
                 bands.size, people, 100.0 * bands.sumOf { it.young } / people, 100.0 * bands.sumOf { it.elders } / people,
                 bands.map { it.inbred }.average(), bands.sumOf { it.larder.toDouble() } / max(1e-6, bands.sumOf { it.dailyNeedKg.toDouble() }),
+                bands.map { it.campWeeks }.average(), 100.0 * bands.count { it.campWeeks > 26 } / bands.size,
                 bands.mapNotNull { b -> b.craft?.let { c -> Catalogue.herbivores.map { c[it.index] }.average() } }.average(),
                 bands.mapNotNull { b -> b.forageCraft?.average() }.average()))
         }

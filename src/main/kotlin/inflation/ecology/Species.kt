@@ -696,8 +696,8 @@ object Catalogue {
         groupSize = 25, maxGroupSize = 50,
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 3, waterFromFood = 0.2f,
-        birthMonth = 0, birthMonths = 12, youngPerFemale = 0.3f, yearsToMaturity = 15f,
-        backgroundMortality = 0.02f, youngMortality = 0.03f,
+        birthMonth = 0, birthMonths = 12, youngPerFemale = 0.22f, yearsToMaturity = 15f, // a birth every 4–5 years
+        backgroundMortality = 0.02f, youngMortality = 0.05f, // about half of children reach fifteen
         snowLimitMm = 600f, flightKm = 0.2f, dangerToHumans = 0f,
         products = Products(meat = 25f, fat = 4f, hide = 0f, bone = 7f, sinew = 0f),
         comfortC = -5f..35f, winterCoat = true, // clothes and fire
