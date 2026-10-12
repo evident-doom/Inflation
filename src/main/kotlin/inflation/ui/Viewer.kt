@@ -1,5 +1,8 @@
 package inflation.ui
 
+import inflation.learning.BandPolicy
+import inflation.learning.Mlp
+
 import inflation.ecology.Catalogue
 import inflation.ecology.SeaCatalogue
 import inflation.world.Date
@@ -44,7 +47,11 @@ import kotlin.math.pow
  * Desktop viewer: the world map with layers, time controls, a cell inspector, an event log and
  * tools to build dams, dig canals and irrigate.
  *
- * Usage: viewer [--seed N] [--size KM] [--height KM] [--layer NAME] [--screenshot FILE --steps N]
+ * Usage: viewer [--seed N] [--size KM] [--width KM] [--height KM] [--layer NAME] [--people FILE]
+ *               [--screenshot FILE --steps N]
+ *
+ * With --people the bands choose their camps with that network, and the viewer reloads it whenever
+ * the file changes: point it at a training run's people.mlp to watch the current network at work.
  *
  * With --screenshot the viewer runs N steps, saves an image of its window and exits.
  */
@@ -53,12 +60,15 @@ fun main(args: Array<String>) {
     var screenshot: File? = null
     var shotSteps = 0
     var startLayer = Layer.TERRAIN
+    var people: File? = null
     var k = 0
     while (k < args.size) {
         when (args[k]) {
             "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
             "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
             "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
+            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
+            "--people" -> people = File(args[++k])
             "--screenshot" -> screenshot = File(args[++k])
             "--steps" -> shotSteps = args[++k].toInt()
             "--layer" -> startLayer = Layer.valueOf(args[++k].uppercase())
@@ -79,7 +89,7 @@ fun main(args: Array<String>) {
         SwingUtilities.invokeLater { status.text = "Starting the simulation…" }
         val sim = Simulation(world)
         SwingUtilities.invokeLater {
-            val viewer = Viewer(sim, startLayer)
+            val viewer = Viewer(sim, startLayer, people)
             frame.contentPane.removeAll()
             frame.contentPane.add(viewer)
             frame.revalidate()
@@ -116,7 +126,7 @@ private val SEA_COLOUR = mapOf(
 /** Names of land and sea species, in the order the viewer indexes them. */
 private val ALL_NAMES = Catalogue.all.map { it.name } + SeaCatalogue.all.map { it.name }
 
-class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : JPanel(BorderLayout()) {
+class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, private val peopleNet: File? = null) : JPanel(BorderLayout()) {
     private val world = sim.world
     private val grid = world.grid
     private val painter = LayerPainter(sim)
@@ -131,11 +141,26 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
     private val map = MapView()
     private val dateLabel = JLabel()
     private val climateLabel = JLabel()
+    private val peopleLabel = JLabel()
     private val info = JTextArea(14, 34)
     private val log = JTextArea(12, 34)
     private var tool = Tool.INSPECT
     private var canalStart = -1
     private var hover = -1
+    /** The people network in use: when its file last changed, and what to show about it. */
+    private var netStamp = 0L
+    @Volatile private var netLabel = "bands: hand-written behaviour"
+
+    /** Loads [peopleNet] into the bands' behaviour if it has changed since last time (on the simulation thread). */
+    private fun reloadPeople() {
+        val f = peopleNet ?: return
+        if (!f.exists() || f.lastModified() == netStamp) return
+        val net = runCatching { Mlp.load(f.readText()) }.getOrNull() ?: return // half-written: try again next time
+        netStamp = f.lastModified()
+        sim.ecology.policies[Catalogue.HUMAN] = BandPolicy(net, sim.ecology::noise) { sim.weather.date }
+        val gen = f.parentFile?.let { File(it, "log.txt") }?.takeIf { it.exists() }?.readLines()?.count { it.startsWith("gen ") }
+        netLabel = "bands: network ${f.name}" + (gen?.let { " after $it generations" } ?: "") + ", loaded " + java.time.LocalTime.now().withNano(0)
+    }
 
     init {
         val play = JToggleButton("▶ Play")
@@ -166,6 +191,8 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
         top.add(bar)
         val dateRow = JPanel(); dateRow.add(dateLabel); dateRow.add(climateLabel)
         top.add(dateRow)
+        val peopleRow = JPanel(); peopleRow.add(peopleLabel)
+        top.add(peopleRow)
 
         for (t in listOf(info, log)) { t.isEditable = false; t.font = Font(Font.MONOSPACED, Font.PLAIN, 12); t.lineWrap = true; t.wrapStyleWord = true }
         val side = JPanel()
@@ -189,8 +216,10 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
     /** Simulation thread: runs commands and steps, repaints the image after each change. */
     private fun loop() {
         var last = System.nanoTime()
+        var checked = 0L
         while (true) {
             var changed = false
+            if (peopleNet != null && System.nanoTime() - checked > 30_000_000_000L) { checked = System.nanoTime(); reloadPeople() }
             while (true) { val c = commands.poll() ?: break; c(); changed = true }
             if (running && System.nanoTime() - last >= 1_000_000_000L / stepsPerSecond) {
                 last = System.nanoTime()
@@ -227,6 +256,8 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
             if (w.volcanicCooling > 0.05) " · volcanic cooling %.1f °C".format(w.volcanicCooling) else "",
             if (events.isNotEmpty()) " · now: $events" else "",
         )
+        val bands = sim.ecology.groups.filter { it.species.human && it.alive }
+        peopleLabel.text = "   $netLabel · ${bands.size} bands, ${bands.sumOf { it.size }} people"
         if (log.lineCount - 1 != sim.log.size) log.text = sim.log.takeLast(200).joinToString("\n")
         if (hover >= 0) info.text = describe(hover)
     }
@@ -424,6 +455,14 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
                         continue
                     }
                     val species = Catalogue.all[idx]
+                    if (species.human) {
+                        // A band: a hut, bigger for bigger bands.
+                        val r = if (size > 35) 6 else 4
+                        val xs = intArrayOf(x - r, x + r, x + r, x, x - r); val ys = intArrayOf(y + r, y + r, y, y - r, y)
+                        g2.color = Color(0x101010); g2.drawPolygon(xs, ys, 5)
+                        g2.color = Color(0xffb020); g2.fillPolygon(xs, ys, 5)
+                        continue
+                    }
                     if (species.carnivore) {
                         g2.color = Color.WHITE; g2.fillRect(x - 3, y - 3, 7, 7)
                         g2.color = Color(0xd01010); g2.fillRect(x - 2, y - 2, 5, 5)
