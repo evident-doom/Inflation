@@ -443,6 +443,7 @@ class Ecology(private val sim: Simulation) {
             group.traditions = BooleanArray(Tradition.entries.size) { region.nextFloat() < TRADITION_START }
             // Each region speaks its own tongue; neighbouring regions share about half their words.
             val rx = (grid.x(cell) / (LINEAGE_KM / cellKm)).toInt(); val ry = (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt()
+            group.places = ArrayList()
             group.words = IntArray(Language.CONCEPTS) { k ->
                 val home = java.util.Random(world.config.seed * 977L + k * 131L + (if (k % 2 == 0) rx / 2 * 7919 + ry / 2 else rx * 7919 + ry)).nextInt(Language.FORMS)
                 home
@@ -478,6 +479,8 @@ class Ecology(private val sim: Simulation) {
      */
     private fun week() {
         moonlight = sim.weather.date.meanMoonlight(days).toFloat()
+        bandsById.clear(); for (g in groups) if (g.species.human && g.alive) bandsById[g.id] = g
+        for (k in claimStrength.indices) if (claimOwner[k] >= 0) { claimStrength[k] *= CLAIM_KEEP; if (claimStrength[k] < 0.5f || claimOwner[k] !in bandsById) { claimOwner[k] = -1; claimStrength[k] = 0f } }
         timed("summarise") { summarise() }
         val size = groups.size
         if (planX.size < size) { planX = DoubleArray(size * 2); planY = DoubleArray(size * 2) }
@@ -796,6 +799,18 @@ class Ecology(private val sim: Simulation) {
                 options += describe(g, x, y, d, sc.box)
             }
         }
+        // People in need of water head for the nearest spring or river they know of, however far.
+        if (s.human) {
+            val known = g.places?.filter { it.kind == PlaceKind.WATER }?.minByOrNull { dist(it.x - g.x, it.y - g.y) }
+            val thirsty = g.daysWithoutWater > 0.3f * s.daysWithoutWater || waterKm[cellOf(g)] > 5f
+            if (known != null && thirsty && dist(known.x - g.x, known.y - g.y) * cellKm > r) {
+                val toGo = (dist(known.x - g.x, known.y - g.y) * cellKm).toFloat()
+                val step = min(toGo, reach) / toGo
+                val x = g.x + (known.x - g.x) * step; val y = g.y + (known.y - g.y) * step
+                sc.tx[k] = x; sc.ty[k] = y; k++
+                options += describe(g, x, y, min(toGo, reach), sc.box)
+            } else { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++ }
+        }
         // The season's range: a week's march towards where it remembers doing well in the coming weeks.
         val m = seasonAhead()
         val sx = g.seasonX[m]; val sy = g.seasonY[m]
@@ -923,7 +938,8 @@ class Ecology(private val sim: Simulation) {
         val enemyKg = mDanger[s.index].box(box.x0, box.y0, box.x1, box.y1)
         val enemyDensity = (enemyKg / boxKm2).toFloat()
         // People camp where they can defend themselves, which takes the edge off a dangerous range.
-        val danger = enemyDensity / (enemyDensity + DANGER_KG_KM2) * if (s.human) 1f - 0.5f * terrain.defensibility[centre] else 1f
+        val danger = enemyDensity / (enemyDensity + DANGER_KG_KM2) * (if (s.human) 1f - 0.5f * terrain.defensibility[centre] else 1f) +
+            (if (s.human) trespass(g, x, y) else 0f)
         val preyValue = if (s.carnivore) mPrey[s.index].box(box.x0, box.y0, box.x1, box.y1) else 0.0
         val preyDensity = (preyValue / boxKm2).toFloat()
         val prey = preyDensity / (preyDensity + PREY_NORM)
@@ -1291,7 +1307,9 @@ class Ecology(private val sim: Simulation) {
             eaten += gather(g, need - min(eaten, need))
             larder(g, need, eaten).let { eaten += it }
             burnOff(g, r)
+            explore(g, r)
             collectAndMake(g)
+            claim(g)
             // Bones, offal and spoiled food go on the camp's midden, for jackals, wolves and vultures.
             soil.carrion[c] += (REFUSE * eaten / grid.cellAreaM2).toFloat()
         }
@@ -1449,6 +1467,8 @@ class Ecology(private val sim: Simulation) {
         val people = g.adults.toFloat()
         // What a few hands bring in a week, kg per adult, if the range has it.
         if (mStone.box(box.x0, box.y0, box.x1, box.y1) > 0.0) gd[Material.STONE.ordinal] += 1f * people
+        // Otherwise a party fetches stone from a known outcrop within a few days' walk.
+        else g.places?.firstOrNull { it.kind == PlaceKind.STONE && dist(it.x - g.x, it.y - g.y) * cellKm < STONE_TRIP_KM }?.let { gd[Material.STONE.ordinal] += 0.3f * people }
         gd[Material.WOOD.ordinal] += (2f * people * min(1.0, woody / 50.0)).toFloat()
         gd[Material.RESIN.ordinal] += (0.05f * people * min(1.0, woody / 50.0)).toFloat()
         gd[Material.FIBRE.ordinal] += (1f * people * min(1.0, (woody + herby) / 50.0)).toFloat()
@@ -1483,6 +1503,14 @@ class Ecology(private val sim: Simulation) {
             val k = r.nextInt(wa.size)
             if (wa[k] != wb[k]) { if (r.nextFloat() < g.size.toFloat() / (g.size + o.size)) wb[k] = wa[k] else wa[k] = wb[k] }
         }
+        // Place names travel with the language: each side learns places it did not know, as far as it understands.
+        val pa = g.places; val pb = o.places
+        if (pa != null && pb != null) {
+            for ((hearer, teller) in listOf(pa to pb, pb to pa)) for (p in teller) {
+                if (r.nextFloat() >= understood * 0.3f) continue
+                if (hearer.none { it.kind == p.kind && dist((it.x - p.x).toDouble(), (it.y - p.y).toDouble()) * cellKm < 5.0 }) addPlace(hearer, Place(p.x, p.y, p.kind, p.quality * HEARSAY, p.seen))
+            }
+        }
         for (m in 0 until 12) {
             if (r.nextFloat() >= understood) continue
             for ((hearer, teller) in listOf(g to o, o to g)) {
@@ -1514,7 +1542,8 @@ class Ecology(private val sim: Simulation) {
         val stakes = min(1f, (g.larder + o.larder) / max(1f, 60f * (g.dailyNeedKg + o.dailyNeedKg))) + if (g.campWeeks > 26 || o.campWeeks > 26) 0.5f else 0f
         val grievance = la.indices.sumOf { ((g.grudge?.get(it) ?: 0f) * lb[it] + (o.grudge?.get(it) ?: 0f) * la[it]).toDouble() }.toFloat()
         val allied = (if (g.holds(Tradition.EXOGAMY) && o.holds(Tradition.EXOGAMY)) 0.4f else 1f) * (if (g.holds(Tradition.SHARING) && o.holds(Tradition.SHARING)) 0.5f else 1f)
-        val p = HOSTILITY * (1f - 0.8f * kin) * (1.5f - alike) * (1f + 2f * hunger) * (1f + stakes) * (1f + 1.5f * min(1f, grievance)) * allied
+        val onLand = max(trespass(g, g.x, g.y), trespass(o, o.x, o.y))
+        val p = HOSTILITY * (1f + 2f * onLand) * (1f - 0.8f * kin) * (1.5f - alike) * (1f + 2f * hunger) * (1f + stakes) * (1f + 1.5f * min(1f, grievance)) * allied
         if (r.nextFloat() >= p) return false
         // The stronger, or the hungrier when close, raids.
         val (raider, raided) = if (strength(g) * (1.5f - g.condition) >= strength(o) * (1.5f - o.condition)) g to o else o to g
@@ -1556,6 +1585,75 @@ class Ecology(private val sim: Simulation) {
     private fun driftWords(g: AnimalGroup, w: IntArray) {
         val r = groupRandom(g, 7)
         if (r.nextFloat() < WORD_DRIFT * w.size) w[r.nextInt(w.size)] = r.nextInt(Language.FORMS)
+    }
+
+    /**
+     * A band learns its land beyond the camp: hunting parties and travellers come back with the
+     * springs, rivers, stone outcrops and defensible sites within a few days' walk, which it names
+     * and remembers. Old places it has not seen are forgotten, slower where elders and stories keep them.
+     */
+    private fun explore(g: AnimalGroup, r: Random) {
+        val ps = g.places ?: return
+        val reach = TASK_REACH * g.rangeKm * 2f / cellKm
+        repeat(EXPLORE_TRIES) {
+            val a = r.nextDouble() * 2 * Math.PI; val d = (0.3 + 0.7 * r.nextDouble()) * reach
+            val x = (g.x + kotlin.math.cos(a) * d).toInt(); val y = (g.y + kotlin.math.sin(a) * d).toInt()
+            if (!grid.inBounds(x, y)) return@repeat
+            val i = grid.index(x, y)
+            val kind = when {
+                spring[i] || oasis[i] || (world.water.discharge[i] >= 1f && !world.isSea[i]) -> PlaceKind.WATER
+                world.geology.minerals[i] and (inflation.world.Mineral.FLINT or inflation.world.Mineral.OBSIDIAN) != 0 -> PlaceKind.STONE
+                terrain.defensibility[i] > 0.6f -> PlaceKind.CAMP
+                else -> return@repeat
+            }
+            val near = ps.firstOrNull { it.kind == kind && dist(it.x - x.toDouble(), it.y - y.toDouble()) * cellKm < 5.0 }
+            if (near != null) near.seen = stepCount else addPlace(ps, Place(x.toFloat(), y.toFloat(), kind, 1f, stepCount))
+        }
+        // Forgetting: places not seen for decades fade, unless elders or stories carry them.
+        val keepYears = PLACE_MEMORY_YEARS * (if (g.elders > 0) 1.5f else 1f) * (if (g.holds(Tradition.ORAL_TRADITION)) 2f else 1f)
+        val stepsPerYear = Date.DAYS_PER_YEAR / days
+        ps.removeAll { stepCount - it.seen > keepYears * stepsPerYear }
+    }
+
+    private fun addPlace(ps: ArrayList<Place>, p: Place) {
+        if (ps.size >= MAX_PLACES) ps.removeAt(ps.indices.minByOrNull { ps[it].seen } ?: 0)
+        ps += p
+    }
+
+    /** Land claims on a coarse grid: which band uses each block most, and how firmly. */
+    private val claimKm = 10f
+    private val cw = (grid.width * cellKm / claimKm).toInt() + 1
+    private val ch = (grid.height * cellKm / claimKm).toInt() + 1
+    private val claimOwner = IntArray(cw * ch) { -1 }
+    private val claimStrength = FloatArray(cw * ch)
+    private fun claimCell(x: Double, y: Double) = (y * cellKm / claimKm).toInt().coerceIn(0, ch - 1) * cw + (x * cellKm / claimKm).toInt().coerceIn(0, cw - 1)
+    private val bandsById = HashMap<Int, AnimalGroup>()
+
+    /** A band's use of its ground builds its claim there; long stays and graves build it faster. Claims fade unused. */
+    private fun claim(g: AnimalGroup) {
+        val c = claimCell(g.x, g.y)
+        val add = 1f * (if (g.campWeeks > 26) 2f else 1f) * (if (g.holds(Tradition.BURIAL)) 1.5f else 1f)
+        synchronized(claimStrength) {
+            if (claimOwner[c] == g.id || claimOwner[c] < 0) { claimOwner[c] = g.id; claimStrength[c] = min(CLAIM_MAX, claimStrength[c] + add) }
+            else { claimStrength[c] -= add; if (claimStrength[c] <= 0f) { claimOwner[c] = g.id; claimStrength[c] = add } }
+        }
+    }
+
+    /**
+     * How unwelcome [g] would be in a range centred on (x, y), 0..1: none on its own land or that of
+     * kin, allies or bands of its own tongue, or when hunger drives it to bands that share; otherwise
+     * as firm as the owner's claim.
+     */
+    private fun trespass(g: AnimalGroup, x: Double, y: Double): Float {
+        val c = claimCell(x, y)
+        val owner = claimOwner[c]
+        if (owner < 0 || owner == g.id) return 0f
+        val o = bandsById[owner] ?: return 0f
+        val kin = g.lineage?.let { a -> o.lineage?.let { b -> a.indices.sumOf { (a[it] * b[it]).toDouble() }.toFloat() } } ?: 0f
+        val tongue = g.words?.let { a -> o.words?.let { b -> Language.understanding(a, b) } } ?: 0f
+        if (kin > 0.5f || tongue > 0.7f || (g.holds(Tradition.EXOGAMY) && o.holds(Tradition.EXOGAMY))) return 0f
+        if (g.condition < 0.5f && o.holds(Tradition.SHARING)) return 0f
+        return TRESPASS * claimStrength[c] / CLAIM_MAX
     }
 
     /** Whether any band's range overlaps [g]'s. */
@@ -2167,6 +2265,7 @@ class Ecology(private val sim: Simulation) {
             child.making = g.making?.copyOf()
             child.traditions = g.traditions?.copyOf(); child.prosper = g.prosper; child.grudge = g.grudge?.copyOf()
             child.words = g.words?.copyOf()
+            child.places = g.places?.let { ps -> ArrayList(ps.map { Place(it.x, it.y, it.kind, it.quality, it.seen) }) }
             child.tools = g.tools?.copyOf()?.also { k -> for (tl in Tool.entries) if (tl.heavy) k[tl.ordinal] = 0f }
             child.goods = g.goods?.let { gd -> FloatArray(gd.size) { gd[it] * share }.also { for (m in gd.indices) gd[m] -= it[m] } }
             // A new group carries its parents' temper, give or take: the variation selection works on.
@@ -2237,7 +2336,7 @@ class Ecology(private val sim: Simulation) {
         /** Moving the centre further than this many range radii in a week is a march. */
         const val MARCH_RANGES = 3.5f
         /** Candidate ranges per decision: staying, 8 directions at 3 distances, and the season's range. */
-        const val CANDIDATES = 26
+        const val CANDIDATES = 27
         /** Predator mass per km² over a range at which danger reads one half. */
         const val DANGER_KG_KM2 = 3f
         /** Lure-weighted prey per km² at which the draw of prey reads one half. */
@@ -2257,6 +2356,17 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Places a band can know by name at once, and years it remembers one not seen. */
+        const val MAX_PLACES = 40
+        const val PLACE_MEMORY_YEARS = 20f
+        /** Places a band's parties look over in a week. */
+        const val EXPLORE_TRIES = 6
+        /** How far a party goes for stone, km. */
+        const val STONE_TRIP_KM = 60f
+        /** Most a claim builds to (weeks of use), its weekly keep, and how unwelcome a firm claim makes strangers. */
+        const val CLAIM_MAX = 104f
+        const val CLAIM_KEEP = 0.995f
+        const val TRESPASS = 0.5f
         /** Concepts whose words two bands try to align at a meeting. */
         const val WORDS_PER_MEETING = 3
         /** How much a band trusts another's report of a good place, against its own memory. */

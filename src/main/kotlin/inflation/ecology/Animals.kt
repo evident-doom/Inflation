@@ -103,6 +103,8 @@ class AnimalGroup(
      * arbitrary form. Bands that meet often come to share them; bands that never meet drift apart.
      */
     var words: IntArray? = null
+    /** For people: the places the band knows by name, far beyond where it camps (see [Place]). */
+    var places: ArrayList<Place>? = null
     /** For people: grievances held against each founding lineage, from raids and killings, 0.. (fading over decades). */
     var grudge: FloatArray? = null
     fun holds(t: Tradition) = traditions?.get(t.ordinal) == true

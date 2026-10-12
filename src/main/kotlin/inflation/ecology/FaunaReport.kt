@@ -82,6 +82,12 @@ fun main(args: Array<String>) {
                 }
                 println("   speech neighbours understand each other %.0f%%, any two bands %.0f%%".format(100 * near / spoken.size, 100 * all / max(1, pairs)))
             }
+            println("   land   %.0f named places per band (water %.0f, stone %.0f, camps %.0f), furthest known %.0f km away on average".format(
+                bands.map { it.places?.size ?: 0 }.average(),
+                bands.map { b -> b.places?.count { it.kind == PlaceKind.WATER } ?: 0 }.average(),
+                bands.map { b -> b.places?.count { it.kind == PlaceKind.STONE } ?: 0 }.average(),
+                bands.map { b -> b.places?.count { it.kind == PlaceKind.CAMP } ?: 0 }.average(),
+                bands.map { b -> b.places?.maxOfOrNull { kotlin.math.hypot(it.x - b.x, it.y - b.y) } ?: 0.0 }.average()))
             println("   ways   " + Tradition.entries.joinToString { tr -> "%s %.0f%%".format(tr.name.lowercase(), 100.0 * bands.count { it.holds(tr) } / bands.size) })
             println("   tools  " + Tool.entries.joinToString { tl -> "%s %.2f".format(tl.name.lowercase(), bands.mapNotNull { it.tools?.get(tl.ordinal)?.toDouble() }.average()) } +
                 "; goods kg/adult " + Material.entries.joinToString { m -> "%s %.1f".format(m.name.lowercase(), bands.sumOf { (it.goods?.get(m.ordinal) ?: 0f).toDouble() } / max(1, bands.sumOf { it.adults })) })

@@ -69,3 +69,9 @@ object Language {
 
     fun understanding(a: IntArray, b: IntArray): Float = a.indices.count { a[it] == b[it] }.toFloat() / a.size
 }
+
+/** Kinds of named places a band knows. */
+enum class PlaceKind { WATER, STONE, CAMP }
+
+/** A place a band knows and has a name for: where, what, how good, and when last seen or heard of (step). */
+class Place(val x: Float, val y: Float, val kind: PlaceKind, var quality: Float, var seen: Int)
