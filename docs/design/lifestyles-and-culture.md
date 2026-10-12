@@ -66,3 +66,41 @@ Offline neuroevolution of animal policies (the wolves) is still worth doing late
 4. **Cultural evolution:** imitation of successful neighbours, innovation, inheritance on a split.
 5. **Keeping animals and tending plants,** on top of boldness and sedentism.
 6. **Language and meetings** as the channel through which steps 3 and 4 travel, with news and rules from the skills design.
+
+## Kin, marriage, grandmothers and settling down
+
+### Marrying out
+A band of 25 cannot marry within itself for long. Ancient genomes from Sunghir (about 34,000 years old) show people buried together who were no closer than second cousins. The authors read that as small bands embedded in a wider mating network with rules about whom one may marry, much like living hunter-gatherers ([Sikora et al. 2017](https://www.repository.cam.ac.uk/handle/1810/273353)).
+
+How to model it:
+- **Each band carries a lineage mix:** a short vector of the founding lineages its people descend from.
+  - Births inside the band concentrate it; partners from elsewhere dilute it.
+  - A split passes the mix to both halves, so neighbouring bands are kin.
+  - A region cut off from others slowly becomes one family.
+- **Inbreeding has a cost:** a band whose mix is concentrated (by its Simpson index) has more stillbirths and child deaths.
+- **Exogamy is a tradition** (a marriage rule). At meetings and gatherings, bands that hold it exchange young adults.
+  - Residence follows a rule, which is also a tradition: wives move, husbands move, or either. Living foragers are mostly flexible.
+  - Partners bring their skills and knowledge with them. Marriage is one of the main ways craft (the *doing*) travels between bands.
+- **This gives gatherings a reason to exist** that the model does not script: bands that never meet others pay in dead children and lost skills.
+
+### Grandmothers
+Among the Hadza, weaned children's nutrition tracks their mother's foraging until she has a new baby, and then tracks their grandmother's. Older women dig deep tubers small children can't, and spend more time at it than younger women. On this view grandmothers let mothers wean sooner and bear children closer together. The idea is debated, and the data are correlational ([Hawkes and Blurton Jones 2005](https://content.csbs.utah.edu/~hawkes/HawkesBlurtonJones05AgeStruc.pdf); [overview](https://en.wikipedia.org/wiki/Grandmother_hypothesis)).
+
+How to model it:
+- **Elders** become a third age class in a band, next to young and adults. Adults age into it over decades, and elders die faster than adults.
+- **Effects:**
+  - more gathering labour, strongest for hard-to-get food (roots, nut processing);
+  - better child survival;
+  - shorter birth spacing, so more births;
+  - longer memory. Elders remember the drought forty years ago and where water held. That is knowledge no one younger has practised, and it is worth most in rare bad years.
+- **Cost:** their food.
+
+### Settling down
+The evidence points both ways, and the model should keep both:
+- **Births go up.** Cemeteries across the farming transition show a sudden rise in the share of children. Bocquet-Appel reads that as a jump in fertility from changed maternal energetics, not as higher mortality ([review](https://discovery.ucl.ac.uk/id/eprint/1482613/)).
+- **Child deaths go up too.** Among Agta foragers in the Philippines, those who settled had more viral and worm infections and higher child mortality. Yet they also had higher fertility and, overall, more surviving children. Mothers traded child survival for more births ([Page et al. 2016, data](https://datadryad.org/dataset/doi:10.5061/dryad.j5v32)).
+
+How to model it:
+- **Staying longer at one camp** (weeks at the same place, with stores) shortens birth spacing. There is less carrying of infants, and stored cereal and nut gruel make weaning food. Spacing goes from about four years towards two and a half.
+- **The same camp fouls with time:** waste and parasites raise disease, children first.
+- **The net depends on the band's situation:** food, stores, and hygiene traditions (moving the midden, water away from waste). Some bands settle and grow; others settle and sicken.
