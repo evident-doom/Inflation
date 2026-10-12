@@ -683,7 +683,7 @@ object Catalogue {
 
     /**
      * People: hunter-gatherer bands of the Natufian age, some 25 strong, hunting with spears, bows
-     * and fire and gathering fruit, nuts, seeds and roots, in about equal parts by weight. How well
+     * and fire and gathering fruit, nuts, seeds and roots, about half of each. How well
      * a band hunts each kind of game and gathers each kind of food is a skill it builds up by
      * practice and loses without it. They cook (so they need less food than a meat-eater of their
      * size), wear clothes and keep fires (so cold troubles them less), and sense no weather ahead:
@@ -692,7 +692,9 @@ object Catalogue {
     val HUMAN = Species(
         name = "people", massKg = 55f,
         fearOfPeople = 0.0f, boldShare = 0.0f,
-        diet = Diet(meat = 0.45f, smallPrey = 0.1f, carrion = 0.05f, roots = 0.15f, fruit = 0.25f),
+        // Natufian middens and plant remains suggest plant food (nuts, acorns, seeds, pulses, roots)
+        // made up as much of the diet as game; hunting is a little over a third.
+        diet = Diet(meat = 0.35f, smallPrey = 0.12f, carrion = 0.04f, roots = 0.19f, fruit = 0.30f),
         groupSize = 25, maxGroupSize = 50,
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 3, waterFromFood = 0.2f,
