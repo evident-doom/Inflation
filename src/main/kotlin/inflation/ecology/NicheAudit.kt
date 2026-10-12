@@ -14,12 +14,15 @@ import kotlin.math.max
  * neighbours), and which grow without limit (and what fails to check them). The point is not to
  * keep every species alive by tuning, but to see where the world offers each a place.
  *
- * Usage: audit [--seed N] [--size KM] [--height KM] [--years N] [--out FILE]
+ * Usage: audit [--seed N] [--size KM] [--height KM] [--years N] [--out FILE] [--without SPECIES]...
+ *
+ * --without leaves a land species out of the world, to see whom it was holding back.
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig()
     var years = 30
     var out: File? = null
+    val without = ArrayList<String>()
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -28,6 +31,7 @@ fun main(args: Array<String>) {
             "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--years" -> years = args[++k].toInt()
             "--out" -> out = File(args[++k])
+            "--without" -> without += args[++k]
             else -> error("unknown argument ${args[k]}")
         }
         k++
@@ -35,6 +39,7 @@ fun main(args: Array<String>) {
     val world = World.generate(cfg)
     val sim = Simulation(world)
     val e = sim.ecology
+    for (g in e.groups) if (g.species.name in without) { g.adults = 0; g.young = 0 }
     val land = Catalogue.all.map { it.name }
     val sea = SeaCatalogue.all.map { it.name }
     val names = land + sea

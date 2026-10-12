@@ -60,6 +60,12 @@ class AnimalGroup(
     var stored = 0f
     /** Food gained over need on the last day, 0 = starving, 1 = full. */
     var lastIntakeRatio = 1f
+    /**
+     * For people: how well the band hunts each species (by [Species.index]) and gathers each kind of
+     * food ([Forage]), 0 (never done it) to 1 (masters). Practice raises it, disuse lets it fade.
+     */
+    var craft: FloatArray? = null
+    var forageCraft: FloatArray? = null
     val size: Int get() = adults + young
     val alive: Boolean get() = size > 0
     /** Body mass of the group, kg; young count as half. */
@@ -67,6 +73,9 @@ class AnimalGroup(
     /** Daily food need, kg; young eat less. */
     val dailyNeedKg: Float get() = species.dailyIntakeKg * (adults + 0.5f * young)
 }
+
+/** Kinds of food people gather, each a skill of its own. */
+enum class Forage { FRUIT, ROOTS, SMALL_GAME, FISH }
 
 /**
  * What a group perceives about one place it could go: the inputs a policy decides from.

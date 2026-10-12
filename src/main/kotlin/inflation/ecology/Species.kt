@@ -123,6 +123,10 @@ class Species(
     val packLitter: Int = 0,
     /** Diamond's criteria, 0..1 each: diet breadth, growth, captive breeding, temperament, calm, hierarchy. */
     val domestication: FloatArray,
+    /** People: they hunt and gather by skill learned in practice (see [AnimalGroup.craft]), cook, and remember. */
+    val human: Boolean = false,
+    /** Daily food, kg of prey or plant food, where the allometric rule does not fit (people, who cook). */
+    val intakeKg: Float = 0f,
 ) {
     /** Position in [Catalogue.all], for array lookups. */
     var index = -1
@@ -135,7 +139,7 @@ class Species(
      */
     val maxFatDays: Float get() = 8f * massKg.pow(0.25f) * if (hibernates) 4f else 1f
     /** Dry-matter (or meat) intake per adult per day, kg. */
-    val dailyIntakeKg: Float get() = Allometry.dailyIntakeKg(massKg, carnivore)
+    val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, carnivore)
 }
 
 object Allometry {
@@ -647,11 +651,45 @@ object Catalogue {
         startKm2PerAnimal = 600f,
     )
 
+    // ---------------------------------------------------------------- people
+
+    /**
+     * People: hunter-gatherer bands of the Natufian age, some 25 strong, hunting with spears, bows
+     * and fire and gathering fruit, nuts, seeds and roots, in about equal parts by weight. How well
+     * a band hunts each kind of game and gathers each kind of food is a skill it builds up by
+     * practice and loses without it. They cook (so they need less food than a meat-eater of their
+     * size), wear clothes and keep fires (so cold troubles them less), and sense no weather ahead:
+     * what they know of next week they must learn.
+     */
+    val HUMAN = Species(
+        name = "people", massKg = 55f,
+        diet = Diet(meat = 0.45f, smallPrey = 0.1f, carrion = 0.05f, roots = 0.15f, fruit = 0.25f),
+        groupSize = 25, maxGroupSize = 50,
+        dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f,
+        daysWithoutWater = 3, waterFromFood = 0.2f,
+        birthMonth = 0, birthMonths = 12, youngPerFemale = 0.3f, yearsToMaturity = 15f,
+        backgroundMortality = 0.02f, youngMortality = 0.03f,
+        snowLimitMm = 600f, flightKm = 0.2f, dangerToHumans = 0f,
+        products = Products(meat = 25f, fat = 4f, hide = 0f, bone = 7f, sinew = 0f),
+        comfortC = -5f..35f, winterCoat = true, // clothes and fire
+        speedKmh = 45f, // with thrown spears and arrows a chase is short
+        foresight = 0f,
+        domestication = floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f),
+        habitat = Habitat(cover = 0f, rugged = 0f, wet = 0.2f),
+        defence = 0.7f,
+        stalking = 0.6f,
+        ferocity = 1.5f, // spears, numbers and fire: lions and hyenas give way
+        territoryKm = 10f,
+        startKm2PerAnimal = 40f,
+        human = true,
+        intakeKg = 1.6f,
+    )
+
     val herbivores = listOf(
         GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR,
         ELK, REINDEER, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
     )
-    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH)
+    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN)
     val all = herbivores + predators
 
     init {

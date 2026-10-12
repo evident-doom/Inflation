@@ -247,17 +247,25 @@ class Vegetation(private val world: World, private val seed: Long) {
      * until it runs out of fuel, reaches wet or grazed-down ground, water or bare rock, or has
      * burned for the step. Many fires stay small; a few run for tens of km.
      */
+    /** Fires people have set, to be lit at the start of the next step (where the ground will burn). */
+    private val lit = java.util.concurrent.ConcurrentLinkedQueue<Int>()
+
+    /** Sets a fire at [i] next step: people burning off old grass to bring on new growth and draw game. */
+    fun ignite(i: Int) { lit += i }
+
     private fun spreadFires(weather: Weather, water: LiveWater, years: Float) {
         burning.fill(false)
         fires.clear()
         val days = world.config.daysPerStep
         val maxSteps = (days * SPREAD_KM_PER_DAY / grid.cellKm).toInt()
         val queue = ArrayDeque<Int>()
+        val set = HashSet<Int>()
+        while (true) set += lit.poll() ?: break
         for (i in 0 until n) {
             if (burning[i] || !canBurn(i, weather, water)) continue
             val heat = ((weather.temperature[i] - 15f) / 20f).coerceIn(0f, 1f)
             val p = IGNITIONS_PER_KM2_YEAR * (grid.cellKm * grid.cellKm).toFloat() * years * min(1f, fuel(i) / 1.5f) * heat
-            if (cellRandom(i) >= p) continue
+            if (i !in set && cellRandom(i) >= p) continue
             // A fire: spread breadth-first, each front cell lighting its neighbours by chance.
             var cells = 0
             queue.clear(); queue += i; burning[i] = true

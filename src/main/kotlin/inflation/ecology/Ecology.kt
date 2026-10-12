@@ -417,6 +417,20 @@ class Ecology(private val sim: Simulation) {
         group.condition = 0.6f + 0.2f * rnd.nextFloat()
         group.birthMonth = s.birthMonth
         group.fat = 0.5f * s.maxFatDays
+        if (s.human) {
+            // A band knows the game and plants of its home ground from long practice: the more
+            // there is of a species around, the better it hunts it.
+            group.craft = FloatArray(Catalogue.all.size) { k ->
+                val q = Catalogue.all[k]
+                if (q.carnivore) 0f else (0.2f + 0.6f * suitability(q, cell)).coerceIn(0f, 1f)
+            }
+            group.forageCraft = FloatArray(Forage.entries.size) { f ->
+                when (Forage.entries[f]) {
+                    Forage.FRUIT, Forage.ROOTS, Forage.SMALL_GAME -> 0.6f
+                    Forage.FISH -> if (waterKm[cell] < 3f) 0.5f else 0.1f
+                }
+            }
+        }
         groups += group
         return group
     }
@@ -473,7 +487,7 @@ class Ecology(private val sim: Simulation) {
         timed("drink") { for (g in groups) if (g.alive) drink(g) }
         timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) endure(g) } }
         timed("fire") { for (g in groups) if (g.alive) flee(g) }
-        timed("seasons") { groups.parallelStream().forEach { g -> if (g.alive && !g.species.carnivore) learnSeason(g) } }
+        timed("seasons") { groups.parallelStream().forEach { g -> if (g.alive && (!g.species.carnivore || g.species.human)) learnSeason(g) } }
     }
 
     private var planX = DoubleArray(0)
@@ -739,7 +753,7 @@ class Ecology(private val sim: Simulation) {
         // The season's range: a week's march towards where it remembers doing well in the coming weeks.
         val m = seasonAhead()
         val sx = g.seasonX[m]; val sy = g.seasonY[m]
-        if (sx.isNaN() || s.carnivore) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
+        if (sx.isNaN() || (s.carnivore && !s.human)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
         val dx = sx - g.x; val dy = sy - g.y
         val toGo = (dist(dx, dy) * cellKm).toFloat()
         if (toGo < r) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
@@ -1225,6 +1239,10 @@ class Ecology(private val sim: Simulation) {
         g.stored -= eaten
         // Small prey and carrion fill the gap. Catching voles one at a time yields little: at most
         // the small-prey share of the diet.
+        if (s.human) {
+            eaten += gather(g, need - min(eaten, need))
+            burnOff(g, r)
+        }
         if (eaten < need) eaten += catchRodents(c, min(need - eaten, s.diet.smallPrey * need))
         if (eaten < need) eaten += scavenge(c, need - eaten)
         // A pack caches a few days' food (a leopard in a tree, more); the rest is left to rot and to scavengers.
@@ -1235,6 +1253,94 @@ class Ecology(private val sim: Simulation) {
         }
         g.freshShare = min(1f, eaten / need)
         feed(g, eaten / need)
+    }
+
+    /**
+     * People gather plant food, small game and fish over their range, up to [kg]: each as far as
+     * the band's skill with it and the season allow. Returns the kg gathered. Gathering is practice,
+     * and skills not used this week fade a little.
+     */
+    private fun gather(g: AnimalGroup, kg: Float): Float {
+        val fc = g.forageCraft ?: return 0f
+        val s = g.species
+        val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
+        var got = 0f
+        // Fruit, nuts and seeds in season, and roots and bulbs dug the year round, from the fine cells of the range.
+        val wantPlants = kg * (s.diet.fruit + s.diet.roots) / (s.diet.fruit + s.diet.roots + s.diet.smallPrey).coerceAtLeast(1e-3f)
+        for ((stock, skill, share) in listOf(Triple(fruit, Forage.FRUIT, s.diet.fruit), Triple(roots, Forage.ROOTS, s.diet.roots))) {
+            val want = wantPlants * share / (s.diet.fruit + s.diet.roots)
+            if (want <= 0f) continue
+            val k = fc[skill.ordinal]
+            var have = 0.0
+            for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) have += (if (stock === fruit) mFruit else mRoots).cell[y * maps.w + x]
+            // A skilled band finds and processes several times what a clumsy one does in a week.
+            val take = min(want, (have * GATHER_REACH * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * k)).toFloat())
+            if (take > 0f) {
+                takeFrom(stock, box, take / have.toFloat())
+                fc[skill.ordinal] += PRACTICE * (1f - k)
+            }
+            got += take
+        }
+        // Small game: hares, birds, tortoises, hyrax, by snare, net and throwing stick.
+        val sg = fc[Forage.SMALL_GAME.ordinal]
+        val c = cellOf(g)
+        if (got < kg) {
+            val caught = game.catch(c, (kg - got) / cellKm2 * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * sg)) * cellKm2
+            if (caught > 0f) fc[Forage.SMALL_GAME.ordinal] += PRACTICE * (1f - sg)
+            got += caught
+        }
+        // Fish from the river or shore near camp.
+        val fs = fc[Forage.FISH.ordinal]
+        if (got < kg && waterKm[c] < 3f) {
+            val caught = fishNear(c, (kg - got) * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * fs))
+            if (caught > 0f) fc[Forage.FISH.ordinal] += PRACTICE * (1f - fs)
+            got += caught
+        }
+        for (f in fc.indices) fc[f] *= 1f - FORGET
+        g.craft?.let { for (q in it.indices) it[q] *= 1f - FORGET }
+        return got
+    }
+
+    /**
+     * In the dry season a band now and then burns off old grass in its range, where it stands
+     * thickest: the green flush after the fire draws game, and the open ground is easier to hunt.
+     */
+    private fun burnOff(g: AnimalGroup, r: Random) {
+        if (sim.weather.date.month !in 3..7 || r.nextFloat() >= BURN_WEEKLY) return
+        val v = sim.vegetation
+        var best = -1; var bestGrass = 0.3f
+        repeat(6) {
+            val a = r.nextDouble() * 2 * Math.PI; val d = r.nextDouble() * g.rangeKm / cellKm
+            val x = (g.x + kotlin.math.cos(a) * d).toInt(); val y = (g.y + kotlin.math.sin(a) * d).toInt()
+            if (!grid.inBounds(x, y)) return@repeat
+            val i = grid.index(x, y)
+            if (v.herb[i] > bestGrass) { bestGrass = v.herb[i]; best = i }
+        }
+        if (best >= 0) v.ignite(best)
+    }
+
+    /** Takes share [f] of [stock] (kg/km² per fine cell) from every fine cell under [box]. */
+    private fun takeFrom(stock: FloatArray, box: CoarseMaps.Box, f: Float) {
+        if (f <= 0f) return
+        val keep = 1f - min(1f, f)
+        val r = maps.ratio
+        for (cy in box.y0 until box.y1) for (cx in box.x0 until box.x1)
+            for (fy in cy * r until min(grid.height, (cy + 1) * r)) for (fx in cx * r until min(grid.width, (cx + 1) * r))
+                stock[grid.index(fx, fy)] *= keep
+    }
+
+    /** Fish caught within a few km of [c], up to [kg]; returns kg. */
+    private fun fishNear(c: Int, kg: Float): Float {
+        var got = 0f
+        val cx = grid.x(c); val cy = grid.y(c)
+        for (dy in -2..2) for (dx in -2..2) {
+            if (got >= kg || !grid.inBounds(cx + dx, cy + dy)) continue
+            val i = grid.index(cx + dx, cy + dy)
+            val have = fish.fish[i] * cellKm2
+            val take = min(kg - got, 0.2f * have)
+            if (take > 0f) { fish.fish[i] -= take / cellKm2; got += take }
+        }
+        return got
     }
 
     /**
@@ -1328,6 +1434,9 @@ class Ecology(private val sim: Simulation) {
             pYoung[k] = if (o.young > 0) catchChance(g, o, at, true, packKg, home) else 0f
             // Big, armed prey fight back: horns and tusks kill hunters. Worth it only for much meat.
             risk[k] = fightBack(o.species, s) * (2f - home) * (1f + youngShare(o)) * fitness(o)
+            // People kill from a distance with spears and arrows, and a band that knows the quarry
+            // knows when to stand off: a cornered aurochs rarely reaches them.
+            g.craft?.let { risk[k] *= RANGED_RISK * (1f - 0.7f * it[o.species.index]) }
         }
         // Each herd in contact is tried at most once a week (after a chase it moves off), so the
         // herds are ranked once by what they promise: chance times meat, for its young or an adult,
@@ -1354,6 +1463,7 @@ class Ecology(private val sim: Simulation) {
             // Caught or not, the herd is alarmed for weeks, keeps watch and moves off out of reach.
             prey.alert = ALERT_WEEKS
             contact[best] = 0f
+            g.craft?.let { it[prey.species.index] += PRACTICE * (1f - it[prey.species.index]) }
             if (r.nextFloat() >= bestP) { shove(prey, g); continue }
             // Brought to bay, a big animal may take one of its killers with it.
             if (bestRisk > 0f && r.nextFloat() < bestRisk) {
@@ -1397,7 +1507,9 @@ class Ecology(private val sim: Simulation) {
         // Hunger slows a hunter only a little: it also makes it bolder.
         val skill = (0.6f + 0.4f * home) * (0.7f + 0.3f * fitness(g))
         val refuge = 1f - 0.8f * max(0f, ps.habitat.rugged) * terrain.ruggedness[at]
-        return (min(1f, g.adults / 2f) * eyes * size * base * chase * skill * refuge * (1f + surprise) * (1f - stand.coerceIn(0f, 0.9f))).coerceIn(0f, 1f)
+        // People hunt by learned skill: a band that knows a quarry's ways gets close and kills clean.
+        val craft = g.craft?.let { CRAFT_FLOOR + (1f - CRAFT_FLOOR) * it[ps.index] } ?: 1f
+        return (min(1f, g.adults / 2f) * eyes * size * base * chase * skill * craft * refuge * (1f + surprise) * (1f - stand.coerceIn(0f, 0.9f))).coerceIn(0f, 1f)
     }
 
     /** Pushes [loser]'s range away from [winner] by its own radius, if there is land there. */
@@ -1722,6 +1834,7 @@ class Ecology(private val sim: Simulation) {
             g.seasonX.copyInto(child.seasonX); g.seasonY.copyInto(child.seasonY); g.seasonQ.copyInto(child.seasonQ)
             child.fare = g.fare
             child.fat = g.fat
+            child.craft = g.craft?.copyOf(); child.forageCraft = g.forageCraft?.copyOf()
             newcomers += child
         }
         groups += newcomers
@@ -1806,6 +1919,18 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Chance a band burns off grass in a dry-season week. */
+        const val BURN_WEEKLY = 0.1f
+        /** Share of the danger of a cornered quarry that reaches hunters armed with spears and bows. */
+        const val RANGED_RISK = 0.2f
+        /** Share of the success an untrained band still has at a hunt or a harvest. */
+        const val CRAFT_FLOOR = 0.3f
+        /** How far one attempt or one week's use closes the gap to mastery. */
+        const val PRACTICE = 0.02f
+        /** Share of a skill that fades each week without use (about a fifth a year). */
+        const val FORGET = 0.004f
+        /** Share of the plant food in its range a skilled band can gather and process in a week. */
+        const val GATHER_REACH = 0.05f
         /** How much darker nights add to a full stalker's surprise (and full moon takes away). */
         const val MOON_DARK = 0.3f
         const val SURPRISE_BASE = 0.2f
