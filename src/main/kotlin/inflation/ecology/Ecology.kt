@@ -530,7 +530,10 @@ class Ecology(private val sim: Simulation) {
             if (g.species.human) {
                 // Moving camp: what cannot be carried is left behind (cached stores are lost to mice and thieves).
                 if (moved > g.rangeKm) {
-                    g.campWeeks = 0; g.larder = min(g.larder, CARRY_DAYS * g.dailyNeedKg)
+                    // What cannot be carried is cached at the old camp, to come back to.
+                    val carry = CARRY_DAYS * g.dailyNeedKg
+                    if (g.larder > carry) g.places?.let { ps -> addPlace(ps, Place(g.x.toFloat(), g.y.toFloat(), PlaceKind.CACHE, g.larder - carry, stepCount)) }
+                    g.campWeeks = 0; g.larder = min(g.larder, carry)
                     g.tools?.let { k -> for (tl in Tool.entries) if (tl.heavy) k[tl.ordinal] = 0f }
                 } else g.campWeeks++
             }
@@ -972,7 +975,14 @@ class Ecology(private val sim: Simulation) {
         // Water-bound animals do not leave the river.
         if (d > 0f && waterKm[centre] > max(s.maxWaterKm, waterKm[cellOf(g)])) return NOWHERE
         val waterCells = mWater.box(box.x0, box.y0, box.x1, box.y1).toFloat()
-        val forage = if (s.human) ((mFruit.box(box.x0, box.y0, box.x1, box.y1) + mRoots.box(box.x0, box.y0, box.x1, box.y1) + mRodents.box(box.x0, box.y0, box.x1, box.y1)) / areaKm2).toFloat()
+        val forage = if (s.human) {
+            val whole = (mFruit.box(box.x0, box.y0, box.x1, box.y1) + mRoots.box(box.x0, box.y0, box.x1, box.y1) + mRodents.box(box.x0, box.y0, box.x1, box.y1)) / areaKm2
+            // What lies within the day's round of camp counts as much as the whole range.
+            val n0 = CoarseMaps.Box().also { it.set(maps, x, y, DAY_ROUND_KM) }
+            val nearKm2 = max(1.0, mLand.box(n0.x0, n0.y0, n0.x1, n0.y1)) * cellKm2
+            val close = (mFruit.box(n0.x0, n0.y0, n0.x1, n0.y1) + mRoots.box(n0.x0, n0.y0, n0.x1, n0.y1)) / nearKm2
+            (0.5 * whole + 0.5 * close).toFloat()
+        }
             else if (s.carnivore) mRodents.box(box.x0, box.y0, box.x1, box.y1).toFloat() / areaKm2
             else ((s.diet.grass * mGraze.box(box.x0, box.y0, box.x1, box.y1) * worth(s, foodQuality(0, box)) + s.diet.browse * mBrowse.box(box.x0, box.y0, box.x1, box.y1) +
                 s.diet.roots * mRoots.box(box.x0, box.y0, box.x1, box.y1) + s.diet.fruit * mFruit.box(box.x0, box.y0, box.x1, box.y1)) / plantDiet(s)).toFloat() / areaKm2
@@ -1381,6 +1391,7 @@ class Ecology(private val sim: Simulation) {
         val fc = g.forageCraft ?: return 0f
         val s = g.species
         val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
+        val near = CoarseMaps.Box().also { it.set(maps, g.x, g.y, DAY_ROUND_KM) }
         var got = 0f
         // Fruit, nuts and seeds in season, and roots and bulbs dug the year round, from the fine cells of the range.
         val wantPlants = if (plantsOnly) kg else kg * (s.diet.fruit + s.diet.roots) / (s.diet.fruit + s.diet.roots + s.diet.smallPrey).coerceAtLeast(1e-3f)
@@ -1388,16 +1399,23 @@ class Ecology(private val sim: Simulation) {
             val want = wantPlants * share / (s.diet.fruit + s.diet.roots)
             if (want <= 0f) continue
             val k = fc[skill.ordinal]
+            val layer = if (stock === fruit) mFruit else mRoots
             var have = 0.0
-            for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) have += (if (stock === fruit) mFruit else mRoots).cell[y * maps.w + x]
+            for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) have += layer.cell[y * maps.w + x]
+            var haveNear = 0.0
+            for (y in near.y0 until near.y1) for (x in near.x0 until near.x1) haveNear += layer.cell[y * maps.w + x]
             // A skilled band finds and processes several times what a clumsy one does in a week.
             // Sickles and baskets bring in more; grinding turns nuts, acorns and seeds into food.
             val kit = g.tools?.let { 1f + SICKLE_GAIN * it[Tool.SICKLE.ordinal] + BASKET_GAIN * it[Tool.BASKET.ordinal] + GRINDER_GAIN * it[Tool.GRINDER.ordinal] } ?: 1f
-            val take = min(want, (have * GATHER_REACH * kit * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * k)).toFloat())
-            if (take > 0f) {
-                takeFrom(stock, box, take / have.toFloat())
-                fc[skill.ordinal] += PRACTICE * (1f - k)
-            }
+            val eff = kit * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * k)
+            // The day's round from camp first: the nearest patches are worked hardest and run out first.
+            val takeNear = min(want, (haveNear * GATHER_REACH * NEAR_EFFORT * eff).toFloat())
+            if (takeNear > 0f) takeFrom(stock, near, takeNear / haveNear.toFloat())
+            // Then longer trips across the range, for less in return.
+            val takeFar = min(want - takeNear, (have * GATHER_REACH * FAR_EFFORT * eff).toFloat()).coerceAtLeast(0f)
+            if (takeFar > 0f) takeFrom(stock, box, takeFar / have.toFloat())
+            val take = takeNear + takeFar
+            if (take > 0f) fc[skill.ordinal] += PRACTICE * (1f - k)
             got += take
         }
         if (plantsOnly) return got
@@ -1520,6 +1538,19 @@ class Ecology(private val sim: Simulation) {
         val woody = mBrowse.box(box.x0, box.y0, box.x1, box.y1) / land
         val herby = mGraze.box(box.x0, box.y0, box.x1, box.y1) / land
         val people = g.adults.toFloat()
+        // Firewood: dead wood within the day's round, a small share of the standing trees and shrubs,
+        // burned at some 2 kg a person a day. How many weeks it lasts is how long a camp stays warm.
+        run {
+            val v = sim.vegetation
+            val rc = (DAY_ROUND_KM / cellKm).toInt()
+            val cx = g.x.toInt(); val cy = g.y.toInt()
+            var woodKg = 0.0
+            for (dy in -rc..rc step 2) for (dx in -rc..rc step 2) if (grid.inBounds(cx + dx, cy + dy)) {
+                val i = grid.index(cx + dx, cy + dy)
+                woodKg += (v.tree[i] + v.shrub[i]) * DEADWOOD_SHARE * grid.cellAreaM2 * 4 // every other cell, each standing for four
+            }
+            g.fuelWeeks = (woodKg / max(1f, FIREWOOD_KG_DAY * days * g.size)).toFloat()
+        }
         // What a few hands bring in a week, kg per adult, if the range has it.
         g.places?.firstOrNull { it.kind == PlaceKind.ORNAMENT && dist(it.x - g.x, it.y - g.y) * cellKm < STONE_TRIP_KM }?.let { gd[Material.ORNAMENT.ordinal] += 0.005f * people }
         if (mStone.box(box.x0, box.y0, box.x1, box.y1) > 0.0) gd[Material.STONE.ordinal] += 1f * people
@@ -1666,6 +1697,17 @@ class Ecology(private val sim: Simulation) {
      */
     private fun explore(g: AnimalGroup, r: Random) {
         val ps = g.places ?: return
+        // Standing works nearby (kites) are seen again whenever the band ranges past them.
+        for (p in ps) if (p.kind == PlaceKind.KITE && dist(p.x - g.x, p.y - g.y) * cellKm < TASK_REACH * g.rangeKm) p.seen = stepCount
+        // Caches: what lies in them spoils and is raided by mice, foxes and bears; a band near one takes it up.
+        val it = ps.iterator()
+        while (it.hasNext()) {
+            val p = it.next()
+            if (p.kind != PlaceKind.CACHE) continue
+            p.quality *= 1f - CACHE_LOSS
+            if (dist(p.x - g.x, p.y - g.y) * cellKm < g.rangeKm) { g.larder += p.quality; it.remove() }
+            else if (p.quality < 1f) it.remove()
+        }
         val reach = TASK_REACH * g.rangeKm * 2f / cellKm
         repeat(EXPLORE_TRIES) {
             val a = r.nextDouble() * 2 * Math.PI; val d = (0.3 + 0.7 * r.nextDouble()) * reach
@@ -2510,6 +2552,16 @@ class Ecology(private val sim: Simulation) {
         /** How much renown (0..1) counts against growth when bands decide whom to copy, and its weekly keep. */
         const val RENOWN_WEIGHT = 0.02f
         const val RENOWN_KEEP = 0.995f
+        /** Radius of the day's round from camp, km: what can be fetched and carried back by evening. */
+        const val DAY_ROUND_KM = 4f
+        /** How hard the near patches are worked, and the far ones, as multiples of [GATHER_REACH]. */
+        const val NEAR_EFFORT = 3f
+        const val FAR_EFFORT = 0.5f
+        /** Share of standing woody biomass lying as dead wood to be gathered, and firewood burned per person per day, kg. */
+        const val DEADWOOD_SHARE = 0.002f
+        const val FIREWOOD_KG_DAY = 2f
+        /** Share of a cache lost each week to spoilage and to animals. */
+        const val CACHE_LOSS = 0.03f
         /** How far a band will go to a gathering, km, and how strongly a gathering draws it (as a season's pull). */
         const val GATHER_KM = 100f
         const val GATHER_PULL = 0.5f

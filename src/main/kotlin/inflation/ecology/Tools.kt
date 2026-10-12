@@ -81,6 +81,8 @@ enum class PlaceKind {
     KITE,
     /** Where bands gather: a confluence of rivers and routes, or a landmark seen from afar, with water. */
     GATHERING,
+    /** Food a band left at an old camp, to come back to; its quality is the kg in it. */
+    CACHE,
 }
 
 /** A place a band knows and has a name for: where, what, how good, and when last seen or heard of (step). */

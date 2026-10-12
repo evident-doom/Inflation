@@ -88,6 +88,8 @@ class AnimalGroup(
     var inbred = 0f
     /** For people: weeks the band has kept its camp in the same place. */
     var campWeeks = 0
+    /** For people: weeks of firewood left within the day's round of camp. */
+    var fuelWeeks = 100f
     /** For people: raw materials held ([Material]), kg. */
     var goods: FloatArray? = null
     /** For people: share of the band equipped with each [Tool], 0..1. */
@@ -228,7 +230,9 @@ class BaselinePolicy(
         score -= (0.05f + 0.3f * urgency) * o.waterKm / s.dailyTravelKm
         val storedDays = group.larder / kotlin.math.max(1e-3f, group.dailyNeedKg)
         val graves = if (group.holds(Tradition.BURIAL)) 1.5f else 1f
-        score -= 0.1f * graves * (1f + storedDays / 30f) * o.km / s.dailyTravelKm
+        score -= 0.1f * graves * (1f + storedDays / 60f) * o.km / s.dailyTravelKm
+        // A camp whose firewood is gone within the day's round is a cold, hungry place to stay.
+        if (o.km == 0f && group.campWeeks > group.fuelWeeks) score -= 0.3f * min(1f, (group.campWeeks - group.fuelWeeks) / 26f)
         return score
     }
 }
