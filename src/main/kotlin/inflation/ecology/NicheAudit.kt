@@ -121,6 +121,8 @@ private class Niche {
     var w = 0.0; var elev = 0.0; var temp = 0.0; var cover = 0.0; var rugged = 0.0; var wet = 0.0; var shore = 0.0
     val biomes = HashMap<String, Double>()
     var sea = false
+    /** Weight in the northern, middle and southern thirds of the map. */
+    val thirds = DoubleArray(3)
 
     fun add(sim: Simulation, c: Int, weight: Double) {
         val world = sim.world
@@ -131,6 +133,7 @@ private class Niche {
         rugged += weight * world.terrain.ruggedness[c]
         wet += weight * sim.ecology.wetness[c]
         biomes.merge(world.biome[c].name.lowercase().replace('_', ' '), weight, Double::plus)
+        thirds[(3 * world.grid.y(c) / world.grid.height).coerceIn(0, 2)] += weight
     }
 
     fun addSea(m: Marine, c: Int, weight: Double) {
@@ -144,6 +147,8 @@ private class Niche {
         if (w <= 0.0) return "?"
         if (sea) return "%.0f km offshore on average, upwelling %.2f".format(shore / w, temp / w)
         val top = biomes.entries.sortedByDescending { it.value }.take(2).joinToString(" and ") { it.key }
-        return "%s; %.0f m, mean %.0f °C, canopy %.2f, rugged %.2f, wet %.2f".format(top, elev / w, temp / w, cover / w, rugged / w, wet / w)
+        return "%s; %.0f m, mean %.0f °C, canopy %.2f, rugged %.2f, wet %.2f; north/middle/south %.0f/%.0f/%.0f%%".format(
+            top, elev / w, temp / w, cover / w, rugged / w, wet / w, 100 * thirds[0] / w, 100 * thirds[1] / w, 100 * thirds[2] / w,
+        )
     }
 }
