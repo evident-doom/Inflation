@@ -420,6 +420,7 @@ class Ecology(private val sim: Simulation) {
         group.condition = 0.6f + 0.2f * rnd.nextFloat()
         group.birthMonth = s.birthMonth
         group.fat = 0.5f * s.maxFatDays
+        group.bold = s.boldShare * (0.5f + rnd.nextFloat())
         if (s.human) {
             // A band knows the game and plants of its home ground from long practice: the more
             // there is of a species around, the better it hunts it.
@@ -1252,6 +1253,8 @@ class Ecology(private val sim: Simulation) {
         }
         if (eaten < need) eaten += catchRodents(c, min(need - eaten, s.diet.smallPrey * need))
         if (eaten < need) eaten += scavenge(c, need - eaten)
+        // Camp followers: around people the bold eat best and raise the most young, generation on generation.
+        if (s.followsPeople && peopleNear(g)) g.bold += BOLD_DRIFT * (1f - g.bold)
         // A pack caches a few days' food (a leopard in a tree, more); the rest is left to rot and to scavengers.
         val cap = (0.5f + 0.5f * s.stalking) * need
         if (g.stored > cap) {
@@ -1324,6 +1327,12 @@ class Ecology(private val sim: Simulation) {
             if (v.herb[i] > bestGrass) { bestGrass = v.herb[i]; best = i }
         }
         if (best >= 0) v.ignite(best)
+    }
+
+    /** Whether any band's range overlaps [g]'s. */
+    private fun peopleNear(g: AnimalGroup): Boolean {
+        val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
+        return mOcc[Catalogue.HUMAN.index].box(box.x0, box.y0, box.x1, box.y1) > 0.0
     }
 
     /** Takes share [f] of [stock] (kg/km² per fine cell) from every fine cell under [box]. */
@@ -1482,6 +1491,8 @@ class Ecology(private val sim: Simulation) {
                 soil.carrion[c] += (s.massKg / grid.cellAreaM2).toFloat()
             }
             val meat = if (bestYoung) { prey.young--; 0.3f * prey.species.massKg } else { prey.adults--; prey.species.massKg }
+            // The bold come closest and fall first.
+            if (s.human) prey.bold *= max(0f, 1f - BOLD_TOLL / max(1, prey.size))
             g.stored += meat - steal(g, meat, r)
             killCount.incrementAndGet()
             killsBy.merge(prey.species, 1, Int::plus)
@@ -1497,8 +1508,9 @@ class Ecology(private val sim: Simulation) {
         // Surprise: cover lets a stalker close in unseen; a watchful herd is seldom surprised.
         // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
         val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moonlight)
-        // Herds that people hunt often learn to keep their distance from them.
-        val shy = if (s.human) 1f - WARY_EFFECT * o.wary else 1f
+        // Fear of people: inborn, less the bold few, plus what this herd has learned from being hunted.
+        val fear = if (s.human) min(1f, ps.fearOfPeople * (1f - o.bold) + o.wary) else 0f
+        val shy = if (s.human) 1f + WARY_EFFECT * (BASE_FEAR - fear) else 1f
         val surprise = (SURPRISE_BASE + s.stalking * cov) * dark * shy * (1f - WATCH_EFFECT * o.posture)
         // An aware herd in its element bunches, faces the hunters and defends: on cliffs, in thickets
         // or marsh, wherever it is at home. In open ground it can only run.
@@ -1848,6 +1860,8 @@ class Ecology(private val sim: Simulation) {
             child.fat = g.fat
             child.craft = g.craft?.copyOf(); child.forageCraft = g.forageCraft?.copyOf()
             child.wary = g.wary
+            // A new group carries its parents' temper, give or take: the variation selection works on.
+            child.bold = (g.bold * (0.8f + 0.4f * rnd.nextFloat())).coerceIn(0f, 1f)
             newcomers += child
         }
         groups += newcomers
@@ -1940,8 +1954,14 @@ class Ecology(private val sim: Simulation) {
         const val WARY_GAIN = 0.3f
         /** Share of shyness kept from week to week (half gone in about half a year). */
         const val WARY_KEEP = 0.97f
-        /** How much a fully shy herd cuts people's chance of surprising it. */
+        /** How much fear of people, above or below [BASE_FEAR], changes their chance of surprising a herd. */
         const val WARY_EFFECT = 0.6f
+        /** The fear of an ordinary game herd, at which people's hunting is calibrated. */
+        const val BASE_FEAR = 0.7f
+        /** Extra chance a bold animal is the one people kill (1: twice as likely); its share drops by this over the group size. */
+        const val BOLD_TOLL = 1f
+        /** Weekly shift towards boldness in camp followers that live near people (centuries, not years). */
+        const val BOLD_DRIFT = 0.0002f
         /** Chance a band burns off grass in a dry-season week. */
         const val BURN_WEEKLY = 0.1f
         /** Share of the danger of a cornered quarry that reaches hunters armed with spears and bows. */

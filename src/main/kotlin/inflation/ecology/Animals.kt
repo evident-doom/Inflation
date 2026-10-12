@@ -66,10 +66,15 @@ class AnimalGroup(
      */
     var craft: FloatArray? = null
     /**
-     * How shy of people the group has become, 0 (bold, never hunted) to 1: each hunt by a band
-     * raises it, and it fades over months where no one hunts.
+     * Learned shyness of people on top of the inborn fear, 0..1: each hunt by a band raises it, and
+     * it fades over months where no one hunts.
      */
     var wary = 0f
+    /**
+     * Share of bold, curious animals in the group ([Species.boldShare] at the start, varying between
+     * groups). Hunters take the bold first; at camps the bold eat best. Over generations it shifts.
+     */
+    var bold = 0f
     var forageCraft: FloatArray? = null
     val size: Int get() = adults + young
     val alive: Boolean get() = size > 0

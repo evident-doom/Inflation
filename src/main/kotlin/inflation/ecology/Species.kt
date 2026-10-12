@@ -129,6 +129,16 @@ class Species(
     val intakeKg: Float = 0f,
     /** Hangs about people's camps for scraps and keeps clear of trouble with them: wolves (future dogs), jackals. */
     val followsPeople: Boolean = false,
+    /**
+     * Inborn fear of people, 0..1, bred in over the millennia people have hunted here: high in game
+     * animals, lower in big dangerous ones and in scavengers that have long lived off people's leavings.
+     */
+    val fearOfPeople: Float = 0.7f,
+    /**
+     * Share of curious, bold animals in a typical group: the ones that come close, get killed first
+     * by hunters, and, around camps, are the start of the road to taming.
+     */
+    val boldShare: Float = 0.03f,
 ) {
     /** Position in [Catalogue.all], for array lookups. */
     var index = -1
@@ -166,6 +176,7 @@ object Catalogue {
     /** Mountain gazelle: the staple prey of Natufian hunters. Mixed grazer and browser of open land. */
     val GAZELLE = Species(
         name = "gazelle", massKg = 20f,
+        fearOfPeople = 0.8f, boldShare = 0.03f,
         diet = Diet(grass = 0.6f, browse = 0.4f),
         groupSize = 12, maxGroupSize = 40,
         dailyTravelKm = 6f, maxDailyTravelKm = 30f, senseKm = 4f,
@@ -233,6 +244,7 @@ object Catalogue {
     /** Nubian or Caucasian-type ibex: cliffs and steep rock, where nothing can follow it. */
     val IBEX = Species(
         name = "ibex", massKg = 60f,
+        fearOfPeople = 0.75f, boldShare = 0.04f,
         diet = Diet(grass = 0.6f, browse = 0.4f),
         groupSize = 8, maxGroupSize = 25,
         dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 3f,
@@ -251,6 +263,7 @@ object Catalogue {
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
         name = "wild boar", massKg = 80f,
+        fearOfPeople = 0.6f, boldShare = 0.1f,
         diet = Diet(grass = 0.2f, browse = 0.1f, roots = 0.5f, fruit = 0.2f),
         groupSize = 6, maxGroupSize = 20,
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
@@ -271,6 +284,7 @@ object Catalogue {
     /** Aurochs: huge wild cattle of wet lowlands, floodplains and open woodland; formidable when cornered. */
     val AUROCHS = Species(
         name = "aurochs", massKg = 750f,
+        fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 15, maxGroupSize = 40,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 2f,
@@ -310,6 +324,7 @@ object Catalogue {
      */
     val HIPPO = Species(
         name = "hippo", massKg = 1400f,
+        fearOfPeople = 0.3f, boldShare = 0.05f,
         diet = Diet(grass = 0.95f, browse = 0.05f),
         groupSize = 10, maxGroupSize = 30,
         dailyTravelKm = 4f, maxDailyTravelKm = 10f, senseKm = 1f,
@@ -332,6 +347,7 @@ object Catalogue {
      */
     val BEAR = Species(
         name = "brown bear", massKg = 150f,
+        fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.25f, fruit = 0.3f, smallPrey = 0.1f, carrion = 0.1f),
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 4f,
@@ -355,6 +371,7 @@ object Catalogue {
      */
     val WOLF = Species(
         name = "wolf", massKg = 22f,
+        fearOfPeople = 0.5f, boldShare = 0.15f,
         diet = Diet(meat = 0.6f, smallPrey = 0.25f, carrion = 0.15f),
         groupSize = 3, maxGroupSize = 8,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 8f,
@@ -378,6 +395,7 @@ object Catalogue {
      */
     val LION = Species(
         name = "lion", massKg = 150f,
+        fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(meat = 0.9f, carrion = 0.1f),
         groupSize = 5, maxGroupSize = 12,
         dailyTravelKm = 12f, maxDailyTravelKm = 30f, senseKm = 8f,
@@ -399,6 +417,7 @@ object Catalogue {
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
     val LEOPARD = Species(
         name = "leopard", massKg = 45f,
+        fearOfPeople = 0.7f, boldShare = 0.03f,
         diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 6f, maxDailyTravelKm = 20f, senseKm = 4f,
@@ -420,6 +439,7 @@ object Catalogue {
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
     val HYENA = Species(
         name = "striped hyena", massKg = 35f,
+        fearOfPeople = 0.5f, boldShare = 0.1f,
         diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.65f),
         groupSize = 2, maxGroupSize = 5,
         dailyTravelKm = 12f, maxDailyTravelKm = 40f, senseKm = 10f,
@@ -441,6 +461,7 @@ object Catalogue {
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
     val JACKAL = Species(
         name = "jackal", massKg = 10f,
+        fearOfPeople = 0.4f, boldShare = 0.15f,
         diet = Diet(meat = 0.1f, smallPrey = 0.6f, carrion = 0.3f),
         groupSize = 2, maxGroupSize = 6,
         dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 4f,
@@ -510,6 +531,7 @@ object Catalogue {
      */
     val HORSE = Species(
         name = "wild horse", massKg = 300f,
+        fearOfPeople = 0.7f, boldShare = 0.05f,
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 10, maxGroupSize = 25,
         dailyTravelKm = 12f, maxDailyTravelKm = 50f, senseKm = 3f,
@@ -531,6 +553,7 @@ object Catalogue {
      */
     val MOUFLON = Species(
         name = "mouflon", massKg = 40f,
+        fearOfPeople = 0.7f, boldShare = 0.06f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 10, maxGroupSize = 40,
         dailyTravelKm = 5f, maxDailyTravelKm = 25f, senseKm = 3f,
@@ -637,6 +660,7 @@ object Catalogue {
      */
     val CHEETAH = Species(
         name = "cheetah", massKg = 45f,
+        fearOfPeople = 0.7f, boldShare = 0.08f,
         diet = Diet(meat = 0.8f, smallPrey = 0.2f),
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 6f,
@@ -667,6 +691,7 @@ object Catalogue {
      */
     val HUMAN = Species(
         name = "people", massKg = 55f,
+        fearOfPeople = 0.0f, boldShare = 0.0f,
         diet = Diet(meat = 0.45f, smallPrey = 0.1f, carrion = 0.05f, roots = 0.15f, fruit = 0.25f),
         groupSize = 25, maxGroupSize = 50,
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f,
