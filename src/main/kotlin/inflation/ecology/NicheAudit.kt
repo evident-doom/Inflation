@@ -102,7 +102,7 @@ fun main(args: Array<String>) {
         }
         val total = causes.getValue(name).values.sum().coerceAtLeast(1)
         val top = (if (name in extinctYear) recentCauses.getValue(name).takeIf { it.isNotEmpty() } ?: causes.getValue(name) else causes.getValue(name))
-            .entries.sortedByDescending { it.value }.take(3).joinToString(", ") { "${it.key} ${100 * it.value / total}%" }
+            .entries.sortedByDescending { it.value }.take(4).joinToString(", ") { "${it.key} ${100 * it.value / total}%" }
         val where = if (name in extinctYear) "last seen in ${lastSeen[name] ?: "?"}" else niche.getValue(name).describe()
         report.appendLine("| $name | $start | $end | " + "%+.0f%%/yr".format(100 * trend) + " | $verdict | $top | $where |")
     }

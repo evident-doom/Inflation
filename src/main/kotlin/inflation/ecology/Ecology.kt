@@ -512,7 +512,7 @@ class Ecology(private val sim: Simulation) {
         timed("graze") { graze(); shapePlants() }
         timed("prowl") { prowlAll() }
         timed("drink") { for (g in groups) if (g.alive) drink(g) }
-        timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) { endure(g); g.wary *= WARY_KEEP } } }
+        timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) { endure(g); g.wary *= WARY_KEEP; g.grudge?.let { gr -> for (k in gr.indices) gr[k] *= GRUDGE_KEEP } } } }
         timed("fire") { for (g in groups) if (g.alive) flee(g) }
         timed("seasons") { groups.parallelStream().forEach { g -> if (g.alive && (!g.species.carnivore || g.species.human)) learnSeason(g) } }
     }
@@ -1371,6 +1371,7 @@ class Ecology(private val sim: Simulation) {
         val (o, d) = nearest(g.species, g.x, g.y, g.rangeKm * 2f, except = g)
         if (o == null || o.adults < 2 || g.adults < 2) return
         if (r.nextFloat() >= MARRY_WEEKLY * overlap(d, g.rangeKm, o.rangeKm)) return
+        if (fight(g, o, r)) return
         imitate(g, o, r); imitate(o, g, r)
         // Bands that share food give to the hungrier in bad times.
         if (g.holds(Tradition.SHARING) && o.holds(Tradition.SHARING)) {
@@ -1447,6 +1448,47 @@ class Ecology(private val sim: Simulation) {
         // A band carries only so much: the rest is left at old camps.
         for (m in gd.indices) gd[m] = min(gd[m], GOODS_PER_PERSON * people)
         for (m in mk.indices) mk[m] *= 1f - if (g.holds(Tradition.ORAL_TRADITION)) FORGET * 0.4f else FORGET
+    }
+
+    /**
+     * Whether a meeting turns violent, and its toll if it does. Strangers (unrelated, with different
+     * ways) fight more than kin; hunger, stores worth taking and a settled band's fixed ground raise
+     * the stakes; old grievances call for revenge; bands bound by marriage or food-sharing seldom fight.
+     * The stronger or hungrier side raids: both lose people, the raided more unless their camp is
+     * defensible, and the raiders carry off stores. Each side then holds a grudge against the other's
+     * descent. Returns whether there was a fight.
+     */
+    private fun fight(g: AnimalGroup, o: AnimalGroup, r: Random): Boolean {
+        val la = g.lineage ?: return false; val lb = o.lineage ?: return false
+        val kin = la.indices.sumOf { (la[it] * lb[it]).toDouble() }.toFloat()
+        val ta = g.traditions; val tb = o.traditions
+        val alike = if (ta != null && tb != null) ta.indices.count { ta[it] == tb[it] }.toFloat() / ta.size else 0.5f
+        val hunger = 1f - min(g.condition, o.condition)
+        val stakes = min(1f, (g.larder + o.larder) / max(1f, 60f * (g.dailyNeedKg + o.dailyNeedKg))) + if (g.campWeeks > 26 || o.campWeeks > 26) 0.5f else 0f
+        val grievance = la.indices.sumOf { ((g.grudge?.get(it) ?: 0f) * lb[it] + (o.grudge?.get(it) ?: 0f) * la[it]).toDouble() }.toFloat()
+        val allied = (if (g.holds(Tradition.EXOGAMY) && o.holds(Tradition.EXOGAMY)) 0.4f else 1f) * (if (g.holds(Tradition.SHARING) && o.holds(Tradition.SHARING)) 0.5f else 1f)
+        val p = HOSTILITY * (1f - 0.8f * kin) * (1.5f - alike) * (1f + 2f * hunger) * (1f + stakes) * (1f + 1.5f * min(1f, grievance)) * allied
+        if (r.nextFloat() >= p) return false
+        // The stronger, or the hungrier when close, raids.
+        val (raider, raided) = if (strength(g) * (1.5f - g.condition) >= strength(o) * (1.5f - o.condition)) g to o else o to g
+        val ratio = strength(raider) / max(1f, strength(raided))
+        val shelter = terrain.defensibility[cellOf(raided)]
+        val lostRaided = binomial(raided.adults, (RAID_DEATHS * min(2f, ratio) * (1f - 0.6f * shelter)).coerceIn(0f, 0.5f), r)
+        val lostRaider = binomial(raider.adults, (RAID_DEATHS * 0.5f / min(2f, ratio) * (1f + shelter)).coerceIn(0f, 0.5f), r)
+        for ((band, lost) in listOf(raided to lostRaided, raider to lostRaider)) {
+            if (lost <= 0) continue
+            band.adults -= lost; band.elders = min(band.elders, band.adults)
+            deathCount.addAndGet(lost); deathsBy.merge("people:killed by people", lost, Int::plus)
+        }
+        val loot = 0.5f * raided.larder; raided.larder -= loot; raider.larder += loot
+        // Grievances against the other side's descent, the raided holding the deeper one.
+        fun aggrieve(band: AnimalGroup, against: FloatArray, weight: Float) {
+            val gr = band.grudge ?: FloatArray(LINEAGES).also { band.grudge = it }
+            for (k in gr.indices) gr[k] += weight * against[k]
+        }
+        aggrieve(raided, raider.lineage!!, 1f); aggrieve(raider, raided.lineage!!, 0.3f)
+        shove(raided, raider)
+        return true
     }
 
     /**
@@ -1607,7 +1649,7 @@ class Ecology(private val sim: Simulation) {
             pAdult[k] = catchChance(g, o, at, false, packKg, home)
             pYoung[k] = if (o.young > 0) catchChance(g, o, at, true, packKg, home) else 0f
             // Big, armed prey fight back: horns and tusks kill hunters. Worth it only for much meat.
-            risk[k] = fightBack(o.species, s) * (2f - home) * (1f + youngShare(o)) * fitness(o)
+            risk[k] = fightBack(o.species, packKg) * (2f - home) * (1f + youngShare(o)) * fitness(o)
             // People kill from a distance with spears and arrows, and a band that knows the quarry
             // knows when to stand off: a cornered aurochs rarely reaches them.
             g.craft?.let { risk[k] *= RANGED_RISK * (1f - 0.7f * it[o.species.index]) }
@@ -1717,7 +1759,11 @@ class Ecology(private val sim: Simulation) {
      * Chance per kill that an adult of [prey] kills one of the hunting [predator]s: grows with its
      * defence and with how much heavier it is than one hunter.
      */
-    private fun fightBack(prey: Species, predator: Species) = FIGHT_BACK * prey.defence * min(2f, prey.massKg / predator.massKg)
+    /**
+     * Chance a cornered [prey] kills one of the hunters: its weapons, and its weight against the
+     * whole party bringing it down (a pride smothers an aurochs together; a pair of wolves faces it alone).
+     */
+    private fun fightBack(prey: Species, packKg: Float) = FIGHT_BACK * prey.defence * min(2f, prey.massKg / max(1f, packKg) * 2f)
 
     /**
      * A kill draws rivals: the strongest other predator group in contact, if it outweighs the
@@ -2065,7 +2111,7 @@ class Ecology(private val sim: Simulation) {
             child.lineage = g.lineage?.copyOf(); child.inbred = g.inbred
             child.campWeeks = 0
             child.making = g.making?.copyOf()
-            child.traditions = g.traditions?.copyOf(); child.prosper = g.prosper
+            child.traditions = g.traditions?.copyOf(); child.prosper = g.prosper; child.grudge = g.grudge?.copyOf()
             child.tools = g.tools?.copyOf()?.also { k -> for (tl in Tool.entries) if (tl.heavy) k[tl.ordinal] = 0f }
             child.goods = g.goods?.let { gd -> FloatArray(gd.size) { gd[it] * share }.also { for (m in gd.indices) gd[m] -= it[m] } }
             // A new group carries its parents' temper, give or take: the variation selection works on.
@@ -2156,6 +2202,12 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Chance that a meeting of unrelated, well-fed strangers with nothing to take turns violent. */
+        const val HOSTILITY = 0.02f
+        /** Share of the raided band's adults killed in a raid by an equal force. */
+        const val RAID_DEATHS = 0.05f
+        /** Share of a grievance kept from week to week (half gone in about 13 years). */
+        const val GRUDGE_KEEP = 0.999f
         /** Share of traditions a region's bands start with. */
         const val TRADITION_START = 0.5f
         /** Chance, at a meeting, of copying a differing tradition from a band doing clearly better. */
