@@ -68,6 +68,8 @@ class AnimalGroup(
     var heading = -1
     /** Weeks a group has kept its range where it is. */
     var weeksHere = 0
+    /** Weeks a herd has been off its home range. */
+    var weeksAway = 0
     /** Food gained over need on the last day, 0 = starving, 1 = full. */
     var lastIntakeRatio = 1f
     /**

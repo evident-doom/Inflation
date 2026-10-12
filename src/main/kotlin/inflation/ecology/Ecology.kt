@@ -558,7 +558,11 @@ class Ecology(private val sim: Simulation) {
             // A herd that has left its home range (on its season's trek, or driven off) makes a new one where it is.
             // A new herd (split off, or one that has left its range) roams until it finds ground no
             // other herd of its kind holds, and makes its home range there.
-            if (g.homeX.isNaN() || dist(g.x - g.homeX, g.y - g.homeY) * cellKm > homeRangeKm(g)) {
+            val away = !g.homeX.isNaN() && dist(g.x - g.homeX, g.y - g.homeY) * cellKm > homeRangeKm(g)
+            g.weeksAway = if (away) g.weeksAway + 1 else 0
+            // Driven off by danger, a herd heads back once it has passed; only after long away does it give the old range up.
+            if (away && g.weeksAway <= HOME_MEMORY_WEEKS) return
+            if (g.homeX.isNaN() || away) {
                 g.homeX = Double.NaN
                 if (nearestHome(g, homeRangeKm(g)).second > homeRangeKm(g)) { g.homeX = g.x; g.homeY = g.y }
             }
@@ -983,6 +987,17 @@ class Ecology(private val sim: Simulation) {
                 val o = describe(g, x, y, min(toGo, reach), sc.box)
                 // The pull of a gathering: partners, news, exchange and feasting.
                 options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, GATHER_PULL, o.hazard, o.rainAhead)
+            } else { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++ }
+        }
+        // Home: a herd off its range (scattered by an attack) makes its way back when the danger has passed.
+        if (!s.carnivore && !s.human) {
+            val toGo = if (g.homeX.isNaN()) 0.0 else dist(g.homeX - g.x, g.homeY - g.y) * cellKm
+            if (toGo > homeRangeKm(g) && g.alert == 0) {
+                val step = min(toGo, reach.toDouble()) / toGo
+                val x = g.x + (g.homeX - g.x) * step; val y = g.y + (g.homeY - g.y) * step
+                sc.tx[k] = x; sc.ty[k] = y; k++
+                val o = describe(g, x, y, (toGo * step).toFloat(), sc.box)
+                options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, HOME_PULL, o.hazard, o.rainAhead)
             } else { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++ }
         }
         // The season's range: a week's march towards where it remembers doing well in the coming weeks.
@@ -2733,6 +2748,9 @@ class Ecology(private val sim: Simulation) {
         const val HOME_RANGE = 1.5f
         /** Intake below which a herd will weigh a forced march to new country. */
         const val MARCH_HUNGER = 0.6f
+        /** Weeks a herd off its range still means to return; how strongly it is drawn home. */
+        const val HOME_MEMORY_WEEKS = 8
+        const val HOME_PULL = 0.4f
         /** Ruggedness plus cover below which ground is open enough for a frightened herd to run. */
         const val OPEN_GROUND = 0.3f
         /** Extra yearly deaths among hunters without a territory of their own. */
