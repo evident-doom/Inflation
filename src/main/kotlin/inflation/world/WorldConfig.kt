@@ -6,8 +6,8 @@ import kotlin.math.roundToInt
 /**
  * Parameters for world generation. Defaults describe a region 1000 km wide and 2000 km from north
  * to south, from about 27°N to 45°N: from the latitude of northern Arabia and Sinai, through the
- * Levant and Anatolia, to the Black Sea and the Balkans. An archipelago of islands and larger
- * landmasses with open ocean on every side.
+ * Levant and Anatolia, to the Black Sea and the Balkans: one continent-like mass through every
+ * latitude band, with offshore islands and open ocean on every side.
  */
 data class WorldConfig(
     val seed: Long = 1L,
