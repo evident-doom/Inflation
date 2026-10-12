@@ -3,6 +3,7 @@ package inflation.world
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -51,6 +52,12 @@ class Tectonics(
     }
 
     companion object {
+        /** Randomness in which plates are continental: low keeps the continents together in one mass. */
+        const val CONTINENT_SCATTER = 0.1
+        /** Deepest subsidence of a continental rift valley before smoothing, m. */
+        const val RIFT_DEPTH_M = 900.0
+        /** Extra crustal freeboard at the middle of the map, falling to none at its edges, m. */
+        const val CORE_FREEBOARD_M = 450.0
         fun generate(grid: Grid, cfg: WorldConfig, noise: Noise): Tectonics {
             val rnd = Random(cfg.seed * 7919 + 13)
             val w = grid.width.toDouble(); val h = grid.height.toDouble()
@@ -65,7 +72,7 @@ class Tectonics(
             // Distance is measured against the map's own proportions, so a tall map has land along its length.
             val continentalCount = (cfg.plateCount * cfg.continentalShare).toInt().coerceAtLeast(2)
             val continental = seeds.indices.sortedBy { k ->
-                hypot((seeds[k].first - w / 2) / (0.5 * w), (seeds[k].second - h / 2) / (0.5 * h)) + 0.6 * rnd.nextDouble()
+                hypot((seeds[k].first - w / 2) / (0.5 * w), (seeds[k].second - h / 2) / (0.5 * h)) + CONTINENT_SCATTER * rnd.nextDouble()
             }.take(continentalCount).toSet()
             val plates = seeds.mapIndexed { k, (px, py, motion) ->
                 val (angle, speed) = motion
@@ -117,8 +124,10 @@ class Tectonics(
                 val conv = convergence[i].toDouble()
                 val texture = noise.fbm(x, y, 250.0 / grid.cellKm, 6)
                 val base = if (a.continental) {
-                    // Crustal thickness varies; thin parts are drowned shelves around -50 to -200 m.
-                    val freeboard = 150.0 + 800.0 * noise.fbm(x + 5003, y - 7001, 220.0 / grid.cellKm, 4) + 300.0 * texture
+                    // Crustal thickness varies; thin parts are drowned shelves around -50 to -200 m. The
+                    // continent's old core is thickest, so inland seas there are rarer than on its margins.
+                    val core = 1 - hypot((x - w / 2) / (0.5 * w), (y - h / 2) / (0.5 * h))
+                    val freeboard = 60.0 + CORE_FREEBOARD_M * core + 800.0 * noise.fbm(x + 5003, y - 7001, 220.0 / grid.cellKm, 4) + 300.0 * texture
                     if (freeboard > 0) freeboard else freeboard * 0.25 - 40.0
                 } else {
                     // Half-space cooling: ridge crests at ~2.5 km depth, old floor near 4.5 km.
@@ -132,8 +141,9 @@ class Tectonics(
                     u = conv * 0.025 * belt
                     relief = conv * 25_000.0 * belt * (0.5 + noise.ridged(x, y, 120.0 / grid.cellKm, 5))
                 } else if (conv < 0 && a.continental) {
-                    // Rifting: a narrow subsiding valley along the boundary.
-                    relief = conv * 40_000.0 * exp(-km / 25.0)
+                    // Rifting: a narrow subsiding valley along the boundary, a chain of lakes or at most a
+                    // narrow gulf; a young rift does not split a continent with open ocean.
+                    relief = max(conv * 40_000.0, -RIFT_DEPTH_M) * exp(-km / 25.0)
                 }
                 uplift[i] = u.toFloat()
                 reliefField[i] = relief.toFloat()

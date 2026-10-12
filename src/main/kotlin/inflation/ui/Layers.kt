@@ -55,7 +55,7 @@ class LayerPainter(private val sim: Simulation) {
             Layer.SOIL_MOISTURE -> for (i in 0 until n) out[i] = if (world.isSea[i]) SEA else Render.ramp(sim.water.soil[i], 0f, 150f, Render.DRY_WET)
             Layer.RIVER_FLOW -> for (i in 0 until n) out[i] = flow(i)
             Layer.RUGGEDNESS -> live(out) { Render.shade(world, it, Render.ramp(t.ruggedness[it], 0f, 1f, RUGGED)) }
-            Layer.TRAVEL_COST -> live(out) { Render.ramp(ln(t.travelCost(it, sim.vegetation, sim.weather.snowpack[it])), 0f, ln(20f), EASY_HARD) }
+            Layer.TRAVEL_COST -> live(out) { Render.ramp(ln(t.travelCost(it, sim.vegetation, sim.weather.snowpack[it], dischargeNow = sim.water.discharge[it])), 0f, ln(20f), EASY_HARD) }
             Layer.VISIBILITY -> live(out) { Render.ramp(ln(t.sightKm(it, sim.vegetation) * 20f), 0f, ln(20f * 10f), BLIND_CLEAR) }
             Layer.VIEWSHED -> live(out) { Render.shade(world, it, Render.ramp(ln(1 + t.viewAreaKm2[it]), 0f, ln(1 + 2000f), BLIND_CLEAR)) }
             Layer.DEFENSIBILITY -> live(out) { Render.shade(world, it, Render.ramp(t.defensibility[it], 0f, 1f, RUGGED)) }

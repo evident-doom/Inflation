@@ -633,7 +633,7 @@ class Ecology(private val sim: Simulation) {
             mRugged.cell[m] += terrain.ruggedness[i]
             mWet.cell[m] += wetness[i]
             mSnow.cell[m] += sim.weather.snowpack[i]
-            mCost.cell[m] += min(10f, terrain.travelCost(i, v, sim.weather.snowpack[i]))
+            mCost.cell[m] += min(10f, terrain.travelCost(i, v, sim.weather.snowpack[i], dischargeNow = sim.water.discharge[i]))
             mRodents.cell[m] += small.rodents[i] * cellKm2
             if (crocKm[i] <= 1.5f) mCroc.cell[m] += 1f
           }

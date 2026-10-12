@@ -48,11 +48,12 @@ object Volcanism {
         val out = ArrayList<Volcano>()
         fun farFromOthers(x: Int, y: Int, km: Double) = out.none { hypot((it.x - x).toDouble(), (it.y - y).toDouble()) * grid.cellKm < km }
 
-        // Arcs: 90–160 km behind the trench on the overriding plate, spaced 40–60 km apart.
+        // Arcs: a line of volcanoes about 110–130 km behind the trench on the overriding plate, where
+        // the sinking slab reaches the depth that melts the mantle above it; spaced 40–60 km apart.
         repeat(grid.size / 8) {
             val i = rnd.nextInt(grid.size)
             val d = tect.boundaryDistKm[i]
-            if (!tect.isOverriding(i) || d !in 90f..160f) return@repeat
+            if (!tect.isOverriding(i) || tect.convergence[i] < 0.008f || d !in 105f..135f) return@repeat
             val x = grid.x(i); val y = grid.y(i)
             if (!farFromOthers(x, y, 40.0 + 20 * rnd.nextDouble())) return@repeat
             val continental = tect.isContinental(i)

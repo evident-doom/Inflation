@@ -19,7 +19,7 @@ data class WorldConfig(
     /** Number of tectonic plates seeded across the region; 0 for about 14 per million km². */
     val plates: Int = 0,
     /** Share of plates that carry continental crust; they are drawn preferentially near the centre. */
-    val continentalShare: Double = 0.5,
+    val continentalShare: Double = 0.6,
     /** Width of the band along every edge that is forced down to ocean floor, km. */
     val oceanMarginKm: Double = 110.0,
     /** Mantle hotspots, each leaving a chain of volcanic islands and seamounts; -1 for about 2 per million km². */

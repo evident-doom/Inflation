@@ -9,21 +9,22 @@ The design brief lives in the project's Claude Doc. This repository starts with 
 (two million cells), spanning about 45°N to 27°N, the latitudes from the Black Sea and the Balkans
 down to northern Arabia and Sinai: cold continental and alpine in the north, hot and dry in the
 south. Latitude follows distance (1° per 111 km), so smaller test maps span fewer degrees around
-36°N. The region is an archipelago of larger landmasses and islands with ocean on every side.
+36°N. The region is one continent-like mass running through every latitude band, with offshore
+islands and ocean on every side.
 `--size KM` makes a square map, and `--height KM` sets its north–south extent.
 
 ### Generated once
 
 | Layer | Model |
 | --- | --- |
-| Tectonics | 14 plates on a warped Voronoi map, about half continental (preferring the centre). Continental crust varies in thickness, so parts are drowned into shelf seas between islands. Collisions raise mountain belts, rifts open valleys. Ocean floor deepens with distance from spreading ridges (2.5 to 4.5 km); oceanic plates sinking under others leave trenches. A band along every edge is ocean floor |
-| Volcanoes | Arcs 90–160 km behind trenches (continental arcs or island arcs), hotspot chains that age along the plate's motion (active shield at one end, drowned seamounts at the other), and rift cones. Old edifices are eroded with the land, young ones are built afterwards |
+| Tectonics | About 14 plates per million km² on a warped Voronoi map, 60% continental, chosen nearest the centre against the map's own proportions so land runs its full length. Continental crust varies in thickness and is thickest in the old core, so drowned shelves and inland seas lie mostly on the margins. Collisions raise mountain belts; rifts open valleys with lakes or a narrow gulf (at most 900 m deep), not open ocean. Ocean floor deepens with distance from spreading ridges (2.5 to 4.5 km); oceanic plates sinking under others leave trenches. A band along every edge is ocean floor |
+| Volcanoes | Arcs in a line 105–135 km behind trenches where the plates close fast (continental arcs or island arcs), hotspot chains that age along the plate's motion (active shield at one end, drowned seamounts at the other), and rift cones. Old edifices are eroded with the land, young ones are built afterwards |
 | Erosion and sediment | Stream-power law (implicit Braun & Willett 2013 solver, 40 steps × 50,000 years) and hillslope diffusion. Eroded material is carried downstream: rivers drop what exceeds their capacity, closed basins fill, large rivers build delta plains, and the rest builds a sloping shelf out to a shelf break |
 | Geology | Rock type per cell (sets erodibility and soil), sediment thickness; flint, clay, obsidian, ochre, salt, copper, tin, bitumen |
 | Climate | Monthly normals: latitude, 6.5 °C/km lapse rate, continentality; westerly moisture recharged over open sea, orographic rain and rain shadows; Mediterranean dry summers in the south |
 | Rivers and lakes | Thornthwaite evapotranspiration, Fu–Budyko runoff, D8 routing; lakes from a water balance, closed basins turn saline. Valley floors are planed flat beside rivers (width grows with the square root of discharge). Rivers are classed creek, stream, river and great river; reaches with a third of a metre of water and no rapids are navigable by canoe or raft |
 | Floodplains | Height above the nearest river (HAND); land a large flood (about ten times mean flow) reaches is floodplain |
-| Terrain | Ruggedness from slope, local relief and a rock roughness the 1 km grid cannot resolve (lava fields and karst roughest, alluvium smoothest, buried under thick sediment). Walking effort from Tobler's hiking function, roughness, wetlands and river crossings; open water is impassable on foot. Line of sight over the terrain in 16 directions out to 30 km with earth curvature; prominence over the surroundings; defensibility from height, broken ground and approaches cut by water, marsh or steep slopes |
+| Terrain | Ruggedness from slope, local relief and a rock roughness the 1 km grid cannot resolve (lava fields and karst roughest, alluvium smoothest, buried under thick sediment). Walking effort from Tobler's hiking function, roughness, wetlands and river crossings. A river is a sub-cell channel, not a 1 km strip of water: its cost comes from this week's depth (knee deep a wade, waist deep slow, past chest deep a swim most animals refuse), and wide braided reaches on gentle ground have fords while gorges run deep. A stream in spate stops herds; in the dry season the same river can be crossed. Open water is impassable on foot. Line of sight over the terrain in 16 directions out to 30 km with earth curvature; prominence over the surroundings; defensibility from height, broken ground and approaches cut by water, marsh or steep slopes |
 | Biomes | Potential vegetation from aridity, temperature and drainage, including marsh, swamp forest, bog, salt marsh, mangrove and floodplain forest |
 
 ### Over time (`Simulation`)

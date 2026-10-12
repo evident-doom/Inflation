@@ -258,7 +258,7 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN) : J
         val t = world.terrain
         if (v.isVegetated(i)) {
             appendLine("Ruggedness %.2f (slope %.0f%%, relief %.0f m, rock roughness %.2f)".format(t.ruggedness[i], t.slope[i] * 100, t.relief[i], t.roughness[i]))
-            appendLine("Travel effort %.1f× flat ground · defensibility %.2f".format(t.travelCost(i, v, sim.weather.snowpack[i]), t.defensibility[i]))
+            appendLine("Travel effort %.1f× flat ground · defensibility %.2f".format(t.travelCost(i, v, sim.weather.snowpack[i], dischargeNow = sim.water.discharge[i]), t.defensibility[i]))
             appendLine("Sight on the ground %.2f km · view over terrain %.1f km, %.0f km²".format(t.sightKm(i, v), t.viewKm[i], t.viewAreaKm2[i]))
         }
         val e = sim.ecology

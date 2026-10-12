@@ -37,6 +37,9 @@ class Terrain(private val world: World) {
     val ruggedness = FloatArray(n)
     /** Walking effort relative to flat, open, dry ground, ignoring plants and snow; infinite on open water. */
     val baseCost = FloatArray(n)
+    /** Travel cost without crossing water, and how fordable each river cell is (see [crossingCost]). */
+    private val landCost = FloatArray(n)
+    private val ford = FloatArray(n) { 1f }
     /** Height above the mean ground within about 5 km, m: hills, spurs and knolls are positive. */
     val prominence = FloatArray(n)
     /** Mean distance one can see over the bare terrain, km (out to [VIEW_MAX_KM]). */
@@ -71,6 +74,8 @@ class Terrain(private val world: World) {
             roughness[i] = ROCK_ROUGHNESS.getValue(world.geology.rock[i]) * exposed + 0.2f * min(1f, slope[i] / 0.5f)
             ruggedness[i] = min(1f, 0.5f * min(1f, slope[i] / 0.35f) + 0.25f * min(1f, relief[i] / 600f) + 0.5f * roughness[i])
             baseCost[i] = walkingCost(slope[i]) * (1f + roughness[i]) * wetCost(i) * riverCost(i)
+            landCost[i] = baseCost[i] / riverCost(i)
+            ford[i] = fordFactor(i)
         }
         val mean = blur(grid, FloatArray(n) { max(0f, elev[it]) }, max(1, (5 / grid.cellKm).toInt()))
         for (i in 0 until n) if (!isWater(i)) prominence[i] = elev[i] - mean[i]
@@ -90,6 +95,35 @@ class Terrain(private val world: World) {
         Biome.SWAMP_FOREST, Biome.MANGROVE -> 5f
         Biome.BOG -> 4f
         else -> if (world.floodplain.isFloodplain[i]) 1.2f else 1f
+    }
+
+    /**
+     * How the channel at [i] lies for crossing, as a factor on its depth: where a river runs wide,
+     * slow and braided over gravel on gentle ground it is shallow (fords, about 0.6); where it is
+     * confined between steep banks in a valley it runs deep and fast (about 1.3).
+     */
+    private fun fordFactor(i: Int): Float {
+        if (world.riverClass(i) == RiverClass.NONE) return 1f
+        val r = world.water.drainage.receiver[i]
+        val gradient = if (r == i) 0f else (world.elevation[i] - world.elevation[r]) / world.water.drainage.receiverDistM[i]
+        return when {
+            gradient < 0.002f && world.floodplain.isFloodplain[i] -> 0.6f
+            gradient < 0.004f -> 0.8f
+            gradient > 0.02f || slope[i] > 0.15f -> 1.3f
+            else -> 1f
+        }
+    }
+
+    /**
+     * Cost of getting across the river at [i] with [dischargeNow] m³/s in it, as a factor: knee
+     * deep is a wade, waist deep slow and risky, beyond chest deep a swim most animals refuse; a
+     * stream in spate stops herds for days, and in the dry season the same river has fords.
+     */
+    fun crossingCost(i: Int, dischargeNow: Float): Float {
+        if (world.riverClass(i) == RiverClass.NONE || dischargeNow < 0.05f) return 1f
+        val depth = Channel.depthM(dischargeNow) * ford[i]
+        fun ramp(x: Float, a: Float, b: Float) = ((x - a) / (b - a)).coerceIn(0f, 1f)
+        return 1f + 4f * ramp(depth, 0.3f, 1f) + 20f * ramp(depth, 1.2f, 2.5f)
     }
 
     /** Crossing water: creeks are stepped over, streams waded, rivers swum or forded, great rivers need a boat. */
@@ -181,9 +215,10 @@ class Terrain(private val world: World) {
      * forest undergrowth and snow. Animals at home in cover or on rock are slowed less:
      * [thicketEase] and [rockEase] (0..1) take that share of the extra effort away.
      */
-    fun travelCost(i: Int, v: Vegetation, snowMm: Float, thicketEase: Float = 0f, rockEase: Float = 0f): Float {
+    fun travelCost(i: Int, v: Vegetation, snowMm: Float, thicketEase: Float = 0f, rockEase: Float = 0f,
+                   dischargeNow: Float = world.water.discharge[i]): Float {
         val scrub = min(1f, v.shrub[i] / 2f)
-        var base = baseCost[i]
+        var base = if (baseCost[i].isFinite()) landCost[i] * crossingCost(i, dischargeNow) else baseCost[i]
         if (rockEase > 0f && base.isFinite()) base = 1f + (base - 1f) * (1f - rockEase)
         val thicket = (1.5f * scrub * scrub + 0.5f * v.canopy(i)) * (1f - thicketEase)
         return base * (1f + thicket) * (1f + snowMm / 150f)
