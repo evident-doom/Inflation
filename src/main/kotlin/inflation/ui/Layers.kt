@@ -14,6 +14,7 @@ enum class Layer(val label: String) {
     BIOMES("Potential biomes"),
     TEMPERATURE("Temperature (live)"),
     PRECIPITATION("Rain and snowfall (live)"),
+    WIND("Wind: hue is where it blows from, brightness its strength (live)"),
     SOIL_MOISTURE("Soil moisture (live)"),
     RIVER_FLOW("River flow vs normal (live)"),
     GEOLOGY("Rock"),
@@ -67,6 +68,7 @@ class LayerPainter(private val sim: Simulation) {
             Layer.PLANKTON -> for (i in 0 until n) out[i] =
                 if (sim.ecology.plankton.isWater[i]) Render.ramp(ln(1 + sim.ecology.plankton.phyto[i]), 0f, ln(1 + 15f), PLANKTON) else terrain[i]
             Layer.FISH -> for (i in 0 until n) out[i] = fishColour(i)
+            Layer.WIND -> for (i in 0 until n) out[i] = windColour(i)
             Layer.UPWELLING -> for (i in 0 until n) out[i] =
                 if (world.isSea[i]) Render.ramp(sim.ecology.marine.upwelling[i], 0f, 1f, PLANKTON) else terrain[i]
             Layer.INSECTS -> live(out) { Render.ramp(ln(1 + sim.ecology.small.insects[it]), 0f, ln(1 + 3000f), FAUNA) }
@@ -158,5 +160,14 @@ class LayerPainter(private val sim: Simulation) {
         private val SOIL = intArrayOf(0xe8d8a8, 0xb08850, 0x704020, 0x301808)
         private val DRY_WET = intArrayOf(0xc89858, 0xe0d090, 0xa0c070, 0x408050, 0x205848)
         private val LOW_HIGH = intArrayOf(0xb03020, 0xe0a060, 0xf0f0f0, 0x60a0e0, 0x1030b0)
+    }
+
+    /** Wind as colour: the hue turns with the direction it comes from (north blue, east green, south orange, west purple), brighter when stronger. */
+    private fun windColour(i: Int): Int {
+        val u = sim.weather.windEast(i); val v = sim.weather.windSouth(i)
+        val from = (kotlin.math.atan2(-u.toDouble(), v.toDouble()) / (2 * Math.PI)).let { if (it < 0) it + 1 else it } // 0 = from north, clockwise
+        val speed = kotlin.math.hypot(u, v)
+        val rgb = java.awt.Color.HSBtoRGB((0.62f - from.toFloat()).let { if (it < 0) it + 1 else it }, 0.8f, (0.25f + speed / 12f).coerceAtMost(1f)) and 0xffffff
+        return if (world.isSea[i]) rgb else Render.shade(world, i, rgb)
     }
 }

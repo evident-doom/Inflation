@@ -234,7 +234,7 @@ class Vegetation(private val world: World, private val seed: Long) {
 
     /**
      * Fires: lightning and dry-season sparks start them in hot, dry, fuel-rich ground, and each
-     * spreads through the step from cell to cell, fastest downwind (the westerlies carry it east),
+     * spreads through the step from cell to cell, fastest downwind and the faster the stronger the wind,
      * until it runs out of fuel, reaches wet or grazed-down ground, water or bare rock, or has
      * burned for the step. Many fires stay small; a few run for tens of km.
      */
@@ -258,13 +258,16 @@ class Vegetation(private val world: World, private val seed: Long) {
                 val d = depth.getValue(c)
                 if (d >= maxSteps) continue
                 val cx = grid.x(c); val cy = grid.y(c)
+                val u = weather.windEast(c); val v = weather.windSouth(c)
+                val speed = kotlin.math.hypot(u, v)
                 for (k in 0 until 8) {
                     val dx = DX[k]; val dy = DY[k]
                     if (!grid.inBounds(cx + dx, cy + dy)) continue
                     val nb = grid.index(cx + dx, cy + dy)
                     if (burning[nb] || !canBurn(nb, weather, water)) continue
-                    // Downwind (east) burns readily, upwind barely; dense fuel carries it on.
-                    val wind = 0.35f + 0.25f * dx
+                    // Downwind burns readily, upwind barely, more so in a strong wind; dense fuel carries it on.
+                    val along = if (speed > 0.1f) (dx * u + dy * v) / (speed * kotlin.math.hypot(dx.toFloat(), dy.toFloat())) else 0f
+                    val wind = 0.35f + 0.3f * min(1f, speed / 8f) * along
                     val chance = SPREAD * wind * min(1f, fuel(nb) / 1.0f)
                     if (hash(nb, k) >= chance) continue
                     burning[nb] = true; depth[nb] = d + 1; queue += nb

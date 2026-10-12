@@ -90,10 +90,10 @@ class SeaGroup(val id: Int, val species: SeaSpecies, var x: Double, var y: Doubl
  *
  * - **Upwelling.** Wind drags the surface water, and the earth's turning bends that drift to the
  *   right of the wind (Ekman transport). Where it carries water away from a coast, cold water rich
- *   in nutrients wells up from below, and the plankton blooms. Westerlies blow most of the year
- *   (drift to the south); in summer steady north winds take over (drift to the west), as the
- *   Etesians do in the eastern Mediterranean. Shelf edges, where the sea floor drops away, stir up
- *   nutrients as well. The plankton's nutrient supply is raised there each month.
+ *   in nutrients wells up from below, and the plankton blooms. The week's wind drives it (see
+ *   [inflation.world.Winds]): westerlies drift water south, the summer north winds (like the
+ *   Etesians of the eastern Mediterranean) drift it west; the sea answers over a few weeks. Shelf
+ *   edges, where the sea floor drops away, stir up nutrients as well.
  * - **Sea animals** as roaming groups, weekly like those on land: fin whales follow the krill and
  *   remember where it was rich each month; dolphin pods and porpoises hunt fish; monk seals fish
  *   along rocky coasts and haul out on shore; sharks hunt seals, dolphins and porpoises where their
@@ -110,9 +110,11 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
 
     /** Distance from each sea cell to the nearest land, km (large in the open sea). */
     val shoreKm = FloatArray(n)
-    /** Upwelling strength under the westerlies and under summer north winds, 0..1. */
-    private val upWest = FloatArray(n)
-    private val upNorth = FloatArray(n)
+    /** Direction offshore (east and south components), scaled by nearness to the coast, 0..1. */
+    private val offEast = FloatArray(n)
+    private val offSouth = FloatArray(n)
+    /** Wind-driven upwelling, averaged over the last few weeks, 0..1. */
+    private val drive = FloatArray(n)
     /** Shelf edges, where the sea floor drops steeply, 0..1. */
     private val shelfEdge = FloatArray(n)
     /** Nutrient supply before upwelling. */
@@ -142,7 +144,7 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
 
     init {
         shoreAndUpwelling()
-        upwell()
+        upwell(windy = false)
         populate()
         findColonies()
     }
@@ -198,8 +200,9 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
                 val near = exp(-shoreKm[i] / UPWELL_KM)
                 // Northern hemisphere: the drift runs 90° right of the wind. Westerlies (blowing
                 // east) drift water south (+y); north winds (blowing south) drift it west (-x).
-                upWest[i] = max(0f, oy) * near
-                upNorth[i] = max(0f, -ox) * near
+                offEast[i] = ox * near
+                offSouth[i] = oy * near
+                drive[i] = max(0f, oy) * near // as under the westerlies, until the first week's wind
             }
             // Shelf edge: the sea floor falling away steeply between about 100 and 600 m.
             val depth = -world.elevation[i]
@@ -210,14 +213,19 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
         }
     }
 
-    /** Raises the plankton's nutrient supply where the season's wind and the shelf edges bring deep water up. */
-    private fun upwell() {
-        val m = sim.weather.date.month
-        // Summer (the 4th to 6th months from the spring equinox): steady north winds; otherwise westerlies.
-        val summer = m in 3..5
+    /** Raises the plankton's nutrient supply where the wind and the shelf edges bring deep water up. */
+    private fun upwell(windy: Boolean = true) {
+        val w = sim.weather
+        val keep = exp(-days / UPWELL_WEEKS / 6f)
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             if (!world.isSea[i]) return@forEach
-            val u = min(1f, (if (summer) upNorth[i] + 0.3f * upWest[i] else upWest[i]) + 0.5f * shelfEdge[i])
+            if (windy) {
+                // The surface drift runs to the right of the wind: east wind drifts north, south wind drifts west.
+                val east = w.windEast(i); val south = w.windSouth(i)
+                val now = max(0f, (-south * offEast[i] + east * offSouth[i]) / UPWELL_WIND)
+                drive[i] = keep * drive[i] + (1f - keep) * now
+            }
+            val u = min(1f, drive[i] + 0.5f * shelfEdge[i])
             upwelling[i] = u
             plankton.supply[i] = min(1f, baseSupply[i] + UPWELL_SUPPLY * u)
         }
@@ -553,6 +561,10 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
         const val UPWELL_KM = 20f
         /** Nutrient supply added by full upwelling. */
         const val UPWELL_SUPPLY = 0.6f
+        /** Wind, m/s, that drives full upwelling along a coast it blows along. */
+        const val UPWELL_WIND = 8f
+        /** Weeks the sea takes to answer a change of wind. */
+        const val UPWELL_WEEKS = 3f
         /** Share of the food in a range a group can find and catch in a week. */
         const val FOOD_REACHABLE = 0.2f
         /** Shark mass per km² at which danger reads one half. */
