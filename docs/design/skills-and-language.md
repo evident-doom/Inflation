@@ -145,7 +145,8 @@ Dates and attributions here are from memory, not looked up. They should be check
   - *belief* is how sure the band is, for things heard.
   - *craft* is *D*, from 0 to 1: how well the band can actually do it.
 - **Effects:** the outcome of a skilled act depends on *craft*. A band with the bow but low *craft* misses most shots and breaks arrows. *Craft* also caps the quality of what is made: a poor knapper's blades are short and break.
-- **Learning *D*:** *craft* rises with practice, fastest with a skilled teacher in the same band, slower alone. It falls slowly without use.
+- **Learning *D*:** *craft* rises with practice, every time the skill is used, whether or not anyone teaches. Trial and error works alone, just more slowly and with more failures; a skilled teacher in the same band speeds it up several times. *Craft* falls slowly without use.
+- **Practice also teaches *K*:** doing a thing often turns up new facts and refinements. A knapper finds that heated flint works better; a hunter learns where gazelle cross. Practice is a source of *K*, not only of *craft*, and that *K* can then be told to others.
 - **Losing skills:** small or isolated bands can lose skills when the last skilled member dies. This is the "Tasmanian effect" of the literature: population size and contact sustain complex skills.
 - **Discovery:** *K* can be found by chance, with odds raised by exposure: seeing grass grow back after a lightning fire, or seeds sprouting by a midden.
 - **Prerequisites:** *needs* sets the order skills can be learned in. Tools and materials gate skills.
