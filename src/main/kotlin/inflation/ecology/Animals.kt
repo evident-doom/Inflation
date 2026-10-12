@@ -98,6 +98,11 @@ class AnimalGroup(
     var traditions: BooleanArray? = null
     /** For people: how well the band has been doing lately, its growth per head per year, smoothed. */
     var prosper = 0f
+    /**
+     * For people: the band's words for the [Language.CONCEPTS] things it talks about, each an
+     * arbitrary form. Bands that meet often come to share them; bands that never meet drift apart.
+     */
+    var words: IntArray? = null
     /** For people: grievances held against each founding lineage, from raids and killings, 0.. (fading over decades). */
     var grudge: FloatArray? = null
     fun holds(t: Tradition) = traditions?.get(t.ordinal) == true

@@ -441,6 +441,12 @@ class Ecology(private val sim: Simulation) {
             // Traditions are regional: neighbouring bands mostly share them.
             val region = java.util.Random(world.config.seed * 31L + (grid.x(cell) / (LINEAGE_KM / cellKm)).toInt() + 7 * (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt())
             group.traditions = BooleanArray(Tradition.entries.size) { region.nextFloat() < TRADITION_START }
+            // Each region speaks its own tongue; neighbouring regions share about half their words.
+            val rx = (grid.x(cell) / (LINEAGE_KM / cellKm)).toInt(); val ry = (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt()
+            group.words = IntArray(Language.CONCEPTS) { k ->
+                val home = java.util.Random(world.config.seed * 977L + k * 131L + (if (k % 2 == 0) rx / 2 * 7919 + ry / 2 else rx * 7919 + ry)).nextInt(Language.FORMS)
+                home
+            }
             // Neighbouring bands share descent; distant ones do not.
             group.lineage = FloatArray(LINEAGES).also { it[((grid.x(cell) / (LINEAGE_KM / cellKm)).toInt() + 7 * (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt()) % LINEAGES] = 1f }
             group.forageCraft = FloatArray(Forage.entries.size) { f ->
@@ -512,7 +518,7 @@ class Ecology(private val sim: Simulation) {
         timed("graze") { graze(); shapePlants() }
         timed("prowl") { prowlAll() }
         timed("drink") { for (g in groups) if (g.alive) drink(g) }
-        timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) { endure(g); g.wary *= WARY_KEEP; g.grudge?.let { gr -> for (k in gr.indices) gr[k] *= GRUDGE_KEEP } } } }
+        timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) { endure(g); g.wary *= WARY_KEEP; g.grudge?.let { gr -> for (k in gr.indices) gr[k] *= GRUDGE_KEEP }; g.words?.let { w -> driftWords(g, w) } } } }
         timed("fire") { for (g in groups) if (g.alive) flee(g) }
         timed("seasons") { groups.parallelStream().forEach { g -> if (g.alive && (!g.species.carnivore || g.species.human)) learnSeason(g) } }
     }
@@ -1383,7 +1389,8 @@ class Ecology(private val sim: Simulation) {
         if (o == null || o.adults < 2 || g.adults < 2) return
         if (r.nextFloat() >= MARRY_WEEKLY * overlap(d, g.rangeKm, o.rangeKm)) return
         if (fight(g, o, r)) return
-        imitate(g, o, r); imitate(o, g, r)
+        val understood = talk(g, o, r)
+        if (r.nextFloat() < understood) { imitate(g, o, r); imitate(o, g, r) }
         // Bands that share food give to the hungrier in bad times.
         if (g.holds(Tradition.SHARING) && o.holds(Tradition.SHARING)) {
             val (rich, poor) = if (g.condition > o.condition) g to o else o to g
@@ -1412,9 +1419,12 @@ class Ecology(private val sim: Simulation) {
             ga[m] -= diff; gb[m] += diff
         }
         learnFrom(g.making, o.making, ma); learnFrom(o.making, g.making?.copyOf(), mb)
+        // Know-how passes better between bands that understand each other (partners learn the language
+        // in time, but the first years are halting).
+        val tongue = 0.5f + 0.5f * understood
         val ca = g.craft?.copyOf(); val fa = g.forageCraft?.copyOf()
-        learnFrom(g.craft, o.craft, ma); learnFrom(g.forageCraft, o.forageCraft, ma)
-        learnFrom(o.craft, ca, mb); learnFrom(o.forageCraft, fa, mb)
+        learnFrom(g.craft, o.craft, ma * tongue); learnFrom(g.forageCraft, o.forageCraft, ma * tongue)
+        learnFrom(o.craft, ca, mb * tongue); learnFrom(o.forageCraft, fa, mb * tongue)
     }
 
     /** Coarse cells holding good knapping stone (flint, chert, obsidian), counted once. */
@@ -1462,6 +1472,30 @@ class Ecology(private val sim: Simulation) {
     }
 
     /**
+     * Two bands talk. They align a few words (the naming game: the larger band's word tends to win),
+     * and pass on news of good places by month, as far as they understand each other; hearsay is
+     * trusted a little less than one's own memory. Returns how well they understood each other.
+     */
+    private fun talk(g: AnimalGroup, o: AnimalGroup, r: Random): Float {
+        val wa = g.words ?: return 0f; val wb = o.words ?: return 0f
+        val understood = Language.understanding(wa, wb)
+        repeat(WORDS_PER_MEETING) {
+            val k = r.nextInt(wa.size)
+            if (wa[k] != wb[k]) { if (r.nextFloat() < g.size.toFloat() / (g.size + o.size)) wb[k] = wa[k] else wa[k] = wb[k] }
+        }
+        for (m in 0 until 12) {
+            if (r.nextFloat() >= understood) continue
+            for ((hearer, teller) in listOf(g to o, o to g)) {
+                if (teller.seasonX[m].isNaN()) continue
+                if (hearer.seasonX[m].isNaN() || teller.seasonQ[m] * HEARSAY > hearer.seasonQ[m] + 0.1f) {
+                    hearer.seasonX[m] = teller.seasonX[m]; hearer.seasonY[m] = teller.seasonY[m]; hearer.seasonQ[m] = teller.seasonQ[m] * HEARSAY
+                }
+            }
+        }
+        return understood
+    }
+
+    /**
      * Whether a meeting turns violent, and its toll if it does. Strangers (unrelated, with different
      * ways) fight more than kin; hunger, stores worth taking and a settled band's fixed ground raise
      * the stakes; old grievances call for revenge; bands bound by marriage or food-sharing seldom fight.
@@ -1473,7 +1507,9 @@ class Ecology(private val sim: Simulation) {
         val la = g.lineage ?: return false; val lb = o.lineage ?: return false
         val kin = la.indices.sumOf { (la[it] * lb[it]).toDouble() }.toFloat()
         val ta = g.traditions; val tb = o.traditions
-        val alike = if (ta != null && tb != null) ta.indices.count { ta[it] == tb[it] }.toFloat() / ta.size else 0.5f
+        val sameWays = if (ta != null && tb != null) ta.indices.count { ta[it] == tb[it] }.toFloat() / ta.size else 0.5f
+        val sameTongue = g.words?.let { a -> o.words?.let { b -> Language.understanding(a, b) } } ?: 0.5f
+        val alike = 0.5f * (sameWays + sameTongue)
         val hunger = 1f - min(g.condition, o.condition)
         val stakes = min(1f, (g.larder + o.larder) / max(1f, 60f * (g.dailyNeedKg + o.dailyNeedKg))) + if (g.campWeeks > 26 || o.campWeeks > 26) 0.5f else 0f
         val grievance = la.indices.sumOf { ((g.grudge?.get(it) ?: 0f) * lb[it] + (o.grudge?.get(it) ?: 0f) * la[it]).toDouble() }.toFloat()
@@ -1514,6 +1550,12 @@ class Ecology(private val sim: Simulation) {
             if (mine[k] != theirs[k] && r.nextFloat() < IMITATE * min(1f, better / 0.02f)) mine[k] = theirs[k]
         }
         if (r.nextFloat() < INNOVATE) { val k = r.nextInt(mine.size); mine[k] = !mine[k] }
+    }
+
+    /** Words change by themselves, slowly: a band cut off from others drifts into its own dialect. */
+    private fun driftWords(g: AnimalGroup, w: IntArray) {
+        val r = groupRandom(g, 7)
+        if (r.nextFloat() < WORD_DRIFT * w.size) w[r.nextInt(w.size)] = r.nextInt(Language.FORMS)
     }
 
     /** Whether any band's range overlaps [g]'s. */
@@ -2124,6 +2166,7 @@ class Ecology(private val sim: Simulation) {
             child.campWeeks = 0
             child.making = g.making?.copyOf()
             child.traditions = g.traditions?.copyOf(); child.prosper = g.prosper; child.grudge = g.grudge?.copyOf()
+            child.words = g.words?.copyOf()
             child.tools = g.tools?.copyOf()?.also { k -> for (tl in Tool.entries) if (tl.heavy) k[tl.ordinal] = 0f }
             child.goods = g.goods?.let { gd -> FloatArray(gd.size) { gd[it] * share }.also { for (m in gd.indices) gd[m] -= it[m] } }
             // A new group carries its parents' temper, give or take: the variation selection works on.
@@ -2214,6 +2257,12 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Concepts whose words two bands try to align at a meeting. */
+        const val WORDS_PER_MEETING = 3
+        /** How much a band trusts another's report of a good place, against its own memory. */
+        const val HEARSAY = 0.8f
+        /** Weekly chance per concept that its word changes: about a fifth of a band's words in a thousand years. */
+        const val WORD_DRIFT = 0.000004f
         /** Chance that a meeting of unrelated, well-fed strangers with nothing to take turns violent. */
         const val HOSTILITY = 0.02f
         /** Share of the raided band's adults killed in a raid by an equal force. */

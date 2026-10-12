@@ -66,6 +66,22 @@ fun main(args: Array<String>) {
                 bands.map { it.campWeeks }.average(), 100.0 * bands.count { it.campWeeks > 26 } / bands.size,
                 bands.mapNotNull { b -> b.craft?.let { c -> Catalogue.herbivores.map { c[it.index] }.average() } }.average(),
                 bands.mapNotNull { b -> b.forageCraft?.average() }.average()))
+            val spoken = bands.filter { it.words != null }
+            if (spoken.size > 1) {
+                var near = 0.0; var all = 0.0; var pairs = 0
+                for (a in spoken) {
+                    var best = Double.MAX_VALUE; var bestU = 0f
+                    for (b in spoken) {
+                        if (a === b) continue
+                        val u = Language.understanding(a.words!!, b.words!!)
+                        val d = kotlin.math.hypot(a.x - b.x, a.y - b.y)
+                        if (d < best) { best = d; bestU = u }
+                        all += u; pairs++
+                    }
+                    near += bestU
+                }
+                println("   speech neighbours understand each other %.0f%%, any two bands %.0f%%".format(100 * near / spoken.size, 100 * all / max(1, pairs)))
+            }
             println("   ways   " + Tradition.entries.joinToString { tr -> "%s %.0f%%".format(tr.name.lowercase(), 100.0 * bands.count { it.holds(tr) } / bands.size) })
             println("   tools  " + Tool.entries.joinToString { tl -> "%s %.2f".format(tl.name.lowercase(), bands.mapNotNull { it.tools?.get(tl.ordinal)?.toDouble() }.average()) } +
                 "; goods kg/adult " + Material.entries.joinToString { m -> "%s %.1f".format(m.name.lowercase(), bands.sumOf { (it.goods?.get(m.ordinal) ?: 0f).toDouble() } / max(1, bands.sumOf { it.adults })) })

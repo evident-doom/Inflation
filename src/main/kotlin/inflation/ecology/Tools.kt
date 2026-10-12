@@ -54,3 +54,18 @@ enum class Tradition(val about: String) {
     HYGIENE("middens and water kept apart, camps cleaned: a kept camp fouls slowly"),
     SHARING("food is shared with neighbouring bands in bad times: insurance against hunger"),
 }
+
+/**
+ * A deliberately small language: a fixed set of concepts (the species, the foods, water and
+ * weather, places, the months, actions), each named by a band with a word of its own. What matters
+ * to the simulation is how much two bands understand each other: the share of concepts they name
+ * alike ([understanding]). News, know-how and customs pass between bands in proportion to it.
+ */
+object Language {
+    /** Things there are words for: one per land species, foods, water, weather, places, months and actions. */
+    const val CONCEPTS = 64
+    /** Number of distinct word forms. */
+    const val FORMS = 1 shl 20
+
+    fun understanding(a: IntArray, b: IntArray): Float = a.indices.count { a[it] == b[it] }.toFloat() / a.size
+}
