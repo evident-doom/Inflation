@@ -67,7 +67,8 @@ class EcologyTest {
         for (s in Catalogue.all) assertTrue(census.last().getValue(s) < 10 * max(1, start.getValue(s)), "${s.name} bounded: ${census.map { it.getValue(s) }}")
         assertTrue(kills > 100, "wolves kill: $kills")
         assertTrue(e.groups.any { it.id >= firstIds }, "groups split as they grow")
-        assertTrue(e.groups.all { it.size <= it.species.maxGroupSize }, "no group above its split size")
+        // Bands that hold feasts grow larger before they split.
+        assertTrue(e.groups.all { it.size <= it.species.maxGroupSize * (if (it.holds(Tradition.FEASTS)) 1.4f else 1f) }, "no group above its split size")
     }
 
     @Test
