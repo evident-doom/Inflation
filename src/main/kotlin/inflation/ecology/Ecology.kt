@@ -981,7 +981,11 @@ class Ecology(private val sim: Simulation) {
             val n0 = CoarseMaps.Box().also { it.set(maps, x, y, DAY_ROUND_KM) }
             val nearKm2 = max(1.0, mLand.box(n0.x0, n0.y0, n0.x1, n0.y1)) * cellKm2
             val close = (mFruit.box(n0.x0, n0.y0, n0.x1, n0.y1) + mRoots.box(n0.x0, n0.y0, n0.x1, n0.y1)) / nearKm2
-            (0.5 * whole + 0.5 * close).toFloat()
+            val seen = 0.5 * whole + 0.5 * close
+            // Beyond what scouts have walked this week, a band can only guess: it expects about what
+            // it has where it is, unless it remembers the place by name.
+            val known = scouted(g, x, y)
+            (known * seen + (1f - known) * homeForage(g)).toFloat()
         }
             else if (s.carnivore) mRodents.box(box.x0, box.y0, box.x1, box.y1).toFloat() / areaKm2
             else ((s.diet.grass * mGraze.box(box.x0, box.y0, box.x1, box.y1) * worth(s, foodQuality(0, box)) + s.diet.browse * mBrowse.box(box.x0, box.y0, box.x1, box.y1) +
@@ -994,7 +998,7 @@ class Ecology(private val sim: Simulation) {
         // People camp where they can defend themselves, which takes the edge off a dangerous range.
         val danger = enemyDensity / (enemyDensity + DANGER_KG_KM2) * (if (s.human) 1f - 0.5f * terrain.defensibility[centre] else 1f) +
             (if (s.human) trespass(g, x, y) else 0f)
-        val preyValue = if (s.carnivore) mPrey[s.index].box(box.x0, box.y0, box.x1, box.y1) else 0.0
+        val preyValue = if (s.carnivore) mPrey[s.index].box(box.x0, box.y0, box.x1, box.y1) * (if (s.human) scouted(g, x, y).toDouble() else 1.0) else 0.0
         val preyDensity = (preyValue / boxKm2).toFloat()
         val prey = preyDensity / (preyDensity + PREY_NORM)
         // Others of its kind, not counting itself where it stands.
@@ -1516,6 +1520,25 @@ class Ecology(private val sim: Simulation) {
         val ca = g.craft?.copyOf(); val fa = g.forageCraft?.copyOf()
         learnFrom(g.craft, o.craft, ma * tongue); learnFrom(g.forageCraft, o.forageCraft, ma * tongue)
         learnFrom(o.craft, ca, mb * tongue); learnFrom(o.forageCraft, fa, mb * tongue)
+    }
+
+    /**
+     * How well a band knows what a range centred on (x, y) holds this week, 0..1: fully within the
+     * ground its scouts and hunters cover, fading beyond; places it remembers by name are known.
+     */
+    private fun scouted(g: AnimalGroup, x: Double, y: Double): Float {
+        val km = (dist(x - g.x, y - g.y) * cellKm).toFloat()
+        val reach = SCOUT_KM
+        if (km <= reach) return 1f
+        val remembered = g.places?.any { dist(it.x - x, it.y - y) * cellKm < g.rangeKm } == true
+        return if (remembered) 0.7f else kotlin.math.exp(-(km - reach) / reach)
+    }
+
+    /** What a band expects of ground it has not seen: about what it has around camp now. */
+    private fun homeForage(g: AnimalGroup): Double {
+        val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
+        val km2 = max(1.0, mLand.box(box.x0, box.y0, box.x1, box.y1)) * cellKm2
+        return (mFruit.box(box.x0, box.y0, box.x1, box.y1) + mRoots.box(box.x0, box.y0, box.x1, box.y1) + mRodents.box(box.x0, box.y0, box.x1, box.y1)) / km2
     }
 
     /** Coarse cells holding good knapping stone (flint, chert, obsidian), counted once. */
@@ -2554,6 +2577,8 @@ class Ecology(private val sim: Simulation) {
         /** How much renown (0..1) counts against growth when bands decide whom to copy, and its weekly keep. */
         const val RENOWN_WEIGHT = 0.02f
         const val RENOWN_KEEP = 0.995f
+        /** How far a band's scouts look over the country in a week, km. */
+        const val SCOUT_KM = 12f
         /** Radius of the day's round from camp, km: what can be fetched and carried back by evening. */
         const val DAY_ROUND_KM = 4f
         /** How hard the near patches are worked, and the far ones, as multiples of [GATHER_REACH]. */

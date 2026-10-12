@@ -221,7 +221,8 @@ class BaselinePolicy(
     private fun scorePeople(group: AnimalGroup, o: Option): Float {
         val s = group.species
         var score = 1.2f * o.prey + o.forage / (o.forage + 300f) - 2f * o.danger
-        score += (if (group.holds(Tradition.FEASTS)) 2.5f else 1.5f) * (group.fare - 0.7f) * o.kin
+        // Bands keep out of each other's foraging grounds; they meet at gatherings, not by drifting together.
+        score -= 0.5f * o.kin
         if (o.snowMm > s.snowLimitMm) score -= 1f
         score -= 2f * o.hazard
         score += (if (group.holds(Tradition.SKY_LORE)) 2.2f else 1.5f) * o.pull
@@ -230,7 +231,9 @@ class BaselinePolicy(
         score -= (0.05f + 0.3f * urgency) * o.waterKm / s.dailyTravelKm
         val storedDays = group.larder / kotlin.math.max(1e-3f, group.dailyNeedKg)
         val graves = if (group.holds(Tradition.BURIAL)) 1.5f else 1f
-        score -= 0.1f * graves * (1f + storedDays / 60f) * o.km / s.dailyTravelKm
+        // Moving a camp with children, elders, stores and gear is slow and hard: a few km a day at
+        // best, with the week's foraging lost. Long moves are for need, not on a whim.
+        score -= 0.3f * graves * (1f + storedDays / 60f) * o.km / s.dailyTravelKm
         // A camp whose firewood is gone within the day's round is a cold, hungry place to stay.
         if (o.km == 0f && group.campWeeks > group.fuelWeeks) score -= 0.3f * min(1f, (group.campWeeks - group.fuelWeeks) / 26f)
         return score
