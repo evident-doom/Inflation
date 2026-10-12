@@ -58,6 +58,10 @@ fun main(args: Array<String>) {
             landCells.map { e.grassQuality[it].toDouble() }.average(), landCells.map { veg.browsing[it].toDouble() }.average(), landCells.map { veg.grazing[it].toDouble() }.average(), fires, burnedKm2))
         fires = 0; burnedKm2 = 0.0
         println("   game   " + e.game.summary())
+        e.groups.filter { it.alive && !it.species.carnivore }.takeIf { it.isNotEmpty() }?.let { herds ->
+            println("   moves  herds shifted %.1f km this week on average (%.0f%% beyond their own range)".format(
+                herds.map { it.movedKm.toDouble() }.average(), 100.0 * herds.count { it.movedKm > it.rangeKm } / herds.size))
+        }
         e.groups.filter { it.species.human && it.alive }.takeIf { it.isNotEmpty() }?.let { bands ->
             val people = bands.sumOf { it.size }
             println("   people %d bands, %d people (%.0f%% children, %.0f%% elders), inbreeding %.3f, stores %.0f days, camps kept %.0f weeks (%.0f%% over half a year), hunting craft %.2f, gathering craft %.2f".format(
