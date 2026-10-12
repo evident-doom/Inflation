@@ -131,7 +131,7 @@ fun main(args: Array<String>) {
                 100f * cells.count { e.waterKm[it] == 0f } / cells.size, 100f * cells.count { e.waterKm[it] <= 5f } / cells.size,
                 cells.map { e.wetness[it] }.average()))
             println("   deaths " + e.deathsBy.entries.sortedByDescending { it.value }.filter { System.getenv("FAUNA_SPECIES")?.split(",")?.any { s -> it.key.startsWith(s) } ?: true }.take(12).joinToString { "${it.key} ${it.value}" })
-            e.killsBy.clear(); e.deathsBy.clear(); e.killsByPredator.clear(); e.stolen.clear()
+            e.killsBy.clear(); e.killsByPeople.clear(); e.deathsBy.clear(); e.killsByPredator.clear(); e.stolen.clear()
         }
     }
     println("%.0f ms per step".format((System.nanoTime() - t0) / 1e6 / (years * 4 * stepsPerSeason)))

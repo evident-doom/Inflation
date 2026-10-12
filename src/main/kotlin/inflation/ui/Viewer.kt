@@ -108,6 +108,13 @@ enum class Tool(val label: String) {
 }
 
 /** Dot colours for herds on the map. */
+/** Floats per animal group in the viewer's snapshot: x, y, size, kind, and the previous x, y. */
+private const val STRIDE = 6
+
+/** Animation: time per frame, ms, and the fewest frames a move between steps is drawn in. */
+private const val FRAME_MS = 33
+private const val MIN_FRAMES = 8
+
 private val SPECIES_COLOUR = mapOf(
     Catalogue.GAZELLE to 0xf0e0b0, Catalogue.ROE_DEER to 0xc08040, Catalogue.FALLOW_DEER to 0xe0a060,
     Catalogue.RED_DEER to 0xa04020, Catalogue.IBEX to 0xb0b0c0, Catalogue.BOAR to 0x404040,
@@ -232,12 +239,22 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
         add(side, BorderLayout.EAST)
         updateLabels()
         Thread(::loop, "simulation").apply { isDaemon = true }.start()
+        // Animate: redraw the animals some 30 times a second while they are moving between steps.
+        javax.swing.Timer(FRAME_MS) { if (showAnimals && animFrame < animFrames) { animFrame++; map.repaint() } }.start()
     }
 
     private fun titled(c: javax.swing.JComponent, title: String) = c.also { it.border = BorderFactory.createTitledBorder(title) }
 
-    /** Animal groups at the last repaint: x, y, size (negative for predators), per group. */
+    /**
+     * Animal groups at the last repaint: x, y, size, kind index, and where the group was the step
+     * before (x, y), per group. Between steps they are drawn part way, so movement is animated.
+     */
     private var animals = FloatArray(0)
+    /** Frames of the move between the last step and the next: drawn so far, and in all. */
+    @Volatile private var animFrame = 0
+    @Volatile private var animFrames = 0
+    /** Where each group was drawn after the last step (simulation thread only). */
+    private val lastPos = java.util.IdentityHashMap<Any, FloatArray>()
 
     /** Simulation thread: runs commands and steps, repaints the image after each change. */
     private fun loop() {
@@ -246,28 +263,39 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
         while (true) {
             var changed = false
             if (peopleNet != null && System.nanoTime() - checked > 30_000_000_000L) { checked = System.nanoTime(); reloadPeople() }
+            val day = sim.date.absoluteDay
             while (true) { val c = commands.poll() ?: break; c(); changed = true }
-            if (running && System.nanoTime() - last >= 1_000_000_000L / stepsPerSecond) {
+            var stepped = false
+            // The next step waits until the groups have finished moving on screen.
+            if (running && System.nanoTime() - last >= 1_000_000_000L / stepsPerSecond && (!showAnimals || animFrame >= animFrames)) {
                 last = System.nanoTime()
                 sim.step(); changed = true
             }
+            // Stepped by the clock or by the Step and Year buttons: the groups have moved.
+            if (sim.date.absoluteDay != day) stepped = true
             if (changed || dirty) {
                 dirty = false
                 painter.paint(layer, pixels)
                 val herds = sim.ecology.groups.filter { it.alive }
                 val pods = sim.ecology.marine.groups.filter { it.alive }
-                val snapshot = FloatArray((herds.size + pods.size) * 4)
-                for ((k, g) in herds.withIndex()) {
-                    snapshot[4 * k] = g.x.toFloat(); snapshot[4 * k + 1] = g.y.toFloat()
-                    snapshot[4 * k + 2] = g.size.toFloat(); snapshot[4 * k + 3] = Catalogue.all.indexOf(g.species).toFloat()
+                val snapshot = FloatArray((herds.size + pods.size) * STRIDE)
+                val seen = java.util.IdentityHashMap<Any, FloatArray>()
+                fun put(k: Int, g: Any, x: Float, y: Float, size: Float, kind: Float) {
+                    val o = k * STRIDE
+                    snapshot[o] = x; snapshot[o + 1] = y; snapshot[o + 2] = size; snapshot[o + 3] = kind
+                    // Whence it moves: where it stood after the step before (a new group starts where it is).
+                    val from = (if (stepped) lastPos[g] else null) ?: floatArrayOf(x, y)
+                    snapshot[o + 4] = from[0]; snapshot[o + 5] = from[1]
+                    seen[g] = floatArrayOf(x, y)
                 }
-                for ((j, g) in pods.withIndex()) {
-                    val k = herds.size + j
-                    snapshot[4 * k] = g.x.toFloat(); snapshot[4 * k + 1] = g.y.toFloat()
-                    snapshot[4 * k + 2] = g.size.toFloat(); snapshot[4 * k + 3] = (Catalogue.all.size + g.species.index).toFloat()
+                for ((k, g) in herds.withIndex()) put(k, g, g.x.toFloat(), g.y.toFloat(), g.size.toFloat(), Catalogue.all.indexOf(g.species).toFloat())
+                for ((j, g) in pods.withIndex()) put(herds.size + j, g, g.x.toFloat(), g.y.toFloat(), g.size.toFloat(), (Catalogue.all.size + g.species.index).toFloat())
+                if (stepped) { lastPos.clear(); lastPos.putAll(seen) }
+                synchronized(image) {
+                    image.setRGB(0, 0, grid.width, grid.height, pixels, 0, grid.width); animals = snapshot
+                    if (stepped) { animFrame = 0; animFrames = max(MIN_FRAMES, (1000 / FRAME_MS / stepsPerSecond)) }
                 }
-                synchronized(image) { image.setRGB(0, 0, grid.width, grid.height, pixels, 0, grid.width); animals = snapshot }
-                SwingUtilities.invokeLater { updateLabels(); map.repaint() }
+                SwingUtilities.invokeLater { map.repaint(); updateLabels() }
             } else Thread.sleep(5)
         }
     }
@@ -331,10 +359,11 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
         }
         val a = synchronized(image) { animals }
         val near = IntArray(ALL_NAMES.size); val nearGroups = IntArray(ALL_NAMES.size)
-        for (k in 0 until a.size / 4) {
-            if (abs(a[4 * k] - x - 0.5f) > 5 || abs(a[4 * k + 1] - y - 0.5f) > 5) continue
-            val sp = a[4 * k + 3].toInt()
-            near[sp] += a[4 * k + 2].toInt(); nearGroups[sp]++
+        for (k in 0 until a.size / STRIDE) {
+            val o = k * STRIDE
+            if (abs(a[o] - x - 0.5f) > 5 || abs(a[o + 1] - y - 0.5f) > 5) continue
+            val sp = a[o + 3].toInt()
+            near[sp] += a[o + 2].toInt(); nearGroups[sp]++
         }
         if (nearGroups.any { it > 0 }) appendLine("Within 5 km: " + ALL_NAMES.indices.filter { nearGroups[it] > 0 }
             .joinToString(", ") { "${near[it]} ${ALL_NAMES[it]} (${nearGroups[it]} groups)" })
@@ -467,10 +496,14 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             if (showAnimals) {
                 val a = synchronized(image) { animals }
-                for (k in 0 until a.size / 4) {
-                    val x = (ox + a[4 * k] * scale).toInt(); val y = (oy + a[4 * k + 1] * scale).toInt()
-                    val size = a[4 * k + 2]
-                    val idx = a[4 * k + 3].toInt()
+                // How far through the move between the last step and the next: 0 = where it was, 1 = where it is.
+                val t = if (animFrames == 0) 1f else (animFrame.toFloat() / animFrames).coerceIn(0f, 1f)
+                for (k in 0 until a.size / STRIDE) {
+                    val o = k * STRIDE
+                    val ax = a[o + 4] + (a[o] - a[o + 4]) * t; val ay = a[o + 5] + (a[o + 1] - a[o + 5]) * t
+                    val x = (ox + ax * scale).toInt(); val y = (oy + ay * scale).toInt()
+                    val size = a[o + 2]
+                    val idx = a[o + 3].toInt()
                     if (!shown[idx]) continue
                     if (idx >= Catalogue.all.size) {
                         // Sea animals: diamonds, whales larger.

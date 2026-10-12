@@ -157,6 +157,8 @@ class Ecology(private val sim: Simulation) {
     val killsBy = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     /** Kills by predator species, and kills taken from others by predator species, since last cleared. */
     val killsByPredator = java.util.concurrent.ConcurrentHashMap<Species, Int>()
+    /** Of [killsBy], those killed by people, by prey species. */
+    val killsByPeople = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     /** What people have killed, by species, since the start. */
     val peopleKills = java.util.concurrent.ConcurrentHashMap<Species, Int>()
     /** Herds people's hunting parties came across, by species, since the start. */
@@ -453,6 +455,7 @@ class Ecology(private val sim: Simulation) {
         group.birthMonth = s.birthMonth
         group.fat = 0.5f * s.maxFatDays
         group.bold = s.boldShare * (0.5f + rnd.nextFloat())
+        if (territorial(s)) { group.homeX = group.x; group.homeY = group.y }
         if (s.human) {
             // A band knows the game and plants of its home ground from long practice: the more
             // there is of a species around, the better it hunts it.
@@ -492,6 +495,104 @@ class Ecology(private val sim: Simulation) {
     private fun cellOf(g: AnimalGroup) = grid.index(g.x.toInt().coerceIn(0, grid.width - 1), g.y.toInt().coerceIn(0, grid.height - 1))
     private fun bucketIndex(x: Double, y: Double) =
         (y * cellKm / bucketKm).toInt().coerceIn(0, bh - 1) * bw + (x * cellKm / bucketKm).toInt().coerceIn(0, bw - 1)
+
+    // ---------------------------------------------------------------- scent marks
+
+    private val markW = ceil(grid.width * cellKm / MARK_KM).toInt()
+    private val markH = ceil(grid.height * cellKm / MARK_KM).toInt()
+    /** Per hunting kind: how fresh the scent marks are on each [MARK_KM] square (0..1), and whose. */
+    private val marks = HashMap<Species, FloatArray>()
+    private val markers = HashMap<Species, IntArray>()
+
+    private fun markCell(x: Double, y: Double) =
+        (y * cellKm / MARK_KM).toInt().coerceIn(0, markH - 1) * markW + (x * cellKm / MARK_KM).toInt().coerceIn(0, markW - 1)
+
+    /** Fresh marks of other groups of [g]'s kind over a range centred on (x, y), 0..1. */
+    private fun foreignMarks(g: AnimalGroup, x: Double, y: Double): Float {
+        val m = marks[g.species] ?: return 0f
+        val who = markers.getValue(g.species)
+        val rc = max(0, (g.rangeKm / MARK_KM).toInt())
+        val cx = (x * cellKm / MARK_KM).toInt(); val cy = (y * cellKm / MARK_KM).toInt()
+        var sum = 0f; var cells = 0
+        for (my in max(0, cy - rc)..min(markH - 1, cy + rc)) for (mx in max(0, cx - rc)..min(markW - 1, cx + rc)) {
+            val i = my * markW + mx
+            cells++
+            if (who[i] != g.id) sum += m[i]
+        }
+        return if (cells == 0) 0f else sum / cells
+    }
+
+    /**
+     * A pack that holds ground marks it, over the range it worked this week: urine, scrapes, dung at
+     * the paths and edges. Marks fade over some weeks unless renewed. Where two packs mark, the fresher
+     * mark shows.
+     */
+    private fun markGround(g: AnimalGroup) {
+        val m = marks.getOrPut(g.species) { FloatArray(markW * markH) }
+        val who = markers.getOrPut(g.species) { IntArray(markW * markH) { -1 } }
+        val rc = max(0, (g.rangeKm / MARK_KM).toInt())
+        val cx = (g.x * cellKm / MARK_KM).toInt(); val cy = (g.y * cellKm / MARK_KM).toInt()
+        for (my in max(0, cy - rc)..min(markH - 1, cy + rc)) for (mx in max(0, cx - rc)..min(markW - 1, cx + rc)) {
+            val i = my * markW + mx
+            if (who[i] == g.id || m[i] < MARK_FRESH) { m[i] = 1f; who[i] = g.id }
+        }
+    }
+
+    /** Marks fade every week. */
+    private fun fadeMarks() { for (m in marks.values) for (i in m.indices) m[i] *= MARK_KEEP }
+
+    /** Hunters that hold and defend territories: all the meat-eaters but people. */
+    private fun territorial(s: Species) = s.carnivore && !s.human
+
+    /** Radius of a territory of [s], km: the ground a group of its usual size needs. */
+    fun territoryRadiusKm(s: Species) = sqrt(max(1f, s.startKm2PerAnimal) * s.groupSize / Math.PI.toFloat())
+
+    /**
+     * Territories, weekly: a group with a territory shifts its centre a little towards where it now
+     * hunts; one without (a dispersing young pack) settles where no other group of its kind holds
+     * the ground.
+     */
+    private fun keepTerritory(g: AnimalGroup) {
+        val s = g.species
+        if (!s.carnivore) {
+            // A herd that has left its home range (on its season's trek, or driven off) makes a new one where it is.
+            // A new herd (split off, or one that has left its range) roams until it finds ground no
+            // other herd of its kind holds, and makes its home range there.
+            if (g.homeX.isNaN() || dist(g.x - g.homeX, g.y - g.homeY) * cellKm > homeRangeKm(g)) {
+                g.homeX = Double.NaN
+                if (nearestHome(g, homeRangeKm(g)).second > homeRangeKm(g)) { g.homeX = g.x; g.homeY = g.y }
+            }
+            else { g.homeX += HOME_DRIFT * (g.x - g.homeX); g.homeY += HOME_DRIFT * (g.y - g.homeY) }
+            return
+        }
+        if (!territorial(s)) return
+        if (g.homeX.isNaN()) {
+            // A disperser settles where it smells no other pack's fresh marks.
+            if (foreignMarks(g, g.x, g.y) < MARK_VACANT) { g.homeX = g.x; g.homeY = g.y; markGround(g) }
+            return
+        }
+        markGround(g)
+        g.homeX += HOME_DRIFT * (g.x - g.homeX); g.homeY += HOME_DRIFT * (g.y - g.homeY)
+    }
+
+    /** Radius of a herd's home range, km: a little more than one week's range around its centre. */
+    private fun homeRangeKm(g: AnimalGroup) = HOME_RANGE * g.rangeKm
+
+    /** Whether hunger, thirst or a recent attack has [g] ready to leave the ground it knows. */
+    private fun roused(g: AnimalGroup) = g.lastIntakeRatio < STARVING || g.alert > 0 || g.daysWithoutWater > 0.5f * g.species.daysWithoutWater
+
+    /** The nearest other group of [g]'s kind that holds a territory, and how far its centre is, km. */
+    private fun nearestHome(g: AnimalGroup, r: Float = 2f * territoryRadiusKm(g.species)): Pair<AnimalGroup?, Float> {
+        var best: AnimalGroup? = null; var bestD = Float.MAX_VALUE
+        val near = ArrayList<AnimalGroup>()
+        collect(g.species, g.x, g.y, r, near)
+        for (o in near) {
+            if (o === g || !o.alive || o.homeX.isNaN()) continue
+            val d = (dist(o.homeX - g.x, o.homeY - g.y) * cellKm).toFloat()
+            if (d < bestD) { bestD = d; best = o }
+        }
+        return best to bestD
+    }
 
     /** Roaming radius of a group of [s] for a week, km: about a day's travel. */
     fun rangeKm(s: Species) = max(1.5f, RANGE_FACTOR * s.dailyTravelKm).let { if (s.maxWaterKm.isFinite()) min(it, s.maxWaterKm + 1f) else it }
@@ -549,6 +650,8 @@ class Ecology(private val sim: Simulation) {
         timed("graze") { graze(); shapePlants() }
         timed("prowl") { prowlAll() }
         timed("drink") { for (g in groups) if (g.alive) drink(g) }
+        fadeMarks()
+        for (g in groups) if (g.alive) keepTerritory(g)
         timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) { endure(g); g.wary *= WARY_KEEP; g.grudge?.let { gr -> for (k in gr.indices) gr[k] *= GRUDGE_KEEP }; g.words?.let { w -> driftWords(g, w) }; g.renown *= RENOWN_KEEP } } }
         timed("fire") { for (g in groups) if (g.alive) flee(g) }
         timed("seasons") { groups.parallelStream().forEach { g -> if (g.alive && (!g.species.carnivore || g.species.human)) learnSeason(g) } }
@@ -800,6 +903,8 @@ class Ecology(private val sim: Simulation) {
         if (g.torpid) { planX[slot] = Double.NaN; return }
         gather(g, sc)
         val choice = policies.getValue(s).choose(g, sc.options)
+        g.heading = if (choice in 1..24) (choice - 1) % 8 else -1
+        g.weeksHere = if (choice == 0 || sc.options[choice].cell < 0) g.weeksHere + 1 else 0
         if (sc.options[choice].cell < 0 || choice == 0) { planX[slot] = Double.NaN; return }
         planX[slot] = sc.tx[choice]; planY[slot] = sc.ty[choice]
     }
@@ -824,7 +929,24 @@ class Ecology(private val sim: Simulation) {
                 if (ring == 3 && (reach <= 3f * r || !restless)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++; continue }
                 val x = g.x + COS[dir] * d / cellKm; val y = g.y + SIN[dir] * d / cellKm
                 sc.tx[k] = x; sc.ty[k] = y; k++
-                options += describe(g, x, y, d, sc.box)
+                // A territorial pack keeps to its ground unless hunger drives it out.
+                if (territorial(s) && !g.homeX.isNaN() && g.lastIntakeRatio >= STARVING &&
+                    dist(x - g.homeX, y - g.homeY) * cellKm > territoryRadiusKm(s)) { options += NOWHERE; continue }
+                // A herd keeps to its home range; only hunger, thirst or an attack sends it off it.
+                if (!s.carnivore && !g.homeX.isNaN() && !roused(g) &&
+                    dist(x - g.homeX, y - g.homeY) * cellKm > homeRangeKm(g)) { options += NOWHERE; continue }
+                val o0 = describe(g, x, y, d, sc.box)
+                // Another pack's fresh marks warn a hunter off its ground, unless hunger drives it on.
+                val o = if (territorial(s) && o0.cell >= 0 && g.lastIntakeRatio >= STARVING) {
+                    val f = foreignMarks(g, x, y)
+                    if (f > 0f) Option(o0.cell, o0.km, o0.forage, o0.danger + MARK_FEAR * f, o0.prey, o0.kin, o0.waterKm, o0.snowMm, o0.cover, o0.rugged, o0.wet, o0.thermal, o0.pull, o0.hazard, o0.rainAhead) else o0
+                } else o0
+                // A herd sees and smells only the ground about it: farther off it can only go by what lies
+                // nearby that way (season's treks go by memory instead, below).
+                options += if (ring >= 2 && !s.carnivore && o.cell >= 0) {
+                    val near = options[1 + dir]
+                    if (near.cell < 0) o else Option(o.cell, o.km, near.forage, near.danger, o.prey, near.kin, o.waterKm, o.snowMm, near.cover, near.rugged, near.wet, o.thermal, o.pull, o.hazard, o.rainAhead)
+                } else o
             }
         }
         // People in need of water head for the nearest spring or river they know of, however far.
@@ -2019,6 +2141,7 @@ class Ecology(private val sim: Simulation) {
                 val dried = min(meat - fresh, 0.5f * (meat - fresh)); g.larder += dried
                 soil.carrion[c] += ((meat - fresh - dried) / grid.cellAreaM2).toFloat()
                 killCount.addAndGet(taken + takenY); killsBy.merge(o.species, taken + takenY, Int::plus); killsByPredator.merge(s, taken + takenY, Int::plus)
+                if (s.human) killsByPeople.merge(o.species, taken + takenY, Int::plus)
                 kiteCount.addAndGet(taken + takenY)
                 peopleKills.merge(o.species, taken + takenY, Int::plus)
                 break
@@ -2058,6 +2181,7 @@ class Ecology(private val sim: Simulation) {
             killCount.incrementAndGet()
             killsBy.merge(prey.species, 1, Int::plus)
             killsByPredator.merge(s, 1, Int::plus)
+            if (s.human) killsByPeople.merge(prey.species, 1, Int::plus)
             if (s.human) peopleKills.merge(prey.species, 1, Int::plus)
             shove(prey, g)
         }
@@ -2092,7 +2216,10 @@ class Ecology(private val sim: Simulation) {
         // Out of its element a hunter is slower and clumsier; ibex on cliffs cannot be followed at all.
         // Hunger slows a hunter only a little: it also makes it bolder.
         val skill = (0.6f + 0.4f * home) * (0.7f + 0.3f * fitness(g))
-        val refuge = 1f - 0.8f * max(0f, ps.habitat.rugged) * terrain.ruggedness[at]
+        val refuge = (1f - 0.8f * max(0f, ps.habitat.rugged) * terrain.ruggedness[at]) *
+            // Small deer, boar piglets and the like slip into thickets where a pack cannot follow;
+            // a stalker that hunts in cover is less put off.
+            (if (ps.massKg < HIDING_KG) 1f - HIDING * cov * (1f - s.stalking) else 1f)
         // People hunt by learned skill: a band that knows a quarry's ways gets close and kills clean.
         val craft = g.craft?.let { CRAFT_FLOOR + (1f - CRAFT_FLOOR) * it[ps.index] } ?: 1f
         // Spears are the baseline; bows add reach against fast, shy quarry, in practised hands.
@@ -2181,7 +2308,10 @@ class Ecology(private val sim: Simulation) {
         val (other, d) = nearest(g.species, g.x, g.y, g.species.territoryKm + g.rangeKm, except = g)
         if (other == null || other.adults == 0) return 0f
         if (r.nextFloat() >= overlap(d, g.species.territoryKm, other.rangeKm)) return 0f
-        val loser = if (r.nextFloat() < strength(g) / (strength(g) + strength(other) + 1e-3f)) other else g
+        // On its own ground a pack fights with more heart: the holder usually wins.
+        fun onHome(a: AnimalGroup) = if (!a.homeX.isNaN() && dist(a.x - a.homeX, a.y - a.homeY) * cellKm < territoryRadiusKm(a.species)) HOME_ADVANTAGE else 1f
+        val sg = strength(g) * onHome(g); val so = strength(other) * onHome(other)
+        val loser = if (r.nextFloat() < sg / (sg + so + 1e-3f)) other else g
         // Most meetings end in a chase; a few in a death.
         if (loser.adults > 0 && r.nextFloat() < RIVAL_KILL) {
             loser.adults--; deathCount.incrementAndGet()
@@ -2362,7 +2492,9 @@ class Ecology(private val sim: Simulation) {
                 val inSeason = (date.month - start + 12) % 12 < s.birthMonths
                 if (!inSeason) continue
                 val born = if (s.packLitter > 0) {
-                    if (firstStepOfMonth && date.month == start && g.adults >= 2) (s.packLitter * fit + r.nextFloat()).toInt() else 0
+                    // Only a pack that holds ground raises a litter: dispersers have no den.
+                    val holds = !territorial(s) || !g.homeX.isNaN()
+                    if (holds && firstStepOfMonth && date.month == start && g.adults >= 2) (s.packLitter * fit + r.nextFloat()).toInt() else 0
                 } else {
                     val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
                     // Grandmothers feed the weaned children, so mothers can wean sooner and bear again.
@@ -2384,6 +2516,8 @@ class Ecology(private val sim: Simulation) {
             }
             // Deaths: background, hunger, and the world.
             var pAdult = s.backgroundMortality * years
+            // Dispersers crossing others' ground die often: fights, hunger, accidents.
+            if (territorial(s) && g.homeX.isNaN()) pAdult += DISPERSAL_DEATHS * years
             if (g.condition < 0.2f) pAdult += 0.15f
             val flood = sim.water.flood[c]
             if (flood > 1.5f) pAdult += 0.2f
@@ -2468,6 +2602,7 @@ class Ecology(private val sim: Simulation) {
             child.elders = min(child.adults, (g.elders * share).toInt()); g.elders = min(g.adults, g.elders - child.elders)
             child.lineage = g.lineage?.copyOf(); child.inbred = g.inbred
             child.campWeeks = 0
+            child.homeX = Double.NaN; child.homeY = Double.NaN // the young disperse and look for ground of their own
             child.making = g.making?.copyOf()
             child.traditions = g.traditions?.copyOf(); child.prosper = g.prosper; child.grudge = g.grudge?.copyOf()
             child.words = g.words?.copyOf()
@@ -2579,6 +2714,25 @@ class Ecology(private val sim: Simulation) {
         const val RENOWN_KEEP = 0.995f
         /** How far a band's scouts look over the country in a week, km. */
         const val SCOUT_KM = 12f
+        /** Weekly share by which a territory's centre follows the pack; intake below which a pack leaves its ground. */
+        const val HOME_DRIFT = 0.02
+        const val STARVING = 0.5f
+        /** Scent marks: square size, km; weekly fading; below what freshness a rival's mark is overmarked;
+         *  how much a rival's marks put a hunter off; and how little marking leaves ground free to settle. */
+        const val MARK_KM = 4f
+        const val MARK_KEEP = 0.7f
+        const val MARK_FRESH = 0.3f
+        const val MARK_FEAR = 0.5f
+        const val MARK_VACANT = 0.1f
+        /** A herd's home range as a multiple of its weekly range radius. */
+        const val HOME_RANGE = 1.5f
+        /** Extra yearly deaths among hunters without a territory of their own. */
+        const val DISPERSAL_DEATHS = 0.4f
+        /** How much harder a pack fights on its own ground. */
+        const val HOME_ADVANTAGE = 1.5f
+        /** Body mass below which an animal can hide in thick cover, kg, and how much of a hunter's chance cover takes away. */
+        const val HIDING_KG = 70f
+        const val HIDING = 0.8f
         /** Radius of the day's round from camp, km: what can be fetched and carried back by evening. */
         const val DAY_ROUND_KM = 4f
         /** How hard the near patches are worked, and the far ones, as multiples of [GATHER_REACH]. */

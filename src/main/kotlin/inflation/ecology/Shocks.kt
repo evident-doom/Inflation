@@ -89,7 +89,7 @@ fun main(args: Array<String>) {
             repeat(stepsPerYear) {
                 sim.step()
                 burned += v.fires.sumOf { it.second.toDouble() }
-                e.killsBy.clear(); e.deathsBy.clear(); e.marine.deathsBy.clear()
+                e.killsBy.clear(); e.killsByPeople.clear(); e.deathsBy.clear(); e.marine.deathsBy.clear()
             }
             val km2 = grid.cellAreaM2 / 1e9 // kg/m² over a cell -> Mt
             val row = listOf(year.toString()) + Catalogue.all.map { e.count(it).toString() } + SeaCatalogue.all.map { e.marine.count(it).toString() } +
