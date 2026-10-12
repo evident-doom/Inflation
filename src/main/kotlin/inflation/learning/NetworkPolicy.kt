@@ -15,7 +15,7 @@ import kotlin.math.min
  * inputs, as each species has its own network.
  */
 object Features {
-    const val SIZE = 19
+    const val SIZE = 21
 
     fun encode(g: AnimalGroup, o: Option, k: Int, out: FloatArray) {
         val s = g.species
@@ -39,6 +39,8 @@ object Features {
         out[16] = if (k == 0) 0f else o.km / s.maxDailyTravelKm
         out[17] = min(2f, o.thermal)
         out[18] = o.pull
+        out[19] = o.hazard
+        out[20] = min(3f, o.rainAhead) / 3f
     }
 }
 

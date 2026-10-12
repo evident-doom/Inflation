@@ -14,8 +14,12 @@ class AnimalGroup(
     var adults: Int,
     var young: Int,
 ) {
-    /** Fat reserves and health, 0..1. Below about 0.2 animals start to die of hunger. */
+    /** Body condition and health, 0..1. Below about 0.2 animals start to die of hunger. */
     var condition = 0.7f
+    /** Asleep in its den for the winter. */
+    var torpid = false
+    /** Fat carried, in days of food per animal: laid on in plenty, burned first in want. */
+    var fat = 5f
     /** Days' worth of water the group is short of: drinking resets it, moist food slows its rise. */
     var daysWithoutWater = 0f
     /** Share of yesterday's food that was fresh and moist (green growth, roots, meat) rather than dry. */
@@ -98,6 +102,10 @@ class Option(
      * how it fares now, for the option that heads there; 0 for the others.
      */
     val pull: Float = 0f,
+    /** Danger it senses coming there next week, 0..1: a flood on the valley floor, an eruption nearby. */
+    val hazard: Float = 0f,
+    /** Rain it senses coming there next week, against the season's normal: 0 = none, 1 = normal, up to 3. */
+    val rainAhead: Float = 1f,
 )
 
 /** Chooses where a group goes today. Implementations: [BaselinePolicy]; learned networks later. */
@@ -129,6 +137,9 @@ class BaselinePolicy(
             else o.forage / (o.forage + 50f) - 3f * (1f - s.defence) * (0.3f + 0.7f * group.condition) * o.danger - 0.3f * o.kin +
                 0.3f * (h.cover * o.cover + h.rugged * o.rugged + h.wet * o.wet)
         if (o.snowMm > s.snowLimitMm) score -= 1f
+        // Get out of the way of what is coming; in dry weeks, go towards the rain.
+        score -= 2f * o.hazard
+        if (group.fare < 0.8f) score += 0.1f * (min(3f, o.rainAhead) - 1f)
         // Head for the season's range when it promises much better than here.
         score += 1.5f * o.pull
         // Out of the cold or the heat: up the valley in summer, down in winter.

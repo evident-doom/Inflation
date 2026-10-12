@@ -162,18 +162,34 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
     val ash = FloatArray(grid.size)
     val history = ArrayList<Eruption>()
 
+    private var pending: List<Eruption>? = null
+
+    /**
+     * Eruptions due in the coming step: decided a step ahead, as a volcano gives warning in tremors
+     * and gas that animals with keen senses notice.
+     */
+    val upcoming: List<Eruption> get() = pending ?: emptyList()
+
     fun step(date: Date, days: Int): List<Eruption> {
         val decay = exp(-days / 720.0).toFloat() // about two years' residence
         for (i in ash.indices) if (ash[i] > 0f) ash[i] = if (ash[i] < 0.05f) 0f else ash[i] * decay
+        val now = pending ?: draw(date, days)
+        for (e in now) {
+            history += e
+            fallAsh(e.volcano, e.vei)
+        }
+        pending = draw(date.plusDays(days), days)
+        return now
+    }
+
+    private fun draw(date: Date, days: Int): List<Eruption> {
         val now = ArrayList<Eruption>()
         for (v in volcanoes) {
             if (!v.active) continue
             val p = v.eruptionsPerCentury / 100.0 * days / Date.DAYS_PER_YEAR
             if (rnd.nextDouble() >= p) continue
             val vei = min(6, (-ln(max(rnd.nextDouble(), 1e-9)) / ln(5.0)).toInt() + if (v.kind == VolcanoKind.HOTSPOT) 0 else 1)
-            val e = Eruption(date, v, vei)
-            now += e; history += e
-            fallAsh(v, vei)
+            now += Eruption(date, v, vei)
         }
         return now
     }

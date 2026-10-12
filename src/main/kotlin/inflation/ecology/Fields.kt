@@ -166,6 +166,12 @@ class SmallFauna(private val sim: Simulation) {
     val insects = FloatArray(n)
     val biting = FloatArray(n)
     val rodents = FloatArray(n)
+    /**
+     * Reptiles and amphibians, kg/km²: lizards, snakes, tortoises, frogs and toads. Cold-blooded:
+     * active and breeding in warm, moist weeks, hidden and torpid through cold winters and hot,
+     * dry summers, when hunters cannot find them.
+     */
+    val herps = FloatArray(n)
     private var steps = 0
     private val wetland = BooleanArray(n) {
         val b = world.biome[it]
@@ -178,6 +184,7 @@ class SmallFauna(private val sim: Simulation) {
             if (!v.isVegetated(i)) continue
             insects[i] = 300f * min(1f, v.herb[i] / 0.4f)
             rodents[i] = 150f * min(1f, v.herb[i] / 0.4f)
+            herps[i] = 20f * min(1f, v.herb[i] / 0.4f)
         }
     }
 
@@ -195,7 +202,11 @@ class SmallFauna(private val sim: Simulation) {
             // in the cold to an egg bank. They eat about a quarter of their own mass a day (dry food
             // per fresh body mass), some 5-15% of what grassland grows in a year.
             var ins = insects[i]
-            if (t > 10f) {
+            val dry = sim.water.soil[i] < 10f
+            if (t > 32f && dry) {
+                // Too hot and dry: they wait it out as eggs and pupae, as in the cold.
+                ins -= ins * min(0.5f, 2f * years)
+            } else if (t > 10f) {
                 val ceiling = 2000f * food / (food + 0.15f)
                 val g = 15f * years * ((t - 10f) / 15f).coerceIn(0f, 1f)
                 ins += ins * g * (1 - ins / ceiling.coerceAtLeast(10f)) - ins * 2f * years
@@ -218,17 +229,40 @@ class SmallFauna(private val sim: Simulation) {
             r += r * birth * (1 - r / ceiling.coerceAtLeast(1f)) - r * death
             rodents[i] = r.coerceIn(1f, 3000f)
             v.consume(i, LifeForm.HERB, rodents[i] * 0.1f * days / 1e6f)
+
+            // Reptiles and amphibians: grow and breed on insects in warm, moist weeks; torpid in
+            // the cold (hibernation) and in hot drought (aestivation), when they barely die.
+            var h = herps[i]
+            if (herpsActive(i)) {
+                val wet = (sim.water.soil[i] / 40f).coerceIn(0.2f, 1f)
+                val grow = 4f * years * wet * insects[i] / (insects[i] + 400f)
+                val ceiling = 80f * food / (food + 0.3f)
+                h += h * grow * (1 - h / ceiling.coerceAtLeast(1f)) - h * 1f * years
+                insects[i] = max(5f, insects[i] - h * 0.05f * days)
+            } else h -= h * 0.3f * years
+            herps[i] = h.coerceIn(0.5f, 200f)
         }
         if (++steps % 5 == 0) {
-            spread(insects); spread(rodents)
+            spread(insects); spread(rodents); spread(herps)
         }
     }
 
-    /** Takes up to [kgPerKm2] of rodents at [i] (predation); returns what was caught. */
+    /** Whether reptiles and amphibians at [i] are out and about: warm, and not baking in a drought. */
+    fun herpsActive(i: Int): Boolean {
+        val t = sim.weather.temperature[i]
+        return t in 12f..34f && !(t > 28f && sim.water.soil[i] < 10f)
+    }
+
+    /**
+     * Takes up to [kgPerKm2] of small prey at [i]: rodents, and reptiles and amphibians when they
+     * are active; returns what was caught.
+     */
     fun catchRodents(i: Int, kgPerKm2: Float): Float {
-        val taken = min(rodents[i] * 0.5f, kgPerKm2)
+        val fromHerps = if (herpsActive(i)) min(herps[i] * 0.5f, 0.3f * kgPerKm2) else 0f
+        herps[i] -= fromHerps
+        val taken = min(rodents[i] * 0.5f, kgPerKm2 - fromHerps)
         rodents[i] -= taken
-        return taken
+        return taken + fromHerps
     }
 
     private fun spread(f: FloatArray) {

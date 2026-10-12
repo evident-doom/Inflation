@@ -8,6 +8,8 @@ data class Diet(
     val browse: Float = 0f,
     /** Dug and gleaned plant food: bulbs, roots, tubers, fallen acorns and nuts. */
     val roots: Float = 0f,
+    /** Fruit, berries, seeds and nuts while they last, summer to autumn. */
+    val fruit: Float = 0f,
     val meat: Float = 0f,
     val smallPrey: Float = 0f,
     val carrion: Float = 0f,
@@ -110,6 +112,13 @@ class Species(
     val speedKmh: Float = 60f,
     /** Keeps within this distance of drinking water, km (hippos graze at night near their river). */
     val maxWaterKm: Float = Float.POSITIVE_INFINITY,
+    /**
+     * How keenly it senses what is coming, 0..1: distant rain, a pressure drop before a storm, the
+     * tremors before an eruption, rising water upstream.
+     */
+    val foresight: Float = 0.4f,
+    /** Sleeps through the cold months in a den on its fat, needing a quarter of its food. */
+    val hibernates: Boolean = false,
     /** Breeds as a pack: one litter a year from the breeding pair, of this size in good condition. */
     val packLitter: Int = 0,
     /** Diamond's criteria, 0..1 each: diet breadth, growth, captive breeding, temperament, calm, hierarchy. */
@@ -120,6 +129,11 @@ class Species(
         internal set
     /** Mostly eats animals. */
     val carnivore: Boolean get() = diet.meat + diet.smallPrey + diet.carrion > 0.5f
+    /**
+     * Days of food it can carry as fat: bigger animals store more, about 8 M^0.25 days (a gazelle
+     * some 17, an aurochs 42).
+     */
+    val maxFatDays: Float get() = 8f * massKg.pow(0.25f) * if (hibernates) 4f else 1f
     /** Dry-matter (or meat) intake per adult per day, kg. */
     val dailyIntakeKg: Float get() = Allometry.dailyIntakeKg(massKg, carnivore)
 }
@@ -155,6 +169,7 @@ object Catalogue {
         products = Products(meat = 9f, fat = 0.5f, hide = 1.2f, bone = 2.5f, sinew = 0.2f, hornOrAntler = 0.3f),
         comfortC = 5f..36f, 
         speedKmh = 80f,
+        foresight = 0.6f,
         domestication = floatArrayOf(0.6f, 0.6f, 0.2f, 0.5f, 0.05f, 0.2f), // panics and leaps fences
         habitat = Habitat(cover = -1f, wet = -0.5f),
     )
@@ -162,7 +177,7 @@ object Catalogue {
     /** Roe deer: small, solitary or in families, browsing woodland edges and thickets. */
     val ROE_DEER = Species(
         name = "roe deer", massKg = 25f,
-        diet = Diet(grass = 0.2f, browse = 0.8f),
+        diet = Diet(grass = 0.2f, browse = 0.7f, fruit = 0.1f),
         groupSize = 3, maxGroupSize = 6,
         dailyTravelKm = 3f, maxDailyTravelKm = 20f, senseKm = 1f,
         daysWithoutWater = 4, waterFromFood = 0.9f,
@@ -178,7 +193,7 @@ object Catalogue {
     /** Persian fallow deer: herds in open woodland and parkland; common in Levantine Epipalaeolithic sites. */
     val FALLOW_DEER = Species(
         name = "fallow deer", massKg = 65f,
-        diet = Diet(grass = 0.5f, browse = 0.5f),
+        diet = Diet(grass = 0.5f, browse = 0.4f, fruit = 0.1f),
         groupSize = 6, maxGroupSize = 25,
         dailyTravelKm = 4f, maxDailyTravelKm = 25f, senseKm = 2f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
@@ -221,6 +236,7 @@ object Catalogue {
         products = Products(meat = 28f, fat = 1.5f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 4f),
         comfortC = -12f..30f, winterCoat = true,
         speedKmh = 55f,
+        foresight = 0.5f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.4f, 0.4f, 0.4f, 0.6f), // its cousin became the goat
         habitat = Habitat(cover = -0.3f, rugged = 1f),
         defence = 0.1f,
@@ -229,7 +245,7 @@ object Catalogue {
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
         name = "wild boar", massKg = 80f,
-        diet = Diet(grass = 0.2f, browse = 0.1f, roots = 0.7f),
+        diet = Diet(grass = 0.2f, browse = 0.1f, roots = 0.5f, fruit = 0.2f),
         groupSize = 6, maxGroupSize = 20,
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 2, waterFromFood = 0.4f,
@@ -239,6 +255,7 @@ object Catalogue {
         products = Products(meat = 45f, fat = 8f, hide = 5f, bone = 9f, sinew = 0.5f, hornOrAntler = 0.5f),
         comfortC = -8f..30f, winterCoat = true,
         speedKmh = 45f,
+        foresight = 0.5f,
         domestication = floatArrayOf(0.9f, 0.9f, 0.8f, 0.4f, 0.6f, 0.6f), // became the pig
         habitat = Habitat(cover = 0.8f, wet = 0.6f),
         defence = 0.6f,
@@ -257,6 +274,7 @@ object Catalogue {
         products = Products(meat = 370f, fat = 40f, hide = 40f, bone = 80f, sinew = 4f, hornOrAntler = 6f),
         comfortC = -12f..28f, winterCoat = true,
         speedKmh = 50f,
+        foresight = 0.6f,
         domestication = floatArrayOf(0.8f, 0.5f, 0.7f, 0.2f, 0.4f, 0.9f), // became cattle
         habitat = Habitat(cover = 0.1f, rugged = -0.5f, wet = 0.8f),
         defence = 0.9f,
@@ -274,6 +292,7 @@ object Catalogue {
         products = Products(meat = 110f, fat = 8f, hide = 15f, bone = 25f, sinew = 2f),
         comfortC = -8f..38f, winterCoat = true,
         speedKmh = 70f,
+        foresight = 0.7f,
         domestication = floatArrayOf(0.7f, 0.4f, 0.3f, 0.1f, 0.2f, 0.4f), // too wild to tame; the donkey came from Africa
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.1f), // shuns marsh, not the water's edge
         defence = 0.4f,
@@ -294,10 +313,34 @@ object Catalogue {
         products = Products(meat = 600f, fat = 80f, hide = 100f, bone = 150f, sinew = 5f, hornOrAntler = 3f),
         comfortC = 14f..36f, 
         speedKmh = 30f,
+        foresight = 0.3f,
         domestication = floatArrayOf(0.6f, 0.2f, 0.2f, 0.0f, 0.1f, 0.3f),
         habitat = Habitat(cover = -0.2f, rugged = -1f, wet = 1f),
         defence = 1f,
         maxWaterKm = 1.5f,
+    )
+
+    /**
+     * Syrian brown bear: an omnivore of wooded hills, living mostly on fruit, nuts, roots and green
+     * plants, with insects, carrion and the odd fawn. Fattens in autumn and sleeps out the winter.
+     */
+    val BEAR = Species(
+        name = "brown bear", massKg = 150f,
+        diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.25f, fruit = 0.3f, smallPrey = 0.1f, carrion = 0.1f),
+        groupSize = 2, maxGroupSize = 4,
+        dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 4f,
+        daysWithoutWater = 4, waterFromFood = 0.6f,
+        birthMonth = 11, birthMonths = 1, youngPerFemale = 1f, yearsToMaturity = 4f,
+        backgroundMortality = 0.05f, snowLimitMm = 600f, flightKm = 0.3f, dangerToHumans = 0.7f,
+        products = Products(meat = 70f, fat = 30f, hide = 12f, bone = 15f, sinew = 1f, fur = true),
+        comfortC = -15f..28f, winterCoat = true,
+        speedKmh = 50f,
+        foresight = 0.5f,
+        domestication = floatArrayOf(0.9f, 0.2f, 0.2f, 0.1f, 0.2f, 0.1f),
+        habitat = Habitat(cover = 0.5f, rugged = 0.4f),
+        defence = 0.8f,
+        hibernates = true,
+        startKm2PerAnimal = 60f,
     )
 
     /**
@@ -315,6 +358,7 @@ object Catalogue {
         products = Products(meat = 9f, fat = 0.4f, hide = 1.5f, bone = 2.2f, sinew = 0.2f, fur = true),
         comfortC = -20f..30f, winterCoat = true,
         speedKmh = 60f,
+        foresight = 0.5f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.6f, 0.4f, 0.6f, 0.9f), // became the dog
         packLitter = 4,
         stalking = 0.3f,
@@ -408,7 +452,7 @@ object Catalogue {
         startKm2PerAnimal = 200f,
     )
 
-    val herbivores = listOf(GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO)
+    val herbivores = listOf(GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR)
     val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL)
     val all = herbivores + predators
 

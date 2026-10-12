@@ -88,8 +88,13 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
         events += ClimateEvent(ClimateEvent.Kind.VOLCANIC_WINTER, date.absoluteDay, date.absoluteDay + 720, x.toDouble(), y.toDouble(), 5000.0, -cooling)
     }
 
-    /** Advances the weather by one step of [WorldConfig.daysPerStep] days. */
-    fun step() {
+    private var prepared = false
+
+    /**
+     * Draws the weather systems for the step starting on [date]: done one step ahead, so that the
+     * coming week's weather is known before it arrives (see [forecastTemp], [forecastRain]).
+     */
+    private fun prepare() {
         val days = cfg.daysPerStep
         if (date.year != anomalyYear) {
             anomalyYear = date.year
@@ -100,6 +105,31 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
         ar1(rainAnomaly, phi, sigma = 0.8f)
         volcanicCooling *= exp(-days / 360.0)
         shocks()
+        prepared = true
+    }
+
+    /** Mean air temperature the coming step will bring at [i], °C: already settled, as weather is drawn a step ahead. */
+    fun forecastTemp(i: Int): Float {
+        if (!prepared) prepare()
+        val m = date.month; val next = (m + 1) % 12
+        val f = (date.dayOfMonth - 1).toFloat() / Date.DAYS_PER_MONTH
+        val x = grid.x(i) * grid.cellKm / coarseKm; val y = grid.y(i) * grid.cellKm / coarseKm
+        return climate.monthlyTemp[m][i] * (1 - f) + climate.monthlyTemp[next][i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) - volcanicCooling.toFloat()
+    }
+
+    /** Rain and snow the coming step will bring at [i], mm. */
+    fun forecastRain(i: Int): Float {
+        if (!prepared) prepare()
+        val x = grid.x(i) * grid.cellKm / coarseKm; val y = grid.y(i) * grid.cellKm / coarseKm
+        val rainBias = (0.8f * 0.8f + 0.3f * 0.3f) / 2
+        return climate.monthlyPrecip[date.month][i] * cfg.daysPerStep / Date.DAYS_PER_MONTH *
+            exp(sample(rainAnomaly, x, y) - rainBias + sample(yearAnomaly, x, y) + sample(rainShock, x, y))
+    }
+
+    /** Advances the weather by one step of [WorldConfig.daysPerStep] days, then draws the next step's weather systems. */
+    fun step() {
+        val days = cfg.daysPerStep
+        if (!prepared) prepare()
 
         val m = date.month
         lastMonth = m
@@ -126,6 +156,7 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
             }
         }
         date = date.plusDays(days)
+        prepare()
     }
 
     private fun newYear() {

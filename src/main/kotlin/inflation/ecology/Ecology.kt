@@ -44,6 +44,8 @@ class Ecology(private val sim: Simulation) {
     val browse = FloatArray(n)
     /** Bulbs, roots and fallen mast that rooting animals dig up, kg per km²; slow to replace. */
     val roots = FloatArray(n)
+    /** Fruit, berries, seeds and nuts on shrubs and trees, kg per km²: ripens in summer and autumn, gone by winter. */
+    val fruit = FloatArray(n)
     /**
      * Standing dead grass, stems and twigs that grazers fall back on in lean months, kg per km²:
      * plentiful but poor, and eaten down where herds crowd, so the dry season sets how many
@@ -180,8 +182,15 @@ class Ecology(private val sim: Simulation) {
             val t = sim.weather.temperature[i]
             val warm = ((t - 2f) / 10f).coerceIn(0f, 1f)
             val wet = (sim.water.soil[i] / 60f).coerceIn(0.1f, 1f)
-            val g = PALATABLE_SHARE * 1e6f * v.herb[i] * warm * wet / REGROWTH_DAYS
-            val b = PALATABLE_SHARE * 1e6f * woody(i) * max(0.3f, warm) * max(0.5f, wet) / REGROWTH_DAYS
+            val month = sim.weather.date.month
+            // Spring flush: the first warm, wet weeks of the year grow the richest grass.
+            val flush = if (month in 0..1) 1.5f else 1f
+            val g = PALATABLE_SHARE * 1e6f * v.herb[i] * warm * wet * flush / REGROWTH_DAYS
+            // Deciduous leaves fall in the cold; only evergreen scrub and trees keep some browse.
+            val b = PALATABLE_SHARE * 1e6f * woody(i) * max(0.15f, warm) * max(0.5f, wet) / REGROWTH_DAYS
+            // Fruit ripens from midsummer to autumn and rots or is gone by winter.
+            val ripe = if (month in 4..7) FRUIT_SHARE * 1e6f * fruitBearing(i) / FRUIT_DAYS else 0f
+            fruit[i] = max(0f, fruit[i] + days * (ripe - fruit[i] / FRUIT_DAYS))
             graze[i] = max(0f, graze[i] + days * (g - graze[i] / REGROWTH_DAYS))
             browse[i] = max(0f, browse[i] + days * (b - browse[i] / REGROWTH_DAYS))
             val autumn = sim.weather.date.month in 6..8
@@ -199,10 +208,13 @@ class Ecology(private val sim: Simulation) {
 
     private fun rootsCap(i: Int) = ROOTS_SHARE * 1e6f * (sim.vegetation.herb[i] + 0.05f * sim.vegetation.tree[i])
 
-    private fun plantDiet(s: Species) = max(1e-3f, s.diet.grass + s.diet.browse + s.diet.roots)
+    private fun plantDiet(s: Species) = max(1e-3f, s.diet.grass + s.diet.browse + s.diet.roots + s.diet.fruit)
+
+    /** Fruit-bearing plants at [i], kg/m²: shrubs and the fruiting share of trees. */
+    private fun fruitBearing(i: Int) = 0.5f * sim.vegetation.shrub[i] + 0.05f * sim.vegetation.tree[i]
 
     /** Food for [s] at [i] in the shares of its diet, kg/km². */
-    fun food(s: Species, i: Int) = (s.diet.grass * graze[i] + s.diet.browse * browse[i] + s.diet.roots * roots[i]) / plantDiet(s)
+    fun food(s: Species, i: Int) = (s.diet.grass * graze[i] + s.diet.browse * browse[i] + s.diet.roots * roots[i] + s.diet.fruit * fruit[i]) / plantDiet(s)
 
     // ---------------------------------------------------------------- sight
 
@@ -233,6 +245,9 @@ class Ecology(private val sim: Simulation) {
     private fun endure(g: AnimalGroup) {
         val s = g.species
         val t = sim.weather.temperature[cellOf(g)]
+        // Hibernators den up when it turns cold and they have fat enough, and wake in the spring warmth.
+        if (s.hibernates) g.torpid = if (g.torpid) t < HIBERNATE_C + 4f && g.fat > 0f else t < HIBERNATE_C && g.fat > 0.3f * s.maxFatDays
+        if (g.torpid) { g.thermal = 0f; return }
         if (s.winterCoat) g.coat = if (t < s.comfortC.start + 10f) min(1f, g.coat + 0.15f) else max(0f, g.coat - 0.2f)
         g.thermal = thermalStress(g, t)
         if (g.thermal > 0f) g.condition = max(0f, g.condition - THERMAL_COST * days * min(2f, g.thermal))
@@ -345,7 +360,8 @@ class Ecology(private val sim: Simulation) {
     private fun populate() {
         for (s in Catalogue.herbivores) {
             // Several species share the plants, so each starts well below its density alone.
-            val perCell = 0.15f * Allometry.herbivoreDensityPerKm2(s.massKg) * cellKm2 / s.groupSize
+            val density = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.15f * Allometry.herbivoreDensityPerKm2(s.massKg)
+            val perCell = density * cellKm2 / s.groupSize
             for (i in 0 until n) {
                 val p = perCell * suitability(s, i)
                 if (p <= 0f || rnd.nextFloat() >= p) continue
@@ -369,6 +385,7 @@ class Ecology(private val sim: Simulation) {
         val group = AnimalGroup(nextId++, s, grid.x(cell) + rnd.nextDouble(), grid.y(cell) + rnd.nextDouble(), size - young, young)
         group.condition = 0.6f + 0.2f * rnd.nextFloat()
         group.birthMonth = s.birthMonth
+        group.fat = 0.5f * s.maxFatDays
         groups += group
         return group
     }
@@ -515,6 +532,7 @@ class Ecology(private val sim: Simulation) {
     private val mGraze = maps.layer()
     private val mBrowse = maps.layer()
     private val mRoots = maps.layer()
+    private val mFruit = maps.layer()
     private val mStraw = maps.layer()
     private val mWater = maps.layer()
     private val mWaterKm = maps.layer()
@@ -526,9 +544,13 @@ class Ecology(private val sim: Simulation) {
     private val mRodents = maps.layer()
     private val mCroc = maps.layer()
     private val mTemp = maps.layer()
+    /** Next week's weather, as far as it can be sensed: temperature, rain against normal, and dangers. */
+    private val mTempAhead = maps.layer()
+    private val mRainAhead = maps.layer()
+    private val mHazard = maps.layer()
     /** Animals of each species per coarse cell, each group spread over its range. */
     private val mOcc = Array(Catalogue.all.size) { maps.layer() }
-    private val fineLayers = listOf(mTemp, mLand, mGraze, mBrowse, mRoots, mStraw, mWater, mWaterKm, mCover, mRugged, mWet, mSnow, mCost, mRodents, mCroc)
+    private val fineLayers = listOf(mTempAhead, mRainAhead, mHazard, mTemp, mLand, mGraze, mBrowse, mRoots, mFruit, mStraw, mWater, mWaterKm, mCover, mRugged, mWet, mSnow, mCost, mRodents, mCroc)
 
     /** Sums this week's ground, plants and water onto the coarse grid. */
     private fun summarise() {
@@ -542,9 +564,16 @@ class Ecology(private val sim: Simulation) {
             val m = maps.of(fx, fy)
             mLand.cell[m] += 1f
             mTemp.cell[m] += sim.weather.temperature[i]
+            mTempAhead.cell[m] += sim.weather.forecastTemp(i)
+            val normal = world.climate.monthlyPrecip[sim.weather.date.month][i] * days / Date.DAYS_PER_MONTH
+            val ahead = sim.weather.forecastRain(i) / max(1f, normal)
+            mRainAhead.cell[m] += ahead
+            // A flood is coming where heavy rain is due on a floodplain or where water already stands.
+            if (world.floodplain.isFloodplain[i] || sim.water.flood[i] > 0f) mHazard.cell[m] += ((ahead - 1.5f) / 2f).coerceIn(0f, 1f)
             mGraze.cell[m] += graze[i] * cellKm2
             mBrowse.cell[m] += browse[i] * cellKm2
             mRoots.cell[m] += roots[i] * cellKm2
+            mFruit.cell[m] += fruit[i] * cellKm2
             mStraw.cell[m] += straw[i] * cellKm2
             if (waterKm[i] <= 1.5f) mWater.cell[m] += 1f
             mWaterKm.cell[m] += min(waterKm[i], 50f)
@@ -556,6 +585,17 @@ class Ecology(private val sim: Simulation) {
             mRodents.cell[m] += small.rodents[i] * cellKm2
             if (crocKm[i] <= 1.5f) mCroc.cell[m] += 1f
           }
+        }
+        // Eruptions due next week: tremors and gas warn of them for tens of km around.
+        for (e in sim.eruptions.upcoming) {
+            if (e.vei < 2) continue
+            val reachKm = 8f * e.vei * e.vei
+            val r = (reachKm / COARSE_KM).toInt()
+            val cx = (e.volcano.x * cellKm / COARSE_KM).toInt(); val cy = (e.volcano.y * cellKm / COARSE_KM).toInt()
+            for (y in max(0, cy - r)..min(maps.h - 1, cy + r)) for (x in max(0, cx - r)..min(maps.w - 1, cx + r)) {
+                val d = kotlin.math.hypot((x - cx).toFloat(), (y - cy).toFloat()) * COARSE_KM
+                if (d < reachKm) mHazard.cell[y * maps.w + x] += mLand.cell[y * maps.w + x] * (1f - d / reachKm)
+            }
         }
         for (l in fineLayers) l.build()
         occupancy()
@@ -583,6 +623,7 @@ class Ecology(private val sim: Simulation) {
     private fun plan(g: AnimalGroup, slot: Int, sc: Scratch) {
         val s = g.species
         g.rangeKm = rangeKm(s)
+        if (g.torpid) { planX[slot] = Double.NaN; return }
         gather(g, sc)
         val choice = policies.getValue(s).choose(g, sc.options)
         if (sc.options[choice].cell < 0 || choice == 0) { planX[slot] = Double.NaN; return }
@@ -622,7 +663,7 @@ class Ecology(private val sim: Simulation) {
         sc.tx[k] = x; sc.ty[k] = y
         val o = describe(g, x, y, min(toGo, reach), sc.box)
         val pull = (g.seasonQ[m] - g.fare).coerceIn(0f, 1f)
-        options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, pull)
+        options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, pull, o.hazard, o.rainAhead)
     }
 
     /** The month whose range a group heads for now: the next one in the second half of a month. */
@@ -729,7 +770,7 @@ class Ecology(private val sim: Simulation) {
         val waterCells = mWater.box(box.x0, box.y0, box.x1, box.y1).toFloat()
         val forage = if (s.carnivore) mRodents.box(box.x0, box.y0, box.x1, box.y1).toFloat() / areaKm2
             else ((s.diet.grass * mGraze.box(box.x0, box.y0, box.x1, box.y1) + s.diet.browse * mBrowse.box(box.x0, box.y0, box.x1, box.y1) +
-                s.diet.roots * mRoots.box(box.x0, box.y0, box.x1, box.y1)) / plantDiet(s)).toFloat() / areaKm2
+                s.diet.roots * mRoots.box(box.x0, box.y0, box.x1, box.y1) + s.diet.fruit * mFruit.box(box.x0, box.y0, box.x1, box.y1)) / plantDiet(s)).toFloat() / areaKm2
         val boxKm2 = box.cells * COARSE_KM * COARSE_KM
         // Enemies: their mass per km² over the range, against this group's own mass.
         var enemyKg = 0.0
@@ -752,7 +793,12 @@ class Ecology(private val sim: Simulation) {
         return Option(centre, effort, forage, danger, prey, kin, if (waterCells > 0f) 0f else waterHere,
             mSnow.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land, mCover.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land,
             mRugged.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land, mWet.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land,
-            thermalStress(g, mTemp.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land))
+            // Now and, as far as it can sense it, next week.
+            max(thermalStress(g, mTemp.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land),
+                s.foresight * thermalStress(g, mTempAhead.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land)),
+            0f,
+            (s.foresight * mHazard.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land).coerceIn(0f, 1f),
+            1f + s.foresight * (mRainAhead.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land - 1f))
     }
 
     /** Mean travel cost on the straight line from (x0, y0) to (x1, y1), sampled on the coarse grid; open water is very costly. */
@@ -816,19 +862,22 @@ class Ecology(private val sim: Simulation) {
     private fun graze() {
         val herds = groups.filter { it.alive && !it.species.carnivore }
         val box = CoarseMaps.Box()
-        val stocks = listOf(mGraze, mBrowse, mRoots)
-        val asked = Array(3) { FloatArray(maps.size) }
+        val stocks = listOf(mGraze, mBrowse, mRoots, mFruit)
+        val asked = Array(4) { FloatArray(maps.size) }
         val want = FloatArray(herds.size)
         for ((h, g) in herds.withIndex()) {
             val s = g.species
             val c = cellOf(g)
             // On the march they snatch a few mouthfuls on the way; watchful herds graze less.
             val appetite = (1f - (1f - MARCH_APPETITE) * g.walking) * (1f - POSTURE_FEED_COST * g.posture)
-            want[h] = if (sim.weather.snowpack[c] > s.snowLimitMm) 0f else g.dailyNeedKg * days * appetite
+            // Room to fatten: more in late summer and autumn, when animals eat all they can before winter.
+            val autumn = sim.weather.date.month in 5..8
+            val fatten = if (g.fat < s.maxFatDays) (if (autumn) FATTEN_AUTUMN else FATTEN) else 0f
+            want[h] = if (sim.weather.snowpack[c] > s.snowLimitMm) 0f else g.dailyNeedKg * days * appetite * (1f + fatten)
             box.set(maps, g.x, g.y, g.rangeKm)
-            val diet = floatArrayOf(s.diet.grass, s.diet.browse, s.diet.roots)
-            for (k in 0..2) {
-                val wantK = want[h] * diet[k] / plantDiet(s)
+            val split = split(s, want[h], stocks, box)
+            for (k in 0..3) {
+                val wantK = split[k]
                 if (wantK <= 0f) continue
                 val total = reachable(s, stocks[k], box)
                 if (total <= 0f) continue
@@ -839,16 +888,18 @@ class Ecology(private val sim: Simulation) {
             }
         }
         // Share of each cell's stock that each asker gets.
-        val share = Array(3) { k -> FloatArray(maps.size) { m -> if (asked[k][m] <= 0f) 0f else min(1f, stocks[k].cell[m] / asked[k][m]) } }
-        val eaten = Array(3) { FloatArray(maps.size) }
+        val share = Array(4) { k -> FloatArray(maps.size) { m -> if (asked[k][m] <= 0f) 0f else min(1f, stocks[k].cell[m] / asked[k][m]) } }
+        val eaten = Array(4) { FloatArray(maps.size) }
         val got = FloatArray(herds.size)
         for ((h, g) in herds.withIndex()) {
+            // A hibernating bear lives on its fat at a quarter of its need.
+            if (g.torpid) { g.freshShare = 1f; feed(g, 1f - HIBERNATION_NEED); continue }
             if (want[h] <= 0f) { g.freshShare = 0f; feed(g, 0f); continue }
             val s = g.species
             box.set(maps, g.x, g.y, g.rangeKm)
-            val diet = floatArrayOf(s.diet.grass, s.diet.browse, s.diet.roots)
-            for (k in 0..2) {
-                val wantK = want[h] * diet[k] / plantDiet(s)
+            val split = split(s, want[h], stocks, box)
+            for (k in 0..3) {
+                val wantK = split[k]
                 if (wantK <= 0f) continue
                 val total = reachable(s, stocks[k], box)
                 if (total <= 0f) continue
@@ -861,11 +912,11 @@ class Ecology(private val sim: Simulation) {
         }
         // Take what was eaten from the fine cells, in proportion to what each held.
         val v = sim.vegetation
-        val forms = arrayOf(LifeForm.HERB, LifeForm.SHRUB, null)
-        val fine = arrayOf(graze, browse, roots)
+        val forms = arrayOf(LifeForm.HERB, LifeForm.SHRUB, null, null)
+        val fine = arrayOf(graze, browse, roots, fruit)
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             val m = maps.of(grid.x(i), grid.y(i))
-            for (k in 0..2) {
+            for (k in 0..3) {
                 val total = stocks[k].cell[m]
                 if (total <= 0f || eaten[k][m] <= 0f) continue
                 val f = min(1f, eaten[k][m] / total)
@@ -881,11 +932,44 @@ class Ecology(private val sim: Simulation) {
             var food = got[h]
             val fresh = food
             val value = roughageValue(s)
-            if (food < want[h]) food += roughage(cellOf(g), min(want[h] - food, max(0f, GUT_FILL * want[h] - fresh) * value), value)
+            // Straw keeps an animal going but does not fatten it: only up to the week's need.
+            val need = min(want[h], g.dailyNeedKg * days)
+            if (food < need) food += roughage(cellOf(g), min(need - food, max(0f, GUT_FILL * need - fresh) * value), value)
+            // Omnivores find the animal part of their diet too: small prey, insects and carrion.
+            val animal = s.diet.smallPrey + s.diet.carrion + s.diet.meat
+            if (animal > 0f) {
+                val wantAnimal = g.dailyNeedKg * days * animal / plantDiet(s)
+                food += catchRodents(cellOf(g), wantAnimal * (s.diet.smallPrey + s.diet.meat) / animal) +
+                    scavenge(cellOf(g), wantAnimal * s.diet.carrion / animal)
+            }
             g.freshShare = if (food > 0f) fresh / food else 0f
-            feed(g, min(1f, food / (g.dailyNeedKg * days)))
+            feed(g, food / (g.dailyNeedKg * days))
         }
     }
+
+    /**
+     * Splits a week's [want] of food across grass, browse, roots and fruit: by [s]'s preferences,
+     * shifted towards what the range actually offers, so that a herd eats fruit in autumn and more
+     * browse when the grass is gone, as far as its diet allows.
+     */
+    private fun split(s: Species, want: Float, stocks: List<CoarseMaps.Layer>, box: CoarseMaps.Box): FloatArray {
+        val d = diet(s)
+        val w = FloatArray(4)
+        var sum = 0f
+        for (k in 0..3) {
+            if (d[k] <= 0f) continue
+            val offered = reachable(s, stocks[k], box)
+            // How fully this food could cover its share of the diet: up to twice as much if plentiful.
+            val avail = (offered / max(1e-3f, 3f * want * d[k] / plantDiet(s))).coerceIn(0f, 2f)
+            w[k] = d[k] * avail; sum += w[k]
+        }
+        if (sum <= 0f) return w
+        for (k in 0..3) w[k] = want * w[k] / sum
+        return w
+    }
+
+    /** [s]'s diet shares of grass, browse, roots and fruit. */
+    private fun diet(s: Species) = floatArrayOf(s.diet.grass, s.diet.browse, s.diet.roots, s.diet.fruit)
 
     /**
      * How much of coarse cell [m]'s food [s] can get at, 0..1: steep, rocky ground keeps all but
@@ -939,10 +1023,25 @@ class Ecology(private val sim: Simulation) {
         return eaten
     }
 
+    /**
+     * Feeds [g] a week's food at [ratio] of its need: a surplus is laid on as fat, up to what its kind
+     * can carry; a shortfall is met from fat first, and only then does condition suffer.
+     */
     private fun feed(g: AnimalGroup, ratio: Float) {
-        g.lastIntakeRatio = ratio
+        val s = g.species
+        var r = ratio
+        if (r > 1f) {
+            g.fat = min(s.maxFatDays, g.fat + (r - 1f) * days * FAT_EFFICIENCY)
+            r = 1f
+        } else {
+            val short = (1f - r) * days
+            val burned = min(g.fat, short)
+            g.fat -= burned
+            r = 1f - (short - burned) / days
+        }
+        g.lastIntakeRatio = r
         // Losing condition is slower than for a starving animal: on poor food they cut their metabolism.
-        g.condition = if (ratio >= 0.9f) min(1f, g.condition + 0.01f * days) else max(0f, g.condition - 0.012f * days * (1f - ratio))
+        g.condition = if (r >= 0.9f) min(1f, g.condition + 0.01f * days) else max(0f, g.condition - 0.012f * days * (1f - r))
     }
 
     // ---------------------------------------------------------------- predators
@@ -965,14 +1064,16 @@ class Ecology(private val sim: Simulation) {
         // Carrion first, up to its share of the diet: a scavenger finds most of its food this way.
         if (g.stored < need) g.stored += scavenge(c, s.diet.carrion * need)
         if (free > 0f) hunt(g, free)
-        var eaten = min(g.stored, need)
+        // A pack gorges when there is meat: some of it goes on as fat.
+        val room = if (g.fat < s.maxFatDays) 1f + FATTEN else 1f
+        var eaten = min(g.stored, need * room)
         g.stored -= eaten
         // Small prey and carrion fill the gap. Catching voles one at a time yields little: at most
         // the small-prey share of the diet.
         if (eaten < need) eaten += catchRodents(c, min(need - eaten, s.diet.smallPrey * need))
         if (eaten < need) eaten += scavenge(c, need - eaten)
-        // A pack can cache a few days' food; the rest is left to rot and to scavengers.
-        val cap = 0.5f * need
+        // A pack caches a few days' food (a leopard in a tree, more); the rest is left to rot and to scavengers.
+        val cap = (0.5f + 0.5f * s.stalking) * need
         if (g.stored > cap) {
             soil.carrion[c] += ((g.stored - cap) / grid.cellAreaM2).toFloat()
             g.stored = cap
@@ -1191,6 +1292,7 @@ class Ecology(private val sim: Simulation) {
      */
     private fun drink(g: AnimalGroup) {
         val s = g.species
+        if (g.torpid) return
         val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
         val c = cellOf(g)
         if (mWater.box(box.x0, box.y0, box.x1, box.y1) > 0.0 || waterKm[c] <= 1.5f) {
@@ -1273,7 +1375,7 @@ class Ecology(private val sim: Simulation) {
         // Others of its kind over its range: its own group does not crowd itself.
         val others = max(0f, mOcc[s.index].box(box.x0, box.y0, box.x1, box.y1).toFloat() - g.size)
         val density = others / (box.cells * COARSE_KM * COARSE_KM)
-        val full = if (s.carnivore) CROWD_PREDATOR / s.startKm2PerAnimal else Allometry.herbivoreDensityPerKm2(s.massKg) * CROWD_HERBIVORE
+        val full = if (s.startKm2PerAnimal > 0f) CROWD_PREDATOR / s.startKm2PerAnimal else Allometry.herbivoreDensityPerKm2(s.massKg) * CROWD_HERBIVORE
         return density / full
     }
 
@@ -1401,6 +1503,7 @@ class Ecology(private val sim: Simulation) {
                 g.foodByMonth.copyInto(child.foodByMonth)
                 g.seasonX.copyInto(child.seasonX); g.seasonY.copyInto(child.seasonY); g.seasonQ.copyInto(child.seasonQ)
                 child.fare = g.fare
+                child.fat = g.fat
                 newcomers += child
             }
         }
@@ -1451,6 +1554,10 @@ class Ecology(private val sim: Simulation) {
         const val STRAW_SHARE = 0.0025f
         /** Days for eaten-down straw to build up again. */
         const val STRAW_DAYS = 180f
+        /** Ripe fruit on fruiting plants at the season's peak, per kg/m² of them. Calibration constant. */
+        const val FRUIT_SHARE = 0.0008f
+        /** Days ripe fruit lasts before it falls, rots or is gone. */
+        const val FRUIT_DAYS = 30f
         /** Days for dug-up roots and mast to be replaced. */
         const val ROOTS_DAYS = 180f
         /** Size of the coarse summary grid, km. */
@@ -1504,6 +1611,15 @@ class Ecology(private val sim: Simulation) {
         const val TRADITION_KM = 16f
         /** Weeks of marching within which inherited seasonal ranges lie. */
         const val TRADITION_WEEKS = 3f
+        /** Extra food a herd eats to lay on fat, as a share of its need: in most weeks, and in late summer and autumn. */
+        const val FATTEN = 0.2f
+        const val FATTEN_AUTUMN = 0.6f
+        /** Days of fat laid on per day of surplus food. */
+        const val FAT_EFFICIENCY = 0.7f
+        /** Share of its food a hibernating animal burns. */
+        const val HIBERNATION_NEED = 0.25f
+        /** Weekly mean temperature below which hibernators den up, °C. */
+        const val HIBERNATE_C = 2f
         /** Stands for a place a group cannot go. */
         val NOWHERE = Option(-1, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
         /** Animal mass whose passage counts as trampling intensity 1 (see Vegetation.trample). */

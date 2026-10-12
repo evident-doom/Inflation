@@ -57,6 +57,7 @@ fun main(args: Array<String>) {
             println("   intake " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(if (gs.isEmpty()) 0f else gs.map { it.lastIntakeRatio }.average().toFloat()) })
             println("   watch  " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(if (gs.isEmpty()) 0f else gs.map { it.posture }.average().toFloat()) })
             println("   seasonkm " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s && !it.seasonX[1].isNaN() && !it.seasonX[7].isNaN() }; "%9.0f".format(if (gs.isEmpty()) 0.0 else gs.map { kotlin.math.hypot((it.seasonX[1] - it.seasonX[7]).toDouble(), (it.seasonY[1] - it.seasonY[7]).toDouble()) * world.grid.cellKm }.average()) })
+            println("   fat d  " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.1f".format(if (gs.isEmpty()) 0f else gs.map { it.fat }.average().toFloat()) })
             println("   march% " + Catalogue.all.joinToString(" ") { s -> val gs = e.groups.filter { it.species == s }; "%9.2f".format(gs.count { it.marching }.toFloat() / max(1, gs.size)) })
             val cells = (0 until world.grid.size).filter { sim.vegetation.isVegetated(it) }
             println("   water  land with drinking water %.0f%%, within 5 km %.0f%%, mean wetness %.2f".format(
