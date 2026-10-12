@@ -38,9 +38,15 @@ class ClimateEvent(
  * - shocks: multi-year droughts, severe winters, summer heat waves, and volcanic winters after
  *   large eruptions (VEI 5 and up cool the region by up to about 1 °C for a couple of years).
  *
+ * - wind: each week a weather [Regime] (westerly fronts, a cold northerly, a warm southerly, a
+ *   blocking high, the summer high) with its wind; the wind sets where rain falls (windward slopes
+ *   wet, lee sides dry) and the regime how warm and how stormy the week is (see [Winds]).
+ *
  * Snow accumulates below 0 °C and melts by a degree-day rule.
+ *
+ * [elevation] gives the terrain the wind meets; without it, rain does not depend on the wind.
  */
-class Weather(private val grid: Grid, private val climate: Climate, private val cfg: WorldConfig) {
+class Weather(private val grid: Grid, private val climate: Climate, private val cfg: WorldConfig, elevation: FloatArray? = null) {
     private val coarseKm = 50.0
     private val cw = (grid.width * grid.cellKm / coarseKm).toInt() + 2
     private val ch = (grid.height * grid.cellKm / coarseKm).toInt() + 2
@@ -51,6 +57,9 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
     private val yearAnomaly = FloatArray(cw * ch)
     private val tempShock = FloatArray(cw * ch)
     private val rainShock = FloatArray(cw * ch)
+    /** Eddies in the wind, m/s east and south, on the coarse grid. */
+    private val eddyU = FloatArray(cw * ch)
+    private val eddyV = FloatArray(cw * ch)
     private val oscPatternT = smoothPattern()
     private val oscPatternP = smoothPattern()
     private val decPattern = smoothPattern()
@@ -78,6 +87,34 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
     /** Snowmelt released during the last step, mm. */
     val meltwater = FloatArray(grid.size)
 
+    val winds = Winds(grid, cfg, elevation)
+    /** The weather pattern of the last step, and of the coming one (already drawn, see [prepare]). */
+    var regime = Regime.WESTERLY; private set
+    var upcomingRegime = Regime.WESTERLY; private set
+    /** How far the jet stream lies north (+) or south (-) of its seasonal mean, degrees. */
+    private var meander = 0.0
+    /** Wind over the last step and the coming one, m/s towards the east and the south, on the coarse grid. */
+    private val windU = FloatArray(cw * ch)
+    private val windV = FloatArray(cw * ch)
+    private val nextU = FloatArray(cw * ch)
+    private val nextV = FloatArray(cw * ch)
+    /** The coming step's temperature and rain, worked out a step ahead. */
+    private val nextTemp = FloatArray(grid.size)
+    private val nextPrecip = FloatArray(grid.size)
+    /** Seasonal mean of the wind's rain factor per cell, for the month in [normMonth]. */
+    private val norm = FloatArray(grid.size)
+    private var normMonth = -1
+
+    private fun cx(i: Int) = grid.x(i) * grid.cellKm / coarseKm
+    private fun cy(i: Int) = grid.y(i) * grid.cellKm / coarseKm
+    /** Wind over the last step at cell [i], m/s towards the east. */
+    fun windEast(i: Int): Float = sample(windU, cx(i), cy(i))
+    /** Wind over the last step at cell [i], m/s towards the south. */
+    fun windSouth(i: Int): Float = sample(windV, cx(i), cy(i))
+    /** Wind the coming step will bring at cell [i], m/s towards the east and the south. */
+    fun forecastWindEast(i: Int): Float { if (!prepared) prepare(); return sample(nextU, cx(i), cy(i)) }
+    fun forecastWindSouth(i: Int): Float { if (!prepared) prepare(); return sample(nextV, cx(i), cy(i)) }
+
     fun activeEvents(): List<ClimateEvent> = events.filter { it.activeOn(date.absoluteDay) }
 
     /** A large eruption's aerosols cool the region for about two years. */
@@ -90,9 +127,12 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
 
     private var prepared = false
 
+    /** Where the year stands, -1 at midwinter to 1 at midsummer, as in the climate normals. */
+    private fun season(d: Date) = cos(2 * PI * (d.dayOfYear - Climate.WARMEST_DAY) / Date.DAYS_PER_YEAR)
+
     /**
-     * Draws the weather systems for the step starting on [date]: done one step ahead, so that the
-     * coming week's weather is known before it arrives (see [forecastTemp], [forecastRain]).
+     * Draws the weather for the step starting on [date]: done one step ahead, so that the coming
+     * week's weather is known before it arrives (see [forecastTemp], [forecastRain]).
      */
     private fun prepare() {
         val days = cfg.daysPerStep
@@ -101,49 +141,86 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
             newYear()
         }
         val phi = exp(-days / 5.0) // weather systems persist about five days
-        ar1(tempAnomaly, phi, sigma = 2.5f)
-        ar1(rainAnomaly, phi, sigma = 0.8f)
+        ar1(tempAnomaly, phi, sigma = TEMP_SIGMA)
+        ar1(rainAnomaly, phi, sigma = RAIN_SIGMA)
         volcanicCooling *= exp(-days / 360.0)
         shocks()
+        drawWind()
+        if (date.month != normMonth) normalise()
+        val m = date.month; val next = (m + 1) % 12
+        val f = (date.dayOfMonth - 1).toFloat() / Date.DAYS_PER_MONTH
+        val tNow = climate.monthlyTemp[m]; val tNext = climate.monthlyTemp[next]
+        val pNow = climate.monthlyPrecip[m]
+        val stepShare = days.toFloat() / Date.DAYS_PER_MONTH
+        val s = season(date)
+        val warmth = (winds.warmth(upcomingRegime, s) - winds.meanWarmth(s) - volcanicCooling).toFloat()
+        val storm = upcomingRegime.storminess
+        java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
+            val x = cx(i); val y = cy(i)
+            nextTemp[i] = tNow[i] * (1 - f) + tNext[i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) + warmth
+            val wind = storm * winds.rainFactor(i, sample(nextU, x, y), sample(nextV, x, y)) / norm[i]
+            nextPrecip[i] = pNow[i] * stepShare * wind * exp(sample(rainAnomaly, x, y) - RAIN_BIAS + sample(yearAnomaly, x, y) + sample(rainShock, x, y))
+        }
         prepared = true
+    }
+
+    /** The coming step's regime and wind: a regime often persists, else one is drawn for the season. */
+    private fun drawWind() {
+        val days = cfg.daysPerStep
+        val s = season(date)
+        if (rnd.nextDouble() >= REGIME_PERSISTENCE) {
+            val weights = Regime.entries.map { winds.weight(it, s) }
+            var u = rnd.nextDouble() * weights.sum()
+            upcomingRegime = Regime.entries.first { r -> u -= weights[r.ordinal]; u <= 0 }
+        }
+        val keep = exp(-days / 10.0)
+        meander = keep * meander + sqrt(1 - keep * keep) * 2.0 * gaussian()
+        val jet = winds.jetLatitude(s) + meander
+        ar1(eddyU, exp(-days / 7.0), EDDY_SIGMA)
+        ar1(eddyV, exp(-days / 7.0), EDDY_SIGMA)
+        val base = FloatArray(2)
+        for (y in 0 until ch) {
+            val row = (y * coarseKm / grid.cellKm).toInt().coerceIn(0, grid.height - 1)
+            winds.baseWind(upcomingRegime, climate.latitude[row], jet, base)
+            for (x in 0 until cw) {
+                val c = y * cw + x
+                nextU[c] = base[0] + eddyU[c]; nextV[c] = base[1] + eddyV[c]
+            }
+        }
+    }
+
+    /** The seasonal mean of the wind's rain factor this month, so that rain keeps to the normals on average. */
+    private fun normalise() {
+        normMonth = date.month
+        val s = cos(2 * PI * (date.month * Date.DAYS_PER_MONTH + 15 - Climate.WARMEST_DAY) / Date.DAYS_PER_YEAR)
+        val tmp = ThreadLocal.withInitial { FloatArray(2) }
+        java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
+            norm[i] = winds.normalFactor(i, climate.latitude[grid.y(i)], s, tmp.get())
+        }
     }
 
     /** Mean air temperature the coming step will bring at [i], °C: already settled, as weather is drawn a step ahead. */
     fun forecastTemp(i: Int): Float {
         if (!prepared) prepare()
-        val m = date.month; val next = (m + 1) % 12
-        val f = (date.dayOfMonth - 1).toFloat() / Date.DAYS_PER_MONTH
-        val x = grid.x(i) * grid.cellKm / coarseKm; val y = grid.y(i) * grid.cellKm / coarseKm
-        return climate.monthlyTemp[m][i] * (1 - f) + climate.monthlyTemp[next][i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) - volcanicCooling.toFloat()
+        return nextTemp[i]
     }
 
     /** Rain and snow the coming step will bring at [i], mm. */
     fun forecastRain(i: Int): Float {
         if (!prepared) prepare()
-        val x = grid.x(i) * grid.cellKm / coarseKm; val y = grid.y(i) * grid.cellKm / coarseKm
-        val rainBias = (0.8f * 0.8f + 0.3f * 0.3f) / 2
-        return climate.monthlyPrecip[date.month][i] * cfg.daysPerStep / Date.DAYS_PER_MONTH *
-            exp(sample(rainAnomaly, x, y) - rainBias + sample(yearAnomaly, x, y) + sample(rainShock, x, y))
+        return nextPrecip[i]
     }
 
-    /** Advances the weather by one step of [WorldConfig.daysPerStep] days, then draws the next step's weather systems. */
+    /** Advances the weather by one step of [WorldConfig.daysPerStep] days, then draws the next step's weather. */
     fun step() {
         val days = cfg.daysPerStep
         if (!prepared) prepare()
-
-        val m = date.month
-        lastMonth = m
-        val next = (m + 1) % 12
-        val f = (date.dayOfMonth - 1).toFloat() / Date.DAYS_PER_MONTH
-        val tNow = climate.monthlyTemp[m]; val tNext = climate.monthlyTemp[next]
-        val pNow = climate.monthlyPrecip[m]
-        val stepShare = days.toFloat() / Date.DAYS_PER_MONTH
-        val rainBias = (0.8f * 0.8f + 0.3f * 0.3f) / 2 // keeps the lognormal mean at the climate normal
-        val cooling = volcanicCooling.toFloat()
+        lastMonth = date.month
+        regime = upcomingRegime
+        nextU.copyInto(windU); nextV.copyInto(windV)
         java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
-            val x = grid.x(i) * grid.cellKm / coarseKm; val y = grid.y(i) * grid.cellKm / coarseKm
-            val t = tNow[i] * (1 - f) + tNext[i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) - cooling
-            val p = pNow[i] * stepShare * exp(sample(rainAnomaly, x, y) - rainBias + sample(yearAnomaly, x, y) + sample(rainShock, x, y))
+            val t = nextTemp[i]
+            val p = nextPrecip[i]
             temperature[i] = t
             precipitation[i] = p
             if (t < 0) {
@@ -252,5 +329,17 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
         // Box–Muller
         val u = max(rnd.nextDouble(), 1e-12)
         return sqrt(-2 * ln(u)) * cos(2 * PI * rnd.nextDouble())
+    }
+
+    companion object {
+        /** Spread of the week-to-week temperature (°C) and log-rain anomalies, on top of the regimes. */
+        const val TEMP_SIGMA = 1.5f
+        const val RAIN_SIGMA = 0.35f
+        /** Keeps the lognormal rain anomalies' mean at 1 (year-to-year sigma about 0.3 included). */
+        const val RAIN_BIAS = (RAIN_SIGMA * RAIN_SIGMA + 0.3f * 0.3f) / 2
+        /** Chance a regime holds into the next week. */
+        const val REGIME_PERSISTENCE = 0.5
+        /** Spread of the wind's eddies, m/s. */
+        const val EDDY_SIGMA = 2.5f
     }
 }

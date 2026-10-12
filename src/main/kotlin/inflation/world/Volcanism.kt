@@ -154,7 +154,7 @@ object Volcanism {
 /**
  * Eruptions over simulated time. Each active volcano erupts at random at its long-term rate;
  * the explosivity follows the observed frequency of VEI classes, each step up being roughly
- * five times rarer. Ash falls mostly downwind (east) and thins with distance; it lies on the
+ * five times rarer. Ash falls mostly downwind of the week's wind and thins with distance; it lies on the
  * ground for a few years before it is washed into the soil.
  */
 class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, seed: Long) {
@@ -171,13 +171,15 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
      */
     val upcoming: List<Eruption> get() = pending ?: emptyList()
 
-    fun step(date: Date, days: Int): List<Eruption> {
+    /** Advances [days] days from [date]; [weather], when given, carries the ash plumes downwind. */
+    fun step(date: Date, days: Int, weather: Weather? = null): List<Eruption> {
         val decay = exp(-days / 720.0).toFloat() // about two years' residence
         for (i in ash.indices) if (ash[i] > 0f) ash[i] = if (ash[i] < 0.05f) 0f else ash[i] * decay
         val now = pending ?: draw(date, days)
         for (e in now) {
             history += e
-            fallAsh(e.volcano, e.vei)
+            val c = grid.index(e.volcano.x, e.volcano.y)
+            fallAsh(e.volcano, e.vei, weather?.windEast(c) ?: 1f, weather?.windSouth(c) ?: 0f)
         }
         pending = draw(date.plusDays(days), days)
         return now
@@ -195,17 +197,22 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
         return now
     }
 
-    private fun fallAsh(v: Volcano, vei: Int) {
+    private fun fallAsh(v: Volcano, vei: Int, windEast: Float, windSouth: Float) {
         if (vei < 2) return
         // Thickness 1 km downwind of the vent, and the e-folding distance, both grow with VEI.
         val nearMm = 50.0 * 2.5.pow(vei - 2)
         val lengthKm = 4.0 * 2.6.pow(vei - 2)
         val reach = (lengthKm * 5 / grid.cellKm).toInt()
-        for (dy in -reach..reach) for (dx in -reach / 3..reach) {
+        // The plume drifts with the wind; in a calm it settles all round.
+        val speed = hypot(windEast.toDouble(), windSouth.toDouble())
+        val ex = if (speed > 0.5) windEast / speed else 0.0
+        val ey = if (speed > 0.5) windSouth / speed else 0.0
+        for (dy in -reach..reach) for (dx in -reach..reach) {
             val x = v.x + dx; val y = v.y + dy
             if (!grid.inBounds(x, y)) continue
-            val along = dx * grid.cellKm; val across = abs(dy) * grid.cellKm
-            // A plume drifting east: thinner upwind and to the sides.
+            val along = (dx * ex + dy * ey) * grid.cellKm
+            val across = if (speed > 0.5) abs(-dx * ey + dy * ex) * grid.cellKm else hypot(dx.toDouble(), dy.toDouble()) * grid.cellKm / 2
+            // Thinner upwind and to the sides.
             val dist = sqrt((if (along < 0) along * 3 else along).pow(2) + (across * 2).pow(2))
             val mm = nearMm * exp(-dist / lengthKm)
             if (mm > 0.1) ash[grid.index(x, y)] += mm.toFloat()

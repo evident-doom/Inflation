@@ -31,7 +31,9 @@ class Climate(
     /** Water leaving each land cell as surface or ground flow, mm/yr. */
     val runoff: FloatArray,
 ) {
-    fun meanTemp(i: Int): Float = monthlyTemp.sumOf { it[i].toDouble() }.toFloat() / 12f
+    /** Annual mean temperature per cell, °C, worked out once. */
+    private val meanTemps: FloatArray by lazy { FloatArray(monthlyTemp[0].size) { i -> monthlyTemp.sumOf { it[i].toDouble() }.toFloat() / 12f } }
+    fun meanTemp(i: Int): Float = meanTemps[i]
     fun warmestMonthTemp(i: Int): Float = monthlyTemp.maxOf { it[i] }
     fun coldestMonthTemp(i: Int): Float = monthlyTemp.minOf { it[i] }
     /** Aridity index, precipitation over potential evapotranspiration. */

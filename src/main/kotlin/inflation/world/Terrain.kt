@@ -221,10 +221,13 @@ class Terrain(private val world: World) {
         var base = if (baseCost[i].isFinite()) landCost[i] * crossingCost(i, dischargeNow) else baseCost[i]
         if (rockEase > 0f && base.isFinite()) base = 1f + (base - 1f) * (1f - rockEase)
         val thicket = (1.5f * scrub * scrub + 0.5f * v.canopy(i)) * (1f - thicketEase)
-        return base * (1f + thicket) * (1f + snowMm / 150f)
+        // Worn paths, game trails and people's routes, are easier going.
+        return (base * (1f + thicket) * (1f + snowMm / 150f)) * (1f - TRAIL_EASE * v.trails[i])
     }
 
     companion object {
+        /** How much easier a well-worn path is than the open ground around it. */
+        const val TRAIL_EASE = 0.4f
         const val VIEW_MAX_KM = 30f
         const val EYE_M = 2f
 

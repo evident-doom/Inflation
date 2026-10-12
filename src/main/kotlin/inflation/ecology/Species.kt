@@ -123,6 +123,22 @@ class Species(
     val packLitter: Int = 0,
     /** Diamond's criteria, 0..1 each: diet breadth, growth, captive breeding, temperament, calm, hierarchy. */
     val domestication: FloatArray,
+    /** People: they hunt and gather by skill learned in practice (see [AnimalGroup.craft]), cook, and remember. */
+    val human: Boolean = false,
+    /** Daily food, kg of prey or plant food, where the allometric rule does not fit (people, who cook). */
+    val intakeKg: Float = 0f,
+    /** Hangs about people's camps for scraps and keeps clear of trouble with them: wolves (future dogs), jackals. */
+    val followsPeople: Boolean = false,
+    /**
+     * Inborn fear of people, 0..1, bred in over the millennia people have hunted here: high in game
+     * animals, lower in big dangerous ones and in scavengers that have long lived off people's leavings.
+     */
+    val fearOfPeople: Float = 0.7f,
+    /**
+     * Share of curious, bold animals in a typical group: the ones that come close, get killed first
+     * by hunters, and, around camps, are the start of the road to taming.
+     */
+    val boldShare: Float = 0.03f,
 ) {
     /** Position in [Catalogue.all], for array lookups. */
     var index = -1
@@ -135,7 +151,7 @@ class Species(
      */
     val maxFatDays: Float get() = 8f * massKg.pow(0.25f) * if (hibernates) 4f else 1f
     /** Dry-matter (or meat) intake per adult per day, kg. */
-    val dailyIntakeKg: Float get() = Allometry.dailyIntakeKg(massKg, carnivore)
+    val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, carnivore)
 }
 
 object Allometry {
@@ -160,6 +176,7 @@ object Catalogue {
     /** Mountain gazelle: the staple prey of Natufian hunters. Mixed grazer and browser of open land. */
     val GAZELLE = Species(
         name = "gazelle", massKg = 20f,
+        fearOfPeople = 0.8f, boldShare = 0.03f,
         diet = Diet(grass = 0.6f, browse = 0.4f),
         groupSize = 12, maxGroupSize = 40,
         dailyTravelKm = 6f, maxDailyTravelKm = 30f, senseKm = 4f,
@@ -227,6 +244,7 @@ object Catalogue {
     /** Nubian or Caucasian-type ibex: cliffs and steep rock, where nothing can follow it. */
     val IBEX = Species(
         name = "ibex", massKg = 60f,
+        fearOfPeople = 0.75f, boldShare = 0.04f,
         diet = Diet(grass = 0.6f, browse = 0.4f),
         groupSize = 8, maxGroupSize = 25,
         dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 3f,
@@ -245,6 +263,7 @@ object Catalogue {
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
         name = "wild boar", massKg = 80f,
+        fearOfPeople = 0.6f, boldShare = 0.1f,
         diet = Diet(grass = 0.2f, browse = 0.1f, roots = 0.5f, fruit = 0.2f),
         groupSize = 6, maxGroupSize = 20,
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
@@ -265,6 +284,7 @@ object Catalogue {
     /** Aurochs: huge wild cattle of wet lowlands, floodplains and open woodland; formidable when cornered. */
     val AUROCHS = Species(
         name = "aurochs", massKg = 750f,
+        fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 15, maxGroupSize = 40,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 2f,
@@ -304,6 +324,7 @@ object Catalogue {
      */
     val HIPPO = Species(
         name = "hippo", massKg = 1400f,
+        fearOfPeople = 0.3f, boldShare = 0.05f,
         diet = Diet(grass = 0.95f, browse = 0.05f),
         groupSize = 10, maxGroupSize = 30,
         dailyTravelKm = 4f, maxDailyTravelKm = 10f, senseKm = 1f,
@@ -326,6 +347,7 @@ object Catalogue {
      */
     val BEAR = Species(
         name = "brown bear", massKg = 150f,
+        fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.25f, fruit = 0.3f, smallPrey = 0.1f, carrion = 0.1f),
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 4f,
@@ -349,6 +371,7 @@ object Catalogue {
      */
     val WOLF = Species(
         name = "wolf", massKg = 22f,
+        fearOfPeople = 0.5f, boldShare = 0.15f,
         diet = Diet(meat = 0.6f, smallPrey = 0.25f, carrion = 0.15f),
         groupSize = 3, maxGroupSize = 8,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 8f,
@@ -363,6 +386,7 @@ object Catalogue {
         packLitter = 4,
         stalking = 0.3f,
         startKm2PerAnimal = 400f,
+        followsPeople = true,
     )
 
     /**
@@ -371,6 +395,7 @@ object Catalogue {
      */
     val LION = Species(
         name = "lion", massKg = 150f,
+        fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(meat = 0.9f, carrion = 0.1f),
         groupSize = 5, maxGroupSize = 12,
         dailyTravelKm = 12f, maxDailyTravelKm = 30f, senseKm = 8f,
@@ -392,6 +417,7 @@ object Catalogue {
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
     val LEOPARD = Species(
         name = "leopard", massKg = 45f,
+        fearOfPeople = 0.7f, boldShare = 0.03f,
         diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 6f, maxDailyTravelKm = 20f, senseKm = 4f,
@@ -413,6 +439,7 @@ object Catalogue {
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
     val HYENA = Species(
         name = "striped hyena", massKg = 35f,
+        fearOfPeople = 0.5f, boldShare = 0.1f,
         diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.65f),
         groupSize = 2, maxGroupSize = 5,
         dailyTravelKm = 12f, maxDailyTravelKm = 40f, senseKm = 10f,
@@ -434,6 +461,7 @@ object Catalogue {
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
     val JACKAL = Species(
         name = "jackal", massKg = 10f,
+        fearOfPeople = 0.4f, boldShare = 0.15f,
         diet = Diet(meat = 0.1f, smallPrey = 0.6f, carrion = 0.3f),
         groupSize = 2, maxGroupSize = 6,
         dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 4f,
@@ -450,6 +478,7 @@ object Catalogue {
         ferocity = 0.8f,
         territoryKm = 4f,
         startKm2PerAnimal = 200f,
+        followsPeople = true,
     )
 
     // ---------------------------------------------------------------- the cold north
@@ -502,6 +531,7 @@ object Catalogue {
      */
     val HORSE = Species(
         name = "wild horse", massKg = 300f,
+        fearOfPeople = 0.7f, boldShare = 0.05f,
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 10, maxGroupSize = 25,
         dailyTravelKm = 12f, maxDailyTravelKm = 50f, senseKm = 3f,
@@ -523,6 +553,7 @@ object Catalogue {
      */
     val MOUFLON = Species(
         name = "mouflon", massKg = 40f,
+        fearOfPeople = 0.7f, boldShare = 0.06f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 10, maxGroupSize = 40,
         dailyTravelKm = 5f, maxDailyTravelKm = 25f, senseKm = 3f,
@@ -562,16 +593,17 @@ object Catalogue {
     )
 
     /**
-     * Arabian ostrich: a big flightless bird of the desert steppe, grazing, browsing and taking
-     * seeds and fruit; outruns almost everything and kicks hard. Large clutches, most chicks lost.
+     * Arabian ostrich: a big flightless bird of the desert steppe, picking green shoots, flowers,
+     * seeds and fruit; outruns almost everything and kicks hard. Large clutches, but a pair rears about one chick a year.
      */
     val OSTRICH = Species(
         name = "ostrich", massKg = 110f,
-        diet = Diet(grass = 0.5f, browse = 0.3f, fruit = 0.2f),
+        // A picky feeder on green shoots, flowers, seeds and fruit, not a bulk grazer.
+        diet = Diet(grass = 0.2f, browse = 0.4f, roots = 0.1f, fruit = 0.3f),
         groupSize = 5, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
         daysWithoutWater = 7, waterFromFood = 0.8f,
-        birthMonth = 2, birthMonths = 3, youngPerFemale = 3f, yearsToMaturity = 3f,
+        birthMonth = 2, birthMonths = 3, youngPerFemale = 1.2f, yearsToMaturity = 3f,
         backgroundMortality = 0.07f, youngMortality = 0.7f,
         snowLimitMm = 30f, flightKm = 1f, dangerToHumans = 0.2f,
         products = Products(meat = 50f, fat = 3f, hide = 10f, bone = 10f, sinew = 1f),
@@ -581,6 +613,7 @@ object Catalogue {
         domestication = floatArrayOf(0.6f, 0.6f, 0.5f, 0.2f, 0.3f, 0.3f),
         habitat = Habitat(cover = -1f, wet = -0.5f),
         defence = 0.4f,
+        fibreDigestion = 0.5f, // a bird's short gut gets little from straw
     )
 
     /** Bubal hartebeest: a grazer of dry grassland and semi-desert edges, in herds; kept by the Egyptians. */
@@ -627,6 +660,7 @@ object Catalogue {
      */
     val CHEETAH = Species(
         name = "cheetah", massKg = 45f,
+        fearOfPeople = 0.7f, boldShare = 0.08f,
         diet = Diet(meat = 0.8f, smallPrey = 0.2f),
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 6f,
@@ -645,11 +679,48 @@ object Catalogue {
         startKm2PerAnimal = 600f,
     )
 
+    // ---------------------------------------------------------------- people
+
+    /**
+     * People: hunter-gatherer bands of the Natufian age, some 25 strong, hunting with spears, bows
+     * and fire and gathering fruit, nuts, seeds and roots, about half of each. How well
+     * a band hunts each kind of game and gathers each kind of food is a skill it builds up by
+     * practice and loses without it. They cook (so they need less food than a meat-eater of their
+     * size), wear clothes and keep fires (so cold troubles them less), and sense no weather ahead:
+     * what they know of next week they must learn.
+     */
+    val HUMAN = Species(
+        name = "people", massKg = 55f,
+        fearOfPeople = 0.0f, boldShare = 0.0f,
+        // Natufian middens and plant remains suggest plant food (nuts, acorns, seeds, pulses, roots)
+        // made up as much of the diet as game; hunting is a little over a third.
+        diet = Diet(meat = 0.35f, smallPrey = 0.12f, carrion = 0.04f, roots = 0.19f, fruit = 0.30f),
+        groupSize = 25, maxGroupSize = 50,
+        dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f,
+        daysWithoutWater = 3, waterFromFood = 0.2f,
+        birthMonth = 0, birthMonths = 12, youngPerFemale = 0.22f, yearsToMaturity = 15f, // a birth every 4–5 years
+        backgroundMortality = 0.02f, youngMortality = 0.05f, // about half of children reach fifteen
+        snowLimitMm = 600f, flightKm = 0.2f, dangerToHumans = 0f,
+        products = Products(meat = 25f, fat = 4f, hide = 0f, bone = 7f, sinew = 0f),
+        comfortC = -5f..35f, winterCoat = true, // clothes and fire
+        speedKmh = 45f, // with thrown spears and arrows a chase is short
+        foresight = 0f,
+        domestication = floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f),
+        habitat = Habitat(cover = 0f, rugged = 0f, wet = 0.2f),
+        defence = 0.7f,
+        stalking = 0.6f,
+        ferocity = 1.5f, // spears, numbers and fire: lions and hyenas give way
+        territoryKm = 10f,
+        startKm2PerAnimal = 40f,
+        human = true,
+        intakeKg = 1.6f,
+    )
+
     val herbivores = listOf(
         GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR,
         ELK, REINDEER, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
     )
-    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH)
+    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN)
     val all = herbivores + predators
 
     init {

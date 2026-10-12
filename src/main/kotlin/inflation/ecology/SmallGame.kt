@@ -14,13 +14,33 @@ import kotlin.math.pow
  *
  * - Hares on open grassland and steppe, breeding through spring and summer.
  * - Rock hyrax in cliffs and boulder fields, browsing the scrub nearby: the leopard's staple.
- * - Game birds (partridge, quail, sandgrouse) of open scrub and fields.
+ * - Wild birds ([BirdKind]), each with its ground and season: chukar partridge on rocky slopes,
+ *   quail on open grassland (summer visitors, arriving in spring), sandgrouse on dry steppe, rock
+ *   doves on cliffs over open land, mallard on marsh and floodplain, and greylag geese wintering on
+ *   the wetlands. Several are candidates for keeping: pigeons and geese were domesticated in the
+ *   region; chickens' wild ancestor lives far to the east and could only come by trade.
  * - Tortoises in warm scrub: slow to breed, torpid in the cold and in hot drought.
  * - Foxes and wildcats, living on rodents, hares, birds, insects and fruit.
  * - Griffon vultures nesting in inland cliffs, soaring up to [VULTURE_RANGE_KM] for carcasses.
  *
  * Large predators, eagles and foxes take the small game; fire kills tortoises and scatters the rest.
  */
+/**
+ * A wild bird as a density field: where it lives ([capacity], kg/km²), when it breeds, how fast
+ * it grows and dies back, the months it is here at all (migrants), and [domestication] by the
+ * same six criteria as the large animals (diet breadth, growth, captive breeding, temperament,
+ * calm, hierarchy).
+ */
+class BirdKind(
+    val name: String,
+    val breedMonths: IntRange,
+    val growth: Float,
+    val deaths: Float,
+    /** Months present; null for residents. Outside them the birds are away. */
+    val present: Set<Int>?,
+    val domestication: FloatArray,
+)
+
 class SmallGame(private val sim: Simulation, private val small: SmallFauna, private val soil: SoilLife) {
     private val world = sim.world
     private val grid = world.grid
@@ -29,13 +49,21 @@ class SmallGame(private val sim: Simulation, private val small: SmallFauna, priv
 
     val hares = FloatArray(n)
     val hyrax = FloatArray(n)
+    /** All wild birds together, kg/km². */
     val birds = FloatArray(n)
+    /** Each kind of [BIRDS], kg/km². */
+    val bird = Array(BIRDS.size) { FloatArray(n) }
     val tortoises = FloatArray(n)
     val foxes = FloatArray(n)
     /** Vulture colonies: nest cell and birds. */
     val vultureCell = ArrayList<Int>()
     val vultures = ArrayList<Float>()
     private var steps = 0
+
+    /** Marsh, bog and floodplain: where ducks and geese feed. */
+    private val wetland = BooleanArray(n) { i ->
+        world.floodplain.isFloodplain[i] || world.biome[i].name.let { it == "MARSH" || it == "SWAMP_FOREST" || it == "BOG" || it == "SALT_MARSH" }
+    }
 
     init {
         val v = sim.vegetation
@@ -44,7 +72,8 @@ class SmallGame(private val sim: Simulation, private val small: SmallFauna, priv
             if (!v.isVegetated(i)) continue
             hares[i] = 0.5f * hareCapacity(i)
             hyrax[i] = 0.5f * hyraxCapacity(i)
-            birds[i] = 0.5f * birdCapacity(i)
+            for (k in BIRDS.indices) bird[k][i] = 0.5f * birdCapacity(k, i)
+            birds[i] = bird.sumOf { it[i].toDouble() }.toFloat()
             tortoises[i] = 0.5f * tortoiseCapacity(i)
             foxes[i] = 0.3f
         }
@@ -64,9 +93,21 @@ class SmallGame(private val sim: Simulation, private val small: SmallFauna, priv
     private fun open(i: Int) = 1f - min(1f, sim.vegetation.canopy(i) + 0.5f * min(1f, sim.vegetation.shrub[i] / 1.5f))
     private fun hareCapacity(i: Int) = 40f * sim.vegetation.herb[i] / (sim.vegetation.herb[i] + 0.3f) * open(i)
     private fun hyraxCapacity(i: Int) = 80f * world.terrain.ruggedness[i].pow(1.5f) * min(1f, sim.vegetation.shrub[i] / 0.5f + 0.2f)
-    private fun birdCapacity(i: Int): Float {
-        val shrubby = min(1f, sim.vegetation.shrub[i] / 1f)
-        return 15f * (0.3f + 0.7f * open(i)) * (0.3f + 0.7f * shrubby) * sim.vegetation.herb[i] / (sim.vegetation.herb[i] + 0.2f)
+    private fun birdCapacity(k: Int, i: Int): Float {
+        val v = sim.vegetation
+        val grass = v.herb[i] / (v.herb[i] + 0.2f)
+        val shrubby = min(1f, v.shrub[i])
+        val rugged = world.terrain.ruggedness[i]
+        val dry = (1f - world.climate.annualPrecip[i] / 500f).coerceIn(0f, 1f)
+        return when (BIRDS[k].name) {
+            "chukar" -> 6f * min(1f, rugged / 0.5f) * (0.3f + 0.7f * open(i)) * (0.3f + 0.7f * shrubby) * grass
+            "quail" -> 5f * open(i) * grass
+            "sandgrouse" -> 3f * open(i) * dry
+            "rock dove" -> 4f * rugged.pow(1.5f) * (0.3f + 0.7f * grass)
+            "mallard" -> if (wetland[i]) 6f * (0.5f + 0.5f * grass) else 0f
+            "greylag goose" -> if (wetland[i]) 10f * grass else 0f
+            else -> 0f
+        }
     }
     private fun tortoiseCapacity(i: Int): Float {
         val warm = ((world.climate.meanTemp(i) - 12f) / 8f).coerceIn(0f, 1f)
@@ -79,12 +120,24 @@ class SmallGame(private val sim: Simulation, private val small: SmallFauna, priv
         val month = sim.weather.date.month
         val v = sim.vegetation
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
-            if (!v.isVegetated(i)) { hares[i] = 0f; hyrax[i] = 0f; birds[i] = 0f; tortoises[i] = 0f; foxes[i] = 0f; return@forEach }
+            if (!v.isVegetated(i)) { hares[i] = 0f; hyrax[i] = 0f; birds[i] = 0f; for (b in bird) b[i] = 0f; tortoises[i] = 0f; foxes[i] = 0f; return@forEach }
             val t = sim.weather.temperature[i]
             val mild = t > 5f
             hares[i] = logistic(hares[i], if (month in 0..6 && mild) 4f else 0f, 0.9f, hareCapacity(i), years)
             hyrax[i] = logistic(hyrax[i], if (month in 1..3) 2.5f else 0f, 0.4f, hyraxCapacity(i), years)
-            birds[i] = logistic(birds[i], if (month in 1..4 && mild) 4f else 0f, 0.9f, birdCapacity(i), years)
+            var all = 0f
+            for (k in BIRDS.indices) {
+                val b = BIRDS[k]; val f = bird[k]
+                val here = b.present?.contains(month) ?: true
+                f[i] = when {
+                    // Migrants arrive with the season, as many as the ground drew last year, and leave.
+                    !here -> f[i] * 0.3f
+                    b.present != null && !b.present.contains((month + 11) % 12) -> max(f[i], 0.4f * birdCapacity(k, i))
+                    else -> logistic(f[i], if (month in b.breedMonths && mild) b.growth else 0f, b.deaths, birdCapacity(k, i), years)
+                }
+                all += f[i]
+            }
+            birds[i] = all
             val active = t in 14f..33f && sim.water.soil[i] > 8f
             tortoises[i] = logistic(tortoises[i], if (active && month in 1..5) 0.8f else 0f, if (active) 0.15f else 0.05f, tortoiseCapacity(i), years)
             // Foxes and wildcats eat about a seventh of their weight a day, mostly rodents, then
@@ -94,16 +147,22 @@ class SmallGame(private val sim: Simulation, private val small: SmallFauna, priv
             val got = min(need, 0.1f * prey)
             if (got > 0f && prey > 0f) {
                 val f = got / prey
-                small.rodents[i] -= small.rodents[i] * f; hares[i] -= hares[i] * f; birds[i] -= birds[i] * f
+                small.rodents[i] -= small.rodents[i] * f; hares[i] -= hares[i] * f; takeBirds(i, f)
             }
             val fed = if (need > 0f) got / need else 1f
             val foxK = 0.02f * prey
             foxes[i] = logistic(foxes[i], if (month in 1..3) 1.5f * fed else 0f, 0.4f + 0.8f * (1f - fed), foxK, years).coerceAtLeast(0.01f)
             // Fire: tortoises die where it burns; the rest bolt and many young die.
-            if (v.burning[i]) { tortoises[i] *= 0.4f; hares[i] *= 0.7f; birds[i] *= 0.7f }
+            if (v.burning[i]) { tortoises[i] *= 0.4f; hares[i] *= 0.7f; takeBirds(i, 0.3f) }
         }
         vultureStep(days, years)
-        if (++steps % 5 == 0) for (f in listOf(hares, birds, foxes)) spread(f)
+        if (++steps % 5 == 0) for (f in listOf(hares, foxes) + bird) spread(f)
+    }
+
+    /** Takes share [f] of every kind of bird at [i]. */
+    private fun takeBirds(i: Int, f: Float) {
+        for (b in bird) b[i] -= b[i] * f
+        birds[i] -= birds[i] * f
     }
 
     /** Logistic growth at [r] a year in season, deaths at [d] a year, toward [k]. */
@@ -151,7 +210,7 @@ class SmallGame(private val sim: Simulation, private val small: SmallFauna, priv
         if (total <= 0f) return 0f
         val take = min(kgPerKm2, 0.3f * total)
         val f = take / total
-        hares[i] -= hares[i] * f; hyrax[i] -= hyrax[i] * f; birds[i] -= birds[i] * f
+        hares[i] -= hares[i] * f; hyrax[i] -= hyrax[i] * f; takeBirds(i, f)
         if (active) tortoises[i] -= tortoises[i] * f
         return take
     }
@@ -165,11 +224,23 @@ class SmallGame(private val sim: Simulation, private val small: SmallFauna, priv
     /** Totals over the land, tonnes, and vultures in all colonies. */
     fun summary(): String {
         fun t(a: FloatArray) = a.sumOf { it.toDouble() } * cellKm2 / 1000
-        return "hares %.0f t, hyrax %.0f t, game birds %.0f t, tortoises %.0f t, foxes %.0f t, vultures %.0f".format(
-            t(hares), t(hyrax), t(birds), t(tortoises), t(foxes), vultures.sum())
+        return "hares %.0f t, hyrax %.0f t, birds %.0f t (%s), tortoises %.0f t, foxes %.0f t, vultures %.0f".format(
+            t(hares), t(hyrax), t(birds), BIRDS.indices.joinToString(", ") { "%s %.0f".format(BIRDS[it].name, t(bird[it])) }, t(tortoises), t(foxes), vultures.sum())
     }
 
     companion object {
+        /**
+         * The wild birds. Months count from the spring equinox: quail are here from spring to early
+         * autumn, greylag geese from autumn to early spring.
+         */
+        val BIRDS = listOf(
+            BirdKind("chukar", 1..3, 4f, 0.9f, null, floatArrayOf(0.7f, 0.7f, 0.5f, 0.5f, 0.6f, 0.6f)),
+            BirdKind("quail", 1..4, 6f, 1.2f, (1..6).toSet(), floatArrayOf(0.7f, 0.9f, 0.7f, 0.5f, 0.5f, 0.4f)),
+            BirdKind("sandgrouse", 1..4, 3f, 0.7f, null, floatArrayOf(0.5f, 0.6f, 0.2f, 0.3f, 0.3f, 0.4f)),
+            BirdKind("rock dove", 0..7, 5f, 0.8f, null, floatArrayOf(0.9f, 0.9f, 0.9f, 0.8f, 0.7f, 0.6f)), // became the pigeon
+            BirdKind("mallard", 1..3, 4f, 0.8f, null, floatArrayOf(0.9f, 0.8f, 0.8f, 0.7f, 0.6f, 0.6f)), // became the duck
+            BirdKind("greylag goose", 2..3, 3f, 0.5f, (setOf(7, 8, 9, 10, 11, 0)), floatArrayOf(0.8f, 0.8f, 0.8f, 0.6f, 0.6f, 0.8f)), // became the goose
+        )
         /** How far vultures soar from the colony for carcasses, km. */
         const val VULTURE_RANGE_KM = 80f
         /** Land per vulture colony at most, km. */

@@ -58,6 +58,53 @@ fun main(args: Array<String>) {
             landCells.map { e.grassQuality[it].toDouble() }.average(), landCells.map { veg.browsing[it].toDouble() }.average(), landCells.map { veg.grazing[it].toDouble() }.average(), fires, burnedKm2))
         fires = 0; burnedKm2 = 0.0
         println("   game   " + e.game.summary())
+        e.groups.filter { it.alive && !it.species.carnivore }.takeIf { it.isNotEmpty() }?.let { herds ->
+            val land = (0 until sim.world.grid.size).filter { sim.vegetation.isVegetated(it) }
+            println("   moves  herds shifted %.1f km this week on average (%.0f%% beyond their own range); worn paths on %.1f%% of the land".format(
+                herds.map { it.movedKm.toDouble() }.average(), 100.0 * herds.count { it.movedKm > it.rangeKm } / herds.size,
+                100.0 * land.count { sim.vegetation.trails[it] > 0.8f } / land.size.coerceAtLeast(1)))
+        }
+        e.groups.filter { it.species.human && it.alive }.takeIf { it.isNotEmpty() }?.let { bands ->
+            val people = bands.sumOf { it.size }
+            println("   people %d bands, %d people (%.0f%% children, %.0f%% elders), inbreeding %.3f, stores %.0f days, camps kept %.0f weeks (%.0f%% over half a year), hunting craft %.2f, gathering craft %.2f".format(
+                bands.size, people, 100.0 * bands.sumOf { it.young } / people, 100.0 * bands.sumOf { it.elders } / people,
+                bands.map { it.inbred }.average(), bands.sumOf { it.larder.toDouble() } / max(1e-6, bands.sumOf { it.dailyNeedKg.toDouble() }),
+                bands.map { it.campWeeks }.average(), 100.0 * bands.count { it.campWeeks > 26 } / bands.size,
+                bands.mapNotNull { b -> b.craft?.let { c -> Catalogue.herbivores.map { c[it.index] }.average() } }.average(),
+                bands.mapNotNull { b -> b.forageCraft?.average() }.average()))
+            val spoken = bands.filter { it.words != null }
+            if (spoken.size > 1) {
+                var near = 0.0; var all = 0.0; var pairs = 0
+                for (a in spoken) {
+                    var best = Double.MAX_VALUE; var bestU = 0f
+                    for (b in spoken) {
+                        if (a === b) continue
+                        val u = Language.understanding(a.words!!, b.words!!)
+                        val d = kotlin.math.hypot(a.x - b.x, a.y - b.y)
+                        if (d < best) { best = d; bestU = u }
+                        all += u; pairs++
+                    }
+                    near += bestU
+                }
+                println("   speech neighbours understand each other %.0f%%, any two bands %.0f%%".format(100 * near / spoken.size, 100 * all / max(1, pairs)))
+            }
+            println("   renown %.2f on average, %.0f%% of bands know a kite, people's kills by kite drives this period %d".format(
+                bands.map { it.renown.toDouble() }.average(), 100.0 * bands.count { b -> b.places?.any { it.kind == PlaceKind.KITE } == true } / bands.size, e.kiteKills))
+            println("   land   %.0f named places per band (water %.0f, stone %.0f, camps %.0f, gathering places %.1f), furthest known %.0f km away on average".format(
+                bands.map { it.places?.size ?: 0 }.average(),
+                bands.map { b -> b.places?.count { it.kind == PlaceKind.WATER } ?: 0 }.average(),
+                bands.map { b -> b.places?.count { it.kind == PlaceKind.STONE } ?: 0 }.average(),
+                bands.map { b -> b.places?.count { it.kind == PlaceKind.CAMP } ?: 0 }.average(),
+                bands.map { b -> b.places?.count { it.kind == PlaceKind.GATHERING } ?: 0 }.average(),
+                bands.map { b -> b.places?.maxOfOrNull { kotlin.math.hypot(it.x - b.x, it.y - b.y) } ?: 0.0 }.average()))
+            val took = e.peopleKills.values.sum().coerceAtLeast(1)
+            println("   prey   people's kills so far: " + e.peopleKills.entries.sortedByDescending { it.value }.take(10).joinToString { "%s %.0f%%".format(it.key.name, 100.0 * it.value / took) })
+            val met = e.peopleContacts.values.sum().coerceAtLeast(1)
+            println("   met    herds people's parties came across: " + e.peopleContacts.entries.sortedByDescending { it.value }.take(10).joinToString { "%s %.0f%%".format(it.key.name, 100.0 * it.value / met) })
+            println("   ways   " + Tradition.entries.joinToString { tr -> "%s %.0f%%".format(tr.name.lowercase(), 100.0 * bands.count { it.holds(tr) } / bands.size) })
+            println("   tools  " + Tool.entries.joinToString { tl -> "%s %.2f".format(tl.name.lowercase(), bands.mapNotNull { it.tools?.get(tl.ordinal)?.toDouble() }.average()) } +
+                "; goods kg/adult " + Material.entries.joinToString { m -> "%s %.1f".format(m.name.lowercase(), bands.sumOf { (it.goods?.get(m.ordinal) ?: 0f).toDouble() } / max(1, bands.sumOf { it.adults })) })
+        }
         val sea = e.marine
         println("   sea    " + SeaCatalogue.all.joinToString { "${it.name} ${sea.count(it)}" } + ", sea birds %.0f, shark kills %d".format(sea.birdCount(), sea.sharkKills))
         sea.sharkKills = 0

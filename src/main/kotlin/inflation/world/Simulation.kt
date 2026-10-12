@@ -7,7 +7,7 @@ import inflation.ecology.Ecology
  * together one step ([WorldConfig.daysPerStep] days) at a time.
  */
 class Simulation(val world: World) {
-    val weather = Weather(world.grid, world.climate, world.config)
+    val weather = Weather(world.grid, world.climate, world.config, world.elevation)
     val water = LiveWater(world)
     val eruptions = Eruptions(world.grid, world.volcanoes, world.config.seed)
     val vegetation = Vegetation(world, world.config.seed)
@@ -27,7 +27,7 @@ class Simulation(val world: World) {
         var t = System.nanoTime()
         fun lap(k: Int) { val now = System.nanoTime(); timings[k] += now - t; t = now }
         weather.step(); lap(0)
-        for (e in eruptions.step(stepDate, world.config.daysPerStep)) {
+        for (e in eruptions.step(stepDate, world.config.daysPerStep, weather)) {
             weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
             log += "$stepDate: ${e.volcano.kind.name.lowercase().replace('_', ' ')} volcano at (${e.volcano.x}, ${e.volcano.y}) erupts, VEI ${e.vei}"
         }

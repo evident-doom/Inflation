@@ -139,6 +139,7 @@ class Vegetation(private val world: World, private val seed: Long) {
         val memory = 1 - exp(-days / 360f)
         if (stepCount++ % 5 == 0) seedSources()
         spreadFires(weather, water, years)
+        val slope = world.terrain.slope
         // Cells are independent of each other, so they are stepped in parallel.
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             if (!isVegetated(i) || water.submerged[i]) {
@@ -183,6 +184,14 @@ class Vegetation(private val world: World, private val seed: Long) {
             if (a > 100f) shrub[i] *= exp(-a / 400f)
             if (a > 300f) tree[i] *= exp(-a / 800f)
             if (a > 1f) fertility[i] = min(1f, fertility[i] + a * 1e-6f) // weathered ash makes rich soil
+            // Soil drifts back towards what its rock and climate give it: worn-out soil recovers over
+            // decades as rock weathers and plants fix nitrogen; the flush from ash and fire fades.
+            fertility[i] += (world.soilFertility[i] - fertility[i]) * years / SOIL_RECOVERY_YEARS
+            // Rain on bare slopes washes the topsoil away: cleared, burned or grazed-bare hillsides
+            // lose their fertility within years; grass, scrub and forest hold it.
+            val cover = min(1f, herb[i] / 0.3f + shrub[i] + canopy(i))
+            val bare = (1f - cover) * (1f - cover)
+            if (bare > 0.01f) fertility[i] *= 1f - min(0.5f, EROSION * bare * weather.precipitation[i] / 50f * slope[i] / 0.2f * years)
 
             val burned = if (burning[i]) burn(i) else 0f
             // Living plants shed leaves, stems and roots all the time; deaths add the rest. Burned matter is gone.
@@ -192,9 +201,9 @@ class Vegetation(private val world: World, private val seed: Long) {
             val tr = trampling[i]
             if (tr > 0f) {
                 herb[i] *= exp(-0.05f * tr); shrub[i] *= exp(-0.1f * tr)
-                trails[i] = min(1f, trails[i] + 0.5f * tr)
+                trails[i] = min(1f, trails[i] + TRAIL_WEAR * tr * (1f - trails[i]))
                 trampling[i] = 0f
-            } else if (trails[i] > 0f) trails[i] = max(0f, trails[i] - 0.3f * years)
+            } else if (trails[i] > 0f) trails[i] = max(0f, trails[i] - TRAIL_FADE * years)
             if (burnt[i] > 0f) burnt[i] = max(0f, burnt[i] - 0.4f * years)
         }
     }
@@ -234,21 +243,29 @@ class Vegetation(private val world: World, private val seed: Long) {
 
     /**
      * Fires: lightning and dry-season sparks start them in hot, dry, fuel-rich ground, and each
-     * spreads through the step from cell to cell, fastest downwind (the westerlies carry it east),
+     * spreads through the step from cell to cell, fastest downwind and the faster the stronger the wind,
      * until it runs out of fuel, reaches wet or grazed-down ground, water or bare rock, or has
      * burned for the step. Many fires stay small; a few run for tens of km.
      */
+    /** Fires people have set, to be lit at the start of the next step (where the ground will burn). */
+    private val lit = java.util.concurrent.ConcurrentLinkedQueue<Int>()
+
+    /** Sets a fire at [i] next step: people burning off old grass to bring on new growth and draw game. */
+    fun ignite(i: Int) { lit += i }
+
     private fun spreadFires(weather: Weather, water: LiveWater, years: Float) {
         burning.fill(false)
         fires.clear()
         val days = world.config.daysPerStep
         val maxSteps = (days * SPREAD_KM_PER_DAY / grid.cellKm).toInt()
         val queue = ArrayDeque<Int>()
+        val set = HashSet<Int>()
+        while (true) set += lit.poll() ?: break
         for (i in 0 until n) {
             if (burning[i] || !canBurn(i, weather, water)) continue
             val heat = ((weather.temperature[i] - 15f) / 20f).coerceIn(0f, 1f)
             val p = IGNITIONS_PER_KM2_YEAR * (grid.cellKm * grid.cellKm).toFloat() * years * min(1f, fuel(i) / 1.5f) * heat
-            if (cellRandom(i) >= p) continue
+            if (i !in set && cellRandom(i) >= p) continue
             // A fire: spread breadth-first, each front cell lighting its neighbours by chance.
             var cells = 0
             queue.clear(); queue += i; burning[i] = true
@@ -258,13 +275,16 @@ class Vegetation(private val world: World, private val seed: Long) {
                 val d = depth.getValue(c)
                 if (d >= maxSteps) continue
                 val cx = grid.x(c); val cy = grid.y(c)
+                val u = weather.windEast(c); val v = weather.windSouth(c)
+                val speed = kotlin.math.hypot(u, v)
                 for (k in 0 until 8) {
                     val dx = DX[k]; val dy = DY[k]
                     if (!grid.inBounds(cx + dx, cy + dy)) continue
                     val nb = grid.index(cx + dx, cy + dy)
                     if (burning[nb] || !canBurn(nb, weather, water)) continue
-                    // Downwind (east) burns readily, upwind barely; dense fuel carries it on.
-                    val wind = 0.35f + 0.25f * dx
+                    // Downwind burns readily, upwind barely, more so in a strong wind; dense fuel carries it on.
+                    val along = if (speed > 0.1f) (dx * u + dy * v) / (speed * kotlin.math.hypot(dx.toFloat(), dy.toFloat())) else 0f
+                    val wind = 0.35f + 0.3f * min(1f, speed / 8f) * along
                     val chance = SPREAD * wind * min(1f, fuel(nb) / 1.0f)
                     if (hash(nb, k) >= chance) continue
                     burning[nb] = true; depth[nb] = d + 1; queue += nb
@@ -313,6 +333,16 @@ class Vegetation(private val world: World, private val seed: Long) {
         const val IGNITIONS_PER_KM2_YEAR = 0.01f
         /** How far a fire front can run in a day, km. */
         const val SPREAD_KM_PER_DAY = 5f
+        /** How fast trampling wears a path (per unit of trampling, slowing as the path deepens), and how fast an unused one fades, per year. */
+        const val TRAIL_WEAR = 0.3f
+        const val TRAIL_FADE = 1f
+        /** Years over which soil fertility returns most of the way to its natural level. */
+        const val SOIL_RECOVERY_YEARS = 50f
+        /**
+         * Share of the topsoil's fertility lost in a year from bare ground on a 1-in-5 slope under
+         * 50 mm of rain a week (from memory; bare hillsides lose cm of soil a decade).
+         */
+        const val EROSION = 0.05f
         /** Chance a burning cell lights a downwind neighbour with full fuel. */
         const val SPREAD = 0.9f
         private val DX = intArrayOf(1, 1, 0, -1, -1, -1, 0, 1)

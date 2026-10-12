@@ -60,12 +60,71 @@ class AnimalGroup(
     var stored = 0f
     /** Food gained over need on the last day, 0 = starving, 1 = full. */
     var lastIntakeRatio = 1f
+    /**
+     * For people: how well the band hunts each species (by [Species.index]) and gathers each kind of
+     * food ([Forage]), 0 (never done it) to 1 (masters). Practice raises it, disuse lets it fade.
+     */
+    var craft: FloatArray? = null
+    /**
+     * Learned shyness of people on top of the inborn fear, 0..1: each hunt by a band raises it, and
+     * it fades over months where no one hunts.
+     */
+    var wary = 0f
+    /**
+     * Share of bold, curious animals in the group ([Species.boldShare] at the start, varying between
+     * groups). Hunters take the bold first; at camps the bold eat best. Over generations it shifts.
+     */
+    var bold = 0f
+    var forageCraft: FloatArray? = null
+    /** For people: nuts, seeds, dried roots and fruit laid by for the lean season, kg. */
+    var larder = 0f
+    /** For people: how many of the [adults] are elders past bearing children (grandmothers and grandfathers). */
+    var elders = 0
+    /**
+     * For people: the band's descent, as shares of a few founding lineages (summing to 1), and how
+     * inbred its children are (the inbreeding coefficient, 0 = unrelated parents, 0.25 = siblings).
+     */
+    var lineage: FloatArray? = null
+    var inbred = 0f
+    /** For people: weeks the band has kept its camp in the same place. */
+    var campWeeks = 0
+    /** For people: weeks of firewood left within the day's round of camp. */
+    var fuelWeeks = 100f
+    /** For people: raw materials held ([Material]), kg. */
+    var goods: FloatArray? = null
+    /** For people: share of the band equipped with each [Tool], 0..1. */
+    var tools: FloatArray? = null
+    /** For people: skill at each kind of [Making], 0..1. */
+    var making: FloatArray? = null
+    /** For people: the [Tradition]s the band holds. */
+    var traditions: BooleanArray? = null
+    /** For people: how well the band has been doing lately, its growth per head per year, smoothed. */
+    var prosper = 0f
+    /** For people: renown among other bands, won by giving (ornaments, feasts) and fading if not renewed. */
+    var renown = 0f
+    /**
+     * For people: the band's words for the [Language.CONCEPTS] things it talks about, each an
+     * arbitrary form. Bands that meet often come to share them; bands that never meet drift apart.
+     */
+    var words: IntArray? = null
+    /** For people: the places the band knows by name, far beyond where it camps (see [Place]). */
+    var places: ArrayList<Place>? = null
+    /** For people: grievances held against each founding lineage, from raids and killings, 0.. (fading over decades). */
+    var grudge: FloatArray? = null
+    fun holds(t: Tradition) = traditions?.get(t.ordinal) == true
     val size: Int get() = adults + young
     val alive: Boolean get() = size > 0
     /** Body mass of the group, kg; young count as half. */
     val biomassKg: Float get() = species.massKg * (adults + 0.5f * young)
     /** Daily food need, kg; young eat less. */
     val dailyNeedKg: Float get() = species.dailyIntakeKg * (adults + 0.5f * young)
+}
+
+/** Kinds of food people gather, each a skill of its own. */
+enum class Forage {
+    FRUIT, ROOTS, SMALL_GAME, FISH,
+    /** Laying food by: drying, pits, baskets, keeping it from damp and mice. */
+    STORE,
 }
 
 /**
@@ -130,6 +189,7 @@ class BaselinePolicy(
         val s = group.species
         val thirsty = group.daysWithoutWater >= s.daysWithoutWater - 1
         val h = s.habitat
+        if (s.human) return scorePeople(group, o)
         var score = if (s.carnivore) 2f * o.prey + 0.2f * o.forage / (o.forage + 100f) - 1.5f * o.kin - 2f * o.danger
             // Each kind keeps to its own ground: gazelles open plains, ibex cliffs, boar thickets.
             // Big, well-armed animals fear predators less.
@@ -150,6 +210,32 @@ class BaselinePolicy(
         if (thirsty) score -= 0.2f * o.waterKm
         // Shifting the range costs energy, and a long march costs most of a week's grazing.
         score -= 0.1f * o.km / s.dailyTravelKm
+        return score
+    }
+
+    /**
+     * A band weighs game and plant food, keeps clear of lions, and in good times seeks out other
+     * bands (gatherings: partners, news, exchange) while in lean times it spreads out. Moving camp
+     * is a real cost, and more so the more it has stored: stores tie a band to its place.
+     */
+    private fun scorePeople(group: AnimalGroup, o: Option): Float {
+        val s = group.species
+        var score = 1.2f * o.prey + o.forage / (o.forage + 300f) - 2f * o.danger
+        // Bands keep out of each other's foraging grounds; they meet at gatherings, not by drifting together.
+        score -= 0.5f * o.kin
+        if (o.snowMm > s.snowLimitMm) score -= 1f
+        score -= 2f * o.hazard
+        score += (if (group.holds(Tradition.SKY_LORE)) 2.2f else 1.5f) * o.pull
+        score -= 0.5f * min(2f, o.thermal)
+        val urgency = group.daysWithoutWater / s.daysWithoutWater
+        score -= (0.05f + 0.3f * urgency) * o.waterKm / s.dailyTravelKm
+        val storedDays = group.larder / kotlin.math.max(1e-3f, group.dailyNeedKg)
+        val graves = if (group.holds(Tradition.BURIAL)) 1.5f else 1f
+        // Moving a camp with children, elders, stores and gear is slow and hard: a few km a day at
+        // best, with the week's foraging lost. Long moves are for need, not on a whim.
+        score -= 0.3f * graves * (1f + storedDays / 60f) * o.km / s.dailyTravelKm
+        // A camp whose firewood is gone within the day's round is a cold, hungry place to stay.
+        if (o.km == 0f && group.campWeeks > group.fuelWeeks) score -= 0.3f * min(1f, (group.campWeeks - group.fuelWeeks) / 26f)
         return score
     }
 }

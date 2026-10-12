@@ -5,3 +5,5 @@ out/
 *.iml
 .kotlin/
 /output/
+/runs/
+/band-evolve/
