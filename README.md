@@ -95,7 +95,16 @@ baseline. Plain Kotlin, no dependencies; groups decide in parallel on the CPU.
    space and tries each in both signs; every wolf pack in a world gets one variant, passed on when
    the pack splits, so one world run compares all of them. Fitness is the wolf-days a variant's
    lineages live per pack they started with: survival and offspring, with no reward for any
-   particular way of hunting. Prey keep the baseline. EVOLVE_PLACEHOLDER
+   particular way of hunting. Prey keep the baseline.
+
+   One overnight run (184 generations of 17 variants, each scored on four fresh 800 km worlds over
+   3 years, about 2.5 minutes a generation on 16 threads) is in `policies/evolved/`, with its log.
+   `compare` (main class `inflation.learning.CompareKt`) pits two networks against each other in
+   the same worlds, half the packs each. Against the copied baseline on 8 fresh worlds, generation
+   40 lived about 10% more wolf-days and came out ahead in all 8; generation 180 about 5% more,
+   ahead in 5 of 8, and ahead of generation 40 in 5 of 8. So evolution found a small gain early
+   and little since; the comparison itself scatters by about 5% per world. Prey numbers did not
+   fall under the evolved wolves.
 
 ## Running
 
