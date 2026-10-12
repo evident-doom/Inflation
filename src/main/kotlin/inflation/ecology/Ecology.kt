@@ -301,7 +301,8 @@ class Ecology(private val sim: Simulation) {
         // Hibernators den up when it turns cold and they have fat enough, and wake in the spring warmth.
         if (s.hibernates) g.torpid = if (g.torpid) t < HIBERNATE_C + 4f && g.fat > 0f else t < HIBERNATE_C && g.fat > 0.3f * s.maxFatDays
         if (g.torpid) { g.thermal = 0f; return }
-        if (s.winterCoat) g.coat = if (t < s.comfortC.start + 10f) min(1f, g.coat + 0.15f) else max(0f, g.coat - 0.2f)
+        if (s.human) g.coat = g.tools?.get(Tool.CLOTHES.ordinal) ?: 0.5f // clothes and shelter are their coat
+        else if (s.winterCoat) g.coat = if (t < s.comfortC.start + 10f) min(1f, g.coat + 0.15f) else max(0f, g.coat - 0.2f)
         g.thermal = thermalStress(g, t)
         if (g.thermal > 0f) g.condition = max(0f, g.condition - THERMAL_COST * days * min(2f, g.thermal))
     }
@@ -433,6 +434,10 @@ class Ecology(private val sim: Simulation) {
                 if (q.carnivore) 0f else (0.2f + 0.6f * suitability(q, cell)).coerceIn(0f, 1f)
             }
             group.elders = (group.adults * 0.15f).toInt()
+            // A Natufian band starts with the kit of its time, worn to middling.
+            group.goods = FloatArray(Material.entries.size) { 5f }
+            group.tools = FloatArray(Tool.entries.size) { 0.6f }
+            group.making = FloatArray(Making.entries.size) { 0.5f }
             // Neighbouring bands share descent; distant ones do not.
             group.lineage = FloatArray(LINEAGES).also { it[((grid.x(cell) / (LINEAGE_KM / cellKm)).toInt() + 7 * (grid.y(cell) / (LINEAGE_KM / cellKm)).toInt()) % LINEAGES] = 1f }
             group.forageCraft = FloatArray(Forage.entries.size) { f ->
@@ -487,7 +492,10 @@ class Ecology(private val sim: Simulation) {
             val moved = if (planX[k].isNaN()) 0f else go(g, planX[k], planY[k])
             if (g.species.human) {
                 // Moving camp: what cannot be carried is left behind (cached stores are lost to mice and thieves).
-                if (moved > g.rangeKm) { g.campWeeks = 0; g.larder = min(g.larder, CARRY_DAYS * g.dailyNeedKg) } else g.campWeeks++
+                if (moved > g.rangeKm) {
+                    g.campWeeks = 0; g.larder = min(g.larder, CARRY_DAYS * g.dailyNeedKg)
+                    g.tools?.let { k -> for (tl in Tool.entries) if (tl.heavy) k[tl.ordinal] = 0f }
+                } else g.campWeeks++
             }
             g.marching = moved > MARCH_RANGES * g.rangeKm
             // The further beyond its usual drift, the more of the week goes into walking, not grazing.
@@ -1263,6 +1271,7 @@ class Ecology(private val sim: Simulation) {
             eaten += gather(g, need - min(eaten, need))
             larder(g, need, eaten).let { eaten += it }
             burnOff(g, r)
+            collectAndMake(g)
             // Bones, offal and spoiled food go on the camp's midden, for jackals, wolves and vultures.
             soil.carrion[c] += (REFUSE * eaten / grid.cellAreaM2).toFloat()
         }
@@ -1299,7 +1308,9 @@ class Ecology(private val sim: Simulation) {
             var have = 0.0
             for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) have += (if (stock === fruit) mFruit else mRoots).cell[y * maps.w + x]
             // A skilled band finds and processes several times what a clumsy one does in a week.
-            val take = min(want, (have * GATHER_REACH * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * k)).toFloat())
+            // Sickles and baskets bring in more; grinding turns nuts, acorns and seeds into food.
+            val kit = g.tools?.let { 1f + SICKLE_GAIN * it[Tool.SICKLE.ordinal] + BASKET_GAIN * it[Tool.BASKET.ordinal] + GRINDER_GAIN * it[Tool.GRINDER.ordinal] } ?: 1f
+            val take = min(want, (have * GATHER_REACH * kit * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * k)).toFloat())
             if (take > 0f) {
                 takeFrom(stock, box, take / have.toFloat())
                 fc[skill.ordinal] += PRACTICE * (1f - k)
@@ -1311,14 +1322,16 @@ class Ecology(private val sim: Simulation) {
         val sg = fc[Forage.SMALL_GAME.ordinal]
         val c = cellOf(g)
         if (got < kg) {
-            val caught = game.catch(c, (kg - got) / cellKm2 * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * sg)) * cellKm2
+            val nets = 1f + NET_GAIN * (g.tools?.get(Tool.NET.ordinal) ?: 0f)
+            val caught = game.catch(c, (kg - got) / cellKm2 * nets * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * sg)) * cellKm2
             if (caught > 0f) fc[Forage.SMALL_GAME.ordinal] += PRACTICE * (1f - sg)
             got += caught
         }
         // Fish from the river or shore near camp.
         val fs = fc[Forage.FISH.ordinal]
         if (got < kg && waterKm[c] < 3f) {
-            val caught = fishNear(c, (kg - got) * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * fs))
+            val nets = 1f + NET_GAIN * (g.tools?.get(Tool.NET.ordinal) ?: 0f)
+            val caught = fishNear(c, (kg - got) * nets * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * fs))
             if (caught > 0f) fc[Forage.FISH.ordinal] += PRACTICE * (1f - fs)
             got += caught
         }
@@ -1368,9 +1381,60 @@ class Ecology(private val sim: Simulation) {
             if (to == null || from == null) return
             for (k in to.indices) if (from[k] > to[k]) to[k] += m * (from[k] - to[k])
         }
+        // Exchange: what one band has plenty of and the other lacks changes hands (obsidian, flint, hides).
+        val ga = g.goods; val gb = o.goods
+        if (ga != null && gb != null) for (m in ga.indices) {
+            val diff = (ga[m] - gb[m]) * TRADE_SHARE
+            ga[m] -= diff; gb[m] += diff
+        }
+        learnFrom(g.making, o.making, ma); learnFrom(o.making, g.making?.copyOf(), mb)
         val ca = g.craft?.copyOf(); val fa = g.forageCraft?.copyOf()
         learnFrom(g.craft, o.craft, ma); learnFrom(g.forageCraft, o.forageCraft, ma)
         learnFrom(o.craft, ca, mb); learnFrom(o.forageCraft, fa, mb)
+    }
+
+    /** Coarse cells holding good knapping stone (flint, chert, obsidian), counted once. */
+    private val mStone by lazy {
+        maps.layer().also { l ->
+            for (i in 0 until n) if (world.geology.minerals[i] and (inflation.world.Mineral.FLINT or inflation.world.Mineral.OBSIDIAN) != 0) l.cell[maps.of(grid.x(i), grid.y(i))] += 1f
+            l.build()
+        }
+    }
+
+    /**
+     * A band's week of craft: it collects materials from its range (stone where outcrops are, wood
+     * and resin where trees grow, fibre from reeds, bark and grasses), and makes and mends its tools
+     * from them, each as far as materials and skill allow; tools wear with use. Making is practice.
+     */
+    private fun collectAndMake(g: AnimalGroup) {
+        val gd = g.goods ?: return; val kit = g.tools ?: return; val mk = g.making ?: return
+        val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
+        val land = max(1.0, mLand.box(box.x0, box.y0, box.x1, box.y1))
+        val woody = mBrowse.box(box.x0, box.y0, box.x1, box.y1) / land
+        val herby = mGraze.box(box.x0, box.y0, box.x1, box.y1) / land
+        val people = g.adults.toFloat()
+        // What a few hands bring in a week, kg per adult, if the range has it.
+        if (mStone.box(box.x0, box.y0, box.x1, box.y1) > 0.0) gd[Material.STONE.ordinal] += 1f * people
+        gd[Material.WOOD.ordinal] += (2f * people * min(1.0, woody / 50.0)).toFloat()
+        gd[Material.RESIN.ordinal] += (0.05f * people * min(1.0, woody / 50.0)).toFloat()
+        gd[Material.FIBRE.ordinal] += (1f * people * min(1.0, (woody + herby) / 50.0)).toFloat()
+        val years = days / Date.DAYS_PER_YEAR.toFloat()
+        for (tl in Tool.entries) {
+            val k = tl.ordinal
+            kit[k] = max(0f, kit[k] - tl.wearPerYear * years)
+            if (kit[k] >= 1f) continue
+            // Make as much of the shortfall this week as the scarcest material and the skill allow.
+            val skill = mk[tl.skill.ordinal]
+            var can = min(1f - kit[k], MAKE_WEEKLY * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * skill))
+            for ((m, perPerson) in tl.recipe) can = min(can, gd[m.ordinal] / max(1e-3f, perPerson * people))
+            if (can <= 0f) continue
+            for ((m, perPerson) in tl.recipe) gd[m.ordinal] -= can * perPerson * people
+            kit[k] += can
+            mk[tl.skill.ordinal] += PRACTICE * (1f - skill)
+        }
+        // A band carries only so much: the rest is left at old camps.
+        for (m in gd.indices) gd[m] = min(gd[m], GOODS_PER_PERSON * people)
+        for (m in mk.indices) mk[m] *= 1f - FORGET
     }
 
     /** Whether any band's range overlaps [g]'s. */
@@ -1392,7 +1456,7 @@ class Ecology(private val sim: Simulation) {
             g.larder -= fromStore
         }
         val k = fc[Forage.STORE.ordinal]
-        val cap = LARDER_DAYS * g.dailyNeedKg * k
+        val cap = LARDER_DAYS * g.dailyNeedKg * k * (1f + BASKET_GAIN * (g.tools?.get(Tool.BASKET.ordinal) ?: 0f))
         if (g.larder < cap) {
             val extra = gather(g, min(cap - g.larder, need), plantsOnly = true)
             if (extra > 0f) { g.larder += extra; fc[Forage.STORE.ordinal] += PRACTICE * (1f - k) }
@@ -1559,6 +1623,10 @@ class Ecology(private val sim: Simulation) {
                 soil.carrion[c] += (s.massKg / grid.cellAreaM2).toFloat()
             }
             val meat = if (bestYoung) { prey.young--; 0.3f * prey.species.massKg } else { prey.adults--; prey.species.massKg }
+            g.goods?.let { gd ->
+                val p = prey.species.products; val f = if (bestYoung) 0.3f else 1f
+                gd[Material.HIDE.ordinal] += f * p.hide; gd[Material.BONE.ordinal] += f * (p.bone + p.hornOrAntler); gd[Material.SINEW.ordinal] += f * p.sinew
+            }
             // The bold come closest and fall first.
             if (s.human) prey.bold *= max(0f, 1f - BOLD_TOLL / max(1, prey.size))
             g.stored += meat - steal(g, meat, r)
@@ -1601,7 +1669,11 @@ class Ecology(private val sim: Simulation) {
         val refuge = 1f - 0.8f * max(0f, ps.habitat.rugged) * terrain.ruggedness[at]
         // People hunt by learned skill: a band that knows a quarry's ways gets close and kills clean.
         val craft = g.craft?.let { CRAFT_FLOOR + (1f - CRAFT_FLOOR) * it[ps.index] } ?: 1f
-        return (min(1f, g.adults / 2f) * eyes * size * base * chase * skill * craft * refuge * (1f + surprise) * (1f - stand.coerceIn(0f, 0.9f))).coerceIn(0f, 1f)
+        // Spears are the baseline; bows add reach against fast, shy quarry, in practised hands.
+        val weapons = g.tools?.let { k ->
+            WEAPONLESS + (1f - WEAPONLESS) * k[Tool.SPEAR.ordinal] + BOW_GAIN * k[Tool.BOW.ordinal] * min(1f, ps.speedKmh / 70f) * (g.making?.get(Making.WOODWORK.ordinal) ?: 0.5f)
+        } ?: 1f
+        return (min(1f, g.adults / 2f) * eyes * size * base * chase * skill * craft * weapons * refuge * (1f + surprise) * (1f - stand.coerceIn(0f, 0.9f))).coerceIn(0f, 1f)
     }
 
     /** Pushes [loser]'s range away from [winner] by its own radius, if there is land there. */
@@ -1961,6 +2033,9 @@ class Ecology(private val sim: Simulation) {
             child.elders = min(child.adults, (g.elders * share).toInt()); g.elders = min(g.adults, g.elders - child.elders)
             child.lineage = g.lineage?.copyOf(); child.inbred = g.inbred
             child.campWeeks = 0
+            child.making = g.making?.copyOf()
+            child.tools = g.tools?.copyOf()?.also { k -> for (tl in Tool.entries) if (tl.heavy) k[tl.ordinal] = 0f }
+            child.goods = g.goods?.let { gd -> FloatArray(gd.size) { gd[it] * share }.also { for (m in gd.indices) gd[m] -= it[m] } }
             // A new group carries its parents' temper, give or take: the variation selection works on.
             child.bold = (g.bold * (0.8f + 0.4f * rnd.nextFloat())).coerceIn(0f, 1f)
             newcomers += child
@@ -2049,6 +2124,22 @@ class Ecology(private val sim: Simulation) {
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
         /** How much of the gap to the best food a small selective feeder closes by picking its bites. */
         const val SELECTIVITY = 0.5f
+        /** Hunting success of a band with no weapons at all, against one fully armed with spears. */
+        const val WEAPONLESS = 0.3f
+        /** Extra hunting success from bows against the fastest quarry, in practised hands. */
+        const val BOW_GAIN = 0.4f
+        /** Extra plant food brought in with sickles, baskets and grinding stones. */
+        const val SICKLE_GAIN = 0.3f
+        const val BASKET_GAIN = 0.3f
+        const val GRINDER_GAIN = 0.4f
+        /** Extra small game and fish with nets and snares. */
+        const val NET_GAIN = 1f
+        /** Most of a band's kit that can be made in a week. */
+        const val MAKE_WEEKLY = 0.1f
+        /** Raw materials a band carries, kg per adult of each kind. */
+        const val GOODS_PER_PERSON = 20f
+        /** Share of the difference in a material's stock that changes hands when bands meet. */
+        const val TRADE_SHARE = 0.2f
         /** Days of food a band can carry when it moves camp. */
         const val CARRY_DAYS = 20f
         /** How far a band's hunting parties go, in multiples of its daily foraging range. */

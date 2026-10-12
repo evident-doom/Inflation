@@ -88,6 +88,12 @@ class AnimalGroup(
     var inbred = 0f
     /** For people: weeks the band has kept its camp in the same place. */
     var campWeeks = 0
+    /** For people: raw materials held ([Material]), kg. */
+    var goods: FloatArray? = null
+    /** For people: share of the band equipped with each [Tool], 0..1. */
+    var tools: FloatArray? = null
+    /** For people: skill at each kind of [Making], 0..1. */
+    var making: FloatArray? = null
     val size: Int get() = adults + young
     val alive: Boolean get() = size > 0
     /** Body mass of the group, kg; young count as half. */

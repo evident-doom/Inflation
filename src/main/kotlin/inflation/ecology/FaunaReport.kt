@@ -66,6 +66,8 @@ fun main(args: Array<String>) {
                 bands.map { it.campWeeks }.average(), 100.0 * bands.count { it.campWeeks > 26 } / bands.size,
                 bands.mapNotNull { b -> b.craft?.let { c -> Catalogue.herbivores.map { c[it.index] }.average() } }.average(),
                 bands.mapNotNull { b -> b.forageCraft?.average() }.average()))
+            println("   tools  " + Tool.entries.joinToString { tl -> "%s %.2f".format(tl.name.lowercase(), bands.mapNotNull { it.tools?.get(tl.ordinal)?.toDouble() }.average()) } +
+                "; goods kg/adult " + Material.entries.joinToString { m -> "%s %.1f".format(m.name.lowercase(), bands.sumOf { (it.goods?.get(m.ordinal) ?: 0f).toDouble() } / max(1, bands.sumOf { it.adults })) })
         }
         val sea = e.marine
         println("   sea    " + SeaCatalogue.all.joinToString { "${it.name} ${sea.count(it)}" } + ", sea birds %.0f, shark kills %d".format(sea.birdCount(), sea.sharkKills))
