@@ -437,6 +437,7 @@ class Ecology(private val sim: Simulation) {
      * ranges overlap theirs, and everyone drinks.
      */
     private fun week() {
+        moonlight = sim.weather.date.meanMoonlight(days).toFloat()
         timed("summarise") { summarise() }
         val size = groups.size
         if (planX.size < size) { planX = DoubleArray(size * 2); planY = DoubleArray(size * 2) }
@@ -477,6 +478,8 @@ class Ecology(private val sim: Simulation) {
 
     private var planX = DoubleArray(0)
     private var planY = DoubleArray(0)
+    /** Mean moonlight over this week's nights, 0 (new moon) to 1 (full). */
+    private var moonlight = 0.5f
 
     /** Morton (Z-order) key of a coarse cell: cells close on the map get close keys. */
     private fun zOrder(x: Int, y: Int): Long {
@@ -1354,7 +1357,9 @@ class Ecology(private val sim: Simulation) {
         val s = g.species; val ps = o.species
         val cov = cover(at)
         // Surprise: cover lets a stalker close in unseen; a watchful herd is seldom surprised.
-        val surprise = (SURPRISE_BASE + s.stalking * cov) * (1f - WATCH_EFFECT * o.posture)
+        // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
+        val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moonlight)
+        val surprise = (SURPRISE_BASE + s.stalking * cov) * dark * (1f - WATCH_EFFECT * o.posture)
         // An aware herd in its element bunches, faces the hunters and defends: on cliffs, in thickets
         // or marsh, wherever it is at home. In open ground it can only run.
         val inElement = habitatMatch(ps, cov, terrain.ruggedness[at], wetness[at])
@@ -1781,6 +1786,8 @@ class Ecology(private val sim: Simulation) {
         /** Weeks a herd stays alarmed after an attack. */
         const val ALERT_WEEKS = 2
         /** Chance a hunt takes even an open, unwatchful herd by surprise. */
+        /** How much darker nights add to a full stalker's surprise (and full moon takes away). */
+        const val MOON_DARK = 0.3f
         const val SURPRISE_BASE = 0.2f
         /** How much full watchfulness cuts the chance of surprise. */
         const val WATCH_EFFECT = 0.8f

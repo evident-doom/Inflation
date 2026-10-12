@@ -139,6 +139,7 @@ class Vegetation(private val world: World, private val seed: Long) {
         val memory = 1 - exp(-days / 360f)
         if (stepCount++ % 5 == 0) seedSources()
         spreadFires(weather, water, years)
+        val slope = world.terrain.slope
         // Cells are independent of each other, so they are stepped in parallel.
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             if (!isVegetated(i) || water.submerged[i]) {
@@ -183,6 +184,14 @@ class Vegetation(private val world: World, private val seed: Long) {
             if (a > 100f) shrub[i] *= exp(-a / 400f)
             if (a > 300f) tree[i] *= exp(-a / 800f)
             if (a > 1f) fertility[i] = min(1f, fertility[i] + a * 1e-6f) // weathered ash makes rich soil
+            // Soil drifts back towards what its rock and climate give it: worn-out soil recovers over
+            // decades as rock weathers and plants fix nitrogen; the flush from ash and fire fades.
+            fertility[i] += (world.soilFertility[i] - fertility[i]) * years / SOIL_RECOVERY_YEARS
+            // Rain on bare slopes washes the topsoil away: cleared, burned or grazed-bare hillsides
+            // lose their fertility within years; grass, scrub and forest hold it.
+            val cover = min(1f, herb[i] / 0.3f + shrub[i] + canopy(i))
+            val bare = (1f - cover) * (1f - cover)
+            if (bare > 0.01f) fertility[i] *= 1f - min(0.5f, EROSION * bare * weather.precipitation[i] / 50f * slope[i] / 0.2f * years)
 
             val burned = if (burning[i]) burn(i) else 0f
             // Living plants shed leaves, stems and roots all the time; deaths add the rest. Burned matter is gone.
@@ -316,6 +325,13 @@ class Vegetation(private val world: World, private val seed: Long) {
         const val IGNITIONS_PER_KM2_YEAR = 0.01f
         /** How far a fire front can run in a day, km. */
         const val SPREAD_KM_PER_DAY = 5f
+        /** Years over which soil fertility returns most of the way to its natural level. */
+        const val SOIL_RECOVERY_YEARS = 50f
+        /**
+         * Share of the topsoil's fertility lost in a year from bare ground on a 1-in-5 slope under
+         * 50 mm of rain a week (from memory; bare hillsides lose cm of soil a decade).
+         */
+        const val EROSION = 0.05f
         /** Chance a burning cell lights a downwind neighbour with full fuel. */
         const val SPREAD = 0.9f
         private val DX = intArrayOf(1, 1, 0, -1, -1, -1, 0, 1)

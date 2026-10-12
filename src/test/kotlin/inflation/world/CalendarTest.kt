@@ -25,6 +25,15 @@ class CalendarTest {
     }
 
     @Test
+    fun `moons drift against the year`() {
+        // 360 days hold 12.19 lunations: a year on, the moon is some 6 days old, not new again.
+        val age = Date(Date.DAYS_PER_YEAR.toLong()).moonAge * Date.SYNODIC_MONTH
+        assertTrue(age in 5.0..7.0, "moon age a year on: $age days")
+        assertEquals(12L, Date(Date.DAYS_PER_YEAR.toLong()).lunation)
+        assertTrue(Date(0).tideRange > 1.25 && Date(7).tideRange < 0.8, "spring tide at new moon, neap at first quarter")
+    }
+
+    @Test
     fun `day length follows latitude and season`() {
         assertTrue(abs(Date(0).dayLengthHours(40.0) - 12.0) < 0.05, "equinox is 12 h")
         val summer = Date(90).dayLengthHours(40.0)
