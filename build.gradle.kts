@@ -63,3 +63,21 @@ tasks.register<JavaExec>("audit") {
     maxHeapSize = "12g"
     args = (project.findProperty("auditArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
+
+tasks.register<JavaExec>("bandImitate") {
+    description = "Copies the hand-written band behaviour into the shared people network (policies/people.mlp)."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.learning.BandLearningKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("bandArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
+tasks.register<JavaExec>("bandEvolve") {
+    description = "Evolves the shared people network by evolution strategies, resuming from its output directory."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.learning.BandEvolve")
+    maxHeapSize = "20g"
+    args = (project.findProperty("bandArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}

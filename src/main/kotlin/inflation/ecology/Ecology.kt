@@ -2256,7 +2256,9 @@ class Ecology(private val sim: Simulation) {
      */
     private fun crowding(g: AnimalGroup): Float {
         val s = g.species
-        val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, g.rangeKm) }
+        // People's sicknesses follow how many live in the country around, not who camps together
+        // for a few weeks: a band's region is a few days' walk across.
+        val box = CoarseMaps.Box().also { it.set(maps, g.x, g.y, if (s.human) PEOPLE_REGION_KM else g.rangeKm) }
         // Others of its kind over its range: its own group does not crowd itself.
         val others = max(0f, mOcc[s.index].box(box.x0, box.y0, box.x1, box.y1).toFloat() - g.size)
         val density = others / (box.cells * COARSE_KM * COARSE_KM)
@@ -2652,6 +2654,8 @@ class Ecology(private val sim: Simulation) {
         const val DANGEROUS_TO_PEOPLE = 0.4f
         /** Share of the chances to take a big cat's kill that people actually take. */
         const val PEOPLE_TAKE_KILLS = 0.3f
+        /** Radius over which people's crowding is counted, km. */
+        const val PEOPLE_REGION_KM = 25f
         /** People per km² over a band's range at which crowding brings sickness (rich foraging country holds 0.5 and more). */
         const val PEOPLE_FULL_KM2 = 0.5f
         /** Share of a band's food that ends on the midden. */
