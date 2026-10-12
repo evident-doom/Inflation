@@ -563,7 +563,7 @@ object Catalogue {
 
     /**
      * Arabian ostrich: a big flightless bird of the desert steppe, grazing, browsing and taking
-     * seeds and fruit; outruns almost everything and kicks hard. Large clutches, most chicks lost.
+     * seeds and fruit; outruns almost everything and kicks hard. Large clutches, but a pair rears about one chick a year.
      */
     val OSTRICH = Species(
         name = "ostrich", massKg = 110f,
@@ -571,7 +571,7 @@ object Catalogue {
         groupSize = 5, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
         daysWithoutWater = 7, waterFromFood = 0.8f,
-        birthMonth = 2, birthMonths = 3, youngPerFemale = 3f, yearsToMaturity = 3f,
+        birthMonth = 2, birthMonths = 3, youngPerFemale = 1.2f, yearsToMaturity = 3f,
         backgroundMortality = 0.07f, youngMortality = 0.7f,
         snowLimitMm = 30f, flightKm = 1f, dangerToHumans = 0.2f,
         products = Products(meat = 50f, fat = 3f, hide = 10f, bone = 10f, sinew = 1f),

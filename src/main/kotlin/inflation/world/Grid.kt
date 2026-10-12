@@ -61,3 +61,50 @@ fun blur(grid: Grid, src: FloatArray, radius: Int): FloatArray {
     }
     return out
 }
+
+/**
+ * Exact Euclidean distance, km, from every cell to the nearest cell where [source] is true, written
+ * to [out]; [far] where there is none. Separable (Felzenszwalb and Huttenlocher): squared distances
+ * along each row, then down each column, rows and columns in parallel.
+ */
+fun distanceKm(grid: Grid, out: FloatArray, far: Float, source: (Int) -> Boolean) {
+    val w = grid.width; val h = grid.height
+    val inf = 1e18
+    val rows = DoubleArray(grid.size)
+    java.util.stream.IntStream.range(0, h).parallel().forEach { y ->
+        val f = DoubleArray(w) { if (source(y * w + it)) 0.0 else inf }
+        val d = DoubleArray(w)
+        squaredDistance1d(f, w, d, IntArray(w), DoubleArray(w + 1))
+        System.arraycopy(d, 0, rows, y * w, w)
+    }
+    java.util.stream.IntStream.range(0, w).parallel().forEach { x ->
+        val f = DoubleArray(h) { rows[it * w + x] }
+        val d = DoubleArray(h)
+        squaredDistance1d(f, h, d, IntArray(h), DoubleArray(h + 1))
+        for (y in 0 until h) out[y * w + x] = if (d[y] >= inf / 2) far else (sqrt(d[y]) * grid.cellKm).toFloat()
+    }
+}
+
+/** Lower envelope of parabolas: d[q] = min over p of (q - p)² + f[p]. */
+private fun squaredDistance1d(f: DoubleArray, n: Int, d: DoubleArray, v: IntArray, z: DoubleArray) {
+    var k = 0
+    v[0] = 0; z[0] = Double.NEGATIVE_INFINITY; z[1] = Double.POSITIVE_INFINITY
+    for (q in 1 until n) {
+        if (f[q] >= 1e17) continue // no source here: it never lowers the envelope
+        if (f[v[k]] >= 1e17) { v[k] = q; continue }
+        var s: Double
+        while (true) {
+            s = ((f[q] + q.toDouble() * q) - (f[v[k]] + v[k].toDouble() * v[k])) / (2.0 * q - 2.0 * v[k])
+            if (s <= z[k] && k > 0) k-- else break
+        }
+        if (s <= z[k]) { v[k] = q } else { k++; v[k] = q; z[k] = s }
+        z[k + 1] = Double.POSITIVE_INFINITY
+    }
+    if (f[v[0]] >= 1e17) { for (q in 0 until n) d[q] = 1e18; return }
+    k = 0
+    for (q in 0 until n) {
+        while (z[k + 1] < q) k++
+        val dq = (q - v[k]).toDouble()
+        d[q] = dq * dq + f[v[k]]
+    }
+}

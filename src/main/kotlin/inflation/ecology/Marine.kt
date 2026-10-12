@@ -152,10 +152,13 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
         upwell()
         summarise()
         val r = rnd
-        for (g in groups) if (g.alive) move(g)
+        // Each group chooses from the same summary and writes only its own place: in parallel.
+        groups.parallelStream().forEach { g -> if (g.alive) move(g) }
         summarise()
+        keepZoo.fill(1f); keepFish.fill(1f)
         for (g in groups) if (g.alive && g.species.food != SeaFood.PREY) feed(g)
         for (g in groups.filter { it.alive && it.species == SeaCatalogue.SHARK }.shuffled(r)) hunt(g)
+        eatFromCells()
         for (g in groups) if (g.alive) learn(g)
         birds()
         demography()
@@ -276,25 +279,32 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
 
     private fun summarise() {
         for (l in listOf(mSea, mZoo, mFish, mShore)) l.clear()
-        for (i in 0 until n) {
-            if (!world.isSea[i]) continue
-            val m = maps.of(grid.x(i), grid.y(i))
-            mSea.cell[m] += 1f
-            mZoo.cell[m] += plankton.zoo[i] * cellKm * cellKm * 1000f // g/m² = t/km² -> kg
-            mFish.cell[m] += fish.fish[i] * cellKm * cellKm
-            mShore.cell[m] += min(shoreKm[i], 200f)
+        // Each band of coarse rows covers its own fine rows, so bands are summed in parallel.
+        java.util.stream.IntStream.range(0, maps.h).parallel().forEach { band ->
+            for (fy in band * maps.ratio until min(grid.height, (band + 1) * maps.ratio)) for (fx in 0 until grid.width) {
+                val i = grid.index(fx, fy)
+                if (!world.isSea[i]) continue
+                val m = maps.of(fx, fy)
+                mSea.cell[m] += 1f
+                mZoo.cell[m] += plankton.zoo[i] * cellKm * cellKm * 1000f // g/m² = t/km² -> kg
+                mFish.cell[m] += fish.fish[i] * cellKm * cellKm
+                mShore.cell[m] += min(shoreKm[i], 200f)
+            }
         }
-        for (l in listOf(mSea, mZoo, mFish, mShore)) l.build()
-        for (l in mOcc) l.clear()
-        val box = CoarseMaps.Box()
-        for (g in groups) {
-            if (!g.alive) continue
-            box.set(maps, g.x, g.y, g.rangeKm)
-            val per = g.massKg / box.cells
-            val cell = mOcc[g.species.index].cell
-            for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) cell[y * maps.w + x] += per
+        listOf(mSea, mZoo, mFish, mShore).parallelStream().forEach { it.build() }
+        // Each species on its own layer, groups added in list order: species in parallel.
+        java.util.stream.IntStream.range(0, SeaCatalogue.all.size).parallel().forEach { si ->
+            val layer = mOcc[si]
+            layer.clear()
+            val box = CoarseMaps.Box()
+            for (g in groups) {
+                if (!g.alive || g.species.index != si) continue
+                box.set(maps, g.x, g.y, g.rangeKm)
+                val per = g.massKg / box.cells
+                for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) layer.cell[y * maps.w + x] += per
+            }
+            layer.build()
         }
-        for (l in mOcc) l.build()
     }
 
     // ---------------------------------------------------------------- movement
@@ -377,15 +387,24 @@ class Marine(private val sim: Simulation, private val plankton: Plankton, privat
         nourish(g, if (need > 0f) got / need else 1f)
     }
 
+    /** Share of each coarse cell's plankton and fish left after this week's feeding, applied by [eatFromCells]. */
+    private val keepZoo = FloatArray(maps.size)
+    private val keepFish = FloatArray(maps.size)
+
     /** Takes share [f] of the food of [kind] from every sea cell under [box]. */
     private fun take(box: CoarseMaps.Box, kind: SeaFood, f: Float) {
-        val r = maps.ratio
-        for (cy in box.y0 until box.y1) for (cx in box.x0 until box.x1)
-            for (fy in cy * r until min(grid.height, (cy + 1) * r)) for (fx in cx * r until min(grid.width, (cx + 1) * r)) {
-                val i = grid.index(fx, fy)
-                if (!world.isSea[i]) continue
-                if (kind == SeaFood.PLANKTON) plankton.zoo[i] = max(0.005f, plankton.zoo[i] * (1f - f)) else fish.fish[i] *= (1f - f)
-            }
+        val keep = if (kind == SeaFood.PLANKTON) keepZoo else keepFish
+        for (cy in box.y0 until box.y1) for (cx in box.x0 until box.x1) keep[cy * maps.w + cx] *= (1f - f)
+    }
+
+    /** Takes what the week's feeding ate from the sea cells, all at once and in parallel. */
+    private fun eatFromCells() {
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            if (!world.isSea[i]) return@forEach
+            val m = maps.of(grid.x(i), grid.y(i))
+            if (keepZoo[m] < 1f) plankton.zoo[i] = max(0.005f, plankton.zoo[i] * keepZoo[m])
+            if (keepFish[m] < 1f) fish.fish[i] *= keepFish[m]
+        }
     }
 
     private fun nourish(g: SeaGroup, ratio: Float) {

@@ -341,7 +341,7 @@ class Ecology(private val sim: Simulation) {
      * Updates [wetness] and the distance to drinking water. Fresh water: flowing rivers and creeks,
      * open (not salt) lakes, floodwater, and the pools and seeps of very wet ground that is not
      * frozen. In the wet season water is everywhere; in the dry season herds gather at rivers and
-     * the few springs. Distance by chamfer transform.
+     * the few springs. Distance in a straight line, exact.
      */
     private fun updateWater() {
         val big = 1e6f
@@ -364,30 +364,7 @@ class Ecology(private val sim: Simulation) {
             val fresh = (lake && !world.water.lakeClosed[i]) || (!lake && sim.water.discharge[i] >= 0.1f) || sim.water.flood[i] > 0f || pools || (spring[i] && thawed)
             waterKm[i] = if (fresh) 0f else big
         }
-        val d1 = cellKm; val d2 = cellKm * 1.4142f
-        val w = grid.width; val h = grid.height
-        for (y in 0 until h) for (x in 0 until w) {
-            val i = y * w + x
-            var d = waterKm[i]
-            if (x > 0) d = min(d, waterKm[i - 1] + d1)
-            if (y > 0) {
-                d = min(d, waterKm[i - w] + d1)
-                if (x > 0) d = min(d, waterKm[i - w - 1] + d2)
-                if (x < w - 1) d = min(d, waterKm[i - w + 1] + d2)
-            }
-            waterKm[i] = d
-        }
-        for (y in h - 1 downTo 0) for (x in w - 1 downTo 0) {
-            val i = y * w + x
-            var d = waterKm[i]
-            if (x < w - 1) d = min(d, waterKm[i + 1] + d1)
-            if (y < h - 1) {
-                d = min(d, waterKm[i + w] + d1)
-                if (x < w - 1) d = min(d, waterKm[i + w + 1] + d2)
-                if (x > 0) d = min(d, waterKm[i + w - 1] + d2)
-            }
-            waterKm[i] = d
-        }
+        inflation.world.distanceKm(grid, waterKm, big) { waterKm[it] == 0f }
     }
 
     // ---------------------------------------------------------------- initial populations
@@ -464,7 +441,15 @@ class Ecology(private val sim: Simulation) {
         val size = groups.size
         if (planX.size < size) { planX = DoubleArray(size * 2); planY = DoubleArray(size * 2) }
         timed("plan") {
-            java.util.stream.IntStream.range(0, size).parallel().forEach { k ->
+            // Groups are planned in map order, so neighbours share the coarse maps in the processor's
+            // cache; each writes only its own slot, so the order does not change the outcome.
+            val order = LongArray(size) { k ->
+                val g = groups[k]
+                (zOrder((g.x / maps.ratio).toInt(), (g.y / maps.ratio).toInt()) shl 32) or k.toLong()
+            }
+            order.sort()
+            java.util.stream.IntStream.range(0, size).parallel().forEach { j ->
+                val k = (order[j] and 0xffffffffL).toInt()
                 val g = groups[k]
                 if (g.alive) plan(g, k, scratch.get()) else planX[k] = Double.NaN
             }
@@ -485,13 +470,25 @@ class Ecology(private val sim: Simulation) {
         timed("graze") { graze(); shapePlants() }
         timed("prowl") { prowlAll() }
         timed("drink") { for (g in groups) if (g.alive) drink(g) }
-        timed("weather") { for (g in groups) if (g.alive) endure(g) }
+        timed("weather") { groups.parallelStream().forEach { g -> if (g.alive) endure(g) } }
         timed("fire") { for (g in groups) if (g.alive) flee(g) }
-        timed("seasons") { for (g in groups) if (g.alive && !g.species.carnivore) learnSeason(g) }
+        timed("seasons") { groups.parallelStream().forEach { g -> if (g.alive && !g.species.carnivore) learnSeason(g) } }
     }
 
     private var planX = DoubleArray(0)
     private var planY = DoubleArray(0)
+
+    /** Morton (Z-order) key of a coarse cell: cells close on the map get close keys. */
+    private fun zOrder(x: Int, y: Int): Long {
+        fun spread(v: Int): Long {
+            var b = (v.coerceIn(0, 0xffff)).toLong()
+            b = (b or (b shl 8)) and 0x00ff00ffL
+            b = (b or (b shl 4)) and 0x0f0f0f0fL
+            b = (b or (b shl 2)) and 0x33333333L
+            return (b or (b shl 1)) and 0x55555555L
+        }
+        return spread(x) or (spread(y) shl 1)
+    }
 
     /** Per-thread buffers for [plan]. */
     private class Scratch {
@@ -579,33 +576,37 @@ class Ecology(private val sim: Simulation) {
     // ---------------------------------------------------------------- the coarse summary
 
     private val maps = CoarseMaps(grid.width, grid.height, cellKm, COARSE_KM)
-    private val mLand = maps.layer()
-    private val mGraze = maps.layer()
-    private val mBrowse = maps.layer()
-    private val mRoots = maps.layer()
-    private val mFruit = maps.layer()
+    /** The ground, plant and weather layers, read together for every candidate range. */
+    private val fine = maps.stack(20)
+    /** Per species: its numbers, its enemies and its prey, read together. */
+    private val perSpecies = Array(Catalogue.all.size) { maps.stack(3) }
+    private val mLand = fine.layer()
+    private val mGraze = fine.layer()
+    private val mBrowse = fine.layer()
+    private val mRoots = fine.layer()
+    private val mFruit = fine.layer()
     /** Grass weighted by its quality, to average quality over a range. */
-    private val mGrazeQ = maps.layer()
-    private val mStraw = maps.layer()
-    private val mWater = maps.layer()
-    private val mWaterKm = maps.layer()
-    private val mCover = maps.layer()
-    private val mRugged = maps.layer()
-    private val mWet = maps.layer()
-    private val mSnow = maps.layer()
-    private val mCost = maps.layer()
-    private val mRodents = maps.layer()
-    private val mCroc = maps.layer()
-    private val mTemp = maps.layer()
+    private val mGrazeQ = fine.layer()
+    private val mStraw = fine.layer()
+    private val mWater = fine.layer()
+    private val mWaterKm = fine.layer()
+    private val mCover = fine.layer()
+    private val mRugged = fine.layer()
+    private val mWet = fine.layer()
+    private val mSnow = fine.layer()
+    private val mCost = fine.layer()
+    private val mRodents = fine.layer()
+    private val mCroc = fine.layer()
+    private val mTemp = fine.layer()
     /** Next week's weather, as far as it can be sensed: temperature, rain against normal, and dangers. */
-    private val mTempAhead = maps.layer()
-    private val mRainAhead = maps.layer()
-    private val mHazard = maps.layer()
+    private val mTempAhead = fine.layer()
+    private val mRainAhead = fine.layer()
+    private val mHazard = fine.layer()
     /** Animals of each species per coarse cell, each group spread over its range. */
-    private val mOcc = Array(Catalogue.all.size) { maps.layer() }
+    private val mOcc = Array(Catalogue.all.size) { perSpecies[it].layer() }
     /** Per species: mass of its enemies per coarse cell; for predators, lure-weighted prey. */
-    private val mDanger = Array(Catalogue.all.size) { maps.layer() }
-    private val mPrey = Array(Catalogue.all.size) { maps.layer() }
+    private val mDanger = Array(Catalogue.all.size) { perSpecies[it].layer() }
+    private val mPrey = Array(Catalogue.all.size) { perSpecies[it].layer() }
     private val fineLayers = listOf(mTempAhead, mRainAhead, mHazard, mTemp, mLand, mGraze, mGrazeQ, mBrowse, mRoots, mFruit, mStraw, mWater, mWaterKm, mCover, mRugged, mWet, mSnow, mCost, mRodents, mCroc)
 
     /** Sums this week's ground, plants and water onto the coarse grid. */
@@ -656,40 +657,43 @@ class Ecology(private val sim: Simulation) {
                 if (d < reachKm) mHazard.cell[y * maps.w + x] += mLand.cell[y * maps.w + x] * (1f - d / reachKm)
             }
         }
-        for (l in fineLayers) l.build()
+        fine.build()
         occupancy()
     }
 
     /** Spreads every group over its range on the coarse grid, and files groups by place for finding neighbours. */
     private fun occupancy() {
-        for (l in mOcc) l.clear()
-        for (b in buckets) for (l in b) l.clear()
-        val box = CoarseMaps.Box()
-        for (g in groups) {
-            if (!g.alive) continue
-            buckets[g.species.index][bucketIndex(g.x, g.y)] += g
-            box.set(maps, g.x, g.y, g.rangeKm)
-            val per = g.size.toFloat() / box.cells
-            val cell = mOcc[g.species.index].cell
-            for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) cell[y * maps.w + x] += per
+        // Each species has its own layer and buckets, so species are filled in parallel; within a
+        // species groups are added in list order, so the sums come out the same every run.
+        val bySpecies = Array(Catalogue.all.size) { ArrayList<AnimalGroup>() }
+        for (g in groups) if (g.alive) bySpecies[g.species.index] += g
+        java.util.stream.IntStream.range(0, Catalogue.all.size).parallel().forEach { si ->
+            val occ = mOcc[si]
+            occ.clear()
+            val bucket = buckets[si]
+            for (l in bucket) l.clear()
+            val box = CoarseMaps.Box()
+            val cell = occ.cell
+            for (g in bySpecies[si]) {
+                bucket[bucketIndex(g.x, g.y)] += g
+                box.set(maps, g.x, g.y, g.rangeKm)
+                val per = g.size.toFloat() / box.cells
+                for (y in box.y0 until box.y1) for (x in box.x0 until box.x1) cell[y * maps.w + x] += per
+            }
         }
         // Per species: the mass of its enemies over the map, and for predators the draw of prey there.
-        java.util.stream.IntStream.range(0, Catalogue.all.size).parallel().forEach { si ->
-            mOcc[si].build()
-        }
         java.util.stream.IntStream.range(0, Catalogue.all.size).parallel().forEach { si ->
             val s = Catalogue.all[si]
             val d = mDanger[si].cell
             d.fill(0f)
             for (e in enemies.getValue(s)) { val o = mOcc[e.index].cell; for (m in d.indices) d[m] += o[m] * e.massKg }
-            mDanger[si].build()
             if (s.carnivore) {
                 val pv = mPrey[si].cell
                 pv.fill(0f)
                 val w = lure.getValue(s)
                 for (q in Catalogue.herbivores) { val o = mOcc[q.index].cell; val wq = w[q.index]; for (m in pv.indices) pv[m] += o[m] * wq }
-                mPrey[si].build()
             }
+            perSpecies[si].build()
         }
     }
 
@@ -910,9 +914,9 @@ class Ecology(private val sim: Simulation) {
      * feeds less but is far harder to surprise or bring down.
      */
     private fun watch() {
-        val box = CoarseMaps.Box()
-        for (g in groups) {
-            if (!g.alive) continue
+        groups.parallelStream().forEach { g ->
+            if (!g.alive) return@forEach
+            val box = CoarseMaps.Box()
             box.set(maps, g.x, g.y, g.rangeKm)
             val enemyKg = mDanger[g.species.index].box(box.x0, box.y0, box.x1, box.y1)
             val density = (enemyKg / (box.cells * COARSE_KM * COARSE_KM)).toFloat()
