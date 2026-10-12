@@ -201,9 +201,9 @@ class Vegetation(private val world: World, private val seed: Long) {
             val tr = trampling[i]
             if (tr > 0f) {
                 herb[i] *= exp(-0.05f * tr); shrub[i] *= exp(-0.1f * tr)
-                trails[i] = min(1f, trails[i] + 0.5f * tr)
+                trails[i] = min(1f, trails[i] + TRAIL_WEAR * tr * (1f - trails[i]))
                 trampling[i] = 0f
-            } else if (trails[i] > 0f) trails[i] = max(0f, trails[i] - 0.3f * years)
+            } else if (trails[i] > 0f) trails[i] = max(0f, trails[i] - TRAIL_FADE * years)
             if (burnt[i] > 0f) burnt[i] = max(0f, burnt[i] - 0.4f * years)
         }
     }
@@ -333,6 +333,9 @@ class Vegetation(private val world: World, private val seed: Long) {
         const val IGNITIONS_PER_KM2_YEAR = 0.01f
         /** How far a fire front can run in a day, km. */
         const val SPREAD_KM_PER_DAY = 5f
+        /** How fast trampling wears a path (per unit of trampling, slowing as the path deepens), and how fast an unused one fades, per year. */
+        const val TRAIL_WEAR = 0.3f
+        const val TRAIL_FADE = 1f
         /** Years over which soil fertility returns most of the way to its natural level. */
         const val SOIL_RECOVERY_YEARS = 50f
         /**

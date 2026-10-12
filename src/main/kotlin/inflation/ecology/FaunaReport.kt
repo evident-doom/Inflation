@@ -59,8 +59,10 @@ fun main(args: Array<String>) {
         fires = 0; burnedKm2 = 0.0
         println("   game   " + e.game.summary())
         e.groups.filter { it.alive && !it.species.carnivore }.takeIf { it.isNotEmpty() }?.let { herds ->
-            println("   moves  herds shifted %.1f km this week on average (%.0f%% beyond their own range)".format(
-                herds.map { it.movedKm.toDouble() }.average(), 100.0 * herds.count { it.movedKm > it.rangeKm } / herds.size))
+            val land = (0 until sim.world.grid.size).filter { sim.vegetation.isVegetated(it) }
+            println("   moves  herds shifted %.1f km this week on average (%.0f%% beyond their own range); worn paths on %.1f%% of the land".format(
+                herds.map { it.movedKm.toDouble() }.average(), 100.0 * herds.count { it.movedKm > it.rangeKm } / herds.size,
+                100.0 * land.count { sim.vegetation.trails[it] > 0.8f } / land.size.coerceAtLeast(1)))
         }
         e.groups.filter { it.species.human && it.alive }.takeIf { it.isNotEmpty() }?.let { bands ->
             val people = bands.sumOf { it.size }
