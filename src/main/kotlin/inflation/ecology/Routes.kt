@@ -195,8 +195,8 @@ class Routes(private val world: World) {
     companion object {
         /** Spacing of the waypoints, km. */
         const val NODE_KM = 4f
-        /** Slope (rise over run over a km) above which ground closes fast: about 24° for most, 39° for climbers. */
-        const val STEEP_LIMIT = 0.45f
+        /** Slope (rise over run over a km) above which ground closes fast: about 19° for most, 39° for climbers. */
+        const val STEEP_LIMIT = 0.35f
         const val CLIMBER_LIMIT = 0.8f
         /** How fast ground closes above the limit: each 0.1 of extra slope multiplies the effort by e^[BARRIER]/10. */
         const val BARRIER = 25f
