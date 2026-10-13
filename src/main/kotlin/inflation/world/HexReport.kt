@@ -58,6 +58,17 @@ fun main(args: Array<String>) {
         }
     }
     val all = open + hard + dear + none
+    val ringed = land.count { h -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n < 0 || hex.heart[n] < 0 || !hex.crossing[h * 6 + d].isFinite() } && (0 until 6).any { d -> val n = hex.neighbour(h, d); n >= 0 && hex.heart[n] >= 0 } }
+    println("land hexes with no way out on foot to any land neighbour: %d".format(ringed))
+    val isRinged = { h: Int -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n < 0 || hex.heart[n] < 0 || !hex.crossing[h * 6 + d].isFinite() } && (0 until 6).any { d -> val n = hex.neighbour(h, d); n >= 0 && hex.heart[n] >= 0 } }
+    println("  of them mostly land: %d".format(land.count { isRinged(it) && hex.landCells[it] > hex.cells[it] / 2 }))
+    for (h in land.filter { isRinged(it) && hex.landCells[it] > hex.cells[it] / 2 }.take(12)) {
+        val cs = (0 until world.grid.size).filter { hex.owner[it] == h }
+        val (cx, cy) = hex.centreKm(h)
+        println("  ringed hex at (%.0f, %.0f) km: land %d of %d cells, lake %d, deep river cells %d, cliff cells %d, heart walk cost %.1f, biggest river %.0f m³/s".format(
+            cx, cy, cs.count { !world.isSea[it] && !world.water.isLake(it) }, cs.size, cs.count { world.water.isLake(it) },
+            cs.count { world.terrain.crossingDepthM(it) > 1.5f }, cs.count { world.terrain.cliff[it] }, hex.walk[hex.heart[h]], cs.maxOf { world.water.discharge[it] }))
+    }
     println("borders between land hexes: %d | open %.0f%%, hard %.0f%%, very hard %.0f%%, no way %.0f%% | over a pass (300 m+ climb) %.0f%%, across a river (10+ m³/s) %.0f%%, across a big river (200+ m³/s) %.1f%%".format(
         all, 100.0 * open / all, 100.0 * hard / all, 100.0 * dear / all, 100.0 * none / all, 100.0 * pass / all, 100.0 * river / all, 100.0 * bigRiver / all))
     val lands = land.filter { hex.landCells[it] > hex.cells[it] / 2 }

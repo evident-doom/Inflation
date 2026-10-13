@@ -128,11 +128,38 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
             flat[h] = flatN[h].toFloat() / e.size; crag[h] = cragN[h].toFloat() / e.size
         }
         // The heart of a hex: its easiest ground, preferring the middle, so a hex of valley and ridge
-        // is entered at the valley.
+        // is entered at the valley; and on the largest stretch of its land that hangs together on
+        // foot, so a scrap of land cut off by a river or a ring of cliffs is not taken for the hex.
+        val part = IntArray(grid.size) { -1 }
+        val partSize = ArrayList<Int>()
+        val largest = IntArray(size) { -1 }
+        val queue = IntArray(grid.size)
+        for (s in 0 until grid.size) {
+            if (part[s] >= 0 || !walk[s].isFinite()) continue
+            val id = partSize.size
+            var head = 0; var tail = 0
+            queue[tail++] = s; part[s] = id
+            while (head < tail) {
+                val i = queue[head++]
+                val xi = grid.x(i); val yi = grid.y(i)
+                for (k in 0 until 8) {
+                    val nx = xi + DX8[k]; val ny = yi + DY8[k]
+                    if (!grid.inBounds(nx, ny)) continue
+                    val j = grid.index(nx, ny)
+                    if (part[j] >= 0 || owner[j] != owner[s] || !walk[j].isFinite()) continue
+                    if (k >= 4 && (!walk[grid.index(xi + DX8[k], yi)].isFinite() || !walk[grid.index(xi, yi + DY8[k])].isFinite())) continue
+                    part[j] = id; queue[tail++] = j
+                }
+            }
+            partSize += tail
+            val h = owner[s]
+            if (largest[h] < 0 || tail > partSize[largest[h]]) largest[h] = id
+        }
         val best = FloatArray(size) { Float.POSITIVE_INFINITY }
         for (i in 0 until grid.size) {
             if (!walk[i].isFinite()) continue
             val h = owner[i]
+            if (part[i] != largest[h]) continue
             val (cx, cy) = centreKm(h)
             val off = kotlin.math.hypot(grid.x(i) * grid.cellKm - cx, grid.y(i) * grid.cellKm - cy) / hexKm
             val score = (walk[i] * (1 + 2 * off)).toFloat()
