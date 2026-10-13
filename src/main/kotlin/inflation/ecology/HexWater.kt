@@ -415,6 +415,29 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         return if (a > 0) (s / a).toFloat() else 0f
     }
 
+    /**
+     * People fishing from hex [h]: the spawning run while it is in the river, the river's fish, fish
+     * from lakes and from the sea along the coast (its own water and the water hexes next to it), and
+     * shellfish from shallow shores. Takes up to [kg]; returns kg caught. Each source gives at most a
+     * share a week, so a band cannot empty a river.
+     */
+    fun fishFor(h: Int, kg: Float): Float {
+        var left = kg
+        val landKm2 = max(1f, hw.land[h] * hexKm2)
+        fun take(stock: FloatArray, q: Int, areaKm2: Float, share: Float) {
+            if (left <= 0f || areaKm2 <= 0f) return
+            val t = min(left, share * stock[q] * areaKm2)
+            stock[q] -= t / areaKm2; left -= t
+        }
+        take(run, h, landKm2, 0.3f)
+        take(riverFish, h, landKm2, 0.05f)
+        for (q in listOf(h) + (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 }) {
+            take(fish, q, waterKm2[q], PEOPLE_FISHING)
+            take(shellfish, q, seaKm2[q] * shallow[q], PEOPLE_SHELLFISH)
+        }
+        return kg - left
+    }
+
     /** Totals: plankton, fish, shellfish, sea animals (t), river fish (t) and sea birds. */
     fun summary(): String {
         fun t(a: FloatArray, area: FloatArray) = a.indices.sumOf { (a[it] * area[it]).toDouble() } / 1000
@@ -472,6 +495,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val SEA_FULL = 8f
         /** Share of the fish in a hex sea hunters can catch in a week (fish breed about twice their weight a year). */
         const val SEA_CATCH = 0.06f
+        /** Shares of the fish and of the shellfish within reach that a band's nets, traps, lines and gathering take at most in a week. */
+        const val PEOPLE_FISHING = 0.01f
+        const val PEOPLE_SHELLFISH = 0.02f
         /** Fish, kg/km², at which hunters find them half as easily as in a rich sea. */
         const val FISH_HALF = 1000f
         const val SEA_DISEASE = 0.5f

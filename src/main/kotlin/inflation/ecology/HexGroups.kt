@@ -170,6 +170,7 @@ class HexGroups(
         for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
         Profile.time("groups: grazing") { graze(weather) }
         Profile.time("groups: hunting") { hunt(visits, weather) }
+        burnOff(weather)
         Profile.time("groups: ground, births, deaths") { mark(); settle(); demography(weather, date) }
         groups.removeIf { !it.alive }
         remember(date)
@@ -221,6 +222,19 @@ class HexGroups(
         // Water close to camp: women and children fetch it every day.
         val w = land.waterKm[p] / 3f
         return (game + plants) * (1f + CAMP_SAFETY * land.bestDefence[p]) / (1f + w * w)
+    }
+
+    /**
+     * Bands burn off the dry grass around their camps in the dry season: the burn greens up and draws
+     * game (and the fire may spread with the wind).
+     */
+    private fun burnOff(weather: Weather) {
+        for (g in groups) {
+            if (!g.alive || !g.species.human) continue
+            val p = g.place
+            val dry = land.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.green[p] < 0.4f
+            if (dry && land.herb[p] > 0.3f && land.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF) { land.ignite(p); meetings.merge("bands burned off grass", 1, Int::plus) }
+        }
     }
 
     /** Strongest hunting party in each place last week, and its kind's index (-1 for none). */

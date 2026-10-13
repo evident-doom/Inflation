@@ -47,6 +47,12 @@ const val LARDER_SPOIL = 0.01f
 const val START_LARDER_DAYS = 30f
 /** Share of its larder a band gives one that is going hungry, when they meet. */
 const val BAND_GIFT = 0.3f
+/** How many times the small game a band's snare lines and nets catch against a pack. */
+const val SNARES = 2f
+/** Chance a band burns off the dry grass around its camp in a dry-season week, to bring up green grass that draws game. */
+const val BURN_OFF = 0.1f
+/** How much a camp fire through the night keeps lions and hyenas from taking people. */
+const val CAMPFIRE = 0.7f
 /** Soil water below which a herd is in a dry spell, mm; rain ahead that promises relief, mm a week. */
 const val DRY_SOIL_MM = 40f
 const val RAIN_AHEAD_MM = 20f

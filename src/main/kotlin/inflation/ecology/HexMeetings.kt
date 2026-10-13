@@ -90,10 +90,18 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         for (h in g.path) {
             val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
             val swept = min(land.areaKm2[p], sweptKm2(s) / g.path.size.coerceAtLeast(1))
-            if (smallWant - gotSmall > 0f) gotSmall += this.small.catchSmall(p, (smallWant - gotSmall) / swept, weather) * swept
+            // Bands set snare lines and nets across the ground: twice the small game a pack would catch.
+            val snares = if (s.human) SNARES else 1f
+            if (smallWant - gotSmall > 0f) gotSmall += this.small.catchSmall(p, (smallWant - gotSmall) / swept * snares, weather) * swept
             if (scraps - gotScraps > 0f) gotScraps += this.small.scavenge(p, min((scraps - gotScraps) / (swept * 1e6f), 0.5f * this.small.carrion[p])) * swept * 1e6f
             // Bone-crackers live on what the others leave long after the meat is gone.
             if (Niches.cracksBones(s) && scraps - gotScraps > 0f) gotScraps += this.small.crackBones(p, min((scraps - gotScraps) / (swept * 1e6f), 0.5f * this.small.bones[p])) * swept * 1e6f
+        }
+        // A band short of meat fishes the river, the lake or the sea shore by its camp.
+        if (s.human && got < need) {
+            val caught = fauna.water.fishFor(hw.placeHex[g.place], need - got)
+            got += caught
+            hunting.merge("${s.name}:fish, kg", caught.toInt(), Int::plus)
         }
         // Omnivorous hunters (jackals, hyenas) eat fruit and roots as well, where they end the week;
         // bands gather them over all the ground they walked, the women's and children's day round.
@@ -347,7 +355,8 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         weak.meatMet -= taken; strong.meatMet += taken
         meetings.merge("kill stolen", 1, Int::plus)
     }
-    if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land))) {
+    val fire = if (weak.species.human) 1f - CAMPFIRE else 1f
+    if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land))) {
         weak.adults--
         strong.meatMet += 0.5f * weak.species.massKg
         deaths.merge("${weak.species.name}:killed by ${strong.species.name}", 1, Int::plus)
