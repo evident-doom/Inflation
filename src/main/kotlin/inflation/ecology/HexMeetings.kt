@@ -88,8 +88,13 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
             if (smallWant - gotSmall > 0f) gotSmall += this.small.catchSmall(p, (smallWant - gotSmall) / swept, weather) * swept
             if (scraps - gotScraps > 0f) gotScraps += this.small.scavenge(p, min((scraps - gotScraps) / (swept * 1e6f), 0.5f * this.small.carrion[p])) * swept * 1e6f
         }
-        val wantAll = g.dailyNeedKg * days * (s.diet.meat + s.diet.smallPrey + s.diet.carrion).coerceAtLeast(1e-6f)
-        g.fed = ((min(got, need) + gotSmall + gotScraps) / wantAll).coerceIn(0f, 1f)
+        // Omnivorous hunters (jackals, hyenas) eat fruit and roots as well, where they end the week.
+        val d = s.diet
+        val plantWant = g.dailyNeedKg * days * (d.fruit + d.roots) / (land.areaKm2[g.place] * 1e6f)
+        val plants = if (plantWant > 0f) (fauna.food.take(fauna.food.fruit, g.place, plantWant * d.fruit / (d.fruit + d.roots)) +
+            fauna.food.take(fauna.food.roots, g.place, plantWant * d.roots / (d.fruit + d.roots))) * land.areaKm2[g.place] * 1e6f else 0f
+        val wantAll = g.dailyNeedKg * days * (d.meat + d.smallPrey + d.carrion + d.fruit + d.roots).coerceAtLeast(1e-6f)
+        g.fed = ((min(got, need) + gotSmall + gotScraps + plants) / wantAll).coerceIn(0f, 1f)
         // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
         val p = g.place
         small.carrion[p] += max(0f, got - need) / (land.areaKm2[p] * 1e6f)

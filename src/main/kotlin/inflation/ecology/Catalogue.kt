@@ -95,7 +95,7 @@ object Catalogue {
     val BOAR = Species(
         name = "wild boar", massKg = 80f,
         fearOfPeople = 0.6f, boldShare = 0.1f,
-        diet = Diet(grass = 0.2f, browse = 0.1f, roots = 0.5f, fruit = 0.2f),
+        diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.45f, fruit = 0.2f, smallPrey = 0.05f, carrion = 0.05f),
         groupSize = 6, maxGroupSize = 20,
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 2, waterFromFood = 0.4f,
@@ -271,7 +271,7 @@ object Catalogue {
     val HYENA = Species(
         name = "striped hyena", massKg = 35f,
         fearOfPeople = 0.5f, boldShare = 0.1f,
-        diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.65f),
+        diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.55f, fruit = 0.1f),
         groupSize = 2, maxGroupSize = 5,
         dailyTravelKm = 12f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
@@ -293,7 +293,7 @@ object Catalogue {
     val JACKAL = Species(
         name = "jackal", massKg = 10f,
         fearOfPeople = 0.4f, boldShare = 0.15f,
-        diet = Diet(meat = 0.1f, smallPrey = 0.6f, carrion = 0.3f),
+        diet = Diet(meat = 0.1f, smallPrey = 0.5f, carrion = 0.25f, fruit = 0.15f),
         groupSize = 2, maxGroupSize = 6,
         dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 4f,
         daysWithoutWater = 4, waterFromFood = 0.6f,

@@ -96,6 +96,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return exp(-(s.discomfortC(hw.placeTemp(p, m), m) + s.discomfortC(hw.placeTemp(p, m1), m1)) / 10f)
     }
 
+    /** Share of [s]'s diet that is plants. */
+    fun plantShare(s: Species): Float {
+        val d = s.diet
+        val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
+        return if (all <= 0f) 1f else (d.grass + d.browse + d.fruit + d.roots) / all
+    }
+
     /** Whether [s] is asleep in its winter den in place [p]: kinds that hibernate, in the cold. */
     fun asleep(s: Species, p: Int, weather: Weather) = s.hibernates && weather.temperature[p] < HIBERNATE_C
 
@@ -212,7 +219,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             for ((k, s) in kinds.withIndex()) {
                 val heads = adults[k][p] + 0.5f * young[k][p]
                 // Bears asleep through the cold eat nothing.
-                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * days / 1e6f // kg per m2 this week
+                // (Only the plant part of the diet here; omnivores' small prey and carrion below.)
+                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * days / 1e6f * plantShare(s) // kg per m2 this week
                 avail[k] = HexFood.access(s, land.ruggedness[p]) * tether(s, p)
                 val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
                 val snowed = weather.snowpack[p] > s.snowLimitMm
@@ -248,7 +256,22 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val rs = if (wantStraw > 0f) min(1f, food.straw[p] / wantStraw) else 1f
             for ((k, s) in kinds.withIndex()) {
                 val strawPart = if (need[k] > 0f) short[k] / need[k] * min(1f, GUT_FILL * HexFood.roughage(s)) * min(1f, avail[k] * rs) else 0f
-                var f = if (asleep(s, p, weather)) autumnFed[k][p] else (got[k] + strawPart).coerceIn(0f, 1f)
+                var f = if (asleep(s, p, weather)) autumnFed[k][p] else {
+                    // Omnivores: the rest of the diet is small animals they catch and carrion they find.
+                    val ps = plantShare(s)
+                    var animal = 0f
+                    if (ps < 1f && need[k] > 0f) {
+                        val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
+                        val needKg = need[k] / ps // all of the diet, kg per m2
+                        val smallWant = needKg * (d.smallPrey + d.meat) / all
+                        val carrionWant = needKg * d.carrion / all
+                        val gotSmall = small.catchSmall(p, smallWant * 1e6f * avail[k], weather) / 1e6f
+                        val gotCarrion = small.scavenge(p, min(carrionWant, 0.5f * small.carrion[p]))
+                        animal = (gotSmall + gotCarrion) / (needKg * (1f - ps))
+                        small.dung[p] += HexSmallLife.DUNG * (gotSmall + gotCarrion)
+                    }
+                    ((got[k] + strawPart) * ps + min(1f, animal) * (1f - ps)).coerceIn(0f, 1f)
+                }
                 // Reserves carry them through lean weeks; they lay them on in good ones, most in late summer and autumn.
                 val r = reserve[k]
                 if (f < 1f) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days) }

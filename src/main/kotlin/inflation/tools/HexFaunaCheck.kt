@@ -126,6 +126,8 @@ fun main(args: Array<String>) {
             "%s %.0f / %.0f".format(s.name, born, died)
         })
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
+        println("     droughts under way: " + sim.weather.droughts())
+        System.out.flush()
         println("     this week: kills " + herds.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + herds.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
     println("deaths over the run, by cause:")
