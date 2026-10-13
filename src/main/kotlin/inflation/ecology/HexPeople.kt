@@ -110,6 +110,8 @@ class Band {
     val grudge = FloatArray(LINEAGES)
     /** Of its adults, the elders: past bearing children, helping their daughters raise theirs. */
     var elders = 0
+    /** Animals it keeps, by kind ([Species.index]): wolf pups taken from bold packs become dogs. */
+    var kept = FloatArray(0)
     /** The country it knows, a bit for each hex: walked, seen from where it walked, or told of by bands it understands. */
     var known = LongArray(0)
 
@@ -123,7 +125,7 @@ class Band {
     fun copyInto(o: Band) {
         craft.copyInto(o.craft); making.copyInto(o.making); kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
-        o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf()
+        o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
     }
 
     /** How well the band does at [f], against a master: from [CRAFT_FLOOR] untrained to 1. */
@@ -131,9 +133,12 @@ class Band {
     fun practise(f: Forage) { craft[f.ordinal] += PRACTICE * (1f - craft[f.ordinal]) }
     fun has(t: Tool) = kit[t.ordinal]
 
-    /** How its weapons and hunting skill do against [prey], against an ordinary armed, practised band (1). */
+    /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species) =
-        skill(Forage.HUNT) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + BOW_GAIN * has(Tool.BOW) * min(1f, prey.speedKmh / 70f))
+        skill(Forage.HUNT) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + BOW_GAIN * has(Tool.BOW) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
+
+    /** Its dogs against its hunters (one to three a full pack): they track, bay and hold game, and bark at night. */
+    var dogShare = 0f
 
     /** Its people's fighting weight per kg: with spears and bows lions and hyenas give way; without, they are no match. */
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))
@@ -209,6 +214,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         if (b.cacheKg < 1f) dropCache(b)
     }
     buildKite(g, b)
+    keepAnimals(g, b)
     val people = g.adults.toFloat()
     val gd = b.goods
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
@@ -259,6 +265,42 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     for (i in b.making.indices) b.making[i] *= 1f - forget
 }
 
+/**
+ * Packs of kinds that follow people (wolves, jackals) and live by a band's camps grow bolder over
+ * generations, the shy ones keeping away; from a bold pack the band now and then takes a pup and
+ * raises it. Its dogs breed when the band eats well, help it hunt and guard its camp.
+ */
+private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
+    val years = days / inflation.world.Date.DAYS_PER_YEAR.toFloat()
+    val h = hw.placeHex[g.place]
+    for (o in followersByHex[h].orEmpty()) {
+        if (!o.alive) continue
+        val s = o.species
+        val bold = boldness(o)
+        o.bold = bold + BOLD_DRIFT * (1f - bold)
+        val tameable = s.domestication.average().toFloat()
+        if (o.young > 0 && rnd.nextFloat() < TAME * bold * tameable * years) {
+            o.young--
+            if (b.kept.size < Catalogue.all.size) b.kept = b.kept.copyOf(Catalogue.all.size)
+            b.kept[s.index] += 1f
+            meetings.merge("bands took a ${s.name} pup", 1, Int::plus)
+        }
+    }
+    if (b.kept.isEmpty()) return
+    var dogs = 0f
+    for (i in b.kept.indices) {
+        val k = b.kept[i]
+        if (k <= 0f) continue
+        val cap = DOGS_PER_ADULT * g.adults
+        b.kept[i] = max(0f, k + k * (DOG_GROWTH * g.fed * (1f - k / max(1f, cap)) - DOG_DEATHS) * years)
+        dogs += b.kept[i]
+    }
+    b.dogShare = min(1f, dogs / max(1f, g.adults / 3f))
+}
+
+/** A group's boldness towards people: its kind's share until it has lived by them. */
+internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g.bold
+
 /** Gives up a band's cache: what is in it goes back to the ground. */
 private fun HexGroups.dropCache(b: Band) {
     if (b.cachePlace >= 0) small.litter[b.cachePlace] += b.cacheKg / (land.areaKm2[b.cachePlace] * 1e6f)
@@ -299,6 +341,18 @@ internal fun HexGroups.teach(a: Band, b: Band, understood: Float) {
 /** How much a band is put off country it does not know (beside the pull of better country it senses); hexes round its first camp it knows from the start. */
 const val UNKNOWN_COUNTRY = 0.2f
 const val KNOWN_AT_START = 3
+
+/** Taming: weekly drift towards boldness of a pack that lives by people's camps (centuries, not years); yearly chance a band takes a pup from such a pack, at full boldness and tameability. */
+const val BOLD_DRIFT = 0.0003f
+const val TAME = 0.5f
+/** Dogs: yearly growth of a band's dogs when fed, their yearly deaths, most a band keeps per adult; how much a full pack of dogs adds to the hunt and keeps off night attacks. */
+const val DOG_GROWTH = 0.4f
+const val DOG_DEATHS = 0.1f
+const val DOGS_PER_ADULT = 0.3f
+const val DOG_HUNT = 0.2f
+const val DOG_GUARD = 0.5f
+/** How strongly people's camps draw bold animals of kinds that follow people (refuse, scraps, warmth). */
+const val CAMP_LURE = 0.3f
 
 /** Share of a cache lost each week to damp, mice and thieves. */
 const val CACHE_SPOIL = 0.02f

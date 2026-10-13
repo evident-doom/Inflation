@@ -211,6 +211,7 @@ class HexGroups(
 
     /** Head count of each kind in each place this week, and each species' slot in [kinds]. */
     internal val headsHere by lazy { Array(kinds.size) { IntArray(n) } }
+    private val peopleSlot by lazy { kinds.indexOfFirst { it.human } }
     internal val kindSlot by lazy { IntArray(Catalogue.all.size) { i -> kinds.indexOfFirst { it.index == i }.coerceAtLeast(0) } }
 
     private fun valuePlaces() {
@@ -249,6 +250,9 @@ class HexGroups(
             if (dry && land.herb[p] > 0.3f && land.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF) { land.ignite(p); meetings.merge("bands burned off grass", 1, Int::plus) }
         }
     }
+
+    /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
+    internal var followersByHex: Map<Int, List<HexGroup>> = emptyMap()
 
     /** Desert kites in each place, 0..1 built: long low walls funnelling open-country herds into a pen or pits. They stand for generations. */
     val kites = FloatArray(n)
@@ -356,6 +360,8 @@ class HexGroups(
                 }
                 score += BEARING_PULL * pull
                 if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
+                // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
+                if (s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, headsHere[peopleSlot][p] / 25f)
                 // Bands keep to country they know; what lies beyond they know only as a sense of better land.
                 g.band?.let { b -> if (!b.knows(h)) score -= UNKNOWN_COUNTRY }
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.

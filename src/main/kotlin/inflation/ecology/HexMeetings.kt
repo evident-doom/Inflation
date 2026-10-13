@@ -392,7 +392,8 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         weak.meatMet -= taken; strong.meatMet += taken
         meetings.merge("kill stolen", 1, Int::plus)
     }
-    val fire = if (weak.species.human) 1f - CAMPFIRE else 1f
+    // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
+    val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
     if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land))) {
         weak.adults--
         strong.meatMet += 0.5f * weak.species.massKg

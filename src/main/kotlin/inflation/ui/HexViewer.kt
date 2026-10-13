@@ -510,6 +510,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             sb.appendLine("making: " + inflation.ecology.Making.entries.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.making[it.ordinal]) })
             sb.appendLine("tools: " + inflation.ecology.Tool.entries.filter { b.knows[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
             sb.appendLine("elders %d; children inbred %.3f; descent mostly lineage %d".format(b.elders, b.inbred, b.mainLineage()))
+            if (b.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") { "%.0f %s".format(it.value, if (inflation.ecology.Catalogue.all[it.index].name == "wolf") "dogs" else "tame " + inflation.ecology.Catalogue.all[it.index].name) })
             sb.appendLine("customs: " + inflation.ecology.Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }.ifEmpty { "none" })
             sb.appendLine("goods: " + inflation.ecology.Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it.ordinal]) })
         }

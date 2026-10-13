@@ -96,6 +96,7 @@ internal fun HexGroups.graze(weather: Weather) {
 
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
+    followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
     for (g in groups) if (g.alive && g.band != null) { bandWeek(g, date); cultureWeek(g) }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
@@ -139,7 +140,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             val share = (c.first + c.second).toFloat() / (g.size + c.first + c.second).coerceAtLeast(1)
             n.larder = g.larder * share; g.larder -= n.larder
             // Both halves keep what the band knew and share out its tools and goods.
-            g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
+            n.bold = g.bold
+            g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }; for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
                 nb.elders = b.elders * c.first / (g.adults + c.first).coerceAtLeast(1); b.elders -= nb.elders } }
             g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
         } } // a young pack has no ground yet

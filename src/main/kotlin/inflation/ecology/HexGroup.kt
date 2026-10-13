@@ -29,6 +29,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** For a band: food stored, kg (dried meat, nuts, acorns, seeds, roots); its skills, tools and camp. */
     var larder = 0f
     var band: Band? = null
+    /** For kinds that follow people's camps: the share of it bold enough to come close, 0..1 (-1 until first needed: its kind's share). */
+    var bold = -1f
     /** How wary it is from being hunted lately, 0..1: it keeps a sharper watch, and fades over weeks. */
     var wary = 0f
     val dailyNeedKg get() = species.dailyIntakeKg * (adults + 0.5f * young)

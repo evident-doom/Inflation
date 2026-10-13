@@ -190,6 +190,7 @@ fun main(args: Array<String>) {
                 " | customs " + inflation.ecology.Tradition.entries.joinToString(", ") { t -> "%s %.0f%%".format(t.name.lowercase(), 100.0 * bs.count { it.holds(t) } / bs.size) } +
                 " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1), bs.map { it.inbred.toDouble() }.average()) +
                 " | kites %d, animals taken in drives this year %d, caches %d".format(herds.kites.count { it >= 1f }, huntYear["people:kills in kite drives"] ?: 0, bs.count { it.cachePlace >= 0 }) +
+                " | dogs %.0f in %d bands, wolf packs' boldness %.2f".format(bs.sumOf { it.kept.sum().toDouble() }, bs.count { it.kept.sum() >= 1f }, herds.groups.filter { it.alive && it.species.followsPeople && !it.species.human }.map { inflation.ecology.boldness(it).toDouble() }.average()) +
                 " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * sim.hex.hexKm * sim.hex.hexKm * 0.866) +
                 " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(), bands.map { it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f) }.average()))
         }
