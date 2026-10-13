@@ -53,6 +53,7 @@ class World(
             val geology = Geology.bedrock(grid, tect, noise)
             Volcanism.applyRock(grid, geology, volcanoes, noise)
 
+            escarpments(grid, noise, elevation)
             log("erosion and sediment (${cfg.erosionSteps} steps of ${cfg.erosionStepYears.toInt()} years)")
             val seaAtStart = seaMask(grid, elevation)
             val sediment = Erosion.run(grid, elevation, tect.uplift, geology.erodibility(), cfg.erosionSteps, cfg.erosionStepYears, cfg.seed,
@@ -107,13 +108,23 @@ class World(
                 val rift = if (conv < 0 && tect.isContinental(i)) conv * 12_000.0 * exp(-tect.boundaryDistKm[i] / 12.0) else 0.0
                 // Coastal plains and deltas stay flat; warping grows with height.
                 val warp = 35.0 * noise.fbm(x - 3001, y + 1999, 60.0 / grid.cellKm, 3) * (elevation[i] / 40.0).coerceIn(0.0, 1.0)
-                // Escarpments: in faulted provinces the land is tilted into blocks, each rising gently to
-                // a scarp and dropping sharply to the next (cuestas, fault scarps), some tens to a few
-                // hundred metres high.
+                if (elevation[i] > 0f) elevation[i] = (elevation[i] + rift + warp).toFloat()
+            }
+        }
+
+        /**
+         * Escarpments: in faulted provinces the land is tilted into blocks, each rising gently to a
+         * scarp and dropping sharply to the next (cuestas, fault scarps), some tens to a few hundred
+         * metres high. They are made before erosion, so rivers cut gorges through them and the
+         * scarps stand between.
+         */
+        private fun escarpments(grid: Grid, noise: Noise, elevation: FloatArray) {
+            for (i in 0 until grid.size) {
+                if (elevation[i] !in 30f..2500f) continue
+                val x = grid.x(i).toDouble(); val y = grid.y(i).toDouble()
                 val faulted = ((noise.fbm(x + 777, y - 555, SCARP_PROVINCE_KM / grid.cellKm, 2) - 0.1) / 0.3).coerceIn(0.0, 1.0)
                 val blocks = noise.fbm(x - 123, y + 321, SCARP_SPACING_KM / grid.cellKm, 2) / SCARP_BAND
-                val scarp = if (elevation[i] in 30f..2500f) SCARP_M * faulted * (blocks - kotlin.math.floor(blocks)) else 0.0
-                if (elevation[i] > 0f) elevation[i] = (elevation[i] + rift + warp + scarp).toFloat()
+                elevation[i] += (SCARP_M * faulted * (blocks - kotlin.math.floor(blocks))).toFloat()
             }
         }
 
