@@ -656,6 +656,7 @@ class Ecology(private val sim: Simulation) {
                 if (g.alive) plan(g, k, scratch.get()) else planX[k] = Double.NaN
             }
         }
+        timed("meet") { meetings(size) }
         for (k in 0 until size) {
             val g = groups[k]
             if (!g.alive) continue
@@ -691,6 +692,128 @@ class Ecology(private val sim: Simulation) {
 
     private var planX = DoubleArray(0)
     private var planY = DoubleArray(0)
+
+    // ---------------------------------------------------------------- meetings along the way
+
+    /** This week's meetings by kind, and how many of them ending positions alone would have missed. */
+    val meetings = java.util.TreeMap<String, Int>()
+    val meetingsMissed = java.util.TreeMap<String, Int>()
+
+    /** How far the eyes, noses, scouts and sentries of [g] reach where it stands, km: far over open country, near in forest and broken ground. */
+    fun sphereKm(g: AnimalGroup): Float {
+        val view = (SPHERE_SHARE * terrain.viewKm[cellOf(g)]).coerceIn(SPHERE_MIN, SPHERE_MAX)
+        return if (g.species.human) SCOUTS * view else view
+    }
+
+    /** Where [g] is a share [t] of the way along this week's [path] (null: it stays), in cells. */
+    private fun at(path: FloatArray?, g: AnimalGroup, t: Float, out: DoubleArray) {
+        if (path == null) { out[0] = g.x; out[1] = g.y; return }
+        var total = 0.0
+        for (j in 0 until path.size / 2 - 1) total += dist((path[2 * j + 2] - path[2 * j]).toDouble(), (path[2 * j + 3] - path[2 * j + 1]).toDouble())
+        var left = t * total
+        for (j in 0 until path.size / 2 - 1) {
+            val len = dist((path[2 * j + 2] - path[2 * j]).toDouble(), (path[2 * j + 3] - path[2 * j + 1]).toDouble())
+            if (left <= len && len > 0) {
+                val f = left / len
+                out[0] = path[2 * j] + (path[2 * j + 2] - path[2 * j]) * f; out[1] = path[2 * j + 1] + (path[2 * j + 3] - path[2 * j + 1]) * f
+                return
+            }
+            left -= len
+        }
+        out[0] = path[path.size - 2].toDouble(); out[1] = path[path.size - 1].toDouble()
+    }
+
+    /** What kind of meeting groups of kinds [a] and [b] make, or null if it matters to neither. */
+    private fun meetingKind(a: Species, b: Species): String? = when {
+        a.human && b.human -> "bands"
+        a.human && b.carnivore || b.human && a.carnivore -> "band-hunter"
+        a.human || b.human -> "band-game"
+        a.carnivore && b.carnivore -> if (a == b) "rival hunters" else null
+        a.carnivore || b.carnivore -> "hunter-prey"
+        else -> null
+    }
+
+    /**
+     * Who meets whom this week: each move as a path (waypoint by waypoint, or straight across open
+     * ground), sampled through the week; two groups meet where, at the same moment, one comes
+     * within the sphere of the other. Groups staying put are where they are all week. One geometry
+     * pass over the spatial buckets; for now the meetings are only counted.
+     */
+    private fun meetings(size: Int) {
+        meetings.clear(); meetingsMissed.clear()
+        val paths = arrayOfNulls<FloatArray>(size)
+        val movers = ArrayList<Int>()
+        for (k in 0 until size) {
+            val g = groups[k]
+            if (!g.alive || planX[k].isNaN()) continue
+            paths[k] = g.route?.let { r -> FloatArray(r.size + 2).also { p -> p[0] = g.x.toFloat(); p[1] = g.y.toFloat(); r.copyInto(p, 2) } }
+                ?: floatArrayOf(g.x.toFloat(), g.y.toFloat(), planX[k].toFloat(), planY[k].toFloat())
+            movers += k
+        }
+        // Moving hunters, bands and migratory herds by moment and bucket; those staying put are in the usual buckets.
+        val slices = Array(MEET_SAMPLES + 1) { HashMap<Int, ArrayList<Int>>() }
+        val p = DoubleArray(2)
+        for (k in movers) {
+            val g = groups[k]
+            if (!(g.species.carnivore || g.species in Catalogue.migratory)) continue
+            for (s in 0..MEET_SAMPLES) {
+                at(paths[k], g, s.toFloat() / MEET_SAMPLES, p)
+                slices[s].getOrPut(bucketIndex(p[0], p[1])) { ArrayList() } += k
+            }
+        }
+        // Each hunter and band looks along its own way, in parallel; the pairs are gathered after.
+        val found = java.util.concurrent.ConcurrentHashMap<Long, String>()
+        val ns = Catalogue.all.size
+        val matters = BooleanArray(ns * ns) { meetingKind(Catalogue.all[it / ns], Catalogue.all[it % ns]) != null }
+        // Everyone staying put, of every kind, in one set of buckets.
+        val still = HashMap<Int, ArrayList<Int>>()
+        for (k in 0 until size) { val g = groups[k]; if (g.alive && paths[k] == null) still.getOrPut(bucketIndex(g.x, g.y)) { ArrayList() } += k }
+        java.util.stream.IntStream.range(0, size).parallel().forEach { k ->
+            val g = groups[k]
+            if (!g.alive || !g.species.carnivore) return@forEach // hunters and bands look; herds are found
+            val r = sphereKm(g)
+            val p = DoubleArray(2); val q = DoubleArray(2)
+            for (s in 0..MEET_SAMPLES) {
+                at(paths[k], g, s.toFloat() / MEET_SAMPLES, p)
+                // Those staying put: a looker that stays sees them once.
+                val bx = (p[0] * cellKm / bucketKm).toInt(); val by = (p[1] * cellKm / bucketKm).toInt()
+                val rb = ceil((r + SPHERE_MAX) / bucketKm).toInt()
+                val row = g.species.index * ns
+                for (yy in max(0, by - rb)..min(bh - 1, by + rb)) for (xx in max(0, bx - rb)..min(bw - 1, bx + rb)) {
+                    // Those staying put: a looker that stays sees them once.
+                    if (paths[k] != null || s == 0) still[yy * bw + xx]?.let { list ->
+                        for (j in list) {
+                            val o = groups[j]
+                            if (j == k || !matters[row + o.species.index]) continue
+                            if (dist(o.x - p[0], o.y - p[1]) * cellKm > r + sphereKm(o)) continue
+                            note(found, g, o, k, j)
+                        }
+                    }
+                    val list = slices[s][yy * bw + xx] ?: continue
+                    for (j in list) {
+                        if (j == k) continue
+                        val o = groups[j]
+                        at(paths[j], o, s.toFloat() / MEET_SAMPLES, q)
+                        if (dist(q[0] - p[0], q[1] - p[1]) * cellKm > r + sphereKm(o)) continue
+                        note(found, g, o, k, j)
+                    }
+                }
+            }
+        }
+        for ((key, kind) in found) {
+            meetings.merge(kind, 1, Int::plus)
+            val ka = (key ushr 32).toInt(); val kb = (key and 0xffffffffL).toInt()
+            val a = groups[ka]; val b = groups[kb]
+            val ax = if (planX[ka].isNaN()) a.x else planX[ka]; val ay = if (planX[ka].isNaN()) a.y else planY[ka]
+            val bx = if (planX[kb].isNaN()) b.x else planX[kb]; val by = if (planX[kb].isNaN()) b.y else planY[kb]
+            if (dist(ax - bx, ay - by) * cellKm > sphereKm(a) + sphereKm(b)) meetingsMissed.merge(kind, 1, Int::plus)
+        }
+    }
+
+    private fun note(found: MutableMap<Long, String>, a: AnimalGroup, b: AnimalGroup, ka: Int, kb: Int) {
+        val kind = meetingKind(a.species, b.species) ?: return
+        found.putIfAbsent((min(ka, kb).toLong() shl 32) or max(ka, kb).toLong(), kind)
+    }
     /** Mean moonlight over this week's nights, 0 (new moon) to 1 (full). */
     private var moonlight = 0.5f
 
@@ -2820,6 +2943,12 @@ class Ecology(private val sim: Simulation) {
         const val HOME_RANGE = 1.5f
         /** Intake below which a herd will weigh a forced march to new country. */
         const val MARCH_HUNGER = 0.6f
+        /** Spheres of influence: share of the view over the land a group watches; least and most, km; how much farther the scouts of a band reach; moments sampled through the week. */
+        const val SPHERE_SHARE = 0.3f
+        const val SPHERE_MIN = 1f
+        const val SPHERE_MAX = 8f
+        const val SCOUTS = 1.5f
+        const val MEET_SAMPLES = 4
         /** Most effort a group weighs spending on a week's move, as a multiple of its forced-march reach over flat ground. */
         const val ROUTE_BUDGET = 1.5f
         /** Intake below which a resident herd shifts its range; how far young residents disperse, in ranges. */
