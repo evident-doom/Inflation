@@ -38,6 +38,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val fed = Array(kinds.size) { FloatArray(n) { 1f } }
     /** The soil life and small animals the herds live among. */
     val small = HexSmallLife(hw, land, days)
+    /** Each kind's sense of where better country lies. */
+    val bearings = HexBearings(hw, kinds, { s, p, m ->
+        val food = foodFor(s, p) * min(1.5f, suits(s, p)) / 1.5f
+        food / (food + 0.3f) * tether(s, p) * monthFit(s, p, m)
+    }, { s -> val k = kinds.indexOf(s); (0 until n).any { adults[k][it] > 0f } })
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
     val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals. */
@@ -77,6 +82,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return exp(-worst / 5f)
     }
 
+    /** How well the normal temperatures of month [m] and the next at place [p] suit [s]'s coat, 0..1. */
+    fun monthFit(s: Species, p: Int, m: Int): Float {
+        val coat = if (s.winterCoat) 10f else 0f
+        var dev = 0f
+        for (mm in intArrayOf(m, (m + 1) % 12)) { val t = hw.placeTemp(p, mm); dev += max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive) }
+        return exp(-dev / 10f)
+    }
+
     fun suits(s: Species, p: Int): Float {
         val h = s.habitat
         val cover = min(1f, land.shrub[p] / 2f + land.canopy(p))
@@ -110,6 +123,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun step(weather: Weather, date: Date) {
         deaths.clear()
         carcassKg.fill(0f)
+        if (bearings.month != date.month) bearings.update(date.month)
         graze(weather)
         breedAndDie(weather, date)
         shiftBands(weather)
@@ -243,8 +257,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
                 val need = (1f - f[p]).coerceIn(0f, 1f)
-                val leave = SPILL_BASE + SPILL_HUNGER * need
                 val h = hw.placeHex[p]; val b = hw.placeBand[p]
+                // Hungry ones leave, and so do those whose country does not suit them, towards better.
+                val leave = SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k, h)
                 // Where they could go: the same height band in each neighbouring hex, weighed by food and how easy the border is.
                 var total = 0f
                 val ws = FloatArray(6)
@@ -256,7 +271,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val e = cross[h * 6 + d]
                     if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
-                    ws[d] = ease * (foodFor(s, q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f)
+                    ws[d] = ease * (foodFor(s, q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     total += ws[d]
                 }
                 if (total <= 0f) continue
@@ -298,5 +313,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         /** Weekly share spilling to neighbouring hexes anyway, and more when hungry. */
         const val SPILL_BASE = 0.005f
         const val SPILL_HUNGER = 0.1f
+        /** Share a week that leaves country that does not suit it, at full strength of the bearing; how strongly the bearing steers them. */
+        const val SPILL_MISFIT = 0.05f
+        const val BEARING_SPILL = 3f
     }
 }

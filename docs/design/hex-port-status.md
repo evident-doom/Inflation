@@ -134,19 +134,23 @@ middens, worn routes, crowding sickness. (The plants can already take a fire peo
 - Height bands inside each hex, with animals moving between them.
 - Border crossings graded by way of travelling, with rivers on hex edges.
 - Meetings timetabled within the week, which can cut a group's week short.
+- A sense of direction for every kind (`HexBearings`): each month, the way to better country it
+  knows of within 60 km, peaks it can see out to 200 km (standing for their massifs), and a pull
+  toward cooler or warmer country when the month is wrong for its coat. Groups trek when far out of
+  their country (packs leave their ground); resident kinds spill that way. The check's `--uniform`
+  starts every kind spread evenly, and `-Dhex.noBearings` turns the sense off for comparison.
 
 ## Biggest gaps, in rough order
 
 1. People.
-2. A sense of direction to better country: climate and biome pull, far landmarks in sight.
-3. Wariness, boldness, vigilance and hiding.
-4. Stealing kills, bigger hunters killing smaller, scent marks, moonlight.
-5. Fish and sea life; crocodiles and eagles.
-6. Volcanoes and ash.
-7. Animals trampling, rooting and carrying seed (the plants are ready for it).
-8. Fire killing and driving animals; green flush after fire.
-9. Breeding season shifting, hibernation, outbreaks.
-10. Dams, canals and irrigation.
+2. Wariness, boldness, vigilance and hiding.
+3. Stealing kills, bigger hunters killing smaller, scent marks, moonlight.
+4. Fish and sea life; crocodiles and eagles.
+5. Volcanoes and ash.
+6. Animals trampling, rooting and carrying seed (the plants are ready for it).
+7. Fire killing and driving animals; green flush after fire.
+8. Breeding season shifting, hibernation, outbreaks.
+9. Dams, canals and irrigation.
 
 Done since the first list: drinking water, springs and thirst; soil life; the small life
 (insects, rodents, reptiles, pollinators, hares, hyrax, birds, tortoises, foxes, vultures).
