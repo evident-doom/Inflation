@@ -82,6 +82,18 @@ fun main(args: Array<String>) {
         val huntYear = java.util.TreeMap<String, Int>(); val fedSum = HashMap<String, Double>(); val groupWeeks = HashMap<String, Int>()
         repeat(stepsPerYear) { w ->
             if (w == stepsPerYear / 2) println("     midsummer, land that suits / pull felt: " + drawn())
+            System.getProperty("hex.huntDiag")?.let { kind ->
+                if (w % 13 == 6) {
+                    // Packs of the kind that went hungry this week against those that ate, and their ground.
+                    val gs = herds.groups.filter { it.alive && it.species.name == kind }
+                    val (hungry, fed) = gs.partition { it.fed < 0.5f }
+                    fun ground(l: List<inflation.ecology.HexGroup>) = if (l.isEmpty()) "-" else "resident game %.0f kg/km², young per pack %.1f, holding ground %.0f%%, cover %.2f, water %.1f km, band %.1f".format(
+                        l.map { g -> fauna.kinds.indices.sumOf { k -> ((fauna.adults[k][g.place] + fauna.young[k][g.place]) * fauna.kinds[k].massKg).toDouble() } }.average(),
+                        l.map { it.young.toDouble() }.average(), 100.0 * l.count { it.home >= 0 } / l.size,
+                        l.map { land.cover(it.place).toDouble() }.average(), l.map { land.waterKm[it.place].toDouble() }.average(), l.map { hw.placeBand[it.place].toDouble() }.average())
+                    println("     week $w $kind: ${hungry.size} of ${gs.size} packs hungry: ${ground(hungry)} | fed: ${ground(fed)}")
+                }
+            }
             if (System.getProperty("hex.fedDiag") != null && y == 1 && w % 13 == 6) {
                 // How well each resident kind is fed where it lives, and why: weighted by head count.
                 println("     week $w, residents: fed / share hungry / tether / access / green / reserve days")
