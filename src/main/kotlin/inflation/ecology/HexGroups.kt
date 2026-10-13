@@ -156,8 +156,12 @@ class HexGroups(
     private fun plan(g: HexGroup, weather: Weather, date: Date, kin: HashMap<Long, Int>, predatorKg: FloatArray): Pair<Int, IntArray> {
         val s = g.species
         val here = hw.placeHex[g.place]
-        val restless = g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm
-        val reach = (if (restless || s.carnivore) MARCH_SHARE * s.maxDailyTravelKm else s.dailyTravelKm) * days
+        // How far it will shift its ground this week. Most of a week's walking is within its range
+        // (grazing, patrolling); the net shift is a couple of days' going when content, more on a trek
+        // when hungry, cold or snowed in. A pack holding ground patrols it; a starving or homeless one roams.
+        val restless = if (s.carnivore) g.fed < 0.5f || g.home < 0
+            else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm
+        val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS
         val cross = hex.crossings[travel(s).ordinal]
         // Least effort to each hex within reach.
         val dist = HashMap<Int, Float>(); val via = HashMap<Int, Int>()
@@ -603,6 +607,8 @@ class HexGroups(
     companion object {
         /** Share of its fastest daily travel a group keeps up over a week of forced march. */
         const val MARCH_SHARE = 0.6f
+        /** Days of going a week's net shift amounts to, at the usual pace or a trek's. */
+        const val SHIFT_DAYS = 2f
         /** Prey, kg per km² weighed by catchability, at which a place is half as good as it gets for a hunter. */
         const val PREY_HALF = 200f
         /** How much herds shun hunters' ground. */

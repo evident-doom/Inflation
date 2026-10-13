@@ -285,3 +285,49 @@ object HexEvolve {
         return (sqrt(-2.0 * ln(u)) * cos(2.0 * PI * rnd.nextDouble())).toFloat()
     }
 }
+
+/**
+ * How the migratory herds use the heights through the year, with the networks in a directory (or
+ * the hand-written behaviour without one): each month, the mean elevation of each kind's herds
+ * and the share of them standing in deep snow, on a fresh lean world.
+ *
+ * Usage: hex-seasons [--nets DIR] [--seed N] [--size KM] [--years N]
+ */
+object HexSeasons {
+    @JvmStatic
+    fun main(args: Array<String>) {
+        var cfg = WorldConfig(seed = 991, widthKm = 600, heightKm = 600)
+        var nets: File? = null
+        var years = 2
+        var k = 0
+        while (k < args.size) {
+            when (args[k]) {
+                "--nets" -> nets = File(args[++k])
+                "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
+                "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
+                "--years" -> years = args[++k].toInt()
+                else -> error("unknown argument ${args[k]}")
+            }
+            k++
+        }
+        val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory }
+        val run = HexLearning.Run(cfg, kinds)
+        nets?.let { dir -> for (s in kinds) HexLearning.file(dir, s).takeIf { it.exists() }?.let { run.groups.policies[s] = HexLearning.NetPolicy(Mlp.load(it.readText())) } }
+        val stepsPerMonth = Date.DAYS_PER_MONTH / cfg.daysPerStep
+        println("month " + kinds.joinToString("") { "%18s".format(it.name.take(16)) })
+        repeat(years * 12) { m ->
+            val elev = DoubleArray(kinds.size); val snow = DoubleArray(kinds.size); val n = DoubleArray(kinds.size)
+            repeat(stepsPerMonth) {
+                run.step()
+                for (g in run.groups.groups) {
+                    if (!g.alive) continue
+                    val i = kinds.indexOf(g.species)
+                    elev[i] += run.hw.placeElevationM[g.place] * g.size.toDouble(); n[i] += g.size.toDouble()
+                    if (run.weather.snowpack[g.place] > g.species.snowLimitMm) snow[i] += g.size.toDouble()
+                }
+            }
+            println("%5d ".format(m % 12 + 1) + kinds.indices.joinToString("") { i -> if (n[i] > 0) "%9.0f m %5.1f%%".format(elev[i] / n[i], 100 * snow[i] / n[i]) else "%18s".format("-") })
+        }
+        println("at the end: " + kinds.joinToString(", ") { "${it.name} ${run.groups.count(it)}" })
+    }
+}

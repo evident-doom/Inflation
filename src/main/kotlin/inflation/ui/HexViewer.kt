@@ -21,8 +21,13 @@ import java.awt.event.MouseEvent
 import java.awt.event.MouseWheelEvent
 import java.awt.image.BufferedImage
 import java.util.concurrent.ConcurrentLinkedQueue
+import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComboBox
+import javax.swing.JList
+import javax.swing.JScrollPane
+import javax.swing.JSplitPane
+import javax.swing.JTextArea
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -82,8 +87,8 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     @Volatile private var running = false
     @Volatile private var stepsPerSecond = 2
 
-    /** What is drawn: per group its kind, the way it walked (km, x0 y0 x1 y1 ...), its size. */
-    private class Shown(val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int)
+    /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...), its size, and where it stands among the groups ending in its hex. */
+    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val slot: Int, val slots: Int)
     @Volatile private var shown = emptyList<Shown>()
     @Volatile private var frame = 0
     private var frames = 1
@@ -91,6 +96,13 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     private val counts = JLabel()
     private val residentChoice = JComboBox(arrayOf("(no resident tint)") + fauna.kinds.map { it.name }.toTypedArray())
     private val map = MapPanel()
+    /** The hex being inspected, -1 for none, and its groups. */
+    @Volatile private var picked = -1
+    private val info = JTextArea(14, 40).apply { isEditable = false; font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12) }
+    private val groupList = DefaultListModel<String>()
+    private val groupView = JList(groupList)
+    private val groupInfo = JTextArea(12, 40).apply { isEditable = false; font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12) }
+    private var groupIds = IntArray(0)
 
     init {
         val bar = JPanel()
@@ -100,7 +112,14 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         residentChoice.addActionListener { map.repaint() }
         bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(residentChoice); bar.add(date)
         val bottom = JPanel(); bottom.add(counts)
-        add(bar, BorderLayout.NORTH); add(map, BorderLayout.CENTER); add(bottom, BorderLayout.SOUTH)
+        val side = JPanel(BorderLayout())
+        side.add(JScrollPane(info), BorderLayout.NORTH)
+        side.add(JScrollPane(groupView), BorderLayout.CENTER)
+        side.add(JScrollPane(groupInfo), BorderLayout.SOUTH)
+        groupView.addListSelectionListener { showGroup() }
+        val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
+        split.resizeWeight = 0.75
+        add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(bottom, BorderLayout.SOUTH)
         snapshot()
         Thread(::loop, "hex simulation").apply { isDaemon = true }.start()
         Timer(33) { if (frame < frames) { frame++; map.repaint() } }.start()
@@ -113,14 +132,19 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
 
     private fun snapshot() {
         val list = ArrayList<Shown>(groups.groups.size)
+        // Groups ending the week in the same hex stand side by side.
+        val inHex = HashMap<Int, Int>(); val slotOf = HashMap<Int, Int>()
+        for (g in groups.groups) if (g.alive) { val h = hw.placeHex[g.place]; slotOf[g.id] = inHex.getOrDefault(h, 0); inHex.merge(h, 1, Int::plus) }
         for (g in groups.groups) {
             if (!g.alive) continue
-            val way = FloatArray(g.path.size * 2)
-            for ((i, h) in g.path.withIndex()) { val (x, y) = hex.centreKm(h); way[2 * i] = x.toFloat(); way[2 * i + 1] = y.toFloat() }
-            if (way.isEmpty()) { val (x, y) = hex.centreKm(hw.placeHex[g.place]); list += Shown(g.species.index, g.species.carnivore, floatArrayOf(x.toFloat(), y.toFloat()), g.size); continue }
-            list += Shown(g.species.index, g.species.carnivore, way, g.size)
+            val h = hw.placeHex[g.place]
+            val way = FloatArray(max(1, g.path.size) * 2)
+            if (g.path.isEmpty()) { val (x, y) = hex.centreKm(h); way[0] = x.toFloat(); way[1] = y.toFloat() }
+            for ((i, ph) in g.path.withIndex()) { val (x, y) = hex.centreKm(ph); way[2 * i] = x.toFloat(); way[2 * i + 1] = y.toFloat() }
+            list += Shown(g.id, g.species.index, g.species.carnivore, way, g.size, slotOf.getValue(g.id), inHex.getValue(h))
         }
         shown = list
+        SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
         frames = max(8, 30 / stepsPerSecond); frame = 0
         SwingUtilities.invokeLater {
             date.text = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
@@ -147,6 +171,11 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             background = Color(0x30506e)
             val mouse = object : MouseAdapter() {
                 override fun mousePressed(e: MouseEvent) { drag = e.point }
+                override fun mouseClicked(e: MouseEvent) {
+                    val kmPx = px * scale
+                    val h = hex.hexAt((e.x - ox) / kmPx, (e.y - oy) / kmPx)
+                    picked = h; inspect(h); repaint()
+                }
                 override fun mouseDragged(e: MouseEvent) { val d = drag ?: return; ox += e.x - d.x; oy += e.y - d.y; drag = e.point; repaint() }
                 override fun mouseWheelMoved(e: MouseWheelEvent) {
                     val f = if (e.wheelRotation < 0) 1.25 else 0.8
@@ -182,11 +211,25 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
                     g.color = Color(1f, 0.1f, 0.6f, 0.6f * v); g.fillPolygon(xs, ys, 6)
                 }
             }
-            // The groups, each part of the way along the hexes it walked this week.
+            // The hex being inspected.
+            if (picked >= 0) {
+                val (cx, cy) = hex.centreKm(picked)
+                val rad = hex.hexKm / kotlin.math.sqrt(3.0)
+                val xs = IntArray(6) { sx((cx + rad * kotlin.math.cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                val ys = IntArray(6) { sy((cy + rad * kotlin.math.sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                g.stroke = java.awt.BasicStroke(2.5f); g.color = Color.WHITE; g.drawPolygon(xs, ys, 6); g.stroke = java.awt.BasicStroke(1f)
+            }
+            // The groups, each part of the way along the hexes it walked this week; at the end of the
+            // week those sharing a hex stand side by side in a small ring around its centre.
             val t = min(1f, frame.toFloat() / frames)
             for (s in shown) {
                 val w = s.way
-                val (x, y) = along(w, t)
+                var (x, y) = along(w, t)
+                if (s.slots > 1) {
+                    val a = 2 * Math.PI * s.slot / s.slots
+                    val r = min(3.5, 1.2 + 0.35 * s.slots) * t
+                    x += (r * kotlin.math.cos(a)).toFloat(); y += (r * kotlin.math.sin(a)).toFloat()
+                }
                 val sp = Catalogue.all[s.kind]
                 if (s.carnivore) {
                     g.color = Color.WHITE; g.fillRect(sx(x) - 3, sy(y) - 3, 7, 7)
@@ -210,6 +253,56 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             }
             return w[w.size - 2] to w[w.size - 1]
         }
+    }
+
+    /** Fills the side panel with what is in hex [h]: its ground, weather, plants, resident herds and borders, and the groups standing in it. */
+    private fun inspect(h: Int) {
+        val sb = StringBuilder()
+        val (cx, cy) = hex.centreKm(h)
+        sb.appendLine("Hex %d at (%.0f, %.0f) km%s".format(h, cx, cy, if (hex.water[h]) " - water" else ""))
+        for (b in 0 until HexWorld.BANDS_M.size) {
+            val p = hw.placeOf[b][h]
+            if (p < 0) continue
+            sb.appendLine("band %d (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.soil[p]))
+            sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², rugged %.2f, refuge %.2f, lookout %.0f km".format(land.herb[p], land.shrub[p], land.tree[p], land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
+            val res = fauna.kinds.indices.filter { fauna.adults[it][p] + fauna.young[it][p] > 0.01f }
+                .joinToString(", ") { "%s %.1f".format(fauna.kinds[it].name, fauna.adults[it][p] + fauna.young[it][p]) }
+            if (res.isNotEmpty()) sb.appendLine("   resident herds per km²: $res")
+        }
+        sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.meanFlow[h], land.flow[h]))
+        sb.append("borders (on foot, ground + water):")
+        val dirs = arrayOf("E", "SE", "SW", "W", "NW", "NE")
+        for (d in 0 until 6) {
+            val e = hex.crossing[h * 6 + d]
+            val depth = hex.riverDepthM[h * 6 + d]
+            sb.append("  ${dirs[d]} " + (if (e.isFinite()) "%.0f".format(e) else "no way") + (if (depth > HexMap.KNEE) " (river %.1f m)".format(depth) else ""))
+        }
+        info.text = sb.toString()
+        val here = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
+        groupIds = here.map { it.id }.toIntArray()
+        groupList.clear()
+        for (g in here) groupList.addElement("%s #%d: %d adults, %d young, fed %.0f%%".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed))
+        groupInfo.text = ""
+    }
+
+    /** Shows the group picked in the list. */
+    private fun showGroup() {
+        val i = groupView.selectedIndex
+        if (i < 0 || i >= groupIds.size) return
+        val g = groups.groups.firstOrNull { it.id == groupIds[i] } ?: return
+        val s = g.species
+        val sb = StringBuilder()
+        sb.appendLine("%s #%d".format(s.name, g.id))
+        sb.appendLine("%d adults, %d young; fed %.0f%% last week, reserves %.0f of %.0f days".format(g.adults, g.young, 100 * g.fed, g.fat, s.maxFatDays))
+        sb.appendLine("stands in band %d at %.0f m".format(hw.placeBand[g.place], hw.placeElevationM[g.place]))
+        sb.appendLine("this week it walked %d hexes: %s".format(max(0, g.path.size - 1), g.path.joinToString(" > ")))
+        if (g.days.isNotEmpty()) sb.appendLine("entering them on days: " + g.days.joinToString(" ") { "%.1f".format(it) })
+        if (s.carnivore) sb.appendLine("holds ground at hex %s; meat from herds met this week %.0f kg".format(if (g.home >= 0) g.home.toString() else "none", g.meatMet))
+        else {
+            val months = (0 until 12).filter { g.seasonPlace[it] >= 0 }
+            sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
+        }
+        groupInfo.text = sb.toString()
     }
 
     companion object {
