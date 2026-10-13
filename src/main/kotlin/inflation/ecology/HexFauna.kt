@@ -51,6 +51,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private val fedByMonth = Array(kinds.size) { FloatArray(n * 12) { 0.7f } }
     /** For kinds that sleep through the winter: how well fed they went to sleep, 0..1. */
     private val autumnFed = Array(kinds.size) { FloatArray(n) { 0.8f } }
+    /** Life in the sea, lakes and rivers. */
+    val water = HexWater(hw, land, days)
     /** Fruit, roots and straw as stocks. */
     val food = HexFood(land, small, days)
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
@@ -173,6 +175,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (date.month == 0) shiftBreeding()
         }
         food.step(weather)
+        water.step(weather)
         graze(weather)
         breedAndDie(weather, date)
         shiftBands(weather)
@@ -260,7 +263,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
-        val dead = Array(kinds.size) { DoubleArray(8) } // age, hunger, cold, disease, eagles, fire, flood, snow
+        val dead = Array(kinds.size) { DoubleArray(9) } // age, hunger, cold, disease, eagles, fire, flood, snow, crocodiles
         for ((k, s) in kinds.withIndex()) {
             val start = birthStart[k]
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
@@ -287,7 +290,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val pa = (s.backgroundMortality * years + hunger + cold + disease + fireA + floodA + snowA).coerceIn(0f, 0.9f)
                 // Eagles take the young of the smaller hoofed animals in the open.
                 val eagle = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
-                val py = (s.youngMortality * years + 1.5f * hunger + 1.5f * cold + disease + eagle + fireY + floodY + snowY).coerceIn(0f, 0.95f)
+                // Crocodiles take the young that come down to warm rivers and lakes to drink.
+                val croc = water.crocodileRisk(p, weather) * years
+                val py = (s.youngMortality * years + 1.5f * hunger + 1.5f * cold + disease + eagle + fireY + floodY + snowY + croc).coerceIn(0f, 0.95f)
                 val da = a[p] * pa; val dy = y[p] * py
                 dead[k][0] += (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years) * area
                 dead[k][1] += ((a[p] + 1.5f * y[p]) * hunger) * area
@@ -297,6 +302,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 dead[k][5] += (a[p] * fireA + y[p] * fireY) * area
                 dead[k][6] += (a[p] * floodA + y[p] * floodY) * area
                 dead[k][7] += (a[p] * snowA + y[p] * snowY) * area
+                dead[k][8] += y[p] * croc * area
                 a[p] -= da; y[p] -= dy
                 carcassKg[p] += (da + 0.3f * dy) * area * s.massKg
                 // Growing up.
@@ -307,7 +313,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
         for ((k, s) in kinds.withIndex()) {
             deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]; deaths["${s.name}:eagles"] = dead[k][4]
-            deaths["${s.name}:fire"] = dead[k][5]; deaths["${s.name}:flood"] = dead[k][6]; deaths["${s.name}:snow"] = dead[k][7]
+            deaths["${s.name}:fire"] = dead[k][5]; deaths["${s.name}:flood"] = dead[k][6]; deaths["${s.name}:snow"] = dead[k][7]; deaths["${s.name}:crocodiles"] = dead[k][8]
         }
     }
 

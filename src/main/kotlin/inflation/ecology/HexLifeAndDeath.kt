@@ -147,13 +147,14 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
         val pa = (s.backgroundMortality * years + hunger + cold + disease + thirst + homeless + fireA + floodA + snowA).coerceIn(0f, 0.9f)
-        val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle + fireY + floodY + snowY).coerceIn(0f, 0.95f)
+        val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
+        val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa); val dy = binomial(g.young, py)
         g.adults -= da; g.young -= dy
         // The dead lie where they fell, for the scavengers and the soil.
         small.carrion[g.place] += (da + 0.3f * dy) * s.massKg / (land.areaKm2[g.place] * 1e6f)
         if (da + dy > 0) {
-            val causes = listOf("hunger" to hunger, "cold" to cold, "thirst" to thirst, "fire" to fireY, "flood" to floodY, "snow" to snowY)
+            val causes = listOf("hunger" to hunger, "cold" to cold, "thirst" to thirst, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc)
             val main = causes.maxBy { it.second }
             deaths.merge("${s.name}:${if (main.second > 0f) main.first else "other"}", da + dy, Int::plus)
         }
