@@ -43,7 +43,7 @@ class HexGroups(
             val fit = fauna.monthFit(s, p, m)
             if (s.carnivore) {
                 // The game it can catch there, resident herds and migratory ones alike, by weight.
-                val prey = huntable[kindSlot[s.index]][p] + if (s.human) (fauna.food.fruit[p] + fauna.food.roots[p]) * 1e6f * PLANT_FOOD_WEIGHT else 0f
+                val prey = huntable[kindSlot[s.index]][p] + if (s.human) (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT else 0f
                 // Hunters that live on the water in their prey (cheetahs, leopards) care less how far it is.
                 val w = land.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
                 prey / (prey + PREY_HALF) * fit / (1f + w * w)
@@ -105,7 +105,7 @@ class HexGroups(
                 val g = HexGroup(nextId++, s, p, s.groupSize, max(0, s.groupSize / 3))
                 g.fat = 0.5f * s.maxFatDays
                 if (s.human) g.larder = START_LARDER_DAYS * g.dailyNeedKg
-                if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
+                if (s.carnivore && !s.human) g.home = hw.placeHex[p] else inheritSeasons(g)
                 groups += g
             }
         }
@@ -217,7 +217,7 @@ class HexGroups(
      */
     internal fun campValue(s: Species, p: Int, kin: HashMap<Long, Int>): Float {
         val game = preyHere(s, p) + herdPrey(s, p, kin)
-        val plants = (fauna.food.fruit[p] + fauna.food.roots[p]) * 1e6f * PLANT_FOOD_WEIGHT
+        val plants = (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT
         // Water close to camp: women and children fetch it every day.
         val w = land.waterKm[p] / 3f
         return (game + plants) * (1f + CAMP_SAFETY * land.bestDefence[p]) / (1f + w * w)
@@ -309,7 +309,8 @@ class HexGroups(
                 if (thirsty && land.water[p] < 0.05f) score -= 1f
                 if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
                 score -= 0.1f * d / (s.dailyTravelKm * days)
-                if (goal >= 0 && !s.carnivore) {
+                // Herds and bands remember where they did best each month and are drawn back there.
+                if (goal >= 0 && (!s.carnivore || s.human)) {
                     val toGoal = hexKm(h, hw.placeHex[goal]); val fromHere = hexKm(here, hw.placeHex[goal])
                     // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
                     if (fromHere > hex.hexKm) score += SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / fromHere).toFloat()

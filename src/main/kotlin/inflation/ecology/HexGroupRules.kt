@@ -45,6 +45,8 @@ const val LARDER_DAYS = 120f
 const val LARDER_SPOIL = 0.01f
 /** Days of food a band has stored when the world begins. */
 const val START_LARDER_DAYS = 30f
+/** Share of its larder a band gives one that is going hungry, when they meet. */
+const val BAND_GIFT = 0.3f
 /** Soil water below which a herd is in a dry spell, mm; rain ahead that promises relief, mm a week. */
 const val DRY_SOIL_MM = 40f
 const val RAIN_AHEAD_MM = 20f

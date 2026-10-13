@@ -23,6 +23,8 @@ import kotlin.math.pow
 class HexFood(private val land: HexLand, private val small: HexSmallLife, private val days: Int) {
     val n = land.n
     val fruit = FloatArray(n)
+    /** Ripe grass seed (wild cereals and other grasses), kg/m²: early summer, shed and gone by autumn. People gather it. */
+    val seeds = FloatArray(n)
     val roots = FloatArray(n) { p -> rootsCap(p) * 0.7f }
     val straw = FloatArray(n) { p -> strawCap(p) * 0.7f }
 
@@ -39,6 +41,11 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val fallen = fruit[p] * min(1f, days / FRUIT_DAYS)
             fruit[p] = max(0f, fruit[p] + days * ripe - fallen)
             small.litter[p] += fallen
+            // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
+            val ripeSeed = if (month in 2..4) SEED_SHARE * land.herb[p] / SEED_DAYS else 0f
+            val shed = seeds[p] * min(1f, days / SEED_DAYS)
+            seeds[p] = max(0f, seeds[p] + days * ripeSeed - shed)
+            small.litter[p] += shed
             val r = rootsCap(p) * (if (month in 6..8) 3f else 0.5f) / ROOTS_DAYS
             roots[p] = max(0f, roots[p] + days * (r - roots[p] / ROOTS_DAYS))
             straw[p] = max(0f, straw[p] + days * (strawCap(p) - straw[p]) / STRAW_DAYS)
@@ -55,7 +62,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         when (stock) {
             fruit -> { val sh = 0.5f * land.shrub[p]; val tr = 0.05f * land.tree[p]; val all = sh + tr
                 if (all > 0f) { land.consume(p, LifeForm.SHRUB, t * sh / all); land.consume(p, LifeForm.TREE, t * tr / all) } }
-            roots -> land.consume(p, LifeForm.HERB, t)
+            roots, seeds -> land.consume(p, LifeForm.HERB, t)
             straw -> land.consume(p, LifeForm.HERB, 0.7f * t).also { land.consume(p, LifeForm.SHRUB, 0.3f * t) }
         }
         return t
@@ -65,6 +72,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         /** Ripe fruit at the season's peak, per kg/m² of fruit-bearing plants; days it lasts before it falls. */
         const val FRUIT_SHARE = 0.0008f
         const val FRUIT_DAYS = 30f
+        /** Ripe grass seed at its peak, per kg/m² of herbs (a rich wild-cereal stand gives far more); days it stays on the stalk. */
+        const val SEED_SHARE = 0.01f
+        const val SEED_DAYS = 40f
         /** Roots and mast to be dug, per kg/m² of herbs (and trees × 0.05); days to replace them. */
         const val ROOTS_SHARE = 0.0003f
         const val ROOTS_DAYS = 180f

@@ -102,7 +102,10 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         var plants = 0f
         if (d.fruit + d.roots > 0f) for (q in gatherAt) {
             val want = g.dailyNeedKg * days * (d.fruit + d.roots) / gatherAt.size / (land.areaKm2[q] * 1e6f)
-            plants += (fauna.food.take(fauna.food.fruit, q, want * d.fruit / (d.fruit + d.roots)) +
+            // Bands also reap and beat ripe grass seed into baskets, and take it before the fruit.
+            val wantFruit = want * d.fruit / (d.fruit + d.roots)
+            val seed = if (s.human) fauna.food.take(fauna.food.seeds, q, wantFruit) else 0f
+            plants += (seed + fauna.food.take(fauna.food.fruit, q, wantFruit - seed) +
                 fauna.food.take(fauna.food.roots, q, want * d.roots / (d.fruit + d.roots))) * land.areaKm2[q] * 1e6f
         }
         val wantAll = g.dailyNeedKg * days * (d.meat + d.smallPrey + d.carrion + d.fruit + d.roots).coerceAtLeast(1e-6f)
@@ -119,7 +122,7 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 var stored = 0f
                 for (q in gatherAt) {
                     val want = room / gatherAt.size / (land.areaKm2[q] * 1e6f)
-                    stored += (fauna.food.take(fauna.food.fruit, q, 0.6f * want) + fauna.food.take(fauna.food.roots, q, 0.4f * want)) * land.areaKm2[q] * 1e6f
+                    stored += (fauna.food.take(fauna.food.seeds, q, 0.4f * want) + fauna.food.take(fauna.food.fruit, q, 0.3f * want) + fauna.food.take(fauna.food.roots, q, 0.3f * want)) * land.areaKm2[q] * 1e6f
                 }
                 g.larder += stored
             }
@@ -199,7 +202,7 @@ internal fun HexGroups.meet(weather: Weather) {
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { meetings.merge("slipped away", 1, Int::plus); continue }
         count[e.a]++; count[e.b]++
         if (a.species.carnivore && b.species.carnivore) {
-            if (a.species.human && b.species.human) meetings.merge("bands met", 1, Int::plus)
+            if (a.species.human && b.species.human) bandsMeet(a, b)
             else if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) else enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
         }
         else {
@@ -215,6 +218,25 @@ internal fun HexGroups.meet(weather: Weather) {
         g.path = g.path.copyOf(i + 1); g.days = g.days.copyOf(i + 1)
         val band = hw.placeBand[g.place]
         g.place = hw.placeOf[band][h].takeIf { it >= 0 } ?: (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: g.place
+    }
+}
+
+/**
+ * Two bands meet: they share news of good ground (each learns where the other did best this month),
+ * and a band that is going hungry is given a share of the other's larder.
+ */
+internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
+    meetings.merge("bands met", 1, Int::plus)
+    val (poor, rich) = if (a.fed + a.larder / (a.dailyNeedKg * 30f) < b.fed + b.larder / (b.dailyNeedKg * 30f)) a to b else b to a
+    if (poor.fed < 0.8f && rich.larder > 0f) {
+        val gift = BAND_GIFT * rich.larder
+        rich.larder -= gift; poor.larder += gift
+        meetings.merge("food given", 1, Int::plus)
+    }
+    // Word of where the other did better this month.
+    for (m in 0 until 12) {
+        if (b.seasonQ[m] > a.seasonQ[m] + 0.1f && b.seasonPlace[m] >= 0) { a.seasonPlace[m] = b.seasonPlace[m]; a.seasonQ[m] = 0.5f * (a.seasonQ[m] + b.seasonQ[m]) }
+        else if (a.seasonQ[m] > b.seasonQ[m] + 0.1f && a.seasonPlace[m] >= 0) { b.seasonPlace[m] = a.seasonPlace[m]; b.seasonQ[m] = 0.5f * (a.seasonQ[m] + b.seasonQ[m]) }
     }
 }
 

@@ -259,7 +259,7 @@ internal fun HexGroups.mergeAndPair() {
 internal fun HexGroups.remember(date: Date) {
     val m = date.month
     for (g in groups) {
-        if (g.species.carnivore) continue
+        if (g.species.carnivore && !g.species.human) continue
         if (g.seasonPlace[m] < 0 || g.fed > g.seasonQ[m] + 0.05f) { g.seasonPlace[m] = g.place; g.seasonQ[m] = g.fed }
         else if (g.seasonPlace[m] == g.place) g.seasonQ[m] += 0.3f * (g.fed - g.seasonQ[m])
     }
