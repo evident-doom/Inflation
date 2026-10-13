@@ -30,12 +30,8 @@ fun main(args: Array<String>) {
         }
         k++
     }
-    val world = World.generate(cfg)
-    val hw = HexWorld(world, HexMap(world))
-    val weather = Weather(hw.weatherPlaces(cfg), cfg)
-    val land = HexLand(hw, cfg.seed)
-    val fauna = HexFauna(hw, land, cfg.daysPerStep)
-    val herds = HexGroups(hw, land, fauna, cfg.daysPerStep, cfg.seed, uniformStart = uniform)
+    val sim = HexSim(World.generate(cfg), uniformStart = uniform)
+    val hw = sim.hw; val weather = sim.weather; val land = sim.land; val fauna = sim.fauna; val herds = sim.groups
     val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     println("year " + fauna.kinds.joinToString("") { "%11s".format(it.name.take(10)) })
     println("   0 " + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
@@ -64,7 +60,7 @@ fun main(args: Array<String>) {
         repeat(stepsPerYear) { w ->
             if (w == stepsPerYear / 2) println("     midsummer, land that suits / pull felt: " + drawn())
             val t0 = System.nanoTime()
-            weather.step(); land.step(weather); fauna.step(weather, weather.date); herds.step(weather, weather.date)
+            sim.step()
             ns += System.nanoTime() - t0
             for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
             for ((key, v) in herds.deaths) causes.merge(key, v.toDouble(), Double::plus)

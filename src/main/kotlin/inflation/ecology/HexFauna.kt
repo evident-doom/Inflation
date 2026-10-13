@@ -188,7 +188,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val disease = DISEASE * crowd * crowd * years
                 val pa = (s.backgroundMortality * years + hunger + cold + disease).coerceIn(0f, 0.9f)
                 // Eagles take the young of the smaller hoofed animals in the open.
-                val eagle = if (s.massKg <= HexGroups.EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+                val eagle = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
                 val py = (s.youngMortality * years + 1.5f * hunger + 1.5f * cold + disease + eagle).coerceIn(0f, 0.95f)
                 val da = a[p] * pa; val dy = y[p] * py
                 dead[k][0] += (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years) * area

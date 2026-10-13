@@ -6,6 +6,7 @@ import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
 import inflation.ecology.HexGroups
 import inflation.ecology.HexPolicy
+import inflation.ecology.HexSim
 import inflation.ecology.Species
 import inflation.world.Date
 import inflation.world.HexLand
@@ -54,14 +55,15 @@ object HexLearning {
 
     /** A lean hex world on [cfg]: weather, land, resident herds, and groups of [kinds] only. */
     class Run(cfg: WorldConfig, kinds: List<Species>, mountains: Boolean = false) {
-        val world = if (mountains) mountainWorld(cfg) else World.generate(cfg)
-        val hex = HexMap(world)
-        val hw = HexWorld(world, hex)
-        val weather = Weather(hw.weatherPlaces(cfg), cfg)
-        val land = HexLand(hw, cfg.seed)
-        val fauna = HexFauna(hw, land, cfg.daysPerStep)
-        val groups = HexGroups(hw, land, fauna, cfg.daysPerStep, cfg.seed, kinds)
-        fun step() { weather.step(); land.step(weather); fauna.step(weather, weather.date); groups.step(weather, weather.date) }
+        val sim = HexSim(if (mountains) mountainWorld(cfg) else World.generate(cfg), kinds)
+        val world get() = sim.world
+        val hex get() = sim.hex
+        val hw get() = sim.hw
+        val weather get() = sim.weather
+        val land get() = sim.land
+        val fauna get() = sim.fauna
+        val groups get() = sim.groups
+        fun step() = sim.step()
     }
 
     /** Chooses with one network per kind: the best-scoring candidate. */
