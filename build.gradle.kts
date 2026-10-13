@@ -36,7 +36,7 @@ tasks.register<JavaExec>("hexFauna") {
     description = "Runs the hex world for some years and prints animal numbers, causes of death and the cost of a step."
     group = "application"
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.ecology.HexFaunaCheckKt")
+    mainClass.set("inflation.tools.HexFaunaCheckKt")
     maxHeapSize = "12g"
     args = (project.findProperty("faunaArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }

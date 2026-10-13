@@ -1,4 +1,7 @@
-package inflation.ecology
+package inflation.tools
+
+import inflation.ecology.HexSim
+
 
 import inflation.world.Date
 import inflation.world.HexLand

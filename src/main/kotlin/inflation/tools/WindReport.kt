@@ -1,4 +1,12 @@
-package inflation.world
+package inflation.tools
+
+import inflation.world.Date
+import inflation.world.Regime
+import inflation.world.Render
+import inflation.world.Weather
+import inflation.world.World
+import inflation.world.WorldConfig
+
 
 import java.awt.BasicStroke
 import java.awt.Color

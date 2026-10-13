@@ -1,4 +1,8 @@
-package inflation.world
+package inflation.tools
+
+import inflation.world.World
+import inflation.world.WorldConfig
+
 
 import java.util.PriorityQueue
 import kotlin.math.atan
