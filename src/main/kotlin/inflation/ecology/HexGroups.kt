@@ -161,7 +161,10 @@ class HexGroups(
             val (p, path) = plan(g, weather, date, predatorKg)
             choice[k] = p; paths[k] = path; times[k] = timetable(g.species, path)
         }
-        for ((k, g) in groups.withIndex()) if (g.alive) { g.place = choice[k]; g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f }
+        for ((k, g) in groups.withIndex()) if (g.alive) {
+            if (g.band != null && g.fed < 0.5f) meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
+            g.place = choice[k]; g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f
+        }
         Profile.add("groups: choosing where to go", System.nanoTime() - tPlan, Profile.cpuNow() - cPlan)
         // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
         // same days, the earlier meetings are settled first, by each side's standing orders.
@@ -174,6 +177,7 @@ class HexGroups(
         Profile.time("groups: grazing") { graze(weather) }
         Profile.time("groups: hunting") { hunt(visits, weather) }
         burnOff(weather)
+        visitKin()
         Profile.time("groups: ground, births, deaths") { mark(); settle(); demography(weather, date) }
         groups.removeIf { !it.alive }
         remember(date)

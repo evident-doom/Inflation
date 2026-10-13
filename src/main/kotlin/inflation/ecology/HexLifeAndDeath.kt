@@ -155,10 +155,11 @@ internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, v
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
     run {
         val s = g.species
-        // Reserves carry a group through lean weeks.
-        // Reserves carry a group through lean weeks; it lays on most in late summer and autumn.
-        if (g.fed < 1f) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
-        else g.fat = min(s.maxFatDays, g.fat + (if (date.month in 7..10) AUTUMN_FAT else 0.3f) * days)
+        // Reserves carry a group through lean weeks; a group that ate (nearly) its fill lays them on,
+        // most in late summer and autumn. (Only a full 100% used to count, which a pack or band that
+        // hunts and gathers seldom reaches exactly: they never laid on reserves.)
+        if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
+        else g.fat = min(s.maxFatDays, g.fat + (if (date.month in 7..10) AUTUMN_FAT else 0.3f) * days * (g.fed - WELL_FED) / (1f - WELL_FED))
         if (g.birthMonth < 0) g.birthMonth = s.birthMonth
         // Once a year its births move a month towards the months it fed best in (the birth month and the two after).
         if (date.month == 3 && date.dayOfMonth <= days && !s.carnivore) {
@@ -193,7 +194,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // Thirst: drinks where there is water; otherwise days without water mount, eased by the water in green food.
         val p0 = g.place
         // It drinks where there is water, or where water is within half a day's going of where it is.
-        if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= 0.5f * s.dailyTravelKm)) g.dry = 0f
+        // People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round will do.
+        val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm
+        if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= fetch)) g.dry = 0f
         // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
         else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
         val thirst = if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f

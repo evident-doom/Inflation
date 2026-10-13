@@ -8,6 +8,8 @@ const val SHIFT_DAYS = 2f
 const val SNOW_EFFORT_MM = 150f
 /** Days of reserves laid on a week by a well-fed group in late summer and autumn (0.3 the rest of the year). */
 const val AUTUMN_FAT = 0.8f
+/** Share of its fill above which a group lays on reserves rather than drawing on them (a week's food is never exactly what it needs). */
+const val WELL_FED = 0.9f
 /** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */
 const val MARK_KEEP = 0.85f
 const val MARK_FRESH = 0.3f

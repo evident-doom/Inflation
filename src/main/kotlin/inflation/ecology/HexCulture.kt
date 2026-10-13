@@ -39,15 +39,23 @@ const val LINEAGES = 16
 const val LINEAGE_KM = 150.0
 /** Years in a generation, for how fast inbreeding builds in a closed band. */
 const val GENERATION_YEARS = 25f
-/** Extra yearly deaths among children per unit of inbreeding (first cousins' children: F = 0.0625). */
-const val INBREEDING_DEATHS = 0.3f
+/**
+ * Extra yearly deaths among children per unit of inbreeding. First cousins' children (F = 0.0625)
+ * die before adulthood some 4% more often than others (Bittles and Neel 1994, from memory): about
+ * 0.6 per unit of F over fifteen years.
+ */
+const val INBREEDING_DEATHS = 0.04f
 /** Chance a meeting of bands that take partners from outside ends in an exchange (half when only one of them holds to it). */
 const val MARRY = 0.5f
 /** Kinship with a partner from another band, per unit of shared descent (about second cousins). */
 const val OUTSIDER_KIN = 0.03f
-/** Years an adult spends bearing and raising children before becoming an elder; elders' extra yearly deaths. */
+/**
+ * Years an adult spends bearing and raising children before becoming an elder; elders' extra yearly
+ * deaths. Foragers who reach 45 live some 20 years more on average (Gurven and Kaplan 2007, from
+ * memory): about 5% a year with the ordinary deaths.
+ */
 const val ADULT_YEARS = 30f
-const val ELDER_DEATHS = 0.05f
+const val ELDER_DEATHS = 0.03f
 /** Mothers one elder can help; most that grandmothers raise births and cut children's deaths, when there are enough of them. */
 const val ELDER_MOTHERS = 3f
 const val GRANDMOTHERS = 0.3f
@@ -70,6 +78,9 @@ const val GRUDGE = 1f
 const val GRUDGE_FADE = 0.1f
 /** A band's grudge against another's lineage above which it raids it unprovoked. */
 const val FEUD = 1.5f
+/** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
+const val VISIT_FED = 0.6f
+const val VISIT_RINGS = 2
 /** How much a fouled camp puts a band off staying, and how much the graves of its dead hold it. */
 const val FOUL_AVOID = 0.3f
 const val BURIAL_STAY = 0.1f
@@ -172,6 +183,42 @@ private fun HexGroups.marryOut(a: HexGroup, ba: Band, b: HexGroup, bb: Band) {
     for (i in ba.craft.indices) { val x = ba.craft[i]; ba.craft[i] = max(x, x + sa * (bb.craft[i] - x)); bb.craft[i] = max(bb.craft[i], bb.craft[i] + sb * (x - bb.craft[i])) }
     // Kin by marriage forgive.
     ba.grudge[bb.mainLineage()] *= 0.5f; bb.grudge[ba.mainLineage()] *= 0.5f
+}
+
+/**
+ * A band that went hungry this week and has nothing laid by goes to a band within a day or two's
+ * walk that has, and is fed there: foragers rarely starve while their neighbours eat, because food
+ * is shared on demand and kin are visited in lean times (and the debt is remembered). The hungry
+ * band eats what makes up its week, and takes some home; a band that holds to sharing gives more.
+ */
+internal fun HexGroups.visitKin() {
+    val hungry = groups.filter { it.alive && it.band != null && it.fed < VISIT_FED && it.larder < it.dailyNeedKg * days }
+    if (hungry.isEmpty()) return
+    val byHex = HashMap<Int, ArrayList<HexGroup>>()
+    for (g in groups) if (g.alive && g.band != null && g.larder > 0f) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    for (g in hungry) {
+        // The best-stocked band within two hexes, the nearer the better.
+        var best: HexGroup? = null; var bestScore = 0f
+        val h0 = hw.placeHex[g.place]
+        var ring = listOf(h0); val seen = hashSetOf(h0)
+        for (r in 0..VISIT_RINGS) {
+            for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) { val sc = o.larder / (1f + r); if (sc > bestScore) { bestScore = sc; best = o } }
+            if (r == VISIT_RINGS) break
+            val next = ArrayList<Int>()
+            for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }
+            ring = next
+        }
+        val o = best ?: continue
+        val share = BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f)
+        val week = g.dailyNeedKg * days
+        val gift = min(share * o.larder, (1f - g.fed) * week + week)
+        o.larder -= gift
+        val eat = min(gift, (1f - g.fed) * week)
+        g.fed += eat / week; g.larder += gift - eat
+        // Who was helped remembers: grudges against the helpers' people fade.
+        g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
+        meetings.merge("hungry bands fed by kin", 1, Int::plus)
+    }
 }
 
 /** A band's year, a week at a time: inbreeding builds in a closed band, grudges fade, words drift, traditions are now and then taken up or dropped. */

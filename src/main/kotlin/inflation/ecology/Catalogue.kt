@@ -543,7 +543,11 @@ object Catalogue {
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 3, waterFromFood = 0.2f,
         birthMonth = 3, birthMonths = 12, youngPerFemale = 0.22f, yearsToMaturity = 15f, // a birth every 4–5 years
-        backgroundMortality = 0.02f, youngMortality = 0.05f, // about half of children reach fifteen
+        // Children's ordinary deaths (fevers, gut infections, accidents): about 60% would reach fifteen
+        // on these alone. Hunger, thirst, cold, crowding sickness, fouled camps, inbreeding, raids and
+        // predators come on top, each modelled, for the 55-65% foragers see in all (Hill and Hurtado,
+        // Gurven and Kaplan, from memory).
+        backgroundMortality = 0.02f, youngMortality = 0.035f,
         snowLimitMm = 600f, flightKm = 0.2f, dangerToHumans = 0f,
         products = Products(meat = 25f, fat = 4f, hide = 0f, bone = 7f, sinew = 0f),
         comfortC = -5f..35f, winterCoat = true, // clothes and fire

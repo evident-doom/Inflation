@@ -104,8 +104,12 @@ fun main(args: Array<String>) {
                     fun ground(l: List<inflation.ecology.HexGroup>) = if (l.isEmpty()) "-" else "resident game %.0f kg/km², young per pack %.1f, holding ground %.0f%%, cover %.2f, water %.1f km, band %.1f".format(
                         l.map { g -> fauna.kinds.indices.sumOf { k -> ((fauna.adults[k][g.place] + fauna.young[k][g.place]) * fauna.kinds[k].massKg).toDouble() } }.average(),
                         l.map { it.young.toDouble() }.average(), 100.0 * l.count { it.home >= 0 } / l.size,
-                        l.map { land.cover(it.place).toDouble() }.average(), l.map { land.waterKm[it.place].toDouble() }.average(), l.map { hw.placeBand[it.place].toDouble() }.average())
+                        l.map { land.cover(it.place).toDouble() }.average(), l.map { land.waterKm[it.place].toDouble() }.average(), l.map { hw.placeBand[it.place].toDouble() }.average()) +
+                        ", %.0f m, %.1f °C, fed %.2f, larder %.0f days, size %.0f, path %.1f hexes, days without water %.1f".format(l.map { hw.placeElevationM[it.place].toDouble() }.average(), l.map { weather.temperature[it.place].toDouble() }.average(),
+                            l.map { it.fed.toDouble() }.average(), l.map { (it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f)).toDouble() }.average(), l.map { it.size.toDouble() }.average(), l.map { it.path.size.toDouble() }.average(), l.map { it.dry.toDouble() }.average())
                     println("     week $w $kind: ${hungry.size} of ${gs.size} packs hungry: ${ground(hungry)} | fed: ${ground(fed)}")
+                    val thirsty = gs.filter { it.dry > it.species.daysWithoutWater }
+                    if (thirsty.isNotEmpty()) println("     week $w $kind: ${thirsty.size} thirsty: " + ground(thirsty) + "; water within reach %.0f%%, sea %.0f%%".format(100.0 * thirsty.count { land.water[it.place] >= 0.05f } / thirsty.size, 100.0 * thirsty.count { hw.sea[hw.placeHex[it.place]] > 0.3f } / thirsty.size))
                 }
             }
             if (System.getProperty("hex.fedDiag") != null && y == 1 && w % 13 == 6) {

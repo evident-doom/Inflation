@@ -399,6 +399,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         deaths.merge("${weak.species.name}:killed by ${strong.species.name}", 1, Int::plus)
     }
     stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back
+    if (weak.band != null) meetings.merge("bands turned back by ${strong.species.name}", 1, Int::plus)
 }
 
 /**

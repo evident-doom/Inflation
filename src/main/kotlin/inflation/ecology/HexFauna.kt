@@ -280,8 +280,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 // Reserves carry them through lean weeks; they lay them on in good ones, most in late summer and autumn.
                 val r = reserve[k]
-                if (f < 1f) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days) }
-                else r[p] = min(s.maxFatDays, r[p] + (if (weather.date.month in 7..10) AUTUMN_FAT else 0.3f) * days)
+                if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days) }
+                else r[p] = min(s.maxFatDays, r[p] + (if (weather.date.month in 7..10) AUTUMN_FAT else 0.3f) * days * (f - WELL_FED) / (1f - WELL_FED))
                 fed[k][p] = f
                 val fm = fedByMonth[k]; val i = p * 12 + weather.date.month
                 fm[i] += (fed[k][p] - fm[i]) * FED_MEMORY
