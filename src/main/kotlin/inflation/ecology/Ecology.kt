@@ -656,7 +656,7 @@ class Ecology(private val sim: Simulation) {
                 if (g.alive) plan(g, k, scratch.get()) else planX[k] = Double.NaN
             }
         }
-        timed("meet") { meetings(size) }
+        if (countMeetings) timed("meet") { meetings(size) }
         for (k in 0 until size) {
             val g = groups[k]
             if (!g.alive) continue
@@ -694,6 +694,9 @@ class Ecology(private val sim: Simulation) {
     private var planY = DoubleArray(0)
 
     // ---------------------------------------------------------------- meetings along the way
+
+    /** Whether to count meetings along the way each week (an experiment; off, it costs nothing). */
+    var countMeetings = false
 
     /** This week's meetings by kind, and how many of them ending positions alone would have missed. */
     val meetings = java.util.TreeMap<String, Int>()
