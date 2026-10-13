@@ -1,6 +1,5 @@
 package inflation.world
 
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -153,7 +152,7 @@ object Erosion {
                 grid.forNeighbours(i) { j, _ ->
                     if (stamp[j] != tag && isOutlet(j)) {
                         stamp[j] = tag
-                        val d = (hypot((grid.x(j) - sx).toDouble(), (grid.y(j) - sy).toDouble()) * grid.cellKm).toFloat()
+                        val d = (run { val dx = (grid.x(j) - sx).toDouble(); val dy = (grid.y(j) - sy).toDouble(); kotlin.math.sqrt(dx * dx + dy * dy) } * grid.cellKm).toFloat()
                         if (d < MAX_SPREAD_KM) heap.push(d, j)
                     }
                 }
