@@ -115,8 +115,16 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     val born = ArrayList<HexGroup>()
     for ((k, o) in outcome.withIndex()) {
-        o ?: continue
         val g = list[k]; val s = g.species
+        if (o == null) {
+            // Young whose last grown animal was killed this week (by hunters or rivals) die too.
+            if (!g.alive && g.young > 0) {
+                deaths.merge("${s.name}:orphaned", g.young, Int::plus)
+                small.carrion[g.place] += 0.3f * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)
+                g.young = 0
+            }
+            continue
+        }
         if (o.carrionKg > 0f) small.carrion[g.place] += o.carrionKg / (land.areaKm2[g.place] * 1e6f)
         if (o.births > 0) births.merge(s.name, o.births, Int::plus)
         if (o.deaths > 0) deaths.merge("${s.name}:${o.cause}", o.deaths, Int::plus)
@@ -166,7 +174,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // Thirst: drinks where there is water; otherwise days without water mount, eased by the water in green food.
         val p0 = g.place
         if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= 1.5f)) g.dry = 0f
-        else g.dry += days * max(0f, 1f - s.waterFromFood * (0.5f + 0.5f * land.green[p0]))
+        // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
+        else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
         val thirst = if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f
         // Crowded herds catch each other's diseases and parasites.
         val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f

@@ -79,6 +79,7 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 // Bones, hide and gut left at the kill.
                 small.carrion[p] += na * ps.massKg * (1f - MEAT_SHARE) / (area * 1e6f)
                 kills.merge(ps.name, n, Int::plus)
+                hunting.merge("${s.name}:kills of residents", n, Int::plus)
             }
         }
         // Small game and carrion along the way make up what the big game did not.
@@ -241,6 +242,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + herd.wary))
     if (seen) {
         meetings.merge("herd turned aside", 1, Int::plus)
+        hunting.merge("${hunter.species.name}:herds that saw it first", 1, Int::plus)
         stop[rk] = min(stop[rk], max(0, ri - 1))
         return
     }
@@ -255,6 +257,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     stop[rk] = min(stop[rk], ri) // scattered
     // Caught or not, the herd is wary for weeks after.
     herd.wary += WARY_GAIN * (1f - herd.wary)
+    hunting.merge("${hunter.species.name}:chases", 1, Int::plus)
     if (rnd.nextFloat() < chance && herd.adults > 0) {
         if (herd.young > 0 && rnd.nextFloat() < 0.5f) { herd.young--; hunter.meatMet += 0.3f * herd.species.massKg }
         else {
@@ -262,6 +265,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
             small.carrion[herd.place] += herd.species.massKg * (1f - MEAT_SHARE) / (land.areaKm2[herd.place] * 1e6f)
         }
         kills.merge(herd.species.name, 1, Int::plus)
+        hunting.merge("${hunter.species.name}:kills from herds", 1, Int::plus)
         stop[hk] = min(stop[hk], hi) // stays to eat
     }
     // Big, armed prey fight back: a horn or a kick now and then kills one of the hunters.

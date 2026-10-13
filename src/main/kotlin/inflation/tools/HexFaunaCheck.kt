@@ -79,6 +79,7 @@ fun main(args: Array<String>) {
     val causes = java.util.TreeMap<String, Double>()
     for (y in 1..years) {
         val before = causes.toMap()
+        val huntYear = java.util.TreeMap<String, Int>(); val fedSum = HashMap<String, Double>(); val groupWeeks = HashMap<String, Int>()
         repeat(stepsPerYear) { w ->
             if (w == stepsPerYear / 2) println("     midsummer, land that suits / pull felt: " + drawn())
             if (System.getProperty("hex.fedDiag") != null && y == 1 && w % 13 == 6) {
@@ -111,6 +112,8 @@ fun main(args: Array<String>) {
             for ((key, v) in herds.deaths) causes.merge(key, v.toDouble(), Double::plus)
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
             for ((key, v) in herds.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
+            for ((key, v) in herds.hunting) huntYear.merge(key, v, Int::plus)
+            for (g in herds.groups) if (g.alive && g.species.carnivore) { fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus); groupWeeks.merge(g.species.name, 1, Int::plus) }
         }
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
         println("     small life: " + fauna.small.summary())
@@ -130,6 +133,12 @@ fun main(args: Array<String>) {
             val born = (causes["${s.name}:+born"] ?: 0.0) - (before["${s.name}:+born"] ?: 0.0)
             val died = causes.entries.filter { it.key.startsWith(s.name + ":") && !it.key.endsWith("+born") }.sumOf { it.value - (before[it.key] ?: 0.0) }
             "%s %.0f / %.0f".format(s.name, born, died)
+        })
+        // How the hunting went, per hunting party per week.
+        println("     hunting, per party a week (chases / herds that saw it first / kills from herds / kills of residents / fed): " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
+            val gw = (groupWeeks[s.name] ?: 0).coerceAtLeast(1).toDouble()
+            fun v(k: String) = (huntYear["${s.name}:$k"] ?: 0) / gw
+            "%s %.2f / %.2f / %.2f / %.2f / %.2f".format(s.name, v("chases"), v("herds that saw it first"), v("kills from herds"), v("kills of residents"), (fedSum[s.name] ?: 0.0) / gw)
         })
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     droughts under way: " + sim.weather.droughts())

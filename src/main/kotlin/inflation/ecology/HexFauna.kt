@@ -474,8 +474,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val START_SHARE = 0.5f
         /** Whether new worlds start at the settled densities (-Dhex.catalogueStart starts from the catalogue instead). */
         val USE_SETTLED = System.getProperty("hex.catalogueStart") == null
-        /** Most a plant-eater can eat in a week as a multiple of its need: coarse food fills the gut before it nourishes. */
-        const val GUT_FILL = 1.5f
+        /** Most a plant-eater can eat in a week as a multiple of its need: coarse food fills the gut before it nourishes, so poor dry forage cannot be fully made up for (a quarter more at most). */
+        const val GUT_FILL = 1.25f
         /** Seed carried by fruit-eaters: kg of fruit eaten per km² that seeds a place fully; share kept from week to week. */
         const val SEED_KG = 200f
         const val SEED_KEEP = 0.9f
