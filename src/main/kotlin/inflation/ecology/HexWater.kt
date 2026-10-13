@@ -374,6 +374,19 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
+    private val landKm2 = FloatArray(size) { hw.land[it] * hexKm2 }
+    fun fishTonnes() = fish.indices.sumOf { (fish[it] * waterKm2[it]).toDouble() }.toFloat() / 1000f
+    fun riverFishTonnes() = riverFish.indices.sumOf { (riverFish[it] * landKm2[it]).toDouble() }.toFloat() / 1000f
+    fun shellfishTonnes() = shellfish.indices.sumOf { (shellfish[it] * seaKm2[it]).toDouble() }.toFloat() / 1000f
+    /** Head count of sea kind [k]. */
+    fun seaHeads(k: Int) = sea[k].indices.sumOf { (sea[k][it] * seaKm2[it]).toDouble() }.toFloat() / SEA[k].massKg
+    /** Mean zooplankton at sea, g/m². */
+    fun zooMean(): Float {
+        var s = 0.0; var a = 0.0
+        for (h in 0 until size) if (seaKm2[h] > 0f) { s += zoo[h] * seaKm2[h]; a += seaKm2[h] }
+        return if (a > 0) (s / a).toFloat() else 0f
+    }
+
     /** Totals: plankton, fish, shellfish, sea animals (t), river fish (t) and sea birds. */
     fun summary(): String {
         fun t(a: FloatArray, area: FloatArray) = a.indices.sumOf { (a[it] * area[it]).toDouble() } / 1000

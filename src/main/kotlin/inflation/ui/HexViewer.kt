@@ -127,7 +127,9 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         tintChoice.addActionListener { map.repaint() }
         windBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(windBox); bar.add(pullChoice); bar.add(date)
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(windBox); bar.add(pullChoice)
+        val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
+        bar.add(graphs); bar.add(date)
         val bottom = JPanel(); bottom.add(counts)
         val side = JPanel(BorderLayout())
         side.add(JScrollPane(info), BorderLayout.NORTH)
@@ -142,8 +144,12 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         Timer(33) { if (frame < frames) { frame++; map.repaint() } }.start()
     }
 
+    /** Week-by-week history of everything worth watching, for the graphs. */
+    private val history = inflation.ecology.HexHistory()
+
     private fun advance() {
         sim.step()
+        history.record(sim)
         snapshot()
     }
 

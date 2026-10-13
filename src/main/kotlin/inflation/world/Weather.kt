@@ -152,6 +152,9 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     /** Wind over the last step at cell [i], m/s towards the south. */
     fun windSouth(i: Int): Float = sample(windV, cx(i), cy(i))
 
+    /** How many droughts are under way. */
+    fun droughtCount() = events.count { it.kind == ClimateEvent.Kind.DROUGHT && it.activeOn(date.absoluteDay) }
+
     /** Droughts under way: how many, and the share of their rain they bring. */
     fun droughts(): String {
         val now = events.filter { it.kind == ClimateEvent.Kind.DROUGHT && it.activeOn(date.absoluteDay) }

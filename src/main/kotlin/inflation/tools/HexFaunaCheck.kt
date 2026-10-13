@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
 
 
@@ -15,12 +16,13 @@ import inflation.world.WorldConfig
  * Runs the resident plant-eaters on the hexes for some years over weather, water and plants, and
  * prints each kind's numbers year by year with the main causes of death, and the cost of a step.
  *
- * Usage: hex-fauna-check [--seed N] [--width KM] [--height KM] [--years N]
+ * Usage (--history FILE writes the week-by-week history as CSV for the graphs): hex-fauna-check [--seed N] [--width KM] [--height KM] [--years N]
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 1)
     var years = 10
     var uniform = false
+    var historyFile: java.io.File? = null
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -29,6 +31,7 @@ fun main(args: Array<String>) {
             "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--years" -> years = args[++k].toInt()
             "--uniform" -> uniform = true
+            "--history" -> historyFile = java.io.File(args[++k])
             else -> error("unknown argument ${args[k]}")
         }
         k++
@@ -71,6 +74,7 @@ fun main(args: Array<String>) {
     }
     println("     matter: " + budget())
     println("     land %.0f km²; groups at the start: ".format(land.areaKm2.sum()) + herds.kinds.joinToString(", ") { "${it.name} ${herds.groups.count { g -> g.species == it }} (${herds.count(it)})" })
+    val history = HexHistory()
     var ns = 0L
     val causes = java.util.TreeMap<String, Double>()
     for (y in 1..years) {
@@ -102,6 +106,7 @@ fun main(args: Array<String>) {
             val t0 = System.nanoTime()
             sim.step()
             ns += System.nanoTime() - t0
+            if (historyFile != null) history.record(sim)
             for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
             for ((key, v) in herds.deaths) causes.merge(key, v.toDouble(), Double::plus)
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
@@ -128,6 +133,8 @@ fun main(args: Array<String>) {
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     droughts under way: " + sim.weather.droughts())
         System.out.flush()
+        // The history so far, for the graphs (every five years and at the end).
+        historyFile?.let { if (y % 5 == 0 || y == years) history.writeCsv(it) }
         println("     this week: kills " + herds.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + herds.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
     println("deaths over the run, by cause:")

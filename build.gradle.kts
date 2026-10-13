@@ -41,6 +41,14 @@ tasks.register<JavaExec>("hexFauna") {
     args = (project.findProperty("faunaArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
+tasks.register<JavaExec>("hexHistory") {
+    description = "Opens the graphs of a history the check wrote (pass the CSV with -PhistoryFile=...)."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.ui.HexHistoryPanelKt")
+    args = listOfNotNull(project.findProperty("historyFile") as String?)
+}
+
 tasks.test {
     useJUnitPlatform()
     maxHeapSize = "4g"
