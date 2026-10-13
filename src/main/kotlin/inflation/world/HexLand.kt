@@ -140,7 +140,7 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
      */
     val green = FloatArray(n)
 
-    /** Nourishment per kg of forage in place [p] this week, against fresh growth: about a third when dry or dormant. */
+    /** Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when dry or dormant. */
     fun nourishment(p: Int) = DRY_VALUE + (1f - DRY_VALUE) * green[p]
 
     /** Share of each place worn by paths, 0..1. */
@@ -339,8 +339,8 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     companion object {
         /** Most places a fire runs through in a step. */
         const val MAX_SPREAD = 60
-        /** Nourishment of dry or dormant forage against fresh growth; weekly share by which greenness follows growth. */
-        const val DRY_VALUE = 0.35f
+        /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
+        const val DRY_VALUE = 0.65f
         const val GREEN_RATE = 0.3f
         /** Weekly weight of the newest flow in the running mean used to correct river flows (about two years). */
         const val FLOW_MEMORY = 0.01f

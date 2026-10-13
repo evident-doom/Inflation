@@ -30,6 +30,9 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** For a herd: the place it remembers doing best in each month, and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
+    /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
+    var lean = 0
+    val recent = IntArray(4) { -1 }
     /** Lineage tag for learning, -1 for none. */
     var tag = -1
     val dailyNeedKg get() = species.dailyIntakeKg * (adults + 0.5f * young)
@@ -252,6 +255,8 @@ class HexGroups(
                     if (fromHere > hex.hexKm) score += SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / fromHere).toFloat()
                 }
                 if (p == g.place) score += STAY
+                // A hungry pack gives up ground it has hunted out lately and looks further afield.
+                if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
                 if (policy != null) {
                     val f = FloatArray(HexFeatures.SIZE)
                     val food = foodFor(s, p)
@@ -570,6 +575,14 @@ class HexGroups(
     }
 
     private fun demography(weather: Weather, date: Date) {
+        // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
+        for (g in groups) {
+            if (!g.alive || !g.species.carnivore) continue
+            val h = hw.placeHex[g.place]
+            if (g.recent[0] != h) { for (i in g.recent.size - 1 downTo 1) g.recent[i] = g.recent[i - 1]; g.recent[0] = h }
+            g.lean = if (g.fed < 0.5f) g.lean + 1 else 0
+            if (g.lean >= GIVE_UP_WEEKS) g.home = -1
+        }
         val kinNow = HashMap<Long, Int>()
         for (g in groups) if (g.alive) kinNow.merge(g.species.index.toLong() * hex.size + hw.placeHex[g.place], g.size, Int::plus)
         val born = ArrayList<HexGroup>()
@@ -680,6 +693,9 @@ class HexGroups(
         /** How far a herd's inherited seasonal places may lie from where it starts, km. */
         const val SEASON_RANGE_KM = 120.0
         const val STAY = 0.15f
+        /** How much a hungry pack is put off ground it has hunted out lately; weeks of hunger after which it gives up its ground. */
+        const val HUNGRY_LEAVE = 0.5f
+        const val GIVE_UP_WEEKS = 4
         /** Most chases a hunter makes in a week; chance a chase at a fully catchable quarry succeeds. */
         const val MAX_CHASES = 12
         const val CATCH = 0.35f
