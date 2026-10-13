@@ -93,7 +93,7 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     /** What the hexes are tinted by. */
     private enum class Tint(val label: String) {
         NONE("Ground only"), TEMPERATURE("Temperature"), SNOW("Snow lying"), RAIN("Rain this week"), GREEN("Green forage"),
-        FORAGE("Grass and browse"), SOIL("Soil water"), SMALL_GAME("Small game"), CARRION("Carrion"), RESIDENTS("Resident herds (all)"),
+        FORAGE("Grass and browse"), SOIL("Soil water"), WATER("Drinking water"), SMALL_GAME("Rodents and reptiles"), INSECTS("Insects"), BITING("Biting insects"), POLLINATORS("Pollinators"), ORGANIC("Soil organic matter"), CARRION("Carrion"), RESIDENTS("Resident herds (all)"),
     }
     private val tintChoice = JComboBox(Tint.entries.map { it.label }.toTypedArray())
     private val windBox = javax.swing.JCheckBox("Wind", false)
@@ -231,8 +231,13 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
                         Tint.GREEN -> land.green[p]
                         Tint.FORAGE -> land.herb[p] + land.shrub[p]
                         Tint.SOIL -> land.soil[p]
-                        Tint.SMALL_GAME -> groups.smallGame[p]
-                        Tint.CARRION -> groups.carrion[p]
+                        Tint.WATER -> land.water[p]
+                        Tint.INSECTS -> fauna.small.insects[p]
+                        Tint.BITING -> fauna.small.biting[p]
+                        Tint.POLLINATORS -> fauna.small.pollinators[p]
+                        Tint.ORGANIC -> fauna.small.organicMatter[p]
+                        Tint.SMALL_GAME -> fauna.small.rodents[p] + fauna.small.herps[p]
+                        Tint.CARRION -> fauna.small.carrion[p] * 1e6f
                         Tint.RESIDENTS -> fauna.kinds.indices.sumOf { (fauna.adults[it][p] + fauna.young[it][p]).toDouble() }.toFloat()
                         Tint.NONE -> 0f
                     }
@@ -248,6 +253,11 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
                         Tint.GREEN -> Color(1f - v, 0.9f, 0.1f, 0.5f)
                         Tint.FORAGE -> Color(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
                         Tint.SOIL -> Color(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
+                        Tint.WATER -> Color(0.1f, 0.4f, 1f, 0.1f + 0.6f * v)
+                        Tint.INSECTS -> Color(0.6f, 0.8f, 0.1f, (0.1f + 0.7f * min(1f, v / 1500f)))
+                        Tint.BITING -> Color(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
+                        Tint.POLLINATORS -> Color(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
+                        Tint.ORGANIC -> Color(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
                         Tint.SMALL_GAME -> Color(0.9f, 0.5f, 0.1f, (0.1f + 0.7f * min(1f, v / 60f)))
                         Tint.CARRION -> Color(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
                         Tint.RESIDENTS -> Color(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
@@ -347,7 +357,9 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             if (p < 0) continue
             sb.appendLine("band %d (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.soil[p]))
             sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², green %.0f%%, rugged %.2f, refuge %.2f, lookout %.0f km".format(land.herb[p], land.shrub[p], land.tree[p], 100 * land.green[p], land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
-            sb.appendLine("   rain %.0f mm this week, wind %.1f m/s".format(weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p))))
+            sb.appendLine("   rain %.0f mm this week, wind %.1f m/s; drinking water within reach of %.0f%% (walk %.1f km)".format(weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p)), 100 * land.water[p], land.waterKm[p]))
+            val sl = fauna.small
+            sb.appendLine("   insects %.0f, biting %.0f, rodents %.0f, reptiles %.0f, pollinators %.0f kg/km²; litter %.2f, organic %.1f kg/m²".format(sl.insects[p], sl.biting[p], sl.rodents[p], sl.herps[p], sl.pollinators[p], sl.litter[p], sl.organicMatter[p]))
             val res = fauna.kinds.indices.filter { fauna.adults[it][p] + fauna.young[it][p] > 0.01f }
                 .joinToString(", ") { "%s %.1f".format(fauna.kinds[it].name, fauna.adults[it][p] + fauna.young[it][p]) }
             if (res.isNotEmpty()) sb.appendLine("   resident herds per km²: $res")
@@ -362,13 +374,13 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             val a = land.areaKm2[p]; totalArea += a
             for (k in fauna.kinds.indices) residents[k] += ((fauna.adults[k][p] + fauna.young[k][p]) * a).toDouble()
             food += ((land.herb[p] + land.shrub[p]) * a).toDouble() // kg/m² × km² = 1e6 kg
-            small += (groups.smallGame[p] * a).toDouble(); carrion += (groups.carrion[p] * a).toDouble()
+            small += ((fauna.small.rodents[p] + fauna.small.herps[p]) * a).toDouble(); carrion += (fauna.small.carrion[p] * 1e6f * a).toDouble()
         }
         val gs = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
         sb.appendLine("in the hex (%.0f km²):".format(totalArea))
         sb.appendLine("   resident herds: " + fauna.kinds.indices.filter { residents[it] >= 0.5 }.joinToString(", ") { "%s %.0f".format(fauna.kinds[it].name, residents[it]) }.ifEmpty { "none" })
         sb.appendLine("   herds and packs: " + gs.groupBy { it.species }.entries.joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
-        sb.appendLine("   forage (grass and browse) %.0f t, small game %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
+        sb.appendLine("   forage (grass and browse) %.0f t, rodents and reptiles %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
         sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.meanFlow[h], land.flow[h]))
         sb.append("borders (on foot, ground + water):")
         val dirs = arrayOf("E", "SE", "SW", "W", "NW", "NE")

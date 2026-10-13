@@ -36,6 +36,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val young = Array(kinds.size) { FloatArray(n) }
     /** Last week's share of its wants each kind found in each place, 0..1. */
     val fed = Array(kinds.size) { FloatArray(n) { 1f } }
+    /** The soil life and small animals the herds live among. */
+    val small = HexSmallLife(hw, land, days)
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
     val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals. */
@@ -99,7 +101,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val d = s.diet
         val total = d.grass + d.browse + d.fruit + d.roots
         if (total <= 0f) return 0f
-        return (d.grass * land.herb[p] + d.browse * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p]) + (d.fruit + d.roots) * (FRUIT_OF_TREE * land.tree[p] + 0.3f * land.herb[p])) / total
+        return (d.grass * land.herb[p] + d.browse * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p]) + (d.fruit + d.roots) * (FRUIT_OF_TREE * land.tree[p] * small.fruitSet(p) + 0.3f * land.herb[p])) / total
     }
 
     fun count(k: Int): Double = (0 until n).sumOf { ((adults[k][it] + young[k][it]) * land.areaKm2[it]).toDouble() }
@@ -112,6 +114,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         breedAndDie(weather, date)
         shiftBands(weather)
         spill()
+        small.step(weather, carcassKg)
     }
 
     /** Every kind takes its share of the place's grass, browse and fruit, in proportion to what each wants. */
@@ -132,7 +135,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // growing season, far less of the dry standing stuff in the cold.
             val reach = if (weather.temperature[p] > 4f) REACH else REACH_DORMANT
             val grass = reach * land.herb[p] * 1e6f; val browse = reach * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p]) * 1e6f
-            val fruit = reach * (FRUIT_OF_TREE * land.tree[p] + 0.3f * land.herb[p]) * 1e6f
+            val fruit = reach * (FRUIT_OF_TREE * land.tree[p] * small.fruitSet(p) + 0.3f * land.herb[p]) * 1e6f
             val gShare = if (wantGrass > 0f) min(1f, grass / wantGrass) else 1f
             // (Water: see [tether], applied per kind below.)
             val bShare = if (wantBrowse > 0f) min(1f, browse / wantBrowse) else 1f
