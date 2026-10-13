@@ -38,7 +38,7 @@ class Terrain(private val world: World) {
     /** Walking effort relative to flat, open, dry ground, ignoring plants and snow; infinite on open water. */
     val baseCost = FloatArray(n)
     /** Travel cost without crossing water, and how fordable each river cell is (see [crossingCost]). */
-    private val landCost = FloatArray(n)
+    internal val landCost = FloatArray(n)
     private val ford = FloatArray(n) { 1f }
     /** Height above the mean ground within about 5 km, m: hills, spurs and knolls are positive. */
     val prominence = FloatArray(n)
