@@ -446,7 +446,8 @@ object Catalogue {
         groupSize = 5, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
         daysWithoutWater = 7, waterFromFood = 0.8f,
-        birthMonth = 2, birthMonths = 3, youngPerFemale = 1.2f, yearsToMaturity = 3f,
+        // A hen lays 10-20 eggs; about three chicks a hen live through their first weeks.
+        birthMonth = 2, birthMonths = 3, youngPerFemale = 3f, yearsToMaturity = 3f,
         backgroundMortality = 0.07f, youngMortality = 0.7f,
         snowLimitMm = 30f, flightKm = 1f, dangerToHumans = 0.2f,
         products = Products(meat = 50f, fat = 3f, hide = 10f, bone = 10f, sinew = 1f),

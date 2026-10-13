@@ -115,8 +115,16 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     val born = ArrayList<HexGroup>()
     for ((k, o) in outcome.withIndex()) {
-        o ?: continue
         val g = list[k]; val s = g.species
+        if (o == null) {
+            // Young whose last grown animal was killed this week (by hunters or rivals) die too.
+            if (!g.alive && g.young > 0) {
+                deaths.merge("${s.name}:orphaned", g.young, Int::plus)
+                small.carrion[g.place] += 0.3f * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)
+                g.young = 0
+            }
+            continue
+        }
         if (o.carrionKg > 0f) small.carrion[g.place] += o.carrionKg / (land.areaKm2[g.place] * 1e6f)
         if (o.births > 0) births.merge(s.name, o.births, Int::plus)
         if (o.deaths > 0) deaths.merge("${s.name}:${o.cause}", o.deaths, Int::plus)

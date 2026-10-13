@@ -300,6 +300,13 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
+    /**
+     * Share of the fish in hex [h] the sea hunters can catch this week: thin shoals are hard to find
+     * and not worth the chase, so the share falls as the fish do, and a thinned-out sea is left to
+     * recover while the hunters go hungry or move on.
+     */
+    private fun catchShare(h: Int) = SEA_CATCH * fish[h] / (fish[h] + FISH_HALF)
+
     /** Sea animals in hex [h]: each eats its food, breeds in its season as it ate, and dies back. */
     private fun stepSea(h: Int, month: Int) {
         if (seaKm2[h] <= 0f) return
@@ -309,10 +316,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val need = m * a.dailyShare * days
             val got = when (a.food) {
                 SeaFood.PLANKTON -> { val t = min(need, 0.2f * zoo[h] * 1000f); zoo[h] -= t / 1000f; t }
-                SeaFood.FISH -> { val t = min(need, SEA_CATCH * fish[h]); fish[h] -= t; flow("eaten by ${a.name}", t, h); t }
+                SeaFood.FISH -> { val t = min(need, catchShare(h) * fish[h]); fish[h] -= t; flow("eaten by ${a.name}", t, h); t }
                 SeaFood.PREY -> {
                     // Sharks: mostly fish, now and then a seal, porpoise or dolphin.
-                    var t = min(need * 0.7f, SEA_CATCH * fish[h]); fish[h] -= t; flow("eaten by ${a.name}", t, h)
+                    var t = min(need * 0.7f, catchShare(h) * fish[h]); fish[h] -= t; flow("eaten by ${a.name}", t, h)
                     for ((j, b) in SEA.withIndex()) {
                         if (b.food != SeaFood.FISH || t >= need) continue
                         // Seals haul out on rocks and beaches and porpoises keep to the shallows: shelter near the shore.
@@ -376,7 +383,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             for (h in colonyReach[c]) {
                 if (got >= need) break
                 // They can catch a share of the fish near the surface each week; the nearer water first.
-                val take = min(need - got, BIRD_CATCH * fish[h] * seaKm2[h])
+                val take = min(need - got, BIRD_CATCH * fish[h] / (fish[h] + FISH_HALF) * fish[h] * seaKm2[h])
                 fish[h] -= take / seaKm2[h]; got += take
                 fishFlows.merge("eaten by sea birds", take / 1000.0, Double::plus)
             }
@@ -464,7 +471,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         /** Sea animals: a full sea as a multiple of the starting density; disease beyond it; shark weight per km² for full danger; share of prey sharks take. */
         const val SEA_FULL = 8f
         /** Share of the fish in a hex sea hunters can catch in a week (fish breed about twice their weight a year). */
-        const val SEA_CATCH = 0.03f
+        const val SEA_CATCH = 0.06f
+        /** Fish, kg/km², at which hunters find them half as easily as in a rich sea. */
+        const val FISH_HALF = 1000f
         const val SEA_DISEASE = 0.5f
         const val SHARK_KG_KM2 = 0.5f
         /** Yearly share of seals, porpoises and dolphins sharks take where sharks are at full strength. */
