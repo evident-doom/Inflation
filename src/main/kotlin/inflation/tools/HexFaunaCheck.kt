@@ -140,6 +140,11 @@ fun main(args: Array<String>) {
             fun v(k: String) = (huntYear["${s.name}:$k"] ?: 0) / gw
             "%s %.2f / %.2f / %.2f / %.2f / %.2f".format(s.name, v("chases"), v("herds that saw it first"), v("kills from herds"), v("kills of residents"), (fedSum[s.name] ?: 0.0) / gw)
         })
+        // The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young.
+        println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
+            val gs = herds.groups.filter { it.alive && it.species == s }
+            "%s %d / %d / %d / %d / %d / %d".format(s.name, gs.size, gs.count { it.home >= 0 }, gs.count { it.home >= 0 && it.adults >= 2 }, gs.count { it.adults == 1 }, gs.sumOf { it.adults }, gs.sumOf { it.young })
+        })
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     droughts under way: " + sim.weather.droughts())
         System.out.flush()
