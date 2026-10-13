@@ -44,12 +44,14 @@ class HexGroups(
             if (s.carnivore) {
                 // The game it can catch there, resident herds and migratory ones alike, by weight.
                 val prey = huntable[kindSlot[s.index]][p]
-                // Hunters that get their water from their prey (cheetahs, hyenas, jackals) care less how far it is.
-                val w = land.waterKm[p] / (2f * s.dailyTravelKm) * (1f - s.waterFromFood)
+                // Hunters that live on the water in their prey (cheetahs, leopards) care less how far it is.
+                val w = land.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
                 prey / (prey + PREY_HALF) * fit / (1f + w * w)
             } else {
                 val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f
-                food / (food + 0.3f) * fauna.tether(s, p) * fit
+                // Country thick with hunters is the less good for it.
+                val hunters = monthHunterKg[p] / land.areaKm2[p]
+                food / (food + 0.3f) * fauna.tether(s, p) * fit * (1f - 0.5f * hunters / (hunters + HUNTERS_HALF_KG))
             }
         }, { s -> groups.any { it.alive && it.species == s } })
     }
@@ -59,6 +61,7 @@ class HexGroups(
     internal val residentKg = FloatArray(n)
     internal fun residentKg(p: Int) = residentKg[p]
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
+    private val monthHunterKg by lazy { FloatArray(n) }
     internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Which pack of a kind holds each hex as its ground (key: kind × hexes + hex). */
     /**
@@ -118,6 +121,8 @@ class HexGroups(
             // Head counts of the migratory herds in each place, for the hunters' sense of where game is.
             for (a in monthHeads) a.fill(0)
             for (g in groups) if (g.alive) monthHeads[kindSlot[g.species.index]][g.place] += g.size
+            monthHunterKg.fill(0f)
+            for (g in groups) if (g.alive && g.species.carnivore) monthHunterKg[g.place] += g.size * g.species.massKg
             java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
                 var v = 0f
                 for ((k, ps) in fauna.kinds.withIndex()) v += (fauna.adults[k][p] + 0.5f * fauna.young[k][p]) * ps.massKg
@@ -125,7 +130,8 @@ class HexGroups(
                 for ((k, s) in kinds.withIndex()) {
                     if (!s.carnivore) continue
                     var h = preyHere(s, p)
-                    for ((j, ps) in kinds.withIndex()) if (!ps.carnivore) h += monthHeads[j][p] * ps.massKg * catchable(s, ps, p) / land.areaKm2[p]
+                    // Herds on the move watch and are hard to come at: worth a share of their weight in game.
+                    for ((j, ps) in kinds.withIndex()) if (!ps.carnivore) h += HERD_GAME * monthHeads[j][p] * ps.massKg * catchable(s, ps, p) / land.areaKm2[p]
                     huntable[k][p] = h
                 }
             }
@@ -272,7 +278,9 @@ class HexGroups(
                     // At this scale every hex has its hunters: a herd does not shift its ground to get away
                     // from them (it watches and hides where it is), only for food, water, weather and the season.
                     val food = placeValue[ki][p]
-                    food / (food + 0.3f) - 0.5f * crowd(s, p, kin, g)
+                    // Ground thick with hunters is shunned, as far as the food elsewhere allows.
+                    val hunters = predatorKg[p] / land.areaKm2[p]
+                    food / (food + 0.3f) - 0.5f * crowd(s, p, kin, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG)
                 }
                 score -= 0.5f * discomfort(s, p, weather)
                 // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow

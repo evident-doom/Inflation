@@ -329,10 +329,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val t = weather.temperature[p]
                 val sleeping = asleep(s, p, weather)
                 val cold = if (sleeping) 0f else s.coldC(t, date.month) / 10f * COLD_DEATHS
-                // Crowding breeds disease and parasites: the denser the herds, the more die of them.
+                // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
+                // lean season binds, and then hunger and sickness together hold them.
                 val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
                 val crowd = (a[p] + y[p]) / (CROWDED * usual)
-                val disease = DISEASE * crowd * crowd * years
+                val disease = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - f[p]))
                 val (fireA, floodA, snowA0) = calamities(s, p, weather, false)
                 val (fireY, floodY, snowY0) = calamities(s, p, weather, true)
                 val snowA = if (sleeping) 0f else snowA0; val snowY = if (sleeping) 0f else snowY0
@@ -451,7 +452,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val HABITAT = 3f
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
-        const val CROWDED = 3f
+        const val CROWDED = 10f
+        /** How many times more disease strikes a herd that is not fed at all than a well-fed one. */
+        const val MALNOURISHED = 4f
         const val DISEASE = 0.3f
         /** Share of tree biomass that is browse within reach, and that is fruit and mast. */
         const val BROWSE_OF_TREE = 0.03f
