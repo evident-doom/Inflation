@@ -101,10 +101,49 @@ class HexGroups(
                 while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
                 val g = HexGroup(nextId++, s, p, s.groupSize, max(0, s.groupSize / 3))
                 g.fat = 0.5f * s.maxFatDays
-                if (s.carnivore) g.home = hw.placeHex[p]
+                if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
                 groups += g
             }
         }
+    }
+
+    /**
+     * What a herd's forebears knew: for each month, the place within a few weeks' trek where its kind
+     * does best then: warm enough and not too hot for its coat, growing (warmth and rain against
+     * evaporation), and free of lying snow; nearer ground preferred when much the same. This is the
+     * template a herd starts from; it then remembers where it actually fared better.
+     */
+    private fun inheritSeasons(g: HexGroup) {
+        val s = g.species
+        val here = hw.placeHex[g.place]
+        val (hx, hy) = hex.centreKm(here)
+        val reachKm = SEASON_RANGE_KM
+        val r = (reachKm / hex.hexKm).toInt() + 1
+        val near = ArrayList<Int>()
+        for (p in 0 until n) {
+            val (cx, cy) = hex.centreKm(hw.placeHex[p])
+            if (kotlin.math.abs(cx - hx) <= reachKm && kotlin.math.abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm) near += p
+        }
+        if (near.isEmpty()) return
+        val coat = if (s.winterCoat) 10f else 0f
+        var top = 0f
+        for (m in 0 until 12) {
+            var best = -1; var bestScore = 0f
+            for (p in near) {
+                val t = hw.placeTemp(p, m)
+                val h = hw.placeHex[p]
+                val grow = ((t - 2f) / 13f).coerceIn(0f, 1f) * (hw.precip[m][h] / hw.pet[m][h].coerceAtLeast(1f)).coerceIn(0.1f, 1f)
+                val discomfort = (max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive)) / 10f
+                val snow = if (t < -1f && s.diet.grass > 0.3f) 0.2f else 1f
+                val (cx, cy) = hex.centreKm(h)
+                val dist = hypot(cx - hx, cy - hy) / reachKm
+                val score = (0.2f + grow) * fauna.suits(s, p) * snow / (1f + discomfort * discomfort) / (1f + dist.toFloat())
+                if (score > bestScore) { bestScore = score; best = p }
+            }
+            g.seasonPlace[m] = best; g.seasonQ[m] = bestScore
+            top = max(top, bestScore)
+        }
+        if (top > 0f) for (m in 0 until 12) g.seasonQ[m] /= top
     }
 
     private fun travel(s: Species) = if (s in Routes.CLIMBERS) HexMap.Travel.CLIMB else if (!s.carnivore && s.massKg > 60f) HexMap.Travel.SWIM else HexMap.Travel.FOOT
@@ -209,7 +248,8 @@ class HexGroups(
                 score -= 0.1f * d / (s.dailyTravelKm * days)
                 if (goal >= 0 && !s.carnivore) {
                     val toGoal = hexKm(h, hw.placeHex[goal]); val fromHere = hexKm(here, hw.placeHex[goal])
-                    if (fromHere > hex.hexKm) score += SEASON_PULL * (g.seasonQ[month] - g.fed).coerceIn(0f, 1f) * ((fromHere - toGoal) / fromHere).toFloat()
+                    // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
+                    if (fromHere > hex.hexKm) score += SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / fromHere).toFloat()
                 }
                 if (p == g.place) score += STAY
                 if (policy != null) {
@@ -636,6 +676,8 @@ class HexGroups(
         const val DANGER = 1.5f
         /** Pull of the season's remembered place, and of staying where one is. */
         const val SEASON_PULL = 1.0f
+        /** How far a herd's inherited seasonal places may lie from where it starts, km. */
+        const val SEASON_RANGE_KM = 120.0
         const val STAY = 0.15f
         /** Most chases a hunter makes in a week; chance a chase at a fully catchable quarry succeeds. */
         const val MAX_CHASES = 12
