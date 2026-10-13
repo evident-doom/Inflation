@@ -66,5 +66,5 @@ fun main(args: Array<String>) {
         val tot = byBand.sum().coerceAtLeast(1.0)
         println("  %-12s ".format(s.name) + byBand.joinToString(" ") { "%3.0f%%".format(100 * it / tot) })
     }
-    println("a step of weather, water, plants and resident herds: %.1f ms".format(ns / 1e6 / (years * stepsPerYear)))
+    println("a step of weather, water, plants and all animals: %.1f ms, of it settling meetings %.1f ms".format(ns / 1e6 / (years * stepsPerYear), herds.meetNs / 1e6 / (years * stepsPerYear)))
 }

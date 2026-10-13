@@ -20,8 +20,11 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** Fed last week, 0..1; body reserves, days of food. */
     var fed = 1f
     var fat = 0f
-    /** The hexes it passed through this week, in order (its own last). */
+    /** The hexes it passed through this week, in order (its own last), and the day it entered each. */
     var path = IntArray(0)
+    var days = FloatArray(0)
+    /** Meat it got this week from herds it met on the way, kg. */
+    var meatMet = 0f
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = -1
     /** For a herd: the place it remembers doing best in each month, and how well (0..1). */
@@ -102,14 +105,19 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
             val (p, path) = plan(g, weather, date, bySpeciesPlace, predatorKg)
             choice[k] = p; paths[k] = path
         }
-        for ((k, g) in groups.withIndex()) if (g.alive) { g.place = choice[k]; g.path = paths[k]!! }
+        for ((k, g) in groups.withIndex()) if (g.alive) { g.place = choice[k]; g.path = paths[k]!!; g.days = timetable(g); g.meatMet = 0f }
+        // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
+        // same days, the earlier meetings are settled first, by each side's standing orders.
+        val t0 = System.nanoTime()
+        meet(weather)
+        meetNs += System.nanoTime() - t0
         // Who passed through which hex this week.
         val visits = HashMap<Int, ArrayList<HexGroup>>()
         for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
         graze(weather)
         stepSmallGame()
         hunt(visits)
-        rivals(visits)
+        settle()
         demography(weather, date)
         groups.removeIf { !it.alive }
         remember(date)
@@ -244,17 +252,8 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
             val need = g.dailyNeedKg * days * s.diet.meat
             var got = 0f
             var tries = MAX_CHASES
-            // The herds met on the way.
-            val met = g.path.flatMap { visits[it] ?: emptyList() }.filter { it.alive && !it.species.carnivore }.distinct()
-            for (o in met) {
-                if (got >= need || tries <= 0) break
-                tries--
-                meetings.merge("hunter-herd", 1, Int::plus)
-                if (rnd.nextFloat() < CATCH * catchable(s, o.species, o.place)) {
-                    if (o.young > 0 && rnd.nextFloat() < 0.5f) { o.young--; got += 0.3f * o.species.massKg } else { o.adults--; got += o.species.massKg * MEAT_SHARE }
-                    kills.merge(o.species.name, 1, Int::plus)
-                }
-            }
+            // What the herds it met on the way gave it (see [meet]).
+            got += g.meatMet
             // The resident herds of the places passed (the band it ends in, in each hex on its way): in
             // each, the pack sweeps some km² of ground and comes on the herds there; a share of the
             // chases ends in a kill.
@@ -311,23 +310,148 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
         }
     }
 
-    /** Packs of a kind that pass through each other's ground fight: the holder usually wins, now and then one dies. */
-    private fun rivals(visits: HashMap<Int, ArrayList<HexGroup>>) {
-        for ((h, gs) in visits) {
-            val hunters = gs.filter { it.alive && it.species.carnivore }
-            if (hunters.size < 2) continue
-            for (i in hunters.indices) for (j in i + 1 until hunters.size) {
-                val a = hunters[i]; val b = hunters[j]
-                if (a.species != b.species) continue
-                meetings.merge("rival packs", 1, Int::plus)
-                val sa = a.adults * (if (a.home == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home == h) HOME_ADVANTAGE else 1f)
-                val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
-                if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) { loser.adults--; deaths.merge("${loser.species.name}:rivals", 1, Int::plus) }
-                // The loser gives up its ground.
-                if (loser.home == h) loser.home = -1
+    /** Time spent settling meetings, ns, over the run (for measuring the cost). */
+    var meetNs = 0L
+
+    /** The day [g] enters each hex of its path: effort so far over its pace, the first hex on day 0. */
+    private fun timetable(g: HexGroup): FloatArray {
+        val s = g.species
+        val out = FloatArray(g.path.size)
+        if (g.path.size <= 1) return out
+        val cross = hex.crossings[travel(s).ordinal]
+        var effort = 0f
+        for (i in 1 until g.path.size) {
+            val a = g.path[i - 1]; val b = g.path[i]
+            val d = (0 until 6).firstOrNull { hex.neighbour(a, it) == b } ?: 0
+            effort += cross[a * 6 + d].takeIf { it.isFinite() } ?: hex.hexKm.toFloat()
+            out[i] = effort
+        }
+        // Its pace: as fast as it had to go to get there this week, at most a forced march.
+        val pace = max(s.dailyTravelKm, effort / days)
+        for (i in out.indices) out[i] = (out[i] / pace).coerceAtMost(days.toFloat())
+        return out
+    }
+
+    private class Stay(val k: Int, val index: Int, val from: Float, val to: Float)
+    private class Meeting(val day: Float, val a: Int, val ai: Int, val b: Int, val bi: Int)
+
+    /**
+     * Finds where groups' timetables overlap in a hex and settles the meetings in the order they
+     * happen, each by the two sides' standing orders. A group whose week is cut short (turned
+     * aside, scattered, driven off, stopping to eat a kill) ends it where that happened, and its
+     * later meetings do not take place. Herds meet hunters, and hunters of a kind meet each other;
+     * herds of different kinds pass each other by. After [MAX_MEETINGS] meetings a group's week
+     * runs on without more.
+     */
+    private fun meet(weather: Weather) {
+        val byHex = HashMap<Int, ArrayList<Stay>>()
+        for ((k, g) in groups.withIndex()) {
+            if (!g.alive) continue
+            for (i in g.path.indices) {
+                val to = if (i + 1 < g.path.size) g.days[i + 1] else days.toFloat()
+                byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.days[i], to)
             }
         }
-        // A pack without ground settles where no other of its kind holds any.
+        val events = ArrayList<Meeting>()
+        for ((_, stays) in byHex) {
+            if (stays.size < 2) continue
+            for (x in stays.indices) for (y in x + 1 until stays.size) {
+                val sa = stays[x]; val sb = stays[y]
+                val a = groups[sa.k]; val b = groups[sb.k]
+                val matters = (a.species.carnivore != b.species.carnivore) || (a.species.carnivore && a.species == b.species)
+                if (!matters) continue
+                val from = max(sa.from, sb.from); val to = min(sa.to, sb.to)
+                if (from > to) continue
+                events += Meeting(from, sa.k, sa.index, sb.k, sb.index)
+            }
+        }
+        events.sortWith(compareBy({ it.day }, { it.a }, { it.b }))
+        val stop = IntArray(groups.size) { groups[it].path.size - 1 }
+        val count = IntArray(groups.size)
+        for (e in events) {
+            // Both must still be on their way at that point, and not past their share of meetings.
+            if (e.ai > stop[e.a] || e.bi > stop[e.b]) continue
+            if (count[e.a] >= MAX_MEETINGS || count[e.b] >= MAX_MEETINGS) continue
+            val a = groups[e.a]; val b = groups[e.b]
+            if (!a.alive || !b.alive) continue
+            count[e.a]++; count[e.b]++
+            val h = a.path[e.ai]
+            if (a.species.carnivore && b.species.carnivore) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
+            else {
+                val (hunter, hi, herd, ri) = if (a.species.carnivore) listOf(e.a, e.ai, e.b, e.bi) else listOf(e.b, e.bi, e.a, e.ai)
+                hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop)
+            }
+        }
+        // Each group ends its week where it stopped: the same height band in that hex if it has one.
+        for ((k, g) in groups.withIndex()) {
+            if (!g.alive || stop[k] == g.path.size - 1) continue
+            val i = max(0, stop[k])
+            val h = g.path[i]
+            g.path = g.path.copyOf(i + 1); g.days = g.days.copyOf(i + 1)
+            val band = hw.placeBand[g.place]
+            g.place = hw.placeOf[band][h].takeIf { it >= 0 } ?: (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: g.place
+        }
+    }
+
+    /** How open hex [h] is where a group passes: the share of the ground with no cover to hide in. */
+    private fun openness(h: Int, band: Int): Float {
+        val p = hw.placeOf[band][h].takeIf { it >= 0 } ?: return 0.5f
+        return 1f - min(1f, land.shrub[p] / 2f + land.canopy(p))
+    }
+
+    /**
+     * Standing orders, hunter and herd. The herd watches for hunters: in open country it often sees
+     * them first and turns aside, ending its week short of that hex. Otherwise there is a chase,
+     * likelier to end in a kill if the hunters came on it unseen; a herd that was chased scatters and
+     * stops where it is; hunters that killed stop there to eat.
+     */
+    private fun hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd: HexGroup, rk: Int, ri: Int, h: Int, stop: IntArray) {
+        meetings.merge("hunter-herd", 1, Int::plus)
+        val open = openness(h, hw.placeBand[herd.place])
+        val seen = rnd.nextFloat() < VIGILANCE * open * (1f - hunter.species.stalking)
+        if (seen) {
+            meetings.merge("herd turned aside", 1, Int::plus)
+            stop[rk] = min(stop[rk], max(0, ri - 1))
+            return
+        }
+        // A hunter that has eaten its fill this week lets the herd pass.
+        val need = hunter.dailyNeedKg * days * hunter.species.diet.meat
+        if (hunter.meatMet >= need) return
+        val p = hw.placeOf[hw.placeBand[herd.place]][h].takeIf { it >= 0 } ?: herd.place
+        val chance = CATCH * SURPRISE * catchable(hunter.species, herd.species, p)
+        stop[rk] = min(stop[rk], ri) // scattered
+        if (rnd.nextFloat() < chance && herd.adults > 0) {
+            if (herd.young > 0 && rnd.nextFloat() < 0.5f) { herd.young--; hunter.meatMet += 0.3f * herd.species.massKg }
+            else { herd.adults--; hunter.meatMet += herd.species.massKg * MEAT_SHARE }
+            kills.merge(herd.species.name, 1, Int::plus)
+            stop[hk] = min(stop[hk], hi) // stays to eat
+        }
+    }
+
+    /**
+     * Standing orders, rival packs. On its own ground a pack holds; an intruder, or the weaker of two
+     * strangers, gives way and turns back. Packs of near equal strength fight: now and then one dies,
+     * and the loser gives up the ground.
+     */
+    private fun rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Int, stop: IntArray) {
+        meetings.merge("rival packs", 1, Int::plus)
+        val sa = a.adults * (if (a.home == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home == h) HOME_ADVANTAGE else 1f)
+        val ratio = max(sa, sb) / max(1f, min(sa, sb))
+        if (ratio > FIGHT_RATIO) {
+            // The weaker gives way: back the way it came.
+            if (sa < sb) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
+            meetings.merge("pack gave way", 1, Int::plus)
+            return
+        }
+        meetings.merge("packs fought", 1, Int::plus)
+        val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
+        if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) { loser.adults--; deaths.merge("${loser.species.name}:rivals", 1, Int::plus) }
+        if (loser.home == h) loser.home = -1
+        if (loser === a) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
+    }
+
+    /** A pack without ground settles where no other of its kind holds any. */
+    private fun settle() {
         val held = groups.filter { it.alive && it.species.carnivore && it.home >= 0 }.map { it.species.index.toLong() * hex.size + it.home }.toHashSet()
         for (g in groups) if (g.alive && g.species.carnivore && g.home < 0) {
             val h = hw.placeHex[g.place]
@@ -442,5 +566,12 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
         const val MEAT_SHARE = 0.6f
         const val HOME_ADVANTAGE = 1.5f
         const val RIVAL_KILL = 0.05f
+        /** Most meetings settled one by one for a group in a week. */
+        const val MAX_MEETINGS = 4
+        /** Chance a herd in fully open country sees coursing hunters first; how much likelier a kill when hunters come unseen. */
+        const val VIGILANCE = 0.6f
+        const val SURPRISE = 1.5f
+        /** Strength ratio beyond which the weaker pack gives way without a fight. */
+        const val FIGHT_RATIO = 1.5f
     }
 }
