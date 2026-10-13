@@ -115,11 +115,27 @@ hex learning tools; it is not yet wired into `Simulation`.
 
 ## People
 
-None of it is on hexes yet: bands, camp choice, gathering, snares, fishing, hunting, kites, skills,
-tools and making, stores and caches, firewood, settling, gatherings, language, mental maps,
-scouting, land claims, raids and grudges, gifts and renown, traditions, sharing, marrying out,
-lineage and inbreeding, elders, fear of lions and camp fires, defensible camps, burning off,
-middens, worn routes, crowding sickness. (The plants can already take a fire people light.)
+| Feature | Hex |
+|---|---|
+| Bands as groups, camp choice (game, plant food, water, a safe spot) | yes |
+| Gathering fruit, nuts, roots and grass seed over the week's walk | yes |
+| Hunting resident game and herds; snares and nets; fishing and shellfish | yes |
+| Larder (dried meat, stored plant food), caches at old camps | yes |
+| Season memory, news of good ground and food gifts when bands meet | yes |
+| Skills learned by practice and forgotten unused | yes (gathering, small game, fishing, hunting, storing; four making skills) |
+| Tools made from local materials, worn out, carried | yes (spear, bow, net, sickle, grinding stone, basket, clothes) |
+| Tools hit on and shown to bands met | yes |
+| Camp kept: births closer with stores, children sicken in a fouled camp, bands leave fouled camps | yes |
+| Traditions with effects, copied from bands doing better, taken up and dropped | yes (nine) |
+| Language as words per concept, understanding between bands | yes (naming game, drift) |
+| Marrying out, lineage mix, inbreeding | yes |
+| Elders and grandmothers | yes |
+| Raids for food and feuds, grudges against lineages | yes |
+| Desert kites | yes (built by large bands where open-country herds pass) |
+| Crowding sickness | yes (people in the hex and the six round it) |
+| Burning off, camp fires against lions and hyenas, defensible camps | yes |
+| Firewood, middens, worn routes, mental maps, scouting, land claims, ornaments and renown, gatherings, task groups | no |
+| Following people's camps (camp followers), taming | no |
 
 ## Learning
 
@@ -142,6 +158,6 @@ middens, worn routes, crowding sickness. (The plants can already take a fire peo
 
 ## Still missing
 
-People (everything in the section above), dams, canals and irrigation (the 1 km code is kept for
+The people features marked "no" above, dams, canals and irrigation (the 1 km code is kept for
 porting with people), worn paths easing travel, random outbreaks of disease. The work list and the
 closed-ecology rules are in `hex-gaps.md`.

@@ -16,13 +16,17 @@ import inflation.world.WorldConfig
  * Runs the resident plant-eaters on the hexes for some years over weather, water and plants, and
  * prints each kind's numbers year by year with the main causes of death, and the cost of a step.
  *
- * Usage (--history FILE writes the week-by-week history as CSV for the graphs): hex-fauna-check [--seed N] [--width KM] [--height KM] [--years N]
+ * Usage (--history FILE writes the week-by-week history as CSV for the graphs; --save FILE saves the
+ * world every five years and at the end, --load FILE carries on a saved one): hex-fauna-check [--seed N]
+ * [--width KM] [--height KM] [--years N] [--save FILE] [--load FILE]
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 1)
     var years = 10
     var uniform = false
     var historyFile: java.io.File? = null
+    var saveFile: java.io.File? = null
+    var loadFile: java.io.File? = null
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -32,11 +36,18 @@ fun main(args: Array<String>) {
             "--years" -> years = args[++k].toInt()
             "--uniform" -> uniform = true
             "--history" -> historyFile = java.io.File(args[++k])
+            "--save" -> saveFile = java.io.File(args[++k])
+            "--load" -> loadFile = java.io.File(args[++k])
             else -> error("unknown argument ${args[k]}")
         }
         k++
     }
-    val sim = HexSim(World.generate(cfg), uniformStart = uniform)
+    val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { println(it) }, uniformStart = uniform)
+    loadFile?.let { f ->
+        val t0 = System.nanoTime()
+        inflation.ecology.HexSnapshot.load(sim, f)
+        println("carrying on the world saved in $f, at ${sim.weather.date} (loaded in %.1f s)".format((System.nanoTime() - t0) / 1e9))
+    }
     val hw = sim.hw; val weather = sim.weather; val land = sim.land; val fauna = sim.fauna; val herds = sim.groups
     val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     println("year " + fauna.kinds.joinToString("") { "%11s".format(it.name.take(10)) })
@@ -80,6 +91,9 @@ fun main(args: Array<String>) {
     for (y in 1..years) {
         val before = causes.toMap()
         val huntYear = java.util.TreeMap<String, Int>(); val fedSum = HashMap<String, Double>(); val groupWeeks = HashMap<String, Int>()
+        // People, week by week, for the comparison with the record: band sizes, heads, camps moved, ground walked.
+        var bandWeeks = 0.0; var bandHeads = 0.0; var childWeeks = 0.0; var adultWeeks = 0.0; var motherWeeks = 0.0; var moves = 0
+        val walked = HashMap<Int, HashSet<Int>>(); val lastCamp = HashMap<Int, Int>()
         repeat(stepsPerYear) { w ->
             if (w == stepsPerYear / 2) println("     midsummer, land that suits / pull felt: " + drawn())
             System.getProperty("hex.huntDiag")?.let { kind ->
@@ -125,6 +139,12 @@ fun main(args: Array<String>) {
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
             for ((key, v) in herds.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
             for ((key, v) in herds.hunting) huntYear.merge(key, v, Int::plus)
+            for (g in herds.groups) if (g.alive && g.band != null) {
+                bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2
+                val h = hw.placeHex[g.place]
+                for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
+                lastCamp.put(g.id, h)?.let { if (it != h) moves++ }
+            }
             for (g in herds.groups) if (g.alive && g.species.carnivore) { fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus); groupWeeks.merge(g.species.name, 1, Int::plus) }
         }
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
@@ -163,13 +183,34 @@ fun main(args: Array<String>) {
             val bs = bands.map { it.band!! }
             println("     bands: skills " + inflation.ecology.Forage.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.craft[f.ordinal] }.average()) } +
                 " | tools known (kit) " + inflation.ecology.Tool.entries.joinToString(", ") { t -> "%s %.0f%% (%.2f)".format(t.name.lowercase(), 100.0 * bs.count { it.knows[t.ordinal] } / bs.size, bs.map { it.kit[t.ordinal] }.average()) } +
+                " | customs " + inflation.ecology.Tradition.entries.joinToString(", ") { t -> "%s %.0f%%".format(t.name.lowercase(), 100.0 * bs.count { it.holds(t) } / bs.size) } +
+                " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1), bs.map { it.inbred.toDouble() }.average()) +
+                " | kites %d, animals taken in drives this year %d, caches %d".format(herds.kites.count { it >= 1f }, huntYear["people:kills in kite drives"] ?: 0, bs.count { it.cachePlace >= 0 }) +
                 " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(), bands.map { it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f) }.average()))
+        }
+        if (bandWeeks > 0) {
+            // People against what the ethnographic and archaeological record shows of foragers (ranges in brackets).
+            val weeks = stepsPerYear.toDouble()
+            fun yearly(cause: String) = (causes["people:$cause"] ?: 0.0) - (before["people:$cause"] ?: 0.0)
+            val died = causes.keys.filter { it.startsWith("people:") && !it.endsWith("+born") && !it.endsWith(":hunted") }.sumOf { yearly(it.substringAfter(':')) }
+            val childDied = (huntYear["people:children died"] ?: 0).toDouble()
+            val children = childWeeks / weeks; val adults = adultWeeks / weeks
+            val childQ = childDied / children.coerceAtLeast(1.0)
+            val adultQ = ((died - childDied).coerceAtLeast(0.0)) / adults.coerceAtLeast(1.0)
+            val meat = (huntYear["people:meat eaten, kg"] ?: 0).toDouble(); val plants = (huntYear["people:plants eaten, kg"] ?: 0).toDouble()
+            val violent = yearly("raids") + causes.keys.filter { it.startsWith("people:killed by") }.sumOf { yearly(it.substringAfter(':')) }
+            val bandsSeen = walked.size.coerceAtLeast(1)
+            println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | years between births %.1f [3-4] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
+                bandHeads / bandWeeks, bandHeads / weeks / land.areaKm2.sum(), moves.toDouble() / bandsSeen,
+                walked.values.map { it.size }.average() * sim.hex.hexKm * sim.hex.hexKm * 0.866, 100 * plants / (meat + plants).coerceAtLeast(1.0),
+                (motherWeeks / weeks) / yearly("+born").coerceAtLeast(1.0), 100 * Math.pow((1 - childQ).coerceIn(0.0, 1.0), 15.0), 1 / adultQ.coerceAtLeast(1e-3), 100 * violent / died.coerceAtLeast(1.0)))
         }
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     droughts under way: " + sim.weather.droughts())
         System.out.flush()
         // The history so far, for the graphs (every five years and at the end).
         historyFile?.let { if (y % 5 == 0 || y == years) history.writeCsv(it) }
+        saveFile?.let { if (y % 5 == 0 || y == years) { val t0 = System.nanoTime(); inflation.ecology.HexSnapshot.save(sim, it); println("     saved the world to $it (%.1f s, %.0f MB)".format((System.nanoTime() - t0) / 1e9, it.length() / 1e6)) } }
         println("     this week: kills " + herds.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + herds.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
     println("deaths over the run, by cause:")

@@ -96,12 +96,29 @@ class Band {
     val goods = FloatArray(Material.entries.size)
     var campWeeks = 0
     var campHex = -1
+    var campPlace = -1
+    /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
+    var cacheKg = 0f
+    var cachePlace = -1
     /** Meat of big game it got this week, kg: hides, bone and sinew come with it. */
     var bigGameKg = 0f
+    /** Its customs ([Tradition]), its words for things ([Language]), its descent (a share for each founding lineage), how inbred its children are, its grudges against each lineage's people. */
+    val traditions = BooleanArray(Tradition.entries.size)
+    val words = IntArray(Language.CONCEPTS)
+    val lineage = FloatArray(LINEAGES)
+    var inbred = 0.02f
+    val grudge = FloatArray(LINEAGES)
+    /** Of its adults, the elders: past bearing children, helping their daughters raise theirs. */
+    var elders = 0
 
+    fun holds(t: Tradition) = traditions[t.ordinal]
+    fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
+
+    /** What a band splitting off takes along: everything it knew and believed, its descent and its grudges. */
     fun copyInto(o: Band) {
         craft.copyInto(o.craft); making.copyInto(o.making); kit.copyInto(o.kit); knows.copyInto(o.knows)
-        o.campWeeks = campWeeks; o.campHex = campHex
+        traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
+        o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace
     }
 
     /** How well the band does at [f], against a master: from [CRAFT_FLOOR] untrained to 1. */
@@ -133,8 +150,15 @@ class Band {
     fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) - 0.5f)) else t
 
     companion object {
-        /** A band starting out in country it knows: practised at what the country offers, with a basic kit. */
-        fun start(nearWater: Boolean) = Band().apply {
+        /**
+         * A band starting out in country it knows, founded at ([x], [y]) km: practised at what the
+         * country offers, with a basic kit, and the descent, words and customs of its country.
+         */
+        fun start(nearWater: Boolean, x: Double, y: Double) = Band().apply {
+            val l = lineageAt(x, y)
+            lineage[l] = 1f
+            wordsAt(x, y).copyInto(words)
+            traditionsAt(l).copyInto(traditions)
             craft[Forage.GATHER.ordinal] = 0.6f; craft[Forage.SMALL_GAME.ordinal] = 0.6f; craft[Forage.HUNT.ordinal] = 0.6f
             craft[Forage.FISH.ordinal] = if (nearWater) 0.5f else 0.1f; craft[Forage.STORE.ordinal] = 0.4f
             kit[Tool.SPEAR.ordinal] = 1f; kit[Tool.NET.ordinal] = 0.5f; kit[Tool.BASKET.ordinal] = 0.5f; kit[Tool.CLOTHES.ordinal] = 0.5f
@@ -153,14 +177,31 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     val h = hw.placeHex[p]
     val area = land.areaKm2[p] * 1e6f
     if (h != b.campHex) {
-        // Moving camp: food that cannot be carried is left to rot, the grinding stones are left behind.
+        // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
+        // up to the mice), and the grinding stones are left behind.
         if (b.campHex >= 0) {
             val carry = CARRY_DAYS * g.dailyNeedKg
-            if (g.larder > carry) { small.litter[p] += (g.larder - carry) / area; g.larder = carry }
+            if (g.larder > carry && b.campPlace >= 0) {
+                dropCache(b)
+                b.cacheKg = g.larder - carry; b.cachePlace = b.campPlace; g.larder = carry
+            }
             for (t in Tool.entries) if (t.heavy) b.kit[t.ordinal] = 0f
         }
         b.campHex = h; b.campWeeks = 0
     } else b.campWeeks++
+    b.campPlace = p
+    // A cache keeps, but not perfectly; back at it, the band takes up what it has room for.
+    if (b.cachePlace >= 0) {
+        val spoilt = CACHE_SPOIL * b.cacheKg
+        b.cacheKg -= spoilt; small.litter[b.cachePlace] += spoilt / (land.areaKm2[b.cachePlace] * 1e6f)
+        if (hw.placeHex[b.cachePlace] == h) {
+            val take = min(b.cacheKg, max(0f, LARDER_DAYS * g.dailyNeedKg * b.storeShare() - g.larder))
+            g.larder += take; b.cacheKg -= take
+            if (take > 0f) meetings.merge("bands back at a cache", 1, Int::plus)
+        }
+        if (b.cacheKg < 1f) dropCache(b)
+    }
+    buildKite(g, b)
     val people = g.adults.toFloat()
     val gd = b.goods
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
@@ -205,8 +246,31 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         val over = gd[m] - GOODS_PER_PERSON * people
         if (over > 0f) { gd[m] -= over; if (m == Material.WOOD.ordinal || m == Material.FIBRE.ordinal || m == Material.HIDE.ordinal) small.litter[p] += over / area }
     }
-    for (i in b.craft.indices) b.craft[i] *= 1f - FORGET
-    for (i in b.making.indices) b.making[i] *= 1f - FORGET
+    // Songs and stories keep what is not practised from fading as fast.
+    val forget = if (b.holds(Tradition.ORAL_TRADITION)) FORGET * 0.4f else FORGET
+    for (i in b.craft.indices) b.craft[i] *= 1f - forget
+    for (i in b.making.indices) b.making[i] *= 1f - forget
+}
+
+/** Gives up a band's cache: what is in it goes back to the ground. */
+private fun HexGroups.dropCache(b: Band) {
+    if (b.cachePlace >= 0) small.litter[b.cachePlace] += b.cacheKg / (land.areaKm2[b.cachePlace] * 1e6f)
+    b.cacheKg = 0f; b.cachePlace = -1
+}
+
+/**
+ * Desert kites: a large band, or one that holds feasts and can call on its neighbours, builds long
+ * low walls in open country where herds pass, to drive them into a pen or pits. Once built, a kite
+ * stands for generations, and any band that camps by it can use it.
+ */
+private fun HexGroups.buildKite(g: HexGroup, b: Band) {
+    val p = g.place
+    if (kites[p] >= 1f || g.adults < (if (b.holds(Tradition.FEASTS)) KITE_HANDS / 2 else KITE_HANDS)) return
+    if (land.cover(p) > 0.3f) return
+    val herds = KITE_QUARRY.sumOf { s -> headsHere[kindSlot[s.index]][p] }
+    if (herds < KITE_HERDS) return
+    kites[p] = min(1f, kites[p] + KITE_WORK)
+    if (kites[p] >= 1f) meetings.merge("kites built", 1, Int::plus)
 }
 
 /** The skill a tool serves, for how likely a band is to hit on it. */
@@ -217,13 +281,26 @@ private fun useOf(t: Tool) = when (t) {
     Tool.CLOTHES -> Forage.STORE
 }
 
-/** Two bands that meet show each other tools one of them does not know. */
-internal fun HexGroups.teach(a: Band, b: Band) {
-    for (k in a.knows.indices) if (a.knows[k] != b.knows[k] && rnd.nextFloat() < TEACH) {
+/** Two bands that meet show each other tools one of them does not know, the more readily the better they understand each other ([understood]). */
+internal fun HexGroups.teach(a: Band, b: Band, understood: Float) {
+    for (k in a.knows.indices) if (a.knows[k] != b.knows[k] && rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood)) {
         a.knows[k] = true; b.knows[k] = true
         meetings.merge("band learned ${Tool.entries[k].name.lowercase()}", 1, Int::plus)
     }
 }
+
+/** Share of a cache lost each week to damp, mice and thieves. */
+const val CACHE_SPOIL = 0.02f
+/** Adults it takes to build a kite (half for a band that feasts with its neighbours); share of one built in a week's work. */
+const val KITE_HANDS = 30
+const val KITE_WORK = 0.1f
+/** Open-country herds kites are built for; heads of them in a place that make a kite worth building; share of a herd taken in a drive. */
+val KITE_QUARRY by lazy { with(Catalogue) { listOf(GAZELLE, ONAGER, ORYX, HARTEBEEST, HORSE) } }
+const val KITE_HERDS = 100
+const val KITE_TAKE = 0.4f
+/** People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then. */
+const val PEOPLE_FULL_KM2 = 0.5f
+const val PEOPLE_SICK = 0.05f
 
 /** Settled life with stores shortens the spacing of births. */
 internal fun settledFertility(g: HexGroup): Float {
@@ -234,5 +311,15 @@ internal fun settledFertility(g: HexGroup): Float {
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
 internal fun campFouling(g: HexGroup): Float {
     val b = g.band ?: return 0f
-    return CAMP_FOULING * min(1f, max(0, b.campWeeks - 8) / 52f)
+    return CAMP_FOULING * fouled(b) * (if (b.holds(Tradition.HYGIENE)) 0.4f else 1f) * (if (b.holds(Tradition.MEDICINE)) 0.7f else 1f)
+}
+
+/** How fouled a band's camp is, 0..1: not at all for its first two months, fully after a year more. */
+internal fun fouled(b: Band) = min(1f, max(0, b.campWeeks - 8) / 52f)
+
+/** How much a band would rather leave its camp than stay: the camp fouled (less where it keeps it clean), against the graves of its dead. */
+internal fun stayCost(b: Band): Float {
+    var c = FOUL_AVOID * fouled(b) * (if (b.holds(Tradition.HYGIENE)) 0.4f else 1f)
+    if (b.holds(Tradition.BURIAL) && b.campWeeks > 4) c -= BURIAL_STAY
+    return c
 }

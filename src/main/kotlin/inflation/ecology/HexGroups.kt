@@ -36,7 +36,8 @@ class HexGroups(
     val groups = ArrayList<HexGroup>()
     internal var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. */
-    val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators)
+    /** For comparison runs, -Dhex.noPeople leaves people out. */
+    val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators.filter { !it.human || System.getProperty("hex.noPeople") == null })
     /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
     val bearings by lazy {
         HexBearings(hw, kinds, { s, p, m ->
@@ -104,7 +105,11 @@ class HexGroups(
                 while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
                 val g = HexGroup(nextId++, s, p, s.groupSize, max(0, s.groupSize / 3))
                 g.fat = 0.5f * s.maxFatDays
-                if (s.human) { g.larder = START_LARDER_DAYS * g.dailyNeedKg; g.band = Band.start(land.waterKm[p] < 3f) }
+                if (s.human) {
+                    g.larder = START_LARDER_DAYS * g.dailyNeedKg
+                    val (x, y) = hex.centreKm(hw.placeHex[p])
+                    g.band = Band.start(land.waterKm[p] < 3f, x, y).also { it.elders = g.adults / 6 }
+                }
                 if (s.carnivore && !s.human) g.home = hw.placeHex[p] else inheritSeasons(g)
                 groups += g
             }
@@ -132,14 +137,12 @@ class HexGroups(
                     if (!s.carnivore) continue
                     var h = preyHere(s, p)
                     // Herds on the move watch and are hard to come at: worth a share of their weight in game.
-                    for ((j, ps) in kinds.withIndex()) if (!ps.carnivore) h += HERD_GAME * monthHeads[j][p] * ps.massKg * catchable(s, ps, p) / land.areaKm2[p]
+                    for ((j, ps) in kinds.withIndex()) if (!ps.carnivore && monthHeads[j][p] > 0) h += HERD_GAME * monthHeads[j][p] * ps.massKg * catchable(s, ps, p) / land.areaKm2[p]
                     huntable[k][p] = h
                 }
             }
             Profile.time("sense of direction") { bearings.update(date.month) }
         }
-        val bySpeciesPlace = HashMap<Long, Int>()
-        for (g in groups) if (g.alive) bySpeciesPlace.merge(g.species.index.toLong() * n + g.place, g.size, Int::plus)
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
         // The strongest hunting party in each place, and its kind: weaker hunters keep out of its way.
@@ -150,15 +153,15 @@ class HexGroups(
         }
         // Plan and move, in parallel: each group's choice depends only on last week's world.
         val tPlan = System.nanoTime(); val cPlan = Profile.cpuNow()
-        valuePlaces(bySpeciesPlace)
-        val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size)
+        valuePlaces()
+        val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
         java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k ->
             val g = groups[k]
             if (!g.alive) return@forEach
-            val (p, path) = plan(g, weather, date, bySpeciesPlace, predatorKg)
-            choice[k] = p; paths[k] = path
+            val (p, path) = plan(g, weather, date, predatorKg)
+            choice[k] = p; paths[k] = path; times[k] = timetable(g.species, path)
         }
-        for ((k, g) in groups.withIndex()) if (g.alive) { g.place = choice[k]; g.path = paths[k]!!; g.days = timetable(g); g.meatMet = 0f }
+        for ((k, g) in groups.withIndex()) if (g.alive) { g.place = choice[k]; g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f }
         Profile.add("groups: choosing where to go", System.nanoTime() - tPlan, Profile.cpuNow() - cPlan)
         // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
         // same days, the earlier meetings are settled first, by each side's standing orders.
@@ -197,16 +200,16 @@ class HexGroups(
     private val placeValue by lazy { Array(kinds.size) { FloatArray(n) } }
 
     /** Head count of each kind in each place this week, and each species' slot in [kinds]. */
-    private val headsHere by lazy { Array(kinds.size) { IntArray(n) } }
-    private val kindSlot by lazy { IntArray(Catalogue.all.size) { i -> kinds.indexOfFirst { it.index == i }.coerceAtLeast(0) } }
+    internal val headsHere by lazy { Array(kinds.size) { IntArray(n) } }
+    internal val kindSlot by lazy { IntArray(Catalogue.all.size) { i -> kinds.indexOfFirst { it.index == i }.coerceAtLeast(0) } }
 
-    private fun valuePlaces(kin: HashMap<Long, Int>) {
+    private fun valuePlaces() {
         for (a in headsHere) a.fill(0)
         for (g in groups) if (g.alive) headsHere[kindSlot[g.species.index]][g.place] += g.size
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             for ((k, s) in kinds.withIndex()) placeValue[k][p] =
-                if (s.human) campValue(s, p, kin)
-                else if (s.carnivore) preyHere(s, p) + herdPrey(s, p, kin)
+                if (s.human) campValue(s, p)
+                else if (s.carnivore) preyHere(s, p) + herdPrey(s, p)
                 else foodFor(s, p) * land.nourishment(p) * fauna.suits(s, p) * (1f - land.burning[p])
         }
     }
@@ -216,8 +219,8 @@ class HexGroups(
      * the fruit, nuts and roots it can gather (counted at their weight against meat), the more so where
      * the camp can stand on high, broken or water-girt ground safe from lions and raiders.
      */
-    internal fun campValue(s: Species, p: Int, kin: HashMap<Long, Int>): Float {
-        val game = preyHere(s, p) + herdPrey(s, p, kin)
+    internal fun campValue(s: Species, p: Int): Float {
+        val game = preyHere(s, p) + herdPrey(s, p)
         val plants = (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT
         // Water close to camp: women and children fetch it every day.
         val w = land.waterKm[p] / 3f
@@ -237,6 +240,9 @@ class HexGroups(
         }
     }
 
+    /** Desert kites in each place, 0..1 built: long low walls funnelling open-country herds into a pen or pits. They stand for generations. */
+    val kites = FloatArray(n)
+
     /** Strongest hunting party in each place last week, and its kind's index (-1 for none). */
     private val topStrength = FloatArray(n)
     private val topKind = IntArray(n) { -1 }
@@ -245,7 +251,7 @@ class HexGroups(
     internal fun strength(g: HexGroup) = g.adults * g.species.massKg * ferocity(g)
     internal fun ferocity(g: HexGroup) = g.band?.ferocity(g.species) ?: g.species.ferocity
 
-    internal fun plan(g: HexGroup, weather: Weather, date: Date, kin: HashMap<Long, Int>, predatorKg: FloatArray): Pair<Int, IntArray> {
+    internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Pair<Int, IntArray> {
         val s = g.species
         val here = hw.placeHex[g.place]
         // How far it will shift its ground this week. Most of a week's walking is within its range
@@ -290,11 +296,18 @@ class HexGroups(
         val policy = policies[s]
         val candPlaces = ArrayList<Int>(); val candFeats = ArrayList<FloatArray>(); val candScores = ArrayList<Float>()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
+        val territory = territoryKm(s)
+        val goalHex = if (goal >= 0) hw.placeHex[goal] else -1
+        val fromHere = if (goal >= 0) hexKm(here, goalHex) else 0.0
+        val pullKm = reach.toDouble().coerceAtLeast(hex.hexKm)
         for (h in reached) {
             val d = dist[h]
             // A pack on its own ground stays on it while fed; and keeps off ground another pack of its kind holds.
-            if (s.carnivore && !s.human && g.home >= 0 && g.fed >= 0.5f && !astray && hexKm(h, g.home) > territoryKm(s)) continue
+            if (s.carnivore && !s.human && g.home >= 0 && g.fed >= 0.5f && !astray && hexKm(h, g.home) > territory) continue
             if (s.carnivore && !s.human && g.fed >= 0.3f && h != g.home && foreignMark(s, h, g.id) > MARK_FRESH) continue
+            val toGoal = if (goal >= 0) hexKm(h, goalHex) else 0.0
+            // Better country further off: the way the kind's sense of the land points.
+            val pull = bearings.along(ki, here, h, pullKm)
             for (b in 0 until HexWorld.BANDS_M.size) {
                 val p = hw.placeOf[b][h]
                 if (p < 0) continue
@@ -303,14 +316,14 @@ class HexGroups(
                     // Smaller hunters keep out of the way of much stronger ones of other kinds (they hear
                     // the roars and smell the marks): cheetahs and hyenas of lions, jackals of wolves.
                     val danger = if (topKind[p] >= 0 && topKind[p] != s.index && topStrength[p] > 2f * strength(g)) AVOID_STRONGER else 0f
-                    prey / (prey + PREY_HALF) - 0.5f * crowd(s, p, kin, g) - danger
+                    prey / (prey + PREY_HALF) - 0.5f * crowd(s, p, g) - danger
                 } else {
                     // At this scale every hex has its hunters: a herd does not shift its ground to get away
                     // from them (it watches and hides where it is), only for food, water, weather and the season.
                     val food = placeValue[ki][p]
                     // Ground thick with hunters is shunned, as far as the food elsewhere allows.
                     val hunters = predatorKg[p] / land.areaKm2[p]
-                    food / (food + 0.3f) - 0.5f * crowd(s, p, kin, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG)
+                    food / (food + 0.3f) - 0.5f * crowd(s, p, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG)
                 }
                 score -= 0.5f * discomfort(s, p, weather)
                 // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
@@ -326,14 +339,13 @@ class HexGroups(
                 score -= 0.1f * d / (s.dailyTravelKm * days)
                 // Herds and bands remember where they did best each month and are drawn back there.
                 if (goal >= 0 && (!s.carnivore || s.human)) {
-                    val toGoal = hexKm(h, hw.placeHex[goal]); val fromHere = hexKm(here, hw.placeHex[goal])
                     // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
-                    if (fromHere > hex.hexKm) score += SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / fromHere).toFloat()
+                    // Bands that watch the sky keep their round on time.
+                    val sky = if (g.band?.holds(Tradition.SKY_LORE) == true) 1.3f else 1f
+                    if (fromHere > hex.hexKm) score += sky * SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / fromHere).toFloat()
                 }
-                // Better country further off: the way the kind's sense of the land points.
-                val pull = bearings.along(kindIndex[s] ?: 0, here, h, reach.toDouble().coerceAtLeast(hex.hexKm))
                 score += BEARING_PULL * pull
-                if (p == g.place) score += STAY
+                if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.
                 if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
                 if (policy != null) {
@@ -341,7 +353,7 @@ class HexGroups(
                     val food = foodFor(s, p)
                     f[0] = food / (food + 0.3f)
                     f[1] = kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
-                    f[2] = crowd(s, p, kin, g)
+                    f[2] = crowd(s, p, g)
                     f[3] = predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f)
                     f[4] = min(2f, discomfort(s, p, weather))
                     f[5] = min(2f, s.discomfortC(weather.forecastTemp(p), date.month) / 10f)
@@ -352,7 +364,6 @@ class HexGroups(
                     f[10] = if (p == g.place) 1f else 0f
                     f[11] = if (h == here) 1f else 0f
                     if (goal >= 0) {
-                        val toGoal = hexKm(h, hw.placeHex[goal]); val fromHere = hexKm(here, hw.placeHex[goal])
                         f[12] = if (fromHere > hex.hexKm) ((fromHere - toGoal) / fromHere).toFloat().coerceIn(-1f, 1f) else 0f
                         f[13] = (g.seasonQ[month] - g.fed).coerceIn(-1f, 1f)
                     }
@@ -386,7 +397,7 @@ class HexGroups(
         return s.discomfortC(weather.temperature[p], weather.date.month) / 10f
     }
 
-    internal fun crowd(s: Species, p: Int, kin: HashMap<Long, Int>, g: HexGroup): Float {
+    internal fun crowd(s: Species, p: Int, g: HexGroup): Float {
         val others = headsHere[kindSlot[s.index]][p] - (if (p == g.place) g.size else 0)
         val usual = if (s.startKm2PerAnimal > 0f) land.areaKm2[p] / s.startKm2PerAnimal * 3f else 10f
         return others / (others + usual + 1f)
@@ -399,9 +410,13 @@ class HexGroups(
         return v
     }
 
-    internal fun herdPrey(s: Species, p: Int, kin: HashMap<Long, Int>): Float {
+    internal fun herdPrey(s: Species, p: Int): Float {
         var v = 0f
-        for (ps in kinds) if (!ps.carnivore) v += (kin[ps.index.toLong() * n + p] ?: 0) * ps.massKg * catchable(s, ps, p) / land.areaKm2[p]
+        for ((k, ps) in kinds.withIndex()) {
+            if (ps.carnivore) continue
+            val heads = headsHere[k][p]
+            if (heads > 0) v += heads * ps.massKg * catchable(s, ps, p) / land.areaKm2[p]
+        }
         return v
     }
 

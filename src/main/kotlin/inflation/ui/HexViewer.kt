@@ -44,16 +44,19 @@ import kotlin.math.min
  * the herds and hunters as dots walking hex to hex along the ways they took each week, and one
  * resident kind's density as a tint over the hexes.
  *
- * Usage: hex-viewer [--seed N] [--width KM] [--height KM]
+ * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
+ * (--load carries on a saved world: the seed and size must be the ones it was saved with)
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 1)
+    var load: java.io.File? = null
     var k = 0
     while (k < args.size) {
         when (args[k]) {
             "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
             "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
             "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
+            "--load" -> load = java.io.File(args[++k])
             else -> error("unknown argument ${args[k]}")
         }
         k++
@@ -65,16 +68,16 @@ fun main(args: Array<String>) {
     frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
     frame.isVisible = true
     Thread {
-        val world = World.generate(cfg) { step -> SwingUtilities.invokeLater { status.text = "Generating: $step…" } }
+        val world = inflation.ecology.HexSnapshot.WorldCache.load(cfg) { step -> SwingUtilities.invokeLater { status.text = "Generating: $step…" } }
         SwingUtilities.invokeLater { status.text = "Summarising into hexes and drawing the ground…" }
-        val view = HexViewer(world)
+        val view = HexViewer(world, load)
         SwingUtilities.invokeLater {
             frame.contentPane.removeAll(); frame.contentPane.add(view); frame.revalidate()
         }
     }.start()
 }
 
-class HexViewer(world: World) : JPanel(BorderLayout()) {
+class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout()) {
     private val sim = HexSim(world)
     private val cfg = sim.cfg
     private val hex = sim.hex
@@ -150,7 +153,11 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         pullChoice.addActionListener { map.repaint() }
         bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(windBox); bar.add(pullChoice)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
-        bar.add(graphs); bar.add(date)
+        // Save the world as it stands, or carry on one saved before.
+        val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { inflation.ecology.HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
+        val open = JButton("Load…"); open.addActionListener { chooseFile(false)?.let { f -> commands += { loadWorld(f) } } }
+        bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
+        load?.let { f -> commands += { loadWorld(f) } }
         val bottom = JPanel(); bottom.add(counts)
         val side = JPanel(BorderLayout())
         side.add(JScrollPane(info), BorderLayout.NORTH)
@@ -163,6 +170,25 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         snapshot()
         Thread(::loop, "hex simulation").apply { isDaemon = true }.start()
         Timer(33) { if (frame < frames) { frame++; map.repaint() } }.start()
+    }
+
+    private fun chooseFile(save: Boolean): java.io.File? {
+        val fc = javax.swing.JFileChooser(java.io.File(".")).apply { fileFilter = javax.swing.filechooser.FileNameExtensionFilter("saved hex worlds", "hexw") }
+        val ok = if (save) fc.showSaveDialog(this) else fc.showOpenDialog(this)
+        if (ok != javax.swing.JFileChooser.APPROVE_OPTION) return null
+        val f = fc.selectedFile
+        return if (save && !f.name.endsWith(".hexw")) java.io.File(f.path + ".hexw") else f
+    }
+
+    /** Carries on the world saved in [f] (on the simulation's thread). */
+    private fun loadWorld(f: java.io.File) {
+        try {
+            inflation.ecology.HexSnapshot.load(sim, f)
+            lastDrawn.clear()
+            snapshot()
+        } catch (e: Exception) {
+            SwingUtilities.invokeLater { javax.swing.JOptionPane.showMessageDialog(this, "Could not load ${f.name}: ${e.message}") }
+        }
     }
 
     /** Week-by-week history of everything worth watching, for the graphs. */
@@ -483,6 +509,8 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             sb.appendLine("skills: " + inflation.ecology.Forage.entries.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.craft[it.ordinal]) })
             sb.appendLine("making: " + inflation.ecology.Making.entries.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.making[it.ordinal]) })
             sb.appendLine("tools: " + inflation.ecology.Tool.entries.filter { b.knows[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
+            sb.appendLine("elders %d; children inbred %.3f; descent mostly lineage %d".format(b.elders, b.inbred, b.mainLineage()))
+            sb.appendLine("customs: " + inflation.ecology.Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }.ifEmpty { "none" })
             sb.appendLine("goods: " + inflation.ecology.Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it.ordinal]) })
         }
         if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat from herds met this week %.0f kg".format(if (g.home >= 0) g.home.toString() else "none", g.meatMet))

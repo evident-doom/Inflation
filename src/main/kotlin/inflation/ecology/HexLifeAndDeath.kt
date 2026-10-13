@@ -96,7 +96,7 @@ internal fun HexGroups.graze(weather: Weather) {
 
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
-    for (g in groups) if (g.alive && g.band != null) bandWeek(g, date)
+    for (g in groups) if (g.alive && g.band != null) { bandWeek(g, date); cultureWeek(g) }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
         if (!g.alive || !g.species.carnivore) continue
@@ -131,13 +131,16 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (o.births > 0) births.merge(s.name, o.births, Int::plus)
         if (o.deaths > 0) deaths.merge("${s.name}:${o.cause}", o.deaths, Int::plus)
         if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
+        // Children's deaths apart, for the life tables.
+        if (s.human && o.youngDied > 0) hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
         o.split?.let { c -> born += HexGroup(nextId++, s, g.place, c.first, c.second).also { n ->
             n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth
             // A band that splits shares out its larder by heads.
             val share = (c.first + c.second).toFloat() / (g.size + c.first + c.second).coerceAtLeast(1)
             n.larder = g.larder * share; g.larder -= n.larder
             // Both halves keep what the band knew and share out its tools and goods.
-            g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] } } }
+            g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
+                nb.elders = b.elders * c.first / (g.adults + c.first).coerceAtLeast(1); b.elders -= nb.elders } }
             g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
         } } // a young pack has no ground yet
     }
@@ -146,7 +149,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
 }
 
 /** What a group's week left for others: carcasses (kg), births, deaths and their main cause, orphans, a split-off part (adults, young). */
-internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val cause: String, val orphans: Int, val split: Pair<Int, Int>?)
+internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val cause: String, val orphans: Int, val split: Pair<Int, Int>?, val youngDied: Int = 0)
 
 /** One group's week of feeding on its reserves, births, deaths and growing up; with its own random stream [r]. */
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
@@ -166,12 +169,16 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         }
         val inSeason = (date.month - g.birthMonth + 12) % 12 < s.birthMonths
         var bornNow = 0
+        // In a band, the elders are past bearing children; they help their daughters raise theirs.
+        val band = g.band
+        val mothers = if (band != null) (g.adults - band.elders) / 2 else g.adults / 2
+        val help = if (band != null) min(1f, band.elders * ELDER_MOTHERS / max(1, mothers)) else 0f
         if (inSeason && g.adults >= 2) {
             val births = if (s.packLitter > 0) {
                 if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
             } else {
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                binomial(g.adults / 2, s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) / stepsInSeason, r)
+                binomial(mothers, s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) * (1f + GRANDMOTHERS * help) / stepsInSeason, r)
             }
             g.young += births
             bornNow = births
@@ -180,6 +187,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // People feel the cold as their clothes allow.
         val cold = (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: discomfort(s, g.place, weather)) * 0.02f
         val fouled = campFouling(g) * years
+        // Children of a closed band are inbred; medicine saves some of the sick and wounded.
+        val inbred = if (band != null) INBREEDING_DEATHS * band.inbred * years else 0f
+        val healed = if (band?.holds(Tradition.MEDICINE) == true) 0.85f else 1f
         // Thirst: drinks where there is water; otherwise days without water mount, eased by the water in green food.
         val p0 = g.place
         // It drinks where there is water, or where water is within half a day's going of where it is.
@@ -191,7 +201,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
         // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
         val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
-        val disease = if (s.carnivore) 0f else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+        val disease = if (s.human) peopleSickness(g) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+            else if (s.carnivore) 0f else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         g.wary *= WARY_KEEP
         // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
         val homeless = if (s.carnivore && !s.human && g.home < 0) DISPERSAL_DEATHS * years else 0f
@@ -199,32 +210,59 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val eagle = if (!s.carnivore && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
         val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
-        val pa = (s.backgroundMortality * years + hunger + cold + disease + thirst + homeless + fireA + floodA + snowA).coerceIn(0f, 0.9f)
+        val pa = (healed * s.backgroundMortality * years + hunger + cold + disease + thirst + homeless + fireA + floodA + snowA).coerceIn(0f, 0.9f)
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
-        val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled).coerceIn(0f, 0.95f)
+        val py = ((healed * s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
-        g.adults -= da; g.young -= dy
+        // Elders die as the others do (their share of the adults who died), and of old age besides.
+        var oldAge = 0
+        if (band != null && g.adults > 0) {
+            band.elders -= min(band.elders, (da * band.elders + r.nextInt(g.adults)) / g.adults)
+            oldAge = binomial(band.elders, ELDER_DEATHS * years, r)
+            band.elders -= oldAge
+        }
+        g.adults -= da + oldAge
+        g.young -= dy
         // The dead lie where they fell, for the scavengers and the soil.
-        var carrion = (da + 0.3f * dy) * s.massKg
-        val causes = listOf("hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled)
+        var carrion = (da + oldAge + 0.3f * dy) * s.massKg
+        // Deaths go to the main cause this week; to "other" (age, accidents) when none outweighs the ordinary.
+        val causes = listOf("other" to healed * s.backgroundMortality * years, "hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "inbreeding" to inbred)
         val main = causes.maxBy { it.second }
         val cause = if (main.second > 0f) main.first else "other"
         val up = binomial(g.young, years / s.yearsToMaturity, r)
         g.young -= up; g.adults += up
+        band?.let { it.elders += binomial(g.adults - it.elders, years / ADULT_YEARS, r) }
         if (g.adults == 0) {
             // Young left without a grown animal of their kind die.
             val orphans = g.young
             carrion += 0.3f * orphans * s.massKg
             g.young = 0
-            return Outcome(carrion, bornNow, da + dy, cause, orphans, null)
+            return Outcome(carrion, bornNow, da + oldAge + dy, cause, orphans, null, dy + orphans)
         }
         var split: Pair<Int, Int>? = null
-        if (g.size > s.maxGroupSize) {
+        // Bands that feast together hold together longer.
+        if (g.size > (if (band?.holds(Tradition.FEASTS) == true) (s.maxGroupSize * FEAST_SIZE).toInt() else s.maxGroupSize)) {
             split = (g.adults / 2) to (g.young / 2)
             g.adults -= split.first; g.young -= split.second
         }
-        return Outcome(carrion, bornNow, da + dy, cause, 0, split)
+        return Outcome(carrion, bornNow, da + oldAge + dy, cause, 0, split, dy)
     }
+}
+
+/**
+ * Yearly deaths from crowding among people: fevers and worms where many camp near each other, by the
+ * people in a band's hex and the six round it.
+ */
+private fun HexGroups.peopleSickness(g: HexGroup): Float {
+    val h = hw.placeHex[g.place]
+    var heads = 0
+    for (k in -1 until 6) {
+        val q = if (k < 0) h else hex.neighbour(h, k)
+        if (q < 0) continue
+        for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][q]; if (p >= 0) heads += headsHere[kindSlot[g.species.index]][p] }
+    }
+    val dens = heads / (7f * (hex.hexKm * hex.hexKm * 0.866).toFloat()) / PEOPLE_FULL_KM2
+    return PEOPLE_SICK * dens * dens
 }
 
 /** Small herds join up, and lone hunters find mates (see [demography]). */

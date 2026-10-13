@@ -1,0 +1,188 @@
+package inflation.ecology
+
+import inflation.world.Date
+import kotlin.math.max
+import kotlin.math.min
+
+// What passes between bands: words, traditions, partners and grudges. A band's culture is data on
+// the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
+
+/**
+ * A tradition: a practice or belief a band holds, passed on to both halves when it splits, copied
+ * from neighbours who do better, and now and then taken up or dropped. Each has a concrete effect.
+ */
+enum class Tradition(val about: String) {
+    BURIAL("the dead are buried near camp: the band is loath to leave its place"),
+    SKY_LORE("sun, moon and stars are watched: the band keeps its seasonal round on time"),
+    TABOO_YOUNG("mothers and young are not hunted: game is spared in its breeding years"),
+    ORAL_TRADITION("songs, stories and genealogies: knowledge and skills fade more slowly"),
+    FEASTS("dance, song and shared feasts: bands grow larger before they split"),
+    MEDICINE("herbs, setting bones, care of the sick: fewer die of wounds and illness"),
+    EXOGAMY("partners are taken from other bands: less inbreeding, skills travel"),
+    HYGIENE("middens and water kept apart, camps cleaned: a kept camp fouls slowly"),
+    SHARING("food is shared with neighbouring bands in bad times: insurance against hunger"),
+}
+
+/**
+ * A deliberately small language: a fixed set of concepts, each named by a band with a word of its
+ * own. What matters to the model is how much two bands understand each other: the share of
+ * concepts they name alike. Know-how, customs and news pass between bands in proportion to it.
+ */
+object Language {
+    const val CONCEPTS = 64
+    const val FORMS = 1 shl 20
+    fun understanding(a: IntArray, b: IntArray): Float { var k = 0; for (i in a.indices) if (a[i] == b[i]) k++; return k.toFloat() / a.size }
+}
+
+/** Founding lineages tracked in a band's descent; the size of the blocks of country they start in, km. */
+const val LINEAGES = 16
+const val LINEAGE_KM = 150.0
+/** Years in a generation, for how fast inbreeding builds in a closed band. */
+const val GENERATION_YEARS = 25f
+/** Extra yearly deaths among children per unit of inbreeding (first cousins' children: F = 0.0625). */
+const val INBREEDING_DEATHS = 0.3f
+/** Chance a meeting of bands that take partners from outside ends in an exchange (half when only one of them holds to it). */
+const val MARRY = 0.5f
+/** Kinship with a partner from another band, per unit of shared descent (about second cousins). */
+const val OUTSIDER_KIN = 0.03f
+/** Years an adult spends bearing and raising children before becoming an elder; elders' extra yearly deaths. */
+const val ADULT_YEARS = 30f
+const val ELDER_DEATHS = 0.05f
+/** Mothers one elder can help; most that grandmothers raise births and cut children's deaths, when there are enough of them. */
+const val ELDER_MOTHERS = 3f
+const val GRANDMOTHERS = 0.3f
+const val ELDER_CARE = 0.3f
+/** Words two bands bring into line when they meet; yearly chance a word changes by itself. */
+const val WORDS_PER_MEETING = 3
+const val WORD_DRIFT = 0.01f
+/** Chance at a meeting that a band takes up a tradition the more successful one holds, at full understanding. */
+const val COPY_TRADITION = 0.1f
+/** Yearly chance a band takes up a tradition by itself, or drops one. */
+const val TAKE_UP = 0.003f
+const val DROP = 0.003f
+/** Hunger and grudges: chance a hungry band raids a well-stocked one it meets (scaled by how little they understand each other); share of the larder taken. */
+const val RAID = 0.3f
+const val RAID_TAKE = 0.5f
+/** Share of each side's adults a raid kills at most, against the other's strength. */
+const val RAID_DEATHS = 0.08f
+/** Grudge held for a raid suffered, and the share that fades a year (half in about seven years). */
+const val GRUDGE = 1f
+const val GRUDGE_FADE = 0.1f
+/** A band's grudge against another's lineage above which it raids it unprovoked. */
+const val FEUD = 1.5f
+/** How much a fouled camp puts a band off staying, and how much the graves of its dead hold it. */
+const val FOUL_AVOID = 0.3f
+const val BURIAL_STAY = 0.1f
+/** Most a band of [Tradition.FEASTS] grows to before it splits, against its kind's usual most. */
+const val FEAST_SIZE = 1.3f
+
+/** The lineage a band founded at hex centre ([x], [y]) km descends from. */
+fun lineageAt(x: Double, y: Double): Int {
+    val bx = (x / LINEAGE_KM).toInt(); val by = (y / LINEAGE_KM).toInt()
+    return Math.floorMod(bx, 4) + 4 * Math.floorMod(by, 4)
+}
+
+/** Words of a band founded at ([x], [y]) km: half named as in its own country, half as in the wider region, so neighbours understand each other in part. */
+fun wordsAt(x: Double, y: Double): IntArray {
+    val fx = (x / LINEAGE_KM).toInt(); val fy = (y / LINEAGE_KM).toInt()
+    val cx = (x / (3 * LINEAGE_KM)).toInt(); val cy = (y / (3 * LINEAGE_KM)).toInt()
+    return IntArray(Language.CONCEPTS) { k ->
+        val (bx, by) = if (k % 2 == 0) fx to fy else (cx + 1000) to (cy + 1000)
+        Math.floorMod((bx * 73_856_093) xor (by * 19_349_663) xor (k * 83_492_791), Language.FORMS)
+    }
+}
+
+/** The traditions a band founded in a lineage's country starts with: about a quarter each, the same for its neighbours. */
+fun traditionsAt(lineage: Int) = BooleanArray(Tradition.entries.size) { t -> Math.floorMod((lineage + 1) * 2_654_435_761L.toInt() xor (t * 40_503), 100) < 25 }
+
+/** Kinship of two lineage mixes: the chance two people, one from each, share a founding lineage. */
+fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indices) s += a[i] * b[i]; return s }
+
+/**
+ * Two bands meet. If one is hungry and the other well stocked, or one holds a feud against the
+ * other's people, it may raid: the less they understand each other, the likelier. Otherwise they
+ * talk: they bring a few words into line, the less successful band may take up the other's ways,
+ * they show each other tools, and bands that marry out exchange partners, who bring their skills.
+ * Returns true if it came to a raid.
+ */
+internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
+    val ba = a.band ?: return false; val bb = b.band ?: return false
+    val u = Language.understanding(ba.words, bb.words)
+    if (raid(a, ba, b, bb, u) || raid(b, bb, a, ba, u)) return true
+    // The naming game: the larger band's word tends to win.
+    repeat(WORDS_PER_MEETING) {
+        val k = rnd.nextInt(Language.CONCEPTS)
+        if (ba.words[k] != bb.words[k]) { if (rnd.nextFloat() < a.size.toFloat() / (a.size + b.size)) bb.words[k] = ba.words[k] else ba.words[k] = bb.words[k] }
+    }
+    // Ways are copied from the band that does better: more food in hand, more children.
+    fun doing(g: HexGroup) = g.fed + g.larder / max(1f, g.dailyNeedKg * 60f) + g.young.toFloat() / max(1, g.adults)
+    val (lo, hi) = if (doing(a) < doing(b)) ba to bb else bb to ba
+    for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {
+        lo.traditions[t.ordinal] = hi.holds(t)
+        meetings.merge("band took ${if (hi.holds(t)) "up" else "leave of"} ${t.name.lowercase()}", 1, Int::plus)
+    }
+    teach(ba, bb, u)
+    // Partners: where either holds to marrying out, young adults change bands, both ways.
+    val marry = (if (ba.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bb.holds(Tradition.EXOGAMY)) 0.5f else 0f)
+    if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry) {
+        marryOut(a, ba, b, bb)
+        meetings.merge("bands exchanged partners", 1, Int::plus)
+    }
+    return false
+}
+
+/** [g] raids [o] if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
+private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understood: Float): Boolean {
+    val hungry = g.fed < 0.5f && o.larder > 10f * o.dailyNeedKg
+    val feud = b.grudge[ob.mainLineage()] > FEUD
+    if (!hungry && !feud) return false
+    if (rnd.nextFloat() >= RAID * (1f - understood) * (if (feud) 1f else 0.5f + 0.5f * (1f - g.fed))) return false
+    meetings.merge("raids", 1, Int::plus)
+    val sg = strength(g); val so = strength(o)
+    // Each side loses some of its people, the more so against the stronger side.
+    val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so))
+    val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so))
+    for ((who, lost) in listOf(g to lostG, o to lostO)) if (lost > 0) {
+        val wb = who.band!!
+        wb.elders = (wb.elders - (lost * wb.elders + who.adults / 2) / who.adults.coerceAtLeast(1)).coerceAtLeast(0)
+        who.adults -= lost
+        wb.elders = min(wb.elders, who.adults)
+        deaths.merge("${who.species.name}:raids", lost, Int::plus)
+        small.carrion[who.place] += lost * who.species.massKg / (land.areaKm2[who.place] * 1e6f)
+    }
+    // The stronger side carries off food; the raided remember.
+    if (sg > so) { val t = RAID_TAKE * o.larder; o.larder -= t; g.larder += t; meetings.merge("larders raided", 1, Int::plus) }
+    ob.grudge[b.mainLineage()] += GRUDGE
+    if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
+    return true
+}
+
+/** One or two young adults from each band join the other; their descent and skills come with them. */
+private fun HexGroups.marryOut(a: HexGroup, ba: Band, b: HexGroup, bb: Band) {
+    val sa = min(2, a.adults / 4).coerceAtLeast(1).toFloat() / a.adults
+    val sb = min(2, b.adults / 4).coerceAtLeast(1).toFloat() / b.adults
+    val kin = kinship(ba.lineage, bb.lineage)
+    // The children of a partner from outside are less inbred: as kin as the two bands' shared descent allows.
+    val fa = ba.inbred; val fb = bb.inbred
+    ba.inbred = (1f - sa) * fa + sa * OUTSIDER_KIN * kin
+    bb.inbred = (1f - sb) * fb + sb * OUTSIDER_KIN * kin
+    val la = ba.lineage.copyOf()
+    for (i in la.indices) { ba.lineage[i] += sa * (bb.lineage[i] - la[i]); bb.lineage[i] += sb * (la[i] - bb.lineage[i]) }
+    // Partners bring what they know how to do.
+    for (i in ba.craft.indices) { val x = ba.craft[i]; ba.craft[i] = max(x, x + sa * (bb.craft[i] - x)); bb.craft[i] = max(bb.craft[i], bb.craft[i] + sb * (x - bb.craft[i])) }
+    // Kin by marriage forgive.
+    ba.grudge[bb.mainLineage()] *= 0.5f; bb.grudge[ba.mainLineage()] *= 0.5f
+}
+
+/** A band's year, a week at a time: inbreeding builds in a closed band, grudges fade, words drift, traditions are now and then taken up or dropped. */
+internal fun HexGroups.cultureWeek(g: HexGroup) {
+    val b = g.band ?: return
+    val years = days / Date.DAYS_PER_YEAR.toFloat()
+    b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
+    for (i in b.grudge.indices) b.grudge[i] *= 1f - GRUDGE_FADE * years
+    if (rnd.nextFloat() < WORD_DRIFT * Language.CONCEPTS * years) b.words[rnd.nextInt(Language.CONCEPTS)] = rnd.nextInt(Language.FORMS)
+    for (t in Tradition.entries) {
+        val held = b.holds(t)
+        if (rnd.nextFloat() < (if (held) DROP else TAKE_UP) * years) { b.traditions[t.ordinal] = !held; meetings.merge("band ${if (held) "dropped" else "took up"} ${t.name.lowercase()}", 1, Int::plus) }
+    }
+}
