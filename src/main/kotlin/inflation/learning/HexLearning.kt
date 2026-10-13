@@ -34,9 +34,27 @@ object HexLearning {
     /** Candidates kept per recorded decision. */
     const val SLOTS = 32
 
+    /**
+     * A world for learning the seasons: cool enough for snow to lie on the high ground for months,
+     * and with mountains: the first of [cfg]'s seed and the next ones whose land rises above
+     * [MOUNTAIN_M]. Centred at [LATITUDE].
+     */
+    fun mountainWorld(cfg: WorldConfig): World {
+        var seed = cfg.seed
+        while (true) {
+            val w = World.generate(cfg.copy(seed = seed, centreLatitude = LATITUDE))
+            if ((0 until w.grid.size).any { !w.isSea[it] && w.elevation[it] > MOUNTAIN_M }) return w
+            seed += 100_000
+        }
+    }
+
+    /** Learning worlds are centred this far north, °; and must have land this high, m. */
+    const val LATITUDE = 40.0
+    const val MOUNTAIN_M = 2000f
+
     /** A lean hex world on [cfg]: weather, land, resident herds, and groups of [kinds] only. */
-    class Run(cfg: WorldConfig, kinds: List<Species>) {
-        val world = World.generate(cfg)
+    class Run(cfg: WorldConfig, kinds: List<Species>, mountains: Boolean = false) {
+        val world = if (mountains) mountainWorld(cfg) else World.generate(cfg)
         val hex = HexMap(world)
         val hw = HexWorld(world, hex)
         val weather = Weather(hw.weatherPlaces(cfg), cfg)
@@ -150,7 +168,10 @@ object HexLearning {
 /**
  * Copies the hand-written moves of the migratory herds into networks, on a lean hex world.
  *
- * Usage: hex-imitate [--seed N] [--size KM] [--years N] [--out DIR]
+ * Usage: hex-imitate [--seed N] [--size KM] [--years N] [--out DIR] [--hunters]
+ *
+ * Worlds are cool and mountainous (see [HexLearning.mountainWorld]); with --hunters the hunters live
+ * there too, by their hand-written behaviour.
  */
 object HexImitate {
     @JvmStatic
@@ -158,6 +179,7 @@ object HexImitate {
         var cfg = WorldConfig(seed = 7, widthKm = 600, heightKm = 600)
         var years = 3
         var out = File("hex-policies")
+        var hunters = emptyList<Species>()
         var k = 0
         while (k < args.size) {
             when (args[k]) {
@@ -165,12 +187,13 @@ object HexImitate {
                 "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
                 "--years" -> years = args[++k].toInt()
                 "--out" -> out = File(args[++k])
+                "--hunters" -> hunters = Catalogue.predators.filter { !it.human }
                 else -> error("unknown argument ${args[k]}")
             }
             k++
         }
         val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory }
-        val run = HexLearning.Run(cfg, kinds)
+        val run = HexLearning.Run(cfg, kinds + hunters, mountains = true)
         val recorder = HexLearning.Recorder()
         for (s in kinds) run.groups.policies[s] = recorder
         repeat(years * Date.DAYS_PER_YEAR / cfg.daysPerStep) { run.step() }
@@ -192,7 +215,10 @@ object HexImitate {
  * start. Herds caught on the high ground when the snow comes die; those that learn the seasons
  * live.
  *
- * Usage: hex-evolve [--start DIR] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R]
+ * Usage: hex-evolve [--start DIR] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--hunters]
+ *
+ * Worlds are cool and mountainous; with --hunters the hunters live there too (hand-written), so the
+ * herds also learn where they are safe.
  */
 object HexEvolve {
     @JvmStatic
@@ -206,6 +232,7 @@ object HexEvolve {
         var pairs = 8
         var sigma = 0.02f
         var rate = 0.01f
+        var hunters = emptyList<Species>()
         var k = 0
         while (k < args.size) {
             when (args[k]) {
@@ -218,6 +245,7 @@ object HexEvolve {
                 "--pairs" -> pairs = args[++k].toInt()
                 "--sigma" -> sigma = args[++k].toFloat()
                 "--rate" -> rate = args[++k].toFloat()
+                "--hunters" -> hunters = Catalogue.predators.filter { !it.human }
                 else -> error("unknown argument ${args[k]}")
             }
             k++
@@ -240,7 +268,7 @@ object HexEvolve {
                     m
                 }
             }
-            val results = seeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed + 1000L * gen, widthKm = size, heightKm = size), years, variants) }.toList()
+            val results = seeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed + 1000L * gen, widthKm = size, heightKm = size), years, variants, hunters) }.toList()
             val parts = ArrayList<String>()
             for (s in kinds) {
                 val fitness = DoubleArray(nv)
@@ -261,8 +289,8 @@ object HexEvolve {
     }
 
     /** One lean world for [years], each group of an evolving kind on one of its [variants]; animal-weeks per animal at the start. */
-    fun evaluate(cfg: WorldConfig, years: Int, variants: Map<Species, Array<Mlp>>): Pair<Map<Species, DoubleArray>, String> {
-        val run = HexLearning.Run(cfg, variants.keys.toList())
+    fun evaluate(cfg: WorldConfig, years: Int, variants: Map<Species, Array<Mlp>>, hunters: List<Species> = emptyList()): Pair<Map<Species, DoubleArray>, String> {
+        val run = HexLearning.Run(cfg, variants.keys.toList() + hunters, mountains = true)
         val rnd = Random(cfg.seed)
         val started = variants.mapValues { DoubleArray(it.value.size) }
         for ((s, vs) in variants) run.groups.groups.filter { it.species == s }.shuffled(rnd).forEachIndexed { i, g -> g.tag = i % vs.size; started.getValue(s)[g.tag] += g.size.toDouble() }
@@ -298,6 +326,7 @@ object HexSeasons {
     fun main(args: Array<String>) {
         var cfg = WorldConfig(seed = 991, widthKm = 600, heightKm = 600)
         var nets: File? = null
+        var hunters = emptyList<Species>()
         var years = 2
         var k = 0
         while (k < args.size) {
@@ -306,12 +335,13 @@ object HexSeasons {
                 "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
                 "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
                 "--years" -> years = args[++k].toInt()
+                "--hunters" -> hunters = Catalogue.predators.filter { !it.human }
                 else -> error("unknown argument ${args[k]}")
             }
             k++
         }
         val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory }
-        val run = HexLearning.Run(cfg, kinds)
+        val run = HexLearning.Run(cfg, kinds + hunters, mountains = true)
         nets?.let { dir -> for (s in kinds) HexLearning.file(dir, s).takeIf { it.exists() }?.let { run.groups.policies[s] = HexLearning.NetPolicy(Mlp.load(it.readText())) } }
         val stepsPerMonth = Date.DAYS_PER_MONTH / cfg.daysPerStep
         println("month " + kinds.joinToString("") { "%18s".format(it.name.take(16)) })
@@ -320,7 +350,7 @@ object HexSeasons {
             repeat(stepsPerMonth) {
                 run.step()
                 for (g in run.groups.groups) {
-                    if (!g.alive) continue
+                    if (!g.alive || g.species !in kinds) continue
                     val i = kinds.indexOf(g.species)
                     elev[i] += run.hw.placeElevationM[g.place] * g.size.toDouble(); n[i] += g.size.toDouble()
                     if (run.weather.snowpack[g.place] > g.species.snowLimitMm) snow[i] += g.size.toDouble()

@@ -87,8 +87,10 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     @Volatile private var running = false
     @Volatile private var stepsPerSecond = 2
 
-    /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...), its size, and where it stands among the groups ending in its hex. */
-    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val slot: Int, val slots: Int)
+    /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...; from where it was drawn last), its size. */
+    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int)
+    /** Where each group was drawn at the end of the last move, km. */
+    private val lastDrawn = HashMap<Int, Pair<Float, Float>>()
     @Volatile private var shown = emptyList<Shown>()
     @Volatile private var frame = 0
     private var frames = 1
@@ -138,10 +140,20 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         for (g in groups.groups) {
             if (!g.alive) continue
             val h = hw.placeHex[g.place]
-            val way = FloatArray(max(1, g.path.size) * 2)
-            if (g.path.isEmpty()) { val (x, y) = hex.centreKm(h); way[0] = x.toFloat(); way[1] = y.toFloat() }
-            for ((i, ph) in g.path.withIndex()) { val (x, y) = hex.centreKm(ph); way[2 * i] = x.toFloat(); way[2 * i + 1] = y.toFloat() }
-            list += Shown(g.id, g.species.index, g.species.carnivore, way, g.size, slotOf.getValue(g.id), inHex.getValue(h))
+            // Its spot at the end: a small ring around the hex's centre when it shares the hex.
+            val (hx, hy) = hex.centreKm(h)
+            val slots = inHex.getValue(h); val slot = slotOf.getValue(g.id)
+            val r = if (slots > 1) min(3.5, 1.2 + 0.35 * slots) else 0.0
+            val a = 2 * Math.PI * slot / max(1, slots)
+            val end = (hx + r * kotlin.math.cos(a)).toFloat() to (hy + r * kotlin.math.sin(a)).toFloat()
+            // From where it was drawn last, through the centres of the hexes passed, to its spot.
+            val pts = ArrayList<Float>()
+            val start = lastDrawn[g.id] ?: end
+            pts += start.first; pts += start.second
+            for (ph in g.path.drop(1).dropLast(1)) { val (x, y) = hex.centreKm(ph); pts += x.toFloat(); pts += y.toFloat() }
+            pts += end.first; pts += end.second
+            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size)
+            lastDrawn[g.id] = end
         }
         shown = list
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
@@ -224,12 +236,7 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             val t = min(1f, frame.toFloat() / frames)
             for (s in shown) {
                 val w = s.way
-                var (x, y) = along(w, t)
-                if (s.slots > 1) {
-                    val a = 2 * Math.PI * s.slot / s.slots
-                    val r = min(3.5, 1.2 + 0.35 * s.slots) * t
-                    x += (r * kotlin.math.cos(a)).toFloat(); y += (r * kotlin.math.sin(a)).toFloat()
-                }
+                val (x, y) = along(w, t)
                 val sp = Catalogue.all[s.kind]
                 if (s.carnivore) {
                     g.color = Color.WHITE; g.fillRect(sx(x) - 3, sy(y) - 3, 7, 7)
