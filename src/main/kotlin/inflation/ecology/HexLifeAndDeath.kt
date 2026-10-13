@@ -131,6 +131,9 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
         o.split?.let { c -> born += HexGroup(nextId++, s, g.place, c.first, c.second).also { n ->
             n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth
+            // A band that splits shares out its larder by heads.
+            val share = (c.first + c.second).toFloat() / (g.size + c.first + c.second).coerceAtLeast(1)
+            n.larder = g.larder * share; g.larder -= n.larder
             g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
         } } // a young pack has no ground yet
     }
@@ -185,7 +188,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val disease = if (s.carnivore) 0f else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         g.wary *= WARY_KEEP
         // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
-        val homeless = if (s.carnivore && g.home < 0) DISPERSAL_DEATHS * years else 0f
+        val homeless = if (s.carnivore && !s.human && g.home < 0) DISPERSAL_DEATHS * years else 0f
         // Eagles take the young of the smaller hoofed animals in the open.
         val eagle = if (!s.carnivore && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
         val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
@@ -237,7 +240,7 @@ internal fun HexGroups.mergeAndPair() {
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
     // the pair holds the ground of the one that had any.
     val lone = HashMap<Int, ArrayList<HexGroup>>()
-    for (g in groups) if (g.alive && g.species.carnivore && g.adults == 1) lone.getOrPut(g.species.index) { ArrayList() } += g
+    for (g in groups) if (g.alive && g.species.carnivore && !g.species.human && g.adults == 1) lone.getOrPut(g.species.index) { ArrayList() } += g
     for ((_, list) in lone) {
         val used = HashSet<Int>()
         for (a in list) {

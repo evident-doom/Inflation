@@ -36,14 +36,14 @@ class HexGroups(
     val groups = ArrayList<HexGroup>()
     internal var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. */
-    val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators.filter { !it.human })
+    val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators)
     /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
     val bearings by lazy {
         HexBearings(hw, kinds, { s, p, m ->
             val fit = fauna.monthFit(s, p, m)
             if (s.carnivore) {
                 // The game it can catch there, resident herds and migratory ones alike, by weight.
-                val prey = huntable[kindSlot[s.index]][p]
+                val prey = huntable[kindSlot[s.index]][p] + if (s.human) (fauna.food.fruit[p] + fauna.food.roots[p]) * 1e6f * PLANT_FOOD_WEIGHT else 0f
                 // Hunters that live on the water in their prey (cheetahs, leopards) care less how far it is.
                 val w = land.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
                 prey / (prey + PREY_HALF) * fit / (1f + w * w)
@@ -104,6 +104,7 @@ class HexGroups(
                 while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
                 val g = HexGroup(nextId++, s, p, s.groupSize, max(0, s.groupSize / 3))
                 g.fat = 0.5f * s.maxFatDays
+                if (s.human) g.larder = START_LARDER_DAYS * g.dailyNeedKg
                 if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
                 groups += g
             }
@@ -203,9 +204,23 @@ class HexGroups(
         for (g in groups) if (g.alive) headsHere[kindSlot[g.species.index]][g.place] += g.size
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             for ((k, s) in kinds.withIndex()) placeValue[k][p] =
-                if (s.carnivore) preyHere(s, p) + herdPrey(s, p, kin)
+                if (s.human) campValue(s, p, kin)
+                else if (s.carnivore) preyHere(s, p) + herdPrey(s, p, kin)
                 else foodFor(s, p) * land.nourishment(p) * fauna.suits(s, p) * (1f - land.burning[p])
         }
+    }
+
+    /**
+     * What place [p] offers a band for a camp, as game-weight per km²: the game it can hunt there, and
+     * the fruit, nuts and roots it can gather (counted at their weight against meat), the more so where
+     * the camp can stand on high, broken or water-girt ground safe from lions and raiders.
+     */
+    internal fun campValue(s: Species, p: Int, kin: HashMap<Long, Int>): Float {
+        val game = preyHere(s, p) + herdPrey(s, p, kin)
+        val plants = (fauna.food.fruit[p] + fauna.food.roots[p]) * 1e6f * PLANT_FOOD_WEIGHT
+        // Water close to camp: women and children fetch it every day.
+        val w = land.waterKm[p] / 3f
+        return (game + plants) * (1f + CAMP_SAFETY * land.bestDefence[p]) / (1f + w * w)
     }
 
     /** Strongest hunting party in each place last week, and its kind's index (-1 for none). */
@@ -263,8 +278,8 @@ class HexGroups(
         for (h in reached) {
             val d = dist[h]
             // A pack on its own ground stays on it while fed; and keeps off ground another pack of its kind holds.
-            if (s.carnivore && g.home >= 0 && g.fed >= 0.5f && !astray && hexKm(h, g.home) > territoryKm(s)) continue
-            if (s.carnivore && g.fed >= 0.3f && h != g.home && foreignMark(s, h, g.id) > MARK_FRESH) continue
+            if (s.carnivore && !s.human && g.home >= 0 && g.fed >= 0.5f && !astray && hexKm(h, g.home) > territoryKm(s)) continue
+            if (s.carnivore && !s.human && g.fed >= 0.3f && h != g.home && foreignMark(s, h, g.id) > MARK_FRESH) continue
             for (b in 0 until HexWorld.BANDS_M.size) {
                 val p = hw.placeOf[b][h]
                 if (p < 0) continue

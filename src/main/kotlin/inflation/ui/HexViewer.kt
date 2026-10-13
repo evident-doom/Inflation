@@ -101,6 +101,7 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     private val windBox = javax.swing.JCheckBox("Wind", false)
     private val herdsBox = javax.swing.JCheckBox("Herds", true)
     private val huntersBox = javax.swing.JCheckBox("Hunters", true)
+    private val peopleBox = javax.swing.JCheckBox("People", true)
 
     /**
      * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
@@ -145,9 +146,9 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         residentChoice.addActionListener { map.repaint() }
         tintChoice.addActionListener { map.repaint() }
         windBox.addActionListener { map.repaint() }
-        herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }
+        herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }; peopleBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(windBox); bar.add(pullChoice)
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(windBox); bar.add(pullChoice)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         bar.add(graphs); bar.add(date)
         val bottom = JPanel(); bottom.add(counts)
@@ -374,11 +375,17 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             // week those sharing a hex stand side by side in a small ring around its centre.
             val t = min(1f, frame.toFloat() / frames)
             for (s in shown) {
-                if (if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
+                val sp = Catalogue.all[s.kind]
+                if (if (sp.human) !peopleBox.isSelected else if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
                 val w = s.way
                 val (x, y) = along(w, t)
-                val sp = Catalogue.all[s.kind]
-                if (s.carnivore) {
+                if (sp.human) {
+                    // A band: a white-ringed blue diamond, fading as it goes hungry.
+                    val a = 0.35f + 0.65f * s.health
+                    val px = sx(x); val py = sy(y)
+                    g.color = Color(1f, 1f, 1f, a); g.fillPolygon(intArrayOf(px, px + 5, px, px - 5), intArrayOf(py - 5, py, py + 5, py), 4)
+                    g.color = Color(0.1f, 0.3f, 0.95f, a); g.fillPolygon(intArrayOf(px, px + 3, px, px - 3), intArrayOf(py - 3, py, py + 3, py), 4)
+                } else if (s.carnivore) {
                     // Hunters fade as they starve.
                     val a = 0.25f + 0.75f * s.health
                     g.color = Color(1f, 1f, 1f, a); g.fillRect(sx(x) - 3, sy(y) - 3, 7, 7)

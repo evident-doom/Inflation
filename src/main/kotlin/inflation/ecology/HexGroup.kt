@@ -26,6 +26,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     var tag = -1
     /** The month its young are born in, drifting towards the months that feed them best; -1 for its kind's. */
     var birthMonth = -1
+    /** For a band: food stored, kg (dried meat, nuts, acorns, seeds, roots). */
+    var larder = 0f
     /** How wary it is from being hunted lately, 0..1: it keeps a sharper watch, and fades over weeks. */
     var wary = 0f
     val dailyNeedKg get() = species.dailyIntakeKg * (adults + 0.5f * young)

@@ -37,6 +37,14 @@ const val SHUN_HUNTERS = 0.3f
 const val HUNTERS_HALF_KG = 1f
 /** Share of a migratory herd's weight a hunter's sense of good hunting country counts as game (herds watch and move). */
 const val HERD_GAME = 0.3f
+/** People: plant food counted against game by weight (it is easier to come by, but not all is worth gathering); how much a safe camp site adds. */
+const val PLANT_FOOD_WEIGHT = 0.5f
+const val CAMP_SAFETY = 0.5f
+/** A band's larder: most it keeps, days of food; share that spoils or is lost a week. */
+const val LARDER_DAYS = 120f
+const val LARDER_SPOIL = 0.01f
+/** Days of food a band has stored when the world begins. */
+const val START_LARDER_DAYS = 30f
 /** Soil water below which a herd is in a dry spell, mm; rain ahead that promises relief, mm a week. */
 const val DRY_SOIL_MM = 40f
 const val RAIN_AHEAD_MM = 20f

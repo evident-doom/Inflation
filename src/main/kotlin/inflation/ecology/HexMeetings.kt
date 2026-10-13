@@ -95,16 +95,40 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
             // Bone-crackers live on what the others leave long after the meat is gone.
             if (Niches.cracksBones(s) && scraps - gotScraps > 0f) gotScraps += this.small.crackBones(p, min((scraps - gotScraps) / (swept * 1e6f), 0.5f * this.small.bones[p])) * swept * 1e6f
         }
-        // Omnivorous hunters (jackals, hyenas) eat fruit and roots as well, where they end the week.
+        // Omnivorous hunters (jackals, hyenas) eat fruit and roots as well, where they end the week;
+        // bands gather them over all the ground they walked, the women's and children's day round.
         val d = s.diet
-        val plantWant = g.dailyNeedKg * days * (d.fruit + d.roots) / (land.areaKm2[g.place] * 1e6f)
-        val plants = if (plantWant > 0f) (fauna.food.take(fauna.food.fruit, g.place, plantWant * d.fruit / (d.fruit + d.roots)) +
-            fauna.food.take(fauna.food.roots, g.place, plantWant * d.roots / (d.fruit + d.roots))) * land.areaKm2[g.place] * 1e6f else 0f
+        val gatherAt = if (s.human) g.path.toList().mapNotNull { h: Int -> hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } }.ifEmpty { listOf(g.place) } else listOf(g.place)
+        var plants = 0f
+        if (d.fruit + d.roots > 0f) for (q in gatherAt) {
+            val want = g.dailyNeedKg * days * (d.fruit + d.roots) / gatherAt.size / (land.areaKm2[q] * 1e6f)
+            plants += (fauna.food.take(fauna.food.fruit, q, want * d.fruit / (d.fruit + d.roots)) +
+                fauna.food.take(fauna.food.roots, q, want * d.roots / (d.fruit + d.roots))) * land.areaKm2[q] * 1e6f
+        }
         val wantAll = g.dailyNeedKg * days * (d.meat + d.smallPrey + d.carrion + d.fruit + d.roots).coerceAtLeast(1e-6f)
-        g.fed = ((min(got, need) + gotSmall + gotScraps + plants) / wantAll).coerceIn(0f, 1f)
+        var eaten = min(got, need) + gotSmall + gotScraps + plants
+        var leftMeat = max(0f, got - need)
+        if (s.human) {
+            // A band keeps a larder: meat it could not eat is dried, and in good weeks it gathers more
+            // nuts, acorns, seeds and roots than it needs and stores them; in lean weeks it lives on them.
+            val cap = LARDER_DAYS * g.dailyNeedKg
+            val dried = min(0.5f * leftMeat, max(0f, cap - g.larder)); g.larder += dried; leftMeat -= dried
+            if (eaten < wantAll && g.larder > 0f) { val draw = min(g.larder, wantAll - eaten); g.larder -= draw; eaten += draw }
+            else if (g.larder < cap) {
+                val room = min(cap - g.larder, g.dailyNeedKg * days)
+                var stored = 0f
+                for (q in gatherAt) {
+                    val want = room / gatherAt.size / (land.areaKm2[q] * 1e6f)
+                    stored += (fauna.food.take(fauna.food.fruit, q, 0.6f * want) + fauna.food.take(fauna.food.roots, q, 0.4f * want)) * land.areaKm2[q] * 1e6f
+                }
+                g.larder += stored
+            }
+            g.larder *= 1f - LARDER_SPOIL
+        }
+        g.fed = (eaten / wantAll).coerceIn(0f, 1f)
         // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
         val p = g.place
-        small.carrion[p] += max(0f, got - need) / (land.areaKm2[p] * 1e6f)
+        small.carrion[p] += leftMeat / (land.areaKm2[p] * 1e6f)
         small.dung[p] += HexSmallLife.DUNG * (min(got, need) + gotSmall + gotScraps) / (land.areaKm2[p] * 1e6f)
     }
 }
@@ -175,7 +199,8 @@ internal fun HexGroups.meet(weather: Weather) {
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { meetings.merge("slipped away", 1, Int::plus); continue }
         count[e.a]++; count[e.b]++
         if (a.species.carnivore && b.species.carnivore) {
-            if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) else enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
+            if (a.species.human && b.species.human) meetings.merge("bands met", 1, Int::plus)
+            else if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) else enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
         }
         else {
             val (hunter, hi, herd, ri) = if (a.species.carnivore) listOf(e.a, e.ai, e.b, e.bi) else listOf(e.b, e.bi, e.a, e.ai)
@@ -316,7 +341,7 @@ internal fun HexGroups.mark() {
     for (m in marks.values) for (i in m.indices) m[i] *= MARK_KEEP
     for (g in groups) {
         val s = g.species
-        if (!g.alive || !s.carnivore || g.home < 0) continue
+        if (!g.alive || !s.carnivore || s.human || g.home < 0) continue
         val m = marks.getOrPut(s.index) { FloatArray(hex.size) }
         val who = markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
         for (h in g.path + g.home) {
@@ -351,7 +376,7 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
 /** A pack without ground settles where no other pack of its kind has fresh marks. */
 internal fun HexGroups.settle() {
     val claimed = HashSet<Long>()
-    for (g in groups) if (g.alive && g.species.carnivore && g.home < 0) {
+    for (g in groups) if (g.alive && g.species.carnivore && !g.species.human && g.home < 0) {
         val h = hw.placeHex[g.place]
         val key = g.species.index.toLong() * hex.size + h
         if (foreignMark(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) g.home = h
