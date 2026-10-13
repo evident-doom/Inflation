@@ -109,6 +109,12 @@ fun main(args: Array<String>) {
     println("journeys of 50-150 km: possible both ways %d, only over the fine terrain %d, only by hexes %d, neither %d; effort by hexes / fine: median %.2f, 10%% %.2f, 90%% %.2f".format(
         both, onlyFine, onlyHex, neither, pct(ratio, .5), pct(ratio, .1), pct(ratio, .9)))
     png?.let { draw(world, hex, it) }
+    png?.let { p ->
+        t0 = System.nanoTime()
+        val hw = HexWorld(world, hex)
+        println("hex world summarised in %.1f s".format((System.nanoTime() - t0) / 1e9))
+        hw.draw(java.io.File(p.parentFile, p.nameWithoutExtension + "-hexworld.png"), 1.0)
+    }
 }
 
 private fun pct(v: List<Float>, p: Double) = v.sorted().let { if (it.isEmpty()) Float.NaN else it[((it.size - 1) * p).toInt()] }
