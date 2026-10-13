@@ -49,10 +49,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val dens = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
             for (p in 0 until n) {
                 val food = foodFor(s, p)
-                adults[k][p] = dens * min(1f, food / FOOD_FULL) * 0.8f
+                adults[k][p] = dens * min(1f, food / FOOD_FULL) * suits(s, p) * 0.8f
                 young[k][p] = 0.2f * adults[k][p]
             }
         }
+    }
+
+    /**
+     * How well place [p] suits [s] by the ground it prefers, about 0.2..2.5: ibex the crags, roe deer
+     * cover, boar wet thickets, aurochs open ground; 1 for a kind with no preference.
+     */
+    fun suits(s: Species, p: Int): Float {
+        val h = s.habitat
+        val cover = min(1f, land.shrub[p] / 2f + land.canopy(p))
+        val wet = land.floodShare[p]
+        return exp(HABITAT * (h.cover * (cover - 0.5f) + h.rugged * (land.ruggedness[p] - 0.3f) + h.wet * (wet - 0.2f)))
     }
 
     /** Food for [s] in place [p], kg/m², from its diet: grass from herbs, browse from shrubs and trees, fruit from trees. */
@@ -160,7 +171,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val t = weather.temperature[p]
         val discomfort = (max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive)) / 10f
         val snowed = if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f
-        return foodFor(s, p) * snowed / (1f + heads / CROWD) / (1f + discomfort)
+        return foodFor(s, p) * suits(s, p) * snowed / (1f + heads / CROWD) / (1f + discomfort)
     }
 
     /** Within a hex, a share of each kind moves between neighbouring height bands towards the better one. */
@@ -209,7 +220,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val e = cross[h * 6 + d]
                     if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
-                    ws[d] = ease * (foodFor(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f)
+                    ws[d] = ease * (foodFor(s, q) * suits(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f)
                     total += ws[d]
                 }
                 if (total <= 0f) continue
@@ -228,6 +239,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     companion object {
         /** Share of the standing plants a week's grazing can take without eating the place bare. */
         const val REACH = 0.01f
+        /** How strongly a kind is drawn to the ground it prefers. */
+        const val HABITAT = 3f
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 3f

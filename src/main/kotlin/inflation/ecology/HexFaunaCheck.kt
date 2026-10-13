@@ -33,6 +33,7 @@ fun main(args: Array<String>) {
     val weather = Weather(hw.weatherPlaces(cfg), cfg)
     val land = HexLand(hw, cfg.seed)
     val fauna = HexFauna(hw, land, cfg.daysPerStep)
+    val herds = HexGroups(hw, land, fauna, cfg.daysPerStep, cfg.seed)
     val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     println("year " + fauna.kinds.joinToString("") { "%11s".format(it.name.take(10)) })
     println("   0 " + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
@@ -41,11 +42,13 @@ fun main(args: Array<String>) {
     for (y in 1..years) {
         repeat(stepsPerYear) {
             val t0 = System.nanoTime()
-            weather.step(); land.step(weather); fauna.step(weather, weather.date)
+            weather.step(); land.step(weather); fauna.step(weather, weather.date); herds.step(weather, weather.date)
             ns += System.nanoTime() - t0
             for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
         }
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
+        println("     groups: " + herds.kinds.joinToString(", ") { "${it.name} ${herds.count(it)}" })
+        println("     this week: kills " + herds.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + herds.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds) {
