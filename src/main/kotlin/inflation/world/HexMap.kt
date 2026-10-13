@@ -46,6 +46,12 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     val crossing get() = crossings[Travel.FOOT.ordinal]
     val passM = FloatArray(size * 6)
     val riverM3s = FloatArray(size * 6)
+    /**
+     * Per border: depth of the water to be crossed at the best crossing between the two hexes, m (0 where
+     * no river lies between them). Taken from the way a swimmer would go, so it is known even where the
+     * river closes the border to those on foot.
+     */
+    val riverDepthM = FloatArray(size * 6)
     /** Per way of travelling: effort per fine cell, as a multiple of flat open ground. */
     val costs = Array(Travel.entries.size) { FloatArray(grid.size) }
     val walk get() = costs[Travel.FOOT.ordinal]
@@ -195,20 +201,23 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
             }
         }
         if (!found) return
-        // Along the way: its highest point and the biggest river crossed.
-        var top = world.elevation[to]; var river = 0f
+        // Along the way: its highest point, the biggest river and the deepest water crossed.
+        var top = world.elevation[to]; var river = 0f; var depth = 0f
         var i = to
         while (i != from) {
             top = max(top, world.elevation[i])
             river = max(river, world.water.discharge[i])
+            depth = max(depth, terrain.crossingDepthM(i))
             i = via.getValue(i)
         }
         val e = dist.getValue(to)
         val back = (d + 3) % 6
         crossings[tr.ordinal][a * 6 + d] = e; crossings[tr.ordinal][b * 6 + back] = e
-        if (tr != Travel.FOOT) return
-        passM[a * 6 + d] = top; passM[b * 6 + back] = top
-        riverM3s[a * 6 + d] = river; riverM3s[b * 6 + back] = river
+        if (tr == Travel.SWIM) {
+            riverM3s[a * 6 + d] = river; riverM3s[b * 6 + back] = river
+            riverDepthM[a * 6 + d] = depth; riverDepthM[b * 6 + back] = depth
+        }
+        if (tr == Travel.FOOT) { passM[a * 6 + d] = top; passM[b * 6 + back] = top }
     }
 
     /** Least effort from hex [a] to every hex, over the borders, travelling as [tr]; infinite where there is no way. */
@@ -246,8 +255,8 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
 
         /** Effort factor for getting across water [depth] m deep at its easiest point; infinite where it cannot be crossed. */
         fun water(depth: Float): Float = when {
-            depth < 0.3f -> 1f
-            depth < wade -> 1f + 4f * (depth - 0.3f) / (wade - 0.3f)
+            depth < KNEE -> 1f
+            depth < wade -> 1f + 4f * (depth - KNEE) / (wade - KNEE)
             depth < deepest -> 5f + 25f * (depth - wade) / (deepest - wade)
             else -> Float.POSITIVE_INFINITY
         }
@@ -256,6 +265,8 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     companion object {
         /** How fast ground closes above a way of travelling's steepest. */
         const val BARRIER = 25f
+        /** Water up to the knee, m, is crossed without trouble. */
+        const val KNEE = 0.5f
         // Neighbour offsets (col, row) for even and odd rows: E, SE, SW, W, NW, NE.
         private val EVEN = arrayOf(1 to 0, 0 to 1, -1 to 1, -1 to 0, -1 to -1, 0 to -1)
         private val ODD = arrayOf(1 to 0, 1 to 1, 0 to 1, -1 to 0, 0 to -1, 1 to -1)

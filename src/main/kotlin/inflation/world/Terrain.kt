@@ -91,22 +91,25 @@ class Terrain(private val world: World) {
     }
 
     private fun findCliffs() {
-        val cellM = grid.cellM.toFloat()
+        // Escarpments: the top of each fault block, where the ground drops to the foot of the next
+        // block, along the whole line of the scarp; streams cut gaps through it.
+        val noise = Noise(world.config.seed)
+        val field = FloatArray(n); val faulted = FloatArray(n)
         for (i in 0 until n) {
-            if (isWater(i) || world.water.discharge[i] > CLIFF_GAP_M3S) continue
+            val (f, through) = World.scarpField(noise, grid.cellKm, grid.x(i).toDouble(), grid.y(i).toDouble())
+            faulted[i] = f.toFloat(); field[i] = through.toFloat()
+        }
+        for (i in 0 until n) {
+            if (isWater(i) || world.water.discharge[i] > CLIFF_GAP_M3S || faulted[i] < SCARP_FAULTED || field[i] < 0.7f || elev[i] > 1500f) continue
             val x0 = grid.x(i); val y0 = grid.y(i)
-            var drop = 0f; var sum = 0f; var k = 0
             for (dy in -1..1) for (dx in -1..1) {
                 if (dx == 0 && dy == 0) continue
                 val x = x0 + dx; val y = y0 + dy
                 if (!grid.inBounds(x, y)) continue
-                val d = (elev[i] - max(0f, elev[grid.index(x, y)])) / (if (dx != 0 && dy != 0) 1.414f else 1f)
-                drop = max(drop, d); sum += kotlin.math.abs(d); k++
+                val j = grid.index(x, y)
+                // Across the line: the neighbour lies at the foot of the next block, well below.
+                if (field[j] < 0.3f && elev[i] - elev[j] > CLIFF_M * grid.cellKm.toFloat()) { cliff[i] = true; break }
             }
-            if (k == 0) continue
-            // A sharp step out of gentle country: the biggest drop well above what is usual around.
-            val usual = (sum - drop) / (k - 1).coerceAtLeast(1)
-            if (drop > CLIFF_M * grid.cellKm.toFloat() && drop > CLIFF_RATIO * usual && usual < CLIFF_GENTLE * cellM) cliff[i] = true
         }
         // Gorges: a river cut well below the plain on both banks; its walls are cliffs.
         for (i in 0 until n) {
@@ -276,11 +279,11 @@ class Terrain(private val world: World) {
     }
 
     companion object {
-        /** Cliffs: least drop over a km, how much steeper than the ground around, how gentle that ground must be (rise over run); streams this big cut a gap. */
-        const val CLIFF_M = 70f
-        const val CLIFF_RATIO = 3f
-        const val CLIFF_GENTLE = 0.06f
+        /** Cliffs: least drop over a km across an escarpment; streams this big cut a gap. */
+        const val CLIFF_M = 50f
         const val CLIFF_GAP_M3S = 0.5f
+        /** How strongly faulted a place must be for its scarps to stand as cliffs. */
+        const val SCARP_FAULTED = 0.3f
         /** How far below the plain on both banks a river must have cut for a gorge, m. */
         const val GORGE_M = 120f
         /** How much easier a well-worn path is than the open ground around it. */

@@ -40,6 +40,8 @@ class World(
         const val SCARP_SPACING_KM = 120.0
         const val SCARP_BAND = 0.08
         const val SCARP_M = 220.0
+        /** Smallest lake kept, km²: shallower hollows are filled. */
+        const val MIN_LAKE_KM2 = 6.0
 
         fun generate(cfg: WorldConfig, log: (String) -> Unit = {}): World {
             val grid = Grid(cfg.width, cfg.height, cfg.cellKm)
@@ -65,6 +67,7 @@ class World(
             log("recent deformation and young volcanoes")
             youngDeformation(grid, tect, noise, elevation)
             Volcanism.build(grid, elevation, volcanoes, young = true, noise)
+            fillPuddles(grid, elevation)
             val sea = seaMask(grid, elevation)
 
             log("climate")
@@ -113,6 +116,39 @@ class World(
         }
 
         /**
+         * The slight warping after erosion leaves the plains dotted with shallow hollows a cell or two
+         * across; real ones fill with silt or drain. Hollows smaller than [MIN_LAKE_KM2] are filled to
+         * their spill level, leaving the lakes of real basins.
+         */
+        private fun fillPuddles(grid: Grid, elevation: FloatArray) {
+            val sea0 = seaMask(grid, elevation)
+            val filled = priorityFlood(grid, elevation, { sea0[it] || grid.isEdge(it) })
+            val seen = BooleanArray(grid.size)
+            val queue = IntArray(grid.size)
+            val minCells = (MIN_LAKE_KM2 / (grid.cellKm * grid.cellKm)).toInt().coerceAtLeast(1)
+            for (s in 0 until grid.size) {
+                if (seen[s] || sea0[s] || filled[s] - elevation[s] < 0.01f) continue
+                var head = 0; var tail = 0
+                queue[tail++] = s; seen[s] = true
+                while (head < tail) {
+                    val i = queue[head++]
+                    grid.forNeighbours(i) { j, _ -> if (!seen[j] && !sea0[j] && filled[j] - elevation[j] >= 0.01f) { seen[j] = true; queue[tail++] = j } }
+                }
+                if (tail < minCells) for (k in 0 until tail) { val i = queue[k]; elevation[i] = filled[i] + 0.01f }
+            }
+        }
+
+        /**
+         * Where the escarpments stand: how strongly the place is faulted (0..1) and how far it lies
+         * through its block, 0 at the foot of the scarp below it rising to 1 at the top of the next.
+         */
+        fun scarpField(noise: Noise, cellKm: Double, x: Double, y: Double): Pair<Double, Double> {
+            val faulted = ((noise.fbm(x + 777, y - 555, SCARP_PROVINCE_KM / cellKm, 2) - 0.1) / 0.3).coerceIn(0.0, 1.0)
+            val blocks = noise.fbm(x - 123, y + 321, SCARP_SPACING_KM / cellKm, 2) / SCARP_BAND
+            return faulted to blocks - kotlin.math.floor(blocks)
+        }
+
+        /**
          * Escarpments: in faulted provinces the land is tilted into blocks, each rising gently to a
          * scarp and dropping sharply to the next (cuestas, fault scarps), some tens to a few hundred
          * metres high. They are made before erosion, so rivers cut gorges through them and the
@@ -120,11 +156,9 @@ class World(
          */
         private fun escarpments(grid: Grid, noise: Noise, elevation: FloatArray) {
             for (i in 0 until grid.size) {
-                if (elevation[i] !in 30f..2500f) continue
-                val x = grid.x(i).toDouble(); val y = grid.y(i).toDouble()
-                val faulted = ((noise.fbm(x + 777, y - 555, SCARP_PROVINCE_KM / grid.cellKm, 2) - 0.1) / 0.3).coerceIn(0.0, 1.0)
-                val blocks = noise.fbm(x - 123, y + 321, SCARP_SPACING_KM / grid.cellKm, 2) / SCARP_BAND
-                elevation[i] += (SCARP_M * faulted * (blocks - kotlin.math.floor(blocks))).toFloat()
+                if (elevation[i] !in 30f..1200f) continue
+                val (faulted, through) = scarpField(noise, grid.cellKm, grid.x(i).toDouble(), grid.y(i).toDouble())
+                elevation[i] += (SCARP_M * faulted * through).toFloat()
             }
         }
 
