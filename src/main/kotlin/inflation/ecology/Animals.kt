@@ -179,7 +179,16 @@ class Option(
     val hazard: Float = 0f,
     /** Rain it senses coming there next week, against the season's normal: 0 = none, 1 = normal, up to 3. */
     val rainAhead: Float = 1f,
+    /** How much higher it lies than where the group is, km (negative: lower). */
+    val climb: Float = 0f,
 )
+
+/** The time of year, as every animal feels it: day length, the angle of the sun. Set each step. */
+object Season {
+    @Volatile var dayOfYear = 0
+    val sin get() = kotlin.math.sin(2 * Math.PI * dayOfYear / inflation.world.Date.DAYS_PER_YEAR).toFloat()
+    val cos get() = kotlin.math.cos(2 * Math.PI * dayOfYear / inflation.world.Date.DAYS_PER_YEAR).toFloat()
+}
 
 /** Chooses where a group goes today. Implementations: [BaselinePolicy]; learned networks later. */
 fun interface Policy {

@@ -29,7 +29,10 @@ import kotlin.random.Random
  * and need no guide).
  *
  * Usage: fauna-evolve [--start DIR] [--out DIR] [--species a,b,c] [--seeds 1,2,3,4] [--size KM]
- *                     [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R]
+ *                     [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--without a,b|hunters]
+ *
+ * --without leaves kinds out of the worlds ("hunters" for every meat-eater, people included): a
+ * lean world in which herds can learn the seasons fast.
  */
 object FaunaEvolve {
     /** The species evolved by default: the migratory herds and the hunters other than people. */
@@ -47,6 +50,7 @@ object FaunaEvolve {
         var pairs = 8
         var sigma = 0.02f
         var rate = 0.01f
+        var without = emptySet<Species>()
         var k = 0
         while (k < args.size) {
             when (args[k]) {
@@ -60,6 +64,7 @@ object FaunaEvolve {
                 "--pairs" -> pairs = args[++k].toInt()
                 "--sigma" -> sigma = args[++k].toFloat()
                 "--rate" -> rate = args[++k].toFloat()
+                "--without" -> without = kinds(args[++k])
                 else -> error("unknown argument ${args[k]}")
             }
             k++
@@ -91,7 +96,7 @@ object FaunaEvolve {
             }
             // Fresh worlds each generation, so the networks are not fitted to one map.
             val results = seeds.parallelStream().map { seed ->
-                evaluate(WorldConfig(seed = seed + 1000L * gen, widthKm = size, heightKm = size), years, variants)
+                evaluate(WorldConfig(seed = seed + 1000L * gen, widthKm = size, heightKm = size), years, variants, without)
             }.toList()
             val parts = ArrayList<String>()
             for (s in species) {
@@ -120,9 +125,10 @@ object FaunaEvolve {
     class Result(val fitness: Map<Species, DoubleArray>, val summary: String)
 
     /** Runs one world for [years] with each group of an evolving species on one of its [variants]. */
-    fun evaluate(cfg: WorldConfig, years: Int, variants: Map<Species, Array<Mlp>>): Result {
+    fun evaluate(cfg: WorldConfig, years: Int, variants: Map<Species, Array<Mlp>>, without: Set<Species> = emptySet()): Result {
         val sim = Simulation(World.generate(cfg))
         val e = sim.ecology
+        leaveOut(e, without)
         val rnd = Random(cfg.seed)
         val started = variants.mapValues { DoubleArray(it.value.size) }
         val start = variants.keys.associateWith { e.count(it) }
@@ -149,6 +155,16 @@ object FaunaEvolve {
         }
         val pops = variants.keys.joinToString(" ") { "${it.name.split(' ').last()} ${start.getValue(it)}->${e.count(it)}" }
         return Result(fitness, "seed ${cfg.seed}: $pops")
+    }
+
+    /** Species named in [list] (comma-separated, '-' for spaces); "hunters" stands for every meat-eater, people included. */
+    fun kinds(list: String): Set<Species> = list.split(",").flatMap { n ->
+        if (n == "hunters") Catalogue.predators else listOf(Catalogue.all.first { it.name == n.replace('-', ' ') })
+    }.toSet()
+
+    /** Empties the world of [kinds]. */
+    fun leaveOut(e: inflation.ecology.Ecology, kinds: Set<Species>) {
+        for (g in e.groups) if (g.species in kinds) { g.adults = 0; g.young = 0 }
     }
 
     private fun gaussian(rnd: Random): Float {

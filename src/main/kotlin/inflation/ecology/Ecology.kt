@@ -202,6 +202,7 @@ class Ecology(private val sim: Simulation) {
 
     fun step() {
         killCount.set(0); birthCount.set(0); deathCount.set(0)
+        Season.dayOfYear = sim.weather.date.dayOfYear
         timed("fields") { plankton.step(); fish.step(); soil.step(); small.step(); game.step() }
         timed("sea") { marine.step() }
         timed("regrow") { regrow() }
@@ -994,13 +995,13 @@ class Ecology(private val sim: Simulation) {
                 // Another pack's fresh marks warn a hunter off its ground, unless hunger drives it on.
                 val o = if (territorial(s) && o0.cell >= 0 && g.lastIntakeRatio >= STARVING) {
                     val f = foreignMarks(g, x, y)
-                    if (f > 0f) Option(o0.cell, o0.km, o0.forage, o0.danger + MARK_FEAR * f, o0.prey, o0.kin, o0.waterKm, o0.snowMm, o0.cover, o0.rugged, o0.wet, o0.thermal, o0.pull, o0.hazard, o0.rainAhead) else o0
+                    if (f > 0f) Option(o0.cell, o0.km, o0.forage, o0.danger + MARK_FEAR * f, o0.prey, o0.kin, o0.waterKm, o0.snowMm, o0.cover, o0.rugged, o0.wet, o0.thermal, o0.pull, o0.hazard, o0.rainAhead, o0.climb) else o0
                 } else o0
                 // A herd sees and smells only the ground about it: farther off it can only go by what lies
                 // nearby that way (season's treks go by memory instead, below).
                 options += if (ring >= 2 && !s.carnivore && o.cell >= 0) {
                     val near = options[1 + dir]
-                    if (near.cell < 0) o else Option(o.cell, o.km, near.forage, near.danger, o.prey, near.kin, o.waterKm, o.snowMm, near.cover, near.rugged, near.wet, o.thermal, o.pull, o.hazard, o.rainAhead)
+                    if (near.cell < 0) o else Option(o.cell, o.km, near.forage, near.danger, o.prey, near.kin, o.waterKm, o.snowMm, near.cover, near.rugged, near.wet, o.thermal, o.pull, o.hazard, o.rainAhead, o.climb)
                 } else o
             }
         }
@@ -1030,7 +1031,7 @@ class Ecology(private val sim: Simulation) {
                 sc.tx[k] = x; sc.ty[k] = y; k++
                 val o = describe(g, x, y, min(toGo, reach), sc.box)
                 // The pull of a gathering: partners, news, exchange and feasting.
-                options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, GATHER_PULL, o.hazard, o.rainAhead)
+                options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, GATHER_PULL, o.hazard, o.rainAhead, o.climb)
             } else { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++ }
         }
         // Home: a herd off its range (scattered by an attack) makes its way back when the danger has passed.
@@ -1040,7 +1041,7 @@ class Ecology(private val sim: Simulation) {
                 val (x, y) = toward(g, sc, g.homeX, g.homeY, reach)
                 sc.tx[k] = x; sc.ty[k] = y; k++
                 val o = describe(g, x, y, (dist(x - g.x, y - g.y) * cellKm).toFloat(), sc.box)
-                options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, HOME_PULL, o.hazard, o.rainAhead)
+                options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, HOME_PULL, o.hazard, o.rainAhead, o.climb)
             } else { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++ }
         }
         // The season's range: a week's march towards where it remembers doing well in the coming weeks.
@@ -1056,7 +1057,7 @@ class Ecology(private val sim: Simulation) {
         sc.tx[k] = x; sc.ty[k] = y
         val o = describe(g, x, y, (dist(x - g.x, y - g.y) * cellKm).toFloat(), sc.box)
         val pull = (g.seasonQ[m] - g.fare).coerceIn(0f, 1f)
-        options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, pull, o.hazard, o.rainAhead)
+        options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, pull, o.hazard, o.rainAhead, o.climb)
     }
 
     /**
@@ -1213,7 +1214,8 @@ class Ecology(private val sim: Simulation) {
             sc.searched && routes.nodeAt(x, y) != routes.nodeAt(g.x, g.y) -> {
                 val e = routes.effortTo(sc.search, x, y)
                 if (!e.isFinite()) return NOWHERE
-                max(e, d) / days
+                // Deep snow at either end makes every km harder.
+                max(e, d) * (1f + max(sim.weather.snowpack[centre], sim.weather.snowpack[cellOf(g)]) / 150f) / days
             }
             else -> d * pathCost(g.x, g.y, x, y) / days
         }
@@ -1225,7 +1227,8 @@ class Ecology(private val sim: Simulation) {
                 s.foresight * thermalStress(g, mTempAhead.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land)),
             0f,
             (s.foresight * mHazard.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land).coerceIn(0f, 1f),
-            1f + s.foresight * (mRainAhead.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land - 1f))
+            1f + s.foresight * (mRainAhead.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land - 1f),
+            (world.elevation[centre] - world.elevation[cellOf(g)]) / 1000f)
     }
 
     /** Mean travel cost on the straight line from (x0, y0) to (x1, y1), sampled on the coarse grid; open water is very costly. */
