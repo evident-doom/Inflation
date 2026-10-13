@@ -354,8 +354,8 @@ class HexGroups(
                 if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
                 if (policy != null) {
                     val f = FloatArray(HexFeatures.SIZE)
-                    val food = foodFor(s, p)
-                    f[0] = food / (food + 0.3f)
+                    // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
+                    if (s.carnivore) { val v = placeValue[ki][p]; f[0] = v / (v + PREY_HALF) } else { val food = foodFor(s, p); f[0] = food / (food + 0.3f) }
                     f[1] = kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
                     f[2] = crowd(s, p, g)
                     f[3] = predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f)

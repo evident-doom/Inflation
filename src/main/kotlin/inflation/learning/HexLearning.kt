@@ -182,6 +182,7 @@ object HexImitate {
         var years = 3
         var out = File("hex-policies")
         var hunters = emptyList<Species>()
+        var people = false
         var k = 0
         while (k < args.size) {
             when (args[k]) {
@@ -190,12 +191,14 @@ object HexImitate {
                 "--years" -> years = args[++k].toInt()
                 "--out" -> out = File(args[++k])
                 "--hunters" -> hunters = Catalogue.predators.filter { !it.human }
+                "--people" -> people = true
                 else -> error("unknown argument ${args[k]}")
             }
             k++
         }
-        val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory }
-        val run = HexLearning.Run(cfg, kinds + hunters, mountains = true)
+        // With --people, the bands' moves are copied too (and only theirs).
+        val kinds = if (people) listOf(Catalogue.HUMAN) else Catalogue.herbivores.filter { it in Catalogue.migratory }
+        val run = HexLearning.Run(cfg, (Catalogue.herbivores.filter { it in Catalogue.migratory } + hunters + kinds).distinct(), mountains = true)
         val recorder = HexLearning.Recorder()
         for (s in kinds) run.groups.policies[s] = recorder
         repeat(years * Date.DAYS_PER_YEAR / cfg.daysPerStep) { run.step() }
@@ -253,7 +256,8 @@ object HexEvolve {
             k++
         }
         out.mkdirs()
-        val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory && HexLearning.file(start, it).exists() }
+        // Every kind with a network in the start directory evolves: the migratory herds, and people.
+        val kinds = (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.HUMAN).filter { HexLearning.file(start, it).exists() }
         val centres = kinds.associateWith { s -> Mlp.load((HexLearning.file(out, s).takeIf { it.exists() } ?: HexLearning.file(start, s)).readText()) }
         val adams = kinds.associateWith { Adam(centres.getValue(it).w.size, rate) }
         val log = File(out, "log.txt")
@@ -292,7 +296,7 @@ object HexEvolve {
 
     /** One lean world for [years], each group of an evolving kind on one of its [variants]; animal-weeks per animal at the start. */
     fun evaluate(cfg: WorldConfig, years: Int, variants: Map<Species, Array<Mlp>>, hunters: List<Species> = emptyList()): Pair<Map<Species, DoubleArray>, String> {
-        val run = HexLearning.Run(cfg, variants.keys.toList() + hunters, mountains = true)
+        val run = HexLearning.Run(cfg, (Catalogue.herbivores.filter { it in Catalogue.migratory } + variants.keys + hunters).distinct(), mountains = true)
         val rnd = Random(cfg.seed)
         val started = variants.mapValues { DoubleArray(it.value.size) }
         for ((s, vs) in variants) run.groups.groups.filter { it.species == s }.shuffled(rnd).forEachIndexed { i, g -> g.tag = i % vs.size; started.getValue(s)[g.tag] += g.size.toDouble() }
