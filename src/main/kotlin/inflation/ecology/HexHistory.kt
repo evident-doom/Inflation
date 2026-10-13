@@ -38,7 +38,7 @@ class HexHistory {
     }
 
     /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
-    fun isFlow(key: String) = key.startsWith("deaths/") || key.startsWith("births/") || key.startsWith("kills/") || key == "weather/rain mm"
+    fun isFlow(key: String) = key.startsWith("deaths/") || key.startsWith("births/") || key.startsWith("kills/") || key.startsWith("fish flows/") || key == "weather/rain mm"
 
     private fun put(key: String, v: Float) {
         val s = series.getOrPut(key) { FloatList().also { it.pad(weeks - 1) } }
@@ -80,6 +80,7 @@ class HexHistory {
         put("water life/fish, tonnes", wl.fishTonnes()); put("water life/river fish, tonnes", wl.riverFishTonnes())
         put("water life/shellfish, tonnes", wl.shellfishTonnes()); put("water life/sea birds", wl.colonyBirds.sum())
         put("water life/zooplankton, g per m²", wl.zooMean())
+        for ((key, v) in wl.fishFlows) if (!key.startsWith("hungry")) put("fish flows/$key, t", v.toFloat())
         // Deaths, births and kills this week.
         for ((key, v) in fauna.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
         for ((key, v) in groups.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())

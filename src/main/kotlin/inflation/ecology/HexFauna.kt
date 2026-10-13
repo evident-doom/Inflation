@@ -196,16 +196,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         deaths.clear()
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
-            bearings.update(date.month)
+            Profile.time("sense of direction") { bearings.update(date.month) }
             if (date.month == 0) shiftBreeding()
         }
-        food.step(weather)
-        water.step(weather)
-        graze(weather)
-        breedAndDie(weather, date)
-        shiftBands(weather)
-        spill()
-        small.step(weather, carcassKg)
+        Profile.time("food stocks") { food.step(weather) }
+        Profile.time("water life") { water.step(weather) }
+        Profile.time("residents: grazing") { graze(weather) }
+        Profile.time("residents: births, deaths") { breedAndDie(weather, date) }
+        Profile.time("residents: moving") { shiftBands(weather); spill() }
+        Profile.time("soil and small life") { small.step(weather, carcassKg) }
     }
 
     /**
@@ -310,7 +309,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
         val dead = Array(kinds.size) { DoubleArray(9) } // age, hunger, cold, disease, eagles, fire, flood, snow, crocodiles
-        for ((k, s) in kinds.withIndex()) {
+        // Each kind on its own core, with its own carcasses, added up after.
+        val carcasses = Array(kinds.size) { FloatArray(n) }
+        kinds.indices.toList().parallelStream().forEach { k ->
+            val s = kinds[k]
+            val carcassKg = carcasses[k]
             val start = birthStart[k]
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
             val grow = years / s.yearsToMaturity
@@ -357,6 +360,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (a[p] + y[p] < EXTINCT) { a[p] = 0f; y[p] = 0f }
             }
         }
+        for (c in carcasses) for (p in 0 until n) carcassKg[p] += c[p]
         for ((k, s) in kinds.withIndex()) {
             deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]; deaths["${s.name}:eagles"] = dead[k][4]
             deaths["${s.name}:fire"] = dead[k][5]; deaths["${s.name}:flood"] = dead[k][6]; deaths["${s.name}:snow"] = dead[k][7]; deaths["${s.name}:crocodiles"] = dead[k][8]
@@ -377,11 +381,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Within a hex, a share of each kind moves between neighbouring height bands towards the better one. */
     private fun shiftBands(weather: Weather) {
         val bands = HexWorld.BANDS_M.size
-        for (k in kinds.indices) {
+        // Each kind on its own core: the kinds' numbers are kept apart.
+        kinds.indices.toList().parallelStream().forEach { k ->
             val a = adults[k]; val y = young[k]
             for (h in 0 until hex.size) for (b in 0 until bands - 1) {
                 val lo = hw.placeOf[b][h]; val hi = hw.placeOf[b + 1][h]
                 if (lo < 0 || hi < 0) continue
+                if (a[lo] + y[lo] <= 0f && a[hi] + y[hi] <= 0f) continue
                 val al = appeal(k, lo, weather); val ah = appeal(k, hi, weather)
                 if (al <= 0f && ah <= 0f) continue
                 val (from, to) = if (ah > al) lo to hi else hi to lo
@@ -400,7 +406,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * better feeding; the harder the border is for their way of travelling, the fewer cross it.
      */
     private fun spill() {
-        for ((k, s) in kinds.withIndex()) {
+        kinds.indices.toList().parallelStream().forEach { k ->
+            val s = kinds[k]
             val a = adults[k]; val y = young[k]; val f = fed[k]
             val cross = hex.crossings[travel[k].ordinal]
             val moveA = FloatArray(n); val moveY = FloatArray(n)

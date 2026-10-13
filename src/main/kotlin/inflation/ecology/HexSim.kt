@@ -31,7 +31,7 @@ class HexSim(
 
     /** One week: the weather, then water and plants, then the residents and small life, then the groups. */
     fun step() {
-        weather.step()
+        Profile.time("weather") { weather.step() }
         val now = eruptions.step(weather.date, cfg.daysPerStep) { c ->
             val h = hex.owner[c]
             val p = (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 }
@@ -41,7 +41,7 @@ class HexSim(
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
         if (eruptions.anyAsh || now.isNotEmpty()) for (p in 0 until land.n) land.ash[p] = hw.placeCells[p].sumOf { eruptions.ash[it].toDouble() }.toFloat() / hw.placeCells[p].size
         else if (land.ash.any { it > 0f }) land.ash.fill(0f)
-        land.step(weather)
+        Profile.time("water and plants") { land.step(weather) }
         fauna.step(weather, weather.date)
         groups.step(weather, weather.date)
     }

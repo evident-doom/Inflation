@@ -113,7 +113,7 @@ class HexGroups(
                 for ((k, ps) in fauna.kinds.withIndex()) v += (fauna.adults[k][p] + 0.5f * fauna.young[k][p]) * ps.massKg
                 residentKg[p] = v
             }
-            bearings.update(date.month)
+            Profile.time("sense of direction") { bearings.update(date.month) }
         }
         val bySpeciesPlace = HashMap<Long, Int>()
         for (g in groups) if (g.alive) bySpeciesPlace.merge(g.species.index.toLong() * n + g.place, g.size, Int::plus)
@@ -126,6 +126,7 @@ class HexGroups(
             if (st > topStrength[g.place]) { topStrength[g.place] = st; topKind[g.place] = g.species.index }
         }
         // Plan and move, in parallel: each group's choice depends only on last week's world.
+        val tPlan = System.nanoTime(); val cPlan = Profile.cpuNow()
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size)
         java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k ->
             val g = groups[k]
@@ -134,19 +135,18 @@ class HexGroups(
             choice[k] = p; paths[k] = path
         }
         for ((k, g) in groups.withIndex()) if (g.alive) { g.place = choice[k]; g.path = paths[k]!!; g.days = timetable(g); g.meatMet = 0f }
+        Profile.add("groups: choosing where to go", System.nanoTime() - tPlan, Profile.cpuNow() - cPlan)
         // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
         // same days, the earlier meetings are settled first, by each side's standing orders.
         val t0 = System.nanoTime()
-        meet(weather)
+        Profile.time("groups: meetings") { meet(weather) }
         meetNs += System.nanoTime() - t0
         // Who passed through which hex this week.
         val visits = HashMap<Int, ArrayList<HexGroup>>()
         for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
-        graze(weather)
-        hunt(visits, weather)
-        mark()
-        settle()
-        demography(weather, date)
+        Profile.time("groups: grazing") { graze(weather) }
+        Profile.time("groups: hunting") { hunt(visits, weather) }
+        Profile.time("groups: ground, births, deaths") { mark(); settle(); demography(weather, date) }
         groups.removeIf { !it.alive }
         remember(date)
     }

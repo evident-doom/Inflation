@@ -115,6 +115,7 @@ fun main(args: Array<String>) {
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
         println("     small life: " + fauna.small.summary())
         println("     water life: " + fauna.water.summary())
+        println("     sea and lake fish this week, t: " + fauna.water.fishFlows.entries.sortedBy { it.key }.joinToString(", ") { "%s %.1f".format(it.key, it.value) })
         println("     eruptions so far: " + sim.eruptions.history.joinToString(", ") { "VEI ${it.vei} in year ${it.date.year}" }.ifEmpty { "none" })
         println("     matter: " + budget())
         println("     climate fit: " + fit())
@@ -151,5 +152,7 @@ fun main(args: Array<String>) {
         val tot = byBand.sum().coerceAtLeast(1.0)
         println("  %-12s ".format(s.name) + byBand.joinToString(" ") { "%3.0f%%".format(100 * it / tot) })
     }
+    println("where a step's time goes:")
+    println(inflation.ecology.Profile.report(years * stepsPerYear))
     println("a step of weather, water, plants and all animals: %.1f ms, of it settling meetings %.1f ms, the sense of direction %.1f ms".format(ns / 1e6 / (years * stepsPerYear), herds.meetNs / 1e6 / (years * stepsPerYear), (herds.bearings.updateNs + fauna.bearings.updateNs) / 1e6 / (years * stepsPerYear)))
 }

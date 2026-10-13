@@ -211,7 +211,12 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         return CROC_RATE * min(1f, land.nearRiver[p] + land.nearLake[p])
     }
 
+    /** This week's flows of sea and lake fish, tonnes: grown, died of age or hunger, eaten by each kind, drifted. */
+    val fishFlows = java.util.concurrent.ConcurrentHashMap<String, Double>()
+    private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) fishFlows.merge(key, (kgPerKm2 * waterKm2[h] / 1000f).toDouble(), Double::plus) }
+
     fun step(weather: Weather) {
+        fishFlows.clear()
         val date = weather.date
         val month = date.month
         val light = (Date(date.absoluteDay).dayLengthHours(38.0) / 12.0).toFloat()
@@ -251,8 +256,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 zoo[h] -= got
                 val fed = if (need > 0f) got / need else 1f
                 val fishDead = (FISH_DEATHS + 0.5f * (1f - fed)) * years * f0
-                fish[h] = max(0f, f0 + growth * years * f0 * fed * (1f - f0 / max(fishCapacity(h), 1f)) - fishDead)
+                val grown = growth * years * f0 * fed * (1f - f0 / max(fishCapacity(h), 1f))
+                fish[h] = max(0f, f0 + grown - fishDead)
                 dead[h] += fishDead
+                flow("grown", grown, h); flow("died", fishDead, h)
                 if (shallow[h] > 0f) { val s = shellfish[h]; shellfish[h] = max(0f, s + 0.8f * years * s * (1f - s / max(shellCapacity(h), 1f))) }
                 stepSea(h, month)
             }
@@ -266,7 +273,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             }
         }
         // Currents mix the water of neighbouring hexes: plankton and fish drift and spread.
+        val before = fishTonnes()
         for (f in listOf(phyto, zoo, fish)) drift(f)
+        fishFlows["drift (net)"] = (fishTonnes() - before).toDouble()
         // Fish come back up the rivers from below, but not past a cascade.
         for (h in 0 until size) {
             val d = land.down[h]
@@ -300,10 +309,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val need = m * a.dailyShare * days
             val got = when (a.food) {
                 SeaFood.PLANKTON -> { val t = min(need, 0.2f * zoo[h] * 1000f); zoo[h] -= t / 1000f; t }
-                SeaFood.FISH -> { val t = min(need, SEA_CATCH * fish[h]); fish[h] -= t; t }
+                SeaFood.FISH -> { val t = min(need, SEA_CATCH * fish[h]); fish[h] -= t; flow("eaten by ${a.name}", t, h); t }
                 SeaFood.PREY -> {
                     // Sharks: mostly fish, now and then a seal, porpoise or dolphin.
-                    var t = min(need * 0.7f, SEA_CATCH * fish[h]); fish[h] -= t
+                    var t = min(need * 0.7f, SEA_CATCH * fish[h]); fish[h] -= t; flow("eaten by ${a.name}", t, h)
                     for ((j, b) in SEA.withIndex()) {
                         if (b.food != SeaFood.FISH || t >= need) continue
                         // Seals haul out on rocks and beaches and porpoises keep to the shallows: shelter near the shore.
@@ -369,6 +378,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 // They can catch a share of the fish near the surface each week; the nearer water first.
                 val take = min(need - got, BIRD_CATCH * fish[h] * seaKm2[h])
                 fish[h] -= take / seaKm2[h]; got += take
+                fishFlows.merge("eaten by sea birds", take / 1000.0, Double::plus)
             }
             val fed = if (need > 0f) min(1f, got / need) else 1f
             var b = colonyBirds[c]
