@@ -134,8 +134,12 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Desert kites | yes (built by large bands where open-country herds pass) |
 | Crowding sickness | yes (people in the hex and the six round it) |
 | Burning off, camp fires against lions and hyenas, defensible camps | yes |
-| Firewood, middens, worn routes, mental maps, scouting, land claims, ornaments and renown, gatherings, task groups | no |
-| Following people's camps (camp followers), taming | no |
+| Knowing the country (walked, seen, told of by bands understood), forgetting far country | yes |
+| Sharing on demand: hungry bands fed by better-stocked bands nearby | yes |
+| Camp followers growing bold, pups taken, dogs kept (hunting, guarding) | yes (wolves, jackals) |
+| Firewood, middens, worn routes, scouting, land claims, ornaments and renown, gatherings, task groups | no |
+| Keeping herd animals, tending plants | no |
+| Learned bands | started: imitation (92% same choice) and evolution |
 
 ## Learning
 

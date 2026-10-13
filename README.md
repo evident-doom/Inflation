@@ -99,8 +99,17 @@ from hex to hex, tints show weather, water, plants, small life and resident herd
 wind or a kind's sense of direction, and clicking a hex lists everything living there.
 
 `hexFauna` runs the hex world for some years and prints each kind's numbers, the small life, the
-causes of death and the cost of a step. `--uniform` starts every kind spread evenly over the land;
-`-Dhex.noBearings` turns off the sense of direction for comparison.
+causes of death and the cost of a step, and for people a line against the ethnographic record (band
+size, density, camp moves, ground walked, plant share of food, birth spacing, children reaching 15,
+years left at 15, violent deaths). `--uniform` starts every kind spread evenly over the land;
+`-Dhex.noBearings` turns off the sense of direction and `-Dhex.noPeople` leaves people out, for
+comparison; `-Dhex.huntDiag=KIND` traces hungry and thirsty groups of a kind.
+
+A running world can be saved and carried on after small changes to the code: `--save FILE` (every
+five years and at the end) and `--load FILE` in `hexFauna`, Save…/Load… and `--load FILE` in the
+viewer. Fields are matched by name, so a field added since keeps its fresh value and one removed is
+dropped. The generated world itself is kept in `~/.inflation/world-cache` and loaded in seconds
+while the world-generating code and settings are unchanged (`-Dhex.noWorldCache` turns this off).
 
 ## Known simplifications
 
