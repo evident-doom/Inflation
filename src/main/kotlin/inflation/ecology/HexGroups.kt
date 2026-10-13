@@ -42,8 +42,8 @@ class HexGroups(
         HexBearings(hw, kinds, { s, p, m ->
             val fit = fauna.monthFit(s, p, m)
             if (s.carnivore) {
-                // Resident game by weight, catchable or not: a rough sense of good hunting country.
-                val prey = residentKg(p)
+                // The game it can catch there, resident herds and migratory ones alike, by weight.
+                val prey = huntable[kindSlot[s.index]][p]
                 // Hunters that get their water from their prey (cheetahs, hyenas, jackals) care less how far it is.
                 val w = land.waterKm[p] / (2f * s.dailyTravelKm) * (1f - s.waterFromFood)
                 prey / (prey + PREY_HALF) * fit / (1f + w * w)
@@ -53,9 +53,12 @@ class HexGroups(
             }
         }, { s -> groups.any { it.alive && it.species == s } })
     }
+    /** Game each hunting kind can catch in each place, kg/km² weighed by catchability, worked out once a month for the bearings. */
+    internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
     /** Resident game in each place, kg/km², worked out once a month for the bearings. */
     internal val residentKg = FloatArray(n)
     internal fun residentKg(p: Int) = residentKg[p]
+    private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
     internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Which pack of a kind holds each hex as its ground (key: kind × hexes + hex). */
     /**
@@ -112,10 +115,19 @@ class HexGroups(
         kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear()
         moon = date.meanMoonlight(days).toFloat()
         if (bearings.month != date.month) {
+            // Head counts of the migratory herds in each place, for the hunters' sense of where game is.
+            for (a in monthHeads) a.fill(0)
+            for (g in groups) if (g.alive) monthHeads[kindSlot[g.species.index]][g.place] += g.size
             java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
                 var v = 0f
                 for ((k, ps) in fauna.kinds.withIndex()) v += (fauna.adults[k][p] + 0.5f * fauna.young[k][p]) * ps.massKg
                 residentKg[p] = v
+                for ((k, s) in kinds.withIndex()) {
+                    if (!s.carnivore) continue
+                    var h = preyHere(s, p)
+                    for ((j, ps) in kinds.withIndex()) if (!ps.carnivore) h += monthHeads[j][p] * ps.massKg * catchable(s, ps, p) / land.areaKm2[p]
+                    huntable[k][p] = h
+                }
             }
             Profile.time("sense of direction") { bearings.update(date.month) }
         }

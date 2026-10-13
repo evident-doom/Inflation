@@ -126,7 +126,8 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     private var frames = 1
     private val date = JLabel()
     private val counts = JLabel()
-    private val residentChoice = JComboBox(arrayOf("(no resident tint)") + fauna.kinds.map { it.name }.toTypedArray())
+    /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
+    private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray()) }
     private val map = MapPanel()
     /** The hex being inspected, -1 for none, and its groups. */
     @Volatile private var picked = -1
@@ -345,12 +346,16 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             if (r >= 0) {
                 val rad = hex.hexKm / kotlin.math.sqrt(3.0)
                 val dens = DoubleArray(hex.size); val area = DoubleArray(hex.size)
-                for (p in 0 until fauna.n) { val h = hw.placeHex[p]; dens[h] += ((fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p]).toDouble(); area[h] += land.areaKm2[p].toDouble() }
-                val top = (0 until hex.size).maxOf { if (area[it] > 0) dens[it] / area[it] else 0.0 }.coerceAtLeast(1e-6)
+                for (p in 0 until fauna.n) { val h = hw.placeHex[p]; area[h] += land.areaKm2[p].toDouble() }
+                if (r < fauna.kinds.size) for (p in 0 until fauna.n) dens[hw.placeHex[p]] += ((fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p]).toDouble()
+                else { val s = groups.kinds[r - fauna.kinds.size]; for (gr in groups.groups) if (gr.alive && gr.species == s) dens[hw.placeHex[gr.place]] += gr.size.toDouble() }
+                // Shaded against the densest twentieth of hexes, so that thin spreads show too.
+                val values = (0 until hex.size).filter { area[it] > 0 && dens[it] > 0 }.map { dens[it] / area[it] }.sorted()
+                val top = (if (values.isEmpty()) 0.0 else values[(values.size * 0.95).toInt().coerceAtMost(values.size - 1)]).coerceAtLeast(1e-6)
                 for (h in 0 until hex.size) {
                     if (area[h] <= 0) continue
-                    val v = (dens[h] / area[h] / top).toFloat().coerceIn(0f, 1f)
-                    if (v < 0.02f) continue
+                    if (dens[h] <= 0) continue
+                    val v = kotlin.math.sqrt(dens[h] / area[h] / top).toFloat().coerceIn(0.15f, 1f)
                     val (cx, cy) = hex.centreKm(h)
                     val xs = IntArray(6) { sx((cx + rad * kotlin.math.cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                     val ys = IntArray(6) { sy((cy + rad * kotlin.math.sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
