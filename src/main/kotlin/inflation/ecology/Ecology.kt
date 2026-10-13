@@ -708,11 +708,16 @@ class Ecology(private val sim: Simulation) {
     /** Per-thread buffers for [plan]. */
     private class Scratch {
         val box = CoarseMaps.Box()
+        /** The ways open to the group being planned for, when it looks beyond its own range. */
+        val search = Routes.Search()
+        var searched = false
         val tx = DoubleArray(CANDIDATES)
         val ty = DoubleArray(CANDIDATES)
         val options = ArrayList<Option>(CANDIDATES)
     }
     private val scratch = ThreadLocal.withInitial { Scratch() }
+    /** The ways through the country (built once per world). */
+    val routes by lazy { Routes(world) }
 
     /**
      * Deterministic noise in -0.5..0.5 for [g]'s option [k] this week: a hash of the seed, the step
@@ -954,6 +959,15 @@ class Ecology(private val sim: Simulation) {
         val reach = MARCH_SHARE * s.maxDailyTravelKm * days
         val options = sc.options
         options.clear()
+        // What ways lie open this week, unless it would not leave its range anyway.
+        sc.searched = !(Catalogue.resident(s) && !needy(g))
+        if (sc.searched) {
+            // As far as it would go: a forced march when in need, otherwise a few ranges; a pack on
+            // its own ground no farther than the ground it holds.
+            var far = if (restless) reach else min(reach, 3f * r)
+            if (territorial(s) && !g.homeX.isNaN() && g.lastIntakeRatio >= STARVING) far = min(far, territoryRadiusKm(s) + r)
+            routes.search(g.x, g.y, routes.way(s), ROUTE_BUDGET * far, sc.search)
+        }
         var k = 0
         for (ring in 0..3) {
             val d = when (ring) { 0 -> 0f; 1 -> r; 2 -> min(reach, 3f * r); else -> reach }
@@ -994,8 +1008,7 @@ class Ecology(private val sim: Simulation) {
             val thirsty = g.daysWithoutWater > 0.3f * s.daysWithoutWater || waterKm[cellOf(g)] > 5f
             if (known != null && thirsty && dist(known.x - g.x, known.y - g.y) * cellKm > r) {
                 val toGo = (dist(known.x - g.x, known.y - g.y) * cellKm).toFloat()
-                val step = min(toGo, reach) / toGo
-                val x = g.x + (known.x - g.x) * step; val y = g.y + (known.y - g.y) * step
+                val (x, y) = toward(g, sc, known.x.toDouble(), known.y.toDouble(), reach)
                 sc.tx[k] = x; sc.ty[k] = y; k++
                 options += describe(g, x, y, min(toGo, reach), sc.box)
             } else { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++ }
@@ -1011,8 +1024,7 @@ class Ecology(private val sim: Simulation) {
             val festive = season && !settled && g.fare > (if (g.holds(Tradition.FEASTS)) 0.6f else 0.75f)
             if (site != null && festive && dist(site.x - g.x, site.y - g.y) * cellKm in r.toDouble()..GATHER_KM.toDouble()) {
                 val toGo = (dist(site.x - g.x, site.y - g.y) * cellKm).toFloat()
-                val step = min(toGo, reach) / toGo
-                val x = g.x + (site.x - g.x) * step; val y = g.y + (site.y - g.y) * step
+                val (x, y) = toward(g, sc, site.x.toDouble(), site.y.toDouble(), reach)
                 sc.tx[k] = x; sc.ty[k] = y; k++
                 val o = describe(g, x, y, min(toGo, reach), sc.box)
                 // The pull of a gathering: partners, news, exchange and feasting.
@@ -1023,10 +1035,9 @@ class Ecology(private val sim: Simulation) {
         if (!s.carnivore && !s.human) {
             val toGo = if (g.homeX.isNaN()) 0.0 else dist(g.homeX - g.x, g.homeY - g.y) * cellKm
             if (toGo > homeRangeKm(g) && g.alert == 0) {
-                val step = min(toGo, reach.toDouble()) / toGo
-                val x = g.x + (g.homeX - g.x) * step; val y = g.y + (g.homeY - g.y) * step
+                val (x, y) = toward(g, sc, g.homeX, g.homeY, reach)
                 sc.tx[k] = x; sc.ty[k] = y; k++
-                val o = describe(g, x, y, (toGo * step).toFloat(), sc.box)
+                val o = describe(g, x, y, (dist(x - g.x, y - g.y) * cellKm).toFloat(), sc.box)
                 options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, HOME_PULL, o.hazard, o.rainAhead)
             } else { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; k++ }
         }
@@ -1039,12 +1050,24 @@ class Ecology(private val sim: Simulation) {
         // Resident kinds shift with the seasons only within their own country: up the mountain in
         // summer, down to the valley in winter.
         if (toGo < r || (Catalogue.resident(s) && toGo > RESIDENT_SEASON * r)) { options += NOWHERE; sc.tx[k] = g.x; sc.ty[k] = g.y; return }
-        val step = min(toGo, reach) / toGo
-        val x = g.x + dx * step; val y = g.y + dy * step
+        val (x, y) = toward(g, sc, sx.toDouble(), sy.toDouble(), reach)
         sc.tx[k] = x; sc.ty[k] = y
-        val o = describe(g, x, y, min(toGo, reach), sc.box)
+        val o = describe(g, x, y, (dist(x - g.x, y - g.y) * cellKm).toFloat(), sc.box)
         val pull = (g.seasonQ[m] - g.fare).coerceIn(0f, 1f)
         options += if (o.cell < 0) o else Option(o.cell, o.km, o.forage, o.danger, o.prey, o.kin, o.waterKm, o.snowMm, o.cover, o.rugged, o.wet, o.thermal, pull, o.hazard, o.rainAhead)
+    }
+
+    /**
+     * Where [g] gets this week heading for (tx, ty): along the ways open to it when it has looked
+     * ([Scratch.searched]), otherwise a straight march of up to [reach] km. Staying put if no way
+     * brings it nearer.
+     */
+    private fun toward(g: AnimalGroup, sc: Scratch, tx: Double, ty: Double, reach: Float): Pair<Double, Double> {
+        if (sc.searched) return routes.toward(sc.search, tx, ty) ?: (g.x to g.y)
+        val toGo = dist(tx - g.x, ty - g.y) * cellKm
+        if (toGo < 1e-6) return g.x to g.y
+        val step = min(toGo, reach.toDouble()) / toGo
+        return g.x + (tx - g.x) * step to g.y + (ty - g.y) * step
     }
 
     /** The month whose range a group heads for now: the next one in the second half of a month. */
@@ -1180,7 +1203,18 @@ class Ecology(private val sim: Simulation) {
         val kinDensity = max(0f, mOcc[s.index].box(box.x0, box.y0, box.x1, box.y1).toFloat() - own) / boxKm2
         val kin = kinDensity / (kinDensity + s.groupSize / (3.14f * r * r))
         // Effort to shift the range there: distance times the ground's travel cost along the way.
-        val effort = if (d == 0f) 0f else d * pathCost(g.x, g.y, x, y) / days
+        // Effort to shift the range there: by the ways through the country where it has looked (a ridge
+        // without a pass shuts a place off), within its own waypoint's block by the ground on the way.
+        val sc = scratch.get()
+        val effort = when {
+            d == 0f -> 0f
+            sc.searched && routes.nodeAt(x, y) != routes.nodeAt(g.x, g.y) -> {
+                val e = routes.effortTo(sc.search, x, y)
+                if (!e.isFinite()) return NOWHERE
+                max(e, d) / days
+            }
+            else -> d * pathCost(g.x, g.y, x, y) / days
+        }
         return Option(centre, effort, fed, danger, prey, kin, if (waterCells > 0f) 0f else waterHere,
             mSnow.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land, mCover.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land,
             mRugged.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land, mWet.box(box.x0, box.y0, box.x1, box.y1).toFloat() / land,
@@ -2781,6 +2815,8 @@ class Ecology(private val sim: Simulation) {
         const val HOME_RANGE = 1.5f
         /** Intake below which a herd will weigh a forced march to new country. */
         const val MARCH_HUNGER = 0.6f
+        /** Most effort a group weighs spending on a week's move, as a multiple of its forced-march reach over flat ground. */
+        const val ROUTE_BUDGET = 1.5f
         /** Intake below which a resident herd shifts its range; how far young residents disperse, in ranges. */
         const val RESIDENT_HUNGER = 0.7f
         /** Farthest a resident herd shifts with the seasons, in ranges. */
