@@ -72,7 +72,7 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Fish in sea, lakes and rivers; shellfish; spawning runs | no |
 | Upwelling, whales, dolphins, porpoises, seals, sharks | no |
 | Sea-bird colonies | no |
-| Crocodiles, eagles | no |
+| Crocodiles, eagles | partly: eagles (nest on crags, fly over any ground, take small game and young hoofed animals); no crocodiles |
 
 ## Plant-eaters
 
@@ -94,8 +94,8 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Hibernation (bears) | no |
 | Breeding season shifting to the food | no |
 | Thirst and water | yes |
-| Wariness of people, boldness | no |
-| Vigilance, alarm, hiding in cover | partly: herds watch in open country and turn aside |
+| Wariness of people, boldness | partly: wariness after being hunted (sharper watch, fewer kills, fades over weeks); boldness waits for people |
+| Vigilance, alarm, hiding in cover | yes: watch in open country, wary after a chase, small prey hide in cover |
 | Dangerous prey fighting back | no |
 | Flood, ash, fire deaths | no |
 
@@ -104,12 +104,12 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Feature | Hex |
 |---|---|
 | Hunting along the way, meetings settled in order | yes (new on hexes) |
-| Catch chance | partly: size, defence, refuge in broken ground; no speed, posture or moonlight |
+| Catch chance | partly: size, defence, refuge in broken ground, hiding, moonlight for stalkers; no speed or posture |
 | Territories, rivals, pack breeding | yes |
 | Scent marks | no (held ground is exclusive instead) |
 | Bigger hunters killing smaller ones | no |
 | Stealing kills | no |
-| Extra deaths for packs without ground | no |
+| Extra deaths for packs without ground | yes |
 | Small prey, scavenging | yes |
 | Following people's camps | no |
 
@@ -143,9 +143,9 @@ middens, worn routes, crowding sickness. (The plants can already take a fire peo
 ## Biggest gaps, in rough order
 
 1. People.
-2. Wariness, boldness, vigilance and hiding.
-3. Stealing kills, bigger hunters killing smaller, scent marks, moonlight.
-4. Fish and sea life; crocodiles and eagles.
+2. Boldness and fear of people (with people).
+3. Stealing kills, bigger hunters killing smaller, scent marks.
+4. Fish and sea life; crocodiles.
 5. Volcanoes and ash.
 6. Animals trampling, rooting and carrying seed (the plants are ready for it).
 7. Fire killing and driving animals; green flush after fire.

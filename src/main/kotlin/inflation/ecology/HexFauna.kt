@@ -172,7 +172,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
-        val dead = Array(kinds.size) { DoubleArray(4) } // age, hunger, cold, disease
+        val dead = Array(kinds.size) { DoubleArray(5) } // age, hunger, cold, disease, eagles
         for ((k, s) in kinds.withIndex()) {
             val start = s.birthMonth
             val inSeason = (date.month - start + 12) % 12 < s.birthMonths
@@ -194,12 +194,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val crowd = (a[p] + y[p]) / (CROWDED * usual)
                 val disease = DISEASE * crowd * crowd * years
                 val pa = (s.backgroundMortality * years + hunger + cold + disease).coerceIn(0f, 0.9f)
-                val py = (s.youngMortality * years + 1.5f * hunger + 1.5f * cold + disease).coerceIn(0f, 0.95f)
+                // Eagles take the young of the smaller hoofed animals in the open.
+                val eagle = if (s.massKg <= HexGroups.EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+                val py = (s.youngMortality * years + 1.5f * hunger + 1.5f * cold + disease + eagle).coerceIn(0f, 0.95f)
                 val da = a[p] * pa; val dy = y[p] * py
                 dead[k][0] += (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years) * area
                 dead[k][1] += ((a[p] + 1.5f * y[p]) * hunger) * area
                 dead[k][2] += ((a[p] + 1.5f * y[p]) * cold) * area
                 dead[k][3] += ((a[p] + y[p]) * disease) * area
+                dead[k][4] += y[p] * eagle * area
                 a[p] -= da; y[p] -= dy
                 carcassKg[p] += (da + 0.3f * dy) * area * s.massKg
                 // Growing up.
@@ -209,7 +212,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             }
         }
         for ((k, s) in kinds.withIndex()) {
-            deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]
+            deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]; deaths["${s.name}:eagles"] = dead[k][4]
         }
     }
 

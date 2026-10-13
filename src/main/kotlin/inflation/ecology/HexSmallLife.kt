@@ -32,6 +32,9 @@ import kotlin.math.pow
  *   seasons), tortoises in warm scrub, and foxes and wildcats living on the rest.
  * - Griffon vulture colonies on the most broken ground, one to a block of [VULTURE_SPACING_KM],
  *   soaring up to [VULTURE_RANGE_KM] for carcasses, nearest first.
+ * - Golden eagles nesting on crags, as a share of each place's ground they hunt over (0..1): they
+ *   fly over any ground, take hyrax, hares and rock birds, and the young of the smaller hoofed
+ *   animals in the open; they thrive where the crags and the game are, and dwindle where food fails.
  * - Fire kills what cannot flee. Every month each kind spreads a little to the places around.
  */
 class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private val days: Int) {
@@ -57,6 +60,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Each kind of [SmallGame.BIRDS], and all together, kg/km². */
     val bird = Array(SmallGame.BIRDS.size) { FloatArray(n) }
     val birds = FloatArray(n)
+    /** Eagles hunting over each place, 0..1, and as many as the crags allow. */
+    val eagles = FloatArray(n) { p -> min(1f, 2f * land.ruggedness[p]) }
+    private val eagleCrags = eagles.copyOf()
     /** Vulture colonies: nest place, the birds, and the places within reach, nearest first. */
     val vulturePlace = ArrayList<Int>()
     val vultures = ArrayList<Float>()
@@ -227,9 +233,29 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
         val fed = if (need > 0f) got / need else 1f
         foxes[p] = logistic(foxes[p], if (month in 1..3) 1.5f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey).coerceAtLeast(0.01f)
+        // Eagles: a pair needs about a kilo a day; they take what is out in the open among the rocks.
+        if (eagleCrags[p] > 0f) {
+            val open = open(p)
+            val prey = (hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]) * (0.3f + 0.7f * open)
+            val need = eagles[p] * EAGLE_NEED * days
+            val got = min(need, 0.1f * prey)
+            val total = hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]
+            if (got > 0f && total > 0f) {
+                val f = got / total
+                hyrax[p] -= hyrax[p] * f; hares[p] -= hares[p] * f
+                birds[p] -= bird[CHUKAR][p] * f + bird[ROCK_DOVE][p] * f
+                bird[CHUKAR][p] -= bird[CHUKAR][p] * f; bird[ROCK_DOVE][p] -= bird[ROCK_DOVE][p] * f
+            }
+            // Fawns and kids make up much of what the small game does not.
+            val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
+            eagles[p] = logistic(eagles[p], if (month in 1..3) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p]).coerceAtLeast(0.02f * eagleCrags[p])
+        }
         // Fire: tortoises die where it burns; the rest bolt and many young die.
         if (burnt > 0f) { tortoises[p] *= 1f - 0.6f * burnt; hares[p] *= 1f - 0.3f * burnt; takeBirds(p, 0.3f * burnt) }
     }
+
+    /** Yearly share of the young of small hoofed animals eagles take in place [p]. */
+    fun eagleRisk(p: Int) = EAGLE_RATE * eagles[p] * open(p)
 
     /** Takes share [f] of every kind of bird at [p]. */
     private fun takeBirds(p: Int, f: Float) {
@@ -289,9 +315,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Totals over the land, tonnes, and vultures in all colonies. */
     fun summary(): String {
         fun t(a: FloatArray) = a.indices.sumOf { (a[it] * land.areaKm2[it]).toDouble() } / 1000
-        return "rodents %.0f t, hares %.0f t, hyrax %.0f t, birds %.0f t (%s), tortoises %.0f t, foxes %.0f t, %d vulture colonies %.0f birds".format(
+        return "rodents %.0f t, hares %.0f t, hyrax %.0f t, birds %.0f t (%s), tortoises %.0f t, foxes %.0f t, eagles %.0f pairs, %d vulture colonies %.0f birds".format(
             t(rodents), t(hares), t(hyrax), t(birds), bird.indices.joinToString(", ") { "%s %.0f".format(SmallGame.BIRDS[it].name, t(bird[it])) },
-            t(tortoises), t(foxes), vultures.size, vultures.sum())
+            t(tortoises), t(foxes), eagles.indices.sumOf { (eagles[it] * land.areaKm2[it]).toDouble() } / EAGLE_KM2, vultures.size, vultures.sum())
     }
 
     /** Takes up to [kgPerM2] of carrion in place [p]; returns what was taken. */
@@ -315,5 +341,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
         const val VULTURE_RANGE_KM = 80.0
         const val VULTURE_SPACING_KM = 80.0
+        /** Eagles: what the eagles over a place eat at full strength (a pair to [EAGLE_KM2]), kg/km² a day; yearly share of young taken in open crag country. */
+        const val EAGLE_NEED = 0.01f
+        /** Ground a pair hunts over where the eagles are at full strength, km². */
+        const val EAGLE_KM2 = 100.0
+        const val EAGLE_RATE = 0.15f
+        private val CHUKAR = SmallGame.BIRDS.indexOfFirst { it.name == "chukar" }
+        private val ROCK_DOVE = SmallGame.BIRDS.indexOfFirst { it.name == "rock dove" }
     }
 }
