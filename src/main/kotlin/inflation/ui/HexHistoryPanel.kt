@@ -124,9 +124,21 @@ class HexHistoryPanel(private var history: HexHistory, live: Boolean) : JPanel(B
         return out.filter { it in all }
     }
 
+    private var pictureKeys: List<String>? = null
+
+    /** For pictures: draw these series (a key ending in / takes all under it), stacked or not. */
+    fun selectForPicture(keys: List<String>, stackedBands: Boolean) {
+        val all = history.keys()
+        pictureKeys = keys.flatMap { k -> if (k.endsWith("/")) all.filter { it.startsWith(k) } else listOf(k) }
+        stacked.isSelected = stackedBands
+    }
+
+    /** Draws the graph into [g], [w] by [h]. */
+    fun paintChart(g: Graphics2D, w: Int, h: Int) = draw(g, w, h)
+
     private fun draw(g: Graphics2D, w: Int, h: Int) {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-        val keys = selectedKeys().take(40)
+        val keys = (pictureKeys ?: selectedKeys()).take(40)
         if (keys.isEmpty()) { g.color = Color.GRAY; g.drawString("Pick series on the left (Ctrl for several, or a whole group).", 40, 40); return }
         val per = HexHistory.Period.entries[period.selectedIndex]
         val data = keys.map { history.values(it, per) }
@@ -244,8 +256,22 @@ class HexHistoryPanel(private var history: HexHistory, live: Boolean) : JPanel(B
     }
 }
 
-/** Opens saved histories: hex-history [file.csv]. */
+/**
+ * Opens saved histories: hex-history [file.csv]. With "--png OUT KEY..." it draws the graph of those
+ * series by year into a picture instead, without a window (a key ending in / takes the whole group).
+ */
 fun main(args: Array<String>) {
+    if (args.size >= 3 && args[1] == "--png") {
+        val h = HexHistory.readCsv(File(args[0]))
+        val p = HexHistoryPanel(h, live = false)
+        p.selectForPicture(args.drop(3), stackedBands = args.drop(3).any { it.startsWith("deaths/") })
+        p.setSize(1250, 650); p.doLayout()
+        val img = java.awt.image.BufferedImage(1250, 650, java.awt.image.BufferedImage.TYPE_INT_RGB)
+        val g = img.createGraphics(); g.color = Color.WHITE; g.fillRect(0, 0, 1250, 650)
+        p.paintChart(g, 1250, 650); g.dispose()
+        javax.imageio.ImageIO.write(img, "png", File(args[2]))
+        return
+    }
     val file = args.firstOrNull()?.let { File(it) }
     val h = if (file != null && file.exists()) HexHistory.readCsv(file) else HexHistory()
     javax.swing.SwingUtilities.invokeLater {

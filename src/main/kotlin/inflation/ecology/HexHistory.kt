@@ -146,6 +146,9 @@ class HexHistory {
                 }) j++
             var sum = 0.0; var c = 0
             for (k in i until j) { val v = s[k]; if (!v.isNaN()) { sum += v; c++ } }
+            // A last month or year not yet over would read as a sudden fall in the counts: left out.
+            val full = when (period) { Period.WEEK -> 1; Period.MONTH -> 4; Period.YEAR -> 50 }
+            if (j == weeks && j - i < full) break
             xs += (year[i] - year[0]) + month[i] / 12f + (if (period == Period.WEEK) (i - firstOfMonth(i)) / 60f else 0f)
             ys += if (c == 0) Float.NaN else if (flow) sum.toFloat() else (sum / c).toFloat()
             i = j
