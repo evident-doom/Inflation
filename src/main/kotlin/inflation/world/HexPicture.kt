@@ -13,13 +13,12 @@ import kotlin.math.sqrt
 /**
  * A picture of the hexes over the fine terrain they summarise: shaded relief and plant cover from
  * the 1 km cells, rivers drawn on their own courses (wider the bigger), and every border between
- * two land hexes coloured by what it takes to cross on foot:
+ * two land hexes marked with what it takes to cross on foot, the ground and the water apart:
  *
- * - no line: open, under 1.5 times the effort of flat ground;
- * - yellow: hard (1.5–4 times); orange-red: very hard (over 4 times), mostly steep ground;
- * - light blue: a river to be waded (knee to waist deep at the best crossing); mid blue: chest deep,
- *   slow and dangerous; dark blue: deeper, no way across on foot (swimmers only);
- * - black: no way at all on foot for any other reason (cliffs, open water).
+ * - the ground: no line, open (under 1.5 times the effort of flat ground); yellow, hard (1.5–4
+ *   times); orange-red, very hard (over 4 times); black, no way over the ground (cliffs, open water);
+ * - the water, a narrower line on top: light blue, a river to be waded (knee to waist deep at the
+ *   best crossing); mid blue, chest deep, slow and dangerous; dark blue, deeper, closed on foot.
  *
  * Usage: hex-picture [--seed N] [--width KM] [--height KM] [--out FILE] [--x KM --y KM --size KM] [--px N]
  * where x, y, size pick a square of the map (km from the north-west corner) and px is pixels per km.
@@ -92,20 +91,24 @@ object HexPicture {
                 gr.stroke = BasicStroke(0.6f); gr.color = Color(255, 255, 255, 45)
                 gr.drawLine(xa, ya, xb, yb)
                 if (b < 0 || hex.heart[a] < 0 || hex.heart[b] < 0 || b < a) continue
-                val e = foot[a * 6 + d] / hex.hexKm.toFloat()
-                val depth = hex.riverDepthM[a * 6 + d]
+                // The ground: colour by effort over it, rivers left aside.
+                val e = hex.ground[HexMap.Travel.FOOT.ordinal][a * 6 + d] / hex.hexKm.toFloat()
                 val (colour, width) = when {
-                    depth > 1.5f -> Color(0x0a1f6e) to 3.2f
-                    depth > 1.0f -> Color(0x1f55d0) to 2.6f
-                    depth > HexMap.KNEE -> Color(0x6fb4ff) to 2.0f
                     !e.isFinite() -> Color.BLACK to 3.0f
                     e >= 4f -> Color(0xe0401a) to 2.4f
                     e >= 1.5f -> Color(0xf0c020) to 1.4f
                     else -> null to 0f
                 }
-                if (colour == null) continue
-                gr.stroke = BasicStroke(width * px / 3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-                gr.color = colour
+                if (colour != null) {
+                    gr.stroke = BasicStroke(width * px / 3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+                    gr.color = colour
+                    gr.drawLine(xa, ya, xb, yb)
+                }
+                // The water, on top: a river on this border, by depth at its best crossing.
+                val depth = hex.riverDepthM[a * 6 + d]
+                if (depth <= HexMap.KNEE) continue
+                gr.color = when { depth > 1.5f -> Color(0x0a1f6e); depth > 1.0f -> Color(0x1f55d0); else -> Color(0x6fb4ff) }
+                gr.stroke = BasicStroke(1.1f * px / 2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
                 gr.drawLine(xa, ya, xb, yb)
             }
         }
