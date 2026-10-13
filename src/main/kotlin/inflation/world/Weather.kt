@@ -46,10 +46,50 @@ class ClimateEvent(
  *
  * [elevation] gives the terrain the wind meets; without it, rain does not depend on the wind.
  */
-class Weather(private val grid: Grid, private val climate: Climate, private val cfg: WorldConfig, elevation: FloatArray? = null) {
+class Weather(private val places: Places, private val cfg: WorldConfig) {
+    /** Weather on every cell of [grid]; with [elevation] the wind's rain follows the terrain. */
+    constructor(grid: Grid, climate: Climate, cfg: WorldConfig, elevation: FloatArray? = null) :
+        this(Places.of(grid, climate, cfg, elevation), cfg)
+
+    /**
+     * The places the weather is kept for: anything from every fine cell to a few height bands of
+     * each hex. Each has a position, a latitude, its monthly normals and how much rain each wind
+     * direction brings it against calm air.
+     */
+    class Places(
+        val size: Int,
+        /** Position of each place, km from the north-west corner. */
+        val xKm: FloatArray,
+        val yKm: FloatArray,
+        val latitude: DoubleArray,
+        /** [month][place]: temperature °C, rain and snow mm. */
+        val monthlyTemp: Array<FloatArray>,
+        val monthlyPrecip: Array<FloatArray>,
+        /** [wind sector][place]: orographic rain factor (see [Winds.rainFactor]); null for none. */
+        val sector: Array<FloatArray>?,
+        /** Size of the map, km, and of one fine cell, km (events are placed in fine cells). */
+        val widthKm: Double,
+        val heightKm: Double,
+        val cellKm: Double,
+    ) {
+        companion object {
+            fun of(grid: Grid, climate: Climate, cfg: WorldConfig, elevation: FloatArray?): Places = Places(
+                grid.size,
+                FloatArray(grid.size) { (grid.x(it) * grid.cellKm).toFloat() },
+                FloatArray(grid.size) { (grid.y(it) * grid.cellKm).toFloat() },
+                DoubleArray(grid.size) { climate.latitude[grid.y(it)] },
+                climate.monthlyTemp, climate.monthlyPrecip,
+                elevation?.let { Winds.sectors(grid, it) },
+                grid.width * grid.cellKm, grid.height * grid.cellKm, grid.cellKm,
+            )
+        }
+    }
+
+    private val n = places.size
+    private val climate = places
     private val coarseKm = 50.0
-    private val cw = (grid.width * grid.cellKm / coarseKm).toInt() + 2
-    private val ch = (grid.height * grid.cellKm / coarseKm).toInt() + 2
+    private val cw = (places.widthKm / coarseKm).toInt() + 2
+    private val ch = (places.heightKm / coarseKm).toInt() + 2
     private val rnd = Random(cfg.seed * 31 + 7)
 
     private val tempAnomaly = FloatArray(cw * ch)
@@ -79,15 +119,15 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
     /** Month (0..11) of the step most recently simulated. */
     var lastMonth = 0; private set
     /** Mean air temperature over the last step, °C. */
-    val temperature = FloatArray(grid.size)
+    val temperature = FloatArray(n)
     /** Rain and snow that fell during the last step, mm water. */
-    val precipitation = FloatArray(grid.size)
+    val precipitation = FloatArray(n)
     /** Snow on the ground, mm water equivalent. */
-    val snowpack = FloatArray(grid.size)
+    val snowpack = FloatArray(n)
     /** Snowmelt released during the last step, mm. */
-    val meltwater = FloatArray(grid.size)
+    val meltwater = FloatArray(n)
 
-    val winds = Winds(grid, cfg, elevation)
+    val winds = Winds(places.sector)
     /** The weather pattern of the last step, and of the coming one (already drawn, see [prepare]). */
     var regime = Regime.WESTERLY; private set
     var upcomingRegime = Regime.WESTERLY; private set
@@ -99,14 +139,14 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
     private val nextU = FloatArray(cw * ch)
     private val nextV = FloatArray(cw * ch)
     /** The coming step's temperature and rain, worked out a step ahead. */
-    private val nextTemp = FloatArray(grid.size)
-    private val nextPrecip = FloatArray(grid.size)
-    /** Seasonal mean of the wind's rain factor per cell, for the month in [normMonth]. */
-    private val norm = FloatArray(grid.size)
+    private val nextTemp = FloatArray(n)
+    private val nextPrecip = FloatArray(n)
+    /** Seasonal mean of the wind's rain factor per place, for the month in [normMonth]. */
+    private val norm = FloatArray(n)
     private var normMonth = -1
 
-    private fun cx(i: Int) = grid.x(i) * grid.cellKm / coarseKm
-    private fun cy(i: Int) = grid.y(i) * grid.cellKm / coarseKm
+    private fun cx(i: Int) = places.xKm[i] / coarseKm
+    private fun cy(i: Int) = places.yKm[i] / coarseKm
     /** Wind over the last step at cell [i], m/s towards the east. */
     fun windEast(i: Int): Float = sample(windU, cx(i), cy(i))
     /** Wind over the last step at cell [i], m/s towards the south. */
@@ -155,7 +195,7 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
         val s = season(date)
         val warmth = (winds.warmth(upcomingRegime, s) - winds.meanWarmth(s) - volcanicCooling).toFloat()
         val storm = upcomingRegime.storminess
-        java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             val x = cx(i); val y = cy(i)
             nextTemp[i] = tNow[i] * (1 - f) + tNext[i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) + warmth
             val wind = storm * winds.rainFactor(i, sample(nextU, x, y), sample(nextV, x, y)) / norm[i]
@@ -180,8 +220,7 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
         ar1(eddyV, exp(-days / 7.0), EDDY_SIGMA)
         val base = FloatArray(2)
         for (y in 0 until ch) {
-            val row = (y * coarseKm / grid.cellKm).toInt().coerceIn(0, grid.height - 1)
-            winds.baseWind(upcomingRegime, climate.latitude[row], jet, base)
+            winds.baseWind(upcomingRegime, cfg.centreLatitude - (y * coarseKm - places.heightKm / 2) / WorldConfig.KM_PER_DEGREE, jet, base)
             for (x in 0 until cw) {
                 val c = y * cw + x
                 nextU[c] = base[0] + eddyU[c]; nextV[c] = base[1] + eddyV[c]
@@ -194,8 +233,8 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
         normMonth = date.month
         val s = cos(2 * PI * (date.month * Date.DAYS_PER_MONTH + 15 - Climate.WARMEST_DAY) / Date.DAYS_PER_YEAR)
         val tmp = ThreadLocal.withInitial { FloatArray(2) }
-        java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
-            norm[i] = winds.normalFactor(i, climate.latitude[grid.y(i)], s, tmp.get())
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            norm[i] = winds.normalFactor(i, places.latitude[i], s, tmp.get())
         }
     }
 
@@ -218,7 +257,7 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
         lastMonth = date.month
         regime = upcomingRegime
         nextU.copyInto(windU); nextV.copyInto(windV)
-        java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             val t = nextTemp[i]
             val p = nextPrecip[i]
             temperature[i] = t
@@ -245,7 +284,7 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
         decadal = 0.9 * decadal + sqrt(1 - 0.81) * gaussian()
 
         val day = date.absoluteDay
-        fun place() = Pair(rnd.nextDouble() * grid.width, rnd.nextDouble() * grid.height)
+        fun place() = Pair(rnd.nextDouble() * places.widthKm / places.cellKm, rnd.nextDouble() * places.heightKm / places.cellKm)
         if (rnd.nextDouble() < 0.015) { // a multi-year drought, a few per century
             val (x, y) = place()
             val years = 2 + rnd.nextInt(7)
@@ -272,7 +311,7 @@ class Weather(private val grid: Grid, private val climate: Climate, private val 
             var t = 0.7 * oscillation * oscPatternT[c] + 0.4 * decadal * decPattern[c]
             var p = 0.15 * oscillation * oscPatternP[c] + 0.12 * decadal * decPattern[c]
             for (e in active) {
-                val km = hypot(cx * coarseKm - e.x * grid.cellKm, cy * coarseKm - e.y * grid.cellKm)
+                val km = hypot(cx * coarseKm - e.x * places.cellKm, cy * coarseKm - e.y * places.cellKm)
                 val w = exp(-(km / e.radiusKm).let { it * it })
                 when (e.kind) {
                     ClimateEvent.Kind.DROUGHT -> { p += ln(e.strength) * w; t += 0.8 * w }

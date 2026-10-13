@@ -99,6 +99,47 @@ class HexWorld(val world: World, val hex: HexMap) {
         }
     }
 
+    // ---------------------------------------------------------------- places: the height bands of each hex
+
+    /** The places the simulation keeps weather, plants and herds for: each height band of each hex that has land in it. */
+    val placeHex: IntArray
+    val placeBand: IntArray
+    /** The fine cells of each place. */
+    val placeCells: Array<IntArray>
+    /** Each hex's places, by band (-1 where the band holds no land). */
+    val placeOf = Array(BANDS_M.size) { IntArray(size) { -1 } }
+
+    init {
+        val lists = HashMap<Long, ArrayList<Int>>()
+        for (i in 0 until grid.size) {
+            if (world.isSea[i] || world.water.isLake(i)) continue
+            val b = BANDS_M.indexOfLast { world.elevation[i] >= it }.coerceAtLeast(0)
+            lists.getOrPut(hex.owner[i].toLong() * BANDS_M.size + b) { ArrayList() } += i
+        }
+        val keys = lists.keys.sorted()
+        placeHex = IntArray(keys.size) { (keys[it] / BANDS_M.size).toInt() }
+        placeBand = IntArray(keys.size) { (keys[it] % BANDS_M.size).toInt() }
+        placeCells = Array(keys.size) { lists.getValue(keys[it]).toIntArray() }
+        for (p in keys.indices) placeOf[placeBand[p]][placeHex[p]] = p
+    }
+
+    /** The places as the weather sees them: the mean position, normals and wind exposure of each band's cells. */
+    fun weatherPlaces(cfg: WorldConfig): Weather.Places {
+        val n = placeCells.size
+        val fine = Winds.sectors(grid, world.elevation)
+        fun mean(f: (Int) -> Float) = FloatArray(n) { p -> val cs = placeCells[p]; (cs.sumOf { f(it).toDouble() } / cs.size).toFloat() }
+        return Weather.Places(
+            n,
+            mean { (grid.x(it) * grid.cellKm).toFloat() },
+            mean { (grid.y(it) * grid.cellKm).toFloat() },
+            DoubleArray(n) { p -> placeCells[p].sumOf { world.climate.latitude[grid.y(it)] } / placeCells[p].size },
+            Array(12) { m -> mean { world.climate.monthlyTemp[m][it] } },
+            Array(12) { m -> mean { world.climate.monthlyPrecip[m][it] } },
+            Array(8) { k -> mean { fine[k][it] } },
+            grid.width * grid.cellKm, grid.height * grid.cellKm, grid.cellKm,
+        )
+    }
+
     /** The kind of country covering most of the land of hex [h], or null if it has no land. */
     fun mainBiome(h: Int): Biome? = if (land[h] == 0f) null else Biome.entries.maxBy { biome[it.ordinal][h] }
 
