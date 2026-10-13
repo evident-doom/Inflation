@@ -92,7 +92,7 @@ class HexGroups(
         for (s in kinds) {
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
             val count = (area / per / s.groupSize).toInt()
-            val weights = FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
+            val weights = FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
             val total = weights.sum()
             repeat(count) {
                 var u = rnd.nextFloat() * total; var p = 0
@@ -565,6 +565,20 @@ class HexGroups(
             }
         }
         groups += born
+        // Small herds of a kind that end the week in the same place join up, as far as the herd can grow.
+        val byPlace = HashMap<Long, HexGroup>()
+        for (g in groups) {
+            val s = g.species
+            if (!g.alive || s.carnivore) continue
+            val key = (s.index.toLong() * n + g.place) * 1000 + (g.tag + 1)
+            val other = byPlace[key]
+            if (other != null && other.size + g.size <= s.maxGroupSize) {
+                val share = g.size.toFloat() / (other.size + g.size)
+                other.fed += (g.fed - other.fed) * share; other.fat += (g.fat - other.fat) * share
+                other.adults += g.adults; other.young += g.young
+                g.adults = 0; g.young = 0
+            } else byPlace[key] = g
+        }
     }
 
     /** Herds remember the place where they did best in each month. */
@@ -615,7 +629,7 @@ class HexGroups(
         const val DANGER = 1.5f
         /** Pull of the season's remembered place, and of staying where one is. */
         const val SEASON_PULL = 1.0f
-        const val STAY = 0.05f
+        const val STAY = 0.15f
         /** Most chases a hunter makes in a week; chance a chase at a fully catchable quarry succeeds. */
         const val MAX_CHASES = 12
         const val CATCH = 0.35f

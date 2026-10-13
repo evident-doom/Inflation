@@ -51,7 +51,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val dens = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
             for (p in 0 until n) {
                 val food = foodFor(s, p)
-                adults[k][p] = dens * min(1f, food / FOOD_FULL) * suits(s, p) * 0.8f
+                adults[k][p] = dens * min(1f, food / FOOD_FULL) * suits(s, p) * climateSuits(s, p) * 0.8f
                 young[k][p] = 0.2f * adults[k][p]
             }
         }
@@ -61,6 +61,20 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * How well place [p] suits [s] by the ground it prefers, about 0.2..2.5: ibex the crags, roe deer
      * cover, boar wet thickets, aurochs open ground; 1 for a kind with no preference.
      */
+    /**
+     * How well the climate of place [p] suits [s] over the year, 0..1: 1 where every month's normal
+     * temperature is within what its coat bears, falling off with each degree beyond.
+     */
+    fun climateSuits(s: Species, p: Int): Float {
+        val coat = if (s.winterCoat) 10f else 0f
+        var worst = 0f
+        for (m in 0 until 12) {
+            val t = hw.placeTemp(p, m)
+            worst = max(worst, max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive))
+        }
+        return exp(-worst / 5f)
+    }
+
     fun suits(s: Species, p: Int): Float {
         val h = s.habitat
         val cover = min(1f, land.shrub[p] / 2f + land.canopy(p))
