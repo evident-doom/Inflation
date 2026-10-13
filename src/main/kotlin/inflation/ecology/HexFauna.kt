@@ -65,34 +65,27 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * How well place [p] suits [s] by the ground it prefers, about 0.2..2.5: ibex the crags, roe deer
-     * cover, boar wet thickets, aurochs open ground; 1 for a kind with no preference.
-     */
-    /**
      * How well the climate of place [p] suits [s] over the year, 0..1: 1 where every month's normal
      * temperature is within what its coat bears, falling off with each degree beyond.
      */
     fun climateSuits(s: Species, p: Int): Float {
-        val coat = if (s.winterCoat) 10f else 0f
         var worst = 0f
-        for (m in 0 until 12) {
-            val t = hw.placeTemp(p, m)
-            worst = max(worst, max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive))
-        }
+        for (m in 0 until 12) worst = max(worst, s.discomfortC(hw.placeTemp(p, m)))
         return exp(-worst / 5f)
     }
 
     /** How well the normal temperatures of month [m] and the next at place [p] suit [s]'s coat, 0..1. */
     fun monthFit(s: Species, p: Int, m: Int): Float {
-        val coat = if (s.winterCoat) 10f else 0f
-        var dev = 0f
-        for (mm in intArrayOf(m, (m + 1) % 12)) { val t = hw.placeTemp(p, mm); dev += max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive) }
-        return exp(-dev / 10f)
+        return exp(-(s.discomfortC(hw.placeTemp(p, m)) + s.discomfortC(hw.placeTemp(p, (m + 1) % 12))) / 10f)
     }
 
+    /**
+     * How well place [p] suits [s] by the ground it prefers, about 0.2..2.5: ibex the crags, roe deer
+     * cover, boar wet thickets, aurochs open ground; 1 for a kind with no preference.
+     */
     fun suits(s: Species, p: Int): Float {
         val h = s.habitat
-        val cover = min(1f, land.shrub[p] / 2f + land.canopy(p))
+        val cover = land.cover(p)
         val wet = land.floodShare[p]
         return exp(HABITAT * (h.cover * (cover - 0.5f) + h.rugged * (land.ruggedness[p] - 0.3f) + h.wet * (wet - 0.2f)))
     }
@@ -110,7 +103,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Food for [s] in place [p], kg/m², from its diet: grass from herbs, browse from shrubs and trees, fruit from trees. */
-    private fun foodFor(s: Species, p: Int): Float {
+    fun foodFor(s: Species, p: Int): Float {
         val d = s.diet
         val total = d.grass + d.browse + d.fruit + d.roots
         if (total <= 0f) return 0f

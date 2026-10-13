@@ -172,14 +172,7 @@ class HexGroups(
         if (top > 0f) for (m in 0 until 12) g.seasonQ[m] /= top
     }
 
-    private fun travel(s: Species) = Catalogue.travel(s)
-
-    private fun foodFor(s: Species, p: Int): Float {
-        val d = s.diet
-        val total = d.grass + d.browse + d.fruit + d.roots
-        if (total <= 0f) return 0f
-        return (d.grass * land.herb[p] + d.browse * (land.shrub[p] + HexFauna.BROWSE_OF_TREE * land.tree[p]) + (d.fruit + d.roots) * (HexFauna.FRUIT_OF_TREE * land.tree[p] * small.fruitSet(p) + 0.3f * land.herb[p])) / total
-    }
+    private fun foodFor(s: Species, p: Int) = fauna.foodFor(s, p)
 
     fun count(s: Species) = groups.filter { it.species == s && it.alive }.sumOf { it.size }
 
@@ -242,7 +235,7 @@ class HexGroups(
         val restless = if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS
-        val cross = hex.crossings[travel(s).ordinal]
+        val cross = hex.crossings[Catalogue.travel(s).ordinal]
         // Least effort to each hex within reach.
         val dist = HashMap<Int, Float>(); val via = HashMap<Int, Int>()
         val q = PriorityQueue<Pair<Float, Int>>(compareBy { it.first })
@@ -305,9 +298,7 @@ class HexGroups(
                     f[2] = crowd(s, p, kin, g)
                     f[3] = predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f)
                     f[4] = min(2f, discomfort(s, p, weather))
-                    val coat = if (s.winterCoat) 10f else 0f
-                    val tAhead = weather.forecastTemp(p)
-                    f[5] = min(2f, (max(0f, s.comfortC.start - coat - tAhead) + max(0f, tAhead - s.comfortC.endInclusive)) / 10f)
+                    f[5] = min(2f, s.discomfortC(weather.forecastTemp(p)) / 10f)
                     f[6] = if (weather.snowpack[p] > s.snowLimitMm) 1f else 0f
                     f[7] = min(2f, weather.snowpack[p] / s.snowLimitMm)
                     f[8] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
@@ -342,13 +333,11 @@ class HexGroups(
         return best to chain.toIntArray()
     }
 
-    private fun hexKm(a: Int, b: Int): Double { val (ax, ay) = hex.centreKm(a); val (bx, by) = hex.centreKm(b); return hypot(ax - bx, ay - by) }
+    private fun hexKm(a: Int, b: Int): Double = hex.distanceKm(a, b)
     private fun territoryKm(s: Species) = kotlin.math.sqrt(max(1f, s.startKm2PerAnimal) * s.groupSize / Math.PI.toFloat()) + 5f
 
     private fun discomfort(s: Species, p: Int, weather: Weather): Float {
-        val coat = if (s.winterCoat) 10f else 0f
-        val t = weather.temperature[p]
-        return (max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive)) / 10f
+        return s.discomfortC(weather.temperature[p]) / 10f
     }
 
     private fun crowd(s: Species, p: Int, kin: HashMap<Long, Int>, g: HexGroup): Float {
@@ -382,7 +371,7 @@ class HexGroups(
         val size = min(1f, pack / (1.5f * ps.massKg))
         val small = if (ps.massKg < s.massKg * 0.05f) 0.3f else 1f // too small to be worth a pack's while
         val refuge = 1f - 0.8f * max(0f, ps.habitat.rugged) * land.ruggedness[p]
-        val hide = if (ps.massKg < HIDING_KG) 1f - HIDING * min(1f, land.shrub[p] / 2f + land.canopy(p)) else 1f
+        val hide = if (ps.massKg < HIDING_KG) 1f - HIDING * land.cover(p) else 1f
         // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
         val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
         return (size * small * (1f - ps.defence) * refuge * hide * dark).coerceIn(0f, 1f)
@@ -473,7 +462,7 @@ class HexGroups(
         val s = g.species
         val out = FloatArray(g.path.size)
         if (g.path.size <= 1) return out
-        val cross = hex.crossings[travel(s).ordinal]
+        val cross = hex.crossings[Catalogue.travel(s).ordinal]
         var effort = 0f
         for (i in 1 until g.path.size) {
             val a = g.path[i - 1]; val b = g.path[i]
@@ -551,7 +540,7 @@ class HexGroups(
     /** How open hex [h] is where a group passes: the share of the ground with no cover to hide in. */
     private fun openness(h: Int, band: Int): Float {
         val p = hw.placeOf[band][h].takeIf { it >= 0 } ?: return 0.5f
-        return 1f - min(1f, land.shrub[p] / 2f + land.canopy(p))
+        return 1f - land.cover(p)
     }
 
     /**
@@ -733,14 +722,10 @@ class HexGroups(
     }
 
     companion object {
-        /** Share of its fastest daily travel a group keeps up over a week of forced march. */
-        const val MARCH_SHARE = 0.6f
         /** Days of going a week's net shift amounts to, at the usual pace or a trek's. */
         const val SHIFT_DAYS = 2f
         /** Prey, kg per km² weighed by catchability, at which a place is half as good as it gets for a hunter. */
         const val PREY_HALF = 200f
-        /** How much herds shun hunters' ground. */
-        const val DANGER = 1.5f
         /** Pull of the season's remembered place, and of staying where one is. */
         const val SEASON_PULL = 1.0f
         /** How strongly a group follows its sense of better country, per reach moved along it. */

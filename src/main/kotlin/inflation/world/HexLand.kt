@@ -228,6 +228,8 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
 
     fun biomass(p: Int) = herb[p] + shrub[p] + tree[p]
     fun canopy(p: Int) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
+    /** Cover to hide in at place [p], 0..1: scrub and forest. */
+    fun cover(p: Int) = min(1f, shrub[p] / 2f + canopy(p))
 
     fun ceiling(form: LifeForm, p: Int): Float {
         val m = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)

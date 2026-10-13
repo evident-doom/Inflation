@@ -151,11 +151,6 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     fun windEast(i: Int): Float = sample(windU, cx(i), cy(i))
     /** Wind over the last step at cell [i], m/s towards the south. */
     fun windSouth(i: Int): Float = sample(windV, cx(i), cy(i))
-    /** Wind the coming step will bring at cell [i], m/s towards the east and the south. */
-    fun forecastWindEast(i: Int): Float { if (!prepared) prepare(); return sample(nextU, cx(i), cy(i)) }
-    fun forecastWindSouth(i: Int): Float { if (!prepared) prepare(); return sample(nextV, cx(i), cy(i)) }
-
-    fun activeEvents(): List<ClimateEvent> = events.filter { it.activeOn(date.absoluteDay) }
 
     /** A large eruption's aerosols cool the region for about two years. */
     fun volcanicForcing(vei: Int, x: Int, y: Int) {

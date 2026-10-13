@@ -46,8 +46,6 @@ class Terrain(private val world: World) {
     val prominence = FloatArray(n)
     /** Mean distance one can see over the bare terrain, km (out to [VIEW_MAX_KM]). */
     val viewKm = FloatArray(n)
-    /** Bare-terrain area in view within [VIEW_MAX_KM], km². */
-    val viewAreaKm2 = FloatArray(n)
     /**
      * How defensible a place is, 0..1: height over the surroundings, broken ground, and approaches
      * cut by water, marsh or steep slopes. For settlements and refuges in later stages.
@@ -159,21 +157,9 @@ class Terrain(private val world: World) {
         }
     }
 
-    /**
-     * Cost of getting across the river at [i] with [dischargeNow] m³/s in it, as a factor: knee
-     * deep is a wade, waist deep slow and risky, beyond chest deep a swim most animals refuse; a
-     * stream in spate stops herds for days, and in the dry season the same river has fords.
-     */
     /** Depth of the river at [i] where it is easiest to cross, m, with [discharge] m³/s in it (0 where there is no river). */
     fun crossingDepthM(i: Int, discharge: Float = world.water.discharge[i]): Float =
         if (world.riverClass(i) == RiverClass.NONE || discharge < 0.05f) 0f else Channel.depthM(discharge) * ford[i]
-
-    fun crossingCost(i: Int, dischargeNow: Float): Float {
-        if (world.riverClass(i) == RiverClass.NONE || dischargeNow < 0.05f) return 1f
-        val depth = Channel.depthM(dischargeNow) * ford[i]
-        fun ramp(x: Float, a: Float, b: Float) = ((x - a) / (b - a)).coerceIn(0f, 1f)
-        return 1f + 4f * ramp(depth, 0.3f, 1f) + 20f * ramp(depth, 1.2f, 2.5f)
-    }
 
     /** Crossing water: creeks are stepped over, streams waded, rivers swum or forded, great rivers need a boat. */
     private fun riverCost(i: Int) = when (world.riverClass(i)) {
@@ -192,7 +178,7 @@ class Terrain(private val world: World) {
         for (i in 0 until n) {
             if (isWater(i)) continue
             val eye = max(0f, elev[i]) + EYE_M
-            var reachSum = 0.0; var area = 0.0
+            var reachSum = 0.0
             for (d in 0 until dirs) {
                 var maxTan = Double.NEGATIVE_INFINITY
                 var reach = 0.0
@@ -206,13 +192,12 @@ class Terrain(private val world: World) {
                     val drop = dist * dist / (2 * earthR) * 0.87 // curvature less refraction
                     val ground = max(0f, elev[j]) - drop
                     val target = (ground + EYE_M - eye) / dist
-                    if (target >= maxTan) { reach = k * grid.cellKm; area += 2 * Math.PI * k * grid.cellKm * grid.cellKm / dirs }
+                    if (target >= maxTan) reach = k * grid.cellKm
                     maxTan = max(maxTan, (ground - eye) / dist)
                 }
                 reachSum += reach
             }
             viewKm[i] = (reachSum / dirs).toFloat()
-            viewAreaKm2[i] = area.toFloat()
         }
     }
 

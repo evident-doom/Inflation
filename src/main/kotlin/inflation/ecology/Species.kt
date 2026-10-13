@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import kotlin.math.max
 import kotlin.math.pow
 
 /** What a species eats, as shares of its intake. Shares sum to 1. */
@@ -152,6 +153,13 @@ class Species(
     val maxFatDays: Float get() = 8f * massKg.pow(0.25f) * if (hibernates) 4f else 1f
     /** Dry-matter (or meat) intake per adult per day, kg. */
     val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, carnivore)
+
+    /** Degrees colder than its coat bears at [t] °C (a winter coat stretches the cold end by 10 °C). */
+    fun coldC(t: Float): Float = max(0f, comfortC.start - (if (winterCoat) 10f else 0f) - t)
+    /** Degrees hotter than it bears at [t] °C. */
+    fun hotC(t: Float): Float = max(0f, t - comfortC.endInclusive)
+    /** Degrees outside what it bears at [t] °C, either way. */
+    fun discomfortC(t: Float): Float = coldC(t) + hotC(t)
 }
 
 object Allometry {
