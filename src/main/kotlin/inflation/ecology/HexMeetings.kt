@@ -32,7 +32,9 @@ internal fun HexGroups.catchable(s: Species, ps: Species, p: Int): Float {
     val hide = if (ps.massKg < HIDING_KG) 1f - HIDING * land.cover(p) else 1f
     // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
     val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
-    return (size * small * (1f - ps.defence) * refuge * hide * dark).coerceIn(0f, 1f)
+    // A courser must run its quarry down; a stalker gets close unseen and needs no speed.
+    val speed = s.stalking + (1f - s.stalking) * min(1f, s.speedKmh / ps.speedKmh)
+    return (size * small * (1f - ps.defence) * refuge * hide * dark * speed).coerceIn(0f, 1f)
 }
 
 /**
@@ -137,7 +139,7 @@ internal fun HexGroups.meet(weather: Weather) {
         for (x in stays.indices) for (y in x + 1 until stays.size) {
             val sa = stays[x]; val sb = stays[y]
             val a = groups[sa.k]; val b = groups[sb.k]
-            val matters = (a.species.carnivore != b.species.carnivore) || (a.species.carnivore && a.species == b.species)
+            val matters = a.species.carnivore || b.species.carnivore
             if (!matters) continue
             val from = max(sa.from, sb.from); val to = min(sa.to, sb.to)
             if (from > to) continue
@@ -155,7 +157,9 @@ internal fun HexGroups.meet(weather: Weather) {
         if (!a.alive || !b.alive) continue
         count[e.a]++; count[e.b]++
         val h = a.path[e.ai]
-        if (a.species.carnivore && b.species.carnivore) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
+        if (a.species.carnivore && b.species.carnivore) {
+            if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) else enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
+        }
         else {
             val (hunter, hi, herd, ri) = if (a.species.carnivore) listOf(e.a, e.ai, e.b, e.bi) else listOf(e.b, e.bi, e.a, e.ai)
             hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop)
@@ -198,7 +202,10 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     val need = hunter.dailyNeedKg * days * hunter.species.diet.meat
     if (hunter.meatMet >= need) return
     val p = hw.placeOf[hw.placeBand[herd.place]][h].takeIf { it >= 0 } ?: herd.place
-    val chance = CATCH * SURPRISE * catchable(hunter.species, herd.species, p) * (1f - 0.5f * herd.wary)
+    // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
+    val catchable = catchable(hunter.species, herd.species, p)
+    if (catchable < NOT_WORTH_TRYING) return
+    val chance = CATCH * SURPRISE * catchable * (1f - 0.5f * herd.wary)
     stop[rk] = min(stop[rk], ri) // scattered
     // Caught or not, the herd is wary for weeks after.
     herd.wary += WARY_GAIN * (1f - herd.wary)
@@ -210,6 +217,59 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         }
         kills.merge(herd.species.name, 1, Int::plus)
         stop[hk] = min(stop[hk], hi) // stays to eat
+    }
+    // Big, armed prey fight back: a horn or a kick now and then kills one of the hunters.
+    if (hunter.adults > 0 && rnd.nextFloat() < fightBack(herd.species, hunter.adults * hunter.species.massKg)) {
+        hunter.adults--
+        deaths.merge("${hunter.species.name}:prey fought back", 1, Int::plus)
+        small.carrion[hunter.place] += hunter.species.massKg / (land.areaKm2[hunter.place] * 1e6f)
+    }
+}
+
+/** Chance a chase after [prey] costs a hunting party of [packKg] one of its number: armed prey, and prey big against the party. */
+internal fun fightBack(prey: Species, packKg: Float) = FIGHT_BACK * prey.defence * min(2f, prey.massKg / max(1f, packKg) * 2f)
+
+/**
+ * Standing orders, hunters of different kinds. The weaker gives way; if it had made a kill this week
+ * the stronger drives it off and takes most of the meat (hyenas rob leopards, lions rob everyone);
+ * a much stronger party now and then kills one of the other.
+ */
+internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Int, stop: IntArray) {
+    meetings.merge("hunters of other kinds", 1, Int::plus)
+    val sa = a.adults * a.species.massKg * a.species.ferocity * (if (a.home == h) HOME_ADVANTAGE else 1f)
+    val sb = b.adults * b.species.massKg * b.species.ferocity * (if (b.home == h) HOME_ADVANTAGE else 1f)
+    val (strong, weak, wk, wi) = if (sa >= sb) listOf(a, b, bk, bi) else listOf(b, a, ak, ai)
+    strong as HexGroup; weak as HexGroup; wk as Int; wi as Int
+    val ratio = max(sa, sb) / max(1f, min(sa, sb))
+    if (ratio < THEFT_RATIO) return // near equals keep their distance
+    if (weak.meatMet > 0f && rnd.nextFloat() < THEFT) {
+        val taken = 0.7f * weak.meatMet
+        weak.meatMet -= taken; strong.meatMet += taken
+        meetings.merge("kill stolen", 1, Int::plus)
+    }
+    if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL) {
+        weak.adults--
+        strong.meatMet += 0.5f * weak.species.massKg
+        deaths.merge("${weak.species.name}:killed by ${strong.species.name}", 1, Int::plus)
+    }
+    stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back
+}
+
+/**
+ * Packs that hold ground mark the hexes they worked this week within their territory; marks fade
+ * unless renewed, and a stale mark of another pack is marked over.
+ */
+internal fun HexGroups.mark() {
+    for (m in marks.values) for (i in m.indices) m[i] *= MARK_KEEP
+    for (g in groups) {
+        val s = g.species
+        if (!g.alive || !s.carnivore || g.home < 0) continue
+        val m = marks.getOrPut(s.index) { FloatArray(hex.size) }
+        val who = markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
+        for (h in g.path + g.home) {
+            if (hex.distanceKm(h, g.home) > territoryKm(s)) continue
+            if (who[h] == g.id || m[h] < MARK_FRESH) { m[h] = 1f; who[h] = g.id }
+        }
     }
 }
 
@@ -235,11 +295,12 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
     if (loser === a) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
 }
 
-/** A pack without ground settles where no other of its kind holds any. */
+/** A pack without ground settles where no other pack of its kind has fresh marks. */
 internal fun HexGroups.settle() {
-    val held = groups.filter { it.alive && it.species.carnivore && it.home >= 0 }.map { it.species.index.toLong() * hex.size + it.home }.toHashSet()
+    val claimed = HashSet<Long>()
     for (g in groups) if (g.alive && g.species.carnivore && g.home < 0) {
         val h = hw.placeHex[g.place]
-        if (g.species.index.toLong() * hex.size + h !in held) { g.home = h; held += g.species.index.toLong() * hex.size + h }
+        val key = g.species.index.toLong() * hex.size + h
+        if (foreignMark(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) g.home = h
     }
 }

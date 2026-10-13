@@ -92,9 +92,9 @@ fun main(args: Array<String>) {
     }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
-        val c = listOf("age", "hunger", "thirst", "cold", "disease", "eagles", "fire", "flood", "snow", "hunted", "other", "rivals").map { it to (causes["${s.name}:$it"] ?: 0.0) }
+        val c = causes.entries.filter { it.key.substringBefore(":") == s.name }.map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }
         val all = c.sumOf { it.second }.coerceAtLeast(1.0)
-        println("  %-12s ".format(s.name) + c.filter { it.second > 0.0 }.joinToString(", ") { (k, v) -> "$k %.0f%%".format(100 * v / all) })
+        println("  %-12s ".format(s.name) + c.filter { 100 * it.second / all >= 0.5 }.joinToString(", ") { (k, v) -> "$k %.0f%%".format(100 * v / all) })
     }
     // Where each kind lives at the end: share in each height band.
     println("share of each kind by height band (lowest first):")

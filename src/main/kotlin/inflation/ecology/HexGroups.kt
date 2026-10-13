@@ -56,7 +56,18 @@ class HexGroups(
     internal fun residentKg(p: Int) = residentKg[p]
     internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Which pack of a kind holds each hex as its ground (key: kind × hexes + hex). */
-    internal val heldBy = HashMap<Long, Int>()
+    /**
+     * Scent marks of each hunting kind on each hex: how fresh (0..1, fading week by week unless
+     * renewed) and whose. A pack marks the ground it works; others of its kind keep off fresh marks.
+     */
+    internal val marks = HashMap<Int, FloatArray>()
+    internal val markers = HashMap<Int, IntArray>()
+
+    /** Freshness of marks other than [id]'s of kind [s] on hex [h]. */
+    internal fun foreignMark(s: Species, h: Int, id: Int): Float {
+        val m = marks[s.index] ?: return 0f
+        return if (markers.getValue(s.index)[h] == id) 0f else m[h]
+    }
     /** Learned choosers by kind; kinds without one use the hand-written score. */
     val policies = HashMap<Species, HexPolicy>()
     /** Kills this week by prey kind; meetings this week by kind of meeting. */
@@ -104,8 +115,6 @@ class HexGroups(
         for (g in groups) if (g.alive) bySpeciesPlace.merge(g.species.index.toLong() * n + g.place, g.size, Int::plus)
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
-        heldBy.clear()
-        for (g in groups) if (g.alive && g.species.carnivore && g.home >= 0) heldBy[g.species.index.toLong() * hex.size + g.home] = g.id
         // Plan and move, in parallel: each group's choice depends only on last week's world.
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size)
         java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k ->
@@ -125,6 +134,7 @@ class HexGroups(
         for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
         graze(weather)
         hunt(visits, weather)
+        mark()
         settle()
         demography(weather, date)
         groups.removeIf { !it.alive }
@@ -176,7 +186,7 @@ class HexGroups(
         for ((h, d) in dist) {
             // A pack on its own ground stays on it while fed; and keeps off ground another pack of its kind holds.
             if (s.carnivore && g.home >= 0 && g.fed >= 0.5f && !astray && hexKm(h, g.home) > territoryKm(s)) continue
-            if (s.carnivore && g.fed >= 0.3f && h != g.home && (heldBy[s.index.toLong() * hex.size + h] ?: g.id) != g.id) continue
+            if (s.carnivore && g.fed >= 0.3f && h != g.home && foreignMark(s, h, g.id) > MARK_FRESH) continue
             for (b in 0 until HexWorld.BANDS_M.size) {
                 val p = hw.placeOf[b][h]
                 if (p < 0) continue

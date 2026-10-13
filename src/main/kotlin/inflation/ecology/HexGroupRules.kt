@@ -8,6 +8,17 @@ const val SHIFT_DAYS = 2f
 const val SNOW_EFFORT_MM = 150f
 /** Days of reserves laid on a week by a well-fed group in late summer and autumn (0.3 the rest of the year). */
 const val AUTUMN_FAT = 0.8f
+/** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */
+const val MARK_KEEP = 0.85f
+const val MARK_FRESH = 0.3f
+/** Hunters of other kinds: strength ratio from which the stronger robs a kill (with this chance), and the chance a much stronger party kills one. */
+const val THEFT_RATIO = 1.3f
+const val THEFT = 0.5f
+const val INTRAGUILD_KILL = 0.1f
+/** Chance a chase after fully armed prey as big as the party costs a hunter. */
+const val FIGHT_BACK = 0.02f
+/** Catchability below which hunters do not try a herd they meet. */
+const val NOT_WORTH_TRYING = 0.05f
 /** Prey, kg per km² weighed by catchability, at which a place is half as good as it gets for a hunter. */
 const val PREY_HALF = 200f
 /** Pull of the season's remembered place, and of staying where one is. */
