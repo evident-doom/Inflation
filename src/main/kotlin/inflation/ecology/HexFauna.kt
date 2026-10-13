@@ -82,6 +82,18 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return exp(HABITAT * (h.cover * (cover - 0.5f) + h.rugged * (land.ruggedness[p] - 0.3f) + h.wet * (wet - 0.2f)))
     }
 
+    /**
+     * Share of place [p]'s food that [s] can use for its water: grazers that must drink every day or
+     * two graze out from water and back, and leave the far country to those that live on the water
+     * in their food (gazelle, oryx, camels). Kinds bound to water (hippos) use only what lies by it.
+     */
+    fun tether(s: Species, p: Int): Float {
+        if (s.maxWaterKm.isFinite()) return land.water[p]
+        val reachKm = s.dailyTravelKm * s.daysWithoutWater / 4f * (1f + 10f * s.waterFromFood * s.waterFromFood)
+        val r = land.waterKm[p] / reachKm
+        return 1f / (1f + r * r)
+    }
+
     /** Food for [s] in place [p], kg/m², from its diet: grass from herbs, browse from shrubs and trees, fruit from trees. */
     private fun foodFor(s: Species, p: Int): Float {
         val d = s.diet
@@ -122,6 +134,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val grass = reach * land.herb[p] * 1e6f; val browse = reach * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p]) * 1e6f
             val fruit = reach * (FRUIT_OF_TREE * land.tree[p] + 0.3f * land.herb[p]) * 1e6f
             val gShare = if (wantGrass > 0f) min(1f, grass / wantGrass) else 1f
+            // (Water: see [tether], applied per kind below.)
             val bShare = if (wantBrowse > 0f) min(1f, browse / wantBrowse) else 1f
             val fShare = if (wantFruit > 0f) min(1f, fruit / wantFruit) else 1f
             for ((k, s) in kinds.withIndex()) {
@@ -130,7 +143,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // A kind that cannot reach the grass under snow falls back on browse, as far as its diet stretches.
                 val g = if (snowed) 0f else d.grass / total * gShare
                 // Grass and browse nourish fully only when green; fruit and roots keep their value.
-                fed[k][p] = ((g + d.browse / total * bShare) * land.nourishment(p) + (d.fruit + d.roots) / total * fShare).coerceIn(0f, 1f)
+                // Far from water, a kind that must drink often can only use the ground within reach of it.
+                fed[k][p] = (((g + d.browse / total * bShare) * land.nourishment(p) + (d.fruit + d.roots) / total * fShare) * tether(s, p)).coerceIn(0f, 1f)
             }
             val eatenGrass = min(grass, wantGrass) / 1e6f; val eatenBrowse = min(browse, wantBrowse) / 1e6f
             land.consume(p, LifeForm.HERB, eatenGrass)
@@ -190,7 +204,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val t = weather.temperature[p]
         val discomfort = (max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive)) / 10f
         val snowed = if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f
-        return foodFor(s, p) * suits(s, p) * snowed / (1f + heads / CROWD) / (1f + discomfort)
+        return foodFor(s, p) * suits(s, p) * tether(s, p) * snowed / (1f + heads / CROWD) / (1f + discomfort)
     }
 
     /** Within a hex, a share of each kind moves between neighbouring height bands towards the better one. */
@@ -239,7 +253,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val e = cross[h * 6 + d]
                     if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
-                    ws[d] = ease * (foodFor(s, q) * suits(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f)
+                    ws[d] = ease * (foodFor(s, q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f)
                     total += ws[d]
                 }
                 if (total <= 0f) continue

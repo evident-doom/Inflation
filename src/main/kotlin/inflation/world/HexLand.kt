@@ -56,6 +56,79 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         out.toIntArray()
     }
 
+    // ---------------------------------------------------------------- drinking water
+
+    /**
+     * Springs and oases: groundwater from the hills comes up in dry country at the foot of slopes,
+     * along faults and from limestone (as in the 1 km model), about one per [SPRING_KM2] where
+     * groundwater is ample. Fine cells.
+     */
+    val spring = BooleanArray(grid.size)
+    val oasis = BooleanArray(grid.size)
+    /** Share of each place's ground within an easy walk ([DRINK_KM]) of a river or stream, a fresh lake, or a spring. */
+    val nearRiver = FloatArray(n); val nearLake = FloatArray(n); val nearSpring = FloatArray(n)
+    /** Mean distance from each place's ground to the nearest lasting water, km. */
+    val waterKmMean = FloatArray(n)
+    /** This week: share of each place within an easy walk of drinkable water (0..1), and the mean walk to it, km. */
+    val water = FloatArray(n)
+    val waterKm = FloatArray(n)
+
+    init {
+        val c = world.climate
+        val dr = world.water.drainage
+        val cellArea = grid.cellAreaM2.toFloat()
+        val rnd = kotlin.random.Random(seed * 131 + 11)
+        val recharge = dr.accumulate(FloatArray(grid.size) { if (world.isSea[it]) 0f else GROUND_SHARE * c.runoff[it] / 1000f * cellArea })
+        val reach = max(1, (4 / grid.cellKm).toInt())
+        val cellKm2 = (grid.cellKm * grid.cellKm).toFloat()
+        for (i in 0 until grid.size) {
+            if (world.isSea[i] || world.water.isLake(i)) continue
+            val aridity = c.annualPrecip[i] / max(1f, c.annualPet[i])
+            if (aridity > 0.65f || world.water.discharge[i] >= 0.1f || recharge[i] < MIN_SPRING_FLOW) continue
+            var high = world.elevation[i]
+            val x = grid.x(i); val y = grid.y(i)
+            for (dy in -reach..reach) for (dx in -reach..reach) if (grid.inBounds(x + dx, y + dy)) high = max(high, world.elevation[grid.index(x + dx, y + dy)])
+            val foothill = ((high - world.elevation[i]) / 200f).coerceIn(0f, 1f)
+            val fault = if (world.tectonics.boundaryDistKm[i] < 10f) 0.5f else 0f
+            val karst = if (world.geology.rock[i] == Rock.LIMESTONE) 0.5f else 0f
+            val flow = min(1f, recharge[i] / (10f * MIN_SPRING_FLOW))
+            if (rnd.nextFloat() < cellKm2 / SPRING_KM2 * 3f * flow * (0.2f + foothill + fault + karst)) {
+                spring[i] = true
+                oasis[i] = aridity < 0.3f && recharge[i] > 10f * MIN_SPRING_FLOW
+            }
+        }
+        val far = 1e6f
+        fun near(source: (Int) -> Boolean): FloatArray { val d = FloatArray(grid.size); distanceKm(grid, d, far, source); return d }
+        val dRiver = near { !world.isSea[it] && !world.water.isLake(it) && world.water.discharge[it] >= 0.1f }
+        val dLake = near { world.water.isLake(it) && !world.water.lakeClosed[it] }
+        val dSpring = near { spring[it] }
+        for (p in 0 until n) {
+            nearRiver[p] = mean(p) { if (dRiver[it] <= DRINK_KM) 1f else 0f }
+            nearLake[p] = mean(p) { if (dLake[it] <= DRINK_KM) 1f else 0f }
+            nearSpring[p] = mean(p) { if (dSpring[it] <= DRINK_KM) 1f else 0f }
+            waterKmMean[p] = mean(p) { min(min(dRiver[it], dLake[it]), min(dSpring[it], MAX_WATER_KM)) }
+        }
+    }
+
+    /**
+     * This week's drinking water: rivers while they run (they shrink in drought; an intermittent
+     * stream dries up), fresh lakes, springs (frozen in hard frost), floodwater, and in wet weeks
+     * the pools and seeps that make water everywhere.
+     */
+    private fun stepDrink(weather: Weather) {
+        for (p in 0 until n) {
+            val h = hw.placeHex[p]
+            val running = if (meanFlow[h] > 0f) (flow[h] / meanFlow[h]).coerceIn(0f, 1f) else 0f
+            val thawed = weather.temperature[p] > -2f
+            val wet = soil[p] / LiveWater.SOIL_CAPACITY
+            val pools = if (thawed && (wet >= POOL_WETNESS || weather.precipitation[p] / days >= 3f)) 1f else 0f
+            val flooded = if (flood[p] > 0f) floodShare[p] else 0f
+            val lasting = nearRiver[p] * running + nearLake[p] + (if (thawed) nearSpring[p] else 0f)
+            water[p] = max(pools, min(1f, lasting + flooded))
+            waterKm[p] = if (pools > 0f) 0f else waterKmMean[p] / max(0.2f, running.coerceAtLeast(nearLake[p] + nearSpring[p]))
+        }
+    }
+
     // ---------------------------------------------------------------- rivers between hexes
 
     /** The hex each hex's main river flows into, -1 at the sea or a closed basin. */
@@ -174,6 +247,7 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     /** Advances one step with the weather of that step on the same places. */
     fun step(weather: Weather) {
         stepWater(weather)
+        stepDrink(weather)
         stepPlants(weather)
     }
 
@@ -339,6 +413,14 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     companion object {
         /** Most places a fire runs through in a step. */
         const val MAX_SPREAD = 60
+        /** Drinking water: an easy walk to it, km; furthest counted, km; soil wetness at which pools stand everywhere. */
+        const val DRINK_KM = 3f
+        const val MAX_WATER_KM = 60f
+        const val POOL_WETNESS = 0.8f
+        /** Springs: share of runoff that goes to groundwater; least groundwater flow for a spring, m³/yr; dry country per spring, km². */
+        const val GROUND_SHARE = 0.3f
+        const val MIN_SPRING_FLOW = 3e4f
+        const val SPRING_KM2 = 150f
         /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
         const val DRY_VALUE = 0.65f
         const val GREEN_RATE = 0.3f

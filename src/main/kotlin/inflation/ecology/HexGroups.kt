@@ -30,6 +30,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** For a herd: the place it remembers doing best in each month, and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
+    /** Days since it last drank. */
+    var dry = 0f
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
     var lean = 0
     val recent = IntArray(4) { -1 }
@@ -63,7 +65,7 @@ fun interface HexPolicy {
  * place, and the group's own state and the time of year.
  */
 object HexFeatures {
-    const val SIZE = 19
+    const val SIZE = 21
 }
 
 class HexGroups(
@@ -205,8 +207,9 @@ class HexGroups(
         // How far it will shift its ground this week. Most of a week's walking is within its range
         // (grazing, patrolling); the net shift is a couple of days' going when content, more on a trek
         // when hungry, cold or snowed in. A pack holding ground patrols it; a starving or homeless one roams.
-        val restless = if (s.carnivore) g.fed < 0.5f || g.home < 0
-            else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm
+        val thirsty = g.dry > 0.5f * s.daysWithoutWater
+        val restless = if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty
+            else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS
         val cross = hex.crossings[travel(s).ordinal]
         // Least effort to each hex within reach.
@@ -247,6 +250,9 @@ class HexGroups(
                     food / (food + 0.3f) - 0.5f * crowd(s, p, kin, g)
                 }
                 score -= 0.5f * discomfort(s, p, weather)
+                // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
+                score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * land.waterKm[p] / s.dailyTravelKm
+                if (thirsty && land.water[p] < 0.05f) score -= 1f
                 if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
                 score -= 0.1f * d / (s.dailyTravelKm * days)
                 if (goal >= 0 && !s.carnivore) {
@@ -283,6 +289,8 @@ class HexGroups(
                     f[15] = g.fat / s.maxFatDays.coerceAtLeast(1f)
                     f[16] = kotlin.math.sin(season).toFloat(); f[17] = kotlin.math.cos(season).toFloat()
                     f[18] = if (restless) 1f else 0f
+                    f[19] = min(3f, land.waterKm[p] / s.dailyTravelKm)
+                    f[20] = min(2f, g.dry / s.daysWithoutWater)
                     candPlaces += p; candFeats += f; candScores += score
                     continue
                 }
@@ -604,15 +612,20 @@ class HexGroups(
             }
             val hunger = if (g.fed < 0.5f) (0.5f - g.fed) * 0.3f else 0f
             val cold = discomfort(s, g.place, weather) * 0.02f
+            // Thirst: drinks where there is water; otherwise days without water mount, eased by the water in green food.
+            val p0 = g.place
+            if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= 1.5f)) g.dry = 0f
+            else g.dry += days * max(0f, 1f - s.waterFromFood * (0.5f + 0.5f * land.green[p0]))
+            val thirst = if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f
             // Crowded herds catch each other's diseases and parasites.
             val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
             val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual)
             val disease = if (s.carnivore) 0f else HexFauna.DISEASE * crowd * crowd * years
-            val pa = (s.backgroundMortality * years + hunger + cold + disease).coerceIn(0f, 0.9f)
-            val py = (s.youngMortality * years + 1.5f * (hunger + cold) + disease).coerceIn(0f, 0.95f)
+            val pa = (s.backgroundMortality * years + hunger + cold + disease + thirst).coerceIn(0f, 0.9f)
+            val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease).coerceIn(0f, 0.95f)
             val da = binomial(g.adults, pa); val dy = binomial(g.young, py)
             g.adults -= da; g.young -= dy
-            if (da + dy > 0) deaths.merge("${s.name}:${if (hunger > cold) "hunger" else "other"}", da + dy, Int::plus)
+            if (da + dy > 0) deaths.merge("${s.name}:${when { thirst > max(hunger, cold) -> "thirst"; hunger > cold -> "hunger"; else -> "other" }}", da + dy, Int::plus)
             val up = binomial(g.young, years / s.yearsToMaturity)
             g.young -= up; g.adults += up
             if (g.adults == 0) { g.young = 0; continue }
@@ -620,7 +633,7 @@ class HexGroups(
                 val c = HexGroup(nextId++, s, g.place, g.adults / 2, g.young / 2)
                 c.tag = g.tag
                 g.adults -= c.adults; g.young -= c.young
-                c.fed = g.fed; c.fat = g.fat; c.tag = g.tag
+                c.fed = g.fed; c.fat = g.fat; c.tag = g.tag; c.dry = g.dry
                 g.seasonPlace.copyInto(c.seasonPlace); g.seasonQ.copyInto(c.seasonQ)
                 born += c // a young pack has no ground yet
             }
