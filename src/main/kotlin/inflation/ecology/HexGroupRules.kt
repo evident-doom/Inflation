@@ -19,6 +19,9 @@ const val INTRAGUILD_KILL = 0.1f
 const val FIGHT_BACK = 0.02f
 /** Catchability below which hunters do not try a herd they meet. */
 const val NOT_WORTH_TRYING = 0.05f
+/** Soil water below which a herd is in a dry spell, mm; rain ahead that promises relief, mm a week. */
+const val DRY_SOIL_MM = 40f
+const val RAIN_AHEAD_MM = 20f
 /** Prey, kg per km² weighed by catchability, at which a place is half as good as it gets for a hunter. */
 const val PREY_HALF = 200f
 /** Pull of the season's remembered place, and of staying where one is. */

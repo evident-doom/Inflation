@@ -315,7 +315,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun appeal(k: Int, p: Int, weather: Weather): Float {
         val s = kinds[k]
         val heads = adults[k][p] + young[k][p]
-        val discomfort = s.discomfortC(weather.temperature[p], weather.date.month) / 10f
+        // Weather now, and as far as the kind senses it, what is coming.
+        val m = weather.date.month
+        val discomfort = ((1f - s.foresight) * s.discomfortC(weather.temperature[p], m) + s.foresight * s.discomfortC(weather.forecastTemp(p), m)) / 10f
         val snowed = if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f
         return foodFor(s, p) * suits(s, p) * tether(s, p) * snowed / (1f + heads / CROWD) / (1f + discomfort)
     }

@@ -200,6 +200,12 @@ class HexGroups(
                     food / (food + 0.3f) - 0.5f * crowd(s, p, kin, g)
                 }
                 score -= 0.5f * discomfort(s, p, weather)
+                // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
+                // too deep to dig through, and in a dry spell the rain on its way.
+                val tAhead = weather.forecastTemp(p)
+                score -= 0.5f * s.foresight * s.discomfortC(tAhead, date.month) / 10f
+                if (tAhead < 0f && weather.snowpack[p] + weather.forecastRain(p) > s.snowLimitMm) score -= 0.5f * s.foresight
+                if (land.soil[p] < DRY_SOIL_MM) score += 0.3f * s.foresight * min(1f, weather.forecastRain(p) / RAIN_AHEAD_MM)
                 // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
                 score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * land.waterKm[p] / s.dailyTravelKm
                 if (thirsty && land.water[p] < 0.05f) score -= 1f
