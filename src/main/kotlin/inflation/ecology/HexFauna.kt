@@ -125,7 +125,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             else land.floodShare[p] * (if (young) FLOOD_YOUNG else FLOOD_ADULT)
         val over = weather.snowpack[p] / s.snowLimitMm
         val snow = if (over <= 2f) 0f else min(0.1f, SNOW_DEATHS * (over - 2f)) * (if (young) 3f else 1f)
-        return Triple(fire, flood, snow)
+        // Grazing in fresh ash wears teeth and poisons with fluorine: counted with the snow, as a smothered winter.
+        val ash = if (land.ash[p] < ASH_HARM_MM) 0f else min(0.1f, ASH_DEATHS * land.ash[p] / 50f) * (if (young) 2f else 1f)
+        return Triple(fire, flood, snow + ash)
     }
 
     /**
@@ -437,6 +439,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val FLOOD_YOUNG = 0.2f
         /** Deep snow: share a week dying per snow depth (in multiples of what the kind can dig through) beyond two. */
         const val SNOW_DEATHS = 0.02f
+        /** Ash: depth from which grazing in it harms, mm; share a week dying per 50 mm. */
+        const val ASH_HARM_MM = 5f
+        const val ASH_DEATHS = 0.02f
         /** Share a week that leaves country that does not suit it, at full strength of the bearing; how strongly the bearing steers them. */
         const val SPILL_MISFIT = 0.05f
         const val BEARING_SPILL = 3f

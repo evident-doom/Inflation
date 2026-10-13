@@ -85,6 +85,7 @@ fun main(args: Array<String>) {
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
         println("     small life: " + fauna.small.summary())
         println("     water life: " + fauna.water.summary())
+        println("     eruptions so far: " + sim.eruptions.history.joinToString(", ") { "VEI ${it.vei} in year ${it.date.year}" }.ifEmpty { "none" })
         println("     matter: " + budget())
         println("     climate fit: " + fit())
         println("     land that suits / pull felt: " + drawn())

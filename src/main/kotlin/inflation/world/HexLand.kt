@@ -216,6 +216,9 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     /** Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when dry or dormant. */
     fun nourishment(p: Int) = DRY_VALUE + (1f - DRY_VALUE) * green[p]
 
+    /** Volcanic ash lying on each place, mm (set from the eruptions each week). */
+    val ash = FloatArray(n)
+
     /** Share of each place worn by paths, 0..1. */
     val trails = FloatArray(n)
     private var treeSeed = FloatArray(n); private var shrubSeed = FloatArray(n)
@@ -308,6 +311,11 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
             grow(LifeForm.SHRUB, shrub, p, season * water0 * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed))
             val lawn = 1f - exp(-grazing[p] / Vegetation.LAWN_SCALE)
             grow(LifeForm.HERB, herb, p, season * water0 * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
+            // Ash smothers the low plants and scorches leaves; as it weathers it enriches the soil.
+            if (ash[p] > 1f) {
+                herb[p] *= exp(-ash[p] / ASH_SMOTHER_MM * years * 52f / 10f); shrub[p] *= exp(-ash[p] / (4f * ASH_SMOTHER_MM) * years * 52f / 10f)
+                fertility[p] = min(1f, fertility[p] + ASH_FERTILITY * ash[p] * years)
+            }
             if (t < LifeForm.HERB.frostKill) herb[p] *= 0.3f
             if (t < LifeForm.SHRUB.frostKill) shrub[p] *= 0.3f
             if (t < LifeForm.TREE.frostKill) tree[p] *= 0.3f
@@ -430,6 +438,9 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         const val GREEN_RATE = 0.3f
         /** How green a fresh burn turns in growing weather, per share burnt. */
         const val FLUSH = 1.5f
+        /** Ash depth that smothers most of the herb layer within weeks, mm; fertility added per mm of ash a year as it weathers. */
+        const val ASH_SMOTHER_MM = 50f
+        const val ASH_FERTILITY = 0.002f
         /** Weekly weight of the newest flow in the running mean used to correct river flows (about two years). */
         const val FLOW_MEMORY = 0.01f
     }
