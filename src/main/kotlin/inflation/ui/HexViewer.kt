@@ -99,6 +99,24 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     }
     private val tintChoice = JComboBox(Tint.entries.map { it.label }.toTypedArray())
     private val windBox = javax.swing.JCheckBox("Wind", false)
+    private val herdsBox = javax.swing.JCheckBox("Herds", true)
+    private val huntersBox = javax.swing.JCheckBox("Hunters", true)
+
+    /**
+     * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
+     * nearest land within a few rings (the weather is worked out on land only); -1 if none.
+     */
+    private fun windPlace(h: Int): Int {
+        (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 }?.let { return it }
+        var ring = listOf(h); val seen = hashSetOf(h)
+        repeat(4) {
+            val next = ArrayList<Int>()
+            for (r in ring) for (d in 0 until 6) { val q = hex.neighbour(r, d); if (q >= 0 && seen.add(q)) next += q }
+            for (q in next) (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][q] }.firstOrNull { it >= 0 }?.let { return it }
+            ring = next
+        }
+        return -1
+    }
     /** Whose sense of direction to draw as arrows: a resident kind or a kind living in groups. */
     private val pullChoice by lazy { JComboBox(arrayOf("(no sense of direction)") + (fauna.kinds + groups.kinds).map { "pull: " + it.name }.toTypedArray()) }
     /** Where each group was drawn at the end of the last move, km. */
@@ -126,8 +144,9 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         residentChoice.addActionListener { map.repaint() }
         tintChoice.addActionListener { map.repaint() }
         windBox.addActionListener { map.repaint() }
+        herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(windBox); bar.add(pullChoice)
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(windBox); bar.add(pullChoice)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         bar.add(graphs); bar.add(date)
         val bottom = JPanel(); bottom.add(counts)
@@ -286,7 +305,7 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
                 for (h in 0 until hex.size) {
                     val col = h % hex.cols; val row = h / hex.cols
                     if (col % every != 0 || row % every != 0) continue
-                    val p = (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: continue
+                    val p = windPlace(h).takeIf { it >= 0 } ?: continue
                     val u = weather.windEast(p); val v = weather.windSouth(p)
                     val speed = hypot(u, v)
                     if (speed < 0.3f) continue
@@ -350,6 +369,7 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             // week those sharing a hex stand side by side in a small ring around its centre.
             val t = min(1f, frame.toFloat() / frames)
             for (s in shown) {
+                if (if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
                 val w = s.way
                 val (x, y) = along(w, t)
                 val sp = Catalogue.all[s.kind]
@@ -409,6 +429,7 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             small += ((fauna.small.rodents[p] + fauna.small.herps[p]) * a).toDouble(); carrion += (fauna.small.carrion[p] * 1e6f * a).toDouble()
         }
         val gs = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
+        sb.appendLine("country: " + describe(h))
         sb.appendLine("in the hex (%.0f km²):".format(totalArea))
         sb.appendLine("   resident herds: " + fauna.kinds.indices.filter { residents[it] >= 0.5 }.joinToString(", ") { "%s %.0f".format(fauna.kinds[it].name, residents[it]) }.ifEmpty { "none" })
         sb.appendLine("   herds and packs: " + gs.groupBy { it.species }.entries.joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
@@ -452,6 +473,41 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         }
         groupInfo.text = sb.toString()
     }
+
+    /**
+     * The country of hex [h] in words: its kinds of country, how thick the grass, scrub and trees
+     * are, how green, and the fruit and dry fodder this season.
+     */
+    private fun describe(h: Int): String {
+        val names = inflation.world.Biome.entries.map { it to hw.biome[it.ordinal][h] }.filter { it.second >= 0.1f }.sortedByDescending { it.second }
+        val parts = ArrayList<String>()
+        if (hw.sea[h] > 0.3f) parts += "%s sea".format(share(hw.sea[h]))
+        if (hw.lake[h] > 0.1f) parts += "%s lake".format(share(hw.lake[h]))
+        for ((b, s) in names.take(3)) parts += "%s %s".format(share(s), b.name.lowercase().replace('_', ' '))
+        // Plants over the land, area-weighted over the height bands.
+        var a = 0.0; var herb = 0.0; var shrub = 0.0; var tree = 0.0; var green = 0.0; var fruit = 0.0; var straw = 0.0; var snow = 0.0; var burnt = 0.0
+        for (b in 0 until HexWorld.BANDS_M.size) {
+            val p = hw.placeOf[b][h]; if (p < 0) continue
+            val w = land.areaKm2[p].toDouble(); a += w
+            herb += land.herb[p] * w; shrub += land.shrub[p] * w; tree += land.tree[p] * w; green += land.green[p] * w
+            fruit += fauna.food.fruit[p] * w; straw += fauna.food.straw[p] * w; snow += weather.snowpack[p] * w; burnt += land.burnt[p] * w
+        }
+        if (a <= 0.0) return parts.joinToString("; ").ifEmpty { "water" }
+        herb /= a; shrub /= a; tree /= a; green /= a; fruit /= a; straw /= a; snow /= a; burnt /= a
+        val grass = when { herb < 0.05 -> "bare or nearly bare ground"; herb < 0.2 -> "thin grass"; herb < 0.5 -> "fair grass"; else -> "thick grass" }
+        val scrub = when { shrub < 0.2 -> null; shrub < 1.0 -> "scattered scrub"; else -> "dense scrub" }
+        val wood = when { tree < 1.0 -> null; tree < 8.0 -> "open woodland"; else -> "closed forest" }
+        val state = when { snow > 50 -> "under snow"; green > 0.6 -> "green and growing"; green > 0.3 -> "partly green"; else -> "dry or dormant" }
+        val plants = listOfNotNull(grass, scrub, wood).joinToString(", ") + " ($state)"
+        val extras = listOfNotNull(
+            if (fruit > 0.0005) "fruit ripe" else null,
+            if (straw > 0.0008) "plenty of standing dry fodder" else if (straw < 0.0002) "little dry fodder" else null,
+            if (burnt > 0.1) "lately burnt" else null,
+        )
+        return (parts + plants + extras).joinToString("; ")
+    }
+
+    private fun share(s: Float) = when { s > 0.8f -> "almost all"; s > 0.55f -> "mostly"; s > 0.35f -> "much"; s > 0.2f -> "a fifth or more"; else -> "some" }
 
     /** A colour from blue (0) through green and yellow to red (1), with alpha [a]. */
     private fun heat(v: Float, a: Float): Color {
