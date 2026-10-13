@@ -133,13 +133,13 @@ class Tectonics(
                     // Half-space cooling: ridge crests at ~2.5 km depth, old floor near 4.5 km.
                     -(2500.0 + 2000.0 * (1 - exp(-ridgeDist[i] / 300.0))) + 150.0 * texture
                 }
-                val beltWidth = if (a.continental && b.continental) 120.0 else 70.0
+                val beltWidth = if (a.continental && b.continental) cfg.beltKm else 70.0
                 val belt = exp(-km / beltWidth)
                 var u = 0.0; var relief = 0.0
                 if (conv > 0 && a.continental) {
                     // Collision or the overriding side of a subduction zone: uplift scales with closing speed.
-                    u = conv * 0.025 * belt
-                    relief = conv * 25_000.0 * belt * (0.5 + noise.ridged(x, y, 120.0 / grid.cellKm, 5))
+                    u = conv * 0.025 * belt * cfg.upliftScale
+                    relief = conv * 25_000.0 * belt * (0.5 + noise.ridged(x, y, 120.0 / grid.cellKm, 5)) * cfg.upliftScale
                 } else if (conv < 0 && a.continental) {
                     // Rifting: a narrow subsiding valley along the boundary, a chain of lakes or at most a
                     // narrow gulf; a young rift does not split a continent with open ocean.
@@ -154,8 +154,13 @@ class Tectonics(
             val smoothRelief = blur(grid, blur(grid, reliefField, r), r)
             val smoothUplift = blur(grid, blur(grid, uplift, r), r)
             for (i in 0 until n) {
-                elevation[i] += smoothRelief[i]
-                uplift[i] = if (plates[plateId[i]].continental) smoothUplift[i] else 0f
+                // Ridges: belts are not smooth domes but folds and thrust sheets, crest after crest.
+                val ridges = if (cfg.ridgeKm > 0) {
+                    val x = grid.x(i).toDouble(); val y = grid.y(i).toDouble()
+                    (1 - cfg.ridgeShare + cfg.ridgeShare * 2 * noise.ridged(x + 911, y - 377, cfg.ridgeKm / grid.cellKm, 4)).toFloat()
+                } else 1f
+                elevation[i] += smoothRelief[i] * (if (smoothRelief[i] > 0f) ridges else 1f)
+                uplift[i] = if (plates[plateId[i]].continental) smoothUplift[i] * ridges else 0f
             }
             // Soften the step between oceanic and continental crust into a continental slope.
             val smooth = blur(grid, elevation, (25 / grid.cellKm).toInt().coerceAtLeast(1))

@@ -25,8 +25,23 @@ data class WorldConfig(
     /** Mantle hotspots, each leaving a chain of volcanic islands and seamounts; -1 for about 2 per million km². */
     val hotspots: Int = -1,
     /** Erosion: number of implicit stream-power steps and the length of each step in years. */
-    val erosionSteps: Int = 40,
+    val erosionSteps: Int = 80,
     val erosionStepYears: Double = 50_000.0,
+    /** Width of the uplifted belt where continents collide, e-folding distance from the boundary, km. */
+    val beltKm: Double = 40.0,
+    /**
+     * Mountain belts are broken into ridges and valleys on this scale, km (0 for smooth belts): crests
+     * of folds and thrust sheets, which erosion then deepens into a web of valleys and passes.
+     */
+    val ridgeKm: Double = 12.0,
+    /** Share of a belt's height and uplift that follows the ridges, 0..1. */
+    val ridgeShare: Double = 0.9,
+    /** Scale on rock uplift rates in mountain belts (and on the belts' starting height). */
+    val upliftScale: Double = 0.7,
+    /** Hillslope diffusivity, m²/yr. */
+    val hillDiffusivity: Double = 0.05,
+    /** Steepest slope hillsides hold over the length of a cell before they slide, rise over run (0 for no limit). */
+    val criticalSlope: Double = 0.7,
     /** Days advanced by one simulation step. 30-day months split evenly into 5 steps of 6 days. */
     val daysPerStep: Int = 6,
 ) {

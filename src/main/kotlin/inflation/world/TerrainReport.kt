@@ -12,11 +12,13 @@ import kotlin.random.Random
  * ground, how much of it is plateau, and for random journeys of a set length across mountains and
  * across lowland, how much longer and harder the easiest way is than the straight line.
  *
- * Usage: terrain-report [--seed N] [--width KM] [--height KM] [--km N]
+ * Usage: terrain-report [--seed N] [--width KM] [--height KM] [--km N] [--belt KM] [--ridges KM] [--ridge-share S]
+ *                       [--diffusivity D] [--critical S] [--steps N] [--png FILE]
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 1)
     var km = 40
+    var png: java.io.File? = null
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -24,6 +26,14 @@ fun main(args: Array<String>) {
             "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
             "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--km" -> km = args[++k].toInt()
+            "--belt" -> cfg = cfg.copy(beltKm = args[++k].toDouble())
+            "--ridges" -> cfg = cfg.copy(ridgeKm = args[++k].toDouble())
+            "--ridge-share" -> cfg = cfg.copy(ridgeShare = args[++k].toDouble())
+            "--diffusivity" -> cfg = cfg.copy(hillDiffusivity = args[++k].toDouble())
+            "--critical" -> cfg = cfg.copy(criticalSlope = args[++k].toDouble())
+            "--steps" -> cfg = cfg.copy(erosionSteps = args[++k].toInt())
+            "--uplift" -> cfg = cfg.copy(upliftScale = args[++k].toDouble())
+            "--png" -> png = java.io.File(args[++k])
             else -> error("unknown argument ${args[k]}")
         }
         k++
@@ -32,6 +42,7 @@ fun main(args: Array<String>) {
     val g = world.grid
     val t = world.terrain
     val land = (0 until g.size).filter { !world.isSea[it] }
+    png?.let { hillshade(world, it) }
     fun pct(v: List<Float>, p: Double) = v.sorted().let { if (it.isEmpty()) Float.NaN else it[((it.size - 1) * p).toInt()] }
     fun deg(s: Float) = Math.toDegrees(atan(s.toDouble())).toFloat()
     val elev = land.map { world.elevation[it] }
@@ -104,4 +115,25 @@ private fun easiest(world: World, a: Int, b: Int, km: Int): Pair<Float, Float>? 
         }
     }
     return null
+}
+
+/** Writes a shaded relief map of [world]: light from the north-west, tinted by height. */
+private fun hillshade(world: World, file: java.io.File) {
+    val g = world.grid
+    val img = java.awt.image.BufferedImage(g.width, g.height, java.awt.image.BufferedImage.TYPE_INT_RGB)
+    val cm = g.cellM.toFloat()
+    for (y in 0 until g.height) for (x in 0 until g.width) {
+        val i = g.index(x, y)
+        if (world.isSea[i]) { img.setRGB(x, y, 0x30506e); continue }
+        val e = world.elevation[i]
+        val ex = world.elevation[g.index((x + 1).coerceAtMost(g.width - 1), y)] - world.elevation[g.index((x - 1).coerceAtLeast(0), y)]
+        val ey = world.elevation[g.index(x, (y + 1).coerceAtMost(g.height - 1))] - world.elevation[g.index(x, (y - 1).coerceAtLeast(0))]
+        // Light from the north-west, 45 degrees up.
+        val nx = -ex / (2 * cm); val ny = -ey / (2 * cm)
+        val shade = ((nx * -0.5f + ny * -0.5f + 0.7071f) / kotlin.math.sqrt(nx * nx + ny * ny + 1f)).coerceIn(0f, 1f)
+        val h = (e / 4000f).coerceIn(0f, 1f)
+        val r = (90 + 140 * h) * (0.35f + 0.65f * shade); val gg = (130 + 90 * h) * (0.35f + 0.65f * shade); val b = (80 + 150 * h) * (0.35f + 0.65f * shade)
+        img.setRGB(x, y, (r.toInt().coerceIn(0, 255) shl 16) or (gg.toInt().coerceIn(0, 255) shl 8) or b.toInt().coerceIn(0, 255))
+    }
+    javax.imageio.ImageIO.write(img, "png", file)
 }

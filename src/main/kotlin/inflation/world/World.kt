@@ -49,7 +49,8 @@ class World(
 
             log("erosion and sediment (${cfg.erosionSteps} steps of ${cfg.erosionStepYears.toInt()} years)")
             val seaAtStart = seaMask(grid, elevation)
-            val sediment = Erosion.run(grid, elevation, tect.uplift, geology.erodibility(), cfg.erosionSteps, cfg.erosionStepYears, cfg.seed) {
+            val sediment = Erosion.run(grid, elevation, tect.uplift, geology.erodibility(), cfg.erosionSteps, cfg.erosionStepYears, cfg.seed,
+                cfg.hillDiffusivity, cfg.criticalSlope) {
                 seaAtStart[it] || grid.isEdge(it)
             }
             System.arraycopy(sediment, 0, geology.sediment, 0, grid.size)
