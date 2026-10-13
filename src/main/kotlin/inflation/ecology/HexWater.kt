@@ -313,8 +313,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 if (old[h] <= 0f) continue
                 val nb = (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 && seaKm2[it] > 0f && shoreKm[it] <= a.maxShoreKm }
                 if (nb.isEmpty()) continue
-                // Towards the better fed: the richer the water around, the more go there.
-                val food = nb.map { q -> if (a.food == SeaFood.PLANKTON) zoo[q] + 0.01f else fish[q] + 1f }
+                // Towards the better fed and the less crowded: the richer and emptier the water around, the more go there.
+                val usual = a.massKg / a.startKm2
+                val food = nb.map { q -> (if (a.food == SeaFood.PLANKTON) zoo[q] + 0.01f else fish[q] + 1f) / (1f + old[q] / usual) }
                 val total = food.sum()
                 val go = old[h] * share
                 f[h] -= go

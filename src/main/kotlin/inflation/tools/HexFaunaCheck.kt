@@ -70,11 +70,27 @@ fun main(args: Array<String>) {
             plants, perM2(sl.litter), perM2(sl.organicMatter), perM2(sl.carrion), smallAnimals, residents, groups)
     }
     println("     matter: " + budget())
+    println("     land %.0f km²; groups at the start: ".format(land.areaKm2.sum()) + herds.kinds.joinToString(", ") { "${it.name} ${herds.groups.count { g -> g.species == it }} (${herds.count(it)})" })
     var ns = 0L
     val causes = java.util.TreeMap<String, Double>()
     for (y in 1..years) {
+        val before = causes.toMap()
         repeat(stepsPerYear) { w ->
             if (w == stepsPerYear / 2) println("     midsummer, land that suits / pull felt: " + drawn())
+            if (System.getProperty("hex.fedDiag") != null && y == 1 && w % 13 == 6) {
+                // How well each resident kind is fed where it lives, and why: weighted by head count.
+                println("     week $w, residents: fed / share hungry / tether / access / green / reserve days")
+                for ((k, s) in fauna.kinds.withIndex()) {
+                    var heads = 0.0; var fed = 0.0; var hungry = 0.0; var teth = 0.0; var acc = 0.0; var gr = 0.0; var res = 0.0
+                    for (p in 0 until fauna.n) {
+                        val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble()
+                        if (h <= 0.0) continue
+                        heads += h; fed += h * fauna.fed[k][p]; if (fauna.fed[k][p] < 0.6f) hungry += h
+                        teth += h * fauna.tether(s, p); acc += h * inflation.ecology.HexFood.access(s, land.ruggedness[p]); gr += h * land.green[p]; res += h * fauna.reserve[k][p]
+                    }
+                    if (heads > 0) println("       %-12s %.2f / %.0f%% / %.2f / %.2f / %.2f / %.0f".format(s.name, fed / heads, 100 * hungry / heads, teth / heads, acc / heads, gr / heads, res / heads))
+                }
+            }
             val t0 = System.nanoTime()
             sim.step()
             ns += System.nanoTime() - t0
@@ -90,6 +106,11 @@ fun main(args: Array<String>) {
         println("     climate fit: " + fit())
         println("     land that suits / pull felt: " + drawn())
         println("     groups: " + herds.kinds.joinToString(", ") { "${it.name} ${herds.count(it)}" })
+        // This year's deaths of the resident herds, all kinds together, by cause.
+        val residentNames = fauna.kinds.map { it.name }.toSet()
+        val year = HashMap<String, Double>()
+        for ((key, v) in causes) if (key.substringBefore(":") in residentNames) year.merge(key.substringAfter(":"), v - (before[key] ?: 0.0), Double::plus)
+        println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     this week: kills " + herds.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + herds.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
     println("deaths over the run, by cause:")

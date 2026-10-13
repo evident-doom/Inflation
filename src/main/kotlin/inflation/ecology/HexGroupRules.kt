@@ -15,8 +15,8 @@ const val MARK_FRESH = 0.3f
 const val THEFT_RATIO = 1.3f
 const val THEFT = 0.5f
 const val INTRAGUILD_KILL = 0.1f
-/** Chance a chase after fully armed prey as big as the party costs a hunter. */
-const val FIGHT_BACK = 0.02f
+/** Chance a chase after fully armed prey as big as the party costs a hunter (injuries kill a few per cent of big cats a year, over some dozens of chases). */
+const val FIGHT_BACK = 0.002f
 /** Catchability below which hunters do not try a herd they meet. */
 const val NOT_WORTH_TRYING = 0.05f
 /** Soil water below which a herd is in a dry spell, mm; rain ahead that promises relief, mm a week. */

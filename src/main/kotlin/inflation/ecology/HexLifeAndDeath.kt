@@ -68,14 +68,17 @@ internal fun HexGroups.graze(weather: Weather) {
         val snowed = weather.snowpack[p] > s.snowLimitMm
         val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
         val reach = if (weather.temperature[p] > 4f) HexFauna.REACH else HexFauna.REACH_DORMANT
-        val wantGrass = if (snowed) 0f else want * access * d.grass / total
+        // Poor forage is made up for by eating more of it, as far as the gut holds.
+        val fill = min(HexFauna.GUT_FILL, 1f / land.nourishment(p))
+        val wantGrass = if (snowed) 0f else want * fill * access * d.grass / total
         val grass = land.consume(p, LifeForm.HERB, min(wantGrass, reach * land.herb[p]))
-        val wantBrowse = want * access * d.browse / total
+        val wantBrowse = want * fill * access * d.browse / total
         val browse = land.consume(p, LifeForm.SHRUB, min(wantBrowse, reach * land.shrub[p]))
         val fruit = food.take(food.fruit, p, want * access * d.fruit / total)
         val roots = food.take(food.roots, p, want * access * d.roots / total)
         // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
-        val straw = food.take(food.straw, p, want * access * (d.grass + d.browse) / total - grass - browse)
+        val short = max(0f, want * (d.grass + d.browse) / total - (grass + browse) * land.nourishment(p))
+        val straw = food.take(food.straw, p, short * HexFauna.GUT_FILL * access)
         small.dung[p] += HexSmallLife.DUNG * (grass + browse + fruit + roots + straw)
         // On the way it beat down the plants and dropped the seed of the fruit it ate.
         val band = hw.placeBand[p]
@@ -85,7 +88,7 @@ internal fun HexGroups.graze(weather: Weather) {
             if (fruit > 0f) land.animalSeed[q] = min(1f, land.animalSeed[q] + fruit * land.areaKm2[p] * 1e6f / g.path.size / land.areaKm2[q] / HexFauna.SEED_KG)
         }
         // Grass and browse nourish fully only when green; fruit and roots keep their value.
-        val got = (grass + browse) * land.nourishment(p) + fruit + roots + straw * HexFood.roughage(s)
+        val got = (grass + browse) * land.nourishment(p) + fruit + roots + min(short, straw * HexFood.roughage(s))
         g.fed = (got / want.coerceAtLeast(1e-9f)).coerceIn(0f, 1f)
         land.grazing[p] += grass * 1e6f / days; land.browsing[p] += browse * 1e6f / days; land.rooting[p] += roots * 1e6f / days
     }
