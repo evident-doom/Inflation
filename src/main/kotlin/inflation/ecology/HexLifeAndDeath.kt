@@ -33,7 +33,6 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
         if (kotlin.math.abs(cx - hx) <= reachKm && kotlin.math.abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm) near += p
     }
     if (near.isEmpty()) return
-    val coat = if (s.winterCoat) 10f else 0f
     var top = 0f
     for (m in 0 until 12) {
         var best = -1; var bestScore = 0f
@@ -41,7 +40,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
             val t = hw.placeTemp(p, m)
             val h = hw.placeHex[p]
             val grow = ((t - 2f) / 13f).coerceIn(0f, 1f) * (hw.precip[m][h] / hw.pet[m][h].coerceAtLeast(1f)).coerceIn(0.1f, 1f)
-            val discomfort = (max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive)) / 10f
+            val discomfort = s.discomfortC(t, m) / 10f
             val snow = if (t < -1f && s.diet.grass > 0.3f) 0.2f else 1f
             val (cx, cy) = hex.centreKm(h)
             val dist = hypot(cx - hx, cy - hy) / reachKm
@@ -96,12 +95,21 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (!g.alive) continue
         val s = g.species
         // Reserves carry a group through lean weeks.
+        // Reserves carry a group through lean weeks; it lays on most in late summer and autumn.
         if (g.fed < 1f) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
-        else g.fat = min(s.maxFatDays, g.fat + 0.3f * days)
-        val inSeason = (date.month - s.birthMonth + 12) % 12 < s.birthMonths
+        else g.fat = min(s.maxFatDays, g.fat + (if (date.month in 4..7) AUTUMN_FAT else 0.3f) * days)
+        if (g.birthMonth < 0) g.birthMonth = s.birthMonth
+        // Once a year its births move a month towards the months it fed best in (the birth month and the two after).
+        if (date.month == 0 && date.dayOfMonth <= days && !s.carnivore) {
+            fun window(m0: Int) = (0 until 3).sumOf { g.seasonQ[(m0 + it + 12) % 12].toDouble() }
+            val m = g.birthMonth
+            if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = (m + 11) % 12
+            else if (window(m + 1) > window(m) + 0.1) g.birthMonth = (m + 1) % 12
+        }
+        val inSeason = (date.month - g.birthMonth + 12) % 12 < s.birthMonths
         if (inSeason && g.adults >= 2) {
             val births = if (s.packLitter > 0) {
-                if (date.dayOfMonth <= days && date.month == s.birthMonth && g.home >= 0) (s.packLitter * g.fed + rnd.nextFloat()).toInt() else 0
+                if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + rnd.nextFloat()).toInt() else 0
             } else {
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
                 binomial(g.adults / 2, s.youngPerFemale * s.littersPerYear * g.fed / stepsInSeason)
@@ -144,7 +152,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             val c = HexGroup(nextId++, s, g.place, g.adults / 2, g.young / 2)
             c.tag = g.tag
             g.adults -= c.adults; g.young -= c.young
-            c.fed = g.fed; c.fat = g.fat; c.tag = g.tag; c.dry = g.dry; c.wary = g.wary
+            c.fed = g.fed; c.fat = g.fat; c.tag = g.tag; c.dry = g.dry; c.wary = g.wary; c.birthMonth = g.birthMonth
             g.seasonPlace.copyInto(c.seasonPlace); g.seasonQ.copyInto(c.seasonQ)
             born += c // a young pack has no ground yet
         }

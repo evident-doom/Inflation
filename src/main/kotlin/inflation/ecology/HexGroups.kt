@@ -214,7 +214,7 @@ class HexGroups(
                     f[2] = crowd(s, p, kin, g)
                     f[3] = predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f)
                     f[4] = min(2f, discomfort(s, p, weather))
-                    f[5] = min(2f, s.discomfortC(weather.forecastTemp(p)) / 10f)
+                    f[5] = min(2f, s.discomfortC(weather.forecastTemp(p), date.month) / 10f)
                     f[6] = if (weather.snowpack[p] > s.snowLimitMm) 1f else 0f
                     f[7] = min(2f, weather.snowpack[p] / s.snowLimitMm)
                     f[8] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
@@ -253,7 +253,7 @@ class HexGroups(
     internal fun territoryKm(s: Species) = kotlin.math.sqrt(max(1f, s.startKm2PerAnimal) * s.groupSize / Math.PI.toFloat()) + 5f
 
     internal fun discomfort(s: Species, p: Int, weather: Weather): Float {
-        return s.discomfortC(weather.temperature[p]) / 10f
+        return s.discomfortC(weather.temperature[p], weather.date.month) / 10f
     }
 
     internal fun crowd(s: Species, p: Int, kin: HashMap<Long, Int>, g: HexGroup): Float {
