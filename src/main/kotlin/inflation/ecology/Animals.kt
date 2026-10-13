@@ -66,6 +66,8 @@ class AnimalGroup(
     var homeY = Double.NaN
     /** Direction (0..7) a herd last moved in, -1 if it stayed: it tends to graze on the same way. */
     var heading = -1
+    /** The way it took on its last move, by the waypoints passed (x0, y0, x1, y1, ... in cells), or null for a short shift. */
+    @Volatile var route: FloatArray? = null
     /** Weeks a group has kept its range where it is. */
     var weeksHere = 0
     /** Weeks a herd has been off its home range. */

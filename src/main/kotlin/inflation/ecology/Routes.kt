@@ -123,7 +123,7 @@ class Routes(private val world: World) {
         r.startNode = start
         if (nodeCell[start] < 0) return
         val l = links[way]
-        r.set(start % nw, start / nw, 0f); r.heap.clear(); r.heap += pack(0f, start)
+        r.set(start % nw, start / nw, 0f); r.setPrev(start % nw, start / nw, -1); r.heap.clear(); r.heap += pack(0f, start)
         while (r.heap.isNotEmpty()) {
             val top = r.heap.poll(); val d = Float.fromBits((top ushr 32).toInt()); val n = top.toInt()
             if (d > r.get(n % nw, n / nw)) continue
@@ -135,7 +135,7 @@ class Routes(private val world: World) {
                 if (nd > budget) continue
                 val mx = nx0 + DX[k]; val my = ny0 + DY[k]
                 if (!r.inside(mx, my)) continue
-                if (nd < r.get(mx, my)) { r.set(mx, my, nd); r.heap += pack(nd, my * nw + mx) }
+                if (nd < r.get(mx, my)) { r.set(mx, my, nd); r.setPrev(mx, my, n); r.heap += pack(nd, my * nw + mx) }
             }
         }
     }
@@ -167,10 +167,28 @@ class Routes(private val world: World) {
         return grid.x(best) + 0.5 to grid.y(best) + 0.5
     }
 
+    /**
+     * The way from the last [search]'s start to the place (x, y): the waypoints passed, as cell
+     * coordinates x0, y0, x1, y1, ..., ending at (x, y). Null if it is out of reach.
+     */
+    fun wayTo(r: Search, x: Double, y: Double): FloatArray? {
+        val end = nodeAt(x, y)
+        if (!r.inside(end % nw, end / nw) || !r.get(end % nw, end / nw).isFinite()) return null
+        val nodes = ArrayList<Int>()
+        var n = end
+        while (n >= 0 && nodes.size < 4 * Search.MAX_R) { nodes += n; n = r.getPrev(n % nw, n / nw) }
+        nodes.reverse()
+        val out = FloatArray(2 * nodes.size + 2)
+        for ((k, m) in nodes.withIndex()) { val c = nodeCell[m]; out[2 * k] = grid.x(c) + 0.5f; out[2 * k + 1] = grid.y(c) + 0.5f }
+        out[out.size - 2] = x.toFloat(); out[out.size - 1] = y.toFloat()
+        return out
+    }
+
     /** Working space for [search], one per thread. */
     class Search {
         val heap = PriorityQueue<Long>()
         private val dist = FloatArray((2 * MAX_R + 1) * (2 * MAX_R + 1))
+        private val prev = IntArray((2 * MAX_R + 1) * (2 * MAX_R + 1))
         private var cx = 0; private var cy = 0; private var r = 0
         /** The waypoint the search started from, -1 before any. */
         var startNode = -1
@@ -186,6 +204,8 @@ class Routes(private val world: World) {
         fun inside(x: Int, y: Int) = x >= cx - r && x <= cx + r && y >= cy - r && y <= cy + r
         fun get(x: Int, y: Int) = dist[(y - cy + r) * (2 * r + 1) + (x - cx + r)]
         fun set(x: Int, y: Int, d: Float) { dist[(y - cy + r) * (2 * r + 1) + (x - cx + r)] = d }
+        fun getPrev(x: Int, y: Int) = prev[(y - cy + r) * (2 * r + 1) + (x - cx + r)]
+        fun setPrev(x: Int, y: Int, n: Int) { prev[(y - cy + r) * (2 * r + 1) + (x - cx + r)] = n }
 
         companion object {
             const val MAX_R = 60

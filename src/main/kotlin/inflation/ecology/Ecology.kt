@@ -936,13 +936,15 @@ class Ecology(private val sim: Simulation) {
     private fun plan(g: AnimalGroup, slot: Int, sc: Scratch) {
         val s = g.species
         g.rangeKm = rangeKm(s)
-        if (g.torpid) { planX[slot] = Double.NaN; return }
+        if (g.torpid) { planX[slot] = Double.NaN; g.route = null; return }
         gather(g, sc)
         val choice = policies.getValue(s).choose(g, sc.options)
         g.heading = if (choice in 1..24) (choice - 1) % 8 else -1
         g.weeksHere = if (choice == 0 || sc.options[choice].cell < 0) g.weeksHere + 1 else 0
-        if (sc.options[choice].cell < 0 || choice == 0) { planX[slot] = Double.NaN; return }
+        if (sc.options[choice].cell < 0 || choice == 0) { planX[slot] = Double.NaN; g.route = null; return }
         planX[slot] = sc.tx[choice]; planY[slot] = sc.ty[choice]
+        // The way it will go, for drawing: by the waypoints when it goes beyond its own.
+        g.route = if (sc.searched && routes.nodeAt(sc.tx[choice], sc.ty[choice]) != routes.nodeAt(g.x, g.y)) routes.wayTo(sc.search, sc.tx[choice], sc.ty[choice]) else null
     }
 
     /**

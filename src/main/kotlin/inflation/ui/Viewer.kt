@@ -254,6 +254,8 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
      * before (x, y), per group. Between steps they are drawn part way, so movement is animated.
      */
     private var animals = FloatArray(0)
+    /** The way each group in [animals] took this step, by waypoints (see [inflation.ecology.AnimalGroup.route]), or null. */
+    private var ways = arrayOfNulls<FloatArray>(0)
     /** Frames of the move between the last step and the next: drawn so far, and in all. */
     @Volatile private var animFrame = 0
     @Volatile private var animFrames = 0
@@ -283,6 +285,7 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
                 val herds = sim.ecology.groups.filter { it.alive }
                 val pods = sim.ecology.marine.groups.filter { it.alive }
                 val snapshot = FloatArray((herds.size + pods.size) * STRIDE)
+                val snapWays = arrayOfNulls<FloatArray>(herds.size + pods.size)
                 val seen = java.util.IdentityHashMap<Any, FloatArray>()
                 fun put(k: Int, g: Any, x: Float, y: Float, size: Float, kind: Float) {
                     val o = k * STRIDE
@@ -292,11 +295,14 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
                     snapshot[o + 4] = from[0]; snapshot[o + 5] = from[1]
                     seen[g] = floatArrayOf(x, y)
                 }
-                for ((k, g) in herds.withIndex()) put(k, g, g.x.toFloat(), g.y.toFloat(), g.size.toFloat(), Catalogue.all.indexOf(g.species).toFloat())
+                for ((k, g) in herds.withIndex()) {
+                    put(k, g, g.x.toFloat(), g.y.toFloat(), g.size.toFloat(), Catalogue.all.indexOf(g.species).toFloat())
+                    if (stepped) snapWays[k] = g.route
+                }
                 for ((j, g) in pods.withIndex()) put(herds.size + j, g, g.x.toFloat(), g.y.toFloat(), g.size.toFloat(), (Catalogue.all.size + g.species.index).toFloat())
                 if (stepped) { lastPos.clear(); lastPos.putAll(seen) }
                 synchronized(image) {
-                    image.setRGB(0, 0, grid.width, grid.height, pixels, 0, grid.width); animals = snapshot
+                    image.setRGB(0, 0, grid.width, grid.height, pixels, 0, grid.width); animals = snapshot; ways = snapWays
                     if (stepped) { animFrame = 0; animFrames = max(MIN_FRAMES, (1000 / FRAME_MS / stepsPerSecond)) }
                 }
                 SwingUtilities.invokeLater { map.repaint(); updateLabels() }
@@ -504,12 +510,21 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
             }
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             if (showAnimals) {
-                val a = synchronized(image) { animals }
+                val (a, wy) = synchronized(image) { animals to ways }
                 // How far through the move between the last step and the next: 0 = where it was, 1 = where it is.
                 val t = if (animFrames == 0) 1f else (animFrame.toFloat() / animFrames).coerceIn(0f, 1f)
                 for (k in 0 until a.size / STRIDE) {
                     val o = k * STRIDE
-                    val ax = a[o + 4] + (a[o] - a[o + 4]) * t; val ay = a[o + 5] + (a[o + 1] - a[o + 5]) * t
+                    var ax = a[o + 4] + (a[o] - a[o + 4]) * t; var ay = a[o + 5] + (a[o + 1] - a[o + 5]) * t
+                    // Along the way it took, waypoint by waypoint, when it went by the ways through the country.
+                    val way = wy.getOrNull(k)
+                    if (way != null && t < 1f && shown[a[o + 3].toInt()]) {
+                        val pts = FloatArray(way.size + 2); pts[0] = a[o + 4]; pts[1] = a[o + 5]; way.copyInto(pts, 2)
+                        val p = alongWay(pts, t); ax = p.first; ay = p.second
+                        g2.color = Color(255, 255, 255, 70)
+                        for (j in 0 until pts.size / 2 - 1) g2.drawLine((ox + pts[2 * j] * scale).toInt(), (oy + pts[2 * j + 1] * scale).toInt(),
+                            (ox + pts[2 * j + 2] * scale).toInt(), (oy + pts[2 * j + 3] * scale).toInt())
+                    }
                     val x = (ox + ax * scale).toInt(); val y = (oy + ay * scale).toInt()
                     val size = a[o + 2]
                     val idx = a[o + 3].toInt()
@@ -568,6 +583,19 @@ class Viewer(private val sim: Simulation, startLayer: Layer = Layer.TERRAIN, pri
                 g2.drawOval((ox + grid.x(canalStart) * scale).toInt() - 5, (oy + grid.y(canalStart) * scale).toInt() - 5, 10, 10)
             }
             legend(g2)
+        }
+
+        /** The point a share [t] of the way along the polyline [pts] (x0, y0, x1, y1, ...). */
+        private fun alongWay(pts: FloatArray, t: Float): Pair<Float, Float> {
+            var total = 0f
+            for (j in 0 until pts.size / 2 - 1) total += kotlin.math.hypot(pts[2 * j + 2] - pts[2 * j], pts[2 * j + 3] - pts[2 * j + 1])
+            var left = t * total
+            for (j in 0 until pts.size / 2 - 1) {
+                val len = kotlin.math.hypot(pts[2 * j + 2] - pts[2 * j], pts[2 * j + 3] - pts[2 * j + 1])
+                if (left <= len && len > 0f) { val f = left / len; return pts[2 * j] + (pts[2 * j + 2] - pts[2 * j]) * f to pts[2 * j + 1] + (pts[2 * j + 3] - pts[2 * j + 1]) * f }
+                left -= len
+            }
+            return pts[pts.size - 2] to pts[pts.size - 1]
         }
 
         private fun legend(g2: Graphics2D) {
