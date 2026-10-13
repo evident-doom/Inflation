@@ -80,6 +80,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
+     * Shares of [s]'s adults and young ([young]) that die this week in place [p] of fire, flood and
+     * deep snow: fire catches the slow and the young on the share of the place that burns; a high
+     * flood drowns some on the floodplain (not the kinds that live in the water); snow far deeper
+     * than a kind can dig through starves and exhausts it. Returned as fire, flood and snow.
+     */
+    fun calamities(s: Species, p: Int, weather: Weather, young: Boolean): Triple<Float, Float, Float> {
+        val fire = land.burning[p] * (if (young) FIRE_YOUNG else FIRE_ADULT)
+        val flood = if (s.maxWaterKm.isFinite() || land.flood[p] <= FLOOD_DROWN_M) 0f
+            else land.floodShare[p] * (if (young) FLOOD_YOUNG else FLOOD_ADULT)
+        val over = weather.snowpack[p] / s.snowLimitMm
+        val snow = if (over <= 2f) 0f else min(0.1f, SNOW_DEATHS * (over - 2f)) * (if (young) 3f else 1f)
+        return Triple(fire, flood, snow)
+    }
+
+    /**
      * How well place [p] suits [s] by the ground it prefers, about 0.2..2.5: ibex the crags, roe deer
      * cover, boar wet thickets, aurochs open ground; 1 for a kind with no preference.
      */
@@ -171,7 +186,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
-        val dead = Array(kinds.size) { DoubleArray(5) } // age, hunger, cold, disease, eagles
+        val dead = Array(kinds.size) { DoubleArray(8) } // age, hunger, cold, disease, eagles, fire, flood, snow
         for ((k, s) in kinds.withIndex()) {
             val start = s.birthMonth
             val inSeason = (date.month - start + 12) % 12 < s.birthMonths
@@ -192,16 +207,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
                 val crowd = (a[p] + y[p]) / (CROWDED * usual)
                 val disease = DISEASE * crowd * crowd * years
-                val pa = (s.backgroundMortality * years + hunger + cold + disease).coerceIn(0f, 0.9f)
+                val (fireA, floodA, snowA) = calamities(s, p, weather, false)
+                val (fireY, floodY, snowY) = calamities(s, p, weather, true)
+                val pa = (s.backgroundMortality * years + hunger + cold + disease + fireA + floodA + snowA).coerceIn(0f, 0.9f)
                 // Eagles take the young of the smaller hoofed animals in the open.
                 val eagle = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
-                val py = (s.youngMortality * years + 1.5f * hunger + 1.5f * cold + disease + eagle).coerceIn(0f, 0.95f)
+                val py = (s.youngMortality * years + 1.5f * hunger + 1.5f * cold + disease + eagle + fireY + floodY + snowY).coerceIn(0f, 0.95f)
                 val da = a[p] * pa; val dy = y[p] * py
                 dead[k][0] += (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years) * area
                 dead[k][1] += ((a[p] + 1.5f * y[p]) * hunger) * area
                 dead[k][2] += ((a[p] + 1.5f * y[p]) * cold) * area
                 dead[k][3] += ((a[p] + y[p]) * disease) * area
                 dead[k][4] += y[p] * eagle * area
+                dead[k][5] += (a[p] * fireA + y[p] * fireY) * area
+                dead[k][6] += (a[p] * floodA + y[p] * floodY) * area
+                dead[k][7] += (a[p] * snowA + y[p] * snowY) * area
                 a[p] -= da; y[p] -= dy
                 carcassKg[p] += (da + 0.3f * dy) * area * s.massKg
                 // Growing up.
@@ -212,6 +232,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
         for ((k, s) in kinds.withIndex()) {
             deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]; deaths["${s.name}:eagles"] = dead[k][4]
+            deaths["${s.name}:fire"] = dead[k][5]; deaths["${s.name}:flood"] = dead[k][6]; deaths["${s.name}:snow"] = dead[k][7]
         }
     }
 
@@ -273,7 +294,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val e = cross[h * 6 + d]
                     if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
-                    ws[d] = ease * (foodFor(s, q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
+                    ws[d] = ease * (foodFor(s, q) * land.nourishment(q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     total += ws[d]
                 }
                 if (total <= 0f) continue
@@ -315,6 +336,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         /** Weekly share spilling to neighbouring hexes anyway, and more when hungry. */
         const val SPILL_BASE = 0.005f
         const val SPILL_HUNGER = 0.1f
+        /** Fire: share of adults and of young caught on ground that burns entirely. */
+        const val FIRE_ADULT = 0.05f
+        const val FIRE_YOUNG = 0.3f
+        /** Floods: depth over the floodplain that drowns animals, m; share of adults and of young drowned on a fully flooded place. */
+        const val FLOOD_DROWN_M = 2f
+        const val FLOOD_ADULT = 0.05f
+        const val FLOOD_YOUNG = 0.2f
+        /** Deep snow: share a week dying per snow depth (in multiples of what the kind can dig through) beyond two. */
+        const val SNOW_DEATHS = 0.02f
         /** Share a week that leaves country that does not suit it, at full strength of the bearing; how strongly the bearing steers them. */
         const val SPILL_MISFIT = 0.05f
         const val BEARING_SPILL = 3f

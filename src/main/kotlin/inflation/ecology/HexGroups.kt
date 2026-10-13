@@ -159,7 +159,10 @@ class HexGroups(
             for (k in 0 until 6) {
                 val nh = hex.neighbour(h, k)
                 if (nh < 0 || hex.heart[nh] < 0) continue
-                val nd = d + cross[h * 6 + k]
+                // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper.
+                val np = hw.placeOf[hw.placeBand[g.place]][nh].takeIf { it >= 0 } ?: hex.heart[nh]
+                val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
+                val nd = d + cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM)
                 if (!nd.isFinite() || nd > reach) continue
                 if (nd < (dist[nh] ?: Float.MAX_VALUE)) { dist[nh] = nd; via[nh] = h; q += nd to nh }
             }
@@ -183,7 +186,7 @@ class HexGroups(
                 } else {
                     // At this scale every hex has its hunters: a herd does not shift its ground to get away
                     // from them (it watches and hides where it is), only for food, water, weather and the season.
-                    val food = foodFor(s, p) * fauna.suits(s, p)
+                    val food = foodFor(s, p) * land.nourishment(p) * fauna.suits(s, p) * (1f - land.burning[p])
                     food / (food + 0.3f) - 0.5f * crowd(s, p, kin, g)
                 }
                 score -= 0.5f * discomfort(s, p, weather)

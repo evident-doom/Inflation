@@ -92,7 +92,7 @@ fun main(args: Array<String>) {
     }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
-        val c = listOf("age", "hunger", "thirst", "cold", "disease", "eagles", "hunted", "other", "rivals").map { it to (causes["${s.name}:$it"] ?: 0.0) }
+        val c = listOf("age", "hunger", "thirst", "cold", "disease", "eagles", "fire", "flood", "snow", "hunted", "other", "rivals").map { it to (causes["${s.name}:$it"] ?: 0.0) }
         val all = c.sumOf { it.second }.coerceAtLeast(1.0)
         println("  %-12s ".format(s.name) + c.filter { it.second > 0.0 }.joinToString(", ") { (k, v) -> "$k %.0f%%".format(100 * v / all) })
     }

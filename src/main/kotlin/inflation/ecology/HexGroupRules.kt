@@ -4,6 +4,8 @@ package inflation.ecology
 
 /** Days of going a week's net shift amounts to, at the usual pace or a trek's. */
 const val SHIFT_DAYS = 2f
+/** Snow depth that doubles the effort of going, mm. */
+const val SNOW_EFFORT_MM = 150f
 /** Prey, kg per km² weighed by catchability, at which a place is half as good as it gets for a hunter. */
 const val PREY_HALF = 200f
 /** Pull of the season's remembered place, and of staying where one is. */

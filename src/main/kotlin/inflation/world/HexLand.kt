@@ -295,7 +295,9 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
             val season = ((t - 2f) / 13f).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
             val water0 = (wet / 0.5f).coerceIn(0f, 1f)
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
-            green[p] += (season * water0 - green[p]) * GREEN_RATE
+            // After a fire the burn greens up with young growth, rich forage, as long as it is growing weather.
+            val flush = min(1f, season * water0 + FLUSH * burnt[p] * season)
+            green[p] += (flush - green[p]) * GREEN_RATE
             val shade = canopy(p)
             val browsed = 1f - exp(-browsing[p] / Vegetation.BROWSE_SCALE)
             val young = 1f - min(1f, tree[p] / (0.3f * ceiling(LifeForm.TREE, p).coerceAtLeast(1e-3f)))
@@ -426,6 +428,8 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
         const val DRY_VALUE = 0.65f
         const val GREEN_RATE = 0.3f
+        /** How green a fresh burn turns in growing weather, per share burnt. */
+        const val FLUSH = 1.5f
         /** Weekly weight of the newest flow in the running mean used to correct river flows (about two years). */
         const val FLOW_MEMORY = 0.01f
     }
