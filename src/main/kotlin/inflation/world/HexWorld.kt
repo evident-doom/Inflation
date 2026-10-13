@@ -108,6 +108,8 @@ class HexWorld(val world: World, val hex: HexMap) {
     val placeCells: Array<IntArray>
     /** Each hex's places, by band (-1 where the band holds no land). */
     val placeOf = Array(BANDS_M.size) { IntArray(size) { -1 } }
+    /** Mean elevation of each place, m. */
+    lateinit var placeElevationM: FloatArray
 
     init {
         val lists = HashMap<Long, ArrayList<Int>>()
@@ -121,6 +123,7 @@ class HexWorld(val world: World, val hex: HexMap) {
         placeBand = IntArray(keys.size) { (keys[it] % BANDS_M.size).toInt() }
         placeCells = Array(keys.size) { lists.getValue(keys[it]).toIntArray() }
         for (p in keys.indices) placeOf[placeBand[p]][placeHex[p]] = p
+        placeElevationM = FloatArray(keys.size) { p -> (placeCells[p].sumOf { world.elevation[it].toDouble() } / placeCells[p].size).toFloat() }
     }
 
     /** The places as the weather sees them: the mean position, normals and wind exposure of each band's cells. */

@@ -44,14 +44,39 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
  * pass and the herds they meet; packs hold ground and meet rivals. Young are born in season, the
  * hungry and the old die, and groups too big for their food split.
  */
-class HexGroups(private val hw: HexWorld, private val land: HexLand, private val fauna: HexFauna, private val days: Int, seed: Long) {
+/**
+ * How a group of a kind chooses where to go this week, among the places it can reach: each
+ * candidate described by [HexFeatures] (in [features]), with the hand-written score for it in
+ * [baseline]. Returns the index of the chosen candidate.
+ */
+fun interface HexPolicy {
+    fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): Int
+}
+
+/**
+ * What a group sees of a candidate place, as numbers for a learned policy: the food there and the
+ * ground, crowding and danger, the weather now and coming, the snow, how far up or down it lies and
+ * how much effort it takes to reach, whether it means staying, the pull of the season's remembered
+ * place, and the group's own state and the time of year.
+ */
+object HexFeatures {
+    const val SIZE = 19
+}
+
+class HexGroups(
+    private val hw: HexWorld, private val land: HexLand, private val fauna: HexFauna, private val days: Int, seed: Long,
+    /** The kinds that live as groups here (default: the migratory herds and the hunters other than people). */
+    kindsHere: List<Species>? = null,
+) {
     private val hex = hw.hex
     private val n = land.n
     private val rnd = Random(seed * 41 + 3)
     val groups = ArrayList<HexGroup>()
     private var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. */
-    val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators.filter { !it.human }
+    val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators.filter { !it.human })
+    /** Learned choosers by kind; kinds without one use the hand-written score. */
+    val policies = HashMap<Species, HexPolicy>()
     /** Kills this week by prey kind; meetings this week by kind of meeting. */
     val kills = java.util.TreeMap<String, Int>()
     val meetings = java.util.TreeMap<String, Int>()
@@ -152,6 +177,9 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
         val month = (date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0) % 12
         val goal = g.seasonPlace[month]
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
+        val policy = policies[s]
+        val candPlaces = ArrayList<Int>(); val candFeats = ArrayList<FloatArray>(); val candScores = ArrayList<Float>()
+        val season = 2 * Math.PI * date.dayOfYear / Date.DAYS_PER_YEAR
         for ((h, d) in dist) {
             // A pack on its own ground stays on it while fed.
             if (s.carnivore && g.home >= 0 && g.fed >= 0.5f && hexKm(h, g.home) > territoryKm(s)) continue
@@ -173,10 +201,40 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
                     if (fromHere > hex.hexKm) score += SEASON_PULL * (g.seasonQ[month] - g.fed).coerceIn(0f, 1f) * ((fromHere - toGoal) / fromHere).toFloat()
                 }
                 if (p == g.place) score += STAY
+                if (policy != null) {
+                    val f = FloatArray(HexFeatures.SIZE)
+                    val food = foodFor(s, p)
+                    f[0] = food / (food + 0.3f)
+                    f[1] = kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
+                    f[2] = crowd(s, p, kin, g)
+                    f[3] = predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f)
+                    f[4] = min(2f, discomfort(s, p, weather))
+                    val coat = if (s.winterCoat) 10f else 0f
+                    val tAhead = weather.forecastTemp(p)
+                    f[5] = min(2f, (max(0f, s.comfortC.start - coat - tAhead) + max(0f, tAhead - s.comfortC.endInclusive)) / 10f)
+                    f[6] = if (weather.snowpack[p] > s.snowLimitMm) 1f else 0f
+                    f[7] = min(2f, weather.snowpack[p] / s.snowLimitMm)
+                    f[8] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
+                    f[9] = (d / reach.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                    f[10] = if (p == g.place) 1f else 0f
+                    f[11] = if (h == here) 1f else 0f
+                    if (goal >= 0) {
+                        val toGoal = hexKm(h, hw.placeHex[goal]); val fromHere = hexKm(here, hw.placeHex[goal])
+                        f[12] = if (fromHere > hex.hexKm) ((fromHere - toGoal) / fromHere).toFloat().coerceIn(-1f, 1f) else 0f
+                        f[13] = (g.seasonQ[month] - g.fed).coerceIn(-1f, 1f)
+                    }
+                    f[14] = g.fed
+                    f[15] = g.fat / s.maxFatDays.coerceAtLeast(1f)
+                    f[16] = kotlin.math.sin(season).toFloat(); f[17] = kotlin.math.cos(season).toFloat()
+                    f[18] = if (restless) 1f else 0f
+                    candPlaces += p; candFeats += f; candScores += score
+                    continue
+                }
                 score += 0.02f * (hashNoise(g.id, p) - 0.5f)
                 if (score > bestScore) { bestScore = score; best = p }
             }
         }
+        if (policy != null && candPlaces.isNotEmpty()) best = candPlaces[policy.choose(g, candFeats.toTypedArray(), candScores.toFloatArray())]
         // The hexes passed on the way, by the cheapest chain.
         val chain = ArrayList<Int>()
         var h = hw.placeHex[best]
@@ -495,6 +553,7 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
             if (g.adults == 0) { g.young = 0; continue }
             if (g.size > s.maxGroupSize) {
                 val c = HexGroup(nextId++, s, g.place, g.adults / 2, g.young / 2)
+                c.tag = g.tag
                 g.adults -= c.adults; g.young -= c.young
                 c.fed = g.fed; c.fat = g.fat; c.tag = g.tag
                 g.seasonPlace.copyInto(c.seasonPlace); g.seasonQ.copyInto(c.seasonQ)
