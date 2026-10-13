@@ -9,6 +9,7 @@ import inflation.world.Weather
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 /**
  * The life in the soil and the small animals of each place (height band of a hex), as in the 1 km
@@ -26,6 +27,11 @@ import kotlin.math.min
  *   winters and hot, dry summers.
  * - Pollinators: build up on flowers in spring, fewer where grazing is hard; how well the flowers
  *   were visited sets the summer and autumn fruit crop.
+ * - Small game, as in the 1 km model's small game: hares on open grass, rock hyrax in broken
+ *   country, six wild birds each on its own ground (quail and greylag geese come and go with the
+ *   seasons), tortoises in warm scrub, and foxes and wildcats living on the rest.
+ * - Griffon vulture colonies on the most broken ground, one to a block of [VULTURE_SPACING_KM],
+ *   soaring up to [VULTURE_RANGE_KM] for carcasses, nearest first.
  * - Fire kills what cannot flee. Every month each kind spreads a little to the places around.
  */
 class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private val days: Int) {
@@ -43,10 +49,76 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val pollinators = FloatArray(n) { p -> 10f * min(1f, land.herb[p] / 0.4f) }
     /** How well this year's flowers were pollinated, 0..1: sets the fruit crop. */
     val pollination = FloatArray(n) { 0.6f }
+    /** Small game, kg/km². */
+    val hares = FloatArray(n)
+    val hyrax = FloatArray(n)
+    val tortoises = FloatArray(n)
+    val foxes = FloatArray(n)
+    /** Each kind of [SmallGame.BIRDS], and all together, kg/km². */
+    val bird = Array(SmallGame.BIRDS.size) { FloatArray(n) }
+    val birds = FloatArray(n)
+    /** Vulture colonies: nest place, the birds, and the places within reach, nearest first. */
+    val vulturePlace = ArrayList<Int>()
+    val vultures = ArrayList<Float>()
+    private val vultureReach = ArrayList<IntArray>()
     private var steps = 0
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
     /** Share of each place that is wetland, where biting insects breed. */
-    private val wetland = FloatArray(n) { p -> hw.placeCells[p].count { val b = hw.world.biome[it]; b.name in WETLANDS }.toFloat() / hw.placeCells[p].size }
+    val wetland = FloatArray(n) { p -> hw.placeCells[p].count { val b = hw.world.biome[it]; b.name in WETLANDS }.toFloat() / hw.placeCells[p].size }
+    /** Marsh, bog and floodplain, where ducks and geese feed. */
+    private val waterfowl = FloatArray(n) { p -> min(1f, wetland[p] + land.floodShare[p]) }
+    /** The year's mean temperature and rain at each place. */
+    private val meanTemp = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(p, it) }.average().toFloat() }
+    private val annualRain = FloatArray(n) { p -> (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat() }
+
+    init {
+        for (p in 0 until n) {
+            if (land.biomass(p) <= 0f) continue
+            hares[p] = 0.5f * hareCapacity(p); hyrax[p] = 0.5f * hyraxCapacity(p)
+            for (k in bird.indices) bird[k][p] = 0.5f * birdCapacity(k, p)
+            birds[p] = bird.sumOf { it[p].toDouble() }.toFloat()
+            tortoises[p] = 0.5f * tortoiseCapacity(p); foxes[p] = 0.3f
+        }
+        // Vultures: the most broken ground with plants in each block, if broken enough for cliffs.
+        val hex = hw.hex
+        val blocks = HashMap<Long, Int>()
+        for (p in 0 until n) {
+            if (land.biomass(p) <= 0f || land.ruggedness[p] <= 0.5f) continue
+            val (x, y) = hex.centreKm(hw.placeHex[p])
+            val key = (x / VULTURE_SPACING_KM).toLong() * 100000 + (y / VULTURE_SPACING_KM).toLong()
+            val best = blocks[key]
+            if (best == null || land.ruggedness[p] > land.ruggedness[best]) blocks[key] = p
+        }
+        for (c in blocks.values.sorted()) {
+            val (cx, cy) = hex.centreKm(hw.placeHex[c])
+            fun dist(q: Int): Double { val (x, y) = hex.centreKm(hw.placeHex[q]); return kotlin.math.hypot(x - cx, y - cy) }
+            val near = (0 until n).filter { dist(it) <= VULTURE_RANGE_KM }.sortedBy { dist(it) }
+            vulturePlace += c; vultures += 40f; vultureReach += near.toIntArray()
+        }
+    }
+
+    private fun open(p: Int) = 1f - min(1f, land.canopy(p) + 0.5f * min(1f, land.shrub[p] / 1.5f))
+    private fun hareCapacity(p: Int) = 40f * land.herb[p] / (land.herb[p] + 0.3f) * open(p)
+    private fun hyraxCapacity(p: Int) = 80f * land.ruggedness[p].pow(1.5f) * min(1f, land.shrub[p] / 0.5f + 0.2f)
+    private fun birdCapacity(k: Int, p: Int): Float {
+        val grass = land.herb[p] / (land.herb[p] + 0.2f)
+        val shrubby = min(1f, land.shrub[p])
+        val rugged = land.ruggedness[p]
+        val dry = (1f - annualRain[p] / 500f).coerceIn(0f, 1f)
+        return when (SmallGame.BIRDS[k].name) {
+            "chukar" -> 6f * min(1f, rugged / 0.5f) * (0.3f + 0.7f * open(p)) * (0.3f + 0.7f * shrubby) * grass
+            "quail" -> 5f * open(p) * grass
+            "sandgrouse" -> 3f * open(p) * dry
+            "rock dove" -> 4f * rugged.pow(1.5f) * (0.3f + 0.7f * grass)
+            "mallard" -> 6f * waterfowl[p] * (0.5f + 0.5f * grass)
+            "greylag goose" -> 10f * waterfowl[p] * grass
+            else -> 0f
+        }
+    }
+    private fun tortoiseCapacity(p: Int): Float {
+        val warm = ((meanTemp[p] - 12f) / 8f).coerceIn(0f, 1f)
+        return 30f * warm * min(1f, (land.shrub[p] + land.herb[p]) / 0.8f)
+    }
 
     fun step(weather: Weather, carcassKg: FloatArray) {
         val month = weather.date.month
@@ -117,20 +189,109 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             } else po -= po * min(0.5f, 2f * years)
             pollinators[p] = po.coerceIn(0.2f, 100f)
             if (flowering) pollination[p] += 0.2f * (min(1f, pollinators[p] / 20f) - pollination[p])
+            stepGame(p, t, month, b)
         }
-        if (++steps % 5 == 0) { spread(insects); spread(rodents); spread(herps); spread(pollinators) }
+        stepVultures(weather)
+        if (++steps % 5 == 0) for (f in listOf(insects, rodents, herps, pollinators, hares, foxes) + bird) spread(f)
+    }
+
+    /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
+    private fun stepGame(p: Int, t: Float, month: Int, burnt: Float) {
+        if (land.biomass(p) <= 0f) { hares[p] = 0f; hyrax[p] = 0f; birds[p] = 0f; for (b in bird) b[p] = 0f; tortoises[p] = 0f; foxes[p] = 0f; return }
+        val mild = t > 5f
+        hares[p] = logistic(hares[p], if (month in 0..6 && mild) 4f else 0f, 0.9f, hareCapacity(p))
+        hyrax[p] = logistic(hyrax[p], if (month in 1..3) 2.5f else 0f, 0.4f, hyraxCapacity(p))
+        var all = 0f
+        for (k in bird.indices) {
+            val b = SmallGame.BIRDS[k]; val f = bird[k]
+            val here = b.present?.contains(month) ?: true
+            f[p] = when {
+                // Migrants arrive with the season, as many as the ground draws, and leave.
+                !here -> f[p] * 0.3f
+                b.present != null && !b.present.contains((month + 11) % 12) -> max(f[p], 0.4f * birdCapacity(k, p))
+                else -> logistic(f[p], if (month in b.breedMonths && mild) b.growth else 0f, b.deaths, birdCapacity(k, p))
+            }
+            all += f[p]
+        }
+        birds[p] = all
+        val active = t in 14f..33f && land.soil[p] > 8f
+        tortoises[p] = logistic(tortoises[p], if (active && month in 1..5) 0.8f else 0f, if (active) 0.15f else 0.05f, tortoiseCapacity(p))
+        // Foxes and wildcats eat about a seventh of their weight a day, mostly rodents, then hares and
+        // birds; they breed in spring as the food allows, and die back when it fails.
+        val prey = rodents[p] + hares[p] + birds[p] + 0.03f * insects[p]
+        val need = foxes[p] * 0.15f * days
+        val got = min(need, 0.1f * prey)
+        if (got > 0f && prey > 0f) {
+            val f = got / prey
+            rodents[p] -= rodents[p] * f; hares[p] -= hares[p] * f; takeBirds(p, f)
+        }
+        val fed = if (need > 0f) got / need else 1f
+        foxes[p] = logistic(foxes[p], if (month in 1..3) 1.5f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey).coerceAtLeast(0.01f)
+        // Fire: tortoises die where it burns; the rest bolt and many young die.
+        if (burnt > 0f) { tortoises[p] *= 1f - 0.6f * burnt; hares[p] *= 1f - 0.3f * burnt; takeBirds(p, 0.3f * burnt) }
+    }
+
+    /** Takes share [f] of every kind of bird at [p]. */
+    private fun takeBirds(p: Int, f: Float) {
+        for (b in bird) b[p] -= b[p] * f
+        birds[p] -= birds[p] * f
+    }
+
+    /** Logistic growth at [r] a year in season, deaths at [d] a year, toward [k]. */
+    private fun logistic(x: Float, r: Float, d: Float, k: Float): Float {
+        val kk = max(k, 0.01f)
+        return max(0.001f, x + x * r * years * (1f - x / kk) - x * d * years * if (x > kk) 2f else 1f)
+    }
+
+    /**
+     * Vultures soar out from their colony each day and find the carcasses within reach, nearest
+     * first, before most other scavengers; a colony grows when they eat well and shrinks when not.
+     */
+    private fun stepVultures(weather: Weather) {
+        val month = weather.date.month
+        for (k in vulturePlace.indices) {
+            val need = vultures[k] * 0.5f * days
+            var got = 0f
+            for (q in vultureReach[k]) {
+                if (got >= need) break
+                if (carrion[q] > 0f) { val m2 = land.areaKm2[q] * 1e6f; got += scavenge(q, (need - got) / m2) * m2 }
+            }
+            val fed = if (need > 0f) min(1f, got / need) else 1f
+            var b = vultures[k]
+            if (month in 1..2) b += b * 0.5f * fed * years * 6f // one chick a pair, in late winter
+            b -= b * (0.08f * years + 0.4f * years * (1f - fed))
+            vultures[k] = b.coerceIn(2f, 2000f)
+        }
     }
 
     /** Whether reptiles and amphibians are out: warm, and not baking in a drought. */
     fun herpsActive(t: Float, soilWater: Float) = t in 12f..34f && !(t > 28f && soilWater < 10f)
 
-    /** Takes up to [kgPerKm2] of small prey in place [p]: rodents, and reptiles and amphibians when active; returns kg per km² caught. */
+    /**
+     * Takes up to [kgPerKm2] of small prey in place [p]: rodents, hares, hyrax and birds, and when
+     * they are out, reptiles, amphibians and tortoises, each in proportion to what there is, at most
+     * half of all; returns kg per km² caught.
+     */
     fun catchSmall(p: Int, kgPerKm2: Float, weather: Weather): Float {
-        val fromHerps = if (herpsActive(weather.temperature[p], land.soil[p])) min(herps[p] * 0.5f, 0.3f * kgPerKm2) else 0f
-        herps[p] -= fromHerps
-        val taken = min(rodents[p] * 0.5f, kgPerKm2 - fromHerps)
-        rodents[p] -= taken
-        return taken + fromHerps
+        val t = weather.temperature[p]
+        val herpsOut = herpsActive(t, land.soil[p])
+        val tortOut = t in 14f..33f
+        val total = rodents[p] + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] else 0f) + (if (tortOut) tortoises[p] else 0f)
+        if (total <= 0f) return 0f
+        val take = min(kgPerKm2, 0.5f * total)
+        val f = take / total
+        rodents[p] -= rodents[p] * f; hares[p] -= hares[p] * f; hyrax[p] -= hyrax[p] * f; takeBirds(p, f)
+        if (herpsOut) herps[p] -= herps[p] * f
+        if (tortOut) tortoises[p] -= tortoises[p] * f
+        return take
+    }
+
+    /** Totals over the land, tonnes, and vultures in all colonies. */
+    fun summary(): String {
+        fun t(a: FloatArray) = a.indices.sumOf { (a[it] * land.areaKm2[it]).toDouble() } / 1000
+        return "rodents %.0f t, hares %.0f t, hyrax %.0f t, birds %.0f t (%s), tortoises %.0f t, foxes %.0f t, %d vulture colonies %.0f birds".format(
+            t(rodents), t(hares), t(hyrax), t(birds), bird.indices.joinToString(", ") { "%s %.0f".format(SmallGame.BIRDS[it].name, t(bird[it])) },
+            t(tortoises), t(foxes), vultures.size, vultures.sum())
     }
 
     /** Takes up to [kgPerM2] of carrion in place [p]; returns what was taken. */
@@ -151,5 +312,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     companion object {
         val WETLANDS = setOf("MARSH", "SWAMP_FOREST", "BOG", "SALT_MARSH", "MANGROVE")
+        /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
+        const val VULTURE_RANGE_KM = 80.0
+        const val VULTURE_SPACING_KM = 80.0
     }
 }

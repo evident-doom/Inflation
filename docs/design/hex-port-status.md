@@ -28,9 +28,9 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Floods on the floodplain | yes |
 | Rivers as barriers, fords | yes (on hex edges, by depth); no spring spate |
 | Wetlands drowning woody plants | yes |
-| Lakes | partly: water hexes; no drinking from lakes |
-| Drinking water, thirst, distance to water | no |
-| Springs and oases | no |
+| Lakes | yes: water hexes; fresh lakes give drinking water |
+| Drinking water, thirst, distance to water | yes (share of each place within a walk of water, each week) |
+| Springs and oases | yes (from the 1 km terrain) |
 | Dams, canals, irrigation, rerouting rivers | no |
 
 ## Plants and soil
@@ -48,8 +48,8 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Boar rooting, seed carried by fruit-eaters | partly: the plants respond, but the animals don't set them yet |
 | Trampling and worn paths, paths easing travel | partly: in place but nothing tramples yet |
 | Soil erosion, soil recovery | yes |
-| Litter, soil life, organic matter | no |
-| Pollinators setting the fruit crop | no |
+| Litter, soil life, organic matter | yes |
+| Pollinators setting the fruit crop | yes |
 | Cliffs keeping animals off food | no |
 | Sight and concealment from plants | partly: cover only |
 
@@ -57,13 +57,13 @@ hex learning tools; it is not yet wired into `Simulation`.
 
 | Feature | Hex |
 |---|---|
-| Small game (rodents, hares, hyrax) | partly: one field per place |
-| Insects, biting insects, reptiles and amphibians | no |
-| Wild birds, migrant birds | no |
-| Tortoises, foxes and wildcats | no |
-| Vultures | no |
-| Carrion and scavenging | yes (simple) |
-| Fire effects on small game | no |
+| Small game (rodents, hares, hyrax) | yes |
+| Insects, biting insects, reptiles and amphibians | yes |
+| Wild birds, migrant birds | yes |
+| Tortoises, foxes and wildcats | yes |
+| Vultures | yes (colonies on broken ground, 80 km reach) |
+| Carrion and scavenging | yes (rots by warmth) |
+| Fire effects on small game | yes |
 
 ## Fish and sea life
 
@@ -93,7 +93,7 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Fat reserves | partly: herds only, no autumn fattening |
 | Hibernation (bears) | no |
 | Breeding season shifting to the food | no |
-| Thirst and water | no |
+| Thirst and water | yes |
 | Wariness of people, boldness | no |
 | Vigilance, alarm, hiding in cover | partly: herds watch in open country and turn aside |
 | Dangerous prey fighting back | no |
@@ -138,13 +138,15 @@ middens, worn routes, crowding sickness. (The plants can already take a fire peo
 ## Biggest gaps, in rough order
 
 1. People.
-2. Thirst, drinking water and springs.
+2. A sense of direction to better country: climate and biome pull, far landmarks in sight.
 3. Wariness, boldness, vigilance and hiding.
 4. Stealing kills, bigger hunters killing smaller, scent marks, moonlight.
-5. The rest of the small life: birds, vultures, insects, reptiles; fish and sea life.
-6. Soil life and organic matter.
-7. Volcanoes and ash.
-8. Animals trampling, rooting and carrying seed (the plants are ready for it).
-9. Fire killing and driving animals; green flush after fire.
-10. Breeding season shifting, hibernation, outbreaks.
-11. Dams, canals and irrigation.
+5. Fish and sea life; crocodiles and eagles.
+6. Volcanoes and ash.
+7. Animals trampling, rooting and carrying seed (the plants are ready for it).
+8. Fire killing and driving animals; green flush after fire.
+9. Breeding season shifting, hibernation, outbreaks.
+10. Dams, canals and irrigation.
+
+Done since the first list: drinking water, springs and thirst; soil life; the small life
+(insects, rodents, reptiles, pollinators, hares, hyrax, birds, tortoises, foxes, vultures).

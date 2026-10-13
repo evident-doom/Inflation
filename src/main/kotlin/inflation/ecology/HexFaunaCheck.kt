@@ -49,6 +49,7 @@ fun main(args: Array<String>) {
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
         }
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
+        println("     small life: " + fauna.small.summary())
         println("     groups: " + herds.kinds.joinToString(", ") { "${it.name} ${herds.count(it)}" })
         println("     this week: kills " + herds.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + herds.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
