@@ -115,6 +115,12 @@ class HexGroups(
         for (g in groups) if (g.alive) bySpeciesPlace.merge(g.species.index.toLong() * n + g.place, g.size, Int::plus)
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
+        // The strongest hunting party in each place, and its kind: weaker hunters keep out of its way.
+        topStrength.fill(0f); topKind.fill(-1)
+        for (g in groups) if (g.alive && g.species.carnivore) {
+            val st = strength(g)
+            if (st > topStrength[g.place]) { topStrength[g.place] = st; topKind[g.place] = g.species.index }
+        }
         // Plan and move, in parallel: each group's choice depends only on last week's world.
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size)
         java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k ->
@@ -146,6 +152,13 @@ class HexGroups(
      * Reach is a few hexes when content; a forced march when hungry, cold, or heading for its season's
      * place. Hunters keep to their ground unless starving.
      */
+    /** Strongest hunting party in each place last week, and its kind's index (-1 for none). */
+    private val topStrength = FloatArray(n)
+    private val topKind = IntArray(n) { -1 }
+
+    /** A hunting party's fighting strength: weight, ferocity. */
+    internal fun strength(g: HexGroup) = g.adults * g.species.massKg * g.species.ferocity
+
     internal fun plan(g: HexGroup, weather: Weather, date: Date, kin: HashMap<Long, Int>, predatorKg: FloatArray): Pair<Int, IntArray> {
         val s = g.species
         val here = hw.placeHex[g.place]
@@ -192,7 +205,10 @@ class HexGroups(
                 if (p < 0) continue
                 var score = if (s.carnivore) {
                     val prey = preyHere(s, p) + herdPrey(s, p, kin)
-                    prey / (prey + PREY_HALF) - 0.5f * crowd(s, p, kin, g)
+                    // Smaller hunters keep out of the way of much stronger ones of other kinds (they hear
+                    // the roars and smell the marks): cheetahs and hyenas of lions, jackals of wolves.
+                    val danger = if (topKind[p] >= 0 && topKind[p] != s.index && topStrength[p] > 2f * strength(g)) AVOID_STRONGER else 0f
+                    prey / (prey + PREY_HALF) - 0.5f * crowd(s, p, kin, g) - danger
                 } else {
                     // At this scale every hex has its hunters: a herd does not shift its ground to get away
                     // from them (it watches and hides where it is), only for food, water, weather and the season.

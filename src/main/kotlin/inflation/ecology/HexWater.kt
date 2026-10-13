@@ -141,7 +141,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 val len = hypot(e, s)
                 if (len > 0) { offE[h] = (e / len).toFloat(); offS[h] = (s / len).toFloat() }
             }
-            fish[h] = 0.7f * fishCapacity(h)
+            fish[h] = FISH_START * fishCapacity(h)
             if (shallow[h] > 0f) shellfish[h] = 0.7f * shellCapacity(h)
             for ((k, a) in SEA.withIndex()) if (seaKm2[h] > 0f && shoreKm[h] <= a.maxShoreKm) sea[k][h] = a.massKg / a.startKm2
         }
@@ -242,12 +242,17 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 nutrients[h] = nu / NUTRIENT_SCALE; phyto[h] = p; zoo[h] = z
                 // Fish: shoaling sea fish breed fast, lake fish slower; they eat about three times their weight a year in zooplankton.
+                // They eat about three times their weight a year in zooplankton (g/m2 = t/km2), as far as there is any;
+                // they grow as they eat and starve when it fails.
                 val growth = if (seaKm2[h] > 0f) SEA_FISH_GROWTH else FISH_GROWTH
                 val f0 = fish[h]
-                val fishDead = FISH_DEATHS * years * f0
-                fish[h] = max(0f, f0 + growth * years * f0 * (1f - f0 / max(fishCapacity(h), 1f)) - fishDead)
+                val need = 3f * years * f0 / 1000f
+                val got = min(need, 0.5f * zoo[h])
+                zoo[h] -= got
+                val fed = if (need > 0f) got / need else 1f
+                val fishDead = (FISH_DEATHS + 0.5f * (1f - fed)) * years * f0
+                fish[h] = max(0f, f0 + growth * years * f0 * fed * (1f - f0 / max(fishCapacity(h), 1f)) - fishDead)
                 dead[h] += fishDead
-                zoo[h] = max(0f, zoo[h] - 3f * years * fish[h] / 1000f)
                 if (shallow[h] > 0f) { val s = shellfish[h]; shellfish[h] = max(0f, s + 0.8f * years * s * (1f - s / max(shellCapacity(h), 1f))) }
                 stepSea(h, month)
             }
@@ -260,6 +265,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 riverFish[h] = max(0f, f)
             }
         }
+        // Currents mix the water of neighbouring hexes: plankton and fish drift and spread.
+        for (f in listOf(phyto, zoo, fish)) drift(f)
         // Fish come back up the rivers from below, but not past a cascade.
         for (h in 0 until size) {
             val d = land.down[h]
@@ -271,6 +278,17 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         spawningRun(date)
         seaBirds()
         if (date.dayOfMonth <= days) spreadSea()
+    }
+
+    /** A share of what is in each hex's water mixes with its neighbours' each week. */
+    private fun drift(f: FloatArray) {
+        val old = f.copyOf()
+        for (h in 0 until size) {
+            if (waterKm2[h] <= 0f) continue
+            var s = 0f; var c = 0
+            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && waterKm2[q] > 0f) { s += old[q]; c++ } }
+            if (c > 0) f[h] = (1f - DRIFT) * old[h] + DRIFT * s / c
+        }
     }
 
     /** Sea animals in hex [h]: each eats its food, breeds in its season as it ate, and dies back. */
@@ -288,7 +306,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     var t = min(need * 0.7f, 0.2f * fish[h]); fish[h] -= t
                     for ((j, b) in SEA.withIndex()) {
                         if (b.food != SeaFood.FISH || t >= need) continue
-                        val take = min(need - t, sea[j][h] * SHARK_ATTACK * (1f - b.defence) * min(1f, m / SHARK_KG_KM2))
+                        val take = min(need - t, sea[j][h] * SHARK_ATTACK * years * (1f - b.defence) * min(1f, m / SHARK_KG_KM2))
                         sea[j][h] -= take; t += take
                     }
                     t
@@ -360,7 +378,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     fun summary(): String {
         fun t(a: FloatArray, area: FloatArray) = a.indices.sumOf { (a[it] * area[it]).toDouble() } / 1000
         val landKm2 = FloatArray(size) { hw.land[it] * hexKm2 }
-        return "sea and lake fish %.0f t, river fish %.0f t, shellfish %.0f t, %s, sea birds %.0f in %d colonies".format(
+        val sea0 = (0 until size).filter { seaKm2[it] > 0f }
+        val zooMean = sea0.sumOf { (zoo[it] * seaKm2[it]).toDouble() } / sea0.sumOf { seaKm2[it].toDouble() }.coerceAtLeast(1.0)
+        val phytoMean = sea0.sumOf { (phyto[it] * seaKm2[it]).toDouble() } / sea0.sumOf { seaKm2[it].toDouble() }.coerceAtLeast(1.0)
+        return "plankton at sea %.2f / %.3f g/m², ".format(phytoMean, zooMean) + "sea and lake fish %.0f t, river fish %.0f t, shellfish %.0f t, %s, sea birds %.0f in %d colonies".format(
             t(fish, waterKm2), t(riverFish, landKm2), t(shellfish, seaKm2),
             SEA.indices.joinToString(", ") { "%s %.0f".format(SEA[it].name, t(sea[it], seaKm2) * 1000 / SEA[it].massKg) },
             colonyBirds.sum(), colonyBirds.count { it > 0f })
@@ -390,6 +411,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val RIVER_FISH_PER_KM2_WATER = 15_000f
         const val MAX_SHELLFISH = 20_000f
         const val FISH_GROWTH = 0.6f
+        /** Fish at the start as a share of what the water can carry; share of the water mixing with the neighbours' a week. */
+        const val FISH_START = 0.2f
+        const val DRIFT = 0.1f
         const val SEA_FISH_GROWTH = 2f
         /** Yearly share of fish dying of age and disease (what nothing eats). */
         const val FISH_DEATHS = 0.3f
@@ -407,7 +431,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val SEA_FULL = 8f
         const val SEA_DISEASE = 0.5f
         const val SHARK_KG_KM2 = 0.5f
-        const val SHARK_ATTACK = 0.03f
+        /** Yearly share of seals, porpoises and dolphins sharks take where sharks are at full strength. */
+        const val SHARK_ATTACK = 0.1f
         /** Sea birds: reach from the colony, km; food a day, kg; share of the fish within reach a colony takes in a year at most; coast per colony, km; young a year. */
         const val BIRD_FORAGE_KM = 40.0
         const val BIRD_KG_DAY = 0.25f

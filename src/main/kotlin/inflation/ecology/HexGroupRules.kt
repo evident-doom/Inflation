@@ -19,6 +19,8 @@ const val INTRAGUILD_KILL = 0.1f
 const val FIGHT_BACK = 0.002f
 /** Catchability below which hunters do not try a herd they meet. */
 const val NOT_WORTH_TRYING = 0.05f
+/** How much a hunting party is put off a place held by a much stronger party of another kind. */
+const val AVOID_STRONGER = 0.3f
 /** Soil water below which a herd is in a dry spell, mm; rain ahead that promises relief, mm a week. */
 const val DRY_SOIL_MM = 40f
 const val RAIN_AHEAD_MM = 20f
