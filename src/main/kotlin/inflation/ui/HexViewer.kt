@@ -3,6 +3,7 @@ package inflation.ui
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFauna
 import inflation.ecology.HexGroups
+import inflation.ecology.HexSim
 import inflation.world.HexLand
 import inflation.world.HexMap
 import inflation.world.HexPicture
@@ -74,13 +75,14 @@ fun main(args: Array<String>) {
 }
 
 class HexViewer(world: World) : JPanel(BorderLayout()) {
-    private val cfg = world.config
-    private val hex = HexMap(world)
-    private val hw = HexWorld(world, hex)
-    private val weather = Weather(hw.weatherPlaces(cfg), cfg)
-    private val land = HexLand(hw, cfg.seed)
-    private val fauna = HexFauna(hw, land, cfg.daysPerStep)
-    private val groups = HexGroups(hw, land, fauna, cfg.daysPerStep, cfg.seed)
+    private val sim = HexSim(world)
+    private val cfg = sim.cfg
+    private val hex = sim.hex
+    private val hw = sim.hw
+    private val weather = sim.weather
+    private val land = sim.land
+    private val fauna = sim.fauna
+    private val groups = sim.groups
     private val px = 2
     private val ground: BufferedImage = HexPicture.render(world, hex, 0.0, 0.0, cfg.widthKm.toDouble(), cfg.heightKm.toDouble(), px)
     private val commands = ConcurrentLinkedQueue<() -> Unit>()
@@ -110,10 +112,10 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     private val map = MapPanel()
     /** The hex being inspected, -1 for none, and its groups. */
     @Volatile private var picked = -1
-    private val info = JTextArea(14, 40).apply { isEditable = false; font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12) }
+    private val info = JTextArea(14, 40).apply { isEditable = false; (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE; font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12) }
     private val groupList = DefaultListModel<String>()
     private val groupView = JList(groupList)
-    private val groupInfo = JTextArea(12, 40).apply { isEditable = false; font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12) }
+    private val groupInfo = JTextArea(12, 40).apply { isEditable = false; (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE; font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12) }
     private var groupIds = IntArray(0)
 
     init {
@@ -125,7 +127,9 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         tintChoice.addActionListener { map.repaint() }
         windBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(windBox); bar.add(pullChoice); bar.add(date)
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(windBox); bar.add(pullChoice)
+        val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
+        bar.add(graphs); bar.add(date)
         val bottom = JPanel(); bottom.add(counts)
         val side = JPanel(BorderLayout())
         side.add(JScrollPane(info), BorderLayout.NORTH)
@@ -140,8 +144,12 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         Timer(33) { if (frame < frames) { frame++; map.repaint() } }.start()
     }
 
+    /** Week-by-week history of everything worth watching, for the graphs. */
+    private val history = inflation.ecology.HexHistory()
+
     private fun advance() {
-        weather.step(); land.step(weather); fauna.step(weather, weather.date); groups.step(weather, weather.date)
+        sim.step()
+        history.record(sim)
         snapshot()
     }
 
@@ -415,10 +423,14 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         }
         info.text = sb.toString()
         val here = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
+        // Refill the list in place, keeping the picked group and where the list is scrolled to.
+        val picked = groupView.selectedIndex.let { if (it in groupIds.indices) groupIds[it] else -1 }
         groupIds = here.map { it.id }.toIntArray()
-        groupList.clear()
-        for (g in here) groupList.addElement("%s #%d: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed, g.fat))
-        groupInfo.text = ""
+        val rows = here.map { g -> "%s #%d: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed, g.fat) }
+        for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
+        while (groupList.size() > rows.size) groupList.removeElementAt(groupList.size() - 1)
+        val again = groupIds.indexOf(picked)
+        if (again >= 0) { groupView.selectedIndex = again; showGroup() } else { groupView.clearSelection(); groupInfo.text = "" }
     }
 
     /** Shows the group picked in the list. */

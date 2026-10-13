@@ -133,7 +133,6 @@ class HexBearings(
             java.util.stream.IntStream.range(0, places).parallel().forEach { p -> pq[p] = quality(s, p, m) }
             val hq = FloatArray(size)
             for (p in 0 until places) { val h = hw.placeHex[p]; if (pq[p] > hq[h]) hq[h] = pq[p] }
-            val coat = if (s.winterCoat) 10f else 0f
             val be = east[k]; val bs = south[k]
             java.util.stream.IntStream.range(0, size).parallel().forEach { h ->
                 if (hex.heart[h] < 0) return@forEach
@@ -163,7 +162,7 @@ class HexBearings(
                 }
                 // Too hot for its coat this month: toward cooler country; too cold: toward warmer.
                 val t = hw.temp[m][h]
-                val cold = min(1f, max(0f, s.comfortC.start - coat - t) / 10f)
+                val cold = min(1f, s.coldC(t, m) / 10f)
                 val hot = min(1f, max(0f, t - s.comfortC.endInclusive) / 10f)
                 e += INSTINCT * (cold - hot) * warmerE[h]; so += INSTINCT * (cold - hot) * warmerS[h]
                 val len = hypot(e, so)

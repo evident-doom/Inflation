@@ -161,6 +161,8 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
     private val rnd = Random(seed * 7 + 5)
     /** Ash on the ground, mm. */
     val ash = FloatArray(grid.size)
+    /** Whether any ash lies anywhere. */
+    var anyAsh = false; private set
     val history = ArrayList<Eruption>()
 
     private var pending: List<Eruption>? = null
@@ -171,15 +173,20 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
      */
     val upcoming: List<Eruption> get() = pending ?: emptyList()
 
-    /** Advances [days] days from [date]; [weather], when given, carries the ash plumes downwind. */
-    fun step(date: Date, days: Int, weather: Weather? = null): List<Eruption> {
+    /** Advances [days] days from [date]; [wind], when given (m/s east and south at a fine cell), carries the ash plumes downwind. */
+    fun step(date: Date, days: Int, wind: ((Int) -> Pair<Float, Float>)? = null): List<Eruption> {
         val decay = exp(-days / 720.0).toFloat() // about two years' residence
-        for (i in ash.indices) if (ash[i] > 0f) ash[i] = if (ash[i] < 0.05f) 0f else ash[i] * decay
+        if (anyAsh) {
+            var left = false
+            for (i in ash.indices) if (ash[i] > 0f) { ash[i] = if (ash[i] < 0.05f) 0f else ash[i] * decay; if (ash[i] > 0f) left = true }
+            anyAsh = left
+        }
         val now = pending ?: draw(date, days)
         for (e in now) {
             history += e
             val c = grid.index(e.volcano.x, e.volcano.y)
-            fallAsh(e.volcano, e.vei, weather?.windEast(c) ?: 1f, weather?.windSouth(c) ?: 0f)
+            val (u, v) = wind?.invoke(c) ?: (1f to 0f)
+            fallAsh(e.volcano, e.vei, u, v)
         }
         pending = draw(date.plusDays(days), days)
         return now
@@ -215,7 +222,7 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
             // Thinner upwind and to the sides.
             val dist = sqrt((if (along < 0) along * 3 else along).pow(2) + (across * 2).pow(2))
             val mm = nearMm * exp(-dist / lengthKm)
-            if (mm > 0.1) ash[grid.index(x, y)] += mm.toFloat()
+            if (mm > 0.1) { ash[grid.index(x, y)] += mm.toFloat(); anyAsh = true }
         }
     }
 }

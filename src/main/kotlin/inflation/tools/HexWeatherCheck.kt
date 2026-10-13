@@ -1,4 +1,12 @@
-package inflation.world
+package inflation.tools
+
+import inflation.world.Date
+import inflation.world.HexMap
+import inflation.world.HexWorld
+import inflation.world.Weather
+import inflation.world.World
+import inflation.world.WorldConfig
+
 
 import kotlin.math.abs
 import kotlin.math.sqrt

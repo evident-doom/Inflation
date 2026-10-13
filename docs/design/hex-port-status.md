@@ -1,6 +1,6 @@
 # Hex model: what is ported from the 1 km model
 
-Status on 13 Oct 2026. For each feature of the 1 km (grid) model: **yes** ported, **partly** ported
+Status on 13 Oct 2026, after the ground-up port. For each feature of the 1 km (grid) model: **yes** ported, **partly** ported
 (what is missing), **no** not yet. The hex model runs from the hex viewer, the hex checks and the
 hex learning tools; it is not yet wired into `Simulation`.
 
@@ -11,13 +11,13 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Stochastic weather around the normals | yes |
 | Five-year and decadal swings | yes |
 | Climate shocks (drought, cold winter, heat wave) | yes |
-| Volcanic winter | no (no eruptions on hexes) |
+| Volcanic winter | yes |
 | Weather regimes, jet stream, wind | yes |
 | Rain on windward slopes, rain shadow | yes (averaged per height band) |
 | Snow pack and melt | yes |
-| Weather known a week ahead | partly: temperature only, for learned herds; no rain-ahead or hazard sense |
-| Calendar and moon | partly: months yes; moonlight unused |
-| Volcanoes, eruptions, ash | no |
+| Weather known a week ahead | yes: cold, heat, deep snow and rain ahead, by each kind's foresight |
+| Calendar and moon | yes (moonlight helps stalkers) |
+| Volcanoes, eruptions, ash | yes (ash on places: plants, soil, grazers) |
 
 ## Water
 
@@ -40,17 +40,17 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Herbs, shrubs, trees: growth, shading, die-back, seed spread | yes |
 | Frost and flood damage | yes |
 | Wildfire, spreading with the wind | yes |
-| Green flush after fire | no |
+| Green flush after fire | yes |
 | Grazing removes fire fuel; browsing holds back saplings; lawns | yes |
 | Forage quality (green vs dry) | yes |
-| Separate food pools (roots, mast, fruit, straw) | partly: read from standing plants |
-| Roughage value by body size; selective feeders | no |
-| Boar rooting, seed carried by fruit-eaters | partly: the plants respond, but the animals don't set them yet |
-| Trampling and worn paths, paths easing travel | partly: in place but nothing tramples yet |
+| Separate food pools (roots, mast, fruit, straw) | yes |
+| Roughage value by body size; selective feeders | yes (straw by gut size) |
+| Boar rooting, seed carried by fruit-eaters | yes |
+| Trampling and worn paths, paths easing travel | partly: trampling and paths yes; paths do not ease travel on hexes |
 | Soil erosion, soil recovery | yes |
 | Litter, soil life, organic matter | yes |
 | Pollinators setting the fruit crop | yes |
-| Cliffs keeping animals off food | no |
+| Cliffs keeping animals off food | yes |
 | Sight and concealment from plants | partly: cover only |
 
 ## Small game, field populations, scavengers
@@ -69,10 +69,10 @@ hex learning tools; it is not yet wired into `Simulation`.
 
 | Feature | Hex |
 |---|---|
-| Fish in sea, lakes and rivers; shellfish; spawning runs | no |
-| Upwelling, whales, dolphins, porpoises, seals, sharks | no |
-| Sea-bird colonies | no |
-| Crocodiles, eagles | partly: eagles (nest on crags, fly over any ground, take small game and young hoofed animals); no crocodiles |
+| Fish in sea, lakes and rivers; shellfish; spawning runs | yes |
+| Upwelling, whales, dolphins, porpoises, seals, sharks | yes (as densities per sea hex) |
+| Sea-bird colonies | yes |
+| Crocodiles, eagles | yes |
 
 ## Plant-eaters
 
@@ -82,33 +82,33 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Migratory kinds as herds | yes |
 | Choosing where to go each week | yes (own rule, learnable) |
 | Routes over passes, climbers and walkers | yes (graded borders) |
-| Snow making travel harder | no |
+| Snow making travel harder | yes |
 | Home ranges | partly: a preference for staying |
 | Seasonal memory, inherited template | yes |
 | Grazing shared by diet and need | yes |
 | Births, growing up, splitting and merging | yes |
 | Crowding disease | yes; random outbreaks no |
 | Snow hiding grass | yes; deaths in deep snow no |
-| Cold and heat (coat) | partly: fixed coat, no moult |
-| Fat reserves | partly: herds only, no autumn fattening |
-| Hibernation (bears) | no |
-| Breeding season shifting to the food | no |
+| Cold and heat (coat) | yes (coat grows in autumn, moulted in spring) |
+| Fat reserves | yes (herds; autumn fattening; bears' autumn condition) |
+| Hibernation (bears) | yes |
+| Breeding season shifting to the food | yes |
 | Thirst and water | yes |
 | Wariness of people, boldness | partly: wariness after being hunted (sharper watch, fewer kills, fades over weeks); boldness waits for people |
 | Vigilance, alarm, hiding in cover | yes: watch in open country, wary after a chase, small prey hide in cover |
-| Dangerous prey fighting back | no |
-| Flood, ash, fire deaths | no |
+| Dangerous prey fighting back | yes |
+| Flood, ash, fire deaths | yes |
 
 ## Hunters
 
 | Feature | Hex |
 |---|---|
 | Hunting along the way, meetings settled in order | yes (new on hexes) |
-| Catch chance | partly: size, defence, refuge in broken ground, hiding, moonlight for stalkers; no speed or posture |
+| Catch chance | yes: size, defence, refuge, hiding, moonlight, speed; posture as wariness |
 | Territories, rivals, pack breeding | yes |
-| Scent marks | no (held ground is exclusive instead) |
-| Bigger hunters killing smaller ones | no |
-| Stealing kills | no |
+| Scent marks | yes |
+| Bigger hunters killing smaller ones | yes |
+| Stealing kills | yes |
 | Extra deaths for packs without ground | yes |
 | Small prey, scavenging | yes |
 | Following people's camps | no |
@@ -140,17 +140,8 @@ middens, worn routes, crowding sickness. (The plants can already take a fire peo
   their country (packs leave their ground); resident kinds spill that way. The check's `--uniform`
   starts every kind spread evenly, and `-Dhex.noBearings` turns the sense off for comparison.
 
-## Biggest gaps, in rough order
+## Still missing
 
-1. People.
-2. Boldness and fear of people (with people).
-3. Stealing kills, bigger hunters killing smaller, scent marks.
-4. Fish and sea life; crocodiles.
-5. Volcanoes and ash.
-6. Animals trampling, rooting and carrying seed (the plants are ready for it).
-7. Fire killing and driving animals; green flush after fire.
-8. Breeding season shifting, hibernation, outbreaks.
-9. Dams, canals and irrigation.
-
-Done since the first list: drinking water, springs and thirst; soil life; the small life
-(insects, rodents, reptiles, pollinators, hares, hyrax, birds, tortoises, foxes, vultures).
+People (everything in the section above), dams, canals and irrigation (the 1 km code is kept for
+porting with people), worn paths easing travel, random outbreaks of disease. The work list and the
+closed-ecology rules are in `hex-gaps.md`.

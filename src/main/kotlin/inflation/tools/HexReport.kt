@@ -1,4 +1,11 @@
-package inflation.world
+package inflation.tools
+
+import inflation.world.HexMap
+import inflation.world.HexWorld
+import inflation.world.RiverClass
+import inflation.world.World
+import inflation.world.WorldConfig
+
 
 import java.util.PriorityQueue
 import kotlin.math.cos

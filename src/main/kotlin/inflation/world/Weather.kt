@@ -151,11 +151,15 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     fun windEast(i: Int): Float = sample(windU, cx(i), cy(i))
     /** Wind over the last step at cell [i], m/s towards the south. */
     fun windSouth(i: Int): Float = sample(windV, cx(i), cy(i))
-    /** Wind the coming step will bring at cell [i], m/s towards the east and the south. */
-    fun forecastWindEast(i: Int): Float { if (!prepared) prepare(); return sample(nextU, cx(i), cy(i)) }
-    fun forecastWindSouth(i: Int): Float { if (!prepared) prepare(); return sample(nextV, cx(i), cy(i)) }
 
-    fun activeEvents(): List<ClimateEvent> = events.filter { it.activeOn(date.absoluteDay) }
+    /** How many droughts are under way. */
+    fun droughtCount() = events.count { it.kind == ClimateEvent.Kind.DROUGHT && it.activeOn(date.absoluteDay) }
+
+    /** Droughts under way: how many, and the share of their rain they bring. */
+    fun droughts(): String {
+        val now = events.filter { it.kind == ClimateEvent.Kind.DROUGHT && it.activeOn(date.absoluteDay) }
+        return if (now.isEmpty()) "none" else "${now.size} (" + now.joinToString(", ") { "%.0f%% rain over %.0f km".format(100 * it.strength, it.radiusKm) } + ")"
+    }
 
     /** A large eruption's aerosols cool the region for about two years. */
     fun volcanicForcing(vei: Int, x: Int, y: Int) {
@@ -289,6 +293,10 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
             val (x, y) = place()
             val years = 2 + rnd.nextInt(7)
             events += ClimateEvent(ClimateEvent.Kind.DROUGHT, day, day + years * Date.DAYS_PER_YEAR, x, y, 200.0 + 300 * rnd.nextDouble(), 0.55 + 0.2 * rnd.nextDouble())
+        }
+        if (rnd.nextDouble() < 0.12) { // a drought year: a dry growing season over a region, about one year in eight in any one place
+            val (x, y) = place()
+            events += ClimateEvent(ClimateEvent.Kind.DROUGHT, day, day + Date.DAYS_PER_YEAR, x, y, 300.0 + 400 * rnd.nextDouble(), 0.5 + 0.2 * rnd.nextDouble())
         }
         if (rnd.nextDouble() < 0.06) { // a severe winter: weeks of arctic air
             val (x, y) = place()
