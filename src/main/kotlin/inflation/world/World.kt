@@ -35,6 +35,12 @@ class World(
     }
 
     companion object {
+        /** Escarpments: size of the faulted provinces and spacing of the scarps in them, km; each block's band of the field; most a scarp rises, m. */
+        const val SCARP_PROVINCE_KM = 300.0
+        const val SCARP_SPACING_KM = 120.0
+        const val SCARP_BAND = 0.08
+        const val SCARP_M = 220.0
+
         fun generate(cfg: WorldConfig, log: (String) -> Unit = {}): World {
             val grid = Grid(cfg.width, cfg.height, cfg.cellKm)
             val noise = Noise(cfg.seed)
@@ -101,7 +107,13 @@ class World(
                 val rift = if (conv < 0 && tect.isContinental(i)) conv * 12_000.0 * exp(-tect.boundaryDistKm[i] / 12.0) else 0.0
                 // Coastal plains and deltas stay flat; warping grows with height.
                 val warp = 35.0 * noise.fbm(x - 3001, y + 1999, 60.0 / grid.cellKm, 3) * (elevation[i] / 40.0).coerceIn(0.0, 1.0)
-                if (elevation[i] > 0f) elevation[i] = (elevation[i] + rift + warp).toFloat()
+                // Escarpments: in faulted provinces the land is tilted into blocks, each rising gently to
+                // a scarp and dropping sharply to the next (cuestas, fault scarps), some tens to a few
+                // hundred metres high.
+                val faulted = ((noise.fbm(x + 777, y - 555, SCARP_PROVINCE_KM / grid.cellKm, 2) - 0.1) / 0.3).coerceIn(0.0, 1.0)
+                val blocks = noise.fbm(x - 123, y + 321, SCARP_SPACING_KM / grid.cellKm, 2) / SCARP_BAND
+                val scarp = if (elevation[i] in 30f..2500f) SCARP_M * faulted * (blocks - kotlin.math.floor(blocks)) else 0.0
+                if (elevation[i] > 0f) elevation[i] = (elevation[i] + rift + warp + scarp).toFloat()
             }
         }
 

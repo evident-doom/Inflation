@@ -61,6 +61,15 @@ fun main(args: Array<String>) {
     println("borders between land hexes: %d | open %.0f%%, hard %.0f%%, very hard %.0f%%, no way %.0f%% | over a pass (300 m+ climb) %.0f%%, across a river (10+ m³/s) %.0f%%, across a big river (200+ m³/s) %.1f%%".format(
         all, 100.0 * open / all, 100.0 * hard / all, 100.0 * dear / all, 100.0 * none / all, 100.0 * pass / all, 100.0 * river / all, 100.0 * bigRiver / all))
     val lands = land.filter { hex.landCells[it] > hex.cells[it] / 2 }
+    val landCells = (0 until world.grid.size).count { !world.isSea[it] }
+    val rivers = (0 until world.grid.size).filter { world.riverClass(it) >= RiverClass.STREAM }
+    println("rivers: %d km of streams and rivers, %d km with 50+ m³/s, %d km with 200+ m³/s; deepest crossing on them: %d km over 1 m, %d km over 1.5 m".format(
+        rivers.size, rivers.count { world.water.discharge[it] > 50f }, rivers.count { world.water.discharge[it] > 200f },
+        rivers.count { world.terrain.crossingDepthM(it) > 1f }, rivers.count { world.terrain.crossingDepthM(it) > 1.5f }))
+    val cliffs = (0 until world.grid.size).count { world.terrain.cliff[it] }
+    val lowCliffs = (0 until world.grid.size).count { world.terrain.cliff[it] && world.elevation[it] < 1500f }
+    println("cliffs (escarpments, gorge walls): %.2f%% of land, %d km² of them below 1500 m; hexes with a cliff: %.0f%%".format(
+        100.0 * cliffs / landCells, lowCliffs, 100.0 * (0 until world.grid.size).filter { world.terrain.cliff[it] }.map { hex.owner[it] }.toSet().count { it in lands.toSet() } / lands.size))
     println("land hexes: median relief (highest - lowest) %.0f m, 90%% %.0f m; median share of crag (> 24° over a km) %.0f%%".format(
         pct(lands.map { hex.highM[it] - hex.lowM[it] }, .5), pct(lands.map { hex.highM[it] - hex.lowM[it] }, .9), 100 * pct(lands.map { hex.crag[it] }, .5)))
     // Journeys: by the hex borders against the fine terrain.

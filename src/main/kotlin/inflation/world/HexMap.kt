@@ -56,12 +56,11 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
             if (!base.isFinite() || world.isSea[i]) { for (c in costs) c[i] = Float.POSITIVE_INFINITY; continue }
             val s = terrain.slope[i]
             val land = terrain.landCost[i]          // without the river
-            val river = base / land                 // what the river adds, 1 where there is none
-            val climb = exp(3.5f * s)               // already in both
+            val climb = exp(3.5f * s)               // already in it
+            val depth = terrain.crossingDepthM(i)   // at mean flow, where it is easiest
             for (tr in Travel.entries) {
                 val slope = exp(tr.ease * s) * (if (s > tr.steep) exp(BARRIER * (s - tr.steep)) else 1f)
-                val water = when (tr) { Travel.SWIM -> 1f + 0.2f * (river - 1f); Travel.LADEN -> river * river; else -> river }
-                costs[tr.ordinal][i] = land / climb * slope * water
+                costs[tr.ordinal][i] = land / climb * slope * tr.water(depth) * (if (terrain.cliff[i]) tr.cliff else 1f)
             }
         }
         for (i in 0 until grid.size) {
@@ -206,15 +205,23 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
      * Ways of travelling, each with how hard slopes are (effort grows as e^(ease × slope)) and the slope
      * (rise over run over a km) above which ground closes fast.
      */
-    enum class Travel(val ease: Float, val steep: Float) {
-        /** On foot and lightly loaded: most animals, hunting and raiding parties. */
-        FOOT(3.5f, 0.35f),
-        /** Sure-footed on crags: ibex, mouflon, leopards. */
-        CLIMB(2f, 0.8f),
-        /** A band moving camp with its stores, children and old: slopes and deep water cost far more. */
-        LADEN(5f, 0.25f),
-        /** Swimmers and waders (deer, horses, hippos): rivers stop them far less. */
-        SWIM(3.5f, 0.35f),
+    enum class Travel(val ease: Float, val steep: Float, private val wade: Float, private val deepest: Float, val cliff: Float) {
+        /** On foot and lightly loaded: most animals, hunting and raiding parties. Waist deep is hard, over the chest closed; a cliff is a desperate scramble. */
+        FOOT(3.5f, 0.35f, 1f, 1.5f, 50f),
+        /** Sure-footed on crags: ibex, mouflon, leopards. Water as for those on foot; cliffs only slow them. */
+        CLIMB(2f, 0.8f, 1f, 1.5f, 3f),
+        /** A band moving camp with its stores, children and old: slopes cost far more, water over the knee is hard, over the waist closed, and cliffs closed. */
+        LADEN(5f, 0.25f, 0.5f, 1f, Float.POSITIVE_INFINITY),
+        /** Swimmers and waders (deer, horses, hippos): a deep river slows them, only a great one stops them; cliffs as on foot. */
+        SWIM(3.5f, 0.35f, 2.5f, 4f, 50f);
+
+        /** Effort factor for getting across water [depth] m deep at its easiest point; infinite where it cannot be crossed. */
+        fun water(depth: Float): Float = when {
+            depth < 0.3f -> 1f
+            depth < wade -> 1f + 4f * (depth - 0.3f) / (wade - 0.3f)
+            depth < deepest -> 5f + 25f * (depth - wade) / (deepest - wade)
+            else -> Float.POSITIVE_INFINITY
+        }
     }
 
     companion object {

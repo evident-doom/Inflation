@@ -40,6 +40,12 @@ class Terrain(private val world: World) {
     /** Travel cost without crossing water, and how fordable each river cell is (see [crossingCost]). */
     internal val landCost = FloatArray(n)
     private val ford = FloatArray(n) { 1f }
+    /**
+     * Cliffs the grid does not resolve as slope: escarpments, and the walls of gorges a river has cut
+     * into a plain. A cell is a cliff where the ground drops sharply to a neighbour while the land
+     * around is otherwise gentle; streams cut gaps through them.
+     */
+    val cliff = BooleanArray(n)
     /** Height above the mean ground within about 5 km, m: hills, spurs and knolls are positive. */
     val prominence = FloatArray(n)
     /** Mean distance one can see over the bare terrain, km (out to [VIEW_MAX_KM]). */
@@ -77,10 +83,50 @@ class Terrain(private val world: World) {
             landCost[i] = baseCost[i] / riverCost(i)
             ford[i] = fordFactor(i)
         }
+        findCliffs()
         val mean = blur(grid, FloatArray(n) { max(0f, elev[it]) }, max(1, (5 / grid.cellKm).toInt()))
         for (i in 0 until n) if (!isWater(i)) prominence[i] = elev[i] - mean[i]
         viewshed(cell)
         for (i in 0 until n) if (!isWater(i)) defensibility[i] = defence(i)
+    }
+
+    private fun findCliffs() {
+        val cellM = grid.cellM.toFloat()
+        for (i in 0 until n) {
+            if (isWater(i) || world.water.discharge[i] > CLIFF_GAP_M3S) continue
+            val x0 = grid.x(i); val y0 = grid.y(i)
+            var drop = 0f; var sum = 0f; var k = 0
+            for (dy in -1..1) for (dx in -1..1) {
+                if (dx == 0 && dy == 0) continue
+                val x = x0 + dx; val y = y0 + dy
+                if (!grid.inBounds(x, y)) continue
+                val d = (elev[i] - max(0f, elev[grid.index(x, y)])) / (if (dx != 0 && dy != 0) 1.414f else 1f)
+                drop = max(drop, d); sum += kotlin.math.abs(d); k++
+            }
+            if (k == 0) continue
+            // A sharp step out of gentle country: the biggest drop well above what is usual around.
+            val usual = (sum - drop) / (k - 1).coerceAtLeast(1)
+            if (drop > CLIFF_M * grid.cellKm.toFloat() && drop > CLIFF_RATIO * usual && usual < CLIFF_GENTLE * cellM) cliff[i] = true
+        }
+        // Gorges: a river cut well below the plain on both banks; its walls are cliffs.
+        for (i in 0 until n) {
+            if (world.riverClass(i) < RiverClass.STREAM) continue
+            val x0 = grid.x(i); val y0 = grid.y(i)
+            var rim = Float.MAX_VALUE
+            for (dy in -2..2) for (dx in -2..2) {
+                if (kotlin.math.abs(dx) < 2 && kotlin.math.abs(dy) < 2) continue
+                val x = x0 + dx; val y = y0 + dy
+                if (!grid.inBounds(x, y)) continue
+                rim = min(rim, elev[grid.index(x, y)])
+            }
+            if (rim - elev[i] < GORGE_M) continue
+            for (dy in -1..1) for (dx in -1..1) {
+                val x = x0 + dx; val y = y0 + dy
+                if (!grid.inBounds(x, y)) continue
+                val j = grid.index(x, y)
+                if (j != i && !isWater(j) && world.water.discharge[j] <= CLIFF_GAP_M3S && elev[j] - elev[i] > 0.5f * GORGE_M) cliff[j] = true
+            }
+        }
     }
 
     /**
@@ -119,6 +165,10 @@ class Terrain(private val world: World) {
      * deep is a wade, waist deep slow and risky, beyond chest deep a swim most animals refuse; a
      * stream in spate stops herds for days, and in the dry season the same river has fords.
      */
+    /** Depth of the river at [i] where it is easiest to cross, m, with [discharge] m³/s in it (0 where there is no river). */
+    fun crossingDepthM(i: Int, discharge: Float = world.water.discharge[i]): Float =
+        if (world.riverClass(i) == RiverClass.NONE || discharge < 0.05f) 0f else Channel.depthM(discharge) * ford[i]
+
     fun crossingCost(i: Int, dischargeNow: Float): Float {
         if (world.riverClass(i) == RiverClass.NONE || dischargeNow < 0.05f) return 1f
         val depth = Channel.depthM(dischargeNow) * ford[i]
@@ -226,6 +276,13 @@ class Terrain(private val world: World) {
     }
 
     companion object {
+        /** Cliffs: least drop over a km, how much steeper than the ground around, how gentle that ground must be (rise over run); streams this big cut a gap. */
+        const val CLIFF_M = 70f
+        const val CLIFF_RATIO = 3f
+        const val CLIFF_GENTLE = 0.06f
+        const val CLIFF_GAP_M3S = 0.5f
+        /** How far below the plain on both banks a river must have cut for a gorge, m. */
+        const val GORGE_M = 120f
         /** How much easier a well-worn path is than the open ground around it. */
         const val TRAIL_EASE = 0.4f
         const val VIEW_MAX_KM = 30f
