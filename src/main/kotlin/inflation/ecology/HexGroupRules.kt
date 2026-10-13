@@ -28,10 +28,15 @@ const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */
 const val SHELTER_EFFECT = 0.7f
 const val AVOID_SKILL = 0.6f
-/** How much more ground that matters a hunter covers when it follows a herd's tracks than when it happens on it. */
-const val TRACKING = 3f
+/** How much more ground that matters a hunter covers when it follows a herd's tracks than when it happens on it (lions try a hunt about every day or two). */
+const val TRACKING = 8f
 /** How well fed a group must be to keep to its ground without weighing where else to go (every other week). */
 const val CONTENT = 0.95f
+/** How much herds shun ground thick with hunters; hunters, kg per km², at which the shunning is half. */
+const val SHUN_HUNTERS = 0.3f
+const val HUNTERS_HALF_KG = 1f
+/** Share of a migratory herd's weight a hunter's sense of good hunting country counts as game (herds watch and move). */
+const val HERD_GAME = 0.3f
 /** Soil water below which a herd is in a dry spell, mm; rain ahead that promises relief, mm a week. */
 const val DRY_SOIL_MM = 40f
 const val RAIN_AHEAD_MM = 20f
