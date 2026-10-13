@@ -90,6 +90,14 @@ fun main(args: Array<String>) {
                     }
                     if (heads > 0) println("       %-12s %.2f / %.0f%% / %.2f / %.2f / %.2f / %.0f".format(s.name, fed / heads, 100 * hungry / heads, teth / heads, acc / heads, gr / heads, res / heads))
                 }
+                println("     herds and packs: fed / reserve days / young per adult / days without water / cold degrees")
+                for (s in herds.kinds) {
+                    val gs = herds.groups.filter { it.alive && it.species == s }
+                    val heads = gs.sumOf { it.size }.toDouble().coerceAtLeast(1.0)
+                    println("       %-12s %.2f / %.0f / %.2f / %.1f / %.1f".format(s.name, gs.sumOf { it.fed.toDouble() * it.size } / heads, gs.sumOf { it.fat.toDouble() * it.size } / heads,
+                        gs.sumOf { it.young }.toDouble() / gs.sumOf { it.adults }.coerceAtLeast(1), gs.sumOf { it.dry.toDouble() * it.size } / heads,
+                        gs.sumOf { s.coldC(weather.temperature[it.place], weather.date.month).toDouble() * it.size } / heads))
+                }
             }
             val t0 = System.nanoTime()
             sim.step()
@@ -97,6 +105,7 @@ fun main(args: Array<String>) {
             for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
             for ((key, v) in herds.deaths) causes.merge(key, v.toDouble(), Double::plus)
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
+            for ((key, v) in herds.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
         }
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
         println("     small life: " + fauna.small.summary())
@@ -110,12 +119,18 @@ fun main(args: Array<String>) {
         val residentNames = fauna.kinds.map { it.name }.toSet()
         val year = HashMap<String, Double>()
         for ((key, v) in causes) if (key.substringBefore(":") in residentNames) year.merge(key.substringAfter(":"), v - (before[key] ?: 0.0), Double::plus)
+        // Hunters this year: born and dead.
+        println("     hunters this year, born / died: " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
+            val born = (causes["${s.name}:+born"] ?: 0.0) - (before["${s.name}:+born"] ?: 0.0)
+            val died = causes.entries.filter { it.key.startsWith(s.name + ":") && !it.key.endsWith("+born") }.sumOf { it.value - (before[it.key] ?: 0.0) }
+            "%s %.0f / %.0f".format(s.name, born, died)
+        })
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     this week: kills " + herds.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + herds.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
-        val c = causes.entries.filter { it.key.substringBefore(":") == s.name }.map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }
+        val c = causes.entries.filter { it.key.substringBefore(":") == s.name && !it.key.endsWith("+born") }.map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }
         val all = c.sumOf { it.second }.coerceAtLeast(1.0)
         println("  %-12s ".format(s.name) + c.filter { 100 * it.second / all >= 0.5 }.joinToString(", ") { (k, v) -> "$k %.0f%%".format(100 * v / all) })
     }

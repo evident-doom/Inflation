@@ -53,7 +53,7 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         // The resident herds of the places passed (the band it ends in, in each hex on its way): in
         // each, the pack sweeps some km² of ground and comes on the herds there; a share of the
         // chases ends in a kill.
-        val sweep = SWEEP_KM2 / g.path.size.coerceAtLeast(1) * min(2f, g.path.size.toFloat())
+        val sweep = sweptKm2(s) / g.path.size.coerceAtLeast(1) * min(2f, g.path.size.toFloat())
         for (h in g.path) {
             if (got >= need) break
             val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
@@ -84,7 +84,7 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         var gotSmall = 0f; var gotScraps = 0f
         for (h in g.path) {
             val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
-            val swept = min(land.areaKm2[p], SWEEP_KM2 / g.path.size.coerceAtLeast(1))
+            val swept = min(land.areaKm2[p], sweptKm2(s) / g.path.size.coerceAtLeast(1))
             if (smallWant - gotSmall > 0f) gotSmall += this.small.catchSmall(p, (smallWant - gotSmall) / swept, weather) * swept
             if (scraps - gotScraps > 0f) gotScraps += this.small.scavenge(p, min((scraps - gotScraps) / (swept * 1e6f), 0.5f * this.small.carrion[p])) * swept * 1e6f
         }

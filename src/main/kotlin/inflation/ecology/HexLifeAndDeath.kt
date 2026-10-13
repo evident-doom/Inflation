@@ -130,6 +130,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
                 binomial(g.adults / 2, s.youngPerFemale * s.littersPerYear * g.fed / stepsInSeason)
             }
             g.young += births
+            if (births > 0) this.births.merge(s.name, births, Int::plus)
         }
         val hunger = if (g.fed < 0.5f) (0.5f - g.fed) * 0.3f else 0f
         val cold = discomfort(s, g.place, weather) * 0.02f
@@ -140,7 +141,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val thirst = if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f
         // Crowded herds catch each other's diseases and parasites.
         val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
-        val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual)
+        // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
+        val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
         val disease = if (s.carnivore) 0f else HexFauna.DISEASE * crowd * crowd * years
         g.wary *= WARY_KEEP
         // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
@@ -157,13 +159,17 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // The dead lie where they fell, for the scavengers and the soil.
         small.carrion[g.place] += (da + 0.3f * dy) * s.massKg / (land.areaKm2[g.place] * 1e6f)
         if (da + dy > 0) {
-            val causes = listOf("hunger" to hunger, "cold" to cold, "thirst" to thirst, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc)
+            val causes = listOf("hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless)
             val main = causes.maxBy { it.second }
             deaths.merge("${s.name}:${if (main.second > 0f) main.first else "other"}", da + dy, Int::plus)
         }
         val up = binomial(g.young, years / s.yearsToMaturity)
         g.young -= up; g.adults += up
-        if (g.adults == 0) { g.young = 0; continue }
+        if (g.adults == 0) {
+            // Young left without a grown animal of their kind die.
+            if (g.young > 0) { deaths.merge("${s.name}:orphaned", g.young, Int::plus); small.carrion[g.place] += 0.3f * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f) }
+            g.young = 0; continue
+        }
         if (g.size > s.maxGroupSize) {
             val c = HexGroup(nextId++, s, g.place, g.adults / 2, g.young / 2)
             c.tag = g.tag
@@ -187,6 +193,22 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             other.adults += g.adults; other.young += g.young
             g.adults = 0; g.young = 0
         } else byPlace[key] = g
+    }
+    // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
+    // the pair holds the ground of the one that had any.
+    val lone = HashMap<Int, ArrayList<HexGroup>>()
+    for (g in groups) if (g.alive && g.species.carnivore && g.adults == 1) lone.getOrPut(g.species.index) { ArrayList() } += g
+    for ((_, list) in lone) {
+        val used = HashSet<Int>()
+        for (a in list) {
+            if (a.id in used) continue
+            val b = list.firstOrNull { it.id != a.id && it.id !in used && hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM } ?: continue
+            used += a.id; used += b.id
+            a.adults += b.adults; a.young += b.young
+            a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f
+            if (a.home < 0) a.home = b.home
+            b.adults = 0; b.young = 0
+        }
     }
 }
 

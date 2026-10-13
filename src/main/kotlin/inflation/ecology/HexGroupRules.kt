@@ -21,6 +21,10 @@ const val FIGHT_BACK = 0.002f
 const val NOT_WORTH_TRYING = 0.05f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
 const val AVOID_STRONGER = 0.3f
+/** How many times its usual density a migratory herd bears where herds gather before crowding sickens it. */
+const val MIGRANTS_GATHER = 5f
+/** How far a lone hunter goes looking for a mate in a week, km. */
+const val MATE_SEARCH_KM = 50.0
 /** Soil water below which a herd is in a dry spell, mm; rain ahead that promises relief, mm a week. */
 const val DRY_SOIL_MM = 40f
 const val RAIN_AHEAD_MM = 20f
@@ -41,8 +45,11 @@ const val GIVE_UP_WEEKS = 4
 /** Most chases a hunter makes in a week; chance a chase at a fully catchable quarry succeeds. */
 const val MAX_CHASES = 12
 const val CATCH = 0.35f
-/** Ground a hunting party sweeps in a week, km² (shared over the hexes it passes). */
-const val SWEEP_KM2 = 40f
+/** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */
+const val SEARCHING = 0.3f
+
+/** Ground a hunting party of kind [s] sweeps in a week, km² (shared over the hexes it passes): its going, by the width it senses. */
+fun HexGroups.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * SEARCHING
 /** Share of a kill's weight that is eaten. */
 const val MEAT_SHARE = 0.6f
 const val HOME_ADVANTAGE = 1.5f

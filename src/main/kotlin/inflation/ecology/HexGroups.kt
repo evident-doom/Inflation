@@ -74,6 +74,8 @@ class HexGroups(
     val kills = java.util.TreeMap<String, Int>()
     val meetings = java.util.TreeMap<String, Int>()
     val deaths = java.util.TreeMap<String, Int>()
+    /** Young born this week by kind. */
+    val births = java.util.TreeMap<String, Int>()
     internal val years = days / Date.DAYS_PER_YEAR.toFloat()
     internal val small get() = fauna.small
 
@@ -101,7 +103,7 @@ class HexGroups(
     fun count(s: Species) = groups.filter { it.species == s && it.alive }.sumOf { it.size }
 
     fun step(weather: Weather, date: Date) {
-        kills.clear(); meetings.clear(); deaths.clear()
+        kills.clear(); meetings.clear(); deaths.clear(); births.clear()
         moon = date.meanMoonlight(days).toFloat()
         if (bearings.month != date.month) {
             java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
