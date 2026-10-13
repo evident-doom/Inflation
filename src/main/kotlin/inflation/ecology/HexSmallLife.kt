@@ -32,8 +32,26 @@ import kotlin.math.pow
  *   seasons), tortoises in warm scrub, and foxes and wildcats living on the rest.
  * - Griffon vulture colonies on the most broken ground, one to a block of [VULTURE_SPACING_KM],
  *   soaring up to [VULTURE_RANGE_KM] for carcasses, nearest first.
+ * - Golden eagles nesting on crags, as a share of each place's ground they hunt over (0..1): they
+ *   fly over any ground, take hyrax, hares and rock birds, and the young of the smaller hoofed
+ *   animals in the open; they thrive where the crags and the game are, and dwindle where food fails.
  * - Fire kills what cannot flee. Every month each kind spreads a little to the places around.
  */
+/**
+ * A wild bird as a density field: when it breeds, how fast it grows and dies back, the months it is
+ * here at all (migrants), and [domestication] by the same six criteria as the large animals (diet
+ * breadth, growth, captive breeding, temperament, calm, hierarchy).
+ */
+class BirdKind(
+    val name: String,
+    val breedMonths: IntRange,
+    val growth: Float,
+    val deaths: Float,
+    /** Months present; null for residents. Outside them the birds are away. */
+    val present: Set<Int>?,
+    val domestication: FloatArray,
+)
+
 class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private val days: Int) {
     val n = land.n
     /** Soil: litter and organic matter, kg/m²; carrion, kg/m²; soil animals, g/m². */
@@ -54,9 +72,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val hyrax = FloatArray(n)
     val tortoises = FloatArray(n)
     val foxes = FloatArray(n)
-    /** Each kind of [SmallGame.BIRDS], and all together, kg/km². */
-    val bird = Array(SmallGame.BIRDS.size) { FloatArray(n) }
+    /** Each kind of [BIRDS], and all together, kg/km². */
+    val bird = Array(BIRDS.size) { FloatArray(n) }
     val birds = FloatArray(n)
+    /** Eagles hunting over each place, 0..1, and as many as the crags allow. */
+    val eagles = FloatArray(n) { p -> min(1f, 2f * land.ruggedness[p]) }
+    private val eagleCrags = eagles.copyOf()
     /** Vulture colonies: nest place, the birds, and the places within reach, nearest first. */
     val vulturePlace = ArrayList<Int>()
     val vultures = ArrayList<Float>()
@@ -105,7 +126,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val shrubby = min(1f, land.shrub[p])
         val rugged = land.ruggedness[p]
         val dry = (1f - annualRain[p] / 500f).coerceIn(0f, 1f)
-        return when (SmallGame.BIRDS[k].name) {
+        return when (BIRDS[k].name) {
             "chukar" -> 6f * min(1f, rugged / 0.5f) * (0.3f + 0.7f * open(p)) * (0.3f + 0.7f * shrubby) * grass
             "quail" -> 5f * open(p) * grass
             "sandgrouse" -> 3f * open(p) * dry
@@ -203,7 +224,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         hyrax[p] = logistic(hyrax[p], if (month in 1..3) 2.5f else 0f, 0.4f, hyraxCapacity(p))
         var all = 0f
         for (k in bird.indices) {
-            val b = SmallGame.BIRDS[k]; val f = bird[k]
+            val b = BIRDS[k]; val f = bird[k]
             val here = b.present?.contains(month) ?: true
             f[p] = when {
                 // Migrants arrive with the season, as many as the ground draws, and leave.
@@ -227,9 +248,29 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
         val fed = if (need > 0f) got / need else 1f
         foxes[p] = logistic(foxes[p], if (month in 1..3) 1.5f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey).coerceAtLeast(0.01f)
+        // Eagles: a pair needs about a kilo a day; they take what is out in the open among the rocks.
+        if (eagleCrags[p] > 0f) {
+            val open = open(p)
+            val prey = (hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]) * (0.3f + 0.7f * open)
+            val need = eagles[p] * EAGLE_NEED * days
+            val got = min(need, 0.1f * prey)
+            val total = hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]
+            if (got > 0f && total > 0f) {
+                val f = got / total
+                hyrax[p] -= hyrax[p] * f; hares[p] -= hares[p] * f
+                birds[p] -= bird[CHUKAR][p] * f + bird[ROCK_DOVE][p] * f
+                bird[CHUKAR][p] -= bird[CHUKAR][p] * f; bird[ROCK_DOVE][p] -= bird[ROCK_DOVE][p] * f
+            }
+            // Fawns and kids make up much of what the small game does not.
+            val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
+            eagles[p] = logistic(eagles[p], if (month in 1..3) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p]).coerceAtLeast(0.02f * eagleCrags[p])
+        }
         // Fire: tortoises die where it burns; the rest bolt and many young die.
         if (burnt > 0f) { tortoises[p] *= 1f - 0.6f * burnt; hares[p] *= 1f - 0.3f * burnt; takeBirds(p, 0.3f * burnt) }
     }
+
+    /** Yearly share of the young of small hoofed animals eagles take in place [p]. */
+    fun eagleRisk(p: Int) = EAGLE_RATE * eagles[p] * open(p)
 
     /** Takes share [f] of every kind of bird at [p]. */
     private fun takeBirds(p: Int, f: Float) {
@@ -289,9 +330,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Totals over the land, tonnes, and vultures in all colonies. */
     fun summary(): String {
         fun t(a: FloatArray) = a.indices.sumOf { (a[it] * land.areaKm2[it]).toDouble() } / 1000
-        return "rodents %.0f t, hares %.0f t, hyrax %.0f t, birds %.0f t (%s), tortoises %.0f t, foxes %.0f t, %d vulture colonies %.0f birds".format(
-            t(rodents), t(hares), t(hyrax), t(birds), bird.indices.joinToString(", ") { "%s %.0f".format(SmallGame.BIRDS[it].name, t(bird[it])) },
-            t(tortoises), t(foxes), vultures.size, vultures.sum())
+        return "rodents %.0f t, hares %.0f t, hyrax %.0f t, birds %.0f t (%s), tortoises %.0f t, foxes %.0f t, eagles %.0f pairs, %d vulture colonies %.0f birds".format(
+            t(rodents), t(hares), t(hyrax), t(birds), bird.indices.joinToString(", ") { "%s %.0f".format(BIRDS[it].name, t(bird[it])) },
+            t(tortoises), t(foxes), eagles.indices.sumOf { (eagles[it] * land.areaKm2[it]).toDouble() } / EAGLE_KM2, vultures.size, vultures.sum())
     }
 
     /** Takes up to [kgPerM2] of carrion in place [p]; returns what was taken. */
@@ -312,8 +353,27 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     companion object {
         val WETLANDS = setOf("MARSH", "SWAMP_FOREST", "BOG", "SALT_MARSH", "MANGROVE")
+        /**
+         * The wild birds. Months count from the spring equinox: quail are here from spring to early
+         * autumn, greylag geese from autumn to early spring.
+         */
+        val BIRDS = listOf(
+            BirdKind("chukar", 1..3, 4f, 0.9f, null, floatArrayOf(0.7f, 0.7f, 0.5f, 0.5f, 0.6f, 0.6f)),
+            BirdKind("quail", 1..4, 6f, 1.2f, (1..6).toSet(), floatArrayOf(0.7f, 0.9f, 0.7f, 0.5f, 0.5f, 0.4f)),
+            BirdKind("sandgrouse", 1..4, 3f, 0.7f, null, floatArrayOf(0.5f, 0.6f, 0.2f, 0.3f, 0.3f, 0.4f)),
+            BirdKind("rock dove", 0..7, 5f, 0.8f, null, floatArrayOf(0.9f, 0.9f, 0.9f, 0.8f, 0.7f, 0.6f)), // became the pigeon
+            BirdKind("mallard", 1..3, 4f, 0.8f, null, floatArrayOf(0.9f, 0.8f, 0.8f, 0.7f, 0.6f, 0.6f)), // became the duck
+            BirdKind("greylag goose", 2..3, 3f, 0.5f, (setOf(7, 8, 9, 10, 11, 0)), floatArrayOf(0.8f, 0.8f, 0.8f, 0.6f, 0.6f, 0.8f)), // became the goose
+        )
         /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
         const val VULTURE_RANGE_KM = 80.0
         const val VULTURE_SPACING_KM = 80.0
+        /** Eagles: what the eagles over a place eat at full strength (a pair to [EAGLE_KM2]), kg/km² a day; yearly share of young taken in open crag country. */
+        const val EAGLE_NEED = 0.01f
+        /** Ground a pair hunts over where the eagles are at full strength, km². */
+        const val EAGLE_KM2 = 100.0
+        const val EAGLE_RATE = 0.15f
+        private val CHUKAR = BIRDS.indexOfFirst { it.name == "chukar" }
+        private val ROCK_DOVE = BIRDS.indexOfFirst { it.name == "rock dove" }
     }
 }

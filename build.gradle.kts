@@ -23,15 +23,6 @@ application {
     applicationDefaultJvmArgs = listOf("-Xmx4g")
 }
 
-tasks.register<JavaExec>("viewer") {
-    description = "Opens the world viewer with time controls."
-    group = "application"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.ui.ViewerKt")
-    maxHeapSize = "16g" // the full 1000 x 2000 km map needs about 10 GB
-    args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
-}
-
 tasks.register<JavaExec>("hexViewer") {
     description = "Opens the hex world viewer: herds and hunters walking hex to hex over the fine terrain."
     group = "application"
@@ -41,52 +32,16 @@ tasks.register<JavaExec>("hexViewer") {
     args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
-tasks.test {
-    useJUnitPlatform()
-    maxHeapSize = "4g"
-}
-
-tasks.register<JavaExec>("fauna") {
-    description = "Runs the living world for some years and prints animal populations."
+tasks.register<JavaExec>("hexFauna") {
+    description = "Runs the hex world for some years and prints animal numbers, causes of death and the cost of a step."
     group = "application"
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.ecology.FaunaReportKt")
-    maxHeapSize = "6g"
+    mainClass.set("inflation.ecology.HexFaunaCheckKt")
+    maxHeapSize = "12g"
     args = (project.findProperty("faunaArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
-tasks.register<JavaExec>("imitate") {
-    description = "Trains one network per species to copy the hand-written baseline behaviour."
-    group = "application"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.learning.ImitateKt")
-    maxHeapSize = "8g"
-    args = (project.findProperty("imitateArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
-}
-
-tasks.register<JavaExec>("audit") {
-    description = "Runs the living world and reports which species found a niche, which died out and which grow without limit."
-    group = "application"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.ecology.NicheAuditKt")
-    maxHeapSize = "12g"
-    args = (project.findProperty("auditArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
-}
-
-tasks.register<JavaExec>("bandImitate") {
-    description = "Copies the hand-written band behaviour into the shared people network (policies/people.mlp)."
-    group = "application"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.learning.BandLearningKt")
-    maxHeapSize = "12g"
-    args = (project.findProperty("bandArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
-}
-
-tasks.register<JavaExec>("bandEvolve") {
-    description = "Evolves the shared people network by evolution strategies, resuming from its output directory."
-    group = "application"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.learning.BandEvolve")
-    maxHeapSize = "20g"
-    args = (project.findProperty("bandArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+tasks.test {
+    useJUnitPlatform()
+    maxHeapSize = "4g"
 }

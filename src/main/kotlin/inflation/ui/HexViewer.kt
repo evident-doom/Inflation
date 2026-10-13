@@ -97,6 +97,8 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     }
     private val tintChoice = JComboBox(Tint.entries.map { it.label }.toTypedArray())
     private val windBox = javax.swing.JCheckBox("Wind", false)
+    /** Whose sense of direction to draw as arrows: a resident kind or a kind living in groups. */
+    private val pullChoice by lazy { JComboBox(arrayOf("(no sense of direction)") + (fauna.kinds + groups.kinds).map { "pull: " + it.name }.toTypedArray()) }
     /** Where each group was drawn at the end of the last move, km. */
     private val lastDrawn = HashMap<Int, Pair<Float, Float>>()
     @Volatile private var shown = emptyList<Shown>()
@@ -122,7 +124,8 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         residentChoice.addActionListener { map.repaint() }
         tintChoice.addActionListener { map.repaint() }
         windBox.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(windBox); bar.add(date)
+        pullChoice.addActionListener { map.repaint() }
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(windBox); bar.add(pullChoice); bar.add(date)
         val bottom = JPanel(); bottom.add(counts)
         val side = JPanel(BorderLayout())
         side.add(JScrollPane(info), BorderLayout.NORTH)
@@ -284,6 +287,27 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
                     val x0 = sx(cx.toFloat()); val y0 = sy(cy.toFloat())
                     val x1 = sx(cx.toFloat() + u / speed * len); val y1 = sy(cy.toFloat() + v / speed * len)
                     g.color = Color(1f, 1f, 1f, (0.4f + 0.6f * min(1f, speed / 12f)))
+                    g.drawLine(x0, y0, x1, y1)
+                    val ang = kotlin.math.atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
+                    for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * kotlin.math.cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * kotlin.math.sin(ang + sgn * 0.5)).toInt())
+                }
+            }
+            // A kind's sense of where better country lies, as yellow arrows, longer the stronger.
+            val pk = pullChoice.selectedIndex - 1
+            if (pk >= 0) {
+                val (b, k) = if (pk < fauna.kinds.size) fauna.bearings to pk else groups.bearings to pk - fauna.kinds.size
+                val every = max(1, (2.0 / scale).toInt())
+                for (h in 0 until hex.size) {
+                    val col = h % hex.cols; val row = h / hex.cols
+                    if (col % every != 0 || row % every != 0 || hex.heart[h] < 0) continue
+                    val u = b.east[k][h]; val v = b.south[k][h]
+                    val st = hypot(u, v)
+                    if (st < 0.02f) continue
+                    val (cx, cy) = hex.centreKm(h)
+                    val len = (min(1f, st * 2f) * hex.hexKm * every * 0.8).toFloat()
+                    val x0 = sx(cx.toFloat()); val y0 = sy(cy.toFloat())
+                    val x1 = sx(cx.toFloat() + u / st * len); val y1 = sy(cy.toFloat() + v / st * len)
+                    g.color = Color(1f, 0.85f, 0.1f, (0.4f + 0.6f * min(1f, st * 2f)))
                     g.drawLine(x0, y0, x1, y1)
                     val ang = kotlin.math.atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
                     for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * kotlin.math.cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * kotlin.math.sin(ang + sgn * 0.5)).toInt())

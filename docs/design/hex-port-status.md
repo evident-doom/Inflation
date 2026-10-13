@@ -72,7 +72,7 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Fish in sea, lakes and rivers; shellfish; spawning runs | no |
 | Upwelling, whales, dolphins, porpoises, seals, sharks | no |
 | Sea-bird colonies | no |
-| Crocodiles, eagles | no |
+| Crocodiles, eagles | partly: eagles (nest on crags, fly over any ground, take small game and young hoofed animals); no crocodiles |
 
 ## Plant-eaters
 
@@ -94,8 +94,8 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Hibernation (bears) | no |
 | Breeding season shifting to the food | no |
 | Thirst and water | yes |
-| Wariness of people, boldness | no |
-| Vigilance, alarm, hiding in cover | partly: herds watch in open country and turn aside |
+| Wariness of people, boldness | partly: wariness after being hunted (sharper watch, fewer kills, fades over weeks); boldness waits for people |
+| Vigilance, alarm, hiding in cover | yes: watch in open country, wary after a chase, small prey hide in cover |
 | Dangerous prey fighting back | no |
 | Flood, ash, fire deaths | no |
 
@@ -104,12 +104,12 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Feature | Hex |
 |---|---|
 | Hunting along the way, meetings settled in order | yes (new on hexes) |
-| Catch chance | partly: size, defence, refuge in broken ground; no speed, posture or moonlight |
+| Catch chance | partly: size, defence, refuge in broken ground, hiding, moonlight for stalkers; no speed or posture |
 | Territories, rivals, pack breeding | yes |
 | Scent marks | no (held ground is exclusive instead) |
 | Bigger hunters killing smaller ones | no |
 | Stealing kills | no |
-| Extra deaths for packs without ground | no |
+| Extra deaths for packs without ground | yes |
 | Small prey, scavenging | yes |
 | Following people's camps | no |
 
@@ -134,19 +134,23 @@ middens, worn routes, crowding sickness. (The plants can already take a fire peo
 - Height bands inside each hex, with animals moving between them.
 - Border crossings graded by way of travelling, with rivers on hex edges.
 - Meetings timetabled within the week, which can cut a group's week short.
+- A sense of direction for every kind (`HexBearings`): each month, the way to better country it
+  knows of within 60 km, peaks it can see out to 200 km (standing for their massifs), and a pull
+  toward cooler or warmer country when the month is wrong for its coat. Groups trek when far out of
+  their country (packs leave their ground); resident kinds spill that way. The check's `--uniform`
+  starts every kind spread evenly, and `-Dhex.noBearings` turns the sense off for comparison.
 
 ## Biggest gaps, in rough order
 
 1. People.
-2. A sense of direction to better country: climate and biome pull, far landmarks in sight.
-3. Wariness, boldness, vigilance and hiding.
-4. Stealing kills, bigger hunters killing smaller, scent marks, moonlight.
-5. Fish and sea life; crocodiles and eagles.
-6. Volcanoes and ash.
-7. Animals trampling, rooting and carrying seed (the plants are ready for it).
-8. Fire killing and driving animals; green flush after fire.
-9. Breeding season shifting, hibernation, outbreaks.
-10. Dams, canals and irrigation.
+2. Boldness and fear of people (with people).
+3. Stealing kills, bigger hunters killing smaller, scent marks.
+4. Fish and sea life; crocodiles.
+5. Volcanoes and ash.
+6. Animals trampling, rooting and carrying seed (the plants are ready for it).
+7. Fire killing and driving animals; green flush after fire.
+8. Breeding season shifting, hibernation, outbreaks.
+9. Dams, canals and irrigation.
 
 Done since the first list: drinking water, springs and thirst; soil life; the small life
 (insects, rodents, reptiles, pollinators, hares, hyrax, birds, tortoises, foxes, vultures).

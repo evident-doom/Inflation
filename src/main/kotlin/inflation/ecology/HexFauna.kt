@@ -38,6 +38,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val fed = Array(kinds.size) { FloatArray(n) { 1f } }
     /** The soil life and small animals the herds live among. */
     val small = HexSmallLife(hw, land, days)
+    /** Each kind's sense of where better country lies. */
+    val bearings = HexBearings(hw, kinds, { s, p, m ->
+        val food = foodFor(s, p) * min(1.5f, suits(s, p)) / 1.5f
+        food / (food + 0.3f) * tether(s, p) * monthFit(s, p, m)
+    }, { s -> val k = kinds.indexOf(s); (0 until n).any { adults[k][it] > 0f } })
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
     val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals. */
@@ -45,7 +50,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
     /** How each kind travels between places. */
-    private val travel = kinds.map { if (it in Routes.CLIMBERS) HexMap.Travel.CLIMB else if (it.diet.grass > 0f && it.massKg > 60f) HexMap.Travel.SWIM else HexMap.Travel.FOOT }
+    private val travel = kinds.map { Catalogue.travel(it) }
 
     init {
         // Start near what the land can carry: the kind's usual density where its food grows.
@@ -75,6 +80,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             worst = max(worst, max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive))
         }
         return exp(-worst / 5f)
+    }
+
+    /** How well the normal temperatures of month [m] and the next at place [p] suit [s]'s coat, 0..1. */
+    fun monthFit(s: Species, p: Int, m: Int): Float {
+        val coat = if (s.winterCoat) 10f else 0f
+        var dev = 0f
+        for (mm in intArrayOf(m, (m + 1) % 12)) { val t = hw.placeTemp(p, mm); dev += max(0f, s.comfortC.start - coat - t) + max(0f, t - s.comfortC.endInclusive) }
+        return exp(-dev / 10f)
     }
 
     fun suits(s: Species, p: Int): Float {
@@ -110,6 +123,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun step(weather: Weather, date: Date) {
         deaths.clear()
         carcassKg.fill(0f)
+        if (bearings.month != date.month) bearings.update(date.month)
         graze(weather)
         breedAndDie(weather, date)
         shiftBands(weather)
@@ -158,7 +172,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
-        val dead = Array(kinds.size) { DoubleArray(4) } // age, hunger, cold, disease
+        val dead = Array(kinds.size) { DoubleArray(5) } // age, hunger, cold, disease, eagles
         for ((k, s) in kinds.withIndex()) {
             val start = s.birthMonth
             val inSeason = (date.month - start + 12) % 12 < s.birthMonths
@@ -180,12 +194,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val crowd = (a[p] + y[p]) / (CROWDED * usual)
                 val disease = DISEASE * crowd * crowd * years
                 val pa = (s.backgroundMortality * years + hunger + cold + disease).coerceIn(0f, 0.9f)
-                val py = (s.youngMortality * years + 1.5f * hunger + 1.5f * cold + disease).coerceIn(0f, 0.95f)
+                // Eagles take the young of the smaller hoofed animals in the open.
+                val eagle = if (s.massKg <= HexGroups.EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+                val py = (s.youngMortality * years + 1.5f * hunger + 1.5f * cold + disease + eagle).coerceIn(0f, 0.95f)
                 val da = a[p] * pa; val dy = y[p] * py
                 dead[k][0] += (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years) * area
                 dead[k][1] += ((a[p] + 1.5f * y[p]) * hunger) * area
                 dead[k][2] += ((a[p] + 1.5f * y[p]) * cold) * area
                 dead[k][3] += ((a[p] + y[p]) * disease) * area
+                dead[k][4] += y[p] * eagle * area
                 a[p] -= da; y[p] -= dy
                 carcassKg[p] += (da + 0.3f * dy) * area * s.massKg
                 // Growing up.
@@ -195,7 +212,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             }
         }
         for ((k, s) in kinds.withIndex()) {
-            deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]
+            deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]; deaths["${s.name}:eagles"] = dead[k][4]
         }
     }
 
@@ -243,8 +260,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
                 val need = (1f - f[p]).coerceIn(0f, 1f)
-                val leave = SPILL_BASE + SPILL_HUNGER * need
                 val h = hw.placeHex[p]; val b = hw.placeBand[p]
+                // Hungry ones leave, and so do those whose country does not suit them, towards better.
+                val leave = SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k, h)
                 // Where they could go: the same height band in each neighbouring hex, weighed by food and how easy the border is.
                 var total = 0f
                 val ws = FloatArray(6)
@@ -256,7 +274,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val e = cross[h * 6 + d]
                     if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
-                    ws[d] = ease * (foodFor(s, q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f)
+                    ws[d] = ease * (foodFor(s, q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     total += ws[d]
                 }
                 if (total <= 0f) continue
@@ -298,5 +316,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         /** Weekly share spilling to neighbouring hexes anyway, and more when hungry. */
         const val SPILL_BASE = 0.005f
         const val SPILL_HUNGER = 0.1f
+        /** Share a week that leaves country that does not suit it, at full strength of the bearing; how strongly the bearing steers them. */
+        const val SPILL_MISFIT = 0.05f
+        const val BEARING_SPILL = 3f
     }
 }

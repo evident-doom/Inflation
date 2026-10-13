@@ -37,6 +37,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     val recent = IntArray(4) { -1 }
     /** Lineage tag for learning, -1 for none. */
     var tag = -1
+    /** How wary it is from being hunted lately, 0..1: it keeps a sharper watch, and fades over weeks. */
+    var wary = 0f
     val dailyNeedKg get() = species.dailyIntakeKg * (adults + 0.5f * young)
 }
 
@@ -62,16 +64,18 @@ fun interface HexPolicy {
  * What a group sees of a candidate place, as numbers for a learned policy: the food there and the
  * ground, crowding and danger, the weather now and coming, the snow, how far up or down it lies and
  * how much effort it takes to reach, whether it means staying, the pull of the season's remembered
- * place, and the group's own state and the time of year.
+ * place, the way to better country it senses, and the group's own state and the time of year.
  */
 object HexFeatures {
-    const val SIZE = 21
+    const val SIZE = 22
 }
 
 class HexGroups(
     private val hw: HexWorld, private val land: HexLand, private val fauna: HexFauna, private val days: Int, seed: Long,
     /** The kinds that live as groups here (default: the migratory herds and the hunters other than people). */
     kindsHere: List<Species>? = null,
+    /** Start every kind spread evenly over the land, wherever it suits it or not (to see them find their country). */
+    uniformStart: Boolean = false,
 ) {
     private val hex = hw.hex
     private val n = land.n
@@ -80,6 +84,25 @@ class HexGroups(
     private var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. */
     val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators.filter { !it.human })
+    /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
+    val bearings by lazy {
+        HexBearings(hw, kinds, { s, p, m ->
+            val fit = fauna.monthFit(s, p, m)
+            if (s.carnivore) {
+                // Resident game by weight, catchable or not: a rough sense of good hunting country.
+                val prey = residentKg(p)
+                val w = land.waterKm[p] / (2f * s.dailyTravelKm)
+                prey / (prey + PREY_HALF) * fit / (1f + w * w)
+            } else {
+                val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f
+                food / (food + 0.3f) * fauna.tether(s, p) * fit
+            }
+        }, { s -> groups.any { it.alive && it.species == s } })
+    }
+    /** Resident game in each place, kg/km², worked out once a month for the bearings. */
+    private val residentKg = FloatArray(n)
+    private fun residentKg(p: Int) = residentKg[p]
+    private val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Which pack of a kind holds each hex as its ground (key: kind × hexes + hex). */
     private val heldBy = HashMap<Long, Int>()
     /** Learned choosers by kind; kinds without one use the hand-written score. */
@@ -97,7 +120,7 @@ class HexGroups(
         for (s in kinds) {
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
             val count = (area / per / s.groupSize).toInt()
-            val weights = FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
+            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
             val total = weights.sum()
             repeat(count) {
                 var u = rnd.nextFloat() * total; var p = 0
@@ -149,7 +172,7 @@ class HexGroups(
         if (top > 0f) for (m in 0 until 12) g.seasonQ[m] /= top
     }
 
-    private fun travel(s: Species) = if (s in Routes.CLIMBERS) HexMap.Travel.CLIMB else if (!s.carnivore && s.massKg > 60f) HexMap.Travel.SWIM else HexMap.Travel.FOOT
+    private fun travel(s: Species) = Catalogue.travel(s)
 
     private fun foodFor(s: Species, p: Int): Float {
         val d = s.diet
@@ -162,6 +185,15 @@ class HexGroups(
 
     fun step(weather: Weather, date: Date) {
         kills.clear(); meetings.clear(); deaths.clear()
+        moon = date.meanMoonlight(days).toFloat()
+        if (bearings.month != date.month) {
+            java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+                var v = 0f
+                for ((k, ps) in fauna.kinds.withIndex()) v += (fauna.adults[k][p] + 0.5f * fauna.young[k][p]) * ps.massKg
+                residentKg[p] = v
+            }
+            bearings.update(date.month)
+        }
         val bySpeciesPlace = HashMap<Long, Int>()
         for (g in groups) if (g.alive) bySpeciesPlace.merge(g.species.index.toLong() * n + g.place, g.size, Int::plus)
         val predatorKg = FloatArray(n)
@@ -205,8 +237,10 @@ class HexGroups(
         // (grazing, patrolling); the net shift is a couple of days' going when content, more on a trek
         // when hungry, cold or snowed in. A pack holding ground patrols it; a starving or homeless one roams.
         val thirsty = g.dry > 0.5f * s.daysWithoutWater
-        val restless = if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty
-            else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty
+        // Far out of its country, it treks.
+        val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
+        val restless = if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
+            else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS
         val cross = hex.crossings[travel(s).ordinal]
         // Least effort to each hex within reach.
@@ -232,7 +266,7 @@ class HexGroups(
         val season = 2 * Math.PI * date.dayOfYear / Date.DAYS_PER_YEAR
         for ((h, d) in dist) {
             // A pack on its own ground stays on it while fed; and keeps off ground another pack of its kind holds.
-            if (s.carnivore && g.home >= 0 && g.fed >= 0.5f && hexKm(h, g.home) > territoryKm(s)) continue
+            if (s.carnivore && g.home >= 0 && g.fed >= 0.5f && !astray && hexKm(h, g.home) > territoryKm(s)) continue
             if (s.carnivore && g.fed >= 0.3f && h != g.home && (heldBy[s.index.toLong() * hex.size + h] ?: g.id) != g.id) continue
             for (b in 0 until HexWorld.BANDS_M.size) {
                 val p = hw.placeOf[b][h]
@@ -257,6 +291,9 @@ class HexGroups(
                     // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
                     if (fromHere > hex.hexKm) score += SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / fromHere).toFloat()
                 }
+                // Better country further off: the way the kind's sense of the land points.
+                val pull = bearings.along(kindIndex[s] ?: 0, here, h, reach.toDouble().coerceAtLeast(hex.hexKm))
+                score += BEARING_PULL * pull
                 if (p == g.place) score += STAY
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.
                 if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
@@ -288,6 +325,7 @@ class HexGroups(
                     f[18] = if (restless) 1f else 0f
                     f[19] = min(3f, land.waterKm[p] / s.dailyTravelKm)
                     f[20] = min(2f, g.dry / s.daysWithoutWater)
+                    f[21] = pull
                     candPlaces += p; candFeats += f; candScores += score
                     continue
                 }
@@ -332,13 +370,22 @@ class HexGroups(
         return v
     }
 
-    /** How catchable prey [ps] is for hunter [s] in place [p], 0..1: size against the pack, defence, and refuge in broken ground. */
+    /** Mean moonlight over this week's nights, 0 (new moon) to 1 (full). */
+    private var moon = 0.5f
+
+    /**
+     * How catchable prey [ps] is for hunter [s] in place [p], 0..1: size against the pack, defence,
+     * refuge in broken ground, small prey hiding in thick cover, and for stalkers, dark nights.
+     */
     private fun catchable(s: Species, ps: Species, p: Int): Float {
         val pack = s.groupSize * s.massKg
         val size = min(1f, pack / (1.5f * ps.massKg))
         val small = if (ps.massKg < s.massKg * 0.05f) 0.3f else 1f // too small to be worth a pack's while
         val refuge = 1f - 0.8f * max(0f, ps.habitat.rugged) * land.ruggedness[p]
-        return size * small * (1f - ps.defence) * refuge
+        val hide = if (ps.massKg < HIDING_KG) 1f - HIDING * min(1f, land.shrub[p] / 2f + land.canopy(p)) else 1f
+        // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
+        val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
+        return (size * small * (1f - ps.defence) * refuge * hide * dark).coerceIn(0f, 1f)
     }
 
     /** Herds eat in the place they end up in, after the resident herds have had theirs. */
@@ -516,7 +563,8 @@ class HexGroups(
     private fun hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd: HexGroup, rk: Int, ri: Int, h: Int, stop: IntArray) {
         meetings.merge("hunter-herd", 1, Int::plus)
         val open = openness(h, hw.placeBand[herd.place])
-        val seen = rnd.nextFloat() < VIGILANCE * open * (1f - hunter.species.stalking)
+        // A herd hunted lately keeps a sharper watch.
+        val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + herd.wary))
         if (seen) {
             meetings.merge("herd turned aside", 1, Int::plus)
             stop[rk] = min(stop[rk], max(0, ri - 1))
@@ -526,8 +574,10 @@ class HexGroups(
         val need = hunter.dailyNeedKg * days * hunter.species.diet.meat
         if (hunter.meatMet >= need) return
         val p = hw.placeOf[hw.placeBand[herd.place]][h].takeIf { it >= 0 } ?: herd.place
-        val chance = CATCH * SURPRISE * catchable(hunter.species, herd.species, p)
+        val chance = CATCH * SURPRISE * catchable(hunter.species, herd.species, p) * (1f - 0.5f * herd.wary)
         stop[rk] = min(stop[rk], ri) // scattered
+        // Caught or not, the herd is wary for weeks after.
+        herd.wary += WARY_GAIN * (1f - herd.wary)
         if (rnd.nextFloat() < chance && herd.adults > 0) {
             if (herd.young > 0 && rnd.nextFloat() < 0.5f) { herd.young--; hunter.meatMet += 0.3f * herd.species.massKg }
             else { herd.adults--; hunter.meatMet += herd.species.massKg * MEAT_SHARE }
@@ -606,8 +656,13 @@ class HexGroups(
             val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
             val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual)
             val disease = if (s.carnivore) 0f else HexFauna.DISEASE * crowd * crowd * years
-            val pa = (s.backgroundMortality * years + hunger + cold + disease + thirst).coerceIn(0f, 0.9f)
-            val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease).coerceIn(0f, 0.95f)
+            g.wary *= WARY_KEEP
+            // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
+            val homeless = if (s.carnivore && g.home < 0) DISPERSAL_DEATHS * years else 0f
+            // Eagles take the young of the smaller hoofed animals in the open.
+            val eagle = if (!s.carnivore && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
+            val pa = (s.backgroundMortality * years + hunger + cold + disease + thirst + homeless).coerceIn(0f, 0.9f)
+            val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle).coerceIn(0f, 0.95f)
             val da = binomial(g.adults, pa); val dy = binomial(g.young, py)
             g.adults -= da; g.young -= dy
             if (da + dy > 0) deaths.merge("${s.name}:${when { thirst > max(hunger, cold) -> "thirst"; hunger > cold -> "hunger"; else -> "other" }}", da + dy, Int::plus)
@@ -618,7 +673,7 @@ class HexGroups(
                 val c = HexGroup(nextId++, s, g.place, g.adults / 2, g.young / 2)
                 c.tag = g.tag
                 g.adults -= c.adults; g.young -= c.young
-                c.fed = g.fed; c.fat = g.fat; c.tag = g.tag; c.dry = g.dry
+                c.fed = g.fed; c.fat = g.fat; c.tag = g.tag; c.dry = g.dry; c.wary = g.wary
                 g.seasonPlace.copyInto(c.seasonPlace); g.seasonQ.copyInto(c.seasonQ)
                 born += c // a young pack has no ground yet
             }
@@ -688,6 +743,10 @@ class HexGroups(
         const val DANGER = 1.5f
         /** Pull of the season's remembered place, and of staying where one is. */
         const val SEASON_PULL = 1.0f
+        /** How strongly a group follows its sense of better country, per reach moved along it. */
+        const val BEARING_PULL = 0.5f
+        /** Strength of the pull to better country beyond which a group treks rather than drifts. */
+        const val ASTRAY = 0.5f
         /** How far a herd's inherited seasonal places may lie from where it starts, km. */
         const val SEASON_RANGE_KM = 120.0
         const val STAY = 0.15f
@@ -707,6 +766,18 @@ class HexGroups(
         const val MAX_MEETINGS = 4
         /** Chance a herd in fully open country sees coursing hunters first; how much likelier a kill when hunters come unseen. */
         const val VIGILANCE = 0.6f
+        /** Wariness gained in a chase, and kept from week to week. */
+        const val WARY_GAIN = 0.3f
+        const val WARY_KEEP = 0.97f
+        /** Body mass below which an animal can hide in thick cover, kg, and how much of a hunter's chance cover takes away. */
+        const val HIDING_KG = 70f
+        const val HIDING = 0.8f
+        /** How much dark or moonlit nights change a stalker's chances. */
+        const val MOON_DARK = 0.3f
+        /** Extra yearly deaths among packs without ground of their own. */
+        const val DISPERSAL_DEATHS = 0.4f
+        /** Hoofed animals up to this mass, kg, lose young to eagles. */
+        const val EAGLE_PREY_KG = 80f
         const val SURPRISE = 1.5f
         /** Strength ratio beyond which the weaker pack gives way without a fight. */
         const val FIGHT_RATIO = 1.5f
