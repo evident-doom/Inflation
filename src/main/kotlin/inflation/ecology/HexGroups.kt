@@ -84,7 +84,9 @@ class HexGroups(
         val area = land.areaKm2.sum()
         for (s in kinds) {
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
-            val count = (area / per / s.groupSize).toInt()
+            // At the density a long run showed it settles at, where there is one.
+            val settled = Catalogue.settledPer1000Km2(s)?.takeIf { HexFauna.USE_SETTLED }
+            val count = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / s.groupSize).toInt()) else (area / per / s.groupSize).toInt()
             val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
             val total = weights.sum()
             repeat(count) {

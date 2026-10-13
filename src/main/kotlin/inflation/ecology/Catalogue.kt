@@ -4,6 +4,18 @@ import kotlin.math.max
 import kotlin.math.pow
 
 object Catalogue {
+    /**
+     * Where each kind settled in a long run, animals per 1000 km² of land (settled-start.properties);
+     * null for a kind with no settled value.
+     */
+    fun settledPer1000Km2(s: Species): Float? = SETTLED[s.name]
+
+    private val SETTLED: Map<String, Float> by lazy {
+        val props = java.util.Properties()
+        Catalogue::class.java.getResourceAsStream("/settled-start.properties")?.use { props.load(it) }
+        props.stringPropertyNames().associateWith { props.getProperty(it).trim().toFloat() }
+    }
+
     /** Mountain gazelle: the staple prey of Natufian hunters. Mixed grazer and browser of open land. */
     val GAZELLE = Species(
         name = "gazelle", massKg = 20f,

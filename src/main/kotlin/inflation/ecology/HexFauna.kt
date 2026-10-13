@@ -77,6 +77,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 adults[k][p] = START_SHARE * dens * min(1f, food / FOOD_FULL) * min(1f, suits(s, p)) * climateSuits(s, p) * usualTether(s, p)
                 young[k][p] = 0.2f * adults[k][p]
             }
+            // Where a long run showed where the kind settles, start at that many, spread the same way.
+            val settled = Catalogue.settledPer1000Km2(s)
+            if (settled != null && USE_SETTLED) {
+                val want = settled * land.areaKm2.sum() / 1000f
+                val now = count(k).toFloat()
+                if (now > 0f) { val f = want / now; for (p in 0 until n) { adults[k][p] *= f; young[k][p] *= f } }
+            }
         }
     }
 
@@ -458,6 +465,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val SPILL_HUNGER = 0.1f
         /** Share of its usual density a kind starts at. */
         const val START_SHARE = 0.5f
+        /** Whether new worlds start at the settled densities (-Dhex.catalogueStart starts from the catalogue instead). */
+        val USE_SETTLED = System.getProperty("hex.catalogueStart") == null
         /** Most a plant-eater can eat in a week as a multiple of its need: coarse food fills the gut before it nourishes. */
         const val GUT_FILL = 1.5f
         /** Seed carried by fruit-eaters: kg of fruit eaten per km² that seeds a place fully; share kept from week to week. */
