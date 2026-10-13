@@ -45,16 +45,18 @@ fun main(args: Array<String>) {
             weather.step(); land.step(weather); fauna.step(weather, weather.date); herds.step(weather, weather.date)
             ns += System.nanoTime() - t0
             for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
+            for ((key, v) in herds.deaths) causes.merge(key, v.toDouble(), Double::plus)
+            for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
         }
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
         println("     groups: " + herds.kinds.joinToString(", ") { "${it.name} ${herds.count(it)}" })
         println("     this week: kills " + herds.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + herds.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
     println("deaths over the run, by cause:")
-    for (s in fauna.kinds) {
-        val c = listOf("age", "hunger", "cold", "disease").map { it to (causes["${s.name}:$it"] ?: 0.0) }
+    for (s in fauna.kinds + herds.kinds) {
+        val c = listOf("age", "hunger", "cold", "disease", "hunted", "other", "rivals").map { it to (causes["${s.name}:$it"] ?: 0.0) }
         val all = c.sumOf { it.second }.coerceAtLeast(1.0)
-        println("  %-12s ".format(s.name) + c.joinToString(", ") { (k, v) -> "$k %.0f%%".format(100 * v / all) })
+        println("  %-12s ".format(s.name) + c.filter { it.second > 0.0 }.joinToString(", ") { (k, v) -> "$k %.0f%%".format(100 * v / all) })
     }
     // Where each kind lives at the end: share in each height band.
     println("share of each kind by height band (lowest first):")

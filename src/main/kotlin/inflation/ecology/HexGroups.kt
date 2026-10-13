@@ -54,6 +54,9 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
     val meetings = java.util.TreeMap<String, Int>()
     val deaths = java.util.TreeMap<String, Int>()
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
+    /** Small game (rodents, hares, birds) in each place, kg per km²; carrion lying about, kg per km². */
+    val smallGame = FloatArray(n) { p -> SMALL_GAME_K * land.herb[p] * 0.5f }
+    val carrion = FloatArray(n)
 
     init {
         // Start each kind at its usual density over the land that suits it, in groups of its usual size.
@@ -104,6 +107,7 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
         val visits = HashMap<Int, ArrayList<HexGroup>>()
         for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
         graze(weather)
+        stepSmallGame()
         hunt(visits)
         rivals(visits)
         demography(weather, date)
@@ -237,7 +241,7 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
     private fun hunt(visits: HashMap<Int, ArrayList<HexGroup>>) {
         for (g in groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)) {
             val s = g.species
-            val need = g.dailyNeedKg * days * (s.diet.meat + s.diet.carrion)
+            val need = g.dailyNeedKg * days * s.diet.meat
             var got = 0f
             var tries = MAX_CHASES
             // The herds met on the way.
@@ -277,7 +281,33 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
                     kills.merge(ps.name, n, Int::plus)
                 }
             }
-            g.fed = (got / need.coerceAtLeast(1e-6f)).coerceIn(0f, 1f)
+            // Small game and carrion along the way make up what the big game did not.
+            val small = g.dailyNeedKg * days * s.diet.smallPrey
+            val scraps = g.dailyNeedKg * days * s.diet.carrion
+            var gotSmall = 0f; var gotScraps = 0f
+            for (h in g.path) {
+                val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
+                val swept = min(land.areaKm2[p], SWEEP_KM2 / g.path.size.coerceAtLeast(1))
+                val ts = min(small - gotSmall, smallGame[p] * swept * SMALL_TAKE).coerceAtLeast(0f)
+                smallGame[p] -= ts / swept; gotSmall += ts
+                val tc = min(scraps - gotScraps, carrion[p] * swept * 0.5f).coerceAtLeast(0f)
+                carrion[p] -= tc / swept; gotScraps += tc
+            }
+            val wantAll = g.dailyNeedKg * days * (s.diet.meat + s.diet.smallPrey + s.diet.carrion).coerceAtLeast(1e-6f)
+            g.fed = ((min(got, need) + gotSmall + gotScraps) / wantAll).coerceIn(0f, 1f)
+            // What the pack could not finish is left for the scavengers.
+            val p = g.place
+            carrion[p] += max(0f, got - need) * 0.5f / land.areaKm2[p]
+        }
+    }
+
+    /** Small game breeds towards what the grass carries; carcasses rot or are picked clean within weeks. */
+    private fun stepSmallGame() {
+        for (p in 0 until n) {
+            val k = SMALL_GAME_K * land.herb[p]
+            smallGame[p] += SMALL_GAME_GROWTH * years * smallGame[p] * (1f - smallGame[p] / k.coerceAtLeast(1e-3f)) + 0.01f
+            smallGame[p] = smallGame[p].coerceIn(0f, max(k, 0f) * 1.2f)
+            carrion[p] = carrion[p] * CARRION_KEEP + fauna.carcassKg[p] / land.areaKm2[p]
         }
     }
 
@@ -402,6 +432,12 @@ class HexGroups(private val hw: HexWorld, private val land: HexLand, private val
         const val CATCH = 0.35f
         /** Ground a hunting party sweeps in a week, km² (shared over the hexes it passes). */
         const val SWEEP_KM2 = 40f
+        /** Small game: kg per km² the grass carries per kg/m² of herbs; growth per year; share of what a hunter's sweep turns up that it catches. */
+        const val SMALL_GAME_K = 120f
+        const val SMALL_GAME_GROWTH = 4f
+        const val SMALL_TAKE = 0.3f
+        /** Share of carrion left after a week. */
+        const val CARRION_KEEP = 0.6f
         /** Share of a kill's weight that is eaten. */
         const val MEAT_SHARE = 0.6f
         const val HOME_ADVANTAGE = 1.5f

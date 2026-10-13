@@ -36,6 +36,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val young = Array(kinds.size) { FloatArray(n) }
     /** Last week's share of its wants each kind found in each place, 0..1. */
     val fed = Array(kinds.size) { FloatArray(n) { 1f } }
+    /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
+    val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals. */
     val deaths = java.util.TreeMap<String, Double>()
 
@@ -79,6 +81,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** One week, with the weather on the same places. */
     fun step(weather: Weather, date: Date) {
         deaths.clear()
+        carcassKg.fill(0f)
         graze(weather)
         breedAndDie(weather, date)
         shiftBands(weather)
@@ -152,6 +155,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 dead[k][2] += ((a[p] + 1.5f * y[p]) * cold) * area
                 dead[k][3] += ((a[p] + y[p]) * disease) * area
                 a[p] -= da; y[p] -= dy
+                carcassKg[p] += (da + 0.3f * dy) * area * s.massKg
                 // Growing up.
                 val up = y[p] * grow
                 y[p] -= up; a[p] += up

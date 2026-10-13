@@ -50,9 +50,14 @@ fun main(args: Array<String>) {
 
 object HexPicture {
     fun draw(world: World, hex: HexMap, file: java.io.File, x0: Double, y0: Double, sizeKm: Double, px: Int) {
+        javax.imageio.ImageIO.write(render(world, hex, x0, y0, sizeKm, sizeKm, px), "png", file)
+    }
+
+    /** The picture of the [w] × [h] km from (x0, y0), at [px] pixels per km. */
+    fun render(world: World, hex: HexMap, x0: Double, y0: Double, wKm: Double, hKm: Double, px: Int): BufferedImage {
         val g = world.grid
         val ck = g.cellKm
-        val w = min(sizeKm, g.width * ck - x0); val h = min(sizeKm, g.height * ck - y0)
+        val w = min(wKm, g.width * ck - x0); val h = min(hKm, g.height * ck - y0)
         val img = BufferedImage((w * px).toInt(), (h * px).toInt(), BufferedImage.TYPE_INT_RGB)
         // Fine terrain: shaded relief tinted by height, greener where the country is wooded.
         for (py in 0 until img.height) for (pxi in 0 until img.width) {
@@ -112,7 +117,7 @@ object HexPicture {
                 gr.drawLine(xa, ya, xb, yb)
             }
         }
-        javax.imageio.ImageIO.write(img, "png", file)
+        return img
     }
 
     private fun cellColour(world: World, x: Int, y: Int): Int {
