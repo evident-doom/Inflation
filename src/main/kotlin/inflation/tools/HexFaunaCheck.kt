@@ -57,6 +57,19 @@ fun main(args: Array<String>) {
         val t1 = System.nanoTime(); herds.bearings.update(0); fauna.bearings.update(0)
         println("sense of direction: setting up %.0f ms, a month's update for all kinds %.0f ms".format((t1 - t0) / 1e6, (System.nanoTime() - t1) / 1e6))
     }
+    // Where the matter is: each pool over the whole map, thousand tonnes.
+    fun budget(): String {
+        val sl = fauna.small
+        fun perM2(a: FloatArray) = a.indices.sumOf { (a[it] * land.areaKm2[it]).toDouble() } // kg/m² × km² = 1e6 kg = 1000 t
+        fun perKm2(a: FloatArray) = perM2(a) / 1e6
+        val plants = (0 until fauna.n).sumOf { (land.biomass(it) * land.areaKm2[it]).toDouble() }
+        val smallAnimals = listOf(sl.insects, sl.rodents, sl.herps, sl.pollinators, sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it) }
+        val residents = fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg } / 1e6
+        val groups = herds.groups.filter { it.alive }.sumOf { (it.adults + 0.3 * it.young) * it.species.massKg } / 1e6
+        return "plants %.0f, litter %.0f, soil organic %.0f, carrion %.2f, small animals %.2f, resident herds %.2f, herds and packs %.2f (thousand t)".format(
+            plants, perM2(sl.litter), perM2(sl.organicMatter), perM2(sl.carrion), smallAnimals, residents, groups)
+    }
+    println("     matter: " + budget())
     var ns = 0L
     val causes = java.util.TreeMap<String, Double>()
     for (y in 1..years) {
@@ -71,6 +84,7 @@ fun main(args: Array<String>) {
         }
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
         println("     small life: " + fauna.small.summary())
+        println("     matter: " + budget())
         println("     climate fit: " + fit())
         println("     land that suits / pull felt: " + drawn())
         println("     groups: " + herds.kinds.joinToString(", ") { "${it.name} ${herds.count(it)}" })

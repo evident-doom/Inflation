@@ -71,6 +71,8 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 val ny = (n * youngShare).toInt(); val na = n - ny
                 fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
                 got += na * meat + ny * 0.3f * ps.massKg
+                // Bones, hide and gut left at the kill.
+                small.carrion[p] += na * ps.massKg * (1f - MEAT_SHARE) / (area * 1e6f)
                 kills.merge(ps.name, n, Int::plus)
             }
         }
@@ -86,9 +88,10 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         }
         val wantAll = g.dailyNeedKg * days * (s.diet.meat + s.diet.smallPrey + s.diet.carrion).coerceAtLeast(1e-6f)
         g.fed = ((min(got, need) + gotSmall + gotScraps) / wantAll).coerceIn(0f, 1f)
-        // What the pack could not finish is left for the scavengers.
+        // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
         val p = g.place
-        small.carrion[p] += max(0f, got - need) * 0.5f / (land.areaKm2[p] * 1e6f)
+        small.carrion[p] += max(0f, got - need) / (land.areaKm2[p] * 1e6f)
+        small.dung[p] += HexSmallLife.DUNG * (min(got, need) + gotSmall + gotScraps) / (land.areaKm2[p] * 1e6f)
     }
 }
 
@@ -201,7 +204,10 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     herd.wary += WARY_GAIN * (1f - herd.wary)
     if (rnd.nextFloat() < chance && herd.adults > 0) {
         if (herd.young > 0 && rnd.nextFloat() < 0.5f) { herd.young--; hunter.meatMet += 0.3f * herd.species.massKg }
-        else { herd.adults--; hunter.meatMet += herd.species.massKg * MEAT_SHARE }
+        else {
+            herd.adults--; hunter.meatMet += herd.species.massKg * MEAT_SHARE
+            small.carrion[herd.place] += herd.species.massKg * (1f - MEAT_SHARE) / (land.areaKm2[herd.place] * 1e6f)
+        }
         kills.merge(herd.species.name, 1, Int::plus)
         stop[hk] = min(stop[hk], hi) // stays to eat
     }

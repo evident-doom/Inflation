@@ -157,8 +157,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 fed[k][p] = (((g + d.browse / total * bShare) * land.nourishment(p) + (d.fruit + d.roots) / total * fShare) * tether(s, p)).coerceIn(0f, 1f)
             }
             val eatenGrass = min(grass, wantGrass) / 1e6f; val eatenBrowse = min(browse, wantBrowse) / 1e6f
-            land.consume(p, LifeForm.HERB, eatenGrass)
-            land.consume(p, LifeForm.SHRUB, eatenBrowse * 0.7f); land.consume(p, LifeForm.TREE, eatenBrowse * 0.3f)
+            // Fruit, mast and roots come off the trees and the herb layer, in proportion to what each gives.
+            val eatenFruit = min(fruit, wantFruit) / 1e6f
+            val fromTrees = FRUIT_OF_TREE * land.tree[p] * small.fruitSet(p); val fromHerbs = 0.3f * land.herb[p]
+            val treeShare = if (fromTrees + fromHerbs > 0f) fromTrees / (fromTrees + fromHerbs) else 0f
+            val eaten = land.consume(p, LifeForm.HERB, eatenGrass) +
+                land.consume(p, LifeForm.SHRUB, eatenBrowse * 0.7f) + land.consume(p, LifeForm.TREE, eatenBrowse * 0.3f) +
+                land.consume(p, LifeForm.TREE, eatenFruit * treeShare) + land.consume(p, LifeForm.HERB, eatenFruit * (1f - treeShare))
+            small.dung[p] += HexSmallLife.DUNG * eaten
             land.grazing[p] = min(grass, wantGrass) / days; land.browsing[p] = min(browse, wantBrowse) / days
         }
     }

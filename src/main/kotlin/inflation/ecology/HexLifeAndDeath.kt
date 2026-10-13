@@ -66,9 +66,15 @@ internal fun HexGroups.graze(weather: Weather) {
         val reach = if (weather.temperature[p] > 4f) HexFauna.REACH else HexFauna.REACH_DORMANT
         val grass = if (snowed) 0f else min(want * d.grass / total, reach * land.herb[p])
         val browse = min(want * d.browse / total, reach * land.shrub[p])
-        land.consume(p, LifeForm.HERB, grass); land.consume(p, LifeForm.SHRUB, browse)
+        // Fruit and roots, as far as the place has them, off the trees and the herb layer.
+        val fruitWant = want * (d.fruit + d.roots) / total * min(1f, foodFor(s, p) / 0.3f)
+        val fromTrees = HexFauna.FRUIT_OF_TREE * land.tree[p] * small.fruitSet(p); val fromHerbs = 0.3f * land.herb[p]
+        val treeShare = if (fromTrees + fromHerbs > 0f) fromTrees / (fromTrees + fromHerbs) else 0f
+        val fruitGot = land.consume(p, LifeForm.TREE, fruitWant * treeShare) + land.consume(p, LifeForm.HERB, fruitWant * (1f - treeShare))
+        val eaten = land.consume(p, LifeForm.HERB, grass) + land.consume(p, LifeForm.SHRUB, browse) + fruitGot
+        small.dung[p] += HexSmallLife.DUNG * eaten
         // Grass and browse nourish fully only when green; fruit and roots keep their value.
-        val got = (grass + browse) * land.nourishment(p) + want * (d.fruit + d.roots) / total * min(1f, foodFor(s, p) / 0.3f)
+        val got = (grass + browse) * land.nourishment(p) + fruitGot
         g.fed = (got / want.coerceAtLeast(1e-9f)).coerceIn(0f, 1f)
         land.grazing[p] += grass * 1e6f / days; land.browsing[p] += browse * 1e6f / days
     }
@@ -122,6 +128,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa); val dy = binomial(g.young, py)
         g.adults -= da; g.young -= dy
+        // The dead lie where they fell, for the scavengers and the soil.
+        small.carrion[g.place] += (da + 0.3f * dy) * s.massKg / (land.areaKm2[g.place] * 1e6f)
         if (da + dy > 0) deaths.merge("${s.name}:${when { thirst > max(hunger, cold) -> "thirst"; hunger > cold -> "hunger"; else -> "other" }}", da + dy, Int::plus)
         val up = binomial(g.young, years / s.yearsToMaturity)
         g.young -= up; g.adults += up
