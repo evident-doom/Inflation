@@ -88,7 +88,15 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
     @Volatile private var stepsPerSecond = 2
 
     /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...; from where it was drawn last), its size. */
-    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int)
+    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float)
+
+    /** What the hexes are tinted by. */
+    private enum class Tint(val label: String) {
+        NONE("Ground only"), TEMPERATURE("Temperature"), SNOW("Snow lying"), RAIN("Rain this week"), GREEN("Green forage"),
+        FORAGE("Grass and browse"), SOIL("Soil water"), SMALL_GAME("Small game"), CARRION("Carrion"), RESIDENTS("Resident herds (all)"),
+    }
+    private val tintChoice = JComboBox(Tint.entries.map { it.label }.toTypedArray())
+    private val windBox = javax.swing.JCheckBox("Wind", false)
     /** Where each group was drawn at the end of the last move, km. */
     private val lastDrawn = HashMap<Int, Pair<Float, Float>>()
     @Volatile private var shown = emptyList<Shown>()
@@ -112,7 +120,9 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         val step = JButton("Step"); step.addActionListener { commands += { advance() } }
         val speed = JSlider(1, 10, stepsPerSecond); speed.addChangeListener { stepsPerSecond = speed.value }
         residentChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(residentChoice); bar.add(date)
+        tintChoice.addActionListener { map.repaint() }
+        windBox.addActionListener { map.repaint() }
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(windBox); bar.add(date)
         val bottom = JPanel(); bottom.add(counts)
         val side = JPanel(BorderLayout())
         side.add(JScrollPane(info), BorderLayout.NORTH)
@@ -152,7 +162,9 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             pts += start.first; pts += start.second
             for (ph in g.path.drop(1).dropLast(1)) { val (x, y) = hex.centreKm(ph); pts += x.toFloat(); pts += y.toFloat() }
             pts += end.first; pts += end.second
-            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size)
+            // How well it is doing: fed last week and its reserves.
+            val health = (0.5f * g.fed + 0.5f * g.fat / g.species.maxFatDays.coerceAtLeast(1f)).coerceIn(0f, 1f)
+            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size, health)
             lastDrawn[g.id] = end
         }
         shown = list
@@ -206,6 +218,67 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             val kmPx = px * scale
             fun sx(km: Float) = (ox + km * kmPx).toInt()
             fun sy(km: Float) = (oy + km * kmPx).toInt()
+            // The chosen measure as a tint over the hexes: the area-weighted mean of its bands.
+            val tint = Tint.entries[tintChoice.selectedIndex]
+            if (tint != Tint.NONE) {
+                val rad = hex.hexKm / kotlin.math.sqrt(3.0)
+                val sum = DoubleArray(hex.size); val area = DoubleArray(hex.size)
+                for (p in 0 until fauna.n) {
+                    val v = when (tint) {
+                        Tint.TEMPERATURE -> weather.temperature[p]
+                        Tint.SNOW -> weather.snowpack[p]
+                        Tint.RAIN -> weather.precipitation[p]
+                        Tint.GREEN -> land.green[p]
+                        Tint.FORAGE -> land.herb[p] + land.shrub[p]
+                        Tint.SOIL -> land.soil[p]
+                        Tint.SMALL_GAME -> groups.smallGame[p]
+                        Tint.CARRION -> groups.carrion[p]
+                        Tint.RESIDENTS -> fauna.kinds.indices.sumOf { (fauna.adults[it][p] + fauna.young[it][p]).toDouble() }.toFloat()
+                        Tint.NONE -> 0f
+                    }
+                    val h = hw.placeHex[p]; sum[h] += v * land.areaKm2[p].toDouble(); area[h] += land.areaKm2[p].toDouble()
+                }
+                for (h in 0 until hex.size) {
+                    if (area[h] <= 0) continue
+                    val v = (sum[h] / area[h]).toFloat()
+                    val colour = when (tint) {
+                        Tint.TEMPERATURE -> heat(((v + 15f) / 50f).coerceIn(0f, 1f), 0.55f)
+                        Tint.SNOW -> if (v < 5f) null else Color(1f, 1f, 1f, (0.25f + 0.6f * min(1f, v / 300f)))
+                        Tint.RAIN -> if (v < 2f) null else Color(0.1f, 0.3f, 1f, (0.2f + 0.6f * min(1f, v / 80f)))
+                        Tint.GREEN -> Color(1f - v, 0.9f, 0.1f, 0.5f)
+                        Tint.FORAGE -> Color(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
+                        Tint.SOIL -> Color(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
+                        Tint.SMALL_GAME -> Color(0.9f, 0.5f, 0.1f, (0.1f + 0.7f * min(1f, v / 60f)))
+                        Tint.CARRION -> Color(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
+                        Tint.RESIDENTS -> Color(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
+                        Tint.NONE -> null
+                    } ?: continue
+                    val (cx, cy) = hex.centreKm(h)
+                    val xs = IntArray(6) { sx((cx + rad * kotlin.math.cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                    val ys = IntArray(6) { sy((cy + rad * kotlin.math.sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                    g.color = colour; g.fillPolygon(xs, ys, 6)
+                }
+            }
+            // Wind as small arrows, every few hexes, longer and brighter the stronger.
+            if (windBox.isSelected) {
+                val every = max(1, (2.0 / scale).toInt())
+                for (h in 0 until hex.size) {
+                    val col = h % hex.cols; val row = h / hex.cols
+                    if (col % every != 0 || row % every != 0) continue
+                    val p = (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: continue
+                    val u = weather.windEast(p); val v = weather.windSouth(p)
+                    val speed = hypot(u, v)
+                    if (speed < 0.3f) continue
+                    val (cx, cy) = hex.centreKm(h)
+                    val len = (min(1f, speed / 12f) * hex.hexKm * every * 0.8).toFloat()
+                    val x0 = sx(cx.toFloat()); val y0 = sy(cy.toFloat())
+                    val x1 = sx(cx.toFloat() + u / speed * len); val y1 = sy(cy.toFloat() + v / speed * len)
+                    g.color = Color(1f, 1f, 1f, (0.4f + 0.6f * min(1f, speed / 12f)))
+                    g.drawLine(x0, y0, x1, y1)
+                    val ang = kotlin.math.atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
+                    for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * kotlin.math.cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * kotlin.math.sin(ang + sgn * 0.5)).toInt())
+                }
+            }
             // A resident kind's density as a tint over the hexes.
             val r = residentChoice.selectedIndex - 1
             if (r >= 0) {
@@ -239,8 +312,10 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
                 val (x, y) = along(w, t)
                 val sp = Catalogue.all[s.kind]
                 if (s.carnivore) {
-                    g.color = Color.WHITE; g.fillRect(sx(x) - 3, sy(y) - 3, 7, 7)
-                    g.color = Color(0xd01010); g.fillRect(sx(x) - 2, sy(y) - 2, 5, 5)
+                    // Hunters fade as they starve.
+                    val a = 0.25f + 0.75f * s.health
+                    g.color = Color(1f, 1f, 1f, a); g.fillRect(sx(x) - 3, sy(y) - 3, 7, 7)
+                    g.color = Color(0.82f, 0.06f, 0.06f, a); g.fillRect(sx(x) - 2, sy(y) - 2, 5, 5)
                 } else {
                     g.color = Color(0x101010); g.fillOval(sx(x) - 3, sy(y) - 3, 7, 7)
                     g.color = Color(KIND_COLOURS[sp.index % KIND_COLOURS.size]); g.fillOval(sx(x) - 2, sy(y) - 2, 5, 5)
@@ -271,11 +346,29 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             val p = hw.placeOf[b][h]
             if (p < 0) continue
             sb.appendLine("band %d (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.soil[p]))
-            sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², rugged %.2f, refuge %.2f, lookout %.0f km".format(land.herb[p], land.shrub[p], land.tree[p], land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
+            sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², green %.0f%%, rugged %.2f, refuge %.2f, lookout %.0f km".format(land.herb[p], land.shrub[p], land.tree[p], 100 * land.green[p], land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
+            sb.appendLine("   rain %.0f mm this week, wind %.1f m/s".format(weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p))))
             val res = fauna.kinds.indices.filter { fauna.adults[it][p] + fauna.young[it][p] > 0.01f }
                 .joinToString(", ") { "%s %.1f".format(fauna.kinds[it].name, fauna.adults[it][p] + fauna.young[it][p]) }
             if (res.isNotEmpty()) sb.appendLine("   resident herds per km²: $res")
         }
+        // Everything living here, in head counts for the whole hex.
+        var totalArea = 0f
+        val residents = DoubleArray(fauna.kinds.size)
+        var food = 0.0; var small = 0.0; var carrion = 0.0
+        for (b in 0 until HexWorld.BANDS_M.size) {
+            val p = hw.placeOf[b][h]
+            if (p < 0) continue
+            val a = land.areaKm2[p]; totalArea += a
+            for (k in fauna.kinds.indices) residents[k] += ((fauna.adults[k][p] + fauna.young[k][p]) * a).toDouble()
+            food += ((land.herb[p] + land.shrub[p]) * a).toDouble() // kg/m² × km² = 1e6 kg
+            small += (groups.smallGame[p] * a).toDouble(); carrion += (groups.carrion[p] * a).toDouble()
+        }
+        val gs = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
+        sb.appendLine("in the hex (%.0f km²):".format(totalArea))
+        sb.appendLine("   resident herds: " + fauna.kinds.indices.filter { residents[it] >= 0.5 }.joinToString(", ") { "%s %.0f".format(fauna.kinds[it].name, residents[it]) }.ifEmpty { "none" })
+        sb.appendLine("   herds and packs: " + gs.groupBy { it.species }.entries.joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
+        sb.appendLine("   forage (grass and browse) %.0f t, small game %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
         sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.meanFlow[h], land.flow[h]))
         sb.append("borders (on foot, ground + water):")
         val dirs = arrayOf("E", "SE", "SW", "W", "NW", "NE")
@@ -288,7 +381,7 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
         val here = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
         groupIds = here.map { it.id }.toIntArray()
         groupList.clear()
-        for (g in here) groupList.addElement("%s #%d: %d adults, %d young, fed %.0f%%".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed))
+        for (g in here) groupList.addElement("%s #%d: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed, g.fat))
         groupInfo.text = ""
     }
 
@@ -310,6 +403,12 @@ class HexViewer(world: World) : JPanel(BorderLayout()) {
             sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
         }
         groupInfo.text = sb.toString()
+    }
+
+    /** A colour from blue (0) through green and yellow to red (1), with alpha [a]. */
+    private fun heat(v: Float, a: Float): Color {
+        val r = (1.5f * v - 0.25f).coerceIn(0f, 1f); val g = (1f - kotlin.math.abs(v - 0.5f) * 2f).coerceIn(0f, 1f); val b = (1f - 1.5f * v).coerceIn(0f, 1f)
+        return Color(r, g, b, a)
     }
 
     companion object {
