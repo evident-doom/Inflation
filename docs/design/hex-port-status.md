@@ -136,7 +136,7 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Burning off, camp fires against lions and hyenas, defensible camps | yes |
 | Knowing the country (walked, seen, told of by bands understood), forgetting far country | yes |
 | Sharing on demand: hungry bands fed by better-stocked bands nearby | yes |
-| Camp followers growing bold, pups taken, dogs kept (hunting, guarding) | yes (wolves, jackals) |
+| Camp followers growing bold, pups taken, dogs kept (hunting, guarding) | yes, behind -Dhex.taming (off by default) |
 | Firewood, middens, worn routes, scouting, land claims, ornaments and renown, gatherings, task groups | no |
 | Keeping herd animals, tending plants | no |
 | Learned bands | started: imitation (92% same choice) and evolution |
