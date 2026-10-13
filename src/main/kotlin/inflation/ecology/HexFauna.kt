@@ -197,7 +197,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
             Profile.time("sense of direction") { bearings.update(date.month) }
-            if (date.month == 0) shiftBreeding()
+            if (date.month == 3) shiftBreeding()
         }
         Profile.time("food stocks") { food.step(weather) }
         Profile.time("water life") { water.step(weather) }
@@ -281,12 +281,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Reserves carry them through lean weeks; they lay them on in good ones, most in late summer and autumn.
                 val r = reserve[k]
                 if (f < 1f) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days) }
-                else r[p] = min(s.maxFatDays, r[p] + (if (weather.date.month in 4..7) AUTUMN_FAT else 0.3f) * days)
+                else r[p] = min(s.maxFatDays, r[p] + (if (weather.date.month in 7..10) AUTUMN_FAT else 0.3f) * days)
                 fed[k][p] = f
                 val fm = fedByMonth[k]; val i = p * 12 + weather.date.month
                 fm[i] += (fed[k][p] - fm[i]) * FED_MEMORY
                 // Laying on fat for the winter: how well fed through late summer and autumn.
-                if (s.hibernates && weather.date.month in 4..8 && !asleep(s, p, weather)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
+                if (s.hibernates && weather.date.month in 7..11 && !asleep(s, p, weather)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
             }
             val dug = food.take(food.roots, p, eatR)
             val ate = food.take(food.fruit, p, eatF)

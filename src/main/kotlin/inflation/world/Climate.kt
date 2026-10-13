@@ -41,9 +41,9 @@ class Climate(
 
     companion object {
         const val LAPSE_RATE = 6.5e-3
-        /** Day of the year (from the spring equinox) with the warmest and wettest climate. */
-        const val WARMEST_DAY = 120.0
-        const val WETTEST_DAY = 300.0
+        /** Day of the year (from the winter solstice) with the warmest and wettest climate: late July, early January. */
+        const val WARMEST_DAY = 210.0
+        const val WETTEST_DAY = 30.0
 
         fun latitudeOfRow(cfg: WorldConfig, grid: Grid, y: Int): Double =
             cfg.northLatitude - (cfg.northLatitude - cfg.southLatitude) * y / (grid.height - 1).coerceAtLeast(1)

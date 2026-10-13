@@ -36,6 +36,8 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     private val slope = FloatArray(n) { p -> mean(p) { world.terrain.slope[it] } }
     /** Share of waterlogged ground (marsh, bog, salt marsh), where woody plants drown. */
     private val logged = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
+    /** Share of the ground where good knapping stone (flint, obsidian) crops out. */
+    val stone = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and (Mineral.FLINT or Mineral.OBSIDIAN) != 0) 1f else 0f } }
     /** Share of floodplain, which a river in spate covers. */
     val floodShare = FloatArray(n) { p -> mean(p) { if (world.floodplain.isFloodplain[it]) 1f else 0f } }
     private val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }

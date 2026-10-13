@@ -37,16 +37,16 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         val month = weather.date.month
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             // Fruit ripens from midsummer to autumn, then falls and rots.
-            val ripe = if (month in 4..7) FRUIT_SHARE * bearing(p) * small.fruitSet(p) / FRUIT_DAYS else 0f
+            val ripe = if (month in 7..10) FRUIT_SHARE * bearing(p) * small.fruitSet(p) / FRUIT_DAYS else 0f
             val fallen = fruit[p] * min(1f, days / FRUIT_DAYS)
             fruit[p] = max(0f, fruit[p] + days * ripe - fallen)
             small.litter[p] += fallen
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
-            val ripeSeed = if (month in 2..4) SEED_SHARE * land.herb[p] / SEED_DAYS else 0f
+            val ripeSeed = if (month in 5..7) SEED_SHARE * land.herb[p] / SEED_DAYS else 0f
             val shed = seeds[p] * min(1f, days / SEED_DAYS)
             seeds[p] = max(0f, seeds[p] + days * ripeSeed - shed)
             small.litter[p] += shed
-            val r = rootsCap(p) * (if (month in 6..8) 3f else 0.5f) / ROOTS_DAYS
+            val r = rootsCap(p) * (if (month in 9..11) 3f else 0.5f) / ROOTS_DAYS
             roots[p] = max(0f, roots[p] + days * (r - roots[p] / ROOTS_DAYS))
             straw[p] = max(0f, straw[p] + days * (strawCap(p) - straw[p]) / STRAW_DAYS)
         }

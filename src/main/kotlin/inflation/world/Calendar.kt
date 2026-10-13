@@ -11,8 +11,10 @@ enum class Season { SPRING, SUMMER, AUTUMN, WINTER }
 enum class MoonPhase { NEW, WAXING_CRESCENT, FIRST_QUARTER, WAXING_GIBBOUS, FULL, WANING_GIBBOUS, LAST_QUARTER, WANING_CRESCENT }
 
 /**
- * World time. A year is 12 months of 30 days, day 0 of the year being the spring equinox; the
- * months are the simulation's bookkeeping, not anything its people can see. The moon keeps its own
+ * World time. A year is 12 months of 30 days, day 0 of the year being the winter solstice, so the
+ * months run roughly as ours do (month 1 is about January, month 7 about July); the months are the
+ * simulation's bookkeeping, not anything its people can see. A run starts at the spring equinox of
+ * year 0 ([START_DAY]), at the end of winter, so nothing starts out in the cold. The moon keeps its own
  * time, a synodic month of 29.53 days from a new moon on day 0, so its phases slide against the
  * seasons by about six days a year: a calendar of moons drifts, as real lunar calendars do.
  */
@@ -24,7 +26,7 @@ data class Date(val absoluteDay: Long) {
     /** 1-based day of month, 1..30. */
     val dayOfMonth: Int get() = dayOfYear % DAYS_PER_MONTH + 1
 
-    val season: Season get() = Season.entries[dayOfYear / 90]
+    val season: Season get() = Season.entries[(dayOfYear / 90 + 3) % 4]
 
     /** Fraction of the lunar cycle, 0 = new moon, 0.5 = full moon. */
     val moonAge: Double get() = (absoluteDay / SYNODIC_MONTH).let { it - kotlin.math.floor(it) }
@@ -43,8 +45,8 @@ data class Date(val absoluteDay: Long) {
      */
     val tideRange: Double get() = 1 + 0.3 * cos(4 * PI * moonAge)
 
-    /** Solar declination in radians: 0 at the equinoxes, +23.44° at the summer solstice (day 90). */
-    val solarDeclination: Double get() = 23.44 * PI / 180 * sin(2 * PI * dayOfYear / DAYS_PER_YEAR)
+    /** Solar declination in radians: 0 at the equinoxes (days 90 and 270), +23.44° at the summer solstice (day 180). */
+    val solarDeclination: Double get() = 23.44 * PI / 180 * sin(2 * PI * (dayOfYear - START_DAY) / DAYS_PER_YEAR)
 
     /** Hours of daylight at [latitudeDeg]. */
     fun dayLengthHours(latitudeDeg: Double): Double {
@@ -61,6 +63,8 @@ data class Date(val absoluteDay: Long) {
         const val DAYS_PER_MONTH = 30
         const val MONTHS_PER_YEAR = 12
         const val DAYS_PER_YEAR = DAYS_PER_MONTH * MONTHS_PER_YEAR
+        /** The spring equinox, day of the year a run starts on. */
+        const val START_DAY = 90
         /** Days from one new moon to the next. */
         const val SYNODIC_MONTH = 29.530589
     }

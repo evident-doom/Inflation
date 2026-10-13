@@ -104,7 +104,7 @@ class HexGroups(
                 while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
                 val g = HexGroup(nextId++, s, p, s.groupSize, max(0, s.groupSize / 3))
                 g.fat = 0.5f * s.maxFatDays
-                if (s.human) g.larder = START_LARDER_DAYS * g.dailyNeedKg
+                if (s.human) { g.larder = START_LARDER_DAYS * g.dailyNeedKg; g.band = Band.start(land.waterKm[p] < 3f) }
                 if (s.carnivore && !s.human) g.home = hw.placeHex[p] else inheritSeasons(g)
                 groups += g
             }
@@ -242,7 +242,8 @@ class HexGroups(
     private val topKind = IntArray(n) { -1 }
 
     /** A hunting party's fighting strength: weight, ferocity. */
-    internal fun strength(g: HexGroup) = g.adults * g.species.massKg * g.species.ferocity
+    internal fun strength(g: HexGroup) = g.adults * g.species.massKg * ferocity(g)
+    internal fun ferocity(g: HexGroup) = g.band?.ferocity(g.species) ?: g.species.ferocity
 
     internal fun plan(g: HexGroup, weather: Weather, date: Date, kin: HashMap<Long, Int>, predatorKg: FloatArray): Pair<Int, IntArray> {
         val s = g.species
@@ -288,7 +289,7 @@ class HexGroups(
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
         val policy = policies[s]
         val candPlaces = ArrayList<Int>(); val candFeats = ArrayList<FloatArray>(); val candScores = ArrayList<Float>()
-        val season = 2 * Math.PI * date.dayOfYear / Date.DAYS_PER_YEAR
+        val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         for (h in reached) {
             val d = dist[h]
             // A pack on its own ground stays on it while fed; and keeps off ground another pack of its kind holds.

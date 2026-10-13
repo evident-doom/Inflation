@@ -237,7 +237,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 insects[p] *= 1f - 0.8f * b; herps[p] *= 1f - 0.7f * b; rodents[p] *= 1f - 0.5f * b; pollinators[p] *= 1f - 0.5f * b
             }
             // ---- pollinators on flowers in spring; grazing leaves fewer flowers.
-            val flowering = month in 0..4
+            val flowering = month in 3..7
             val flowers = (land.herb[p] + 0.5f * land.shrub[p]) * (if (flowering) 1f else 0.2f) * (1f - 0.5f * (1f - exp(-land.grazing[p] / 5f)))
             var po = pollinators[p]
             if (t > 12f) {
@@ -259,8 +259,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     private fun stepGame(p: Int, t: Float, month: Int, burnt: Float) {
         if (land.biomass(p) <= 0f) { hares[p] = 0f; hyrax[p] = 0f; birds[p] = 0f; for (b in bird) b[p] = 0f; tortoises[p] = 0f; foxes[p] = 0f; return }
         val mild = t > 5f
-        hares[p] = logistic(p, hares[p], if (month in 0..6 && mild) 4f else 0f, 0.9f, hareCapacity(p))
-        hyrax[p] = logistic(p, hyrax[p], if (month in 1..3) 2.5f else 0f, 0.4f, hyraxCapacity(p))
+        hares[p] = logistic(p, hares[p], if (month in 3..9 && mild) 4f else 0f, 0.9f, hareCapacity(p))
+        hyrax[p] = logistic(p, hyrax[p], if (month in 4..6) 2.5f else 0f, 0.4f, hyraxCapacity(p))
         var all = 0f
         for (k in bird.indices) {
             val b = BIRDS[k]; val f = bird[k]
@@ -275,7 +275,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
         birds[p] = all
         val active = t in 14f..33f && land.soil[p] > 8f
-        tortoises[p] = logistic(p, tortoises[p], if (active && month in 1..5) 0.8f else 0f, if (active) 0.15f else 0.05f, tortoiseCapacity(p))
+        tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) 0.8f else 0f, if (active) 0.15f else 0.05f, tortoiseCapacity(p))
         // Foxes and wildcats eat about a seventh of their weight a day, mostly rodents, then hares and
         // birds; they breed in spring as the food allows, and die back when it fails.
         val prey = rodents[p] + hares[p] + birds[p] + 0.03f * insects[p]
@@ -286,7 +286,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             rodents[p] -= rodents[p] * f; hares[p] -= hares[p] * f; takeBirds(p, f)
         }
         val fed = if (need > 0f) got / need else 1f
-        foxes[p] = logistic(p, foxes[p], if (month in 1..3) 1.5f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey)
+        foxes[p] = logistic(p, foxes[p], if (month in 4..6) 1.5f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey)
         // Eagles: a pair needs about a kilo a day; they take what is out in the open among the rocks.
         if (eagleCrags[p] > 0f) {
             val open = open(p)
@@ -302,7 +302,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             }
             // Fawns and kids make up much of what the small game does not.
             val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
-            eagles[p] = logistic(p, eagles[p], if (month in 1..3) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p]) // (an index, not kg: their dead are not counted)
+            eagles[p] = logistic(p, eagles[p], if (month in 4..6) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p]) // (an index, not kg: their dead are not counted)
         }
         // Fire: tortoises die where it burns; the rest bolt and many young die.
         if (burnt > 0f) {
@@ -346,7 +346,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             }
             val fed = if (need > 0f) min(1f, got / need) else 1f
             var b = vultures[k]
-            if (month in 1..2) b += b * 0.5f * fed * years * 6f // one chick a pair, in late winter
+            if (month in 1..2) b += b * 0.5f * fed * years * 6f // one chick a pair, hatched in late winter
             b -= b * (0.08f * years + 0.4f * years * (1f - fed))
             vultures[k] = if (b < 2f) 0f else min(b, 2000f) // a colony below a pair is gone
         }
@@ -404,16 +404,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     companion object {
         val WETLANDS = setOf("MARSH", "SWAMP_FOREST", "BOG", "SALT_MARSH", "MANGROVE")
         /**
-         * The wild birds. Months count from the spring equinox: quail are here from spring to early
-         * autumn, greylag geese from autumn to early spring.
+         * The wild birds. Months count from the winter solstice (0 about January): quail are here
+         * from spring to early autumn, greylag geese from autumn to early spring.
          */
         val BIRDS = listOf(
-            BirdKind("chukar", 1..3, 4f, 0.9f, null, floatArrayOf(0.7f, 0.7f, 0.5f, 0.5f, 0.6f, 0.6f)),
-            BirdKind("quail", 1..4, 6f, 1.2f, (1..6).toSet(), floatArrayOf(0.7f, 0.9f, 0.7f, 0.5f, 0.5f, 0.4f)),
-            BirdKind("sandgrouse", 1..4, 3f, 0.7f, null, floatArrayOf(0.5f, 0.6f, 0.2f, 0.3f, 0.3f, 0.4f)),
-            BirdKind("rock dove", 0..7, 5f, 0.8f, null, floatArrayOf(0.9f, 0.9f, 0.9f, 0.8f, 0.7f, 0.6f)), // became the pigeon
-            BirdKind("mallard", 1..3, 4f, 0.8f, null, floatArrayOf(0.9f, 0.8f, 0.8f, 0.7f, 0.6f, 0.6f)), // became the duck
-            BirdKind("greylag goose", 2..3, 3f, 0.5f, (setOf(7, 8, 9, 10, 11, 0)), floatArrayOf(0.8f, 0.8f, 0.8f, 0.6f, 0.6f, 0.8f)), // became the goose
+            BirdKind("chukar", 4..6, 4f, 0.9f, null, floatArrayOf(0.7f, 0.7f, 0.5f, 0.5f, 0.6f, 0.6f)),
+            BirdKind("quail", 4..7, 6f, 1.2f, (4..9).toSet(), floatArrayOf(0.7f, 0.9f, 0.7f, 0.5f, 0.5f, 0.4f)),
+            BirdKind("sandgrouse", 4..7, 3f, 0.7f, null, floatArrayOf(0.5f, 0.6f, 0.2f, 0.3f, 0.3f, 0.4f)),
+            BirdKind("rock dove", 3..10, 5f, 0.8f, null, floatArrayOf(0.9f, 0.9f, 0.9f, 0.8f, 0.7f, 0.6f)), // became the pigeon
+            BirdKind("mallard", 4..6, 4f, 0.8f, null, floatArrayOf(0.9f, 0.8f, 0.8f, 0.7f, 0.6f, 0.6f)), // became the duck
+            BirdKind("greylag goose", 5..6, 3f, 0.5f, (setOf(10, 11, 0, 1, 2, 3)), floatArrayOf(0.8f, 0.8f, 0.8f, 0.6f, 0.6f, 0.8f)), // became the goose
         )
         /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
         const val VULTURE_RANGE_KM = 80.0

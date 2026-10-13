@@ -95,6 +95,8 @@ internal fun HexGroups.graze(weather: Weather) {
 }
 
 internal fun HexGroups.demography(weather: Weather, date: Date) {
+    // Bands keep or move camp, gather materials and make their tools.
+    for (g in groups) if (g.alive && g.band != null) bandWeek(g, date)
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
         if (!g.alive || !g.species.carnivore) continue
@@ -134,6 +136,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             // A band that splits shares out its larder by heads.
             val share = (c.first + c.second).toFloat() / (g.size + c.first + c.second).coerceAtLeast(1)
             n.larder = g.larder * share; g.larder -= n.larder
+            // Both halves keep what the band knew and share out its tools and goods.
+            g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] } } }
             g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
         } } // a young pack has no ground yet
     }
@@ -151,10 +155,10 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // Reserves carry a group through lean weeks.
         // Reserves carry a group through lean weeks; it lays on most in late summer and autumn.
         if (g.fed < 1f) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
-        else g.fat = min(s.maxFatDays, g.fat + (if (date.month in 4..7) AUTUMN_FAT else 0.3f) * days)
+        else g.fat = min(s.maxFatDays, g.fat + (if (date.month in 7..10) AUTUMN_FAT else 0.3f) * days)
         if (g.birthMonth < 0) g.birthMonth = s.birthMonth
         // Once a year its births move a month towards the months it fed best in (the birth month and the two after).
-        if (date.month == 0 && date.dayOfMonth <= days && !s.carnivore) {
+        if (date.month == 3 && date.dayOfMonth <= days && !s.carnivore) {
             fun window(m0: Int) = (0 until 3).sumOf { g.seasonQ[(m0 + it + 12) % 12].toDouble() }
             val m = g.birthMonth
             if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = (m + 11) % 12
@@ -167,13 +171,15 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
                 if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
             } else {
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                binomial(g.adults / 2, s.youngPerFemale * s.littersPerYear * g.fed / stepsInSeason, r)
+                binomial(g.adults / 2, s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) / stepsInSeason, r)
             }
             g.young += births
             bornNow = births
         }
         val hunger = if (g.fed < 0.5f) (0.5f - g.fed) * 0.3f else 0f
-        val cold = discomfort(s, g.place, weather) * 0.02f
+        // People feel the cold as their clothes allow.
+        val cold = (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: discomfort(s, g.place, weather)) * 0.02f
+        val fouled = campFouling(g) * years
         // Thirst: drinks where there is water; otherwise days without water mount, eased by the water in green food.
         val p0 = g.place
         // It drinks where there is water, or where water is within half a day's going of where it is.
@@ -195,12 +201,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
         val pa = (s.backgroundMortality * years + hunger + cold + disease + thirst + homeless + fireA + floodA + snowA).coerceIn(0f, 0.9f)
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
-        val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc).coerceIn(0f, 0.95f)
+        val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
         g.adults -= da; g.young -= dy
         // The dead lie where they fell, for the scavengers and the soil.
         var carrion = (da + 0.3f * dy) * s.massKg
-        val causes = listOf("hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless)
+        val causes = listOf("hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled)
         val main = causes.maxBy { it.second }
         val cause = if (main.second > 0f) main.first else "other"
         val up = binomial(g.young, years / s.yearsToMaturity, r)

@@ -59,7 +59,7 @@ class Species(
      * antelope barely drink while plants are green; cattle and wild asses must drink every day or two.
      */
     val waterFromFood: Float,
-    /** Birth season: first month (0-based) and length in months. */
+    /** Birth season: first month (0-based from the winter solstice: 0 about January) and length in months. */
     val birthMonth: Int,
     val birthMonths: Int,
     /** Litters a year in good years: small breeders fit in several. */
@@ -155,7 +155,7 @@ class Species(
     val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, carnivore)
 
     /**
-     * How far its coat stretches the cold end in [month] (from the spring equinox), °C: a winter coat
+     * How far its coat stretches the cold end in [month] (from the winter solstice), °C: a winter coat
      * grows in through the autumn to 10 °C and is moulted in spring.
      */
     fun coatC(month: Int): Float = if (winterCoat) 10f * COAT[month] else 0f
@@ -167,8 +167,8 @@ class Species(
     fun discomfortC(t: Float, month: Int): Float = coldC(t, month) + hotC(t)
 
     companion object {
-        /** Share of a winter coat grown, by month from the spring equinox. */
-        private val COAT = floatArrayOf(0.5f, 0.2f, 0f, 0f, 0f, 0.2f, 0.5f, 0.8f, 1f, 1f, 1f, 0.9f)
+        /** Share of a winter coat grown, by month from the winter solstice. */
+        private val COAT = floatArrayOf(1f, 1f, 0.9f, 0.5f, 0.2f, 0f, 0f, 0f, 0.2f, 0.5f, 0.8f, 1f)
     }
 }
 

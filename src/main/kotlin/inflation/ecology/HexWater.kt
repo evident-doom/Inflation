@@ -421,7 +421,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
      * shellfish from shallow shores. Takes up to [kg]; returns kg caught. Each source gives at most a
      * share a week, so a band cannot empty a river.
      */
-    fun fishFor(h: Int, kg: Float): Float {
+    fun fishFor(h: Int, kg: Float, skill: Float = 1f): Float {
         var left = kg
         val landKm2 = max(1f, hw.land[h] * hexKm2)
         fun take(stock: FloatArray, q: Int, areaKm2: Float, share: Float) {
@@ -429,11 +429,11 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val t = min(left, share * stock[q] * areaKm2)
             stock[q] -= t / areaKm2; left -= t
         }
-        take(run, h, landKm2, 0.3f)
-        take(riverFish, h, landKm2, 0.05f)
+        take(run, h, landKm2, 0.3f * skill)
+        take(riverFish, h, landKm2, 0.05f * skill)
         for (q in listOf(h) + (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 }) {
-            take(fish, q, waterKm2[q], PEOPLE_FISHING)
-            take(shellfish, q, seaKm2[q] * shallow[q], PEOPLE_SHELLFISH)
+            take(fish, q, waterKm2[q], PEOPLE_FISHING * skill)
+            take(shellfish, q, seaKm2[q] * shallow[q], PEOPLE_SHELLFISH * skill)
         }
         return kg - left
     }
@@ -462,11 +462,11 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
     companion object {
         val SEA = listOf(
-            SeaKind("fin whale", 50_000f, SeaFood.PLANKTON, 0.015f, 100f, 9, 2, 0.4f, 0.03f, 1f, 800f),
-            SeaKind("dolphin", 80f, SeaFood.FISH, 0.05f, 60f, 3, 3, 0.4f, 0.06f, 0.7f, 15f),
-            SeaKind("porpoise", 55f, SeaFood.FISH, 0.08f, 30f, 3, 2, 0.8f, 0.12f, 0.4f, 20f, maxShoreKm = 25f),
-            SeaKind("monk seal", 300f, SeaFood.FISH, 0.05f, 20f, 6, 3, 0.5f, 0.07f, 0.3f, 30f, maxShoreKm = 12f),
-            SeaKind("shark", 800f, SeaFood.PREY, 0.01f, 60f, 4, 2, 0.6f, 0.05f, 1f, 2500f),
+            SeaKind("fin whale", 50_000f, SeaFood.PLANKTON, 0.015f, 100f, 0, 2, 0.4f, 0.03f, 1f, 800f),
+            SeaKind("dolphin", 80f, SeaFood.FISH, 0.05f, 60f, 6, 3, 0.4f, 0.06f, 0.7f, 15f),
+            SeaKind("porpoise", 55f, SeaFood.FISH, 0.08f, 30f, 6, 2, 0.8f, 0.12f, 0.4f, 20f, maxShoreKm = 25f),
+            SeaKind("monk seal", 300f, SeaFood.FISH, 0.05f, 20f, 9, 3, 0.5f, 0.07f, 0.3f, 30f, maxShoreKm = 12f),
+            SeaKind("shark", 800f, SeaFood.PREY, 0.01f, 60f, 7, 2, 0.6f, 0.05f, 1f, 2500f),
         )
         /** Phytoplankton, g/m², that a full nutrient supply can sustain. */
         const val NUTRIENT_SCALE = 10f
@@ -483,7 +483,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val FISH_DEATHS = 0.3f
         /** Mean gradient between hexes run fish cannot climb. */
         const val CASCADE_GRADIENT = 0.012f
-        const val RUN_START_DAY = 30
+        const val RUN_START_DAY = 120
         const val RUN_DAYS = 60
         const val RUN_KM_PER_DAY = 20f
         const val RUN_PER_COASTAL_FISH = 2f

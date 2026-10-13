@@ -157,6 +157,14 @@ fun main(args: Array<String>) {
             val gs = herds.groups.filter { it.alive && it.species == s }
             "%s %d / %d / %d / %d / %d / %d".format(s.name, gs.size, gs.count { it.home >= 0 }, gs.count { it.home >= 0 && it.adults >= 2 }, gs.count { it.adults == 1 }, gs.sumOf { it.adults }, gs.sumOf { it.young })
         })
+        // Bands: their skills, the tools they know and how full their kit is, how long they keep camp, their larders.
+        val bands = herds.groups.filter { it.alive && it.band != null }
+        if (bands.isNotEmpty()) {
+            val bs = bands.map { it.band!! }
+            println("     bands: skills " + inflation.ecology.Forage.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.craft[f.ordinal] }.average()) } +
+                " | tools known (kit) " + inflation.ecology.Tool.entries.joinToString(", ") { t -> "%s %.0f%% (%.2f)".format(t.name.lowercase(), 100.0 * bs.count { it.knows[t.ordinal] } / bs.size, bs.map { it.kit[t.ordinal] }.average()) } +
+                " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(), bands.map { it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f) }.average()))
+        }
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     droughts under way: " + sim.weather.droughts())
         System.out.flush()

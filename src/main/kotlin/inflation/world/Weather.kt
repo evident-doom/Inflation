@@ -115,9 +115,9 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
 
     val events = ArrayList<ClimateEvent>()
 
-    var date = Date(0); private set
+    var date = Date(Date.START_DAY.toLong()); private set
     /** Month (0..11) of the step most recently simulated. */
-    var lastMonth = 0; private set
+    var lastMonth = Date.START_DAY / Date.DAYS_PER_MONTH; private set
     /** Mean air temperature over the last step, °C. */
     val temperature = FloatArray(n)
     /** Rain and snow that fell during the last step, mm water. */
