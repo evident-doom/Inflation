@@ -161,6 +161,8 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
                 val j = grid.index(nx, ny)
                 if (owner[j] != a && owner[j] != b) continue
                 if (!walk[j].isFinite()) continue
+                // No slipping diagonally between two cells of a river or cliff line.
+                if (k >= 4 && (!walk[grid.index(xi + DX8[k], yi)].isFinite() || !walk[grid.index(xi, yi + DY8[k])].isFinite())) continue
                 val nd = dd + (if (k < 4) 1f else 1.4142f) * ck * 0.5f * (walk[i] + walk[j])
                 if (nd < (dist[j] ?: Float.POSITIVE_INFINITY)) { dist[j] = nd; via[j] = i; q += nd to j }
             }

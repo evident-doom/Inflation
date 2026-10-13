@@ -136,6 +136,7 @@ private fun fine(world: World, walk: FloatArray, a: Int, b: Int, km: Int): Float
             if (nx < x0 || nx > x1 || ny < y0 || ny > y1) continue
             val j = g.index(nx, ny)
             if (!walk[j].isFinite()) continue
+            if (dx != 0 && dy != 0 && (!walk[g.index(xi + dx, yi)].isFinite() || !walk[g.index(xi, yi + dy)].isFinite())) continue
             val nd = d + (if (dx != 0 && dy != 0) 1.4142f else 1f) * ck * 0.5f * (walk[i] + walk[j])
             val lj = local(j)
             if (nd < dist[lj]) { dist[lj] = nd; q += nd to j }

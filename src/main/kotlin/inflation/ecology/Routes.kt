@@ -94,6 +94,7 @@ class Routes(private val world: World) {
                 if (nx < x0 || nx > x1 || ny < y0 || ny > y1) continue
                 val j = grid.index(nx, ny)
                 if (!cost[j].isFinite()) continue
+                if (k >= 4 && (!cost[grid.index(xi + DX8[k], yi)].isFinite() || !cost[grid.index(xi, yi + DY8[k])].isFinite())) continue
                 val nd = d + (if (k < 4) 1f else 1.4142f) * cellKm * 0.5f * (cost[i] + cost[j])
                 val lj = local(j)
                 if (nd < dist[lj]) { dist[lj] = nd; q += pack(nd, j) }
