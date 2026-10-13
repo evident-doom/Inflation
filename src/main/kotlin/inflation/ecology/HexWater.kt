@@ -300,13 +300,15 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val need = m * a.dailyShare * days
             val got = when (a.food) {
                 SeaFood.PLANKTON -> { val t = min(need, 0.2f * zoo[h] * 1000f); zoo[h] -= t / 1000f; t }
-                SeaFood.FISH -> { val t = min(need, 0.2f * fish[h]); fish[h] -= t; t }
+                SeaFood.FISH -> { val t = min(need, SEA_CATCH * fish[h]); fish[h] -= t; t }
                 SeaFood.PREY -> {
                     // Sharks: mostly fish, now and then a seal, porpoise or dolphin.
-                    var t = min(need * 0.7f, 0.2f * fish[h]); fish[h] -= t
+                    var t = min(need * 0.7f, SEA_CATCH * fish[h]); fish[h] -= t
                     for ((j, b) in SEA.withIndex()) {
                         if (b.food != SeaFood.FISH || t >= need) continue
-                        val take = min(need - t, sea[j][h] * SHARK_ATTACK * years * (1f - b.defence) * min(1f, m / SHARK_KG_KM2))
+                        // Seals haul out on rocks and beaches and porpoises keep to the shallows: shelter near the shore.
+                        val shelter = if (b.maxShoreKm.isFinite() && shoreKm[h] <= hex.hexKm) 0.5f else 0f
+                        val take = min(need - t, sea[j][h] * SHARK_ATTACK * years * (1f - b.defence) * (1f - shelter) * min(1f, m / SHARK_KG_KM2))
                         sea[j][h] -= take; t += take
                     }
                     t
@@ -364,7 +366,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             var got = 0f
             for (h in colonyReach[c]) {
                 if (got >= need) break
-                val take = min(need - got, BIRD_SHARE_OF_FISH * years * fish[h] * seaKm2[h])
+                // They can catch a share of the fish near the surface each week; the nearer water first.
+                val take = min(need - got, BIRD_CATCH * fish[h] * seaKm2[h])
                 fish[h] -= take / seaKm2[h]; got += take
             }
             val fed = if (need > 0f) min(1f, got / need) else 1f
@@ -372,7 +375,15 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             b += b * (BIRD_BREED * fed * years) - b * (0.1f * years + 0.5f * years * (1f - fed))
             colonyBirds[c] = if (b < 2f) 0f else b
         }
+        // Young birds from thriving colonies settle empty cliffs nearby, once a year.
+        if (stepsDone++ % (Date.DAYS_PER_YEAR / days) == 0) for (c in colonyHex.indices) {
+            if (colonyBirds[c] > 0f) continue
+            val src = colonyHex.indices.filter { colonyBirds[it] > 500f && hex.distanceKm(colonyHex[it], colonyHex[c]) <= RESETTLE_KM }.maxByOrNull { colonyBirds[it] } ?: continue
+            val go = 0.05f * colonyBirds[src]
+            colonyBirds[src] -= go; colonyBirds[c] += go
+        }
     }
+    private var stepsDone = 0
 
     private val landKm2 = FloatArray(size) { hw.land[it] * hexKm2 }
     fun fishTonnes() = fish.indices.sumOf { (fish[it] * waterKm2[it]).toDouble() }.toFloat() / 1000f
@@ -442,6 +453,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val UPWELL_WEEKS = 3f
         /** Sea animals: a full sea as a multiple of the starting density; disease beyond it; shark weight per km² for full danger; share of prey sharks take. */
         const val SEA_FULL = 8f
+        /** Share of the fish in a hex sea hunters can catch in a week (fish breed about twice their weight a year). */
+        const val SEA_CATCH = 0.03f
         const val SEA_DISEASE = 0.5f
         const val SHARK_KG_KM2 = 0.5f
         /** Yearly share of seals, porpoises and dolphins sharks take where sharks are at full strength. */
@@ -449,7 +462,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         /** Sea birds: reach from the colony, km; food a day, kg; share of the fish within reach a colony takes in a year at most; coast per colony, km; young a year. */
         const val BIRD_FORAGE_KM = 40.0
         const val BIRD_KG_DAY = 0.25f
-        const val BIRD_SHARE_OF_FISH = 0.05f
+        /** Share of the fish within reach a colony can catch in a week; how far young birds go to settle an empty cliff, km. */
+        const val BIRD_CATCH = 0.01f
+        const val RESETTLE_KM = 200.0
         const val COLONY_SPACING_KM = 25.0
         const val BIRD_BREED = 0.4f
         /** Crocodiles: coldest month above which they live, °C; yearly share of drinking herds' young they take. */

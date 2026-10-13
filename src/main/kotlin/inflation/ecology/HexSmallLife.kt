@@ -58,6 +58,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val litter = FloatArray(n) { p -> 0.5f * (land.herb[p] + 0.2f * land.shrub[p] + 0.04f * land.tree[p]) + 0.3f }
     val organicMatter = FloatArray(n) { p -> 4f * min(1f, land.biomass(p) / 5f) }
     val carrion = FloatArray(n)
+    /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */
+    val bones = FloatArray(n)
     val soilFauna = FloatArray(n)
     /** Small animals, kg/km². */
     val insects = FloatArray(n) { p -> 300f * min(1f, land.herb[p] / 0.4f) }
@@ -182,9 +184,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             carrion[p] += carcassKg[p] / (land.areaKm2[p] * 1e6f)
             if (carrion[p] > 0f) {
                 val gone = carrion[p] * min(1f, 0.07f * max(0.1f, warm) * days)
-                carrion[p] -= gone; litter[p] += 0.3f * gone
+                carrion[p] -= gone; litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
                 if (carrion[p] < 1e-9f) carrion[p] = 0f
             }
+            // Bones weather away over a couple of years into the soil.
+            if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b }
             val food = land.herb[p] + 0.3f * land.shrub[p]
             val snow = weather.snowpack[p]
             // ---- plant-eating insects
@@ -381,6 +385,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Takes up to [kgPerM2] of carrion in place [p]; returns what was taken. */
     fun scavenge(p: Int, kgPerM2: Float): Float { val t = min(carrion[p], kgPerM2); carrion[p] -= t; return t }
 
+    /** Takes up to [kgPerM2] of bones in place [p] (for bone-crackers); returns what was taken. */
+    fun crackBones(p: Int, kgPerM2: Float): Float { val t = min(bones[p], kgPerM2); bones[p] -= t; return t }
+
     /** The fruit crop's share of what the trees could bear, from this year's pollination. */
     fun fruitSet(p: Int) = 0.3f + 0.7f * pollination[p]
 
@@ -418,6 +425,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val EAGLE_RATE = 0.15f
         /** Share of what small plant-eaters eat that comes back as frass and droppings; share of migrant birds that come back. */
         const val FRASS = 0.5f
+        /** Share of a rotting carcass left as bones. */
+        const val BONE_SHARE = 0.2f
         const val MIGRANT_SURVIVAL = 0.7f
         /** Share of what herds and packs eat that comes back as dung. */
         const val DUNG = 0.5f

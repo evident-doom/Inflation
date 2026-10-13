@@ -62,7 +62,7 @@ class HexHistory {
         fun perKm2(a: FloatArray) = perM2(a) / 1e6f
         val sl = fauna.small
         put("biomass/herbs", perM2(land.herb)); put("biomass/shrubs", perM2(land.shrub)); put("biomass/trees", perM2(land.tree))
-        put("biomass/litter", perM2(sl.litter)); put("biomass/soil organic matter", perM2(sl.organicMatter)); put("biomass/carrion", perM2(sl.carrion))
+        put("biomass/litter", perM2(sl.litter)); put("biomass/soil organic matter", perM2(sl.organicMatter)); put("biomass/carrion", perM2(sl.carrion)); put("biomass/bones", perM2(sl.bones))
         put("biomass/fruit", perM2(fauna.food.fruit)); put("biomass/roots and mast", perM2(fauna.food.roots)); put("biomass/straw", perM2(fauna.food.straw))
         put("biomass/small animals", listOf(sl.insects, sl.rodents, sl.herps, sl.pollinators, sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it).toDouble() }.toFloat())
         put("biomass/resident herds", fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg }.toFloat() / 1e6f)
