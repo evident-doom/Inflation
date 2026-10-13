@@ -50,6 +50,8 @@ object Erosion {
         steps: Int,
         dtYears: Double,
         seed: Long,
+        diffusivity: Double = DIFFUSIVITY,
+        criticalSlope: Double = 0.0,
         isOutlet: (Int) -> Boolean,
     ): FloatArray {
         val n = grid.size
@@ -107,7 +109,8 @@ object Erosion {
                 qs[r] += qs[i]
             }
             tag = depositOffshore(grid, elevation, sediment, toSea, isOutlet, stamp, tag)
-            diffuse(grid, elevation, lap, dtYears, isOutlet)
+            diffuse(grid, elevation, lap, dtYears, diffusivity, isOutlet)
+            if (criticalSlope > 0) slide(grid, elevation, criticalSlope.toFloat(), isOutlet)
         }
         return sediment
     }
@@ -160,9 +163,24 @@ object Erosion {
         return tag
     }
 
-    private fun diffuse(grid: Grid, h: FloatArray, lap: FloatArray, dt: Double, isOutlet: (Int) -> Boolean) {
+    /**
+     * Landslides: where a hillside is steeper than [critical] (rise over run) towards a neighbour,
+     * the top gives way down to that angle. The fallen rock is left for the rivers to carry off.
+     */
+    private fun slide(grid: Grid, h: FloatArray, critical: Float, isOutlet: (Int) -> Boolean) {
         val w = grid.width
-        val c = (DIFFUSIVITY * dt / (grid.cellM * grid.cellM)).coerceAtMost(0.2).toFloat()
+        val drop = critical * grid.cellM.toFloat()
+        for (y in 1 until grid.height - 1) for (x in 1 until w - 1) {
+            val i = y * w + x
+            if (isOutlet(i)) continue
+            val lo = minOf(minOf(h[i - 1], h[i + 1]), minOf(h[i - w], h[i + w]))
+            if (h[i] - lo > drop) h[i] = lo + drop
+        }
+    }
+
+    private fun diffuse(grid: Grid, h: FloatArray, lap: FloatArray, dt: Double, diffusivity: Double, isOutlet: (Int) -> Boolean) {
+        val w = grid.width
+        val c = (diffusivity * dt / (grid.cellM * grid.cellM)).coerceAtMost(0.2).toFloat()
         for (y in 1 until grid.height - 1) for (x in 1 until w - 1) {
             val i = y * w + x
             lap[i] = h[i - 1] + h[i + 1] + h[i - w] + h[i + w] - 4 * h[i]

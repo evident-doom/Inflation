@@ -58,6 +58,20 @@ class AnimalGroup(
     var tag = -1
     /** Meat a pack has killed but not yet eaten, kg. */
     var stored = 0f
+    /**
+     * For territorial hunters: the centre of the territory the group holds (NaN while it has none:
+     * a young group dispersing in search of vacant ground).
+     */
+    var homeX = Double.NaN
+    var homeY = Double.NaN
+    /** Direction (0..7) a herd last moved in, -1 if it stayed: it tends to graze on the same way. */
+    var heading = -1
+    /** The way it took on its last move, by the waypoints passed (x0, y0, x1, y1, ... in cells), or null for a short shift. */
+    @Volatile var route: FloatArray? = null
+    /** Weeks a group has kept its range where it is. */
+    var weeksHere = 0
+    /** Weeks a herd has been off its home range. */
+    var weeksAway = 0
     /** Food gained over need on the last day, 0 = starving, 1 = full. */
     var lastIntakeRatio = 1f
     /**
@@ -165,7 +179,16 @@ class Option(
     val hazard: Float = 0f,
     /** Rain it senses coming there next week, against the season's normal: 0 = none, 1 = normal, up to 3. */
     val rainAhead: Float = 1f,
+    /** How much higher it lies than where the group is, km (negative: lower). */
+    val climb: Float = 0f,
 )
+
+/** The time of year, as every animal feels it: day length, the angle of the sun. Set each step. */
+object Season {
+    @Volatile var dayOfYear = 0
+    val sin get() = kotlin.math.sin(2 * Math.PI * dayOfYear / inflation.world.Date.DAYS_PER_YEAR).toFloat()
+    val cos get() = kotlin.math.cos(2 * Math.PI * dayOfYear / inflation.world.Date.DAYS_PER_YEAR).toFloat()
+}
 
 /** Chooses where a group goes today. Implementations: [BaselinePolicy]; learned networks later. */
 fun interface Policy {
@@ -178,11 +201,25 @@ fun interface Policy {
  * herbivores go to the best forage within reach on the kind of ground they favour, away from
  * predators and deep snow, and head for water when thirsty; predators follow the smell of prey.
  */
+/** How much better a new range must look before a fed, unthreatened group leaves the one it knows. */
+const val SITE_FIDELITY = 0.3f
+/** Whether option [k] carries on in the direction [g] last moved (options 1..24 are rings of eight directions). */
+fun headingMatches(g: AnimalGroup, k: Int) = g.heading >= 0 && k in 1..24 && (k - 1) % 8 == g.heading
+
+/** Preference for carrying on in the direction a herd last moved. */
+const val HEADING = 0.05f
+/** How much a hunter that has stayed for weeks wants to move on to another part of its ground. */
+const val ROTATE = 0.3f
+
 class BaselinePolicy(
     /** Random noise in -0.5..0.5 for [group] and option [k], so ties break and herds spread out. */
     private val noise: (group: AnimalGroup, k: Int) -> Float,
 ) : Policy {
-    override fun choose(group: AnimalGroup, options: List<Option>): Int = pickBest(group, options, noise) { o, _ -> score(group, o) }
+    override fun choose(group: AnimalGroup, options: List<Option>): Int = pickBest(group, options, noise) { o, k -> scoreAt(group, o, k) }
+
+    /** [score] for option number [k], which also tells the direction: a herd on the move grazes on the way it was going. */
+    fun scoreAt(group: AnimalGroup, o: Option, k: Int): Float =
+        score(group, o) + if (!group.species.carnivore && headingMatches(group, k)) HEADING else 0f
 
     /** How much [group] wants to go to [o], before noise; higher is better. */
     fun score(group: AnimalGroup, o: Option): Float {
@@ -196,6 +233,10 @@ class BaselinePolicy(
             // A hungry herd accepts more danger for food.
             else o.forage / (o.forage + 50f) - 3f * (1f - s.defence) * (0.3f + 0.7f * group.condition) * o.danger - 0.3f * o.kin +
                 0.3f * (h.cover * o.cover + h.rugged * o.rugged + h.wet * o.wet)
+        // Hunters work their ground in turn: where they have hunted for weeks the game is on its guard.
+        if (s.carnivore && o.km == 0f) score -= ROTATE * min(1f, group.weeksHere / 3f)
+        // A frightened herd makes for cover.
+        if (!s.carnivore && group.alert > 0) score += 0.5f * o.cover
         if (o.snowMm > s.snowLimitMm) score -= 1f
         // Get out of the way of what is coming; in dry weeks, go towards the rain.
         score -= 2f * o.hazard
@@ -210,6 +251,9 @@ class BaselinePolicy(
         if (thirsty) score -= 0.2f * o.waterKm
         // Shifting the range costs energy, and a long march costs most of a week's grazing.
         score -= 0.1f * o.km / s.dailyTravelKm
+        // Animals keep to the ground they know while it feeds them and feels safe: hunger, a recent
+        // attack or the scent of hunters about loosens the hold.
+        if (o.km == 0f && group.alert == 0) score += SITE_FIDELITY * group.lastIntakeRatio * group.lastIntakeRatio * (1f - min(1f, 3f * o.danger))
         return score
     }
 

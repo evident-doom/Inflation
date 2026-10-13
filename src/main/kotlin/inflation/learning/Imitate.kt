@@ -24,12 +24,13 @@ import kotlin.random.Random
  * far more information than the choices alone. Only differences between a decision's options
  * matter, so scores are compared after subtracting each decision's mean.
  *
- * Usage: imitate [--seed N] [--size KM] [--years N] [--out DIR]
+ * Usage: imitate [--seed N] [--size KM] [--years N] [--out DIR] [--without a,b|hunters]
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 7, widthKm = 400, heightKm = 400)
     var years = 3
     var out = NetworkPolicy.DIR
+    var without = emptySet<inflation.ecology.Species>()
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -37,12 +38,14 @@ fun main(args: Array<String>) {
             "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
             "--years" -> years = args[++k].toInt()
             "--out" -> out = File(args[++k])
+            "--without" -> without = FaunaEvolve.kinds(args[++k])
             else -> error("unknown argument ${args[k]}")
         }
         k++
     }
     val sim = Simulation(World.generate(cfg))
     val e = sim.ecology
+    FaunaEvolve.leaveOut(e, without)
     val recorder = Recorder(e.policies.getValue(Catalogue.GAZELLE) as BaselinePolicy)
     for (s in Catalogue.all) e.policies[s] = recorder
     val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
@@ -76,7 +79,7 @@ class Recorder(private val baseline: BaselinePolicy) : Policy {
                 Features.encode(group, o, k, f)
                 rec[at] = 1f
                 f.copyInto(rec, at + 1)
-                rec[at + 1 + Features.SIZE] = baseline.score(group, o)
+                rec[at + 1 + Features.SIZE] = baseline.scoreAt(group, o, k)
             }
             data.getValue(s) += rec
         }
@@ -89,8 +92,8 @@ class Recorder(private val baseline: BaselinePolicy) : Policy {
 }
 
 object Imitation {
-    /** Options per decision: stay and eight directions. */
-    const val SLOTS = 9
+    /** Options per decision: all the candidates a group weighs. */
+    const val SLOTS = 28
     /** Per option: valid flag, features, target score. */
     const val STRIDE = 1 + Features.SIZE + 1
     val SIZES = intArrayOf(Features.SIZE, 32, 32, 1)

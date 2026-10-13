@@ -41,13 +41,10 @@ enum class Regime(
  * worked out once from the terrain ([rainFactor]). Averaged over the season's regimes, rain still
  * comes out at the climate normals: the factors are divided by their seasonal mean ([normalFactor]).
  */
-class Winds(private val grid: Grid, private val cfg: WorldConfig, elevation: FloatArray?) {
-    /** Orographic rain factor per wind direction (sector k: towards angle k·45°, east = 0, south = 90°). */
-    private val sector: Array<FloatArray>?
-
-    init {
-        sector = elevation?.let { buildSectors(it) }
-    }
+class Winds(
+    /** Orographic rain factor per wind direction (sector k: towards angle k·45°, east = 0, south = 90°) and place; null for none. */
+    private val sector: Array<FloatArray>?,
+) {
 
     /** Seasonal weight of [r] at [season] (-1 midwinter .. 1 midsummer). */
     fun weight(r: Regime, season: Double): Double {
@@ -134,36 +131,37 @@ class Winds(private val grid: Grid, private val cfg: WorldConfig, elevation: Flo
      * (forced ascent) and lowered in the lee of higher ground upwind (the rain shadow), from the
      * terrain smoothed over a few km, as clouds respond to hills, not to every gully.
      */
-    private fun buildSectors(elevation: FloatArray): Array<FloatArray> {
-        val h = blur(grid, FloatArray(grid.size) { max(0f, elevation[it]) }, (3 / grid.cellKm).toInt().coerceAtLeast(1))
-        val step = 4.0 / grid.cellKm
-        val shadowKm = doubleArrayOf(6.0, 12.0, 25.0, 50.0)
-        return Array(8) { k ->
-            val dx = cos(k * PI / 4); val dy = sin(k * PI / 4)
-            val out = FloatArray(grid.size)
-            java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
-                val x = grid.x(i); val y = grid.y(i)
-                fun at(back: Double): Float {
-                    val xx = (x - dx * back).toInt().coerceIn(0, grid.width - 1)
-                    val yy = (y - dy * back).toInt().coerceIn(0, grid.height - 1)
-                    return h[grid.index(xx, yy)]
-                }
-                val here = h[i]
-                // Rise into the wind over the last 4 km, m per km.
-                val rise = max(0f, here - at(step)) / (step * grid.cellKm).toFloat()
-                // The highest barrier upwind, above this cell, weighed less with distance.
-                var barrier = 0f
-                for (km in shadowKm) barrier = max(barrier, (at(km / grid.cellKm) - here) * (1f - (km / 100.0).toFloat()))
-                out[i] = (exp(OROGRAPHIC * min(rise, 150f) - SHADOW * barrier)).coerceIn(0.2f, 4f)
-            }
-            out
-        }
-    }
-
     companion object {
         /** Rain multiplies by e for every 100 m per km of slope facing the wind. */
         const val OROGRAPHIC = 0.01f
         /** Rain falls by e for every 1250 m of higher ground upwind. */
         const val SHADOW = 0.0008f
+
+        /** The orographic rain factors of every cell of [grid] for the eight wind directions. */
+        fun sectors(grid: Grid, elevation: FloatArray): Array<FloatArray> {
+            val h = blur(grid, FloatArray(grid.size) { max(0f, elevation[it]) }, (3 / grid.cellKm).toInt().coerceAtLeast(1))
+            val step = 4.0 / grid.cellKm
+            val shadowKm = doubleArrayOf(6.0, 12.0, 25.0, 50.0)
+            return Array(8) { k ->
+                val dx = cos(k * PI / 4); val dy = sin(k * PI / 4)
+                val out = FloatArray(grid.size)
+                java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
+                    val x = grid.x(i); val y = grid.y(i)
+                    fun at(back: Double): Float {
+                        val xx = (x - dx * back).toInt().coerceIn(0, grid.width - 1)
+                        val yy = (y - dy * back).toInt().coerceIn(0, grid.height - 1)
+                        return h[grid.index(xx, yy)]
+                    }
+                    val here = h[i]
+                    // Rise into the wind over the last 4 km, m per km.
+                    val rise = max(0f, here - at(step)) / (step * grid.cellKm).toFloat()
+                    // The highest barrier upwind, above this cell, weighed less with distance.
+                    var barrier = 0f
+                    for (km in shadowKm) barrier = max(barrier, (at(km / grid.cellKm) - here) * (1f - (km / 100.0).toFloat()))
+                    out[i] = (exp(OROGRAPHIC * min(rise, 150f) - SHADOW * barrier)).coerceIn(0.2f, 4f)
+                }
+                out
+            }
+        }
     }
 }

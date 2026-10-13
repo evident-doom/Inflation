@@ -32,6 +32,15 @@ tasks.register<JavaExec>("viewer") {
     args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
+tasks.register<JavaExec>("hexViewer") {
+    description = "Opens the hex world viewer: herds and hunters walking hex to hex over the fine terrain."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.ui.HexViewerKt")
+    maxHeapSize = "16g"
+    args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
 tasks.test {
     useJUnitPlatform()
     maxHeapSize = "4g"

@@ -721,6 +721,12 @@ object Catalogue {
         ELK, REINDEER, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
     )
     val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN)
+
+    /** Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges. */
+    val migratory = setOf(GAZELLE, REINDEER, HORSE, ONAGER, ORYX, OSTRICH, HARTEBEEST, DROMEDARY)
+
+    /** Plant-eaters that keep to small home ranges all year. */
+    fun resident(s: Species) = !s.carnivore && s !in migratory
     val all = herbivores + predators
 
     init {

@@ -57,8 +57,13 @@ fun main(args: Array<String>) {
         for (s in recentCauses.values) s.clear()
         repeat(stepsPerYear) { step ->
             sim.step()
-            for ((sp, n) in e.killsBy) causes.getValue(sp.name).merge("predators", n, Int::plus).also { recentCauses.getValue(sp.name).merge("predators", n, Int::plus) }
-            e.killsBy.clear()
+            for ((sp, n) in e.killsBy) {
+                val byPeople = e.killsByPeople[sp] ?: 0
+                for ((cause, k) in listOf("predators" to n - byPeople, "hunted by people" to byPeople)) if (k > 0) {
+                    causes.getValue(sp.name).merge(cause, k, Int::plus); recentCauses.getValue(sp.name).merge(cause, k, Int::plus)
+                }
+            }
+            e.killsBy.clear(); e.killsByPeople.clear()
             for ((key, n) in e.deathsBy) { val (sp, cause) = key.split(":", limit = 2); causes[sp]?.merge(cause, n, Int::plus); recentCauses[sp]?.merge(cause, n, Int::plus) }
             e.deathsBy.clear()
             for ((key, n) in e.marine.deathsBy) { val (sp, cause) = key.split(":", limit = 2); causes[sp]?.merge(cause, n, Int::plus); recentCauses[sp]?.merge(cause, n, Int::plus) }

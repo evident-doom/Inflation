@@ -3,8 +3,10 @@ package inflation.learning
 import inflation.ecology.AnimalGroup
 import inflation.ecology.Catalogue
 import inflation.ecology.Option
+import inflation.ecology.Season
 import inflation.ecology.Policy
 import inflation.ecology.Species
+import inflation.ecology.headingMatches
 import inflation.ecology.pickBest
 import java.io.File
 import kotlin.math.min
@@ -15,7 +17,7 @@ import kotlin.math.min
  * inputs, as each species has its own network.
  */
 object Features {
-    const val SIZE = 21
+    const val SIZE = 31
 
     fun encode(g: AnimalGroup, o: Option, k: Int, out: FloatArray) {
         val s = g.species
@@ -41,6 +43,17 @@ object Features {
         out[18] = o.pull
         out[19] = o.hazard
         out[20] = min(3f, o.rainAhead) / 3f
+        out[21] = if (k == 0) 1f else 0f
+        out[22] = if (headingMatches(g, k)) 1f else 0f
+        out[23] = min(1f, g.weeksHere / 3f)
+        out[24] = g.lastIntakeRatio
+        out[25] = if (g.homeX.isNaN()) 1f else 0f
+        // The time of year, and the lie of the land: up the mountain or down to the valley, and the snow there.
+        out[26] = Season.sin
+        out[27] = Season.cos
+        out[28] = o.climb.coerceIn(-3f, 3f)
+        out[29] = kotlin.math.min(2f, o.snowMm / s.snowLimitMm)
+        out[30] = g.fat / s.maxFatDays.coerceAtLeast(1f)
     }
 }
 

@@ -75,12 +75,15 @@ class BandPolicy(private val net: Mlp, private val noise: (AnimalGroup, Int) -> 
  * option's features and the hand-written score) on a world, then fits the network to reproduce the
  * scores within each decision.
  *
- * Usage: band-imitate [--seed N] [--width KM] [--height KM] [--years N] [--out FILE]
+ * Usage: band-imitate [--seed N] [--width KM] [--height KM] [--years N] [--out FILE] [--fauna DIR]
+ *
+ * With --fauna, the animals that have a network in DIR (from fauna-evolve) behave by it.
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 7, widthKm = 500, heightKm = 1000)
     var years = 4
     var out = BandFeatures.FILE
+    var fauna: File? = null
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -89,12 +92,14 @@ fun main(args: Array<String>) {
             "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--years" -> years = args[++k].toInt()
             "--out" -> out = File(args[++k])
+            "--fauna" -> fauna = File(args[++k])
             else -> error("unknown argument ${args[k]}")
         }
         k++
     }
     val sim = Simulation(World.generate(cfg))
     val e = sim.ecology
+    fauna?.let { useFauna(e, it) }
     val baseline = e.policies.getValue(Catalogue.HUMAN) as BaselinePolicy
     val recorder = BandRecorder(baseline) { sim.weather.date }
     e.policies[Catalogue.HUMAN] = recorder
@@ -104,6 +109,13 @@ fun main(args: Array<String>) {
     val (net, report) = BandImitation.train(recorder.data.toList(), Random(cfg.seed)) ?: error("too few decisions")
     net.save(out)
     println("people: $report")
+}
+
+/** Lets the animals that have a network in [dir] (other than people) behave by it. */
+fun useFauna(e: inflation.ecology.Ecology, dir: File) {
+    val nets = NetworkPolicy.load(dir).filterKeys { !it.human }
+    val policy = NetworkPolicy(nets, e::noise, e.policies.getValue(Catalogue.GAZELLE))
+    for (s in nets.keys) e.policies[s] = policy
 }
 
 /** Passes bands' decisions to the hand-written behaviour and keeps a sample of them. */
@@ -122,7 +134,7 @@ class BandRecorder(private val baseline: BaselinePolicy, private val date: () ->
                 BandFeatures.encode(group, o, k, d, f)
                 rec[at] = 1f
                 f.copyInto(rec, at + 1)
-                rec[at + 1 + BandFeatures.SIZE] = baseline.score(group, o)
+                rec[at + 1 + BandFeatures.SIZE] = baseline.scoreAt(group, o, k)
             }
             data += rec
         }
@@ -226,7 +238,7 @@ object BandImitation {
  * better variants, by rank, with Adam. Animals keep their own behaviour.
  *
  * Usage: band-evolve [--start FILE] [--out DIR] [--seeds 1,2,3,4] [--width KM] [--height KM]
- *                    [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R]
+ *                    [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--fauna DIR]
  */
 object BandEvolve {
     @JvmStatic
@@ -240,9 +252,11 @@ object BandEvolve {
         var pairs = 12
         var sigma = 0.02f
         var rate = 0.01f
+        var fauna: File? = null
         var k = 0
         while (k < args.size) {
             when (args[k]) {
+                "--fauna" -> fauna = File(args[++k])
                 "--start" -> start = File(args[++k])
                 "--out" -> out = File(args[++k])
                 "--seeds" -> seeds = args[++k].split(",").map { it.toLong() }
@@ -276,9 +290,9 @@ object BandEvolve {
                 m
             }
             // Fresh worlds each generation, so the network is not fitted to one map.
-            val results = seeds.map { seed ->
-                evaluateBands(WorldConfig(seed = seed + 1000L * gen, widthKm = width, heightKm = height), years, variants)
-            }
+            val results = seeds.parallelStream().map { seed ->
+                evaluateBands(WorldConfig(seed = seed + 1000L * gen, widthKm = width, heightKm = height), years, variants, fauna)
+            }.toList()
             val fitness = DoubleArray(variants.size)
             for (r in results) for (v in fitness.indices) fitness[v] += r.fitness[v] / results.size
             val ranks = ranks(fitness.copyOf(2 * pairs))
@@ -300,9 +314,10 @@ object BandEvolve {
     }
 
     /** Runs one world for [years] with every band on one of [variants]. */
-    fun evaluateBands(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Evaluation {
+    fun evaluateBands(cfg: WorldConfig, years: Int, variants: Array<Mlp>, fauna: File? = null): Evaluation {
         val sim = Simulation(World.generate(cfg))
         val e = sim.ecology
+        fauna?.let { useFauna(e, it) }
         val people = Catalogue.HUMAN
         val rnd = Random(cfg.seed)
         val bands = e.groups.filter { it.species == people }.shuffled(rnd)

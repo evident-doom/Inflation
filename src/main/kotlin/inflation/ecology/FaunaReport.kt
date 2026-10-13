@@ -64,6 +64,7 @@ fun main(args: Array<String>) {
                 herds.map { it.movedKm.toDouble() }.average(), 100.0 * herds.count { it.movedKm > it.rangeKm } / herds.size,
                 100.0 * land.count { sim.vegetation.trails[it] > 0.8f } / land.size.coerceAtLeast(1)))
         }
+        if (e.meetings.isNotEmpty()) println("   meet   " + e.meetings.entries.joinToString(", ") { (k, n) -> "$k $n (${e.meetingsMissed[k] ?: 0} missed by end positions)" })
         e.groups.filter { it.species.human && it.alive }.takeIf { it.isNotEmpty() }?.let { bands ->
             val people = bands.sumOf { it.size }
             println("   people %d bands, %d people (%.0f%% children, %.0f%% elders), inbreeding %.3f, stores %.0f days, camps kept %.0f weeks (%.0f%% over half a year), hunting craft %.2f, gathering craft %.2f".format(
@@ -131,7 +132,7 @@ fun main(args: Array<String>) {
                 100f * cells.count { e.waterKm[it] == 0f } / cells.size, 100f * cells.count { e.waterKm[it] <= 5f } / cells.size,
                 cells.map { e.wetness[it] }.average()))
             println("   deaths " + e.deathsBy.entries.sortedByDescending { it.value }.filter { System.getenv("FAUNA_SPECIES")?.split(",")?.any { s -> it.key.startsWith(s) } ?: true }.take(12).joinToString { "${it.key} ${it.value}" })
-            e.killsBy.clear(); e.deathsBy.clear(); e.killsByPredator.clear(); e.stolen.clear()
+            e.killsBy.clear(); e.killsByPeople.clear(); e.deathsBy.clear(); e.killsByPredator.clear(); e.stolen.clear()
         }
     }
     println("%.0f ms per step".format((System.nanoTime() - t0) / 1e6 / (years * 4 * stepsPerSeason)))
