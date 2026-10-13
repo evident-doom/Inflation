@@ -44,7 +44,8 @@ class HexGroups(
             if (s.carnivore) {
                 // Resident game by weight, catchable or not: a rough sense of good hunting country.
                 val prey = residentKg(p)
-                val w = land.waterKm[p] / (2f * s.dailyTravelKm)
+                // Hunters that get their water from their prey (cheetahs, hyenas, jackals) care less how far it is.
+                val w = land.waterKm[p] / (2f * s.dailyTravelKm) * (1f - s.waterFromFood)
                 prey / (prey + PREY_HALF) * fit / (1f + w * w)
             } else {
                 val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f

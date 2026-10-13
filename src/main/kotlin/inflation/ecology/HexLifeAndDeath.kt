@@ -174,7 +174,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // Thirst: drinks where there is water; otherwise days without water mount, eased by the water in green food.
         val p0 = g.place
         if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= 1.5f)) g.dry = 0f
-        else g.dry += days * max(0f, 1f - s.waterFromFood * (0.5f + 0.5f * land.green[p0]))
+        // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
+        else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
         val thirst = if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f
         // Crowded herds catch each other's diseases and parasites.
         val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
