@@ -75,6 +75,8 @@ class HexGroups(
     private var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. */
     val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators.filter { !it.human })
+    /** Which pack of a kind holds each hex as its ground (key: kind × hexes + hex). */
+    private val heldBy = HashMap<Long, Int>()
     /** Learned choosers by kind; kinds without one use the hand-written score. */
     val policies = HashMap<Species, HexPolicy>()
     /** Kills this week by prey kind; meetings this week by kind of meeting. */
@@ -122,6 +124,8 @@ class HexGroups(
         for (g in groups) if (g.alive) bySpeciesPlace.merge(g.species.index.toLong() * n + g.place, g.size, Int::plus)
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
+        heldBy.clear()
+        for (g in groups) if (g.alive && g.species.carnivore && g.home >= 0) heldBy[g.species.index.toLong() * hex.size + g.home] = g.id
         // Plan and move, in parallel: each group's choice depends only on last week's world.
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size)
         java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k ->
@@ -185,8 +189,9 @@ class HexGroups(
         val candPlaces = ArrayList<Int>(); val candFeats = ArrayList<FloatArray>(); val candScores = ArrayList<Float>()
         val season = 2 * Math.PI * date.dayOfYear / Date.DAYS_PER_YEAR
         for ((h, d) in dist) {
-            // A pack on its own ground stays on it while fed.
+            // A pack on its own ground stays on it while fed; and keeps off ground another pack of its kind holds.
             if (s.carnivore && g.home >= 0 && g.fed >= 0.5f && hexKm(h, g.home) > territoryKm(s)) continue
+            if (s.carnivore && g.fed >= 0.3f && h != g.home && (heldBy[s.index.toLong() * hex.size + h] ?: g.id) != g.id) continue
             for (b in 0 until HexWorld.BANDS_M.size) {
                 val p = hw.placeOf[b][h]
                 if (p < 0) continue
@@ -194,8 +199,10 @@ class HexGroups(
                     val prey = preyHere(s, p) + herdPrey(s, p, kin)
                     prey / (prey + PREY_HALF) - 0.5f * crowd(s, p, kin, g)
                 } else {
+                    // At this scale every hex has its hunters: a herd does not shift its ground to get away
+                    // from them (it watches and hides where it is), only for food, water, weather and the season.
                     val food = foodFor(s, p) * fauna.suits(s, p)
-                    food / (food + 0.3f) - 0.5f * crowd(s, p, kin, g) - DANGER * predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f) * (1f - s.defence)
+                    food / (food + 0.3f) - 0.5f * crowd(s, p, kin, g)
                 }
                 score -= 0.5f * discomfort(s, p, weather)
                 if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
