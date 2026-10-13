@@ -110,6 +110,11 @@ class Band {
     val grudge = FloatArray(LINEAGES)
     /** Of its adults, the elders: past bearing children, helping their daughters raise theirs. */
     var elders = 0
+    /** The country it knows, a bit for each hex: walked, seen from where it walked, or told of by bands it understands. */
+    var known = LongArray(0)
+
+    fun knows(h: Int) = h / 64 < known.size && (known[h / 64] ushr (h % 64)) and 1L == 1L
+    fun learn(h: Int, size: Int) { if (known.size * 64 < size) known = known.copyOf((size + 63) / 64); known[h / 64] = known[h / 64] or (1L shl (h % 64)) }
 
     fun holds(t: Tradition) = traditions[t.ordinal]
     fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
@@ -118,7 +123,7 @@ class Band {
     fun copyInto(o: Band) {
         craft.copyInto(o.craft); making.copyInto(o.making); kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
-        o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace
+        o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf()
     }
 
     /** How well the band does at [f], against a master: from [CRAFT_FLOOR] untrained to 1. */
@@ -173,6 +178,8 @@ class Band {
  */
 internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     val b = g.band ?: return
+    // It comes to know the country it walks, and what it sees round about.
+    for (h in g.path) { b.learn(h, hex.size); for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0) b.learn(q, hex.size) } }
     val p = g.place
     val h = hw.placeHex[p]
     val area = land.areaKm2[p] * 1e6f
@@ -288,6 +295,10 @@ internal fun HexGroups.teach(a: Band, b: Band, understood: Float) {
         meetings.merge("band learned ${Tool.entries[k].name.lowercase()}", 1, Int::plus)
     }
 }
+
+/** How much a band is put off country it does not know (beside the pull of better country it senses); hexes round its first camp it knows from the start. */
+const val UNKNOWN_COUNTRY = 0.2f
+const val KNOWN_AT_START = 3
 
 /** Share of a cache lost each week to damp, mice and thieves. */
 const val CACHE_SPOIL = 0.02f

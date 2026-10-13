@@ -78,6 +78,9 @@ const val GRUDGE = 1f
 const val GRUDGE_FADE = 0.1f
 /** A band's grudge against another's lineage above which it raids it unprovoked. */
 const val FEUD = 1.5f
+/** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
+const val TOLD_RINGS = 4
+const val REMEMBERED_KM = 100.0
 /** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
 const val VISIT_FED = 0.6f
 const val VISIT_RINGS = 2
@@ -133,6 +136,17 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         meetings.merge("band took ${if (hi.holds(t)) "up" else "leave of"} ${t.name.lowercase()}", 1, Int::plus)
     }
     teach(ba, bb, u)
+    // Each tells the other of the country it knows round about, as far as they understand each other.
+    if (rnd.nextFloat() < u) {
+        val h0 = hw.placeHex[a.place]
+        var ring = listOf(h0); val seen = hashSetOf(h0)
+        for (r in 0..TOLD_RINGS) {
+            for (h in ring) { if (ba.knows(h)) bb.learn(h, hex.size); if (bb.knows(h)) ba.learn(h, hex.size) }
+            if (r == TOLD_RINGS) break
+            val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next
+        }
+        meetings.merge("bands told of country", 1, Int::plus)
+    }
     // Partners: where either holds to marrying out, young adults change bands, both ways.
     val marry = (if (ba.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bb.holds(Tradition.EXOGAMY)) 0.5f else 0f)
     if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry) {
@@ -224,6 +238,13 @@ internal fun HexGroups.visitKin() {
 /** A band's year, a week at a time: inbreeding builds in a closed band, grudges fade, words drift, traditions are now and then taken up or dropped. */
 internal fun HexGroups.cultureWeek(g: HexGroup) {
     val b = g.band ?: return
+    // Country far from where it now lives fades from memory, a share of it a year.
+    if (rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat()) {
+        val here = hw.placeHex[g.place]
+        for (w in b.known.indices) { var bits = b.known[w]; while (bits != 0L) { val i = java.lang.Long.numberOfTrailingZeros(bits); bits = bits and (bits - 1)
+            val h = w * 64 + i
+            if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f) b.known[w] = b.known[w] and (1L shl i).inv() } }
+    }
     val years = days / Date.DAYS_PER_YEAR.toFloat()
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
     for (i in b.grudge.indices) b.grudge[i] *= 1f - GRUDGE_FADE * years
