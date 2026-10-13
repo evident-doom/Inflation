@@ -30,6 +30,8 @@ const val SHELTER_EFFECT = 0.7f
 const val AVOID_SKILL = 0.6f
 /** How much more ground that matters a hunter covers when it follows a herd's tracks than when it happens on it. */
 const val TRACKING = 3f
+/** How well fed a group must be to keep to its ground without weighing where else to go (every other week). */
+const val CONTENT = 0.95f
 /** Soil water below which a herd is in a dry spell, mm; rain ahead that promises relief, mm a week. */
 const val DRY_SOIL_MM = 40f
 const val RAIN_AHEAD_MM = 20f

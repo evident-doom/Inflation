@@ -32,6 +32,7 @@ class HexGroups(
     internal val hex = hw.hex
     internal val n = land.n
     internal val rnd = Random(seed * 41 + 3)
+    internal val seedBase = seed
     val groups = ArrayList<HexGroup>()
     internal var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. */
@@ -204,6 +205,9 @@ class HexGroups(
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
         val restless = if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray
+        // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
+        // this week without weighing the alternatives: every other week, by turns.
+        if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % 2 == 0L) return g.place to intArrayOf(here)
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS
         val ki = kindIndex[s] ?: 0
         val cross = hex.crossings[Catalogue.travel(s).ordinal]
@@ -362,17 +366,20 @@ class HexGroups(
         return k - 1
     }
 
-    internal fun binomial(n: Int, p: Float): Int {
+    internal fun binomial(n: Int, p: Float, r: Random = rnd): Int {
         if (n <= 0 || p <= 0f) return 0
         if (p >= 1f) return n
-        if (n > 50) return (n * p + kotlin.math.sqrt(n * p * (1 - p)) * gaussian()).toInt().coerceIn(0, n)
-        var k = 0; repeat(n) { if (rnd.nextFloat() < p) k++ }; return k
+        if (n > 50) return (n * p + kotlin.math.sqrt(n * p * (1 - p)) * gaussian(r)).toInt().coerceIn(0, n)
+        var k = 0; repeat(n) { if (r.nextFloat() < p) k++ }; return k
     }
 
-    internal fun gaussian(): Float {
-        val u = max(rnd.nextDouble(), 1e-12)
-        return (kotlin.math.sqrt(-2 * kotlin.math.ln(u)) * kotlin.math.cos(2 * Math.PI * rnd.nextDouble())).toFloat()
+    internal fun gaussian(r: Random = rnd): Float {
+        val u = max(r.nextDouble(), 1e-12)
+        return (kotlin.math.sqrt(-2 * kotlin.math.ln(u)) * kotlin.math.cos(2 * Math.PI * r.nextDouble())).toFloat()
     }
+
+    /** A random stream of group [id]'s own for the week starting on [day]: the same whatever the cores do. */
+    internal fun groupRandom(id: Int, day: Long) = Random(seedBase * 1_000_003L + id * 7_919L + day)
 
     internal fun hashNoise(id: Int, p: Int): Float {
         var h = id * 0x9E3779B97F4A7C15uL.toLong() + p * 0x632BE59BD9B4E019L

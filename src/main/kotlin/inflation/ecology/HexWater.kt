@@ -292,8 +292,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /** A share of what is in each hex's water mixes with its neighbours' each week. */
     private fun drift(f: FloatArray) {
         val old = f.copyOf()
-        for (h in 0 until size) {
-            if (waterKm2[h] <= 0f) continue
+        java.util.stream.IntStream.range(0, size).parallel().forEach { h ->
+            if (waterKm2[h] <= 0f) return@forEach
             var s = 0f; var c = 0
             for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && waterKm2[q] > 0f) { s += old[q]; c++ } }
             if (c > 0) f[h] = (1f - DRIFT) * old[h] + DRIFT * s / c
