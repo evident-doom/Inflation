@@ -13,14 +13,10 @@ import kotlin.math.min
  * sediment bury it. Young basalt lava fields (the harrat of the Levant and Arabia) and bare karst
  * are the roughest; alluvial plains the smoothest.
  *
- * Visibility is a function of ruggedness and vegetation. Close by, broken ground (gullies,
- * boulders, lava ridges) and plants (scrub, forest, reed beds) hide what is beyond a few hundred
- * metres: see [concealmentKm] and [sightKm], which change as plants grow. Further out, relief the
- * grid resolves decides what a hill or ridge looks out over: [viewKm] is a ray march over the
- * terrain in 16 directions out to [VIEW_MAX_KM], with the earth's curvature, for an observer and
- * target each about 2 m tall. A summit on open ground sees far; the same summit under forest does not.
+ * What a hill or ridge looks out over: [viewKm] is a ray march over the terrain in 16 directions out
+ * to [VIEW_MAX_KM], with the earth's curvature, for an observer and target each about 2 m tall.
  *
- * Static fields are computed once per world; the dynamic ones are functions of the living state.
+ * All fields are computed once per world; the hexes summarise them.
  */
 class Terrain(private val world: World) {
     private val grid = world.grid
@@ -239,45 +235,6 @@ class Terrain(private val world: World) {
         return min(1f, 0.4f * height + 0.3f * ruggedness[i] + 0.5f * cut / 16f)
     }
 
-    // ------------------------------------------------------------------ dynamic, with plants and snow
-
-    /**
-     * How far one can see from inside cell [i] through the plants there, km: forest and dense
-     * scrub close the view to tens of metres. Not more than the terrain allows ([viewKm]).
-     */
-    fun sightKm(i: Int, v: Vegetation): Float = min(viewKm[i].coerceAtLeast(0.5f), concealmentKm(i, v))
-
-    /**
-     * Distance from which something in cell [i] can be seen through the ground and plants around
-     * it, km. Open, smooth ground: as far as the terrain allows; broken lava or gullied badlands:
-     * a few hundred metres; maquis: a couple of hundred metres; closed forest, swamp forest and
-     * reed beds: tens of metres.
-     */
-    fun concealmentKm(i: Int, v: Vegetation): Float {
-        if (isWater(i)) return VIEW_MAX_KM
-        val canopy = v.canopy(i)
-        val scrub = min(1f, v.shrub[i] / 2f)
-        val reeds = when (world.biome[i]) { Biome.MARSH, Biome.SALT_MARSH -> min(1f, v.herb[i] / 0.4f); else -> 0f }
-        val broken = ruggedness[i]
-        val obstruction = 20f * broken * broken + 100f * canopy * canopy + 20f * canopy + 6f * scrub * scrub + 15f * reeds
-        return VIEW_MAX_KM / (1f + VIEW_MAX_KM * obstruction / 10f)
-    }
-
-    /**
-     * Walking effort to cross cell [i] now, relative to flat open ground: [baseCost] plus thickets,
-     * forest undergrowth and snow. Animals at home in cover or on rock are slowed less:
-     * [thicketEase] and [rockEase] (0..1) take that share of the extra effort away.
-     */
-    fun travelCost(i: Int, v: Vegetation, snowMm: Float, thicketEase: Float = 0f, rockEase: Float = 0f,
-                   dischargeNow: Float = world.water.discharge[i]): Float {
-        val scrub = min(1f, v.shrub[i] / 2f)
-        var base = if (baseCost[i].isFinite()) landCost[i] * crossingCost(i, dischargeNow) else baseCost[i]
-        if (rockEase > 0f && base.isFinite()) base = 1f + (base - 1f) * (1f - rockEase)
-        val thicket = (1.5f * scrub * scrub + 0.5f * v.canopy(i)) * (1f - thicketEase)
-        // Worn paths, game trails and people's routes, are easier going.
-        return (base * (1f + thicket) * (1f + snowMm / 150f)) * (1f - TRAIL_EASE * v.trails[i])
-    }
-
     companion object {
         /** Cliffs: least drop over a km across an escarpment; streams this big cut a gap. */
         const val CLIFF_M = 50f
@@ -286,8 +243,6 @@ class Terrain(private val world: World) {
         const val SCARP_FAULTED = 0.3f
         /** How far below the plain on both banks a river must have cut for a gorge, m. */
         const val GORGE_M = 120f
-        /** How much easier a well-worn path is than the open ground around it. */
-        const val TRAIL_EASE = 0.4f
         const val VIEW_MAX_KM = 30f
         const val EYE_M = 2f
 

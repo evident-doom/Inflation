@@ -50,7 +50,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
     /** How each kind travels between places. */
-    private val travel = kinds.map { if (it in Routes.CLIMBERS) HexMap.Travel.CLIMB else if (it.diet.grass > 0f && it.massKg > 60f) HexMap.Travel.SWIM else HexMap.Travel.FOOT }
+    private val travel = kinds.map { Catalogue.travel(it) }
 
     init {
         // Start near what the land can carry: the kind's usual density where its food grows.

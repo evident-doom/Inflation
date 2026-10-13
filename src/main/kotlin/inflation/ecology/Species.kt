@@ -727,6 +727,13 @@ object Catalogue {
 
     /** Plant-eaters that keep to small home ranges all year. */
     fun resident(s: Species) = !s.carnivore && s !in migratory
+
+    /** Kinds that climb crags and screes others cannot cross. */
+    val climbers = setOf(IBEX, MOUFLON, LEOPARD)
+
+    /** How a kind crosses hex borders: climbers over crags, big plant-eaters swim rivers, the rest walk. */
+    fun travel(s: Species) = if (s in climbers) inflation.world.HexMap.Travel.CLIMB
+        else if (!s.carnivore && s.massKg > 60f) inflation.world.HexMap.Travel.SWIM else inflation.world.HexMap.Travel.FOOT
     val all = herbivores + predators
 
     init {

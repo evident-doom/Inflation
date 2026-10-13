@@ -19,31 +19,15 @@ class TerrainTest {
     }
 
     @Test
-    fun `open water cannot be walked and wetlands and thickets are slow`() {
+    fun `open water cannot be walked`() {
         val t = world.terrain
-        val v = Vegetation(world, 42)
         assertTrue((0 until world.grid.size).filter { world.isSea[it] }.all { t.baseCost[it] == Float.POSITIVE_INFINITY })
         assertTrue(land.all { t.baseCost[it] >= 1f })
-        val i = land.minBy { t.baseCost[it] }
-        for (form in v.forms.values) form[i] = 0f
-        val bare = t.travelCost(i, v, 0f)
-        assertTrue(t.travelCost(i, v, 300f) > 2.5f * bare, "deep snow slows walking")
-        v.shrub[i] = 3f
-        assertTrue(t.travelCost(i, v, 0f) > 1.5f * bare, "a thicket slows walking")
     }
 
     @Test
-    fun `plants and broken ground cut visibility, hills see far`() {
+    fun `hills see far`() {
         val t = world.terrain
-        val v = Vegetation(world, 42)
-        val i = land.filter { t.ruggedness[it] < 0.1f }.maxBy { t.viewKm[it] }
-        for (form in v.forms.values) form[i] = 0f
-        val open = t.sightKm(i, v)
-        v.tree[i] = 25f
-        assertTrue(t.sightKm(i, v) < 0.1f && open > 2f, "open $open, forest ${t.sightKm(i, v)}")
-        val rugged = land.maxBy { t.ruggedness[it] }
-        for (form in v.forms.values) form[rugged] = 0f
-        assertTrue(t.concealmentKm(rugged, v) < 0.5f * open, "broken ground hides: ${t.concealmentKm(rugged, v)} vs $open")
         // In hilly country, compare ridge tops with valley floors.
         val hilly = land.filter { t.relief[it] > 200f }
         val tops = hilly.sortedByDescending { t.prominence[it] }.take(hilly.size / 20)

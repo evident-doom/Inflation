@@ -172,7 +172,7 @@ class HexGroups(
         if (top > 0f) for (m in 0 until 12) g.seasonQ[m] /= top
     }
 
-    private fun travel(s: Species) = if (s in Routes.CLIMBERS) HexMap.Travel.CLIMB else if (!s.carnivore && s.massKg > 60f) HexMap.Travel.SWIM else HexMap.Travel.FOOT
+    private fun travel(s: Species) = Catalogue.travel(s)
 
     private fun foodFor(s: Species, p: Int): Float {
         val d = s.diet

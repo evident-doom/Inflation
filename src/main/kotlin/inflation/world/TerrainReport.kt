@@ -79,27 +79,6 @@ fun main(args: Array<String>) {
         }
         println("%-20s %d journeys of %d km: easiest way median %.2f× the straight distance (90%% %.2f×), effort median %.1f× flat ground (90%% %.1f×)".format(
             name, longer.size, km, pct(longer, .5), pct(longer, .9), pct(harder, .5), pct(harder, .9)))
-        // The same by the animals' ways (waypoints every few km), for walkers and climbers.
-        val routes = inflation.ecology.Routes(world)
-        val search = inflation.ecology.Routes.Search()
-        for ((way, label) in listOf(inflation.ecology.Routes.WALKER to "walkers", inflation.ecology.Routes.CLIMBER to "climbers")) {
-            val eff = ArrayList<Float>(); var shut = 0; var n = 0
-            val r2 = Random(cfg.seed + 1)
-            var tries2 = 0
-            while (n < 60 && tries2 < 2000) {
-                tries2++
-                val a = starts[r2.nextInt(starts.size)]
-                val ang = r2.nextDouble() * 2 * Math.PI
-                val bx = (g.x(a) + cos(ang) * km / g.cellKm).toInt(); val by = (g.y(a) + sin(ang) * km / g.cellKm).toInt()
-                if (!g.inBounds(bx, by) || world.isSea[g.index(bx, by)] || !test(g.index(bx, by))) continue
-                n++
-                routes.search(g.x(a) + 0.5, g.y(a) + 0.5, way, 6f * km, search)
-                val e = routes.effortTo(search, bx + 0.5, by + 0.5)
-                if (e.isFinite()) eff += e / km else shut++
-            }
-            println("%-20s   by the ways, %s: effort median %.1f× flat ground (90%% %.1f×), %d of %d beyond six times the distance".format(
-                "", label, pct(eff, .5), pct(eff, .9), shut, n))
-        }
     }
 }
 
