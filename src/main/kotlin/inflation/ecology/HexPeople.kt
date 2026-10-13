@@ -214,7 +214,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         if (b.cacheKg < 1f) dropCache(b)
     }
     buildKite(g, b)
-    keepAnimals(g, b)
+    if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
     val people = g.adults.toFloat()
     val gd = b.goods
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
@@ -351,6 +351,8 @@ const val DOG_DEATHS = 0.1f
 const val DOGS_PER_ADULT = 0.3f
 const val DOG_HUNT = 0.2f
 const val DOG_GUARD = 0.5f
+/** Taming is off unless asked for (-Dhex.taming): whether, and how soon, wolves become dogs is still to be decided. */
+val TAMING = System.getProperty("hex.taming") != null
 /** How strongly people's camps draw bold animals of kinds that follow people (refuse, scraps, warmth). */
 const val CAMP_LURE = 0.3f
 

@@ -361,7 +361,7 @@ class HexGroups(
                 score += BEARING_PULL * pull
                 if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
                 // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
-                if (s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, headsHere[peopleSlot][p] / 25f)
+                if (TAMING && s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, headsHere[peopleSlot][p] / 25f)
                 // Bands keep to country they know; what lies beyond they know only as a sense of better land.
                 g.band?.let { b -> if (!b.knows(h)) score -= UNKNOWN_COUNTRY }
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.
