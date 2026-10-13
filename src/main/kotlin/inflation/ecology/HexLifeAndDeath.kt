@@ -53,29 +53,41 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     if (top > 0f) for (m in 0 until 12) g.seasonQ[m] /= top
 }
 
-/** Herds eat in the place they end up in, after the resident herds have had theirs. */
+/**
+ * Herds eat in the place they end up in, after the resident herds have had theirs: grass, browse,
+ * fruit and roots as their diet goes and as far as they can get at it, then straw for a shortfall.
+ */
 internal fun HexGroups.graze(weather: Weather) {
+    val food = fauna.food
     for (g in groups) {
         val s = g.species
         if (!g.alive || s.carnivore) continue
         val p = g.place
         val want = g.dailyNeedKg * days / 1e6f / land.areaKm2[p] // kg per m² of the place
+        val access = HexFood.access(s, land.ruggedness[p])
         val snowed = weather.snowpack[p] > s.snowLimitMm
         val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
         val reach = if (weather.temperature[p] > 4f) HexFauna.REACH else HexFauna.REACH_DORMANT
-        val grass = if (snowed) 0f else min(want * d.grass / total, reach * land.herb[p])
-        val browse = min(want * d.browse / total, reach * land.shrub[p])
-        // Fruit and roots, as far as the place has them, off the trees and the herb layer.
-        val fruitWant = want * (d.fruit + d.roots) / total * min(1f, foodFor(s, p) / 0.3f)
-        val fromTrees = HexFauna.FRUIT_OF_TREE * land.tree[p] * small.fruitSet(p); val fromHerbs = 0.3f * land.herb[p]
-        val treeShare = if (fromTrees + fromHerbs > 0f) fromTrees / (fromTrees + fromHerbs) else 0f
-        val fruitGot = land.consume(p, LifeForm.TREE, fruitWant * treeShare) + land.consume(p, LifeForm.HERB, fruitWant * (1f - treeShare))
-        val eaten = land.consume(p, LifeForm.HERB, grass) + land.consume(p, LifeForm.SHRUB, browse) + fruitGot
-        small.dung[p] += HexSmallLife.DUNG * eaten
+        val wantGrass = if (snowed) 0f else want * access * d.grass / total
+        val grass = land.consume(p, LifeForm.HERB, min(wantGrass, reach * land.herb[p]))
+        val wantBrowse = want * access * d.browse / total
+        val browse = land.consume(p, LifeForm.SHRUB, min(wantBrowse, reach * land.shrub[p]))
+        val fruit = food.take(food.fruit, p, want * access * d.fruit / total)
+        val roots = food.take(food.roots, p, want * access * d.roots / total)
+        // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
+        val straw = food.take(food.straw, p, want * access * (d.grass + d.browse) / total - grass - browse)
+        small.dung[p] += HexSmallLife.DUNG * (grass + browse + fruit + roots + straw)
+        // On the way it beat down the plants and dropped the seed of the fruit it ate.
+        val band = hw.placeBand[p]
+        for (h in g.path) {
+            val q = hw.placeOf[band][h].takeIf { it >= 0 } ?: continue
+            land.trample(q, g.size * s.massKg / 1000f)
+            if (fruit > 0f) land.animalSeed[q] = min(1f, land.animalSeed[q] + fruit * land.areaKm2[p] * 1e6f / g.path.size / land.areaKm2[q] / HexFauna.SEED_KG)
+        }
         // Grass and browse nourish fully only when green; fruit and roots keep their value.
-        val got = (grass + browse) * land.nourishment(p) + fruitGot
+        val got = (grass + browse) * land.nourishment(p) + fruit + roots + straw * HexFood.roughage(s)
         g.fed = (got / want.coerceAtLeast(1e-9f)).coerceIn(0f, 1f)
-        land.grazing[p] += grass * 1e6f / days; land.browsing[p] += browse * 1e6f / days
+        land.grazing[p] += grass * 1e6f / days; land.browsing[p] += browse * 1e6f / days; land.rooting[p] += roots * 1e6f / days
     }
 }
 
