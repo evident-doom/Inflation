@@ -344,7 +344,8 @@ class HexGroups(
             val grass = if (snowed) 0f else min(want * d.grass / total, reach * land.herb[p])
             val browse = min(want * d.browse / total, reach * land.shrub[p])
             land.consume(p, LifeForm.HERB, grass); land.consume(p, LifeForm.SHRUB, browse)
-            val got = grass + browse + want * (d.fruit + d.roots) / total * min(1f, foodFor(s, p) / 0.3f)
+            // Grass and browse nourish fully only when green; fruit and roots keep their value.
+            val got = (grass + browse) * land.nourishment(p) + want * (d.fruit + d.roots) / total * min(1f, foodFor(s, p) / 0.3f)
             g.fed = (got / want.coerceAtLeast(1e-9f)).coerceIn(0f, 1f)
             land.grazing[p] += grass * 1e6f / days; land.browsing[p] += browse * 1e6f / days
         }

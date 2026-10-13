@@ -346,17 +346,18 @@ object HexSeasons {
         val stepsPerMonth = Date.DAYS_PER_MONTH / cfg.daysPerStep
         println("month " + kinds.joinToString("") { "%18s".format(it.name.take(16)) })
         repeat(years * 12) { m ->
-            val elev = DoubleArray(kinds.size); val snow = DoubleArray(kinds.size); val n = DoubleArray(kinds.size)
+            val elev = DoubleArray(kinds.size); val snow = DoubleArray(kinds.size); val n = DoubleArray(kinds.size); val fed = DoubleArray(kinds.size)
             repeat(stepsPerMonth) {
                 run.step()
                 for (g in run.groups.groups) {
                     if (!g.alive || g.species !in kinds) continue
                     val i = kinds.indexOf(g.species)
-                    elev[i] += run.hw.placeElevationM[g.place] * g.size.toDouble(); n[i] += g.size.toDouble()
+                    elev[i] += run.hw.placeElevationM[g.place] * g.size.toDouble(); n[i] += g.size.toDouble(); fed[i] += g.fed * g.size.toDouble()
                     if (run.weather.snowpack[g.place] > g.species.snowLimitMm) snow[i] += g.size.toDouble()
                 }
             }
-            println("%5d ".format(m % 12 + 1) + kinds.indices.joinToString("") { i -> if (n[i] > 0) "%9.0f m %5.1f%%".format(elev[i] / n[i], 100 * snow[i] / n[i]) else "%18s".format("-") })
+            println("%5d ".format(m % 12 + 1) + kinds.indices.joinToString("") { i -> if (n[i] > 0) "%7.0fm %4.0f%% f%3.0f".format(elev[i] / n[i], 100 * snow[i] / n[i], 100 * fed[i] / n[i]) else "%18s".format("-") } +
+                "   count " + kinds.joinToString(" ") { "${run.groups.count(it)}" })
         }
         println("at the end: " + kinds.joinToString(", ") { "${it.name} ${run.groups.count(it)}" })
     }

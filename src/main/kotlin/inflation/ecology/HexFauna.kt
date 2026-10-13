@@ -129,7 +129,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val snowed = weather.snowpack[p] > s.snowLimitMm
                 // A kind that cannot reach the grass under snow falls back on browse, as far as its diet stretches.
                 val g = if (snowed) 0f else d.grass / total * gShare
-                fed[k][p] = (g + d.browse / total * bShare + (d.fruit + d.roots) / total * fShare).coerceIn(0f, 1f)
+                // Grass and browse nourish fully only when green; fruit and roots keep their value.
+                fed[k][p] = ((g + d.browse / total * bShare) * land.nourishment(p) + (d.fruit + d.roots) / total * fShare).coerceIn(0f, 1f)
             }
             val eatenGrass = min(grass, wantGrass) / 1e6f; val eatenBrowse = min(browse, wantBrowse) / 1e6f
             land.consume(p, LifeForm.HERB, eatenGrass)

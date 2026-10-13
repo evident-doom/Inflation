@@ -133,6 +133,16 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     /** Set by the ecology: browsing, grazing and rooting lately, kg/km²/day; seed carried by animals, 0..1; trampling. */
     val browsing = FloatArray(n); val grazing = FloatArray(n); val rooting = FloatArray(n); val animalSeed = FloatArray(n)
     private val trampling = FloatArray(n)
+    /**
+     * How green each place's forage is this week, 0..1: young growth in warm, moist weeks; dry or
+     * dormant stuff in drought, heat and cold. Grazers get full nourishment from green forage and a
+     * fraction from the rest (see [nourishment]).
+     */
+    val green = FloatArray(n)
+
+    /** Nourishment per kg of forage in place [p] this week, against fresh growth: about a third when dry or dormant. */
+    fun nourishment(p: Int) = DRY_VALUE + (1f - DRY_VALUE) * green[p]
+
     /** Share of each place worn by paths, 0..1. */
     val trails = FloatArray(n)
     private var treeSeed = FloatArray(n); private var shrubSeed = FloatArray(n)
@@ -208,6 +218,8 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
             val season = ((t - 2f) / 13f).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
             val water0 = (wet / 0.5f).coerceIn(0f, 1f)
+            // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
+            green[p] += (season * water0 - green[p]) * GREEN_RATE
             val shade = canopy(p)
             val browsed = 1f - exp(-browsing[p] / Vegetation.BROWSE_SCALE)
             val young = 1f - min(1f, tree[p] / (0.3f * ceiling(LifeForm.TREE, p).coerceAtLeast(1e-3f)))
@@ -327,6 +339,9 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     companion object {
         /** Most places a fire runs through in a step. */
         const val MAX_SPREAD = 60
+        /** Nourishment of dry or dormant forage against fresh growth; weekly share by which greenness follows growth. */
+        const val DRY_VALUE = 0.35f
+        const val GREEN_RATE = 0.3f
         /** Weekly weight of the newest flow in the running mean used to correct river flows (about two years). */
         const val FLOW_MEMORY = 0.01f
     }
