@@ -17,8 +17,8 @@ import kotlin.random.Random
 
 /** Group [k] is in hex at its path's [index] from day [from] to day [to]. */
 private class Stay(val k: Int, val index: Int, val from: Float, val to: Float)
-/** Groups [a] and [b] meet on [day], at their paths' [ai] and [bi]. */
-private class Meeting(val day: Float, val a: Int, val ai: Int, val b: Int, val bi: Int)
+/** Groups [a] and [b] are in the same hex from [day], for [span] days, at their paths' [ai] and [bi]. */
+private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int)
 
 /**
  * How catchable prey [ps] is for hunter [s] in place [p], 0..1: size against the pack, defence,
@@ -28,7 +28,8 @@ internal fun HexGroups.catchable(s: Species, ps: Species, p: Int): Float {
     val pack = s.groupSize * s.massKg
     val size = min(1f, pack / (1.5f * ps.massKg))
     val small = if (ps.massKg < s.massKg * 0.05f) 0.3f else 1f // too small to be worth a pack's while
-    val refuge = 1f - 0.8f * max(0f, ps.habitat.rugged) * land.ruggedness[p]
+    // Shelter: crags, dens, thickets and trees, as the prey uses them; small prey hide in any cover.
+    val refuge = 1f - SHELTER_EFFECT * Niches.shelter(ps, p, land)
     val hide = if (ps.massKg < HIDING_KG) 1f - HIDING * land.cover(p) else 1f
     // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
     val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
@@ -63,7 +64,9 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 if (got >= need) break
                 val dens = fauna.adults[k][p] + fauna.young[k][p]
                 if (dens <= 0f) continue
-                val expected = dens * swept * CATCH * catchable(s, ps, p)
+                // Prey resting while the hunter is about lie up in cover and are found less.
+                val awake = 0.5f + 0.5f * Niches.overlap(s, ps)
+                val expected = dens * swept * CATCH * catchable(s, ps, p) * awake
                 val meat = ps.massKg * MEAT_SHARE
                 val wanted = ((need - got) / (0.6f * meat)).coerceAtLeast(0f)
                 var n = poisson(min(expected, wanted + 1f))
@@ -87,6 +90,8 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
             val swept = min(land.areaKm2[p], sweptKm2(s) / g.path.size.coerceAtLeast(1))
             if (smallWant - gotSmall > 0f) gotSmall += this.small.catchSmall(p, (smallWant - gotSmall) / swept, weather) * swept
             if (scraps - gotScraps > 0f) gotScraps += this.small.scavenge(p, min((scraps - gotScraps) / (swept * 1e6f), 0.5f * this.small.carrion[p])) * swept * 1e6f
+            // Bone-crackers live on what the others leave long after the meat is gone.
+            if (Niches.cracksBones(s) && scraps - gotScraps > 0f) gotScraps += this.small.crackBones(p, min((scraps - gotScraps) / (swept * 1e6f), 0.5f * this.small.bones[p])) * swept * 1e6f
         }
         // Omnivorous hunters (jackals, hyenas) eat fruit and roots as well, where they end the week.
         val d = s.diet
@@ -148,7 +153,7 @@ internal fun HexGroups.meet(weather: Weather) {
             if (!matters) continue
             val from = max(sa.from, sb.from); val to = min(sa.to, sb.to)
             if (from > to) continue
-            events += Meeting(from, sa.k, sa.index, sb.k, sb.index)
+            events += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index)
         }
     }
     events.sortWith(compareBy({ it.day }, { it.a }, { it.b }))
@@ -160,8 +165,13 @@ internal fun HexGroups.meet(weather: Weather) {
         if (count[e.a] >= MAX_MEETINGS || count[e.b] >= MAX_MEETINGS) continue
         val a = groups[e.a]; val b = groups[e.b]
         if (!a.alive || !b.alive) continue
-        count[e.a]++; count[e.b]++
         val h = a.path[e.ai]
+        // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
+        // hours, and neither slip away first.
+        val p = hw.placeOf[hw.placeBand[a.place]][h].takeIf { it >= 0 } ?: a.place
+        if (rnd.nextFloat() >= meetChance(a, b, p, e.span)) continue
+        if (slipsAway(a, b, p) || slipsAway(b, a, p)) { meetings.merge("slipped away", 1, Int::plus); continue }
+        count[e.a]++; count[e.b]++
         if (a.species.carnivore && b.species.carnivore) {
             if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) else enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
         }
@@ -179,6 +189,37 @@ internal fun HexGroups.meet(weather: Weather) {
         val band = hw.placeBand[g.place]
         g.place = hw.placeOf[band][h].takeIf { it >= 0 } ?: (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: g.place
     }
+}
+
+/**
+ * Chance two groups that are in the same place for [span] days run into each other: the ground both
+ * search in that time against the place's size, times how much they are about at the same hours.
+ */
+internal fun HexGroups.meetChance(a: HexGroup, b: HexGroup, p: Int, span: Float): Float {
+    // A hunter after a herd follows its tracks and smell, so it covers far more of the ground that
+    // matters; and finds the herd lying up as well as out feeding, if less often.
+    val hunting = a.species.carnivore != b.species.carnivore
+    val track = if (hunting) TRACKING else 1f
+    val searched = (sweptKm2(a.species) + sweptKm2(b.species)) * track * max(span, 0.5f) / days
+    val hours = Niches.overlap(a.species, b.species)
+    return min(1f, searched / land.areaKm2[p]) * (if (hunting) 0.5f + 0.5f * hours else hours)
+}
+
+/**
+ * Whether hunter [g] senses [other] first and keeps out of its way, as it does a much stronger one
+ * of another kind; the keener its senses and the better its shelter, the likelier. (Herds watch for
+ * hunters when they meet: see [hunterMeetsHerd].)
+ */
+internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Int): Boolean {
+    val s = g.species; val o = other.species
+    val wants = when {
+        s.carnivore && o.carnivore && s != o -> strength(other) > 2f * strength(g)
+        else -> false
+    }
+    if (!wants) return false
+    val first = s.senseKm / (s.senseKm + o.senseKm)
+    val chance = AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p, land)
+    return rnd.nextFloat() < min(0.9f, chance)
 }
 
 /** How open hex [h] is where a group passes: the share of the ground with no cover to hide in. */
@@ -247,12 +288,14 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     strong as HexGroup; weak as HexGroup; wk as Int; wi as Int
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
     if (ratio < THEFT_RATIO) return // near equals keep their distance
-    if (weak.meatMet > 0f && rnd.nextFloat() < THEFT) {
+    // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
+    val cached = if (Niches.Shelter.TREE in Niches.shelters(weak.species)) land.canopy(weak.place) else 0f
+    if (weak.meatMet > 0f && rnd.nextFloat() < THEFT * (1f - cached)) {
         val taken = 0.7f * weak.meatMet
         weak.meatMet -= taken; strong.meatMet += taken
         meetings.merge("kill stolen", 1, Int::plus)
     }
-    if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL) {
+    if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land))) {
         weak.adults--
         strong.meatMet += 0.5f * weak.species.massKg
         deaths.merge("${weak.species.name}:killed by ${strong.species.name}", 1, Int::plus)

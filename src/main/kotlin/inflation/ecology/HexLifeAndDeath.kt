@@ -105,9 +105,37 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     val kinNow = HashMap<Long, Int>()
     for (g in groups) if (g.alive) kinNow.merge(g.species.index.toLong() * hex.size + hw.placeHex[g.place], g.size, Int::plus)
+    // Each group on its own core, with its own random stream; what it leaves for others (carcasses,
+    // the counts, a split-off herd) is gathered and handed on after, in the groups' order.
+    val list = groups.toList()
+    val outcome = arrayOfNulls<Outcome>(list.size)
+    java.util.stream.IntStream.range(0, list.size).parallel().forEach { k ->
+        val g = list[k]
+        if (g.alive) outcome[k] = liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay))
+    }
     val born = ArrayList<HexGroup>()
-    for (g in groups) {
-        if (!g.alive) continue
+    for ((k, o) in outcome.withIndex()) {
+        o ?: continue
+        val g = list[k]; val s = g.species
+        if (o.carrionKg > 0f) small.carrion[g.place] += o.carrionKg / (land.areaKm2[g.place] * 1e6f)
+        if (o.births > 0) births.merge(s.name, o.births, Int::plus)
+        if (o.deaths > 0) deaths.merge("${s.name}:${o.cause}", o.deaths, Int::plus)
+        if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
+        o.split?.let { c -> born += HexGroup(nextId++, s, g.place, c.first, c.second).also { n ->
+            n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth
+            g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
+        } } // a young pack has no ground yet
+    }
+    groups += born
+    mergeAndPair()
+}
+
+/** What a group's week left for others: carcasses (kg), births, deaths and their main cause, orphans, a split-off part (adults, young). */
+internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val cause: String, val orphans: Int, val split: Pair<Int, Int>?)
+
+/** One group's week of feeding on its reserves, births, deaths and growing up; with its own random stream [r]. */
+internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
+    run {
         val s = g.species
         // Reserves carry a group through lean weeks.
         // Reserves carry a group through lean weeks; it lays on most in late summer and autumn.
@@ -122,15 +150,16 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             else if (window(m + 1) > window(m) + 0.1) g.birthMonth = (m + 1) % 12
         }
         val inSeason = (date.month - g.birthMonth + 12) % 12 < s.birthMonths
+        var bornNow = 0
         if (inSeason && g.adults >= 2) {
             val births = if (s.packLitter > 0) {
-                if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + rnd.nextFloat()).toInt() else 0
+                if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
             } else {
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                binomial(g.adults / 2, s.youngPerFemale * s.littersPerYear * g.fed / stepsInSeason)
+                binomial(g.adults / 2, s.youngPerFemale * s.littersPerYear * g.fed / stepsInSeason, r)
             }
             g.young += births
-            if (births > 0) this.births.merge(s.name, births, Int::plus)
+            bornNow = births
         }
         val hunger = if (g.fed < 0.5f) (0.5f - g.fed) * 0.3f else 0f
         val cold = discomfort(s, g.place, weather) * 0.02f
@@ -154,32 +183,33 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val pa = (s.backgroundMortality * years + hunger + cold + disease + thirst + homeless + fireA + floodA + snowA).coerceIn(0f, 0.9f)
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
         val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc).coerceIn(0f, 0.95f)
-        val da = binomial(g.adults, pa); val dy = binomial(g.young, py)
+        val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
         g.adults -= da; g.young -= dy
         // The dead lie where they fell, for the scavengers and the soil.
-        small.carrion[g.place] += (da + 0.3f * dy) * s.massKg / (land.areaKm2[g.place] * 1e6f)
-        if (da + dy > 0) {
-            val causes = listOf("hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless)
-            val main = causes.maxBy { it.second }
-            deaths.merge("${s.name}:${if (main.second > 0f) main.first else "other"}", da + dy, Int::plus)
-        }
-        val up = binomial(g.young, years / s.yearsToMaturity)
+        var carrion = (da + 0.3f * dy) * s.massKg
+        val causes = listOf("hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless)
+        val main = causes.maxBy { it.second }
+        val cause = if (main.second > 0f) main.first else "other"
+        val up = binomial(g.young, years / s.yearsToMaturity, r)
         g.young -= up; g.adults += up
         if (g.adults == 0) {
             // Young left without a grown animal of their kind die.
-            if (g.young > 0) { deaths.merge("${s.name}:orphaned", g.young, Int::plus); small.carrion[g.place] += 0.3f * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f) }
-            g.young = 0; continue
+            val orphans = g.young
+            carrion += 0.3f * orphans * s.massKg
+            g.young = 0
+            return Outcome(carrion, bornNow, da + dy, cause, orphans, null)
         }
+        var split: Pair<Int, Int>? = null
         if (g.size > s.maxGroupSize) {
-            val c = HexGroup(nextId++, s, g.place, g.adults / 2, g.young / 2)
-            c.tag = g.tag
-            g.adults -= c.adults; g.young -= c.young
-            c.fed = g.fed; c.fat = g.fat; c.tag = g.tag; c.dry = g.dry; c.wary = g.wary; c.birthMonth = g.birthMonth
-            g.seasonPlace.copyInto(c.seasonPlace); g.seasonQ.copyInto(c.seasonQ)
-            born += c // a young pack has no ground yet
+            split = (g.adults / 2) to (g.young / 2)
+            g.adults -= split.first; g.young -= split.second
         }
+        return Outcome(carrion, bornNow, da + dy, cause, 0, split)
     }
-    groups += born
+}
+
+/** Small herds join up, and lone hunters find mates (see [demography]). */
+internal fun HexGroups.mergeAndPair() {
     // Small herds of a kind that end the week in the same place join up, as far as the herd can grow.
     val byPlace = HashMap<Long, HexGroup>()
     for (g in groups) {

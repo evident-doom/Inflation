@@ -1,6 +1,5 @@
 package inflation.world
 
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -125,42 +124,56 @@ object Erosion {
         grid: Grid, elevation: FloatArray, sediment: FloatArray, toSea: FloatArray,
         isOutlet: (Int) -> Boolean, stamp: IntArray, lastTag: Int,
     ): Int {
-        var tag = lastTag
         val cellArea = grid.cellAreaM2.toFloat()
-        val heap = FloatHeap(1024)
-        for (s in 0 until grid.size) {
-            var volume = toSea[s]
-            if (volume <= 0f) continue
-            val deltaKm = if (volume > DELTA_VOLUME) DELTA_KM else 0f
-            tag++
-            val sx = grid.x(s); val sy = grid.y(s)
-            heap.push(0f, s); stamp[s] = tag
-            while (heap.size > 0 && volume > 0f) {
-                val km = heap.peekKey()
-                val i = heap.pop()
-                val target = when {
-                    km < deltaKm -> DELTA_TOP
-                    km < SHELF_BREAK_KM -> SHELF_TOP - SHELF_SLOPE * (km - deltaKm)
-                    else -> SHELF_TOP - SHELF_SLOPE * (SHELF_BREAK_KM - deltaKm) - 25f * (km - SHELF_BREAK_KM)
-                }
-                val room = (target - elevation[i]) * cellArea
-                if (room > 0f) {
-                    val dep = min(room, volume)
-                    elevation[i] += dep / cellArea
-                    sediment[i] += dep / cellArea
-                    volume -= dep
-                }
-                grid.forNeighbours(i) { j, _ ->
-                    if (stamp[j] != tag && isOutlet(j)) {
-                        stamp[j] = tag
-                        val d = (hypot((grid.x(j) - sx).toDouble(), (grid.y(j) - sy).toDouble()) * grid.cellKm).toFloat()
-                        if (d < MAX_SPREAD_KM) heap.push(d, j)
+        // The coast is cut into tiles twice as wide as sediment ever spreads, and tiles of one colour
+        // of a four-colour chessboard are filled at the same time on separate cores: their spreads
+        // cannot reach each other's sea floor.
+        val tileCells = max(1, (2 * MAX_SPREAD_KM / grid.cellKm).toInt() + 1)
+        val tilesX = (grid.width + tileCells - 1) / tileCells; val tilesY = (grid.height + tileCells - 1) / tileCells
+        val byTile = Array(tilesX * tilesY) { ArrayList<Int>() }
+        for (s in 0 until grid.size) if (toSea[s] > 0f) byTile[(grid.y(s) / tileCells) * tilesX + grid.x(s) / tileCells] += s
+        val heaps = ThreadLocal.withInitial { FloatHeap(1024) }
+        val marks = ThreadLocal.withInitial { IntArray(grid.size) }
+        val tags = ThreadLocal.withInitial { intArrayOf(0) }
+        for (colour in 0 until 4) {
+            val tiles = (0 until tilesX * tilesY).filter { ((it / tilesX) % 2) * 2 + (it % tilesX) % 2 == colour && byTile[it].isNotEmpty() }
+            tiles.parallelStream().forEach { tile ->
+                val heap = heaps.get(); val mine = marks.get(); val tag = tags.get()
+                for (s in byTile[tile]) {
+                    var volume = toSea[s]
+                    val deltaKm = if (volume > DELTA_VOLUME) DELTA_KM else 0f
+                    tag[0]++
+                    val sx = grid.x(s); val sy = grid.y(s)
+                    heap.push(0f, s); mine[s] = tag[0]
+                    while (heap.size > 0 && volume > 0f) {
+                        val km = heap.peekKey()
+                        val i = heap.pop()
+                        val target = when {
+                            km < deltaKm -> DELTA_TOP
+                            km < SHELF_BREAK_KM -> SHELF_TOP - SHELF_SLOPE * (km - deltaKm)
+                            else -> SHELF_TOP - SHELF_SLOPE * (SHELF_BREAK_KM - deltaKm) - 25f * (km - SHELF_BREAK_KM)
+                        }
+                        val room = (target - elevation[i]) * cellArea
+                        if (room > 0f) {
+                            val dep = min(room, volume)
+                            elevation[i] += dep / cellArea
+                            sediment[i] += dep / cellArea
+                            volume -= dep
+                        }
+                        grid.forNeighbours(i) { j, _ ->
+                            if (mine[j] != tag[0] && isOutlet(j)) {
+                                mine[j] = tag[0]
+                                val dx = (grid.x(j) - sx).toDouble(); val dy = (grid.y(j) - sy).toDouble()
+                                val d = (kotlin.math.sqrt(dx * dx + dy * dy) * grid.cellKm).toFloat()
+                                if (d < MAX_SPREAD_KM) heap.push(d, j)
+                            }
+                        }
                     }
+                    while (heap.size > 0) heap.pop()
                 }
             }
-            while (heap.size > 0) heap.pop()
         }
-        return tag
+        return lastTag
     }
 
     /**

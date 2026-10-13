@@ -38,7 +38,7 @@ class HexHistory {
     }
 
     /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
-    fun isFlow(key: String) = key.startsWith("deaths/") || key.startsWith("births/") || key.startsWith("kills/") || key == "weather/rain mm"
+    fun isFlow(key: String) = key.startsWith("deaths/") || key.startsWith("births/") || key.startsWith("kills/") || key.startsWith("fish flows/") || key == "weather/rain mm"
 
     private fun put(key: String, v: Float) {
         val s = series.getOrPut(key) { FloatList().also { it.pad(weeks - 1) } }
@@ -62,7 +62,7 @@ class HexHistory {
         fun perKm2(a: FloatArray) = perM2(a) / 1e6f
         val sl = fauna.small
         put("biomass/herbs", perM2(land.herb)); put("biomass/shrubs", perM2(land.shrub)); put("biomass/trees", perM2(land.tree))
-        put("biomass/litter", perM2(sl.litter)); put("biomass/soil organic matter", perM2(sl.organicMatter)); put("biomass/carrion", perM2(sl.carrion))
+        put("biomass/litter", perM2(sl.litter)); put("biomass/soil organic matter", perM2(sl.organicMatter)); put("biomass/carrion", perM2(sl.carrion)); put("biomass/bones", perM2(sl.bones))
         put("biomass/fruit", perM2(fauna.food.fruit)); put("biomass/roots and mast", perM2(fauna.food.roots)); put("biomass/straw", perM2(fauna.food.straw))
         put("biomass/small animals", listOf(sl.insects, sl.rodents, sl.herps, sl.pollinators, sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it).toDouble() }.toFloat())
         put("biomass/resident herds", fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg }.toFloat() / 1e6f)
@@ -80,6 +80,7 @@ class HexHistory {
         put("water life/fish, tonnes", wl.fishTonnes()); put("water life/river fish, tonnes", wl.riverFishTonnes())
         put("water life/shellfish, tonnes", wl.shellfishTonnes()); put("water life/sea birds", wl.colonyBirds.sum())
         put("water life/zooplankton, g per m²", wl.zooMean())
+        for ((key, v) in wl.fishFlows) if (!key.startsWith("hungry")) put("fish flows/$key, t", v.toFloat())
         // Deaths, births and kills this week.
         for ((key, v) in fauna.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
         for ((key, v) in groups.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
