@@ -248,6 +248,22 @@ fun main(args: Array<String>) {
         println("     climate fit: " + fit())
         println("     land that suits / pull felt: " + drawn())
         println("     groups: " + herds.kinds.joinToString(", ") { "${it.name} ${herds.count(it)}" })
+        // By kind of country: its share of the land, forage, resident animals, herds, hunters and people, per 1000 km².
+        run {
+            val bArea = DoubleArray(inflation.world.Biome.entries.size); val forage = DoubleArray(bArea.size); val res = DoubleArray(bArea.size)
+            val herdsB = DoubleArray(bArea.size); val huntersB = DoubleArray(bArea.size); val peopleB = DoubleArray(bArea.size)
+            val biomeOf = IntArray(land.n) { pl -> val c = IntArray(bArea.size); for (cell in hw.placeCells[pl]) c[sim.world.biome[cell].ordinal]++; c.indices.maxBy { c[it] } }
+            for (pl in 0 until land.n) {
+                val b = biomeOf[pl]; val a = land.areaKm2[pl].toDouble()
+                bArea[b] += a; forage[b] += (land.palatable[pl] * (land.herb[pl] + land.shrub[pl])) * a
+                for (k in fauna.kinds.indices) res[b] += ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble()
+            }
+            for (gr in herds.groups) if (gr.alive) { val b = biomeOf[gr.place]; if (gr.species.human) peopleB[b] += gr.size.toDouble() else if (gr.species.carnivore) huntersB[b] += gr.size.toDouble() else herdsB[b] += gr.size.toDouble() }
+            val total = bArea.sum()
+            println("     by country (share of land: edible forage kg/m², residents / herds / hunters / people per 1000 km²): " + inflation.world.Biome.entries.indices.filter { bArea[it] > 0.01 * total }.sortedByDescending { bArea[it] }.joinToString(", ") { b ->
+                val k = 1000.0 / bArea[b]
+                "%s %.0f%%: %.2f, %.0f / %.0f / %.1f / %.1f".format(inflation.world.Biome.entries[b].name.lowercase().replace('_', ' '), 100 * bArea[b] / total, forage[b] / bArea[b], res[b] * k, herdsB[b] * k, huntersB[b] * k, peopleB[b] * k) })
+        }
         // How many groups, how big, how much of the land they cover, and how far each herd is from the nearest hunting pack.
         run {
             val live = herds.groups.filter { it.alive }
