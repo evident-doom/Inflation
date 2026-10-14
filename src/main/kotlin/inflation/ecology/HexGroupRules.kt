@@ -89,6 +89,30 @@ const val HANDLING_DAYS = 0.3f
 const val EATING_RATE = 0.15f
 /** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */
 const val SEARCHING = 0.3f
+
+/**
+ * How far a group sees this week against a clear day in the open, 0..1: rain, snow and fog cut the
+ * view (half in [SIGHT_RAIN_MM] of rain or snow a week), so does the haze over hot ground, and thick
+ * cover hides game from all but those close by.
+ */
+fun HexGroups.sight(p: Int): Float {
+    val wet = 1f / (1f + weatherNow.precipitation[p] / SIGHT_RAIN_MM)
+    val haze = if (weatherNow.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
+    return wet * haze * (1f - SIGHT_COVER * land.cover(p))
+}
+const val SIGHT_RAIN_MM = 60f
+const val SIGHT_HAZE_C = 32f
+const val SIGHT_COVER = 0.5f
+/**
+ * Country: what a band sees of the land from the high points on its way (the line of sight from
+ * them, as far as the weather lets it see), at most [SIGHT_RINGS] rings of hexes; and how many more
+ * rings scouts range when it sends a share of its people ahead of the camp ([SCOUT_RINGS] when two
+ * or more go).
+ */
+const val SIGHT_RINGS = 4
+const val SCOUT_RINGS = 3
+/** The scaffold's share of a band's adults out scouting rather than foraging. */
+const val SCOUT_SHARE = 0.05f
 /**
  * Optimal foraging: how far to each side of its way a hunter finds small game, km; the share of
  * small game met that a hunter of [SMALL_HUNTER_KG] or less catches (bigger ones are clumsier with

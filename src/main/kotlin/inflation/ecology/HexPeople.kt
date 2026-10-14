@@ -101,6 +101,8 @@ class Band {
     var cachePlace = -1
     /** Its choices: days of food it aims to keep in store (the scaffold's; a learned policy sets its own). */
     var storeAim = STORE_AIM_DAYS
+    /** Its choices: the share of its adults out scouting rather than foraging. */
+    var scoutShare = SCOUT_SHARE
     /** Its choices: how it ranks making each tool ([Tool]) with its spare time (the scaffold: the most worn first). */
     val makeFirst = FloatArray(Tool.entries.size) { 1f }
     /**
@@ -205,7 +207,20 @@ class Band {
 internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     val b = g.band ?: return
     // It comes to know the country it walks, and what it sees round about.
-    for (h in g.path) { b.learn(h, hex.size); for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0) b.learn(q, hex.size) } }
+    // From the high points on its way it sees as far as the line of sight and the weather allow;
+    // its scouts range further still.
+    var lookKm = 0f
+    for (h in g.path) { val q = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue; lookKm = max(lookKm, land.bestViewKm[q] * sight(q) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f)) }
+    val scouts = b.scoutShare * g.adults
+    val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
+    for (h in g.path) {
+        var ring = listOf(h); val seenHex = hashSetOf(h); b.learn(h, hex.size)
+        for (r in 1..rings) {
+            val next = ArrayList<Int>()
+            for (x in ring) for (d in 0 until 6) { val q = hex.neighbour(x, d); if (q >= 0 && seenHex.add(q)) { next += q; b.learn(q, hex.size) } }
+            ring = next
+        }
+    }
     val p = g.place
     val h = hw.placeHex[p]
     val area = land.areaKm2[p] * 1e6f
@@ -460,7 +475,7 @@ const val FOOD_TYPES = 9
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Forage.entries.size + Tool.entries.size + 3
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 1
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
@@ -490,4 +505,5 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     for (t in 0 until FOOD_TYPES) b.effort[t] = squash(out[t])
     b.storeAim = STORE_AIM_DAYS * squash(out[FOOD_TYPES])
     for (t in Tool.entries) b.makeFirst[t.ordinal] = squash(out[FOOD_TYPES + 1 + t.ordinal])
+    b.scoutShare = SCOUT_SHARE * squash(out[FOOD_TYPES + 1 + Tool.entries.size])
 }

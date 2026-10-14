@@ -130,6 +130,9 @@ class HexGroups(
 
     fun count(s: Species) = groups.filter { it.species == s && it.alive }.sumOf { it.size }
 
+    /** This week's weather (for sight). */
+    internal lateinit var weatherNow: Weather
+
     /** The group being followed (in the viewer), -1 for none; what happened to it this week, in words. */
     @Volatile var watched = -1
     val watchLog = java.util.concurrent.ConcurrentLinkedQueue<String>()
@@ -137,6 +140,7 @@ class HexGroups(
 
     fun step(weather: Weather, date: Date) {
         kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); watchLog.clear()
+        weatherNow = weather
         moon = date.meanMoonlight(days).toFloat()
         if (bearings.month != date.month) {
             // Head counts of the migratory herds in each place, for the hunters' sense of where game is.
