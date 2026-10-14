@@ -476,7 +476,8 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
     val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land))
-    if (ratio > 2f && weak.young > 0 && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * odds) {
+    // (People drive hunters off and now and then kill one, but do not seek out their young.)
+    if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * odds) {
         weak.young--
         strong.meatMet += 0.3f * 0.5f * weak.species.massKg
         deaths.merge("${weak.species.name}:young killed by ${strong.species.name}", 1, Int::plus)

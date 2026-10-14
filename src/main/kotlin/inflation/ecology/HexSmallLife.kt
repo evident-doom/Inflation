@@ -300,7 +300,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             rodents[p] -= rodents[p] * f; hares[p] -= hares[p] * f; takeBirds(p, f)
         }
         val fed = if (need > 0f) got / need else 1f
-        foxes[p] = logistic(p, foxes[p], if (month in 4..6) 1.5f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey)
+        // A litter of four to six a year, born in spring: over the three months, six times the stock a year.
+        foxes[p] = logistic(p, foxes[p], if (month in 4..6) 6f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey)
         // Eagles: a pair needs about a kilo a day; they take what is out in the open among the rocks.
         if (eagleCrags[p] > 0f) {
             val open = open(p)

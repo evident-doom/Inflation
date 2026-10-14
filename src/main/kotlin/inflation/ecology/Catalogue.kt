@@ -458,6 +458,7 @@ object Catalogue {
         habitat = Habitat(cover = -1f, wet = -0.5f),
         defence = 0.4f,
         fibreDigestion = 0.5f, // a bird's short gut gets little from straw
+        hindgut = true, // ostriches ferment in a long hindgut and, like horses, eat more of poor forage
     )
 
     /** Bubal hartebeest: a grazer of dry grassland and semi-desert edges, in herds; kept by the Egyptians. */
@@ -466,7 +467,7 @@ object Catalogue {
         diet = Diet(grass = 0.95f, browse = 0.05f),
         groupSize = 12, maxGroupSize = 40,
         dailyTravelKm = 8f, maxDailyTravelKm = 40f, senseKm = 3f,
-        daysWithoutWater = 3, waterFromFood = 0.4f,
+        daysWithoutWater = 5, waterFromFood = 0.5f, // goes days without drinking where the grass is green
         birthMonth = 4, birthMonths = 2, youngPerFemale = 0.8f, yearsToMaturity = 2f,
         backgroundMortality = 0.08f, snowLimitMm = 30f,
         products = Products(meat = 70f, fat = 4f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 2f),
