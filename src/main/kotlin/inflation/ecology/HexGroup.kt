@@ -27,6 +27,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** Lineage tag for learning, -1 for none; the group it split from (-1 for none); its size when it merged into another (-1 if it did not), for following a choice's outcome. */
     var tag = -1
     var parent = -1
+    /** The places it remembers (see [PlaceMemory]). */
+    val memory = PlaceMemory()
     var mergedSize = -1
     /** The month its young are born in, drifting towards the months that feed them best; -1 for its kind's. */
     var birthMonth = -1
@@ -61,5 +63,6 @@ fun interface HexPolicy {
  * place, the way to better country it senses, and the group's own state and the time of year.
  */
 object HexFeatures {
-    const val SIZE = 25
+    /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]). */
+    const val SIZE = 31
 }

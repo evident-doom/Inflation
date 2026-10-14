@@ -175,6 +175,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // Children's deaths apart, for the life tables.
         if (s.human && o.youngDied > 0) hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
         o.split?.let { c -> born += HexGroup(nextId++, s, g.place, c.first, c.second).also { n ->
+            g.memory.copyInto(n.memory)
             n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.parent = g.id; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth
             // A band that splits shares out its larder by heads.
             val share = (c.first + c.second).toFloat() / (g.size + c.first + c.second).coerceAtLeast(1)
@@ -431,6 +432,7 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
     for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
     into.larder += from.larder
+    into.memory.hear(from.memory, 0, 1f)
     from.mergedSize = from.size
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f
@@ -439,6 +441,9 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
 /** Herds remember the place where they did best in each month. */
 internal fun HexGroups.remember(date: Date) {
     val m = date.month
+    // Every group remembers where it was this week and how it fared there.
+    val week = (date.absoluteDay / days).toInt()
+    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.water[g.place], fauna.afraid(g.place), week)
     for (g in groups) {
         if (g.species.carnivore && !g.species.human) continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,

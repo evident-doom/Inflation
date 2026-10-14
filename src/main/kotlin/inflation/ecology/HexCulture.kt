@@ -176,6 +176,10 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
             val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next
         }
         meetings.merge("bands told of country", 1, Int::plus)
+        // And of the places they remember, as far as they trust each other.
+        val week = (weatherNow.date.absoluteDay / days).toInt()
+        val trust = (0.5f + 0.5f * max(0f, ba.tie(b.id))) * u
+        a.memory.hear(b.memory, week, trust); b.memory.hear(a.memory, week, trust)
     }
     // Partners: where either holds to marrying out, young adults change bands, both ways.
     val marry = (if (ba.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bb.holds(Tradition.EXOGAMY)) 0.5f else 0f)

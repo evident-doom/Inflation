@@ -470,6 +470,15 @@ class HexGroups(
                     f[22] = moon
                     val toBirth = 2.0 * Math.PI * (((if (g.birthMonth >= 0) g.birthMonth else s.birthMonth) - month + 12) % 12) / 12.0
                     f[23] = kotlin.math.sin(toBirth).toFloat(); f[24] = kotlin.math.cos(toBirth).toFloat()
+                    // What it remembers of this hex: in this season, or failing that in any.
+                    val mem = g.memory
+                    var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0
+                    if (slot < 0) for (i in 0 until PlaceMemory.MEMORY_SLOTS) if (mem.hex[i] == h) { slot = i; break }
+                    if (slot >= 0) {
+                        f[25] = 1f; f[26] = if (sameSeason) 1f else 0f
+                        f[27] = mem.fed[slot]; f[28] = mem.water[slot]; f[29] = mem.danger[slot]
+                        f[30] = min(1f, (date.absoluteDay / days - mem.lastWeek[slot]) / 52f)
+                    }
                     candPlaces += p; candFeats += f; candScores += score
                     continue
                 }
