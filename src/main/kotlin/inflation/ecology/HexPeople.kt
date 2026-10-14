@@ -138,6 +138,13 @@ class Band {
      */
     var ornaments = 0f
     var exotic = 0f
+    /**
+     * Animals it keeps by its camp, by kind of the resident herds ([HexFauna.kinds] index): young
+     * taken in the hunt and raised, and their offspring; and how tame each kind has grown under it
+     * (the docile breed and stay, the wild ones run off), 0..1.
+     */
+    var herd = FloatArray(0)
+    var herdTame = FloatArray(0)
     /** Of the grain in its stores, the share from ears that hold their grain (what it would sow). */
     var seedDomestic = 0f
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
@@ -203,7 +210,7 @@ class Band {
     /** What a band splitting off takes along: everything it knew and believed, its descent and its grudges. */
     fun copyInto(o: Band) {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
-        o.houseHex = houseHex; o.house = house; o.palisade = palisade
+        o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         craft.copyInto(o.craft); making.copyInto(o.making); kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
@@ -324,6 +331,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     }
     buildKite(g, b)
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
+    if (HERDING) keepHerds(g, b, date)
     val people = g.adults.toFloat()
     val gd = b.goods
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
@@ -768,3 +776,51 @@ const val ORNAMENT_DAYS = 2f
 const val ORNAMENTS_PER_PERSON = 3f
 const val ORNAMENT_GIFT = 0.03f
 const val GRAVE_GOODS = 0.05f
+
+/** Herd animals kept by bands (-Dhex.noHerding turns them off). */
+val HERDING = System.getProperty("hex.noHerding") == null
+
+/**
+ * A band's kept animals' week: they graze round the camp, breed in their season as they are fed
+ * and as tame as they have grown, die, run off as wild as they still are, and are lost on long
+ * moves; the band culls what it cannot keep (meat in its stores); and generation by generation they
+ * grow tamer, since the docile stay and breed.
+ */
+private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
+    if (b.herd.isEmpty()) return
+    val years = days / Date.DAYS_PER_YEAR.toFloat()
+    val p = g.place; val m2 = land.areaKm2[p] * 1e6f
+    val moved = max(0, g.path.size - 1)
+    for (k in b.herd.indices) {
+        var n = b.herd[k]
+        if (n <= 0f) continue
+        val s = fauna.kinds[k]
+        val tame = b.herdTame[k]
+        // Grazing round the camp.
+        val need = n * s.dailyIntakeKg * days / m2
+        val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
+        val got = land.consume(p, LifeForm.HERB, min(need * d.grass / total, land.palatable[p] * land.herb[p] * 0.1f)) +
+            land.consume(p, LifeForm.SHRUB, min(need * d.browse / total, land.palatable[p] * land.shrub[p] * 0.1f))
+        val fed = if (need > 0f) min(1f, got / need) else 1f
+        val inSeason = (date.month - s.birthMonth + 12) % 12 < s.birthMonths
+        val born = if (inSeason) n * 0.5f * s.youngPerFemale * s.littersPerYear * fed * (0.3f + 0.7f * tame) / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
+        val died = n * min(0.9f, (s.backgroundMortality + 0.5f * (1f - fed) + HERD_RUN_OFF * (1f - tame)) * years + HERD_MOVE_LOSS * (1f - tame) * moved)
+        n = max(0f, n + born - died)
+        // What it cannot keep it culls for meat.
+        val most = HERD_PER_PERSON * g.size
+        if (n > most) { val cull = n - most; n = most; g.stores[Store.FRESH.ordinal] += cull * s.massKg * MEAT_SHARE; meetings.merge("kept animals culled", 1, Int::plus) }
+        b.herd[k] = if (n < 0.5f) 0f else n
+        b.herdTame[k] = tame + TAMING_RATE * years * (1f - tame)
+    }
+}
+
+/**
+ * Herding: chance a young animal caught in the hunt is kept and raised instead of eaten (times its
+ * kind's tameability), by a band at home; yearly share of the still-wild that run off, and share lost
+ * for each hex a move takes them; most kept animals a person tends; yearly growth of tameness.
+ */
+const val CAPTURE = 0.5f
+const val HERD_RUN_OFF = 0.5f
+const val HERD_MOVE_LOSS = 0.05f
+const val HERD_PER_PERSON = 2f
+const val TAMING_RATE = 0.01f

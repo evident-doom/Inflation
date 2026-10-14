@@ -221,7 +221,17 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 kills1 = min(kills1, (dens * area * 0.5f).toInt())
                 if (kills1 <= 0) continue
                 busy += kills1 * time[i]
-                val ny = if (spareYoung) 0 else (kills1 * fauna.young[k][p] / dens).toInt(); val na = kills1 - ny
+                var ny = if (spareYoung) 0 else (kills1 * fauna.young[k][p] / dens).toInt(); val na = kills1 - ny
+                // A band at home may keep young it catches, to raise by its camp.
+                if (HERDING && band != null && band.atHome && ny > 0) {
+                    val kept = binomial(ny, CAPTURE * ps.domestication.average().toFloat(), rnd)
+                    if (kept > 0) {
+                        if (band.herd.size < fauna.kinds.size) { band.herd = band.herd.copyOf(fauna.kinds.size); band.herdTame = band.herdTame.copyOf(fauna.kinds.size) }
+                        band.herd[k] += kept; ny -= kept
+                        fauna.young[k][p] = max(0f, fauna.young[k][p] - kept / area)
+                        meetings.merge("young animals kept", kept, Int::plus)
+                    }
+                }
                 fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
                 val young = min(0.3f * ps.massKg, kg[i])
                 meat += na * kg[i] + ny * young
