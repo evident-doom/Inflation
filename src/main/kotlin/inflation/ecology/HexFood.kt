@@ -102,14 +102,16 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
             if (cereal[p] > 0f || field[p] > 0f) {
-                val ripeGrain = if (season in SEED_FROM..SEED_TO) (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) / ((SEED_TO - SEED_FROM) * 365f) else 0f
-                if (ripeGrain > 0f) grain[p] += days * ripeGrain
+                // (As the season advances: a cold year that never reaches its full warmth ripens only part of its grain.)
+                val advance = max(0f, weather.temperature[p] - 5f) * days / land.annualGdd[p].coerceAtLeast(1f)
+                val inWindow = (min(season, SEED_TO) - max(season - advance, SEED_FROM)).coerceAtLeast(0f)
+                if (inWindow > 0f) grain[p] += (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM)
                 val wild = 1f - domestic[p]
                 val lost = grain[p] * (wild * min(1f, days / SEED_DAYS) + (1f - wild) * min(1f, days / GRAIN_HOLD_DAYS))
                 grain[p] = max(0f, grain[p] - lost); small.litter[p] += lost
                 // After the year's ripening, the sown crop is spent, and a stand that seeded itself
                 // drifts back toward the wild (ears that hold their grain cannot sow themselves).
-                if (season > SEED_TO && season - SEED_TO < days / 365f) { field[p] = 0f; domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT) }
+                if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == 0 && weather.date.dayOfMonth <= days && field[p] > 0f)) { field[p] = 0f; domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT) }
             }
             // Lichen creeps back.
             val lc = lichenCap(p)
