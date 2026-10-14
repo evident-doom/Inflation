@@ -25,6 +25,12 @@ import kotlin.random.Random
  */
 class SharedMover(val net: Mlp, val identity: FloatArray) {
     val inputs get() = net.sizes[0]
+    /**
+     * How much of the hand-written behaviour's score for each place it starts from (0: none): with
+     * this, a network chooses as the hand-written behaviour does at first and learns what to add to
+     * it. Saved beside the network (`.residual`).
+     */
+    var residual = 0f
 
     /** The kind's part of the input: its traits on log or 0..1 scales, then its learned identity. */
     fun kindInputs(s: Species, into: FloatArray, at: Int) {
@@ -52,6 +58,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
 
     fun save(file: File) {
         Schema.save(net, file, Schema.MOVER_IN, Schema.MOVER_OUT)
+        File(file.path + ".residual").let { if (residual != 0f) it.writeText(residual.toString()) else it.delete() }
         File(file.path + ".identity").writeText(identity.joinToString(" ") + "\n")
     }
 
@@ -67,13 +74,15 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
             val net = Schema.load(file, Schema.MOVER_IN, Schema.MOVER_OUT, legacyMover = true)
             val idFile = File(file.path + ".identity")
             val id = if (idFile.exists()) idFile.readText().trim().split(" ").map { it.toFloat() }.toFloatArray() else FloatArray(Catalogue.all.size * IDENTITY)
-            return SharedMover(net, id)
+            return SharedMover(net, id).also { m -> File(file.path + ".residual").takeIf { it.exists() }?.let { m.residual = it.readText().trim().toFloat() } }
         }
     }
 }
 
 /** One recorded choice: the candidates' place features (the kind's part is added when learning), the one taken and its log-probability, who chose, and when. */
 class Choice(val kind: Species, val groupId: Int, val size: Int, val week: Int, val inputs: Array<FloatArray>, val taken: Int, val logp: Float) {
+    /** The hand-written scores of the candidates (for networks that start from them). */
+    var baseline = FloatArray(0)
     /** What followed: the group's (and its offshoots') numbers over the next weeks against its numbers now, discounted. */
     var ret = 0f
     var advantage = 0f
@@ -85,13 +94,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): Int {
         val b = buffers.get()
         val n = features.size
-        val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], b.a[0]); mover.net.forward(b) }
+        val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], b.a[0]); mover.net.forward(b) + mover.residual * baseline[k] }
         if (record == null) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
         val p = softmax(scores)
         val rnd = ThreadLocalRandom.current()
         var u = rnd.nextFloat(); var taken = n - 1
         for (k in 0 until n) { u -= p[k]; if (u <= 0f) { taken = k; break } }
-        if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f)))
+        if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf() }
         return taken
     }
 }
@@ -156,6 +165,8 @@ object HexPpo {
                 "--rounds" -> rounds = args[++k].toInt()
                 "--hidden" -> hidden = args[++k].toInt()
                 "--rate" -> rate = args[++k].toFloat()
+                // --residual people:3,herds:0 sets how much of the hand-written score each role's network starts from.
+                "--residual" -> RESIDUAL = args[++k].split(",").associate { r -> val (n, v) = r.split(":"); n to v.toFloat() }
                 "--check" -> checkEvery = args[++k].toInt()
                 "--check-seeds" -> checkSeeds = args[++k].toInt()
                 "--per-kind" -> PER_KIND_YEAR = args[++k].toInt()
@@ -178,6 +189,7 @@ object HexPpo {
         }
         val files = ROLES.map { File(out, "$it.mlp") }
         val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(hidden, Random(7L + i)) }
+        for ((i, r) in ROLES.withIndex()) RESIDUAL[r]?.let { models[i].residual = it }
         fun modelOf(s: Species) = models[role(s)]
         val adams = models.map { Adam(it.net.w.size, rate) to Adam(it.identity.size, rate) }
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
@@ -326,6 +338,7 @@ object HexPpo {
 
     /** Networks to copy instead of the hand-written behaviour, by kind (e.g. the herds' evolved ones). */
     var TEACHERS: Map<Species, Mlp> = emptyMap()
+    var RESIDUAL: Map<String, Float> = emptyMap()
 
     /** How much sharper the copied preference is than the hand-written scores themselves. */
     const val IMITATE_SHARPNESS = 10f
@@ -387,7 +400,7 @@ object HexPpo {
         for (c in part) {
             val n = c.inputs.size
             while (bufs.size < n) bufs += model.net.buffers()
-            val scores = FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], bufs[k].a[0]); model.net.forward(bufs[k]) }
+            val scores = FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], bufs[k].a[0]); model.net.forward(bufs[k]) + model.residual * (c.baseline.getOrNull(k) ?: 0f) }
             val p = softmax(scores)
             val logp = ln(max(p[c.taken], 1e-8f))
             val ratio = exp(logp - c.logp)
