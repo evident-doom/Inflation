@@ -69,7 +69,7 @@ const val COPY_TRADITION = 0.1f
 const val TAKE_UP = 0.0005f
 const val DROP = 0.0005f
 /** Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken. */
-const val RAID = 0.05f
+const val RAID = 0.015f
 const val RAID_TAKE = 0.5f
 /** Share of each side's adults a raid kills at most, against the other's strength. */
 const val RAID_DEATHS = 0.08f

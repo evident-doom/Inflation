@@ -100,7 +100,7 @@ const val MEAT_SHARE = 0.6f
 const val HOME_ADVANTAGE = 1.5f
 const val RIVAL_KILL = 0.05f
 /** Share of a beaten pack's young the winners kill when they take its ground. */
-const val INFANTICIDE = 0.5f
+const val INFANTICIDE = 0.25f
 /** Most meetings settled one by one for a group in a week. */
 const val MAX_MEETINGS = 4
 /** Chance a herd in fully open country sees coursing hunters first; how much likelier a kill when hunters come unseen. */
