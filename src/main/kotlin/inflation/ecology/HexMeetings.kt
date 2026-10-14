@@ -114,7 +114,7 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 val ny = (n * youngShare).toInt(); val na = n - ny
                 fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
                 got += na * meat + ny * 0.3f * ps.massKg
-                g.band?.let { it.bigGameKg += na * meat; it.practise(Forage.HUNT) }
+                g.band?.let { it.skin(ps, na); it.practise(Forage.HUNT) }
                 // Bones, hide and gut left at the kill.
                 small.carrion[p] += na * ps.massKg * (1f - MEAT_SHARE) / (area * 1e6f)
                 kills.merge(ps.name, n, Int::plus)
@@ -385,7 +385,9 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     meetings.merge("hunter-herd", 1, Int::plus)
     val open = openness(h, hw.placeBand[herd.place])
     // A herd hunted lately keeps a sharper watch.
-    val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + herd.wary))
+    // Game bred to fear people over the millennia keeps a sharper watch for them.
+    val fear = if (hunter.band != null) 0.5f + herd.species.fearOfPeople else 1f
+    val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + herd.wary) * fear)
     if (seen) {
         meetings.merge("herd turned aside", 1, Int::plus)
         hunting.merge("${hunter.species.name}:herds that saw it first", 1, Int::plus)
@@ -408,7 +410,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         herd.adults -= ta; herd.young -= ty
         val meat = ta * herd.species.massKg * MEAT_SHARE + ty * 0.3f * herd.species.massKg
         hunter.meatMet += meat
-        hunter.band?.let { it.bigGameKg += ta * herd.species.massKg * MEAT_SHARE }
+        hunter.band?.skin(herd.species, ta)
         small.carrion[herd.place] += ta * herd.species.massKg * (1f - MEAT_SHARE) / (land.areaKm2[herd.place] * 1e6f)
         kills.merge(herd.species.name, ta + ty, Int::plus)
         hunting.merge("${hunter.species.name}:kills in kite drives", ta + ty, Int::plus)
@@ -424,7 +426,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         if (herd.young > 0 && hunter.band?.holds(Tradition.TABOO_YOUNG) != true && rnd.nextFloat() < 0.5f) { herd.young--; hunter.meatMet += 0.3f * herd.species.massKg }
         else {
             herd.adults--; hunter.meatMet += herd.species.massKg * MEAT_SHARE
-            hunter.band?.let { it.bigGameKg += herd.species.massKg * MEAT_SHARE }
+            hunter.band?.skin(herd.species, 1)
             small.carrion[herd.place] += herd.species.massKg * (1f - MEAT_SHARE) / (land.areaKm2[herd.place] * 1e6f)
         }
         kills.merge(herd.species.name, 1, Int::plus)

@@ -100,8 +100,10 @@ class Band {
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     var cacheKg = 0f
     var cachePlace = -1
-    /** Meat of big game it got this week, kg: hides, bone and sinew come with it. */
-    var bigGameKg = 0f
+    /** Hides, bone and sinew from the game it killed, what each kind yields (see [Species.products]). */
+    fun skin(s: Species, n: Int) {
+        goods[Material.HIDE.ordinal] += n * s.products.hide; goods[Material.BONE.ordinal] += n * s.products.bone; goods[Material.SINEW.ordinal] += n * s.products.sinew
+    }
     /** Its customs ([Tradition]), its words for things ([Language]), its descent (a share for each founding lineage), how inbred its children are, its grudges against each lineage's people. */
     val traditions = BooleanArray(Tradition.entries.size)
     val words = IntArray(Language.CONCEPTS)
@@ -110,6 +112,12 @@ class Band {
     val grudge = FloatArray(LINEAGES)
     /** Of its adults, the elders: past bearing children, helping their daughters raise theirs. */
     var elders = 0
+    /**
+     * Of its adults not yet elders, how many are in the second and third of the three equal spans of
+     * adult life (the rest are in the first): adults age through them in turn, so becoming an elder
+     * comes at a fairly steady age, not at random.
+     */
+    val ageStage = IntArray(2)
     /** Animals it keeps, by kind ([Species.index]): wolf pups taken from bold packs become dogs. */
     var kept = FloatArray(0)
     /** The country it knows, a bit for each hex: walked, seen from where it walked, or told of by bands it understands. */
@@ -230,10 +238,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     gd[Material.FIBRE.ordinal] += fibre
     land.consume(p, LifeForm.TREE, wood * land.tree[p] / max(1e-6f, woody) / area)
     land.consume(p, LifeForm.HERB, fibre / area)
-    gd[Material.HIDE.ordinal] += 0.08f * b.bigGameKg
-    gd[Material.BONE.ordinal] += 0.1f * b.bigGameKg
-    gd[Material.SINEW.ordinal] += 0.01f * b.bigGameKg
-    b.bigGameKg = 0f
     val years = days / Date.DAYS_PER_YEAR.toFloat()
     for (t in Tool.entries) {
         val k = t.ordinal

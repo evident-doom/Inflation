@@ -163,7 +163,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             // Both halves keep what the band knew and share out its tools and goods.
             n.bold = g.bold
             g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }; for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
-                nb.elders = b.elders * c.first / (g.adults + c.first).coerceAtLeast(1); b.elders -= nb.elders } }
+                nb.elders = b.elders * c.first / (g.adults + c.first).coerceAtLeast(1); b.elders -= nb.elders
+                for (i in b.ageStage.indices) { nb.ageStage[i] = b.ageStage[i] * c.first / (g.adults + c.first).coerceAtLeast(1); b.ageStage[i] -= nb.ageStage[i] } } }
             g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
         } } // a young pack has no ground yet
     }
@@ -254,6 +255,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         var oldAge = 0
         if (band != null && g.adults > 0) {
             band.elders -= min(band.elders, (da * band.elders + r.nextInt(g.adults)) / g.adults)
+            for (i in band.ageStage.indices) band.ageStage[i] -= min(band.ageStage[i], (da * band.ageStage[i] + r.nextInt(g.adults)) / g.adults)
             oldAge = binomial(band.elders, ELDER_DEATHS * years, r)
             band.elders -= oldAge
         }
@@ -275,7 +277,14 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         if (oldAge > 0) causes += "old age" to oldAge
         val up = binomial(g.young, years / s.yearsToMaturity, r)
         g.young -= up; g.adults += up
-        band?.let { it.elders += binomial(g.adults - it.elders, years / ADULT_YEARS, r) }
+        // Adults age through three spans of adult life, then become elders.
+        band?.let { b ->
+            val rate = 3f * years / ADULT_YEARS
+            val toElder = binomial(b.ageStage[1], rate, r); val toThird = binomial(b.ageStage[0], rate, r)
+            val first = max(0, g.adults - b.elders - b.ageStage[0] - b.ageStage[1])
+            val toSecond = binomial(first, rate, r)
+            b.elders += toElder; b.ageStage[1] += toThird - toElder; b.ageStage[0] += toSecond - toThird
+        }
         if (g.adults == 0) {
             // Young left without a grown animal of their kind die.
             val orphans = g.young
@@ -297,7 +306,10 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
  * Yearly deaths from crowding among people: fevers and worms where many camp near each other, by the
  * people in a band's hex and the six round it.
  */
-private fun HexGroups.peopleSickness(g: HexGroup): Float {
+private fun HexGroups.peopleSickness(g: HexGroup): Float { val dens = peopleCrowding(g); return PEOPLE_SICK * dens * dens }
+
+/** People round a band's camp (its hex and the six round it), per km², against [PEOPLE_FULL_KM2]. */
+internal fun HexGroups.peopleCrowding(g: HexGroup): Float {
     val h = hw.placeHex[g.place]
     var heads = 0
     for (k in -1 until 6) {
@@ -305,8 +317,7 @@ private fun HexGroups.peopleSickness(g: HexGroup): Float {
         if (q < 0) continue
         for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][q]; if (p >= 0) heads += headsHere[kindSlot[g.species.index]][p] }
     }
-    val dens = heads / (7f * (hex.hexKm * hex.hexKm * 0.866).toFloat()) / PEOPLE_FULL_KM2
-    return PEOPLE_SICK * dens * dens
+    return heads / (7f * (hex.hexKm * hex.hexKm * 0.866).toFloat()) / PEOPLE_FULL_KM2
 }
 
 /** Small herds join up, and lone hunters find mates (see [demography]). */
@@ -325,6 +336,28 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             g.adults = 0; g.young = 0
         } else byPlace[key] = g
     }
+    // A band grown too small to hunt, gather and defend itself joins the nearest kin band that has room.
+    val bandsByHex = HashMap<Int, ArrayList<HexGroup>>()
+    for (g in groups) if (g.alive && g.band != null) bandsByHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (!g.alive || g.adults >= SMALL_BAND) continue
+        var best: HexGroup? = null; var bestKin = -1f
+        val h0 = hw.placeHex[g.place]
+        var ring = listOf(h0); val seen = hashSetOf(h0)
+        for (r in 0..VISIT_RINGS) {
+            for (h in ring) for (o in bandsByHex[h].orEmpty()) {
+                if (o === g || !o.alive || o.size + g.size > maxSize(o, date)) continue
+                val k = kinship(b.lineage, o.band!!.lineage) / (1f + r)
+                if (k > bestKin) { bestKin = k; best = o }
+            }
+            if (best != null || r == VISIT_RINGS) break
+            val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next
+        }
+        val o = best ?: continue
+        joinBand(o, g)
+        meetings.merge("small bands joined kin", 1, Int::plus)
+    }
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
     // the pair holds the ground of the one that had any.
     val lone = HashMap<Int, ArrayList<HexGroup>>()
@@ -341,6 +374,29 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             b.adults = 0; b.young = 0
         }
     }
+}
+
+/** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
+private fun joinBand(into: HexGroup, from: HexGroup) {
+    val a = into.band!!; val b = from.band!!
+    val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
+    for (i in a.craft.indices) a.craft[i] = max(a.craft[i], b.craft[i])
+    for (i in a.making.indices) a.making[i] = max(a.making[i], b.making[i])
+    for (i in a.kit.indices) a.kit[i] += w * (b.kit[i] - a.kit[i])
+    for (i in a.knows.indices) a.knows[i] = a.knows[i] || b.knows[i]
+    for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
+    for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
+    for (i in a.goods.indices) a.goods[i] += b.goods[i]
+    if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
+    for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
+    if (a.kept.size < b.kept.size) a.kept = a.kept.copyOf(b.kept.size)
+    for (i in b.kept.indices) a.kept[i] += b.kept[i]
+    a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
+    for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
+    into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
+    into.larder += from.larder
+    into.adults += from.adults; into.young += from.young
+    from.adults = 0; from.young = 0; from.larder = 0f
 }
 
 /** Herds remember the place where they did best in each month. */

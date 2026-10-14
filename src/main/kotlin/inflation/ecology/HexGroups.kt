@@ -110,6 +110,8 @@ class HexGroups(
                     val (x, y) = hex.centreKm(hw.placeHex[p])
                     g.band = Band.start(land.waterKm[p] < 3f, x, y).also { b ->
                         b.elders = g.adults / 6
+                        // The rest of the adults spread over the three spans of adult life.
+                        b.ageStage[0] = (g.adults - b.elders) / 3; b.ageStage[1] = (g.adults - b.elders) / 3
                         // It knows the country within a few hexes of its first camp.
                         var ring = listOf(hw.placeHex[p]); val seen = hashSetOf(ring[0])
                         repeat(KNOWN_AT_START) { val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next }

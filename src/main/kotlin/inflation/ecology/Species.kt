@@ -76,9 +76,7 @@ class Species(
     val youngMortality: Float = backgroundMortality,
     /** Snow depth (mm water equivalent) that stops it feeding and slows it badly. */
     val snowLimitMm: Float,
-    /** Distance at which it notices a predator and flees, km. */
-    val flightKm: Float,
-    val dangerToHumans: Float,
+    /** Raw materials an adult yields (for people: hides, bone, sinew). */
     val products: Products,
     val habitat: Habitat = Habitat(),
     /** How well adults fight off or outlast predators, 0 (not at all) to 1 (adults practically safe). */
@@ -98,8 +96,6 @@ class Species(
      * ground: a hyena clan bites above its weight, a jackal below.
      */
     val ferocity: Float = 1f,
-    /** For predators: distance within which two groups of the species meet and contest their ground, km. */
-    val territoryKm: Float = 3f,
     /** For predators: land per animal at the start, km². */
     val startKm2PerAnimal: Float = 0f,
     /**

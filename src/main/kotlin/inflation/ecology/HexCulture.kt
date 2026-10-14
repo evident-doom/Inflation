@@ -68,8 +68,8 @@ const val COPY_TRADITION = 0.1f
 /** Yearly chance a band takes up a tradition by itself, or drops one. */
 const val TAKE_UP = 0.0005f
 const val DROP = 0.0005f
-/** Hunger and grudges: chance a hungry band raids a well-stocked one it meets (scaled by how little they understand each other); share of the larder taken. */
-const val RAID = 0.3f
+/** Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken. */
+const val RAID = 0.05f
 const val RAID_TAKE = 0.5f
 /** Share of each side's adults a raid kills at most, against the other's strength. */
 const val RAID_DEATHS = 0.08f
@@ -77,13 +77,15 @@ const val RAID_DEATHS = 0.08f
 const val GRUDGE = 1f
 const val GRUDGE_FADE = 0.1f
 /** A band's grudge against another's lineage above which it raids it unprovoked. */
-const val FEUD = 1.5f
+const val FEUD = 0.9f
 /** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
 const val TOLD_RINGS = 4
 const val REMEMBERED_KM = 100.0
 /** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
 const val VISIT_FED = 0.6f
 const val VISIT_RINGS = 2
+/** Adults below which a band joins kin nearby: too few to hunt, gather, guard and marry within. */
+const val SMALL_BAND = 8
 /** How much a fouled camp puts a band off staying, and how much the graves of its dead hold it. */
 const val FOUL_AVOID = 0.3f
 const val BURIAL_STAY = 0.1f
@@ -166,10 +168,13 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
 
 /** [g] raids [o] if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
 private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understood: Float): Boolean {
-    val hungry = g.fed < 0.5f && o.larder > 10f * o.dailyNeedKg
+    // What drives a raid: an old feud, or competition (hunger with food in the other's larder, or too
+    // many people on the same country); kin and those who understand each other fight less.
     val feud = b.grudge[ob.mainLineage()] > FEUD
-    if (!hungry && !feud) return false
-    if (rnd.nextFloat() >= RAID * (1f - understood) * (if (feud) 1f else 0.5f + 0.5f * (1f - g.fed))) return false
+    val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
+    val pressure = if (feud) 1f else max(hunger, min(1f, peopleCrowding(g)))
+    val chance = RAID * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage))
+    if (rnd.nextFloat() >= chance) return false
     meetings.merge("raids", 1, Int::plus)
     val sg = strength(g); val so = strength(o)
     // Each side loses some of its people, the more so against the stronger side.
