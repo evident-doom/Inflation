@@ -251,7 +251,18 @@ class Band {
     fun detoxExtra(palatable: Float, water: Boolean): Float =
         if (!knowsSkill[Skill.LEACHING.ordinal] || !water) 0f
         else min(1f, LEACH_SHARE * skill(Skill.LEACHING) * has(Tool.BASKET) * (1f - palatable) / palatable.coerceAtLeast(0.1f))
-    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * learning / s.complexity * (1f - skills[s.ordinal]); lastUsed[s.ordinal] = weeks }
+    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * learning / s.complexity * toolsFor(s) * (1f - skills[s.ordinal]); lastUsed[s.ordinal] = weeks }
+    /**
+     * How far a band can practise [s] with the tools it has: a hunter without spear or bow, a fisher
+     * without lines and nets, a cook without tight baskets learns little of the craft (a little, at
+     * best, by watching and making do).
+     */
+    fun toolsFor(s: Skill) = when (s) {
+        Skill.HUNT, Skill.STALK -> max(TOOLLESS, max(has(Tool.SPEAR), has(Tool.BOW)))
+        Skill.SMALL_GAME, Skill.FISH -> max(TOOLLESS, has(Tool.NET))
+        Skill.STONE_BOILING, Skill.LEACHING -> max(TOOLLESS, has(Tool.BASKET))
+        else -> 1f
+    }
     /** How fast its practice teaches it, against a start band's: good teachers bring the young on faster. */
     val learning get() = edge(Skill.SHOWING)
     /** How well it makes [t]: by the best way of its craft it knows (blades and microliths beat plain flakes). */
@@ -407,7 +418,9 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     val years = days / Date.DAYS_PER_YEAR.toFloat()
     for (t in Tool.entries) {
         val k = t.ordinal
-        b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years * (if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.lapse(Skill.GLUING) else 1f))
+        // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
+        val inUse = t == Tool.CLOTHES || usesOf(t).any { b.weeks - b.lastUsed[it.ordinal] <= 1 }
+        b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years * (if (inUse) 1f else IDLE_WEAR) * (if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.lapse(Skill.GLUING) else 1f))
         if (!b.knows[k]) {
             // A band that has a use for a tool now and then hits on it: bows where game is shy and
             // fast, sickles and grinding stones where it reaps seed, and so on.
@@ -594,6 +607,18 @@ private fun HexGroups.buildKite(g: HexGroup, b: Band) {
     kites[p] = min(1f, kites[p] + KITE_WORK)
     if (kites[p] >= 1f) meetings.merge("kites built", 1, Int::plus)
 }
+
+/** The work a tool is used in (it wears when that work is done). */
+private fun usesOf(t: Tool) = when (t) {
+    Tool.SPEAR, Tool.BOW -> listOf(Skill.HUNT)
+    Tool.NET -> listOf(Skill.SMALL_GAME, Skill.FISH)
+    Tool.SICKLE, Tool.GRINDER -> listOf(Skill.GATHER)
+    Tool.BASKET -> listOf(Skill.GATHER, Skill.STONE_BOILING, Skill.LEACHING)
+    Tool.CLOTHES -> emptyList()
+}
+/** How much more slowly a tool wears lying idle than in use; how much of a craft a band learns making do without its tools. */
+const val IDLE_WEAR = 0.3f
+const val TOOLLESS = 0.2f
 
 /** The skill a tool serves, for how likely a band is to hit on it. */
 private fun useOf(t: Tool) = when (t) {
