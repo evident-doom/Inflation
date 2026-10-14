@@ -46,8 +46,9 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         var s = 0f; var w = 0f
         for (b in Biome.entries) { val share = hw.biome[b.ordinal][h]; if (share <= 0f) continue; val v = PALATABLE[b] ?: continue; s += share * v; w += share }
         val v = if (w > 0f) s / w else 0.5f
-        // (A balancing run may raise every share toward all of it: -Dhex.t.palatableFloor.)
-        val floor = System.getProperty("hex.t.palatableFloor")?.toFloat() ?: 0f
+        // (Half of even the poorest country's plants is eaten by something; the rest of it by the
+        // share for its kind. A balancing run may change that floor: -Dhex.t.palatableFloor.)
+        val floor = System.getProperty("hex.t.palatableFloor")?.toFloat() ?: PALATABLE_FLOOR
         floor + (1f - floor) * v
     }
 
@@ -481,6 +482,7 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         const val SPRING_KM2 = 150f
         /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
         const val DRY_VALUE = 0.65f
+        const val PALATABLE_FLOOR = 0.5f
         /** Share of the plants of each kind of country that are edible (see [palatable]). */
         val PALATABLE = mapOf(
             Biome.ALPINE_MEADOW to 0.7f, Biome.STEPPE to 0.7f, Biome.OPEN_WOODLAND to 0.6f, Biome.FLOODPLAIN_FOREST to 0.5f,

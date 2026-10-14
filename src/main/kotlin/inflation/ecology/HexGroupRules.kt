@@ -105,7 +105,7 @@ const val SEARCHING = 0.3f
  * [COLD_MAX] times its need.
  */
 fun coldNeed(s: Species, felt: Float, month: Int): Float = kotlin.math.min(COLD_MAX, 1f + COLD_COST * Tuning.coldCost * s.coldC(felt, month) / 10f)
-const val COLD_COST = 0.2f
+const val COLD_COST = 0.1f
 const val COLD_MAX = 1.6f
 
 /**
