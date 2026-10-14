@@ -50,12 +50,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     val grain = FloatArray(n)
     val domestic = FloatArray(n) { p -> if (cereal[p] > 0f) MUTANT else 0f }
     val field = FloatArray(n)
-    private fun cerealShare(p: Int): Float {
+    /** The share wild cereals would make of a place's grass in its climate, colder by [dT] and with [rainShare] of its rain. */
+    private fun cerealShare(p: Int, dT: Float = 0f, rainShare: Float = 1f): Float {
         val h = land.hw.placeHex[p]
-        val rain = (0 until 12).sumOf { land.hw.precip[it][h].toDouble() }.toFloat()
-        val winter = (0..2).sumOf { land.hw.precip[it][h].toDouble() }.toFloat() + land.hw.precip[11][h]
-        val summer = (5..7).sumOf { land.hw.precip[it][h].toDouble() }.toFloat()
-        val warmth = (0 until 12).map { land.hw.placeTemp(p, it) }.average().toFloat()
+        val rain = rainShare * (0 until 12).sumOf { land.hw.precip[it][h].toDouble() }.toFloat()
+        val winter = rainShare * ((0..2).sumOf { land.hw.precip[it][h].toDouble() }.toFloat() + land.hw.precip[11][h])
+        val summer = rainShare * (5..7).sumOf { land.hw.precip[it][h].toDouble() }.toFloat()
+        val warmth = dT + (0 until 12).map { land.hw.placeTemp(p, it) }.average().toFloat()
         // Winter rain and summer drought, 250-800 mm, mild; best on broken hill country.
         val climate = (if (rain in 250f..800f) 1f else 0f) * ((winter - summer) / rain.coerceAtLeast(1f) * 2f).coerceIn(0f, 1f) * (if (warmth in 10f..22f) 1f else 0f)
         return CEREAL_MAX * climate * (0.5f + land.ruggedness[p]).coerceAtMost(1f)
@@ -70,7 +71,16 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     private fun strawCap(p: Int) = STRAW_SHARE * (land.herb[p] + 0.3f * land.shrub[p])
     private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * (land.herb[p] + 0.05f * land.tree[p]) + REED_ROOTS * land.logged[p]
 
+    private var standYear = -1
     fun step(weather: Weather) {
+        // Once a year the wild cereal stands follow the climate: they spread where it suits them and
+        // die back where it no longer does, over decades (a long cold, dry spell shrinks them).
+        val year = (weather.date.absoluteDay / inflation.world.Date.DAYS_PER_YEAR).toInt()
+        if (year != standYear) {
+            val first = standYear < 0; standYear = year
+            if (!first) { val (dT, rain) = weather.shock()
+                java.util.stream.IntStream.range(0, n).parallel().forEach { p -> cereal[p] += STAND_SHIFT * (cerealShare(p, dT, rain) - cereal[p]) } }
+        }
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             // The season as the plants feel it: the share of a normal year's warmth they have had since
             // midwinter. Seed ripens early, fruit from midsummer to autumn, roots and bulbs fill as the
@@ -142,6 +152,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         const val SEED_SHARE = 0.01f
         /** Wild cereals: most of a place's grass they make up; grain per kg of their stand; days ears that hold their grain keep it; yearly drift back to wild where a stand seeds itself; a sown field's yield per kg sown. */
         const val CEREAL_MAX = 0.2f
+        /** Yearly share of the way wild cereal stands move toward what the climate suits. */
+        const val STAND_SHIFT = 0.1f
         const val GRAIN_SHARE = 0.1f
         const val GRAIN_HOLD_DAYS = 120f
         const val WILD_DRIFT = 0.3f
