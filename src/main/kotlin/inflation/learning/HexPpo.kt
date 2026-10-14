@@ -115,7 +115,7 @@ internal fun softmax(x: FloatArray): FloatArray {
  * few rounds the networks play the hand-written behaviour on fixed worlds, kind by kind; a kind that
  * does worse than with the last version it did well with keeps that version (in `deployed/`).
  *
- * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N]
+ * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--teacher DIR] [--teacher-check]
  */
 object HexPpo {
     /**
@@ -144,6 +144,7 @@ object HexPpo {
         var rate = 3e-4f
         var checkEvery = 5
         var checkSeeds = 4
+        var teacherCheck = false
         var k = 0
         while (k < args.size) {
             when (args[k]) {
@@ -157,12 +158,22 @@ object HexPpo {
                 "--check" -> checkEvery = args[++k].toInt()
                 "--check-seeds" -> checkSeeds = args[++k].toInt()
                 "--per-kind" -> PER_KIND_YEAR = args[++k].toInt()
+                "--teacher" -> { val dir = File(args[++k]); TEACHERS = Catalogue.all.mapNotNull { s -> HexLearning.file(dir, s).takeIf { it.exists() }?.let { s to Mlp.load(it.readText()) } }.toMap() }
+                "--teacher-check" -> teacherCheck = true
                 else -> error("unknown argument ${args[k]}")
             }
             k++
         }
         out.mkdirs()
         val kinds = Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }
+        val kindsAll = Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }
+        // Only how the teachers do against the hand-written behaviour, in today's world.
+        if (teacherCheck) {
+            val seeds = (91L until 91L + checkSeeds).toList()
+            val scores = seeds.parallelStream().map { seed -> check(WorldConfig(seed = seed, widthKm = size, heightKm = size), years + 1, kindsAll, emptyList(), teachers = true) }.toList()
+            println("teachers vs hand-written: " + kindsAll.filter { it in TEACHERS }.joinToString(", ") { s -> "%s %.3f vs %.3f".format(s.name, scores.map { it.first[s] ?: 0.0 }.average(), scores.map { it.second[s] ?: 0.0 }.average()) })
+            return
+        }
         val files = ROLES.map { File(out, "$it.mlp") }
         val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(hidden, Random(7L + i)) }
         fun modelOf(s: Species) = models[role(s)]
@@ -250,10 +261,12 @@ object HexPpo {
             val kept = ConcurrentLinkedQueue<Shown>()
             val stepsPerYear = Date.DAYS_PER_YEAR / (WorldConfig().daysPerStep)
             val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, PER_KIND_YEAR.toFloat() / (n * stepsPerYear)) }
-            for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b ->
+            val teachers = TEACHERS.mapValues { (_, net) -> ThreadLocal.withInitial { net.buffers() } to net }
+            for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b0 ->
+                // A teacher network, where there is one for the kind, in place of the hand-written scores.
+                val b = teachers[g.species]?.let { (bufs, net) -> val bb = bufs.get(); FloatArray(f.size) { k -> f[k].copyInto(bb.a[0], 0, 0, min(f[k].size, bb.a[0].size)); net.forward(bb) } } ?: b0
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
                 if (ThreadLocalRandom.current().nextFloat() < (rates[g.species] ?: 0f)) {
-                    val m = models[role(g.species)]
                     kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf())
                 }
                 best
@@ -299,6 +312,9 @@ object HexPpo {
             }
         }
     }
+
+    /** Networks to copy instead of the hand-written behaviour, by kind (e.g. the herds' evolved ones). */
+    var TEACHERS: Map<Species, Mlp> = emptyMap()
 
     /** How much sharper the copied preference is than the hand-written scores themselves. */
     const val IMITATE_SHARPNESS = 10f
@@ -385,10 +401,11 @@ object HexPpo {
     }
 
     /** Fixed world [cfg] run twice for [years]: with the networks choosing their best, then with the hand-written behaviour; animal-weeks per animal at the start, kind by kind. */
-    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Pair<Map<Species, Double>, Map<Species, Double>> {
+    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>, teachers: Boolean = false): Pair<Map<Species, Double>, Map<Species, Double>> {
         fun score(learned: Boolean): Map<Species, Double> {
             val run = HexLearning.Run(cfg, kinds)
-            if (learned) {
+            if (learned && teachers) { for ((s, net) in TEACHERS) if (s in kinds) run.groups.policies[s] = HexLearning.NetPolicy(net) }
+            else if (learned) {
                 val ps = models.map { MoverPolicy(it, null, { 0f }, { 0 }) }
                 for (s in kinds) run.groups.policies[s] = ps[role(s)]
             }
