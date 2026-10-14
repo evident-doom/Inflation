@@ -98,7 +98,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     /** What the hexes are tinted by. */
     private enum class Tint(val label: String) {
         NONE("Ground only"), TEMPERATURE("Temperature"), SNOW("Snow lying"), RAIN("Rain this week"), GREEN("Green forage"),
-        FORAGE("Grass and browse"), SOIL("Soil water"), WATER("Drinking water"), SMALL_GAME("Rodents and reptiles"), INSECTS("Insects"), BITING("Biting insects"), POLLINATORS("Pollinators"), ORGANIC("Soil organic matter"), CARRION("Carrion"), RESIDENTS("Resident herds (all)"),
+        FORAGE("Grass and browse"), SOIL("Soil water"), WATER("Drinking water"), SMALL_GAME("Rodents and reptiles"), FOXES("Foxes"), OWLS("Owls and small hawks"), EAGLES("Eagles"), INSECTS("Insects"), BITING("Biting insects"), POLLINATORS("Pollinators"), ORGANIC("Soil organic matter"), CARRION("Carrion"), RESIDENTS("Resident herds (all)"),
     }
     private val tintChoice = JComboBox(Tint.entries.map { it.label }.toTypedArray())
     private val windBox = javax.swing.JCheckBox("Wind", false)
@@ -133,7 +133,12 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     @Volatile private var frame = 0
     private var frames = 1
     private val date = JLabel()
-    private val counts = JLabel()
+    /**
+     * The kinds and their numbers along the bottom, as buttons: pressing one shows where that kind is
+     * (its density over the hexes, and only its herds or packs drawn); pressing it again shows all.
+     */
+    private val kindButtons = ArrayList<javax.swing.JToggleButton>()
+    @Volatile private var onlyKind: inflation.ecology.Species? = null
     /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
     private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray()) }
     private val map = MapPanel()
@@ -171,7 +176,19 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         bar.add(followBox)
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
         load?.let { f -> commands += { loadWorld(f) } }
-        val bottom = JPanel(); bottom.add(counts)
+        val bottom = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 2))
+        val all = fauna.kinds + groups.kinds
+        for ((i, s) in all.withIndex()) {
+            val b = javax.swing.JToggleButton(s.name); b.margin = java.awt.Insets(1, 4, 1, 4)
+            b.toolTipText = if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)" else "${s.name}: lives in herds or packs (shown as its density, and only its groups drawn)"
+            b.addActionListener {
+                for (o in kindButtons) if (o !== b) o.isSelected = false
+                onlyKind = if (b.isSelected && i >= fauna.kinds.size) s else null
+                residentChoice.selectedIndex = if (b.isSelected) i + 1 else 0
+                map.repaint()
+            }
+            kindButtons += b; bottom.add(b)
+        }
         val side = JPanel(BorderLayout())
         side.add(JScrollPane(info), BorderLayout.NORTH)
         side.add(JScrollPane(groupView), BorderLayout.CENTER)
@@ -250,7 +267,11 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         frames = max(8, 30 / stepsPerSecond); frame = 0
         SwingUtilities.invokeLater {
             date.text = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
-            counts.text = groups.kinds.joinToString("  ") { "${it.name} ${groups.count(it)}" }
+            val all = fauna.kinds + groups.kinds
+            for ((i, b) in kindButtons.withIndex()) {
+                val s = all[i]
+                b.text = "${s.name} " + (if (i < fauna.kinds.size) "%.0f".format(fauna.count(i)) else "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}")
+            }
         }
     }
 
@@ -318,6 +339,9 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
                         Tint.POLLINATORS -> fauna.small.pollinators[p]
                         Tint.ORGANIC -> fauna.small.organicMatter[p]
                         Tint.SMALL_GAME -> fauna.small.rodents[p] + fauna.small.herps[p]
+                        Tint.FOXES -> fauna.small.foxes[p]
+                        Tint.OWLS -> fauna.small.owls[p]
+                        Tint.EAGLES -> fauna.small.eagles[p]
                         Tint.CARRION -> fauna.small.carrion[p] * 1e6f
                         Tint.RESIDENTS -> fauna.kinds.indices.sumOf { (fauna.adults[it][p] + fauna.young[it][p]).toDouble() }.toFloat()
                         Tint.NONE -> 0f
@@ -340,6 +364,9 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
                         Tint.POLLINATORS -> Color(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
                         Tint.ORGANIC -> Color(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
                         Tint.SMALL_GAME -> Color(0.9f, 0.5f, 0.1f, (0.1f + 0.7f * min(1f, v / 60f)))
+                        Tint.FOXES -> Color(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
+                        Tint.OWLS -> Color(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
+                        Tint.EAGLES -> Color(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
                         Tint.CARRION -> Color(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
                         Tint.RESIDENTS -> Color(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
                         Tint.NONE -> null
@@ -426,6 +453,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             for (s in shown) {
                 val sp = Catalogue.all[s.kind]
                 if (if (sp.human) !peopleBox.isSelected else if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
+                if (onlyKind != null && sp != onlyKind) continue
                 val w = s.way
                 val (x, y) = along(w, t)
                 if (sp.human) {
