@@ -54,6 +54,8 @@ fun main(args: Array<String>) {
     val localSum = Array(samplePlaces.size) { FloatArray(5) }
     val localYears = Array(samplePlaces.size) { ArrayList<FloatArray>() }
     var localWeeks = 0
+    var apptDue = 0L; var apptKept = 0L
+    fun keptShare(): Double { val v = 100.0 * apptKept / apptDue.coerceAtLeast(1); apptDue = 0; apptKept = 0; return v }
     inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
     System.getProperty("hex.ways")?.let { herds.ways = inflation.learning.NetWays(inflation.learning.Mlp.load(java.io.File(it).readText())) }
@@ -151,6 +153,8 @@ fun main(args: Array<String>) {
             // -Dhex.follow=kind: follow one group of that kind week by week, as the viewer's follow mode does.
             System.getProperty("hex.follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
             sim.step()
+            // Appointments kept: of bands in their appointment's month, how many are at its hex.
+            for (g in herds.groups) { val b = g.band ?: continue; if (!g.alive || b.appointHex < 0 || b.appointMonth != weather.date.month) continue; apptDue++; if (hw.placeHex[g.place] == b.appointHex) apptKept++ }
             // Local swings: yearly means of small life at fixed sample places.
             for ((j, sp) in samplePlaces.withIndex()) { val sl = fauna.small; localSum[j][0] += sl.rodents[sp]; localSum[j][1] += sl.hares[sp]; localSum[j][2] += sl.foxes[sp]; localSum[j][3] += sl.owls[sp]; localSum[j][4] += sl.birds[sp] }
             localWeeks++
@@ -249,6 +253,10 @@ fun main(args: Array<String>) {
                 " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * sim.hex.hexKm * sim.hex.hexKm * 0.866) +
                 " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(), bands.map { it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f) }.average()) +
                 // Ties and gatherings: bands it knows and is close to; bands camped with two or more others in the same hex.
+                " | appointments %.0f%% of bands, kept %.0f%% of band-weeks due this year; burial places %d; largest gathering %d bands".format(
+                    100.0 * bs.count { it.appointHex >= 0 } / bs.size.coerceAtLeast(1),
+                    keptShare(),
+                    land.burials.count { it >= 1f }, bands.groupBy { hw.placeHex[it.place] }.values.maxOfOrNull { it.size } ?: 0) +
                 " | ties %.1f a band (close %.1f), gathered %.0f%%".format(bs.map { it.ties.size }.average(), bs.map { b -> b.ties.values.count { it > 0.3f } }.average(),
                     100.0 * bands.groupBy { hw.placeHex[it.place] }.values.filter { it.size >= 3 }.sumOf { it.size } / bands.size.coerceAtLeast(1)))
         }

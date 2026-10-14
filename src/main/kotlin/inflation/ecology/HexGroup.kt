@@ -63,6 +63,6 @@ fun interface HexPolicy {
  * place, the way to better country it senses, and the group's own state and the time of year.
  */
 object HexFeatures {
-    /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]). */
-    const val SIZE = 31
+    /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment. */
+    const val SIZE = 33
 }

@@ -16,6 +16,20 @@ class PlaceMemory {
     val lastWeek = IntArray(MEMORY_SLOTS)
     /** Whether it was there itself (false: only told of it). */
     val own = BooleanArray(MEMORY_SLOTS)
+    /** Its dead buried there (a band's ancestors), and how many bands it has met there. */
+    val dead = FloatArray(MEMORY_SLOTS)
+    val met = FloatArray(MEMORY_SLOTS)
+
+    /** Of all seasons at hex [h]: its dead buried there, and bands met there. */
+    fun deadAt(h: Int): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h) s += dead[i]; return s }
+    fun metAt(h: Int): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h) s += met[i]; return s }
+
+    /** Adds [n] to slot of hex [h] in season [s]'s count in [what] (making the slot if need be). */
+    fun mark(h: Int, s: Int, week: Int, what: FloatArray, n: Float) {
+        var i = find(h, s)
+        if (i < 0) { record(h, s, 0.5f, 0.5f, 0f, week); i = find(h, s) }
+        if (i >= 0) what[i] += n
+    }
 
     fun find(h: Int, s: Int): Int { for (i in 0 until MEMORY_SLOTS) if (hex[i] == h && season[i] == s) return i; return -1 }
 
@@ -33,16 +47,17 @@ class PlaceMemory {
         i = 0; var worst = Float.MAX_VALUE
         for (k in 0 until MEMORY_SLOTS) {
             if (hex[k] < 0) { i = k; break }
-            val keep = fed[k] - danger[k] - (week - lastWeek[k]) / 52f
+            // (Graves and meeting places are not forgotten.)
+            val keep = fed[k] - danger[k] - (week - lastWeek[k]) / 52f + dead[k] + 0.2f * met[k]
             if (keep < worst) { worst = keep; i = k }
         }
-        hex[i] = h; season[i] = s; fed[i] = fedNow * (if (ownVisit) 1f else trust); water[i] = waterNow; danger[i] = dangerNow
+        hex[i] = h; season[i] = s; fed[i] = fedNow * (if (ownVisit) 1f else trust); water[i] = waterNow; danger[i] = dangerNow; dead[i] = 0f; met[i] = 0f
         lastWeek[i] = if (ownVisit) week else week - 26; own[i] = ownVisit
     }
 
     fun copyInto(o: PlaceMemory) {
         hex.copyInto(o.hex); season.copyInto(o.season); fed.copyInto(o.fed); water.copyInto(o.water)
-        danger.copyInto(o.danger); lastWeek.copyInto(o.lastWeek); own.copyInto(o.own)
+        danger.copyInto(o.danger); lastWeek.copyInto(o.lastWeek); own.copyInto(o.own); dead.copyInto(o.dead); met.copyInto(o.met)
     }
 
     /** Takes in what [o] remembers that it does not, as hearsay worth [trust]. */

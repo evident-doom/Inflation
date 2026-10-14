@@ -286,6 +286,19 @@ class HexGroups(
         return max(unitSize(s), (s.maxGroupSize * HERD_UNIT * flush * (if (calving) 0.5f else 1f)).toInt())
     }
 
+    /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
+    internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Int): Float {
+        if (b.appointHex < 0) return 0f
+        val off = minOf((month - b.appointMonth + 12) % 12, (b.appointMonth - month + 12) % 12)
+        // The month before, it is on its way; without sky lore it also lingers a month after, the count being loose.
+        val before = (b.appointMonth - month + 12) % 12 == 1
+        val weight = when { off == 0 -> 1f; before -> 0.7f; off == 1 && !b.holds(Tradition.SKY_LORE) -> 0.5f; else -> return 0f }
+        val here = hw.placeHex[g.place]
+        val fromHere = hexKm(here, b.appointHex)
+        if (fromHere <= hex.hexKm) return if (h == here) weight else 0f
+        return weight * ((fromHere - hexKm(h, b.appointHex)) / fromHere).toFloat().coerceIn(-1f, 1f)
+    }
+
     /** A kind's usual group as an agent: herds move as units of [HERD_UNIT] of their usual bands. */
     internal fun unitSize(s: Species) = if (s.carnivore) s.groupSize else s.groupSize * HERD_UNIT
 
@@ -324,7 +337,9 @@ class HexGroups(
         // Far out of its country, it treks.
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
         // (Bands hold no hunting ground of the packs' kind: a band is restless only when hungry, thirsty or astray.)
-        val restless = if (s.human) g.fed < 0.5f || thirsty || astray
+        // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
+        val dueSoon = g.band?.let { b -> b.appointHex >= 0 && b.appointHex != here && ((b.appointMonth - month + 12) % 12) <= 1 } ?: false
+        val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon
             else if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
@@ -430,6 +445,14 @@ class HexGroups(
                 if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
                 // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
                 if (TAMING && s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, headsHere[peopleSlot][p] / 25f)
+                // Its appointment draws a band in its month (to the month with sky lore; within a month
+                // either way, more weakly, without); its ancestors' places draw it a little always.
+                g.band?.let { b ->
+                    val pull = appointPull(g, b, month, h)
+                    if (pull != 0f) score += APPOINT_PULL * pull
+                    val dead = g.memory.deadAt(h)
+                    if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
+                }
                 // A band with food enough to feast others is drawn to where other bands are (gatherings).
                 g.band?.let { b -> if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {
                     val others = headsHere[peopleSlot][p] - (if (p == g.place) g.size else 0)
@@ -470,6 +493,9 @@ class HexGroups(
                     f[22] = moon
                     val toBirth = 2.0 * Math.PI * (((if (g.birthMonth >= 0) g.birthMonth else s.birthMonth) - month + 12) % 12) / 12.0
                     f[23] = kotlin.math.sin(toBirth).toFloat(); f[24] = kotlin.math.cos(toBirth).toFloat()
+                    // Its ancestors buried here, and how far going here brings it toward its appointment.
+                    f[31] = min(1f, g.memory.deadAt(h) / 10f)
+                    f[32] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
                     // What it remembers of this hex: in this season, or failing that in any.
                     val mem = g.memory
                     var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0

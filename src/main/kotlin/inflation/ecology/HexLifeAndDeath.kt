@@ -174,6 +174,11 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
         if (s.human && o.youngDied > 0) hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
+        // A band that buries its dead buries them where it is: its ancestors' place.
+        if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
+            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.dead, o.deaths.toFloat())
+            land.burials[g.place] += o.deaths.toFloat()
+        }
         o.split?.let { c -> born += HexGroup(nextId++, s, g.place, c.first, c.second).also { n ->
             g.memory.copyInto(n.memory)
             n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.parent = g.id; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth

@@ -101,6 +101,13 @@ class Band {
     var cachePlace = -1
     /** Its choices: days of food it aims to keep in store (the scaffold's; a learned policy sets its own). */
     var storeAim = STORE_AIM_DAYS
+    /**
+     * Its appointment: the hex where it means to be in a month of the year, kept by a moon count
+     * (with sky lore, to the month; without, a month either way), -1 for none; taken up from its
+     * graves and meeting places, or from bands it meets.
+     */
+    var appointHex = -1
+    var appointMonth = -1
     /** Its choices: the share of its adults out scouting rather than foraging. */
     var scoutShare = SCOUT_SHARE
     /** Its choices: how it ranks making each tool ([Tool]) with its spare time (the scaffold: the most worn first). */
@@ -147,7 +154,7 @@ class Band {
 
     /** What a band splitting off takes along: everything it knew and believed, its descent and its grudges. */
     fun copyInto(o: Band) {
-        o.ties.clear(); o.ties.putAll(ties)
+        o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         craft.copyInto(o.craft); making.copyInto(o.making); kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()

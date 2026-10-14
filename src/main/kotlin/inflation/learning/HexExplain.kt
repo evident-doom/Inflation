@@ -23,7 +23,7 @@ object HexExplain {
         "food", "suits it", "crowding", "hunters", "discomfort now", "discomfort ahead", "deep snow", "snow depth",
         "height change km", "effort", "stays", "same hex", "toward season place", "season promise - fed", "fed", "reserves",
         "season sin", "season cos", "restless", "water distance", "thirst", "bearing pull", "moon", "birth sin", "birth cos",
-        "remembers it", "remembers it this season", "remembered fed", "remembered water", "remembered danger", "time since there",
+        "remembers it", "remembers it this season", "remembered fed", "remembered water", "remembered danger", "time since there", "ancestors there", "appointment pull",
     )
 
     @JvmStatic

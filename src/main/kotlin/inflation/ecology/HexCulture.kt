@@ -91,6 +91,11 @@ const val FOUL_AVOID = 0.3f
 const val BURIAL_STAY = 0.1f
 /** Most a band of [Tradition.FEASTS] grows to before it splits, against its kind's usual most. */
 const val FEAST_SIZE = 1.3f
+/** Graves and meetings at a place (in a band's memory) before it makes an appointment there. */
+const val APPOINT_MIN = 3f
+/** How strongly an appointment draws a band in its month, and its ancestors' places draw it at any time. */
+const val APPOINT_PULL = 0.5f
+const val ANCESTOR_PULL = 0.15f
 /**
  * Ties between bands: how much closer a peaceful meeting, a gift, a feast and an exchange of
  * partners bring them (of the way left to full friendship), how far a raid sets them back; share
@@ -176,6 +181,20 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
             val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next
         }
         meetings.merge("bands told of country", 1, Int::plus)
+        // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
+        // takes up the other's (the more they are close, the likelier).
+        val hMeet = hw.placeHex[a.place]; val wk = (weatherNow.date.absoluteDay / days).toInt(); val sMeet = PlaceMemory.seasonOf(weatherNow.date.month)
+        a.memory.mark(hMeet, sMeet, wk, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, b.memory.met, 1f)
+        fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {
+            if (by.appointHex < 0 || by.appointHex == bx.appointHex) return
+            val theirs = y.memory.deadAt(by.appointHex) + y.memory.metAt(by.appointHex)
+            val ours = if (bx.appointHex >= 0) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
+            if (theirs > ours && rnd.nextFloat() < u * (0.3f + 0.7f * max(0f, bx.tie(y.id)))) {
+                bx.appointHex = by.appointHex; bx.appointMonth = by.appointMonth
+                meetings.merge("bands took up another's appointment", 1, Int::plus)
+            }
+        }
+        adopt(a, ba, b, bb); adopt(b, bb, a, ba)
         // And of the places they remember, as far as they trust each other.
         val week = (weatherNow.date.absoluteDay / days).toInt()
         val trust = (0.5f + 0.5f * max(0f, ba.tie(b.id))) * u
@@ -278,6 +297,18 @@ internal fun HexGroups.visitKin() {
 /** A band's year, a week at a time: inbreeding builds in a closed band, grudges fade, words drift, traditions are now and then taken up or dropped. */
 internal fun HexGroups.cultureWeek(g: HexGroup) {
     val b = g.band ?: return
+    // Once a year, a band without an appointment makes one, where its dead lie or where it has met
+    // most bands, in the season it fared best there.
+    if (b.appointHex < 0 && rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat() && (b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS))) {
+        val mem = g.memory
+        var best = -1; var bestScore = 0f
+        for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
+            if (mem.hex[i] < 0) continue
+            val sc = mem.dead[i] + 0.5f * mem.met[i] + mem.fed[i]
+            if (mem.dead[i] + mem.met[i] >= APPOINT_MIN && sc > bestScore) { bestScore = sc; best = i }
+        }
+        if (best >= 0) { b.appointHex = mem.hex[best]; b.appointMonth = mem.season[best] * 3 + 1; meetings.merge("bands made an appointment", 1, Int::plus) }
+    }
     // Ties fade unless renewed.
     if (b.ties.isNotEmpty()) {
         val keep = 1f - TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
