@@ -157,7 +157,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             if (dens <= 0f || chance <= 0f) continue
             // A kill is worth what the party can eat of it, gorging included (a band also what it can
             // dry); the rest is left to others.
-            val meat1 = min(ps.massKg * MEAT_SHARE, (1f + FATTEN) * wantAll)
+            val meat1 = min(ps.massKg * meatShare(band), (1f + FATTEN) * wantAll)
             offer(0, k, p, dens * swept * chance / days, meat1, HANDLING_DAYS + meat1 * eats)
         }
         val small = this.small
@@ -241,7 +241,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 val young = min(0.3f * ps.massKg, kg[i])
                 meat += na * kg[i] + ny * young
                 small.carrion[p] += (na * (ps.massKg - kg[i]) + ny * (0.3f * ps.massKg - young)) / (area * 1e6f)
-                band?.let { it.skin(ps, na); it.practise(Skill.HUNT) }
+                band?.let { it.skin(ps, na); it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
                 kills.merge(ps.name, kills1, Int::plus)
                 note(g) { "killed %d %s".format(kills1, ps.name) }
                 fauna.killed(p, kills1 * ps.massKg)
@@ -364,6 +364,10 @@ internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, dri
     }
     return lost
 }
+
+/** Share of a carcass a hunter takes as food: a band as its butchers' skill allows (all the fat and marrow, at best). */
+internal fun meatShare(band: Band?) = if (band == null) MEAT_SHARE else min(MEAT_MOST, MEAT_SHARE * band.edge(Skill.BUTCHER))
+const val MEAT_MOST = 0.7f
 
 /** What a kilo of reaped seed or grain feeds against a kilo of other food: raw, little; ground and baked, fully. */
 internal fun seedValue(band: Band?) = RAW_SEED + (1f - RAW_SEED) * (band?.has(Tool.GRINDER) ?: 0f)
@@ -530,7 +534,7 @@ internal fun HexGroups.meetChance(a: HexGroup, b: HexGroup, p: Int, span: Float)
     // A hunter after a herd follows its tracks and smell, so it covers far more of the ground that
     // matters; and finds the herd lying up as well as out feeding, if less often.
     val hunting = a.species.carnivore != b.species.carnivore
-    val track = if (hunting) TRACKING else 1f
+    val track = if (hunting) TRACKING * ((if (a.species.carnivore) a.band else b.band)?.edge(Skill.TRACK) ?: 1f) else 1f
     val searched = (sweptKm2(a.species) + sweptKm2(b.species)) * track * max(span, 0.5f) / days
     val hours = Niches.overlap(a.species, b.species)
     // Bands seek each other out at springs and lake shores, where people come together.
@@ -596,10 +600,10 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         val spare = hunter.band?.holds(Tradition.TABOO_YOUNG) == true
         val ta = binomial(herd.adults, KITE_TAKE); val ty = if (spare) 0 else binomial(herd.young, KITE_TAKE)
         herd.adults -= ta; herd.young -= ty
-        val meat = ta * herd.species.massKg * MEAT_SHARE + ty * 0.3f * herd.species.massKg
+        val meat = ta * herd.species.massKg * meatShare(hunter.band) + ty * 0.3f * herd.species.massKg
         hunter.meatMet += meat
         hunter.band?.skin(herd.species, ta)
-        small.carrion[herd.place] += ta * herd.species.massKg * (1f - MEAT_SHARE) / (land.areaKm2[herd.place] * 1e6f)
+        small.carrion[herd.place] += ta * herd.species.massKg * (1f - meatShare(hunter.band)) / (land.areaKm2[herd.place] * 1e6f)
         kills.merge(herd.species.name, ta + ty, Int::plus)
         fauna.killed(herd.place, (ta + ty) * herd.species.massKg)
         hunting.merge("${hunter.species.name}:kills in kite drives", ta + ty, Int::plus)
@@ -618,9 +622,9 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     if (rnd.nextFloat() < chance && herd.adults > 0) {
         if (herd.young > 0 && hunter.band?.holds(Tradition.TABOO_YOUNG) != true && rnd.nextFloat() < 0.5f) { herd.young--; hunter.meatMet += 0.3f * herd.species.massKg }
         else {
-            herd.adults--; hunter.meatMet += herd.species.massKg * MEAT_SHARE
+            herd.adults--; hunter.meatMet += herd.species.massKg * meatShare(hunter.band); hunter.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
             hunter.band?.skin(herd.species, 1)
-            small.carrion[herd.place] += herd.species.massKg * (1f - MEAT_SHARE) / (land.areaKm2[herd.place] * 1e6f)
+            small.carrion[herd.place] += herd.species.massKg * (1f - meatShare(hunter.band)) / (land.areaKm2[herd.place] * 1e6f)
         }
         kills.merge(herd.species.name, 1, Int::plus)
         fauna.killed(herd.place, herd.species.massKg)

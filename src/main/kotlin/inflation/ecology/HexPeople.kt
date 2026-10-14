@@ -250,7 +250,7 @@ class Band {
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species) =
-        skill(Skill.HUNT) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + BOW_GAIN * has(Tool.BOW) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
+        skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + BOW_GAIN * has(Tool.BOW) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
 
     /** Its dogs against its hunters (one to three a full pack): they track, bay and hold game, and bark at night. */
     var dogShare = 0f
@@ -273,6 +273,8 @@ class Band {
     /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
     /** How much more (above 1) or less a skill's work leaves undone than a start band's: the sick die, infants are lost. */
     fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.start) / skill(s)
+    /** How much better (above 1) or worse it does at [s] than a start band. */
+    fun edge(s: Skill) = 1f / lapse(s)
     fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
     fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
 

@@ -25,6 +25,12 @@ enum class Domain {
     CLOTHING,
     /** Building houses: stone-footed huts, pit houses dug into the ground, mudbrick. */
     BUILDING,
+    /** Reading tracks, dung and sign, and following them to the game. */
+    TRACKING,
+    /** Getting within reach unseen: moving downwind, in cover, at the right hour. */
+    STALKING,
+    /** Butchering a kill: taking all the meat, fat and marrow, and the hide whole. */
+    BUTCHERY,
     /** Caring for the sick and wounded: herbs, cleaning and binding wounds, setting bones. */
     HEALING,
     /** Helping at births and keeping infants alive: midwifery, care of the newborn. */
@@ -78,6 +84,9 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     PIT_HOUSE(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.1f, teach = 0.1f, settled = true),
     /** Walls of mud and straw (pisé, then moulded bricks) where there is clay by water: no stone, half the timber, longer to build. */
     MUDBRICK(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.01f, teach = 0.05f, settled = true),
+    TRACK(Domain.TRACKING, 0.2f, 0.8f),
+    STALK(Domain.STALKING, 0.2f, 0.8f),
+    BUTCHER(Domain.BUTCHERY, 0.5f, 0.8f),
     /** Herbal remedies and wound care, learned over a lifetime of the sick. */
     HERBS(Domain.HEALING, CRAFT_FLOOR, 0.5f),
     /** Midwifery and care of infants. */
