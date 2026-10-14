@@ -110,7 +110,7 @@ internal fun softmax(x: FloatArray): FloatArray {
  * few rounds the networks play the hand-written behaviour on fixed worlds, kind by kind; a kind that
  * does worse than with the last version it did well with keeps that version (in `deployed/`).
  *
- * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N]
+ * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N]
  */
 object HexPpo {
     /**
@@ -138,6 +138,7 @@ object HexPpo {
         var hidden = 48
         var rate = 3e-4f
         var checkEvery = 5
+        var checkSeeds = 4
         var k = 0
         while (k < args.size) {
             when (args[k]) {
@@ -149,6 +150,7 @@ object HexPpo {
                 "--hidden" -> hidden = args[++k].toInt()
                 "--rate" -> rate = args[++k].toFloat()
                 "--check" -> checkEvery = args[++k].toInt()
+                "--check-seeds" -> checkSeeds = args[++k].toInt()
                 else -> error("unknown argument ${args[k]}")
             }
             k++
@@ -210,7 +212,7 @@ object HexPpo {
             println(line); log.appendText(line + "\n")
             // ---- check against the hand-written behaviour, and keep each kind's last good version
             if (round % checkEvery == checkEvery - 1) {
-                val seeds = (91L..94L).toList()
+                val seeds = (91L until 91L + checkSeeds).toList()
                 val scores = seeds.parallelStream().map { seed -> check(WorldConfig(seed = seed, widthKm = size, heightKm = size), years + 1, kinds, models) }.toList()
                 val parts = ArrayList<String>()
                 for (s in kinds) {
@@ -392,6 +394,8 @@ object HexPpo {
             }
             return kinds.associateWith { s -> val st = start.getValue(s); if (st <= 0.0) 0.0 else (weeks[s] ?: 0.0) / st / steps }
         }
-        return score(true) to score(false)
+        // (The two runs go side by side.)
+        val both = listOf(true, false).parallelStream().map { score(it) }.toList()
+        return both[0] to both[1]
     }
 }
