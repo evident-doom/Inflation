@@ -419,7 +419,9 @@ const val KITE_HERDS = 100
 const val KITE_TAKE = 0.4f
 /** People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then. */
 const val PEOPLE_FULL_KM2 = 0.5f
-const val PEOPLE_SICK = 0.05f
+const val PEOPLE_SICK = 0.025f
+/** Outbreaks start among people at this share of the rate for animals of the same crowding (small bands keep few diseases going). */
+const val PEOPLE_OUTBREAK = 0.3f
 /** How much a cave or rock shelter adds to a camp's worth (dry, warm, easy to defend). */
 const val CAVE_CAMP = 0.5f
 /** Yearly deaths from vipers and scorpions among people, in the warm months. */
