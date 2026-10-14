@@ -41,6 +41,46 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * away from ground where its kind has been killed (the landscape of fear).
      */
     val fear = FloatArray(n)
+    /**
+     * Outbreaks (rinderpest-like plagues among grazers, distemper and rabies among hunters, fevers
+     * among people), by kind ([Species.index]) and hex: how strongly one is raging, 0..1. One starts
+     * where a kind is crowded, passes to neighbouring hexes where the kind lives, and burns out over
+     * some weeks; while it rages it kills.
+     */
+    val outbreak = Array(Catalogue.all.size) { FloatArray(hex.size) }
+    /** Heads of each kind living in groups, by hex, this week (set by the groups) for outbreaks to pass on. */
+    val groupHeads = Array(Catalogue.all.size) { IntArray(hex.size) }
+    /** Starts an outbreak of [s] in hex [h] (a shared array: concurrent starts all set the same value). */
+    fun startOutbreak(s: Species, h: Int) { outbreak[s.index][h] = 1f }
+    /** This week's share of [s] that an outbreak kills at place [p]. */
+    fun outbreakDeaths(s: Species, p: Int) = OUTBREAK_KILL * outbreak[s.index][hw.placeHex[p]]
+
+    private var outbreakSalt = 0L
+    /** A number in 0..1 that changes from week to week, for place [p] and kind [k]. */
+    private fun hash(p: Int, k: Int): Float {
+        var h = (p.toLong() * 0x9E3779B97F4A7C15uL.toLong()) xor (k.toLong() * 0x632BE59BD9B4E019L) xor (outbreakSalt * 0x165667B19E3779F9L)
+        h = (h xor (h ushr 33)) * -0xae502812aa7333L; h = h xor (h ushr 33)
+        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+    }
+
+    /** Outbreaks pass to neighbouring hexes where the kind lives, and burn out. */
+    private fun stepOutbreaks() {
+        for ((si, s) in Catalogue.all.withIndex()) {
+            val o = outbreak[si]
+            if (o.all { it < 0.01f }) continue
+            val k = kinds.indexOf(s)
+            val old = o.copyOf()
+            for (h in 0 until hex.size) {
+                if (old[h] < 0.05f) continue
+                for (d in 0 until 6) {
+                    val q = hex.neighbour(h, d); if (q < 0) continue
+                    val here = groupHeads[si][q] > 0 || (k >= 0 && (0 until HexWorld.BANDS_M.size).any { b -> hw.placeOf[b][q].let { p -> p >= 0 && adults[k][p] + young[k][p] > 0.01f } })
+                    if (here) o[q] = min(1f, max(o[q], OUTBREAK_SPREAD * old[h]))
+                }
+            }
+            for (h in 0 until hex.size) o[h] *= OUTBREAK_KEEP
+        }
+    }
     fun killed(p: Int, kg: Float) { fear[p] += kg / land.areaKm2[p] }
     /** How much fear puts game off a place, 0..1. */
     fun afraid(p: Int) = fear[p] / (fear[p] + FEAR_HALF)
@@ -202,6 +242,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** One week, with the weather on the same places. */
     fun step(weather: Weather, date: Date) {
         for (p in 0 until n) fear[p] *= FEAR_KEEP
+        stepOutbreaks(); outbreakSalt++
         deaths.clear()
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
@@ -360,7 +401,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // lean season binds, and then hunger and sickness together hold them.
                 val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
                 val crowd = (a[p] + y[p]) / (CROWDED * usual)
-                val disease = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - f[p]))
+                val disease = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - f[p])) + outbreakDeaths(s, p)
+                // Where the herds are crowded, now and then a plague breaks out among them.
+                if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
                 val (fireA, floodA, snowA0) = calamities(s, p, weather, false)
                 val (fireY, floodY, snowY0) = calamities(s, p, weather, true)
                 val snowA = if (sleeping) 0f else snowA0; val snowY = if (sleeping) 0f else snowY0
@@ -495,6 +538,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val EXTINCT = 1e-4f
         /** Density per km² at which crowding halves a place's appeal. */
         const val CROWD = 10f
+        /** Outbreaks: yearly chance one starts in a place at its kind's crowded density; share of the kind it kills a week at full strength; share of its strength it passes to a neighbouring hex; share kept a week. */
+        const val OUTBREAK_START = 0.02f
+        const val OUTBREAK_KILL = 0.04f
+        const val OUTBREAK_SPREAD = 0.6f
+        const val OUTBREAK_KEEP = 0.85f
         /** Fear: kg of game killed lately per km² at which a place is half as frightening as it gets; how much it puts game off at most; share kept a week. */
         const val FEAR_HALF = 5f
         const val FEAR_WEIGHT = 0.5f

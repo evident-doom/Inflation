@@ -74,6 +74,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val hyrax = FloatArray(n)
     val tortoises = FloatArray(n)
     val foxes = FloatArray(n)
+    /** Owls, kestrels, buzzards and kites hunting rodents, kg/km². */
+    val owls = FloatArray(n)
     /** Each kind of [BIRDS], and all together, kg/km². */
     val bird = Array(BIRDS.size) { FloatArray(n) }
     val birds = FloatArray(n)
@@ -301,6 +303,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
         val fed = if (need > 0f) got / need else 1f
         // A litter of four to six a year, born in spring: over the three months, six times the stock a year.
+        // Owls and small hawks eat about a fifth of their weight a day, mostly rodents.
+        run {
+            val r = rodents[p]
+            if (owls[p] <= 0f && r > 0f) owls[p] = OWL_SEED * r
+            val needO = owls[p] * OWL_INTAKE * days
+            val gotO = min(0.5f * r, needO * r / (r + OWL_HALF))
+            if (gotO > 0f) rodents[p] -= gotO
+            val fedO = if (needO > 0f) gotO / needO else 1f
+            owls[p] = logistic(p, owls[p], if (month in 3..5) 3f * fedO else 0f, 0.3f + 0.8f * (1f - fedO), 0.02f * r)
+        }
         foxes[p] = logistic(p, foxes[p], if (month in 4..6) 6f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey)
         // Eagles: a pair needs about a kilo a day; they take what is out in the open among the rocks.
         if (eagleCrags[p] > 0f) {
@@ -422,9 +434,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Totals over the land, tonnes, and vultures in all colonies. */
     fun summary(): String {
         fun t(a: FloatArray) = a.indices.sumOf { (a[it] * land.areaKm2[it]).toDouble() } / 1000
-        return "rodents %.0f t, hares %.0f t, hyrax %.0f t, birds %.0f t (%s), tortoises %.0f t, foxes %.0f t, eagles %.0f pairs, %d vulture colonies %.0f birds".format(
+        return "rodents %.0f t, hares %.0f t, hyrax %.0f t, birds %.0f t (%s), tortoises %.0f t, foxes %.0f t, owls %.0f t, eagles %.0f pairs, %d vulture colonies %.0f birds".format(
             t(rodents), t(hares), t(hyrax), t(birds), bird.indices.joinToString(", ") { "%s %.0f".format(BIRDS[it].name, t(bird[it])) },
-            t(tortoises), t(foxes), eagles.indices.sumOf { (eagles[it] * land.areaKm2[it]).toDouble() } / EAGLE_KM2, vultures.size, vultures.sum())
+            t(tortoises), t(foxes), t(owls), eagles.indices.sumOf { (eagles[it] * land.areaKm2[it]).toDouble() } / EAGLE_KM2, vultures.size, vultures.sum())
     }
 
     /** Takes up to [kgPerM2] of carrion in place [p]; returns what was taken. */
@@ -484,6 +496,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Foxes and wildcats eat about a fourteenth of their weight a day; prey on the ground (kg/km²) at which they get half of it. */
         const val FOX_INTAKE = 0.07f
         const val FOX_HALF = 3f
+        /** Owls and small hawks: food a day per kg of them; rodents (kg/km²) at which they get half of it; their share of the rodents where they first appear. */
+        const val OWL_INTAKE = 0.2f
+        const val OWL_HALF = 3f
+        const val OWL_SEED = 0.002f
         /** Small prey out in the open (kg/km²) at which eagles get half of what they need. */
         const val EAGLE_HALF = 1f
         /** Share of the difference with its neighbours a small animal population evens out every five weeks. */

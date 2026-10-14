@@ -375,6 +375,8 @@ const val KITE_TAKE = 0.4f
 /** People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then. */
 const val PEOPLE_FULL_KM2 = 0.5f
 const val PEOPLE_SICK = 0.05f
+/** Yearly deaths from marsh fever among people camped by a marsh in the warm months. */
+const val MARSH_FEVER = 0.05f
 
 /** Settled life with stores shortens the spacing of births. */
 internal fun settledFertility(g: HexGroup): Float {

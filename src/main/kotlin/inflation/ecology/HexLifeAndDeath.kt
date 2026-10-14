@@ -129,6 +129,9 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     val kinNow = HashMap<Long, Int>()
     for (g in groups) if (g.alive) kinNow.merge(g.species.index.toLong() * hex.size + hw.placeHex[g.place], g.size, Int::plus)
+    // Where each kind's groups are, for outbreaks to pass between them.
+    for (a in fauna.groupHeads) a.fill(0)
+    for (g in groups) if (g.alive) fauna.groupHeads[g.species.index][hw.placeHex[g.place]] += g.size
     // Each group on its own core, with its own random stream; what it leaves for others (carcasses,
     // the counts, a split-off herd) is gathered and handed on after, in the groups' order.
     val list = groups.toList()
@@ -233,7 +236,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
         // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
         val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
-        val disease = if (s.human) peopleSickness(g) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+        // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
+        val plague = fauna.outbreakDeaths(s, g.place)
+        val crowdNow = if (s.human) peopleCrowding(g) else crowd
+        if (r.nextFloat() < HexFauna.OUTBREAK_START * crowdNow * crowdNow * years) fauna.startOutbreak(s, hw.placeHex[g.place])
+        val disease = plague + if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
             else if (s.carnivore) {
                 // Hunters catch mange, distemper and rabies from other packs of their kind crowding the same ground.
                 // (Counted over its hex and the six round it: a pack's ground is wider than one hex.)
@@ -268,7 +275,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // The dead lie where they fell, for the scavengers and the soil.
         var carrion = (da + oldAge + 0.3f * dy) * s.massKg
         // The week's deaths are shared among the causes by how much each weighed ("other": age, accidents, ordinary illness).
-        val hazards = listOf("other" to healed * s.backgroundMortality * years, "hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "inbreeding" to inbred)
+        val hazards = listOf("other" to healed * s.backgroundMortality * years, "hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "inbreeding" to inbred)
         var left = da + dy; var weight = hazards.sumOf { it.second.toDouble() }.toFloat()
         val causes = ArrayList<Pair<String, Int>>()
         for ((name, h) in hazards) {
@@ -310,7 +317,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
  * Yearly deaths from crowding among people: fevers and worms where many camp near each other, by the
  * people in a band's hex and the six round it.
  */
-private fun HexGroups.peopleSickness(g: HexGroup): Float { val dens = peopleCrowding(g); return PEOPLE_SICK * dens * dens }
+private fun HexGroups.peopleSickness(g: HexGroup, weather: Weather): Float {
+    val dens = peopleCrowding(g)
+    // Fevers by the marshes in the warm months, where the mosquitoes breed.
+    val marsh = land.logged[g.place] * if (weather.temperature[g.place] > 20f) 1f else 0f
+    return PEOPLE_SICK * dens * dens + MARSH_FEVER * marsh
+}
 
 /** People round a band's camp (its hex and the six round it), per km², against [PEOPLE_FULL_KM2]. */
 internal fun HexGroups.peopleCrowding(g: HexGroup): Float {
