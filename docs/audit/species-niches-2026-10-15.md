@@ -67,3 +67,15 @@ The expected ranges are from memory of the literature. They are approximate.
 3. **Herds weigh safety and water against food.** Hunters' presence and the herd's own water independence go into the hand-written scaffold's scoring. This is also something the herd network can learn.
 4. **Look again at semi-desert forage.** Real semi-desert carries roughly 0.05–0.3 kg/m² of standing forage. The low end is right, but the share that is edible there may be set too low (`PALATABLE` 0.35).
 5. **Ostrich decline, wolf and leopard collapses:** follow them in a long run, once fixes 1–3 are in.
+
+## Done during the night
+
+Each fix was checked over 15 years on seed 1.
+
+- **Coursers lose success in thick cover** (`COURSING_COVER` 0.7). Cheetahs got hungrier but still keep to the forest.
+- **Herds and packs weigh their own country** in choosing ground (`GROUP_HABITAT` 0.15). The effect is modest:
+  - Striped hyena moved out of the forest (73% → 30%), and leopards held on (155 → 397).
+  - Cheetahs fell (323 → 190), and lions are still 66% in the forest.
+- **Crags are a full refuge for wild goats.**
+  - Ibex: up by half (88k → 134k), and fewer in the lowest band (28% → 19%).
+  - Mouflon: up (285k → 336k).

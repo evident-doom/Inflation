@@ -30,7 +30,8 @@ internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = 
     val small = if (ps.massKg < s.massKg * 0.05f) 0.3f else 1f // too small to be worth a pack's while
     // Shelter: crags, dens, thickets and trees, as the prey uses them; small prey hide in any cover.
     // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
-    val refuge = 1f - 0.5f * SHELTER_EFFECT * Niches.shelter(ps, p, land)
+    // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
+    val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * Niches.shelter(ps, p, land)
     // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
     val hide = 1f - HIDING * land.cover(p) * (1f - s.stalking) * max(0f, 1f - ps.massKg / HIDING_KG)
     // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
