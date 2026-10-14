@@ -37,7 +37,9 @@ internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = 
     val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
     // A courser must run its quarry down; a stalker gets close unseen and needs no speed.
     val speed = s.stalking + (1f - s.stalking) * min(1f, s.speedKmh / ps.speedKmh)
-    return (size * small * (1f - ps.defence) * refuge * hide * dark * speed).coerceIn(0f, 1f)
+    // And it needs room to run: in thick woods and scrub a chase ends at the first tangle.
+    val room = 1f - COURSING_COVER * (1f - s.stalking) * land.cover(p)
+    return (size * small * (1f - ps.defence) * refuge * hide * dark * speed * room).coerceIn(0f, 1f)
 }
 
 /**

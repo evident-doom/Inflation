@@ -41,6 +41,8 @@ val MIGRANTS_GATHER get() = 20f * MIGRANT_UNIT
 const val HERD_UNIT = 10
 /** Herds lean to sizes from this many times smaller to this many times larger than their kind's usual. */
 const val SIZE_PREF_RANGE = 3f
+/** How much of a courser's success thick cover takes away (a cheetah in a wood runs into trees). */
+const val COURSING_COVER = 0.7f
 /**
  * The sides of a herd's size, against its kind's usual band: how its walking slows, how much less
  * each attempt on it succeeds (many eyes, confusion), and how much less often its young are taken
