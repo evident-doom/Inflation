@@ -148,6 +148,13 @@ fun main(args: Array<String>) {
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
             for ((key, v) in herds.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
             for ((key, v) in herds.hunting) huntYear.merge(key, v, Int::plus)
+            // -Dhex.migDiag=kind: each month, how far that kind's herds are from the place they remember for the month.
+            System.getProperty("hex.migDiag")?.let { kind -> if (weather.date.dayOfMonth <= cfg.daysPerStep) {
+                val m = weather.date.month
+                val gs = herds.groups.filter { it.alive && it.species.name == kind && it.seasonPlace[m] >= 0 }
+                if (gs.isNotEmpty()) println("     month ${m + 1} $kind: %.0f km from this month's place, fed %.2f, remembered worth %.2f".format(
+                    gs.map { sim.hex.distanceKm(hw.placeHex[it.place], hw.placeHex[it.seasonPlace[m]]) }.average(), gs.map { it.fed.toDouble() }.average(), gs.map { it.seasonQ[m].toDouble() }.average()))
+            } }
             if (weather.date.dayOfMonth <= cfg.daysPerStep) {
                 if (weather.date.month == 0) for (g in herds.groups) if (g.alive && !g.species.carnivore) janHex[g.id] = hw.placeHex[g.place]
                 if (weather.date.month == 6) for (g in herds.groups) if (g.alive && !g.species.carnivore) janHex[g.id]?.let { julyKm.getOrPut(g.species.name) { ArrayList() } += sim.hex.distanceKm(it, hw.placeHex[g.place]) }
@@ -194,6 +201,11 @@ fun main(args: Array<String>) {
         })
         // How far the herds are in July from where they were in January.
         if (julyKm.isNotEmpty()) println("     herds' January to July (mean km / share over 50 km): " + julyKm.entries.joinToString(", ") { (k, v) -> "%s %.0f / %.0f%%".format(k, v.average(), 100.0 * v.count { it > 50.0 } / v.size) })
+        // And how far apart the places they remember for January and July are: the migration they mean to make.
+        println("     herds' remembered January and July places apart (mean km): " + herds.kinds.filter { !it.carnivore }.joinToString(", ") { s ->
+            val d = herds.groups.filter { it.alive && it.species == s && it.seasonPlace[0] >= 0 && it.seasonPlace[6] >= 0 }.map { sim.hex.distanceKm(hw.placeHex[it.seasonPlace[0]], hw.placeHex[it.seasonPlace[6]]) }
+            "%s %.0f".format(s.name, if (d.isEmpty()) 0.0 else d.average())
+        })
         // The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young.
         println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gs = herds.groups.filter { it.alive && it.species == s }

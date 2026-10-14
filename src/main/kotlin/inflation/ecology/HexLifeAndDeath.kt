@@ -44,7 +44,9 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
             val snow = if (t < -1f && s.diet.grass > 0.3f) 0.2f else 1f
             val (cx, cy) = hex.centreKm(h)
             val dist = hypot(cx - hx, cy - hy) / reachKm
-            val score = (0.2f + grow) * fauna.suits(s, p) * snow / (1f + discomfort * discomfort) / (1f + SEASON_DISTANCE * dist.toFloat())
+            // ... and how much forage grows there at all: a desert flush is little food.
+            val food = foodFor(s, p)
+            val score = (0.2f + grow) * food / (food + 0.3f) * fauna.suits(s, p) * snow / (1f + discomfort * discomfort) / (1f + SEASON_DISTANCE * dist.toFloat())
             if (score > bestScore) { bestScore = score; best = p }
         }
         g.seasonPlace[m] = best; g.seasonQ[m] = bestScore

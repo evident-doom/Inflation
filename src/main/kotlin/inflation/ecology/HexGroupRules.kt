@@ -63,6 +63,8 @@ const val RAIN_AHEAD_MM = 20f
 const val PREY_HALF = 200f
 /** Pull of the season's remembered place, and of staying where one is. */
 const val SEASON_PULL = 1.0f
+/** For tracing: the kind whose herds' reasons the plan prints (-Dhex.planDiag=kind). */
+val PLAN_DIAG: String? = System.getProperty("hex.planDiag")
 /** How strongly a group follows its sense of better country, per reach moved along it. */
 const val BEARING_PULL = 0.5f
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
