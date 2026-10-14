@@ -305,6 +305,26 @@ fun main(args: Array<String>) {
             "%s %.1fx / %.0f%%".format(names[c], if (ratios.isEmpty()) 0f else ratios[ratios.size / 2], 100 * empty)
         })
     }
+    // How unequal the land is for people: food to be had in each land hex (plant foods, game, fish).
+    run {
+        val value = DoubleArray(sim.hex.size)
+        for (pl in 0 until land.n) {
+            val h = hw.placeHex[pl]; val a = land.areaKm2[pl].toDouble()
+            val f = fauna.food
+            value[h] += (f.fruit[pl] + f.roots[pl] + f.seeds[pl] + f.finds[pl]) * 1e6 * a
+            for (k in fauna.kinds.indices) value[h] += 0.1 * fauna.adults[k][pl] * fauna.kinds[k].massKg * a
+        }
+        for (h in 0 until sim.hex.size) if (hw.land[h] > 0f) value[h] += fauna.water.fishWithin(h).toDouble()
+        val v = (0 until sim.hex.size).filter { hw.land[it] > 0.5f }.map { value[it] }.sorted()
+        if (v.isNotEmpty()) {
+            val total = v.sum().coerceAtLeast(1e-9)
+            var cum = 0.0; var area = 0.0
+            for ((i, x) in v.withIndex()) { cum += x; area += cum }
+            val gini = 1.0 - 2.0 * (area / (v.size * total)) + 1.0 / v.size
+            val top = v.takeLast((v.size / 20).coerceAtLeast(1)).sum() / total
+            println("food for people across the land: unevenness (Gini) %.2f, richest 5%% of hexes hold %.0f%% of it, median hex %.0f t".format(gini, 100 * top, v[v.size / 2] / 1000))
+        }
+    }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
         val c = causes.entries.filter { it.key.substringBefore(":") == s.name && !it.key.endsWith("+born") }.map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }

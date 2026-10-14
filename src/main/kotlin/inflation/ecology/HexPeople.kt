@@ -272,7 +272,15 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     b.campPlace = p
     // A cache keeps, but not perfectly; back at it, the band takes up what it has room for.
     if (b.cachePlace >= 0) {
-        // (A cache spoils as stores do, and mice and badgers get into it too.)
+        // (A cache spoils as stores do, and mice and badgers get into it too; boar, bears and hyenas dig
+        // it up where they are about.)
+        run {
+            val cp = b.cachePlace
+            val diggers = small.rodents[cp] / CACHE_RODENTS_HALF + small.foxes[cp] / CACHE_FOXES_HALF +
+                fauna.kinds.indices.filter { fauna.kinds[it].name == "wild boar" || fauna.kinds[it].name == "brown bear" }.sumOf { (fauna.adults[it][cp] / 0.5f).toDouble() }.toFloat()
+            val dug = min(0.5f, CACHE_DUG * min(1f, diggers) * years)
+            if (dug > 0f) { var lost = 0f; for (i in b.cache.indices) { val x = b.cache[i] * dug; b.cache[i] -= x; lost += x }; small.carrion[cp] += 0.3f * lost / (land.areaKm2[cp] * 1e6f) }
+        }
         val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]]) + CACHE_SPOIL * b.cacheKg
         for (i in b.cache.indices) b.cache[i] *= 1f - CACHE_SPOIL
         small.litter[b.cachePlace] += spoilt / (land.areaKm2[b.cachePlace] * 1e6f)
@@ -570,6 +578,12 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
  * how strongly its houses draw a band back.
  */
 const val HOUSE_DAYS = 20f
+/** Caches: yearly share dug up where diggers are thick; rodents and foxes (kg/km²) at which they count fully; chance a band passing a hex finds another's cache there; share it takes. */
+const val CACHE_DUG = 2f
+const val CACHE_RODENTS_HALF = 200f
+const val CACHE_FOXES_HALF = 20f
+const val CACHE_FIND = 0.15f
+const val CACHE_TAKE = 0.6f
 /** Stone and timber for one person's share of a stone-footed house, kg; person-days for a brush shelter; how much warmer a brush shelter keeps, °C. */
 const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
@@ -582,3 +596,34 @@ const val PIT_KEEP = 0.5f
 const val MICE = 0.01f
 const val HOUSE_DEFENCE = 0.5f
 const val HOME_PULL = 0.15f
+
+/**
+ * Bands passing through another band's cache may find it and carry off what they can, unless they
+ * are close to its owners: the more it lies in the open and the more they see, the likelier. The
+ * owners hold it against the takers when they learn of it.
+ */
+internal fun HexGroups.robCaches() {
+    val caches = HashMap<Int, ArrayList<HexGroup>>()
+    for (g in groups) { val b = g.band ?: continue; if (g.alive && b.cachePlace >= 0 && b.cacheKg > 1f) caches.getOrPut(hw.placeHex[b.cachePlace]) { ArrayList() } += g }
+    if (caches.isEmpty()) return
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (!g.alive) continue
+        for (h in g.path) {
+            val owners = caches[h] ?: continue
+            for (o in owners) {
+                val ob = o.band ?: continue
+                if (o === g || b.tie(o.id) > 0.3f || ob.cacheKg <= 1f) continue
+                if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace) * (1f + b.scoutShare * 5f)) continue
+                val room = max(0f, CARRY_KG * max(1, g.adults) - g.larder)
+                val take = min(ob.cacheKg * CACHE_TAKE, room)
+                if (take <= 0f) continue
+                val share = take / ob.cacheKg
+                for (i in ob.cache.indices) { val x = ob.cache[i] * share; ob.cache[i] -= x; g.stores[i] += x }
+                ob.befriend(g.id, -TIE_RAID * 0.5f); ob.grudge[b.mainLineage()] += 0.5f * GRUDGE
+                meetings.merge("caches robbed", 1, Int::plus)
+                note(g) { "found and took %.0f kg from band #%d's cache".format(take, o.id) }; note(o) { "its cache was robbed by band #%d".format(g.id) }
+            }
+        }
+    }
+}

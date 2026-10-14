@@ -202,6 +202,7 @@ class HexGroups(
         Profile.time("groups: grazing") { graze(weather) }
         Profile.time("groups: hunting") { hunt(visits, weather) }
         Profile.part("people: burning off") { burnOff(weather) }
+        Profile.part("people: robbing caches") { robCaches() }
         Profile.part("people: visiting kin") { visitKin() }
         Profile.time("groups: ground, births, deaths") { Profile.part("hunters: marking ground") { mark() }; Profile.part("hunters: settling ground") { settle() }; demography(weather, date) }
         groups.removeIf { !it.alive }
