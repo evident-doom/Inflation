@@ -49,6 +49,11 @@ fun main(args: Array<String>) {
         println("carrying on the world saved in $f, at ${sim.weather.date} (loaded in %.1f s)".format((System.nanoTime() - t0) / 1e9))
     }
     val hw = sim.hw; val weather = sim.weather; val land = sim.land; val fauna = sim.fauna; val herds = sim.groups
+    // Sample places for local swings: every so many places with some plant cover.
+    val samplePlaces = (0 until land.n step (land.n / 60).coerceAtLeast(1)).filter { land.herb[it] + land.shrub[it] > 0.05f }.take(40)
+    val localSum = Array(samplePlaces.size) { FloatArray(5) }
+    val localYears = Array(samplePlaces.size) { ArrayList<FloatArray>() }
+    var localWeeks = 0
     // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
     System.getProperty("hex.ways")?.let { herds.ways = inflation.learning.NetWays(inflation.learning.Mlp.load(java.io.File(it).readText())) }
     val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
@@ -145,6 +150,10 @@ fun main(args: Array<String>) {
             // -Dhex.follow=kind: follow one group of that kind week by week, as the viewer's follow mode does.
             System.getProperty("hex.follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
             sim.step()
+            // Local swings: yearly means of small life at fixed sample places.
+            for ((j, sp) in samplePlaces.withIndex()) { val sl = fauna.small; localSum[j][0] += sl.rodents[sp]; localSum[j][1] += sl.hares[sp]; localSum[j][2] += sl.foxes[sp]; localSum[j][3] += sl.owls[sp]; localSum[j][4] += sl.birds[sp] }
+            localWeeks++
+            if (localWeeks == Date.DAYS_PER_YEAR / cfg.daysPerStep) { for (j in samplePlaces.indices) { localYears[j] += localSum[j].map { it / localWeeks }.toFloatArray(); localSum[j].fill(0f) }; localWeeks = 0 }
             if (System.getProperty("hex.follow") != null && herds.watched >= 0) {
                 val g = herds.groups.firstOrNull { it.id == herds.watched }
                 println("   follow #%d (%s, %d) %s:".format(herds.watched, g?.species?.name ?: "?", g?.size ?: 0, weather.date))
@@ -266,6 +275,15 @@ fun main(args: Array<String>) {
         historyFile?.let { if (y % 5 == 0 || y == years) history.writeCsv(it) }
         saveFile?.let { if (y % 5 == 0 || y == years) { val t0 = System.nanoTime(); inflation.ecology.HexSnapshot.save(sim, it); println("     saved the world to $it (%.1f s, %.0f MB)".format((System.nanoTime() - t0) / 1e9, it.length() / 1e6)) } }
         println("     this week: kills " + herds.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + herds.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
+    }
+    // How much small life swings from year to year in one place (not the map's total, where out-of-step places smooth each other out).
+    run {
+        val names = listOf("rodents", "hares", "foxes", "owls", "game birds")
+        println("local swings at %d places (median over places of the largest year against the smallest / share of place-years with none): ".format(samplePlaces.size) + names.indices.joinToString(", ") { c ->
+            val ratios = localYears.mapNotNull { ys -> val v = ys.drop(1).map { it[c] }; val mx = v.maxOrNull() ?: 0f; val mn = v.minOrNull() ?: 0f; if (mx > 0f) (if (mn > 0f) mx / mn else Float.POSITIVE_INFINITY) else null }.sorted()
+            val empty = localYears.sumOf { ys -> ys.drop(1).count { it[c] <= 0.001f } }.toDouble() / localYears.sumOf { (it.size - 1).coerceAtLeast(0) }.coerceAtLeast(1)
+            "%s %.1fx / %.0f%%".format(names[c], if (ratios.isEmpty()) 0f else ratios[ratios.size / 2], 100 * empty)
+        })
     }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {

@@ -115,7 +115,7 @@ internal fun softmax(x: FloatArray): FloatArray {
  * few rounds the networks play the hand-written behaviour on fixed worlds, kind by kind; a kind that
  * does worse than with the last version it did well with keeps that version (in `deployed/`).
  *
- * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--teacher DIR] [--teacher-check]
+ * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...]
  */
 object HexPpo {
     /**
@@ -160,6 +160,7 @@ object HexPpo {
                 "--per-kind" -> PER_KIND_YEAR = args[++k].toInt()
                 "--teacher" -> { val dir = File(args[++k]); TEACHERS = Catalogue.all.mapNotNull { s -> HexLearning.file(dir, s).takeIf { it.exists() }?.let { s to Mlp.load(it.readText()) } }.toMap() }
                 "--teacher-check" -> teacherCheck = true
+                "--maps" -> MAPS = args[++k].split(",").map { m -> val (s, l) = m.split(":"); s.toLong() to l.toDouble() }
                 else -> error("unknown argument ${args[k]}")
             }
             k++
@@ -170,7 +171,7 @@ object HexPpo {
         // Only how the teachers do against the hand-written behaviour, in today's world.
         if (teacherCheck) {
             val seeds = (91L until 91L + checkSeeds).toList()
-            val scores = seeds.parallelStream().map { seed -> check(WorldConfig(seed = seed, widthKm = size, heightKm = size), years + 1, kindsAll, emptyList(), teachers = true) }.toList()
+            val scores = seeds.parallelStream().map { seed -> check(world(seed, size), years + 1, kindsAll, emptyList(), teachers = true) }.toList()
             println("teachers vs hand-written: " + kindsAll.filter { it in TEACHERS }.joinToString(", ") { s -> "%s %.3f vs %.3f".format(s.name, scores.map { it.first[s] ?: 0.0 }.average(), scores.map { it.second[s] ?: 0.0 }.average()) })
             return
         }
@@ -193,7 +194,7 @@ object HexPpo {
             val t0 = System.nanoTime()
             // ---- play
             val choices = (0 until worlds).toList().parallelStream().map { w ->
-                play(WorldConfig(seed = 50_000L + round * 100L + w, widthKm = size, heightKm = size), years, kinds, models)
+                play(world(50_000L + round * 100L + w, size, w), years, kinds, models)
             }.toList()
             val tPlay = System.nanoTime()
             val all = choices.flatMap { it.first }
@@ -231,7 +232,7 @@ object HexPpo {
             // ---- check against the hand-written behaviour, and keep each kind's last good version
             if (round % checkEvery == checkEvery - 1) {
                 val seeds = (91L until 91L + checkSeeds).toList()
-                val scores = seeds.parallelStream().map { seed -> check(WorldConfig(seed = seed, widthKm = size, heightKm = size), years + 1, kinds, models) }.toList()
+                val scores = seeds.parallelStream().map { seed -> check(world(seed, size, (seed - 91L).toInt()), years + 1, kinds, models) }.toList()
                 val parts = ArrayList<String>()
                 for (s in kinds) {
                     val learned = scores.map { it.first[s] ?: 0.0 }.average()
@@ -257,7 +258,7 @@ object HexPpo {
      */
     fun imitate(kinds: List<Species>, models: List<SharedMover>, worlds: Int, size: Int) {
         val shown = (0 until worlds).toList().parallelStream().map { w ->
-            val run = HexLearning.Run(WorldConfig(seed = 40_000L + w, widthKm = size, heightKm = size), kinds)
+            val run = HexLearning.Run(world(40_000L + w, size, w), kinds)
             val kept = ConcurrentLinkedQueue<Shown>()
             val stepsPerYear = Date.DAYS_PER_YEAR / (WorldConfig().daysPerStep)
             val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, PER_KIND_YEAR.toFloat() / (n * stepsPerYear)) }
@@ -312,6 +313,15 @@ object HexPpo {
             }
         }
     }
+
+    /**
+     * Hand-picked maps (seed and centre latitude) to play and check on, in turn (e.g. those
+     * hex-pick-world finds push herds hardest to migrate); empty for fresh worlds every round.
+     */
+    var MAPS: List<Pair<Long, Double>> = emptyList()
+    fun world(seed: Long, size: Int, i: Int = 0): WorldConfig =
+        if (MAPS.isEmpty()) WorldConfig(seed = seed, widthKm = size, heightKm = size)
+        else MAPS[((i % MAPS.size) + MAPS.size) % MAPS.size].let { (s, lat) -> WorldConfig(seed = s, widthKm = size, heightKm = size, centreLatitude = lat) }
 
     /** Networks to copy instead of the hand-written behaviour, by kind (e.g. the herds' evolved ones). */
     var TEACHERS: Map<Species, Mlp> = emptyMap()
