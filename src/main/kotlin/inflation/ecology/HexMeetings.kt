@@ -176,10 +176,15 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 }
                 gotScraps += extra; short -= extra
             }
-            if (short > 0f && d.fruit + d.roots > 0f && !s.human) {
-                val m2 = land.areaKm2[g.place] * 1e6f
-                val cap = min(short, SWITCH * g.dailyNeedKg * days * (d.fruit + d.roots)) / m2
-                val extra = (fauna.food.take(fauna.food.fruit, g.place, cap * d.fruit / (d.fruit + d.roots)) + fauna.food.take(fauna.food.roots, g.place, cap * d.roots / (d.fruit + d.roots))) * m2
+            if (short > 0f && d.fruit + d.roots > 0f) {
+                // (Bands gather the extra over all the ground they walked, as far as their skill and tools allow.)
+                var extra = 0f
+                val cap = min(short, SWITCH * g.dailyNeedKg * days * (d.fruit + d.roots))
+                for (q in gatherAt) {
+                    val m2 = land.areaKm2[q] * 1e6f
+                    val want = cap / gatherAt.size / m2
+                    extra += (gather(fauna.food.fruit, q, want * d.fruit / (d.fruit + d.roots)) + gather(fauna.food.roots, q, want * d.roots / (d.fruit + d.roots))) * m2
+                }
                 plants += extra; short -= extra
             }
         }
