@@ -28,3 +28,13 @@ Networks are saved as bare weight matrices. When a feature or an output is added
 ## Order proposed
 
 1 and 2 first (they make everything else possible), then 6, which the Natufian baseline needs, then 5, 4, 3 and 7.
+
+## Status (2026-10-14)
+
+Built:
+- **Named inputs and outputs** (`learning/Schema.kt`). Every network is saved with a `.names` file and loaded by name. Movers, teachers and the bands' ways all go through it. Networks saved without names (all before today) are read as today's first names; a mover's kind part is read from the end. `SchemaTest` checks that a refitted network chooses exactly as before and gives zero on whatever is new.
+- **Neutral defaults:** the rule in `Schema`'s documentation. New features read 0 where nothing is new, and new choices take their hand-written default at an output of 0.
+- **A registry of baselines** (`tools/Baseline.kt`):
+  - `baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT]`, `baseline list`, `baseline show NAME` (what each network lacks against today's model);
+  - kept in `runs/baselines/NAME`, and never overwritten;
+  - `-Dhex.nets=NAME` in the check loads one by name.

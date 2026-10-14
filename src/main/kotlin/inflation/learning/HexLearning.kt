@@ -285,8 +285,8 @@ object HexEvolve {
                 val grad = FloatArray(centre.w.size)
                 for (i in 0 until pairs) { val d = ranks[2 * i] - ranks[2 * i + 1]; val e = eps.getValue(s)[i]; for (j in grad.indices) grad[j] -= (d * e[j] / (2 * pairs * sigma)).toFloat() }
                 adams.getValue(s).step(centre.w, grad)
-                centre.save(HexLearning.file(out, s))
-                if (gen % 10 == 9) centre.save(HexLearning.file(File(out, "gen${gen + 1}").also { it.mkdirs() }, s))
+                Schema.save(centre, HexLearning.file(out, s), Schema.TEACHER_IN, Schema.MOVER_OUT)
+                if (gen % 10 == 9) Schema.save(centre, HexLearning.file(File(out, "gen${gen + 1}").also { it.mkdirs() }, s), Schema.TEACHER_IN, Schema.MOVER_OUT)
                 parts += "%s %.2f/%.2f".format(s.name, fitness.take(2 * pairs).average(), fitness.last())
             }
             val line = "gen %d  %.0f s  fitness mean/centre: %s  | %s".format(gen, (System.nanoTime() - t0) / 1e9, parts.joinToString(", "), results.joinToString("  ") { it.second })
@@ -348,7 +348,7 @@ object HexSeasons {
         }
         val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory }
         val run = HexLearning.Run(cfg, kinds + hunters, mountains = true)
-        nets?.let { dir -> for (s in kinds) HexLearning.file(dir, s).takeIf { it.exists() }?.let { run.groups.policies[s] = HexLearning.NetPolicy(Mlp.load(it.readText())) } }
+        nets?.let { dir -> for (s in kinds) HexLearning.file(dir, s).takeIf { it.exists() }?.let { run.groups.policies[s] = HexLearning.NetPolicy(Schema.load(it, Schema.TEACHER_IN, Schema.MOVER_OUT)) } }
         val stepsPerMonth = Date.DAYS_PER_MONTH / cfg.daysPerStep
         println("month " + kinds.joinToString("") { "%18s".format(it.name.take(16)) })
         repeat(years * 12) { m ->
@@ -425,7 +425,7 @@ object HexEvolveWays {
         out.mkdirs()
         val file = File(out, "ways.mlp")
         // A network of zeros in its last layer chooses as the scaffold does; the hidden layer starts small and random.
-        val centre = if (file.exists()) Mlp.load(file.readText()) else Mlp.random(intArrayOf(inflation.ecology.WAYS_IN, hidden, inflation.ecology.WAYS_OUT), Random(1)).also { m ->
+        val centre = if (file.exists()) Schema.load(file, Schema.WAYS_IN, Schema.WAYS_OUT) else Mlp.random(intArrayOf(inflation.ecology.WAYS_IN, hidden, inflation.ecology.WAYS_OUT), Random(1)).also { m ->
             val last = Mlp.count(intArrayOf(inflation.ecology.WAYS_IN, hidden)); for (i in last until m.w.size) m.w[i] = 0f
         }
         val adam = Adam(centre.w.size, rate)
@@ -449,9 +449,9 @@ object HexEvolveWays {
             val grad = FloatArray(centre.w.size)
             for (i in 0 until pairs) { val d = ranks[2 * i] - ranks[2 * i + 1]; val e = eps[i]; for (j in grad.indices) grad[j] -= (d * e[j] / (2 * pairs * sigma)).toFloat() }
             adam.step(centre.w, grad)
-            centre.save(file)
+            Schema.save(centre, file, Schema.WAYS_IN, Schema.WAYS_OUT)
             if (gen % 10 == 9) {
-                centre.save(File(File(out, "gen${gen + 1}").also { it.mkdirs() }, "ways.mlp"))
+                Schema.save(centre, File(File(out, "gen${gen + 1}").also { it.mkdirs() }, "ways.mlp"), Schema.WAYS_IN, Schema.WAYS_OUT)
                 // Against the scaffold on the same fixed worlds: the centre's bands and scaffold bands side by side.
                 val scaffold = centre.copy().also { m -> val last = Mlp.count(intArrayOf(m.sizes[0], m.sizes[1])); for (i in last until m.w.size) m.w[i] = 0f }
                 val check = checkSeeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed, widthKm = size, heightKm = size), years, arrayOf(scaffold, centre)).first }.toList()
