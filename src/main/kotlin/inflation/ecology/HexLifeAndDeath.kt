@@ -71,8 +71,8 @@ internal fun HexGroups.graze(weather: Weather) {
         val snowed = weather.snowpack[p] > s.snowLimitMm
         val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
         val reach = HexFauna.REACH_DORMANT + (HexFauna.REACH - HexFauna.REACH_DORMANT) * land.green[p]
-        // Poor forage is made up for by eating more of it, as far as the gut holds.
-        val fill = min(HexFauna.GUT_FILL, 1f / land.nourishment(p))
+        // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
+        val fill = gutFill(s, land.nourishment(p))
         val wantGrass = if (snowed) 0f else want * fill * access * d.grass / total
         val grass = land.consume(p, LifeForm.HERB, min(wantGrass, reach * land.herb[p]))
         val wantBrowse = want * fill * access * d.browse / total

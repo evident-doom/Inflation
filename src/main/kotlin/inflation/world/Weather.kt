@@ -92,6 +92,11 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     private val ch = (places.heightKm / coarseKm).toInt() + 2
     private val rnd = Random(cfg.seed * 31 + 7)
 
+    /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
+    private val yearSwing = FloatArray(n) { i ->
+        val annual = (0 until 12).sumOf { places.monthlyPrecip[it][i].toDouble() }.toFloat()
+        0.7f + 1.3f * (1f - annual / 600f).coerceIn(0f, 1f)
+    }
     private val tempAnomaly = FloatArray(cw * ch)
     private val rainAnomaly = FloatArray(cw * ch)
     private val yearAnomaly = FloatArray(cw * ch)
@@ -206,7 +211,16 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
             val x = cx(i); val y = cy(i)
             nextTemp[i] = tNow[i] * (1 - f) + tNext[i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) + warmth
             val wind = storm * winds.rainFactor(i, sample(nextU, x, y), sample(nextV, x, y)) / norm[i]
-            nextPrecip[i] = pNow[i] * stepShare * wind * exp(sample(rainAnomaly, x, y) - RAIN_BIAS + sample(yearAnomaly, x, y) + sample(rainShock, x, y))
+            // Rain comes in storms: a week is wet or dry, the wetter the month the likelier wet, and wet
+            // spells hang together in space and time (the rain anomaly decides where); a wet week brings
+            // the dry weeks' share too. Dry country swings more from year to year, with bust years.
+            val pMonth = pNow[i] * wind
+            val wetChance = 1f - exp(-pMonth / WET_MONTH_MM)
+            val z = sample(rainAnomaly, x, y) / RAIN_SIGMA
+            val wet = 1f / (1f + exp(-1.7f * z)) > 1f - wetChance
+            val swing = yearSwing[i]
+            nextPrecip[i] = if (!wet || wetChance <= 0f) 0f
+                else pMonth * stepShare / wetChance * exp(swing * sample(yearAnomaly, x, y) - (0.3f * swing).let { it * it } / 2 + sample(rainShock, x, y))
         }
         prepared = true
     }
@@ -387,8 +401,8 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         /** Spread of the week-to-week temperature (°C) and log-rain anomalies, on top of the regimes. */
         const val TEMP_SIGMA = 1.5f
         const val RAIN_SIGMA = 0.35f
-        /** Keeps the lognormal rain anomalies' mean at 1 (year-to-year sigma about 0.3 included). */
-        const val RAIN_BIAS = (RAIN_SIGMA * RAIN_SIGMA + 0.3f * 0.3f) / 2
+        /** Rain in a month (mm) at which about two weeks in three are wet. */
+        const val WET_MONTH_MM = 25f
         /** Chance a regime holds into the next week. */
         const val REGIME_PERSISTENCE = 0.5
         /** Spread of the wind's eddies, m/s. */

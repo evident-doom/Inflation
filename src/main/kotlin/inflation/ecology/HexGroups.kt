@@ -362,7 +362,8 @@ class HexGroups(
                     val food = placeValue[ki][p]
                     // Ground thick with hunters is shunned, as far as the food elsewhere allows.
                     val hunters = predatorKg[p] / land.areaKm2[p]
-                    food / (food + 0.3f) - 0.5f * crowd(s, p, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG)
+                    // And ground where game was killed lately is shunned (the landscape of fear).
+                    food / (food + 0.3f) - 0.5f * crowd(s, p, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
                 }
                 score -= 0.5f * discomfort(s, p, weather)
                 // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow

@@ -118,6 +118,7 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 // Bones, hide and gut left at the kill.
                 small.carrion[p] += na * ps.massKg * (1f - MEAT_SHARE) / (area * 1e6f)
                 kills.merge(ps.name, n, Int::plus)
+                fauna.killed(p, n * ps.massKg)
                 hunting.merge("${s.name}:kills of residents", n, Int::plus)
             }
         }
@@ -418,6 +419,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         hunter.band?.skin(herd.species, ta)
         small.carrion[herd.place] += ta * herd.species.massKg * (1f - MEAT_SHARE) / (land.areaKm2[herd.place] * 1e6f)
         kills.merge(herd.species.name, ta + ty, Int::plus)
+        fauna.killed(herd.place, (ta + ty) * herd.species.massKg)
         hunting.merge("${hunter.species.name}:kills in kite drives", ta + ty, Int::plus)
         stop[hk] = min(stop[hk], hi); stop[rk] = min(stop[rk], ri)
         herd.wary += WARY_GAIN * (1f - herd.wary)
@@ -435,6 +437,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
             small.carrion[herd.place] += herd.species.massKg * (1f - MEAT_SHARE) / (land.areaKm2[herd.place] * 1e6f)
         }
         kills.merge(herd.species.name, 1, Int::plus)
+        fauna.killed(herd.place, herd.species.massKg)
         hunting.merge("${hunter.species.name}:kills from herds", 1, Int::plus)
         stop[hk] = min(stop[hk], hi) // stays to eat
     }

@@ -92,6 +92,11 @@ class Species(
      */
     val fibreDigestion: Float = 1f,
     /**
+     * A hindgut fermenter (horses, asses): on poor forage it eats more and passes it fast. Ruminants
+     * and the rest eat less of poor forage, as it fills the gut before it nourishes.
+     */
+    val hindgut: Boolean = false,
+    /**
      * For predators: fighting weight per kg compared with a wolf, for fights over carcasses and
      * ground: a hyena clan bites above its weight, a jackal below.
      */
@@ -167,6 +172,10 @@ class Species(
         private val COAT = floatArrayOf(1f, 1f, 0.9f, 0.5f, 0.2f, 0f, 0f, 0f, 0.2f, 0.5f, 0.8f, 1f)
     }
 }
+
+/** How much more (or less) than its need a plant-eater eats of forage of [quality] (0..1, 1 fresh and green). */
+fun gutFill(s: Species, quality: Float): Float =
+    if (s.hindgut) kotlin.math.min(HexFauna.GUT_FILL, 1f / quality.coerceAtLeast(1e-3f)) else kotlin.math.min(1f, 0.5f + 0.5f * quality / 0.8f)
 
 object Allometry {
     /**

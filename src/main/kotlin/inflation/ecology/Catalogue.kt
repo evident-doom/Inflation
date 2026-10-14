@@ -160,6 +160,7 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.4f, 0.3f, 0.1f, 0.2f, 0.4f), // too wild to tame; the donkey came from Africa
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.1f), // shuns marsh, not the water's edge
         defence = 0.4f,
+        hindgut = true,
     )
 
     /**
@@ -386,6 +387,7 @@ object Catalogue {
         domestication = floatArrayOf(0.8f, 0.5f, 0.6f, 0.5f, 0.6f, 0.8f), // became the horse
         habitat = Habitat(cover = -0.8f, rugged = -0.2f),
         defence = 0.4f,
+        hindgut = true,
     )
 
     /**

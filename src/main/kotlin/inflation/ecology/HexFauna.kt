@@ -36,6 +36,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val young = Array(kinds.size) { FloatArray(n) }
     /** Last week's share of its wants each kind found in each place, 0..1. */
     val fed = Array(kinds.size) { FloatArray(n) { 1f } }
+    /**
+     * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
+     * away from ground where its kind has been killed (the landscape of fear).
+     */
+    val fear = FloatArray(n)
+    fun killed(p: Int, kg: Float) { fear[p] += kg / land.areaKm2[p] }
+    /** How much fear puts game off a place, 0..1. */
+    fun afraid(p: Int) = fear[p] / (fear[p] + FEAR_HALF)
     /** The soil life and small animals the herds live among. */
     val small = HexSmallLife(hw, land, days)
     /** Each kind's sense of where better country lies. */
@@ -193,6 +201,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** One week, with the weather on the same places. */
     fun step(weather: Weather, date: Date) {
+        for (p in 0 until n) fear[p] *= FEAR_KEEP
         deaths.clear()
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
@@ -214,9 +223,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     private fun graze(weather: Weather) {
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
-            // Poor forage is made up for by eating more of it, as far as the gut holds.
+            // How much each kind eats of poor forage depends on its gut (see [gutFill]).
             val quality = land.nourishment(p)
-            val fill = min(GUT_FILL, 1f / quality)
             var wantGrass = 0f; var wantBrowse = 0f; var wantFruit = 0f; var wantRoots = 0f
             val need = FloatArray(kinds.size)
             // How much of the place's food each kind can get at: cliffs keep all but climbers off some of
@@ -230,6 +238,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 avail[k] = HexFood.access(s, land.ruggedness[p]) * tether(s, p)
                 val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
                 val snowed = weather.snowpack[p] > s.snowLimitMm
+                val fill = gutFill(s, quality)
                 wantGrass += need[k] * fill * d.grass / total * (if (snowed) 0f else 1f)
                 wantBrowse += need[k] * fill * d.browse / total
                 wantFruit += need[k] * d.fruit / total
@@ -253,6 +262,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (need[k] <= 0f) continue
                 val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
                 val snowed = weather.snowpack[p] > s.snowLimitMm
+                val fill = gutFill(s, quality)
                 val g = if (snowed) 0f else min(1f, avail[k] * rg)
                 val b = min(1f, avail[k] * rb); val f = min(1f, avail[k] * rf); val r = min(1f, avail[k] * rr)
                 eatG += need[k] * fill * d.grass / total * g; eatB += need[k] * fill * d.browse / total * b
@@ -393,7 +403,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val m = weather.date.month
         val discomfort = ((1f - s.foresight) * s.discomfortC(weather.temperature[p], m) + s.foresight * s.discomfortC(weather.forecastTemp(p), m)) / 10f
         val snowed = if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f
-        return foodFor(s, p) * suits(s, p) * tether(s, p) * snowed / (1f + heads / CROWD) / (1f + discomfort)
+        return foodFor(s, p) * suits(s, p) * tether(s, p) * snowed * (1f - FEAR_WEIGHT * afraid(p)) / (1f + heads / CROWD) / (1f + discomfort)
     }
 
     /** Within a hex, a share of each kind moves between neighbouring height bands towards the better one. */
@@ -446,7 +456,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val e = cross[h * 6 + d]
                     if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
-                    ws[d] = ease * (foodFor(s, q) * land.nourishment(q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
+                    ws[d] = ease * (foodFor(s, q) * land.nourishment(q) * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     total += ws[d]
                 }
                 if (total <= 0f) continue
@@ -485,6 +495,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val EXTINCT = 1e-4f
         /** Density per km² at which crowding halves a place's appeal. */
         const val CROWD = 10f
+        /** Fear: kg of game killed lately per km² at which a place is half as frightening as it gets; how much it puts game off at most; share kept a week. */
+        const val FEAR_HALF = 5f
+        const val FEAR_WEIGHT = 0.5f
+        const val FEAR_KEEP = 0.7f
         /** Weekly share moving between bands at full advantage. */
         const val BAND_SHIFT = 0.15f
         /** Weekly share spilling to neighbouring hexes anyway, and more when hungry. */
