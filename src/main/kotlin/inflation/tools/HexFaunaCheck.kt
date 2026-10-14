@@ -55,6 +55,9 @@ fun main(args: Array<String>) {
     val localYears = Array(samplePlaces.size) { ArrayList<FloatArray>() }
     var localWeeks = 0
     var apptDue = 0L; var apptKept = 0L
+    // Camp moves this year, of bands with houses and without.
+    val movesHouse = LongArray(2); val bandWeeksHouse = LongArray(2)
+    fun movesWith(houses: Boolean): Double { val i = if (houses) 1 else 0; val v = movesHouse[i] * 52.0 / bandWeeksHouse[i].coerceAtLeast(1); movesHouse[i] = 0; bandWeeksHouse[i] = 0; return v }
     fun keptShare(): Double { val v = 100.0 * apptKept / apptDue.coerceAtLeast(1); apptDue = 0; apptKept = 0; return v }
     inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
@@ -153,6 +156,7 @@ fun main(args: Array<String>) {
             // -Dhex.follow=kind: follow one group of that kind week by week, as the viewer's follow mode does.
             System.getProperty("hex.follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
             sim.step()
+            for (g in herds.groups) { val b = g.band ?: continue; if (!g.alive) continue; val i = if (b.house >= 0.2f) 1 else 0; bandWeeksHouse[i]++; if (b.campWeeks == 0) movesHouse[i]++ }
             // Appointments kept: of bands in their appointment's month, how many are at its hex.
             for (g in herds.groups) { val b = g.band ?: continue; if (!g.alive || b.appointHex < 0 || b.appointMonth != weather.date.month) continue; apptDue++; if (hw.placeHex[g.place] == b.appointHex) apptKept++ }
             // Local swings: yearly means of small life at fixed sample places.
@@ -253,6 +257,13 @@ fun main(args: Array<String>) {
                 " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * sim.hex.hexKm * sim.hex.hexKm * 0.866) +
                 " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(), bands.map { it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f) }.average()) +
                 // Ties and gatherings: bands it knows and is close to; bands camped with two or more others in the same hex.
+                " | houses: %.0f%% of bands have them (%.0f%% at home), camps moved a year %.1f with houses vs %.1f without".format(
+                    100.0 * bs.count { it.house >= 0.2f } / bs.size.coerceAtLeast(1), 100.0 * bs.count { it.atHome } / bs.size.coerceAtLeast(1),
+                    movesWith(true), movesWith(false)) +
+                // (By the rain where they are: the mobile test wants houses rarer on dry, poor land.)
+                " | with houses by yearly rain: " + listOf(0f to 300f, 300f to 600f, 600f to 1e9f).joinToString(", ") { (lo, hi) ->
+                    val inRain = bands.filter { val h = hw.placeHex[it.place]; val r = (0 until 12).sumOf { m -> hw.precip[m][h].toDouble() }; r >= lo && r < hi }
+                    "%s %.0f%% of %d".format(if (hi > 1e8f) ">600 mm" else "%.0f-%.0f mm".format(lo, hi), 100.0 * inRain.count { it.band!!.house >= 0.2f } / inRain.size.coerceAtLeast(1), inRain.size) } +
                 " | appointments %.0f%% of bands, kept %.0f%% of band-weeks due this year; burial places %d; largest gathering %d bands".format(
                     100.0 * bs.count { it.appointHex >= 0 } / bs.size.coerceAtLeast(1),
                     keptShare(),

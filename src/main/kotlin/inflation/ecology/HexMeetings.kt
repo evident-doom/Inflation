@@ -278,7 +278,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // What time is left is for making and mending (see [bandWeek]).
         band.spareDays = max(0f, spareDays * hands - dried * DRY_DAYS_PER_KG / band.skill(Forage.STORE))
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
-        val rotten = spoil(g.stores, weather.temperature[g.place])
+        // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
+        val home = if (band.atHome) band.house else 0f
+        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home)
+        if (home > 0f) for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) { val x = g.stores[st.ordinal] * MICE * home * days / 7f; g.stores[st.ordinal] -= x; rotten += x }
         small.carrion[g.place] += rotten / (land.areaKm2[g.place] * 1e6f)
         spare = 0f; meatEaten = ateMeat
     }
@@ -298,11 +301,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
 private val FORAGE_DIAG = System.getProperty("hex.forageDiag")
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost. */
-internal fun HexGroups.spoil(stores: FloatArray, t: Float): Float {
+internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f): Float {
     var lost = 0f
     val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
     for (st in Store.entries) {
-        val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f, st.lostWeekly * days / 7f)
+        val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f, st.lostWeekly * keep * days / 7f)
         val x = stores[st.ordinal] * share
         stores[st.ordinal] -= x; lost += x
     }

@@ -108,6 +108,17 @@ class Band {
      */
     var appointHex = -1
     var appointMonth = -1
+    /**
+     * Its houses: round, half-sunken huts of stone and brush at hex [houseHex], built 0..1 (enough
+     * for all its people at 1), with storage pits; they weather away while it is elsewhere. At home
+     * ([atHome]) they keep it warm, its stores keep better (though mice get into them) and it is
+     * harder to raid.
+     */
+    var houseHex = -1
+    var house = 0f
+    /** Its choices: how ready it is to build (1 the scaffold's: after [HOUSE_AFTER_WEEKS] weeks at a camp that feeds it well). */
+    var houseWill = 1f
+    var atHome = false
     /** Its choices: the share of its adults out scouting rather than foraging. */
     var scoutShare = SCOUT_SHARE
     /** Its choices: how it ranks making each tool ([Tool]) with its spare time (the scaffold: the most worn first). */
@@ -155,6 +166,7 @@ class Band {
     /** What a band splitting off takes along: everything it knew and believed, its descent and its grudges. */
     fun copyInto(o: Band) {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
+        o.houseHex = houseHex; o.house = house
         craft.copyInto(o.craft); making.copyInto(o.making); kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
@@ -187,7 +199,7 @@ class Band {
     fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Forage.FISH)
 
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) - 0.5f)) else t
+    fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) - 0.5f) + (if (atHome) HOUSE_C * house else 0f)) else t
 
     companion object {
         /**
@@ -309,6 +321,19 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         b.kit[k] += can; time -= can * daysEach
         b.making[t.skill.ordinal] += PRACTICE * (1f - skill)
     }
+    // With the time still to spare, a band that has kept its camp a while builds houses there (and
+    // starts afresh where it settles anew); houses it has left weather away.
+    if (b.houseHex >= 0 && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
+    // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
+    if (b.campWeeks >= HOUSE_AFTER_WEEKS / b.houseWill.coerceAtLeast(0.1f) && time > 0f && people > 0f && g.fed >= 0.9f && g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
+        if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
+        if (b.houseHex == h && b.house < 1f) {
+            val built = min(1f - b.house, time / (HOUSE_DAYS * people))
+            b.house += built; time -= built * HOUSE_DAYS * people
+            if (built > 0f) meetings.merge("bands built houses", 1, Int::plus)
+        }
+    }
+    b.atHome = b.houseHex == h && b.house > 0.05f
     b.spareDays = time
     // A band carries only so much: the rest is left behind (and goes back to the ground).
     for (m in gd.indices) {
@@ -484,7 +509,7 @@ const val FOOD_TYPES = 9
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Forage.entries.size + Tool.entries.size + 3
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 1
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 2
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
@@ -515,4 +540,21 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     b.storeAim = STORE_AIM_DAYS * squash(out[FOOD_TYPES])
     for (t in Tool.entries) b.makeFirst[t.ordinal] = squash(out[FOOD_TYPES + 1 + t.ordinal])
     b.scoutShare = SCOUT_SHARE * squash(out[FOOD_TYPES + 1 + Tool.entries.size])
+    b.houseWill = squash(out[FOOD_TYPES + 2 + Tool.entries.size])
 }
+
+/**
+ * Houses: person-days of work for one person's share of a hamlet (digging, walls, roof); weeks at a
+ * camp before a band starts to build; share a year a left house weathers away; how much warmer a
+ * full house keeps its people, °C; how much less its pits let stores spoil; share of the stored
+ * grain, nuts and roots mice take a week from full pits; how much harder a band at home is to raid;
+ * how strongly its houses draw a band back.
+ */
+const val HOUSE_DAYS = 20f
+const val HOUSE_AFTER_WEEKS = 26
+const val HOUSE_DECAY = 0.3f
+const val HOUSE_C = 8f
+const val PIT_KEEP = 0.5f
+const val MICE = 0.01f
+const val HOUSE_DEFENCE = 0.5f
+const val HOME_PULL = 0.15f

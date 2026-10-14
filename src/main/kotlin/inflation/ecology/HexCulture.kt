@@ -221,7 +221,8 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     if (rnd.nextFloat() >= chance) return false
     meetings.merge("raids", 1, Int::plus)
     note(g) { "raided band #%d".format(o.id) }; note(o) { "was raided by band #%d".format(g.id) }
-    val sg = strength(g); val so = strength(o)
+    // (A band at home in its houses is harder to raid.)
+    val sg = strength(g); val so = strength(o) * (1f + HOUSE_DEFENCE * (if (ob.atHome) ob.house else 0f))
     // Each side loses some of its people, the more so against the stronger side.
     val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so))
     val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so))

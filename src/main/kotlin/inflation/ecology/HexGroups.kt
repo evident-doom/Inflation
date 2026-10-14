@@ -452,6 +452,8 @@ class HexGroups(
                     if (pull != 0f) score += APPOINT_PULL * pull
                     val dead = g.memory.deadAt(h)
                     if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
+                    // Its houses draw it home.
+                    if (h == b.houseHex) score += HOME_PULL * b.house
                 }
                 // A band with food enough to feast others is drawn to where other bands are (gatherings).
                 g.band?.let { b -> if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {
@@ -496,6 +498,7 @@ class HexGroups(
                     // Its ancestors buried here, and how far going here brings it toward its appointment.
                     f[31] = min(1f, g.memory.deadAt(h) / 10f)
                     f[32] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
+                    f[33] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
                     // What it remembers of this hex: in this season, or failing that in any.
                     val mem = g.memory
                     var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0
