@@ -36,7 +36,12 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     SMALL_GAME(Domain.TRAPPING, 0.1f),
     FISH(Domain.FISHING, 0.1f),
     HUNT(Domain.HUNTING, 0.05f),
+    /** Drying meat and fish in the sun and wind on racks: slow in wet weather. */
     STORE(Domain.KEEPING, 0.3f),
+    /** Smoking meat and fish over a slow fire: works in any weather, and keeps longer. Needs fire. */
+    SMOKING(Domain.KEEPING, 0.3f, known = false),
+    /** Sealing storage pits and bins with clay and plaster: keeps mice and damp out of the stores at home. */
+    SEALING(Domain.KEEPING, 0.3f, known = false),
     KNAPPING(Domain.KNAPPING, CRAFT_FLOOR, 0.5f),
     WOODWORK(Domain.WOODWORK, CRAFT_FLOOR, 0.5f),
     HIDEWORK(Domain.HIDEWORK, CRAFT_FLOOR, 0.5f),

@@ -923,6 +923,13 @@ const val START_CRAFT = 0.6f
  * of the bitter plants leaching makes food (against the palatable), and person-days to leach a kilo.
  */
 const val EARTH_OVEN_GAIN = 0.3f
+/**
+ * Keeping: rain in a week that halves what racks in the sun dry, mm; how much less smoked meat spoils
+ * at full skill than sun-dried; how much of the mice's take sealed pits and bins keep out at full skill.
+ */
+const val DRY_RAIN_MM = 30f
+const val SMOKE_KEEP = 0.5f
+const val SEAL_KEEP = 0.7f
 const val GRUEL_GAIN = 0.2f
 const val LEACH_SHARE = 0.5f
 const val LEACH_DAYS_PER_KG = 0.3f

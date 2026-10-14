@@ -316,15 +316,25 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
         for (i in got.indices) g.stores[i] += got[i]
         val spareDays = max(0f, days - busy)
-        val dried = min(g.stores[Store.FRESH.ordinal], spareDays * hands * band.skill(Skill.STORE) / DRY_DAYS_PER_KG)
-        if (dried > 0f) { g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(Skill.STORE) }
+        // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
+        val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
+        val smoke = if (band.knowsSkill[Skill.SMOKING.ordinal] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
+        val dryRate = max(sun, smoke)
+        val dried = min(g.stores[Store.FRESH.ordinal], spareDays * hands * dryRate / DRY_DAYS_PER_KG)
+        if (dried > 0f) { g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE) }
         // What time is left is for making and mending (see [bandWeek]).
-        band.spareDays = max(0f, spareDays * hands - dried * DRY_DAYS_PER_KG / band.skill(Skill.STORE))
+        band.spareDays = max(0f, spareDays * hands - if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
         // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
         val home = if (band.atHome) band.house else 0f
-        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home)
-        if (home > 0f) for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) { val x = g.stores[st.ordinal] * MICE * home * days / 7f; g.stores[st.ordinal] -= x; rotten += x }
+        // (Smoked meat keeps longer than sun-dried; pits sealed with clay and plaster keep the mice out.)
+        val smoked = if (band.knowsSkill[Skill.SMOKING.ordinal]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
+        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked)
+        val sealed = if (band.knowsSkill[Skill.SEALING.ordinal]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
+        if (home > 0f) {
+            for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) { val x = g.stores[st.ordinal] * MICE * sealed * home * days / 7f; g.stores[st.ordinal] -= x; rotten += x }
+            if (band.knowsSkill[Skill.SEALING.ordinal] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
+        }
         small.carrion[g.place] += rotten / (land.areaKm2[g.place] * 1e6f)
         spare = 0f; meatEaten = ateMeat
     }
@@ -344,11 +354,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
 private val FORAGE_DIAG = System.getProperty("hex.forageDiag")
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost. */
-internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f): Float {
+internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, driedKeep: Float = 1f): Float {
     var lost = 0f
     val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
     for (st in Store.entries) {
-        val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f, st.lostWeekly * keep * days / 7f)
+        val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f, st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f) * days / 7f)
         val x = stores[st.ordinal] * share
         stores[st.ordinal] -= x; lost += x
     }
