@@ -560,7 +560,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val SMALL_INTAKE = 0.08f
         /** Foxes and wildcats eat about a fourteenth of their weight a day; prey on the ground (kg/km²) at which they get half of it. */
         const val FOX_INTAKE = 0.07f
-        const val FOX_HALF = 10f
+        const val FOX_HALF = 3f
         /** Locusts: where they swarm (rain under this, mm a year); yearly chance a greened place raises a swarm; a swarm, kg/km²; share dying a week in season. */
         const val LOCUST_RAIN_MM = 250f
         const val LOCUST_START = 0.0005f
@@ -570,11 +570,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val DORMANT_RAIN_MM = 300f
         /** Owls and small hawks: food a day per kg of them; rodents (kg/km²) at which they get half of it; their share of the rodents where they first appear. */
         const val OWL_INTAKE = 0.2f
-        const val OWL_HALF = 10f
+        const val OWL_HALF = 3f
         /** Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the birds and dogs not counted here): half in three or four days. */
         const val CARRION_ROT = 0.2f
         /** Small prey of one kind, kg/km², at which hunters find it half as readily as a common kind. */
-        const val SMALL_FIND_HALF = 5f
+        const val SMALL_FIND_HALF = 2f
         const val OWL_SEED = 0.002f
         /** Small prey out in the open (kg/km²) at which eagles get half of what they need. */
         const val EAGLE_HALF = 1f

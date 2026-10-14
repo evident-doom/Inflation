@@ -234,7 +234,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val total = d.grass + d.browse + d.fruit + d.roots
         if (total <= 0f) return 0f
         val plants = d.grass * land.herb[p] + d.browse * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p]) + (d.fruit * food.fruit[p] + d.roots * food.roots[p]) / REACH
-        return plants / total * HexFood.access(s, land.ruggedness[p])
+        // (Reindeer also reckon with the lichen they can dig.)
+        val lichen = if (s.eatsLichen) food.lichen[p] * HexFood.LICHEN_VALUE / REACH else 0f
+        return (plants / total + lichen) * HexFood.access(s, land.ruggedness[p])
     }
 
     fun count(k: Int): Double = (0 until n).sumOf { ((adults[k][it] + young[k][it]) * land.areaKm2[it]).toDouble() }
@@ -313,7 +315,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // to at most (1 + SWITCH) times its usual share.
                 var gap = 1f - got[k]
                 // (Within what the gut holds: switching shifts what it eats, not how much bulk it takes.)
-                var room = max(0f, fill - (d.grass / total * g + d.browse / total * b) * fill)
+                var room = max(0f, fill / GUT_QREF - (d.grass / total * g + d.browse / total * b) * fill)
                 if (gap > 0f && d.browse > 0f) { val x = min(min(min(gap, room * quality), SWITCH * d.browse / total * fill * quality), avail[k] * spareB / need[k] * quality); spareB -= x * need[k] / quality; eatB += x * need[k] / quality; got[k] += x; gap -= x; room -= x / quality }
                 if (gap > 0f && d.grass > 0f && !snowed) { val x = min(min(min(gap, room * quality), SWITCH * d.grass / total * fill * quality), avail[k] * spareG / need[k] * quality); spareG -= x * need[k] / quality; eatG += x * need[k] / quality; got[k] += x; gap -= x; room -= x / quality }
                 if (gap > 0f && d.fruit > 0f) { val x = min(min(gap, SWITCH * d.fruit / total), avail[k] * spareF / need[k]); spareF -= x * need[k]; eatF += x * need[k]; got[k] += x; gap -= x }
@@ -560,6 +562,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val USE_SETTLED = System.getProperty("hex.catalogueStart") == null
         /** Most a plant-eater can eat in a week as a multiple of its need: coarse food fills the gut before it nourishes, so poor dry forage cannot be fully made up for (a quarter more at most). */
         const val GUT_FILL = 1.25f
+        /** Forage quality (against green, 1) at which a herbivore's gut just holds its need: middling forage. */
+        const val GUT_QREF = 0.8f
         /** Seed carried by fruit-eaters: kg of fruit eaten per km² that seeds a place fully; share kept from week to week. */
         const val SEED_KG = 200f
         const val SEED_KEEP = 0.9f

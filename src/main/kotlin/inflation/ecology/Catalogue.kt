@@ -351,7 +351,7 @@ object Catalogue {
      */
     val REINDEER = Species(
         name = "reindeer", massKg = 100f,
-        diet = Diet(grass = 0.6f, browse = 0.4f),
+        diet = Diet(grass = 0.6f, browse = 0.4f), eatsLichen = true,
         groupSize = 20, maxGroupSize = 200,
         dailyTravelKm = 10f, maxDailyTravelKm = 50f, senseKm = 3f,
         daysWithoutWater = 4, waterFromFood = 0.7f,

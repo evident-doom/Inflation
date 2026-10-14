@@ -96,6 +96,8 @@ class Species(
      * and the rest eat less of poor forage, as it fills the gut before it nourishes.
      */
     val hindgut: Boolean = false,
+    /** Digs lichen from under the snow in winter (reindeer). */
+    val eatsLichen: Boolean = false,
     /**
      * For predators: fighting weight per kg compared with a wolf, for fights over carcasses and
      * ground: a hyena clan bites above its weight, a jackal below.

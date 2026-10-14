@@ -74,24 +74,34 @@ internal fun HexGroups.graze(weather: Weather) {
         val reach = HexFauna.REACH_DORMANT + (HexFauna.REACH - HexFauna.REACH_DORMANT) * land.green[p]
         // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
         val fill = gutFill(s, land.nourishment(p))
-        val wantGrass = if (snowed) 0f else want * fill * access * d.grass / total
+        // Reindeer dig lichen first when it is worth more than the forage about (in winter, and in the
+        // dry or snowed-in season), even from under the snow; it is rich in energy.
+        var lichen = 0f
+        if (s.eatsLichen && (snowed || land.nourishment(p) < HexFood.LICHEN_VALUE))
+            lichen = food.take(food.lichen, p, min(want / HexFood.LICHEN_VALUE, want * fill / HexFauna.GUT_QREF) * access)
+        // What is left of its need for the rest of its food.
+        val rest = (1f - lichen * HexFood.LICHEN_VALUE / want.coerceAtLeast(1e-12f)).coerceIn(0f, 1f)
+        val wantGrass = if (snowed) 0f else want * rest * fill * access * d.grass / total
         val grass = land.consume(p, LifeForm.HERB, min(wantGrass, reach * land.herb[p]))
-        val wantBrowse = want * fill * access * d.browse / total
+        val wantBrowse = want * rest * fill * access * d.browse / total
         val browse = land.consume(p, LifeForm.SHRUB, min(wantBrowse, reach * land.shrub[p]))
-        val fruit = food.take(food.fruit, p, want * access * d.fruit / total)
-        val roots = food.take(food.roots, p, want * access * d.roots / total)
+        val fruit = food.take(food.fruit, p, want * rest * access * d.fruit / total)
+        val roots = food.take(food.roots, p, want * rest * access * d.roots / total)
         // Diet switching: a food that fell short is made up from the others, each to at most (1 + SWITCH)
         // times its usual share (an ostrich out of fruit season picks more shoots and leaves).
         val q = land.nourishment(p)
-        var gap = want - ((grass + browse) * q + fruit + roots)
+        var gap = want - ((grass + browse) * q + fruit + roots + lichen * HexFood.LICHEN_VALUE)
         var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
         // But the gut holds only so much bulk a day: on poor forage a ruminant cannot make up by eating
         // more of it (switching shifts what it eats, not how much its gut takes).
-        var room = max(0f, want * fill * access - (grass + browse))
+        // (Its need is reckoned in forage of middling quality, [HexFauna.GUT_QREF]: on that it fills its need exactly.)
+        var room = max(0f, want * fill * access / HexFauna.GUT_QREF - (grass + browse + lichen))
         if (gap > 0f && d.browse > 0f) { browse2 = land.consume(p, LifeForm.SHRUB, min(min(gap / q, room), min(SWITCH * wantBrowse, reach * land.shrub[p] - browse).coerceAtLeast(0f))); gap -= browse2 * q; room -= browse2 }
         if (gap > 0f && d.grass > 0f && !snowed) { grass2 = land.consume(p, LifeForm.HERB, min(min(gap / q, room), min(SWITCH * want * fill * access * d.grass / total, reach * land.herb[p] - grass).coerceAtLeast(0f))); gap -= grass2 * q; room -= grass2 }
         if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, min(gap, SWITCH * want * access * d.fruit / total)); gap -= fruit2 }
         if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, min(gap, SWITCH * want * access * d.roots / total)); gap -= roots2 }
+        // Reindeer dig lichen, even from under the snow: rich in energy, within what the gut holds.
+        if (gap > 0f && s.eatsLichen) { val more = food.take(food.lichen, p, min(gap / HexFood.LICHEN_VALUE, max(0f, room)) * access); lichen += more; gap -= more * HexFood.LICHEN_VALUE; room -= more }
         // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
         val short = max(0f, gap)
         val straw = food.take(food.straw, p, min(short * HexFauna.GUT_FILL * access, max(0f, room)))
@@ -104,8 +114,9 @@ internal fun HexGroups.graze(weather: Weather) {
             if (fruit > 0f) land.animalSeed[q] = min(1f, land.animalSeed[q] + fruit * land.areaKm2[p] * 1e6f / g.path.size / land.areaKm2[q] / HexFauna.SEED_KG)
         }
         // Grass and browse nourish fully only when green; fruit and roots keep their value.
-        val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + min(short, straw * HexFood.roughage(s))
+        val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + lichen * HexFood.LICHEN_VALUE + min(short, straw * HexFood.roughage(s))
         g.fed = (got / want.coerceAtLeast(1e-9f)).coerceIn(0f, 1f)
+        note(g) { "grazed at %.0f m: fed %.2f (green %.2f, grass %.3f browse %.3f lichen %.3f kg/m² there; ate grass %.2g browse %.2g lichen %.2g straw %.2g; gut room left %.2g; snowed %s)".format(hw.placeElevationM[p], g.fed, land.green[p], land.herb[p], land.shrub[p], food.lichen[p], grass + grass2, browse + browse2, lichen, straw, room, snowed) }
         // With food to spare and reserves short, it eats more and lays the surplus on.
         var grass3 = 0f; var browse3 = 0f
         if (got >= want && g.fat < s.maxFatDays) {
