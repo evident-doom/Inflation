@@ -59,6 +59,8 @@ const val ADULT_YEARS = 30f
 const val ELDER_DEATHS = 0.03f
 /** Mothers one elder can help; most that grandmothers raise births and cut children's deaths, when there are enough of them. */
 const val ELDER_MOTHERS = 3f
+/** How many births a woman has in each third of her adult life (about 15-25, 25-35, 35-45) against her best years. */
+val FERTILE_BY_SPAN = floatArrayOf(0.75f, 1f, 0.5f)
 const val GRANDMOTHERS = 0.3f
 const val ELDER_CARE = 0.3f
 /** Words two bands bring into line when they meet; yearly chance a word changes by itself. */

@@ -272,7 +272,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         var bornNow = 0
         // In a band, the elders are past bearing children; they help their daughters raise theirs.
         val band = g.band
-        val mothers = if (band != null) (g.adults - band.elders) / 2 else g.adults / 2
+        // Women bear most in their twenties and early thirties: few in their teens, fewer after
+        // thirty-five, none past the childbearing years (the elders).
+        val mothers = if (band != null) {
+            val first = max(0, g.adults - band.elders - band.ageStage[0] - band.ageStage[1])
+            ((FERTILE_BY_SPAN[0] * first + FERTILE_BY_SPAN[1] * band.ageStage[0] + FERTILE_BY_SPAN[2] * band.ageStage[1]) / 2f).toInt()
+        } else g.adults / 2
         val help = if (band != null) min(1f, band.elders * ELDER_MOTHERS / max(1, mothers)) else 0f
         if (inSeason && g.adults >= 2) {
             val births = if (s.packLitter > 0) {
