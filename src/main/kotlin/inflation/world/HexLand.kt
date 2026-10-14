@@ -122,12 +122,14 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
             val h = hw.placeHex[p]
             val running = if (meanFlow[h] > 0f) (flow[h] / meanFlow[h]).coerceIn(0f, 1f) else 0f
             val thawed = weather.temperature[p] > -2f
-            val wet = soil[p] / LiveWater.SOIL_CAPACITY
+            val wet = soil[p] / soilCap[p]
+            // Springs run on the ground water: they weaken when it runs low after years of drought.
+            val springs = nearSpring[p] * min(1f, groundwater[p] / groundwaterMean[p].coerceAtLeast(1e-3f))
             val pools = if (thawed && (wet >= POOL_WETNESS || weather.precipitation[p] / days >= 3f)) 1f else 0f
             val flooded = if (flood[p] > 0f) floodShare[p] else 0f
-            val lasting = nearRiver[p] * running + nearLake[p] + (if (thawed) nearSpring[p] else 0f)
+            val lasting = nearRiver[p] * running + nearLake[p] + (if (thawed) springs else 0f)
             water[p] = max(pools, min(1f, lasting + flooded))
-            waterKm[p] = if (pools > 0f) 0f else waterKmMean[p] / max(0.2f, running.coerceAtLeast(nearLake[p] + nearSpring[p]))
+            waterKm[p] = if (pools > 0f) 0f else waterKmMean[p] / max(0.2f, running.coerceAtLeast(nearLake[p] + springs))
         }
     }
 
@@ -187,8 +189,22 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     // ---------------------------------------------------------------- state
 
     /** Plant-available water in the soil, mm; groundwater, mm. */
-    val soil = FloatArray(n) { LiveWater.SOIL_CAPACITY * 0.6f }
-    val groundwater = FloatArray(n) { p -> LiveWater.RECHARGE * mean(p) { world.climate.runoff[it] } / (Date.DAYS_PER_YEAR / days) / LiveWater.BASEFLOW }
+    /**
+     * Water the soil holds, mm, by the rock under it: thin and quick to drain on limestone, granite
+     * and evaporites, deep on alluvium and shale (rough values, from memory).
+     */
+    val soilCap = FloatArray(n) { p -> mean(p) { when (world.geology.rock[it]) {
+        Rock.ALLUVIUM -> 220f; Rock.SHALE -> 180f; Rock.BASALT, Rock.VOLCANIC -> 150f; Rock.SANDSTONE -> 120f
+        Rock.GRANITE, Rock.METAMORPHIC -> 100f; Rock.LIMESTONE -> 80f; Rock.EVAPORITE -> 60f } } }
+    /** Share of the water the soil cannot hold that sinks to the ground water: most through karst. */
+    private val recharge = FloatArray(n) { p -> mean(p) { if (world.geology.rock[it] == Rock.LIMESTONE) 0.7f else LiveWater.RECHARGE } }
+    val soil = FloatArray(n) { soilCap[it] * 0.6f }
+    /** Degree-days above 5 °C a place has in a normal year, and so far this year (from the winter solstice). */
+    val annualGdd = FloatArray(n) { p -> (0 until 12).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
+    val gdd = FloatArray(n) { p -> (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
+    val groundwater = FloatArray(n) { p -> recharge[p] * mean(p) { world.climate.runoff[it] } / (Date.DAYS_PER_YEAR / days) / LiveWater.BASEFLOW }
+    /** Ground water in a normal year, against which springs weaken in drought. */
+    private val groundwaterMean = groundwater.copyOf()
     /** Flow of each hex's river over the last step, m³/s. */
     val flow = meanFlow.copyOf()
     /** Flood depth over each place's floodplain during the last step, m. */
@@ -265,15 +281,20 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         val share = days.toFloat() / Date.DAYS_PER_MONTH
         val volume = DoubleArray(hex.size)
         for (p in 0 until n) {
-            val rain = if (weather.temperature[p] >= 0f) weather.precipitation[p] else 0f
+            val t = weather.temperature[p]
+            if (weather.date.month == 0 && weather.date.dayOfMonth <= days) gdd[p] = 0f
+            gdd[p] += max(0f, t - 5f) * days
+            val rain = if (t >= 0f) weather.precipitation[p] else 0f
             var s = soil[p] + rain + weather.meltwater[p]
-            val et = min(s, pet[m][p] * share * min(1f, s / LiveWater.SOIL_CAPACITY))
+            // Evaporation follows the week's heat against the month's normal (about 6% a degree).
+            val heat = exp(0.06f * (t - hw.placeTemp(p, m))).coerceIn(0.3f, 3f)
+            val et = min(s, pet[m][p] * share * heat * min(1f, s / soilCap[p]))
             s -= et
-            val excess = max(0f, s - LiveWater.SOIL_CAPACITY)
+            val excess = max(0f, s - soilCap[p])
             soil[p] = s - excess
             val base = groundwater[p] * LiveWater.BASEFLOW
-            groundwater[p] += excess * LiveWater.RECHARGE - base
-            volume[hw.placeHex[p]] += (excess * (1 - LiveWater.RECHARGE) + base) / 1000.0 * areaM2[p]
+            groundwater[p] += excess * recharge[p] - base
+            volume[hw.placeHex[p]] += (excess * (1 - recharge[p]) + base) / 1000.0 * areaM2[p]
         }
         for (h in order) {
             val raw = (volume[h] / stepSeconds).toFloat()
@@ -285,6 +306,8 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         for (p in 0 until n) {
             val h = hw.placeHex[p]
             flood[p] = if (floodShare[p] <= 0f || meanFlow[h] < RiverClass.STREAM.minDischarge) 0f else Channel.floodStageM(flow[h], meanFlow[h])
+            // A flood soaks the floodplain's share of the place.
+            if (flood[p] > 0f) soil[p] = max(soil[p], soilCap[p] * floodShare[p])
         }
     }
 
@@ -296,7 +319,7 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             val before = biomass(p)
             val t = weather.temperature[p]
-            val wet = soil[p] / LiveWater.SOIL_CAPACITY
+            val wet = soil[p] / soilCap[p]
             moisture[p] += (wet - moisture[p]) * memory
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
             val season = ((t - 2f) / 13f).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
@@ -355,7 +378,7 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     private fun fuel(p: Int) = straw[p] + (herb[p] + 0.5f * shrub[p]) * (1f - 0.8f * (1f - exp(-grazing[p] / Vegetation.GRAZE_SCALE)))
 
     private fun canBurn(p: Int, weather: Weather) =
-        flood[p] <= 0f && fuel(p) >= 0.2f && soil[p] / LiveWater.SOIL_CAPACITY < 0.3f && weather.temperature[p] > 15f && weather.precipitation[p] < 5f
+        flood[p] <= 0f && fuel(p) >= 0.2f && soil[p] / soilCap[p] < 0.3f && weather.temperature[p] > 15f && weather.precipitation[p] < 5f
 
     /** Fires people have set, to be lit next step. */
     private val lit = java.util.concurrent.ConcurrentLinkedQueue<Int>()
@@ -379,14 +402,15 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
             var km2 = 0f
             val queue = ArrayDeque<Int>(); queue += p
             burning[p] = burnShare(p); km2 += burning[p] * areaKm2[p]
-            var reach = 0
-            while (queue.isNotEmpty() && reach++ < MAX_SPREAD) {
+            val farKm = Vegetation.SPREAD_KM_PER_DAY * days
+            while (queue.isNotEmpty()) {
                 val c = queue.removeFirst()
                 val (cx, cy) = hex.centreKm(hw.placeHex[c])
                 val u = weather.windEast(c); val v = weather.windSouth(c)
                 val speed = kotlin.math.hypot(u, v)
                 for (nb in neighbours[c]) {
                     if (burning[nb] > 0f || !canBurn(nb, weather)) continue
+                    if (hex.distanceKm(hw.placeHex[p], hw.placeHex[nb]) > farKm) continue
                     val (nx, ny) = hex.centreKm(hw.placeHex[nb])
                     val dx = (nx - cx).toFloat(); val dy = (ny - cy).toFloat()
                     val len = kotlin.math.hypot(dx, dy)
@@ -428,8 +452,6 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     }
 
     companion object {
-        /** Most places a fire runs through in a step. */
-        const val MAX_SPREAD = 60
         /** Drinking water: an easy walk to it, km; furthest counted, km; soil wetness at which pools stand everywhere. */
         const val DRINK_KM = 3f
         const val MAX_WATER_KM = 60f

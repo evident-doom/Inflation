@@ -35,19 +35,23 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     private fun rootsCap(p: Int) = ROOTS_SHARE * (land.herb[p] + 0.05f * land.tree[p])
 
     fun step(weather: Weather) {
-        val month = weather.date.month
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
-            // Fruit ripens from midsummer to autumn, then falls and rots.
-            val ripe = if (month in 7..10) FRUIT_SHARE * bearing(p) * small.fruitSet(p) / FRUIT_DAYS else 0f
+            // The season as the plants feel it: the share of a normal year's warmth they have had since
+            // midwinter. Seed ripens early, fruit from midsummer to autumn, roots and bulbs fill as the
+            // plants die back; a warm year brings all of it on earlier, high ground later.
+            val season = land.gdd[p] / land.annualGdd[p].coerceAtLeast(1f)
+            // Fruit ripens from midsummer to autumn, as many as the spring's flowers were pollinated
+            // for and the spring was wet enough to fill; then it falls and rots.
+            val ripe = if (season in FRUIT_FROM..FRUIT_TO) FRUIT_SHARE * bearing(p) * small.fruitSet(p) * min(1f, land.moisture[p] / 0.5f) / FRUIT_DAYS else 0f
             val fallen = fruit[p] * min(1f, days / FRUIT_DAYS)
             fruit[p] = max(0f, fruit[p] + days * ripe - fallen)
             small.litter[p] += fallen
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
-            val ripeSeed = if (month in 5..7) SEED_SHARE * land.herb[p] / SEED_DAYS else 0f
+            val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.herb[p] / SEED_DAYS else 0f
             val shed = seeds[p] * min(1f, days / SEED_DAYS)
             seeds[p] = max(0f, seeds[p] + days * ripeSeed - shed)
             small.litter[p] += shed
-            val r = rootsCap(p) * (if (month in 9..11) 3f else 0.5f) / ROOTS_DAYS
+            val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
             roots[p] = max(0f, roots[p] + days * (r - roots[p] / ROOTS_DAYS))
             // Standing dead grass and twigs build up as a small share of the herbs and shrubs and are eaten down.
             straw[p] = max(0f, straw[p] + days * (strawCap(p) - straw[p]) / STRAW_DAYS)
@@ -70,6 +74,10 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         /** Ripe fruit at the season's peak, per kg/m² of fruit-bearing plants; days it lasts before it falls. */
         const val FRUIT_SHARE = 0.0008f
         const val FRUIT_DAYS = 30f
+        /** When each ripens, as the share of a normal year's warmth (degree-days above 5 °C since midwinter) had so far. */
+        const val SEED_FROM = 0.25f; const val SEED_TO = 0.45f
+        const val FRUIT_FROM = 0.5f; const val FRUIT_TO = 0.9f
+        const val ROOTS_FROM = 0.8f
         /** Ripe grass seed at its peak, per kg/m² of herbs (a rich wild-cereal stand gives far more); days it stays on the stalk. */
         const val SEED_SHARE = 0.01f
         const val SEED_DAYS = 40f
