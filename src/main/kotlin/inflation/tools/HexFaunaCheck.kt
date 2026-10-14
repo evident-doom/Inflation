@@ -86,6 +86,8 @@ fun main(args: Array<String>) {
         val good = (0 until fauna.n).sumOf { p -> if (fauna.climateSuits(s, p) > 0.8f) land.areaKm2[p].toDouble() else 0.0 } / land.areaKm2.sum()
         "%s %.0f%% / %.2f".format(s.name, 100 * good, pull)
     }
+    // Herds' head-weeks by size (small, middling, large), to set their deaths against.
+    val herdHeadWeeks = DoubleArray(3)
     // Ways of working and cereals: printed each year and at the end.
     var grainReapedYear = 0.0; var grainReapedNow = 0.0
     fun skillsAndCereals() {
@@ -220,6 +222,8 @@ fun main(args: Array<String>) {
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
             for ((key, v) in herds.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
             for ((key, v) in herds.hunting) huntYear.merge(key, v, Int::plus)
+            for ((key, v) in herds.hunting) if (key.startsWith("herd size ")) causes.merge(key, v.toDouble(), Double::plus)
+            for (gr in herds.groups) if (gr.alive && !gr.species.carnivore) herdHeadWeeks[herds.sizeClass(gr)] += gr.size.toDouble()
             // -Dhex.migDiag=kind: each month, how far that kind's herds are from the place they remember for the month.
             System.getProperty("hex.migDiag")?.let { kind -> if (weather.date.dayOfMonth <= cfg.daysPerStep) {
                 val m = weather.date.month
@@ -419,6 +423,15 @@ fun main(args: Array<String>) {
         }
     }
     skillsAndCereals()
+    // Small against large herds: yearly deaths per animal, by cause.
+    run {
+        val names = listOf("small (under a unit)", "middling (1-3 units)", "large (over 3 units)")
+        println("herds' yearly deaths per animal by size (share of head-weeks): " + (0..2).joinToString("; ") { c ->
+            val years = herdHeadWeeks[c] / stepsPerYear
+            val keys = causes.keys.filter { it.startsWith("herd size $c:") }
+            "%s %.0f%%: ".format(names[c], 100 * herdHeadWeeks[c] / herdHeadWeeks.sum().coerceAtLeast(1.0)) + keys.sortedByDescending { causes[it] }.joinToString(", ") { k -> "%s %.3f".format(k.substringAfter(':'), causes.getValue(k) / years.coerceAtLeast(1e-9)) }
+        })
+    }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
         val c = causes.entries.filter { it.key.substringBefore(":") == s.name && !it.key.endsWith("+born") }.map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }

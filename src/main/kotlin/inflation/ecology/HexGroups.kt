@@ -314,6 +314,10 @@ class HexGroups(
     }
 
     /** A kind's usual group as an agent: herds move as units of [HERD_UNIT] of their usual bands. */
+    /** A herd's size as small (0: under its kind's unit), middling (1: up to three units) or large (2), for comparing them. */
+    internal fun sizeClass(g: HexGroup) = if (BY_LEANING) (if (g.sizePref < 0.6f) 0 else if (g.sizePref < 1.7f) 1 else 2) else (g.size.toFloat() / unitSize(g.species)).let { if (it < 1f) 0 else if (it < 3f) 1 else 2 }
+    /** Compare herds by the size they lean to rather than the size they are (-Dhex.sizeByLeaning): a herd shrinks as it dies, so its size now is partly an effect. */
+    private val BY_LEANING = System.getProperty("hex.sizeByLeaning") != null
     internal fun unitSize(s: Species) = if (s.carnivore) s.groupSize else s.groupSize * herdUnit(s)
     /** How many of its usual bands a herd agent stands for: more for the migrants, whose herds gather in thousands. */
     internal fun herdUnit(s: Species) = if (s in Catalogue.migratory) HERD_UNIT * MIGRANT_UNIT else HERD_UNIT

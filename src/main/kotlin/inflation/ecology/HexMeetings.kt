@@ -629,6 +629,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         kills.merge(herd.species.name, 1, Int::plus)
         fauna.killed(herd.place, herd.species.massKg)
         hunting.merge("${hunter.species.name}:kills from herds", 1, Int::plus)
+        hunting.merge("herd size ${sizeClass(herd)}:killed", 1, Int::plus)
         note(hunter) { "made a kill from the herd" }; note(herd) { "lost one to the hunters" }
         stop[hk] = min(stop[hk], hi) // stays to eat
     }
