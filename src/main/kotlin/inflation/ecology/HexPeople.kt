@@ -466,7 +466,7 @@ const val MARSH_FEVER = 0.05f
 /** Settled life with stores shortens the spacing of births. */
 internal fun settledFertility(g: HexGroup): Float {
     val b = g.band ?: return 1f
-    return 1f + SETTLED_FERTILITY * min(1f, b.campWeeks / 26f) * min(1f, g.larder / max(1e-3f, 30f * g.dailyNeedKg))
+    return 1f + SETTLED_FERTILITY * Tuning.settledFertility * min(1f, b.campWeeks / 26f) * min(1f, g.larder / max(1e-3f, 30f * g.dailyNeedKg))
 }
 
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
