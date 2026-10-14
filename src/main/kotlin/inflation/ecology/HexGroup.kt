@@ -44,7 +44,9 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     var bold = -1f
     /** How wary it is from being hunted lately, 0..1: it keeps a sharper watch, and fades over weeks. */
     var wary = 0f
-    val dailyNeedKg get() = species.dailyIntakeKg * (adults + 0.5f * young)
+    /** How much more food it needs this week to keep warm, 1 when comfortable (see [coldNeed]). */
+    var warmth = 1f
+    val dailyNeedKg get() = species.dailyIntakeKg * (adults + 0.5f * young) * warmth
 }
 
 /**

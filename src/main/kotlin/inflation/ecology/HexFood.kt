@@ -42,9 +42,10 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     val straw get() = land.straw
 
     /** Fruit-bearing plants at [p], kg/m²: shrubs and the fruiting share of trees. */
-    private fun bearing(p: Int) = 0.5f * land.shrub[p] + 0.05f * land.tree[p]
+    // (Only the edible kinds bear food people eat, see [HexLand.palatable].)
+    private fun bearing(p: Int) = land.palatable[p] * (0.5f * land.shrub[p] + 0.05f * land.tree[p])
     private fun strawCap(p: Int) = STRAW_SHARE * (land.herb[p] + 0.3f * land.shrub[p])
-    private fun rootsCap(p: Int) = ROOTS_SHARE * (land.herb[p] + 0.05f * land.tree[p]) + REED_ROOTS * land.logged[p]
+    private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * (land.herb[p] + 0.05f * land.tree[p]) + REED_ROOTS * land.logged[p]
 
     fun step(weather: Weather) {
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
@@ -59,7 +60,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             fruit[p] = max(0f, fruit[p] + days * ripe - fallen)
             small.litter[p] += fallen
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
-            val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.herb[p] / SEED_DAYS else 0f
+            val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.herb[p] / SEED_DAYS else 0f
             val shed = seeds[p] * min(1f, days / SEED_DAYS)
             seeds[p] = max(0f, seeds[p] + days * ripeSeed - shed)
             small.litter[p] += shed

@@ -233,7 +233,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val d = s.diet
         val total = d.grass + d.browse + d.fruit + d.roots
         if (total <= 0f) return 0f
-        val plants = d.grass * land.herb[p] + d.browse * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p]) + (d.fruit * food.fruit[p] + d.roots * food.roots[p]) / REACH
+        val plants = land.palatable[p] * (d.grass * land.herb[p] + d.browse * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p])) + (d.fruit * food.fruit[p] + d.roots * food.roots[p]) / REACH
         // (Reindeer also reckon with the lichen they can dig.)
         val lichen = if (s.eatsLichen) food.lichen[p] * HexFood.LICHEN_VALUE / REACH else 0f
         return (plants / total + lichen) * HexFood.access(s, land.ruggedness[p])
@@ -277,7 +277,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val heads = adults[k][p] + 0.5f * young[k][p]
                 // Bears asleep through the cold eat nothing.
                 // (Only the plant part of the diet here; omnivores' small prey and carrion below.)
-                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * days / 1e6f * plantShare(s) // kg per m2 this week
+                // (More in the cold, see [coldNeed].)
+                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * coldNeed(s, weather.temperature[p], weather.date.month) * days / 1e6f * plantShare(s) // kg per m2 this week
                 avail[k] = HexFood.access(s, land.ruggedness[p]) * tether(s, p)
                 val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
                 val snowed = weather.snowpack[p] > s.snowLimitMm
@@ -290,7 +291,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // What can be eaten this week without eating the place bare, kg per m2: new growth in the
             // growing season, far less of the dry standing stuff in the cold. Supply against demand:
             val reach = REACH_DORMANT + (REACH - REACH_DORMANT) * land.green[p]
-            val grass = reach * land.herb[p]; val browse = reach * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p])
+            // (Only the edible share of the plants, see [HexLand.palatable].)
+            val grass = reach * land.palatable[p] * land.herb[p]; val browse = reach * land.palatable[p] * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p])
             val rg = if (wantGrass > 0f) grass / wantGrass else 1f
             val rb = if (wantBrowse > 0f) browse / wantBrowse else 1f
             val rf = if (wantFruit > 0f) food.fruit[p] / wantFruit else 1f

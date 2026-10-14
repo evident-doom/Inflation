@@ -100,6 +100,15 @@ const val EATING_RATE = 0.15f
 const val SEARCHING = 0.3f
 
 /**
+ * A warm-blooded animal below its comfortable range burns more to keep warm: [COLD_COST] more food
+ * for each 10 °C of cold it feels beyond what its coat (or clothes and house) keeps off, at most
+ * [COLD_MAX] times its need.
+ */
+fun coldNeed(s: Species, felt: Float, month: Int): Float = kotlin.math.min(COLD_MAX, 1f + COLD_COST * s.coldC(felt, month) / 10f)
+const val COLD_COST = 0.2f
+const val COLD_MAX = 1.6f
+
+/**
  * What the week's going costs [g] in food, as a share of a week's need: each km of net shift (the
  * hexes passed) costs [WALK_COST] of a day's food. (Mammals spend about 2-3 J per kg per m walking,
  * a little under a hundredth of a day's energy per km, whatever their size; the walking within its

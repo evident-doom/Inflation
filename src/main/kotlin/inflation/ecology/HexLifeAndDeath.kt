@@ -82,9 +82,9 @@ internal fun HexGroups.graze(weather: Weather) {
         // What is left of its need for the rest of its food.
         val rest = (1f - lichen * HexFood.LICHEN_VALUE / want.coerceAtLeast(1e-12f)).coerceIn(0f, 1f)
         val wantGrass = if (snowed) 0f else want * rest * fill * access * d.grass / total
-        val grass = land.consume(p, LifeForm.HERB, min(wantGrass, reach * land.herb[p]))
+        val grass = land.consume(p, LifeForm.HERB, min(wantGrass, reach * land.palatable[p] * land.herb[p]))
         val wantBrowse = want * rest * fill * access * d.browse / total
-        val browse = land.consume(p, LifeForm.SHRUB, min(wantBrowse, reach * land.shrub[p]))
+        val browse = land.consume(p, LifeForm.SHRUB, min(wantBrowse, reach * land.palatable[p] * land.shrub[p]))
         val fruit = food.take(food.fruit, p, want * rest * access * d.fruit / total)
         val roots = food.take(food.roots, p, want * rest * access * d.roots / total)
         // Diet switching: a food that fell short is made up from the others, each to at most (1 + SWITCH)
@@ -96,8 +96,8 @@ internal fun HexGroups.graze(weather: Weather) {
         // more of it (switching shifts what it eats, not how much its gut takes).
         // (Its need is reckoned in forage of middling quality, [HexFauna.GUT_QREF]: on that it fills its need exactly.)
         var room = max(0f, want * fill * access / HexFauna.GUT_QREF - (grass + browse + lichen))
-        if (gap > 0f && d.browse > 0f) { browse2 = land.consume(p, LifeForm.SHRUB, min(min(gap / q, room), min(SWITCH * wantBrowse, reach * land.shrub[p] - browse).coerceAtLeast(0f))); gap -= browse2 * q; room -= browse2 }
-        if (gap > 0f && d.grass > 0f && !snowed) { grass2 = land.consume(p, LifeForm.HERB, min(min(gap / q, room), min(SWITCH * want * fill * access * d.grass / total, reach * land.herb[p] - grass).coerceAtLeast(0f))); gap -= grass2 * q; room -= grass2 }
+        if (gap > 0f && d.browse > 0f) { browse2 = land.consume(p, LifeForm.SHRUB, min(min(gap / q, room), min(SWITCH * wantBrowse, reach * land.palatable[p] * land.shrub[p] - browse).coerceAtLeast(0f))); gap -= browse2 * q; room -= browse2 }
+        if (gap > 0f && d.grass > 0f && !snowed) { grass2 = land.consume(p, LifeForm.HERB, min(min(gap / q, room), min(SWITCH * want * fill * access * d.grass / total, reach * land.palatable[p] * land.herb[p] - grass).coerceAtLeast(0f))); gap -= grass2 * q; room -= grass2 }
         if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, min(gap, SWITCH * want * access * d.fruit / total)); gap -= fruit2 }
         if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, min(gap, SWITCH * want * access * d.roots / total)); gap -= roots2 }
         // Reindeer dig lichen, even from under the snow: rich in energy, within what the gut holds.
@@ -121,8 +121,8 @@ internal fun HexGroups.graze(weather: Weather) {
         var grass3 = 0f; var browse3 = 0f
         if (got >= want && g.fat < s.maxFatDays) {
             val extra = FATTEN * want
-            if (d.grass > 0f && !snowed) grass3 = land.consume(p, LifeForm.HERB, min(extra / q * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f), (reach * land.herb[p] - grass - grass2).coerceAtLeast(0f)))
-            if (d.browse > 0f) browse3 = land.consume(p, LifeForm.SHRUB, min(extra / q * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f), (reach * land.shrub[p] - browse - browse2).coerceAtLeast(0f)))
+            if (d.grass > 0f && !snowed) grass3 = land.consume(p, LifeForm.HERB, min(extra / q * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f), (reach * land.palatable[p] * land.herb[p] - grass - grass2).coerceAtLeast(0f)))
+            if (d.browse > 0f) browse3 = land.consume(p, LifeForm.SHRUB, min(extra / q * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f), (reach * land.palatable[p] * land.shrub[p] - browse - browse2).coerceAtLeast(0f)))
             g.surplus = (grass3 + browse3) * q / (want / days)
             small.dung[p] += HexSmallLife.DUNG * (grass3 + browse3)
         }

@@ -144,6 +144,9 @@ class HexGroups(
         kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); watchLog.clear()
         weatherNow = weather
         moon = date.meanMoonlight(days).toFloat()
+        // Keeping warm costs food: each group's need this week, against the cold it feels (people
+        // through their clothes and, at home, their houses).
+        for (g in groups) if (g.alive) { val t = weather.temperature[g.place]; g.warmth = coldNeed(g.species, g.band?.feels(t) ?: t, date.month) }
         if (bearings.month != date.month) {
             // Head counts of the migratory herds in each place, for the hunters' sense of where game is.
             for (a in monthHeads) a.fill(0)

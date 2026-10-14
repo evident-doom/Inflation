@@ -36,6 +36,18 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     private val slope = FloatArray(n) { p -> mean(p) { world.terrain.slope[it] } }
     /** Share of waterlogged ground (marsh, bog, salt marsh), where woody plants drown. */
     val logged = FloatArray(n)
+    /**
+     * The share of each place's plants an animal or a forager can eat, 0..1: most of an open
+     * grassland, little of aromatic garrigue, thorny scrub, desert bush, bog or conifer forest, where
+     * the plants are defended (bitter, aromatic, thorny or poisonous) or tough.
+     */
+    val palatable = FloatArray(n) { p ->
+        val h = hw.placeHex[p]
+        var s = 0f; var w = 0f
+        for (b in Biome.entries) { val share = hw.biome[b.ordinal][h]; if (share <= 0f) continue; val v = PALATABLE[b] ?: continue; s += share * v; w += share }
+        if (w > 0f) s / w else 0.5f
+    }
+
     /** The dead buried at each place (graves weather away over centuries). */
     val burials = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
     /** Share of the ground where good knapping stone (flint, obsidian) crops out. */
@@ -466,6 +478,13 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         const val SPRING_KM2 = 150f
         /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
         const val DRY_VALUE = 0.65f
+        /** Share of the plants of each kind of country that are edible (see [palatable]). */
+        val PALATABLE = mapOf(
+            Biome.ALPINE_MEADOW to 0.7f, Biome.STEPPE to 0.7f, Biome.OPEN_WOODLAND to 0.6f, Biome.FLOODPLAIN_FOREST to 0.5f,
+            Biome.MARSH to 0.5f, Biome.MEDITERRANEAN_WOODLAND to 0.45f, Biome.TEMPERATE_FOREST to 0.4f, Biome.SALT_MARSH to 0.4f,
+            Biome.SEMI_DESERT to 0.35f, Biome.SHRUBLAND to 0.3f, Biome.CONIFER_FOREST to 0.3f, Biome.SWAMP_FOREST to 0.3f,
+            Biome.DESERT to 0.3f, Biome.BOG to 0.2f, Biome.MANGROVE to 0.2f, Biome.ICE_AND_ROCK to 0.2f,
+        )
         const val GREEN_RATE = 0.3f
         /** How green a fresh burn turns in growing weather, per share burnt. */
         const val FLUSH = 1.5f
