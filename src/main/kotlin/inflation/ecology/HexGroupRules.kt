@@ -43,6 +43,8 @@ const val HERD_UNIT = 10
 const val SIZE_PREF_RANGE = 3f
 /** How much of a courser's success thick cover takes away (a cheetah in a wood runs into trees). */
 const val COURSING_COVER = 0.7f
+/** How much a herd or pack weighs its own kind of country (the log of [HexFauna.suits]) in choosing its ground. */
+const val GROUP_HABITAT = 0.15f
 /**
  * The sides of a herd's size, against its kind's usual band: how its walking slows, how much less
  * each attempt on it succeeds (many eyes, confusion), and how much less often its young are taken

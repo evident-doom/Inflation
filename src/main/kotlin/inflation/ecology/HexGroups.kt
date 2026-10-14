@@ -448,6 +448,8 @@ class HexGroups(
                     food / (food + 0.3f) - 0.5f * crowd(s, p, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
                 }
                 score -= 0.5f * discomfort(s, p, weather)
+                // Its own kind of country: open plains for a cheetah, crags for a wild goat, whatever the food.
+                if (!s.human) score += GROUP_HABITAT * kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f))
                 // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
                 // too deep to dig through, and in a dry spell the rain on its way.
                 val tAhead = weather.forecastTemp(p)
