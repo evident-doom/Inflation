@@ -76,6 +76,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val foxes = FloatArray(n)
     /** Owls, kestrels, buzzards and kites hunting rodents, kg/km². */
     val owls = FloatArray(n)
+    /** Desert locusts, kg/km²: swarms that rise in the desert after a wet spring, strip the green and move on. */
+    val locusts = FloatArray(n)
     /** Each kind of [BIRDS], and all together, kg/km². */
     val bird = Array(BIRDS.size) { FloatArray(n) }
     val birds = FloatArray(n)
@@ -257,6 +259,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (flowering) pollination[p] += 0.2f * (min(1f, pollinators[p] / 20f) - pollination[p])
             stepGame(p, t, month, b)
         }
+        stepLocusts(weather)
         for (k in BIRDS.indices) away[k] += leaving[k].sumThenReset()
         lastMonth = month
         stepVultures(weather)
@@ -264,6 +267,41 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             for (f in listOf(insects, rodents, herps, pollinators, hares, hyrax, tortoises, foxes) + bird) spread(f)
             spread(eagles) { eagleCrags[it] > 0f }
         }
+    }
+
+    /**
+     * Desert locusts: in a spring after good rain, where the desert edge has greened, a swarm may rise;
+     * it strips the green plants where it is, moves on (mostly with the wind) and dies out by late
+     * summer. Birds, foxes, jackals and people eat them (see [catchSmall]).
+     */
+    private fun stepLocusts(weather: Weather) {
+        val month = weather.date.month
+        val season = month in 2..7
+        val old = locusts.copyOf()
+        for (p in 0 until n) {
+            var l = old[p]
+            if (season && l <= 0f && annualRain[p] < LOCUST_RAIN_MM && land.green[p] > 0.6f && locustHash(p) < LOCUST_START * years) l = LOCUST_SWARM
+            if (l <= 0f) continue
+            // A swarm eats about its weight in green plants a day.
+            val m2 = 1e6f
+            val ate = land.consume(p, LifeForm.HERB, min(0.5f * land.herb[p], 0.8f * l * days / m2)) + land.consume(p, LifeForm.SHRUB, min(0.3f * land.shrub[p], 0.2f * l * days / m2))
+            dung[p] += DUNG * ate
+            val dying = l * (if (season) LOCUST_DEATHS else 0.6f)
+            smallDead[p] += dying * 1f
+            l -= dying
+            // Most of a swarm moves on to the neighbours each week.
+            val nb = land.neighbours[p]
+            if (nb.isNotEmpty() && l > 1f) { val go = 0.6f * l; for (q in nb) locusts[q] += go / nb.size * land.areaKm2[p] / land.areaKm2[q]; l -= go }
+            locusts[p] += l - old[p]
+        }
+        for (p in 0 until n) if (locusts[p] < 0.1f) { smallDead[p] += locusts[p]; locusts[p] = 0f }
+    }
+
+    private var locustSalt = 0L
+    private fun locustHash(p: Int): Float {
+        var h = (p.toLong() * 0x9E3779B97F4A7C15uL.toLong()) xor (++locustSalt * 0x632BE59BD9B4E019L)
+        h = (h xor (h ushr 33)) * -0xae502812aa7333L; h = h xor (h ushr 33)
+        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
     }
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
@@ -393,11 +431,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val t = weather.temperature[p]
         val herpsOut = herpsActive(t, land.soil[p])
         val tortOut = t in 14f..33f
-        val total = rodents[p] + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] else 0f) + (if (tortOut) tortoises[p] else 0f)
+        // Desert rodents sleep through the summer heat in their burrows.
+        val rodentsOut = !(t > 30f && land.soil[p] < 10f && annualRain[p] < DORMANT_RAIN_MM)
+        val total = (if (rodentsOut) rodents[p] else 0f) + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] else 0f) + (if (tortOut) tortoises[p] else 0f) + locusts[p]
         if (total <= 0f) return 0f
         val take = min(kgPerKm2, most * total)
         val f = take / total
-        rodents[p] -= rodents[p] * f; hares[p] -= hares[p] * f; hyrax[p] -= hyrax[p] * f; takeBirds(p, f)
+        if (rodentsOut) rodents[p] -= rodents[p] * f
+        hares[p] -= hares[p] * f; hyrax[p] -= hyrax[p] * f; takeBirds(p, f); locusts[p] -= locusts[p] * f
         if (herpsOut) herps[p] -= herps[p] * f
         if (tortOut) tortoises[p] -= tortoises[p] * f
         return take
@@ -502,6 +543,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Foxes and wildcats eat about a fourteenth of their weight a day; prey on the ground (kg/km²) at which they get half of it. */
         const val FOX_INTAKE = 0.07f
         const val FOX_HALF = 3f
+        /** Locusts: where they swarm (rain under this, mm a year); yearly chance a greened place raises a swarm; a swarm, kg/km²; share dying a week in season. */
+        const val LOCUST_RAIN_MM = 250f
+        const val LOCUST_START = 0.0005f
+        const val LOCUST_SWARM = 5000f
+        const val LOCUST_DEATHS = 0.15f
+        /** Desert rodents (where rain is under this, mm a year) sleep through hot, dry weeks. */
+        const val DORMANT_RAIN_MM = 300f
         /** Owls and small hawks: food a day per kg of them; rodents (kg/km²) at which they get half of it; their share of the rodents where they first appear. */
         const val OWL_INTAKE = 0.2f
         const val OWL_HALF = 3f

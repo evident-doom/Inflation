@@ -25,6 +25,12 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     val fruit = FloatArray(n)
     /** Ripe grass seed (wild cereals and other grasses), kg/m²: early summer, shed and gone by autumn. People gather it. */
     val seeds = FloatArray(n)
+    /**
+     * Small finds people gather in season, kg/m²: honey where bees work the flowers (late spring), desert
+     * truffles after winter rain (spring), birds' eggs (spring), snails on damp ground (winter and spring).
+     * They come off the plants (and the birds' brood) they grow from, and spoil if not taken.
+     */
+    val finds = FloatArray(n)
     val roots = FloatArray(n) { p -> rootsCap(p) * 0.7f }
     /** Standing straw: the land's (it burns there). */
     val straw get() = land.straw
@@ -53,6 +59,15 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             small.litter[p] += shed
             val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
             roots[p] = max(0f, roots[p] + days * (r - roots[p] / ROOTS_DAYS))
+            // Small finds in season.
+            val month = weather.date.month
+            val honey = if (month in 3..5) HONEY * small.pollination[p] * (land.shrub[p] + 0.1f * land.tree[p]) else 0f
+            val truffles = if (month in 2..4) TRUFFLES * land.herb[p] * (1f - land.moisture[p]).coerceIn(0f, 1f) * land.green[p] else 0f
+            val eggs = if (month in 3..5) EGGS * small.birds[p] / 1e6f else 0f
+            val snails = if (month in 0..4) SNAILS * land.herb[p] * land.moisture[p] else 0f
+            val made = (honey + truffles + snails) * days
+            val grown = land.consume(p, LifeForm.HERB, made) + eggs * days
+            finds[p] = max(0f, finds[p] + grown - finds[p] * min(1f, days / FINDS_DAYS))
             // Standing dead grass and twigs build up as a small share of the herbs and shrubs and are eaten down.
             straw[p] = max(0f, straw[p] + days * (strawCap(p) - straw[p]) / STRAW_DAYS)
         }
@@ -84,6 +99,12 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         /** Roots and mast to be dug, per kg/m² of herbs (and trees × 0.05); days to replace them. */
         const val ROOTS_SHARE = 0.0003f
         const val ROOTS_DAYS = 180f
+        /** Small finds a day in season: honey per kg/m² of shrubs (and trees) at full pollination, truffles and snails per kg/m² of herbs, eggs per kg of birds; days they keep. */
+        const val HONEY = 7e-8f
+        const val TRUFFLES = 6e-5f
+        const val SNAILS = 1.2e-6f
+        const val EGGS = 0.01f
+        const val FINDS_DAYS = 30f
         /** Starchy rhizomes of reed and reedmace in a marsh, kg/m² at their peak. */
         const val REED_ROOTS = 0.01f
         /** Standing dead grass and twigs, per kg/m² of herbs (and shrubs × 0.3); days to build up again. */

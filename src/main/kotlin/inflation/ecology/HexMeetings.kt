@@ -143,7 +143,7 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
             val want = g.dailyNeedKg * days * (d.fruit + d.roots) / gatherAt.size / (land.areaKm2[q] * 1e6f)
             // Bands also reap and beat ripe grass seed into baskets, and take it before the fruit.
             val wantFruit = want * d.fruit / (d.fruit + d.roots)
-            val seed = if (s.human) gather(fauna.food.seeds, q, wantFruit, true) else 0f
+            val seed = if (s.human) gather(fauna.food.finds, q, wantFruit) + gather(fauna.food.seeds, q, wantFruit, true) else 0f
             plants += (seed + gather(fauna.food.fruit, q, wantFruit - seed) +
                 gather(fauna.food.roots, q, want * d.roots / (d.fruit + d.roots))) * land.areaKm2[q] * 1e6f
         }
