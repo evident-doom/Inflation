@@ -49,6 +49,8 @@ fun main(args: Array<String>) {
         println("carrying on the world saved in $f, at ${sim.weather.date} (loaded in %.1f s)".format((System.nanoTime() - t0) / 1e9))
     }
     val hw = sim.hw; val weather = sim.weather; val land = sim.land; val fauna = sim.fauna; val herds = sim.groups
+    // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
+    System.getProperty("hex.ways")?.let { herds.ways = inflation.learning.NetWays(inflation.learning.Mlp.load(java.io.File(it).readText())) }
     val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     println("year " + fauna.kinds.joinToString("") { "%11s".format(it.name.take(10)) })
     println("   0 " + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })

@@ -79,6 +79,8 @@ class HexGroups(
     }
     /** Learned choosers by kind; kinds without one use the hand-written score. */
     val policies = HashMap<Species, HexPolicy>()
+    /** How bands set their ways each week; null for the scaffold's. */
+    var ways: BandWays? = null
     /** Kills this week by prey kind; meetings this week by kind of meeting. */
     val kills = java.util.TreeMap<String, Int>()
     val meetings = java.util.TreeMap<String, Int>()

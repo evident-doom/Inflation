@@ -38,21 +38,21 @@ enum class Making { KNAPPING, WOODWORK, HIDEWORK, CORDAGE }
  * the camp moves, and whether bands know it from the start (the others are hit on now and then and
  * passed on when bands meet).
  */
-enum class Tool(val recipe: Map<Material, Float>, val skill: Making, val wearPerYear: Float, val heavy: Boolean = false, val known: Boolean = false) {
+enum class Tool(val recipe: Map<Material, Float>, val skill: Making, val wearPerYear: Float, val makeDays: Float, val heavy: Boolean = false, val known: Boolean = false) {
     /** Stone-tipped spears: the basic hunting weapon. */
-    SPEAR(mapOf(Material.STONE to 0.3f, Material.WOOD to 2f, Material.SINEW to 0.05f), Making.KNAPPING, 1f, known = true),
+    SPEAR(mapOf(Material.STONE to 0.3f, Material.WOOD to 2f, Material.SINEW to 0.05f), Making.KNAPPING, 1f, 1f, known = true),
     /** Bow and arrows tipped with microliths set in resin: reach and silence against fast, shy game. */
-    BOW(mapOf(Material.WOOD to 1f, Material.SINEW to 0.2f, Material.STONE to 0.2f, Material.RESIN to 0.1f), Making.WOODWORK, 1.5f),
+    BOW(mapOf(Material.WOOD to 1f, Material.SINEW to 0.2f, Material.STONE to 0.2f, Material.RESIN to 0.1f), Making.WOODWORK, 1.5f, 4f),
     /** Nets and snares: hares, birds and fish in quantity. */
-    NET(mapOf(Material.FIBRE to 2f), Making.CORDAGE, 1f, known = true),
+    NET(mapOf(Material.FIBRE to 2f), Making.CORDAGE, 1f, 3f, known = true),
     /** Sickles of flint bladelets set in bone or wood: wild cereals cut before the ears shatter. */
-    SICKLE(mapOf(Material.STONE to 0.2f, Material.BONE to 0.3f, Material.RESIN to 0.05f), Making.KNAPPING, 0.7f),
+    SICKLE(mapOf(Material.STONE to 0.2f, Material.BONE to 0.3f, Material.RESIN to 0.05f), Making.KNAPPING, 0.7f, 1f),
     /** Mortars, pestles and querns: nuts, acorns and seeds made into meal. Too heavy to move. */
-    GRINDER(mapOf(Material.STONE to 15f), Making.KNAPPING, 0.05f, heavy = true),
+    GRINDER(mapOf(Material.STONE to 15f), Making.KNAPPING, 0.05f, 3f, heavy = true),
     /** Baskets and bags: carrying the harvest home and keeping it. */
-    BASKET(mapOf(Material.FIBRE to 3f), Making.CORDAGE, 0.7f, known = true),
+    BASKET(mapOf(Material.FIBRE to 3f), Making.CORDAGE, 0.7f, 2f, known = true),
     /** Sewn, fitted clothes and footwear of hide and fur: winter becomes bearable. */
-    CLOTHES(mapOf(Material.HIDE to 4f, Material.SINEW to 0.3f, Material.BONE to 0.05f), Making.HIDEWORK, 0.5f, known = true),
+    CLOTHES(mapOf(Material.HIDE to 4f, Material.SINEW to 0.3f, Material.BONE to 0.05f), Making.HIDEWORK, 0.5f, 4f, known = true),
 }
 
 /** Share of the success an untrained band still has at a hunt or a harvest. */
@@ -60,8 +60,6 @@ const val CRAFT_FLOOR = 0.3f
 /** How far one week's use closes the gap to mastery; share of a skill that fades each week (about a fifth a year). */
 const val PRACTICE = 0.02f
 const val FORGET = 0.004f
-/** Most of a band's kit that can be made in a week. */
-const val MAKE_WEEKLY = 0.1f
 /** Raw materials a band carries, kg per adult of each kind. */
 const val GOODS_PER_PERSON = 20f
 /** Hunting success of a band without spears, against one with them; what bows add against fast quarry. */
@@ -103,6 +101,12 @@ class Band {
     var cachePlace = -1
     /** Its choices: days of food it aims to keep in store (the scaffold's; a learned policy sets its own). */
     var storeAim = STORE_AIM_DAYS
+    /** Its choices: how it ranks making each tool ([Tool]) with its spare time (the scaffold: the most worn first). */
+    val makeFirst = FloatArray(Tool.entries.size) { 1f }
+    /** Person-days its people had to spare this week, after getting and keeping food. */
+    var spareDays = 0f
+    /** Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's. */
+    val effort = FloatArray(FOOD_TYPES) { 1f }
     /** Hides, bone and sinew from the game it killed, what each kind yields (see [Species.products]). */
     fun skin(s: Species, n: Int) {
         goods[Material.HIDE.ordinal] += n * s.products.hide; goods[Material.BONE.ordinal] += n * s.products.bone; goods[Material.SINEW.ordinal] += n * s.products.sinew
@@ -258,16 +262,24 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
             if (rnd.nextFloat() < INVENT * years * (0.5f + b.craft[useOf(t).ordinal])) { b.knows[k] = true; meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus) }
             continue
         }
-        if (b.kit[k] >= 1f || people <= 0f) continue
-        // Make as much of the shortfall this week as the scarcest material and the skill allow.
+    }
+    // Making and mending takes the time the band has to spare, the tools it ranks first first (the
+    // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
+    var time = b.spareDays
+    val order = Tool.entries.filter { b.knows[it.ordinal] && b.kit[it.ordinal] < 1f }.sortedByDescending { b.makeFirst[it.ordinal] * (1f - b.kit[it.ordinal]) }
+    for (t in order) {
+        if (time <= 0f || people <= 0f) break
+        val k = t.ordinal
         val skill = b.making[t.skill.ordinal]
-        var can = min(1f - b.kit[k], MAKE_WEEKLY * (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * skill))
+        val daysEach = t.makeDays * people / (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * skill) // for a whole band's kit
+        var can = min(1f - b.kit[k], time / daysEach)
         for ((m, perPerson) in t.recipe) can = min(can, gd[m.ordinal] / max(1e-3f, perPerson * people))
         if (can <= 0f) continue
         for ((m, perPerson) in t.recipe) gd[m.ordinal] -= can * perPerson * people
-        b.kit[k] += can
+        b.kit[k] += can; time -= can * daysEach
         b.making[t.skill.ordinal] += PRACTICE * (1f - skill)
     }
+    b.spareDays = time
     // A band carries only so much: the rest is left behind (and goes back to the ground).
     for (m in gd.indices) {
         val over = gd[m] - GOODS_PER_PERSON * people
@@ -429,3 +441,45 @@ const val STORE_AIM_DAYS = 30f
 const val STORE_FILL = 0.25f
 /** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
 const val DRY_DAYS_PER_KG = 0.1f
+
+/** Kinds of food a party forages for (see [forage]). */
+const val FOOD_TYPES = 9
+
+/**
+ * How a band sets its ways for the week: given what it knows of itself ([bandInputs], [WAYS_IN]
+ * numbers), it writes [WAYS_OUT] numbers to `out`, each 0 for the scaffold's choice: its effort on
+ * each kind of food, the days of food it aims to keep, and how it ranks making each tool.
+ */
+fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
+val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Forage.entries.size + Tool.entries.size + 3
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size
+
+/** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
+internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
+    val b = g.band ?: return
+    var i = 0
+    val angle = 2.0 * Math.PI * weather.date.dayOfYear / Date.DAYS_PER_YEAR
+    into[i++] = kotlin.math.sin(angle).toFloat(); into[i++] = kotlin.math.cos(angle).toFloat()
+    into[i++] = g.fed
+    val total = g.larder
+    into[i++] = total / max(1e-3f, 60f * g.dailyNeedKg)
+    for (st in Store.entries) into[i++] = if (total > 0f) g.stores[st.ordinal] / total else 0f
+    into[i++] = g.adults / 30f; into[i++] = g.young.toFloat() / max(1, g.adults)
+    for (f in Forage.entries) into[i++] = b.skill(f)
+    for (t in Tool.entries) into[i++] = b.has(t)
+    into[i++] = weather.temperature[g.place] / 30f
+    into[i++] = min(1f, b.campWeeks / 26f)
+    into[i++] = b.spareDays / max(1f, g.adults * days.toFloat())
+}
+
+/** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [STORE_AIM_DAYS], every tool alike). */
+internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
+    val b = g.band ?: return
+    bandInputs(g, weather, inputs)
+    out.fill(0f)
+    ways.choose(g, inputs, out)
+    fun squash(x: Float) = 2f / (1f + kotlin.math.exp(-x))
+    for (t in 0 until FOOD_TYPES) b.effort[t] = squash(out[t])
+    b.storeAim = STORE_AIM_DAYS * squash(out[FOOD_TYPES])
+    for (t in Tool.entries) b.makeFirst[t.ordinal] = squash(out[FOOD_TYPES + 1 + t.ordinal])
+}

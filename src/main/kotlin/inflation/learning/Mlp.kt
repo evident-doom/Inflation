@@ -13,7 +13,6 @@ import kotlin.random.Random
  */
 class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
     init {
-        require(sizes.last() == 1) { "one output" }
         require(w.size == count(sizes))
     }
 
@@ -43,7 +42,10 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
         return b.a.last()[0]
     }
 
-    /** Adds to [grad] the gradient of the output times [dOut], after a [forward] on [b]. */
+    /** Runs the network on the input already written to `b.a[0]`; all its outputs are in `b.a.last()`. */
+    fun forwardAll(b: Buffers): FloatArray { forward(b); return b.a.last() }
+
+    /** Adds to [grad] the gradient of the (first) output times [dOut], after a [forward] on [b]. */
     fun backward(b: Buffers, dOut: Float, grad: FloatArray) {
         val offs = IntArray(sizes.size)
         for (l in 1 until sizes.size) offs[l] = offs[l - 1] + (if (l > 1) sizes[l - 2] * sizes[l - 1] + sizes[l - 1] else 0)

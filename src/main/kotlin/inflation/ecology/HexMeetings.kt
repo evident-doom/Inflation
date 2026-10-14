@@ -45,8 +45,12 @@ internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = 
  * plants, and for bands fish (see [forage]).
  */
 internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: Weather) {
+    val ways = this.ways
+    val inputs = FloatArray(WAYS_IN); val out = FloatArray(WAYS_OUT)
     for (g in groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)) {
         val s = g.species
+        // A band first sets its ways for the week.
+        if (ways != null && g.band != null) setWays(g, weather, ways, inputs, out)
         // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
         // over more of it, as the square root of its numbers against its kind's usual party.
         val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1)
@@ -118,8 +122,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (left <= 0.01f * wantAll) break
     m = 0
     fun offer(t: Int, k: Int, p: Int, r: Float, e: Float, h: Float) {
-        if (r <= 0f || e <= 0f) return
-        type[m] = t; kind[m] = k; place[m] = p; rate[m] = r; kg[m] = e; time[m] = h; m++
+        // A band meets each kind of food the more, the more of its effort it puts into it.
+        val rr = if (band != null) r * band.effort[if (t == 8) 8 else t] else r
+        if (rr <= 0f || e <= 0f) return
+        type[m] = t; kind[m] = k; place[m] = p; rate[m] = rr; kg[m] = e; time[m] = h; m++
     }
     for ((j, h) in g.path.withIndex()) {
         val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
@@ -244,6 +250,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val spareDays = max(0f, days - busy)
         val dried = min(g.stores[Store.FRESH.ordinal], spareDays * hands * band.skill(Forage.STORE) / DRY_DAYS_PER_KG)
         if (dried > 0f) { g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(Forage.STORE) }
+        // What time is left is for making and mending (see [bandWeek]).
+        band.spareDays = max(0f, spareDays * hands - dried * DRY_DAYS_PER_KG / band.skill(Forage.STORE))
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
         val rotten = spoil(g.stores, weather.temperature[g.place])
         small.carrion[g.place] += rotten / (land.areaKm2[g.place] * 1e6f)
