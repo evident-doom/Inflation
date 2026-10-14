@@ -270,14 +270,16 @@ class Band {
     fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Skill.FISH)
 
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) - 0.5f) + FIRE_C * fire + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
+    /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
+    fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
+    fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
 
     /**
      * How far below what people can bear the cold at [t] °C (the week's mean) takes the band, °C: full
      * fur clothes, a fire and a shelter or house keep people alive in deep cold; the naked die of
      * exposure in a night of a few degrees above freezing, wet and windy.
      */
-    fun exposure(t: Float) = (EXPOSURE_C - t - PROTECT_CLOTHES * has(Tool.CLOTHES) - PROTECT_FIRE * fire - max(PROTECT_SHELTER * shelter, if (atHome) PROTECT_HOUSE * house else 0f)).coerceAtLeast(0f)
+    fun exposure(t: Float) = (EXPOSURE_C - t - PROTECT_CLOTHES * has(Tool.CLOTHES) * clothesFit() - PROTECT_FIRE * fire - max(PROTECT_SHELTER * shelter, if (atHome) PROTECT_HOUSE * house else 0f)).coerceAtLeast(0f)
 
     companion object {
         /**
@@ -416,6 +418,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         for ((m, perPerson) in t.recipe) gd[m.ordinal] -= can * perPerson * people
         b.kit[k] += can; time -= can * daysEach
         b.practise(t.skill)
+        if (t == Tool.CLOTHES) b.practise(Skill.SEWING)
     }
     if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
     b.sinceRaided++
@@ -434,11 +437,18 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     if (b.campWeeks >= HOUSE_AFTER_WEEKS / b.houseWill.coerceAtLeast(0.1f) && time > 0f && people > 0f && g.fed >= 0.9f && g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
         if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
         if (b.houseHex == h && b.house < 1f) {
-            var built = min(1f - b.house, time / (HOUSE_DAYS * people))
-            built = minOf(built, gd[Material.STONE.ordinal] / (HOUSE_STONE * people), gd[Material.WOOD.ordinal] / (HOUSE_WOOD * people))
+            // It builds the way it knows that its stone, timber and clay go furthest with.
+            val clay = land.water[p] >= 0.05f || land.waterKm[p] < 3f
+            val way = listOf(Skill.STONE_FOOTING, Skill.PIT_HOUSE, Skill.MUDBRICK).filter { b.knowsSkill[it.ordinal] && (it != Skill.MUDBRICK || clay) }
+                .maxBy { w -> val (st, wd, dd) = houseNeeds(w); minOf(time / (dd * people), gd[Material.STONE.ordinal] / max(1e-3f, st * people), gd[Material.WOOD.ordinal] / (wd * people)) }
+            val (stoneEach, woodEach, daysEach) = houseNeeds(way)
+            val daysNow = daysEach * people / b.skill(way) * b.skill(Skill.STONE_FOOTING)
+            var built = min(1f - b.house, time / daysNow)
+            built = minOf(built, if (stoneEach > 0f) gd[Material.STONE.ordinal] / (stoneEach * people) else 1f, gd[Material.WOOD.ordinal] / (woodEach * people))
             built = max(0f, built)
-            gd[Material.STONE.ordinal] -= built * HOUSE_STONE * people; gd[Material.WOOD.ordinal] -= built * HOUSE_WOOD * people
-            b.house += built; time -= built * HOUSE_DAYS * people
+            gd[Material.STONE.ordinal] -= built * stoneEach * people; gd[Material.WOOD.ordinal] -= built * woodEach * people
+            b.house += built; time -= built * daysNow
+            if (built > 0f) b.practise(way)
             if (built > 0f) meetings.merge("bands built houses", 1, Int::plus)
         }
     }
@@ -930,6 +940,13 @@ const val EARTH_OVEN_GAIN = 0.3f
 const val DRY_RAIN_MM = 30f
 const val SMOKE_KEEP = 0.5f
 const val SEAL_KEEP = 0.7f
+
+/** Stone and timber (kg a person) and person-days a person's share of a house takes, built [way]. */
+fun houseNeeds(way: Skill) = when (way) {
+    Skill.PIT_HOUSE -> Triple(HOUSE_STONE / 3f, HOUSE_WOOD, HOUSE_DAYS)
+    Skill.MUDBRICK -> Triple(0f, HOUSE_WOOD / 2f, HOUSE_DAYS * 1.5f)
+    else -> Triple(HOUSE_STONE, HOUSE_WOOD, HOUSE_DAYS)
+}
 const val GRUEL_GAIN = 0.2f
 const val LEACH_SHARE = 0.5f
 const val LEACH_DAYS_PER_KG = 0.3f

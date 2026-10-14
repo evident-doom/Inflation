@@ -21,6 +21,10 @@ enum class Domain {
     COOKING,
     /** Making bitter and poisonous plants food: leaching acorns and bitter roots in running water, soaking, long roasting. */
     DETOXIFYING,
+    /** Making clothes of hides: wrapped and tied, or cut and sewn to fit. */
+    CLOTHING,
+    /** Building houses: stone-footed huts, pit houses dug into the ground, mudbrick. */
+    BUILDING,
 }
 
 /**
@@ -59,6 +63,14 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     EARTH_OVEN(Domain.COOKING, 0.3f, known = false),
     /** Leaching acorns and bitter roots in baskets in running water: needs baskets and water by the camp. */
     LEACHING(Domain.DETOXIFYING, 0.2f, known = false),
+    /** Sewing with awls and eyed needles: clothes cut to fit, far warmer than hides wrapped and tied. */
+    SEWING(Domain.CLOTHING, 0.3f, 0.5f),
+    /** Round huts on stone footings, roofed with timber and brush. */
+    STONE_FOOTING(Domain.BUILDING, CRAFT_FLOOR, 0.5f),
+    /** Pit houses dug half into the ground: warmer, and a third of the stone. */
+    PIT_HOUSE(Domain.BUILDING, CRAFT_FLOOR, known = false),
+    /** Walls of mud and straw (pisé, then moulded bricks) where there is clay by water: no stone, half the timber, longer to build. */
+    MUDBRICK(Domain.BUILDING, CRAFT_FLOOR, known = false),
     ;
 
     companion object {
