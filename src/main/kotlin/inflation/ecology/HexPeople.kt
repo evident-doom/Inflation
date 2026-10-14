@@ -726,6 +726,12 @@ const val FLEE = 0.5f
 val SOW_MONTHS = 9..10
 const val SOW_SHARE = 0.3f
 const val SOW_DAYS_PER_KG = 0.5f
-/** How much likelier a sickle harvest takes an ear that holds its grain than one that shatters at a touch. */
-const val SICKLE_SELECT = 2f
+/**
+ * How much likelier a sickle harvest takes an ear that holds its grain than one that shatters at a
+ * touch. Set so that ears that hold their grain take one to two thousand years to come to dominate
+ * a cultivated stand, as the archaeobotany of Near Eastern wheat and barley shows (Fuller and
+ * colleagues: early harvests were often green, by beating or uprooting, and sown seed was mixed with
+ * wild-gathered grain), not the decades a pure sickle-and-resow model would give.
+ */
+const val SICKLE_SELECT = 0.06f
 private fun hands(g: HexGroup) = max(1, g.adults).toFloat()

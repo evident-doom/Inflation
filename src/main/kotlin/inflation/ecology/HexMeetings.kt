@@ -238,14 +238,16 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             4, 5, 6, 7 -> {
                 val stock = when (type[i]) { 4 -> fauna.food.fruit; 5 -> fauna.food.roots; 6 -> fauna.food.seeds; else -> fauna.food.finds }
                 val m2 = land.areaKm2[p] * 1e6f
-                val took = fauna.food.take(stock, p, expected / m2) * m2
+                var took = fauna.food.take(stock, p, expected / m2) * m2
+                // Raw seed is poorly digested; ground and baked into bread it feeds fully.
+                if (type[i] == 6) took *= seedValue(band)
                 plants += took
                 plantKind[when (type[i]) { 5 -> Store.ROOTS; 6 -> Store.SEED; else -> Store.FRUIT }.ordinal] += took
             }
             8 -> fish += fauna.water.fishFor(p, expected, band?.fishing() ?: 1f)
             9 -> {
                 val m2 = land.areaKm2[p] * 1e6f
-                val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2
+                val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2 * seedValue(band)
                 plants += took; plantKind[Store.SEED.ordinal] += took
                 // A sickle takes the ears that hold their grain more than those that shatter at a touch.
                 if (band != null && took > 0f) {
@@ -327,6 +329,13 @@ internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f): Fl
     }
     return lost
 }
+
+/** What a kilo of reaped seed or grain feeds against a kilo of other food: raw, little; ground and baked, fully. */
+internal fun seedValue(band: Band?) = RAW_SEED + (1f - RAW_SEED) * (band?.has(Tool.GRINDER) ?: 0f)
+const val RAW_SEED = 0.6f
+/** Beer: grain brewed for each guest at a feast, kg; how much more a feast with beer binds. */
+const val BEER_KG = 1f
+const val BEER_TIES = 0.5f
 
 /** How readily [s] catches small game it comes on, 0..1: the smaller and nimbler the hunter, the better; cover hides the prey from all but stalkers. */
 internal fun smallCatch(s: Species) = SMALL_CATCH * min(1f, SMALL_HUNTER_KG / s.massKg)
@@ -451,7 +460,12 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
         if (spare <= 0f) continue
         val meal = min(spare, FEAST_KG * guest.size)
         host.larder -= meal; guest.larder += meal
-        guest.band?.befriend(host.id, TIE_FEAST); hb.befriend(guest.id, 0.5f * TIE_FEAST)
+        // With grain to spare and vessels to brew in, the host pours beer: the feast is remembered better.
+        val grain = host.stores[Store.SEED.ordinal]
+        val beer = if (hb.has(Tool.BASKET) > 0.5f && hb.has(Tool.GRINDER) > 0.2f) min(0.2f * grain, BEER_KG * guest.size) else 0f
+        if (beer > 0f) { host.stores[Store.SEED.ordinal] -= beer; meetings.merge("feasts with beer", 1, Int::plus) }
+        val warmth = 1f + BEER_TIES * min(1f, beer / (BEER_KG * guest.size).coerceAtLeast(1e-3f))
+        guest.band?.befriend(host.id, TIE_FEAST * warmth); hb.befriend(guest.id, 0.5f * TIE_FEAST * warmth)
         meetings.merge("feasts", 1, Int::plus)
         note(host) { "feasted band #%d with %.0f kg".format(guest.id, meal) }; note(guest) { "was feasted by band #%d".format(host.id) }
     }
