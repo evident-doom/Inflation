@@ -63,6 +63,12 @@ fun main(args: Array<String>) {
     inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
     System.getProperty("hex.ways")?.let { herds.ways = inflation.learning.NetWays(inflation.learning.Mlp.load(java.io.File(it).readText())) }
+    // Every kind moving by learned role networks (-Dhex.nets=DIR with herds.mlp, hunters.mlp, people.mlp, as HexPpo writes them), else by the hand-written choices.
+    System.getProperty("hex.nets")?.let { dir ->
+        val ps = inflation.learning.HexPpo.ROLES.map { r -> inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(java.io.File(dir, "$r.mlp")), null, { 0f }, { 0 }) }
+        for (s in herds.kinds) herds.policies[s] = ps[inflation.learning.HexPpo.role(s)]
+        println("moving by the learned networks in $dir")
+    }
     val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     println("year " + fauna.kinds.joinToString("") { "%11s".format(it.name.take(10)) })
     println("   0 " + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
