@@ -300,12 +300,14 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         }
         if (rnd.nextDouble() < 0.06) { // a severe winter: weeks of arctic air
             val (x, y) = place()
-            val start = day + 270 + rnd.nextInt(70)
+            // Midwinter, from the solstice (the year's first day) into February.
+            val start = day + rnd.nextInt(60)
             events += ClimateEvent(ClimateEvent.Kind.COLD_WINTER, start, start + 15 + rnd.nextInt(30), x, y, 300.0 + 300 * rnd.nextDouble(), -(5.0 + 4 * rnd.nextDouble()))
         }
         if (rnd.nextDouble() < 0.08) { // a summer heat wave
             val (x, y) = place()
-            val start = day + 100 + rnd.nextInt(60)
+            // High summer: July and August.
+            val start = day + 180 + rnd.nextInt(60)
             events += ClimateEvent(ClimateEvent.Kind.HEAT_WAVE, start, start + 12 + rnd.nextInt(20), x, y, 250.0 + 300 * rnd.nextDouble(), 4.0 + 4 * rnd.nextDouble())
         }
     }
