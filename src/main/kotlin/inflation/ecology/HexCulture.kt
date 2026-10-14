@@ -62,12 +62,12 @@ const val GRANDMOTHERS = 0.3f
 const val ELDER_CARE = 0.3f
 /** Words two bands bring into line when they meet; yearly chance a word changes by itself. */
 const val WORDS_PER_MEETING = 3
-const val WORD_DRIFT = 0.01f
+const val WORD_DRIFT = 0.0003f
 /** Chance at a meeting that a band takes up a tradition the more successful one holds, at full understanding. */
 const val COPY_TRADITION = 0.1f
 /** Yearly chance a band takes up a tradition by itself, or drops one. */
-const val TAKE_UP = 0.003f
-const val DROP = 0.003f
+const val TAKE_UP = 0.0005f
+const val DROP = 0.0005f
 /** Hunger and grudges: chance a hungry band raids a well-stocked one it meets (scaled by how little they understand each other); share of the larder taken. */
 const val RAID = 0.3f
 const val RAID_TAKE = 0.5f
@@ -106,8 +106,16 @@ fun wordsAt(x: Double, y: Double): IntArray {
     }
 }
 
-/** The traditions a band founded in a lineage's country starts with: about a quarter each, the same for its neighbours. */
-fun traditionsAt(lineage: Int) = BooleanArray(Tradition.entries.size) { t -> Math.floorMod((lineage + 1) * 2_654_435_761L.toInt() xor (t * 40_503), 100) < 25 }
+/**
+ * The traditions a band founded in a lineage's country starts with. Marrying out, sharing food,
+ * caring for the sick and handing down knowledge are near universal among foragers, so every band
+ * holds them; the others come about a quarter each, the same for neighbours.
+ */
+fun traditionsAt(lineage: Int) = BooleanArray(Tradition.entries.size) { t ->
+    Tradition.entries[t] in UNIVERSAL || Math.floorMod((lineage + 1) * 2_654_435_761L.toInt() xor (t * 40_503), 100) < 25
+}
+
+private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.MEDICINE, Tradition.ORAL_TRADITION)
 
 /** Kinship of two lineage mixes: the chance two people, one from each, share a founding lineage. */
 fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indices) s += a[i] * b[i]; return s }

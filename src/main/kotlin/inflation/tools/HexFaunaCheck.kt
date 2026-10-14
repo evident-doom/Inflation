@@ -88,9 +88,12 @@ fun main(args: Array<String>) {
     val history = HexHistory()
     var ns = 0L
     val causes = java.util.TreeMap<String, Double>()
+    val janHex = HashMap<Int, Int>()
     for (y in 1..years) {
         val before = causes.toMap()
         val huntYear = java.util.TreeMap<String, Int>(); val fedSum = HashMap<String, Double>(); val groupWeeks = HashMap<String, Int>()
+        // Seasonal movement: where each herd is in January, and how far from there it is in July.
+        val julyKm = HashMap<String, ArrayList<Double>>()
         // People, week by week, for the comparison with the record: band sizes, heads, camps moved, ground walked.
         var bandWeeks = 0.0; var bandHeads = 0.0; var childWeeks = 0.0; var adultWeeks = 0.0; var motherWeeks = 0.0; var moves = 0
         val walked = HashMap<Int, HashSet<Int>>(); val lastCamp = HashMap<Int, Int>()
@@ -145,6 +148,10 @@ fun main(args: Array<String>) {
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
             for ((key, v) in herds.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
             for ((key, v) in herds.hunting) huntYear.merge(key, v, Int::plus)
+            if (weather.date.dayOfMonth <= cfg.daysPerStep) {
+                if (weather.date.month == 0) for (g in herds.groups) if (g.alive && !g.species.carnivore) janHex[g.id] = hw.placeHex[g.place]
+                if (weather.date.month == 6) for (g in herds.groups) if (g.alive && !g.species.carnivore) janHex[g.id]?.let { julyKm.getOrPut(g.species.name) { ArrayList() } += sim.hex.distanceKm(it, hw.placeHex[g.place]) }
+            }
             for (g in herds.groups) if (g.alive && g.band != null) {
                 bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2
                 val h = hw.placeHex[g.place]
@@ -185,6 +192,8 @@ fun main(args: Array<String>) {
             "%s %.0f/%.0f/%.0f/%.0f%% (diet %.0f/%.0f/%.0f/%.0f)".format(s.name, part("meat"), part("small prey"), part("carrion"), part("plants"),
                 100 * s.diet.meat, 100 * s.diet.smallPrey, 100 * s.diet.carrion, 100 * (s.diet.fruit + s.diet.roots))
         })
+        // How far the herds are in July from where they were in January.
+        if (julyKm.isNotEmpty()) println("     herds' January to July (mean km / share over 50 km): " + julyKm.entries.joinToString(", ") { (k, v) -> "%s %.0f / %.0f%%".format(k, v.average(), 100.0 * v.count { it > 50.0 } / v.size) })
         // The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young.
         println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gs = herds.groups.filter { it.alive && it.species == s }

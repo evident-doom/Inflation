@@ -24,14 +24,14 @@ private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, 
  * How catchable prey [ps] is for hunter [s] in place [p], 0..1: size against the pack, defence,
  * refuge in broken ground, small prey hiding in thick cover, and for stalkers, dark nights.
  */
-internal fun HexGroups.catchable(s: Species, ps: Species, p: Int): Float {
-    val pack = s.groupSize * s.massKg
+internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = s.groupSize * s.massKg): Float {
     val size = min(1f, pack / (1.5f * ps.massKg))
     val small = if (ps.massKg < s.massKg * 0.05f) 0.3f else 1f // too small to be worth a pack's while
     // Shelter: crags, dens, thickets and trees, as the prey uses them; small prey hide in any cover.
     // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
     val refuge = 1f - 0.5f * SHELTER_EFFECT * Niches.shelter(ps, p, land)
-    val hide = if (ps.massKg < HIDING_KG) 1f - HIDING * land.cover(p) else 1f
+    // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
+    val hide = 1f - HIDING * land.cover(p) * (1f - s.stalking) * max(0f, 1f - ps.massKg / HIDING_KG)
     // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
     val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
     // A courser must run its quarry down; a stalker gets close unseen and needs no speed.
@@ -49,27 +49,54 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         val s = g.species
         val need = g.dailyNeedKg * days * s.diet.meat
         var got = 0f
-        var tries = MAX_CHASES
         // What the herds it met on the way gave it (see [meet]).
         got += g.meatMet
-        // The resident herds of the places passed (the band it ends in, in each hex on its way): in
-        // each, the pack sweeps some km² of ground and comes on the herds there; a share of the
-        // chases ends in a kill.
-        val sweep = sweptKm2(s) / g.path.size.coerceAtLeast(1) * min(2f, g.path.size.toFloat())
+        // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
+        // over more of it, as the square root of its numbers against its kind's usual party.
+        val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1)
+        val packKg = max(1, g.adults) * s.massKg
+        // Small game and carrion along the way first: they cost little and come as found.
+        val smallWant = g.dailyNeedKg * days * s.diet.smallPrey
+        val scraps = g.dailyNeedKg * days * s.diet.carrion
+        var gotSmall = 0f; var gotScraps = 0f
         for (h in g.path) {
-            if (got >= need) break
+            val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
+            val swept = min(land.areaKm2[p], sweep)
+            // Bands set snare lines and nets across the ground, as many as they have and know how to.
+            val snares = g.band?.snares() ?: 1f
+            // Only the ground searched yields: snare lines and nets widen it.
+            if (smallWant - gotSmall > 0f) gotSmall += this.small.catchSmallIn(p, smallWant - gotSmall, swept * snares, weather)
+            if (scraps - gotScraps > 0f) gotScraps += this.small.scavengeIn(p, scraps - gotScraps, swept)
+            // Bone-crackers live on what the others leave long after the meat is gone.
+            if (Niches.cracksBones(s) && scraps - gotScraps > 0f) gotScraps += this.small.crackBonesIn(p, scraps - gotScraps, swept)
+        }
+        // Then big game: its own share of the diet, and what small game and carrion did not give, up
+        // to (1 + SWITCH) times its share. The resident herds of the places passed (the band it ends in,
+        // in each hex on its way): in each, the party sweeps its ground and comes on the herds there,
+        // and goes after what pays best first.
+        val target = min((1f + SWITCH) * need, need + max(0f, smallWant - gotSmall) + max(0f, scraps - gotScraps))
+        val order = IntArray(fauna.kinds.size); val worth = FloatArray(fauna.kinds.size); val chance = FloatArray(fauna.kinds.size)
+        for (h in g.path) {
+            if (got >= target) break
             val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
             val area = land.areaKm2[p]
             val swept = min(area, sweep)
             for ((k, ps) in fauna.kinds.withIndex()) {
-                if (got >= need) break
                 val dens = fauna.adults[k][p] + fauna.young[k][p]
-                if (dens <= 0f) continue
                 // Prey resting while the hunter is about lie up in cover and are found less.
-                val awake = 0.5f + 0.5f * Niches.overlap(s, ps)
-                val expected = dens * swept * CATCH * catchable(s, ps, p) * awake * (g.band?.huntEdge(ps) ?: 1f)
+                chance[k] = if (dens > 0f) CATCH * catchable(s, ps, p, packKg) * (0.5f + 0.5f * Niches.overlap(s, ps)) * (g.band?.huntEdge(ps) ?: 1f) else 0f
+                worth[k] = dens * chance[k] * ps.massKg
+                order[k] = k
+            }
+            val ranked = order.sortedByDescending { worth[it] }
+            for (k in ranked) {
+                if (got >= target) break
+                val ps = fauna.kinds[k]
+                val dens = fauna.adults[k][p] + fauna.young[k][p]
+                if (dens <= 0f || chance[k] <= 0f) continue
+                val expected = dens * swept * chance[k]
                 val meat = ps.massKg * MEAT_SHARE
-                val wanted = ((need - got) / (0.6f * meat)).coerceAtLeast(0f)
+                val wanted = ((target - got) / (0.6f * meat)).coerceAtLeast(0f)
                 var n = poisson(min(expected, wanted + 1f))
                 n = min(n, (dens * area * 0.5f).toInt())
                 if (n <= 0) continue
@@ -84,20 +111,6 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 kills.merge(ps.name, n, Int::plus)
                 hunting.merge("${s.name}:kills of residents", n, Int::plus)
             }
-        }
-        // Small game and carrion along the way make up what the big game did not.
-        val smallWant = g.dailyNeedKg * days * s.diet.smallPrey
-        val scraps = g.dailyNeedKg * days * s.diet.carrion
-        var gotSmall = 0f; var gotScraps = 0f
-        for (h in g.path) {
-            val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
-            val swept = min(land.areaKm2[p], sweptKm2(s) / g.path.size.coerceAtLeast(1))
-            // Bands set snare lines and nets across the ground, as many as they have and know how to.
-            val snares = g.band?.snares() ?: 1f
-            if (smallWant - gotSmall > 0f) gotSmall += this.small.catchSmall(p, (smallWant - gotSmall) / swept * snares, weather) * swept
-            if (scraps - gotScraps > 0f) gotScraps += this.small.scavenge(p, min((scraps - gotScraps) / (swept * 1e6f), 0.5f * this.small.carrion[p])) * swept * 1e6f
-            // Bone-crackers live on what the others leave long after the meat is gone.
-            if (Niches.cracksBones(s) && scraps - gotScraps > 0f) gotScraps += this.small.crackBones(p, min((scraps - gotScraps) / (swept * 1e6f), 0.5f * this.small.bones[p])) * swept * 1e6f
         }
         if (gotSmall > 0f) g.band?.practise(Forage.SMALL_GAME)
         // A band short of meat fishes the river, the lake or the sea shore by its camp.
@@ -139,8 +152,8 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 for (h in g.path) {
                     if (extra >= cap) break
                     val q = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
-                    val swept = min(land.areaKm2[q], sweptKm2(s) / g.path.size.coerceAtLeast(1))
-                    extra += this.small.catchSmall(q, (cap - extra) / swept * (g.band?.snares() ?: 1f), weather) * swept
+                    val swept = min(land.areaKm2[q], sweep)
+                    extra += this.small.catchSmallIn(q, cap - extra, swept * (g.band?.snares() ?: 1f), weather)
                 }
                 gotSmall += extra; short -= extra
             }
@@ -149,8 +162,8 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 for (h in g.path) {
                     if (extra >= cap) break
                     val q = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
-                    val swept = min(land.areaKm2[q], sweptKm2(s) / g.path.size.coerceAtLeast(1))
-                    extra += this.small.scavenge(q, min((cap - extra) / (swept * 1e6f), 0.5f * this.small.carrion[q])) * swept * 1e6f
+                    val swept = min(land.areaKm2[q], sweep)
+                    extra += this.small.scavengeIn(q, cap - extra, swept)
                 }
                 gotScraps += extra; short -= extra
             }
@@ -368,7 +381,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     if (hunter.meatMet >= need) return
     val p = hw.placeOf[hw.placeBand[herd.place]][h].takeIf { it >= 0 } ?: herd.place
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
-    val catchable = catchable(hunter.species, herd.species, p)
+    val catchable = catchable(hunter.species, herd.species, p, max(1, hunter.adults) * hunter.species.massKg)
     if (catchable < NOT_WORTH_TRYING) return
     val chance = CATCH * SURPRISE * catchable * (1f - 0.5f * herd.wary) * (hunter.band?.huntEdge(herd.species) ?: 1f)
     hunter.band?.practise(Forage.HUNT)
@@ -435,7 +448,13 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     }
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
-    if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land))) {
+    // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
+    val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land))
+    if (ratio > 2f && weak.young > 0 && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * odds) {
+        weak.young--
+        strong.meatMet += 0.3f * 0.5f * weak.species.massKg
+        deaths.merge("${weak.species.name}:young killed by ${strong.species.name}", 1, Int::plus)
+    } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
         weak.adults--
         strong.meatMet += 0.5f * weak.species.massKg
         deaths.merge("${weak.species.name}:killed by ${strong.species.name}", 1, Int::plus)

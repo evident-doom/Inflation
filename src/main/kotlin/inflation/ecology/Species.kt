@@ -174,13 +174,14 @@ class Species(
 
 object Allometry {
     /**
-     * Food intake grows with metabolic mass, M^0.75 (Kleiber). Herbivores eat about 0.065 M^0.75
-     * kg of dry plant matter a day (a 20 kg gazelle ~0.6 kg). Carnivores need about 0.2 M^0.75 kg
+     * Food intake grows with metabolic mass, M^0.75 (Kleiber). Free-living herbivores eat about
+     * 0.08 M^0.75 kg of dry plant matter a day (a 20 kg gazelle ~0.75 kg), some 2-3 times their
+     * basal needs. Carnivores need about 0.2 M^0.75 kg
      * of prey body mass a day, counting the parts they leave (a 30 kg wolf ~2.6 kg, in line with
      * field kill rates of roughly 0.1 kg of prey per kg of wolf per day). Rules of thumb, from memory.
      */
     fun dailyIntakeKg(massKg: Float, carnivore: Boolean): Float =
-        (if (carnivore) 0.2f else 0.065f) * massKg.pow(0.75f)
+        (if (carnivore) 0.2f else 0.08f) * massKg.pow(0.75f)
 
     /**
      * Damuth's rule: mammal population density falls with body mass, about 10^4.23 M^-0.75
@@ -188,4 +189,7 @@ object Allometry {
      * densities scatter an order of magnitude around it.
      */
     fun herbivoreDensityPerKm2(massKg: Float): Float = 10f.pow(4.23f) * (massKg * 1000f).pow(-0.75f)
+
+    /** A plant-eater's usual density, head per km²: its own figure where it has one, else by its size (Damuth). */
+    fun usualDensity(s: Species): Float = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else herbivoreDensityPerKm2(s.massKg)
 }

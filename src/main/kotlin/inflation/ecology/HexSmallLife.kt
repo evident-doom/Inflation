@@ -162,7 +162,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (lastMonth >= 0 && month in pr && lastMonth !in pr) {
                 var cap = 0.0
                 for (p in 0 until n) cap += (birdCapacity(k, p) * land.areaKm2[p]).toDouble()
-                returning[k] = if (cap > 0.0) away[k] * MIGRANT_SURVIVAL / cap else 0.0
+                // Kinds that breed while away (winter visitors such as geese) come back with their young.
+                val b = BIRDS[k]
+                val bredAway = if (b.breedMonths.none { it in pr }) 1f + b.growth * b.breedMonths.count() / 12f else 1f
+                returning[k] = if (cap > 0.0) away[k] * MIGRANT_SURVIVAL * bredAway / cap else 0.0
                 away[k] = 0.0
             }
         }
@@ -180,13 +183,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             organicMatter[p] += 0.3f * decomposed - 0.05f * years * organicMatter[p]
             land.organicFertility[p] = 0.3f * organicMatter[p] / (organicMatter[p] + 4f)
             soilFauna[p] = 20f * decomposed / years
-            // Carcasses of the week, then rotting.
-            carrion[p] += carcassKg[p] / (land.areaKm2[p] * 1e6f)
+            // What lay from earlier weeks rots (half in about ten days at 15 °C, faster in the heat);
+            // then the week's carcasses are added, fresh for the vultures and scavengers this week.
             if (carrion[p] > 0f) {
-                val gone = carrion[p] * min(1f, 0.07f * max(0.1f, warm) * days)
+                val gone = carrion[p] * (1f - exp(-0.07f * max(0.1f, warm) * days))
                 carrion[p] -= gone; litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
                 if (carrion[p] < 1e-9f) carrion[p] = 0f
             }
+            carrion[p] += carcassKg[p] / (land.areaKm2[p] * 1e6f)
             // Bones weather away over a couple of years into the soil.
             if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b }
             val food = land.herb[p] + 0.3f * land.shrub[p]
@@ -360,19 +364,49 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * they are out, reptiles, amphibians and tortoises, each in proportion to what there is, at most
      * half of all; returns kg per km² caught.
      */
-    fun catchSmall(p: Int, kgPerKm2: Float, weather: Weather): Float {
+    fun catchSmall(p: Int, kgPerKm2: Float, weather: Weather, most: Float = 0.5f): Float {
         val t = weather.temperature[p]
         val herpsOut = herpsActive(t, land.soil[p])
         val tortOut = t in 14f..33f
         val total = rodents[p] + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] else 0f) + (if (tortOut) tortoises[p] else 0f)
         if (total <= 0f) return 0f
-        val take = min(kgPerKm2, 0.5f * total)
+        val take = min(kgPerKm2, most * total)
         val f = take / total
         rodents[p] -= rodents[p] * f; hares[p] -= hares[p] * f; hyrax[p] -= hyrax[p] * f; takeBirds(p, f)
         if (herpsOut) herps[p] -= herps[p] * f
         if (tortOut) tortoises[p] -= tortoises[p] * f
         return take
     }
+
+    /**
+     * A hunter searching [sweptKm2] of place [p] takes up to [kg] of small prey: at most half of what
+     * lives on the ground it searched. What it takes comes off the place's stocks; returns kg taken.
+     */
+    fun catchSmallIn(p: Int, kg: Float, sweptKm2: Float, weather: Weather): Float {
+        val area = land.areaKm2[p]
+        val searched = min(sweptKm2, area)
+        if (kg <= 0f || searched <= 0f) return 0f
+        return catchSmall(p, kg / area, weather, 0.5f * searched / area) * area
+    }
+
+    /** A scavenger searching [sweptKm2] of place [p] takes up to [kg] of carrion, at most half of what lies on the ground it searched; returns kg taken. */
+    fun scavengeIn(p: Int, kg: Float, sweptKm2: Float): Float {
+        val area = land.areaKm2[p]; val m2 = area * 1e6f
+        val searched = min(sweptKm2, area)
+        if (kg <= 0f || searched <= 0f) return 0f
+        return scavenge(p, min(kg, 0.5f * carrion[p] * searched * 1e6f) / m2) * m2
+    }
+
+    /** The same for bones, for bone-crackers. */
+    fun crackBonesIn(p: Int, kg: Float, sweptKm2: Float): Float {
+        val area = land.areaKm2[p]; val m2 = area * 1e6f
+        val searched = min(sweptKm2, area)
+        if (kg <= 0f || searched <= 0f) return 0f
+        return crackBones(p, min(kg, 0.5f * bones[p] * searched * 1e6f) / m2) * m2
+    }
+
+    /** Small prey on the ground at [p], kg/km²: rodents, hares, hyrax, game birds, reptiles and tortoises. */
+    fun smallPreyKg(p: Int) = rodents[p] + hares[p] + hyrax[p] + birds[p] + herps[p] + tortoises[p]
 
     /** Totals over the land, tonnes, and vultures in all colonies. */
     fun summary(): String {

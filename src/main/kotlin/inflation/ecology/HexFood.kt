@@ -26,12 +26,12 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     /** Ripe grass seed (wild cereals and other grasses), kg/m²: early summer, shed and gone by autumn. People gather it. */
     val seeds = FloatArray(n)
     val roots = FloatArray(n) { p -> rootsCap(p) * 0.7f }
-    val straw = FloatArray(n) { p -> strawCap(p) * 0.7f }
+    /** Standing straw: the land's (it burns there), cured from the herbs here. */
+    val straw get() = land.straw
 
     /** Fruit-bearing plants at [p], kg/m²: shrubs and the fruiting share of trees. */
     private fun bearing(p: Int) = 0.5f * land.shrub[p] + 0.05f * land.tree[p]
     private fun rootsCap(p: Int) = ROOTS_SHARE * (land.herb[p] + 0.05f * land.tree[p])
-    private fun strawCap(p: Int) = STRAW_SHARE * (land.herb[p] + 0.3f * land.shrub[p])
 
     fun step(weather: Weather) {
         val month = weather.date.month
@@ -48,7 +48,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             small.litter[p] += shed
             val r = rootsCap(p) * (if (month in 9..11) 3f else 0.5f) / ROOTS_DAYS
             roots[p] = max(0f, roots[p] + days * (r - roots[p] / ROOTS_DAYS))
-            straw[p] = max(0f, straw[p] + days * (strawCap(p) - straw[p]) / STRAW_DAYS)
+            // As the grass cures in the drought or the cold, the live herbs die back into standing straw;
+            // straw weathers and falls into the litter over the year.
+            val cured = land.herb[p] * min(0.5f, CURING * (1f - land.green[p]) * days)
+            land.herb[p] -= cured
+            val weathered = straw[p] * min(1f, days / STRAW_DAYS)
+            straw[p] = max(0f, straw[p] + cured - weathered)
+            small.litter[p] += weathered
         }
     }
 
@@ -59,12 +65,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     fun take(stock: FloatArray, p: Int, kgPerM2: Float): Float {
         val t = min(stock[p], max(0f, kgPerM2))
         stock[p] -= t
-        when (stock) {
-            fruit -> { val sh = 0.5f * land.shrub[p]; val tr = 0.05f * land.tree[p]; val all = sh + tr
-                if (all > 0f) { land.consume(p, LifeForm.SHRUB, t * sh / all); land.consume(p, LifeForm.TREE, t * tr / all) } }
-            roots, seeds -> land.consume(p, LifeForm.HERB, t)
-            straw -> land.consume(p, LifeForm.HERB, 0.7f * t).also { land.consume(p, LifeForm.SHRUB, 0.3f * t) }
-        }
+        // Fruit, seed and straw are already off the live plants; digging roots and bulbs kills herbs.
+        if (stock === roots) land.consume(p, LifeForm.HERB, t)
         return t
     }
 
@@ -78,9 +80,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         /** Roots and mast to be dug, per kg/m² of herbs (and trees × 0.05); days to replace them. */
         const val ROOTS_SHARE = 0.0003f
         const val ROOTS_DAYS = 180f
-        /** Standing dead grass and twigs, per kg/m² of herbs (and shrubs × 0.3); days to build up again. */
-        const val STRAW_SHARE = 0.0025f
-        const val STRAW_DAYS = 180f
+        /** Share of the live herbs that cure into standing straw a day when nothing is green; days straw stands before it weathers into litter. */
+        const val CURING = 0.02f
+        const val STRAW_DAYS = 360f
         /** Nourishment of straw against fresh growth, for a 100 kg animal. */
         const val ROUGHAGE_VALUE = 0.4f
 

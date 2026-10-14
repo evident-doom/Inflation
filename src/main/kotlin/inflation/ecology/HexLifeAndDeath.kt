@@ -50,7 +50,8 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
         g.seasonPlace[m] = best; g.seasonQ[m] = bestScore
         top = max(top, bestScore)
     }
-    if (top > 0f) for (m in 0 until 12) g.seasonQ[m] /= top
+    // What the forebears knew is trusted until the herd learns better (see [remember]).
+    if (top > 0f) for (m in 0 until 12) g.seasonQ[m] = 1f
 }
 
 /**
@@ -67,7 +68,7 @@ internal fun HexGroups.graze(weather: Weather) {
         val access = HexFood.access(s, land.ruggedness[p])
         val snowed = weather.snowpack[p] > s.snowLimitMm
         val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
-        val reach = if (weather.temperature[p] > 4f) HexFauna.REACH else HexFauna.REACH_DORMANT
+        val reach = HexFauna.REACH_DORMANT + (HexFauna.REACH - HexFauna.REACH_DORMANT) * land.green[p]
         // Poor forage is made up for by eating more of it, as far as the gut holds.
         val fill = min(HexFauna.GUT_FILL, 1f / land.nourishment(p))
         val wantGrass = if (snowed) 0f else want * fill * access * d.grass / total
@@ -113,7 +114,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val h = hw.placeHex[g.place]
         if (g.recent[0] != h) { for (i in g.recent.size - 1 downTo 1) g.recent[i] = g.recent[i - 1]; g.recent[0] = h }
         g.lean = if (g.fed < 0.5f) g.lean + 1 else 0
-        if (g.lean >= GIVE_UP_WEEKS) g.home = -1
+        // A pack long hungry keeps its ground but ranges wider over it (see [HexGroups.plan]).
     }
     val kinNow = HashMap<Long, Int>()
     for (g in groups) if (g.alive) kinNow.merge(g.species.index.toLong() * hex.size + hw.placeHex[g.place], g.size, Int::plus)
@@ -139,7 +140,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         if (o.carrionKg > 0f) small.carrion[g.place] += o.carrionKg / (land.areaKm2[g.place] * 1e6f)
         if (o.births > 0) births.merge(s.name, o.births, Int::plus)
-        if (o.deaths > 0) deaths.merge("${s.name}:${o.cause}", o.deaths, Int::plus)
+        for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name}:$cause", k, Int::plus)
         if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
         if (s.human && o.youngDied > 0) hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
@@ -159,8 +160,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     mergeAndPair()
 }
 
-/** What a group's week left for others: carcasses (kg), births, deaths and their main cause, orphans, a split-off part (adults, young). */
-internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val cause: String, val orphans: Int, val split: Pair<Int, Int>?, val youngDied: Int = 0)
+/** What a group's week left for others: carcasses (kg), births, deaths by cause, orphans, a split-off part (adults, young). */
+internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val causes: List<Pair<String, Int>>, val orphans: Int, val split: Pair<Int, Int>?, val youngDied: Int = 0)
 
 /** One group's week of feeding on its reserves, births, deaths and growing up; with its own random stream [r]. */
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
@@ -212,11 +213,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
         val thirst = if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f
         // Crowded herds catch each other's diseases and parasites.
-        val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
+        val usual = Allometry.usualDensity(s)
         // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
         val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
         val disease = if (s.human) peopleSickness(g) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
-            else if (s.carnivore) 0f else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+            else if (s.carnivore) 0f else HexFauna.DISEASE * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         g.wary *= WARY_KEEP
         // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
         val homeless = if (s.carnivore && !s.human && g.home < 0) DISPERSAL_DEATHS * years else 0f
@@ -239,10 +240,18 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         g.young -= dy
         // The dead lie where they fell, for the scavengers and the soil.
         var carrion = (da + oldAge + 0.3f * dy) * s.massKg
-        // Deaths go to the main cause this week; to "other" (age, accidents) when none outweighs the ordinary.
-        val causes = listOf("other" to healed * s.backgroundMortality * years, "hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "inbreeding" to inbred)
-        val main = causes.maxBy { it.second }
-        val cause = if (main.second > 0f) main.first else "other"
+        // The week's deaths are shared among the causes by how much each weighed ("other": age, accidents, ordinary illness).
+        val hazards = listOf("other" to healed * s.backgroundMortality * years, "hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "inbreeding" to inbred)
+        var left = da + dy; var weight = hazards.sumOf { it.second.toDouble() }.toFloat()
+        val causes = ArrayList<Pair<String, Int>>()
+        for ((name, h) in hazards) {
+            if (left <= 0 || weight <= 0f) break
+            val k = if (h >= weight) left else binomial(left, h / weight, r)
+            if (k > 0) causes += name to k
+            left -= k; weight -= h
+        }
+        if (left > 0) causes += "other" to left
+        if (oldAge > 0) causes += "old age" to oldAge
         val up = binomial(g.young, years / s.yearsToMaturity, r)
         g.young -= up; g.adults += up
         band?.let { it.elders += binomial(g.adults - it.elders, years / ADULT_YEARS, r) }
@@ -251,7 +260,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             val orphans = g.young
             carrion += 0.3f * orphans * s.massKg
             g.young = 0
-            return Outcome(carrion, bornNow, da + oldAge + dy, cause, orphans, null, dy + orphans)
+            return Outcome(carrion, bornNow, da + oldAge + dy, causes, orphans, null, dy + orphans)
         }
         var split: Pair<Int, Int>? = null
         // Bands that feast together hold together longer.
@@ -259,7 +268,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             split = (g.adults / 2) to (g.young / 2)
             g.adults -= split.first; g.young -= split.second
         }
-        return Outcome(carrion, bornNow, da + oldAge + dy, cause, 0, split, dy)
+        return Outcome(carrion, bornNow, da + oldAge + dy, causes, 0, split, dy)
     }
 }
 
@@ -318,7 +327,13 @@ internal fun HexGroups.remember(date: Date) {
     val m = date.month
     for (g in groups) {
         if (g.species.carnivore && !g.species.human) continue
-        if (g.seasonPlace[m] < 0 || g.fed > g.seasonQ[m] + 0.05f) { g.seasonPlace[m] = g.place; g.seasonQ[m] = g.fed }
+        // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,
+        // and a clearly better place takes its place.
+        if (g.seasonPlace[m] < 0) { g.seasonPlace[m] = g.place; g.seasonQ[m] = g.fed }
         else if (g.seasonPlace[m] == g.place) g.seasonQ[m] += 0.3f * (g.fed - g.seasonQ[m])
+        else {
+            g.seasonQ[m] *= MEMORY_FADE
+            if (g.fed > g.seasonQ[m] + 0.1f) { g.seasonPlace[m] = g.place; g.seasonQ[m] = g.fed }
+        }
     }
 }

@@ -15,10 +15,11 @@ const val SWITCH = 1f
 /** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */
 const val MARK_KEEP = 0.85f
 const val MARK_FRESH = 0.3f
-/** Hunters of other kinds: strength ratio from which the stronger robs a kill (with this chance), and the chance a much stronger party kills one. */
+/** Hunters of other kinds: strength ratio from which the stronger robs a kill (with this chance), and the chance a much stronger party kills an adult of the other, or one of its young. */
 const val THEFT_RATIO = 1.3f
 const val THEFT = 0.5f
-const val INTRAGUILD_KILL = 0.1f
+const val INTRAGUILD_KILL = 0.01f
+const val INTRAGUILD_KILL_YOUNG = 0.1f
 /** Chance a chase after fully armed prey as big as the party costs a hunter (injuries kill a few per cent of big cats a year, over some dozens of chases). */
 const val FIGHT_BACK = 0.002f
 /** Catchability below which hunters do not try a herd they meet. */
@@ -68,12 +69,13 @@ const val BEARING_PULL = 0.5f
 const val ASTRAY = 0.5f
 /** How far a herd's inherited seasonal places may lie from where it starts, km. */
 const val SEASON_RANGE_KM = 120.0
-const val STAY = 0.15f
-/** How much a hungry pack is put off ground it has hunted out lately; weeks of hunger after which it gives up its ground. */
+const val STAY = 0.05f
+/** Share of a remembered season's place's worth kept each week the herd is elsewhere (about a tenth lost a year). */
+const val MEMORY_FADE = 0.998f
+/** How much a hungry pack is put off ground it has hunted out lately; weeks of hunger over which it widens its range to three times its usual ground. */
 const val HUNGRY_LEAVE = 0.5f
 const val GIVE_UP_WEEKS = 4
-/** Most chases a hunter makes in a week; chance a chase at a fully catchable quarry succeeds. */
-const val MAX_CHASES = 12
+/** Chance a chase at a fully catchable quarry succeeds. */
 const val CATCH = 0.35f
 /** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */
 const val SEARCHING = 0.3f

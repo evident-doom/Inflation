@@ -191,9 +191,12 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         shocks()
         drawWind()
         if (date.month != normMonth) normalise()
-        val m = date.month; val next = (m + 1) % 12
-        val f = (date.dayOfMonth - 1).toFloat() / Date.DAYS_PER_MONTH
-        val tNow = climate.monthlyTemp[m]; val tNext = climate.monthlyTemp[next]
+        // The monthly normals stand for mid-month: before the 16th the step lies between last month and this.
+        val m = date.month
+        val pos = (date.dayOfMonth - 15.5f) / Date.DAYS_PER_MONTH
+        val (from, to) = if (pos >= 0f) m to (m + 1) % 12 else (m + 11) % 12 to m
+        val f = if (pos >= 0f) pos else 1f + pos
+        val tNow = climate.monthlyTemp[from]; val tNext = climate.monthlyTemp[to]
         val pNow = climate.monthlyPrecip[m]
         val stepShare = days.toFloat() / Date.DAYS_PER_MONTH
         val s = season(date)

@@ -195,6 +195,8 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     val flood = FloatArray(n)
 
     val herb = FloatArray(n); val shrub = FloatArray(n); val tree = FloatArray(n)
+    /** Standing dead grass and stems, kg/m²: cured from the herbs in the dry or cold season (see HexFood), eaten in the lean months, and the main fuel of grass fires. */
+    val straw = FloatArray(n)
     val moisture = FloatArray(n) { p -> (mean(p) { world.climate.aridity(it) } / 1.5f).coerceIn(0f, 1f) }
     private val warmth = FloatArray(n) { p -> mean(p) { world.climate.warmestMonthTemp(it) } }
     val fertility = soilFertility.copyOf()
@@ -350,7 +352,7 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         if (b[p] < 0f) b[p] = 0f
     }
 
-    private fun fuel(p: Int) = (herb[p] + 0.5f * shrub[p]) * (1f - 0.8f * (1f - exp(-grazing[p] / Vegetation.GRAZE_SCALE)))
+    private fun fuel(p: Int) = straw[p] + (herb[p] + 0.5f * shrub[p]) * (1f - 0.8f * (1f - exp(-grazing[p] / Vegetation.GRAZE_SCALE)))
 
     private fun canBurn(p: Int, weather: Weather) =
         flood[p] <= 0f && fuel(p) >= 0.2f && soil[p] / LiveWater.SOIL_CAPACITY < 0.3f && weather.temperature[p] > 15f && weather.precipitation[p] < 5f
@@ -404,6 +406,7 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
     private fun burn(p: Int, share: Float): Float {
         val before = biomass(p)
         herb[p] *= 1f - 0.9f * share; shrub[p] *= 1f - 0.8f * share; tree[p] *= 1f - 0.3f * share
+        straw[p] *= 1f - share
         burnt[p] = max(burnt[p], share)
         fertility[p] = min(1f, fertility[p] + 0.01f * share)
         return before - biomass(p)

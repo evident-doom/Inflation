@@ -144,7 +144,7 @@ class HexGroups(
                     var h = preyHere(s, p)
                     // Herds on the move watch and are hard to come at: worth a share of their weight in game.
                     for ((j, ps) in kinds.withIndex()) if (!ps.carnivore && monthHeads[j][p] > 0) h += HERD_GAME * monthHeads[j][p] * ps.massKg * catchable(s, ps, p) / land.areaKm2[p]
-                    huntable[k][p] = h
+                    huntable[k][p] = if (s.human) h else dietValue(s, p, h)
                 }
             }
             Profile.time("sense of direction") { bearings.update(date.month) }
@@ -220,7 +220,7 @@ class HexGroups(
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             for ((k, s) in kinds.withIndex()) placeValue[k][p] =
                 if (s.human) campValue(s, p)
-                else if (s.carnivore) preyHere(s, p) + herdPrey(s, p)
+                else if (s.carnivore) dietValue(s, p, preyHere(s, p) + herdPrey(s, p))
                 else foodFor(s, p) * land.nourishment(p) * fauna.suits(s, p) * (1f - land.burning[p])
         }
     }
@@ -272,10 +272,16 @@ class HexGroups(
         // (grazing, patrolling); the net shift is a couple of days' going when content, more on a trek
         // when hungry, cold or snowed in. A pack holding ground patrols it; a starving or homeless one roams.
         val thirsty = g.dry > 0.5f * s.daysWithoutWater
+        // The place it remembers doing best at this time of year: while it is far off, the herd is on its way.
+        val month = (date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0) % 12
+        val goal = g.seasonPlace[month]
+        val goalFar = goal >= 0 && (!s.carnivore || s.human) && hexKm(here, hw.placeHex[goal]) > 2 * hex.hexKm
         // Far out of its country, it treks.
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
-        val restless = if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
-            else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray
+        // (Bands hold no hunting ground of the packs' kind: a band is restless only when hungry, thirsty or astray.)
+        val restless = if (s.human) g.fed < 0.5f || thirsty || astray
+            else if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
+            else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
         if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % 2 == 0L) return g.place to intArrayOf(here)
@@ -304,13 +310,12 @@ class HexGroups(
                 if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
             }
         }
-        val month = (date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0) % 12
-        val goal = g.seasonPlace[month]
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
         val policy = policies[s]
         val candPlaces = ArrayList<Int>(); val candFeats = ArrayList<FloatArray>(); val candScores = ArrayList<Float>()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
-        val territory = territoryKm(s)
+        // A hungry pack ranges wider: up to three times its usual ground after weeks of hunger.
+        val territory = territoryKm(s) * (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))
         val goalHex = if (goal >= 0) hw.placeHex[goal] else -1
         val fromHere = if (goal >= 0) hexKm(here, goalHex) else 0.0
         val pullKm = reach.toDouble().coerceAtLeast(hex.hexKm)
@@ -356,7 +361,7 @@ class HexGroups(
                     // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
                     // Bands that watch the sky keep their round on time.
                     val sky = if (g.band?.holds(Tradition.SKY_LORE) == true) 1.3f else 1f
-                    if (fromHere > hex.hexKm) score += sky * SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / fromHere).toFloat()
+                    if (fromHere > hex.hexKm) score += sky * SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
                 }
                 score += BEARING_PULL * pull
                 if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
@@ -422,6 +427,17 @@ class HexGroups(
     }
 
     /** Resident prey a hunter of kind [s] can take in place [p], kg of meat per km², weighed by how catchable. */
+    /**
+     * What place [p] offers a hunter of kind [s] by its whole diet, kg/km²: the big game it can catch
+     * ([game]), the small prey on the ground and the carrion lying there, each by its share of the
+     * diet. A jackal looks for rodents and carrion, a lion for big game.
+     */
+    internal fun dietValue(s: Species, p: Int, game: Float): Float {
+        val d = s.diet
+        val parts = (d.meat + d.smallPrey + d.carrion).coerceAtLeast(1e-6f)
+        return (d.meat * game + d.smallPrey * small.smallPreyKg(p) + d.carrion * small.carrion[p] * 1e6f) / parts
+    }
+
     internal fun preyHere(s: Species, p: Int): Float {
         var v = 0f
         for ((k, ps) in fauna.kinds.withIndex()) v += (fauna.adults[k][p] + 0.5f * fauna.young[k][p]) * ps.massKg * catchable(s, ps, p)

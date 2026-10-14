@@ -81,7 +81,7 @@ const val CLOTHES_C = 10f
 const val INVENT = 0.002f
 const val TEACH = 0.2f
 /** Days of food a band can carry when it moves camp; the rest is left. */
-const val CARRY_DAYS = 20f
+const val CARRY_DAYS = 5f
 /** Most that settled life with stores raises births (birth spacing about 4 years to under 3). */
 const val SETTLED_FERTILITY = 0.4f
 /** Extra yearly deaths among children in a camp kept for a year or more. */
@@ -313,6 +313,7 @@ private fun HexGroups.dropCache(b: Band) {
  * stands for generations, and any band that camps by it can use it.
  */
 private fun HexGroups.buildKite(g: HexGroup, b: Band) {
+    if (!KITES) return
     val p = g.place
     if (kites[p] >= 1f || g.adults < (if (b.holds(Tradition.FEASTS)) KITE_HANDS / 2 else KITE_HANDS)) return
     if (land.cover(p) > 0.3f) return
@@ -358,6 +359,8 @@ const val CAMP_LURE = 0.3f
 
 /** Share of a cache lost each week to damp, mice and thieves. */
 const val CACHE_SPOIL = 0.02f
+/** Desert kites are later than the Natufian: off unless asked for (-Dhex.kites). */
+val KITES = System.getProperty("hex.kites") != null
 /** Adults it takes to build a kite (half for a band that feasts with its neighbours); share of one built in a week's work. */
 const val KITE_HANDS = 30
 const val KITE_WORK = 0.1f
