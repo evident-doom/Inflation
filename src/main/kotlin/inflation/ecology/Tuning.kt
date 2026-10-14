@@ -14,6 +14,11 @@ object Tuning {
     val plantHandling = f("plantHandling", 1f)
     /** Chance a much stronger hunter kills another kind's young, against [INTRAGUILD_KILL_YOUNG]. */
     val intraguildYoung = f("intraguildYoung", 1f)
+    /** People's deaths of age and ordinary illness, of children, of thirst, and from camp fouling, against their present rates. */
+    val humanOther = f("humanOther", 1f)
+    val humanYoung = f("humanYoung", 1f)
+    val humanThirst = f("humanThirst", 1f)
+    val campFouling = f("campFouling", 1f)
     /** Weeks between a content herd's weighing of its places ([CONTENT_WEEKS]). */
     val contentWeeks = System.getProperty("hex.t.contentWeeks")?.toInt() ?: CONTENT_WEEKS
 

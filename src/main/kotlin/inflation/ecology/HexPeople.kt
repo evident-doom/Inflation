@@ -470,7 +470,7 @@ internal fun settledFertility(g: HexGroup): Float {
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
 internal fun campFouling(g: HexGroup): Float {
     val b = g.band ?: return 0f
-    return CAMP_FOULING * fouled(b) * (if (b.holds(Tradition.HYGIENE)) 0.4f else 1f) * (if (b.holds(Tradition.MEDICINE)) 0.7f else 1f)
+    return CAMP_FOULING * Tuning.campFouling * fouled(b) * (if (b.holds(Tradition.HYGIENE)) 0.4f else 1f) * (if (b.holds(Tradition.MEDICINE)) 0.7f else 1f)
 }
 
 /** How fouled a band's camp is, 0..1: not at all for its first two months, fully after a year more. */
