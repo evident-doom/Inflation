@@ -10,6 +10,7 @@ import java.util.PriorityQueue
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -539,7 +540,14 @@ internal fun HexGroups.meetChance(a: HexGroup, b: HexGroup, p: Int, span: Float)
     val hours = Niches.overlap(a.species, b.species)
     // Bands seek each other out at springs and lake shores, where people come together.
     val gather = if (a.band != null && b.band != null) 1f + 2f * (land.nearSpring[p] + land.nearLake[p]).coerceAtMost(1f) else 1f
-    return min(1f, searched * gather / land.areaKm2[p]) * (if (hunting) 0.5f + 0.5f * hours else hours)
+    val one = min(1f, searched * gather / land.areaKm2[p]) * (if (hunting) 0.5f + 0.5f * hours else hours)
+    if (!hunting) return one
+    // A herd agent stands for several of its kind's usual bands spread over the ground: a hunter finds
+    // one of them as often as it would find any of so many herds (the bundling saves reckoning, and
+    // must not hide the herds from the hunters).
+    val herd = if (a.species.carnivore) b else a
+    val bands = max(1f, herd.size.toFloat() / herd.species.groupSize)
+    return 1f - (1f - one).pow(bands)
 }
 
 /**
