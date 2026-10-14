@@ -73,7 +73,7 @@ object HexLearning {
             val b = buffers.get()
             var best = 0; var bestV = Float.NEGATIVE_INFINITY
             for ((k, f) in features.withIndex()) {
-                f.copyInto(b.a[0])
+                f.copyInto(b.a[0], 0, 0, minOf(f.size, b.a[0].size))
                 val v = net.forward(b) + 0.01f * (ThreadLocalRandom.current().nextFloat() - 0.5f)
                 if (v > bestV) { bestV = v; best = k }
             }

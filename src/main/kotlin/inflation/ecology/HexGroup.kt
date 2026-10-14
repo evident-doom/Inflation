@@ -24,8 +24,10 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
     var lean = 0
     val recent = IntArray(4) { -1 }
-    /** Lineage tag for learning, -1 for none. */
+    /** Lineage tag for learning, -1 for none; the group it split from (-1 for none); its size when it merged into another (-1 if it did not), for following a choice's outcome. */
     var tag = -1
+    var parent = -1
+    var mergedSize = -1
     /** The month its young are born in, drifting towards the months that feed them best; -1 for its kind's. */
     var birthMonth = -1
     /** For a band: food on hand, kg, by kind ([Store]). */
@@ -59,5 +61,5 @@ fun interface HexPolicy {
  * place, the way to better country it senses, and the group's own state and the time of year.
  */
 object HexFeatures {
-    const val SIZE = 22
+    const val SIZE = 25
 }

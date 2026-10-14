@@ -159,7 +159,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // Children's deaths apart, for the life tables.
         if (s.human && o.youngDied > 0) hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
         o.split?.let { c -> born += HexGroup(nextId++, s, g.place, c.first, c.second).also { n ->
-            n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth
+            n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.parent = g.id; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth
             // A band that splits shares out its larder by heads.
             val share = (c.first + c.second).toFloat() / (g.size + c.first + c.second).coerceAtLeast(1)
             n.larder = g.larder * share; g.larder -= n.larder
@@ -413,6 +413,7 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
     for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
     into.larder += from.larder
+    from.mergedSize = from.size
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f
 }

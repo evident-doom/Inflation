@@ -420,6 +420,10 @@ class HexGroups(
                     f[19] = min(3f, land.waterKm[p] / s.dailyTravelKm)
                     f[20] = min(2f, g.dry / s.daysWithoutWater)
                     f[21] = pull
+                    // The moon (night hunters see and are seen by it) and how far off its young are due.
+                    f[22] = moon
+                    val toBirth = 2.0 * Math.PI * (((if (g.birthMonth >= 0) g.birthMonth else s.birthMonth) - month + 12) % 12) / 12.0
+                    f[23] = kotlin.math.sin(toBirth).toFloat(); f[24] = kotlin.math.cos(toBirth).toFloat()
                     candPlaces += p; candFeats += f; candScores += score
                     continue
                 }
