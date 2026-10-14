@@ -85,13 +85,16 @@ internal fun HexGroups.graze(weather: Weather) {
         val q = land.nourishment(p)
         var gap = want - ((grass + browse) * q + fruit + roots)
         var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
-        if (gap > 0f && d.browse > 0f) { browse2 = land.consume(p, LifeForm.SHRUB, min(gap / q, min(SWITCH * wantBrowse, reach * land.shrub[p] - browse).coerceAtLeast(0f))); gap -= browse2 * q }
-        if (gap > 0f && d.grass > 0f && !snowed) { grass2 = land.consume(p, LifeForm.HERB, min(gap / q, min(SWITCH * want * fill * access * d.grass / total, reach * land.herb[p] - grass).coerceAtLeast(0f))); gap -= grass2 * q }
+        // But the gut holds only so much bulk a day: on poor forage a ruminant cannot make up by eating
+        // more of it (switching shifts what it eats, not how much its gut takes).
+        var room = max(0f, want * fill * access - (grass + browse))
+        if (gap > 0f && d.browse > 0f) { browse2 = land.consume(p, LifeForm.SHRUB, min(min(gap / q, room), min(SWITCH * wantBrowse, reach * land.shrub[p] - browse).coerceAtLeast(0f))); gap -= browse2 * q; room -= browse2 }
+        if (gap > 0f && d.grass > 0f && !snowed) { grass2 = land.consume(p, LifeForm.HERB, min(min(gap / q, room), min(SWITCH * want * fill * access * d.grass / total, reach * land.herb[p] - grass).coerceAtLeast(0f))); gap -= grass2 * q; room -= grass2 }
         if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, min(gap, SWITCH * want * access * d.fruit / total)); gap -= fruit2 }
         if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, min(gap, SWITCH * want * access * d.roots / total)); gap -= roots2 }
         // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
         val short = max(0f, gap)
-        val straw = food.take(food.straw, p, short * HexFauna.GUT_FILL * access)
+        val straw = food.take(food.straw, p, min(short * HexFauna.GUT_FILL * access, max(0f, room)))
         small.dung[p] += HexSmallLife.DUNG * (grass + browse + fruit + roots + straw + grass2 + browse2 + fruit2 + roots2)
         // On the way it beat down the plants and dropped the seed of the fruit it ate.
         val band = hw.placeBand[p]
