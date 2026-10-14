@@ -24,6 +24,8 @@ object Tuning {
     /** People's births, and the extra births of settled, well-stocked bands ([SETTLED_FERTILITY]), against their present rates. */
     val humanBirths = f("humanBirths", 1f)
     val settledFertility = f("settledFertility", 1f)
+    /** The food cost of keeping warm, against [COLD_COST]. */
+    val coldCost = f("coldCost", 1f)
     /** Weeks between a content herd's weighing of its places ([CONTENT_WEEKS]). */
     val contentWeeks = System.getProperty("hex.t.contentWeeks")?.toInt() ?: CONTENT_WEEKS
 

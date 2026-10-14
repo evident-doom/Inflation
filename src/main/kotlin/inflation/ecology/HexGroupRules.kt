@@ -104,7 +104,7 @@ const val SEARCHING = 0.3f
  * for each 10 °C of cold it feels beyond what its coat (or clothes and house) keeps off, at most
  * [COLD_MAX] times its need.
  */
-fun coldNeed(s: Species, felt: Float, month: Int): Float = kotlin.math.min(COLD_MAX, 1f + COLD_COST * s.coldC(felt, month) / 10f)
+fun coldNeed(s: Species, felt: Float, month: Int): Float = kotlin.math.min(COLD_MAX, 1f + COLD_COST * Tuning.coldCost * s.coldC(felt, month) / 10f)
 const val COLD_COST = 0.2f
 const val COLD_MAX = 1.6f
 

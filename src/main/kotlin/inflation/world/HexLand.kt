@@ -45,7 +45,10 @@ class HexLand(private val hw: HexWorld, private val seed: Long) {
         val h = hw.placeHex[p]
         var s = 0f; var w = 0f
         for (b in Biome.entries) { val share = hw.biome[b.ordinal][h]; if (share <= 0f) continue; val v = PALATABLE[b] ?: continue; s += share * v; w += share }
-        if (w > 0f) s / w else 0.5f
+        val v = if (w > 0f) s / w else 0.5f
+        // (A balancing run may raise every share toward all of it: -Dhex.t.palatableFloor.)
+        val floor = System.getProperty("hex.t.palatableFloor")?.toFloat() ?: 0f
+        floor + (1f - floor) * v
     }
 
     /** The dead buried at each place (graves weather away over centuries). */
