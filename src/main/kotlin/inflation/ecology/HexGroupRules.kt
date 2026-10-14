@@ -104,6 +104,10 @@ const val SMALL_HUNTER_KG = 15f
 const val SMALL_HANDLING_DAYS_PER_KG = 0.3f
 const val PLANT_HANDLING_DAYS_PER_KG = 0.3f
 const val BONE_DAYS = 3f
+/** Digging roots and searching out small finds take this many times as long a kilo as picking fruit; days of all hands to reap, thresh and grind a kilo of grass seed by hand; to catch and clean a kilo of fish. */
+const val ROOT_DIGGING = 2f
+const val SEED_HANDLING_DAYS_PER_KG = 1f
+const val FISH_HANDLING_DAYS_PER_KG = 0.3f
 /** Times a party plans its week's foraging over: if others took what it planned on, it looks again at what is left. */
 const val FORAGE_PASSES = 3
 

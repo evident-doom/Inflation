@@ -526,6 +526,16 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         return kg - left
     }
 
+    /** What a band fishing from hex [h] with [skill] could catch in a week at most, kg (see [fishFor]). */
+    fun fishWithin(h: Int, skill: Float = 1f): Float {
+        val landKm2 = max(1f, hw.land[h] * hexKm2)
+        fun most(stock: FloatArray, q: Int, areaKm2: Float, search: Float): Float { val s = stock[q] * areaKm2; return if (s > 0f) min(0.5f * s, s * skill / search) else 0f }
+        var kg = most(run, h, landKm2, RUN_SEARCH) + most(riverFish, h, landKm2, RIVER_SEARCH)
+        if (nesting && shoreKm[h] <= 0f) kg += most(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH)
+        for (q in listOf(h) + (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 }) kg += most(fish, q, waterKm2[q], FISH_SEARCH) + most(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH)
+        return kg
+    }
+
     /** Share of its needs a fish-eater gets at fish density [f], kg/km²: little where fish are few (shoals are hard to find), most where they are many. */
     private fun fishResponse(f: Float) = f * f / (f * f + FISH_FIND_HALF * FISH_FIND_HALF)
 
