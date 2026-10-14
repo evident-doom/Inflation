@@ -869,13 +869,14 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         val fed = if (need > 0f) min(1f, got / need) else 1f
         val inSeason = (date.month - s.birthMonth + 12) % 12 < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * s.littersPerYear * fed * (0.3f + 0.7f * tame) / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
-        val died = n * min(0.9f, (s.backgroundMortality + 0.5f * (1f - fed) + HERD_RUN_OFF * (1f - tame)) * years + HERD_MOVE_LOSS * (1f - tame) * moved)
+        val died = n * min(0.9f, (s.backgroundMortality + 0.5f * (1f - fed) + HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)) * years + HERD_MOVE_LOSS * (1f - tame) * moved * b.lapse(Skill.TENDING))
         n = max(0f, n + born - died)
         // What it cannot keep it culls for meat.
-        val most = HERD_PER_PERSON * g.size
+        val most = HERD_PER_PERSON * g.size * b.edge(Skill.TENDING)
         if (n > most) { val cull = n - most; n = most; g.stores[Store.FRESH.ordinal] += cull * s.massKg * MEAT_SHARE; meetings.merge("kept animals culled", 1, Int::plus) }
         b.herd[k] = if (n < 0.5f) 0f else n
-        b.herdTame[k] = tame + TAMING_RATE * years * (1f - tame)
+        b.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)
+        b.practise(Skill.TENDING, 0.5f * PRACTICE)
     }
 }
 

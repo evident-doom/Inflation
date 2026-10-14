@@ -31,6 +31,8 @@ enum class Domain {
     STALKING,
     /** Butchering a kill: taking all the meat, fat and marrow, and the hide whole. */
     BUTCHERY,
+    /** Keeping animals: penning, feeding, gentling, culling the wild ones, helping at births. */
+    HERDING,
     /** Caring for the sick and wounded: herbs, cleaning and binding wounds, setting bones. */
     HEALING,
     /** Helping at births and keeping infants alive: midwifery, care of the newborn. */
@@ -87,6 +89,8 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     TRACK(Domain.TRACKING, 0.2f, 0.8f),
     STALK(Domain.STALKING, 0.2f, 0.8f),
     BUTCHER(Domain.BUTCHERY, 0.5f, 0.8f),
+    /** Tending kept animals: fewer run off or are lost on the move, more can be kept, and they grow tame faster under practised hands. */
+    TENDING(Domain.HERDING, CRAFT_FLOOR, 0.3f),
     /** Herbal remedies and wound care, learned over a lifetime of the sick. */
     HERBS(Domain.HEALING, CRAFT_FLOOR, 0.5f),
     /** Midwifery and care of infants. */
