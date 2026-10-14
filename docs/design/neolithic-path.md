@@ -1,0 +1,28 @@
+# The path to settling and farming: build plan
+
+Agreed with Olli on 2026-10-14. This is the standing plan for people after the band-choices work. Keep the status column current, and work the steps in order unless Olli reorders them.
+
+**Rules for every step:**
+- Everything people do is a choice resolved by generic mechanisms ([band-choices.md](band-choices.md)). Nothing is scripted.
+- Crops and animals are described by their properties, not by name, so that other paths can appear on other maps: tuber gardens, herding first, Jomon-style rich foraging.
+- Each step ends with a check against the record, plus a test that the step's new choice is actually taken by the scaffold or learned ways where it pays, and not where it doesn't.
+
+| # | Step | What it adds | Check | Status |
+|---|---|---|---|---|
+| 1 | **Ancestral places, calendars, gatherings** | Burials make a remembered place that draws its band back and stakes a claim. Recurring appointments: a moon count or season plus a place. Bands holding the same appointment converge. | Aggregation sites form at conspicuous places. Bands return to burial places. | started |
+| 2 | **Base camps and houses** | Building a house is a choice paid in labour, making staying warmer, safer and better for storing. It brings storage pits, house mice eating stores, and middens. Staying already raises births and fouling. | Bands near rich, steady food (oaks, rivers, coast) build and stay. Bands on poor or variable land stay mobile. | |
+| 3 | **Crops by their properties** | Plant foods get traits: annual grass that shatters, tuber grown from cuttings, tree nut; storage life; processing needs. Harvesting with sickles selects for ears that don't shatter. Sowing, weeding and burning are choices with delayed yields. | Domestication drifts only where stands are harvested with sickles and resown. Cultivation is taken up only where it pays. | |
+| 4 | **Processing: containers, bread, beer** | Grinding and baking cut handling time and raise value. Brewing turns surplus grain into feast drink. Containers (baskets now, pottery later) enable boiling and storage. Storage techniques: drying, smoking, leaching. | Grain's share of the diet rises with processing tools. Feasts draw on brewed surplus. | |
+| 5 | **Crafts, ornaments, exchange** | Bone tools, needles, beads and figurines made from hide, bone and sinew. Ornaments travel along ties as goods and show in burials as standing. | Exotic goods spread along tie networks. Inequality appears in grave goods. | |
+| 6 | **Herd animals** | Managing wild goats, sheep, boar and aurochs: sparing females, culling young males, keeping animals near camp. Driven by each species' domestication traits. A herding-first path is possible. | Managed herds grow where the species allows. Dogs come first. | |
+| 7 | **Climate shock (Younger Dryas)** | A scripted cold, dry spell of about 1,200 years in the weather. | Bands become more mobile, or shift to stored and grown food. Nothing is forced. | |
+
+**Test cases running through all steps:**
+- **Jomon test:** on a coast- or oak-rich map, bands may settle without crops. That must be possible.
+- **Mobile test:** on poor, variable land, bands must stay mobile.
+- **Record:** density, mobility, diet shares, health and violence against the ethnographic and archaeological ranges, through the check's record line.
+
+**Supporting work, done when a step needs it:**
+- the remembered-place memory (done: step 1 of [memory-and-telling.md](memory-and-telling.md));
+- telling places by description;
+- the learned ways growing new outputs for each new choice.
