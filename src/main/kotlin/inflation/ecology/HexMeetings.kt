@@ -355,7 +355,9 @@ internal fun HexGroups.meetChance(a: HexGroup, b: HexGroup, p: Int, span: Float)
     val track = if (hunting) TRACKING else 1f
     val searched = (sweptKm2(a.species) + sweptKm2(b.species)) * track * max(span, 0.5f) / days
     val hours = Niches.overlap(a.species, b.species)
-    return min(1f, searched / land.areaKm2[p]) * (if (hunting) 0.5f + 0.5f * hours else hours)
+    // Bands seek each other out at springs and lake shores, where people come together.
+    val gather = if (a.band != null && b.band != null) 1f + 2f * (land.nearSpring[p] + land.nearLake[p]).coerceAtMost(1f) else 1f
+    return min(1f, searched * gather / land.areaKm2[p]) * (if (hunting) 0.5f + 0.5f * hours else hours)
 }
 
 /**

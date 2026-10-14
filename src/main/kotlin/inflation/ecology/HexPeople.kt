@@ -234,7 +234,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     val wood = 2f * people * min(1f, woody / 3f)
     gd[Material.WOOD.ordinal] += wood
     gd[Material.RESIN.ordinal] += 0.05f * people * min(1f, land.tree[p] / 3f)
-    val fibre = people * min(1f, (land.herb[p] + land.shrub[p]) / 0.5f)
+    // (Reeds and rushes in a marsh give the best fibre of all.)
+    val fibre = people * min(1f, (land.herb[p] + land.shrub[p]) / 0.5f + 2f * land.logged[p])
     gd[Material.FIBRE.ordinal] += fibre
     land.consume(p, LifeForm.TREE, wood * land.tree[p] / max(1e-6f, woody) / area)
     land.consume(p, LifeForm.HERB, fibre / area)
@@ -375,6 +376,10 @@ const val KITE_TAKE = 0.4f
 /** People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then. */
 const val PEOPLE_FULL_KM2 = 0.5f
 const val PEOPLE_SICK = 0.05f
+/** How much a cave or rock shelter adds to a camp's worth (dry, warm, easy to defend). */
+const val CAVE_CAMP = 0.5f
+/** Yearly deaths from vipers and scorpions among people, in the warm months. */
+const val VENOM = 0.002f
 /** Yearly deaths from marsh fever among people camped by a marsh in the warm months. */
 const val MARSH_FEVER = 0.05f
 

@@ -237,7 +237,7 @@ class HexGroups(
         val plants = (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT
         // Water close to camp: women and children fetch it every day.
         val w = land.waterKm[p] / 3f
-        return (game + plants) * (1f + CAMP_SAFETY * land.bestDefence[p]) / (1f + w * w)
+        return (game + plants) * (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w)
     }
 
     /**

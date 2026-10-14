@@ -146,6 +146,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             "rock dove" -> 4f * rugged.pow(1.5f) * (0.3f + 0.7f * grass)
             "mallard" -> 6f * waterfowl[p] * (0.5f + 0.5f * grass)
             "greylag goose" -> 10f * waterfowl[p] * grass
+            "crane" -> 8f * waterfowl[p] * (0.5f + 0.5f * grass) + 1f * open(p) * grass
+            "white stork" -> 3f * waterfowl[p] + 2f * open(p) * grass
             else -> 0f
         }
     }
@@ -477,6 +479,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             BirdKind("rock dove", 3..10, 5f, 0.8f, null, floatArrayOf(0.9f, 0.9f, 0.9f, 0.8f, 0.7f, 0.6f)), // became the pigeon
             BirdKind("mallard", 4..6, 4f, 0.8f, null, floatArrayOf(0.9f, 0.8f, 0.8f, 0.7f, 0.6f, 0.6f)), // became the duck
             BirdKind("greylag goose", 5..6, 3f, 0.5f, (setOf(10, 11, 0, 1, 2, 3)), floatArrayOf(0.8f, 0.8f, 0.8f, 0.6f, 0.6f, 0.8f)), // became the goose
+            // Common cranes winter by the thousand in the rift's marshes and fields; white storks pass
+            // through on the way to and from Africa in spring and late summer. Both breed far away.
+            BirdKind("crane", 5..6, 1.2f, 0.3f, setOf(10, 11, 0, 1, 2), floatArrayOf(0.5f, 0.3f, 0.3f, 0.4f, 0.3f, 0.5f)),
+            BirdKind("white stork", 5..6, 1.5f, 0.3f, setOf(2, 3, 7, 8), floatArrayOf(0.5f, 0.3f, 0.3f, 0.5f, 0.4f, 0.4f)),
         )
         /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
         const val VULTURE_RANGE_KM = 80.0

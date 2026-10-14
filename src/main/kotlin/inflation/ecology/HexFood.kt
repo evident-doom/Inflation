@@ -32,7 +32,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     /** Fruit-bearing plants at [p], kg/m²: shrubs and the fruiting share of trees. */
     private fun bearing(p: Int) = 0.5f * land.shrub[p] + 0.05f * land.tree[p]
     private fun strawCap(p: Int) = STRAW_SHARE * (land.herb[p] + 0.3f * land.shrub[p])
-    private fun rootsCap(p: Int) = ROOTS_SHARE * (land.herb[p] + 0.05f * land.tree[p])
+    private fun rootsCap(p: Int) = ROOTS_SHARE * (land.herb[p] + 0.05f * land.tree[p]) + REED_ROOTS * land.logged[p]
 
     fun step(weather: Weather) {
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
@@ -84,6 +84,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         /** Roots and mast to be dug, per kg/m² of herbs (and trees × 0.05); days to replace them. */
         const val ROOTS_SHARE = 0.0003f
         const val ROOTS_DAYS = 180f
+        /** Starchy rhizomes of reed and reedmace in a marsh, kg/m² at their peak. */
+        const val REED_ROOTS = 0.01f
         /** Standing dead grass and twigs, per kg/m² of herbs (and shrubs × 0.3); days to build up again. */
         const val STRAW_SHARE = 0.0025f
         const val STRAW_DAYS = 180f
