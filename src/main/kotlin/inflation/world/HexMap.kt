@@ -120,8 +120,10 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
 
     /** Distance between the centres of hexes [a] and [b], km. */
     fun distanceKm(a: Int, b: Int): Double {
-        val (ax, ay) = centreKm(a); val (bx, by) = centreKm(b)
-        return kotlin.math.hypot(ax - bx, ay - by)
+        val ra = a / cols; val rb = b / cols
+        val dx = hexKm * ((a - ra * cols) - (b - rb * cols) + 0.5 * ((ra and 1) - (rb and 1)))
+        val dy = rowKm * (ra - rb)
+        return kotlin.math.sqrt(dx * dx + dy * dy)
     }
 
     /** The neighbour of [h] in direction [d] (0 E, 1 SE, 2 SW, 3 W, 4 NW, 5 NE), or -1 off the map. */

@@ -92,6 +92,11 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     private val ch = (places.heightKm / coarseKm).toInt() + 2
     private val rnd = Random(cfg.seed * 31 + 7)
 
+    /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
+    private val yearSwing = FloatArray(n) { i ->
+        val annual = (0 until 12).sumOf { places.monthlyPrecip[it][i].toDouble() }.toFloat()
+        0.7f + 1.3f * (1f - annual / 600f).coerceIn(0f, 1f)
+    }
     private val tempAnomaly = FloatArray(cw * ch)
     private val rainAnomaly = FloatArray(cw * ch)
     private val yearAnomaly = FloatArray(cw * ch)
@@ -115,9 +120,9 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
 
     val events = ArrayList<ClimateEvent>()
 
-    var date = Date(0); private set
+    var date = Date(Date.START_DAY.toLong()); private set
     /** Month (0..11) of the step most recently simulated. */
-    var lastMonth = 0; private set
+    var lastMonth = Date.START_DAY / Date.DAYS_PER_MONTH; private set
     /** Mean air temperature over the last step, °C. */
     val temperature = FloatArray(n)
     /** Rain and snow that fell during the last step, mm water. */
@@ -191,9 +196,12 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         shocks()
         drawWind()
         if (date.month != normMonth) normalise()
-        val m = date.month; val next = (m + 1) % 12
-        val f = (date.dayOfMonth - 1).toFloat() / Date.DAYS_PER_MONTH
-        val tNow = climate.monthlyTemp[m]; val tNext = climate.monthlyTemp[next]
+        // The monthly normals stand for mid-month: before the 16th the step lies between last month and this.
+        val m = date.month
+        val pos = (date.dayOfMonth - 15.5f) / Date.DAYS_PER_MONTH
+        val (from, to) = if (pos >= 0f) m to (m + 1) % 12 else (m + 11) % 12 to m
+        val f = if (pos >= 0f) pos else 1f + pos
+        val tNow = climate.monthlyTemp[from]; val tNext = climate.monthlyTemp[to]
         val pNow = climate.monthlyPrecip[m]
         val stepShare = days.toFloat() / Date.DAYS_PER_MONTH
         val s = season(date)
@@ -203,7 +211,16 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
             val x = cx(i); val y = cy(i)
             nextTemp[i] = tNow[i] * (1 - f) + tNext[i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) + warmth
             val wind = storm * winds.rainFactor(i, sample(nextU, x, y), sample(nextV, x, y)) / norm[i]
-            nextPrecip[i] = pNow[i] * stepShare * wind * exp(sample(rainAnomaly, x, y) - RAIN_BIAS + sample(yearAnomaly, x, y) + sample(rainShock, x, y))
+            // Rain comes in storms: a week is wet or dry, the wetter the month the likelier wet, and wet
+            // spells hang together in space and time (the rain anomaly decides where); a wet week brings
+            // the dry weeks' share too. Dry country swings more from year to year, with bust years.
+            val pMonth = pNow[i] * wind
+            val wetChance = 1f - exp(-pMonth / WET_MONTH_MM)
+            val z = sample(rainAnomaly, x, y) / RAIN_SIGMA
+            val wet = 1f / (1f + exp(-1.7f * z)) > 1f - wetChance
+            val swing = yearSwing[i]
+            nextPrecip[i] = if (!wet || wetChance <= 0f) 0f
+                else pMonth * stepShare / wetChance * exp(swing * sample(yearAnomaly, x, y) - (0.3f * swing).let { it * it } / 2 + sample(rainShock, x, y))
         }
         prepared = true
     }
@@ -261,9 +278,10 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         lastMonth = date.month
         regime = upcomingRegime
         nextU.copyInto(windU); nextV.copyInto(windV)
+        val (shockT, shockRain) = shock()
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
-            val t = nextTemp[i]
-            val p = nextPrecip[i]
+            val t = nextTemp[i] + shockT
+            val p = nextPrecip[i] * shockRain
             temperature[i] = t
             precipitation[i] = p
             if (t < 0) {
@@ -277,6 +295,23 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         }
         date = date.plusDays(days)
         prepare()
+    }
+
+    /**
+     * A long climate shock, like the Younger Dryas (about 12,900 years ago: some 1,200 years colder
+     * and drier, setting in over decades and lifting quickly), set with
+     * -Dhex.climateShock=startYear,years,degrees,rainShare (for example 20,1200,-4,0.7): the
+     * temperature offset and the share of the rain, now; nothing when unset.
+     */
+    private val shockSpec = System.getProperty("hex.climateShock")?.split(",")?.map { it.trim().toDouble() }
+    fun shock(): Pair<Float, Float> {
+        val s = shockSpec ?: return 0f to 1f
+        val (start, years, dT, rain) = s
+        val y = date.absoluteDay / Date.DAYS_PER_YEAR.toDouble() - start
+        if (y < 0 || y > years) return 0f to 1f
+        // Setting in over a few decades, lifting within one.
+        val k = minOf(1.0, y / 30.0, (years - y) / 10.0).coerceIn(0.0, 1.0)
+        return (dT * k).toFloat() to (1.0 - (1.0 - rain) * k).toFloat()
     }
 
     private fun newYear() {
@@ -300,12 +335,14 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         }
         if (rnd.nextDouble() < 0.06) { // a severe winter: weeks of arctic air
             val (x, y) = place()
-            val start = day + 270 + rnd.nextInt(70)
+            // Midwinter, from the solstice (the year's first day) into February.
+            val start = day + rnd.nextInt(60)
             events += ClimateEvent(ClimateEvent.Kind.COLD_WINTER, start, start + 15 + rnd.nextInt(30), x, y, 300.0 + 300 * rnd.nextDouble(), -(5.0 + 4 * rnd.nextDouble()))
         }
         if (rnd.nextDouble() < 0.08) { // a summer heat wave
             val (x, y) = place()
-            val start = day + 100 + rnd.nextInt(60)
+            // High summer: July and August.
+            val start = day + 180 + rnd.nextInt(60)
             events += ClimateEvent(ClimateEvent.Kind.HEAT_WAVE, start, start + 12 + rnd.nextInt(20), x, y, 250.0 + 300 * rnd.nextDouble(), 4.0 + 4 * rnd.nextDouble())
         }
     }
@@ -382,8 +419,8 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         /** Spread of the week-to-week temperature (°C) and log-rain anomalies, on top of the regimes. */
         const val TEMP_SIGMA = 1.5f
         const val RAIN_SIGMA = 0.35f
-        /** Keeps the lognormal rain anomalies' mean at 1 (year-to-year sigma about 0.3 included). */
-        const val RAIN_BIAS = (RAIN_SIGMA * RAIN_SIGMA + 0.3f * 0.3f) / 2
+        /** Rain in a month (mm) at which about two weeks in three are wet. */
+        const val WET_MONTH_MM = 25f
         /** Chance a regime holds into the next week. */
         const val REGIME_PERSISTENCE = 0.5
         /** Spread of the wind's eddies, m/s. */

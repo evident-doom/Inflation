@@ -59,7 +59,7 @@ class Species(
      * antelope barely drink while plants are green; cattle and wild asses must drink every day or two.
      */
     val waterFromFood: Float,
-    /** Birth season: first month (0-based) and length in months. */
+    /** Birth season: first month (0-based from the winter solstice: 0 about January) and length in months. */
     val birthMonth: Int,
     val birthMonths: Int,
     /** Litters a year in good years: small breeders fit in several. */
@@ -76,9 +76,7 @@ class Species(
     val youngMortality: Float = backgroundMortality,
     /** Snow depth (mm water equivalent) that stops it feeding and slows it badly. */
     val snowLimitMm: Float,
-    /** Distance at which it notices a predator and flees, km. */
-    val flightKm: Float,
-    val dangerToHumans: Float,
+    /** Raw materials an adult yields (for people: hides, bone, sinew). */
     val products: Products,
     val habitat: Habitat = Habitat(),
     /** How well adults fight off or outlast predators, 0 (not at all) to 1 (adults practically safe). */
@@ -94,12 +92,17 @@ class Species(
      */
     val fibreDigestion: Float = 1f,
     /**
+     * A hindgut fermenter (horses, asses): on poor forage it eats more and passes it fast. Ruminants
+     * and the rest eat less of poor forage, as it fills the gut before it nourishes.
+     */
+    val hindgut: Boolean = false,
+    /** Digs lichen from under the snow in winter (reindeer). */
+    val eatsLichen: Boolean = false,
+    /**
      * For predators: fighting weight per kg compared with a wolf, for fights over carcasses and
      * ground: a hyena clan bites above its weight, a jackal below.
      */
     val ferocity: Float = 1f,
-    /** For predators: distance within which two groups of the species meet and contest their ground, km. */
-    val territoryKm: Float = 3f,
     /** For predators: land per animal at the start, km². */
     val startKm2PerAnimal: Float = 0f,
     /**
@@ -155,7 +158,7 @@ class Species(
     val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, carnivore)
 
     /**
-     * How far its coat stretches the cold end in [month] (from the spring equinox), °C: a winter coat
+     * How far its coat stretches the cold end in [month] (from the winter solstice), °C: a winter coat
      * grows in through the autumn to 10 °C and is moulted in spring.
      */
     fun coatC(month: Int): Float = if (winterCoat) 10f * COAT[month] else 0f
@@ -167,20 +170,25 @@ class Species(
     fun discomfortC(t: Float, month: Int): Float = coldC(t, month) + hotC(t)
 
     companion object {
-        /** Share of a winter coat grown, by month from the spring equinox. */
-        private val COAT = floatArrayOf(0.5f, 0.2f, 0f, 0f, 0f, 0.2f, 0.5f, 0.8f, 1f, 1f, 1f, 0.9f)
+        /** Share of a winter coat grown, by month from the winter solstice. */
+        private val COAT = floatArrayOf(1f, 1f, 0.9f, 0.5f, 0.2f, 0f, 0f, 0f, 0.2f, 0.5f, 0.8f, 1f)
     }
 }
 
+/** How much more (or less) than its need a plant-eater eats of forage of [quality] (0..1, 1 fresh and green). */
+fun gutFill(s: Species, quality: Float): Float =
+    if (s.hindgut) kotlin.math.min(HexFauna.GUT_FILL, 1f / quality.coerceAtLeast(1e-3f)) else kotlin.math.min(1f, 0.5f + 0.5f * quality / 0.8f * s.fibreDigestion)
+
 object Allometry {
     /**
-     * Food intake grows with metabolic mass, M^0.75 (Kleiber). Herbivores eat about 0.065 M^0.75
-     * kg of dry plant matter a day (a 20 kg gazelle ~0.6 kg). Carnivores need about 0.2 M^0.75 kg
+     * Food intake grows with metabolic mass, M^0.75 (Kleiber). Free-living herbivores eat about
+     * 0.08 M^0.75 kg of dry plant matter a day (a 20 kg gazelle ~0.75 kg), some 2-3 times their
+     * basal needs. Carnivores need about 0.2 M^0.75 kg
      * of prey body mass a day, counting the parts they leave (a 30 kg wolf ~2.6 kg, in line with
      * field kill rates of roughly 0.1 kg of prey per kg of wolf per day). Rules of thumb, from memory.
      */
     fun dailyIntakeKg(massKg: Float, carnivore: Boolean): Float =
-        (if (carnivore) 0.2f else 0.065f) * massKg.pow(0.75f)
+        (if (carnivore) 0.2f else 0.08f) * massKg.pow(0.75f)
 
     /**
      * Damuth's rule: mammal population density falls with body mass, about 10^4.23 M^-0.75

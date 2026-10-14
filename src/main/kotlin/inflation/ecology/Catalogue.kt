@@ -24,10 +24,10 @@ object Catalogue {
         groupSize = 12, maxGroupSize = 40,
         dailyTravelKm = 6f, maxDailyTravelKm = 30f, senseKm = 4f,
         daysWithoutWater = 5, waterFromFood = 0.8f,
-        birthMonth = 1, birthMonths = 2, youngPerFemale = 1f, yearsToMaturity = 1f,
-        backgroundMortality = 0.08f, snowLimitMm = 40f, flightKm = 1f, dangerToHumans = 0f,
+        birthMonth = 4, birthMonths = 2, youngPerFemale = 1f, yearsToMaturity = 1f,
+        backgroundMortality = 0.08f, snowLimitMm = 40f,
         products = Products(meat = 9f, fat = 0.5f, hide = 1.2f, bone = 2.5f, sinew = 0.2f, hornOrAntler = 0.3f),
-        comfortC = 5f..36f, 
+        comfortC = 0f..36f, 
         speedKmh = 80f,
         foresight = 0.6f,
         domestication = floatArrayOf(0.6f, 0.6f, 0.2f, 0.5f, 0.05f, 0.2f), // panics and leaps fences
@@ -41,10 +41,10 @@ object Catalogue {
         groupSize = 3, maxGroupSize = 6,
         dailyTravelKm = 3f, maxDailyTravelKm = 20f, senseKm = 1f,
         daysWithoutWater = 4, waterFromFood = 0.9f,
-        birthMonth = 2, birthMonths = 1, youngPerFemale = 1.6f, yearsToMaturity = 1f,
-        backgroundMortality = 0.12f, snowLimitMm = 150f, flightKm = 0.2f, dangerToHumans = 0f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 1.6f, yearsToMaturity = 2f,
+        backgroundMortality = 0.07f, snowLimitMm = 150f,
         products = Products(meat = 12f, fat = 0.5f, hide = 1.5f, bone = 3f, sinew = 0.2f, hornOrAntler = 0.3f),
-        comfortC = -8f..25f, winterCoat = true,
+        comfortC = -8f..29f, winterCoat = true,
         speedKmh = 70f,
         domestication = floatArrayOf(0.4f, 0.6f, 0.1f, 0.3f, 0.1f, 0.1f),
         habitat = Habitat(cover = 0.6f),
@@ -57,10 +57,10 @@ object Catalogue {
         groupSize = 6, maxGroupSize = 25,
         dailyTravelKm = 4f, maxDailyTravelKm = 25f, senseKm = 2f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
-        birthMonth = 2, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 1.5f,
-        backgroundMortality = 0.1f, snowLimitMm = 150f, flightKm = 0.4f, dangerToHumans = 0f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, snowLimitMm = 150f,
         products = Products(meat = 32f, fat = 2f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 2f),
-        comfortC = -5f..28f, winterCoat = true,
+        comfortC = -5f..35f, winterCoat = true,
         speedKmh = 65f,
         domestication = floatArrayOf(0.5f, 0.5f, 0.4f, 0.4f, 0.3f, 0.4f), // kept in parks, never domesticated
         habitat = Habitat(cover = 0.3f),
@@ -74,28 +74,28 @@ object Catalogue {
         groupSize = 8, maxGroupSize = 30,
         dailyTravelKm = 6f, maxDailyTravelKm = 40f, senseKm = 3f,
         daysWithoutWater = 3, waterFromFood = 0.5f,
-        birthMonth = 2, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.08f, snowLimitMm = 300f, flightKm = 0.5f, dangerToHumans = 0.05f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 3f,
+        backgroundMortality = 0.08f, snowLimitMm = 180f,
         products = Products(meat = 75f, fat = 6f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 5f),
-        comfortC = -12f..25f, winterCoat = true,
-        speedKmh = 70f,
+        comfortC = -12f..29f, winterCoat = true,
+        speedKmh = 60f,
         domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.3f, 0.2f, 0.3f),
         habitat = Habitat(cover = 0.5f, rugged = 0.2f),
         defence = 0.25f,
     )
 
-    /** Nubian or Caucasian-type ibex: cliffs and steep rock, where nothing can follow it. */
+    /** Nubian ibex: cliffs and steep rock of the hot dry hills and gorges, where nothing can follow it. */
     val IBEX = Species(
-        name = "ibex", massKg = 60f,
+        name = "ibex", massKg = 45f,
         fearOfPeople = 0.75f, boldShare = 0.04f,
         diet = Diet(grass = 0.6f, browse = 0.4f),
         groupSize = 8, maxGroupSize = 25,
         dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 3f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
-        birthMonth = 1, birthMonths = 1, youngPerFemale = 1.1f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.1f, snowLimitMm = 300f, flightKm = 0.5f, dangerToHumans = 0f,
+        birthMonth = 4, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 2.5f,
+        backgroundMortality = 0.1f, snowLimitMm = 80f,
         products = Products(meat = 28f, fat = 1.5f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 4f),
-        comfortC = -12f..30f, winterCoat = true,
+        comfortC = 0f..38f, winterCoat = true,
         speedKmh = 55f,
         foresight = 0.5f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.4f, 0.4f, 0.4f, 0.6f), // its cousin became the goat
@@ -105,17 +105,17 @@ object Catalogue {
 
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
-        name = "wild boar", massKg = 80f,
+        name = "wild boar", massKg = 90f,
         fearOfPeople = 0.6f, boldShare = 0.1f,
         diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.45f, fruit = 0.2f, smallPrey = 0.05f, carrion = 0.05f),
         groupSize = 6, maxGroupSize = 20,
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 2, waterFromFood = 0.4f,
-        birthMonth = 1, birthMonths = 2, littersPerYear = 2, youngPerFemale = 4f, yearsToMaturity = 1.5f,
+        birthMonth = 4, birthMonths = 2, youngPerFemale = 5f, yearsToMaturity = 1.5f,
         backgroundMortality = 0.2f, youngMortality = 0.6f,
-        snowLimitMm = 200f, flightKm = 0.2f, dangerToHumans = 0.3f,
+        snowLimitMm = 110f,
         products = Products(meat = 45f, fat = 8f, hide = 5f, bone = 9f, sinew = 0.5f, hornOrAntler = 0.5f),
-        comfortC = -8f..30f, winterCoat = true,
+        comfortC = -8f..34f, winterCoat = true,
         speedKmh = 45f,
         foresight = 0.5f,
         domestication = floatArrayOf(0.9f, 0.9f, 0.8f, 0.4f, 0.6f, 0.6f), // became the pig
@@ -132,10 +132,10 @@ object Catalogue {
         groupSize = 15, maxGroupSize = 40,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 2f,
         daysWithoutWater = 2, waterFromFood = 0.2f,
-        birthMonth = 1, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 3f,
-        backgroundMortality = 0.06f, snowLimitMm = 300f, flightKm = 0.3f, dangerToHumans = 0.5f,
+        birthMonth = 4, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 3f,
+        backgroundMortality = 0.06f, snowLimitMm = 200f,
         products = Products(meat = 370f, fat = 40f, hide = 40f, bone = 80f, sinew = 4f, hornOrAntler = 6f),
-        comfortC = -12f..28f, winterCoat = true,
+        comfortC = -12f..33f, winterCoat = true,
         speedKmh = 50f,
         foresight = 0.6f,
         domestication = floatArrayOf(0.8f, 0.5f, 0.7f, 0.2f, 0.4f, 0.9f), // became cattle
@@ -149,9 +149,10 @@ object Catalogue {
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 8, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 4f,
-        daysWithoutWater = 3, waterFromFood = 0.3f,
-        birthMonth = 2, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2f,
-        backgroundMortality = 0.05f, snowLimitMm = 150f, flightKm = 1f, dangerToHumans = 0.1f,
+        // Wild asses of the desert steppe go three or four days between drinks, and get water from green grass.
+        daysWithoutWater = 4, waterFromFood = 0.4f,
+        birthMonth = 5, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2f,
+        backgroundMortality = 0.05f, snowLimitMm = 150f,
         products = Products(meat = 110f, fat = 8f, hide = 15f, bone = 25f, sinew = 2f),
         comfortC = -8f..38f, winterCoat = true,
         speedKmh = 70f,
@@ -159,6 +160,7 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.4f, 0.3f, 0.1f, 0.2f, 0.4f), // too wild to tame; the donkey came from Africa
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.1f), // shuns marsh, not the water's edge
         defence = 0.4f,
+        hindgut = true,
     )
 
     /**
@@ -172,10 +174,10 @@ object Catalogue {
         groupSize = 10, maxGroupSize = 30,
         dailyTravelKm = 4f, maxDailyTravelKm = 10f, senseKm = 1f,
         daysWithoutWater = 1, waterFromFood = 0f,
-        birthMonth = 3, birthMonths = 4, youngPerFemale = 0.4f, yearsToMaturity = 5f,
-        backgroundMortality = 0.04f, snowLimitMm = 20f, flightKm = 0.1f, dangerToHumans = 0.9f,
+        birthMonth = 6, birthMonths = 4, youngPerFemale = 0.4f, yearsToMaturity = 8f,
+        backgroundMortality = 0.04f, snowLimitMm = 20f,
         products = Products(meat = 600f, fat = 80f, hide = 100f, bone = 150f, sinew = 5f, hornOrAntler = 3f),
-        comfortC = 14f..36f, 
+        comfortC = 10f..36f, 
         speedKmh = 30f,
         foresight = 0.3f,
         domestication = floatArrayOf(0.6f, 0.2f, 0.2f, 0.0f, 0.1f, 0.3f),
@@ -195,8 +197,8 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 4f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
-        birthMonth = 11, birthMonths = 1, youngPerFemale = 1f, yearsToMaturity = 4f,
-        backgroundMortality = 0.05f, snowLimitMm = 600f, flightKm = 0.3f, dangerToHumans = 0.7f,
+        birthMonth = 0, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 5f,
+        backgroundMortality = 0.05f, snowLimitMm = 600f,
         products = Products(meat = 70f, fat = 30f, hide = 12f, bone = 15f, sinew = 1f, fur = true),
         comfortC = -15f..28f, winterCoat = true,
         speedKmh = 50f,
@@ -219,8 +221,8 @@ object Catalogue {
         groupSize = 3, maxGroupSize = 8,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 8f,
         daysWithoutWater = 3, waterFromFood = 0.5f,
-        birthMonth = 1, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
-        backgroundMortality = 0.15f, snowLimitMm = 400f, flightKm = 0.3f, dangerToHumans = 0.2f,
+        birthMonth = 4, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
+        backgroundMortality = 0.15f, youngMortality = 0.4f, snowLimitMm = 400f,
         products = Products(meat = 9f, fat = 0.4f, hide = 1.5f, bone = 2.2f, sinew = 0.2f, fur = true),
         comfortC = -20f..30f, winterCoat = true,
         speedKmh = 60f,
@@ -228,7 +230,7 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.5f, 0.6f, 0.4f, 0.6f, 0.9f), // became the dog
         packLitter = 4,
         stalking = 0.3f,
-        startKm2PerAnimal = 400f,
+        startKm2PerAnimal = 50f,
         followsPeople = true,
     )
 
@@ -243,8 +245,8 @@ object Catalogue {
         groupSize = 5, maxGroupSize = 12,
         dailyTravelKm = 12f, maxDailyTravelKm = 30f, senseKm = 8f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
-        birthMonth = 2, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 3f,
-        backgroundMortality = 0.1f, snowLimitMm = 200f, flightKm = 0.2f, dangerToHumans = 0.9f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 3f,
+        backgroundMortality = 0.1f, youngMortality = 0.4f, snowLimitMm = 200f,
         products = Products(meat = 60f, fat = 5f, hide = 8f, bone = 18f, sinew = 1f, fur = true),
         comfortC = 0f..38f, 
         speedKmh = 60f,
@@ -253,8 +255,7 @@ object Catalogue {
         packLitter = 3,
         stalking = 0.7f,
         ferocity = 1.2f,
-        territoryKm = 6f,
-        startKm2PerAnimal = 400f,
+        startKm2PerAnimal = 50f,
     )
 
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
@@ -265,8 +266,8 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 6f, maxDailyTravelKm = 20f, senseKm = 4f,
         daysWithoutWater = 6, waterFromFood = 0.8f,
-        birthMonth = 3, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.07f, snowLimitMm = 300f, flightKm = 0.3f, dangerToHumans = 0.4f,
+        birthMonth = 6, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 2.5f,
+        backgroundMortality = 0.07f, youngMortality = 0.4f, snowLimitMm = 300f,
         products = Products(meat = 18f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = -8f..35f, 
         speedKmh = 58f,
@@ -275,8 +276,7 @@ object Catalogue {
         packLitter = 3,
         stalking = 1f,
         ferocity = 1.1f,
-        territoryKm = 5f,
-        startKm2PerAnimal = 400f,
+        startKm2PerAnimal = 50f,
     )
 
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
@@ -287,8 +287,8 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 5,
         dailyTravelKm = 12f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
-        birthMonth = 2, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
-        backgroundMortality = 0.07f, snowLimitMm = 200f, flightKm = 0.5f, dangerToHumans = 0.1f,
+        birthMonth = 5, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
+        backgroundMortality = 0.07f, youngMortality = 0.3f, snowLimitMm = 200f,
         products = Products(meat = 14f, fat = 1f, hide = 2.5f, bone = 4f, sinew = 0.2f, fur = true),
         comfortC = 0f..38f, 
         speedKmh = 50f,
@@ -297,8 +297,7 @@ object Catalogue {
         packLitter = 3,
         stalking = 0.2f,
         ferocity = 1.4f,
-        territoryKm = 5f,
-        startKm2PerAnimal = 500f,
+        startKm2PerAnimal = 50f,
     )
 
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
@@ -309,8 +308,8 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 6,
         dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 4f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
-        birthMonth = 2, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 1f,
-        backgroundMortality = 0.25f, snowLimitMm = 150f, flightKm = 0.5f, dangerToHumans = 0f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 1f,
+        backgroundMortality = 0.25f, youngMortality = 0.4f, snowLimitMm = 150f,
         products = Products(meat = 4f, fat = 0.2f, hide = 0.6f, bone = 1f, sinew = 0.1f, fur = true),
         comfortC = -5f..38f, winterCoat = true,
         speedKmh = 45f,
@@ -319,8 +318,7 @@ object Catalogue {
         packLitter = 4,
         stalking = 0.4f,
         ferocity = 0.8f,
-        territoryKm = 4f,
-        startKm2PerAnimal = 200f,
+        startKm2PerAnimal = 10f,
         followsPeople = true,
     )
 
@@ -337,8 +335,8 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 5,
         dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
-        birthMonth = 4, birthMonths = 1, youngPerFemale = 1.2f, yearsToMaturity = 2f,
-        backgroundMortality = 0.07f, snowLimitMm = 900f, flightKm = 0.2f, dangerToHumans = 0.4f,
+        birthMonth = 7, birthMonths = 1, youngPerFemale = 1.2f, yearsToMaturity = 2f,
+        backgroundMortality = 0.07f, snowLimitMm = 300f,
         products = Products(meat = 200f, fat = 15f, hide = 25f, bone = 45f, sinew = 3f, hornOrAntler = 15f),
         comfortC = -30f..17f, winterCoat = true,
         speedKmh = 55f,
@@ -353,12 +351,12 @@ object Catalogue {
      */
     val REINDEER = Species(
         name = "reindeer", massKg = 100f,
-        diet = Diet(grass = 0.6f, browse = 0.4f),
+        diet = Diet(grass = 0.6f, browse = 0.4f), eatsLichen = true,
         groupSize = 20, maxGroupSize = 200,
         dailyTravelKm = 10f, maxDailyTravelKm = 50f, senseKm = 3f,
         daysWithoutWater = 4, waterFromFood = 0.7f,
-        birthMonth = 4, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, snowLimitMm = 800f, flightKm = 0.4f, dangerToHumans = 0.05f,
+        birthMonth = 7, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, snowLimitMm = 300f,
         products = Products(meat = 45f, fat = 6f, hide = 6f, bone = 10f, sinew = 1f, hornOrAntler = 4f, fur = true),
         comfortC = -40f..13f, winterCoat = true,
         speedKmh = 75f,
@@ -378,9 +376,10 @@ object Catalogue {
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 10, maxGroupSize = 25,
         dailyTravelKm = 12f, maxDailyTravelKm = 50f, senseKm = 3f,
-        daysWithoutWater = 2, waterFromFood = 0.3f,
-        birthMonth = 3, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.06f, snowLimitMm = 250f, flightKm = 0.8f, dangerToHumans = 0.1f,
+        // Steppe horses drink once a day or two but go three days between waterholes in a pinch.
+        daysWithoutWater = 3, waterFromFood = 0.3f,
+        birthMonth = 6, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2.5f,
+        backgroundMortality = 0.06f, snowLimitMm = 250f,
         products = Products(meat = 140f, fat = 10f, hide = 18f, bone = 30f, sinew = 2f),
         comfortC = -25f..30f, winterCoat = true,
         speedKmh = 70f,
@@ -388,6 +387,7 @@ object Catalogue {
         domestication = floatArrayOf(0.8f, 0.5f, 0.6f, 0.5f, 0.6f, 0.8f), // became the horse
         habitat = Habitat(cover = -0.8f, rugged = -0.2f),
         defence = 0.4f,
+        hindgut = true,
     )
 
     /**
@@ -401,8 +401,8 @@ object Catalogue {
         groupSize = 10, maxGroupSize = 40,
         dailyTravelKm = 5f, maxDailyTravelKm = 25f, senseKm = 3f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
-        birthMonth = 2, birthMonths = 1, youngPerFemale = 1.2f, yearsToMaturity = 2f,
-        backgroundMortality = 0.12f, snowLimitMm = 200f, flightKm = 0.6f, dangerToHumans = 0f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 1.2f, yearsToMaturity = 2f,
+        backgroundMortality = 0.12f, snowLimitMm = 80f,
         products = Products(meat = 18f, fat = 2f, hide = 3f, bone = 5f, sinew = 0.3f, hornOrAntler = 2f),
         comfortC = -15f..32f, winterCoat = true,
         speedKmh = 55f,
@@ -424,8 +424,8 @@ object Catalogue {
         groupSize = 10, maxGroupSize = 30,
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 4f,
         daysWithoutWater = 30, waterFromFood = 0.95f,
-        birthMonth = 0, birthMonths = 6, youngPerFemale = 0.8f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.08f, snowLimitMm = 20f, flightKm = 0.8f, dangerToHumans = 0.1f,
+        birthMonth = 3, birthMonths = 6, youngPerFemale = 0.8f, yearsToMaturity = 2.5f,
+        backgroundMortality = 0.08f, snowLimitMm = 20f,
         products = Products(meat = 30f, fat = 2f, hide = 5f, bone = 8f, sinew = 0.6f, hornOrAntler = 2f),
         comfortC = 8f..45f,
         speedKmh = 60f,
@@ -447,9 +447,9 @@ object Catalogue {
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
         daysWithoutWater = 7, waterFromFood = 0.8f,
         // A hen lays 10-20 eggs; about three chicks a hen live through their first weeks.
-        birthMonth = 2, birthMonths = 3, youngPerFemale = 3f, yearsToMaturity = 3f,
+        birthMonth = 5, birthMonths = 3, youngPerFemale = 3f, yearsToMaturity = 3f,
         backgroundMortality = 0.07f, youngMortality = 0.7f,
-        snowLimitMm = 30f, flightKm = 1f, dangerToHumans = 0.2f,
+        snowLimitMm = 30f,
         products = Products(meat = 50f, fat = 3f, hide = 10f, bone = 10f, sinew = 1f),
         comfortC = 5f..45f,
         speedKmh = 70f,
@@ -458,6 +458,7 @@ object Catalogue {
         habitat = Habitat(cover = -1f, wet = -0.5f),
         defence = 0.4f,
         fibreDigestion = 0.5f, // a bird's short gut gets little from straw
+        hindgut = true, // ostriches ferment in a long hindgut and, like horses, eat more of poor forage
     )
 
     /** Bubal hartebeest: a grazer of dry grassland and semi-desert edges, in herds; kept by the Egyptians. */
@@ -466,9 +467,9 @@ object Catalogue {
         diet = Diet(grass = 0.95f, browse = 0.05f),
         groupSize = 12, maxGroupSize = 40,
         dailyTravelKm = 8f, maxDailyTravelKm = 40f, senseKm = 3f,
-        daysWithoutWater = 3, waterFromFood = 0.4f,
-        birthMonth = 1, birthMonths = 2, youngPerFemale = 0.8f, yearsToMaturity = 2f,
-        backgroundMortality = 0.08f, snowLimitMm = 30f, flightKm = 0.6f, dangerToHumans = 0.05f,
+        daysWithoutWater = 5, waterFromFood = 0.5f, // goes days without drinking where the grass is green
+        birthMonth = 4, birthMonths = 2, youngPerFemale = 0.8f, yearsToMaturity = 2f,
+        backgroundMortality = 0.08f, snowLimitMm = 30f,
         products = Products(meat = 70f, fat = 4f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 2f),
         comfortC = 5f..40f,
         speedKmh = 70f,
@@ -487,8 +488,8 @@ object Catalogue {
         groupSize = 8, maxGroupSize = 20,
         dailyTravelKm = 15f, maxDailyTravelKm = 60f, senseKm = 4f,
         daysWithoutWater = 14, waterFromFood = 0.5f,
-        birthMonth = 11, birthMonths = 3, youngPerFemale = 0.4f, yearsToMaturity = 4f,
-        backgroundMortality = 0.05f, snowLimitMm = 40f, flightKm = 0.5f, dangerToHumans = 0.2f,
+        birthMonth = 2, birthMonths = 3, youngPerFemale = 0.4f, yearsToMaturity = 4f,
+        backgroundMortality = 0.05f, snowLimitMm = 40f,
         products = Products(meat = 200f, fat = 40f, hide = 30f, bone = 50f, sinew = 3f),
         comfortC = 5f..48f,
         speedKmh = 60f,
@@ -496,6 +497,7 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.3f, 0.5f, 0.6f, 0.6f, 0.7f), // became the camel
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.5f),
         defence = 0.6f,
+        fibreDigestion = 1.5f, // a camel keeps coarse food long in its foregut and gets more from it than cattle do
     )
 
     /**
@@ -509,8 +511,8 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 6f,
         daysWithoutWater = 10, waterFromFood = 0.8f,
-        birthMonth = 2, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, snowLimitMm = 50f, flightKm = 0.3f, dangerToHumans = 0.05f,
+        birthMonth = 5, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, youngMortality = 0.4f, snowLimitMm = 50f,
         products = Products(meat = 20f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = 3f..42f,
         speedKmh = 105f,
@@ -519,8 +521,7 @@ object Catalogue {
         packLitter = 3,
         stalking = 0.3f,
         ferocity = 0.6f,
-        territoryKm = 8f,
-        startKm2PerAnimal = 600f,
+        startKm2PerAnimal = 100f,
     )
 
     // ---------------------------------------------------------------- people
@@ -542,9 +543,13 @@ object Catalogue {
         groupSize = 25, maxGroupSize = 50,
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 3, waterFromFood = 0.2f,
-        birthMonth = 0, birthMonths = 12, youngPerFemale = 0.22f, yearsToMaturity = 15f, // a birth every 4–5 years
-        backgroundMortality = 0.02f, youngMortality = 0.05f, // about half of children reach fifteen
-        snowLimitMm = 600f, flightKm = 0.2f, dangerToHumans = 0f,
+        birthMonth = 3, birthMonths = 12, youngPerFemale = 0.22f, yearsToMaturity = 15f, // a birth every 4–5 years
+        // Children's ordinary deaths (fevers, gut infections, accidents): about 60% would reach fifteen
+        // on these alone. Hunger, thirst, cold, crowding sickness, fouled camps, inbreeding, raids and
+        // predators come on top, each modelled, for the 55-65% foragers see in all (Hill and Hurtado,
+        // Gurven and Kaplan, from memory).
+        backgroundMortality = 0.0035f, youngMortality = 0.0175f,
+        snowLimitMm = 600f,
         products = Products(meat = 25f, fat = 4f, hide = 0f, bone = 7f, sinew = 0f),
         comfortC = -5f..35f, winterCoat = true, // clothes and fire
         speedKmh = 45f, // with thrown spears and arrows a chase is short
@@ -554,7 +559,6 @@ object Catalogue {
         defence = 0.7f,
         stalking = 0.6f,
         ferocity = 1.5f, // spears, numbers and fire: lions and hyenas give way
-        territoryKm = 10f,
         startKm2PerAnimal = 40f,
         human = true,
         intakeKg = 1.6f,

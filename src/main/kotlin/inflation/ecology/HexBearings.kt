@@ -1,7 +1,6 @@
 package inflation.ecology
 
 import inflation.world.HexWorld
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -40,6 +39,9 @@ class HexBearings(
     /** Month the bearings were last worked out for. */
     var month = -1; private set
 
+    /** Forgets the month worked out, so the next update works it out again (after a saved world is loaded). */
+    fun forget() { month = -1 }
+
     private val cx = DoubleArray(size); private val cy = DoubleArray(size)
     /** Hexes within [NEAR_KM] of each land hex. */
     private val near: Array<IntArray>
@@ -59,7 +61,7 @@ class HexBearings(
             val out = ArrayList<Int>()
             for (rr in max(0, row - r)..min(hex.rows - 1, row + r)) for (cc in max(0, col - r - 1)..min(hex.cols - 1, col + r + 1)) {
                 val q = rr * hex.cols + cc
-                if (hex.heart[q] >= 0 && hypot(cx[q] - cx[h], cy[q] - cy[h]) <= km) out += q
+                if (hex.heart[q] >= 0 && len(cx[q] - cx[h], cy[q] - cy[h]) <= km) out += q
             }
             return out.toIntArray()
         }
@@ -69,7 +71,7 @@ class HexBearings(
         nearE = Array(size) { FloatArray(near[it].size) }; nearS = Array(size) { FloatArray(near[it].size) }; nearW = Array(size) { FloatArray(near[it].size) }
         land.parallelStream().forEach { h ->
             for ((i, q) in near[h].withIndex()) {
-                val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]; val d = hypot(dx, dy)
+                val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]; val d = len(dx, dy)
                 val wt = 1.0 / (1.0 + d / FADE_KM)
                 nearE[h][i] = (wt * dx / d).toFloat(); nearS[h][i] = (wt * dy / d).toFloat(); nearW[h][i] = wt.toFloat()
             }
@@ -84,7 +86,7 @@ class HexBearings(
         land.parallelStream().forEach { h ->
             val eye = hw.elevationM[h]
             inSight[h] = peaks.filter { pk ->
-                val d = hypot(cx[pk] - cx[h], cy[pk] - cy[h])
+                val d = len(cx[pk] - cx[h], cy[pk] - cy[h])
                 d > NEAR_KM && d <= min(FAR_KM, 3.57 * sqrt(max(0f, top[pk] - eye).toDouble()))
             }.toIntArray()
         }
@@ -99,7 +101,7 @@ class HexBearings(
                 val q = rr * hex.cols + cc
                 if (hex.heart[q] < 0) continue
                 val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]
-                if (hypot(dx, dy) > CLIMATE_KM) continue
+                if (len(dx, dy) > CLIMATE_KM) continue
                 // Sea-level temperature, so that the mountains do not hide the lie of the land.
                 val t = meanT[q] + 6.5e-3 * hw.elevationM[q]
                 sxx += dx * dx; sxy += dx * dy; syy += dy * dy; sxt += dx * t; syt += dy * t
@@ -107,7 +109,7 @@ class HexBearings(
             val det = sxx * syy - sxy * sxy
             if (det > 1e-6) {
                 val ge = (syy * sxt - sxy * syt) / det; val gs = (sxx * syt - sxy * sxt) / det
-                val len = hypot(ge, gs)
+                val len = len(ge, gs)
                 if (len > 1e-6) { warmerE[h] = (ge / len).toFloat(); warmerS[h] = (gs / len).toFloat() }
             }
         }
@@ -148,14 +150,14 @@ class HexBearings(
                     val gain = top - here
                     if (gain <= 0f) continue
                     best = max(best, top)
-                    val dx = cx[pk] - cx[h]; val dy = cy[pk] - cy[h]; val d = hypot(dx, dy)
+                    val dx = cx[pk] - cx[h]; val dy = cy[pk] - cy[h]; val d = len(dx, dy)
                     val wt = 1.0 / (1.0 + d / FADE_KM)
                     ve += (gain * wt * dx / d).toFloat(); vs += (gain * wt * dy / d).toFloat(); w += wt.toFloat()
                 }
                 // The way: the weighed mean way to better places. How strongly: how far short of the best
                 // it knows of here falls, so that a kind far out of its country feels it keenly.
                 var e = 0f; var so = 0f
-                val len0 = hypot(ve, vs)
+                val len0 = len(ve, vs)
                 if (w > 0f && len0 > 0f && best > 0f) {
                     val keen = (best - here) / best
                     e = ve / len0 * keen; so = vs / len0 * keen
@@ -165,7 +167,7 @@ class HexBearings(
                 val cold = min(1f, s.coldC(t, m) / 10f)
                 val hot = min(1f, max(0f, t - s.comfortC.endInclusive) / 10f)
                 e += INSTINCT * (cold - hot) * warmerE[h]; so += INSTINCT * (cold - hot) * warmerS[h]
-                val len = hypot(e, so)
+                val len = len(e, so)
                 if (len > 1f) { e /= len; so /= len }
                 be[h] = e; bs[h] = so
             }
@@ -177,7 +179,7 @@ class HexBearings(
         ((east[k][from] * (cx[to] - cx[from]) + south[k][from] * (cy[to] - cy[from])) / km).toFloat()
 
     /** The bearing's strength for kind [k] at hex [h], 0..1. */
-    fun strength(k: Int, h: Int): Float = hypot(east[k][h], south[k][h])
+    fun strength(k: Int, h: Int): Float = len(east[k][h], south[k][h])
 
     companion object {
         /** For comparison runs: -Dhex.noBearings leaves every kind without a sense of direction. */
@@ -195,3 +197,7 @@ class HexBearings(
         const val INSTINCT = 0.5f
     }
 }
+
+/** Length of a vector: as hypot, without its care for overflow, which costs here. */
+private fun len(a: Double, b: Double) = sqrt(a * a + b * b)
+private fun len(a: Float, b: Float) = sqrt(a * a + b * b)

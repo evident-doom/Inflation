@@ -73,7 +73,7 @@ object HexLearning {
             val b = buffers.get()
             var best = 0; var bestV = Float.NEGATIVE_INFINITY
             for ((k, f) in features.withIndex()) {
-                f.copyInto(b.a[0])
+                f.copyInto(b.a[0], 0, 0, minOf(f.size, b.a[0].size))
                 val v = net.forward(b) + 0.01f * (ThreadLocalRandom.current().nextFloat() - 0.5f)
                 if (v > bestV) { bestV = v; best = k }
             }
@@ -182,6 +182,7 @@ object HexImitate {
         var years = 3
         var out = File("hex-policies")
         var hunters = emptyList<Species>()
+        var people = false
         var k = 0
         while (k < args.size) {
             when (args[k]) {
@@ -190,12 +191,14 @@ object HexImitate {
                 "--years" -> years = args[++k].toInt()
                 "--out" -> out = File(args[++k])
                 "--hunters" -> hunters = Catalogue.predators.filter { !it.human }
+                "--people" -> people = true
                 else -> error("unknown argument ${args[k]}")
             }
             k++
         }
-        val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory }
-        val run = HexLearning.Run(cfg, kinds + hunters, mountains = true)
+        // With --people, the bands' moves are copied too (and only theirs).
+        val kinds = if (people) listOf(Catalogue.HUMAN) else Catalogue.herbivores.filter { it in Catalogue.migratory }
+        val run = HexLearning.Run(cfg, (Catalogue.herbivores.filter { it in Catalogue.migratory } + hunters + kinds).distinct(), mountains = true)
         val recorder = HexLearning.Recorder()
         for (s in kinds) run.groups.policies[s] = recorder
         repeat(years * Date.DAYS_PER_YEAR / cfg.daysPerStep) { run.step() }
@@ -253,7 +256,8 @@ object HexEvolve {
             k++
         }
         out.mkdirs()
-        val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory && HexLearning.file(start, it).exists() }
+        // Every kind with a network in the start directory evolves: the migratory herds, and people.
+        val kinds = (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.HUMAN).filter { HexLearning.file(start, it).exists() }
         val centres = kinds.associateWith { s -> Mlp.load((HexLearning.file(out, s).takeIf { it.exists() } ?: HexLearning.file(start, s)).readText()) }
         val adams = kinds.associateWith { Adam(centres.getValue(it).w.size, rate) }
         val log = File(out, "log.txt")
@@ -281,8 +285,8 @@ object HexEvolve {
                 val grad = FloatArray(centre.w.size)
                 for (i in 0 until pairs) { val d = ranks[2 * i] - ranks[2 * i + 1]; val e = eps.getValue(s)[i]; for (j in grad.indices) grad[j] -= (d * e[j] / (2 * pairs * sigma)).toFloat() }
                 adams.getValue(s).step(centre.w, grad)
-                centre.save(HexLearning.file(out, s))
-                if (gen % 10 == 9) centre.save(HexLearning.file(File(out, "gen${gen + 1}").also { it.mkdirs() }, s))
+                Schema.save(centre, HexLearning.file(out, s), Schema.TEACHER_IN, Schema.MOVER_OUT)
+                if (gen % 10 == 9) Schema.save(centre, HexLearning.file(File(out, "gen${gen + 1}").also { it.mkdirs() }, s), Schema.TEACHER_IN, Schema.MOVER_OUT)
                 parts += "%s %.2f/%.2f".format(s.name, fitness.take(2 * pairs).average(), fitness.last())
             }
             val line = "gen %d  %.0f s  fitness mean/centre: %s  | %s".format(gen, (System.nanoTime() - t0) / 1e9, parts.joinToString(", "), results.joinToString("  ") { it.second })
@@ -292,7 +296,7 @@ object HexEvolve {
 
     /** One lean world for [years], each group of an evolving kind on one of its [variants]; animal-weeks per animal at the start. */
     fun evaluate(cfg: WorldConfig, years: Int, variants: Map<Species, Array<Mlp>>, hunters: List<Species> = emptyList()): Pair<Map<Species, DoubleArray>, String> {
-        val run = HexLearning.Run(cfg, variants.keys.toList() + hunters, mountains = true)
+        val run = HexLearning.Run(cfg, (Catalogue.herbivores.filter { it in Catalogue.migratory } + variants.keys + hunters).distinct(), mountains = true)
         val rnd = Random(cfg.seed)
         val started = variants.mapValues { DoubleArray(it.value.size) }
         for ((s, vs) in variants) run.groups.groups.filter { it.species == s }.shuffled(rnd).forEachIndexed { i, g -> g.tag = i % vs.size; started.getValue(s)[g.tag] += g.size.toDouble() }
@@ -344,7 +348,7 @@ object HexSeasons {
         }
         val kinds = Catalogue.herbivores.filter { it in Catalogue.migratory }
         val run = HexLearning.Run(cfg, kinds + hunters, mountains = true)
-        nets?.let { dir -> for (s in kinds) HexLearning.file(dir, s).takeIf { it.exists() }?.let { run.groups.policies[s] = HexLearning.NetPolicy(Mlp.load(it.readText())) } }
+        nets?.let { dir -> for (s in kinds) HexLearning.file(dir, s).takeIf { it.exists() }?.let { run.groups.policies[s] = HexLearning.NetPolicy(Schema.load(it, Schema.TEACHER_IN, Schema.MOVER_OUT)) } }
         val stepsPerMonth = Date.DAYS_PER_MONTH / cfg.daysPerStep
         println("month " + kinds.joinToString("") { "%18s".format(it.name.take(16)) })
         repeat(years * 12) { m ->
@@ -362,5 +366,127 @@ object HexSeasons {
                 "   count " + kinds.joinToString(" ") { "${run.groups.count(it)}" })
         }
         println("at the end: " + kinds.joinToString(", ") { "${it.name} ${run.groups.count(it)}" })
+    }
+}
+
+/** Sets bands' ways with a network: inputs as [bandInputs], outputs as [setWays]. */
+class NetWays(private val net: Mlp) : inflation.ecology.BandWays {
+    private val buffers = ThreadLocal.withInitial { net.buffers() }
+    override fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) {
+        val b = buffers.get()
+        inputs.copyInto(b.a[0])
+        net.forwardAll(b).copyInto(out)
+    }
+}
+
+/**
+ * Evolves the bands' ways (their effort on each food, the stores they aim for, what they make
+ * first) on small worlds with all the animals: each generation, the bands are dealt variants of
+ * the network round-robin, and each variant is scored by the person-weeks its bands live, per
+ * person at the start. It starts from the scaffold (a network of zeros chooses exactly as it does).
+ *
+ * Usage: hex-evolve-ways [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--hidden N] [--nets DIR]
+ *
+ * With --nets, every kind moves by the learned role networks in DIR (herds.mlp, hunters.mlp,
+ * people.mlp, each with its .identity, as [HexPpo] writes them) instead of the hand-written choices.
+ */
+object HexEvolveWays {
+    /** The learned movers, by role, when given. */
+    private var movers: List<SharedMover>? = null
+    @JvmStatic
+    fun main(args: Array<String>) {
+        var out = File("hex-ways")
+        var seeds = listOf(81L, 82L, 83L, 84L, 85L, 86L, 87L, 88L)
+        var size = 600
+        var years = 5
+        var gens = 1000
+        var pairs = 8
+        var sigma = 0.05f
+        var rate = 0.02f
+        var hidden = 16
+        var checkSeeds = listOf(91L, 92L, 93L, 94L, 95L, 96L, 97L, 98L)
+        var k = 0
+        while (k < args.size) {
+            when (args[k]) {
+                "--out" -> out = File(args[++k])
+                "--seeds" -> seeds = args[++k].split(",").map { it.toLong() }
+                "--size" -> size = args[++k].toInt()
+                "--years" -> years = args[++k].toInt()
+                "--gens" -> gens = args[++k].toInt()
+                "--pairs" -> pairs = args[++k].toInt()
+                "--sigma" -> sigma = args[++k].toFloat()
+                "--rate" -> rate = args[++k].toFloat()
+                "--hidden" -> hidden = args[++k].toInt()
+                "--nets" -> { val dir = File(args[++k]); movers = HexPpo.ROLES.map { SharedMover.load(File(dir, "$it.mlp").also { f -> require(f.exists()) { "no $f" } }) } }
+                else -> error("unknown argument ${args[k]}")
+            }
+            k++
+        }
+        out.mkdirs()
+        val file = File(out, "ways.mlp")
+        // A network of zeros in its last layer chooses as the scaffold does; the hidden layer starts small and random.
+        val centre = if (file.exists()) Schema.load(file, Schema.WAYS_IN, Schema.WAYS_OUT) else Mlp.random(intArrayOf(inflation.ecology.WAYS_IN, hidden, inflation.ecology.WAYS_OUT), Random(1)).also { m ->
+            val last = Mlp.count(intArrayOf(inflation.ecology.WAYS_IN, hidden)); for (i in last until m.w.size) m.w[i] = 0f
+        }
+        val adam = Adam(centre.w.size, rate)
+        val log = File(out, "log.txt")
+        val firstGen = if (log.exists()) log.readLines().count { it.startsWith("gen ") } else 0
+        val nv = 2 * pairs + 1
+        for (gen in firstGen until firstGen + gens) {
+            val t0 = System.nanoTime()
+            val rnd = Random(gen * 7919L + 17)
+            val eps = Array(pairs) { FloatArray(centre.w.size) { gaussian(rnd) } }
+            val variants = Array(nv) { v ->
+                val m = centre.copy()
+                if (v < 2 * pairs) { val sign = if (v % 2 == 0) 1f else -1f; val e = eps[v / 2]; for (i in m.w.indices) m.w[i] += sign * sigma * e[i] }
+                m
+            }
+            val results = seeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed + 1000L * gen, widthKm = size, heightKm = size), years, variants) }.toList()
+            val fitness = DoubleArray(nv)
+            for (r in results) for (v in 0 until nv) fitness[v] += r.first[v] / results.size
+            val order = (0 until 2 * pairs).sortedBy { fitness[it] }
+            val ranks = DoubleArray(2 * pairs); order.forEachIndexed { rank, i -> ranks[i] = rank.toDouble() / (2 * pairs - 1) - 0.5 }
+            val grad = FloatArray(centre.w.size)
+            for (i in 0 until pairs) { val d = ranks[2 * i] - ranks[2 * i + 1]; val e = eps[i]; for (j in grad.indices) grad[j] -= (d * e[j] / (2 * pairs * sigma)).toFloat() }
+            adam.step(centre.w, grad)
+            Schema.save(centre, file, Schema.WAYS_IN, Schema.WAYS_OUT)
+            if (gen % 10 == 9) {
+                Schema.save(centre, File(File(out, "gen${gen + 1}").also { it.mkdirs() }, "ways.mlp"), Schema.WAYS_IN, Schema.WAYS_OUT)
+                // Against the scaffold on the same fixed worlds: the centre's bands and scaffold bands side by side.
+                val scaffold = centre.copy().also { m -> val last = Mlp.count(intArrayOf(m.sizes[0], m.sizes[1])); for (i in last until m.w.size) m.w[i] = 0f }
+                val check = checkSeeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed, widthKm = size, heightKm = size), years, arrayOf(scaffold, centre)).first }.toList()
+                val vs = "check gen %d: scaffold %.3f, learned %.3f".format(gen + 1, check.map { it[0] }.average(), check.map { it[1] }.average())
+                println(vs); File(out, "check.txt").appendText(vs + "\n")
+            }
+            val line = "gen %d  %.0f s  fitness mean/centre: %.3f/%.3f  | %s".format(gen, (System.nanoTime() - t0) / 1e9, fitness.take(2 * pairs).average(), fitness.last(), results.joinToString("  ") { it.second })
+            println(line); log.appendText(line + "\n")
+        }
+    }
+
+    /** One small world with all the animals for [years], each band on one of [variants]; person-weeks per person at the start. */
+    fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
+        val run = HexLearning.Run(cfg, Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }.distinct())
+        movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[HexPpo.role(s)] }
+        val rnd = Random(cfg.seed)
+        val people = Catalogue.HUMAN
+        val started = DoubleArray(variants.size)
+        run.groups.groups.filter { it.species == people }.shuffled(rnd).forEachIndexed { i, g -> g.tag = i % variants.size; started[g.tag] += g.size.toDouble() }
+        val nets = variants.map { NetWays(it) }
+        run.groups.ways = inflation.ecology.BandWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
+        val weeks = DoubleArray(variants.size)
+        val start = run.groups.count(people)
+        val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
+        repeat(steps) {
+            run.step()
+            for (g in run.groups.groups) if (g.alive && g.tag >= 0 && g.species == people && g.tag < weeks.size) weeks[g.tag] += g.size.toDouble()
+        }
+        val fitness = DoubleArray(variants.size) { v -> if (started[v] == 0.0) 0.0 else weeks[v] / started[v] / steps }
+        return fitness to "seed ${cfg.seed}: people $start->${run.groups.count(people)}"
+    }
+
+    private fun gaussian(rnd: Random): Float {
+        var u: Double
+        do u = rnd.nextDouble() while (u <= 1e-12)
+        return (sqrt(-2.0 * ln(u)) * cos(2.0 * PI * rnd.nextDouble())).toFloat()
     }
 }

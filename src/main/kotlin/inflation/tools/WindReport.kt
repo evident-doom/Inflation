@@ -61,7 +61,7 @@ fun main(args: Array<String>) {
             logSum[i] += r; logSq[i] += r * r
         }
         val r = weather.regime
-        if (r !in saved && month in 6..10 && (r == Regime.WESTERLY || r == Regime.NORTHERLY || r == Regime.SOUTHERLY)) {
+        if (r !in saved && (month >= 9 || month <= 1) && (r == Regime.WESTERLY || r == Regime.NORTHERLY || r == Regime.SOUTHERLY)) {
             saved += r
             val img = Render.image(world) { i ->
                 if (world.isSea[i]) 0x1f3f6f

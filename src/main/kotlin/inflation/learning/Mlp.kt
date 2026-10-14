@@ -13,7 +13,6 @@ import kotlin.random.Random
  */
 class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
     init {
-        require(sizes.last() == 1) { "one output" }
         require(w.size == count(sizes))
     }
 
@@ -43,8 +42,11 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
         return b.a.last()[0]
     }
 
-    /** Adds to [grad] the gradient of the output times [dOut], after a [forward] on [b]. */
-    fun backward(b: Buffers, dOut: Float, grad: FloatArray) {
+    /** Runs the network on the input already written to `b.a[0]`; all its outputs are in `b.a.last()`. */
+    fun forwardAll(b: Buffers): FloatArray { forward(b); return b.a.last() }
+
+    /** Adds to [grad] the gradient of the (first) output times [dOut], after a [forward] on [b]. */
+    fun backward(b: Buffers, dOut: Float, grad: FloatArray, dInput: FloatArray? = null) {
         val offs = IntArray(sizes.size)
         for (l in 1 until sizes.size) offs[l] = offs[l - 1] + (if (l > 1) sizes[l - 2] * sizes[l - 1] + sizes[l - 1] else 0)
         b.d.last()[0] = dOut
@@ -52,7 +54,7 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
             val nIn = sizes[l - 1]; val nOut = sizes[l]
             val off = offs[l]
             val x = b.a[l - 1]; val dy = b.d[l]; val dx = b.d[l - 1]
-            if (l > 1) dx.fill(0f)
+            if (l > 1) dx.fill(0f) else dInput?.fill(0f)
             for (j in 0 until nOut) {
                 val g = dy[j]
                 if (g == 0f) continue
@@ -60,7 +62,7 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
                 val row = off + j * nIn
                 for (i in 0 until nIn) {
                     grad[row + i] += g * x[i]
-                    if (l > 1) dx[i] += g * w[row + i]
+                    if (l > 1) dx[i] += g * w[row + i] else if (dInput != null) dInput[i] += g * w[row + i]
                 }
             }
             // Through the tanh of the layer below.
