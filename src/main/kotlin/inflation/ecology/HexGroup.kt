@@ -28,8 +28,13 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     var tag = -1
     /** The month its young are born in, drifting towards the months that feed them best; -1 for its kind's. */
     var birthMonth = -1
-    /** For a band: food stored, kg (dried meat, nuts, acorns, seeds, roots); its skills, tools and camp. */
-    var larder = 0f
+    /** For a band: food on hand, kg, by kind ([Store]). */
+    val stores = FloatArray(Store.entries.size)
+    /** All food on hand, kg; setting it scales every kind alike (gifts, raids, splits), or stores it dried. */
+    var larder: Float
+        get() = stores.sum()
+        set(v) { val s = stores.sum(); if (s > 0f) { val k = kotlin.math.max(0f, v) / s; for (i in stores.indices) stores[i] *= k } else { stores.fill(0f); stores[Store.DRIED.ordinal] = kotlin.math.max(0f, v) } }
+    /** For a band: its skills, tools and camp. */
     var band: Band? = null
     /** For kinds that follow people's camps: the share of it bold enough to come close, 0..1 (-1 until first needed: its kind's share). */
     var bold = -1f

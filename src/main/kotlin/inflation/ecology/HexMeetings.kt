@@ -92,6 +92,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val rate = FloatArray(n); val kg = FloatArray(n); val time = FloatArray(n)
     var m = 0
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
+    // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
+    val aim = wantAll + if (band != null) max(0f, band.storeAim * g.dailyNeedKg - g.larder) * STORE_FILL else 0f
+    val plantKind = FloatArray(Store.entries.size)
+    var busy = 0f
     val spareYoung = band?.holds(Tradition.TABOO_YOUNG) == true
     // The odds a meeting with each kind ends in a kill, in each place on the way (they do not change within the week).
     val nk = fauna.kinds.size
@@ -110,7 +114,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
     for (pass in 0 until FORAGE_PASSES) {
-    val left = wantAll - (meat + smallGot + scraps + plants + fish)
+    val left = aim - (meat + smallGot + scraps + plants + fish)
     if (left <= 0.01f * wantAll) break
     m = 0
     fun offer(t: Int, k: Int, p: Int, r: Float, e: Float, h: Float) {
@@ -175,6 +179,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val i = order[r]
         val expected = days * rate[i] / spent * f
         val p = place[i]
+        if (type[i] != 0) busy += expected * time[i]
         when (type[i]) {
             0 -> {
                 val k = kind[i]; val ps = fauna.kinds[k]
@@ -183,6 +188,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 var kills1 = poisson(expected)
                 kills1 = min(kills1, (dens * area * 0.5f).toInt())
                 if (kills1 <= 0) continue
+                busy += kills1 * time[i]
                 val ny = if (spareYoung) 0 else (kills1 * fauna.young[k][p] / dens).toInt(); val na = kills1 - ny
                 fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
                 val young = min(0.3f * ps.massKg, kg[i])
@@ -199,7 +205,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             4, 5, 6, 7 -> {
                 val stock = when (type[i]) { 4 -> fauna.food.fruit; 5 -> fauna.food.roots; 6 -> fauna.food.seeds; else -> fauna.food.finds }
                 val m2 = land.areaKm2[p] * 1e6f
-                plants += fauna.food.take(stock, p, expected / m2) * m2
+                val took = fauna.food.take(stock, p, expected / m2) * m2
+                plants += took
+                plantKind[when (type[i]) { 5 -> Store.ROOTS; 6 -> Store.SEED; else -> Store.FRUIT }.ordinal] += took
             }
             8 -> fish += fauna.water.fishFor(p, expected, band?.fishing() ?: 1f)
         }
@@ -212,7 +220,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (fish > 0f) band.practise(Forage.FISH)
         hunting.merge("${s.name}:fish, kg", fish.toInt(), Int::plus)
     }
-    val meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
+    var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
     if (FORAGE_DIAG == s.name && rnd.nextFloat() < 0.003f) System.err.println("ate ${s.name} want $wantAll meat $meat small $smallGot scraps $scraps plants $plants fish $fish path ${g.path.size}")
     var eaten = meatEaten + smallGot + scraps + plants + fish
     hunting.merge("${s.name}:diet asked, kg", wantAll.toInt(), Int::plus)
@@ -220,34 +228,33 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     hunting.merge("${s.name}:diet small prey, kg", smallGot.toInt(), Int::plus)
     hunting.merge("${s.name}:diet carrion, kg", scraps.toInt(), Int::plus)
     hunting.merge("${s.name}:diet plants, kg", plants.toInt(), Int::plus)
-    if (s.human) { hunting.merge("${s.name}:meat eaten, kg", (meatEaten + fish + smallGot + scraps).toInt(), Int::plus); hunting.merge("${s.name}:plants eaten, kg", plants.toInt(), Int::plus) }
     var spare = meat - meatEaten
+    if (band != null) {
+        // This week's food: fresh meat and fish (small game and scraps with it), and plant food by kind.
+        val got = plantKind
+        got[Store.FRESH.ordinal] = meat + smallGot + scraps + fish
+        // Eaten in the order it spoils, this week's first, then from the stores.
+        var need = wantAll; var ateMeat = 0f
+        for (st in EAT_ORDER) { val e = min(need, got[st.ordinal]); got[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
+        for (st in EAT_ORDER) { val e = min(need, g.stores[st.ordinal]); g.stores[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
+        eaten = wantAll - need
+        hunting.merge("${s.name}:meat eaten, kg", ateMeat.toInt(), Int::plus); hunting.merge("${s.name}:plants eaten, kg", (eaten - ateMeat).toInt(), Int::plus)
+        // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
+        for (i in got.indices) g.stores[i] += got[i]
+        val spareDays = max(0f, days - busy)
+        val dried = min(g.stores[Store.FRESH.ordinal], spareDays * hands * band.skill(Forage.STORE) / DRY_DAYS_PER_KG)
+        if (dried > 0f) { g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(Forage.STORE) }
+        // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
+        val rotten = spoil(g.stores, weather.temperature[g.place])
+        small.carrion[g.place] += rotten / (land.areaKm2[g.place] * 1e6f)
+        spare = 0f; meatEaten = ateMeat
+    }
     // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
-    if (spare > 0f && g.fat < s.maxFatDays) {
+    if (spare > 0f && g.fat < s.maxFatDays && band == null) {
         val gorge = min(spare, FATTEN * wantAll)
         g.surplus = gorge / g.dailyNeedKg.coerceAtLeast(1e-3f)
         spare -= gorge
         small.dung[g.place] += HexSmallLife.DUNG * gorge / (land.areaKm2[g.place] * 1e6f)
-    }
-    if (band != null) {
-        // A band keeps a larder: meat it could not eat is dried, and in good weeks it gathers more
-        // nuts, acorns, seeds and roots than it needs and stores them; in lean weeks it lives on them.
-        // How much it can keep is its storing skill and its baskets.
-        val cap = LARDER_DAYS * g.dailyNeedKg * band.storeShare()
-        val dried = min(0.5f * spare, max(0f, cap - g.larder)); g.larder += dried; spare -= dried
-        if (eaten < wantAll && g.larder > 0f) { val draw = min(g.larder, wantAll - eaten); g.larder -= draw; eaten += draw }
-        else if (g.larder < cap) {
-            val room = min(cap - g.larder, g.dailyNeedKg * days)
-            var stored = 0f
-            fun gather(stock: FloatArray, q: Int, want: Float, seed: Boolean = false) = fauna.food.take(stock, q, min(want, band.gatherShare(seed) * stock[q]))
-            for (q in gatherAt) {
-                val want = room / gatherAt.size / (land.areaKm2[q] * 1e6f)
-                stored += (gather(fauna.food.seeds, q, 0.4f * want, true) + gather(fauna.food.fruit, q, 0.3f * want) + gather(fauna.food.roots, q, 0.3f * want)) * land.areaKm2[q] * 1e6f
-            }
-            g.larder += stored
-            if (stored + dried > 0f) band.practise(Forage.STORE)
-        }
-        g.larder *= 1f - LARDER_SPOIL
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
     // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
@@ -256,6 +263,18 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
 }
 
 private val FORAGE_DIAG = System.getProperty("hex.forageDiag")
+
+/** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost. */
+internal fun HexGroups.spoil(stores: FloatArray, t: Float): Float {
+    var lost = 0f
+    val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
+    for (st in Store.entries) {
+        val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f, st.lostWeekly * days / 7f)
+        val x = stores[st.ordinal] * share
+        stores[st.ordinal] -= x; lost += x
+    }
+    return lost
+}
 
 /** How readily [s] catches small game it comes on, 0..1: the smaller and nimbler the hunter, the better; cover hides the prey from all but stalkers. */
 internal fun smallCatch(s: Species) = SMALL_CATCH * min(1f, SMALL_HUNTER_KG / s.massKg)

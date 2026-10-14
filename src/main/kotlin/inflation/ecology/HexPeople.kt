@@ -80,8 +80,8 @@ const val CLOTHES_C = 10f
 /** Yearly chance a band hits on a tool it does not know, where it has use for it; chance a band that meets one that knows a tool learns it. */
 const val INVENT = 0.002f
 const val TEACH = 0.2f
-/** Days of food a band can carry when it moves camp; the rest is left. */
-const val CARRY_DAYS = 5f
+/** What an adult carries when the camp moves, besides children and gear, kg of food. */
+const val CARRY_KG = 15f
 /** Most that settled life with stores raises births (birth spacing about 4 years to under 3). */
 const val SETTLED_FERTILITY = 0.4f
 /** Extra yearly deaths among children in a camp kept for a year or more. */
@@ -98,8 +98,11 @@ class Band {
     var campHex = -1
     var campPlace = -1
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
-    var cacheKg = 0f
+    val cache = FloatArray(Store.entries.size)
+    val cacheKg get() = cache.sum()
     var cachePlace = -1
+    /** Its choices: days of food it aims to keep in store (the scaffold's; a learned policy sets its own). */
+    var storeAim = STORE_AIM_DAYS
     /** Hides, bone and sinew from the game it killed, what each kind yields (see [Species.products]). */
     fun skin(s: Species, n: Int) {
         goods[Material.HIDE.ordinal] += n * s.products.hide; goods[Material.BONE.ordinal] += n * s.products.bone; goods[Material.SINEW.ordinal] += n * s.products.sinew
@@ -157,8 +160,6 @@ class Band {
         return min(0.9f, GATHER_SHARE * skill(Forage.GATHER) * kit)
     }
 
-    /** Days of food its larder can hold, as a share of [LARDER_DAYS]: storing skill and baskets. */
-    fun storeShare() = skill(Forage.STORE) * (1f + BASKET_GAIN * has(Tool.BASKET)) / (1f + BASKET_GAIN)
 
     /** Small game and fish: snare lines and nets, in practised hands. */
     fun snares() = (1f + NET_GAIN * has(Tool.NET)) * skill(Forage.SMALL_GAME)
@@ -200,10 +201,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
         if (b.campHex >= 0) {
-            val carry = CARRY_DAYS * g.dailyNeedKg
-            if (g.larder > carry && b.campPlace >= 0) {
+            // What it can carry: its adults' loads, more with baskets and bags.
+            val carry = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
+            val total = g.larder
+            if (total > carry && b.campPlace >= 0) {
                 dropCache(b)
-                b.cacheKg = g.larder - carry; b.cachePlace = b.campPlace; g.larder = carry
+                val left = 1f - carry / total
+                for (i in g.stores.indices) { b.cache[i] = g.stores[i] * left; g.stores[i] -= b.cache[i] }
+                b.cachePlace = b.campPlace
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t.ordinal] = 0f
         }
@@ -212,11 +217,15 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     b.campPlace = p
     // A cache keeps, but not perfectly; back at it, the band takes up what it has room for.
     if (b.cachePlace >= 0) {
-        val spoilt = CACHE_SPOIL * b.cacheKg
-        b.cacheKg -= spoilt; small.litter[b.cachePlace] += spoilt / (land.areaKm2[b.cachePlace] * 1e6f)
+        // (A cache spoils as stores do, and mice and badgers get into it too.)
+        val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]]) + CACHE_SPOIL * b.cacheKg
+        for (i in b.cache.indices) b.cache[i] *= 1f - CACHE_SPOIL
+        small.litter[b.cachePlace] += spoilt / (land.areaKm2[b.cachePlace] * 1e6f)
         if (hw.placeHex[b.cachePlace] == h) {
-            val take = min(b.cacheKg, max(0f, LARDER_DAYS * g.dailyNeedKg * b.storeShare() - g.larder))
-            g.larder += take; b.cacheKg -= take
+            val room = max(0f, CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET)) - g.larder)
+            val take = min(b.cacheKg, room)
+            val share = if (b.cacheKg > 0f) take / b.cacheKg else 0f
+            for (i in b.cache.indices) { val x = b.cache[i] * share; b.cache[i] -= x; g.stores[i] += x }
             if (take > 0f) meetings.merge("bands back at a cache", 1, Int::plus)
         }
         if (b.cacheKg < 1f) dropCache(b)
@@ -309,7 +318,7 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
 /** Gives up a band's cache: what is in it goes back to the ground. */
 private fun HexGroups.dropCache(b: Band) {
     if (b.cachePlace >= 0) small.litter[b.cachePlace] += b.cacheKg / (land.areaKm2[b.cachePlace] * 1e6f)
-    b.cacheKg = 0f; b.cachePlace = -1
+    b.cache.fill(0f); b.cachePlace = -1
 }
 
 /**
@@ -404,3 +413,19 @@ internal fun stayCost(b: Band): Float {
     if (b.holds(Tradition.BURIAL) && b.campWeeks > 4) c -= BURIAL_STAY
     return c
 }
+
+/**
+ * Food on hand, by how it keeps: fresh meat and fish rot in days (faster in the heat), dried meat
+ * and fish keep for months, fruit for a week or two, roots for some weeks, seed and nuts for a year.
+ * [lostWeekly] is the share lost a week (fresh meat: see [spoil]); [meat] whether it counts as meat.
+ */
+enum class Store(val lostWeekly: Float, val meat: Boolean) {
+    FRESH(0f, true), DRIED(0.01f, true), FRUIT(0.1f, false), ROOTS(0.03f, false), SEED(0.005f, false)
+}
+/** The order a band eats its food in: what spoils first, first. */
+val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED)
+/** The scaffold's store: days of food a band aims to keep; share of the gap it works to close a week. */
+const val STORE_AIM_DAYS = 30f
+const val STORE_FILL = 0.25f
+/** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
+const val DRY_DAYS_PER_KG = 0.1f
