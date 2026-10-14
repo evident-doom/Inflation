@@ -496,6 +496,7 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.3f, 0.5f, 0.6f, 0.6f, 0.7f), // became the camel
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.5f),
         defence = 0.6f,
+        fibreDigestion = 1.5f, // a camel keeps coarse food long in its foregut and gets more from it than cattle do
     )
 
     /**

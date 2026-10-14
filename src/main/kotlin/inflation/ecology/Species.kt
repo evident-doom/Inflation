@@ -175,7 +175,7 @@ class Species(
 
 /** How much more (or less) than its need a plant-eater eats of forage of [quality] (0..1, 1 fresh and green). */
 fun gutFill(s: Species, quality: Float): Float =
-    if (s.hindgut) kotlin.math.min(HexFauna.GUT_FILL, 1f / quality.coerceAtLeast(1e-3f)) else kotlin.math.min(1f, 0.5f + 0.5f * quality / 0.8f)
+    if (s.hindgut) kotlin.math.min(HexFauna.GUT_FILL, 1f / quality.coerceAtLeast(1e-3f)) else kotlin.math.min(1f, 0.5f + 0.5f * quality / 0.8f * s.fibreDigestion)
 
 object Allometry {
     /**
