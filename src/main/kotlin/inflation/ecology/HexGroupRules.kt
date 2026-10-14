@@ -42,6 +42,17 @@ const val HERD_UNIT = 10
 /** Herds lean to sizes from this many times smaller to this many times larger than their kind's usual. */
 const val SIZE_PREF_RANGE = 3f
 /**
+ * The sides of a herd's size, against its kind's usual band: how its walking slows, how much less
+ * each attempt on it succeeds (many eyes, confusion), and how much less often its young are taken
+ * (they keep to the middle), each as a power of the bands it is; under how many bands a herd can lie
+ * hidden in cover, and how much of its being found the best cover saves a lone band.
+ */
+const val BIG_HERD_SLOW = 0.05f
+const val BIG_HERD_EYES = 0.15f
+const val BIG_HERD_SHELTERS = 0.3f
+const val SMALL_HERD_BANDS = 3f
+const val HIDE_IN_COVER = 0.6f
+/**
  * Migratory herds: how many times more of their bands one agent stands for, and how many times the
  * settled density they start at (goitered gazelle 0.5-5 a km² on good steppe; the long run had left
  * them at under 0.1). Both 1 for now (-Dhex.migrantUnit, -Dhex.migrantStart): at ten times the

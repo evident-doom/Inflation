@@ -10,6 +10,7 @@ import java.util.PriorityQueue
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -318,6 +319,8 @@ class HexGroups(
     internal fun sizeClass(g: HexGroup) = if (BY_LEANING) (if (g.sizePref < 0.6f) 0 else if (g.sizePref < 1.7f) 1 else 2) else (g.size.toFloat() / unitSize(g.species)).let { if (it < 1f) 0 else if (it < 3f) 1 else 2 }
     /** Compare herds by the size they lean to rather than the size they are (-Dhex.sizeByLeaning): a herd shrinks as it dies, so its size now is partly an effect. */
     private val BY_LEANING = System.getProperty("hex.sizeByLeaning") != null
+    /** How many of its kind's usual bands a herd is (1 or more). */
+    internal fun bandsIn(g: HexGroup) = max(1f, g.size.toFloat() / g.species.groupSize)
     internal fun unitSize(s: Species) = if (s.carnivore) s.groupSize else s.groupSize * herdUnit(s)
     /** How many of its usual bands a herd agent stands for: more for the migrants, whose herds gather in thousands. */
     internal fun herdUnit(s: Species) = if (s in Catalogue.migratory) HERD_UNIT * MIGRANT_UNIT else HERD_UNIT
@@ -367,7 +370,8 @@ class HexGroups(
         // (Herds content where they are weigh their places only one week in [CONTENT_WEEKS]: they stay while the grazing holds.)
         val every = if (s.carnivore) 2 else Tuning.contentWeeks
         if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
-        val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS
+        // (A big herd moves more slowly than a small one: it waits for its stragglers.)
+        val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS * (if (s.carnivore) 1f else bandsIn(g).pow(-BIG_HERD_SLOW))
         val ki = kindIndex[s] ?: 0
         val cross = hex.crossings[Catalogue.travel(s).ordinal]
         // Least effort to each hex within reach.

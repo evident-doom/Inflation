@@ -546,8 +546,10 @@ internal fun HexGroups.meetChance(a: HexGroup, b: HexGroup, p: Int, span: Float)
     // one of them as often as it would find any of so many herds (the bundling saves reckoning, and
     // must not hide the herds from the hunters).
     val herd = if (a.species.carnivore) b else a
-    val bands = max(1f, herd.size.toFloat() / herd.species.groupSize)
-    return 1f - (1f - one).pow(bands)
+    val bands = bandsIn(herd)
+    // A small herd can lie hidden in cover; a big one cannot.
+    val hidden = if (bands < SMALL_HERD_BANDS) HIDE_IN_COVER * Niches.shelter(herd.species, p, land) * (1f - bands / SMALL_HERD_BANDS) else 0f
+    return (1f - (1f - one).pow(bands)) * (1f - hidden)
 }
 
 /**
@@ -601,7 +603,8 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
     val catchable = catchable(hunter.species, herd.species, p, max(1, hunter.adults) * hunter.species.massKg)
     if (catchable < NOT_WORTH_TRYING) return
-    val chance = CATCH * SURPRISE * catchable * (1f - 0.5f * herd.wary) * (hunter.band?.huntEdge(herd.species) ?: 1f)
+    // (Many eyes see the hunters sooner, and one animal is hard to single out of a milling crowd.)
+    val chance = CATCH * SURPRISE * catchable * (1f - 0.5f * herd.wary) * (hunter.band?.huntEdge(herd.species) ?: 1f) * bandsIn(herd).pow(-BIG_HERD_EYES)
     hunter.band?.practise(Skill.HUNT)
     // By a kite, a band drives the herd between the walls and takes a large share of it at once.
     if (hunter.band != null && kites[p] >= 1f && herd.species in KITE_QUARRY) {
@@ -628,7 +631,8 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     for (attempt in 0 until tries) {
     if (attempt > 0 && hunter.meatMet >= need) break
     if (rnd.nextFloat() < chance && herd.adults > 0) {
-        if (herd.young > 0 && hunter.band?.holds(Tradition.TABOO_YOUNG) != true && rnd.nextFloat() < 0.5f) { herd.young--; hunter.meatMet += 0.3f * herd.species.massKg }
+        // (The young keep to the middle of a big herd, out of reach.)
+        if (herd.young > 0 && hunter.band?.holds(Tradition.TABOO_YOUNG) != true && rnd.nextFloat() < 0.5f * bandsIn(herd).pow(-BIG_HERD_SHELTERS)) { herd.young--; hunter.meatMet += 0.3f * herd.species.massKg }
         else {
             herd.adults--; hunter.meatMet += herd.species.massKg * meatShare(hunter.band); hunter.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
             hunter.band?.skin(herd.species, 1)
