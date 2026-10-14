@@ -101,7 +101,9 @@ class HexGroups(
             // At the density a long run showed it settles at, where there is one.
             val settled = Catalogue.settledPer1000Km2(s)?.takeIf { HexFauna.USE_SETTLED }
             val unit = unitSize(s)
-            val count = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()
+            // (The migrants start at [MIGRANT_START] times that: a long run left them far below the densities of the record.)
+            val more = if (s in Catalogue.migratory && !s.carnivore) MIGRANT_START else 1f
+            val count = if (settled != null) max(if (settled > 0f) 1 else 0, (more * settled * area / 1000f / unit).toInt()) else (more * area / per / unit).toInt()
             val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
             val total = weights.sum()
             repeat(count) {
@@ -294,7 +296,7 @@ class HexGroups(
         val birth = if (g.birthMonth >= 0) g.birthMonth else s.birthMonth
         val calving = (date.month - birth + 12) % 12 < s.birthMonths
         val flush = 1f + AGGREGATION * land.green[g.place] * g.fed
-        return max(unitSize(s), (s.maxGroupSize * HERD_UNIT * flush * (if (calving) 0.5f else 1f)).toInt())
+        return max(unitSize(s), (s.maxGroupSize * herdUnit(s) * flush * (if (calving) 0.5f else 1f)).toInt())
     }
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
@@ -311,7 +313,9 @@ class HexGroups(
     }
 
     /** A kind's usual group as an agent: herds move as units of [HERD_UNIT] of their usual bands. */
-    internal fun unitSize(s: Species) = if (s.carnivore) s.groupSize else s.groupSize * HERD_UNIT
+    internal fun unitSize(s: Species) = if (s.carnivore) s.groupSize else s.groupSize * herdUnit(s)
+    /** How many of its usual bands a herd agent stands for: more for the migrants, whose herds gather in thousands. */
+    internal fun herdUnit(s: Species) = if (s in Catalogue.migratory) HERD_UNIT * MIGRANT_UNIT else HERD_UNIT
 
     /** Choices made in planning, by kind: kept to its ground without weighing (content), weighed and stayed, weighed and moved. */
     val planCounts = java.util.concurrent.atomic.AtomicIntegerArray(64 * 3)

@@ -33,12 +33,20 @@ const val NOT_WORTH_TRYING = 0.05f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
 const val AVOID_STRONGER = 0.3f
 /** How many times its usual density a migratory herd bears where herds gather before crowding sickens it. */
-const val MIGRANTS_GATHER = 20f
+val MIGRANTS_GATHER = 20f * MIGRANT_UNIT
 /**
  * A herd agent stands for this many of its kind's usual bands (a gazelle herd of 120 rather than 12):
  * herds that move together are one agent, which keeps their numbers, and the step's cost, down.
  */
 const val HERD_UNIT = 10
+/**
+ * Migratory herds: how many times more of their bands one agent stands for, and how many times the
+ * settled density they start at (goitered gazelle 0.5-5 a km² on good steppe; the long run had left
+ * them at under 0.1). Both 1 for now (-Dhex.migrantUnit, -Dhex.migrantStart): at ten times the
+ * numbers, the herds starve back to where they were within ten years, so their food is the limit.
+ */
+val MIGRANT_UNIT = System.getProperty("hex.migrantUnit")?.toInt() ?: 1
+val MIGRANT_START = System.getProperty("hex.migrantStart")?.toFloat() ?: 1f
 /** A content herd weighs its places one week in this many (others keep to their ground unweighed). */
 const val CONTENT_WEEKS = 2
 /** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
