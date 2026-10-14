@@ -329,6 +329,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             flood[p] = if (floodShare[p] <= 0f || meanFlow[h] < RiverClass.STREAM.minDischarge) 0f else Channel.floodStageM(flow[h], meanFlow[h])
             // A flood soaks the floodplain's share of the place.
             if (flood[p] > 0f) soil[p] = max(soil[p], soilCap[p] * floodShare[p])
+            // Round fresh lakes and springs the water table is near the surface: deep roots (tamarisk,
+            // poplar, palms, reeds) reach it in the driest weeks, so their share of the place stays moist.
+            val edge = min(1f, nearLake[p] + nearSpring[p] * min(1f, groundwater[p] / groundwaterMean[p].coerceAtLeast(1e-3f)))
+            if (edge > 0f) soil[p] = max(soil[p], soilCap[p] * WATER_TABLE * edge)
         }
     }
 
@@ -484,6 +488,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
         const val DRY_VALUE = 0.65f
         const val PALATABLE_FLOOR = 0.5f
+        /** How moist the water table keeps the ground round fresh lakes and springs, as a share of a full soil. */
+        const val WATER_TABLE = 0.6f
         /** Share of the plants of each kind of country that are edible (see [palatable]). */
         val PALATABLE = mapOf(
             Biome.ALPINE_MEADOW to 0.7f, Biome.STEPPE to 0.7f, Biome.OPEN_WOODLAND to 0.6f, Biome.FLOODPLAIN_FOREST to 0.5f,
