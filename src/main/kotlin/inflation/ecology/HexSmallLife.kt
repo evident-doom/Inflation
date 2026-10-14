@@ -293,8 +293,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // Foxes and wildcats eat about a seventh of their weight a day, mostly rodents, then hares and
         // birds; they breed in spring as the food allows, and die back when it fails.
         val prey = rodents[p] + hares[p] + birds[p] + 0.03f * insects[p]
-        val need = foxes[p] * 0.15f * days
-        val got = min(need, 0.1f * prey)
+        val need = foxes[p] * FOX_INTAKE * days
+        val got = min(0.5f * prey, need * prey / (prey + FOX_HALF))
         if (got > 0f && prey > 0f) {
             val f = got / prey
             rodents[p] -= rodents[p] * f; hares[p] -= hares[p] * f; takeBirds(p, f)
@@ -306,7 +306,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val open = open(p)
             val prey = (hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]) * (0.3f + 0.7f * open)
             val need = eagles[p] * EAGLE_NEED * days
-            val got = min(need, 0.1f * prey)
+            val got = min(0.5f * prey, need * prey / (prey + EAGLE_HALF))
             val total = hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]
             if (got > 0f && total > 0f) {
                 val f = got / total
@@ -480,6 +480,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val MIGRANT_SURVIVAL = 0.7f
         /** Plant food small plant-eaters (hares, hyrax, game birds, tortoises) eat, kg a day per kg of them. */
         const val SMALL_INTAKE = 0.08f
+        /** Foxes and wildcats eat about a fourteenth of their weight a day; prey on the ground (kg/km²) at which they get half of it. */
+        const val FOX_INTAKE = 0.07f
+        const val FOX_HALF = 20f
+        /** Small prey out in the open (kg/km²) at which eagles get half of what they need. */
+        const val EAGLE_HALF = 5f
         /** Share of the difference with its neighbours a small animal population evens out every five weeks. */
         const val SPREAD = 0.2f
         /** Share of what herds and packs eat that comes back as dung. */

@@ -87,6 +87,9 @@ const val HUNGRY_LEAVE = 0.5f
 const val GIVE_UP_WEEKS = 4
 /** Chance a chase at a fully catchable quarry succeeds. */
 const val CATCH = 0.35f
+/** Time a kill takes, days: the chase and making the kill, and eating it at this many kg a day per kg of hunter. */
+const val HANDLING_DAYS = 0.3f
+const val EATING_RATE = 0.15f
 /** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */
 const val SEARCHING = 0.3f
 
@@ -96,6 +99,8 @@ fun HexGroups.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * S
 const val MEAT_SHARE = 0.6f
 const val HOME_ADVANTAGE = 1.5f
 const val RIVAL_KILL = 0.05f
+/** Share of a beaten pack's young the winners kill when they take its ground. */
+const val INFANTICIDE = 0.5f
 /** Most meetings settled one by one for a group in a week. */
 const val MAX_MEETINGS = 4
 /** Chance a herd in fully open country sees coursing hunters first; how much likelier a kill when hunters come unseen. */

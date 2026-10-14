@@ -100,7 +100,10 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
                 val ps = fauna.kinds[k]
                 val dens = fauna.adults[k][p] + fauna.young[k][p]
                 if (dens <= 0f || chance[k] <= 0f) continue
-                val expected = dens * swept * chance[k]
+                // Each kill takes time to make and eat, so kills level off where game is thick (Holling).
+                val handling = HANDLING_DAYS + ps.massKg * MEAT_SHARE / (packKg * EATING_RATE)
+                val found = dens * swept * chance[k]
+                val expected = found / (1f + found * handling / days)
                 val meat = ps.massKg * MEAT_SHARE
                 val wanted = ((target - got) / (0.6f * meat)).coerceAtLeast(0f)
                 var n = poisson(min(expected, wanted + 1f))
@@ -512,7 +515,15 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
     meetings.merge("packs fought", 1, Int::plus)
     val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
     if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) { loser.adults--; deaths.merge("${loser.species.name}:rivals", 1, Int::plus) }
-    if (loser.home == h) loser.home = -1
+    if (loser.home == h) {
+        loser.home = -1
+        // The winners take over the ground and kill the young they find there (as lions and wolves do).
+        if (loser.young > 0) {
+            val killed = binomial(loser.young, INFANTICIDE)
+            loser.young -= killed
+            if (killed > 0) deaths.merge("${loser.species.name}:young killed by rivals", killed, Int::plus)
+        }
+    }
     if (loser === a) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
 }
 

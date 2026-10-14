@@ -233,7 +233,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
         val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
         val disease = if (s.human) peopleSickness(g) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
-            else if (s.carnivore) 0f else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+            else if (s.carnivore) {
+                // Hunters catch mange, distemper and rabies from other packs of their kind crowding the same ground.
+                val others = max(0, (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) - g.size) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual)
+                HexFauna.DISEASE * others * others * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+            }
+            else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         g.wary *= WARY_KEEP
         // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
         val homeless = if (s.carnivore && !s.human && g.home < 0) DISPERSAL_DEATHS * years else 0f

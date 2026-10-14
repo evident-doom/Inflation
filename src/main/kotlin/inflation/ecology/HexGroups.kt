@@ -330,8 +330,10 @@ class HexGroups(
         val policy = policies[s]
         val candPlaces = ArrayList<Int>(); val candFeats = ArrayList<FloatArray>(); val candScores = ArrayList<Float>()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
-        // A hungry pack ranges wider: up to three times its usual ground after weeks of hunger.
-        val territory = territoryKm(s) * (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))
+        // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
+        // hungry pack ranges wider: up to three times that after weeks of hunger.
+        val homeValue = if (g.home >= 0) placeValue[ki][hw.placeOf[hw.placeBand[g.place]][g.home].takeIf { it >= 0 } ?: g.place] else PREY_HALF
+        val territory = territoryKm(s) * kotlin.math.sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f) * (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))
         val goalHex = if (goal >= 0) hw.placeHex[goal] else -1
         val fromHere = if (goal >= 0) hexKm(here, goalHex) else 0.0
         val pullKm = reach.toDouble().coerceAtLeast(hex.hexKm)
