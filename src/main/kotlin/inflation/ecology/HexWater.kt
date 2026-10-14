@@ -219,7 +219,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** This week's flows of sea and lake fish, tonnes: grown, died of age or hunger, eaten by each kind, drifted. */
     val fishFlows = java.util.concurrent.ConcurrentHashMap<String, Double>()
-    private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) fishFlows.merge(key, (kgPerKm2 * waterKm2[h] / 1000f).toDouble(), Double::plus) }
+    // (Summed in adders during the parallel loop, without contention, and written to [fishFlows] after it.)
+    private val flowAdders = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.DoubleAdder>()
+    private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { java.util.concurrent.atomic.DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble()) }
+    private val eatenBy = SEA.map { "eaten by ${it.name}" }
 
     fun step(weather: Weather) {
         fishFlows.clear()
@@ -298,6 +301,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         if (month in 3..6) shoal(true) else if (month in 8..10) shoal(false)
         nesting = month in NESTING
         fishFlows["drift (net)"] = (fishTonnes() - before).toDouble()
+        for ((key, a) in flowAdders) { val v = a.sumThenReset(); if (v != 0.0) fishFlows.merge(key, v, Double::plus) }
         // Fish come back up the rivers from below, but not past a cascade.
         for (h in 0 until size) {
             val d = land.down[h]
@@ -360,10 +364,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val need = m * a.dailyShare * days
             val got = when (a.food) {
                 SeaFood.PLANKTON -> { val z = zoo[h] * 1000f; val t = min(0.5f * z, need * z / (z + ZOO_HALF)); zoo[h] -= t / 1000f; t }
-                SeaFood.FISH -> { val t = min(0.5f * fish[h], need * fishResponse(fish[h])); fish[h] -= t; flow("eaten by ${a.name}", t, h); t }
+                SeaFood.FISH -> { val t = min(0.5f * fish[h], need * fishResponse(fish[h])); fish[h] -= t; flow(eatenBy[k], t, h); t }
                 SeaFood.PREY -> {
                     // Sharks: mostly fish, now and then a seal, porpoise or dolphin.
-                    var t = min(0.5f * fish[h], need * 0.7f * fishResponse(fish[h])); fish[h] -= t; flow("eaten by ${a.name}", t, h)
+                    var t = min(0.5f * fish[h], need * 0.7f * fishResponse(fish[h])); fish[h] -= t; flow(eatenBy[k], t, h)
                     for ((j, b) in SEA.withIndex()) {
                         if (b.food != SeaFood.FISH || t >= need) continue
                         // Seals haul out on rocks and beaches and porpoises keep to the shallows: shelter near the shore.

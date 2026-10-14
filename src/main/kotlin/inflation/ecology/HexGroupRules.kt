@@ -34,6 +34,15 @@ const val NOT_WORTH_TRYING = 0.05f
 const val AVOID_STRONGER = 0.3f
 /** How many times its usual density a migratory herd bears where herds gather before crowding sickens it. */
 const val MIGRANTS_GATHER = 20f
+/**
+ * A herd agent stands for this many of its kind's usual bands (a gazelle herd of 120 rather than 12):
+ * herds that move together are one agent, which keeps their numbers, and the step's cost, down.
+ */
+const val HERD_UNIT = 10
+/** A content herd weighs its places one week in this many (others keep to their ground unweighed). */
+const val CONTENT_WEEKS = 4
+/** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
+const val HUNT_BLOCK_KM = 300f
 /** How far a lone hunter goes looking for a mate in a week, km. */
 const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */

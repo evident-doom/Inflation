@@ -47,15 +47,28 @@ internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = 
 internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: Weather) {
     val ways = this.ways
     val inputs = FloatArray(WAYS_IN); val out = FloatArray(WAYS_OUT)
-    for (g in groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)) {
-        val s = g.species
-        // A band first sets its ways for the week.
-        if (ways != null && g.band != null) setWays(g, weather, ways, inputs, out)
-        // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
-        // over more of it, as the square root of its numbers against its kind's usual party.
-        // And it searches less of it when the rain, haze or cover hide game (see [sight]).
-        val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
-        Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+    val hunters = groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)
+    // Bands first set their ways for the week.
+    if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
+    // Then region by region on all cores: the map is cut into squares of [HUNT_BLOCK_KM] coloured
+    // like a chessboard of four colours, so that squares of one colour lie a square apart, further
+    // than any party's week takes it; the squares of one colour are worked at once.
+    val blocks = HashMap<Int, ArrayList<HexGroup>>()
+    for (g in hunters) {
+        val (x, y) = hex.centreKm(hw.placeHex[g.place])
+        blocks.getOrPut((x / HUNT_BLOCK_KM).toInt() + 1000 * (y / HUNT_BLOCK_KM).toInt()) { ArrayList() } += g
+    }
+    for (colour in 0 until 4) {
+        blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }.parallelStream().forEach { (_, list) ->
+            for (g in list) {
+                val s = g.species
+                // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
+                // over more of it, as the square root of its numbers against its kind's usual party.
+                // And it searches less of it when the rain, haze or cover hide game (see [sight]).
+                val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
+                Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+            }
+        }
     }
 }
 
@@ -75,6 +88,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val s = g.species
     val d = s.diet
     val band = g.band
+    // (Its own stream of chance, so that regions can be worked at once.)
+    val rnd = kotlin.random.Random(g.id * 1_000_003L + weatherNow.date.absoluteDay)
     // (A band's scouts range ahead instead of foraging.)
     val hands = max(1, (g.adults * (1f - (band?.scoutShare ?: 0f))).toInt())
     // (Walking costs food, see [walkCost].)
@@ -199,7 +214,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 val k = kind[i]; val ps = fauna.kinds[k]
                 val area = land.areaKm2[p]
                 val dens = fauna.adults[k][p] + fauna.young[k][p]
-                var kills1 = poisson(expected)
+                var kills1 = poisson(expected, rnd)
                 kills1 = min(kills1, (dens * area * 0.5f).toInt())
                 if (kills1 <= 0) continue
                 busy += kills1 * time[i]
@@ -338,19 +353,19 @@ internal fun HexGroups.meet(weather: Weather) {
             byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.days[i], to)
         }
     }
-    val events = ArrayList<Meeting>()
-    for ((_, stays) in byHex) {
-        if (stays.size < 2) continue
-        for (x in stays.indices) for (y in x + 1 until stays.size) {
-            val sa = stays[x]; val sb = stays[y]
-            val a = groups[sa.k]; val b = groups[sb.k]
-            val matters = a.species.carnivore || b.species.carnivore
-            if (!matters) continue
+    // Pairs with a hunter or band in them (herds pass each other by), hex by hex on all cores.
+    val events = byHex.values.parallelStream().filter { it.size >= 2 }.flatMap { stays ->
+        val out = ArrayList<Meeting>()
+        for (i in stays.indices) { if (!groups[stays[i].k].species.carnivore) continue; for (j in stays.indices) {
+            // Each hunter with every herd, and each pair of hunters once.
+            if (j == i || (j < i && groups[stays[j].k].species.carnivore)) continue
+            val sa = stays[i]; val sb = stays[j]
             val from = max(sa.from, sb.from); val to = min(sa.to, sb.to)
             if (from > to) continue
-            events += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index)
-        }
-    }
+            out += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index)
+        } }
+        out.stream()
+    }.collect(java.util.stream.Collectors.toCollection { ArrayList<Meeting>() })
     events.sortWith(compareBy({ it.day }, { it.a }, { it.b }))
     val stop = IntArray(groups.size) { groups[it].path.size - 1 }
     val count = IntArray(groups.size)
@@ -517,6 +532,10 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // Caught or not, the herd is wary for weeks after.
     herd.wary += WARY_GAIN * (1f - herd.wary)
     hunting.merge("${hunter.species.name}:chases", 1, Int::plus)
+    // A big herd stands for several of its kind's usual bands: the hunters may try again while hungry.
+    val tries = max(1, herd.size / herd.species.groupSize)
+    for (attempt in 0 until tries) {
+    if (attempt > 0 && hunter.meatMet >= need) break
     if (rnd.nextFloat() < chance && herd.adults > 0) {
         if (herd.young > 0 && hunter.band?.holds(Tradition.TABOO_YOUNG) != true && rnd.nextFloat() < 0.5f) { herd.young--; hunter.meatMet += 0.3f * herd.species.massKg }
         else {
@@ -535,6 +554,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         hunter.adults--
         deaths.merge("${hunter.species.name}:prey fought back", 1, Int::plus)
         small.carrion[hunter.place] += hunter.species.massKg / (land.areaKm2[hunter.place] * 1e6f)
+    }
     }
 }
 
