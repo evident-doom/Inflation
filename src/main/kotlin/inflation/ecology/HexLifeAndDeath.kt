@@ -66,7 +66,8 @@ internal fun HexGroups.graze(weather: Weather) {
         val s = g.species
         if (!g.alive || s.carnivore) continue
         val p = g.place
-        val want = g.dailyNeedKg * days / 1e6f / land.areaKm2[p] // kg per m² of the place
+        // (Walking costs food: a share of a day's need for each km of the week's going, see [walkCost].)
+        val want = g.dailyNeedKg * days * (1f + walkCost(g)) / 1e6f / land.areaKm2[p] // kg per m² of the place
         val access = HexFood.access(s, land.ruggedness[p])
         val snowed = weather.snowpack[p] > s.snowLimitMm
         val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)

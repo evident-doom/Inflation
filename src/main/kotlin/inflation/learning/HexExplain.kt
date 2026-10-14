@@ -61,11 +61,14 @@ object HexExplain {
                 }
             }
             val deaths = HashMap<String, Int>()
+            var fedSum = 0.0; var kmSum = 0.0; var weeks = 0; var hungry = 0
             repeat(years * Date.DAYS_PER_YEAR / cfg.daysPerStep) {
                 run.step()
+                for (g in run.groups.groups) if (g.alive && g.species == kind) { fedSum += g.fed; kmSum += (g.path.size - 1) * run.hex.hexKm; weeks++; if (g.fed < 0.5f) hungry++ }
                 for ((key, v) in run.groups.deaths) if (key.startsWith("${kind.name}:")) deaths.merge(key.substringAfter(':'), v, Int::plus)
             }
             deaths["(alive at the end)"] = run.groups.count(kind)
+            println("%s, %s: fed %.2f on average, hungry (fed under half) %.1f%% of group-weeks, %.1f km shifted a week".format(kind.name, if (learned) "network" else "hand-written", fedSum / weeks.coerceAtLeast(1), 100.0 * hungry / weeks.coerceAtLeast(1), kmSum / weeks.coerceAtLeast(1)))
             if (learned) println("%s: the network agreed with the hand-written choice in %.0f%% of %d choices".format(kind.name, 100.0 * agree / asked.coerceAtLeast(1), asked))
             return deaths to picks.toList()
         }

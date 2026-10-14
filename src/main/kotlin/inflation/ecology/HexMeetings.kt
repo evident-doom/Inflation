@@ -77,7 +77,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val band = g.band
     // (A band's scouts range ahead instead of foraging.)
     val hands = max(1, (g.adults * (1f - (band?.scoutShare ?: 0f))).toInt())
-    val wantAll = g.dailyNeedKg * days
+    // (Walking costs food, see [walkCost].)
+    val wantAll = g.dailyNeedKg * days * (1f + walkCost(g))
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.

@@ -91,6 +91,15 @@ const val EATING_RATE = 0.15f
 const val SEARCHING = 0.3f
 
 /**
+ * What the week's going costs [g] in food, as a share of a week's need: each km of net shift (the
+ * hexes passed) costs [WALK_COST] of a day's food. (Mammals spend about 2-3 J per kg per m walking,
+ * a little under a hundredth of a day's energy per km, whatever their size; the walking within its
+ * usual range is part of the day's need already.)
+ */
+fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * kotlin.math.max(0, g.path.size - 1) * hex.hexKm.toFloat() / days
+const val WALK_COST = 0.011f
+
+/**
  * How far a group sees this week against a clear day in the open, 0..1: rain, snow and fog cut the
  * view (half in [SIGHT_RAIN_MM] of rain or snow a week), so does the haze over hot ground, and thick
  * cover hides game from all but those close by.
