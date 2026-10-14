@@ -54,6 +54,7 @@ fun main(args: Array<String>) {
     val localSum = Array(samplePlaces.size) { FloatArray(5) }
     val localYears = Array(samplePlaces.size) { ArrayList<FloatArray>() }
     var localWeeks = 0
+    inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
     System.getProperty("hex.ways")?.let { herds.ways = inflation.learning.NetWays(inflation.learning.Mlp.load(java.io.File(it).readText())) }
     val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep

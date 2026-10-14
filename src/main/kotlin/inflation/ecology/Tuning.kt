@@ -1,0 +1,22 @@
+package inflation.ecology
+
+/**
+ * Settings a balancing run can change without rebuilding (-Dhex.t.NAME=value), each a multiplier on
+ * an existing parameter (1 leaves it as it is), or the parameter itself where it is a count.
+ */
+object Tuning {
+    private fun f(name: String, default: Float) = System.getProperty("hex.t.$name")?.toFloat() ?: default
+    /** Outbreaks starting among people, against [HexFauna.OUTBREAK_START]. */
+    val peopleOutbreak = f("peopleOutbreak", 1f)
+    /** People's sickness from crowding, against [PEOPLE_SICK]. */
+    val peopleSick = f("peopleSick", 1f)
+    /** Time to pick, dig or reap a kilo of plant food, against [PLANT_HANDLING_DAYS_PER_KG] and its kin. */
+    val plantHandling = f("plantHandling", 1f)
+    /** Chance a much stronger hunter kills another kind's young, against [INTRAGUILD_KILL_YOUNG]. */
+    val intraguildYoung = f("intraguildYoung", 1f)
+    /** Weeks between a content herd's weighing of its places ([CONTENT_WEEKS]). */
+    val contentWeeks = System.getProperty("hex.t.contentWeeks")?.toInt() ?: CONTENT_WEEKS
+
+    /** The settings that differ from the defaults, for the check's header. */
+    fun changed(): String = System.getProperties().stringPropertyNames().filter { it.startsWith("hex.t.") }.sorted().joinToString(", ") { "${it.removePrefix("hex.t.")} ${System.getProperty(it)}" }
+}

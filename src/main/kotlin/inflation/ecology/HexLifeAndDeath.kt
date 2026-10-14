@@ -257,7 +257,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
         val plague = fauna.outbreakDeaths(s, g.place)
         val crowdNow = if (s.human) peopleCrowding(g) else crowd
-        if (r.nextFloat() < HexFauna.OUTBREAK_START * crowdNow * crowdNow * years) fauna.startOutbreak(s, hw.placeHex[g.place])
+        if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) Tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years) fauna.startOutbreak(s, hw.placeHex[g.place])
         val disease = plague + if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
             else if (s.carnivore) {
                 // Hunters catch mange, distemper and rabies from other packs of their kind crowding the same ground.
@@ -339,7 +339,7 @@ private fun HexGroups.peopleSickness(g: HexGroup, weather: Weather): Float {
     val dens = peopleCrowding(g)
     // Fevers by the marshes in the warm months, where the mosquitoes breed.
     val marsh = land.logged[g.place] * if (weather.temperature[g.place] > 20f) 1f else 0f
-    return PEOPLE_SICK * dens * dens + MARSH_FEVER * marsh
+    return PEOPLE_SICK * Tuning.peopleSick * dens * dens + MARSH_FEVER * marsh
 }
 
 /** People round a band's camp (its hex and the six round it), per km², against [PEOPLE_FULL_KM2]. */

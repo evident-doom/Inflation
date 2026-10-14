@@ -330,7 +330,7 @@ class HexGroups(
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
         // (Herds content where they are weigh their places only one week in [CONTENT_WEEKS]: they stay while the grazing holds.)
-        val every = if (s.carnivore) 2 else CONTENT_WEEKS
+        val every = if (s.carnivore) 2 else Tuning.contentWeeks
         if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS
         val ki = kindIndex[s] ?: 0
