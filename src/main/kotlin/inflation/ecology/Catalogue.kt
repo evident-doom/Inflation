@@ -548,7 +548,7 @@ object Catalogue {
         // on these alone. Hunger, thirst, cold, crowding sickness, fouled camps, inbreeding, raids and
         // predators come on top, each modelled, for the 55-65% foragers see in all (Hill and Hurtado,
         // Gurven and Kaplan, from memory).
-        backgroundMortality = 0.01f, youngMortality = 0.035f,
+        backgroundMortality = 0.0035f, youngMortality = 0.0175f,
         snowLimitMm = 600f,
         products = Products(meat = 25f, fat = 4f, hide = 0f, bone = 7f, sinew = 0f),
         comfortC = -5f..35f, winterCoat = true, // clothes and fire

@@ -83,7 +83,9 @@ const val CARRY_KG = 15f
 /** Most that settled life with stores raises births (birth spacing about 4 years to under 3). */
 const val SETTLED_FERTILITY = 0.4f
 /** Extra yearly deaths among children in a camp kept for a year or more. */
-const val CAMP_FOULING = 0.04f
+const val CAMP_FOULING = 0.02f
+/** People's deaths of thirst against an animal's at the same days without water. */
+const val HUMAN_THIRST = 0.3f
 
 /** What a band is: its skills, making skills, tools (0..1 of a full kit each), the tools it knows, its goods, and how long it has kept its camp. */
 class Band {

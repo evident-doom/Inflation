@@ -19,6 +19,8 @@ object Tuning {
     val humanYoung = f("humanYoung", 1f)
     val humanThirst = f("humanThirst", 1f)
     val campFouling = f("campFouling", 1f)
+    /** Marsh fever among people camped by marshes, against [MARSH_FEVER]. */
+    val marshFever = f("marshFever", 1f)
     /** Weeks between a content herd's weighing of its places ([CONTENT_WEEKS]). */
     val contentWeeks = System.getProperty("hex.t.contentWeeks")?.toInt() ?: CONTENT_WEEKS
 

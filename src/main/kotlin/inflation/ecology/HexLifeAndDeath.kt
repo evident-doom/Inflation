@@ -255,7 +255,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= fetch)) g.dry = 0f
         // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
         else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
-        val thirst = (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) * (if (s.human) Tuning.humanThirst else 1f)
+        // (People carry water in skins and know every spring: they suffer far less from it than animals.)
+        val thirst = (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) * (if (s.human) HUMAN_THIRST * Tuning.humanThirst else 1f)
         // Crowded herds catch each other's diseases and parasites.
         val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
         // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
@@ -345,7 +346,7 @@ private fun HexGroups.peopleSickness(g: HexGroup, weather: Weather): Float {
     val dens = peopleCrowding(g)
     // Fevers by the marshes in the warm months, where the mosquitoes breed.
     val marsh = land.logged[g.place] * if (weather.temperature[g.place] > 20f) 1f else 0f
-    return PEOPLE_SICK * Tuning.peopleSick * dens * dens + MARSH_FEVER * marsh
+    return PEOPLE_SICK * Tuning.peopleSick * dens * dens + MARSH_FEVER * Tuning.marshFever * marsh
 }
 
 /** People round a band's camp (its hex and the six round it), per km², against [PEOPLE_FULL_KM2]. */
