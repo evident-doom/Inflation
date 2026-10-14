@@ -110,6 +110,7 @@ class HexGroups(
                 var u = rnd.nextFloat() * total; var p = 0
                 while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
                 val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
+                if (!s.carnivore) g.sizePref = kotlin.math.exp((rnd.nextFloat() * 2f - 1f) * kotlin.math.ln(SIZE_PREF_RANGE))
                 g.fat = 0.5f * s.maxFatDays
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
@@ -296,7 +297,7 @@ class HexGroups(
         val birth = if (g.birthMonth >= 0) g.birthMonth else s.birthMonth
         val calving = (date.month - birth + 12) % 12 < s.birthMonths
         val flush = 1f + AGGREGATION * land.green[g.place] * g.fed
-        return max(unitSize(s), (s.maxGroupSize * herdUnit(s) * flush * (if (calving) 0.5f else 1f)).toInt())
+        return max(unitSize(s), (s.maxGroupSize * herdUnit(s) * g.sizePref * flush * (if (calving) 0.5f else 1f)).toInt())
     }
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
@@ -519,6 +520,7 @@ class HexGroups(
                     f[31] = min(1f, g.memory.deadAt(h) / 10f)
                     f[32] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
                     f[33] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
+                    f[34] = kotlin.math.ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
                     // What it remembers of this hex: in this season, or failing that in any.
                     val mem = g.memory
                     var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0

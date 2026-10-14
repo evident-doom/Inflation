@@ -3,6 +3,11 @@ package inflation.ecology
 /** A herd, pack or pride on the hexes: where it stands (a place: a height band of a hex) and who it is. */
 class HexGroup(val id: Int, val species: Species, var place: Int, var adults: Int, var young: Int) {
     val size get() = adults + young
+    /**
+     * For a herd: how large it likes to grow against its kind's usual, its own leaning (a third to
+     * three times), kept by both halves when it splits; so herds of every size live side by side.
+     */
+    var sizePref = 1f
     val alive get() = adults > 0
     /** Fed last week, 0..1; body reserves, days of food. */
     var fed = 1f
@@ -65,6 +70,6 @@ fun interface HexPolicy {
  * place, the way to better country it senses, and the group's own state and the time of year.
  */
 object HexFeatures {
-    /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment; 33 its houses there. */
-    const val SIZE = 34
+    /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment; 33 its houses there; 34 its own size against its kind's usual group. */
+    const val SIZE = 35
 }

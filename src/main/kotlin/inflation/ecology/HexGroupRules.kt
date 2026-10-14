@@ -39,6 +39,8 @@ val MIGRANTS_GATHER get() = 20f * MIGRANT_UNIT
  * herds that move together are one agent, which keeps their numbers, and the step's cost, down.
  */
 const val HERD_UNIT = 10
+/** Herds lean to sizes from this many times smaller to this many times larger than their kind's usual. */
+const val SIZE_PREF_RANGE = 3f
 /**
  * Migratory herds: how many times more of their bands one agent stands for, and how many times the
  * settled density they start at (goitered gazelle 0.5-5 a km² on good steppe; the long run had left
