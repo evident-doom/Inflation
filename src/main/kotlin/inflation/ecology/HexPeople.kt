@@ -251,7 +251,7 @@ class Band {
     fun detoxExtra(palatable: Float, water: Boolean): Float =
         if (!knowsSkill[Skill.LEACHING.ordinal] || !water) 0f
         else min(1f, LEACH_SHARE * skill(Skill.LEACHING) * has(Tool.BASKET) * (1f - palatable) / palatable.coerceAtLeast(0.1f))
-    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * learning * (1f - skills[s.ordinal]); lastUsed[s.ordinal] = weeks }
+    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * learning / s.complexity * (1f - skills[s.ordinal]); lastUsed[s.ordinal] = weeks }
     /** How fast its practice teaches it, against a start band's: good teachers bring the young on faster. */
     val learning get() = edge(Skill.SHOWING)
     /** How well it makes [t]: by the best way of its craft it knows (blades and microliths beat plain flakes). */
@@ -416,7 +416,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         }
     }
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
-    for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) && rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
+    for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) && s.needs.let { it == null || (b.knowsSkill[it.ordinal] && b.skills[it.ordinal] >= NEEDS_LEVEL) } && rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
         b.knowsSkill[s.ordinal] = true; meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
@@ -519,8 +519,19 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         if (over > 0f) { gd[m] -= over; if (m == Material.WOOD.ordinal || m == Material.FIBRE.ordinal || m == Material.HIDE.ordinal) small.litter[p] += over / area }
     }
     // Songs and stories keep what is not practised from fading as fast.
-    val forget = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET * 0.4f else FORGET) * b.lapse(Skill.LORE)
-    for (i in b.skills.indices) b.skills[i] *= 1f - forget
+    // Knowledge fades fast unused, unless songs and stories keep it; hand skills last for years.
+    val forgetKnowledge = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET_KNOWLEDGE * 0.4f else FORGET_KNOWLEDGE) * b.lapse(Skill.LORE)
+    for (s in Skill.entries) {
+        val i = s.ordinal
+        val unused = b.weeks - b.lastUsed[i] > 4
+        b.skills[i] *= 1f - (if (!unused) FORGET_HANDS else if (s.knowledge) forgetKnowledge else FORGET_HANDS * 2f)
+        // A way no one holds and no one has used for years is lost altogether; so is one whose groundwork is lost.
+        if (b.knowsSkill[i] && s.losable && b.holders[i] < 0.5f && b.weeks - b.lastUsed[i] > (if (s.knowledge) LOST_KNOWLEDGE_WEEKS else LOST_HANDS_WEEKS)) {
+            b.knowsSkill[i] = false; b.skills[i] = 0f; b.holders[i] = 0f
+            meetings.merge("band lost ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
+        }
+        s.needs?.let { n -> if (b.knowsSkill[i] && !b.knowsSkill[n.ordinal]) { b.knowsSkill[i] = false; b.skills[i] = 0f; b.holders[i] = 0f } }
+    }
     // Teaching the young keeps the teachers practised; the songs and stories are kept up where the band holds to them.
     if (g.young > 0) b.practise(Skill.SHOWING, 0.08f * PRACTICE)
     b.practise(Skill.LORE, (if (b.holds(Tradition.ORAL_TRADITION)) 0.08f else 0.03f) * PRACTICE)
@@ -593,14 +604,21 @@ private fun useOf(t: Tool) = when (t) {
 }
 
 /** Two bands that meet show each other tools one of them does not know, the more readily the better they understand each other ([understood]). */
-internal fun HexGroups.teach(a: Band, b: Band, understood: Float) {
+internal fun HexGroups.teach(a: Band, b: Band, understood: Float, aDoesBetter: Float = 0f) {
     for (k in a.knows.indices) if (a.knows[k] != b.knows[k] && rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood)) {
         a.knows[k] = true; b.knows[k] = true
         meetings.merge("band learned ${Tool.entries[k].name.lowercase()}", 1, Int::plus)
     }
     // And ways of working: the one that knows a way shows it; the other starts on it as a beginner.
-    for (k in a.knowsSkill.indices) if (a.knowsSkill[k] != b.knowsSkill[k] && rnd.nextFloat() < Skill.entries[k].teach * TEACH * (0.5f + 0.5f * understood)) {
+    // (Bands take up a stranger's way the less readily the more their customs differ, and the more
+    // readily from a band that does better than they do.)
+    val alike = 1f - CONFORMITY * Tradition.entries.count { a.holds(it) != b.holds(it) }.toFloat() / Tradition.entries.size
+    for (k in a.knowsSkill.indices) if (a.knowsSkill[k] != b.knowsSkill[k]) {
         val (from, to) = if (a.knowsSkill[k]) a to b else b to a
+        val need = Skill.entries[k].needs
+        if (need != null && (!to.knowsSkill[need.ordinal] || to.skills[need.ordinal] < NEEDS_LEVEL)) continue
+        val prestige = (1f + PRESTIGE * (if (from === a) aDoesBetter else -aDoesBetter)).coerceIn(0.2f, 2f)
+        if (rnd.nextFloat() >= Skill.entries[k].teach * TEACH * (0.5f + 0.5f * understood) * alike * prestige) continue
         // (A meeting shows that a way exists; the skill itself comes only with people who stay to teach it.)
         to.knowsSkill[k] = true
         meetings.merge("band learned ${Skill.entries[k].name.lowercase().replace('_', ' ')}", 1, Int::plus)
@@ -1038,6 +1056,20 @@ const val SELF_TAUGHT = 0.1f
 const val TRAINED_A_WEEK = 0.05f
 const val APPRENTICE_DAYS = 10f
 const val SLOTS = 14f
+/**
+ * Forgetting (Arthur and colleagues 1998): weekly share a hand skill loses in use and unused, and
+ * knowledge unused (about a third a year); weeks unheld and unused before a way is lost altogether;
+ * the level a way's groundwork must reach before it can be taken up; how much a difference in
+ * customs puts bands off each other's ways (all of them differing: this share less), and how much
+ * a band doing better is copied more readily.
+ */
+const val FORGET_HANDS = 0.001f
+const val FORGET_KNOWLEDGE = 0.008f
+const val LOST_KNOWLEDGE_WEEKS = 5 * 52
+const val LOST_HANDS_WEEKS = 25 * 52
+const val NEEDS_LEVEL = 0.3f
+const val CONFORMITY = 0.8f
+const val PRESTIGE = 0.5f
 const val SHORTFALL = 0.02f
 /** How far below its teacher a newcomer's skill falls, at best. */
 const val TRANSMIT_LOSS = 0.1f

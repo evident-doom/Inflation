@@ -188,7 +188,7 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         lo.traditions[t.ordinal] = hi.holds(t)
         meetings.merge("band took ${if (hi.holds(t)) "up" else "leave of"} ${t.name.lowercase()}", 1, Int::plus)
     }
-    teach(ba, bb, u)
+    teach(ba, bb, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // Each tells the other of the country it knows round about, as far as they understand each other.
     if (rnd.nextFloat() < u * (0.6f + 0.4f * close)) {
         val h0 = hw.placeHex[a.place]

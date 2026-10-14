@@ -138,9 +138,27 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
         else -> 0.2f
     }
     val complexity: Float get() = when (this) {
-        GATHER, FIRE, ROASTING, STORE, SMALL_GAME -> 0.5f
+        GATHER, FIRE, ROASTING, STORE, SMALL_GAME, MIDWIFERY -> 0.5f
         BLADES, MICROLITHS, MUDBRICK, HERBS, SEALING, PIT_HOUSE -> 3f
         else -> 1.5f
+    }
+    /**
+     * Whether it is knowledge (which plant, which recipe, which remedy, which step comes next) rather
+     * than a skill of the hands: knowledge fades fast unused, hand skills last for years (Arthur and
+     * colleagues 1998); songs and stories keep knowledge.
+     */
+    val knowledge: Boolean get() = when (this) {
+        HERBS, LORE, LEACHING, EARTH_OVEN, STONE_BOILING, SEALING, TENDING -> true
+        else -> false
+    }
+    /** Whether a band can lose this way altogether: not the ways everyone lives by (gathering, fire, care of the sick and the newborn, teaching). */
+    val losable: Boolean get() = domain !in setOf(Domain.GATHERING, Domain.FIRE, Domain.HEALING, Domain.CHILDCARE, Domain.TEACHING, Domain.REMEMBERING, Domain.TINKERING) && this != ROASTING
+    /** A way that must be held first: microliths are snapped from bladelets; boiling with hot stones and leaching need tight baskets. */
+    val needs: Skill? get() = when (this) {
+        MICROLITHS -> BLADES
+        STONE_BOILING, LEACHING -> CORDAGE
+        SEALING, PIT_HOUSE, MUDBRICK -> STONE_FOOTING
+        else -> null
     }
     /** The best level [n] holders can keep a way at: what is passed on falls a little short each time, and more learners make up for it. */
     fun cap(n: Float) = 1f - kotlin.math.exp(-n / complexity)
