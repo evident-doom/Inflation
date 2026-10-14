@@ -180,6 +180,9 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.dead, o.deaths.toFloat())
             land.burials[g.place] += o.deaths.toFloat()
+            // Ornaments go into the grave with them: the more a band has, the richer its graves.
+            g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths); val ex = if (b.ornaments > 0f) b.exotic / b.ornaments else 0f
+                b.ornaments -= goods; b.exotic -= goods * ex; land.graveGoods[g.place] += goods }
         }
         o.split?.let { c -> born += HexGroup(nextId++, s, g.place, c.first, c.second).also { n ->
             g.memory.copyInto(n.memory)
@@ -190,6 +193,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             // Both halves keep what the band knew and share out its tools and goods.
             n.bold = g.bold
             g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }; for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
+                nb.ornaments = b.ornaments * share; b.ornaments -= nb.ornaments; nb.exotic = b.exotic * share; b.exotic -= nb.exotic
                 nb.elders = b.elders * c.first / (g.adults + c.first).coerceAtLeast(1); b.elders -= nb.elders
                 for (i in b.ageStage.indices) { nb.ageStage[i] = b.ageStage[i] * c.first / (g.adults + c.first).coerceAtLeast(1); b.ageStage[i] -= nb.ageStage[i] } } }
             g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)

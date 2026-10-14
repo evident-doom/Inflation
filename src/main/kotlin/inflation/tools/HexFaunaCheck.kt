@@ -58,6 +58,7 @@ fun main(args: Array<String>) {
     // Camp moves this year, of bands with houses and without.
     val movesHouse = LongArray(2); val bandWeeksHouse = LongArray(2)
     fun movesWith(houses: Boolean): Double { val i = if (houses) 1 else 0; val v = movesHouse[i] * 52.0 / bandWeeksHouse[i].coerceAtLeast(1); movesHouse[i] = 0; bandWeeksHouse[i] = 0; return v }
+    fun bandHeadsNow(l: List<inflation.ecology.HexGroup>): Double = l.sumOf { it.size.toDouble() }.coerceAtLeast(1.0)
     fun keptShare(): Double { val v = 100.0 * apptKept / apptDue.coerceAtLeast(1); apptDue = 0; apptKept = 0; return v }
     inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
@@ -264,6 +265,11 @@ fun main(args: Array<String>) {
                 " | with houses by yearly rain: " + listOf(0f to 300f, 300f to 600f, 600f to 1e9f).joinToString(", ") { (lo, hi) ->
                     val inRain = bands.filter { val h = hw.placeHex[it.place]; val r = (0 until 12).sumOf { m -> hw.precip[m][h].toDouble() }; r >= lo && r < hi }
                     "%s %.0f%% of %d".format(if (hi > 1e8f) ">600 mm" else "%.0f-%.0f mm".format(lo, hi), 100.0 * inRain.count { it.band!!.house >= 0.2f } / inRain.size.coerceAtLeast(1), inRain.size) } +
+                " | ornaments %.1f a person (%.0f%% of shell), shell beads a person inland %.2f, by the sea %.2f; graves with goods %d (richest hold %.0f%% of goods)".format(
+                    bs.sumOf { it.ornaments.toDouble() } / bandHeadsNow(bands), 100.0 * bs.sumOf { it.exotic.toDouble() } / bs.sumOf { it.ornaments.toDouble() }.coerceAtLeast(1e-9),
+                    bands.filter { !hw.coast[hw.placeHex[it.place]] }.let { l -> l.sumOf { it.band!!.exotic.toDouble() } / bandHeadsNow(l) },
+                    bands.filter { hw.coast[hw.placeHex[it.place]] }.let { l -> l.sumOf { it.band!!.exotic.toDouble() } / bandHeadsNow(l) },
+                    land.graveGoods.count { it >= 1f }, land.graveGoods.sortedDescending().let { gs -> 100.0 * gs.take((gs.count { it >= 1f } / 10).coerceAtLeast(1)).sum() / gs.sum().coerceAtLeast(1e-9f) }) +
                 " | raids on homes, palisades %.0f%% of bands, homes known %.1f a band".format(100.0 * bs.count { it.palisade >= 0.2f } / bs.size.coerceAtLeast(1), bs.map { it.knownHomes.size }.average()) +
                 " | appointments %.0f%% of bands, kept %.0f%% of band-weeks due this year; burial places %d; largest gathering %d bands".format(
                     100.0 * bs.count { it.appointHex >= 0 } / bs.size.coerceAtLeast(1),

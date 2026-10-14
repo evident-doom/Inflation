@@ -27,6 +27,8 @@ enum class Material {
     FIBRE,
     /** Tree resin for glue. */
     RESIN,
+    /** Sea shells (dentalium, cowrie) gathered on the shore, for beads. */
+    SHELL,
 }
 
 /** Making skills: the doing behind every tool, built by practice like getting food. */
@@ -130,6 +132,12 @@ class Band {
     /** A palisade of posts and brush round its houses, 0..1; weeks since it was last raided. */
     var palisade = 0f
     var sinceRaided = 1000
+    /**
+     * Its ornaments (beads of bone and shell, carved pendants, figurines), as a count, and how many of
+     * them are of sea shell (gifts travel along ties, so shell from the shore reaches far inland).
+     */
+    var ornaments = 0f
+    var exotic = 0f
     /** Of the grain in its stores, the share from ears that hold their grain (what it would sow). */
     var seedDomestic = 0f
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
@@ -330,6 +338,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     // (Reeds and rushes in a marsh give the best fibre of all.)
     val fibre = people * min(1f, (land.herb[p] + land.shrub[p]) / 0.5f + 2f * land.logged[p])
     gd[Material.FIBRE.ordinal] += fibre
+    // Shells on the shore, for beads.
+    if (hw.coast[h]) gd[Material.SHELL.ordinal] += SHELL_A_WEEK * people
     land.consume(p, LifeForm.TREE, wood * land.tree[p] / max(1e-6f, woody) / area)
     land.consume(p, LifeForm.HERB, fibre / area)
     val years = days / Date.DAYS_PER_YEAR.toFloat()
@@ -382,6 +392,16 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         }
     }
     b.atHome = b.houseHex == h && b.house > 0.05f
+    // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
+    if (time > 0f && people > 0f && b.ornaments < ORNAMENTS_PER_PERSON * people) {
+        val stuff = gd[Material.SHELL.ordinal] / SHELL_EACH + gd[Material.BONE.ordinal] / BONE_EACH
+        val made = minOf(time / ORNAMENT_DAYS, stuff, ORNAMENTS_PER_PERSON * people - b.ornaments).coerceAtLeast(0f)
+        if (made > 0f) {
+            val fromShell = min(made, gd[Material.SHELL.ordinal] / SHELL_EACH)
+            gd[Material.SHELL.ordinal] -= fromShell * SHELL_EACH; gd[Material.BONE.ordinal] = max(0f, gd[Material.BONE.ordinal] - (made - fromShell) * BONE_EACH)
+            b.ornaments += made; b.exotic += fromShell; time -= made * ORNAMENT_DAYS
+        }
+    }
     // In autumn a band at home sows a share of its stored grain on its home ground: a plot that ripens
     // next summer to several times as much, of the kind of ears it sowed.
     if (b.atHome && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f && time > 0f) {
@@ -735,3 +755,16 @@ const val SOW_DAYS_PER_KG = 0.5f
  */
 const val SICKLE_SELECT = 0.06f
 private fun hands(g: HexGroup) = max(1, g.adults).toFloat()
+
+/**
+ * Ornaments: shell gathered on a shore a week per person, kg; shell and bone for one ornament, kg;
+ * person-days to make one; most a band keeps per person; share of its ornaments a band gives a band
+ * it is close to when they meet; share of a band's ornaments buried with each of its dead (grave goods).
+ */
+const val SHELL_A_WEEK = 0.05f
+const val SHELL_EACH = 0.02f
+const val BONE_EACH = 0.05f
+const val ORNAMENT_DAYS = 2f
+const val ORNAMENTS_PER_PERSON = 3f
+const val ORNAMENT_GIFT = 0.03f
+const val GRAVE_GOODS = 0.05f

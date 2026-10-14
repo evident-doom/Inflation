@@ -451,6 +451,17 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
         meetings.merge("food given", 1, Int::plus)
         note(rich) { "gave %.0f kg of food to hungry band #%d".format(gift, poor.id) }; note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }
     }
+    // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
+    for ((giver, taker) in listOf(a to b, b to a)) {
+        val gb = giver.band ?: continue; val tb = taker.band ?: continue
+        if (gb.tie(taker.id) < 0.3f || gb.ornaments < 1f) continue
+        val gift = ORNAMENT_GIFT * gb.ornaments
+        val exoticShare = gb.exotic / gb.ornaments
+        gb.ornaments -= gift; gb.exotic -= gift * exoticShare
+        tb.ornaments += gift; tb.exotic += gift * exoticShare
+        tb.befriend(giver.id, 0.5f * TIE_GIFT)
+        meetings.merge("ornaments given", 1, Int::plus)
+    }
     // Feasts: a band that holds to feasting and has more laid by than it means to keep sets food
     // before the other; the guests remember it.
     for ((host, guest) in listOf(a to b, b to a)) {

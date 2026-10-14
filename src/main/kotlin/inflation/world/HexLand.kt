@@ -52,8 +52,9 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         floor + (1f - floor) * v
     }
 
-    /** The dead buried at each place (graves weather away over centuries). */
-    val burials = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
+    /** The dead buried at each place (graves weather away over centuries), and the ornaments buried with them. */
+    val burials = FloatArray(n)
+    val graveGoods = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
     /** Share of the ground where good knapping stone (flint, obsidian) crops out. */
     val stone = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and (Mineral.FLINT or Mineral.OBSIDIAN) != 0) 1f else 0f } }
     /** Share of floodplain, which a river in spate covers. */

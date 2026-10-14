@@ -94,6 +94,8 @@ const val BURIAL_STAY = 0.1f
 const val FEAST_SIZE = 1.3f
 /** How much likelier a raid is on strangers (never met before), and on bands of wholly other customs. */
 const val STRANGER_HOSTILITY = 0.5f
+/** How much a band's ornaments per head add to its standing (its ways are the more copied). */
+const val STANDING = 0.05f
 /** How hard a band presses those it finds on ground it holds (graves, houses, appointment place); how strongly bands keep off others' known homes. */
 const val CLAIM_PRESSURE = 0.7f
 const val TRESPASS_AVOID = 0.2f
@@ -180,7 +182,7 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         if (ba.words[k] != bb.words[k]) { if (rnd.nextFloat() < a.size.toFloat() / (a.size + b.size)) bb.words[k] = ba.words[k] else ba.words[k] = bb.words[k] }
     }
     // Ways are copied from the band that does better: more food in hand, more children.
-    fun doing(g: HexGroup) = g.fed + g.larder / max(1f, g.dailyNeedKg * 60f) + g.young.toFloat() / max(1, g.adults)
+    fun doing(g: HexGroup) = g.fed + g.larder / max(1f, g.dailyNeedKg * 60f) + g.young.toFloat() / max(1, g.adults) + STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size)
     val (lo, hi) = if (doing(a) < doing(b)) ba to bb else bb to ba
     for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {
         lo.traditions[t.ordinal] = hi.holds(t)
