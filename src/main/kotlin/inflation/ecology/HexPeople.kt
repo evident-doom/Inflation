@@ -120,6 +120,16 @@ class Band {
      */
     var houseHex = -1
     var house = 0f
+    /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
+    val knownHomes = HashMap<Int, Int>()
+    val knownLineage = HashMap<Int, Int>()
+    /** A raid it is set on: the hex of the band's home it means to fall on, the band, and weeks left before it gives up. */
+    var raidHex = -1
+    var raidOn = -1
+    var raidWeeks = 0
+    /** A palisade of posts and brush round its houses, 0..1; weeks since it was last raided. */
+    var palisade = 0f
+    var sinceRaided = 1000
     /** A hex it shuns after a death there, and for how many more weeks ([Tradition.LEAVE_DEAD]). */
     var unluckyHex = -1
     var unluckyWeeks = 0
@@ -175,7 +185,8 @@ class Band {
     /** What a band splitting off takes along: everything it knew and believed, its descent and its grudges. */
     fun copyInto(o: Band) {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
-        o.houseHex = houseHex; o.house = house
+        o.houseHex = houseHex; o.house = house; o.palisade = palisade
+        o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         craft.copyInto(o.craft); making.copyInto(o.making); kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
@@ -339,6 +350,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         b.making[t.skill.ordinal] += PRACTICE * (1f - skill)
     }
     if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
+    b.sinceRaided++
+    plotRaid(g, b)
     // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
     if (b.campWeeks == 0) b.shelter = 0f
     if (b.shelter < 1f && time > 0f && people > 0f) { val built = min(1f - b.shelter, time / (SHELTER_DAYS * people)); b.shelter += built; time -= built * SHELTER_DAYS * people }
@@ -359,6 +372,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         }
     }
     b.atHome = b.houseHex == h && b.house > 0.05f
+    // A band at home that has been raided in the last year rings its houses with a palisade, as far
+    // as its time and timber go.
+    if (b.atHome && b.sinceRaided < 52 && b.palisade < 1f && time > 0f && people > 0f) {
+        val built = minOf(1f - b.palisade, time / (PALISADE_DAYS * people), gd[Material.WOOD.ordinal] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
+        gd[Material.WOOD.ordinal] -= built * PALISADE_WOOD * people; b.palisade += built; time -= built * PALISADE_DAYS * people
+        if (built > 0f) meetings.merge("bands built palisades", 1, Int::plus)
+    }
+    if (b.houseHex >= 0 && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
     b.spareDays = time
     // A band carries only so much: the rest is left behind (and goes back to the ground); at a camp it
     // keeps, it stacks building stone and timber beyond that.
@@ -627,3 +648,47 @@ internal fun HexGroups.robCaches() {
         }
     }
 }
+
+/**
+ * A band driven by hunger or a feud, knowing where a band it is not close to has its home within
+ * reach, sets out to fall on it there: settled bands can be found. Once there, if the others are at
+ * home, it attacks (see [fight]); otherwise it gives up.
+ */
+internal fun HexGroups.plotRaid(g: HexGroup, b: Band) {
+    val here = hw.placeHex[g.place]
+    if (b.raidHex >= 0) {
+        if (here == b.raidHex) {
+            val target = groups.firstOrNull { it.id == b.raidOn && it.alive && hw.placeHex[it.place] == here }
+            if (target != null) target.band?.let { tb -> fight(g, b, target, tb, planned = true) }
+            b.raidHex = -1; b.raidOn = -1
+        } else if (--b.raidWeeks <= 0) { b.raidHex = -1; b.raidOn = -1 }
+        return
+    }
+    val hungry = g.fed < RAID_HUNGER
+    var best = -1; var bestKm = Double.MAX_VALUE
+    for ((id, h) in b.knownHomes) {
+        if (b.tie(id) > 0f) continue
+        val feud = (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
+        if (!hungry && !feud) continue
+        val km = hexKm(here, h)
+        if (km <= RAID_RANGE_KM && km < bestKm) { bestKm = km; best = id }
+    }
+    if (best >= 0 && rnd.nextFloat() < RAID_PLOT * days / 7f) {
+        b.raidOn = best; b.raidHex = b.knownHomes.getValue(best); b.raidWeeks = RAID_WEEKS
+        meetings.merge("raids set out", 1, Int::plus)
+        note(g) { "set out to raid band #%d at hex %d".format(best, b.raidHex) }
+    }
+}
+
+/** Raids: hunger under which a band will go raiding; how far, km; weekly chance a driven band sets out; weeks it keeps at it. Palisades: person-days and timber (kg) for one person's share. Fighting: surprise and the lie of the land. */
+const val RAID_HUNGER = 0.6f
+const val RAID_RANGE_KM = 60.0
+const val RAID_PLOT = 0.3f
+const val RAID_WEEKS = 4
+const val PALISADE_DAYS = 6f
+const val PALISADE_WOOD = 80f
+const val PALISADE_DEFENCE = 1f
+const val SURPRISE_RAID = 1f
+const val HIGH_GROUND = 0.5f
+/** Chance a band with no home to hold slips away from a raid, losing only what it cannot carry. */
+const val FLEE = 0.5f

@@ -346,7 +346,7 @@ class HexGroups(
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
         // (Bands hold no hunting ground of the packs' kind: a band is restless only when hungry, thirsty or astray.)
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
-        val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && ((b.appointMonth - month + 12) % 12) <= 1) || b.unluckyHex == here } ?: false
+        val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && ((b.appointMonth - month + 12) % 12) <= 1) || b.unluckyHex == here || b.raidHex >= 0 } ?: false
         val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon
             else if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
@@ -463,6 +463,8 @@ class HexGroups(
                     // Its houses draw it home; a camp where someone died lately is shunned by those who leave their dead.
                     if (h == b.houseHex) score += HOME_PULL * b.house
                     if (h == b.unluckyHex) score -= UNLUCKY
+                    // A band set on a raid heads for its target.
+                    if (b.raidHex >= 0) { val from = hexKm(here, b.raidHex); if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f) }
                 }
                 // A band with food enough to feast others is drawn to where other bands are (gatherings).
                 g.band?.let { b -> if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {

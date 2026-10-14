@@ -92,6 +92,11 @@ const val FOUL_AVOID = 0.3f
 const val BURIAL_STAY = 0.1f
 /** Most a band of [Tradition.FEASTS] grows to before it splits, against its kind's usual most. */
 const val FEAST_SIZE = 1.3f
+/** How much likelier a raid is on strangers (never met before), and on bands of wholly other customs. */
+const val STRANGER_HOSTILITY = 0.5f
+/** How strongly a band on a raid heads for its target. */
+const val RAID_PULL = 0.8f
+const val CUSTOMS_HOSTILITY = 1f
 /** How strongly an unlucky camp (a death, among bands that leave their dead) is shunned, and for how many weeks. */
 const val UNLUCKY = 0.6f
 const val UNLUCKY_WEEKS = 8
@@ -193,6 +198,11 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         // takes up the other's (the more they are close, the likelier).
         val hMeet = hw.placeHex[a.place]; val wk = (weatherNow.date.absoluteDay / days).toInt(); val sMeet = PlaceMemory.seasonOf(weatherNow.date.month)
         a.memory.mark(hMeet, sMeet, wk, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, b.memory.met, 1f)
+        // And where each has its houses, and the homes of others they know of: settled bands can be found.
+        if (bb.houseHex >= 0 && bb.house >= 0.2f) { ba.knownHomes[b.id] = bb.houseHex; ba.knownLineage[b.id] = bb.mainLineage() }
+        if (ba.houseHex >= 0 && ba.house >= 0.2f) { bb.knownHomes[a.id] = ba.houseHex; bb.knownLineage[a.id] = ba.mainLineage() }
+        for ((id, hh) in bb.knownHomes) if (id != a.id && rnd.nextFloat() < u) { ba.knownHomes.putIfAbsent(id, hh); bb.knownLineage[id]?.let { ba.knownLineage.putIfAbsent(id, it) } }
+        for ((id, hh) in ba.knownHomes) if (id != b.id && rnd.nextFloat() < u) { bb.knownHomes.putIfAbsent(id, hh); ba.knownLineage[id]?.let { bb.knownLineage.putIfAbsent(id, it) } }
         fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {
             if (by.appointHex < 0 || by.appointHex == bx.appointHex) return
             val theirs = y.memory.deadAt(by.appointHex) + y.memory.metAt(by.appointHex)
@@ -225,12 +235,40 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     val feud = b.grudge[ob.mainLineage()] > FEUD
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     val pressure = if (feud) 1f else max(hunger, min(1f, peopleCrowding(g)))
-    val chance = RAID * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage)) * (1f - TIE_PEACE * max(0f, b.tie(o.id)))
+    // Strangers (never met before) and those of other customs are easier to fight.
+    val stranger = if (o.id !in b.ties) STRANGER_HOSTILITY else 0f
+    val otherWays = Tradition.entries.count { b.holds(it) != ob.holds(it) }.toFloat() / Tradition.entries.size
+    val chance = RAID * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage)) * (1f - TIE_PEACE * max(0f, b.tie(o.id))) *
+        (1f + stranger + CUSTOMS_HOSTILITY * otherWays)
     if (rnd.nextFloat() >= chance) return false
-    meetings.merge("raids", 1, Int::plus)
-    note(g) { "raided band #%d".format(o.id) }; note(o) { "was raided by band #%d".format(g.id) }
-    // (A band at home in its houses is harder to raid.)
-    val sg = strength(g); val so = strength(o) * (1f + HOUSE_DEFENCE * (if (ob.atHome) ob.house else 0f))
+    fight(g, b, o, ob, planned = false)
+    return true
+}
+
+/**
+ * [g] falls on [o]. A planned raid on a band at home may take it by surprise, the less so the more
+ * it sees (scouts, open ground, moonlight); the defenders gain from high, broken ground, their
+ * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry.
+ */
+internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean) {
+    meetings.merge(if (planned) "raids on homes" else "raids", 1, Int::plus)
+    note(g) { "raided band #%d%s".format(o.id, if (planned) " at its home" else "") }; note(o) { "was raided by band #%d".format(g.id) }
+    ob.sinceRaided = 0
+    // The mobile slip away (and lose some of their stores).
+    if (!ob.atHome && rnd.nextFloat() < FLEE) {
+        val t = 0.3f * RAID_TAKE * o.larder; o.larder -= t; g.larder += t
+        meetings.merge("raided bands slipped away", 1, Int::plus)
+        ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
+        return
+    }
+    val p = o.place
+    // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
+    val seen = (sight(p) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
+    val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
+    // The defenders' ground and works.
+    val ground = 1f + HIGH_GROUND * land.bestDefence[p]
+    val works = if (ob.atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
+    val sg = strength(g) * surprise; val so = strength(o) * ground * works
     // Each side loses some of its people, the more so against the stronger side.
     val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so))
     val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so))
@@ -247,7 +285,6 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
-    return true
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */
