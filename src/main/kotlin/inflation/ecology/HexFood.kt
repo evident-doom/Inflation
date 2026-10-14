@@ -72,12 +72,17 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * (land.herb[p] + 0.05f * land.tree[p]) + REED_ROOTS * land.logged[p]
 
     private var standYear = -1
+    /** Grain ripened at each place so far this year, kg/m², and over all the land in the last whole year, t. */
+    private val ripenedNow = FloatArray(n)
+    var grainRipenedLastYear = 0.0; private set
     fun step(weather: Weather) {
         // Once a year the wild cereal stands follow the climate: they spread where it suits them and
         // die back where it no longer does, over decades (a long cold, dry spell shrinks them).
         val year = (weather.date.absoluteDay / inflation.world.Date.DAYS_PER_YEAR).toInt()
         if (year != standYear) {
             val first = standYear < 0; standYear = year
+            if (!first) grainRipenedLastYear = (0 until n).sumOf { (ripenedNow[it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
+            ripenedNow.fill(0f)
             if (!first) { val (dT, rain) = weather.shock()
                 java.util.stream.IntStream.range(0, n).parallel().forEach { p -> cereal[p] += STAND_SHIFT * (cerealShare(p, dT, rain) - cereal[p]) } }
         }
@@ -105,7 +110,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                 // (As the season advances: a cold year that never reaches its full warmth ripens only part of its grain.)
                 val advance = max(0f, weather.temperature[p] - 5f) * days / land.annualGdd[p].coerceAtLeast(1f)
                 val inWindow = (min(season, SEED_TO) - max(season - advance, SEED_FROM)).coerceAtLeast(0f)
-                if (inWindow > 0f) grain[p] += (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM)
+                if (inWindow > 0f) { val ripe = (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM); grain[p] += ripe; ripenedNow[p] += ripe }
                 val wild = 1f - domestic[p]
                 val lost = grain[p] * (wild * min(1f, days / SEED_DAYS) + (1f - wild) * min(1f, days / GRAIN_HOLD_DAYS))
                 grain[p] = max(0f, grain[p] - lost); small.litter[p] += lost
