@@ -127,6 +127,12 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         if (plants > 0f) band?.practise(Forage.GATHER)
         val wantAll = g.dailyNeedKg * days * (d.meat + d.smallPrey + d.carrion + d.fruit + d.roots).coerceAtLeast(1e-6f)
         var eaten = min(got, need) + gotSmall + gotScraps + plants
+        // What each hunting kind's diet asked for this week and what each part of it brought (for the diet line in the check).
+        hunting.merge("${s.name}:diet asked, kg", (g.dailyNeedKg * days).toInt(), Int::plus)
+        hunting.merge("${s.name}:diet meat, kg", min(got, need).toInt(), Int::plus)
+        hunting.merge("${s.name}:diet small prey, kg", gotSmall.toInt(), Int::plus)
+        hunting.merge("${s.name}:diet carrion, kg", gotScraps.toInt(), Int::plus)
+        hunting.merge("${s.name}:diet plants, kg", plants.toInt(), Int::plus)
         if (s.human) { hunting.merge("${s.name}:meat eaten, kg", (min(got, need) + gotSmall + gotScraps).toInt(), Int::plus); hunting.merge("${s.name}:plants eaten, kg", plants.toInt(), Int::plus) }
         var leftMeat = max(0f, got - need)
         if (band != null) {

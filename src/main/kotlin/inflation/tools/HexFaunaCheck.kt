@@ -96,9 +96,10 @@ fun main(args: Array<String>) {
         val walked = HashMap<Int, HashSet<Int>>(); val lastCamp = HashMap<Int, Int>()
         repeat(stepsPerYear) { w ->
             if (w == stepsPerYear / 2) println("     midsummer, land that suits / pull felt: " + drawn())
-            System.getProperty("hex.huntDiag")?.let { kind ->
+            System.getProperty("hex.huntDiag")?.let { kinds ->
                 if (w % 13 == 6) {
                     // Packs of the kind that went hungry this week against those that ate, and their ground.
+                    for (kind in kinds.split(',')) {
                     val gs = herds.groups.filter { it.alive && it.species.name == kind }
                     val (hungry, fed) = gs.partition { it.fed < 0.5f }
                     fun ground(l: List<inflation.ecology.HexGroup>) = if (l.isEmpty()) "-" else "resident game %.0f kg/km², young per pack %.1f, holding ground %.0f%%, cover %.2f, water %.1f km, band %.1f".format(
@@ -110,6 +111,7 @@ fun main(args: Array<String>) {
                     println("     week $w $kind: ${hungry.size} of ${gs.size} packs hungry: ${ground(hungry)} | fed: ${ground(fed)}")
                     val thirsty = gs.filter { it.dry > it.species.daysWithoutWater }
                     if (thirsty.isNotEmpty()) println("     week $w $kind: ${thirsty.size} thirsty: " + ground(thirsty) + "; water within reach %.0f%%, sea %.0f%%".format(100.0 * thirsty.count { land.water[it.place] >= 0.05f } / thirsty.size, 100.0 * thirsty.count { hw.sea[hw.placeHex[it.place]] > 0.3f } / thirsty.size))
+                    }
                 }
             }
             if (System.getProperty("hex.fedDiag") != null && y == 1 && w % 13 == 6) {
@@ -175,6 +177,13 @@ fun main(args: Array<String>) {
             val gw = (groupWeeks[s.name] ?: 0).coerceAtLeast(1).toDouble()
             fun v(k: String) = (huntYear["${s.name}:$k"] ?: 0) / gw
             "%s %.2f / %.2f / %.2f / %.2f / %.2f".format(s.name, v("chases"), v("herds that saw it first"), v("kills from herds"), v("kills of residents"), (fedSum[s.name] ?: 0.0) / gw)
+        })
+        // What each hunting kind's diet asked for and what each part brought, as shares of what it asked.
+        println("     hunters' diets met (meat / small prey / carrion / plants, of what was asked): " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
+            val asked = (huntYear["${s.name}:diet asked, kg"] ?: 0).toDouble().coerceAtLeast(1.0)
+            fun part(k: String) = 100 * (huntYear["${s.name}:diet $k, kg"] ?: 0) / asked
+            "%s %.0f/%.0f/%.0f/%.0f%% (diet %.0f/%.0f/%.0f/%.0f)".format(s.name, part("meat"), part("small prey"), part("carrion"), part("plants"),
+                100 * s.diet.meat, 100 * s.diet.smallPrey, 100 * s.diet.carrion, 100 * (s.diet.fruit + s.diet.roots))
         })
         // The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young.
         println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
