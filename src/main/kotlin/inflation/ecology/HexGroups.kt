@@ -463,6 +463,8 @@ class HexGroups(
                     // Its houses draw it home; a camp where someone died lately is shunned by those who leave their dead.
                     if (h == b.houseHex) score += HOME_PULL * b.house
                     if (h == b.unluckyHex) score -= UNLUCKY
+                    // It keeps off the known homes of bands it is not close to (unless set on raiding them).
+                    if (b.raidHex != h) for ((id, hh) in b.knownHomes) if (hh == h && b.tie(id) <= 0f) { score -= TRESPASS_AVOID; break }
                     // A band set on a raid heads for its target.
                     if (b.raidHex >= 0) { val from = hexKm(here, b.raidHex); if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f) }
                 }

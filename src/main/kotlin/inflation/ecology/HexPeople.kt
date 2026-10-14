@@ -130,6 +130,12 @@ class Band {
     /** A palisade of posts and brush round its houses, 0..1; weeks since it was last raided. */
     var palisade = 0f
     var sinceRaided = 1000
+    /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
+    var raidWill = 1f
+    var fortifyWill = 1f
+
+    /** Whether it holds hex [h] as its own: its houses, its dead, its appointment place. */
+    fun claims(h: Int, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
     /** A hex it shuns after a death there, and for how many more weeks ([Tradition.LEAVE_DEAD]). */
     var unluckyHex = -1
     var unluckyWeeks = 0
@@ -374,7 +380,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     b.atHome = b.houseHex == h && b.house > 0.05f
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
     // as its time and timber go.
-    if (b.atHome && b.sinceRaided < 52 && b.palisade < 1f && time > 0f && people > 0f) {
+    if (b.atHome && b.sinceRaided < 52 * b.fortifyWill && b.palisade < 1f && time > 0f && people > 0f) {
         val built = minOf(1f - b.palisade, time / (PALISADE_DAYS * people), gd[Material.WOOD.ordinal] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
         gd[Material.WOOD.ordinal] -= built * PALISADE_WOOD * people; b.palisade += built; time -= built * PALISADE_DAYS * people
         if (built > 0f) meetings.merge("bands built palisades", 1, Int::plus)
@@ -557,7 +563,7 @@ const val FOOD_TYPES = 9
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Forage.entries.size + Tool.entries.size + 3
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 2
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 4
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
@@ -589,6 +595,8 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     for (t in Tool.entries) b.makeFirst[t.ordinal] = squash(out[FOOD_TYPES + 1 + t.ordinal])
     b.scoutShare = SCOUT_SHARE * squash(out[FOOD_TYPES + 1 + Tool.entries.size])
     b.houseWill = squash(out[FOOD_TYPES + 2 + Tool.entries.size])
+    b.raidWill = squash(out[FOOD_TYPES + 3 + Tool.entries.size])
+    b.fortifyWill = squash(out[FOOD_TYPES + 4 + Tool.entries.size])
 }
 
 /**
@@ -664,7 +672,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band) {
         } else if (--b.raidWeeks <= 0) { b.raidHex = -1; b.raidOn = -1 }
         return
     }
-    val hungry = g.fed < RAID_HUNGER
+    val hungry = g.fed < RAID_HUNGER * b.raidWill.coerceAtMost(1.6f)
     var best = -1; var bestKm = Double.MAX_VALUE
     for ((id, h) in b.knownHomes) {
         if (b.tie(id) > 0f) continue
@@ -673,7 +681,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band) {
         val km = hexKm(here, h)
         if (km <= RAID_RANGE_KM && km < bestKm) { bestKm = km; best = id }
     }
-    if (best >= 0 && rnd.nextFloat() < RAID_PLOT * days / 7f) {
+    if (best >= 0 && rnd.nextFloat() < RAID_PLOT * b.raidWill * days / 7f) {
         b.raidOn = best; b.raidHex = b.knownHomes.getValue(best); b.raidWeeks = RAID_WEEKS
         meetings.merge("raids set out", 1, Int::plus)
         note(g) { "set out to raid band #%d at hex %d".format(best, b.raidHex) }

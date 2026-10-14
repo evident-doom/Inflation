@@ -94,6 +94,9 @@ const val BURIAL_STAY = 0.1f
 const val FEAST_SIZE = 1.3f
 /** How much likelier a raid is on strangers (never met before), and on bands of wholly other customs. */
 const val STRANGER_HOSTILITY = 0.5f
+/** How hard a band presses those it finds on ground it holds (graves, houses, appointment place); how strongly bands keep off others' known homes. */
+const val CLAIM_PRESSURE = 0.7f
+const val TRESPASS_AVOID = 0.2f
 /** How strongly a band on a raid heads for its target. */
 const val RAID_PULL = 0.8f
 const val CUSTOMS_HOSTILITY = 1f
@@ -234,7 +237,9 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     // many people on the same country); kin and those who understand each other fight less.
     val feud = b.grudge[ob.mainLineage()] > FEUD
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
-    val pressure = if (feud) 1f else max(hunger, min(1f, peopleCrowding(g)))
+    // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
+    val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
+    val pressure = if (feud) 1f else maxOf(hunger, min(1f, peopleCrowding(g)), trespass)
     // Strangers (never met before) and those of other customs are easier to fight.
     val stranger = if (o.id !in b.ties) STRANGER_HOSTILITY else 0f
     val otherWays = Tradition.entries.count { b.holds(it) != ob.holds(it) }.toFloat() / Tradition.entries.size
