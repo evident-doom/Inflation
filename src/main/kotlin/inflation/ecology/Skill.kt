@@ -37,9 +37,12 @@ enum class Domain {
  * band's skills, partners from other bands bring theirs. Untrained, a band does [floor] as well as a
  * master; [gain] is how well this variant does against the domain's first. [known]: whether bands
  * know it from the start (others are hit on now and then, and passed on, as tools are); [start] is
- * the level bands start with.
+ * the level bands start with. [invent] and [teach] scale how readily bands hit on it and pass it on
+ * (ancient, simple ways spread in years; building techniques took centuries to millennia); [settled]
+ * ways are hit on only by bands living in their houses.
  */
-enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, val known: Boolean = true, val gain: Float = 1f, val practice: Float = PRACTICE) {
+enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, val known: Boolean = true, val gain: Float = 1f, val practice: Float = PRACTICE,
+                 val invent: Float = 1f, val teach: Float = 1f, val settled: Boolean = false) {
     GATHER(Domain.GATHERING, 0.15f),
     SMALL_GAME(Domain.TRAPPING, 0.1f),
     FISH(Domain.FISHING, 0.1f),
@@ -49,7 +52,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     /** Smoking meat and fish over a slow fire: works in any weather, and keeps longer. Needs fire. */
     SMOKING(Domain.KEEPING, 0.3f, known = false),
     /** Sealing storage pits and bins with clay and plaster: keeps mice and damp out of the stores at home. */
-    SEALING(Domain.KEEPING, 0.3f, known = false),
+    SEALING(Domain.KEEPING, 0.3f, known = false, invent = 0.1f, teach = 0.1f, settled = true),
     KNAPPING(Domain.KNAPPING, CRAFT_FLOOR, 0.5f),
     WOODWORK(Domain.WOODWORK, CRAFT_FLOOR, 0.5f),
     HIDEWORK(Domain.HIDEWORK, CRAFT_FLOOR, 0.5f),
@@ -72,9 +75,9 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     /** Round huts on stone footings, roofed with timber and brush. */
     STONE_FOOTING(Domain.BUILDING, CRAFT_FLOOR, 0.5f),
     /** Pit houses dug half into the ground: warmer, and a third of the stone. */
-    PIT_HOUSE(Domain.BUILDING, CRAFT_FLOOR, known = false),
+    PIT_HOUSE(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.1f, teach = 0.1f, settled = true),
     /** Walls of mud and straw (pisé, then moulded bricks) where there is clay by water: no stone, half the timber, longer to build. */
-    MUDBRICK(Domain.BUILDING, CRAFT_FLOOR, known = false),
+    MUDBRICK(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.01f, teach = 0.05f, settled = true),
     /** Herbal remedies and wound care, learned over a lifetime of the sick. */
     HERBS(Domain.HEALING, CRAFT_FLOOR, 0.5f),
     /** Midwifery and care of infants. */

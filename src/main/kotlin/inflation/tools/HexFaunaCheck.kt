@@ -80,6 +80,29 @@ fun main(args: Array<String>) {
         val good = (0 until fauna.n).sumOf { p -> if (fauna.climateSuits(s, p) > 0.8f) land.areaKm2[p].toDouble() else 0.0 } / land.areaKm2.sum()
         "%s %.0f%% / %.2f".format(s.name, 100 * good, pull)
     }
+    // Ways of working and cereals: printed each year and at the end.
+    var grainReapedYear = 0.0; var grainReapedNow = 0.0
+    fun skillsAndCereals() {
+        run {
+            // Ways of working: how many bands know each, and how well those that know it do it (skills a band
+            // holds are part of its customs; neighbours share them, distant bands differ).
+            val bs = herds.groups.filter { it.alive && it.band != null }.map { it.band!! }
+            if (bs.isNotEmpty()) println("ways of working (bands knowing, their mean level): " + inflation.ecology.Skill.entries.joinToString(", ") { s ->
+                val k = bs.filter { it.knowsSkill[s.ordinal] }
+                "%s %.0f%% %.2f".format(s.name.lowercase().replace('_', ' '), 100.0 * k.size / bs.size, if (k.isEmpty()) 0.0 else k.map { it.skills[s.ordinal].toDouble() }.average()) })
+        }
+        run {
+            val f = fauna.food
+            val stands = (0 until land.n).count { f.cereal[it] > 0.01f }
+            val fields = (0 until land.n).filter { f.domestic[it] > 0.01f }
+            println("cereals: wild stands in %d places; places with ears that hold their grain %d, most %.2f, mean there %.2f; grain reaped by people %.0f t in the last year; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
+                stands, fields.size, fields.maxOfOrNull { f.domestic[it] } ?: 0f, if (fields.isEmpty()) 0.0 else fields.map { f.domestic[it].toDouble() }.average(), grainReapedYear,
+                herds.groups.filter { it.alive && it.band != null }.sumOf { it.stores[inflation.ecology.Store.SEED.ordinal].toDouble() } / 1000,
+                herds.groups.filter { it.alive && it.band?.atHome == true }.sumOf { it.stores[inflation.ecology.Store.SEED.ordinal].toDouble() } / 1000,
+                (0 until land.n).sumOf { (f.grain[it] * land.areaKm2[it] * 1e6).toDouble() } / 1000, f.grainRipenedLastYear,
+                herds.groups.count { it.alive && it.band?.atHome == true && f.cereal[it.place] > 0f }, herds.groups.count { it.alive && it.band?.atHome == true }))
+        }
+    }
     run {
         val t0 = System.nanoTime(); herds.bearings.month
         val t1 = System.nanoTime(); herds.bearings.update(0); fauna.bearings.update(0)
@@ -157,6 +180,7 @@ fun main(args: Array<String>) {
             // -Dhex.follow=kind: follow one group of that kind week by week, as the viewer's follow mode does.
             System.getProperty("hex.follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
             sim.step()
+            grainReapedNow += (herds.hunting["people:grain reaped, kg"] ?: 0) / 1000.0
             for (g in herds.groups) { val b = g.band ?: continue; if (!g.alive) continue; val i = if (b.house >= 0.2f) 1 else 0; bandWeeksHouse[i]++; if (b.campWeeks == 0) movesHouse[i]++ }
             // Appointments kept: of bands in their appointment's month, how many are at its hex.
             for (g in herds.groups) { val b = g.band ?: continue; if (!g.alive || b.appointHex < 0 || b.appointMonth != weather.date.month) continue; apptDue++; if (hw.placeHex[g.place] == b.appointHex) apptKept++ }
@@ -300,6 +324,8 @@ fun main(args: Array<String>) {
         }
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     droughts under way: " + sim.weather.droughts())
+        grainReapedYear = grainReapedNow; grainReapedNow = 0.0
+        print("     "); skillsAndCereals()
         System.out.flush()
         // The history so far, for the graphs (every five years and at the end).
         historyFile?.let { if (y % 5 == 0 || y == years) history.writeCsv(it) }
@@ -335,25 +361,7 @@ fun main(args: Array<String>) {
             println("food for people across the land: unevenness (Gini) %.2f, richest 5%% of hexes hold %.0f%% of it, median hex %.0f t".format(gini, 100 * top, v[v.size / 2] / 1000))
         }
     }
-    run {
-        // Ways of working: how many bands know each, and how well those that know it do it (skills a band
-        // holds are part of its customs; neighbours share them, distant bands differ).
-        val bs = herds.groups.filter { it.alive && it.band != null }.map { it.band!! }
-        if (bs.isNotEmpty()) println("ways of working (bands knowing, their mean level): " + inflation.ecology.Skill.entries.joinToString(", ") { s ->
-            val k = bs.filter { it.knowsSkill[s.ordinal] }
-            "%s %.0f%% %.2f".format(s.name.lowercase().replace('_', ' '), 100.0 * k.size / bs.size, if (k.isEmpty()) 0.0 else k.map { it.skills[s.ordinal].toDouble() }.average()) })
-    }
-    run {
-        val f = fauna.food
-        val stands = (0 until land.n).count { f.cereal[it] > 0.01f }
-        val fields = (0 until land.n).filter { f.domestic[it] > 0.01f }
-        println("cereals: wild stands in %d places; places with ears that hold their grain %d, most %.2f, mean there %.2f; grain reaped by people %.1f t in the last week; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
-            stands, fields.size, fields.maxOfOrNull { f.domestic[it] } ?: 0f, if (fields.isEmpty()) 0.0 else fields.map { f.domestic[it].toDouble() }.average(), (herds.hunting["people:grain reaped, kg"] ?: 0) / 1000.0,
-            herds.groups.filter { it.alive && it.band != null }.sumOf { it.stores[inflation.ecology.Store.SEED.ordinal].toDouble() } / 1000,
-            herds.groups.filter { it.alive && it.band?.atHome == true }.sumOf { it.stores[inflation.ecology.Store.SEED.ordinal].toDouble() } / 1000,
-            (0 until land.n).sumOf { (f.grain[it] * land.areaKm2[it] * 1e6).toDouble() } / 1000, f.grainRipenedLastYear,
-            herds.groups.count { it.alive && it.band?.atHome == true && f.cereal[it.place] > 0f }, herds.groups.count { it.alive && it.band?.atHome == true }))
-    }
+    skillsAndCereals()
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
         val c = causes.entries.filter { it.key.substringBefore(":") == s.name && !it.key.endsWith("+born") }.map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }

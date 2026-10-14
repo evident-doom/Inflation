@@ -402,7 +402,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         }
     }
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
-    for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && rnd.nextFloat() < INVENT * years * (0.5f + b.skill(s.domain))) {
+    for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) && rnd.nextFloat() < s.invent * INVENT * years * (0.5f + b.skill(s.domain))) {
         b.knowsSkill[s.ordinal] = true; meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
@@ -575,7 +575,7 @@ internal fun HexGroups.teach(a: Band, b: Band, understood: Float) {
         meetings.merge("band learned ${Tool.entries[k].name.lowercase()}", 1, Int::plus)
     }
     // And ways of working: the one that knows a way shows it; the other starts on it as a beginner.
-    for (k in a.knowsSkill.indices) if (a.knowsSkill[k] != b.knowsSkill[k] && rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood)) {
+    for (k in a.knowsSkill.indices) if (a.knowsSkill[k] != b.knowsSkill[k] && rnd.nextFloat() < Skill.entries[k].teach * TEACH * (0.5f + 0.5f * understood)) {
         val (from, to) = if (a.knowsSkill[k]) a to b else b to a
         to.knowsSkill[k] = true; to.skills[k] = max(to.skills[k], SHOWN * from.skills[k])
         meetings.merge("band learned ${Skill.entries[k].name.lowercase().replace('_', ' ')}", 1, Int::plus)
