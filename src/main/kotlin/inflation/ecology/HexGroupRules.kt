@@ -92,6 +92,20 @@ const val HANDLING_DAYS = 0.3f
 const val EATING_RATE = 0.15f
 /** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */
 const val SEARCHING = 0.3f
+/**
+ * Optimal foraging: how far to each side of its way a hunter finds small game, km; the share of
+ * small game met that a hunter of [SMALL_HUNTER_KG] or less catches (bigger ones are clumsier with
+ * it); days to catch a kilo of it (many tries for each vole or hare); days to pick a kilo of fruit
+ * or dig one of roots; how much longer bones take to crack and eat than meat.
+ */
+const val SMALL_SENSE_KM = 0.02f
+const val SMALL_CATCH = 0.3f
+const val SMALL_HUNTER_KG = 15f
+const val SMALL_HANDLING_DAYS_PER_KG = 0.3f
+const val PLANT_HANDLING_DAYS_PER_KG = 0.3f
+const val BONE_DAYS = 3f
+/** Times a party plans its week's foraging over: if others took what it planned on, it looks again at what is left. */
+const val FORAGE_PASSES = 3
 
 /** Ground a hunting party of kind [s] sweeps in a week, km² (shared over the hexes it passes): its going, by the width it senses. */
 fun HexGroups.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * SEARCHING

@@ -55,6 +55,8 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         // over more of it, as the square root of its numbers against its kind's usual party.
         val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1)
         val packKg = max(1, g.adults) * s.massKg
+        // Animal hunters eat what pays best among what they meet (people follow their ways, below).
+        if (!s.human) { forage(g, sweep, packKg, weather); continue }
         // Small game and carrion along the way first: they cost little and come as found.
         val smallWant = g.dailyNeedKg * days * s.diet.smallPrey
         val scraps = g.dailyNeedKg * days * s.diet.carrion
@@ -232,6 +234,135 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
     }
 }
 
+/**
+ * A hunting party's week, as optimal foraging: along its way it meets big game, small game, carrion
+ * (if it eats it) and fruit (if it eats plants), each at a rate set by how much there is, how much
+ * ground it searches for that kind of food, and how likely a meeting ends in a meal (its size, speed,
+ * stalking and the cover against the prey's size, speed, weapons and refuge). Each food is worth its
+ * kilos over the time it takes to catch and eat. The party takes the most rewarding foods first and
+ * adds poorer ones only while they raise its rate of intake (Charnov's diet model), until it is fed.
+ * So who eats whom, and how much of each, comes from the animals' traits and what is about.
+ */
+internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather: Weather) {
+    val s = g.species
+    val d = s.diet
+    val wantAll = g.dailyNeedKg * days
+    val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
+    // Small game is found within a few paces of the way, not as far as the party can see.
+    val smallSweep = s.dailyTravelKm * days * 2f * SMALL_SENSE_KM * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1)
+    val smallCatch = smallCatch(s)
+    val smallDays = SMALL_HANDLING_DAYS_PER_KG / max(1, g.adults) + eats
+    // The foods on offer: kind (0 big game of [kinds] index k, 1 small game, 2 carrion, 3 bones, 4 fruit and roots), place, rate a day, kg each, days each.
+    val n = (g.path.size * (fauna.kinds.size + 4) + 1)
+    val type = IntArray(n); val kind = IntArray(n); val place = IntArray(n)
+    val rate = FloatArray(n); val kg = FloatArray(n); val time = FloatArray(n)
+    var m = 0
+    var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f
+    // The party plans its week on what it finds, eats, and if others got there first and it is still
+    // hungry, looks again at what is left.
+    for (pass in 0 until FORAGE_PASSES) {
+    val left = wantAll - (meat + smallGot + scraps + plants)
+    if (left <= 0.01f * wantAll) break
+    m = 0
+    fun offer(t: Int, k: Int, p: Int, r: Float, e: Float, h: Float) {
+        if (r <= 0f || e <= 0f) return
+        type[m] = t; kind[m] = k; place[m] = p; rate[m] = r; kg[m] = e; time[m] = h; m++
+    }
+    for (h in g.path) {
+        val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
+        val area = land.areaKm2[p]
+        val swept = min(area, sweep)
+        for (k in fauna.kinds.indices) {
+            val ps = fauna.kinds[k]
+            val dens = fauna.adults[k][p] + fauna.young[k][p]
+            if (dens <= 0f) continue
+            // Prey resting while the hunter is about lie up in cover and are found less.
+            val chance = CATCH * catchable(s, ps, p, packKg) * (0.5f + 0.5f * Niches.overlap(s, ps))
+            // A kill is worth what the party can eat of it, gorging included; the rest is left to others.
+            val meat = min(ps.massKg * MEAT_SHARE, (1f + FATTEN) * wantAll)
+            offer(0, k, p, dens * swept * chance / days, meat, HANDLING_DAYS + meat * eats)
+        }
+        val small = this.small
+        offer(1, 0, p, small.smallPreyKg(p) * min(area, smallSweep) * smallCatch / days, 1f, smallDays)
+        if (d.carrion > 0f) {
+            // (At most half of what lies on the ground searched: the rest is not found in time, or others get it.)
+            offer(2, 0, p, 0.5f * small.carrion[p] * 1e6f * swept / days, 1f, eats)
+            if (Niches.cracksBones(s)) offer(3, 0, p, 0.5f * small.bones[p] * 1e6f * swept / days, 1f, eats * BONE_DAYS)
+        }
+    }
+    if (d.fruit + d.roots > 0f) {
+        val p = g.place
+        val stock = (fauna.food.fruit[p] + fauna.food.roots[p]) * 1e6f // kg/km²
+        offer(4, 0, p, stock * min(land.areaKm2[p], smallSweep * g.path.size) / days, 1f, PLANT_HANDLING_DAYS_PER_KG + eats)
+    }
+    // Rank by kilos a day of handling, best first.
+    val order = (0 until m).sortedByDescending { kg[it] / time[it] }
+    var gain = 0f; var spent = 1f; var used = 0
+    for (i in order) {
+        if (kg[i] / time[i] <= gain / spent) break
+        gain += rate[i] * kg[i]; spent += rate[i] * time[i]; used++
+    }
+    // What the week brings at that rate, as far as the party wants: it stops when fed.
+    val got0 = meat
+    val f = if (gain > 0f) min(1f, left / (days * gain / spent)) else 0f
+    if (FORAGE_DIAG == s.name && rnd.nextFloat() < 0.002f) System.err.println("forage ${s.name} adults ${g.adults} want ${wantAll} met ${got0} offers $m used $used gain $gain spent $spent f $f: " +
+        order.take(6).joinToString("; ") { "t${type[it]} k${kind[it]} r=${rate[it]} e=${kg[it]} h=${time[it]}" })
+    for (r in 0 until used) {
+        val i = order[r]
+        val expected = days * rate[i] / spent * f
+        val p = place[i]
+        when (type[i]) {
+            0 -> {
+                val k = kind[i]; val ps = fauna.kinds[k]
+                val area = land.areaKm2[p]
+                val dens = fauna.adults[k][p] + fauna.young[k][p]
+                var nk = poisson(expected)
+                nk = min(nk, (dens * area * 0.5f).toInt())
+                if (nk <= 0) continue
+                val ny = (nk * fauna.young[k][p] / dens).toInt(); val na = nk - ny
+                fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
+                val young = min(0.3f * ps.massKg, kg[i])
+                meat += na * kg[i] + ny * young
+                small.carrion[p] += (na * (ps.massKg - kg[i]) + ny * (0.3f * ps.massKg - young)) / (area * 1e6f)
+                kills.merge(ps.name, nk, Int::plus)
+                fauna.killed(p, nk * ps.massKg)
+                hunting.merge("${s.name}:kills of residents", nk, Int::plus)
+            }
+            1 -> smallGot += small.catchSmallIn(p, expected, min(land.areaKm2[p], smallSweep), weather)
+            2 -> scraps += small.scavengeIn(p, expected, min(land.areaKm2[p], sweep))
+            3 -> scraps += small.crackBonesIn(p, expected, min(land.areaKm2[p], sweep))
+            4 -> plants += (fauna.food.take(fauna.food.fruit, p, 0.5f * expected / (land.areaKm2[p] * 1e6f)) +
+                fauna.food.take(fauna.food.roots, p, 0.5f * expected / (land.areaKm2[p] * 1e6f))) * land.areaKm2[p] * 1e6f
+        }
+    }
+    }
+    val meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants))
+    if (FORAGE_DIAG == s.name && rnd.nextFloat() < 0.003f) System.err.println("ate ${s.name} want $wantAll meat $meat small $smallGot scraps $scraps plants $plants path ${g.path.size}")
+    val eaten = meatEaten + smallGot + scraps + plants
+    hunting.merge("${s.name}:diet asked, kg", wantAll.toInt(), Int::plus)
+    hunting.merge("${s.name}:diet meat, kg", meatEaten.toInt(), Int::plus)
+    hunting.merge("${s.name}:diet small prey, kg", smallGot.toInt(), Int::plus)
+    hunting.merge("${s.name}:diet carrion, kg", scraps.toInt(), Int::plus)
+    hunting.merge("${s.name}:diet plants, kg", plants.toInt(), Int::plus)
+    var spare = meat - meatEaten
+    // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
+    if (spare > 0f && g.fat < s.maxFatDays) {
+        val gorge = min(spare, FATTEN * wantAll)
+        g.surplus = gorge / g.dailyNeedKg.coerceAtLeast(1e-3f)
+        spare -= gorge
+        small.dung[g.place] += HexSmallLife.DUNG * gorge / (land.areaKm2[g.place] * 1e6f)
+    }
+    g.fed = (eaten / wantAll).coerceIn(0f, 1f)
+    // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
+    small.carrion[g.place] += spare / (land.areaKm2[g.place] * 1e6f)
+    small.dung[g.place] += HexSmallLife.DUNG * (meatEaten + smallGot + scraps) / (land.areaKm2[g.place] * 1e6f)
+}
+
+private val FORAGE_DIAG = System.getProperty("hex.forageDiag")
+
+/** How readily [s] catches small game it comes on, 0..1: the smaller and nimbler the hunter, the better; cover hides the prey from all but stalkers. */
+internal fun smallCatch(s: Species) = SMALL_CATCH * min(1f, SMALL_HUNTER_KG / s.massKg)
+
 /** The day [g] enters each hex of its path: effort so far over its pace, the first hex on day 0. */
 internal fun HexGroups.timetable(s: Species, path: IntArray): FloatArray {
     val out = FloatArray(path.size)
@@ -403,7 +534,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         return
     }
     // A hunter that has eaten its fill this week lets the herd pass.
-    val need = hunter.dailyNeedKg * days * hunter.species.diet.meat
+    val need = hunter.dailyNeedKg * days * (if (hunter.species.human) hunter.species.diet.meat else 1f)
     if (hunter.meatMet >= need) return
     val p = hw.placeOf[hw.placeBand[herd.place]][h].takeIf { it >= 0 } ?: herd.place
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.

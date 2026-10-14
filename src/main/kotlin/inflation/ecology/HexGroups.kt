@@ -471,9 +471,14 @@ class HexGroups(
      * diet. A jackal looks for rodents and carrion, a lion for big game.
      */
     internal fun dietValue(s: Species, p: Int, game: Float): Float {
-        val d = s.diet
-        val parts = (d.meat + d.smallPrey + d.carrion).coerceAtLeast(1e-6f)
-        return (d.meat * game + d.smallPrey * small.smallPreyKg(p) + d.carrion * small.carrion[p] * 1e6f) / parts
+        if (s.human) {
+            val d = s.diet
+            val parts = (d.meat + d.smallPrey + d.carrion).coerceAtLeast(1e-6f)
+            return (d.meat * game + d.smallPrey * small.smallPreyKg(p) + d.carrion * small.carrion[p] * 1e6f) / parts
+        }
+        // Small game is searched for over a narrower strip than big game, and carrion only by those that eat it.
+        val smallWorth = smallCatch(s) * SMALL_SENSE_KM / (s.senseKm * SEARCHING * CATCH)
+        return game + smallWorth * small.smallPreyKg(p) + (if (s.diet.carrion > 0f) small.carrion[p] * 1e6f else 0f)
     }
 
     internal fun preyHere(s: Species, p: Int): Float {

@@ -193,11 +193,12 @@ fun main(args: Array<String>) {
             "%s %.2f / %.2f / %.2f / %.2f / %.2f".format(s.name, v("chases"), v("herds that saw it first"), v("kills from herds"), v("kills of residents"), (fedSum[s.name] ?: 0.0) / gw)
         })
         // What each hunting kind's diet asked for and what each part brought, as shares of what it asked.
-        println("     hunters' diets met (meat / small prey / carrion / plants, of what was asked): " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
+        // (Animal hunters' diets come from what pays best; people's from their ways, shown after them.)
+        println("     hunters' food (meat / small prey / carrion / plants, as shares of what they need): " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val asked = (huntYear["${s.name}:diet asked, kg"] ?: 0).toDouble().coerceAtLeast(1.0)
             fun part(k: String) = 100 * (huntYear["${s.name}:diet $k, kg"] ?: 0) / asked
-            "%s %.0f/%.0f/%.0f/%.0f%% (diet %.0f/%.0f/%.0f/%.0f)".format(s.name, part("meat"), part("small prey"), part("carrion"), part("plants"),
-                100 * s.diet.meat, 100 * s.diet.smallPrey, 100 * s.diet.carrion, 100 * (s.diet.fruit + s.diet.roots))
+            "%s %.0f/%.0f/%.0f/%.0f%%".format(s.name, part("meat"), part("small prey"), part("carrion"), part("plants")) +
+                if (s.human) " (ways %.0f/%.0f/%.0f/%.0f)".format(100 * s.diet.meat, 100 * s.diet.smallPrey, 100 * s.diet.carrion, 100 * (s.diet.fruit + s.diet.roots)) else ""
         })
         // How far the herds are in July from where they were in January.
         if (julyKm.isNotEmpty()) println("     herds' January to July (mean km / share over 50 km): " + julyKm.entries.joinToString(", ") { (k, v) -> "%s %.0f / %.0f%%".format(k, v.average(), 100.0 * v.count { it > 50.0 } / v.size) })

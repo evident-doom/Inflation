@@ -192,10 +192,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             organicMatter[p] += 0.3f * decomposed - 0.05f * years * organicMatter[p]
             land.organicFertility[p] = 0.3f * organicMatter[p] / (organicMatter[p] + 4f)
             soilFauna[p] = 20f * decomposed / years
-            // What lay from earlier weeks rots (half in about ten days at 15 °C, faster in the heat);
+            // What lay from earlier weeks rots (half in three or four days at 15 °C, faster in the heat);
             // then the week's carcasses are added, fresh for the vultures and scavengers this week.
             if (carrion[p] > 0f) {
-                val gone = carrion[p] * (1f - exp(-0.07f * max(0.1f, warm) * days))
+                val gone = carrion[p] * (1f - exp(-CARRION_ROT * max(0.1f, warm) * days))
                 carrion[p] -= gone; litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
                 if (carrion[p] < 1e-9f) carrion[p] = 0f
             }
@@ -571,6 +571,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Owls and small hawks: food a day per kg of them; rodents (kg/km²) at which they get half of it; their share of the rodents where they first appear. */
         const val OWL_INTAKE = 0.2f
         const val OWL_HALF = 10f
+        /** Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the birds and dogs not counted here): half in three or four days. */
+        const val CARRION_ROT = 0.2f
         /** Small prey of one kind, kg/km², at which hunters find it half as readily as a common kind. */
         const val SMALL_FIND_HALF = 5f
         const val OWL_SEED = 0.002f
