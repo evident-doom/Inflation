@@ -33,7 +33,7 @@ const val NOT_WORTH_TRYING = 0.05f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
 const val AVOID_STRONGER = 0.3f
 /** How many times its usual density a migratory herd bears where herds gather before crowding sickens it. */
-val MIGRANTS_GATHER = 20f * MIGRANT_UNIT
+val MIGRANTS_GATHER get() = 20f * MIGRANT_UNIT
 /**
  * A herd agent stands for this many of its kind's usual bands (a gazelle herd of 120 rather than 12):
  * herds that move together are one agent, which keeps their numbers, and the step's cost, down.
