@@ -278,9 +278,10 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         lastMonth = date.month
         regime = upcomingRegime
         nextU.copyInto(windU); nextV.copyInto(windV)
+        val (shockT, shockRain) = shock()
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
-            val t = nextTemp[i]
-            val p = nextPrecip[i]
+            val t = nextTemp[i] + shockT
+            val p = nextPrecip[i] * shockRain
             temperature[i] = t
             precipitation[i] = p
             if (t < 0) {
@@ -294,6 +295,23 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         }
         date = date.plusDays(days)
         prepare()
+    }
+
+    /**
+     * A long climate shock, like the Younger Dryas (about 12,900 years ago: some 1,200 years colder
+     * and drier, setting in over decades and lifting quickly), set with
+     * -Dhex.climateShock=startYear,years,degrees,rainShare (for example 20,1200,-4,0.7): the
+     * temperature offset and the share of the rain, now; nothing when unset.
+     */
+    private val shockSpec = System.getProperty("hex.climateShock")?.split(",")?.map { it.trim().toDouble() }
+    fun shock(): Pair<Float, Float> {
+        val s = shockSpec ?: return 0f to 1f
+        val (start, years, dT, rain) = s
+        val y = date.absoluteDay / Date.DAYS_PER_YEAR.toDouble() - start
+        if (y < 0 || y > years) return 0f to 1f
+        // Setting in over a few decades, lifting within one.
+        val k = minOf(1.0, y / 30.0, (years - y) / 10.0).coerceIn(0.0, 1.0)
+        return (dT * k).toFloat() to (1.0 - (1.0 - rain) * k).toFloat()
     }
 
     private fun newYear() {
