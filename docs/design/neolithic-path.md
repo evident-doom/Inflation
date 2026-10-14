@@ -19,6 +19,8 @@ Agreed with Olli on 2026-10-14. This is the standing plan for people after the b
 | 6 | **Herd animals** | Managing wild goats, sheep, boar and aurochs: sparing females, culling young males, keeping animals near camp. Driven by each species' domestication traits. A herding-first path is possible. | Managed herds grow where the species allows. Dogs come first. | built (2026-10-14): bands at home keep young caught in the hunt; after 20 years about 230 kept boar in 29 bands, slowly growing tamer; dogs stay behind their switch |
 | 7 | **Climate shock (Younger Dryas)** | A scripted cold, dry spell of about 1,200 years in the weather. | Bands become more mobile, or shift to stored and grown food. Nothing is forced. | |
 
+**Baseline (next, 2026-10-15):** after an overnight training run on the server, save the most natural and best-performing Natufian models (the three role networks and the band ways) as a frozen, named baseline. Record the commit, settings, seeds and the check's record line with them, so later changes are compared against it.
+
 **Test cases running through all steps:**
 - **Jomon test:** on a coast- or oak-rich map, bands may settle without crops. That must be possible.
 - **Mobile test:** on poor, variable land, bands must stay mobile.
