@@ -256,13 +256,22 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 var took = fauna.food.take(stock, p, expected / m2) * m2
                 // Raw seed is poorly digested; ground and baked into bread it feeds fully.
                 if (type[i] == 6) took *= seedValue(band)
+                if (band != null && took > 0f) {
+                    // Earth ovens and gruel make more of it; bands that know how leach bitter plants too.
+                    val cook = band.cookValue(type[i])
+                    if (cook > 1f) { took *= cook; band.practise(if (type[i] == 5) Skill.EARTH_OVEN else Skill.STONE_BOILING) }
+                    if (type[i] != 7) {
+                        val extra = took * band.detoxExtra(land.palatable[p], land.water[p] >= 0.05f || land.waterKm[p] < 3f)
+                        if (extra > 0f) { took += extra; busy += extra * LEACH_DAYS_PER_KG / hands; band.practise(Skill.LEACHING); hunting.merge("${s.name}:plants leached, kg", extra.toInt(), Int::plus) }
+                    }
+                }
                 plants += took
                 plantKind[when (type[i]) { 5 -> Store.ROOTS; 6 -> Store.SEED; else -> Store.FRUIT }.ordinal] += took
             }
             8 -> fish += fauna.water.fishFor(p, expected, band?.fishing() ?: 1f)
             9 -> {
                 val m2 = land.areaKm2[p] * 1e6f
-                val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2 * seedValue(band)
+                val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2 * seedValue(band) * (band?.cookValue(9) ?: 1f)
                 plants += took; plantKind[Store.SEED.ordinal] += took
                 // A sickle takes the ears that hold their grain more than those that shatter at a touch.
                 if (band != null && took > 0f) {
@@ -281,6 +290,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (smallGot > 0f) band.practise(Skill.SMALL_GAME)
         if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.placeHex[g.place]) }
         if (fish > 0f) band.practise(Skill.FISH)
+        if (band.fire > 0f) band.practise(Skill.ROASTING)
         hunting.merge("${s.name}:fish, kg", fish.toInt(), Int::plus)
     }
     var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))

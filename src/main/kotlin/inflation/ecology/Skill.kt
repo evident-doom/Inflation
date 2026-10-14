@@ -17,6 +17,10 @@ enum class Domain {
     KNAPPING, WOODWORK, HIDEWORK, CORDAGE,
     /** Making fire, and keeping embers alive on the move. */
     FIRE,
+    /** Making food more nourishing with fire: roasting, boiling with hot stones, earth ovens. */
+    COOKING,
+    /** Making bitter and poisonous plants food: leaching acorns and bitter roots in running water, soaking, long roasting. */
+    DETOXIFYING,
 }
 
 /**
@@ -39,6 +43,17 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     CORDAGE(Domain.CORDAGE, CRAFT_FLOOR, 0.5f),
     /** Fire by friction (the hand drill): novices may fail for days. */
     FIRE(Domain.FIRE, FIRE_FLOOR, 0.5f),
+    /** Roasting on the embers: everyone with fire does it. */
+    ROASTING(Domain.COOKING, 0.5f, 0.8f),
+    /**
+     * Boiling with hot stones dropped in a tight basket, a hide or a pit: seed into gruel (fuller
+     * use of it), and grease rendered from bones. Needs baskets (or hides).
+     */
+    STONE_BOILING(Domain.COOKING, 0.3f, known = false),
+    /** Earth ovens: roots and bulbs baked for a day under hot stones, their starches made digestible. */
+    EARTH_OVEN(Domain.COOKING, 0.3f, known = false),
+    /** Leaching acorns and bitter roots in baskets in running water: needs baskets and water by the camp. */
+    LEACHING(Domain.DETOXIFYING, 0.2f, known = false),
     ;
 
     companion object {

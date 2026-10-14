@@ -224,6 +224,27 @@ class Band {
      * knows the plants there, against a band in its own country.
      */
     fun slowness(f: Skill, know: Float = KNOW_AT_HOME) = (f.floor + (1f - f.floor) * START_CRAFT) / skill(f) * (KNOW_AT_HOME / know)
+    /**
+     * How much more of a kilo of plant food of food type [t] its cooking makes good (1 roasting): earth
+     * ovens for roots, gruel boiled with hot stones for seed and grain. Nothing cooks without fire.
+     */
+    fun cookValue(t: Int): Float {
+        if (fire <= 0f) return 1f
+        val v = when (t) {
+            5 -> if (knowsSkill[Skill.EARTH_OVEN.ordinal]) EARTH_OVEN_GAIN * skill(Skill.EARTH_OVEN) else 0f
+            6, 9 -> if (knowsSkill[Skill.STONE_BOILING.ordinal]) GRUEL_GAIN * skill(Skill.STONE_BOILING) * max(has(Tool.BASKET), 0.5f) else 0f
+            else -> 0f
+        }
+        return 1f + fire * v
+    }
+    /**
+     * Food a band makes of the bitter and poisonous plants beside each kilo of plants it finds palatable
+     * where the edible share of the plants is [palatable], kg: none unless it knows how to leach them and
+     * has baskets and water.
+     */
+    fun detoxExtra(palatable: Float, water: Boolean): Float =
+        if (!knowsSkill[Skill.LEACHING.ordinal] || !water) 0f
+        else min(1f, LEACH_SHARE * skill(Skill.LEACHING) * has(Tool.BASKET) * (1f - palatable) / palatable.coerceAtLeast(0.1f))
     fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * (1f - skills[s.ordinal]) }
     fun has(t: Tool) = kit[t.ordinal]
 
@@ -897,4 +918,12 @@ const val PLANT_LEARN = 0.05f
 const val PLANT_FLOOR = 0.1f
 /** The foraging skill bands start with, and how well a band knows the plants in its own country (handling times are set for these). */
 const val START_CRAFT = 0.6f
+/**
+ * Cooking and detoxifying: how much more of roots earth ovens make good, and of seed gruel; how much
+ * of the bitter plants leaching makes food (against the palatable), and person-days to leach a kilo.
+ */
+const val EARTH_OVEN_GAIN = 0.3f
+const val GRUEL_GAIN = 0.2f
+const val LEACH_SHARE = 0.5f
+const val LEACH_DAYS_PER_KG = 0.3f
 val KNOW_AT_HOME = PLANT_FLOOR + (1f - PLANT_FLOOR) * 0.9f
