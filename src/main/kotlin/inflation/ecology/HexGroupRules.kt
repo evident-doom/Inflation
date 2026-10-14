@@ -98,7 +98,7 @@ fun HexGroups.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * S
 /** Share of a kill's weight that is eaten. */
 const val MEAT_SHARE = 0.6f
 const val HOME_ADVANTAGE = 1.5f
-const val RIVAL_KILL = 0.05f
+const val RIVAL_KILL = 0.02f
 /** Share of a beaten pack's young the winners kill when they take its ground. */
 const val INFANTICIDE = 0.25f
 /** Most meetings settled one by one for a group in a week. */

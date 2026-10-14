@@ -55,6 +55,12 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /** Nutrient supply the water is mixed towards (0..1), and nutrients, phytoplankton and zooplankton now, g/m². */
     val supply = FloatArray(size)
     private val nutrients = FloatArray(size)
+    /**
+     * Nutrients in the deep water under the sea, g/m² of surface water's worth: what sinks from the
+     * surface (dead plankton, fish and animals) gathers here, the wind brings it up where it blows the
+     * surface water off a coast (upwelling), and it is slowly renewed by the deep ocean beyond.
+     */
+    private val deep = FloatArray(size) { if (seaKm2[it] > 0f) DEEP_BASE * NUTRIENT_SCALE else 0f }
     val phyto = FloatArray(size)
     val zoo = FloatArray(size)
     /** Upwelling now, 0..1; for each coastal sea hex the way out to sea (unit east, south) and the land place that gives its wind. */
@@ -232,20 +238,29 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 val t = waterTemp[month][h]
                 val mixing = if (t < 14f) 0.25f else if (t < 20f) 0.08f else 0.02f
-                val full = NUTRIENT_SCALE * min(1f, supply[h] + UPWELL_SUPPLY * upwelling[h])
+                val isSea = seaKm2[h] > 0f
+                val full = NUTRIENT_SCALE * supply[h]
                 var nu = nutrients[h] * NUTRIENT_SCALE + 0.5f * dead[h] / 1000f
+                // What does not rot near the surface sinks to the deep; upwelling brings the deep water up.
+                var dp = deep[h]
+                if (isSea) dp += 0.5f * dead[h] / 1000f / DEEP_VOLUME
                 dead[h] = 0f
+                val up = if (isSea) UPWELL_MIX * upwelling[h] else 0f
                 var p = phyto[h]; var z = zoo[h]
                 val warm = ((t + 2f) / 22f).coerceIn(0.1f, 1.2f)
                 repeat(days) {
                     val growth = min(nu, 0.9f * light * warm * p * nu / (nu + 0.15f * NUTRIENT_SCALE))
                     val grazing = min(p, 0.6f * z * p / (p + 3f))
                     val pDeath = 0.05f * p; val zDeath = 0.05f * z + 0.15f * z * z
-                    nu = max(0f, nu - growth + mixing * (full - nu) + 0.5f * (pDeath + zDeath + 0.7f * grazing))
+                    val back = pDeath + zDeath + 0.7f * grazing
+                    val rise = up * max(0f, dp - nu)
+                    nu = max(0f, nu - growth + mixing * (full - nu) + 0.5f * back + rise)
+                    if (isSea) dp = max(0f, dp + (0.5f * back - rise) / DEEP_VOLUME)
                     p = max(0f, p + growth - grazing - pDeath)
                     z = max(0f, z + 0.3f * grazing - zDeath)
                 }
                 nutrients[h] = nu / NUTRIENT_SCALE; phyto[h] = p; zoo[h] = z
+                if (isSea) deep[h] = dp + (DEEP_BASE * NUTRIENT_SCALE - dp) * min(1f, DEEP_RENEW * years)
                 // Fish: shoaling sea fish breed fast, lake fish slower; they eat about three times their weight a year in zooplankton.
                 // They eat about three times their weight a year in zooplankton (g/m2 = t/km2), as far as there is any;
                 // they grow as they eat and starve when it fails.
@@ -258,7 +273,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 zoo[h] -= got
                 val fed = if (need > 0f) got / need else 1f
                 val fishDead = (FISH_DEATHS + 0.5f * (1f - fed)) * years * f0
-                val grown = FISH_EFFICIENCY * got * 1000f * (1f - f0 / max(fishCapacity(h), 1f))
+                val grown = FISH_EFFICIENCY * got * 1000f * (1f - f0 / max(fishCapacity(h), 1f)).coerceAtLeast(0f)
                 fish[h] = max(0f, f0 + grown - fishDead)
                 dead[h] += fishDead + (1f - FISH_EFFICIENCY) * got * 1000f
                 flow("grown", grown, h); flow("died", fishDead, h)
@@ -276,7 +291,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
         // Currents mix the water of neighbouring hexes: plankton and fish drift and spread.
         val before = fishTonnes()
-        for (f in listOf(phyto, zoo, fish)) drift(f)
+        for (f in listOf(phyto, zoo, fish, deep)) drift(f)
+        // Shoals come inshore to spawn and feed in spring and early summer, and go back out in autumn.
+        if (month in 3..6) shoal(true) else if (month in 8..10) shoal(false)
+        nesting = month in NESTING
         fishFlows["drift (net)"] = (fishTonnes() - before).toDouble()
         // Fish come back up the rivers from below, but not past a cascade.
         for (h in 0 until size) {
@@ -289,6 +307,23 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         spawningRun(date)
         seaBirds()
         if (date.dayOfMonth <= days) spreadSea()
+    }
+
+    /** For each sea hex the sea hexes next to it nearer the shore; and how many lie seaward of each. */
+    private val shoreward = Array(size) { h ->
+        if (seaKm2[h] <= 0f) IntArray(0) else (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 && seaKm2[it] > 0f && shoreKm[it] < shoreKm[h] }.toIntArray()
+    }
+    private val seaward = IntArray(size).also { c -> for (h in 0 until size) for (q in shoreward[h]) c[q]++ }
+
+    /** Moves a share of the fish a step towards the shore ([inshore]) or back out to sea. */
+    private fun shoal(inshore: Boolean) {
+        val old = fish.copyOf()
+        val share = SHOAL * days / Date.DAYS_PER_MONTH.toFloat()
+        for (h in 0 until size) for (q in shoreward[h]) {
+            val kg = if (inshore) share * old[h] * seaKm2[h] / shoreward[h].size else share * old[q] * seaKm2[q] / seaward[q]
+            val from = if (inshore) h else q; val to = if (inshore) q else h
+            fish[from] -= kg / seaKm2[from]; fish[to] += kg / seaKm2[to]
+        }
     }
 
     /** A share of what is in each hex's water mixes with its neighbours' each week. */
@@ -338,7 +373,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 }
             }
             val fed = if (need > 0f) got / need else 1f
-            val born = if ((month - a.birthMonth + 12) % 12 < a.birthMonths) m * a.youngPerFemale * 0.5f * fed / (a.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
+            // Turtles lay on warm beaches only.
+            val beach = !a.nestsAshore || (shoreKm[h] <= 0f && waterTemp[month][h] >= NEST_TEMP)
+            val born = if (beach && (month - a.birthMonth + 12) % 12 < a.birthMonths) m * a.youngPerFemale * 0.5f * fed / (a.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
             val crowd = m / (SEA_FULL * a.massKg / a.startKm2)
             val died = m * min(0.9f, a.backgroundMortality * years + 0.6f * years * (1f - fed) + SEA_DISEASE * years * crowd * crowd)
             sea[k][h] = max(0f, m + born - died)
@@ -479,6 +516,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             stock[q] -= t / areaKm2; left -= t
         }
         take(run, h, landKm2, RUN_SEARCH)
+        // Turtles and their eggs on the beach in the nesting months.
+        if (nesting && shoreKm[h] <= 0f) take(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH)
         take(riverFish, h, landKm2, RIVER_SEARCH)
         for (q in listOf(h) + (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 }) {
             take(fish, q, waterKm2[q], FISH_SEARCH)
@@ -489,6 +528,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Share of its needs a fish-eater gets at fish density [f], kg/km²: little where fish are few (shoals are hard to find), most where they are many. */
     private fun fishResponse(f: Float) = f * f / (f * f + FISH_FIND_HALF * FISH_FIND_HALF)
+
+    private var nesting = false
 
     /** Totals: plankton, fish, shellfish, sea animals (t), river fish (t) and sea birds. */
     fun summary(): String {
@@ -508,6 +549,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val name: String, val massKg: Float, val food: SeaFood, val dailyShare: Float, val dailyKm: Float,
         val birthMonth: Int, val birthMonths: Int, val youngPerFemale: Float, val backgroundMortality: Float,
         val defence: Float, val startKm2: Float, val maxShoreKm: Float = Float.POSITIVE_INFINITY,
+        val nestsAshore: Boolean = false,
     )
 
     enum class SeaFood { PLANKTON, FISH, PREY }
@@ -519,6 +561,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             SeaKind("porpoise", 55f, SeaFood.FISH, 0.08f, 30f, 6, 2, 0.8f, 0.12f, 0.4f, 20f, maxShoreKm = 25f),
             SeaKind("monk seal", 300f, SeaFood.FISH, 0.05f, 20f, 9, 3, 0.5f, 0.07f, 0.3f, 30f, maxShoreKm = 12f),
             SeaKind("shark", 800f, SeaFood.PREY, 0.01f, 60f, 7, 2, 0.6f, 0.05f, 1f, 2500f),
+            // Loggerheads live on jellyfish, crabs and the like (here: the zooplankton) and come ashore to lay in summer.
+            SeaKind("loggerhead turtle", 100f, SeaFood.PLANKTON, 0.01f, 30f, 7, 2, 1f, 0.05f, 0.8f, 50f, nestsAshore = true),
         )
         /** Phytoplankton, g/m², that a full nutrient supply can sustain. */
         const val NUTRIENT_SCALE = 10f
@@ -543,8 +587,18 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         /** Share of the fish off a river mouth that run up it in spring; share of the run that lives to go back. */
         const val RUN_SHARE = 0.05f
         const val RUN_SURVIVAL = 0.7f
-        /** Upwelling: nutrient supply added at full strength; wind for full strength, m/s; weeks to answer a change of wind. */
-        const val UPWELL_SUPPLY = 0.6f
+        /** Upwelling: daily share of the gap to the deep water's nutrients mixed up at full strength; wind for full strength, m/s; weeks to answer a change of wind. */
+        const val UPWELL_MIX = 0.1f
+        /** The deep water: nutrients it holds when renewed, as a share of a full supply; its volume as a multiple of the surface water's; yearly share renewed by the ocean beyond. */
+        const val DEEP_BASE = 1f
+        const val DEEP_VOLUME = 5f
+        const val DEEP_RENEW = 0.5f
+        /** Share of the fish that move a step inshore (or back out) a month in their season. */
+        const val SHOAL = 0.1f
+        /** Turtles: the months they come ashore to lay; the least sea warmth, °C, for a nesting beach. */
+        val NESTING = 5..7
+        const val NEST_TEMP = 22f
+        val TURTLE = SEA.indexOfFirst { it.nestsAshore }
         const val UPWELL_WIND = 8f
         const val UPWELL_WEEKS = 3f
         /** Sea animals: a full sea as a multiple of the starting density; disease beyond it; shark weight per km² for full danger; share of prey sharks take. */

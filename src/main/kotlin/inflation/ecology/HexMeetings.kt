@@ -531,7 +531,8 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
     if (loser.home == h) {
         loser.home = -1
         // The winners take over the ground and kill the young they find there (as lions and wolves do).
-        if (loser.young > 0) {
+        // (Prides and packs that take over ground do this; solitary hunters seldom.)
+        if (loser.young > 0 && loser.species.groupSize >= 3) {
             val killed = binomial(loser.young, INFANTICIDE)
             loser.young -= killed
             if (killed > 0) deaths.merge("${loser.species.name}:young killed by rivals", killed, Int::plus)
