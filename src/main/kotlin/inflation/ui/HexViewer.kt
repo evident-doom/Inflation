@@ -105,6 +105,10 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     private val herdsBox = javax.swing.JCheckBox("Herds", true)
     private val huntersBox = javax.swing.JCheckBox("Hunters", true)
     private val peopleBox = javax.swing.JCheckBox("People", true)
+    /** Follow mode: the group followed (-1 none), kept in view week by week, with what happened to it. */
+    private val followBox = javax.swing.JCheckBox("Follow", false)
+    @Volatile private var followId = -1
+    @Volatile private var followLog = ""
 
     /**
      * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
@@ -156,6 +160,15 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { inflation.ecology.HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
         val open = JButton("Load…"); open.addActionListener { chooseFile(false)?.let { f -> commands += { loadWorld(f) } } }
+        followBox.toolTipText = "Pick a group in the list, then tick to follow it: the map keeps it in view and the panel shows what it weighed, ate, met and lost each week"
+        followBox.addActionListener {
+            val i = groupView.selectedIndex
+            followId = if (followBox.isSelected && i in groupIds.indices) groupIds[i] else -1
+            if (followBox.isSelected && followId < 0) followBox.isSelected = false
+            groups.watched = followId
+            showGroup()
+        }
+        bar.add(followBox)
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
         load?.let { f -> commands += { loadWorld(f) } }
         val bottom = JPanel(); bottom.add(counts)
@@ -226,6 +239,13 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             lastDrawn[g.id] = end
         }
         shown = list
+        // Following a group: the week's log, and keep it in view.
+        if (followId >= 0) {
+            followLog = groups.watchLog.joinToString("\n")
+            val g = groups.groups.firstOrNull { it.id == followId && it.alive }
+            if (g == null) { followLog = "the group followed is gone (died out or joined another)"; SwingUtilities.invokeLater { followBox.isSelected = false; followId = -1; groups.watched = -1; groupInfo.text = followLog } }
+            else { val h = hw.placeHex[g.place]; picked = h; val (x, y) = hex.centreKm(h); SwingUtilities.invokeLater { map.centreOn(x, y) } }
+        }
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
         frames = max(8, 30 / stepsPerSecond); frame = 0
         SwingUtilities.invokeLater {
@@ -247,6 +267,9 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         private var scale = 0.5
         private var ox = 0.0; private var oy = 0.0
         private var drag: java.awt.Point? = null
+
+        /** Puts the point ([x], [y]) km in the middle of the view. */
+        fun centreOn(x: Double, y: Double) { val kmPx = px * scale; ox = width / 2.0 - x * kmPx; oy = height / 2.0 - y * kmPx; repaint() }
 
         init {
             preferredSize = Dimension(1200, 900)
@@ -483,7 +506,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         info.text = sb.toString()
         val here = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
         // Refill the list in place, keeping the picked group and where the list is scrolled to.
-        val picked = groupView.selectedIndex.let { if (it in groupIds.indices) groupIds[it] else -1 }
+        val picked = if (followId >= 0) followId else groupView.selectedIndex.let { if (it in groupIds.indices) groupIds[it] else -1 }
         groupIds = here.map { it.id }.toIntArray()
         val rows = here.map { g -> "%s #%d: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed, g.fat) }
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
@@ -519,6 +542,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             val months = (0 until 12).filter { g.seasonPlace[it] >= 0 }
             sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
         }
+        if (g.id == followId && followLog.isNotEmpty()) { sb.appendLine(); sb.appendLine("this week:"); sb.appendLine(followLog) }
         groupInfo.text = sb.toString()
     }
 

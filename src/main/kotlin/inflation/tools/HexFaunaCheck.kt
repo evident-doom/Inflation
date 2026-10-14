@@ -142,7 +142,14 @@ fun main(args: Array<String>) {
                 }
             }
             val t0 = System.nanoTime()
+            // -Dhex.follow=kind: follow one group of that kind week by week, as the viewer's follow mode does.
+            System.getProperty("hex.follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
             sim.step()
+            if (System.getProperty("hex.follow") != null && herds.watched >= 0) {
+                val g = herds.groups.firstOrNull { it.id == herds.watched }
+                println("   follow #%d (%s, %d) %s:".format(herds.watched, g?.species?.name ?: "?", g?.size ?: 0, weather.date))
+                for (l in herds.watchLog) println("      $l")
+            }
             ns += System.nanoTime() - t0
             if (historyFile != null) history.record(sim)
             for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)

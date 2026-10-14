@@ -197,6 +197,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     val chance = RAID * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage)) * (1f - TIE_PEACE * max(0f, b.tie(o.id)))
     if (rnd.nextFloat() >= chance) return false
     meetings.merge("raids", 1, Int::plus)
+    note(g) { "raided band #%d".format(o.id) }; note(o) { "was raided by band #%d".format(g.id) }
     val sg = strength(g); val so = strength(o)
     // Each side loses some of its people, the more so against the stronger side.
     val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so))

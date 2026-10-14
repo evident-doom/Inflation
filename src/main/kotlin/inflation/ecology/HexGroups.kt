@@ -130,8 +130,13 @@ class HexGroups(
 
     fun count(s: Species) = groups.filter { it.species == s && it.alive }.sumOf { it.size }
 
+    /** The group being followed (in the viewer), -1 for none; what happened to it this week, in words. */
+    @Volatile var watched = -1
+    val watchLog = java.util.concurrent.ConcurrentLinkedQueue<String>()
+    internal inline fun note(g: HexGroup, msg: () -> String) { if (g.id == watched) watchLog += msg() }
+
     fun step(weather: Weather, date: Date) {
-        kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear()
+        kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); watchLog.clear()
         moon = date.meanMoonlight(days).toFloat()
         if (bearings.month != date.month) {
             // Head counts of the migratory herds in each place, for the hunters' sense of where game is.
@@ -332,6 +337,8 @@ class HexGroups(
         }
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
         val policy = policies[s]
+        // (For a followed group: every place it weighed, and how it scored.)
+        val seen = if (g.id == watched) ArrayList<Pair<Int, Float>>() else null
         val candPlaces = ArrayList<Int>(); val candFeats = ArrayList<FloatArray>(); val candScores = ArrayList<Float>()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
@@ -399,6 +406,7 @@ class HexGroups(
                 g.band?.let { b -> if (!b.knows(h)) score -= UNKNOWN_COUNTRY }
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.
                 if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
+                seen?.add(p to score)
                 if (policy != null) {
                     val f = FloatArray(HexFeatures.SIZE)
                     // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
@@ -437,6 +445,13 @@ class HexGroups(
             }
         }
         if (policy != null && candPlaces.isNotEmpty()) best = candPlaces[policy.choose(g, candFeats.toTypedArray(), candScores.toFloatArray())]
+        if (seen != null) {
+            fun where(p: Int) = "hex %d at %.0f m".format(hw.placeHex[p], hw.placeElevationM[p])
+            val top = seen.sortedByDescending { it.second }.take(5)
+            watchLog += "weighed %d places%s; went to %s (hand-written score %.2f%s)".format(seen.size, if (restless) ", restless" else "", where(best),
+                seen.firstOrNull { it.first == best }?.second ?: 0f, if (policy != null) ", chosen by the network" else "")
+            for ((p, sc) in top) watchLog += "   %s%s: %.2f".format(where(p), if (p == g.place) " (stay)" else "", sc)
+        }
         // -Dhex.planDiag=kind: once a month, one herd's reasons, for the place it chose and the best-placed step toward its season's place.
         if (PLAN_DIAG == s.name && goal >= 0 && date.dayOfMonth <= days && g.id % 97 == 0) {
             fun parts(p: Int): String {

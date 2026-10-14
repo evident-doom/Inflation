@@ -154,6 +154,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         if (o.carrionKg > 0f) small.carrion[g.place] += o.carrionKg / (land.areaKm2[g.place] * 1e6f)
         if (o.births > 0) births.merge(s.name, o.births, Int::plus)
+        note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.second > 0 }.joinToString(", ") { "${it.second} ${it.first}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name}:$cause", k, Int::plus)
         if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
