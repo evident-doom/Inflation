@@ -57,3 +57,19 @@ Figures are from memory of survival shows (Alone, Naked and Afraid), experimenta
   - The naked floor matches the record (exposure, thirst, starvation).
   - Survival-show conditions match the shows.
   - Real foragers at full skill match the ethnography.
+
+## Status (2026-10-14): first version built
+
+- **Fire** is a making skill. Practised bands carry embers and relight at once. Novices try daily: 10% a day untrained, learning with each fire. Fire adds warmth, and without it meals are raw and take 30% more food.
+- **Shelter** building is faster with woodwork skill.
+- **Plant knowledge** is held for each kind of country, starting at 0.9 for the country round a band's first camp and 0.5 elsewhere. It is learned by gathering there (5% of the way a week) and from partners. Strangers reach less (`PLANT_FLOOR` 0.1) and are slower at gathering.
+- **Handling time** for gathering, small game and fishing scales with skill against a start band's, so start bands are unchanged.
+- **Floors** for each skill: gathering 0.15, small game 0.1, fishing 0.1, big game 0.05, storing 0.3.
+- **Exposure** deaths: 5% a week for each °C below 10 °C, after protection. Full clothes protect 30 °C, fire 12, a shelter 5 and a house 10.
+- **Water:** people on ground they don't know don't find its springs (they get the full thirst of an animal).
+
+**Floor test, 1,000 km maps, starting in spring, after 26 weeks:**
+- **People left:** about 90% on mild ground, 57–72% on steppe and in conifer forest, and about a third on alpine meadow. Bands kept as they are: 93–103%.
+- **How well fed:** about 80% in weeks 3–4, recovering as they learn.
+
+Still short of the record: survival-show people eat about half their need in the first weeks. Learning may be too quick.

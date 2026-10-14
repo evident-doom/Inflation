@@ -120,6 +120,8 @@ class HexGroups(
                         var ring = listOf(hw.placeHex[p]); val seen = hashSetOf(ring[0])
                         repeat(KNOWN_AT_START) { val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next }
                         for (h in seen) b.learn(h, hex.size)
+                        // And the plants of the country round it.
+                        for (h in seen) for (k in b.plants.indices) if (hw.biome[k][h] > 0.1f) b.plants[k] = 0.9f
                     }
                 }
                 if (s.carnivore && !s.human) g.home = hw.placeHex[p] else inheritSeasons(g)
@@ -146,7 +148,8 @@ class HexGroups(
         moon = date.meanMoonlight(days).toFloat()
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
         // through their clothes and, at home, their houses).
-        for (g in groups) if (g.alive) { val t = weather.temperature[g.place]; g.warmth = coldNeed(g.species, g.band?.feels(t) ?: t, date.month) }
+        // (Raw meals give less: a band without fire needs more food for the same strength.)
+        for (g in groups) if (g.alive) { val t = weather.temperature[g.place]; g.warmth = coldNeed(g.species, g.band?.feels(t) ?: t, date.month) * (g.band?.let { 1f + RAW_COST * (1f - it.fire) } ?: 1f) }
         if (bearings.month != date.month) {
             // Head counts of the migratory herds in each place, for the hunters' sense of where game is.
             for (a in monthHeads) a.fill(0)
@@ -640,4 +643,19 @@ class HexGroups(
         h = h xor (h ushr 33)
         return (h ushr 40).toFloat() / (1L shl 24).toFloat()
     }
+}
+
+/** How well band [b] knows the plants of hex [h]'s country: [PLANT_FLOOR] for a stranger to 1. */
+internal fun HexGroups.plantKnow(b: Band, h: Int): Float {
+    var s = 0f; var w = 0f
+    for (k in b.plants.indices) { val share = hw.biome[k][h]; if (share > 0f) { s += share * b.plants[k]; w += share } }
+    return PLANT_FLOOR + (1f - PLANT_FLOOR) * (if (w > 0f) s / w else 0f)
+}
+
+/** A week's gathering in hex [h] teaches band [b] its country's plants. */
+internal fun HexGroups.learnPlants(b: Band, h: Int) {
+    var w = 0f
+    for (k in b.plants.indices) w += hw.biome[k][h]
+    if (w <= 0f) return
+    for (k in b.plants.indices) { val share = hw.biome[k][h] / w; if (share > 0f) b.plants[k] += PLANT_LEARN * share * (1f - b.plants[k]) }
 }

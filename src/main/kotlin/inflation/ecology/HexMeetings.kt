@@ -99,7 +99,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // lines and nets search it while no one is there.
     val smallSweep = s.dailyTravelKm * days * 2f * SMALL_SENSE_KM * kotlin.math.sqrt(hands.toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
     val smallCatch = smallCatch(s)
-    val smallDays = SMALL_HANDLING_DAYS_PER_KG / hands + eats
+    val smallDays = SMALL_HANDLING_DAYS_PER_KG / hands * (band?.slowness(Forage.SMALL_GAME) ?: 1f) + eats
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
     val eatsPlants = d.fruit + d.roots > 0f
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
@@ -171,19 +171,24 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (eatsPlants) for (q in gatherAt) {
         val m2 = land.areaKm2[q] * 1e6f
         // A band can strip so much of a place in a week, as its skill allows; an animal finds what lies along its way.
-        val reach = band?.gatherShare(false) ?: min(1f, smallSweep * g.path.size / land.areaKm2[q])
-        offer(4, 0, q, reach * fauna.food.fruit[q] * m2 / days, 1f, pickDays)
-        offer(5, 0, q, reach * fauna.food.roots[q] * m2 / days, 1f, ROOT_DIGGING * pickDays)
-        offer(7, 0, q, reach * fauna.food.finds[q] * m2 / days, 1f, ROOT_DIGGING * pickDays)
+        // (On strange ground people find little of it.)
+        val knowHere = band?.let { plantKnow(it, hw.placeHex[q]) } ?: 1f
+        val reach = band?.let { it.gatherShare(false) * knowHere } ?: min(1f, smallSweep * g.path.size / land.areaKm2[q])
+        // (The unskilled, and strangers to its plants, are slow at it.)
+        val slow = band?.slowness(Forage.GATHER, knowHere) ?: 1f
+        val pickQ = (pickDays - eats) * slow + eats; val seedQ = (seedDays - eats) * slow + eats
+        offer(4, 0, q, reach * fauna.food.fruit[q] * m2 / days, 1f, pickQ)
+        offer(5, 0, q, reach * fauna.food.roots[q] * m2 / days, 1f, ROOT_DIGGING * pickQ)
+        offer(7, 0, q, reach * fauna.food.finds[q] * m2 / days, 1f, ROOT_DIGGING * pickQ)
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
-        offer(6, 0, q, (band?.gatherShare(true) ?: reach) * fauna.food.seeds[q] * m2 / days, 1f, seedDays)
+        offer(6, 0, q, (band?.let { it.gatherShare(true) * knowHere } ?: reach) * fauna.food.seeds[q] * m2 / days, 1f, seedQ)
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        offer(9, 0, q, (band?.gatherShare(true) ?: reach) * fauna.food.grain[q] * m2 / days, 1f, seedDays)
+        offer(9, 0, q, (band?.let { it.gatherShare(true) * knowHere } ?: reach) * fauna.food.grain[q] * m2 / days, 1f, seedQ)
     }
     // Bands fish the river, the lake or the sea shore by their camp.
     if (band != null) {
         val h = hw.placeHex[g.place]
-        offer(8, 0, h, fauna.water.fishWithin(h, band.fishing()) / days, 1f, FISH_HANDLING_DAYS_PER_KG / hands + eats)
+        offer(8, 0, h, fauna.water.fishWithin(h, band.fishing()) / days, 1f, FISH_HANDLING_DAYS_PER_KG / hands * band.slowness(Forage.FISH) + eats)
     }
     // Rank by kilos a day of handling, best first.
     for (i in 0 until m) {
@@ -274,7 +279,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (band != null) {
         if (meat > g.meatMet) band.practise(Forage.HUNT)
         if (smallGot > 0f) band.practise(Forage.SMALL_GAME)
-        if (plants > 0f) band.practise(Forage.GATHER)
+        if (plants > 0f) { band.practise(Forage.GATHER); learnPlants(band, hw.placeHex[g.place]) }
         if (fish > 0f) band.practise(Forage.FISH)
         hunting.merge("${s.name}:fish, kg", fish.toInt(), Int::plus)
     }

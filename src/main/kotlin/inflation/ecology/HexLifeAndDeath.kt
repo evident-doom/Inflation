@@ -244,6 +244,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         }
         val hunger = if (g.fed < 0.5f) (0.5f - g.fed) * 0.3f else 0f
         // People feel the cold as their clothes allow.
+        // Exposure: the unprotected die of the cold within days.
+        val exposure = g.band?.let { min(0.9f, EXPOSURE * it.exposure(weather.temperature[g.place]) * days / 7f) } ?: 0f
         val cold = (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: discomfort(s, g.place, weather)) * 0.02f
         val fouled = campFouling(g) * years
         // Vipers and scorpions, out in the warm months.
@@ -262,7 +264,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
         else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
         // (People carry water in skins and know every spring: they suffer far less from it than animals.)
-        val thirst = (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) * (if (s.human) HUMAN_THIRST * Tuning.humanThirst else 1f)
+        // (Strangers to the country do not know its springs.)
+        val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
+        val thirst = (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) * (if (s.human && knowsWater) HUMAN_THIRST * Tuning.humanThirst else 1f)
         // Crowded herds catch each other's diseases and parasites.
         val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
         // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
@@ -289,9 +293,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val eagle = if (!s.carnivore && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
         val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
-        val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + disease + thirst + homeless + fireA + floodA + snowA).coerceIn(0f, 0.9f)
+        val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA).coerceIn(0f, 0.9f)
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
-        val py = ((healed * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
+        val py = ((healed * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
         // Elders die as the others do (their share of the adults who died), and of old age besides.
         var oldAge = 0
@@ -306,7 +310,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // The dead lie where they fell, for the scavengers and the soil.
         var carrion = (da + oldAge + 0.3f * dy) * s.massKg
         // The week's deaths are shared among the causes by how much each weighed ("other": age, accidents, ordinary illness).
-        val hazards = listOf("other" to healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, "hunger" to hunger, "cold" to cold, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "snakes and scorpions" to venom, "inbreeding" to inbred)
+        val hazards = listOf("other" to healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, "hunger" to hunger, "cold" to cold, "exposure" to exposure, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "snakes and scorpions" to venom, "inbreeding" to inbred)
         var left = da + dy; var weight = hazards.sumOf { it.second.toDouble() }.toFloat()
         val causes = ArrayList<Pair<String, Int>>()
         for ((name, h) in hazards) {
@@ -429,6 +433,7 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
     for (i in a.craft.indices) a.craft[i] = max(a.craft[i], b.craft[i])
     for (i in a.making.indices) a.making[i] = max(a.making[i], b.making[i])
+    for (i in a.plants.indices) a.plants[i] = max(a.plants[i], b.plants[i])
     for (i in a.kit.indices) a.kit[i] += w * (b.kit[i] - a.kit[i])
     for (i in a.knows.indices) a.knows[i] = a.knows[i] || b.knows[i]
     for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])

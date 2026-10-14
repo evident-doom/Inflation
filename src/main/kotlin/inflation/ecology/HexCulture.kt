@@ -307,6 +307,8 @@ private fun HexGroups.marryOut(a: HexGroup, ba: Band, b: HexGroup, bb: Band) {
     for (i in la.indices) { ba.lineage[i] += sa * (bb.lineage[i] - la[i]); bb.lineage[i] += sb * (la[i] - bb.lineage[i]) }
     // Partners bring what they know how to do.
     for (i in ba.craft.indices) { val x = ba.craft[i]; ba.craft[i] = max(x, x + sa * (bb.craft[i] - x)); bb.craft[i] = max(bb.craft[i], bb.craft[i] + sb * (x - bb.craft[i])) }
+    for (i in ba.plants.indices) { val x = ba.plants[i]; ba.plants[i] = max(x, x + sa * (bb.plants[i] - x)); bb.plants[i] = max(bb.plants[i], bb.plants[i] + sb * (x - bb.plants[i])) }
+    for (i in ba.making.indices) { val x = ba.making[i]; ba.making[i] = max(x, x + sa * (bb.making[i] - x)); bb.making[i] = max(bb.making[i], bb.making[i] + sb * (x - bb.making[i])) }
     // Kin by marriage forgive.
     ba.grudge[bb.mainLineage()] *= 0.5f; bb.grudge[ba.mainLineage()] *= 0.5f
 }

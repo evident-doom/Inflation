@@ -32,7 +32,11 @@ enum class Material {
 }
 
 /** Making skills: the doing behind every tool, built by practice like getting food. */
-enum class Making { KNAPPING, WOODWORK, HIDEWORK, CORDAGE }
+enum class Making {
+    KNAPPING, WOODWORK, HIDEWORK, CORDAGE,
+    /** Making fire: the hand drill or flint and pyrite, dry tinder, and keeping embers alive on the move. */
+    FIRE,
+}
 
 /**
  * A kind of tool, with what one person's share takes to make ([recipe], kg per person), the skill
@@ -212,13 +216,27 @@ class Band {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
-        craft.copyInto(o.craft); making.copyInto(o.making); kit.copyInto(o.kit); knows.copyInto(o.knows)
+        craft.copyInto(o.craft); making.copyInto(o.making); plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
     }
 
-    /** How well the band does at [f], against a master: from [CRAFT_FLOOR] untrained to 1. */
-    fun skill(f: Forage) = CRAFT_FLOOR + (1f - CRAFT_FLOOR) * craft[f.ordinal]
+    /** How well the band does at [f], against a master: from its floor untrained ([FORAGE_FLOOR]) to 1. */
+    fun skill(f: Forage) = FORAGE_FLOOR[f.ordinal] + (1f - FORAGE_FLOOR[f.ordinal]) * craft[f.ordinal]
+    /**
+     * What it knows of the plants of each kind of country ([inflation.world.Biome]), 0..1: which are
+     * food, where and when they are found, and how to make them safe. Learned by gathering there and
+     * from partners; on strange ground people find little and risk the wrong plants.
+     */
+    val plants = FloatArray(inflation.world.Biome.entries.size)
+    /** Share of the week it has had a fire going: warmth, cooked food. */
+    var fire = 0f
+    /**
+     * How much longer than an ordinary practised forager (bands start at [START_CRAFT]) it takes over
+     * each kilo of [f]'s food: finding, catching, digging and making it ready. [know] is how well it
+     * knows the plants there, against a band in its own country.
+     */
+    fun slowness(f: Forage, know: Float = KNOW_AT_HOME) = (FORAGE_FLOOR[f.ordinal] + (1f - FORAGE_FLOOR[f.ordinal]) * START_CRAFT) / skill(f) * (KNOW_AT_HOME / know)
     fun practise(f: Forage) { craft[f.ordinal] += PRACTICE * (1f - craft[f.ordinal]) }
     fun has(t: Tool) = kit[t.ordinal]
 
@@ -244,7 +262,14 @@ class Band {
     fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Forage.FISH)
 
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) - 0.5f) + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
+    fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) - 0.5f) + FIRE_C * fire + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
+
+    /**
+     * How far below what people can bear the cold at [t] °C (the week's mean) takes the band, °C: full
+     * fur clothes, a fire and a shelter or house keep people alive in deep cold; the naked die of
+     * exposure in a night of a few degrees above freezing, wet and windy.
+     */
+    fun exposure(t: Float) = (EXPOSURE_C - t - PROTECT_CLOTHES * has(Tool.CLOTHES) - PROTECT_FIRE * fire - max(PROTECT_SHELTER * shelter, if (atHome) PROTECT_HOUSE * house else 0f)).coerceAtLeast(0f)
 
     companion object {
         /**
@@ -259,6 +284,9 @@ class Band {
             craft[Forage.GATHER.ordinal] = 0.6f; craft[Forage.SMALL_GAME.ordinal] = 0.6f; craft[Forage.HUNT.ordinal] = 0.6f
             craft[Forage.FISH.ordinal] = if (nearWater) 0.5f else 0.1f; craft[Forage.STORE.ordinal] = 0.4f
             kit[Tool.SPEAR.ordinal] = 1f; kit[Tool.NET.ordinal] = 0.5f; kit[Tool.BASKET.ordinal] = 0.5f; kit[Tool.CLOTHES.ordinal] = 0.5f
+            // Everyone keeps fire; they know the plants of their own country well, of others' less.
+            making[Making.FIRE.ordinal] = 0.95f; fire = 1f
+            plants.fill(0.5f)
         }
     }
 }
@@ -382,7 +410,10 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     plotRaid(g, b)
     // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
     if (b.campWeeks == 0) b.shelter = 0f
-    if (b.shelter < 1f && time > 0f && people > 0f) { val built = min(1f - b.shelter, time / (SHELTER_DAYS * people)); b.shelter += built; time -= built * SHELTER_DAYS * people }
+    // (A debris hut takes a novice an afternoon, the practised an hour.)
+    val shelterDays = SHELTER_DAYS * people / (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * b.making[Making.WOODWORK.ordinal])
+    if (b.shelter < 1f && time > 0f && people > 0f) { val built = min(1f - b.shelter, time / shelterDays); b.shelter += built; time -= built * shelterDays; b.making[Making.WOODWORK.ordinal] += 0.2f * PRACTICE * (1f - b.making[Making.WOODWORK.ordinal]) }
+    keepFire(g, b)
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
@@ -824,3 +855,48 @@ const val HERD_RUN_OFF = 0.5f
 const val HERD_MOVE_LOSS = 0.05f
 const val HERD_PER_PERSON = 2f
 const val TAMING_RATE = 0.01f
+
+/**
+ * A band's fire: practised bands carry embers when they move and light it again at once; the
+ * unpractised may fail at the hand drill for days, and learn as they go.
+ */
+private fun HexGroups.keepFire(g: HexGroup, b: Band) {
+    val skill = b.making[Making.FIRE.ordinal]
+    if (g.path.size > 1 && rnd.nextFloat() >= skill) b.fire = 0f
+    if (b.fire >= 1f) return
+    // Each day it tries; the first day it succeeds it has fire for the rest of the week.
+    val pDay = FIRE_FLOOR + (1f - FIRE_FLOOR) * skill * skill
+    var day = 0
+    while (day < days && rnd.nextFloat() >= pDay) day++
+    b.fire = 1f - day.toFloat() / days
+    b.making[Making.FIRE.ordinal] += FIRE_PRACTICE * (1f - skill) * (if (day < days) 1f else 0.3f)
+}
+
+/**
+ * Survival floors: each foraging skill's success untrained against a master's (gathering the obvious
+ * fruit and shellfish is easy; a novice's snares and lines catch little; big game falls to the
+ * practised); a novice's daily chance to get a fire going, and how fast trying teaches it; what a fire
+ * adds to the felt warmth, °C; how much more food raw meals take for the same energy.
+ */
+val FORAGE_FLOOR = floatArrayOf(0.15f, 0.1f, 0.1f, 0.05f, 0.3f)
+const val FIRE_FLOOR = 0.1f
+const val FIRE_PRACTICE = 0.1f
+const val FIRE_C = 3f
+const val RAW_COST = 0.3f
+/**
+ * Exposure: the week's mean temperature below which people unprotected start to die (nights near
+ * freezing); the degrees full clothes, a fire, a brush shelter and a house each keep off; the share of
+ * people dying each week for each degree below.
+ */
+const val EXPOSURE_C = 10f
+const val PROTECT_CLOTHES = 30f
+const val PROTECT_FIRE = 12f
+const val PROTECT_SHELTER = 5f
+const val PROTECT_HOUSE = 10f
+const val EXPOSURE = 0.05f
+/** Share of the way to knowing a kind of country's plants a week's gathering there goes; the least a stranger finds of what a local would. */
+const val PLANT_LEARN = 0.05f
+const val PLANT_FLOOR = 0.1f
+/** The foraging skill bands start with, and how well a band knows the plants in its own country (handling times are set for these). */
+const val START_CRAFT = 0.6f
+val KNOW_AT_HOME = PLANT_FLOOR + (1f - PLANT_FLOOR) * 0.9f
