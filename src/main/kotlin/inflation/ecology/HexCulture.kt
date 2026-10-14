@@ -306,9 +306,9 @@ private fun HexGroups.marryOut(a: HexGroup, ba: Band, b: HexGroup, bb: Band) {
     val la = ba.lineage.copyOf()
     for (i in la.indices) { ba.lineage[i] += sa * (bb.lineage[i] - la[i]); bb.lineage[i] += sb * (la[i] - bb.lineage[i]) }
     // Partners bring what they know how to do.
-    for (i in ba.craft.indices) { val x = ba.craft[i]; ba.craft[i] = max(x, x + sa * (bb.craft[i] - x)); bb.craft[i] = max(bb.craft[i], bb.craft[i] + sb * (x - bb.craft[i])) }
     for (i in ba.plants.indices) { val x = ba.plants[i]; ba.plants[i] = max(x, x + sa * (bb.plants[i] - x)); bb.plants[i] = max(bb.plants[i], bb.plants[i] + sb * (x - bb.plants[i])) }
-    for (i in ba.making.indices) { val x = ba.making[i]; ba.making[i] = max(x, x + sa * (bb.making[i] - x)); bb.making[i] = max(bb.making[i], bb.making[i] + sb * (x - bb.making[i])) }
+    for (i in ba.skills.indices) { val x = ba.skills[i]; ba.skills[i] = max(x, x + sa * (bb.skills[i] - x)); bb.skills[i] = max(bb.skills[i], bb.skills[i] + sb * (x - bb.skills[i])) }
+    for (i in ba.knowsSkill.indices) if (ba.knowsSkill[i] != bb.knowsSkill[i]) { ba.knowsSkill[i] = true; bb.knowsSkill[i] = true }
     // Kin by marriage forgive.
     ba.grudge[bb.mainLineage()] *= 0.5f; bb.grudge[ba.mainLineage()] *= 0.5f
 }

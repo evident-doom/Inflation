@@ -529,8 +529,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         if (g.days.isNotEmpty()) sb.appendLine("entering them on days: " + g.days.joinToString(" ") { "%.1f".format(it) })
         g.band?.let { b ->
             sb.appendLine("larder %.0f kg (%.0f days); camp kept %d weeks".format(g.larder, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f), b.campWeeks))
-            sb.appendLine("skills: " + inflation.ecology.Forage.entries.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.craft[it.ordinal]) })
-            sb.appendLine("making: " + inflation.ecology.Making.entries.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.making[it.ordinal]) })
+            sb.appendLine("skills: " + inflation.ecology.Skill.entries.filter { b.knowsSkill[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.skills[it.ordinal]) })
             sb.appendLine("tools: " + inflation.ecology.Tool.entries.filter { b.knows[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
             sb.appendLine("elders %d; children inbred %.3f; descent mostly lineage %d".format(b.elders, b.inbred, b.mainLineage()))
             if (b.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") { "%.0f %s".format(it.value, if (inflation.ecology.Catalogue.all[it.index].name == "wolf") "dogs" else "tame " + inflation.ecology.Catalogue.all[it.index].name) })

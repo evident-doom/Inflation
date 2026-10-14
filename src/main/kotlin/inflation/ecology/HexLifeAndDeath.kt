@@ -431,8 +431,8 @@ internal fun HexGroups.mergeAndPair(date: Date) {
 private fun joinBand(into: HexGroup, from: HexGroup) {
     val a = into.band!!; val b = from.band!!
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
-    for (i in a.craft.indices) a.craft[i] = max(a.craft[i], b.craft[i])
-    for (i in a.making.indices) a.making[i] = max(a.making[i], b.making[i])
+    for (i in a.skills.indices) a.skills[i] = max(a.skills[i], b.skills[i])
+    for (i in a.knowsSkill.indices) a.knowsSkill[i] = a.knowsSkill[i] || b.knowsSkill[i]
     for (i in a.plants.indices) a.plants[i] = max(a.plants[i], b.plants[i])
     for (i in a.kit.indices) a.kit[i] += w * (b.kit[i] - a.kit[i])
     for (i in a.knows.indices) a.knows[i] = a.knows[i] || b.knows[i]

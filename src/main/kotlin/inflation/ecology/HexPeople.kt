@@ -8,17 +8,6 @@ import kotlin.math.min
 // What makes bands of people more than a pack: skills learned in practice, tools made from what the
 // country gives, and camps they stay in.
 
-/** Kinds of getting food, each a skill of its own that a band learns by doing and forgets unused. */
-enum class Forage {
-    /** Fruit, nuts, roots and seed: knowing where and when, and how to make them edible. */
-    GATHER,
-    SMALL_GAME, FISH,
-    /** Big game: tracking, stalking, the throw. */
-    HUNT,
-    /** Laying food by: drying, pits, baskets, keeping it from damp and mice. */
-    STORE,
-}
-
 /** Raw materials a band gathers and carries, kg. */
 enum class Material {
     /** Good knapping stone (flint, chert, obsidian); poorer stone is found almost anywhere. */
@@ -32,11 +21,6 @@ enum class Material {
 }
 
 /** Making skills: the doing behind every tool, built by practice like getting food. */
-enum class Making {
-    KNAPPING, WOODWORK, HIDEWORK, CORDAGE,
-    /** Making fire: the hand drill or flint and pyrite, dry tinder, and keeping embers alive on the move. */
-    FIRE,
-}
 
 /**
  * A kind of tool, with what one person's share takes to make ([recipe], kg per person), the skill
@@ -44,21 +28,21 @@ enum class Making {
  * the camp moves, and whether bands know it from the start (the others are hit on now and then and
  * passed on when bands meet).
  */
-enum class Tool(val recipe: Map<Material, Float>, val skill: Making, val wearPerYear: Float, val makeDays: Float, val heavy: Boolean = false, val known: Boolean = false) {
+enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerYear: Float, val makeDays: Float, val heavy: Boolean = false, val known: Boolean = false) {
     /** Stone-tipped spears: the basic hunting weapon. */
-    SPEAR(mapOf(Material.STONE to 0.3f, Material.WOOD to 2f, Material.SINEW to 0.05f), Making.KNAPPING, 1f, 1f, known = true),
+    SPEAR(mapOf(Material.STONE to 0.3f, Material.WOOD to 2f, Material.SINEW to 0.05f), Skill.KNAPPING, 1f, 1f, known = true),
     /** Bow and arrows tipped with microliths set in resin: reach and silence against fast, shy game. */
-    BOW(mapOf(Material.WOOD to 1f, Material.SINEW to 0.2f, Material.STONE to 0.2f, Material.RESIN to 0.1f), Making.WOODWORK, 1.5f, 4f),
+    BOW(mapOf(Material.WOOD to 1f, Material.SINEW to 0.2f, Material.STONE to 0.2f, Material.RESIN to 0.1f), Skill.WOODWORK, 1.5f, 4f),
     /** Nets and snares: hares, birds and fish in quantity. */
-    NET(mapOf(Material.FIBRE to 2f), Making.CORDAGE, 1f, 3f, known = true),
+    NET(mapOf(Material.FIBRE to 2f), Skill.CORDAGE, 1f, 3f, known = true),
     /** Sickles of flint bladelets set in bone or wood: wild cereals cut before the ears shatter. */
-    SICKLE(mapOf(Material.STONE to 0.2f, Material.BONE to 0.3f, Material.RESIN to 0.05f), Making.KNAPPING, 0.7f, 1f),
+    SICKLE(mapOf(Material.STONE to 0.2f, Material.BONE to 0.3f, Material.RESIN to 0.05f), Skill.KNAPPING, 0.7f, 1f),
     /** Mortars, pestles and querns: nuts, acorns and seeds made into meal. Too heavy to move. */
-    GRINDER(mapOf(Material.STONE to 15f), Making.KNAPPING, 0.05f, 3f, heavy = true),
+    GRINDER(mapOf(Material.STONE to 15f), Skill.KNAPPING, 0.05f, 3f, heavy = true),
     /** Baskets and bags: carrying the harvest home and keeping it. */
-    BASKET(mapOf(Material.FIBRE to 3f), Making.CORDAGE, 0.7f, 2f, known = true),
+    BASKET(mapOf(Material.FIBRE to 3f), Skill.CORDAGE, 0.7f, 2f, known = true),
     /** Sewn, fitted clothes and footwear of hide and fur: winter becomes bearable. */
-    CLOTHES(mapOf(Material.HIDE to 4f, Material.SINEW to 0.3f, Material.BONE to 0.05f), Making.HIDEWORK, 0.5f, 4f, known = true),
+    CLOTHES(mapOf(Material.HIDE to 4f, Material.SINEW to 0.3f, Material.BONE to 0.05f), Skill.HIDEWORK, 0.5f, 4f, known = true),
 }
 
 /** Share of the success an untrained band still has at a hunt or a harvest. */
@@ -97,8 +81,9 @@ const val HUMAN_BIRTHS = 0.8f
 
 /** What a band is: its skills, making skills, tools (0..1 of a full kit each), the tools it knows, its goods, and how long it has kept its camp. */
 class Band {
-    val craft = FloatArray(Forage.entries.size)
-    val making = FloatArray(Making.entries.size) { 0.5f }
+    /** Its know-how, 0..1 for each [Skill] (untaught 0), and which variants it knows of. */
+    val skills = FloatArray(Skill.entries.size) { Skill.entries[it].start }
+    val knowsSkill = BooleanArray(Skill.entries.size) { Skill.entries[it].known }
     val kit = FloatArray(Tool.entries.size)
     val knows = BooleanArray(Tool.entries.size) { Tool.entries[it].known }
     val goods = FloatArray(Material.entries.size)
@@ -216,13 +201,15 @@ class Band {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
-        craft.copyInto(o.craft); making.copyInto(o.making); plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
+        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
     }
 
-    /** How well the band does at [f], against a master: from its floor untrained ([FORAGE_FLOOR]) to 1. */
-    fun skill(f: Forage) = FORAGE_FLOOR[f.ordinal] + (1f - FORAGE_FLOOR[f.ordinal]) * craft[f.ordinal]
+    /** How well the band does at [s], against a master: from the skill's floor untrained to 1 (see [Skill]). */
+    fun skill(s: Skill) = s.floor + (1f - s.floor) * skills[s.ordinal]
+    /** How well it does at a kind of work, by the best of the variants it knows. */
+    fun skill(d: Domain) = Skill.of(d).maxOf { if (knowsSkill[it.ordinal]) skill(it) * it.gain else 0f }
     /**
      * What it knows of the plants of each kind of country ([inflation.world.Biome]), 0..1: which are
      * food, where and when they are found, and how to make them safe. Learned by gathering there and
@@ -236,13 +223,13 @@ class Band {
      * each kilo of [f]'s food: finding, catching, digging and making it ready. [know] is how well it
      * knows the plants there, against a band in its own country.
      */
-    fun slowness(f: Forage, know: Float = KNOW_AT_HOME) = (FORAGE_FLOOR[f.ordinal] + (1f - FORAGE_FLOOR[f.ordinal]) * START_CRAFT) / skill(f) * (KNOW_AT_HOME / know)
-    fun practise(f: Forage) { craft[f.ordinal] += PRACTICE * (1f - craft[f.ordinal]) }
+    fun slowness(f: Skill, know: Float = KNOW_AT_HOME) = (f.floor + (1f - f.floor) * START_CRAFT) / skill(f) * (KNOW_AT_HOME / know)
+    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * (1f - skills[s.ordinal]) }
     fun has(t: Tool) = kit[t.ordinal]
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species) =
-        skill(Forage.HUNT) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + BOW_GAIN * has(Tool.BOW) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
+        skill(Skill.HUNT) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + BOW_GAIN * has(Tool.BOW) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
 
     /** Its dogs against its hunters (one to three a full pack): they track, bay and hold game, and bark at night. */
     var dogShare = 0f
@@ -253,13 +240,13 @@ class Band {
     /** Gathering: the most of a plant food's stock in a place it can take in a week; [seed] for grass seed. */
     fun gatherShare(seed: Boolean): Float {
         val kit = 1f + BASKET_GAIN * has(Tool.BASKET) + if (seed) SICKLE_GAIN * has(Tool.SICKLE) + GRINDER_GAIN * has(Tool.GRINDER) else GRINDER_GAIN * 0.5f * has(Tool.GRINDER)
-        return min(0.9f, GATHER_SHARE * skill(Forage.GATHER) * kit)
+        return min(0.9f, GATHER_SHARE * skill(Skill.GATHER) * kit)
     }
 
 
     /** Small game and fish: snare lines and nets, in practised hands. */
-    fun snares() = (1f + NET_GAIN * has(Tool.NET)) * skill(Forage.SMALL_GAME)
-    fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Forage.FISH)
+    fun snares() = (1f + NET_GAIN * has(Tool.NET)) * skill(Skill.SMALL_GAME)
+    fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Skill.FISH)
 
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
     fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) - 0.5f) + FIRE_C * fire + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
@@ -281,11 +268,11 @@ class Band {
             lineage[l] = 1f
             wordsAt(x, y).copyInto(words)
             traditionsAt(l).copyInto(traditions)
-            craft[Forage.GATHER.ordinal] = 0.6f; craft[Forage.SMALL_GAME.ordinal] = 0.6f; craft[Forage.HUNT.ordinal] = 0.6f
-            craft[Forage.FISH.ordinal] = if (nearWater) 0.5f else 0.1f; craft[Forage.STORE.ordinal] = 0.4f
+            skills[Skill.GATHER.ordinal] = START_CRAFT; skills[Skill.SMALL_GAME.ordinal] = START_CRAFT; skills[Skill.HUNT.ordinal] = START_CRAFT
+            skills[Skill.FISH.ordinal] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE.ordinal] = 0.4f
             kit[Tool.SPEAR.ordinal] = 1f; kit[Tool.NET.ordinal] = 0.5f; kit[Tool.BASKET.ordinal] = 0.5f; kit[Tool.CLOTHES.ordinal] = 0.5f
             // Everyone keeps fire; they know the plants of their own country well, of others' less.
-            making[Making.FIRE.ordinal] = 0.95f; fire = 1f
+            skills[Skill.FIRE.ordinal] = 0.95f; fire = 1f
             plants.fill(0.5f)
         }
     }
@@ -385,9 +372,13 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         if (!b.knows[k]) {
             // A band that has a use for a tool now and then hits on it: bows where game is shy and
             // fast, sickles and grinding stones where it reaps seed, and so on.
-            if (rnd.nextFloat() < INVENT * years * (0.5f + b.craft[useOf(t).ordinal])) { b.knows[k] = true; meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus) }
+            if (rnd.nextFloat() < INVENT * years * (0.5f + b.skills[useOf(t).ordinal])) { b.knows[k] = true; meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus) }
             continue
         }
+    }
+    // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
+    for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && rnd.nextFloat() < INVENT * years * (0.5f + b.skill(s.domain))) {
+        b.knowsSkill[s.ordinal] = true; meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
@@ -396,14 +387,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     for (t in order) {
         if (time <= 0f || people <= 0f) break
         val k = t.ordinal
-        val skill = b.making[t.skill.ordinal]
+        val skill = b.skills[t.skill.ordinal]
         val daysEach = t.makeDays * people / (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * skill) // for a whole band's kit
         var can = min(1f - b.kit[k], time / daysEach)
         for ((m, perPerson) in t.recipe) can = min(can, gd[m.ordinal] / max(1e-3f, perPerson * people))
         if (can <= 0f) continue
         for ((m, perPerson) in t.recipe) gd[m.ordinal] -= can * perPerson * people
         b.kit[k] += can; time -= can * daysEach
-        b.making[t.skill.ordinal] += PRACTICE * (1f - skill)
+        b.practise(t.skill)
     }
     if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
     b.sinceRaided++
@@ -411,8 +402,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
     if (b.campWeeks == 0) b.shelter = 0f
     // (A debris hut takes a novice an afternoon, the practised an hour.)
-    val shelterDays = SHELTER_DAYS * people / (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * b.making[Making.WOODWORK.ordinal])
-    if (b.shelter < 1f && time > 0f && people > 0f) { val built = min(1f - b.shelter, time / shelterDays); b.shelter += built; time -= built * shelterDays; b.making[Making.WOODWORK.ordinal] += 0.2f * PRACTICE * (1f - b.making[Making.WOODWORK.ordinal]) }
+    val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
+    if (b.shelter < 1f && time > 0f && people > 0f) { val built = min(1f - b.shelter, time / shelterDays); b.shelter += built; time -= built * shelterDays; b.practise(Skill.WOODWORK, 0.2f * PRACTICE) }
     keepFire(g, b)
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
@@ -475,8 +466,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     }
     // Songs and stories keep what is not practised from fading as fast.
     val forget = if (b.holds(Tradition.ORAL_TRADITION)) FORGET * 0.4f else FORGET
-    for (i in b.craft.indices) b.craft[i] *= 1f - forget
-    for (i in b.making.indices) b.making[i] *= 1f - forget
+    for (i in b.skills.indices) b.skills[i] *= 1f - forget
 }
 
 /**
@@ -539,10 +529,10 @@ private fun HexGroups.buildKite(g: HexGroup, b: Band) {
 
 /** The skill a tool serves, for how likely a band is to hit on it. */
 private fun useOf(t: Tool) = when (t) {
-    Tool.SPEAR, Tool.BOW -> Forage.HUNT
-    Tool.NET -> Forage.SMALL_GAME
-    Tool.SICKLE, Tool.GRINDER, Tool.BASKET -> Forage.GATHER
-    Tool.CLOTHES -> Forage.STORE
+    Tool.SPEAR, Tool.BOW -> Skill.HUNT
+    Tool.NET -> Skill.SMALL_GAME
+    Tool.SICKLE, Tool.GRINDER, Tool.BASKET -> Skill.GATHER
+    Tool.CLOTHES -> Skill.STORE
 }
 
 /** Two bands that meet show each other tools one of them does not know, the more readily the better they understand each other ([understood]). */
@@ -551,7 +541,16 @@ internal fun HexGroups.teach(a: Band, b: Band, understood: Float) {
         a.knows[k] = true; b.knows[k] = true
         meetings.merge("band learned ${Tool.entries[k].name.lowercase()}", 1, Int::plus)
     }
+    // And ways of working: the one that knows a way shows it; the other starts on it as a beginner.
+    for (k in a.knowsSkill.indices) if (a.knowsSkill[k] != b.knowsSkill[k] && rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood)) {
+        val (from, to) = if (a.knowsSkill[k]) a to b else b to a
+        to.knowsSkill[k] = true; to.skills[k] = max(to.skills[k], SHOWN * from.skills[k])
+        meetings.merge("band learned ${Skill.entries[k].name.lowercase().replace('_', ' ')}", 1, Int::plus)
+    }
 }
+
+/** How far toward the teacher's level a band gets from being shown a way of working once. */
+const val SHOWN = 0.2f
 
 /** How much a band is put off country it does not know (beside the pull of better country it senses); hexes round its first camp it knows from the start. */
 const val UNKNOWN_COUNTRY = 0.2f
@@ -641,7 +640,7 @@ const val FOOD_TYPES = 9
  * each kind of food, the days of food it aims to keep, and how it ranks making each tool.
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
-val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Forage.entries.size + Tool.entries.size + 3
+val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3
 val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 5
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
@@ -655,7 +654,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather,
     into[i++] = total / max(1e-3f, 60f * g.dailyNeedKg)
     for (st in Store.entries) into[i++] = if (total > 0f) g.stores[st.ordinal] / total else 0f
     into[i++] = g.adults / 30f; into[i++] = g.young.toFloat() / max(1, g.adults)
-    for (f in Forage.entries) into[i++] = b.skill(f)
+    for (f in Skill.FORAGING) into[i++] = b.skill(f)
     for (t in Tool.entries) into[i++] = b.has(t)
     into[i++] = weather.temperature[g.place] / 30f
     into[i++] = min(1f, b.campWeeks / 26f)
@@ -861,7 +860,7 @@ const val TAMING_RATE = 0.01f
  * unpractised may fail at the hand drill for days, and learn as they go.
  */
 private fun HexGroups.keepFire(g: HexGroup, b: Band) {
-    val skill = b.making[Making.FIRE.ordinal]
+    val skill = b.skills[Skill.FIRE.ordinal]
     if (g.path.size > 1 && rnd.nextFloat() >= skill) b.fire = 0f
     if (b.fire >= 1f) return
     // Each day it tries; the first day it succeeds it has fire for the rest of the week.
@@ -869,7 +868,7 @@ private fun HexGroups.keepFire(g: HexGroup, b: Band) {
     var day = 0
     while (day < days && rnd.nextFloat() >= pDay) day++
     b.fire = 1f - day.toFloat() / days
-    b.making[Making.FIRE.ordinal] += FIRE_PRACTICE * (1f - skill) * (if (day < days) 1f else 0.3f)
+    b.practise(Skill.FIRE, FIRE_PRACTICE * (if (day < days) 1f else 0.3f))
 }
 
 /**
@@ -878,7 +877,6 @@ private fun HexGroups.keepFire(g: HexGroup, b: Band) {
  * practised); a novice's daily chance to get a fire going, and how fast trying teaches it; what a fire
  * adds to the felt warmth, °C; how much more food raw meals take for the same energy.
  */
-val FORAGE_FLOOR = floatArrayOf(0.15f, 0.1f, 0.1f, 0.05f, 0.3f)
 const val FIRE_FLOOR = 0.1f
 const val FIRE_PRACTICE = 0.1f
 const val FIRE_C = 3f

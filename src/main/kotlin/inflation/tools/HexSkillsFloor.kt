@@ -48,7 +48,7 @@ fun main(args: Array<String>) {
         for (g in run.groups.groups) if (g.alive && g.species == people) {
             g.tag = biomeOf[g.place]; start[g.tag] += g.size.toDouble()
             if (naked) g.band?.let { b ->
-                b.craft.fill(0f); b.making.fill(0f); b.plants.fill(0f); b.fire = 0f; b.shelter = 0f; b.known = LongArray(0); b.kit.fill(0f); b.knows.fill(false); b.goods.fill(0f); b.cache.fill(0f)
+                b.skills.fill(0f); for (s in inflation.ecology.Skill.entries) b.knowsSkill[s.ordinal] = s.known; b.plants.fill(0f); b.fire = 0f; b.shelter = 0f; b.known = LongArray(0); b.kit.fill(0f); b.knows.fill(false); b.goods.fill(0f); b.cache.fill(0f)
                 b.house = 0f; b.houseHex = -1; b.palisade = 0f; b.ornaments = 0f; b.exotic = 0f
                 g.stores.fill(0f)
                 g.memory.hex.fill(-1); g.seasonPlace.fill(-1)

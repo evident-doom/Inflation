@@ -99,7 +99,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // lines and nets search it while no one is there.
     val smallSweep = s.dailyTravelKm * days * 2f * SMALL_SENSE_KM * kotlin.math.sqrt(hands.toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
     val smallCatch = smallCatch(s)
-    val smallDays = SMALL_HANDLING_DAYS_PER_KG / hands * (band?.slowness(Forage.SMALL_GAME) ?: 1f) + eats
+    val smallDays = SMALL_HANDLING_DAYS_PER_KG / hands * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
     val eatsPlants = d.fruit + d.roots > 0f
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
@@ -175,7 +175,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val knowHere = band?.let { plantKnow(it, hw.placeHex[q]) } ?: 1f
         val reach = band?.let { it.gatherShare(false) * knowHere } ?: min(1f, smallSweep * g.path.size / land.areaKm2[q])
         // (The unskilled, and strangers to its plants, are slow at it.)
-        val slow = band?.slowness(Forage.GATHER, knowHere) ?: 1f
+        val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
         val pickQ = (pickDays - eats) * slow + eats; val seedQ = (seedDays - eats) * slow + eats
         offer(4, 0, q, reach * fauna.food.fruit[q] * m2 / days, 1f, pickQ)
         offer(5, 0, q, reach * fauna.food.roots[q] * m2 / days, 1f, ROOT_DIGGING * pickQ)
@@ -188,7 +188,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // Bands fish the river, the lake or the sea shore by their camp.
     if (band != null) {
         val h = hw.placeHex[g.place]
-        offer(8, 0, h, fauna.water.fishWithin(h, band.fishing()) / days, 1f, FISH_HANDLING_DAYS_PER_KG / hands * band.slowness(Forage.FISH) + eats)
+        offer(8, 0, h, fauna.water.fishWithin(h, band.fishing()) / days, 1f, FISH_HANDLING_DAYS_PER_KG / hands * band.slowness(Skill.FISH) + eats)
     }
     // Rank by kilos a day of handling, best first.
     for (i in 0 until m) {
@@ -241,7 +241,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 val young = min(0.3f * ps.massKg, kg[i])
                 meat += na * kg[i] + ny * young
                 small.carrion[p] += (na * (ps.massKg - kg[i]) + ny * (0.3f * ps.massKg - young)) / (area * 1e6f)
-                band?.let { it.skin(ps, na); it.practise(Forage.HUNT) }
+                band?.let { it.skin(ps, na); it.practise(Skill.HUNT) }
                 kills.merge(ps.name, kills1, Int::plus)
                 note(g) { "killed %d %s".format(kills1, ps.name) }
                 fauna.killed(p, kills1 * ps.massKg)
@@ -277,10 +277,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     }
     }
     if (band != null) {
-        if (meat > g.meatMet) band.practise(Forage.HUNT)
-        if (smallGot > 0f) band.practise(Forage.SMALL_GAME)
-        if (plants > 0f) { band.practise(Forage.GATHER); learnPlants(band, hw.placeHex[g.place]) }
-        if (fish > 0f) band.practise(Forage.FISH)
+        if (meat > g.meatMet) band.practise(Skill.HUNT)
+        if (smallGot > 0f) band.practise(Skill.SMALL_GAME)
+        if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.placeHex[g.place]) }
+        if (fish > 0f) band.practise(Skill.FISH)
         hunting.merge("${s.name}:fish, kg", fish.toInt(), Int::plus)
     }
     var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
@@ -306,10 +306,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
         for (i in got.indices) g.stores[i] += got[i]
         val spareDays = max(0f, days - busy)
-        val dried = min(g.stores[Store.FRESH.ordinal], spareDays * hands * band.skill(Forage.STORE) / DRY_DAYS_PER_KG)
-        if (dried > 0f) { g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(Forage.STORE) }
+        val dried = min(g.stores[Store.FRESH.ordinal], spareDays * hands * band.skill(Skill.STORE) / DRY_DAYS_PER_KG)
+        if (dried > 0f) { g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(Skill.STORE) }
         // What time is left is for making and mending (see [bandWeek]).
-        band.spareDays = max(0f, spareDays * hands - dried * DRY_DAYS_PER_KG / band.skill(Forage.STORE))
+        band.spareDays = max(0f, spareDays * hands - dried * DRY_DAYS_PER_KG / band.skill(Skill.STORE))
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
         // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
         val home = if (band.atHome) band.house else 0f
@@ -570,7 +570,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     val catchable = catchable(hunter.species, herd.species, p, max(1, hunter.adults) * hunter.species.massKg)
     if (catchable < NOT_WORTH_TRYING) return
     val chance = CATCH * SURPRISE * catchable * (1f - 0.5f * herd.wary) * (hunter.band?.huntEdge(herd.species) ?: 1f)
-    hunter.band?.practise(Forage.HUNT)
+    hunter.band?.practise(Skill.HUNT)
     // By a kite, a band drives the herd between the walls and takes a large share of it at once.
     if (hunter.band != null && kites[p] >= 1f && herd.species in KITE_QUARRY) {
         val spare = hunter.band?.holds(Tradition.TABOO_YOUNG) == true

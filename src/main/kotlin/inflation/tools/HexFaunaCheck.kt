@@ -249,7 +249,7 @@ fun main(args: Array<String>) {
         val bands = herds.groups.filter { it.alive && it.band != null }
         if (bands.isNotEmpty()) {
             val bs = bands.map { it.band!! }
-            println("     bands: skills " + inflation.ecology.Forage.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.craft[f.ordinal] }.average()) } +
+            println("     bands: skills " + inflation.ecology.Skill.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.skills[f.ordinal] }.average()) } +
                 " | tools known (kit) " + inflation.ecology.Tool.entries.joinToString(", ") { t -> "%s %.0f%% (%.2f)".format(t.name.lowercase(), 100.0 * bs.count { it.knows[t.ordinal] } / bs.size, bs.map { it.kit[t.ordinal] }.average()) } +
                 " | customs " + inflation.ecology.Tradition.entries.joinToString(", ") { t -> "%s %.0f%%".format(t.name.lowercase(), 100.0 * bs.count { it.holds(t) } / bs.size) } +
                 " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1), bs.map { it.inbred.toDouble() }.average()) +
@@ -334,6 +334,14 @@ fun main(args: Array<String>) {
             val top = v.takeLast((v.size / 20).coerceAtLeast(1)).sum() / total
             println("food for people across the land: unevenness (Gini) %.2f, richest 5%% of hexes hold %.0f%% of it, median hex %.0f t".format(gini, 100 * top, v[v.size / 2] / 1000))
         }
+    }
+    run {
+        // Ways of working: how many bands know each, and how well those that know it do it (skills a band
+        // holds are part of its customs; neighbours share them, distant bands differ).
+        val bs = herds.groups.filter { it.alive && it.band != null }.map { it.band!! }
+        if (bs.isNotEmpty()) println("ways of working (bands knowing, their mean level): " + inflation.ecology.Skill.entries.joinToString(", ") { s ->
+            val k = bs.filter { it.knowsSkill[s.ordinal] }
+            "%s %.0f%% %.2f".format(s.name.lowercase().replace('_', ' '), 100.0 * k.size / bs.size, if (k.isEmpty()) 0.0 else k.map { it.skills[s.ordinal].toDouble() }.average()) })
     }
     run {
         val f = fauna.food
