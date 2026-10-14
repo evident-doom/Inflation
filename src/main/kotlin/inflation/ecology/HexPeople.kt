@@ -278,7 +278,7 @@ class Band {
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
     /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
     /** How much more (above 1) or less a skill's work leaves undone than a start band's: the sick die, infants are lost. */
-    fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.start) / skill(s)
+    fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.ref) / skill(s)
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
     fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
@@ -891,7 +891,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         if (n > most) { val cull = n - most; n = most; g.stores[Store.FRESH.ordinal] += cull * s.massKg * MEAT_SHARE; meetings.merge("kept animals culled", 1, Int::plus) }
         b.herd[k] = if (n < 0.5f) 0f else n
         b.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)
-        b.practise(Skill.TENDING, 0.5f * PRACTICE)
+        if (b.knowsSkill[Skill.TENDING.ordinal]) b.practise(Skill.TENDING, 0.5f * PRACTICE)
     }
 }
 

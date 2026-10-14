@@ -62,7 +62,7 @@ enum class Domain {
  * ways are hit on only by bands living in their houses.
  */
 enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, val known: Boolean = true, val gain: Float = 1f, val practice: Float = PRACTICE,
-                 val invent: Float = 1f, val teach: Float = 1f, val settled: Boolean = false) {
+                 val invent: Float = 1f, val teach: Float = 1f, val settled: Boolean = false, ref: Float = -1f) {
     GATHER(Domain.GATHERING, 0.15f),
     SMALL_GAME(Domain.TRAPPING, 0.1f),
     FISH(Domain.FISHING, 0.1f),
@@ -111,7 +111,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     STALK(Domain.STALKING, 0.2f, 0.8f),
     BUTCHER(Domain.BUTCHERY, 0.5f, 0.8f),
     /** Tending kept animals: fewer run off or are lost on the move, more can be kept, and they grow tame faster under practised hands. */
-    TENDING(Domain.HERDING, CRAFT_FLOOR, 0.3f),
+    TENDING(Domain.HERDING, CRAFT_FLOOR, known = false, invent = 0.05f, teach = 0.1f, settled = true, ref = 0.5f),
     /** Apprenticeship: how fast the band's young and newcomers come to its skills (all practice goes faster or slower). */
     SHOWING(Domain.TEACHING, CRAFT_FLOOR, 0.5f),
     /** Songs, stories and names that keep know-how from fading. */
@@ -123,6 +123,9 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     /** Midwifery and care of infants. */
     MIDWIFERY(Domain.CHILDCARE, CRAFT_FLOOR, 0.5f),
     ;
+
+    /** The level its effects are set for (a start band's, unless bands start without it). */
+    val ref = if (ref >= 0f) ref else start
 
     companion object {
         private val byDomain = Domain.entries.map { d -> entries.filter { it.domain == d } }
