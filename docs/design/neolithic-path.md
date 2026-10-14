@@ -25,6 +25,7 @@ Agreed with Olli on 2026-10-14. This is the standing plan for people after the b
 **Test cases running through all steps:**
 - **Jomon test:** on a coast- or oak-rich map, bands may settle without crops. That must be possible.
 - **Mobile test:** on poor, variable land, bands must stay mobile.
+- **Skills floor test (naked-person baseline):** small bands dropped into each biome with no tools, no skills, no clothes, no fire, no stores and no memory of the land. How long they last sets the floor of survivability that every skill builds on. Against the record: exposure kills unclothed people in hours to a night when it is cold and wet; thirst kills in about 3 days; starvation in 3 to 8 weeks. In the warm tropics, untooled people who know nothing of the land can scrape by for weeks on fruit, shellfish, insects and eggs, losing weight. The floor parameters (`CRAFT_FLOOR`, `WEAPONLESS`, `COLD_MAX`) are tuned to it. Note: cold is now only a food cost capped at 1.6 times, so the model cannot yet kill by exposure.
 - **Record:** density, mobility, diet shares, health and violence against the ethnographic and archaeological ranges, through the check's record line.
 
 **Supporting work, done when a step needs it:**
