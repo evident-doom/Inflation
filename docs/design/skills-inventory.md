@@ -110,3 +110,46 @@ Proposed mechanisms, most important first:
 6. **Conformity.** Bands take up a stranger's way less readily the more their customs and words differ, and more readily from bands that are doing well (prestige).
 
 Recommended to build first: 1, 2 and 3. Together they give regional toolkits, loss in isolation, and specialists.
+
+## What the record says about how skills grow, cap and fade (2026-10-14)
+
+These are from memory of the literature, with authors named for following up. The figures are approximate.
+
+**Learning curves and peaks:**
+- **Hunting** (Koster and colleagues 2020, 40 societies; Gurven, Kaplan and Gutierrez 2006 on the Tsimane; Walker and colleagues 2002 on the Aché):
+  - Returns rise slowly through the teens.
+  - Hunters reach about half their peak around 20.
+  - Returns peak in the 30s and fall slowly after 45.
+  - Skill (knowledge, tracking) keeps rising after strength has peaked.
+- **Gathering** (Bird and Bliege Bird; Blurton Jones on the Hadza):
+  - Easy foods (shellfish, fruit, baobab) reach adult rates by the early teens.
+  - Hard ones (deep tubers) wait for adult strength.
+  - Skill matters more where food must be processed.
+- **Knapping** (Stout; Pargeter, Khreisheh and Stout 2019):
+  - Oldowan flakes take hours to learn.
+  - Novices given about 90 hours of coached practice still fall short of experts at handaxes.
+  - Levallois cores, blades and pressure flaking take years.
+- **Expertise in general:** practice follows a power law, with fast early gains and a long plateau. Mastery of complex crafts takes about ten years (Ericsson).
+
+**Forgetting** (Arthur and colleagues 1998, a meta-analysis of skill decay):
+- Motor skills practised in a continuous flow are kept for years with little loss: knapping, throwing, sewing, swimming.
+- Procedural knowledge with many discrete steps, and facts, fade much faster: the steps of a ritual, which plant is safe, a recipe.
+- So disuse should erode knowledge quickly but hand skills slowly.
+
+**Group size and toolkits:**
+- Henrich 2004 (Tasmania): small, isolated groups lose complex skills.
+- Kline and Boyd 2010: Oceanic islands with more people and more contact had more, and more complex, tools.
+- Collard, Buchanan and colleagues found toolkit diversity follows environmental risk (latitude, cold) more than population.
+- Torrence and Oswalt: forager toolkits range from 10–20 items in warm country to over 100 in the Arctic.
+
+**Specialists:**
+- Mobile foragers have few specialists, mainly healers.
+- Sedentary, storing foragers (the Northwest Coast) and early villages have craft specialists.
+- About 1 in 10–20 adults is a recognised healer or ritual specialist.
+
+**How to set the model's ranges from this:**
+- Level 1 is a master in the 30s. A band's best holders sit at about 0.8–0.9 in skills it uses daily.
+- Hunting returns at about 0.5 of peak for a young adult.
+- A complex craft takes years of practice to reach 0.8: blades, microliths and, later, pottery.
+- Forgetting is fast for knowledge (plants, recipes, ritual) and slow for hand skills.
+- Toolkit breadth follows risk and contact: wide in cold, variable country and among well-connected bands.
