@@ -109,7 +109,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } }.ifEmpty { listOf(g.place) } else listOf(g.place)
     // The foods on offer: type (0 big game of [kinds] index k, 1 small game, 2 carrion, 3 bones,
     // 4 fruit, 5 roots, 6 grass seed, 7 small finds, 8 fish), place, rate a day, kg each, days each.
-    val n = g.path.size * (fauna.kinds.size + 4) + gatherAt.size * 4 + 1
+    val n = g.path.size * (fauna.kinds.size + 4) + gatherAt.size * 5 + 1
     val type = IntArray(n); val kind = IntArray(n); val place = IntArray(n)
     val rate = FloatArray(n); val kg = FloatArray(n); val time = FloatArray(n)
     var m = 0
@@ -142,7 +142,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     m = 0
     fun offer(t: Int, k: Int, p: Int, r: Float, e: Float, h: Float) {
         // A band meets each kind of food the more, the more of its effort it puts into it.
-        val rr = if (band != null) r * band.effort[if (t == 8) 8 else t] else r
+        val rr = if (band != null) r * band.effort[if (t == 9) 6 else t] else r
         if (rr <= 0f || e <= 0f) return
         type[m] = t; kind[m] = k; place[m] = p; rate[m] = rr; kg[m] = e; time[m] = h; m++
     }
@@ -177,6 +177,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         offer(7, 0, q, reach * fauna.food.finds[q] * m2 / days, 1f, ROOT_DIGGING * pickDays)
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
         offer(6, 0, q, (band?.gatherShare(true) ?: reach) * fauna.food.seeds[q] * m2 / days, 1f, seedDays)
+        // Wild and sown cereals: reaped like grass seed, but richer where they stand.
+        offer(9, 0, q, (band?.gatherShare(true) ?: reach) * fauna.food.grain[q] * m2 / days, 1f, seedDays)
     }
     // Bands fish the river, the lake or the sea shore by their camp.
     if (band != null) {
@@ -241,6 +243,19 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 plantKind[when (type[i]) { 5 -> Store.ROOTS; 6 -> Store.SEED; else -> Store.FRUIT }.ordinal] += took
             }
             8 -> fish += fauna.water.fishFor(p, expected, band?.fishing() ?: 1f)
+            9 -> {
+                val m2 = land.areaKm2[p] * 1e6f
+                val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2
+                plants += took; plantKind[Store.SEED.ordinal] += took
+                // A sickle takes the ears that hold their grain more than those that shatter at a touch.
+                if (band != null && took > 0f) {
+                    val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
+                    val harvested = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
+                    val have = g.stores[Store.SEED.ordinal]
+                    band.seedDomestic = (band.seedDomestic * have + harvested * took) / (have + took).coerceAtLeast(1e-6f)
+                    hunting.merge("${s.name}:grain reaped, kg", took.toInt(), Int::plus)
+                }
+            }
         }
     }
     }

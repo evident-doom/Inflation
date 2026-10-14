@@ -38,6 +38,29 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      */
     val lichen = FloatArray(n) { p -> 0.8f * lichenCap(p) }
     private fun lichenCap(p: Int) = LICHEN_MAX * (1f - land.annualGdd[p] / LICHEN_GDD).coerceIn(0f, 1f) * (1f - land.canopy(p))
+    /**
+     * Wild cereals: large-seeded annual grasses (wild wheat and barley here), as a share of a place's
+     * grass, where winters are wet, summers dry and the ground broken (the hilly flanks). Their ripe
+     * grain, kg/m², is shed within weeks by ears that shatter; [domestic] is the share of the stand
+     * whose ears hold their grain (0 wild), which sickle harvests and sowing raise and which drifts
+     * back where the stand seeds itself. [field] is grain sown here this year, kg/m², which ripens to
+     * [FIELD_YIELD] times as much.
+     */
+    val cereal = FloatArray(n) { p -> cerealShare(p) }
+    val grain = FloatArray(n)
+    val domestic = FloatArray(n) { p -> if (cereal[p] > 0f) MUTANT else 0f }
+    val field = FloatArray(n)
+    private fun cerealShare(p: Int): Float {
+        val h = land.hw.placeHex[p]
+        val rain = (0 until 12).sumOf { land.hw.precip[it][h].toDouble() }.toFloat()
+        val winter = (0..2).sumOf { land.hw.precip[it][h].toDouble() }.toFloat() + land.hw.precip[11][h]
+        val summer = (5..7).sumOf { land.hw.precip[it][h].toDouble() }.toFloat()
+        val warmth = (0 until 12).map { land.hw.placeTemp(p, it) }.average().toFloat()
+        // Winter rain and summer drought, 250-800 mm, mild; best on broken hill country.
+        val climate = (if (rain in 250f..800f) 1f else 0f) * ((winter - summer) / rain.coerceAtLeast(1f) * 2f).coerceIn(0f, 1f) * (if (warmth in 10f..22f) 1f else 0f)
+        return CEREAL_MAX * climate * (0.5f + land.ruggedness[p]).coerceAtMost(1f)
+    }
+
     /** Standing straw: the land's (it burns there). */
     val straw get() = land.straw
 
@@ -66,6 +89,18 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             small.litter[p] += shed
             val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
             roots[p] = max(0f, roots[p] + days * (r - roots[p] / ROOTS_DAYS))
+            // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
+            // those that hold it keep it for months. Sown fields ripen with them.
+            if (cereal[p] > 0f || field[p] > 0f) {
+                val ripeGrain = if (season in SEED_FROM..SEED_TO) (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) / ((SEED_TO - SEED_FROM) * 365f) else 0f
+                if (ripeGrain > 0f) grain[p] += days * ripeGrain
+                val wild = 1f - domestic[p]
+                val lost = grain[p] * (wild * min(1f, days / SEED_DAYS) + (1f - wild) * min(1f, days / GRAIN_HOLD_DAYS))
+                grain[p] = max(0f, grain[p] - lost); small.litter[p] += lost
+                // After the year's ripening, the sown crop is spent, and a stand that seeded itself
+                // drifts back toward the wild (ears that hold their grain cannot sow themselves).
+                if (season > SEED_TO && season - SEED_TO < days / 365f) { field[p] = 0f; domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT) }
+            }
             // Lichen creeps back.
             val lc = lichenCap(p)
             if (lc > 0f) lichen[p] = max(0f, lichen[p] + LICHEN_GROWTH * days / 365f * max(lichen[p], 0.01f * lc) * (1f - lichen[p] / lc))
@@ -105,6 +140,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         const val ROOTS_FROM = 0.8f
         /** Ripe grass seed at its peak, per kg/m² of herbs (a rich wild-cereal stand gives far more); days it stays on the stalk. */
         const val SEED_SHARE = 0.01f
+        /** Wild cereals: most of a place's grass they make up; grain per kg of their stand; days ears that hold their grain keep it; yearly drift back to wild where a stand seeds itself; a sown field's yield per kg sown. */
+        const val CEREAL_MAX = 0.2f
+        const val GRAIN_SHARE = 0.1f
+        const val GRAIN_HOLD_DAYS = 120f
+        const val WILD_DRIFT = 0.3f
+        const val FIELD_YIELD = 6f
+        /** Share of a wild stand whose ears hold their grain (rare mutants, kept down by their failing to sow themselves). */
+        const val MUTANT = 0.003f
         const val SEED_DAYS = 40f
         /** Roots and mast to be dug, per kg/m² of herbs (and trees × 0.05); days to replace them. */
         const val ROOTS_SHARE = 0.0003f

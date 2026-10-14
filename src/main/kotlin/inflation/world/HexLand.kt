@@ -18,7 +18,7 @@ import kotlin.math.min
  * - A fire burns a share of a place and spreads to neighbouring places, more readily downwind.
  * - Grazing, browsing, rooting, trampling and seed carried by animals are set by the ecology.
  */
-class HexLand(private val hw: HexWorld, private val seed: Long) {
+class HexLand(internal val hw: HexWorld, private val seed: Long) {
     private val world = hw.world
     private val grid = world.grid
     private val hex = hw.hex

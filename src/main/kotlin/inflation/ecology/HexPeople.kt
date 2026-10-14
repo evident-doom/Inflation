@@ -130,6 +130,10 @@ class Band {
     /** A palisade of posts and brush round its houses, 0..1; weeks since it was last raided. */
     var palisade = 0f
     var sinceRaided = 1000
+    /** Of the grain in its stores, the share from ears that hold their grain (what it would sow). */
+    var seedDomestic = 0f
+    /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
+    var sowWill = 1f
     /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
     var raidWill = 1f
     var fortifyWill = 1f
@@ -378,6 +382,22 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         }
     }
     b.atHome = b.houseHex == h && b.house > 0.05f
+    // In autumn a band at home sows a share of its stored grain on its home ground: a plot that ripens
+    // next summer to several times as much, of the kind of ears it sowed.
+    if (b.atHome && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f && time > 0f) {
+        val stock = g.stores[Store.SEED.ordinal]
+        val sow = minOf(stock * SOW_SHARE * b.sowWill, time * hands(g) / SOW_DAYS_PER_KG)
+        if (sow > 0.1f) {
+            g.stores[Store.SEED.ordinal] -= sow; time -= sow * SOW_DAYS_PER_KG / hands(g)
+            val food = fauna.food; val m2 = land.areaKm2[p] * 1e6f
+            val standing = food.cereal[p] * land.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
+            val add = sow / m2
+            food.domestic[p] = (food.domestic[p] * standing + b.seedDomestic * add) / (standing + add).coerceAtLeast(1e-9f)
+            food.field[p] += add
+            meetings.merge("bands sowed", 1, Int::plus)
+            note(g) { "sowed %.0f kg of grain at home".format(sow) }
+        }
+    }
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
     // as its time and timber go.
     if (b.atHome && b.sinceRaided < 52 * b.fortifyWill && b.palisade < 1f && time > 0f && people > 0f) {
@@ -563,7 +583,7 @@ const val FOOD_TYPES = 9
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Forage.entries.size + Tool.entries.size + 3
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 4
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 5
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
@@ -597,6 +617,7 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     b.houseWill = squash(out[FOOD_TYPES + 2 + Tool.entries.size])
     b.raidWill = squash(out[FOOD_TYPES + 3 + Tool.entries.size])
     b.fortifyWill = squash(out[FOOD_TYPES + 4 + Tool.entries.size])
+    b.sowWill = squash(out[FOOD_TYPES + 5 + Tool.entries.size])
 }
 
 /**
@@ -700,3 +721,11 @@ const val SURPRISE_RAID = 1f
 const val HIGH_GROUND = 0.5f
 /** Chance a band with no home to hold slips away from a raid, losing only what it cannot carry. */
 const val FLEE = 0.5f
+
+/** Sowing: months (0 the one after midwinter) for sowing in autumn; share of its stored grain a band sows; person-days to clear, sow and weed for each kg sown. */
+val SOW_MONTHS = 9..10
+const val SOW_SHARE = 0.3f
+const val SOW_DAYS_PER_KG = 0.5f
+/** How much likelier a sickle harvest takes an ear that holds its grain than one that shatters at a touch. */
+const val SICKLE_SELECT = 2f
+private fun hands(g: HexGroup) = max(1, g.adults).toFloat()
