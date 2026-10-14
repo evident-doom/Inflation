@@ -385,9 +385,14 @@ class NetWays(private val net: Mlp) : inflation.ecology.BandWays {
  * the network round-robin, and each variant is scored by the person-weeks its bands live, per
  * person at the start. It starts from the scaffold (a network of zeros chooses exactly as it does).
  *
- * Usage: hex-evolve-ways [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--hidden N]
+ * Usage: hex-evolve-ways [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--hidden N] [--nets DIR]
+ *
+ * With --nets, every kind moves by the learned role networks in DIR (herds.mlp, hunters.mlp,
+ * people.mlp, each with its .identity, as [HexPpo] writes them) instead of the hand-written choices.
  */
 object HexEvolveWays {
+    /** The learned movers, by role, when given. */
+    private var movers: List<SharedMover>? = null
     @JvmStatic
     fun main(args: Array<String>) {
         var out = File("hex-ways")
@@ -412,6 +417,7 @@ object HexEvolveWays {
                 "--sigma" -> sigma = args[++k].toFloat()
                 "--rate" -> rate = args[++k].toFloat()
                 "--hidden" -> hidden = args[++k].toInt()
+                "--nets" -> { val dir = File(args[++k]); movers = HexPpo.ROLES.map { SharedMover.load(File(dir, "$it.mlp").also { f -> require(f.exists()) { "no $f" } }) } }
                 else -> error("unknown argument ${args[k]}")
             }
             k++
@@ -460,6 +466,7 @@ object HexEvolveWays {
     /** One small world with all the animals for [years], each band on one of [variants]; person-weeks per person at the start. */
     fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
         val run = HexLearning.Run(cfg, Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }.distinct())
+        movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[HexPpo.role(s)] }
         val rnd = Random(cfg.seed)
         val people = Catalogue.HUMAN
         val started = DoubleArray(variants.size)

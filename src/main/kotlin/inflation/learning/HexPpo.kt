@@ -60,10 +60,27 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         const val IDENTITY = 6
         val INPUTS = HexFeatures.SIZE + KIND + IDENTITY
 
+        /**
+         * A network trained before place features were added (they come last among the place's, before
+         * the kind's part) gets zero weights for the new ones, so it chooses exactly as before.
+         */
+        fun widen(net: Mlp): Mlp {
+            val old = net.sizes[0]
+            if (old >= INPUTS) return net
+            val add = INPUTS - old; val at = old - KIND - IDENTITY
+            val sizes = net.sizes.copyOf().also { it[0] = INPUTS }
+            val m = Mlp(sizes)
+            val nOut = sizes[1]
+            for (j in 0 until nOut) for (i in 0 until old) m.w[j * INPUTS + (if (i < at) i else i + add)] = net.w[j * old + i]
+            // The biases and the deeper layers are unchanged.
+            net.w.copyInto(m.w, INPUTS * nOut, old * nOut, net.w.size)
+            return m
+        }
+
         fun random(hidden: Int, rnd: Random) = SharedMover(Mlp.random(intArrayOf(INPUTS, hidden, hidden, 1), rnd), FloatArray(Catalogue.all.size * IDENTITY) { 0.1f * (rnd.nextFloat() - 0.5f) })
 
         fun load(file: File): SharedMover {
-            val net = Mlp.load(file.readText())
+            val net = widen(Mlp.load(file.readText()))
             val idFile = File(file.path + ".identity")
             val id = if (idFile.exists()) idFile.readText().trim().split(" ").map { it.toFloat() }.toFloatArray() else FloatArray(Catalogue.all.size * IDENTITY)
             return SharedMover(net, id)
