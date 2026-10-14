@@ -103,6 +103,13 @@ class Band {
     var storeAim = STORE_AIM_DAYS
     /** Its choices: how it ranks making each tool ([Tool]) with its spare time (the scaffold: the most worn first). */
     val makeFirst = FloatArray(Tool.entries.size) { 1f }
+    /**
+     * How it stands with each band it has met (by the band's id), -1..1: raised by meeting in peace,
+     * gifts, feasts and marriages, lowered by raids; fading unless renewed.
+     */
+    val ties = HashMap<Int, Float>()
+    fun tie(other: Int) = ties[other] ?: 0f
+    fun befriend(other: Int, by: Float) { ties[other] = (tie(other) + by * (if (by > 0f) 1f - tie(other) else 1f + tie(other))).coerceIn(-1f, 1f) }
     /** Person-days its people had to spare this week, after getting and keeping food. */
     var spareDays = 0f
     /** Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's. */
@@ -138,6 +145,7 @@ class Band {
 
     /** What a band splitting off takes along: everything it knew and believed, its descent and its grudges. */
     fun copyInto(o: Band) {
+        o.ties.clear(); o.ties.putAll(ties)
         craft.copyInto(o.craft); making.copyInto(o.making); kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()

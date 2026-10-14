@@ -387,10 +387,25 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
     val (poor, rich) = if (a.fed + a.larder / (a.dailyNeedKg * 30f) < b.fed + b.larder / (b.dailyNeedKg * 30f)) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
+    // (More to a band it is close to.)
+    val close = (rich.band?.tie(poor.id) ?: 0f).coerceAtLeast(0f)
     if (poor.fed < (if (sharing) 0.9f else 0.8f) && rich.larder > 0f) {
-        val gift = BAND_GIFT * (if (sharing) 2f else 1f) * rich.larder
+        val gift = BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close) * rich.larder
         rich.larder -= gift; poor.larder += gift
+        poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
         meetings.merge("food given", 1, Int::plus)
+    }
+    // Feasts: a band that holds to feasting and has more laid by than it means to keep sets food
+    // before the other; the guests remember it.
+    for ((host, guest) in listOf(a to b, b to a)) {
+        val hb = host.band ?: continue
+        if (!hb.holds(Tradition.FEASTS)) continue
+        val spare = host.larder - hb.storeAim * host.dailyNeedKg
+        if (spare <= 0f) continue
+        val meal = min(spare, FEAST_KG * guest.size)
+        host.larder -= meal; guest.larder += meal
+        guest.band?.befriend(host.id, TIE_FEAST); hb.befriend(guest.id, 0.5f * TIE_FEAST)
+        meetings.merge("feasts", 1, Int::plus)
     }
     // Word of where the other did better this month.
     for (m in 0 until 12) {

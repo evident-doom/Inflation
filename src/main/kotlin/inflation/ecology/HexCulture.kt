@@ -91,6 +91,23 @@ const val FOUL_AVOID = 0.3f
 const val BURIAL_STAY = 0.1f
 /** Most a band of [Tradition.FEASTS] grows to before it splits, against its kind's usual most. */
 const val FEAST_SIZE = 1.3f
+/**
+ * Ties between bands: how much closer a peaceful meeting, a gift, a feast and an exchange of
+ * partners bring them (of the way left to full friendship), how far a raid sets them back; share
+ * of a tie lost a year unless renewed; how much a full friendship lowers the chance of a raid.
+ */
+const val TIE_MEET = 0.05f
+const val TIE_GIFT = 0.2f
+const val TIE_FEAST = 0.3f
+const val TIE_MARRY = 0.3f
+const val TIE_RAID = 0.8f
+const val TIE_FADE = 0.5f
+const val TIE_PEACE = 0.8f
+/** A feast: food set before each guest, kg; days of food a band keeps back for itself beyond its aim before it feasts others. */
+const val FEAST_KG = 3f
+/** How strongly a band with food to feast others is drawn to where other bands are, and the people there at which the draw is full. */
+const val GATHER_PULL = 0.3f
+const val GATHER_HEADS = 150f
 
 /** The lineage a band founded at hex centre ([x], [y]) km descends from. */
 fun lineageAt(x: Double, y: Double): Int {
@@ -133,6 +150,9 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
     val ba = a.band ?: return false; val bb = b.band ?: return false
     val u = Language.understanding(ba.words, bb.words)
     if (raid(a, ba, b, bb, u) || raid(b, bb, a, ba, u)) return true
+    // Meeting in peace makes them a little closer; how close they are colours the rest.
+    ba.befriend(b.id, TIE_MEET); bb.befriend(a.id, TIE_MEET)
+    val close = max(0f, 0.5f * (ba.tie(b.id) + bb.tie(a.id)))
     // The naming game: the larger band's word tends to win.
     repeat(WORDS_PER_MEETING) {
         val k = rnd.nextInt(Language.CONCEPTS)
@@ -147,7 +167,7 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
     }
     teach(ba, bb, u)
     // Each tells the other of the country it knows round about, as far as they understand each other.
-    if (rnd.nextFloat() < u) {
+    if (rnd.nextFloat() < u * (0.6f + 0.4f * close)) {
         val h0 = hw.placeHex[a.place]
         var ring = listOf(h0); val seen = hashSetOf(h0)
         for (r in 0..TOLD_RINGS) {
@@ -159,8 +179,9 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
     }
     // Partners: where either holds to marrying out, young adults change bands, both ways.
     val marry = (if (ba.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bb.holds(Tradition.EXOGAMY)) 0.5f else 0f)
-    if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry) {
+    if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry * (0.5f + close)) {
         marryOut(a, ba, b, bb)
+        ba.befriend(b.id, TIE_MARRY); bb.befriend(a.id, TIE_MARRY)
         meetings.merge("bands exchanged partners", 1, Int::plus)
     }
     return false
@@ -173,7 +194,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     val feud = b.grudge[ob.mainLineage()] > FEUD
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     val pressure = if (feud) 1f else max(hunger, min(1f, peopleCrowding(g)))
-    val chance = RAID * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage))
+    val chance = RAID * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage)) * (1f - TIE_PEACE * max(0f, b.tie(o.id)))
     if (rnd.nextFloat() >= chance) return false
     meetings.merge("raids", 1, Int::plus)
     val sg = strength(g); val so = strength(o)
@@ -191,6 +212,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     // The stronger side carries off food; the raided remember.
     if (sg > so) { val t = RAID_TAKE * o.larder; o.larder -= t; g.larder += t; meetings.merge("larders raided", 1, Int::plus) }
     ob.grudge[b.mainLineage()] += GRUDGE
+    ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
     return true
 }
@@ -251,6 +273,12 @@ internal fun HexGroups.visitKin() {
 /** A band's year, a week at a time: inbreeding builds in a closed band, grudges fade, words drift, traditions are now and then taken up or dropped. */
 internal fun HexGroups.cultureWeek(g: HexGroup) {
     val b = g.band ?: return
+    // Ties fade unless renewed.
+    if (b.ties.isNotEmpty()) {
+        val keep = 1f - TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
+        val it = b.ties.entries.iterator()
+        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * keep); if (kotlin.math.abs(e.value) < 0.01f) it.remove() }
+    }
     // Country far from where it now lives fades from memory, a share of it a year.
     if (rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat()) {
         val here = hw.placeHex[g.place]

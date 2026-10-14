@@ -230,7 +230,10 @@ fun main(args: Array<String>) {
                 " | kites %d, animals taken in drives this year %d, caches %d".format(herds.kites.count { it >= 1f }, huntYear["people:kills in kite drives"] ?: 0, bs.count { it.cachePlace >= 0 }) +
                 " | dogs %.0f in %d bands, wolf packs' boldness %.2f".format(bs.sumOf { it.kept.sum().toDouble() }, bs.count { it.kept.sum() >= 1f }, herds.groups.filter { it.alive && it.species.followsPeople && !it.species.human }.map { inflation.ecology.boldness(it).toDouble() }.average()) +
                 " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * sim.hex.hexKm * sim.hex.hexKm * 0.866) +
-                " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(), bands.map { it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f) }.average()))
+                " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(), bands.map { it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f) }.average()) +
+                // Ties and gatherings: bands it knows and is close to; bands camped with two or more others in the same hex.
+                " | ties %.1f a band (close %.1f), gathered %.0f%%".format(bs.map { it.ties.size }.average(), bs.map { b -> b.ties.values.count { it > 0.3f } }.average(),
+                    100.0 * bands.groupBy { hw.placeHex[it.place] }.values.filter { it.size >= 3 }.sumOf { it.size } / bands.size.coerceAtLeast(1)))
         }
         if (bandWeeks > 0) {
             // People against what the ethnographic and archaeological record shows of foragers (ranges in brackets).

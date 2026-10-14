@@ -404,6 +404,8 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
     for (i in a.knows.indices) a.knows[i] = a.knows[i] || b.knows[i]
     for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
     for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
+    for ((k, v) in b.ties) if (k != into.id) a.ties[k] = max(a.tie(k), v)
+    a.ties.remove(from.id)
     for (i in a.goods.indices) a.goods[i] += b.goods[i]
     if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
     for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
