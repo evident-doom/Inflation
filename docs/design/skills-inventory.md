@@ -74,3 +74,19 @@ Body and physics stay fixed: daily need, walking cost per km, how long a person 
 6. Hunting subskills.
 7. Moving and boats.
 8. The rest.
+
+## Status (2026-10-14)
+
+Built:
+- **The generic system** (`Skill.kt`): kinds of work (`Domain`), each done by one or more variants (`Skill`). Each variant has a floor, a start level, whether bands know it from the start, and a gain. Bands invent new variants where they practise the work, show them to bands they meet, and partners bring theirs. The check prints "ways of working": the share of bands that know each variant and their mean level.
+- **Cooking:** roasting, stone boiling, earth ovens.
+- **Detoxifying:** leaching.
+- **Keeping food:** sun drying (slowed by rain), smoking, sealing pits.
+- **Clothing:** sewing; clothes are warmer with the skill.
+- **Building:** stone footings, pit houses, mudbrick. A band builds the way its materials go furthest.
+- **Healing:** herbs.
+- **Child care:** midwifery.
+
+Skills that existed before keep their behaviour at a start band's level. New variants change nothing until a band knows them.
+
+Next: hunting subskills (tracking, stalking, drives, butchery), moving (carrying, snowshoes, boats), animal handling, the remaining crafts, fighting.

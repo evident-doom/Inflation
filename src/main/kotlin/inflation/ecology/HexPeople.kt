@@ -271,6 +271,8 @@ class Band {
 
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
     /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
+    /** How much more (above 1) or less a skill's work leaves undone than a start band's: the sick die, infants are lost. */
+    fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.start) / skill(s)
     fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
     fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
 
@@ -940,6 +942,8 @@ const val EARTH_OVEN_GAIN = 0.3f
 const val DRY_RAIN_MM = 30f
 const val SMOKE_KEEP = 0.5f
 const val SEAL_KEEP = 0.7f
+/** How far a healer's or midwife's skill reaches into the deaths it can prevent (share of the gap to a start band's). */
+const val HEALING_REACH = 0.5f
 
 /** Stone and timber (kg a person) and person-days a person's share of a house takes, built [way]. */
 fun houseNeeds(way: Skill) = when (way) {

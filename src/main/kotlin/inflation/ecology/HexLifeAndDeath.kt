@@ -252,7 +252,10 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val venom = if (s.human && weather.temperature[g.place] > 18f) VENOM * years else 0f
         // Children of a closed band are inbred; medicine saves some of the sick and wounded.
         val inbred = if (band != null) INBREEDING_DEATHS * band.inbred * years else 0f
-        val healed = if (band?.holds(Tradition.MEDICINE) == true) 0.85f else 1f
+        // (Healers save some of the sick and wounded, the more the more they know.)
+        val healed = (if (band?.holds(Tradition.MEDICINE) == true) 0.85f else 1f) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
+        // (And practised midwives and carers lose fewer infants.)
+        val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
         // Thirst: drinks where there is water; otherwise days without water mount, eased by the water in green food.
         val p0 = g.place
         // It drinks where there is water, or where water is within half a day's going of where it is.
@@ -295,7 +298,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
         val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA).coerceIn(0f, 0.9f)
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
-        val py = ((healed * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
+        val py = ((healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
         // Elders die as the others do (their share of the adults who died), and of old age besides.
         var oldAge = 0
@@ -306,6 +309,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             band.elders -= oldAge
         }
         g.adults -= da + oldAge
+        // The sick and the newborn teach their carers.
+        band?.let { b -> if (disease > 0f || da > 0) b.practise(Skill.HERBS, 0.2f * PRACTICE); if (bornNow > 0) b.practise(Skill.MIDWIFERY) }
         g.young -= dy
         // The dead lie where they fell, for the scavengers and the soil.
         var carrion = (da + oldAge + 0.3f * dy) * s.massKg

@@ -25,6 +25,10 @@ enum class Domain {
     CLOTHING,
     /** Building houses: stone-footed huts, pit houses dug into the ground, mudbrick. */
     BUILDING,
+    /** Caring for the sick and wounded: herbs, cleaning and binding wounds, setting bones. */
+    HEALING,
+    /** Helping at births and keeping infants alive: midwifery, care of the newborn. */
+    CHILDCARE,
 }
 
 /**
@@ -71,6 +75,10 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     PIT_HOUSE(Domain.BUILDING, CRAFT_FLOOR, known = false),
     /** Walls of mud and straw (pisé, then moulded bricks) where there is clay by water: no stone, half the timber, longer to build. */
     MUDBRICK(Domain.BUILDING, CRAFT_FLOOR, known = false),
+    /** Herbal remedies and wound care, learned over a lifetime of the sick. */
+    HERBS(Domain.HEALING, CRAFT_FLOOR, 0.5f),
+    /** Midwifery and care of infants. */
+    MIDWIFERY(Domain.CHILDCARE, CRAFT_FLOOR, 0.5f),
     ;
 
     companion object {
