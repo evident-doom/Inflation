@@ -100,7 +100,8 @@ internal fun softmax(x: FloatArray): FloatArray {
 
 /**
  * Learns where to go by proximal policy optimisation, from every recorded choice: one network for
- * all the animal kinds (told apart by their traits and a learned identity), one for people. Each
+ * the herds, one for the hunters (kinds within each told apart by their traits and a learned
+ * identity), one for people. Each
  * round, fresh small worlds with all the animals and people run for a while with the current
  * networks choosing by chance as they score; a share of the choices of every kind is recorded (the
  * same number a year of each kind, however common it is), and what became of the group over the
@@ -112,6 +113,14 @@ internal fun softmax(x: FloatArray): FloatArray {
  * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N]
  */
 object HexPpo {
+    /**
+     * The networks, by role: one for the herds, one for the hunters and one for people. (Prey and
+     * hunters learn apart, so that what makes a hunter better and what makes its prey better do
+     * not pull at the same weights; within a role, kinds share what they learn.)
+     */
+    val ROLES = listOf("herds", "hunters", "people")
+    fun role(s: Species) = if (s.human) 2 else if (s.carnivore) 1 else 0
+
     const val HORIZON = 26
     const val DISCOUNT = 0.95f
     const val CLIP = 0.2f
@@ -146,17 +155,14 @@ object HexPpo {
         }
         out.mkdirs()
         val kinds = Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }
-        val animalsFile = File(out, "animals.mlp"); val peopleFile = File(out, "people.mlp")
-        val rnd0 = Random(7)
-        val animals = if (animalsFile.exists()) SharedMover.load(animalsFile) else SharedMover.random(hidden, rnd0)
-        val people = if (peopleFile.exists()) SharedMover.load(peopleFile) else SharedMover.random(hidden, Random(8))
-        val models = listOf(animals, people)
-        fun modelOf(s: Species) = if (s.human) people else animals
+        val files = ROLES.map { File(out, "$it.mlp") }
+        val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(hidden, Random(7L + i)) }
+        fun modelOf(s: Species) = models[role(s)]
         val adams = models.map { Adam(it.net.w.size, rate) to Adam(it.identity.size, rate) }
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
-        if (!animalsFile.exists()) {
-            imitate(kinds, animals, people, worlds, size)
-            animals.save(animalsFile); people.save(peopleFile)
+        if (!files[0].exists()) {
+            imitate(kinds, models, worlds, size)
+            for (i in models.indices) models[i].save(files[i])
         }
         // The versions each kind plays with outside training: its last good one.
         val deployedDir = File(out, "deployed").also { it.mkdirs() }
@@ -168,7 +174,7 @@ object HexPpo {
             val t0 = System.nanoTime()
             // ---- play
             val choices = (0 until worlds).toList().parallelStream().map { w ->
-                play(WorldConfig(seed = 50_000L + round * 100L + w, widthKm = size, heightKm = size), years, kinds, animals, people)
+                play(WorldConfig(seed = 50_000L + round * 100L + w, widthKm = size, heightKm = size), years, kinds, models)
             }.toList()
             val all = choices.flatMap { it.first }
             // ---- judge each choice against its kind's own average
@@ -181,10 +187,10 @@ object HexPpo {
             // ---- learn: a few passes of clipped policy gradient, every kind weighing the same
             val stats = StringBuilder()
             for ((mi, model) in models.withIndex()) {
-                val mine = all.filter { (it.kind.human) == (mi == 1) }
+                val mine = all.filter { role(it.kind) == mi }
                 if (mine.isEmpty()) continue
                 val kindsHere = mine.map { it.kind }.distinct()
-                val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).count { (it.kind.human) == (mi == 1) }) }
+                val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
                 repeat(4) { epoch ->
                     for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
                         val parts = batch.chunked((batch.size + 15) / 16).parallelStream().map { part -> gradient(model, part, weight) }.toList()
@@ -196,8 +202,8 @@ object HexPpo {
                         adams[mi].first.step(model.net.w, gw); adams[mi].second.step(model.identity, gi)
                     }
                 }
-                model.save(if (mi == 0) animalsFile else peopleFile)
-                stats.append(if (mi == 0) "animals" else "people").append(' ').append(mine.size).append(" choices; ")
+                model.save(files[mi])
+                stats.append(ROLES[mi]).append(' ').append(mine.size).append(" choices; ")
             }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
             val line = "round %d  %.0f s  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, stats, returns)
@@ -205,7 +211,7 @@ object HexPpo {
             // ---- check against the hand-written behaviour, and keep each kind's last good version
             if (round % checkEvery == checkEvery - 1) {
                 val seeds = (91L..94L).toList()
-                val scores = seeds.parallelStream().map { seed -> check(WorldConfig(seed = seed, widthKm = size, heightKm = size), years + 1, kinds, animals, people) }.toList()
+                val scores = seeds.parallelStream().map { seed -> check(WorldConfig(seed = seed, widthKm = size, heightKm = size), years + 1, kinds, models) }.toList()
                 val parts = ArrayList<String>()
                 for (s in kinds) {
                     val learned = scores.map { it.first[s] ?: 0.0 }.average()
@@ -229,7 +235,7 @@ object HexPpo {
      * every kind is kept, and the networks learn to give the same candidates the same preference
      * (the softmax of their scores matching that of the hand-written scores, sharpened).
      */
-    fun imitate(kinds: List<Species>, animals: SharedMover, people: SharedMover, worlds: Int, size: Int) {
+    fun imitate(kinds: List<Species>, models: List<SharedMover>, worlds: Int, size: Int) {
         val shown = (0 until worlds).toList().parallelStream().map { w ->
             val run = HexLearning.Run(WorldConfig(seed = 40_000L + w, widthKm = size, heightKm = size), kinds)
             val kept = ConcurrentLinkedQueue<Shown>()
@@ -238,7 +244,7 @@ object HexPpo {
             for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b ->
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
                 if (ThreadLocalRandom.current().nextFloat() < (rates[g.species] ?: 0f)) {
-                    val m = if (g.species.human) people else animals
+                    val m = models[role(g.species)]
                     kept += Shown(g.species, Array(f.size) { k -> FloatArray(m.inputs).also { r -> f[k].copyInto(r, 0, 0, min(f[k].size, HexFeatures.SIZE)); m.kindInputs(g.species, r, HexFeatures.SIZE) } }, b.copyOf())
                 }
                 best
@@ -246,8 +252,8 @@ object HexPpo {
             repeat(stepsPerYear) { run.step() }
             kept.toList()
         }.toList().flatten()
-        for ((mi, model) in listOf(animals, people).withIndex()) {
-            val mine = shown.filter { it.kind.human == (mi == 1) }
+        for ((mi, model) in models.withIndex()) {
+            val mine = shown.filter { role(it.kind) == mi }
             if (mine.isEmpty()) continue
             val kindsHere = mine.map { it.kind }.distinct()
             val counts = mine.groupingBy { it.kind }.eachCount()
@@ -280,7 +286,7 @@ object HexPpo {
                     for (i in gw.indices) gw[i] *= scale; for (i in gi.indices) gi[i] *= scale
                     adam.step(model.net.w, gw); adamId.step(model.identity, gi)
                 }
-                println("imitating, %s, epoch %d: loss %.4f on %d choices".format(if (mi == 0) "animals" else "people", epoch, loss, mine.size))
+                println("imitating, %s, epoch %d: loss %.4f on %d choices".format(ROLES[mi], epoch, loss, mine.size))
             }
         }
     }
@@ -289,7 +295,7 @@ object HexPpo {
     const val IMITATE_SHARPNESS = 10f
 
     /** One world for [years] with the networks choosing by chance; the recorded choices with their returns. */
-    fun play(cfg: WorldConfig, years: Int, kinds: List<Species>, animals: SharedMover, people: SharedMover): Pair<List<Choice>, String> {
+    fun play(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Pair<List<Choice>, String> {
         val run = HexLearning.Run(cfg, kinds)
         var week = 0
         val record = ConcurrentLinkedQueue<Choice>()
@@ -298,9 +304,8 @@ object HexPpo {
         val rates = HashMap<Species, Float>()
         fun setRates() { for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(1f, PER_KIND_YEAR.toFloat() / (n * stepsPerYear)) } }
         setRates()
-        val animalPolicy = MoverPolicy(animals, record, { rates[it] ?: 0f }, { week })
-        val peoplePolicy = MoverPolicy(people, record, { rates[it] ?: 0f }, { week })
-        for (s in kinds) run.groups.policies[s] = if (s.human) peoplePolicy else animalPolicy
+        val policies = models.map { MoverPolicy(it, record, { s -> rates[s] ?: 0f }, { week }) }
+        for (s in kinds) run.groups.policies[s] = policies[role(s)]
         val steps = years * stepsPerYear
         // Each group's numbers week by week, and where its offshoots came from, to follow each choice's outcome.
         val sizes = HashMap<Int, IntArray>()
@@ -371,12 +376,12 @@ object HexPpo {
     }
 
     /** Fixed world [cfg] run twice for [years]: with the networks choosing their best, then with the hand-written behaviour; animal-weeks per animal at the start, kind by kind. */
-    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, animals: SharedMover, people: SharedMover): Pair<Map<Species, Double>, Map<Species, Double>> {
+    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Pair<Map<Species, Double>, Map<Species, Double>> {
         fun score(learned: Boolean): Map<Species, Double> {
             val run = HexLearning.Run(cfg, kinds)
             if (learned) {
-                val a = MoverPolicy(animals, null, { 0f }, { 0 }); val p = MoverPolicy(people, null, { 0f }, { 0 })
-                for (s in kinds) run.groups.policies[s] = if (s.human) p else a
+                val ps = models.map { MoverPolicy(it, null, { 0f }, { 0 }) }
+                for (s in kinds) run.groups.policies[s] = ps[role(s)]
             }
             val start = kinds.associateWith { run.groups.count(it).toDouble() }
             val weeks = HashMap<Species, Double>()
