@@ -134,9 +134,13 @@ internal fun HexGroups.graze(weather: Weather) {
                 small.dung[p] += HexSmallLife.DUNG * (grass3 + browse3)
             }
             land.grazing[p] += (grass + grass2 + grass3) * 1e6f / days; land.browsing[p] += (browse + browse2 + browse3) * 1e6f / days; land.rooting[p] += (roots + roots2) * 1e6f / days
+        val m2 = land.areaKm2[p] * 1e6f
+        hunting.merge("${s.name}:ate grass, kg", ((grass + grass2 + grass3) * m2).toInt(), Int::plus); hunting.merge("${s.name}:ate browse, kg", ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
+        hunting.merge("${s.name}:ate fruit and roots, kg", ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus); hunting.merge("${s.name}:ate straw and lichen, kg", ((straw + lichen) * m2).toInt(), Int::plus)
         }
         g.fed = (gotKg / wantKg.coerceAtLeast(1e-6f)).coerceIn(0f, 1f)
         if (surplusKg > 0f) g.surplus = surplusKg / (wantKg / days)
+        hunting.merge("${s.name}:ranged over places", range.size, Int::plus)
     }
 }
 

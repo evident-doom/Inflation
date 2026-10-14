@@ -90,6 +90,9 @@ fun main(args: Array<String>) {
     val herdHeadWeeks = DoubleArray(3)
     // Ways of working and cereals: printed each year and at the end.
     var grainReapedYear = 0.0; var grainReapedNow = 0.0
+    val movedKm = HashMap<inflation.ecology.Species, Double>()
+    // The hunting and feeding tallies of the last whole year, and of this one so far.
+    val lastHunt = HashMap<String, Int>(); val huntNow = HashMap<String, Int>()
     fun skillsAndCereals() {
         run {
             // Ways of working: how many bands know each, and how well those that know it do it (skills a band
@@ -203,6 +206,8 @@ fun main(args: Array<String>) {
             System.getProperty("hex.follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
             sim.step()
             grainReapedNow += (herds.hunting["people:grain reaped, kg"] ?: 0) / 1000.0
+            if (w == 0) movedKm.clear()
+            for (gr in herds.groups) if (gr.alive && gr.path.size > 1) movedKm.merge(gr.species, (gr.path.size - 1) * sim.hex.hexKm, Double::plus)
             for (g in herds.groups) { val b = g.band ?: continue; if (!g.alive) continue; val i = if (b.house >= 0.2f) 1 else 0; bandWeeksHouse[i]++; if (b.campWeeks == 0) movesHouse[i]++ }
             // Appointments kept: of bands in their appointment's month, how many are at its hex.
             for (g in herds.groups) { val b = g.band ?: continue; if (!g.alive || b.appointHex < 0 || b.appointMonth != weather.date.month) continue; apptDue++; if (hw.placeHex[g.place] == b.appointHex) apptKept++ }
@@ -222,6 +227,7 @@ fun main(args: Array<String>) {
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
             for ((key, v) in herds.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
             for ((key, v) in herds.hunting) huntYear.merge(key, v, Int::plus)
+            for ((key, v) in herds.hunting) huntNow.merge(key, v, Int::plus)
             for ((key, v) in herds.hunting) if (key.startsWith("herd size ")) causes.merge(key, v.toDouble(), Double::plus)
             for (gr in herds.groups) if (gr.alive && !gr.species.carnivore) herdHeadWeeks[herds.sizeClass(gr)] += gr.size.toDouble()
             // -Dhex.migDiag=kind: each month, how far that kind's herds are from the place they remember for the month.
@@ -395,6 +401,7 @@ fun main(args: Array<String>) {
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     droughts under way: " + sim.weather.droughts())
         grainReapedYear = grainReapedNow; grainReapedNow = 0.0
+        lastHunt.clear(); lastHunt.putAll(huntNow); huntNow.clear()
         print("     "); skillsAndCereals()
         System.out.flush()
         // The history so far, for the graphs (every five years and at the end).
@@ -440,6 +447,27 @@ fun main(args: Array<String>) {
             val keys = causes.keys.filter { it.startsWith("herd size $c:") }
             "%s %.0f%%: ".format(names[c], 100 * herdHeadWeeks[c] / herdHeadWeeks.sum().coerceAtLeast(1.0)) + keys.sortedByDescending { causes[it] }.joinToString(", ") { k -> "%s %.3f".format(k.substringAfter(':'), causes.getValue(k) / years.coerceAtLeast(1e-9)) }
         })
+    }
+    // Kind by kind: where it lives (its three main kinds of country, against the land's), how well fed,
+    // what the herds eat, how far groups go in a year, and how it fares against its catalogue niche.
+    run {
+        val biomeOf = IntArray(land.n) { pl -> val c = IntArray(inflation.world.Biome.entries.size); for (cell in hw.placeCells[pl]) c[sim.world.biome[cell].ordinal]++; c.indices.maxBy { c[it] } }
+        val landB = DoubleArray(inflation.world.Biome.entries.size); for (pl in 0 until land.n) landB[biomeOf[pl]] += land.areaKm2[pl].toDouble()
+        fun top(byB: DoubleArray): String { val tot = byB.sum().coerceAtLeast(1e-9); return byB.indices.sortedByDescending { byB[it] }.take(3).filter { byB[it] > 0 }.joinToString(", ") { "%s %.0f%% (land %.0f%%)".format(inflation.world.Biome.entries[it].name.lowercase().replace('_', ' '), 100 * byB[it] / tot, 100 * landB[it] / landB.sum()) } }
+        println("kind by kind, at the end:")
+        for (k in fauna.kinds.indices) {
+            val s = fauna.kinds[k]; val byB = DoubleArray(landB.size); var fedW = 0.0; var n = 0.0
+            for (pl in 0 until land.n) { val c = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble(); byB[biomeOf[pl]] += c; fedW += c * fauna.fed[k][pl]; n += c }
+            println("  %-14s %8.0f | lives in: %s | fed %.2f | habitat wanted: cover %+.1f, rugged %+.1f, wet %+.1f".format(s.name, n, top(byB), fedW / n.coerceAtLeast(1.0), s.habitat.cover, s.habitat.rugged, s.habitat.wet))
+        }
+        for (s in herds.kinds) {
+            val gs = herds.groups.filter { it.alive && it.species == s }
+            val byB = DoubleArray(landB.size); for (gr in gs) byB[biomeOf[gr.place]] += gr.size.toDouble()
+            val heads = gs.sumOf { it.size }.toDouble()
+            val diet = if (s.carnivore) "" else listOf("grass", "browse", "fruit and roots", "straw and lichen").let { ks -> val v = ks.map { (lastHunt["${s.name}:ate $it, kg"] ?: 0).toDouble() }; val tot = v.sum().coerceAtLeast(1.0); " | ate: " + ks.indices.joinToString(", ") { "%s %.0f%%".format(ks[it], 100 * v[it] / tot) } }
+            val ranged = if (s.carnivore) "" else " | grazed over %.1f places a week".format((lastHunt["${s.name}:ranged over places"] ?: 0).toDouble() / (gs.size * stepsPerYear).coerceAtLeast(1))
+            println("  %-14s %8.0f in %d groups | lives in: %s | fed %.2f | moved %.0f km a year%s%s".format(s.name, heads, gs.size, top(byB), gs.sumOf { it.fed.toDouble() * it.size } / heads.coerceAtLeast(1.0), (movedKm[s] ?: 0.0) / gs.size.coerceAtLeast(1), diet, ranged))
+        }
     }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
