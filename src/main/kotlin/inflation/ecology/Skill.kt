@@ -124,6 +124,27 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     MIDWIFERY(Domain.CHILDCARE, CRAFT_FLOOR, 0.5f),
     ;
 
+    /**
+     * Share of a band's adults who ordinarily do this work (everyone gathers and keeps the fire; a
+     * few knap, fewer heal); and how many practised holders it takes to keep it alive at its best
+     * (simple ways survive with one or two, intricate crafts need several to learn from and correct
+     * each other: with few holders, what is learned falls short and the craft decays).
+     */
+    val share: Float get() = when (this) {
+        GATHER, FIRE, ROASTING -> 1f
+        SMALL_GAME, FISH, HUNT, STORE, SMOKING, SEWING, TRACK, STALK, BUTCHER, STONE_BOILING, EARTH_OVEN, LEACHING -> 0.5f
+        HERBS, MIDWIFERY, LORE, TINKER, TENDING -> 0.1f
+        SHOWING -> 0.3f
+        else -> 0.2f
+    }
+    val complexity: Float get() = when (this) {
+        GATHER, FIRE, ROASTING, STORE, SMALL_GAME -> 0.5f
+        BLADES, MICROLITHS, MUDBRICK, HERBS, SEALING, PIT_HOUSE -> 3f
+        else -> 1.5f
+    }
+    /** The best level [n] holders can keep a way at: what is passed on falls a little short each time, and more learners make up for it. */
+    fun cap(n: Float) = 1f - kotlin.math.exp(-n / complexity)
+
     /** The level its effects are set for (a start band's, unless bands start without it). */
     val ref = if (ref >= 0f) ref else start
 

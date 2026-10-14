@@ -195,6 +195,13 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }; for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
                 nb.ornaments = b.ornaments * share; b.ornaments -= nb.ornaments; nb.exotic = b.exotic * share; b.exotic -= nb.exotic
                 nb.elders = b.elders * c.first / (g.adults + c.first).coerceAtLeast(1); b.elders -= nb.elders
+                // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
+                val go = c.first.toFloat() / (g.adults + c.first).coerceAtLeast(1)
+                for (i in b.holders.indices) if (b.holders[i] > 0f) {
+                    val n = b.holders[i].toInt() + (if (rnd.nextFloat() < b.holders[i] - b.holders[i].toInt()) 1 else 0)
+                    val took = binomial(n, go, rnd).toFloat(); nb.holders[i] = took; b.holders[i] = max(0f, b.holders[i] - took)
+                }
+                nb.lastAdults = c.first; b.lastAdults = g.adults
                 for (i in b.ageStage.indices) { nb.ageStage[i] = b.ageStage[i] * c.first / (g.adults + c.first).coerceAtLeast(1); b.ageStage[i] -= nb.ageStage[i] } } }
             g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
         } } // a young pack has no ground yet
@@ -437,6 +444,8 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
     val a = into.band!!; val b = from.band!!
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
     for (i in a.skills.indices) a.skills[i] = max(a.skills[i], b.skills[i])
+    for (i in a.holders.indices) a.holders[i] = max(0f, a.holders[i]) + max(0f, b.holders[i])
+    a.lastAdults += from.adults
     for (i in a.knowsSkill.indices) a.knowsSkill[i] = a.knowsSkill[i] || b.knowsSkill[i]
     for (i in a.plants.indices) a.plants[i] = max(a.plants[i], b.plants[i])
     for (i in a.kit.indices) a.kit[i] += w * (b.kit[i] - a.kit[i])

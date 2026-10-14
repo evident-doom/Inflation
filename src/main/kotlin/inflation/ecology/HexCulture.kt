@@ -307,8 +307,18 @@ private fun HexGroups.marryOut(a: HexGroup, ba: Band, b: HexGroup, bb: Band) {
     for (i in la.indices) { ba.lineage[i] += sa * (bb.lineage[i] - la[i]); bb.lineage[i] += sb * (la[i] - bb.lineage[i]) }
     // Partners bring what they know how to do.
     for (i in ba.plants.indices) { val x = ba.plants[i]; ba.plants[i] = max(x, x + sa * (bb.plants[i] - x)); bb.plants[i] = max(bb.plants[i], bb.plants[i] + sb * (x - bb.plants[i])) }
-    for (i in ba.skills.indices) { val x = ba.skills[i]; ba.skills[i] = max(x, x + sa * (bb.skills[i] - x)); bb.skills[i] = max(bb.skills[i], bb.skills[i] + sb * (x - bb.skills[i])) }
-    for (i in ba.knowsSkill.indices) if (ba.knowsSkill[i] != bb.knowsSkill[i]) { ba.knowsSkill[i] = true; bb.knowsSkill[i] = true }
+    // (Each partner holds the skills its band's people do, as many as hold them; it brings them along,
+    // a little short of the best it learned from, and its old band loses them.)
+    val na = sa * a.adults; val nb = sb * b.adults
+    val fromA = FloatArray(ba.holders.size) { i -> if (ba.holders[i] > 0f) min(na, na * ba.holders[i] / a.adults) else 0f }
+    val fromB = FloatArray(bb.holders.size) { i -> if (bb.holders[i] > 0f) min(nb, nb * bb.holders[i] / b.adults) else 0f }
+    for (i in ba.skills.indices) {
+        val la = ba.skills[i]; val lb = bb.skills[i]
+        if (fromB[i] > 0f) { if (!ba.knowsSkill[i]) { ba.knowsSkill[i] = true; ba.skills[i] = 0f }; ba.skills[i] = max(ba.skills[i], lb - TRANSMIT_LOSS); ba.holders[i] = max(0f, ba.holders[i]) + fromB[i] }
+        if (fromA[i] > 0f) { if (!bb.knowsSkill[i]) { bb.knowsSkill[i] = true; bb.skills[i] = 0f }; bb.skills[i] = max(bb.skills[i], la - TRANSMIT_LOSS); bb.holders[i] = max(0f, bb.holders[i]) + fromA[i] }
+        if (ba.holders[i] > 0f) ba.holders[i] = max(0f, ba.holders[i] - fromA[i])
+        if (bb.holders[i] > 0f) bb.holders[i] = max(0f, bb.holders[i] - fromB[i])
+    }
     // Kin by marriage forgive.
     ba.grudge[bb.mainLineage()] *= 0.5f; bb.grudge[ba.mainLineage()] *= 0.5f
 }

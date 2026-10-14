@@ -87,9 +87,23 @@ fun main(args: Array<String>) {
             // Ways of working: how many bands know each, and how well those that know it do it (skills a band
             // holds are part of its customs; neighbours share them, distant bands differ).
             val bs = herds.groups.filter { it.alive && it.band != null }.map { it.band!! }
-            if (bs.isNotEmpty()) println("ways of working (bands knowing, their mean level): " + inflation.ecology.Skill.entries.joinToString(", ") { s ->
+            if (bs.isNotEmpty()) println("ways of working (bands knowing, their mean level/holders): " + inflation.ecology.Skill.entries.joinToString(", ") { s ->
                 val k = bs.filter { it.knowsSkill[s.ordinal] }
-                "%s %.0f%% %.2f".format(s.name.lowercase().replace('_', ' '), 100.0 * k.size / bs.size, if (k.isEmpty()) 0.0 else k.map { it.skills[s.ordinal].toDouble() }.average()) })
+                "%s %.0f%% %.2f/%.1f".format(s.name.lowercase().replace('_', ' '), 100.0 * k.size / bs.size, if (k.isEmpty()) 0.0 else k.map { it.skills[s.ordinal].toDouble() }.average(), if (k.isEmpty()) 0.0 else k.map { it.holders[s.ordinal].toDouble() }.average()) })
+            // How different neighbours' toolkits are against distant bands' (levels of every way, 0 where unknown).
+            val gs = herds.groups.filter { it.alive && it.band != null }
+            if (gs.size > 2) {
+                val r = java.util.Random(7); var nearD = 0.0; var nearN = 0; var farD = 0.0; var farN = 0
+                repeat(4000) {
+                    val x = gs[r.nextInt(gs.size)]; val y = gs[r.nextInt(gs.size)]
+                    if (x !== y) {
+                        val km = sim.hex.distanceKm(hw.placeHex[x.place], hw.placeHex[y.place])
+                        val d = inflation.ecology.Skill.entries.sumOf { s -> val i = s.ordinal; kotlin.math.abs((if (x.band!!.knowsSkill[i]) x.band!!.skills[i] else 0f) - (if (y.band!!.knowsSkill[i]) y.band!!.skills[i] else 0f)).toDouble() } / inflation.ecology.Skill.entries.size
+                        if (km < 100.0) { nearD += d; nearN++ } else if (km > 300.0) { farD += d; farN++ }
+                    }
+                }
+                println("     toolkits: mean difference between bands within 100 km %.3f, beyond 300 km %.3f".format(nearD / nearN.coerceAtLeast(1), farD / farN.coerceAtLeast(1)))
+            }
         }
         run {
             val f = fauna.food

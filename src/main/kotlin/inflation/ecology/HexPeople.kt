@@ -84,6 +84,12 @@ class Band {
     /** Its know-how, 0..1 for each [Skill] (untaught 0), and which variants it knows of. */
     val skills = FloatArray(Skill.entries.size) { Skill.entries[it].start }
     val knowsSkill = BooleanArray(Skill.entries.size) { Skill.entries[it].known }
+    /** How many of its adults are practised in each skill (-1 until first counted), and the week each was last used. */
+    val holders = FloatArray(Skill.entries.size) { -1f }
+    val lastUsed = IntArray(Skill.entries.size)
+    /** Its weeks so far, and its adults last week (to see how many it lost). */
+    var weeks = 0
+    var lastAdults = 0
     val kit = FloatArray(Tool.entries.size)
     val knows = BooleanArray(Tool.entries.size) { Tool.entries[it].known }
     val goods = FloatArray(Material.entries.size)
@@ -201,7 +207,7 @@ class Band {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
-        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
+        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
     }
@@ -245,7 +251,7 @@ class Band {
     fun detoxExtra(palatable: Float, water: Boolean): Float =
         if (!knowsSkill[Skill.LEACHING.ordinal] || !water) 0f
         else min(1f, LEACH_SHARE * skill(Skill.LEACHING) * has(Tool.BASKET) * (1f - palatable) / palatable.coerceAtLeast(0.1f))
-    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * learning * (1f - skills[s.ordinal]) }
+    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * learning * (1f - skills[s.ordinal]); lastUsed[s.ordinal] = weeks }
     /** How fast its practice teaches it, against a start band's: good teachers bring the young on faster. */
     val learning get() = edge(Skill.SHOWING)
     /** How well it makes [t]: by the best way of its craft it knows (blades and microliths beat plain flakes). */
@@ -416,6 +422,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     var time = b.spareDays
+    time = trainHolders(g, b, time)
     val order = Tool.entries.filter { b.knows[it.ordinal] && b.kit[it.ordinal] < 1f }.sortedByDescending { b.makeFirst[it.ordinal] * (1f - b.kit[it.ordinal]) }
     for (t in order) {
         if (time <= 0f || people <= 0f) break
@@ -594,7 +601,8 @@ internal fun HexGroups.teach(a: Band, b: Band, understood: Float) {
     // And ways of working: the one that knows a way shows it; the other starts on it as a beginner.
     for (k in a.knowsSkill.indices) if (a.knowsSkill[k] != b.knowsSkill[k] && rnd.nextFloat() < Skill.entries[k].teach * TEACH * (0.5f + 0.5f * understood)) {
         val (from, to) = if (a.knowsSkill[k]) a to b else b to a
-        to.knowsSkill[k] = true; to.skills[k] = max(to.skills[k], min(1f, SHOWN * from.learning) * from.skills[k])
+        // (A meeting shows that a way exists; the skill itself comes only with people who stay to teach it.)
+        to.knowsSkill[k] = true
         meetings.merge("band learned ${Skill.entries[k].name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
 }
@@ -975,3 +983,61 @@ const val GRUEL_GAIN = 0.2f
 const val LEACH_SHARE = 0.5f
 const val LEACH_DAYS_PER_KG = 0.3f
 val KNOW_AT_HOME = PLANT_FLOOR + (1f - PLANT_FLOOR) * 0.9f
+
+/**
+ * Skills live in people. Each week the band's practised holders of each skill follow the work: the
+ * young and the newcomers are taught the ways in use (taking time from the band's spare days, the
+ * more the more intricate the way, the faster the better its teachers), people drop ways unused for
+ * half a year, the dead take theirs with them, and a person can keep up only so many. A way held by
+ * too few falls back toward what they can pass on (see [Skill.cap]).
+ */
+internal fun HexGroups.trainHolders(g: HexGroup, b: Band, spare: Float): Float {
+    var time = spare
+    val adults = g.adults.toFloat()
+    b.weeks++
+    if (b.holders[0] < 0f) for (s in Skill.entries) { b.holders[s.ordinal] = if (b.knowsSkill[s.ordinal]) adults * s.share else 0f; b.lastUsed[s.ordinal] = b.weeks }
+    // The dead take their skills with them.
+    if (b.lastAdults > 0 && g.adults < b.lastAdults) { val k = adults / b.lastAdults; for (i in b.holders.indices) b.holders[i] *= k }
+    b.lastAdults = g.adults
+    for (s in Skill.entries) {
+        val i = s.ordinal
+        if (!b.knowsSkill[i]) { b.holders[i] = 0f; continue }
+        val used = b.weeks - b.lastUsed[i] <= DISUSE_WEEKS
+        val want = if (used) adults * s.share else 0f
+        if (b.holders[i] < want && time > 0f) {
+            // Learning from a holder is quick; working it out alone is slow.
+            val pace = (if (b.holders[i] >= 1f) 1f else SELF_TAUGHT) * b.learning
+            val add = minOf(want - b.holders[i], adults * TRAINED_A_WEEK * pace, time / (APPRENTICE_DAYS * s.complexity)).coerceAtLeast(0f)
+            b.holders[i] += add; time -= add * APPRENTICE_DAYS * s.complexity
+        } else if (!used) b.holders[i] = max(0f, b.holders[i] - SKILL_DROP * b.holders[i])
+        b.holders[i] = min(b.holders[i], adults)
+        // A way held by too few falls back toward what they can pass on.
+        val cap = s.cap(b.holders[i])
+        if (b.skills[i] > cap) b.skills[i] -= SHORTFALL * (b.skills[i] - cap)
+    }
+    // A person keeps up only so many ways: beyond that, the least used give way.
+    val most = adults * SLOTS
+    if (b.holders.sum() > most) for (s in Skill.entries.sortedBy { b.lastUsed[it.ordinal] }) {
+        val over = b.holders.sum() - most
+        if (over <= 0f) break
+        if (s.share >= 1f) continue
+        b.holders[s.ordinal] = max(0f, b.holders[s.ordinal] - over)
+    }
+    return time
+}
+
+/**
+ * Holders: weeks unused before people drop a way; weekly share of its holders that drop it then;
+ * pace of working a way out with no one to learn from; most of the adults taught a way in a week;
+ * person-days to bring one learner on (times the way's intricacy); how many ways a person keeps
+ * up; weekly share of the gap a way held by too few loses.
+ */
+const val DISUSE_WEEKS = 26
+const val SKILL_DROP = 0.02f
+const val SELF_TAUGHT = 0.1f
+const val TRAINED_A_WEEK = 0.05f
+const val APPRENTICE_DAYS = 10f
+const val SLOTS = 14f
+const val SHORTFALL = 0.02f
+/** How far below its teacher a newcomer's skill falls, at best. */
+const val TRANSMIT_LOSS = 0.1f
