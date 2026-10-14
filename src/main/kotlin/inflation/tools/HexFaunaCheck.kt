@@ -264,6 +264,17 @@ fun main(args: Array<String>) {
                 val k = 1000.0 / bArea[b]
                 "%s %.0f%%: %.2f, %.0f / %.0f / %.1f / %.1f".format(inflation.world.Biome.entries[b].name.lowercase().replace('_', ' '), 100 * bArea[b] / total, forage[b] / bArea[b], res[b] * k, herdsB[b] * k, huntersB[b] * k, peopleB[b] * k) })
         }
+        // Residents by the sea against inland, animals per km² (a kind crowding the coast shows here).
+        run {
+            var coastA = 0.0; var inA = 0.0
+            val coastN = DoubleArray(fauna.kinds.size); val inN = DoubleArray(fauna.kinds.size)
+            for (pl in 0 until land.n) {
+                val c = hw.coast[hw.placeHex[pl]]; val a = land.areaKm2[pl].toDouble()
+                if (c) coastA += a else inA += a
+                for (k in fauna.kinds.indices) { val v = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble(); if (c) coastN[k] += v else inN[k] += v }
+            }
+            println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) + fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0), inN[k] / inA.coerceAtLeast(1.0)) })
+        }
         // How many groups, how big, how much of the land they cover, and how far each herd is from the nearest hunting pack.
         run {
             val live = herds.groups.filter { it.alive }
