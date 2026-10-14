@@ -33,7 +33,7 @@ const val NOT_WORTH_TRYING = 0.05f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
 const val AVOID_STRONGER = 0.3f
 /** How many times its usual density a migratory herd bears where herds gather before crowding sickens it. */
-const val MIGRANTS_GATHER = 5f
+const val MIGRANTS_GATHER = 20f
 /** How far a lone hunter goes looking for a mate in a week, km. */
 const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */
