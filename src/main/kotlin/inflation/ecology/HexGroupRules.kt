@@ -68,7 +68,9 @@ const val BEARING_PULL = 0.5f
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
 const val ASTRAY = 0.5f
 /** How far a herd's inherited seasonal places may lie from where it starts, km. */
-const val SEASON_RANGE_KM = 120.0
+const val SEASON_RANGE_KM = 200.0
+/** How much farther ground counts against nearer when a herd's forebears chose its seasonal places: a place at the edge of the range is worth 1/(1 + this) of one at home. */
+const val SEASON_DISTANCE = 0.25f
 const val STAY = 0.05f
 /** Share of a remembered season's place's worth kept each week the herd is elsewhere (about a tenth lost a year). */
 const val MEMORY_FADE = 0.998f

@@ -44,7 +44,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
             val snow = if (t < -1f && s.diet.grass > 0.3f) 0.2f else 1f
             val (cx, cy) = hex.centreKm(h)
             val dist = hypot(cx - hx, cy - hy) / reachKm
-            val score = (0.2f + grow) * fauna.suits(s, p) * snow / (1f + discomfort * discomfort) / (1f + dist.toFloat())
+            val score = (0.2f + grow) * fauna.suits(s, p) * snow / (1f + discomfort * discomfort) / (1f + SEASON_DISTANCE * dist.toFloat())
             if (score > bestScore) { bestScore = score; best = p }
         }
         g.seasonPlace[m] = best; g.seasonQ[m] = bestScore
@@ -206,8 +206,10 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // Thirst: drinks where there is water; otherwise days without water mount, eased by the water in green food.
         val p0 = g.place
         // It drinks where there is water, or where water is within half a day's going of where it is.
-        // People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round will do.
-        val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm
+        // People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round
+        // will do. Animals go to water and back as often as they must: a kind that can go days without
+        // drinking can live as many half-days' going from it.
+        val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
         if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= fetch)) g.dry = 0f
         // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
         else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
