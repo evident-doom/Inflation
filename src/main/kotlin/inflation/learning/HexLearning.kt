@@ -399,6 +399,7 @@ object HexEvolveWays {
         var sigma = 0.05f
         var rate = 0.02f
         var hidden = 16
+        var checkSeeds = listOf(91L, 92L, 93L, 94L, 95L, 96L, 97L, 98L)
         var k = 0
         while (k < args.size) {
             when (args[k]) {
@@ -443,7 +444,14 @@ object HexEvolveWays {
             for (i in 0 until pairs) { val d = ranks[2 * i] - ranks[2 * i + 1]; val e = eps[i]; for (j in grad.indices) grad[j] -= (d * e[j] / (2 * pairs * sigma)).toFloat() }
             adam.step(centre.w, grad)
             centre.save(file)
-            if (gen % 10 == 9) centre.save(File(File(out, "gen${gen + 1}").also { it.mkdirs() }, "ways.mlp"))
+            if (gen % 10 == 9) {
+                centre.save(File(File(out, "gen${gen + 1}").also { it.mkdirs() }, "ways.mlp"))
+                // Against the scaffold on the same fixed worlds: the centre's bands and scaffold bands side by side.
+                val scaffold = centre.copy().also { m -> val last = Mlp.count(intArrayOf(m.sizes[0], m.sizes[1])); for (i in last until m.w.size) m.w[i] = 0f }
+                val check = checkSeeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed, widthKm = size, heightKm = size), years, arrayOf(scaffold, centre)).first }.toList()
+                val vs = "check gen %d: scaffold %.3f, learned %.3f".format(gen + 1, check.map { it[0] }.average(), check.map { it[1] }.average())
+                println(vs); File(out, "check.txt").appendText(vs + "\n")
+            }
             val line = "gen %d  %.0f s  fitness mean/centre: %.3f/%.3f  | %s".format(gen, (System.nanoTime() - t0) / 1e9, fitness.take(2 * pairs).average(), fitness.last(), results.joinToString("  ") { it.second })
             println(line); log.appendText(line + "\n")
         }
