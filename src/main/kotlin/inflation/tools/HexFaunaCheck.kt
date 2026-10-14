@@ -206,6 +206,12 @@ fun main(args: Array<String>) {
             val d = herds.groups.filter { it.alive && it.species == s && it.seasonPlace[0] >= 0 && it.seasonPlace[6] >= 0 }.map { sim.hex.distanceKm(hw.placeHex[it.seasonPlace[0]], hw.placeHex[it.seasonPlace[6]]) }
             "%s %.0f".format(s.name, if (d.isEmpty()) 0.0 else d.average())
         })
+        // How often each kind's groups weighed their choices, and how often that came to moving.
+        println("     choices a week per group (kept to ground unweighed / weighed and stayed / moved): " + herds.kinds.joinToString(", ") { s ->
+            val c = IntArray(3) { herds.planCounts.getAndSet(s.index * 3 + it, 0) }
+            val all = c.sum().coerceAtLeast(1)
+            "%s %.0f/%.0f/%.0f%%".format(s.name, 100.0 * c[0] / all, 100.0 * c[1] / all, 100.0 * c[2] / all)
+        })
         // The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young.
         println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " + herds.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gs = herds.groups.filter { it.alive && it.species == s }

@@ -249,16 +249,18 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 // Fish: shoaling sea fish breed fast, lake fish slower; they eat about three times their weight a year in zooplankton.
                 // They eat about three times their weight a year in zooplankton (g/m2 = t/km2), as far as there is any;
                 // they grow as they eat and starve when it fails.
+                // They grow by a fifth of what they eat (the rest goes back to the water as waste), so a
+                // fish that can double in a year must eat about ten times its weight.
                 val growth = if (seaKm2[h] > 0f) SEA_FISH_GROWTH else FISH_GROWTH
                 val f0 = fish[h]
-                val need = 3f * years * f0 / 1000f
+                val need = growth / FISH_EFFICIENCY * years * f0 / 1000f
                 val got = min(need, 0.5f * zoo[h])
                 zoo[h] -= got
                 val fed = if (need > 0f) got / need else 1f
                 val fishDead = (FISH_DEATHS + 0.5f * (1f - fed)) * years * f0
-                val grown = growth * years * f0 * fed * (1f - f0 / max(fishCapacity(h), 1f))
+                val grown = FISH_EFFICIENCY * got * 1000f * (1f - f0 / max(fishCapacity(h), 1f))
                 fish[h] = max(0f, f0 + grown - fishDead)
-                dead[h] += fishDead
+                dead[h] += fishDead + (1f - FISH_EFFICIENCY) * got * 1000f
                 flow("grown", grown, h); flow("died", fishDead, h)
                 if (shallow[h] > 0f) { val s = shellfish[h]; shellfish[h] = max(0f, s + 0.8f * years * s * (1f - s / max(shellCapacity(h), 1f))) }
                 stepSea(h, month)
@@ -291,12 +293,18 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** A share of what is in each hex's water mixes with its neighbours' each week. */
     private fun drift(f: FloatArray) {
+        // Exchange between neighbouring water of the same kind (sea with sea, lake with lake), as much
+        // leaving one as reaches the other: what moves is the density difference over the narrower water.
         val old = f.copyOf()
         java.util.stream.IntStream.range(0, size).parallel().forEach { h ->
             if (waterKm2[h] <= 0f) return@forEach
-            var s = 0f; var c = 0
-            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && waterKm2[q] > 0f) { s += old[q]; c++ } }
-            if (c > 0) f[h] = (1f - DRIFT) * old[h] + DRIFT * s / c
+            var delta = 0f
+            for (d in 0 until 6) {
+                val q = hex.neighbour(h, d)
+                if (q < 0 || waterKm2[q] <= 0f || (seaKm2[q] > 0f) != (seaKm2[h] > 0f)) continue
+                delta += DRIFT / 6f * (old[q] - old[h]) * min(waterKm2[h], waterKm2[q]) / waterKm2[h]
+            }
+            f[h] = max(0f, old[h] + delta)
         }
     }
 
@@ -360,19 +368,57 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
-    /** Spring spawning run: run fish gather off each mouth by the coastal fish and the river's size and move up the river. */
+    /** Run fish of each river mouth this spring, kg: taken from the sea off the mouth, given back at the end. */
+    private val runStock = FloatArray(size)
+    private var running = false
+
+    /**
+     * Spring spawning run: at its start a share of the fish off each river mouth gathers and goes up
+     * the river (as far as the front has come, while there is water to swim up), where people and
+     * bears take what they can; at its end the survivors go back to the sea, and the spent fish die
+     * in the river.
+     */
     private fun spawningRun(date: Date) {
         val day = date.dayOfYear - RUN_START_DAY
-        if (day !in 0 until RUN_DAYS) { for (h in 0 until size) run[h] *= 0.3f; return }
-        val front = day * RUN_KM_PER_DAY
-        for (h in 0 until size) {
-            run[h] = 0f
-            val m = mouth[h]
-            if (m < 0 || cascade[h] || upKm[h] > front) continue
-            val offshore = (0 until 6).map { hex.neighbour(m, it) }.filter { it >= 0 && seaKm2[it] > 0f }.maxOfOrNull { fish[it] } ?: 0f
-            if (land.flow[h] / max(land.meanFlow[h], 1e-3f) < 0.2f) continue // too little water to swim up
-            run[h] = RUN_PER_COASTAL_FISH * offshore * min(1f, land.meanFlow[h] / 30f) * exp(-upKm[h] / 150f)
+        val on = day in 0 until RUN_DAYS
+        if (on && !running) {
+            // The run gathers off each mouth.
+            runStock.fill(0f)
+            val mouths = HashSet<Int>(); for (h in 0 until size) if (mouth[h] >= 0 && !cascade[h]) mouths += mouth[h]
+            for (m in mouths) for (d in 0 until 6) {
+                val q = hex.neighbour(m, d); if (q < 0 || seaKm2[q] <= 0f) continue
+                val taken = RUN_SHARE * fish[q]
+                fish[q] -= taken; runStock[m] += taken * waterKm2[q]
+            }
+            running = true
+        } else if (running) {
+            // What is left of the run in the rivers, after this week's catch, goes back into each mouth's stock.
+            runStock.fill(0f)
+            for (h in 0 until size) if (mouth[h] >= 0 && run[h] > 0f) runStock[mouth[h]] += run[h] * landKm2[h]
         }
+        run.fill(0f)
+        if (!running) return
+        if (!on) {
+            // The run is over: the survivors go back to the sea off the mouth, the spent ones die.
+            for (m in 0 until size) {
+                if (runStock[m] <= 0f) continue
+                val seas = (0 until 6).map { hex.neighbour(m, it) }.filter { it >= 0 && seaKm2[it] > 0f }
+                val area = seas.sumOf { waterKm2[it].toDouble() }.toFloat()
+                if (area > 0f) for (q in seas) { fish[q] += RUN_SURVIVAL * runStock[m] / area; dead[q] += (1f - RUN_SURVIVAL) * runStock[m] / area }
+            }
+            runStock.fill(0f); running = false
+            return
+        }
+        // Up the rivers as far as the front has come.
+        val front = day * RUN_KM_PER_DAY
+        val weight = FloatArray(size); val total = FloatArray(size)
+        for (h in 0 until size) {
+            val m = mouth[h]
+            if (m < 0 || cascade[h] || upKm[h] > front || landKm2[h] <= 0f) continue
+            if (land.flow[h] / max(land.meanFlow[h], 1e-3f) < 0.2f) continue // too little water to swim up
+            weight[h] = min(1f, land.meanFlow[h] / 30f) * exp(-upKm[h] / 150f); total[m] += weight[h]
+        }
+        for (h in 0 until size) if (weight[h] > 0f) run[h] = runStock[mouth[h]] * weight[h] / total[mouth[h]] / landKm2[h]
     }
 
     /** Sea-bird colonies fish the sea within reach; a colony grows when they eat well and shrinks when not. */
@@ -475,6 +521,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val RIVER_FISH_PER_KM2_WATER = 15_000f
         const val MAX_SHELLFISH = 20_000f
         const val FISH_GROWTH = 0.6f
+        /** Share of what fish eat that becomes fish. */
+        const val FISH_EFFICIENCY = 0.2f
         /** Fish at the start as a share of what the water can carry; share of the water mixing with the neighbours' a week. */
         const val FISH_START = 0.2f
         const val DRIFT = 0.1f
@@ -486,7 +534,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val RUN_START_DAY = 120
         const val RUN_DAYS = 60
         const val RUN_KM_PER_DAY = 20f
-        const val RUN_PER_COASTAL_FISH = 2f
+        /** Share of the fish off a river mouth that run up it in spring; share of the run that lives to go back. */
+        const val RUN_SHARE = 0.05f
+        const val RUN_SURVIVAL = 0.7f
         /** Upwelling: nutrient supply added at full strength; wind for full strength, m/s; weeks to answer a change of wind. */
         const val UPWELL_SUPPLY = 0.6f
         const val UPWELL_WIND = 8f

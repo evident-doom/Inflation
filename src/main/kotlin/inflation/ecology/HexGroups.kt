@@ -254,6 +254,22 @@ class HexGroups(
     /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
     internal var followersByHex: Map<Int, List<HexGroup>> = emptyMap()
 
+    /**
+     * How big a herd of [g]'s kind grows before it splits, now: herds gather on a green flush and
+     * scatter in the lean season, and break up to calve; packs, prides and bands keep their kind's size.
+     */
+    internal fun maxSize(g: HexGroup, date: Date): Int {
+        val s = g.species
+        if (s.carnivore) return if (g.band?.holds(Tradition.FEASTS) == true) (s.maxGroupSize * FEAST_SIZE).toInt() else s.maxGroupSize
+        val birth = if (g.birthMonth >= 0) g.birthMonth else s.birthMonth
+        val calving = (date.month - birth + 12) % 12 < s.birthMonths
+        val flush = 1f + AGGREGATION * land.green[g.place] * g.fed
+        return max(s.groupSize, (s.maxGroupSize * flush * (if (calving) 0.5f else 1f)).toInt())
+    }
+
+    /** Choices made in planning, by kind: kept to its ground without weighing (content), weighed and stayed, weighed and moved. */
+    val planCounts = java.util.concurrent.atomic.AtomicIntegerArray(64 * 3)
+
     /** Desert kites in each place, 0..1 built: long low walls funnelling open-country herds into a pen or pits. They stand for generations. */
     val kites = FloatArray(n)
 
@@ -284,7 +300,7 @@ class HexGroups(
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
-        if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % 2 == 0L) return g.place to intArrayOf(here)
+        if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % 2 == 0L) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS
         val ki = kindIndex[s] ?: 0
         val cross = hex.crossings[Catalogue.travel(s).ordinal]
@@ -425,6 +441,7 @@ class HexGroups(
         var h = hw.placeHex[best]
         while (true) { chain += h; if (h == here) break; h = via[h].takeIf { it >= 0 } ?: break }
         chain.reverse()
+        planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
         return best to chain.toIntArray()
     }
 
@@ -437,7 +454,8 @@ class HexGroups(
 
     internal fun crowd(s: Species, p: Int, g: HexGroup): Float {
         val others = headsHere[kindSlot[s.index]][p] - (if (p == g.place) g.size else 0)
-        val usual = if (s.startKm2PerAnimal > 0f) land.areaKm2[p] / s.startKm2PerAnimal * 3f else 10f
+        // Heads of its kind a place usually holds: for herds, their usual density as they live gathered (as for disease).
+        val usual = if (s.startKm2PerAnimal > 0f) land.areaKm2[p] / s.startKm2PerAnimal * 3f else land.areaKm2[p] * 0.1f * MIGRANTS_GATHER
         return others / (others + usual + 1f)
     }
 

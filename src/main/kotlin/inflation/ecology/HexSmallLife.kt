@@ -256,7 +256,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         for (k in BIRDS.indices) away[k] += leaving[k].sumThenReset()
         lastMonth = month
         stepVultures(weather)
-        if (++steps % 5 == 0) for (f in listOf(insects, rodents, herps, pollinators, hares, hyrax, tortoises, foxes, eagles) + bird) spread(f)
+        if (++steps % 5 == 0) {
+            for (f in listOf(insects, rodents, herps, pollinators, hares, hyrax, tortoises, foxes) + bird) spread(f)
+            spread(eagles) { eagleCrags[it] > 0f }
+        }
     }
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
@@ -280,6 +283,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         birds[p] = all
         val active = t in 14f..33f && land.soil[p] > 8f
         tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) 0.8f else 0f, if (active) 0.15f else 0.05f, tortoiseCapacity(p))
+        // They eat what they grow on (a small share of their weight a day; tortoises only when out),
+        // and drop half of it again.
+        val eaters = hares[p] + hyrax[p] + all + (if (active) tortoises[p] else 0f) // kg/km²
+        if (eaters > 0f) {
+            val eaten = land.consume(p, LifeForm.HERB, 0.7f * SMALL_INTAKE * eaters * days / 1e6f) + land.consume(p, LifeForm.SHRUB, 0.3f * SMALL_INTAKE * eaters * days / 1e6f)
+            dung[p] += DUNG * eaten
+        }
         // Foxes and wildcats eat about a seventh of their weight a day, mostly rodents, then hares and
         // birds; they breed in spring as the food allows, and die back when it fails.
         val prey = rodents[p] + hares[p] + birds[p] + 0.03f * insects[p]
@@ -425,13 +435,19 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** The fruit crop's share of what the trees could bear, from this year's pollination. */
     fun fruitSet(p: Int) = 0.3f + 0.7f * pollination[p]
 
-    private fun spread(f: FloatArray) {
+    /**
+     * Small animals wander between neighbouring places: as many leave one as arrive in the other, the
+     * density difference over the smaller place; [where] keeps a kind to the places it can live in.
+     */
+    private fun spread(f: FloatArray, where: (Int) -> Boolean = { true }) {
         val old = f.copyOf()
         for (p in 0 until n) {
+            if (!where(p)) continue
             val nb = land.neighbours[p]
             if (nb.isEmpty()) continue
-            var s = 0f; for (q in nb) s += old[q]
-            f[p] = 0.8f * old[p] + 0.2f * s / nb.size
+            var delta = 0f
+            for (q in nb) if (where(q)) delta += SPREAD / nb.size * (old[q] - old[p]) * min(land.areaKm2[p], land.areaKm2[q]) / land.areaKm2[p]
+            f[p] = max(0f, old[p] + delta)
         }
     }
 
@@ -462,6 +478,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Share of a rotting carcass left as bones. */
         const val BONE_SHARE = 0.2f
         const val MIGRANT_SURVIVAL = 0.7f
+        /** Plant food small plant-eaters (hares, hyrax, game birds, tortoises) eat, kg a day per kg of them. */
+        const val SMALL_INTAKE = 0.08f
+        /** Share of the difference with its neighbours a small animal population evens out every five weeks. */
+        const val SPREAD = 0.2f
         /** Share of what herds and packs eat that comes back as dung. */
         const val DUNG = 0.5f
         private val CHUKAR = BIRDS.indexOfFirst { it.name == "chukar" }

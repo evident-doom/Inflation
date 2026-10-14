@@ -188,6 +188,13 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         hunting.merge("${s.name}:diet carrion, kg", gotScraps.toInt(), Int::plus)
         hunting.merge("${s.name}:diet plants, kg", plants.toInt(), Int::plus)
         if (s.human) { hunting.merge("${s.name}:meat eaten, kg", (meatEaten + gotSmall + gotScraps).toInt(), Int::plus); hunting.merge("${s.name}:plants eaten, kg", plants.toInt(), Int::plus) }
+        // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
+        if (got > meatEaten && g.fat < s.maxFatDays) {
+            val gorge = min(got - meatEaten, FATTEN * wantAll)
+            g.surplus = gorge / g.dailyNeedKg.coerceAtLeast(1e-3f)
+            got -= gorge
+            small.dung[g.place] += HexSmallLife.DUNG * gorge / (land.areaKm2[g.place] * 1e6f)
+        }
         var leftMeat = max(0f, got - meatEaten)
         if (band != null) {
             // A band keeps a larder: meat it could not eat is dried, and in good weeks it gathers more

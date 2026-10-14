@@ -7,9 +7,15 @@ const val SHIFT_DAYS = 2f
 /** Snow depth that doubles the effort of going, mm. */
 const val SNOW_EFFORT_MM = 150f
 /** Days of reserves laid on a week by a well-fed group in late summer and autumn (0.3 the rest of the year). */
-const val AUTUMN_FAT = 0.8f
+/** How much more than its needs an animal eats, at most, when food is plentiful and its reserves are short; share of that surplus laid on as reserves. */
+const val FATTEN = 0.3f
+const val FAT_EFFICIENCY = 0.6f
+/** A newborn's weight against its mother's, paid from her reserves. */
+const val NEWBORN_SHARE = 0.08f
 /** Share of its fill above which a group lays on reserves rather than drawing on them (a week's food is never exactly what it needs). */
 const val WELL_FED = 0.9f
+/** How many times its usual most a herd may grow to on a full green flush, well fed (herds gather where the grass is new). */
+const val AGGREGATION = 4f
 /** How far a part of a group's diet stretches to make up for another that fell short: to (1 + this) times its usual share. */
 const val SWITCH = 1f
 /** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */

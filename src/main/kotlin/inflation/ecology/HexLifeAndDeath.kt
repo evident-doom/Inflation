@@ -102,7 +102,16 @@ internal fun HexGroups.graze(weather: Weather) {
         // Grass and browse nourish fully only when green; fruit and roots keep their value.
         val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + min(short, straw * HexFood.roughage(s))
         g.fed = (got / want.coerceAtLeast(1e-9f)).coerceIn(0f, 1f)
-        land.grazing[p] += (grass + grass2) * 1e6f / days; land.browsing[p] += (browse + browse2) * 1e6f / days; land.rooting[p] += (roots + roots2) * 1e6f / days
+        // With food to spare and reserves short, it eats more and lays the surplus on.
+        var grass3 = 0f; var browse3 = 0f
+        if (got >= want && g.fat < s.maxFatDays) {
+            val extra = FATTEN * want
+            if (d.grass > 0f && !snowed) grass3 = land.consume(p, LifeForm.HERB, min(extra / q * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f), (reach * land.herb[p] - grass - grass2).coerceAtLeast(0f)))
+            if (d.browse > 0f) browse3 = land.consume(p, LifeForm.SHRUB, min(extra / q * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f), (reach * land.shrub[p] - browse - browse2).coerceAtLeast(0f)))
+            g.surplus = (grass3 + browse3) * q / (want / days)
+            small.dung[p] += HexSmallLife.DUNG * (grass3 + browse3)
+        }
+        land.grazing[p] += (grass + grass2 + grass3) * 1e6f / days; land.browsing[p] += (browse + browse2 + browse3) * 1e6f / days; land.rooting[p] += (roots + roots2) * 1e6f / days
     }
 }
 
@@ -159,7 +168,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         } } // a young pack has no ground yet
     }
     groups += born
-    mergeAndPair()
+    mergeAndPair(date)
 }
 
 /** What a group's week left for others: carcasses (kg), births, deaths by cause, orphans, a split-off part (adults, young). */
@@ -173,7 +182,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // most in late summer and autumn. (Only a full 100% used to count, which a pack or band that
         // hunts and gathers seldom reaches exactly: they never laid on reserves.)
         if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
-        else g.fat = min(s.maxFatDays, g.fat + (if (date.month in 7..10) AUTUMN_FAT else 0.3f) * days * (g.fed - WELL_FED) / (1f - WELL_FED))
+        else g.fat = min(s.maxFatDays, g.fat + FAT_EFFICIENCY * g.surplus)
+        g.surplus = 0f
         if (g.birthMonth < 0) g.birthMonth = s.birthMonth
         // Once a year its births move a month towards the months it fed best in (the birth month and the two after).
         if (date.month == 3 && date.dayOfMonth <= days && !s.carnivore) {
@@ -197,6 +207,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             }
             g.young += births
             bornNow = births
+            // The young are made of what their mothers ate: their weight comes off the mothers' reserves.
+            if (births > 0) g.fat = max(0f, g.fat - births * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / max(1, g.adults / 2))
         }
         val hunger = if (g.fed < 0.5f) (0.5f - g.fed) * 0.3f else 0f
         // People feel the cold as their clothes allow.
@@ -268,7 +280,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         }
         var split: Pair<Int, Int>? = null
         // Bands that feast together hold together longer.
-        if (g.size > (if (band?.holds(Tradition.FEASTS) == true) (s.maxGroupSize * FEAST_SIZE).toInt() else s.maxGroupSize)) {
+        if (g.size > maxSize(g, date)) {
             split = (g.adults / 2) to (g.young / 2)
             g.adults -= split.first; g.young -= split.second
         }
@@ -293,7 +305,7 @@ private fun HexGroups.peopleSickness(g: HexGroup): Float {
 }
 
 /** Small herds join up, and lone hunters find mates (see [demography]). */
-internal fun HexGroups.mergeAndPair() {
+internal fun HexGroups.mergeAndPair(date: Date) {
     // Small herds of a kind that end the week in the same place join up, as far as the herd can grow.
     val byPlace = HashMap<Long, HexGroup>()
     for (g in groups) {
@@ -301,7 +313,7 @@ internal fun HexGroups.mergeAndPair() {
         if (!g.alive || s.carnivore) continue
         val key = (s.index.toLong() * n + g.place) * 1000 + (g.tag + 1)
         val other = byPlace[key]
-        if (other != null && other.size + g.size <= s.maxGroupSize) {
+        if (other != null && other.size + g.size <= maxSize(other, date)) {
             val share = g.size.toFloat() / (other.size + g.size)
             other.fed += (g.fed - other.fed) * share; other.fat += (g.fat - other.fat) * share
             other.adults += g.adults; other.young += g.young

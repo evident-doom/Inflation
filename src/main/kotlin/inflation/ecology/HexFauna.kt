@@ -244,7 +244,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val rf = if (wantFruit > 0f) food.fruit[p] / wantFruit else 1f
             val rr = if (wantRoots > 0f) food.roots[p] / wantRoots else 1f
             // Each kind gets its share, as far as it can get at it; nourishment from what it ate.
-            val got = FloatArray(kinds.size); val short = FloatArray(kinds.size)
+            val got = FloatArray(kinds.size); val short = FloatArray(kinds.size); val surplus = FloatArray(kinds.size)
             var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f; var wantStraw = 0f
             // What is left over once every kind has its usual share, for diet switching.
             var spareG = max(0f, grass - wantGrass); var spareB = max(0f, browse - wantBrowse)
@@ -265,6 +265,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (gap > 0f && d.grass > 0f && !snowed) { val x = min(min(gap, SWITCH * d.grass / total * fill * quality), avail[k] * spareG / need[k] * quality); spareG -= x * need[k] / quality; eatG += x * need[k] / quality; got[k] += x; gap -= x }
                 if (gap > 0f && d.fruit > 0f) { val x = min(min(gap, SWITCH * d.fruit / total), avail[k] * spareF / need[k]); spareF -= x * need[k]; eatF += x * need[k]; got[k] += x; gap -= x }
                 if (gap > 0f && d.roots > 0f) { val x = min(min(gap, SWITCH * d.roots / total), avail[k] * spareR / need[k]); spareR -= x * need[k]; eatR += x * need[k]; got[k] += x; gap -= x }
+                // With food to spare and reserves short, they eat more and lay the surplus on.
+                if (gap <= 0f && reserve[k][p] < s.maxFatDays) {
+                    var want = FATTEN
+                    if (d.grass > 0f && !snowed) { val x = min(want * d.grass / total, avail[k] * spareG / need[k] * quality); spareG -= x * need[k] / quality; eatG += x * need[k] / quality; surplus[k] += x; want -= x }
+                    if (d.browse > 0f) { val x = min(want * d.browse / total, avail[k] * spareB / need[k] * quality); spareB -= x * need[k] / quality; eatB += x * need[k] / quality; surplus[k] += x; want -= x }
+                    if (d.fruit > 0f) { val x = min(want * d.fruit / total, avail[k] * spareF / need[k]); spareF -= x * need[k]; eatF += x * need[k]; surplus[k] += x; want -= x }
+                }
                 // A shortfall is made up with the standing straw, as far as there is any.
                 short[k] = need[k] * max(0f, 1f - got[k])
                 wantStraw += short[k] * GUT_FILL
@@ -288,10 +295,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     }
                     ((got[k] + strawPart) * ps + min(1f, animal) * (1f - ps)).coerceIn(0f, 1f)
                 }
-                // Reserves carry them through lean weeks; they lay them on in good ones, most in late summer and autumn.
+                // Reserves carry them through lean weeks; they are laid on from what was eaten beyond need.
                 val r = reserve[k]
                 if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days) }
-                else r[p] = min(s.maxFatDays, r[p] + (if (weather.date.month in 7..10) AUTUMN_FAT else 0.3f) * days * (f - WELL_FED) / (1f - WELL_FED))
+                else r[p] = min(s.maxFatDays, r[p] + FAT_EFFICIENCY * surplus[k] * days)
                 fed[k][p] = f
                 val fm = fedByMonth[k]; val i = p * 12 + weather.date.month
                 fm[i] += (fed[k][p] - fm[i]) * FED_MEMORY

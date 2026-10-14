@@ -7,6 +7,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** Fed last week, 0..1; body reserves, days of food. */
     var fed = 1f
     var fat = 0f
+    /** What it ate this week beyond its needs, days of food: laid on as reserves (see [liveWeek]). */
+    var surplus = 0f
     /** The hexes it passed through this week, in order (its own last), and the day it entered each. */
     var path = IntArray(0)
     var days = FloatArray(0)
