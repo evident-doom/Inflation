@@ -115,7 +115,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     var m = 0
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
-    val aim = wantAll + if (band != null) max(0f, band.storeAim * g.dailyNeedKg - g.larder) * STORE_FILL else 0f
+    // (A band holding to demand sharing stores less: what it lays by is asked of it.)
+    val aim = wantAll + if (band != null) max(0f, band.storeAim * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg - g.larder) * STORE_FILL else 0f
     val plantKind = FloatArray(Store.entries.size)
     var busy = 0f
     val spareYoung = band?.holds(Tradition.TABOO_YOUNG) == true

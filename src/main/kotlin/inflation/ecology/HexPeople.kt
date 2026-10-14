@@ -120,6 +120,11 @@ class Band {
      */
     var houseHex = -1
     var house = 0f
+    /** A hex it shuns after a death there, and for how many more weeks ([Tradition.LEAVE_DEAD]). */
+    var unluckyHex = -1
+    var unluckyWeeks = 0
+    /** Brush shelters at its present camp, 0..1 (left behind when it moves on). */
+    var shelter = 0f
     /** Its choices: how ready it is to build (1 the scaffold's: after [HOUSE_AFTER_WEEKS] weeks at a camp that feeds it well). */
     var houseWill = 1f
     var atHome = false
@@ -203,7 +208,7 @@ class Band {
     fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Forage.FISH)
 
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) - 0.5f) + (if (atHome) HOUSE_C * house else 0f)) else t
+    fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) - 0.5f) + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
 
     companion object {
         /**
@@ -325,23 +330,33 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         b.kit[k] += can; time -= can * daysEach
         b.making[t.skill.ordinal] += PRACTICE * (1f - skill)
     }
-    // With the time still to spare, a band that has kept its camp a while builds houses there (and
-    // starts afresh where it settles anew); houses it has left weather away.
+    if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
+    // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
+    if (b.campWeeks == 0) b.shelter = 0f
+    if (b.shelter < 1f && time > 0f && people > 0f) { val built = min(1f - b.shelter, time / (SHELTER_DAYS * people)); b.shelter += built; time -= built * SHELTER_DAYS * people }
+    // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
+    // there, as far as it has gathered the stone and timber (and starts afresh where it settles
+    // anew); houses it has left weather away.
     if (b.houseHex >= 0 && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
     // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
     if (b.campWeeks >= HOUSE_AFTER_WEEKS / b.houseWill.coerceAtLeast(0.1f) && time > 0f && people > 0f && g.fed >= 0.9f && g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
         if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
         if (b.houseHex == h && b.house < 1f) {
-            val built = min(1f - b.house, time / (HOUSE_DAYS * people))
+            var built = min(1f - b.house, time / (HOUSE_DAYS * people))
+            built = minOf(built, gd[Material.STONE.ordinal] / (HOUSE_STONE * people), gd[Material.WOOD.ordinal] / (HOUSE_WOOD * people))
+            built = max(0f, built)
+            gd[Material.STONE.ordinal] -= built * HOUSE_STONE * people; gd[Material.WOOD.ordinal] -= built * HOUSE_WOOD * people
             b.house += built; time -= built * HOUSE_DAYS * people
             if (built > 0f) meetings.merge("bands built houses", 1, Int::plus)
         }
     }
     b.atHome = b.houseHex == h && b.house > 0.05f
     b.spareDays = time
-    // A band carries only so much: the rest is left behind (and goes back to the ground).
+    // A band carries only so much: the rest is left behind (and goes back to the ground); at a camp it
+    // keeps, it stacks building stone and timber beyond that.
     for (m in gd.indices) {
-        val over = gd[m] - GOODS_PER_PERSON * people
+        val stack = if (m == Material.STONE.ordinal || m == Material.WOOD.ordinal) (if (b.campWeeks >= 4) HOUSE_STONE + HOUSE_WOOD else 0f) else 0f
+        val over = gd[m] - (GOODS_PER_PERSON + stack) * people
         if (over > 0f) { gd[m] -= over; if (m == Material.WOOD.ordinal || m == Material.FIBRE.ordinal || m == Material.HIDE.ordinal) small.litter[p] += over / area }
     }
     // Songs and stories keep what is not practised from fading as fast.
@@ -555,6 +570,11 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
  * how strongly its houses draw a band back.
  */
 const val HOUSE_DAYS = 20f
+/** Stone and timber for one person's share of a stone-footed house, kg; person-days for a brush shelter; how much warmer a brush shelter keeps, °C. */
+const val HOUSE_STONE = 150f
+const val HOUSE_WOOD = 60f
+const val SHELTER_DAYS = 1f
+const val SHELTER_C = 3f
 const val HOUSE_AFTER_WEEKS = 26
 const val HOUSE_DECAY = 0.3f
 const val HOUSE_C = 8f

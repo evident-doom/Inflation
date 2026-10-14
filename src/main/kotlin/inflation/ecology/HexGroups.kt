@@ -282,7 +282,11 @@ class HexGroups(
      */
     internal fun maxSize(g: HexGroup, date: Date): Int {
         val s = g.species
-        if (s.carnivore) return if (g.band?.holds(Tradition.FEASTS) == true) (s.maxGroupSize * FEAST_SIZE).toInt() else s.maxGroupSize
+        if (s.carnivore) return g.band?.let { b ->
+            // Feasts keep the peace in bigger bands; a settled band without them quarrels and splits sooner.
+            if (b.holds(Tradition.FEASTS)) (s.maxGroupSize * FEAST_SIZE).toInt()
+            else if (b.atHome) (s.maxGroupSize * SETTLED_QUARRELS).toInt() else s.maxGroupSize
+        } ?: s.maxGroupSize
         val birth = if (g.birthMonth >= 0) g.birthMonth else s.birthMonth
         val calving = (date.month - birth + 12) % 12 < s.birthMonths
         val flush = 1f + AGGREGATION * land.green[g.place] * g.fed
@@ -341,7 +345,7 @@ class HexGroups(
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
         // (Bands hold no hunting ground of the packs' kind: a band is restless only when hungry, thirsty or astray.)
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
-        val dueSoon = g.band?.let { b -> b.appointHex >= 0 && b.appointHex != here && ((b.appointMonth - month + 12) % 12) <= 1 } ?: false
+        val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && ((b.appointMonth - month + 12) % 12) <= 1) || b.unluckyHex == here } ?: false
         val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon
             else if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
@@ -455,8 +459,9 @@ class HexGroups(
                     if (pull != 0f) score += APPOINT_PULL * pull
                     val dead = g.memory.deadAt(h)
                     if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
-                    // Its houses draw it home.
+                    // Its houses draw it home; a camp where someone died lately is shunned by those who leave their dead.
                     if (h == b.houseHex) score += HOME_PULL * b.house
+                    if (h == b.unluckyHex) score -= UNLUCKY
                 }
                 // A band with food enough to feast others is drawn to where other bands are (gatherings).
                 g.band?.let { b -> if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {

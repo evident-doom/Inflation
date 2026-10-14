@@ -20,7 +20,8 @@ enum class Tradition(val about: String) {
     MEDICINE("herbs, setting bones, care of the sick: fewer die of wounds and illness"),
     EXOGAMY("partners are taken from other bands: less inbreeding, skills travel"),
     HYGIENE("middens and water kept apart, camps cleaned: a kept camp fouls slowly"),
-    SHARING("food is shared with neighbouring bands in bad times: insurance against hunger"),
+    SHARING("food is shared on demand: insurance against hunger, but little point in storing up for oneself"),
+    LEAVE_DEAD("after a death the camp is unlucky and abandoned (unless the band buries its dead)"),
 }
 
 /**
@@ -91,6 +92,13 @@ const val FOUL_AVOID = 0.3f
 const val BURIAL_STAY = 0.1f
 /** Most a band of [Tradition.FEASTS] grows to before it splits, against its kind's usual most. */
 const val FEAST_SIZE = 1.3f
+/** How strongly an unlucky camp (a death, among bands that leave their dead) is shunned, and for how many weeks. */
+const val UNLUCKY = 0.6f
+const val UNLUCKY_WEEKS = 8
+/** Share of its store aim a band holding to demand sharing keeps (what it stores is asked of it). */
+const val SHARING_STORE = 0.5f
+/** A settled band without feasts to keep the peace splits at this share of its usual most (quarrels). */
+const val SETTLED_QUARRELS = 0.75f
 /** Graves and meetings at a place (in a band's memory) before it makes an appointment there. */
 const val APPOINT_MIN = 3f
 /** How strongly an appointment draws a band in its month, and its ancestors' places draw it at any time. */
@@ -137,7 +145,7 @@ fun wordsAt(x: Double, y: Double): IntArray {
  */
 fun traditionsAt(lineage: Int) = BooleanArray(Tradition.entries.size) { t ->
     Tradition.entries[t] in UNIVERSAL || Math.floorMod((lineage + 1) * 2_654_435_761L.toInt() xor (t * 40_503), 100) < 25
-}
+}.also { it[Tradition.LEAVE_DEAD.ordinal] = !it[Tradition.BURIAL.ordinal] } // (the old way, where the dead are not kept)
 
 private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.MEDICINE, Tradition.ORAL_TRADITION)
 
