@@ -236,7 +236,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val disease = if (s.human) peopleSickness(g) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
             else if (s.carnivore) {
                 // Hunters catch mange, distemper and rabies from other packs of their kind crowding the same ground.
-                val others = max(0, (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) - g.size) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual)
+                // (Counted over its hex and the six round it: a pack's ground is wider than one hex.)
+                val h0 = hw.placeHex[g.place]
+                var heads = -g.size
+                for (k in -1 until 6) { val q = if (k < 0) h0 else hex.neighbour(h0, k); if (q >= 0) heads += kinNow[s.index.toLong() * hex.size + q] ?: 0 }
+                val others = max(0, heads) / (7f * (hex.hexKm * hex.hexKm * 0.87).toFloat()) / (HexFauna.CROWDED * usual)
                 HexFauna.DISEASE * others * others * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
             }
             else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))

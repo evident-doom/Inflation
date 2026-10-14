@@ -482,9 +482,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val SMALL_INTAKE = 0.08f
         /** Foxes and wildcats eat about a fourteenth of their weight a day; prey on the ground (kg/km²) at which they get half of it. */
         const val FOX_INTAKE = 0.07f
-        const val FOX_HALF = 20f
+        const val FOX_HALF = 3f
         /** Small prey out in the open (kg/km²) at which eagles get half of what they need. */
-        const val EAGLE_HALF = 5f
+        const val EAGLE_HALF = 1f
         /** Share of the difference with its neighbours a small animal population evens out every five weeks. */
         const val SPREAD = 0.2f
         /** Share of what herds and packs eat that comes back as dung. */

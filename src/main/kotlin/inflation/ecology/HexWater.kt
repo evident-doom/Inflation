@@ -488,7 +488,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Share of its needs a fish-eater gets at fish density [f], kg/km²: little where fish are few (shoals are hard to find), most where they are many. */
-    private fun fishResponse(f: Float) = f * f / (f * f + FISH_HALF * FISH_HALF)
+    private fun fishResponse(f: Float) = f * f / (f * f + FISH_FIND_HALF * FISH_FIND_HALF)
 
     /** Totals: plankton, fish, shellfish, sea animals (t), river fish (t) and sea birds. */
     fun summary(): String {
@@ -556,6 +556,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val SHELLFISH_SEARCH = 50f
         /** Fish, kg/km², at which hunters find them half as easily as in a rich sea. */
         const val FISH_HALF = 1000f
+        /** Fish (kg/km²) at which a fish-eating sea animal gets half of what it needs. */
+        const val FISH_FIND_HALF = 100f
         /** Zooplankton (kg/km²) at which a filter-feeding whale gets half of what it needs. */
         const val ZOO_HALF = 100f
         const val SEA_DISEASE = 0.5f
