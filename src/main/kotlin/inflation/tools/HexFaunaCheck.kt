@@ -278,6 +278,15 @@ fun main(args: Array<String>) {
                 for (k in fauna.kinds.indices) { val v = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble(); if (c) coastN[k] += v else inN[k] += v }
             }
             println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) + fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0), inN[k] / inA.coerceAtLeast(1.0)) })
+            // And what they find there: edible forage, how green, how well the roe deer fed, how far water is.
+            fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps -> ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
+            val roe = fauna.kinds.indexOfFirst { it.name == "roe deer" }
+            println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, roe deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
+                mean({ (land.palatable[it] * (land.herb[it] + land.shrub[it])).toDouble() }, true), mean({ (land.palatable[it] * (land.herb[it] + land.shrub[it])).toDouble() }, false),
+                mean({ land.green[it].toDouble() }, true), mean({ land.green[it].toDouble() }, false),
+                if (roe >= 0) mean({ fauna.fed[roe][it].toDouble() }, true) else 0.0, if (roe >= 0) mean({ fauna.fed[roe][it].toDouble() }, false) else 0.0,
+                mean({ land.waterKm[it].toDouble() }, true), mean({ land.waterKm[it].toDouble() }, false),
+                mean({ weather.temperature[it].toDouble() }, true), mean({ weather.temperature[it].toDouble() }, false)))
         }
         // How many groups, how big, how much of the land they cover, and how far each herd is from the nearest hunting pack.
         run {
