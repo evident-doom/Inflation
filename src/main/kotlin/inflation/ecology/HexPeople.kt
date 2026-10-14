@@ -38,7 +38,7 @@ enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerY
     /** Sickles of flint bladelets set in bone or wood: wild cereals cut before the ears shatter. */
     SICKLE(mapOf(Material.STONE to 0.2f, Material.BONE to 0.3f, Material.RESIN to 0.05f), Skill.KNAPPING, 0.7f, 1f),
     /** Mortars, pestles and querns: nuts, acorns and seeds made into meal. Too heavy to move. */
-    GRINDER(mapOf(Material.STONE to 15f), Skill.KNAPPING, 0.05f, 3f, heavy = true),
+    GRINDER(mapOf(Material.STONE to 15f), Skill.PECKING, 0.05f, 3f, heavy = true),
     /** Baskets and bags: carrying the harvest home and keeping it. */
     BASKET(mapOf(Material.FIBRE to 3f), Skill.CORDAGE, 0.7f, 2f, known = true),
     /** Sewn, fitted clothes and footwear of hide and fur: winter becomes bearable. */
@@ -245,7 +245,13 @@ class Band {
     fun detoxExtra(palatable: Float, water: Boolean): Float =
         if (!knowsSkill[Skill.LEACHING.ordinal] || !water) 0f
         else min(1f, LEACH_SHARE * skill(Skill.LEACHING) * has(Tool.BASKET) * (1f - palatable) / palatable.coerceAtLeast(0.1f))
-    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * (1f - skills[s.ordinal]) }
+    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * learning * (1f - skills[s.ordinal]) }
+    /** How fast its practice teaches it, against a start band's: good teachers bring the young on faster. */
+    val learning get() = edge(Skill.SHOWING)
+    /** How well it makes [t]: by the best way of its craft it knows (blades and microliths beat plain flakes). */
+    fun makeSkill(t: Tool) = skill(t.skill.domain)
+    /** The way of its craft it uses for [t]. */
+    fun makeWay(t: Tool) = Skill.of(t.skill.domain).filter { knowsSkill[it.ordinal] }.maxByOrNull { skill(it) * it.gain } ?: t.skill
     fun has(t: Tool) = kit[t.ordinal]
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
@@ -395,16 +401,16 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     val years = days / Date.DAYS_PER_YEAR.toFloat()
     for (t in Tool.entries) {
         val k = t.ordinal
-        b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years)
+        b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years * (if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.lapse(Skill.GLUING) else 1f))
         if (!b.knows[k]) {
             // A band that has a use for a tool now and then hits on it: bows where game is shy and
             // fast, sickles and grinding stones where it reaps seed, and so on.
-            if (rnd.nextFloat() < INVENT * years * (0.5f + b.skills[useOf(t).ordinal])) { b.knows[k] = true; meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus) }
+            if (rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[useOf(t).ordinal])) { b.knows[k] = true; meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus) }
             continue
         }
     }
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
-    for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) && rnd.nextFloat() < s.invent * INVENT * years * (0.5f + b.skill(s.domain))) {
+    for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) && rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
         b.knowsSkill[s.ordinal] = true; meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
@@ -414,15 +420,21 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     for (t in order) {
         if (time <= 0f || people <= 0f) break
         val k = t.ordinal
-        val skill = b.skills[t.skill.ordinal]
-        val daysEach = t.makeDays * people / (CRAFT_FLOOR + (1f - CRAFT_FLOOR) * skill) // for a whole band's kit
+        val way = b.makeWay(t)
+        val daysEach = t.makeDays * people / b.makeSkill(t) // for a whole band's kit
+        // (Blades get several times the edge out of a kilo of flint.)
+        val stoneUse = if (way == Skill.BLADES || way == Skill.MICROLITHS) BLADE_STONE else 1f
         var can = min(1f - b.kit[k], time / daysEach)
-        for ((m, perPerson) in t.recipe) can = min(can, gd[m.ordinal] / max(1e-3f, perPerson * people))
+        fun use(m: Material) = if (m == Material.STONE) stoneUse else 1f
+        for ((m, perPerson) in t.recipe) can = min(can, gd[m.ordinal] / max(1e-3f, perPerson * use(m) * people))
         if (can <= 0f) continue
-        for ((m, perPerson) in t.recipe) gd[m.ordinal] -= can * perPerson * people
+        for ((m, perPerson) in t.recipe) gd[m.ordinal] -= can * perPerson * use(m) * people
         b.kit[k] += can; time -= can * daysEach
-        b.practise(t.skill)
-        if (t == Tool.CLOTHES) b.practise(Skill.SEWING)
+        b.practise(way); b.practise(Skill.TINKER, 0.02f * PRACTICE)
+        // (And tries the other ways of the craft it knows now and then, so a new way can come to beat the old.)
+        for (o in Skill.of(way.domain)) if (o != way && b.knowsSkill[o.ordinal]) b.practise(o, 0.2f * PRACTICE * b.edge(Skill.TINKER))
+        if (t == Tool.CLOTHES) { b.practise(Skill.SEWING); b.practise(Skill.BONE_TOOLS) }
+        if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.practise(Skill.GLUING)
     }
     if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
     b.sinceRaided++
@@ -500,8 +512,11 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         if (over > 0f) { gd[m] -= over; if (m == Material.WOOD.ordinal || m == Material.FIBRE.ordinal || m == Material.HIDE.ordinal) small.litter[p] += over / area }
     }
     // Songs and stories keep what is not practised from fading as fast.
-    val forget = if (b.holds(Tradition.ORAL_TRADITION)) FORGET * 0.4f else FORGET
+    val forget = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET * 0.4f else FORGET) * b.lapse(Skill.LORE)
     for (i in b.skills.indices) b.skills[i] *= 1f - forget
+    // Teaching the young keeps the teachers practised; the songs and stories are kept up where the band holds to them.
+    if (g.young > 0) b.practise(Skill.SHOWING, 0.08f * PRACTICE)
+    b.practise(Skill.LORE, (if (b.holds(Tradition.ORAL_TRADITION)) 0.08f else 0.03f) * PRACTICE)
 }
 
 /**
@@ -579,7 +594,7 @@ internal fun HexGroups.teach(a: Band, b: Band, understood: Float) {
     // And ways of working: the one that knows a way shows it; the other starts on it as a beginner.
     for (k in a.knowsSkill.indices) if (a.knowsSkill[k] != b.knowsSkill[k] && rnd.nextFloat() < Skill.entries[k].teach * TEACH * (0.5f + 0.5f * understood)) {
         val (from, to) = if (a.knowsSkill[k]) a to b else b to a
-        to.knowsSkill[k] = true; to.skills[k] = max(to.skills[k], SHOWN * from.skills[k])
+        to.knowsSkill[k] = true; to.skills[k] = max(to.skills[k], min(1f, SHOWN * from.learning) * from.skills[k])
         meetings.merge("band learned ${Skill.entries[k].name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
 }
@@ -945,6 +960,8 @@ const val EARTH_OVEN_GAIN = 0.3f
 const val DRY_RAIN_MM = 30f
 const val SMOKE_KEEP = 0.5f
 const val SEAL_KEEP = 0.7f
+/** Flint a tool's stone takes when knapped as blades or microliths, against plain flakes. */
+const val BLADE_STONE = 0.4f
 /** How far a healer's or midwife's skill reaches into the deaths it can prevent (share of the gap to a start band's). */
 const val HEALING_REACH = 0.5f
 

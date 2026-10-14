@@ -90,3 +90,8 @@ Built:
 Skills that existed before keep their behaviour at a start band's level. New variants change nothing until a band knows them.
 
 Next: hunting subskills (tracking, stalking, drives, butchery), moving (carrying, snowshoes, boats), animal handling, the remaining crafts, fighting.
+
+**Added later the same day:**
+- **Toolmaking:** knapping as flakes, blades and microliths. Blades and microliths are faster and take 40% of the flint, and bands use whichever way they do best. Also ground stone (pecking, for grinders), bone tools (needles and awls, practised with clothes) and hafting (glued and bound tools wear out more slowly).
+- **Meta skills:** showing (apprenticeship: all practice goes faster or slower), lore (songs and stories: forgetting slower or faster) and tinkering (new tools and ways hit on more or less often). Each is kept up by use: teaching the young, telling, and making things.
+- Bands try the other ways of a craft now and then, so a better new way can overtake the old one.

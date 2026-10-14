@@ -15,6 +15,12 @@ enum class Domain {
     /** Laying food by: drying, pits, baskets, keeping it from damp and mice. */
     KEEPING,
     KNAPPING, WOODWORK, HIDEWORK, CORDAGE,
+    /** Pecking and grinding hard stone: mortars, querns, pestles, polished axes, stone bowls. */
+    GROUND_STONE,
+    /** Working bone and antler: awls, eyed needles, points, harpoons, sickle hafts. */
+    BONEWORK,
+    /** Fixing points and blades in hafts with resin, sinew and cord: tools that last. */
+    HAFTING,
     /** Making fire, and keeping embers alive on the move. */
     FIRE,
     /** Making food more nourishing with fire: roasting, boiling with hot stones, earth ovens. */
@@ -35,6 +41,12 @@ enum class Domain {
     HERDING,
     /** Caring for the sick and wounded: herbs, cleaning and binding wounds, setting bones. */
     HEALING,
+    /** Passing know-how on: showing, correcting, letting the young try. */
+    TEACHING,
+    /** Keeping know-how alive between uses: songs, stories, names, marks. */
+    REMEMBERING,
+    /** Trying new ways: tinkering, borrowing an idea from one craft for another. */
+    TINKERING,
     /** Helping at births and keeping infants alive: midwifery, care of the newborn. */
     CHILDCARE,
 }
@@ -61,10 +73,19 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     SMOKING(Domain.KEEPING, 0.3f, known = false),
     /** Sealing storage pits and bins with clay and plaster: keeps mice and damp out of the stores at home. */
     SEALING(Domain.KEEPING, 0.3f, known = false, invent = 0.1f, teach = 0.1f, settled = true),
+    /** Flakes struck from a core: the basic edge. */
     KNAPPING(Domain.KNAPPING, CRAFT_FLOOR, 0.5f),
+    /** Long blades struck from prepared cores: several times the cutting edge from a kilo of flint. */
+    BLADES(Domain.KNAPPING, CRAFT_FLOOR, 0.5f, gain = 1.1f, invent = 0.5f),
+    /** Microliths snapped from bladelets and set in rows: barbs, arrowheads, sickle edges, easily mended. */
+    MICROLITHS(Domain.KNAPPING, CRAFT_FLOOR, 0.5f, gain = 1.2f, invent = 0.3f),
     WOODWORK(Domain.WOODWORK, CRAFT_FLOOR, 0.5f),
     HIDEWORK(Domain.HIDEWORK, CRAFT_FLOOR, 0.5f),
     CORDAGE(Domain.CORDAGE, CRAFT_FLOOR, 0.5f),
+    PECKING(Domain.GROUND_STONE, CRAFT_FLOOR, 0.3f),
+    BONE_TOOLS(Domain.BONEWORK, CRAFT_FLOOR, 0.5f),
+    /** Hafting with resin and sinew: hafted tools wear out the slower the better they are set. */
+    GLUING(Domain.HAFTING, CRAFT_FLOOR, 0.5f),
     /** Fire by friction (the hand drill): novices may fail for days. */
     FIRE(Domain.FIRE, FIRE_FLOOR, 0.5f),
     /** Roasting on the embers: everyone with fire does it. */
@@ -91,6 +112,12 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     BUTCHER(Domain.BUTCHERY, 0.5f, 0.8f),
     /** Tending kept animals: fewer run off or are lost on the move, more can be kept, and they grow tame faster under practised hands. */
     TENDING(Domain.HERDING, CRAFT_FLOOR, 0.3f),
+    /** Apprenticeship: how fast the band's young and newcomers come to its skills (all practice goes faster or slower). */
+    SHOWING(Domain.TEACHING, CRAFT_FLOOR, 0.5f),
+    /** Songs, stories and names that keep know-how from fading. */
+    LORE(Domain.REMEMBERING, CRAFT_FLOOR, 0.5f),
+    /** A habit of trying new ways: bands that tinker hit on new tools and ways more often. */
+    TINKER(Domain.TINKERING, CRAFT_FLOOR, 0.5f),
     /** Herbal remedies and wound care, learned over a lifetime of the sick. */
     HERBS(Domain.HEALING, CRAFT_FLOOR, 0.5f),
     /** Midwifery and care of infants. */
