@@ -81,15 +81,21 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
             val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
             val area = land.areaKm2[p]
             val swept = min(area, sweep)
-            for ((k, ps) in fauna.kinds.withIndex()) {
+            var count = 0
+            for (k in fauna.kinds.indices) {
+                val ps = fauna.kinds[k]
                 val dens = fauna.adults[k][p] + fauna.young[k][p]
+                if (dens <= 0f) continue
                 // Prey resting while the hunter is about lie up in cover and are found less.
-                chance[k] = if (dens > 0f) CATCH * catchable(s, ps, p, packKg) * (0.5f + 0.5f * Niches.overlap(s, ps)) * (g.band?.huntEdge(ps) ?: 1f) else 0f
+                chance[k] = CATCH * catchable(s, ps, p, packKg) * (0.5f + 0.5f * Niches.overlap(s, ps)) * (g.band?.huntEdge(ps) ?: 1f)
                 worth[k] = dens * chance[k] * ps.massKg
-                order[k] = k
+                // Insertion into the ranking, best-paying first.
+                var i = count++
+                while (i > 0 && worth[order[i - 1]] < worth[k]) { order[i] = order[i - 1]; i-- }
+                order[i] = k
             }
-            val ranked = order.sortedByDescending { worth[it] }
-            for (k in ranked) {
+            for (r in 0 until count) {
+                val k = order[r]
                 if (got >= target) break
                 val ps = fauna.kinds[k]
                 val dens = fauna.adults[k][p] + fauna.young[k][p]
