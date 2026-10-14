@@ -318,7 +318,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // (People carry water in skins and know every spring: they suffer far less from it than animals.)
         // (Strangers to the country do not know its springs.)
         val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
-        val thirst = (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) * (if (s.human && knowsWater) HUMAN_THIRST * Tuning.humanThirst else 1f)
+        val thirst = (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) * (if (s.human) HUMAN_THIRST * Tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
         // Crowded herds catch each other's diseases and parasites.
         val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
         // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.

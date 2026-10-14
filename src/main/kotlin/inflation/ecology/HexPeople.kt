@@ -76,6 +76,8 @@ const val SETTLED_FERTILITY = 0.4f
 const val CAMP_FOULING = 0.02f
 /** People's deaths of thirst against an animal's at the same days without water. */
 const val HUMAN_THIRST = 0.3f
+/** How much more thirst troubles people on ground they do not know (they look for water where animals and birds lead them). */
+const val STRANGER_THIRST = 2f
 /** People's births against the catalogue's rate: long nursing spaces births three and a half to four years apart. */
 const val HUMAN_BIRTHS = 0.8f
 
