@@ -229,7 +229,7 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.5f, 0.6f, 0.4f, 0.6f, 0.9f), // became the dog
         packLitter = 4,
         stalking = 0.3f,
-        startKm2PerAnimal = 400f,
+        startKm2PerAnimal = 50f,
         followsPeople = true,
     )
 
@@ -254,7 +254,7 @@ object Catalogue {
         packLitter = 3,
         stalking = 0.7f,
         ferocity = 1.2f,
-        startKm2PerAnimal = 400f,
+        startKm2PerAnimal = 50f,
     )
 
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
@@ -275,7 +275,7 @@ object Catalogue {
         packLitter = 3,
         stalking = 1f,
         ferocity = 1.1f,
-        startKm2PerAnimal = 400f,
+        startKm2PerAnimal = 50f,
     )
 
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
@@ -296,7 +296,7 @@ object Catalogue {
         packLitter = 3,
         stalking = 0.2f,
         ferocity = 1.4f,
-        startKm2PerAnimal = 500f,
+        startKm2PerAnimal = 50f,
     )
 
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
@@ -317,7 +317,7 @@ object Catalogue {
         packLitter = 4,
         stalking = 0.4f,
         ferocity = 0.8f,
-        startKm2PerAnimal = 200f,
+        startKm2PerAnimal = 10f,
         followsPeople = true,
     )
 
@@ -517,7 +517,7 @@ object Catalogue {
         packLitter = 3,
         stalking = 0.3f,
         ferocity = 0.6f,
-        startKm2PerAnimal = 600f,
+        startKm2PerAnimal = 100f,
     )
 
     // ---------------------------------------------------------------- people
