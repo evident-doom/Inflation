@@ -179,6 +179,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             }
         }
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+            var pt = Profile.mark()
             val t = weather.temperature[p]
             val soilWater = land.soil[p]
             // ---- soil: decomposition doubles every 10 °C up to about 30 °C, stops in dry or frozen soil.
@@ -204,6 +205,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b }
             val food = land.herb[p] + 0.3f * land.shrub[p]
             val snow = weather.snowpack[p]
+            pt = Profile.lap("small life: soil and decay", pt)
             // ---- plant-eating insects
             var ins = insects[p]
             val dry = soilWater < 10f
@@ -220,9 +222,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             } else { insDead = ins * min(0.9f, 6f * years); ins -= insDead }
             smallDead[p] += insDead
             insects[p] = ins.coerceIn(0f, 3000f)
+            pt = Profile.lap("small life: insects", pt)
             // ---- biting insects: standing water and warmth.
             val standing = land.flood[p] > 0f || wetland[p] > 0.1f || soilWater / LiveWater.SOIL_CAPACITY > 0.9f
             biting[p] = if (t > 15f && standing) min(500f, biting[p] + 60f * days * max(wetland[p], 0.3f)) else biting[p] * 0.7f
+            pt = Profile.lap("small life: biting insects", pt)
             // ---- rodents (a female raises some twenty young a year): logistic on food, losses to cold and deep snow; they eat ~10% of their mass a day.
             var r = rodents[p]
             val birth = if (t > 5f) 10f * years * food / (food + 0.2f) else 0f
@@ -232,6 +236,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             smallDead[p] += rodents[p] * death
             rodents[p] = r.coerceIn(0f, 3000f)
             litter[p] += FRASS * land.consume(p, LifeForm.HERB, rodents[p] * 0.1f * days / 1e6f)
+            pt = Profile.lap("small life: rodents", pt)
             // ---- reptiles and amphibians
             var h = herps[p]
             if (herpsActive(t, soilWater)) {
@@ -243,12 +248,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 insects[p] = max(0f, insects[p] - h * 0.05f * days)
             } else { smallDead[p] += h * 0.3f * years; h -= h * 0.3f * years }
             herps[p] = h.coerceIn(0f, 200f)
+            pt = Profile.lap("small life: reptiles and amphibians", pt)
             // ---- fire kills what cannot flee, on the share that burned.
             val b = land.burning[p]
             if (b > 0f) {
                 smallDead[p] += insects[p] * 0.8f * b + herps[p] * 0.7f * b + rodents[p] * 0.5f * b + pollinators[p] * 0.5f * b
                 insects[p] *= 1f - 0.8f * b; herps[p] *= 1f - 0.7f * b; rodents[p] *= 1f - 0.5f * b; pollinators[p] *= 1f - 0.5f * b
             }
+            pt = Profile.lap("small life: fire", pt)
             // ---- pollinators on flowers in spring; grazing leaves fewer flowers.
             val flowering = month in 3..7
             val flowers = (land.herb[p] + 0.5f * land.shrub[p]) * (if (flowering) 1f else 0.2f) * (1f - 0.5f * (1f - exp(-land.grazing[p] / 5f)))
@@ -260,14 +267,15 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             } else { smallDead[p] += po * min(0.5f, 2f * years); po -= po * min(0.5f, 2f * years) }
             pollinators[p] = po.coerceIn(0f, 100f)
             if (flowering) pollination[p] += 0.2f * (min(1f, pollinators[p] / 20f) - pollination[p])
-            stepGame(p, t, month, b)
+            pt = Profile.lap("small life: pollinators", pt)
+            stepGame(p, t, month, b); Profile.lap("small life: hares, hyrax, birds, tortoises, foxes, owls, eagles", pt)
         }
-        stepLocusts(weather)
+        Profile.part("small life: locusts") { stepLocusts(weather) }
         for (k in BIRDS.indices) away[k] += leaving[k].sumThenReset()
         lastMonth = month
-        stepVultures(weather)
+        Profile.part("small life: vultures") { stepVultures(weather) }
         if (++steps % 5 == 0) {
-            for (f in listOf(insects, rodents, herps, pollinators, hares, hyrax, tortoises, foxes) + bird) spread(f)
+            Profile.part("small life: spreading to neighbours") { for (f in listOf(insects, rodents, herps, pollinators, hares, hyrax, tortoises, foxes) + bird) spread(f) }
             spread(eagles) { eagleCrags[it] > 0f }
         }
     }

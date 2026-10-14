@@ -244,7 +244,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** One week, with the weather on the same places. */
     fun step(weather: Weather, date: Date) {
         for (p in 0 until n) fear[p] *= FEAR_KEEP
-        stepOutbreaks(); outbreakSalt++
+        Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
         deaths.clear()
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
@@ -255,7 +255,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Profile.time("water life") { water.step(weather) }
         Profile.time("residents: grazing") { graze(weather) }
         Profile.time("residents: births, deaths") { breedAndDie(weather, date) }
-        Profile.time("residents: moving") { shiftBands(weather); spill() }
+        Profile.time("residents: moving") { Profile.part("residents: moving up and down the slopes") { shiftBands(weather) }; Profile.part("residents: spreading to neighbouring hexes") { spill() } }
         Profile.time("soil and small life") { small.step(weather, carcassKg) }
     }
 

@@ -133,7 +133,7 @@ internal fun HexGroups.graze(weather: Weather) {
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
-    for (g in groups) if (g.alive && g.band != null) { bandWeek(g, date); cultureWeek(g) }
+    Profile.part("people: camps, tools, culture") { for (g in groups) if (g.alive && g.band != null) { bandWeek(g, date); cultureWeek(g) } }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
         if (!g.alive || !g.species.carnivore) continue
@@ -153,7 +153,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     val outcome = arrayOfNulls<Outcome>(list.size)
     java.util.stream.IntStream.range(0, list.size).parallel().forEach { k ->
         val g = list[k]
-        if (g.alive) outcome[k] = liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay))
+        if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
     }
     val born = ArrayList<HexGroup>()
     for ((k, o) in outcome.withIndex()) {
@@ -188,7 +188,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         } } // a young pack has no ground yet
     }
     groups += born
-    mergeAndPair(date)
+    Profile.part("groups: merging and pairing") { mergeAndPair(date) }
 }
 
 /** What a group's week left for others: carcasses (kg), births, deaths by cause, orphans, a split-off part (adults, young). */

@@ -55,7 +55,7 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         // over more of it, as the square root of its numbers against its kind's usual party.
         // And it searches less of it when the rain, haze or cover hide game (see [sight]).
         val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
-        forage(g, sweep, max(1, g.adults) * s.massKg, weather)
+        Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
     }
 }
 
@@ -368,12 +368,12 @@ internal fun HexGroups.meet(weather: Weather) {
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { meetings.merge("slipped away", 1, Int::plus); continue }
         count[e.a]++; count[e.b]++
         if (a.species.carnivore && b.species.carnivore) {
-            if (a.species.human && b.species.human) bandsMeet(a, b)
-            else if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) else enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
+            if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { bandsMeet(a, b) }
+            else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) } else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
         }
         else {
             val (hunter, hi, herd, ri) = if (a.species.carnivore) listOf(e.a, e.ai, e.b, e.bi) else listOf(e.b, e.bi, e.a, e.ai)
-            hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop)
+            Profile.part("meetings: hunters and herds") { hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop) }
         }
     }
     // Each group ends its week where it stopped: the same height band in that hex if it has one.

@@ -301,5 +301,6 @@ fun main(args: Array<String>) {
     }
     println("where a step's time goes:")
     println(inflation.ecology.Profile.report(years * stepsPerYear))
+    if (inflation.ecology.Profile.FINE) { println("finer parts (thread time, summed over cores):"); println(inflation.ecology.Profile.fineReport(years * stepsPerYear)) }
     println("a step of weather, water, plants and all animals: %.1f ms, of it settling meetings %.1f ms, the sense of direction %.1f ms".format(ns / 1e6 / (years * stepsPerYear), herds.meetNs / 1e6 / (years * stepsPerYear), (herds.bearings.updateNs + fauna.bearings.updateNs) / 1e6 / (years * stepsPerYear)))
 }

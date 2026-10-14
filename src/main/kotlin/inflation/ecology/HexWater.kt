@@ -227,6 +227,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val month = date.month
         val light = (Date(date.absoluteDay).dayLengthHours(38.0) / 12.0).toFloat()
         java.util.stream.IntStream.range(0, size).parallel().forEach { h ->
+            val pt = Profile.mark()
             if (waterKm2[h] > 0f) {
                 // Upwelling: the wind's drift is bent to the right; where it carries water off the coast, deep water wells up.
                 val wp = windPlace[h]
@@ -278,7 +279,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 dead[h] += fishDead + (1f - FISH_EFFICIENCY) * got * 1000f
                 flow("grown", grown, h); flow("died", fishDead, h)
                 if (shallow[h] > 0f) { val s = shellfish[h]; shellfish[h] = max(0f, s + 0.8f * years * s * (1f - s / max(shellCapacity(h), 1f))) }
-                stepSea(h, month)
+                Profile.lap("water: plankton, fish, shellfish", pt)
+                Profile.part("water: sea animals") { stepSea(h, month) }
             }
             // River fish: by the river's size and warmth; a nearly dry bed keeps only what survives in pools.
             if (land.meanFlow[h] >= RiverClass.STREAM.minDischarge && hw.land[h] > 0f) {
@@ -291,7 +293,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
         // Currents mix the water of neighbouring hexes: plankton and fish drift and spread.
         val before = fishTonnes()
-        for (f in listOf(phyto, zoo, fish, deep)) drift(f)
+        Profile.part("water: currents") { for (f in listOf(phyto, zoo, fish, deep)) drift(f) }
         // Shoals come inshore to spawn and feed in spring and early summer, and go back out in autumn.
         if (month in 3..6) shoal(true) else if (month in 8..10) shoal(false)
         nesting = month in NESTING
@@ -304,9 +306,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val diff = below - riverFish[h]
             if (diff > 0f && !(cascade[h] && (d < 0 || !cascade[d]))) riverFish[h] += 0.1f * diff
         }
-        spawningRun(date)
-        seaBirds()
-        if (date.dayOfMonth <= days) spreadSea()
+        Profile.part("water: spawning runs") { spawningRun(date) }
+        Profile.part("water: sea birds") { seaBirds() }
+        if (date.dayOfMonth <= days) Profile.part("water: sea animals spreading") { spreadSea() }
     }
 
     /** For each sea hex the sea hexes next to it nearer the shore; and how many lie seaward of each. */

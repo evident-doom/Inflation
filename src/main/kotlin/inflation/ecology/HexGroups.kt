@@ -172,13 +172,13 @@ class HexGroups(
         }
         // Plan and move, in parallel: each group's choice depends only on last week's world.
         val tPlan = System.nanoTime(); val cPlan = Profile.cpuNow()
-        valuePlaces()
+        Profile.part("choosing: valuing places for hunters") { valuePlaces() }
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
         java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k ->
             val g = groups[k]
             if (!g.alive) return@forEach
             val (p, path) = plan(g, weather, date, predatorKg)
-            choice[k] = p; paths[k] = path; times[k] = timetable(g.species, path)
+            choice[k] = p; paths[k] = path; times[k] = Profile.part("choosing: timetable") { timetable(g.species, path) }
         }
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < 0.5f) meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
@@ -195,11 +195,11 @@ class HexGroups(
         for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
         Profile.time("groups: grazing") { graze(weather) }
         Profile.time("groups: hunting") { hunt(visits, weather) }
-        burnOff(weather)
-        visitKin()
-        Profile.time("groups: ground, births, deaths") { mark(); settle(); demography(weather, date) }
+        Profile.part("people: burning off") { burnOff(weather) }
+        Profile.part("people: visiting kin") { visitKin() }
+        Profile.time("groups: ground, births, deaths") { Profile.part("hunters: marking ground") { mark() }; Profile.part("hunters: settling ground") { settle() }; demography(weather, date) }
         groups.removeIf { !it.alive }
-        remember(date)
+        Profile.part("herds: remembering places") { remember(date) }
     }
 
     /**
@@ -295,6 +295,13 @@ class HexGroups(
     internal fun ferocity(g: HexGroup) = g.band?.ferocity(g.species) ?: g.species.ferocity
 
     internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Pair<Int, IntArray> {
+        var pt = Profile.mark()
+        val r = planInner(g, weather, date, predatorKg) { name -> pt = Profile.lap(name, pt) }
+        Profile.lap("choosing: route", pt)
+        return r
+    }
+
+    private fun planInner(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray, lap: (String) -> Unit): Pair<Int, IntArray> {
         val s = g.species
         val here = hw.placeHex[g.place]
         // How far it will shift its ground this week. Most of a week's walking is within its range
@@ -339,6 +346,7 @@ class HexGroups(
                 if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
             }
         }
+        lap("choosing: reach (least-effort search)")
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
         val policy = policies[s]
         // (For a followed group: every place it weighed, and how it scored.)
@@ -449,7 +457,9 @@ class HexGroups(
                 if (score > bestScore) { bestScore = score; best = p }
             }
         }
+        lap("choosing: weighing places (hand-written score)")
         if (policy != null && candPlaces.isNotEmpty()) best = candPlaces[policy.choose(g, candFeats.toTypedArray(), candScores.toFloatArray())]
+        lap("choosing: network")
         if (seen != null) {
             fun where(p: Int) = "hex %d at %.0f m".format(hw.placeHex[p], hw.placeElevationM[p])
             val top = seen.sortedByDescending { it.second }.take(5)
