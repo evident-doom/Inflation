@@ -193,7 +193,15 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         side.add(JScrollPane(info), BorderLayout.NORTH)
         side.add(JScrollPane(groupView), BorderLayout.CENTER)
         side.add(JScrollPane(groupInfo), BorderLayout.SOUTH)
-        groupView.addListSelectionListener { showGroup() }
+        // A band picked in the list is followed from hex to hex at once (other groups when Follow is ticked).
+        groupView.addListSelectionListener { e ->
+            if (!e.valueIsAdjusting) {
+                val i = groupView.selectedIndex
+                val g = if (i in groupIds.indices) groups.groups.firstOrNull { it.id == groupIds[i] } else null
+                if (g != null && g.species.human && g.id != followId) { followId = g.id; groups.watched = g.id; followBox.isSelected = true }
+            }
+            showGroup()
+        }
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
         add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(bottom, BorderLayout.SOUTH)

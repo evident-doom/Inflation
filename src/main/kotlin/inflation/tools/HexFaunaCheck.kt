@@ -248,6 +248,16 @@ fun main(args: Array<String>) {
         println("     climate fit: " + fit())
         println("     land that suits / pull felt: " + drawn())
         println("     groups: " + herds.kinds.joinToString(", ") { "${it.name} ${herds.count(it)}" })
+        // How many groups, how big, how much of the land they cover, and how far each herd is from the nearest hunting pack.
+        run {
+            val live = herds.groups.filter { it.alive }
+            val hunterHexes = live.filter { it.species.carnivore && !it.species.human }.map { hw.placeHex[it.place] }.distinct()
+            println("     herds and packs (groups, mean size, hexes held of land hexes, herds' median km to the nearest pack): " + herds.kinds.joinToString(", ") { s ->
+                val gs = live.filter { it.species == s }
+                val km = if (s.carnivore || hunterHexes.isEmpty()) "" else gs.map { g -> val h = hw.placeHex[g.place]; hunterHexes.minOf { sim.hex.distanceKm(h, it) } }.sorted().let { if (it.isEmpty()) "" else ", %.0f km".format(it[it.size / 2]) }
+                "%s %d / %.0f / %.1f%%%s".format(s.name, gs.size, if (gs.isEmpty()) 0.0 else gs.sumOf { it.size }.toDouble() / gs.size, 100.0 * gs.map { hw.placeHex[it.place] }.distinct().size / (0 until sim.hex.size).count { hw.land[it] > 0.5f }, km)
+            })
+        }
         // This year's deaths of the resident herds, all kinds together, by cause.
         val residentNames = fauna.kinds.map { it.name }.toSet()
         val year = HashMap<String, Double>()
