@@ -229,7 +229,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
                 if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
             } else {
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                binomial(mothers, s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) * (if (s.human) Tuning.humanBirths else 1f) * (1f + GRANDMOTHERS * help) / stepsInSeason, r)
+                binomial(mothers, s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * Tuning.humanBirths else 1f) * (1f + GRANDMOTHERS * help) / stepsInSeason, r)
             }
             g.young += births
             bornNow = births

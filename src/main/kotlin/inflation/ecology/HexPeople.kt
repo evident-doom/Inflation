@@ -86,6 +86,8 @@ const val SETTLED_FERTILITY = 0.4f
 const val CAMP_FOULING = 0.02f
 /** People's deaths of thirst against an animal's at the same days without water. */
 const val HUMAN_THIRST = 0.3f
+/** People's births against the catalogue's rate: long nursing spaces births three and a half to four years apart. */
+const val HUMAN_BIRTHS = 0.8f
 
 /** What a band is: its skills, making skills, tools (0..1 of a full kit each), the tools it knows, its goods, and how long it has kept its camp. */
 class Band {
