@@ -126,15 +126,50 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         }
         if (plants > 0f) band?.practise(Forage.GATHER)
         val wantAll = g.dailyNeedKg * days * (d.meat + d.smallPrey + d.carrion + d.fruit + d.roots).coerceAtLeast(1e-6f)
-        var eaten = min(got, need) + gotSmall + gotScraps + plants
+        // Diet switching: what one part of the diet fell short by is made up from the others, each
+        // stretching to at most (1 + SWITCH) times its usual share: the rest of a big kill, more small
+        // game, more scavenging, more fruit. A generalist (jackal, wolf, leopard) gets through a lean
+        // spell that a specialist (cheetah, lion) does not.
+        var meatEaten = min(got, need)
+        var short = wantAll - (meatEaten + gotSmall + gotScraps + plants)
+        if (short > 0f) {
+            val more = min(got - meatEaten, min(short, SWITCH * need)); meatEaten += more; short -= more
+            if (short > 0f && smallWant > 0f) {
+                var extra = 0f; val cap = min(short, SWITCH * smallWant)
+                for (h in g.path) {
+                    if (extra >= cap) break
+                    val q = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
+                    val swept = min(land.areaKm2[q], sweptKm2(s) / g.path.size.coerceAtLeast(1))
+                    extra += this.small.catchSmall(q, (cap - extra) / swept * (g.band?.snares() ?: 1f), weather) * swept
+                }
+                gotSmall += extra; short -= extra
+            }
+            if (short > 0f && scraps > 0f) {
+                var extra = 0f; val cap = min(short, SWITCH * scraps)
+                for (h in g.path) {
+                    if (extra >= cap) break
+                    val q = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
+                    val swept = min(land.areaKm2[q], sweptKm2(s) / g.path.size.coerceAtLeast(1))
+                    extra += this.small.scavenge(q, min((cap - extra) / (swept * 1e6f), 0.5f * this.small.carrion[q])) * swept * 1e6f
+                }
+                gotScraps += extra; short -= extra
+            }
+            if (short > 0f && d.fruit + d.roots > 0f && !s.human) {
+                val m2 = land.areaKm2[g.place] * 1e6f
+                val cap = min(short, SWITCH * g.dailyNeedKg * days * (d.fruit + d.roots)) / m2
+                val extra = (fauna.food.take(fauna.food.fruit, g.place, cap * d.fruit / (d.fruit + d.roots)) + fauna.food.take(fauna.food.roots, g.place, cap * d.roots / (d.fruit + d.roots))) * m2
+                plants += extra; short -= extra
+            }
+        }
+        var eaten = meatEaten + gotSmall + gotScraps + plants
         // What each hunting kind's diet asked for this week and what each part of it brought (for the diet line in the check).
         hunting.merge("${s.name}:diet asked, kg", (g.dailyNeedKg * days).toInt(), Int::plus)
-        hunting.merge("${s.name}:diet meat, kg", min(got, need).toInt(), Int::plus)
+        hunting.merge("${s.name}:diet meat, kg", meatEaten.toInt(), Int::plus)
         hunting.merge("${s.name}:diet small prey, kg", gotSmall.toInt(), Int::plus)
         hunting.merge("${s.name}:diet carrion, kg", gotScraps.toInt(), Int::plus)
         hunting.merge("${s.name}:diet plants, kg", plants.toInt(), Int::plus)
-        if (s.human) { hunting.merge("${s.name}:meat eaten, kg", (min(got, need) + gotSmall + gotScraps).toInt(), Int::plus); hunting.merge("${s.name}:plants eaten, kg", plants.toInt(), Int::plus) }
-        var leftMeat = max(0f, got - need)
+        if (s.human) { hunting.merge("${s.name}:meat eaten, kg", (meatEaten + gotSmall + gotScraps).toInt(), Int::plus); hunting.merge("${s.name}:plants eaten, kg", plants.toInt(), Int::plus) }
+        var leftMeat = max(0f, got - meatEaten)
         if (band != null) {
             // A band keeps a larder: meat it could not eat is dried, and in good weeks it gathers more
             // nuts, acorns, seeds and roots than it needs and stores them; in lean weeks it lives on them.
@@ -158,7 +193,7 @@ internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: 
         // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
         val p = g.place
         small.carrion[p] += leftMeat / (land.areaKm2[p] * 1e6f)
-        small.dung[p] += HexSmallLife.DUNG * (min(got, need) + gotSmall + gotScraps) / (land.areaKm2[p] * 1e6f)
+        small.dung[p] += HexSmallLife.DUNG * (meatEaten + gotSmall + gotScraps) / (land.areaKm2[p] * 1e6f)
     }
 }
 

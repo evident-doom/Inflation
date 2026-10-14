@@ -246,6 +246,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // Each kind gets its share, as far as it can get at it; nourishment from what it ate.
             val got = FloatArray(kinds.size); val short = FloatArray(kinds.size)
             var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f; var wantStraw = 0f
+            // What is left over once every kind has its usual share, for diet switching.
+            var spareG = max(0f, grass - wantGrass); var spareB = max(0f, browse - wantBrowse)
+            var spareF = max(0f, food.fruit[p] - wantFruit); var spareR = max(0f, food.roots[p] - wantRoots)
             for ((k, s) in kinds.withIndex()) {
                 if (need[k] <= 0f) continue
                 val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
@@ -255,6 +258,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 eatG += need[k] * fill * d.grass / total * g; eatB += need[k] * fill * d.browse / total * b
                 eatF += need[k] * d.fruit / total * f; eatR += need[k] * d.roots / total * r
                 got[k] = (d.grass / total * g + d.browse / total * b) * fill * quality + d.fruit / total * f + d.roots / total * r
+                // Diet switching: a food that fell short is made up from what the others left over, each
+                // to at most (1 + SWITCH) times its usual share.
+                var gap = 1f - got[k]
+                if (gap > 0f && d.browse > 0f) { val x = min(min(gap, SWITCH * d.browse / total * fill * quality), avail[k] * spareB / need[k] * quality); spareB -= x * need[k] / quality; eatB += x * need[k] / quality; got[k] += x; gap -= x }
+                if (gap > 0f && d.grass > 0f && !snowed) { val x = min(min(gap, SWITCH * d.grass / total * fill * quality), avail[k] * spareG / need[k] * quality); spareG -= x * need[k] / quality; eatG += x * need[k] / quality; got[k] += x; gap -= x }
+                if (gap > 0f && d.fruit > 0f) { val x = min(min(gap, SWITCH * d.fruit / total), avail[k] * spareF / need[k]); spareF -= x * need[k]; eatF += x * need[k]; got[k] += x; gap -= x }
+                if (gap > 0f && d.roots > 0f) { val x = min(min(gap, SWITCH * d.roots / total), avail[k] * spareR / need[k]); spareR -= x * need[k]; eatR += x * need[k]; got[k] += x; gap -= x }
                 // A shortfall is made up with the standing straw, as far as there is any.
                 short[k] = need[k] * max(0f, 1f - got[k])
                 wantStraw += short[k] * GUT_FILL

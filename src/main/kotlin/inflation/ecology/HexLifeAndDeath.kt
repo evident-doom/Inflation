@@ -76,10 +76,19 @@ internal fun HexGroups.graze(weather: Weather) {
         val browse = land.consume(p, LifeForm.SHRUB, min(wantBrowse, reach * land.shrub[p]))
         val fruit = food.take(food.fruit, p, want * access * d.fruit / total)
         val roots = food.take(food.roots, p, want * access * d.roots / total)
+        // Diet switching: a food that fell short is made up from the others, each to at most (1 + SWITCH)
+        // times its usual share (an ostrich out of fruit season picks more shoots and leaves).
+        val q = land.nourishment(p)
+        var gap = want - ((grass + browse) * q + fruit + roots)
+        var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
+        if (gap > 0f && d.browse > 0f) { browse2 = land.consume(p, LifeForm.SHRUB, min(gap / q, min(SWITCH * wantBrowse, reach * land.shrub[p] - browse).coerceAtLeast(0f))); gap -= browse2 * q }
+        if (gap > 0f && d.grass > 0f && !snowed) { grass2 = land.consume(p, LifeForm.HERB, min(gap / q, min(SWITCH * want * fill * access * d.grass / total, reach * land.herb[p] - grass).coerceAtLeast(0f))); gap -= grass2 * q }
+        if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, min(gap, SWITCH * want * access * d.fruit / total)); gap -= fruit2 }
+        if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, min(gap, SWITCH * want * access * d.roots / total)); gap -= roots2 }
         // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
-        val short = max(0f, want * (d.grass + d.browse) / total - (grass + browse) * land.nourishment(p))
+        val short = max(0f, gap)
         val straw = food.take(food.straw, p, short * HexFauna.GUT_FILL * access)
-        small.dung[p] += HexSmallLife.DUNG * (grass + browse + fruit + roots + straw)
+        small.dung[p] += HexSmallLife.DUNG * (grass + browse + fruit + roots + straw + grass2 + browse2 + fruit2 + roots2)
         // On the way it beat down the plants and dropped the seed of the fruit it ate.
         val band = hw.placeBand[p]
         for (h in g.path) {
@@ -88,9 +97,9 @@ internal fun HexGroups.graze(weather: Weather) {
             if (fruit > 0f) land.animalSeed[q] = min(1f, land.animalSeed[q] + fruit * land.areaKm2[p] * 1e6f / g.path.size / land.areaKm2[q] / HexFauna.SEED_KG)
         }
         // Grass and browse nourish fully only when green; fruit and roots keep their value.
-        val got = (grass + browse) * land.nourishment(p) + fruit + roots + min(short, straw * HexFood.roughage(s))
+        val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + min(short, straw * HexFood.roughage(s))
         g.fed = (got / want.coerceAtLeast(1e-9f)).coerceIn(0f, 1f)
-        land.grazing[p] += grass * 1e6f / days; land.browsing[p] += browse * 1e6f / days; land.rooting[p] += roots * 1e6f / days
+        land.grazing[p] += (grass + grass2) * 1e6f / days; land.browsing[p] += (browse + browse2) * 1e6f / days; land.rooting[p] += (roots + roots2) * 1e6f / days
     }
 }
 

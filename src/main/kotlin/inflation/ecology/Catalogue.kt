@@ -149,7 +149,8 @@ object Catalogue {
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 8, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 4f,
-        daysWithoutWater = 3, waterFromFood = 0.3f,
+        // Wild asses of the desert steppe go three or four days between drinks, and get water from green grass.
+        daysWithoutWater = 4, waterFromFood = 0.4f,
         birthMonth = 5, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2f,
         backgroundMortality = 0.05f, snowLimitMm = 150f, flightKm = 1f, dangerToHumans = 0.1f,
         products = Products(meat = 110f, fat = 8f, hide = 15f, bone = 25f, sinew = 2f),
@@ -378,7 +379,8 @@ object Catalogue {
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 10, maxGroupSize = 25,
         dailyTravelKm = 12f, maxDailyTravelKm = 50f, senseKm = 3f,
-        daysWithoutWater = 2, waterFromFood = 0.3f,
+        // Steppe horses drink once a day or two but go three days between waterholes in a pinch.
+        daysWithoutWater = 3, waterFromFood = 0.3f,
         birthMonth = 6, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.06f, snowLimitMm = 250f, flightKm = 0.8f, dangerToHumans = 0.1f,
         products = Products(meat = 140f, fat = 10f, hide = 18f, bone = 30f, sinew = 2f),

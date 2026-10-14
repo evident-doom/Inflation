@@ -10,6 +10,8 @@ const val SNOW_EFFORT_MM = 150f
 const val AUTUMN_FAT = 0.8f
 /** Share of its fill above which a group lays on reserves rather than drawing on them (a week's food is never exactly what it needs). */
 const val WELL_FED = 0.9f
+/** How far a part of a group's diet stretches to make up for another that fell short: to (1 + this) times its usual share. */
+const val SWITCH = 1f
 /** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */
 const val MARK_KEEP = 0.85f
 const val MARK_FRESH = 0.3f
