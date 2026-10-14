@@ -371,7 +371,9 @@ class HexGroups(
         val every = if (s.carnivore) 2 else Tuning.contentWeeks
         if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
         // (A big herd moves more slowly than a small one: it waits for its stragglers.)
-        val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS * (if (s.carnivore) 1f else bandsIn(g).pow(-BIG_HERD_SLOW))
+        // (A starving herd on eaten-out ground goes as far as it must, up to its whole week's travel.)
+        val shiftDays = if (restless && !s.carnivore) SHIFT_DAYS + (days - SHIFT_DAYS) * (1f - g.fed / 0.7f).coerceIn(0f, 1f) else SHIFT_DAYS
+        val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * shiftDays * (if (s.carnivore) 1f else bandsIn(g).pow(-BIG_HERD_SLOW))
         val ki = kindIndex[s] ?: 0
         val cross = hex.crossings[Catalogue.travel(s).ordinal]
         // Least effort to each hex within reach.
