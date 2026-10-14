@@ -42,6 +42,12 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         for (e in 0 until IDENTITY) into[i++] = identity[s.index * IDENTITY + e]
     }
 
+    /** Writes a candidate's whole input for kind [s]: its place features, then the kind's part. */
+    fun fill(s: Species, features: FloatArray, into: FloatArray) {
+        features.copyInto(into, 0, 0, min(features.size, HexFeatures.SIZE))
+        kindInputs(s, into, HexFeatures.SIZE)
+    }
+
     fun copy() = SharedMover(net.copy(), identity.copyOf())
 
     fun save(file: File) {
@@ -65,7 +71,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
     }
 }
 
-/** One recorded choice: the candidates' inputs (rows of [SharedMover.inputs]), the one taken and its log-probability, who chose, and when. */
+/** One recorded choice: the candidates' place features (the kind's part is added when learning), the one taken and its log-probability, who chose, and when. */
 class Choice(val kind: Species, val groupId: Int, val size: Int, val week: Int, val inputs: Array<FloatArray>, val taken: Int, val logp: Float) {
     /** What followed: the group's (and its offshoots') numbers over the next weeks against its numbers now, discounted. */
     var ret = 0f
@@ -78,14 +84,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): Int {
         val b = buffers.get()
         val n = features.size
-        val rows = Array(n) { k -> FloatArray(mover.inputs).also { r -> features[k].copyInto(r, 0, 0, min(features[k].size, HexFeatures.SIZE)); mover.kindInputs(g.species, r, HexFeatures.SIZE) } }
-        val scores = FloatArray(n) { k -> rows[k].copyInto(b.a[0]); mover.net.forward(b) }
+        val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], b.a[0]); mover.net.forward(b) }
         if (record == null) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
         val p = softmax(scores)
         val rnd = ThreadLocalRandom.current()
         var u = rnd.nextFloat(); var taken = n - 1
         for (k in 0 until n) { u -= p[k]; if (u <= 0f) { taken = k; break } }
-        if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), rows, taken, ln(max(p[taken], 1e-8f)))
+        if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f)))
         return taken
     }
 }
@@ -110,7 +115,7 @@ internal fun softmax(x: FloatArray): FloatArray {
  * few rounds the networks play the hand-written behaviour on fixed worlds, kind by kind; a kind that
  * does worse than with the last version it did well with keeps that version (in `deployed/`).
  *
- * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N]
+ * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N]
  */
 object HexPpo {
     /**
@@ -126,7 +131,7 @@ object HexPpo {
     const val CLIP = 0.2f
     const val ENTROPY = 0.01f
     /** Choices recorded a year for each kind in each world. */
-    const val PER_KIND_YEAR = 1500
+    var PER_KIND_YEAR = 1500
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -151,6 +156,7 @@ object HexPpo {
                 "--rate" -> rate = args[++k].toFloat()
                 "--check" -> checkEvery = args[++k].toInt()
                 "--check-seeds" -> checkSeeds = args[++k].toInt()
+                "--per-kind" -> PER_KIND_YEAR = args[++k].toInt()
                 else -> error("unknown argument ${args[k]}")
             }
             k++
@@ -178,6 +184,7 @@ object HexPpo {
             val choices = (0 until worlds).toList().parallelStream().map { w ->
                 play(WorldConfig(seed = 50_000L + round * 100L + w, widthKm = size, heightKm = size), years, kinds, models)
             }.toList()
+            val tPlay = System.nanoTime()
             val all = choices.flatMap { it.first }
             // ---- judge each choice against its kind's own average
             val byKind = all.groupBy { it.kind }
@@ -208,7 +215,7 @@ object HexPpo {
                 stats.append(ROLES[mi]).append(' ').append(mine.size).append(" choices; ")
             }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
-            val line = "round %d  %.0f s  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, stats, returns)
+            val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns)
             println(line); log.appendText(line + "\n")
             // ---- check against the hand-written behaviour, and keep each kind's last good version
             if (round % checkEvery == checkEvery - 1) {
@@ -247,7 +254,7 @@ object HexPpo {
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
                 if (ThreadLocalRandom.current().nextFloat() < (rates[g.species] ?: 0f)) {
                     val m = models[role(g.species)]
-                    kept += Shown(g.species, Array(f.size) { k -> FloatArray(m.inputs).also { r -> f[k].copyInto(r, 0, 0, min(f[k].size, HexFeatures.SIZE)); m.kindInputs(g.species, r, HexFeatures.SIZE) } }, b.copyOf())
+                    kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf())
                 }
                 best
             }
@@ -269,7 +276,7 @@ object HexPpo {
                         for (c in part) {
                             val n = c.inputs.size
                             while (bufs.size < n) bufs += model.net.buffers()
-                            val p = softmax(FloatArray(n) { k -> c.inputs[k].copyInto(bufs[k].a[0]); model.net.forward(bufs[k]) })
+                            val p = softmax(FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], bufs[k].a[0]); model.net.forward(bufs[k]) })
                             val q = softmax(FloatArray(n) { IMITATE_SHARPNESS * c.scores[it] })
                             val w = 1f / (kindsHere.size * counts.getValue(c.kind))
                             for (k in 0 until n) {
@@ -353,7 +360,7 @@ object HexPpo {
         for (c in part) {
             val n = c.inputs.size
             while (bufs.size < n) bufs += model.net.buffers()
-            val scores = FloatArray(n) { k -> c.inputs[k].copyInto(bufs[k].a[0]); model.net.forward(bufs[k]) }
+            val scores = FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], bufs[k].a[0]); model.net.forward(bufs[k]) }
             val p = softmax(scores)
             val logp = ln(max(p[c.taken], 1e-8f))
             val ratio = exp(logp - c.logp)
