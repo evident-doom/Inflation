@@ -314,8 +314,8 @@ private fun HexGroups.marryOut(a: HexGroup, ba: Band, b: HexGroup, bb: Band) {
     val fromB = FloatArray(bb.holders.size) { i -> if (bb.holders[i] > 0f) min(nb, nb * bb.holders[i] / b.adults) else 0f }
     for (i in ba.skills.indices) {
         val la = ba.skills[i]; val lb = bb.skills[i]
-        if (fromB[i] > 0f) { if (!ba.knowsSkill[i]) { ba.knowsSkill[i] = true; ba.skills[i] = 0f }; ba.skills[i] = max(ba.skills[i], lb - TRANSMIT_LOSS); ba.holders[i] = max(0f, ba.holders[i]) + fromB[i] }
-        if (fromA[i] > 0f) { if (!bb.knowsSkill[i]) { bb.knowsSkill[i] = true; bb.skills[i] = 0f }; bb.skills[i] = max(bb.skills[i], la - TRANSMIT_LOSS); bb.holders[i] = max(0f, bb.holders[i]) + fromA[i] }
+        if (fromB[i] > 0f) { if (!ba.knowsSkill[i]) { ba.knowsSkill[i] = true; ba.skills[i] = 0f; ba.lastUsed[i] = ba.weeks }; ba.skills[i] = max(ba.skills[i], lb - TRANSMIT_LOSS); ba.holders[i] = max(0f, ba.holders[i]) + fromB[i] }
+        if (fromA[i] > 0f) { if (!bb.knowsSkill[i]) { bb.knowsSkill[i] = true; bb.skills[i] = 0f; bb.lastUsed[i] = bb.weeks }; bb.skills[i] = max(bb.skills[i], la - TRANSMIT_LOSS); bb.holders[i] = max(0f, bb.holders[i]) + fromA[i] }
         if (ba.holders[i] > 0f) ba.holders[i] = max(0f, ba.holders[i] - fromA[i])
         if (bb.holders[i] > 0f) bb.holders[i] = max(0f, bb.holders[i] - fromB[i])
     }

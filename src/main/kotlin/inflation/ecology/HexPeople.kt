@@ -430,7 +430,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     }
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
     for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) && s.needs.let { it == null || (b.knowsSkill[it.ordinal] && b.skills[it.ordinal] >= NEEDS_LEVEL) } && rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
-        b.knowsSkill[s.ordinal] = true; meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
+        b.knowsSkill[s.ordinal] = true; b.lastUsed[s.ordinal] = b.weeks; meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
@@ -646,7 +646,8 @@ internal fun HexGroups.teach(a: Band, b: Band, understood: Float, aDoesBetter: F
         val prestige = (1f + PRESTIGE * (if (from === a) aDoesBetter else -aDoesBetter)).coerceIn(0.2f, 2f)
         if (rnd.nextFloat() >= Skill.entries[k].teach * TEACH * (0.5f + 0.5f * understood) * alike * prestige) continue
         // (A meeting shows that a way exists; the skill itself comes only with people who stay to teach it.)
-        to.knowsSkill[k] = true
+        // (Newly learned, it counts as fresh: it is lost only if it then goes unused for years.)
+        to.knowsSkill[k] = true; to.lastUsed[k] = to.weeks
         meetings.merge("band learned ${Skill.entries[k].name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
 }
