@@ -189,7 +189,4 @@ object Allometry {
      * densities scatter an order of magnitude around it.
      */
     fun herbivoreDensityPerKm2(massKg: Float): Float = 10f.pow(4.23f) * (massKg * 1000f).pow(-0.75f)
-
-    /** A plant-eater's usual density, head per km²: its own figure where it has one, else by its size (Damuth). */
-    fun usualDensity(s: Species): Float = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else herbivoreDensityPerKm2(s.massKg)
 }

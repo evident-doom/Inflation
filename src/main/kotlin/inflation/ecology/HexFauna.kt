@@ -341,9 +341,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val cold = if (sleeping) 0f else s.coldC(t, date.month) / 10f * COLD_DEATHS
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
                 // lean season binds, and then hunger and sickness together hold them.
-                // (Contacts, and so infections, grow with density against the kind's usual one, by its size.)
-                val crowd = (a[p] + y[p]) / Allometry.usualDensity(s)
-                val disease = DISEASE * crowd * years * (1f + MALNOURISHED * (1f - f[p]))
+                val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
+                val crowd = (a[p] + y[p]) / (CROWDED * usual)
+                val disease = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - f[p]))
                 val (fireA, floodA, snowA0) = calamities(s, p, weather, false)
                 val (fireY, floodY, snowY0) = calamities(s, p, weather, true)
                 val snowA = if (sleeping) 0f else snowA0; val snowY = if (sleeping) 0f else snowY0
@@ -386,7 +386,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val m = weather.date.month
         val discomfort = ((1f - s.foresight) * s.discomfortC(weather.temperature[p], m) + s.foresight * s.discomfortC(weather.forecastTemp(p), m)) / 10f
         val snowed = if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f
-        return foodFor(s, p) * suits(s, p) * tether(s, p) * snowed / (1f + heads / Allometry.usualDensity(s)) / (1f + discomfort)
+        return foodFor(s, p) * suits(s, p) * tether(s, p) * snowed / (1f + heads / CROWD) / (1f + discomfort)
     }
 
     /** Within a hex, a share of each kind moves between neighbouring height bands towards the better one. */
@@ -439,7 +439,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val e = cross[h * 6 + d]
                     if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
-                    ws[d] = ease * (foodFor(s, q) * land.nourishment(q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / Allometry.usualDensity(s)) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
+                    ws[d] = ease * (foodFor(s, q) * land.nourishment(q) * suits(s, q) * tether(s, q) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     total += ws[d]
                 }
                 if (total <= 0f) continue
@@ -461,11 +461,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         /** How strongly a kind is drawn to the ground it prefers. */
         const val HABITAT = 3f
         const val REACH_DORMANT = 0.002f
-        /** Density, as a multiple of a kind's usual (by its size), at which disease kills a [DISEASE] share a year of the well fed. */
-        const val CROWDED = 1f
+        /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
+        const val CROWDED = 10f
         /** How many times more disease strikes a herd that is not fed at all than a well-fed one. */
         const val MALNOURISHED = 4f
-        const val DISEASE = 0.03f
+        const val DISEASE = 0.3f
         /** Share of tree biomass that is browse within reach, and that is fruit and mast. */
         const val BROWSE_OF_TREE = 0.03f
         const val FRUIT_OF_TREE = 0.01f
