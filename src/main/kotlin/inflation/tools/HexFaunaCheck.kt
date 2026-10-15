@@ -306,6 +306,8 @@ fun main(args: Array<String>) {
             println("     paths: %d hexes with a worn path (%.1f%% of land); ruggedness where worn %.2f against %.2f overall; mean wear %.3f".format(
                 worn.size, 100.0 * worn.size / landHexes.size.coerceAtLeast(1), worn.map { rug(it).toDouble() }.average().takeIf { !it.isNaN() } ?: 0.0,
                 landHexes.map { rug(it).toDouble() }.average(), ps.average()))
+            val (fw, fa) = herds.routes.fordShare()
+            println("     routes: %s; worn ways crossing rivers %.1f%% against %.1f%% of all borders".format(herds.routes.summary(), 100 * fw, 100 * fa))
         }
         // How many groups, how big, how much of the land they cover, and how far each herd is from the nearest hunting pack.
         run {

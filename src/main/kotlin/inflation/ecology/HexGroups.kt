@@ -251,7 +251,7 @@ class HexGroups(
         val t0 = System.nanoTime()
         Profile.time("groups: meetings") { meet(weather) }
         meetNs += System.nanoTime() - t0
-        Profile.part("groups: wearing paths") { wearPaths() }
+        Profile.part("groups: wearing paths") { wearPaths(); routes.week() }
         // Who passed through which hex this week.
         val visits = HashMap<Int, ArrayList<HexGroup>>()
         for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
@@ -325,6 +325,9 @@ class HexGroups(
     }
     /** The open water between hexes [a] and [b], km, if a swimmer can cross from one to the other; else infinite. */
     fun seaGap(a: Int, b: Int): Float { val l = seaLinks[a]; for (i in l.indices) if (l[i] == b) return seaGaps[a][i]; return Float.POSITIVE_INFINITY }
+
+    /** The worn paths read as a graph of landmarks and the legs between them. */
+    val routes = HexRoutes(this)
 
     /** How worn the busiest path through hex [h] is. */
     fun pathAt(h: Int): Float { var m = 0f; for (d in 0 until 6) m = max(m, paths[h * 6 + d]); return m }

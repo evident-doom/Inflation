@@ -206,6 +206,9 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
             val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next
         }
         meetings.merge("bands told of country", 1, Int::plus)
+        // And of the ways they know further off: landmarks, and the legs between those they know.
+        val toldWays = routes.tell(ba, bb, h0) + routes.tell(bb, ba, h0)
+        if (toldWays > 0) meetings.merge("bands told of routes", 1, Int::plus)
         // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
         // takes up the other's (the more they are close, the likelier).
         val hMeet = hw.placeHex[a.place]; val wk = (weatherNow.date.absoluteDay / days).toInt(); val sMeet = PlaceMemory.seasonOf(weatherNow.date.month)
@@ -397,7 +400,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
         val here = hw.placeHex[g.place]
         for (w in b.known.indices) { var bits = b.known[w]; while (bits != 0L) { val i = java.lang.Long.numberOfTrailingZeros(bits); bits = bits and (bits - 1)
             val h = w * 64 + i
-            if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f) b.known[w] = b.known[w] and (1L shl i).inv() } }
+            if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
     }
     val years = days / Date.DAYS_PER_YEAR.toFloat()
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
