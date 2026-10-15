@@ -10,6 +10,7 @@ import java.util.PriorityQueue
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -219,6 +220,9 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // A band that keeps the old way leaves a camp where someone died.
         if (s.human && o.deaths > 0) g.band?.let { b -> if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) { b.unluckyHex = hw.placeHex[g.place]; b.unluckyWeeks = UNLUCKY_WEEKS; note(g) { "left the camp where its dead lie" } } }
         // A band that buries its dead buries them where it is: its ancestors' place.
+        // Where a beast took one of them, the band remembers the place as dangerous.
+        if (s.human && o.causes.any { it.first.startsWith("taken by") && it.second > 0 })
+            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.danger, 1f)
         if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.dead, o.deaths.toFloat())
             land.burials[g.place] += o.deaths.toFloat()
@@ -302,6 +306,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val exposure = g.band?.let { min(0.9f, EXPOSURE * it.exposure(weather.temperature[g.place]) * days / 7f) } ?: 0f
         val cold = (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: discomfort(s, g.place, weather)) * 0.02f
         val fouled = campFouling(g) * years
+        // Beasts of prey about: now and then one takes a gatherer, a child or an old one alone.
+        val (stalked, stalker) = if (s.human && band != null) stalkedBy(g, band, kinNow) else 0f to ""
         // Vipers and scorpions, out in the warm months.
         val venom = if (s.human && weather.temperature[g.place] > 18f) VENOM * years else 0f
         // Children of a closed band are inbred; medicine saves some of the sick and wounded.
@@ -350,9 +356,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val eagle = if (!s.carnivore && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
         val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
-        val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA).coerceIn(0f, 0.9f)
+        val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked).coerceIn(0f, 0.9f)
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
-        val py = ((healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
+        val py = ((healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED * stalked) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
         // Elders die as the others do (their share of the adults who died), and of old age besides.
         var oldAge = 0
@@ -369,7 +375,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // The dead lie where they fell, for the scavengers and the soil.
         var carrion = (da + oldAge + 0.3f * dy) * s.massKg
         // The week's deaths are shared among the causes by how much each weighed ("other": age, accidents, ordinary illness).
-        val hazards = listOf("other" to healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, "hunger" to hunger, "cold" to cold, "exposure" to exposure, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "snakes and scorpions" to venom, "inbreeding" to inbred)
+        val hazards = listOf("other" to healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, "hunger" to hunger, "cold" to cold, "exposure" to exposure, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "snakes and scorpions" to venom, "inbreeding" to inbred, "taken by $stalker" to stalked)
         var left = da + dy; var weight = hazards.sumOf { it.second.toDouble() }.toFloat()
         val causes = ArrayList<Pair<String, Int>>()
         for ((name, h) in hazards) {
@@ -534,3 +540,51 @@ internal fun HexGroups.remember(date: Date) {
         }
     }
 }
+
+/**
+ * The yearly-scaled share of a band taken by beasts of prey this week, and the beast most to blame:
+ * lions, leopards, bears, wolves and hyenas that range its hex now and then take one who is alone
+ * at the gathering, a child, an old one. The thicker the cover the likelier; a fire at night, dogs,
+ * lookouts, company and an eye for sign (tracking) keep them off. No set battle: the beasts take
+ * the unwary, not armed men.
+ */
+internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int>): Pair<Float, String> {
+    val h = hw.placeHex[g.place]; val p = g.place
+    val hexKm2 = (hex.hexKm * hex.hexKm * 0.87).toFloat()
+    var pressure = 0f; var worst = ""; var worstP = 0f
+    for (k in kinds) {
+        val w = MAN_EATERS[k.name] ?: continue
+        val heads = kinNow[k.index.toLong() * hex.size + h] ?: continue
+        val v = w * heads * k.massKg / hexKm2
+        pressure += v; if (v > worstP) { worstP = v; worst = k.name }
+    }
+    for ((ki, k) in fauna.kinds.withIndex()) {
+        val w = MAN_EATERS[k.name] ?: continue
+        val v = w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg
+        pressure += v; if (v > worstP) { worstP = v; worst = k.name }
+    }
+    if (pressure <= 0f) return 0f to ""
+    val cover = 0.5f + land.cover(p)
+    val guard = (1f - FIRE_GUARD * b.fire) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
+    val company = (STALKED_BAND / max(1, g.size).toFloat()).coerceIn(0.5f, 2f).pow(0.3f)
+    val sign = b.lapse(Skill.TRACK).pow(0.5f)
+    val rate = STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * years
+    // (Where one was taken the band remembers the danger.)
+    return rate to worst
+}
+
+/**
+ * Beasts that take people, by how readily (leopards most, then lions; bears, wolves and hyenas
+ * rarely); yearly share of people they take at most where they are thick, from the unwary in thick
+ * cover with no fire, dogs or lookouts; density of beast flesh, kg/km² weighted, at which they take
+ * half that; a band size the company factor is set for; how much a fire at night, dogs and lookouts
+ * each keep off; how much more often children are taken.
+ */
+val MAN_EATERS = mapOf("leopard" to 1.2f, "lion" to 1f, "brown bear" to 0.4f, "wolf" to 0.3f, "striped hyena" to 0.3f)
+const val STALKED = 0.02f
+const val STALKED_HALF = 3f
+const val STALKED_BAND = 25f
+const val FIRE_GUARD = 0.5f
+const val DOGS_GUARD = 0.5f
+const val LOOKOUTS_GUARD = 0.3f
+const val YOUNG_STALKED = 2f
