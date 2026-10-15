@@ -43,7 +43,37 @@ class World(
         /** Smallest lake kept, km²: shallower hollows are filled. */
         const val MIN_LAKE_KM2 = 6.0
 
-        fun generate(cfg: WorldConfig, log: (String) -> Unit = {}): World {
+        fun generate(cfg: WorldConfig, made: Landform? = null, log: (String) -> Unit = {}): World {
+            // The lie of the land and its rocks (the slow part): as given, else as kept on disk from an
+            // earlier run with the same settings and landform code, else made now (and kept).
+            val land = made ?: inflation.ecology.HexSnapshot.LandformCache.load(cfg, log)
+            val grid = land.grid; val noise = Noise(cfg.seed)
+            val tect = land.tectonics; val volcanoes = land.volcanoes; val elevation = land.elevation; val geology = land.geology
+            val sea = seaMask(grid, elevation)
+
+            log("climate")
+            val climate = Climate.generate(grid, cfg, elevation, sea, noise)
+            log("rivers, lakes and floodplains")
+            var water = SurfaceWater.generate(grid, elevation, sea, climate)
+            if (Floodplain.planeValleyFloors(grid, elevation, sea, water, geology.sediment)) {
+                water = SurfaceWater.generate(grid, elevation, sea, climate)
+            }
+            val floodplain = Floodplain.generate(grid, elevation, sea, water)
+            depositSediments(grid, sea, geology, water, floodplain)
+
+            log("biomes and soils")
+            val biome = Biomes.classify(grid, elevation, sea, climate, water, floodplain)
+            val soil = Biomes.soilFertility(grid, elevation, sea, geology, climate)
+            return World(cfg, grid, tect, volcanoes, elevation, sea, geology, climate, water, floodplain, biome, soil)
+        }
+
+
+        /**
+         * The lie of the land and its rocks: tectonics, volcanoes, bedrock, erosion and sediment, the
+         * recent warping and the young volcanoes. It does not depend on the climate, so it can be kept
+         * and reused while the weather is worked on (see [inflation.ecology.HexSnapshot.LandformCache]).
+         */
+        fun landform(cfg: WorldConfig, log: (String) -> Unit = {}): Landform {
             val grid = Grid(cfg.width, cfg.height, cfg.cellKm)
             val noise = Noise(cfg.seed)
 
@@ -68,22 +98,7 @@ class World(
             youngDeformation(grid, tect, noise, elevation)
             Volcanism.build(grid, elevation, volcanoes, young = true, noise)
             fillPuddles(grid, elevation)
-            val sea = seaMask(grid, elevation)
-
-            log("climate")
-            val climate = Climate.generate(grid, cfg, elevation, sea, noise)
-            log("rivers, lakes and floodplains")
-            var water = SurfaceWater.generate(grid, elevation, sea, climate)
-            if (Floodplain.planeValleyFloors(grid, elevation, sea, water, geology.sediment)) {
-                water = SurfaceWater.generate(grid, elevation, sea, climate)
-            }
-            val floodplain = Floodplain.generate(grid, elevation, sea, water)
-            depositSediments(grid, sea, geology, water, floodplain)
-
-            log("biomes and soils")
-            val biome = Biomes.classify(grid, elevation, sea, climate, water, floodplain)
-            val soil = Biomes.soilFertility(grid, elevation, sea, geology, climate)
-            return World(cfg, grid, tect, volcanoes, elevation, sea, geology, climate, water, floodplain, biome, soil)
+            return Landform(grid, tect, volcanoes, elevation, geology)
         }
 
         /** Cells at or below sea level connected to a map edge that is itself below sea level. */
@@ -177,3 +192,6 @@ class World(
         }
     }
 }
+
+/** The land before the climate: its grid, plates, volcanoes, heights and rocks (see [World.landform]). */
+class Landform(val grid: Grid, val tectonics: Tectonics, val volcanoes: List<Volcano>, val elevation: FloatArray, val geology: Geology)
