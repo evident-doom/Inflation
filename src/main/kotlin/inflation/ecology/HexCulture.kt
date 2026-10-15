@@ -340,7 +340,9 @@ private fun HexGroups.marryOut(a: HexGroup, ba: Band, b: HexGroup, bb: Band) {
  * band eats what makes up its week, and takes some home; a band that holds to sharing gives more.
  */
 internal fun HexGroups.visitKin() {
-    val hungry = groups.filter { it.alive && it.band != null && it.fed < VISIT_FED && it.larder < it.dailyNeedKg * days }
+    // (The hungry come in a drawn order, not by age in the list: the first take the most from the best-stocked.)
+    val today = weatherNow.date.absoluteDay
+    val hungry = groups.filter { it.alive && it.band != null && it.fed < VISIT_FED && it.larder < it.dailyNeedKg * days }.sortedBy { tieBreak(it.id, 0, today) }
     if (hungry.isEmpty()) return
     val byHex = HashMap<Int, ArrayList<HexGroup>>()
     for (g in groups) if (g.alive && g.band != null && g.larder > 0f) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g

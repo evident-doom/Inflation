@@ -22,6 +22,18 @@ private class Stay(val k: Int, val index: Int, val from: Float, val to: Float)
 private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int)
 
 /**
+ * A draw of order for groups [id] and [other] on day [day]: who comes first when two things happen at
+ * once. Fixed by the ids and the day, so a run repeats on any number of cores, but no group is first
+ * week after week for being older (lower in the list).
+ */
+internal fun tieBreak(id: Int, other: Int, day: Long): Long {
+    var z = day * -0x61c8864680b583ebL + id * 0x2545f4914f6cdd1dL + other * 0x632be59bd9b4e019L
+    z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
+    z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
+    return z xor (z ushr 31)
+}
+
+/**
  * How catchable prey [ps] is for hunter [s] in place [p], 0..1: size against the pack, defence,
  * refuge in broken ground, small prey hiding in thick cover, and for stalkers, dark nights.
  */
@@ -466,7 +478,10 @@ internal fun HexGroups.meet(weather: Weather) {
         } }
         out.stream()
     }.collect(java.util.stream.Collectors.toCollection { ArrayList<Meeting>() })
-    events.sortWith(compareBy({ it.day }, { it.a }, { it.b }))
+    // Meetings at the same hour come in an order drawn afresh each week, not by age in the list
+    // (the first gets first chase and uses up the herd's meetings).
+    val today = weather.date.absoluteDay
+    events.sortWith(compareBy({ it.day }, { tieBreak(groups[it.a].id, groups[it.b].id, today) }, { it.a }, { it.b }))
     val stop = IntArray(groups.size) { groups[it].path.size - 1 }
     val count = IntArray(groups.size)
     for (e in events) {
@@ -773,7 +788,9 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
 /** A pack without ground settles where no other pack of its kind has fresh marks. */
 internal fun HexGroups.settle() {
     val claimed = HashSet<Long>()
-    for (g in groups) if (g.alive && g.species.carnivore && !g.species.human && g.home < 0) {
+    // (Packs come in a drawn order: the first to come on empty ground takes it.)
+    val today = weatherNow.date.absoluteDay
+    for (g in groups.filter { it.alive && it.species.carnivore && !it.species.human && it.home < 0 }.sortedBy { tieBreak(it.id, 0, today) }) {
         val h = hw.placeHex[g.place]
         val key = g.species.index.toLong() * hex.size + h
         // (Whether it takes it is its choice: always at the hand-written way.)
