@@ -607,14 +607,26 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** How good a place is for kind [k] this week: food per head and the weather against its comfort. */
-    private fun appeal(k: Int, p: Int, weather: Weather): Float {
+    internal fun appeal(k: Int, p: Int, weather: Weather): Float {
         val s = kinds[k]
         val heads = adults[k][p] + young[k][p]
         // Weather now, and as far as the kind senses it, what is coming.
         val m = weather.date.month
         val discomfort = ((1f - s.foresight) * s.discomfortC(weather.temperature[p], m) + s.foresight * s.discomfortC(weather.forecastTemp(p), m)) / 10f
         val snowed = if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f
-        return foodFor(s, p) * suits(s, p) * tether(s, p) * snowed * (1f - FEAR_WEIGHT * afraid(p)) / (1f + heads / (CROWD * usual[k])) / (1f + discomfort)
+        // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
+        // protein, as herds do: so they go up to the green high pasture in summer and down for the winter.)
+        val fresh = if (s.carnivore) 1f else land.nourishment(p) * forageProtein(s, p)
+        return foodFor(s, p) * fresh * suits(s, p) * tether(s, p) * snowed * (1f - FEAR_WEIGHT * afraid(p)) / (1f + heads / (CROWD * usual[k])) / (1f + discomfort)
+    }
+
+    /** How well kind [s]'s diet at place [p] would meet its need for protein, 0..1 (see [proteinMet]). */
+    fun forageProtein(s: Species, p: Int): Float {
+        val d = s.diet; val plants = d.grass + d.browse + d.fruit + d.roots
+        if (plants <= 0f) return 1f
+        val share = (d.grass * grassProtein(p) + d.browse * browseProtein(p) + (d.fruit + d.roots) * PROTEIN_FRUIT) / plants
+        val ps = plantShare(s)
+        return proteinMet(ps * share + (1f - ps))
     }
 
     /** Within a hex, a share of each kind moves between neighbouring height bands towards the better one. */
@@ -659,19 +671,30 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val h = hw.placeHex[p]; val b = hw.placeBand[p]
                 // Hungry ones leave, and so do those whose country does not suit them, towards better.
                 val leave = SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k, h)
-                // Where they could go: the same height band in each neighbouring hex, weighed by food and how easy the border is.
-                var total = 0f
-                val ws = FloatArray(6)
+                // Where they could go: each neighbouring hex at about the same height (its band, or the one above
+                // or below: so they work up a valley to the high pasture and down again), weighed by food, how
+                // fresh and rich in protein it is, and how easy the border is.
+                var total = 0f; var best = 0f
+                val ws = FloatArray(18); val wq = IntArray(18) { -1 }
                 for (d in 0 until 6) {
                     val nh = hex.neighbour(h, d)
                     if (nh < 0) continue
-                    val q = hw.placeOf[b][nh]
-                    if (q < 0) continue
                     val e = cross[h * 6 + d]
                     if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
-                    ws[d] = ease * (foodFor(s, q) * land.nourishment(q) * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / (CROWD * usual[k])) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
-                    total += ws[d]
+                    val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
+                    for (db in -1..1) {
+                        val bb = b + db; if (bb !in 0 until HexWorld.BANDS_M.size) continue
+                        val q = hw.placeOf[bb][nh]
+                        if (q < 0) continue
+                        val fresh = if (s.carnivore) 1f else land.nourishment(q) * forageProtein(s, q)
+                        val i = d * 3 + db + 1
+                        val worth = foodFor(s, q) * fresh * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / (CROWD * usual[k]))
+                        if (worth > best) best = worth
+                        ws[i] = ease * (worth + 1e-4f) * toward
+                        wq[i] = q
+                        total += ws[i]
+                    }
                 }
                 // A few swim the strait to the coast across, as far as they can swim it.
                 val swim = Catalogue.swimKm(s)
@@ -682,13 +705,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         val wq = SEA_SPILL * (1f - gapKm / swim) * land.areaKm2[q] * (foodFor(s, q) + 1e-4f); if (wq > seaW) { seaW = wq; seaTo = q } }
                 }
                 if (total <= 0f) continue
-                val goA = a[p] * leave * land.areaKm2[p]; val goY = y[p] * leave * land.areaKm2[p]
+                // (And the more so the better the country next door is than here: as the seasons turn, they follow the fresh pasture.)
+                val here = foodFor(s, p) * (if (s.carnivore) 1f else land.nourishment(p) * forageProtein(s, p)) * suits(s, p) * tether(s, p) * (1f - FEAR_WEIGHT * afraid(p)) / (1f + (a[p] + y[p]) / (CROWD * usual[k]))
+                val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
+                val go = min(0.5f, leave + SPILL_BETTER * better)
+                val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]
                 if (seaTo >= 0) { val share = seaW / (total + seaW); moveA[p] -= goA * share; moveY[p] -= goY * share; moveA[seaTo] += goA * share; moveY[seaTo] += goY * share }
                 moveA[p] -= goA; moveY[p] -= goY
-                for (d in 0 until 6) {
-                    if (ws[d] <= 0f) continue
-                    val q = hw.placeOf[b][hex.neighbour(h, d)]
-                    moveA[q] += goA * ws[d] / total; moveY[q] += goY * ws[d] / total
+                for (i in 0 until 18) {
+                    if (ws[i] <= 0f) continue
+                    val q = wq[i]
+                    moveA[q] += goA * ws[i] / total; moveY[q] += goY * ws[i] / total
                 }
             }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
@@ -719,6 +746,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val PROTEIN_NEED = 0.5f
         const val YOUNG_PROTEIN_DEATHS = 0.5f
         const val PROTEIN_MEMORY = 0.3f
+        /** Share a week of residents that leave for the best country next door when it is as good again as here (none when it is no better). */
+        const val SPILL_BETTER = 0.1f
         /** Resident hunters: heaviest prey against their own weight; share of a prey kind's numbers in a place they can kill in a week; weight of the young against grown; share of a kill eaten. */
         const val PREY_UP_TO = 3f
         const val RESIDENT_KILL_MOST = 0.02f
