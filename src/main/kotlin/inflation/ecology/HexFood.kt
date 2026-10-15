@@ -18,7 +18,7 @@ import kotlin.math.pow
  *   builds up over months and is eaten down where herds crowd, so the dry season and the winter set
  *   how many grazers the land carries. Big animals get more from it (Jarman-Bell, see [roughage]).
  *
- * What is eaten comes off the plants that bear it ([take]).
+ * Each stock comes off the plants that bear it as it grows, and what is not eaten falls into the litter.
  */
 class HexFood(private val land: HexLand, private val small: HexSmallLife, private val days: Int) {
     val n = land.n
@@ -95,22 +95,30 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             // for and the spring was wet enough to fill; then it falls and rots.
             val ripe = if (season in FRUIT_FROM..FRUIT_TO) FRUIT_SHARE * bearing(p) * small.fruitSet(p) * min(1f, land.moisture[p] / 0.5f) / FRUIT_DAYS else 0f
             val fallen = fruit[p] * min(1f, days / FRUIT_DAYS)
-            fruit[p] = max(0f, fruit[p] + days * ripe - fallen)
+            // (It grows on the shrubs and trees that bear it, and comes off them.)
+            val shrubBears = 0.5f * land.shrub[p]; val treeBears = 0.05f * land.tree[p]
+            val fromShrub = if (shrubBears + treeBears > 0f) shrubBears / (shrubBears + treeBears) else 1f
+            val newFruit = days * ripe
+            val bore = if (newFruit > 0f) land.consume(p, LifeForm.SHRUB, newFruit * fromShrub) + land.consume(p, LifeForm.TREE, newFruit * (1f - fromShrub)) else 0f
+            fruit[p] = max(0f, fruit[p] + bore - fallen)
             small.litter[p] += fallen
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
             val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.herb[p] / SEED_DAYS else 0f
             val shed = seeds[p] * min(1f, days / SEED_DAYS)
-            seeds[p] = max(0f, seeds[p] + days * ripeSeed - shed)
+            seeds[p] = max(0f, seeds[p] + land.consume(p, LifeForm.HERB, days * ripeSeed) - shed)
             small.litter[p] += shed
+            // (Roots and bulbs fill from the plants above them; old ones rot into the litter.)
             val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
-            roots[p] = max(0f, roots[p] + days * (r - roots[p] / ROOTS_DAYS))
+            val rotted = roots[p] * min(1f, days / ROOTS_DAYS)
+            roots[p] = max(0f, roots[p] + land.consume(p, LifeForm.HERB, days * r) - rotted)
+            small.litter[p] += rotted
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
             if (cereal[p] > 0f || field[p] > 0f) {
                 // (As the season advances: a cold year that never reaches its full warmth ripens only part of its grain.)
                 val advance = max(0f, weather.temperature[p] - 5f) * days / land.annualGdd[p].coerceAtLeast(1f)
                 val inWindow = (min(season, SEED_TO) - max(season - advance, SEED_FROM)).coerceAtLeast(0f)
-                if (inWindow > 0f) { val ripe = (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM); grain[p] += ripe; ripenedNow[p] += ripe }
+                if (inWindow > 0f) { val ripe = land.consume(p, LifeForm.HERB, (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM)); grain[p] += ripe; ripenedNow[p] += ripe }
                 val wild = 1f - domestic[p]
                 val lost = grain[p] * (wild * min(1f, days / SEED_DAYS) + (1f - wild) * min(1f, days / GRAIN_HOLD_DAYS))
                 grain[p] = max(0f, grain[p] - lost); small.litter[p] += lost
@@ -120,7 +128,12 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             }
             // Lichen creeps back.
             val lc = lichenCap(p)
-            if (lc > 0f) lichen[p] = max(0f, lichen[p] + LICHEN_GROWTH * days / 365f * max(lichen[p], 0.01f * lc) * (1f - lichen[p] / lc))
+            if (lc > 0f) {
+                // (Lichen is its own plant, growing by the light; what dies of crowding goes to the litter.)
+                val change = LICHEN_GROWTH * days / inflation.world.Date.DAYS_PER_YEAR * max(lichen[p], 0.01f * lc) * (1f - lichen[p] / lc)
+                if (change < 0f) small.litter[p] += min(lichen[p], -change)
+                lichen[p] = max(0f, lichen[p] + change)
+            }
             // Small finds in season.
             val month = weather.date.month
             val honey = if (month in 3..5) HONEY * small.pollination[p] * (land.shrub[p] + 0.1f * land.tree[p]) else 0f
@@ -131,19 +144,22 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val grown = land.consume(p, LifeForm.HERB, made) + eggs * days
             finds[p] = max(0f, finds[p] + grown - finds[p] * min(1f, days / FINDS_DAYS))
             // Standing dead grass and twigs build up as a small share of the herbs and shrubs and are eaten down.
-            straw[p] = max(0f, straw[p] + days * (strawCap(p) - straw[p]) / STRAW_DAYS)
+            // (The straw is the herbs and shrubs dying back where they stand; it falls into the litter as it weathers.)
+            val toward = days * (strawCap(p) - straw[p]) / STRAW_DAYS
+            if (toward > 0f) {
+                val herbShare = land.herb[p] / (land.herb[p] + 0.3f * land.shrub[p]).coerceAtLeast(1e-9f)
+                straw[p] += land.consume(p, LifeForm.HERB, toward * herbShare) + land.consume(p, LifeForm.SHRUB, toward * (1f - herbShare))
+            } else { val fell = min(straw[p], -toward); straw[p] -= fell; small.litter[p] += fell }
         }
     }
 
     /**
-     * Takes up to [kgPerM2] from [stock] at [p], off the plants it comes from (fruit and mast from
-     * Takes up to [kgPerM2] from [stock] at [p] (digging roots kills the herbs they come from); returns what was taken.
+     * Takes up to [kgPerM2] from [stock] at [p]; returns what was taken.
      */
     fun take(stock: FloatArray, p: Int, kgPerM2: Float): Float {
         val t = min(stock[p], max(0f, kgPerM2))
         stock[p] -= t
-        // Fruit, seed and straw are already off the live plants; digging roots and bulbs kills herbs.
-        if (stock === roots) land.consume(p, LifeForm.HERB, t)
+        // (Each stock already came off the plants as it grew.)
         return t
     }
 
