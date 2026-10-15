@@ -138,6 +138,8 @@ object HexPpo {
 
     const val HORIZON = 26
     const val DISCOUNT = 0.95f
+    const val PEOPLE_HORIZON = 52
+    const val PEOPLE_DISCOUNT = 0.98f
     const val CLIP = 0.2f
     const val ENTROPY = 0.01f
     /** Choices recorded a year for each kind in each world. */
@@ -192,6 +194,8 @@ object HexPpo {
         for ((i, r) in ROLES.withIndex()) RESIDUAL[r]?.let { models[i].residual = it }
         fun modelOf(s: Species) = models[role(s)]
         val adams = models.map { Adam(it.net.w.size, rate) to Adam(it.identity.size, rate) }
+        // One critic for each role: what a group's return can be expected to be where it stands.
+        val critics = ROLES.map { r -> Critic.loadOrNew(File(out, "$r.value.mlp"), hidden) }
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
         if (!files[0].exists()) {
             imitate(kinds, models, worlds, size)
@@ -211,12 +215,23 @@ object HexPpo {
             }.toList()
             val tPlay = System.nanoTime()
             val all = choices.flatMap { it.first }
-            // ---- judge each choice against its kind's own average
+            // ---- judge each choice against what its group could expect where it stood (the critic's
+            // estimate), not only against its kind's average: much of what befalls a group is its
+            // situation and its luck, not the move; then scaled within its kind.
             val byKind = all.groupBy { it.kind }
+            val expected = HashMap<Choice, Float>()
+            for ((mi, model) in models.withIndex()) {
+                val mine = all.filter { role(it.kind) == mi }
+                if (mine.isEmpty()) continue
+                val critic = critics[mi]
+                for (c in mine) expected[c] = critic.value(model, c)
+                critic.learn(model, mine, round)
+            }
             for ((_, cs) in byKind) {
                 val mean = cs.map { it.ret.toDouble() }.average().toFloat()
-                val sd = sqrt(cs.map { (it.ret - mean).toDouble().let { d -> d * d } }.average()).toFloat().coerceAtLeast(1e-3f)
-                for (c in cs) c.advantage = (c.ret - mean) / sd
+                val gap = cs.associateWith { c -> c.ret - (expected[c] ?: mean) }
+                val sd = sqrt(gap.values.map { (it * it).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
+                for (c in cs) c.advantage = gap.getValue(c) / sd
             }
             // ---- learn: a few passes of clipped policy gradient, every kind weighing the same
             val stats = StringBuilder()
@@ -236,7 +251,7 @@ object HexPpo {
                         adams[mi].first.step(model.net.w, gw); adams[mi].second.step(model.identity, gi)
                     }
                 }
-                model.save(files[mi])
+                model.save(files[mi]); critics[mi].save(File(out, "${ROLES[mi]}.value.mlp"))
                 stats.append(ROLES[mi]).append(' ').append(mine.size).append(" choices; ")
             }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
@@ -383,9 +398,12 @@ object HexPpo {
         }
         val out = ArrayList<Choice>()
         for (c in record) {
-            if (c.week + HORIZON > steps) continue
+            // (People change in numbers slowly: their moves are judged over a year, the animals' over half.)
+            val horizon = if (c.kind.human) PEOPLE_HORIZON else HORIZON
+            if (c.week + horizon > steps) continue
             var sum = 0f; var norm = 0f; var d = 1f
-            for (k in 1..HORIZON) { sum += d * numbers(c.groupId, c.week + k) / c.size.coerceAtLeast(1).toFloat(); norm += d; d *= DISCOUNT }
+            val discount = if (c.kind.human) PEOPLE_DISCOUNT else DISCOUNT
+            for (k in 1..horizon) { sum += d * numbers(c.groupId, c.week + k) / c.size.coerceAtLeast(1).toFloat(); norm += d; d *= discount }
             c.ret = sum / norm
             out += c
         }
@@ -445,5 +463,50 @@ object HexPpo {
         // (The two runs go side by side.)
         val both = listOf(true, false).parallelStream().map { score(it) }.toList()
         return both[0] to both[1]
+    }
+}
+
+/**
+ * A critic: from where a group stands (its own place's features and its kind), the return it can be
+ * expected to make whatever it does, learned by least squares on the returns seen. Choices are then
+ * judged by how much better than that they turned out.
+ */
+class Critic(val net: Mlp, rate: Float = 1e-3f) {
+    private val adam = Adam(net.w.size, rate)
+    private val buffers = ThreadLocal.withInitial { net.buffers() }
+
+    /** Where [c]'s group stood: the candidate that is staying put (else the first). */
+    private fun here(c: Choice) = c.inputs.indices.firstOrNull { c.inputs[it].getOrElse(10) { 0f } > 0.5f } ?: 0
+
+    fun value(model: SharedMover, c: Choice): Float {
+        val b = buffers.get()
+        model.fill(c.kind, c.inputs[here(c)], b.a[0])
+        return net.forward(b)
+    }
+
+    /** A few passes of least squares toward the returns seen this round. */
+    fun learn(model: SharedMover, cs: List<Choice>, round: Int) {
+        repeat(3) { epoch ->
+            for (batch in cs.shuffled(kotlin.random.Random(round * 17L + epoch)).chunked(1024)) {
+                val parts = batch.chunked((batch.size + 15) / 16).parallelStream().map { part ->
+                    val g = FloatArray(net.w.size); val b = net.buffers()
+                    for (c in part) {
+                        model.fill(c.kind, c.inputs[here(c)], b.a[0])
+                        val v = net.forward(b)
+                        net.backward(b, 2f * (v - c.ret) / batch.size, g, null)
+                    }
+                    g
+                }.toList()
+                val g = FloatArray(net.w.size); for (p in parts) for (i in g.indices) g[i] += p[i]
+                adam.step(net.w, g)
+            }
+        }
+    }
+
+    fun save(f: File) = Schema.save(net, f, Schema.MOVER_IN, listOf("value"))
+
+    companion object {
+        fun loadOrNew(f: File, hidden: Int) = Critic(if (f.exists()) Schema.load(f, Schema.MOVER_IN, listOf("value")) else
+            Mlp.random(intArrayOf(SharedMover.INPUTS, hidden, 1), kotlin.random.Random(91)).also { m -> m.w[m.w.size - 1] = 1f })
     }
 }

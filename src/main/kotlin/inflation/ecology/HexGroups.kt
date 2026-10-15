@@ -535,6 +535,8 @@ class HexGroups(
                     f[32] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
                     f[33] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
                     f[34] = kotlin.math.ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
+                    f[35] = min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])
+                    f[36] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
                     // What it remembers of this hex: in this season, or failing that in any.
                     val mem = g.memory
                     var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0

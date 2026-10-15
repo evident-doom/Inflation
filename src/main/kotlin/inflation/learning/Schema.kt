@@ -25,7 +25,7 @@ object Schema {
         "climb", "effort", "stays", "same hex", "toward bearing", "season's place", "fed", "fat", "season sin", "season cos",
         "restless", "water distance", "days dry", "pull", "moon", "to births sin", "to births cos",
         "remembered", "remembered same season", "remembered fed", "remembered water", "remembered danger", "remembered age",
-        "ancestors", "appointment", "houses", "own size",
+        "ancestors", "appointment", "houses", "own size", "lasting water", "sickness",
     ).also { require(it.size == HexFeatures.SIZE) { "Schema.PLACE has ${it.size} names, HexFeatures.SIZE is ${HexFeatures.SIZE}" } }
     /** A kind's traits, then its learned identity (see [SharedMover.kindInputs]). */
     val KIND = listOf("mass", "speed", "daily travel", "group size", "grass", "browse", "fruit and roots", "meat", "small prey", "carrion", "migratory", "carnivore", "stalking", "foresight")
