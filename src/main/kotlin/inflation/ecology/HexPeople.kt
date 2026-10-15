@@ -180,6 +180,30 @@ class Band {
     /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
     var raidWill = 1f
     var fortifyWill = 1f
+    /**
+     * Its choices in dealings with other bands and with its own camp (each 1 for the scaffold's way;
+     * 0 never, 2 twice as readily or as much):
+     * - how much it gives: food to hungry bands it meets or that come to it, ornaments to friends;
+     * - how readily it takes from a cache of another band it comes upon;
+     * - how much of what it cannot carry it caches on leaving camp (the rest is left to rot);
+     * - how much of its fresh meat and fish it dries with spare time;
+     * - how readily it keeps young animals it catches or that follow its camp;
+     * - how fully it puts up brush shelters at a new camp;
+     * - how keen it is to set food before other bands and to make an appointment to meet again
+     *   (above 1 even a band without the custom does; below, even one with it holds back);
+     * - how readily it burns off dry grass round its camp.
+     */
+    var giveWill = 1f
+    var robWill = 1f
+    var cacheWill = 1f
+    var dryWill = 1f
+    var keepWill = 1f
+    var shelterWill = 1f
+    var feastWill = 1f
+    var appointWill = 1f
+    var burnWill = 1f
+    /** Whether it acts on a custom: by the custom at its will's default (1), and away from it as its will goes towards 0 or 2. */
+    fun byCustom(holds: Boolean, will: Float) = (will - 1f + (if (holds) 1f else 0f)).coerceIn(0f, 1f)
 
     /** Whether it holds hex [h] as its own: its houses, its dead, its appointment place. */
     fun claims(h: Int, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
@@ -394,10 +418,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
             val carry = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
             val total = g.larder
             if (total > carry && b.campPlace >= 0) {
-                dropCache(b)
+                // (It chooses how much of what it cannot carry to cache; the rest is left where it lies.)
                 val left = 1f - carry / total
-                for (i in g.stores.indices) { b.cache[i] = g.stores[i] * left; g.stores[i] -= b.cache[i] }
-                b.cachePlace = b.campPlace
+                val cached = min(1f, b.cacheWill)
+                if (cached > 0f) dropCache(b)
+                var abandoned = 0f
+                for (i in g.stores.indices) { val x = g.stores[i] * left; g.stores[i] -= x; if (cached > 0f) b.cache[i] = x * cached; abandoned += x * (1f - cached) }
+                if (cached > 0f) b.cachePlace = b.campPlace
+                if (abandoned > 0f) small.litter[b.campPlace] += abandoned / (land.areaKm2[b.campPlace] * 1e6f)
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t.ordinal] = 0f
         }
@@ -411,7 +439,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         run {
             val cp = b.cachePlace
             val diggers = small.rodents[cp] / CACHE_RODENTS_HALF + small.foxes[cp] / CACHE_FOXES_HALF +
-                fauna.kinds.indices.filter { fauna.kinds[it].name == "wild boar" || fauna.kinds[it].name == "brown bear" }.sumOf { (fauna.adults[it][cp] / 0.5f).toDouble() }.toFloat()
+                cacheDiggers.sumOf { (fauna.adults[it][cp] / 0.5f).toDouble() }.toFloat()
             val dug = min(0.5f, CACHE_DUG * min(1f, diggers) * years)
             if (dug > 0f) { var lost = 0f; for (i in b.cache.indices) { val x = b.cache[i] * dug; b.cache[i] -= x; lost += x }; small.carrion[cp] += 0.3f * lost / (land.areaKm2[cp] * 1e6f) }
         }
@@ -495,7 +523,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     if (b.campWeeks == 0) b.shelter = 0f
     // (A debris hut takes a novice an afternoon, the practised an hour.)
     val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
-    if (b.shelter < 1f && time > 0f && people > 0f) { val built = min(1f - b.shelter, time / shelterDays); b.shelter += built; time -= built * shelterDays; b.practise(Skill.WOODWORK, 0.2f * PRACTICE) }
+    val shelterAim = min(1f, b.shelterWill)
+    if (b.shelter < shelterAim && time > 0f && people > 0f) { val built = min(shelterAim - b.shelter, time / shelterDays); b.shelter += built; time -= built * shelterDays; b.practise(Skill.WOODWORK, 0.2f * PRACTICE) }
     keepFire(g, b)
     // A fire through the night burns wood: where there is little, the night goes dark.
     run {
@@ -604,7 +633,7 @@ private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
         val bold = boldness(o)
         o.bold = bold + BOLD_DRIFT * (1f - bold)
         val tameable = s.domestication.average().toFloat()
-        if (o.young > 0 && rnd.nextFloat() < TAME * bold * tameable * years) {
+        if (o.young > 0 && rnd.nextFloat() < TAME * b.keepWill * bold * tameable * years) {
             o.young--
             if (b.kept.size < Catalogue.all.size) b.kept = b.kept.copyOf(Catalogue.all.size)
             b.kept[s.index] += 1f
@@ -758,7 +787,7 @@ const val FOOD_TYPES = 9
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 10
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 19
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
@@ -798,6 +827,15 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     b.nightFire = squash(out[FOOD_TYPES + 8 + Tool.entries.size])
     b.shunSick = (squash(out[FOOD_TYPES + 9 + Tool.entries.size]) - 1f).coerceAtLeast(0f)
     b.explore = squash(out[FOOD_TYPES + 10 + Tool.entries.size])
+    b.giveWill = squash(out[FOOD_TYPES + 11 + Tool.entries.size])
+    b.robWill = squash(out[FOOD_TYPES + 12 + Tool.entries.size])
+    b.cacheWill = squash(out[FOOD_TYPES + 13 + Tool.entries.size])
+    b.dryWill = squash(out[FOOD_TYPES + 14 + Tool.entries.size])
+    b.keepWill = squash(out[FOOD_TYPES + 15 + Tool.entries.size])
+    b.shelterWill = squash(out[FOOD_TYPES + 16 + Tool.entries.size])
+    b.feastWill = squash(out[FOOD_TYPES + 17 + Tool.entries.size])
+    b.appointWill = squash(out[FOOD_TYPES + 18 + Tool.entries.size])
+    b.burnWill = squash(out[FOOD_TYPES + 19 + Tool.entries.size])
 }
 
 /**
@@ -845,8 +883,11 @@ internal fun HexGroups.robCaches() {
                 val ob = o.band ?: continue
                 if (o === g || b.tie(o.id) > 0.3f || ob.cacheKg <= 1f) continue
                 if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace) * (1f + b.scoutShare * 5f)) continue
+                // (Found, it is the band's choice whether to take from it.)
+                if (rnd.nextFloat() >= min(1f, b.robWill)) continue
+                val takeShare = CACHE_TAKE * max(1f, b.robWill)
                 val room = max(0f, CARRY_KG * max(1, g.adults) - g.larder)
-                val take = min(ob.cacheKg * CACHE_TAKE, room)
+                val take = min(ob.cacheKg * min(1f, takeShare), room)
                 if (take <= 0f) continue
                 val share = take / ob.cacheKg
                 for (i in ob.cache.indices) { val x = ob.cache[i] * share; ob.cache[i] -= x; g.stores[i] += x }

@@ -252,7 +252,8 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     // Strangers (never met before) and those of other customs are easier to fight.
     val stranger = if (o.id !in b.ties) STRANGER_HOSTILITY else 0f
     val otherWays = Tradition.entries.count { b.holds(it) != ob.holds(it) }.toFloat() / Tradition.entries.size
-    val chance = RAID * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage)) * (1f - TIE_PEACE * max(0f, b.tie(o.id))) *
+    // (Whether it comes to blows is the band's choice: its readiness to raid.)
+    val chance = RAID * b.raidWill * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage)) * (1f - TIE_PEACE * max(0f, b.tie(o.id))) *
         (1f + stranger + CUSTOMS_HOSTILITY * otherWays)
     if (rnd.nextFloat() >= chance) return false
     fight(g, b, o, ob, planned = false)
@@ -356,9 +357,11 @@ internal fun HexGroups.visitKin() {
             ring = next
         }
         val o = best ?: continue
-        val share = BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f)
+        // (How much the band visited gives is its choice.)
+        val share = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f) * o.band!!.giveWill)
         val week = g.dailyNeedKg * days
         val gift = min(share * o.larder, (1f - g.fed) * week + week)
+        if (gift <= 0f) continue
         o.larder -= gift
         val eat = min(gift, (1f - g.fed) * week)
         g.fed += eat / week; g.larder += gift - eat
@@ -373,7 +376,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     val b = g.band ?: return
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.
-    if (b.appointHex < 0 && rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat() && (b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS))) {
+    if (b.appointHex < 0 && rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat() * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill)) {
         val mem = g.memory
         var best = -1; var bestScore = 0f
         for (i in 0 until PlaceMemory.MEMORY_SLOTS) {

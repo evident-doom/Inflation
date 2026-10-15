@@ -242,7 +242,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 var ny = if (spareYoung) 0 else (kills1 * fauna.young[k][p] / dens).toInt(); val na = kills1 - ny
                 // A band at home may keep young it catches, to raise by its camp.
                 if (HERDING && band != null && band.atHome && ny > 0) {
-                    val kept = binomial(ny, CAPTURE * ps.domestication.average().toFloat(), rnd)
+                    val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
                     if (kept > 0) {
                         if (band.herd.size < fauna.kinds.size) { band.herd = band.herd.copyOf(fauna.kinds.size); band.herdTame = band.herdTame.copyOf(fauna.kinds.size) }
                         band.herd[k] += kept; ny -= kept
@@ -349,7 +349,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
         val smoke = if (band.knowsSkill[Skill.SMOKING.ordinal] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
         val dryRate = max(sun, smoke)
-        val dried = min(g.stores[Store.FRESH.ordinal], spareDays * hands * dryRate / DRY_DAYS_PER_KG)
+        // (As much of it as the band chooses to.)
+        val dried = min(g.stores[Store.FRESH.ordinal] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
         if (dried > 0f) { g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE) }
         // What time is left is for making and mending (see [bandWeek]).
         band.spareDays = max(0f, spareDays * hands - if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
@@ -516,17 +517,21 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
     // (More to a band it is close to.)
     val close = (rich.band?.tie(poor.id) ?: 0f).coerceAtLeast(0f)
     if (poor.fed < (if (sharing) 0.9f else 0.8f) && rich.larder > 0f) {
-        val gift = BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close) * rich.larder
+        // (As much as the giver chooses to give.)
+        val gift = min(0.9f, BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close) * (rich.band?.giveWill ?: 1f)) * rich.larder
+        if (gift > 0f) {
         rich.larder -= gift; poor.larder += gift
         poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
         meetings.merge("food given", 1, Int::plus)
         note(rich) { "gave %.0f kg of food to hungry band #%d".format(gift, poor.id) }; note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }
+        }
     }
     // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
         if (gb.tie(taker.id) < 0.3f || gb.ornaments < 1f) continue
-        val gift = ORNAMENT_GIFT * gb.ornaments
+        val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
+        if (gift <= 0f) continue
         val exoticShare = gb.exotic / gb.ornaments
         gb.ornaments -= gift; gb.exotic -= gift * exoticShare
         tb.ornaments += gift; tb.exotic += gift * exoticShare
@@ -537,10 +542,12 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
     // before the other; the guests remember it.
     for ((host, guest) in listOf(a to b, b to a)) {
         val hb = host.band ?: continue
-        if (!hb.holds(Tradition.FEASTS)) continue
+        // (Feasting is its choice: by its custom, unless its will leads it away from it.)
+        val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
+        if (keen <= 0f) continue
         val spare = host.larder - hb.storeAim * host.dailyNeedKg
         if (spare <= 0f) continue
-        val meal = min(spare, FEAST_KG * guest.size)
+        val meal = min(spare, FEAST_KG * guest.size * keen)
         host.larder -= meal; guest.larder += meal
         // With grain to spare and vessels to brew in, the host pours beer: the feast is remembered better.
         val grain = host.stores[Store.SEED.ordinal]

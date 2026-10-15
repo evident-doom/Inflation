@@ -279,6 +279,8 @@ class HexGroups(
     /** Head count of each kind in each place this week, and each species' slot in [kinds]. */
     internal val headsHere by lazy { Array(kinds.size) { IntArray(n) } }
     private val peopleSlot by lazy { kinds.indexOfFirst { it.human } }
+    /** Resident kinds that dig up a band's cache where they are about: those strong enough to break into it (50 kg and more) that root for a fifth or more of their food. */
+    internal val cacheDiggers by lazy { fauna.kinds.indices.filter { fauna.kinds[it].massKg >= 50f && fauna.kinds[it].diet.roots >= 0.2f } }
     internal val kindSlot by lazy { IntArray(Catalogue.all.size) { i -> kinds.indexOfFirst { it.index == i }.coerceAtLeast(0) } }
 
     private fun valuePlaces() {
@@ -314,7 +316,7 @@ class HexGroups(
             if (!g.alive || !g.species.human) continue
             val p = g.place
             val dry = land.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.green[p] < 0.4f
-            if (dry && land.herb[p] > 0.3f && land.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF) { land.ignite(p); meetings.merge("bands burned off grass", 1, Int::plus) }
+            if (dry && land.herb[p] > 0.3f && land.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) { land.ignite(p); meetings.merge("bands burned off grass", 1, Int::plus) }
         }
     }
 

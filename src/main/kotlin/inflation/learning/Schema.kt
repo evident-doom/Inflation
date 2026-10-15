@@ -43,7 +43,8 @@ object Schema {
         listOf("temperature", "camp weeks", "spare days")
     /** A band's ways ([inflation.ecology.setWays], in order). */
     val WAYS_OUT: List<String> get() = (0 until FOOD_TYPES).map { "effort:$it" } + listOf("store aim") + Tool.entries.map { "make first:${it.name.lowercase()}" } +
-        listOf("scouts", "houses", "raids", "palisades", "sowing", "gathering range", "watching children", "night fire", "shunning the sick", "exploring")
+        listOf("scouts", "houses", "raids", "palisades", "sowing", "gathering range", "watching children", "night fire", "shunning the sick", "exploring",
+            "giving", "taking from caches", "caching", "drying", "keeping young animals", "shelters", "feasting", "appointments", "burning off")
 
     fun namesFile(f: File) = File(f.path + ".names")
 
