@@ -42,12 +42,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     val fear = FloatArray(n)
     /**
-     * Each kind's usual density, per km²: as the catalogue gives it, else by Damuth's rule from its
-     * body mass (8/km² for roe deer, 0.4 for hippos), so that crowding is reckoned against what is
-     * crowded for its size, not one density for every kind.
-     */
-    private val usual = FloatArray(kinds.size) { k -> val s = kinds[k]; if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else Allometry.herbivoreDensityPerKm2(s.massKg) }
-    /**
      * Outbreaks (rinderpest-like plagues among grazers, distemper and rabies among hunters, fevers
      * among people), by kind ([Species.index]) and hex: how strongly one is raging, 0..1. One starts
      * where a kind is crowded, passes to neighbouring hexes where the kind lives, and burns out over
@@ -462,7 +456,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val cold = if (sleeping) 0f else s.coldC(t, date.month) / 10f * COLD_DEATHS
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
                 // lean season binds, and then hunger and sickness together hold them.
-                val crowd = (a[p] + y[p]) / (CROWDED * usual[k])
+                val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
+                val crowd = (a[p] + y[p]) / (CROWDED * usual)
                 val disease = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - f[p])) + outbreakDeaths(s, p)
                 // Where the herds are crowded, now and then a plague breaks out among them.
                 if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
@@ -508,7 +503,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val m = weather.date.month
         val discomfort = ((1f - s.foresight) * s.discomfortC(weather.temperature[p], m) + s.foresight * s.discomfortC(weather.forecastTemp(p), m)) / 10f
         val snowed = if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f
-        return foodFor(s, p) * suits(s, p) * tether(s, p) * snowed * (1f - FEAR_WEIGHT * afraid(p)) / (1f + heads / (CROWD * usual[k])) / (1f + discomfort)
+        return foodFor(s, p) * suits(s, p) * tether(s, p) * snowed * (1f - FEAR_WEIGHT * afraid(p)) / (1f + heads / CROWD) / (1f + discomfort)
     }
 
     /** Within a hex, a share of each kind moves between neighbouring height bands towards the better one. */
@@ -564,7 +559,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val e = cross[h * 6 + d]
                     if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
-                    ws[d] = ease * (foodFor(s, q) * land.nourishment(q) * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / (CROWD * usual[k])) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
+                    ws[d] = ease * (foodFor(s, q) * land.nourishment(q) * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     total += ws[d]
                 }
                 // A few swim the strait to the coast across, as far as they can swim it.
@@ -616,8 +611,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val COLD_DEATHS = 0.02f
         /** Below this density, per km², a kind is gone from a place. */
         const val EXTINCT = 1e-4f
-        /** Density, as a multiple of a kind's usual, at which crowding halves a place's appeal (10/km² against the 0.5/km² all kinds were given before). */
-        const val CROWD = 20f
+        /** Density per km² at which crowding halves a place's appeal. */
+        const val CROWD = 10f
         /** Outbreaks: yearly chance one starts in a place at its kind's crowded density; share of the kind it kills a week at full strength; share of its strength it passes to a neighbouring hex; share kept a week. */
         const val OUTBREAK_START = 0.02f
         const val OUTBREAK_KILL = 0.04f
