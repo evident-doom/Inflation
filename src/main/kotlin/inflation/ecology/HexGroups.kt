@@ -795,6 +795,7 @@ class HexGroups(
                     f[45] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
                     f[46] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
                     f[47] = beyond; f[48] = foreign
+                    f[50] = keepOn
                     // The fish and shellfish a band could take there, with its skill, against its need (the
                     // shore and the river are plain to see; how rich they are, less so where it is a stranger).
                     f[49] = g.band?.let { b -> min(2f, fauna.water.fishWithin(h, b.fishing()) / (g.size * s.dailyIntakeKg * days).coerceAtLeast(1f)) * (if (b.knows(h)) 1f else 0.5f) } ?: 0f
