@@ -213,6 +213,8 @@ class HexGroups(
         Profile.part("people: robbing caches") { robCaches() }
         Profile.part("people: visiting kin") { visitKin() }
         Profile.time("groups: ground, births, deaths") { Profile.part("hunters: marking ground") { mark() }; Profile.part("hunters: settling ground") { settle() }; demography(weather, date) }
+        // (Groups that merged into another this week, kept for following what became of their choices.)
+        merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
         groups.removeIf { !it.alive }
         Profile.part("herds: remembering places") { remember(date) }
     }
@@ -230,6 +232,8 @@ class HexGroups(
     private val scratch = ThreadLocal.withInitial { Scratch(hex.size) }
     /** This week's searches, shared by the groups of a kind starting from the same place in the same mood. */
     private class Reach(val reach: Float, val hexes: IntArray, val dist: FloatArray, val via: IntArray)
+    /** The groups that merged into another in the last step (gone from [groups]), with their numbers when they did ([HexGroup.mergedSize]). */
+    @Transient val merged = ArrayList<HexGroup>()
     @Transient private val reachCache = java.util.concurrent.ConcurrentHashMap<Long, Reach>()
     /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
     internal val outbreaksStarting: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()

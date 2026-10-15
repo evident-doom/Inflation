@@ -384,6 +384,8 @@ object HexPpo {
                 if (g.mergedSize >= 0) merged.putIfAbsent(g.id, g.mergedSize)
                 sizes.getOrPut(g.id) { IntArray(steps + 1) }[week] = if (g.alive) g.size else 0
             }
+            // Groups that merged into another this week are gone from the list by now: their numbers carry on as at the merge.
+            for (g in run.groups.merged) merged.putIfAbsent(g.id, g.mergedSize)
         }
         // Offshoots of each group, for adding their numbers to its own.
         val children = HashMap<Int, MutableList<Int>>()
