@@ -252,11 +252,8 @@ class HexGroups(
         Profile.time("groups: meetings") { meet(weather) }
         meetNs += System.nanoTime() - t0
         Profile.part("groups: wearing paths") { wearPaths(); routes.week() }
-        // Who passed through which hex this week.
-        val visits = HashMap<Int, ArrayList<HexGroup>>()
-        for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
         Profile.time("groups: grazing") { graze(weather) }
-        Profile.time("groups: hunting") { hunt(visits, weather) }
+        Profile.time("groups: hunting") { hunt(weather) }
         Profile.part("people: burning off") { burnOff(weather) }
         Profile.part("people: robbing caches") { robCaches() }
         Profile.part("people: visiting kin") { visitKin() }

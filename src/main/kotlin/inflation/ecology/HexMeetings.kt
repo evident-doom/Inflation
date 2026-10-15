@@ -60,7 +60,7 @@ internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = 
  * they met (that passed the same hexes this week), small game, carrion, and for those that eat them
  * plants, and for bands fish (see [forage]).
  */
-internal fun HexGroups.hunt(visits: HashMap<Int, ArrayList<HexGroup>>, weather: Weather) {
+internal fun HexGroups.hunt(weather: Weather) {
     val ways = this.ways
     val inputs = FloatArray(WAYS_IN); val out = FloatArray(WAYS_OUT)
     val hunters = groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)
