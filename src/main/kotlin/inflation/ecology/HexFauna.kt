@@ -264,6 +264,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * what each wants and can get at (cliffs keep all but climbers off part of it); a shortfall of
      * grass and browse is made up from the standing straw, at what each kind's gut gets out of it.
      */
+    /**
+     * The grass and browse, kg/m², that can still be eaten at each place this week without eating it
+     * bare, once the residents have had theirs: the herds passing through share it (see [HexGroups.graze]);
+     * and the share of browse that comes off shrubs (the rest off trees).
+     */
+    val grazeLeft = FloatArray(n)
+    val browseLeft = FloatArray(n)
+    val shrubShareOfBrowse = FloatArray(n) { 1f }
+
     private fun graze(weather: Weather) {
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             // How much each kind eats of poor forage depends on its gut (see [gutFill]).
@@ -293,6 +302,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val reach = REACH_DORMANT + (REACH - REACH_DORMANT) * land.green[p]
             // (Only the edible share of the plants, see [HexLand.palatable].)
             val grass = reach * land.palatable[p] * land.herb[p]; val browse = reach * land.palatable[p] * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p])
+            // (Browse comes off shrubs and trees in the shares they offer it.)
+            val shrubBrowse = if (land.shrub[p] + BROWSE_OF_TREE * land.tree[p] > 0f) land.shrub[p] / (land.shrub[p] + BROWSE_OF_TREE * land.tree[p]) else 1f
             val rg = if (wantGrass > 0f) grass / wantGrass else 1f
             val rb = if (wantBrowse > 0f) browse / wantBrowse else 1f
             val rf = if (wantFruit > 0f) food.fruit[p] / wantFruit else 1f
@@ -331,12 +342,20 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 // A shortfall is made up with the standing straw, as far as there is any.
                 short[k] = need[k] * max(0f, 1f - got[k])
-                wantStraw += short[k] * GUT_FILL
+                // (Only grazers and browsers eat it, and only as far as they can get at it.)
+                if (d.grass + d.browse > 0f) wantStraw += short[k] * GUT_FILL * min(1f, avail[k]) else short[k] = 0f
             }
             val rs = if (wantStraw > 0f) min(1f, food.straw[p] / wantStraw) else 1f
             for ((k, s) in kinds.withIndex()) {
-                val strawPart = if (need[k] > 0f) short[k] / need[k] * min(1f, GUT_FILL * HexFood.roughage(s)) * min(1f, avail[k] * rs) else 0f
-                var f = if (asleep(s, p, weather)) autumnFed[k][p] else {
+                val strawPart = if (need[k] > 0f) short[k] / need[k] * min(1f, GUT_FILL * HexFood.roughage(s)) * min(1f, avail[k]) * rs else 0f
+                val sleeping = asleep(s, p, weather)
+                var f = if (sleeping) {
+                    // Asleep, it lives on its fat at a quarter of its waking need; fed as far as the fat lasts.
+                    val want = SLEEP_NEED * days
+                    val draw = min(reserve[k][p], want)
+                    reserve[k][p] -= draw
+                    draw / want
+                } else {
                     // Omnivores: the rest of the diet is small animals they catch and carrion they find.
                     val ps = plantShare(s)
                     var animal = 0f
@@ -354,18 +373,22 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 // Reserves carry them through lean weeks; they are laid on from what was eaten beyond need.
                 val r = reserve[k]
-                if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days) }
-                else r[p] = min(s.maxFatDays, r[p] + FAT_EFFICIENCY * surplus[k] * days)
+                if (!sleeping) {
+                    if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days) }
+                    else r[p] = min(s.maxFatDays, r[p] + FAT_EFFICIENCY * surplus[k] * days)
+                }
                 fed[k][p] = f
                 val fm = fedByMonth[k]; val i = p * 12 + weather.date.month
                 fm[i] += (fed[k][p] - fm[i]) * FED_MEMORY
                 // Laying on fat for the winter: how well fed through late summer and autumn.
                 if (s.hibernates && weather.date.month in 7..11 && !asleep(s, p, weather)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
             }
+            // What is left of the week's grazing and browsing for the herds that come through after.
+            grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB); shrubShareOfBrowse[p] = shrubBrowse
             val dug = food.take(food.roots, p, eatR)
             val ate = food.take(food.fruit, p, eatF)
             val eaten = land.consume(p, LifeForm.HERB, eatG) +
-                land.consume(p, LifeForm.SHRUB, eatB * 0.7f) + land.consume(p, LifeForm.TREE, eatB * 0.3f) +
+                land.consume(p, LifeForm.SHRUB, eatB * shrubBrowse) + land.consume(p, LifeForm.TREE, eatB * (1f - shrubBrowse)) +
                 ate + dug + food.take(food.straw, p, wantStraw * rs)
             // Fruit-eaters drop the seed where they go: shrubs and trees come up away from any parent.
             land.animalSeed[p] = min(1f, land.animalSeed[p] * SEED_KEEP + ate * 1e6f / SEED_KG)
@@ -397,7 +420,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a hungry mother bears and keeps fewer.
                 val inSeason = (date.month - start[p] + 12) % 12 < s.birthMonths
-                if (inSeason) y[p] += 0.5f * a[p] * s.youngPerFemale * s.littersPerYear * f[p] / stepsInSeason
+                if (inSeason) {
+                    val born = 0.5f * a[p] * s.youngPerFemale * s.littersPerYear * f[p] / stepsInSeason
+                    y[p] += born
+                    // The young are made of what their mothers ate: their weight comes off the mothers' reserves (as in groups).
+                    if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - born * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / (0.5f * a[p]))
+                }
                 // Deaths.
                 val hunger = if (f[p] < 0.6f) (0.6f - f[p]) * HUNGER_DEATHS else 0f
                 val t = weather.temperature[p]
@@ -573,6 +601,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val RESIDENT_TRAMPLE = 0.1f
         /** Hibernators sleep below this temperature, °C. */
         const val HIBERNATE_C = 0f
+        /** Share of its waking food a sleeping animal burns from its fat. */
+        const val SLEEP_NEED = 0.25f
         /** How fast the memory of each month's feeding follows the year (per week in that month). */
         const val FED_MEMORY = 0.1f
         /** How much better fed (summed over three months) a month earlier or later must be to move the births. */
