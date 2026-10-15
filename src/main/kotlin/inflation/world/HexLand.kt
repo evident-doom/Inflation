@@ -678,7 +678,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             // Trampling, spread over the place: a herd beats down a share of it.
             val tr = trampling[p] / areaKm2[p]
             if (tr > 0f) {
-                herb[p] *= exp(-0.05f * tr); shrub[p] *= exp(-0.1f * tr)
+                herb[p] *= exp(-TRAMPLE_HERB * tr); shrub[p] *= exp(-TRAMPLE_SHRUB * tr)
                 trails[p] = min(1f, trails[p] + Vegetation.TRAIL_WEAR * tr * (1f - trails[p]))
                 trampling[p] = 0f
             } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - Vegetation.TRAIL_FADE * years)
@@ -859,3 +859,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         const val FLOW_MEMORY = 0.01f
     }
 }
+
+/** Share of the herbs and shrubs a place loses a step for each unit of trampling over it (see [HexLand.trample]; -Dhex.t.trampleHerb, -Dhex.t.trampleShrub). */
+val TRAMPLE_HERB = System.getProperty("hex.t.trampleHerb")?.toFloat() ?: 0.05f
+val TRAMPLE_SHRUB = System.getProperty("hex.t.trampleShrub")?.toFloat() ?: 0.1f

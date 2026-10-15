@@ -330,7 +330,7 @@ class Vegetation(private val world: World, private val seed: Long) {
         /** Rooting, kg/km²/day, at which most of the ground is churned. */
         const val ROOT_SCALE = 2f
         /** Fires started per km² per year in hot, dry, fuel-rich ground. */
-        const val IGNITIONS_PER_KM2_YEAR = 0.01f
+        val IGNITIONS_PER_KM2_YEAR = System.getProperty("hex.t.ignitions")?.toFloat() ?: 0.01f
         /** How far a fire front can run in a day, km. */
         const val SPREAD_KM_PER_DAY = 5f
         /** How fast trampling wears a path (per unit of trampling, slowing as the path deepens), and how fast an unused one fades, per year. */
