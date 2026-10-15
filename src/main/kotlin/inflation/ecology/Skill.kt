@@ -151,8 +151,13 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
         HERBS, LORE, LEACHING, EARTH_OVEN, STONE_BOILING, SEALING, TENDING -> true
         else -> false
     }
-    /** Whether a band can lose this way altogether: not the ways everyone lives by (gathering, fire, care of the sick and the newborn, teaching). */
-    val losable: Boolean get() = domain !in setOf(Domain.GATHERING, Domain.FIRE, Domain.HEALING, Domain.CHILDCARE, Domain.TEACHING, Domain.REMEMBERING, Domain.TINKERING) && this != ROASTING
+    /**
+     * Whether a band can lose this way altogether: not the ways everyone lives by (gathering, fire,
+     * plain flakes, wood, hide and cord, simple huts, drying, the hunt, care of the sick and the
+     * newborn, teaching). Fishing, trapping and the finer crafts can be lost, as the Tasmanians lost
+     * fishing and bone tools.
+     */
+    val losable: Boolean get() = domain !in setOf(Domain.GATHERING, Domain.FIRE, Domain.HEALING, Domain.CHILDCARE, Domain.TEACHING, Domain.REMEMBERING, Domain.TINKERING) && this !in setOf(ROASTING, STONE_FOOTING, KNAPPING, WOODWORK, HIDEWORK, CORDAGE, STORE, HUNT)
     /** A way that must be held first: microliths are snapped from bladelets; boiling with hot stones and leaching need tight baskets. */
     val needs: Skill? get() = when (this) {
         MICROLITHS -> BLADES

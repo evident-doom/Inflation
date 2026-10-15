@@ -32,7 +32,7 @@ import kotlin.math.min
  *
  * Units: plankton and nutrients g/m², fish and animals kg/km² of water.
  */
-class HexWater(private val hw: HexWorld, private val land: HexLand, private val days: Int) {
+class HexWater(private val hw: HexWorld, private val land: HexLand, private val days: Int, private val small: HexSmallLife) {
     private val hex = hw.hex
     private val world = hw.world
     private val size = hex.size
@@ -218,9 +218,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** This week's flows of sea and lake fish, tonnes: grown, died of age or hunger, eaten by each kind, drifted. */
-    val fishFlows = java.util.concurrent.ConcurrentHashMap<String, Double>()
+    @Transient val fishFlows = java.util.concurrent.ConcurrentHashMap<String, Double>()
     // (Summed in adders during the parallel loop, without contention, and written to [fishFlows] after it.)
-    private val flowAdders = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.DoubleAdder>()
+    @Transient private val flowAdders = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.DoubleAdder>()
     private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { java.util.concurrent.atomic.DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble()) }
     private val eatenBy = SEA.map { "eaten by ${it.name}" }
 
@@ -279,19 +279,46 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 val fishDead = (FISH_DEATHS + 0.5f * (1f - fed)) * years * f0
                 val grown = FISH_EFFICIENCY * got * 1000f * (1f - f0 / max(fishCapacity(h), 1f)).coerceAtLeast(0f)
                 fish[h] = max(0f, f0 + grown - fishDead)
-                dead[h] += fishDead + (1f - FISH_EFFICIENCY) * got * 1000f
+                // (What they ate and did not grow by, crowded near what the water carries, goes back to the water as waste.)
+                dead[h] += fishDead + got * 1000f - grown
                 flow("grown", grown, h); flow("died", fishDead, h)
-                if (shallow[h] > 0f) { val s = shellfish[h]; shellfish[h] = max(0f, s + 0.8f * years * s * (1f - s / max(shellCapacity(h), 1f))) }
+                // Shellfish filter the plankton: they grow by what they take of it, and die back where the water carries fewer.
+                if (shallow[h] > 0f) {
+                    val s = shellfish[h]; val kS = max(shellCapacity(h), 1f)
+                    // (Shellfish are counted per km² of sea, plankton and the waste per km² of all the water.)
+                    val perWater = seaKm2[h] / waterKm2[h]
+                    val want = SHELL_GROWTH / FISH_EFFICIENCY * years * s * (1f - s / kS).coerceAtLeast(0f) * perWater / 1000f
+                    val ate = min(want, 0.5f * p)
+                    phyto[h] = p - ate
+                    val grew = FISH_EFFICIENCY * ate * 1000f / perWater
+                    val died = if (s > kS) min(s, SHELL_GROWTH * years * s * (s / kS - 1f)) else 0f
+                    shellfish[h] = max(0f, s + grew - died)
+                    dead[h] += ate * 1000f * (1f - FISH_EFFICIENCY) + died * perWater
+                }
                 Profile.lap("water: plankton, fish, shellfish", pt)
                 Profile.part("water: sea animals") { stepSea(h, month) }
             }
             // River fish: by the river's size and warmth; a nearly dry bed keeps only what survives in pools.
+            // They live on what the land washes in (leaves, insects, the dead), taken from the litter of the
+            // hex's places; those that die, or are stranded as the bed dries, rot on the banks.
             if (land.meanFlow[h] >= RiverClass.STREAM.minDischarge && hw.land[h] > 0f) {
                 val k = riverCapacity(h, month)
-                var f = riverFish[h]
-                f += FISH_GROWTH * years * f * (1f - f / max(k, 1e-3f))
-                if (land.flow[h] / max(land.meanFlow[h], 1e-3f) < 0.05f) f *= 0.3f
-                riverFish[h] = max(0f, f)
+                val f = riverFish[h]
+                val landKm2h = landKm2[h]
+                val change = FISH_GROWTH * years * f * (1f - f / max(k, 1e-3f))
+                var grew = 0f; var died = 0f
+                if (change > 0f) {
+                    // Food wanted, kg over the hex, and what the litter can give.
+                    val want = change / FISH_EFFICIENCY * landKm2h
+                    var litterKg = 0.0
+                    for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) litterKg += small.litter[p] * land.areaKm2[p] * 1e6 }
+                    val ate = min(want, 0.5f * litterKg.toFloat())
+                    if (ate > 0f) for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) small.litter[p] *= 1f - ate / litterKg.toFloat() }
+                    grew = FISH_EFFICIENCY * ate / landKm2h
+                } else died = -change
+                if (land.flow[h] / max(land.meanFlow[h], 1e-3f) < 0.05f) died += 0.7f * (f + grew - died).coerceAtLeast(0f)
+                riverFish[h] = max(0f, f + grew - died)
+                if (died > 0f) bankCarrion(h, died * landKm2h)
             }
         }
         // Currents mix the water of neighbouring hexes: plankton and fish drift and spread.
@@ -306,9 +333,17 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         for (h in 0 until size) {
             val d = land.down[h]
             if (d < 0 || riverFish[h] <= 0f && land.meanFlow[h] < RiverClass.STREAM.minDischarge) continue
-            val below = if (d >= 0 && hw.land[d] > 0f) riverFish[d] else fish[d]
+            val river = hw.land[d] > 0f
+            val below = if (river) riverFish[d] else fish[d]
             val diff = below - riverFish[h]
-            if (diff > 0f && !(cascade[h] && (d < 0 || !cascade[d]))) riverFish[h] += 0.1f * diff
+            if (diff > 0f && !(cascade[h] && !cascade[d])) {
+                // (They move up: what one hex gains, the one below loses.)
+                val belowKm2 = if (river) landKm2[d] else waterKm2[d]
+                if (belowKm2 <= 0f) continue
+                val kg = min(0.1f * diff * landKm2[h], 0.5f * below * belowKm2)
+                riverFish[h] += kg / landKm2[h]
+                if (river) riverFish[d] -= kg / belowKm2 else fish[d] -= kg / belowKm2
+            }
         }
         Profile.part("water: spawning runs") { spawningRun(date) }
         Profile.part("water: sea birds") { seaBirds() }
@@ -412,6 +447,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Run fish of each river mouth this spring, kg: taken from the sea off the mouth, given back at the end. */
     private val runStock = FloatArray(size)
+    private val runWaiting = FloatArray(size)
     private var running = false
 
     /**
@@ -435,7 +471,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             running = true
         } else if (running) {
             // What is left of the run in the rivers, after this week's catch, goes back into each mouth's stock.
-            runStock.fill(0f)
+            // (Fish that found no water to swim up last week wait off the mouth.)
+            for (m in 0 until size) runStock[m] = runWaiting[m]
             for (h in 0 until size) if (mouth[h] >= 0 && run[h] > 0f) runStock[mouth[h]] += run[h] * landKm2[h]
         }
         run.fill(0f)
@@ -448,7 +485,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 val area = seas.sumOf { waterKm2[it].toDouble() }.toFloat()
                 if (area > 0f) for (q in seas) { fish[q] += RUN_SURVIVAL * runStock[m] / area; dead[q] += (1f - RUN_SURVIVAL) * runStock[m] / area }
             }
-            runStock.fill(0f); running = false
+            runStock.fill(0f); runWaiting.fill(0f); running = false
             return
         }
         // Up the rivers as far as the front has come.
@@ -461,6 +498,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             weight[h] = min(1f, land.meanFlow[h] / 30f) * exp(-upKm[h] / 150f); total[m] += weight[h]
         }
         for (h in 0 until size) if (weight[h] > 0f) run[h] = runStock[mouth[h]] * weight[h] / total[mouth[h]] / landKm2[h]
+        for (m in 0 until size) runWaiting[m] = if (total[m] > 0f) 0f else runStock[m]
     }
 
     /** Sea-bird colonies fish the sea within reach; a colony grows when they eat well and shrinks when not. */
@@ -491,6 +529,14 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private var stepsDone = 0
 
     private val landKm2 = FloatArray(size) { hw.land[it] * hexKm2 }
+
+    /** Leaves [kg] of dead fish on the banks of hex [h]: carrion on its places, by their area. */
+    private fun bankCarrion(h: Int, kg: Float) {
+        var area = 0f
+        for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) area += land.areaKm2[p] }
+        if (area <= 0f) return
+        for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) small.carrion[p] += kg / area / 1e6f }
+    }
     fun fishTonnes() = fish.indices.sumOf { (fish[it] * waterKm2[it]).toDouble() }.toFloat() / 1000f
     fun riverFishTonnes() = riverFish.indices.sumOf { (riverFish[it] * landKm2[it]).toDouble() }.toFloat() / 1000f
     fun shellfishTonnes() = shellfish.indices.sumOf { (shellfish[it] * seaKm2[it]).toDouble() }.toFloat() / 1000f
@@ -587,6 +633,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val RIVER_FISH_PER_KM2_WATER = 15_000f
         const val MAX_SHELLFISH = 20_000f
         const val FISH_GROWTH = 0.6f
+        /** Shellfish's yearly growth at low numbers (as before, now paid for in plankton). */
+        const val SHELL_GROWTH = 0.8f
         /** Share of what fish eat that becomes fish. */
         const val FISH_EFFICIENCY = 0.2f
         /** Fish at the start as a share of what the water can carry; share of the water mixing with the neighbours' a week. */

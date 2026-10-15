@@ -1,5 +1,6 @@
 package inflation.ui
 
+import inflation.ecology.HexRoutes
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFauna
 import inflation.ecology.HexGroups
@@ -98,13 +99,15 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     /** What the hexes are tinted by. */
     private enum class Tint(val label: String) {
         NONE("Ground only"), TEMPERATURE("Temperature"), SNOW("Snow lying"), RAIN("Rain this week"), GREEN("Green forage"),
-        FORAGE("Grass and browse"), SOIL("Soil water"), WATER("Drinking water"), SMALL_GAME("Rodents and reptiles"), INSECTS("Insects"), BITING("Biting insects"), POLLINATORS("Pollinators"), ORGANIC("Soil organic matter"), CARRION("Carrion"), RESIDENTS("Resident herds (all)"),
+        FORAGE("Grass and browse"), SOIL("Soil water"), WATER("Drinking water"), SMALL_GAME("Rodents and reptiles"), FOXES("Foxes"), OWLS("Owls and small hawks"), EAGLES("Eagles"), INSECTS("Insects"), BITING("Biting insects"), POLLINATORS("Pollinators"), ORGANIC("Soil organic matter"), CARRION("Carrion"), RESIDENTS("Resident herds (all)"),
     }
     private val tintChoice = JComboBox(Tint.entries.map { it.label }.toTypedArray())
     private val windBox = javax.swing.JCheckBox("Wind", false)
     private val herdsBox = javax.swing.JCheckBox("Herds", true)
     private val huntersBox = javax.swing.JCheckBox("Hunters", true)
     private val peopleBox = javax.swing.JCheckBox("People", true)
+    /** Paths worn by herds, packs and bands, drawn hex to hex, darker and wider the more worn. */
+    private val pathsBox = javax.swing.JCheckBox("Paths", true)
     /** Follow mode: the group followed (-1 none), kept in view week by week, with what happened to it. */
     private val followBox = javax.swing.JCheckBox("Follow", false)
     @Volatile private var followId = -1
@@ -133,7 +136,12 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     @Volatile private var frame = 0
     private var frames = 1
     private val date = JLabel()
-    private val counts = JLabel()
+    /**
+     * The kinds and their numbers along the bottom, as buttons: pressing one shows where that kind is
+     * (its density over the hexes, and only its herds or packs drawn); pressing it again shows all.
+     */
+    private val kindButtons = ArrayList<javax.swing.JToggleButton>()
+    @Volatile private var onlyKind: inflation.ecology.Species? = null
     /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
     private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray()) }
     private val map = MapPanel()
@@ -153,9 +161,9 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         residentChoice.addActionListener { map.repaint() }
         tintChoice.addActionListener { map.repaint() }
         windBox.addActionListener { map.repaint() }
-        herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }; peopleBox.addActionListener { map.repaint() }
+        herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }; peopleBox.addActionListener { map.repaint() }; pathsBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(windBox); bar.add(pullChoice)
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(pathsBox); bar.add(windBox); bar.add(pullChoice)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { inflation.ecology.HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
@@ -171,12 +179,32 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         bar.add(followBox)
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
         load?.let { f -> commands += { loadWorld(f) } }
-        val bottom = JPanel(); bottom.add(counts)
+        val bottom = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 2))
+        val all = fauna.kinds + groups.kinds
+        for ((i, s) in all.withIndex()) {
+            val b = javax.swing.JToggleButton(s.name); b.margin = java.awt.Insets(1, 4, 1, 4)
+            b.toolTipText = if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)" else "${s.name}: lives in herds or packs (shown as its density, and only its groups drawn)"
+            b.addActionListener {
+                for (o in kindButtons) if (o !== b) o.isSelected = false
+                onlyKind = if (b.isSelected && i >= fauna.kinds.size) s else null
+                residentChoice.selectedIndex = if (b.isSelected) i + 1 else 0
+                map.repaint()
+            }
+            kindButtons += b; bottom.add(b)
+        }
         val side = JPanel(BorderLayout())
         side.add(JScrollPane(info), BorderLayout.NORTH)
         side.add(JScrollPane(groupView), BorderLayout.CENTER)
         side.add(JScrollPane(groupInfo), BorderLayout.SOUTH)
-        groupView.addListSelectionListener { showGroup() }
+        // A band picked in the list is followed from hex to hex at once (other groups when Follow is ticked).
+        groupView.addListSelectionListener { e ->
+            if (!e.valueIsAdjusting) {
+                val i = groupView.selectedIndex
+                val g = if (i in groupIds.indices) groups.groups.firstOrNull { it.id == groupIds[i] } else null
+                if (g != null && g.species.human && g.id != followId) { followId = g.id; groups.watched = g.id; followBox.isSelected = true }
+            }
+            showGroup()
+        }
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
         add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(bottom, BorderLayout.SOUTH)
@@ -250,7 +278,11 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         frames = max(8, 30 / stepsPerSecond); frame = 0
         SwingUtilities.invokeLater {
             date.text = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
-            counts.text = groups.kinds.joinToString("  ") { "${it.name} ${groups.count(it)}" }
+            val all = fauna.kinds + groups.kinds
+            for ((i, b) in kindButtons.withIndex()) {
+                val s = all[i]
+                b.text = "${s.name} " + (if (i < fauna.kinds.size) "%.0f".format(fauna.count(i)) else "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}")
+            }
         }
     }
 
@@ -318,6 +350,9 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
                         Tint.POLLINATORS -> fauna.small.pollinators[p]
                         Tint.ORGANIC -> fauna.small.organicMatter[p]
                         Tint.SMALL_GAME -> fauna.small.rodents[p] + fauna.small.herps[p]
+                        Tint.FOXES -> fauna.small.foxes[p]
+                        Tint.OWLS -> fauna.small.owls[p]
+                        Tint.EAGLES -> fauna.small.eagles[p]
                         Tint.CARRION -> fauna.small.carrion[p] * 1e6f
                         Tint.RESIDENTS -> fauna.kinds.indices.sumOf { (fauna.adults[it][p] + fauna.young[it][p]).toDouble() }.toFloat()
                         Tint.NONE -> 0f
@@ -340,6 +375,9 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
                         Tint.POLLINATORS -> Color(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
                         Tint.ORGANIC -> Color(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
                         Tint.SMALL_GAME -> Color(0.9f, 0.5f, 0.1f, (0.1f + 0.7f * min(1f, v / 60f)))
+                        Tint.FOXES -> Color(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
+                        Tint.OWLS -> Color(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
+                        Tint.EAGLES -> Color(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
                         Tint.CARRION -> Color(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
                         Tint.RESIDENTS -> Color(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
                         Tint.NONE -> null
@@ -412,6 +450,33 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
                     g.color = Color(1f, 0.1f, 0.6f, 0.6f * v); g.fillPolygon(xs, ys, 6)
                 }
             }
+            // Paths: hex centre to hex centre, each pair once, darker and wider the more worn.
+            if (pathsBox.isSelected) {
+                val stroke = g.stroke
+                for (h in 0 until hex.size) for (d in 0 until 3) {
+                    val nh = hex.neighbour(h, d); if (nh < 0) continue
+                    val back = (0 until 6).firstOrNull { hex.neighbour(nh, it) == h } ?: continue
+                    val s = max(groups.paths[h * 6 + d], groups.paths[nh * 6 + back])
+                    if (s < 0.05f) continue
+                    val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(nh)
+                    g.color = Color(0.45f, 0.3f, 0.12f, (0.25f + 0.65f * s).coerceAtMost(1f))
+                    g.stroke = java.awt.BasicStroke((0.5f + 3f * s) * max(0.5f, scale.toFloat()))
+                    g.drawLine(sx(x0.toFloat()), sy(y0.toFloat()), sx(x1.toFloat()), sy(y1.toFloat()))
+                }
+                g.stroke = stroke
+                // Landmarks on the routes: junctions, fords, passes, water and ends.
+                val r = max(2, (2.5 * max(0.5, scale)).toInt())
+                for (h in groups.routes.landmarks) {
+                    val (cx, cy) = hex.centreKm(h); val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
+                    g.color = when (groups.routes.kind(h)) {
+                        HexRoutes.Kind.JUNCTION -> Color(0.95f, 0.85f, 0.4f); HexRoutes.Kind.FORD -> Color(0.3f, 0.6f, 1f)
+                        HexRoutes.Kind.PASS -> Color(0.85f, 0.85f, 0.85f); HexRoutes.Kind.WATER -> Color(0.2f, 0.9f, 0.9f)
+                        else -> Color(0.5f, 0.35f, 0.2f)
+                    }
+                    if (groups.routes.kind(h) == HexRoutes.Kind.PASS) g.fillPolygon(intArrayOf(x - r, x, x + r), intArrayOf(y + r, y - r, y + r), 3)
+                    else g.fillOval(x - r, y - r, 2 * r, 2 * r)
+                }
+            }
             // The hex being inspected.
             if (picked >= 0) {
                 val (cx, cy) = hex.centreKm(picked)
@@ -426,6 +491,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             for (s in shown) {
                 val sp = Catalogue.all[s.kind]
                 if (if (sp.human) !peopleBox.isSelected else if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
+                if (onlyKind != null && sp != onlyKind) continue
                 val w = s.way
                 val (x, y) = along(w, t)
                 if (sp.human) {

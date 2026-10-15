@@ -63,6 +63,9 @@ fun main(args: Array<String>) {
     inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
     System.getProperty("hex.ways")?.let { herds.ways = inflation.learning.NetWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.WAYS_IN, inflation.learning.Schema.WAYS_OUT)) }
+    // Herds' and packs' ways from learned networks (-Dhex.herdWays=FILE, -Dhex.hunterWays=FILE), else the hand-written ways.
+    System.getProperty("hex.herdWays")?.let { herds.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
+    System.getProperty("hex.hunterWays")?.let { herds.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
     // Every kind moving by learned role networks (-Dhex.nets=DIR with herds.mlp, hunters.mlp, people.mlp, as HexPpo writes them), else by the hand-written choices.
     System.getProperty("hex.nets")?.let { dir ->
         val ps = inflation.learning.HexPpo.ROLES.map { r -> inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(java.io.File(baselineDir(dir), "$r.mlp")), null, { 0f }, { 0 }) }
@@ -86,8 +89,13 @@ fun main(args: Array<String>) {
         val good = (0 until fauna.n).sumOf { p -> if (fauna.climateSuits(s, p) > 0.8f) land.areaKm2[p].toDouble() else 0.0 } / land.areaKm2.sum()
         "%s %.0f%% / %.2f".format(s.name, 100 * good, pull)
     }
+    // Herds' head-weeks by size (small, middling, large), to set their deaths against.
+    val herdHeadWeeks = DoubleArray(3)
     // Ways of working and cereals: printed each year and at the end.
     var grainReapedYear = 0.0; var grainReapedNow = 0.0
+    val movedKm = HashMap<inflation.ecology.Species, Double>()
+    // The hunting and feeding tallies of the last whole year, and of this one so far.
+    val lastHunt = HashMap<String, Int>(); val huntNow = HashMap<String, Int>()
     fun skillsAndCereals() {
         run {
             // Ways of working: how many bands know each, and how well those that know it do it (skills a band
@@ -201,6 +209,8 @@ fun main(args: Array<String>) {
             System.getProperty("hex.follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
             sim.step()
             grainReapedNow += (herds.hunting["people:grain reaped, kg"] ?: 0) / 1000.0
+            if (w == 0) movedKm.clear()
+            for (gr in herds.groups) if (gr.alive && gr.path.size > 1) movedKm.merge(gr.species, (gr.path.size - 1) * sim.hex.hexKm, Double::plus)
             for (g in herds.groups) { val b = g.band ?: continue; if (!g.alive) continue; val i = if (b.house >= 0.2f) 1 else 0; bandWeeksHouse[i]++; if (b.campWeeks == 0) movesHouse[i]++ }
             // Appointments kept: of bands in their appointment's month, how many are at its hex.
             for (g in herds.groups) { val b = g.band ?: continue; if (!g.alive || b.appointHex < 0 || b.appointMonth != weather.date.month) continue; apptDue++; if (hw.placeHex[g.place] == b.appointHex) apptKept++ }
@@ -220,6 +230,9 @@ fun main(args: Array<String>) {
             for ((key, v) in herds.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
             for ((key, v) in herds.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
             for ((key, v) in herds.hunting) huntYear.merge(key, v, Int::plus)
+            for ((key, v) in herds.hunting) huntNow.merge(key, v, Int::plus)
+            for ((key, v) in herds.hunting) if (key.startsWith("herd size ")) causes.merge(key, v.toDouble(), Double::plus)
+            for (gr in herds.groups) if (gr.alive && !gr.species.carnivore) herdHeadWeeks[herds.sizeClass(gr)] += gr.size.toDouble()
             // -Dhex.migDiag=kind: each month, how far that kind's herds are from the place they remember for the month.
             System.getProperty("hex.migDiag")?.let { kind -> if (weather.date.dayOfMonth <= cfg.daysPerStep) {
                 val m = weather.date.month
@@ -248,6 +261,64 @@ fun main(args: Array<String>) {
         println("     climate fit: " + fit())
         println("     land that suits / pull felt: " + drawn())
         println("     groups: " + herds.kinds.joinToString(", ") { "${it.name} ${herds.count(it)}" })
+        // By kind of country: its share of the land, forage, resident animals, herds, hunters and people, per 1000 km².
+        run {
+            val bArea = DoubleArray(inflation.world.Biome.entries.size); val forage = DoubleArray(bArea.size); val res = DoubleArray(bArea.size)
+            val herdsB = DoubleArray(bArea.size); val huntersB = DoubleArray(bArea.size); val peopleB = DoubleArray(bArea.size)
+            val biomeOf = IntArray(land.n) { pl -> val c = IntArray(bArea.size); for (cell in hw.placeCells[pl]) c[sim.world.biome[cell].ordinal]++; c.indices.maxBy { c[it] } }
+            for (pl in 0 until land.n) {
+                val b = biomeOf[pl]; val a = land.areaKm2[pl].toDouble()
+                bArea[b] += a; forage[b] += (land.palatable[pl] * (land.herb[pl] + land.shrub[pl])) * a
+                for (k in fauna.kinds.indices) res[b] += ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble()
+            }
+            for (gr in herds.groups) if (gr.alive) { val b = biomeOf[gr.place]; if (gr.species.human) peopleB[b] += gr.size.toDouble() else if (gr.species.carnivore) huntersB[b] += gr.size.toDouble() else herdsB[b] += gr.size.toDouble() }
+            val total = bArea.sum()
+            println("     by country (share of land: edible forage kg/m², residents / herds / hunters / people per 1000 km²): " + inflation.world.Biome.entries.indices.filter { bArea[it] > 0.01 * total }.sortedByDescending { bArea[it] }.joinToString(", ") { b ->
+                val k = 1000.0 / bArea[b]
+                "%s %.0f%%: %.2f, %.0f / %.0f / %.1f / %.1f".format(inflation.world.Biome.entries[b].name.lowercase().replace('_', ' '), 100 * bArea[b] / total, forage[b] / bArea[b], res[b] * k, herdsB[b] * k, huntersB[b] * k, peopleB[b] * k) })
+        }
+        // Residents by the sea against inland, animals per km² (a kind crowding the coast shows here).
+        run {
+            var coastA = 0.0; var inA = 0.0
+            val coastN = DoubleArray(fauna.kinds.size); val inN = DoubleArray(fauna.kinds.size)
+            for (pl in 0 until land.n) {
+                val c = hw.coast[hw.placeHex[pl]]; val a = land.areaKm2[pl].toDouble()
+                if (c) coastA += a else inA += a
+                for (k in fauna.kinds.indices) { val v = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble(); if (c) coastN[k] += v else inN[k] += v }
+            }
+            println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) + fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0), inN[k] / inA.coerceAtLeast(1.0)) })
+            // And what they find there: edible forage, how green, how well the roe deer fed, how far water is.
+            fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps -> ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
+            val roe = fauna.kinds.indexOfFirst { it.name == "roe deer" }
+            println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, roe deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
+                mean({ (land.palatable[it] * (land.herb[it] + land.shrub[it])).toDouble() }, true), mean({ (land.palatable[it] * (land.herb[it] + land.shrub[it])).toDouble() }, false),
+                mean({ land.green[it].toDouble() }, true), mean({ land.green[it].toDouble() }, false),
+                if (roe >= 0) mean({ fauna.fed[roe][it].toDouble() }, true) else 0.0, if (roe >= 0) mean({ fauna.fed[roe][it].toDouble() }, false) else 0.0,
+                mean({ land.waterKm[it].toDouble() }, true), mean({ land.waterKm[it].toDouble() }, false),
+                mean({ weather.temperature[it].toDouble() }, true), mean({ weather.temperature[it].toDouble() }, false)))
+        }
+        // Paths: how many ways are worn, and whether they gather where the going is hard (broken ground, rivers).
+        run {
+            val ps = herds.paths
+            val worn = (0 until sim.hex.size).filter { herds.pathAt(it) > 0.3f }
+            val rug = { h: Int -> hw.placeOf[0][h].takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f }
+            val landHexes = (0 until sim.hex.size).filter { hw.land[it] > 0.5f }
+            println("     paths: %d hexes with a worn path (%.1f%% of land); ruggedness where worn %.2f against %.2f overall; mean wear %.3f".format(
+                worn.size, 100.0 * worn.size / landHexes.size.coerceAtLeast(1), worn.map { rug(it).toDouble() }.average().takeIf { !it.isNaN() } ?: 0.0,
+                landHexes.map { rug(it).toDouble() }.average(), ps.average()))
+            val (fw, fa) = herds.routes.fordShare()
+            println("     routes: %s; worn ways crossing rivers %.1f%% against %.1f%% of all borders".format(herds.routes.summary(), 100 * fw, 100 * fa))
+        }
+        // How many groups, how big, how much of the land they cover, and how far each herd is from the nearest hunting pack.
+        run {
+            val live = herds.groups.filter { it.alive }
+            val hunterHexes = live.filter { it.species.carnivore && !it.species.human }.map { hw.placeHex[it.place] }.distinct()
+            println("     herds and packs (groups, mean size, hexes held of land hexes, herds' median km to the nearest pack): " + herds.kinds.joinToString(", ") { s ->
+                val gs = live.filter { it.species == s }
+                val km = if (s.carnivore || hunterHexes.isEmpty()) "" else gs.map { g -> val h = hw.placeHex[g.place]; hunterHexes.minOf { sim.hex.distanceKm(h, it) } }.sorted().let { if (it.isEmpty()) "" else ", %.0f km".format(it[it.size / 2]) }
+                "%s %d / %.0f / %.1f%%%s".format(s.name, gs.size, if (gs.isEmpty()) 0.0 else gs.sumOf { it.size }.toDouble() / gs.size, 100.0 * gs.map { hw.placeHex[it.place] }.distinct().size / (0 until sim.hex.size).count { hw.land[it] > 0.5f }, km)
+            })
+        }
         // This year's deaths of the resident herds, all kinds together, by cause.
         val residentNames = fauna.kinds.map { it.name }.toSet()
         val year = HashMap<String, Double>()
@@ -297,7 +368,7 @@ fun main(args: Array<String>) {
                 " | tools known (kit) " + inflation.ecology.Tool.entries.joinToString(", ") { t -> "%s %.0f%% (%.2f)".format(t.name.lowercase(), 100.0 * bs.count { it.knows[t.ordinal] } / bs.size, bs.map { it.kit[t.ordinal] }.average()) } +
                 " | customs " + inflation.ecology.Tradition.entries.joinToString(", ") { t -> "%s %.0f%%".format(t.name.lowercase(), 100.0 * bs.count { it.holds(t) } / bs.size) } +
                 " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1), bs.map { it.inbred.toDouble() }.average()) +
-                " | kites %d, animals taken in drives this year %d, caches %d".format(herds.kites.count { it >= 1f }, huntYear["people:kills in kite drives"] ?: 0, bs.count { it.cachePlace >= 0 }) +
+                " | caches %d".format(bs.count { it.cachePlace >= 0 }) +
                 " | dogs %.0f in %d bands, wolf packs' boldness %.2f".format(bs.sumOf { it.kept.sum().toDouble() }, bs.count { it.kept.sum() >= 1f }, herds.groups.filter { it.alive && it.species.followsPeople && !it.species.human }.map { inflation.ecology.boldness(it).toDouble() }.average()) +
                 " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * sim.hex.hexKm * sim.hex.hexKm * 0.866) +
                 " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(), bands.map { it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f) }.average()) +
@@ -345,6 +416,7 @@ fun main(args: Array<String>) {
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }.joinToString(", ") { "%s %.0f".format(it.key, it.value) })
         println("     droughts under way: " + sim.weather.droughts())
         grainReapedYear = grainReapedNow; grainReapedNow = 0.0
+        lastHunt.clear(); lastHunt.putAll(huntNow); huntNow.clear()
         print("     "); skillsAndCereals()
         System.out.flush()
         // The history so far, for the graphs (every five years and at the end).
@@ -382,6 +454,67 @@ fun main(args: Array<String>) {
         }
     }
     skillsAndCereals()
+    // Small against large herds: yearly deaths per animal, by cause.
+    run {
+        val names = listOf("small (under a unit)", "middling (1-3 units)", "large (over 3 units)")
+        println("herds' yearly deaths per animal by size (share of head-weeks): " + (0..2).joinToString("; ") { c ->
+            val years = herdHeadWeeks[c] / stepsPerYear
+            val keys = causes.keys.filter { it.startsWith("herd size $c:") }
+            "%s %.0f%%: ".format(names[c], 100 * herdHeadWeeks[c] / herdHeadWeeks.sum().coerceAtLeast(1.0)) + keys.sortedByDescending { causes[it] }.joinToString(", ") { k -> "%s %.3f".format(k.substringAfter(':'), causes.getValue(k) / years.coerceAtLeast(1e-9)) }
+        })
+    }
+    // Kind by kind: where it lives (its three main kinds of country, against the land's), how well fed,
+    // what the herds eat, how far groups go in a year, and how it fares against its catalogue niche.
+    run {
+        val biomeOf = IntArray(land.n) { pl -> val c = IntArray(inflation.world.Biome.entries.size); for (cell in hw.placeCells[pl]) c[sim.world.biome[cell].ordinal]++; c.indices.maxBy { c[it] } }
+        val landB = DoubleArray(inflation.world.Biome.entries.size); for (pl in 0 until land.n) landB[biomeOf[pl]] += land.areaKm2[pl].toDouble()
+        fun top(byB: DoubleArray): String { val tot = byB.sum().coerceAtLeast(1e-9); return byB.indices.sortedByDescending { byB[it] }.take(3).filter { byB[it] > 0 }.joinToString(", ") { "%s %.0f%% (land %.0f%%)".format(inflation.world.Biome.entries[it].name.lowercase().replace('_', ' '), 100 * byB[it] / tot, 100 * landB[it] / landB.sum()) } }
+        println("kind by kind, at the end:")
+        for (k in fauna.kinds.indices) {
+            val s = fauna.kinds[k]; val byB = DoubleArray(landB.size); var fedW = 0.0; var n = 0.0
+            for (pl in 0 until land.n) { val c = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble(); byB[biomeOf[pl]] += c; fedW += c * fauna.fed[k][pl]; n += c }
+            println("  %-14s %8.0f | lives in: %s | fed %.2f | habitat wanted: cover %+.1f, rugged %+.1f, wet %+.1f".format(s.name, n, top(byB), fedW / n.coerceAtLeast(1.0), s.habitat.cover, s.habitat.rugged, s.habitat.wet))
+        }
+        for (s in herds.kinds) {
+            val gs = herds.groups.filter { it.alive && it.species == s }
+            val byB = DoubleArray(landB.size); for (gr in gs) byB[biomeOf[gr.place]] += gr.size.toDouble()
+            val heads = gs.sumOf { it.size }.toDouble()
+            val diet = if (s.carnivore) "" else listOf("grass", "browse", "fruit and roots", "straw and lichen").let { ks -> val v = ks.map { (lastHunt["${s.name}:ate $it, kg"] ?: 0).toDouble() }; val tot = v.sum().coerceAtLeast(1.0); " | ate: " + ks.indices.joinToString(", ") { "%s %.0f%%".format(ks[it], 100 * v[it] / tot) } }
+            val ranged = if (s.carnivore) "" else " | grazed over %.1f places a week".format((lastHunt["${s.name}:ranged over places"] ?: 0).toDouble() / (gs.size * stepsPerYear).coerceAtLeast(1))
+            println("  %-14s %8.0f in %d groups | lives in: %s | fed %.2f | moved %.0f km a year%s%s".format(s.name, heads, gs.size, top(byB), gs.sumOf { it.fed.toDouble() * it.size } / heads.coerceAtLeast(1.0), (movedKm[s] ?: 0.0) / gs.size.coerceAtLeast(1), diet, ranged))
+        }
+    }
+    // Bands by kind of country over the last year: how many, how they fed and on what.
+    run {
+        val cs = lastHunt.keys.filter { it.startsWith("bands in ") && it.endsWith(":band-weeks") }.map { it.removePrefix("bands in ").removeSuffix(":band-weeks") }
+        println("bands by kind of country, last year (share of band-weeks; food got of food wanted; meat / plants / fish): " + cs.sortedByDescending { lastHunt["bands in $it:band-weeks"] ?: 0 }.joinToString(", ") { c ->
+            fun v(k: String) = (lastHunt["bands in $c:$k"] ?: 0).toDouble()
+            val got = v("meat") + v("plants") + v("fish")
+            "%s %.0f%%: %.0f%%, %.0f/%.0f/%.0f%%".format(c, 100 * v("band-weeks") / cs.sumOf { (lastHunt["bands in $it:band-weeks"] ?: 0).toDouble() }.coerceAtLeast(1.0), 100 * got / v("asked").coerceAtLeast(1.0),
+                100 * v("meat") / got.coerceAtLeast(1.0), 100 * v("plants") / got.coerceAtLeast(1.0), 100 * v("fish") / got.coerceAtLeast(1.0)) })
+        // And how they live and die there: yearly births and deaths per person, and the main causes.
+        println("bands by kind of country, last year (births / deaths per person a year; main causes): " + cs.sortedByDescending { lastHunt["bands in $it:band-weeks"] ?: 0 }.joinToString(", ") { c ->
+            val years = (lastHunt["bands in $c:people-weeks"] ?: 0).toDouble() / stepsPerYear
+            val died = lastHunt.filterKeys { it.startsWith("bands in $c:died of ") }.mapKeys { it.key.substringAfter("died of ") }
+            "%s %.3f / %.3f (%s)".format(c, (lastHunt["bands in $c:born"] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9),
+                died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
+    }
+    // Islands: land cut off from the largest land by sea; which kinds live there now.
+    run {
+        val comp = IntArray(sim.hex.size) { -1 }; var nc = 0; val sizes = ArrayList<Int>()
+        for (h0 in 0 until sim.hex.size) {
+            if (sim.hex.heart[h0] < 0 || comp[h0] >= 0) continue
+            val stack = ArrayDeque(listOf(h0)); comp[h0] = nc; var c = 0
+            while (stack.isNotEmpty()) { val h = stack.removeLast(); c++; for (d in 0 until 6) { val b = sim.hex.neighbour(h, d); if (b >= 0 && sim.hex.heart[b] >= 0 && comp[b] < 0) { comp[b] = nc; stack.addLast(b) } } }
+            sizes += c; nc++
+        }
+        val main = sizes.indices.maxByOrNull { sizes[it] } ?: -1
+        val islands = sizes.indices.filter { it != main && sizes[it] >= 3 }
+        if (islands.isNotEmpty()) println("islands (%d of 3 hexes or more; hexes / herds and packs / resident kinds above 0.01 a km²): ".format(islands.size) + islands.sortedByDescending { sizes[it] }.take(8).joinToString("; ") { c ->
+            val gs = herds.groups.filter { it.alive && comp[hw.placeHex[it.place]] == c }.map { it.species.name }.distinct()
+            val res = fauna.kinds.indices.filter { k -> var a = 0.0; var n = 0.0; for (pl in 0 until land.n) if (comp[hw.placeHex[pl]] == c) { a += land.areaKm2[pl]; n += (fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl] }; a > 0 && n / a > 0.01 }.map { fauna.kinds[it].name }
+            "%d / %s / %s".format(sizes[c], gs.joinToString(",").ifEmpty { "-" }, res.joinToString(",").ifEmpty { "-" }) })
+    }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
         val c = causes.entries.filter { it.key.substringBefore(":") == s.name && !it.key.endsWith("+born") }.map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }

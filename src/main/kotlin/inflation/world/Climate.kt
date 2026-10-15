@@ -95,7 +95,10 @@ class Climate(
                         val rise = max(0f, smoothElevation[i] - max(prev, 0f)).toDouble()
                         val frac = min(0.5, baseFraction + orographic * rise)
                         val rain = q * frac
-                        q -= rain * 0.8 // a fifth is recycled by evaporation from wet ground and plants
+                        // Much of what rains is given back to the air by wet ground, plants and lakes and falls
+                        // again further on: over the continents about two fifths of the rain is such recycled
+                        // water (van der Ent and colleagues 2010), more downwind of a large land.
+                        q -= rain * (1 - RECYCLED)
                         val texture = 1 + 0.25 * noise.fbm(x.toDouble() + m * 3.0, y.toDouble(), 120.0 / grid.cellKm, 3)
                         precip[m][i] = ((rain + background * wet.coerceAtMost(1.6) * 0.8) * texture).toFloat().coerceAtLeast(0f)
                     }
@@ -125,6 +128,9 @@ class Climate(
         }
 
         /** Thornthwaite (1948) potential evapotranspiration in mm per month from monthly mean temperatures. */
+        /** Share of each cell's rain the air takes back up and carries on. */
+        const val RECYCLED = 0.45
+
         fun thornthwaite(monthlyTemp: DoubleArray, latitudeDeg: Double): DoubleArray {
             val out = DoubleArray(12)
             val heat = monthlyTemp.sumOf { t -> if (t > 0) (t / 5).pow(1.514) else 0.0 }

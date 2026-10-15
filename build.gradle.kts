@@ -53,3 +53,12 @@ tasks.test {
     useJUnitPlatform()
     maxHeapSize = "4g"
 }
+
+tasks.register<JavaExec>("hexWaterCheck") {
+    description = "Runs water and plants for some years and reports dry-season water, springs, ground water and rivers running dry (-PwaterArgs=\"--seed 1 --years 8\")."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.WaterCheckKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("waterArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}

@@ -76,6 +76,8 @@ const val SETTLED_FERTILITY = 0.4f
 const val CAMP_FOULING = 0.02f
 /** People's deaths of thirst against an animal's at the same days without water. */
 const val HUMAN_THIRST = 0.3f
+/** How much more thirst troubles people on ground they do not know (they look for water where animals and birds lead them). */
+const val STRANGER_THIRST = 2f
 /** People's births against the catalogue's rate: long nursing spaces births three and a half to four years apart. */
 const val HUMAN_BIRTHS = 0.8f
 
@@ -87,6 +89,21 @@ class Band {
     /** How many of its adults are practised in each skill (-1 until first counted), and the week each was last used. */
     val holders = FloatArray(Skill.entries.size) { -1f }
     val lastUsed = IntArray(Skill.entries.size)
+    /** Share of its people sick with each [Illness] now, and share spared for having had it. */
+    val sick = FloatArray(Illness.entries.size)
+    val immune = FloatArray(Illness.entries.size) { Illness.entries[it].endemic }
+    /**
+     * Its wounded: the share of its adults nursing a wound, broken bone or sprain (they do little,
+     * and a wound may fester and kill), and the share lamed for life by one that healed badly.
+     */
+    var hurt = 0f
+    var lame = 0f
+    /** People taken by beasts of prey lately, per head (fading by a tenth a week). */
+    var beastLoss = 0f
+    /** What it knows of itself and of the bands about it, as of the start of the week ([bandInputs]): the people networks' view of the band. */
+    @Transient var state = FloatArray(0)
+    /** Its working hands, against all its adults: the hurt and the lamed do less. */
+    val ableShare get() = (1f - HURT_HANDS * hurt - LAME_HANDS * lame).coerceIn(0.3f, 1f)
     /** Its weeks so far, and its adults last week (to see how many it lost). */
     var weeks = 0
     var lastAdults = 0
@@ -144,9 +161,53 @@ class Band {
     var seedDomestic = 0f
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
     var sowWill = 1f
+    /**
+     * Its choices against the dangers (each 1 for the scaffold's way, as before):
+     * - how far from camp its gatherers go, against today's reach: further brings more food and
+     *   more ground to watch (beasts take more where the gatherers are spread thin);
+     * - how closely it watches its children: adults kept by them cost hands, children left alone are
+     *   easy pickings;
+     * - how faithfully it keeps a fire through the night (wood to gather; the fire keeps beasts off);
+     * - how readily it keeps away from bands with sickness among them (0: not at all), losing their
+     *   company, news and partners.
+     */
+    var gatherRange = 1f
+    var childWatch = 1f
+    var nightFire = 1f
+    var shunSick = 0f
+    /** How keen it is to go into country it does not know (1: the usual wariness of strange ground; 2: drawn to it). */
+    var explore = 1f
+    /** The fire as it guards the camp at night: kept only as faithfully as the band chooses. */
+    val nightGuard get() = fire * min(1f, nightFire) * nightWood
+    /** Share of the night's firewood it had this week. */
+    var nightWood = 1f
     /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
     var raidWill = 1f
     var fortifyWill = 1f
+    /**
+     * Its choices in dealings with other bands and with its own camp (each 1 for the scaffold's way;
+     * 0 never, 2 twice as readily or as much):
+     * - how much it gives: food to hungry bands it meets or that come to it, ornaments to friends;
+     * - how readily it takes from a cache of another band it comes upon;
+     * - how much of what it cannot carry it caches on leaving camp (the rest is left to rot);
+     * - how much of its fresh meat and fish it dries with spare time;
+     * - how readily it keeps young animals it catches or that follow its camp;
+     * - how fully it puts up brush shelters at a new camp;
+     * - how keen it is to set food before other bands and to make an appointment to meet again
+     *   (above 1 even a band without the custom does; below, even one with it holds back);
+     * - how readily it burns off dry grass round its camp.
+     */
+    var giveWill = 1f
+    var robWill = 1f
+    var cacheWill = 1f
+    var dryWill = 1f
+    var keepWill = 1f
+    var shelterWill = 1f
+    var feastWill = 1f
+    var appointWill = 1f
+    var burnWill = 1f
+    /** Whether it acts on a custom: by the custom at its will's default (1), and away from it as its will goes towards 0 or 2. */
+    fun byCustom(holds: Boolean, will: Float) = (will - 1f + (if (holds) 1f else 0f)).coerceIn(0f, 1f)
 
     /** Whether it holds hex [h] as its own: its houses, its dead, its appointment place. */
     fun claims(h: Int, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
@@ -207,7 +268,7 @@ class Band {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
-        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
+        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); sick.copyInto(o.sick); immune.copyInto(o.immune); o.hurt = hurt; o.lame = lame; holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
     }
@@ -361,10 +422,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
             val carry = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
             val total = g.larder
             if (total > carry && b.campPlace >= 0) {
-                dropCache(b)
+                // (It chooses how much of what it cannot carry to cache; the rest is left where it lies.)
                 val left = 1f - carry / total
-                for (i in g.stores.indices) { b.cache[i] = g.stores[i] * left; g.stores[i] -= b.cache[i] }
-                b.cachePlace = b.campPlace
+                val cached = min(1f, b.cacheWill)
+                if (cached > 0f) dropCache(b)
+                var abandoned = 0f
+                for (i in g.stores.indices) { val x = g.stores[i] * left; g.stores[i] -= x; if (cached > 0f) b.cache[i] = x * cached; abandoned += x * (1f - cached) }
+                if (cached > 0f) b.cachePlace = b.campPlace
+                if (abandoned > 0f) small.litter[b.campPlace] += abandoned / (land.areaKm2[b.campPlace] * 1e6f)
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t.ordinal] = 0f
         }
@@ -378,7 +443,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         run {
             val cp = b.cachePlace
             val diggers = small.rodents[cp] / CACHE_RODENTS_HALF + small.foxes[cp] / CACHE_FOXES_HALF +
-                fauna.kinds.indices.filter { fauna.kinds[it].name == "wild boar" || fauna.kinds[it].name == "brown bear" }.sumOf { (fauna.adults[it][cp] / 0.5f).toDouble() }.toFloat()
+                cacheDiggers.sumOf { (fauna.adults[it][cp] / 0.5f).toDouble() }.toFloat()
             val dug = min(0.5f, CACHE_DUG * min(1f, diggers) * years)
             if (dug > 0f) { var lost = 0f; for (i in b.cache.indices) { val x = b.cache[i] * dug; b.cache[i] -= x; lost += x }; small.carrion[cp] += 0.3f * lost / (land.areaKm2[cp] * 1e6f) }
         }
@@ -394,7 +459,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         }
         if (b.cacheKg < 1f) dropCache(b)
     }
-    buildKite(g, b)
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
     if (HERDING) keepHerds(g, b, date)
     val people = g.adults.toFloat()
@@ -430,7 +494,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     }
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
     for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) && s.needs.let { it == null || (b.knowsSkill[it.ordinal] && b.skills[it.ordinal] >= NEEDS_LEVEL) } && rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
-        b.knowsSkill[s.ordinal] = true; meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
+        b.knowsSkill[s.ordinal] = true; b.lastUsed[s.ordinal] = b.weeks; meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
@@ -463,8 +527,16 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     if (b.campWeeks == 0) b.shelter = 0f
     // (A debris hut takes a novice an afternoon, the practised an hour.)
     val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
-    if (b.shelter < 1f && time > 0f && people > 0f) { val built = min(1f - b.shelter, time / shelterDays); b.shelter += built; time -= built * shelterDays; b.practise(Skill.WOODWORK, 0.2f * PRACTICE) }
+    val shelterAim = min(1f, b.shelterWill)
+    if (b.shelter < shelterAim && time > 0f && people > 0f) { val built = min(shelterAim - b.shelter, time / shelterDays); b.shelter += built; time -= built * shelterDays; b.practise(Skill.WOODWORK, 0.2f * PRACTICE) }
     keepFire(g, b)
+    // A fire through the night burns wood: where there is little, the night goes dark.
+    run {
+        val want = NIGHT_WOOD * people * min(1f, b.nightFire)
+        val got = min(want, gd[Material.WOOD.ordinal])
+        gd[Material.WOOD.ordinal] -= got
+        b.nightWood = if (want > 0f) got / want else 1f
+    }
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
@@ -476,7 +548,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
             // It builds the way it knows that its stone, timber and clay go furthest with.
             val clay = land.water[p] >= 0.05f || land.waterKm[p] < 3f
             val way = listOf(Skill.STONE_FOOTING, Skill.PIT_HOUSE, Skill.MUDBRICK).filter { b.knowsSkill[it.ordinal] && (it != Skill.MUDBRICK || clay) }
-                .maxBy { w -> val (st, wd, dd) = houseNeeds(w); minOf(time / (dd * people), gd[Material.STONE.ordinal] / max(1e-3f, st * people), gd[Material.WOOD.ordinal] / (wd * people)) }
+                .maxByOrNull { w -> val (st, wd, dd) = houseNeeds(w); minOf(time / (dd * people), gd[Material.STONE.ordinal] / max(1e-3f, st * people), gd[Material.WOOD.ordinal] / (wd * people)) }
+                ?: Skill.STONE_FOOTING
             val (stoneEach, woodEach, daysEach) = houseNeeds(way)
             val daysNow = daysEach * people / b.skill(way) * b.skill(Skill.STONE_FOOTING)
             var built = min(1f - b.house, time / daysNow)
@@ -564,7 +637,7 @@ private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
         val bold = boldness(o)
         o.bold = bold + BOLD_DRIFT * (1f - bold)
         val tameable = s.domestication.average().toFloat()
-        if (o.young > 0 && rnd.nextFloat() < TAME * bold * tameable * years) {
+        if (o.young > 0 && rnd.nextFloat() < TAME * b.keepWill * bold * tameable * years) {
             o.young--
             if (b.kept.size < Catalogue.all.size) b.kept = b.kept.copyOf(Catalogue.all.size)
             b.kept[s.index] += 1f
@@ -590,22 +663,6 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
 private fun HexGroups.dropCache(b: Band) {
     if (b.cachePlace >= 0) small.litter[b.cachePlace] += b.cacheKg / (land.areaKm2[b.cachePlace] * 1e6f)
     b.cache.fill(0f); b.cachePlace = -1
-}
-
-/**
- * Desert kites: a large band, or one that holds feasts and can call on its neighbours, builds long
- * low walls in open country where herds pass, to drive them into a pen or pits. Once built, a kite
- * stands for generations, and any band that camps by it can use it.
- */
-private fun HexGroups.buildKite(g: HexGroup, b: Band) {
-    if (!KITES) return
-    val p = g.place
-    if (kites[p] >= 1f || g.adults < (if (b.holds(Tradition.FEASTS)) KITE_HANDS / 2 else KITE_HANDS)) return
-    if (land.cover(p) > 0.3f) return
-    val herds = KITE_QUARRY.sumOf { s -> headsHere[kindSlot[s.index]][p] }
-    if (herds < KITE_HERDS) return
-    kites[p] = min(1f, kites[p] + KITE_WORK)
-    if (kites[p] >= 1f) meetings.merge("kites built", 1, Int::plus)
 }
 
 /** The work a tool is used in (it wears when that work is done). */
@@ -645,7 +702,8 @@ internal fun HexGroups.teach(a: Band, b: Band, understood: Float, aDoesBetter: F
         val prestige = (1f + PRESTIGE * (if (from === a) aDoesBetter else -aDoesBetter)).coerceIn(0.2f, 2f)
         if (rnd.nextFloat() >= Skill.entries[k].teach * TEACH * (0.5f + 0.5f * understood) * alike * prestige) continue
         // (A meeting shows that a way exists; the skill itself comes only with people who stay to teach it.)
-        to.knowsSkill[k] = true
+        // (Newly learned, it counts as fresh: it is lost only if it then goes unused for years.)
+        to.knowsSkill[k] = true; to.lastUsed[k] = to.weeks
         meetings.merge("band learned ${Skill.entries[k].name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
 }
@@ -673,18 +731,9 @@ const val CAMP_LURE = 0.3f
 
 /** Share of a cache lost each week to damp, mice and thieves. */
 const val CACHE_SPOIL = 0.02f
-/** Desert kites are later than the Natufian: off unless asked for (-Dhex.kites). */
-val KITES = System.getProperty("hex.kites") != null
-/** Adults it takes to build a kite (half for a band that feasts with its neighbours); share of one built in a week's work. */
-const val KITE_HANDS = 30
-const val KITE_WORK = 0.1f
-/** Open-country herds kites are built for; heads of them in a place that make a kite worth building; share of a herd taken in a drive. */
-val KITE_QUARRY by lazy { with(Catalogue) { listOf(GAZELLE, ONAGER, ORYX, HARTEBEEST, HORSE) } }
-const val KITE_HERDS = 100
-const val KITE_TAKE = 0.4f
 /** People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then. */
 const val PEOPLE_FULL_KM2 = 0.5f
-const val PEOPLE_SICK = 0.025f
+const val PEOPLE_SICK = 0.012f
 /** Outbreaks start among people at this share of the rate for animals of the same crowding (small bands keep few diseases going). */
 const val PEOPLE_OUTBREAK = 0.3f
 /** How much a cave or rock shelter adds to a camp's worth (dry, warm, easy to defend). */
@@ -741,8 +790,10 @@ const val FOOD_TYPES = 9
  * each kind of food, the days of food it aims to keep, and how it ranks making each tool.
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
-val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 5
+/** The part of [bandInputs] about its health and the dangers and bands about it. */
+val BAND_SITUATION = Illness.entries.size + 12 + Tradition.entries.size + Temperament.AXES
+val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3 + BAND_SITUATION
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 19
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
@@ -760,6 +811,53 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather,
     into[i++] = weather.temperature[g.place] / 30f
     into[i++] = min(1f, b.campWeeks / 26f)
     into[i++] = b.spareDays / max(1f, g.adults * days.toFloat())
+    // Its health: the sick with each illness, the wounded and lamed, its old; and those beasts took lately.
+    for (k in Illness.entries.indices) into[i++] = b.sick[k]
+    into[i++] = b.hurt; into[i++] = b.lame
+    into[i++] = b.elders / g.size.coerceAtLeast(1).toFloat()
+    into[i++] = min(1f, b.beastLoss * 10f)
+    // The beasts of prey about its camp, as its tracking reads their sign.
+    val beasts = monthHunterKg[g.place] / land.areaKm2[g.place]
+    into[i++] = SIGN_GUESS + b.skill(Skill.TRACK) * (beasts / (beasts + 3f) - SIGN_GUESS)
+    // The bands about it (in its hex and the next): friends, strangers and those it holds a grudge
+    // against, and how sick they are; how lately it was raided, and whether it is set on a raid.
+    var friends = 0; var strangers = 0; var foes = 0; var theirSick = 0f; var near = 0
+    val here = hw.placeHex[g.place]
+    for (d in -1 until 6) {
+        val h = if (d < 0) here else hex.neighbour(here, d)
+        if (h < 0) continue
+        for (o in bandIndex[h] ?: continue) {
+            if (o === g) continue
+            val ob = o.band ?: continue
+            val t = b.tie(o.id)
+            if (t > 0.3f) friends++ else if (t < 0f || b.grudge[ob.mainLineage()] > 0.5f) foes++ else strangers++
+            theirSick += ob.sick.sum(); near++
+        }
+    }
+    into[i++] = min(1f, friends / 3f); into[i++] = min(1f, strangers / 3f); into[i++] = min(1f, foes / 3f)
+    into[i++] = if (near > 0) min(1f, theirSick / near) else 0f
+    into[i++] = 1f - min(1f, b.sinceRaided / 52f)
+    into[i++] = if (b.raidHex >= 0) 1f else 0f
+    into[i++] = min(1f, b.inbred * 4f)
+    // Its customs, and its temperament.
+    for (t in Tradition.entries) into[i++] = if (b.holds(t)) 1f else 0f
+    for (k in 0 until Temperament.AXES) into[i++] = g.temper.getOrElse(k) { 0f }
+}
+
+/**
+ * Every band's view of itself and of the bands about it, as the week starts ([Band.state]), for the
+ * people networks to choose by: worked out once, before any band moves.
+ */
+internal fun HexGroups.fillBandStates(weather: inflation.world.Weather) {
+    bandIndex.clear()
+    for (g in groups) if (g.alive && g.band != null) bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    val list = groups.filter { it.alive && it.band != null }
+    java.util.stream.IntStream.range(0, list.size).parallel().forEach { k ->
+        val g = list[k]; val b = g.band!!
+        if (b.state.size != WAYS_IN) b.state = FloatArray(WAYS_IN)
+        bandInputs(g, weather, b.state)
+    }
+    for (g in list) g.band!!.beastLoss *= 0.9f
 }
 
 /** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [STORE_AIM_DAYS], every tool alike). */
@@ -777,6 +875,20 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     b.raidWill = squash(out[FOOD_TYPES + 3 + Tool.entries.size])
     b.fortifyWill = squash(out[FOOD_TYPES + 4 + Tool.entries.size])
     b.sowWill = squash(out[FOOD_TYPES + 5 + Tool.entries.size])
+    b.gatherRange = squash(out[FOOD_TYPES + 6 + Tool.entries.size])
+    b.childWatch = squash(out[FOOD_TYPES + 7 + Tool.entries.size])
+    b.nightFire = squash(out[FOOD_TYPES + 8 + Tool.entries.size])
+    b.shunSick = (squash(out[FOOD_TYPES + 9 + Tool.entries.size]) - 1f).coerceAtLeast(0f)
+    b.explore = squash(out[FOOD_TYPES + 10 + Tool.entries.size])
+    b.giveWill = squash(out[FOOD_TYPES + 11 + Tool.entries.size])
+    b.robWill = squash(out[FOOD_TYPES + 12 + Tool.entries.size])
+    b.cacheWill = squash(out[FOOD_TYPES + 13 + Tool.entries.size])
+    b.dryWill = squash(out[FOOD_TYPES + 14 + Tool.entries.size])
+    b.keepWill = squash(out[FOOD_TYPES + 15 + Tool.entries.size])
+    b.shelterWill = squash(out[FOOD_TYPES + 16 + Tool.entries.size])
+    b.feastWill = squash(out[FOOD_TYPES + 17 + Tool.entries.size])
+    b.appointWill = squash(out[FOOD_TYPES + 18 + Tool.entries.size])
+    b.burnWill = squash(out[FOOD_TYPES + 19 + Tool.entries.size])
 }
 
 /**
@@ -824,8 +936,11 @@ internal fun HexGroups.robCaches() {
                 val ob = o.band ?: continue
                 if (o === g || b.tie(o.id) > 0.3f || ob.cacheKg <= 1f) continue
                 if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace) * (1f + b.scoutShare * 5f)) continue
+                // (Found, it is the band's choice whether to take from it.)
+                if (rnd.nextFloat() >= min(1f, b.robWill)) continue
+                val takeShare = CACHE_TAKE * max(1f, b.robWill)
                 val room = max(0f, CARRY_KG * max(1, g.adults) - g.larder)
-                val take = min(ob.cacheKg * CACHE_TAKE, room)
+                val take = min(ob.cacheKg * min(1f, takeShare), room)
                 if (take <= 0f) continue
                 val share = take / ob.cacheKg
                 for (i in ob.cache.indices) { val x = ob.cache[i] * share; ob.cache[i] -= x; g.stores[i] += x }
@@ -1098,3 +1213,35 @@ const val PRESTIGE = 0.5f
 const val SHORTFALL = 0.02f
 /** How far below its teacher a newcomer's skill falls, at best. */
 const val TRANSMIT_LOSS = 0.1f
+
+/**
+ * Choices against danger: share of the hands lost (or gained) for each step of watching the
+ * children beyond (or short of) the usual; how far beyond the usual round a gatherer walks at twice
+ * the usual range, km a day; share of a band sick before others can see it.
+ */
+const val CHILD_WATCH_HANDS = 0.15f
+const val GATHER_WALK_KM = 6f
+const val SICK_SHOWS = 0.05f
+/** Firewood a fire through the night burns in a week, kg a person. */
+const val NIGHT_WOOD = 3f
+
+/** A band takes [n] wounded among its [adults]: from a fight, a hunt gone wrong, a beast, a fall. */
+internal fun Band.wounded(n: Float, adults: Int) { if (adults > 0) hurt = min(1f, hurt + n / adults) }
+
+/**
+ * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
+ * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
+ * killed in a fight, by prey or by a beast; weekly share of the wounded who heal, untended and with
+ * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
+ * the healed lamed for life, untended (care halves it); yearly share of the lamed lost as the band's
+ * people turn over.
+ */
+const val HURT_HANDS = 0.8f
+const val LAME_HANDS = 0.4f
+const val MISHAPS = 0.08f
+const val WOUNDED_PER_DEAD = 2f
+const val HEAL_UNTENDED = 0.15f
+const val HEAL_TENDED = 0.35f
+const val FESTER = 0.02f
+const val LAMED = 0.2f
+const val LAME_TURNOVER = 0.04f

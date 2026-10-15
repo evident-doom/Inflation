@@ -28,19 +28,22 @@ class HexSim(
     val groups = HexGroups(hw, land, fauna, cfg.daysPerStep, cfg.seed, kinds, uniformStart)
     /** Volcanoes erupting at their own rates; the ash falls downwind on the places. */
     val eruptions = Eruptions(world.grid, world.volcanoes, cfg.seed)
+    /** The place each fine cell lies in (-1 for none), for where ash falls: made at the first eruption. */
+    private val cellPlace by lazy { IntArray(world.grid.size) { -1 }.also { cp -> for (p in hw.placeCells.indices) for (c in hw.placeCells[p]) cp[c] = p } }
+    private val ashKeep = kotlin.math.exp(-cfg.daysPerStep / 720.0).toFloat()
 
     /** One week: the weather, then water and plants, then the residents and small life, then the groups. */
     fun step() {
         Profile.time("weather") { weather.step() }
-        val now = eruptions.step(weather.date, cfg.daysPerStep) { c ->
+        // Ash on the ground weathers into the soil over about two years.
+        for (p in 0 until land.n) if (land.ash[p] > 0f) land.ash[p] = if (land.ash[p] < 0.05f) 0f else land.ash[p] * ashKeep
+        val now = eruptions.step(weather.date, cfg.daysPerStep, wind = { c ->
             val h = hex.owner[c]
             val p = (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 }
             if (p == null) 1f to 0f else weather.windEast(p) to weather.windSouth(p)
-        }
+        }) { c, mm -> val p = cellPlace[c]; if (p >= 0) land.ash[p] += mm / hw.placeCells[p].size }
         // A great eruption's veil cools the whole region for a couple of years.
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
-        if (eruptions.anyAsh || now.isNotEmpty()) for (p in 0 until land.n) land.ash[p] = hw.placeCells[p].sumOf { eruptions.ash[it].toDouble() }.toFloat() / hw.placeCells[p].size
-        else if (land.ash.any { it > 0f }) land.ash.fill(0f)
         Profile.time("water and plants") { land.step(weather) }
         fauna.step(weather, weather.date)
         groups.step(weather, weather.date)

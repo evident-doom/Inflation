@@ -10,6 +10,7 @@ import java.util.PriorityQueue
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -62,7 +63,10 @@ class HexGroups(
     internal val residentKg = FloatArray(n)
     internal fun residentKg(p: Int) = residentKg[p]
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
-    private val monthHunterKg by lazy { FloatArray(n) }
+    /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
+    @Transient private var monthHerdHeads = FloatArray(0)
+    @Transient private var herdHeadsMonth = -1
+    internal val monthHunterKg by lazy { FloatArray(n) }
     internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Which pack of a kind holds each hex as its ground (key: kind × hexes + hex). */
     /**
@@ -81,6 +85,9 @@ class HexGroups(
     val policies = HashMap<Species, HexPolicy>()
     /** How bands set their ways each week; null for the scaffold's. */
     var ways: BandWays? = null
+    /** How herds and packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
+    @Transient var herdWays: AnimalWays? = null
+    @Transient var hunterWays: AnimalWays? = null
     /** Kills this week by prey kind; meetings this week by kind of meeting. */
     // (Concurrent and sorted: hunting runs region by region on all cores.)
     val kills = java.util.concurrent.ConcurrentSkipListMap<String, Int>()
@@ -94,6 +101,9 @@ class HexGroups(
     internal val small get() = fauna.small
 
     init {
+        // The residents swim the same straits.
+        val pairs by lazy { Array(hex.size) { h -> seaLinks[h].indices.map { seaLinks[h][it] to seaGaps[h][it] } } }
+        fauna.seaLinks = { h -> pairs[h] }
         // Start each kind at its usual density over the land that suits it, in groups of its usual size.
         val area = land.areaKm2.sum()
         for (s in kinds) {
@@ -101,13 +111,16 @@ class HexGroups(
             // At the density a long run showed it settles at, where there is one.
             val settled = Catalogue.settledPer1000Km2(s)?.takeIf { HexFauna.USE_SETTLED }
             val unit = unitSize(s)
-            val count = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()
+            // (The migrants start at [MIGRANT_START] times that: a long run left them far below the densities of the record.)
+            val more = if (s in Catalogue.migratory && !s.carnivore) MIGRANT_START else 1f
+            val count = if (settled != null) max(if (settled > 0f) 1 else 0, (more * settled * area / 1000f / unit).toInt()) else (more * area / per / unit).toInt()
             val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
             val total = weights.sum()
             repeat(count) {
                 var u = rnd.nextFloat() * total; var p = 0
                 while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
                 val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
+                if (!s.carnivore) g.sizePref = kotlin.math.exp((rnd.nextFloat() * 2f - 1f) * kotlin.math.ln(SIZE_PREF_RANGE))
                 g.fat = 0.5f * s.maxFatDays
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
@@ -127,6 +140,35 @@ class HexGroups(
                 if (s.carnivore && !s.human) g.home = hw.placeHex[p] else inheritSeasons(g)
                 groups += g
             }
+        }
+    }
+
+    /**
+     * Newcomers: once a year, a kind of herd or pack that has dwindled to a few groups (or died out)
+     * gets a few groups more, at places that suit it, as if wandering in from beyond the map. Its
+     * niche then decides whether they last. Only in training's play worlds ([newcomersOn]), to keep
+     * every kind in the data; never in checks or ordinary runs, where a collapse must show.
+     */
+    var newcomersOn = System.getProperty("hex.newcomers") != null
+    internal fun newcomers(date: Date) {
+        if (!newcomersOn || date.month != 0 || date.dayOfMonth > days) return
+        for (s in kinds) {
+            if (s.human) continue
+            val now = groups.count { it.alive && it.species == s }
+            if (now >= NEWCOMER_BELOW) continue
+            val weights = FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
+            val total = weights.sum(); if (total <= 0f) continue
+            val unit = unitSize(s)
+            repeat(NEWCOMERS) {
+                var u = rnd.nextFloat() * total; var p = 0
+                while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
+                val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
+                if (!s.carnivore) g.sizePref = kotlin.math.exp((rnd.nextFloat() * 2f - 1f) * kotlin.math.ln(SIZE_PREF_RANGE))
+                g.fat = 0.5f * s.maxFatDays
+                if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
+                groups += g
+            }
+            meetings.merge("newcomers: ${s.name}", NEWCOMERS, Int::plus)
         }
     }
 
@@ -178,8 +220,16 @@ class HexGroups(
             val st = strength(g)
             if (st > topStrength[g.place]) { topStrength[g.place] = st; topKind[g.place] = g.species.index }
         }
+        // Herds and packs set their ways for the week (bands set theirs as they forage, see [hunt]).
+        Profile.part("animals: setting their ways") { setAnimalWays(weather) }
+        // Bands take stock of themselves and of the bands about them, for the people networks.
+        Profile.part("bands: taking stock") { fillBandStates(weather) }
         // Plan and move, in parallel: each group's choice depends only on last week's world.
         val tPlan = System.nanoTime(); val cPlan = Profile.cpuNow()
+        if (herdHeadsMonth != bearings.month || monthHerdHeads.size != n) {
+            monthHerdHeads = FloatArray(n) { p -> kinds.indices.sumOf { k -> if (kinds[k].carnivore) 0.0 else monthHeads[k][p].toDouble() }.toFloat() }
+            herdHeadsMonth = bearings.month
+        }
         Profile.part("choosing: valuing places for hunters") { valuePlaces() }
         reachCache.clear()
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
@@ -192,6 +242,15 @@ class HexGroups(
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < 0.5f) meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
             g.place = choice[k]; g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f
+            // A crossing of open water drowns some, the more the nearer the strait is to all they can swim.
+            for (i in 0 until g.path.size - 1) {
+                val gapKm = seaGap(g.path[i], g.path[i + 1]); if (!gapKm.isFinite()) continue
+                val risk = DROWN * gapKm / Catalogue.swimKm(g.species).coerceAtLeast(1f)
+                val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
+                adultsDied(g, lostA, rnd); g.young -= lostY
+                if (lostA + lostY > 0) deaths.merge("${g.species.name}:drowned crossing", lostA + lostY, Int::plus)
+                meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
+            }
         }
         Profile.add("groups: choosing where to go", System.nanoTime() - tPlan, Profile.cpuNow() - cPlan)
         // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
@@ -199,16 +258,17 @@ class HexGroups(
         val t0 = System.nanoTime()
         Profile.time("groups: meetings") { meet(weather) }
         meetNs += System.nanoTime() - t0
-        // Who passed through which hex this week.
-        val visits = HashMap<Int, ArrayList<HexGroup>>()
-        for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
+        Profile.part("groups: wearing paths") { wearPaths(); routes.week() }
         Profile.time("groups: grazing") { graze(weather) }
-        Profile.time("groups: hunting") { hunt(visits, weather) }
+        Profile.time("groups: hunting") { hunt(weather) }
         Profile.part("people: burning off") { burnOff(weather) }
         Profile.part("people: robbing caches") { robCaches() }
         Profile.part("people: visiting kin") { visitKin() }
         Profile.time("groups: ground, births, deaths") { Profile.part("hunters: marking ground") { mark() }; Profile.part("hunters: settling ground") { settle() }; demography(weather, date) }
+        // (Groups that merged into another this week, kept for following what became of their choices.)
+        merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
         groups.removeIf { !it.alive }
+        newcomers(date)
         Profile.part("herds: remembering places") { remember(date) }
     }
 
@@ -220,12 +280,115 @@ class HexGroups(
     /** Per thread: least effort to each hex, the hex it was reached from, the hexes reached, the queue. */
     private class Scratch(size: Int) {
         val dist = FloatArray(size) { Float.MAX_VALUE }; val via = IntArray(size) { -1 }
-        val reached = ArrayList<Int>(); val queue = PriorityQueue<Long>()
+        val reached = IntList(); val queue = LongHeap()
+        /** The candidates weighed for a policy: places, their features (arrays reused from week to week), hand-written scores. */
+        val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
+    }
+    /** A growable list of ints, in the order added. */
+    internal class IntList {
+        var items = IntArray(64); var size = 0
+        operator fun plusAssign(v: Int) { if (size == items.size) items = items.copyOf(2 * size); items[size++] = v }
+        operator fun get(i: Int) = items[i]
+        fun clear() { size = 0 }
+        fun toIntArray() = items.copyOf(size)
+    }
+    /** A binary min-heap of longs (no boxing). */
+    internal class LongHeap {
+        private var a = LongArray(256); private var n = 0
+        fun clear() { n = 0 }
+        fun isNotEmpty() = n > 0
+        operator fun plusAssign(v: Long) {
+            if (n == a.size) a = a.copyOf(2 * n)
+            var i = n++
+            while (i > 0) { val up = (i - 1) / 2; if (a[up] <= v) break; a[i] = a[up]; i = up }
+            a[i] = v
+        }
+        fun poll(): Long {
+            val top = a[0]; val last = a[--n]
+            var i = 0
+            while (true) {
+                var c = 2 * i + 1; if (c >= n) break
+                if (c + 1 < n && a[c + 1] < a[c]) c++
+                if (a[c] >= last) break
+                a[i] = a[c]; i = c
+            }
+            if (n > 0) a[i] = last
+            return top
+        }
     }
     private val scratch = ThreadLocal.withInitial { Scratch(hex.size) }
     /** This week's searches, shared by the groups of a kind starting from the same place in the same mood. */
-    private class Reach(val hexes: IntArray, val dist: FloatArray, val via: IntArray)
-    private val reachCache = java.util.concurrent.ConcurrentHashMap<Long, Reach>()
+    private class Reach(val reach: Float, val hexes: IntArray, val dist: FloatArray, val via: IntArray)
+    /** The groups that merged into another in the last step (gone from [groups]), with their numbers when they did ([HexGroup.mergedSize]). */
+    @Transient val merged = ArrayList<HexGroup>()
+    /** Bands by the hex they are in at the start of the week (see [fillBandStates]). */
+    @Transient internal val bandIndex = HashMap<Int, ArrayList<HexGroup>>()
+    @Transient private val reachCache = java.util.concurrent.ConcurrentHashMap<Long, Reach>()
+    /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
+    internal val outbreaksStarting: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    /**
+     * Paths: how worn the way is from each hex to each of its six neighbours (index h * 6 + side),
+     * 0..1. Every group that goes that way wears it, the heavier and more numerous the more; plants
+     * grow back over it, the faster the greener the ground. Worn paths make the going easier, the
+     * more so in broken country, so herds and people keep to them: they gather at the easy
+     * crossings, passes and fords, and there hunters wait.
+     */
+    val paths = FloatArray(hex.size * 6)
+    /**
+     * Sea crossings: for each coastal land hex, the land hexes across a strait (one or two hexes of
+     * sea) and the open water between, km. Swimmers that can cover it may cross, at a great effort
+     * and a risk of drowning; for the rest the sea is a wall.
+     */
+    val seaLinks: Array<IntArray> by lazy { links().first }
+    val seaGaps: Array<FloatArray> by lazy { links().second }
+    private var linksMade: Pair<Array<IntArray>, Array<FloatArray>>? = null
+    private fun links(): Pair<Array<IntArray>, Array<FloatArray>> = linksMade ?: run {
+        val to = Array(hex.size) { IntArray(0) }; val gap = Array(hex.size) { FloatArray(0) }
+        for (a in 0 until hex.size) {
+            if (hex.heart[a] < 0 || (0 until 6).none { d -> val b = hex.neighbour(a, d); b >= 0 && hex.heart[b] < 0 }) continue
+            val found = LinkedHashMap<Int, Float>()
+            var ring = (0 until 6).mapNotNull { d -> hex.neighbour(a, d).takeIf { it >= 0 && hex.heart[it] < 0 } }; val seen = HashSet(ring + a)
+            repeat(SEA_HEXES) {
+                val next = ArrayList<Int>()
+                for (w in ring) for (d in 0 until 6) {
+                    val b = hex.neighbour(w, d); if (b < 0 || !seen.add(b)) continue
+                    if (hex.heart[b] < 0) next += b
+                    else if ((0 until 6).none { e -> hex.neighbour(a, e) == b }) found[b] = (hex.distanceKm(a, b) - hex.hexKm).toFloat().coerceAtLeast(1f)
+                }
+                ring = next
+            }
+            to[a] = found.keys.toIntArray(); gap[a] = found.values.toFloatArray()
+        }
+        (to to gap).also { linksMade = it }
+    }
+    /** The open water between hexes [a] and [b], km, if a swimmer can cross from one to the other; else infinite. */
+    fun seaGap(a: Int, b: Int): Float { val l = seaLinks[a]; for (i in l.indices) if (l[i] == b) return seaGaps[a][i]; return Float.POSITIVE_INFINITY }
+
+    /** The worn paths read as a graph of landmarks and the legs between them. */
+    val routes = HexRoutes(this)
+
+    /** How worn the busiest path through hex [h] is. */
+    fun pathAt(h: Int): Float { var m = 0f; for (d in 0 until 6) m = max(m, paths[h * 6 + d]); return m }
+
+    /** This week's going wears the ways the groups went; the rest grow back a little. */
+    private fun wearPaths() {
+        for (h in 0 until hex.size) {
+            val p = (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: -1
+            val regrow = PATH_FADE * (0.3f + (if (p >= 0) land.green[p] else 0f)) * days / 7f
+            for (d in 0 until 6) { val i = h * 6 + d; if (paths[i] > 0f) paths[i] = max(0f, paths[i] - regrow * paths[i] - 1e-4f) }
+        }
+        for (g in groups) {
+            if (!g.alive || g.path.size < 2) continue
+            val w = min(1f, g.size * g.species.massKg / PATH_MASS_KG)
+            for (i in 0 until g.path.size - 1) {
+                val a = g.path[i]; val b = g.path[i + 1]
+                val d = (0 until 6).firstOrNull { hex.neighbour(a, it) == b } ?: continue
+                val back = (0 until 6).firstOrNull { hex.neighbour(b, it) == a } ?: continue
+                paths[a * 6 + d] += PATH_WEAR * w * (1f - paths[a * 6 + d])
+                paths[b * 6 + back] += PATH_WEAR * w * (1f - paths[b * 6 + back])
+            }
+        }
+    }
     /** Effort and hex packed in one number, ordered by effort (efforts are never negative). */
     private fun Long.withPlace(d: Float, h: Int): Long = (d.toRawBits().toLong() shl 32) or h.toLong()
 
@@ -238,6 +401,8 @@ class HexGroups(
     /** Head count of each kind in each place this week, and each species' slot in [kinds]. */
     internal val headsHere by lazy { Array(kinds.size) { IntArray(n) } }
     private val peopleSlot by lazy { kinds.indexOfFirst { it.human } }
+    /** Resident kinds that dig up a band's cache where they are about: those strong enough to break into it (50 kg and more) that root for a fifth or more of their food. */
+    internal val cacheDiggers by lazy { fauna.kinds.indices.filter { fauna.kinds[it].massKg >= 50f && fauna.kinds[it].diet.roots >= 0.2f } }
     internal val kindSlot by lazy { IntArray(Catalogue.all.size) { i -> kinds.indexOfFirst { it.index == i }.coerceAtLeast(0) } }
 
     private fun valuePlaces() {
@@ -273,12 +438,14 @@ class HexGroups(
             if (!g.alive || !g.species.human) continue
             val p = g.place
             val dry = land.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.green[p] < 0.4f
-            if (dry && land.herb[p] > 0.3f && land.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF) { land.ignite(p); meetings.merge("bands burned off grass", 1, Int::plus) }
+            if (dry && land.herb[p] > 0.3f && land.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) { land.ignite(p); meetings.merge("bands burned off grass", 1, Int::plus) }
         }
     }
 
     /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
     internal var followersByHex: Map<Int, List<HexGroup>> = emptyMap()
+    /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
+    internal var houseOf: Map<Int, Int> = emptyMap()
 
     /**
      * How big a herd of [g]'s kind grows before it splits, now: herds gather on a green flush and
@@ -294,7 +461,7 @@ class HexGroups(
         val birth = if (g.birthMonth >= 0) g.birthMonth else s.birthMonth
         val calving = (date.month - birth + 12) % 12 < s.birthMonths
         val flush = 1f + AGGREGATION * land.green[g.place] * g.fed
-        return max(unitSize(s), (s.maxGroupSize * HERD_UNIT * flush * (if (calving) 0.5f else 1f)).toInt())
+        return max(unitSize(s), (s.maxGroupSize * herdUnit(s) * g.sizePref * g.will[AnimalWay.HERD_SIZE] * flush * (if (calving) 0.5f else 1f)).toInt())
     }
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
@@ -311,13 +478,21 @@ class HexGroups(
     }
 
     /** A kind's usual group as an agent: herds move as units of [HERD_UNIT] of their usual bands. */
-    internal fun unitSize(s: Species) = if (s.carnivore) s.groupSize else s.groupSize * HERD_UNIT
+    /** A herd's size as small (0: under its kind's unit), middling (1: up to three units) or large (2), for comparing them. */
+    internal fun sizeClass(g: HexGroup) = if (BY_LEANING) (if (g.sizePref < 0.6f) 0 else if (g.sizePref < 1.7f) 1 else 2) else (g.size.toFloat() / unitSize(g.species)).let { if (it < 1f) 0 else if (it < 3f) 1 else 2 }
+    /** Compare herds by the size they lean to rather than the size they are (-Dhex.sizeByLeaning): a herd shrinks as it dies, so its size now is partly an effect. */
+    private val BY_LEANING = System.getProperty("hex.sizeByLeaning") != null
+    /** The main kind of country of each place. */
+    internal val biomeOfPlace: IntArray by lazy { IntArray(land.n) { pl -> val c = IntArray(inflation.world.Biome.entries.size); for (cell in hw.placeCells[pl]) c[hw.world.biome[cell].ordinal]++; c.indices.maxBy { c[it] } } }
+    /** How many of its kind's usual bands a herd is (1 or more). */
+    internal fun bandsIn(g: HexGroup) = max(1f, g.size.toFloat() / g.species.groupSize)
+    internal fun unitSize(s: Species) = if (s.carnivore) s.groupSize else s.groupSize * herdUnit(s)
+    /** How many of its usual bands a herd agent stands for: more for the migrants, whose herds gather in thousands. */
+    internal fun herdUnit(s: Species) = if (s in Catalogue.migratory) HERD_UNIT * MIGRANT_UNIT else HERD_UNIT
 
     /** Choices made in planning, by kind: kept to its ground without weighing (content), weighed and stayed, weighed and moved. */
     val planCounts = java.util.concurrent.atomic.AtomicIntegerArray(64 * 3)
 
-    /** Desert kites in each place, 0..1 built: long low walls funnelling open-country herds into a pen or pits. They stand for generations. */
-    val kites = FloatArray(n)
 
     /** Strongest hunting party in each place last week, and its kind's index (-1 for none). */
     private val topStrength = FloatArray(n)
@@ -358,46 +533,72 @@ class HexGroups(
         // (Herds content where they are weigh their places only one week in [CONTENT_WEEKS]: they stay while the grazing holds.)
         val every = if (s.carnivore) 2 else Tuning.contentWeeks
         if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
-        val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS
+        // (A big herd moves more slowly than a small one: it waits for its stragglers.)
+        // (A starving herd on eaten-out ground goes as far as it must, up to its whole week's travel.)
+        val shiftDays = if (restless && !s.carnivore) SHIFT_DAYS + (days - SHIFT_DAYS) * (1f - g.fed / 0.7f).coerceIn(0f, 1f) else SHIFT_DAYS
+        // (A band goes at the pace of its slowest: the old, the sick and the lamed hold it back.)
+        val weak = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
+        val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * shiftDays * (if (s.carnivore) 1f else bandsIn(g).pow(-BIG_HERD_SLOW)) * (1f - WEAK_SLOW * weak) *
+            (if (s.human) 1f / (1f + COVER_GOING * land.cover(g.place)) else 1f)
         val ki = kindIndex[s] ?: 0
         val cross = hex.crossings[Catalogue.travel(s).ordinal]
         // Least effort to each hex within reach.
         val sc = scratch.get()
         val dist = sc.dist; val via = sc.via; val reached = sc.reached
-        for (h in reached) { dist[h] = Float.MAX_VALUE; via[h] = -1 }
+        for (i in 0 until reached.size) { val h = reached[i]; dist[h] = Float.MAX_VALUE; via[h] = -1 }
         reached.clear()
         val q = sc.queue; q.clear()
         // Groups of a kind starting from the same place this week share the search (herds often do).
+        // Each group's reach is its own (hunger, herd size, the band's weak), so a search is shared only
+        // with groups that reach no further, and each takes the hexes within its own reach: least-effort
+        // distances within a reach do not depend on how far the search went beyond it. The hexes are kept
+        // in index order, so the choice does not depend on which group's search was kept.
         val reachKey = ((s.index.toLong() * 8 + hw.placeBand[g.place]) * hex.size + here) * 2 + (if (restless) 1 else 0)
-        val shared = reachCache[reachKey]
-        if (shared != null) {
-            for (i in shared.hexes.indices) { val h = shared.hexes[i]; reached += h; dist[h] = shared.dist[i]; via[h] = shared.via[i] }
-        } else {
-        dist[here] = 0f; reached += here; q += 0L.withPlace(0f, here)
-        while (q.isNotEmpty()) {
-            val e = q.poll()
-            val d = Float.fromBits((e ushr 32).toInt()); val h = (e and 0xffffffffL).toInt()
-            if (d > dist[h]) continue
-            for (k in 0 until 6) {
-                val nh = hex.neighbour(h, k)
-                if (nh < 0 || hex.heart[nh] < 0) continue
-                // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper.
-                val np = hw.placeOf[hw.placeBand[g.place]][nh].takeIf { it >= 0 } ?: hex.heart[nh]
-                val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
-                val nd = d + cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM)
-                if (!nd.isFinite() || nd > reach) continue
-                if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
+        var shared = reachCache[reachKey]
+        if (shared == null || shared.reach < reach) {
+            dist[here] = 0f; reached += here; q += 0L.withPlace(0f, here)
+            while (q.isNotEmpty()) {
+                val e = q.poll()
+                val d = Float.fromBits((e ushr 32).toInt()); val h = (e and 0xffffffffL).toInt()
+                if (d > dist[h]) continue
+                for (k in 0 until 6) {
+                    val nh = hex.neighbour(h, k)
+                    if (nh < 0 || hex.heart[nh] < 0) continue
+                    // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper.
+                    val np = hw.placeOf[hw.placeBand[g.place]][nh].takeIf { it >= 0 } ?: hex.heart[nh]
+                    val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
+                    // A worn path makes the going easier, the more so where the country is broken.
+                    val worn = paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
+                    val nd = d + cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
+                    if (!nd.isFinite() || nd > reach) continue
+                    if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
+                }
+                // Swimmers may cross a strait they can cover, at a great effort.
+                val swim = Catalogue.swimKm(s)
+                if (swim > 0f) for ((i, nh) in seaLinks[h].withIndex()) {
+                    val gapKm = seaGaps[h][i]
+                    if (gapKm > swim) continue
+                    val nd = d + gapKm * SWIM_EFFORT
+                    if (nd > reach) continue
+                    if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
+                }
             }
+            val hs = reached.toIntArray().also { it.sort() }
+            val mine = Reach(reach, hs, FloatArray(hs.size) { dist[hs[it]] }, IntArray(hs.size) { via[hs[it]] })
+            shared = reachCache.merge(reachKey, mine) { a, b -> if (a.reach >= b.reach) a else b }!!
+            for (i in 0 until reached.size) { val h = reached[i]; dist[h] = Float.MAX_VALUE; via[h] = -1 }
+            reached.clear()
         }
-        val hs = reached.toIntArray()
-        reachCache[reachKey] = Reach(hs, FloatArray(hs.size) { dist[hs[it]] }, IntArray(hs.size) { via[hs[it]] })
+        for (i in shared.hexes.indices) {
+            if (shared.dist[i] > reach) continue
+            val h = shared.hexes[i]; reached += h; dist[h] = shared.dist[i]; via[h] = shared.via[i]
         }
         lap("choosing: reach (least-effort search)")
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
         val policy = policies[s]
         // (For a followed group: every place it weighed, and how it scored.)
         val seen = if (g.id == watched) ArrayList<Pair<Int, Float>>() else null
-        val candPlaces = ArrayList<Int>(); val candFeats = ArrayList<FloatArray>(); val candScores = ArrayList<Float>()
+        val candPlaces = sc.candPlaces; candPlaces.clear(); val candFeats = sc.candFeats
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
         // hungry pack ranges wider: up to three times that after weeks of hunger.
@@ -406,11 +607,17 @@ class HexGroups(
         val goalHex = if (goal >= 0) hw.placeHex[goal] else -1
         val fromHere = if (goal >= 0) hexKm(here, goalHex) else 0.0
         val pullKm = reach.toDouble().coerceAtLeast(hex.hexKm)
-        for (h in reached) {
+        // (A band keeps off the known homes of bands it is not close to: those hexes, once for the week.)
+        val keepOff = g.band?.let { b -> b.knownHomes.entries.filter { b.tie(it.key) <= 0f }.map { it.value }.toIntArray() }
+        for (ri in 0 until reached.size) {
+            val h = reached[ri]
             val d = dist[h]
-            // A pack on its own ground stays on it while fed; and keeps off ground another pack of its kind holds.
-            if (s.carnivore && !s.human && g.home >= 0 && g.fed >= 0.5f && !astray && hexKm(h, g.home) > territory) continue
-            if (s.carnivore && !s.human && g.fed >= 0.3f && h != g.home && foreignMark(s, h, g.id) > MARK_FRESH) continue
+            // How far beyond its ground the hex lies (0 within it), and how fresh another pack's mark on it is.
+            val beyond = if (s.carnivore && !s.human && g.home >= 0) (hexKm(h, g.home) / territory - 1.0).toFloat().coerceIn(0f, 2f) else 0f
+            val foreign = if (s.carnivore && !s.human && h != g.home) foreignMark(s, h, g.id) else 0f
+            // A pack on its own ground stays on it while fed, and keeps off ground another pack of its kind holds
+            // (its choice: the hand-written score weighs these heavily; a learned one sees both, see [HexFeatures]).
+            val offGround = (if (beyond > 0f && g.fed >= 0.5f && !astray) KEEP_TO_GROUND else 0f) + (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
             val toGoal = if (goal >= 0) hexKm(h, goalHex) else 0.0
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(ki, here, h, pullKm)
@@ -432,7 +639,9 @@ class HexGroups(
                     // And ground where game was killed lately is shunned (the landscape of fear).
                     food / (food + 0.3f) - 0.5f * crowd(s, p, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
                 }
-                score -= 0.5f * discomfort(s, p, weather)
+                score -= 0.5f * discomfort(s, p, weather) + offGround
+                // Its own kind of country: open plains for a cheetah, crags for a wild goat, whatever the food.
+                if (!s.human) score += GROUP_HABITAT * kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f))
                 // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
                 // too deep to dig through, and in a dry spell the rain on its way.
                 val tAhead = weather.forecastTemp(p)
@@ -440,8 +649,9 @@ class HexGroups(
                 if (tAhead < 0f && weather.snowpack[p] + weather.forecastRain(p) > s.snowLimitMm) score -= 0.5f * s.foresight
                 if (land.soil[p] < DRY_SOIL_MM) score += 0.3f * s.foresight * min(1f, weather.forecastRain(p) / RAIN_AHEAD_MM)
                 // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
-                score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * land.waterKm[p] / s.dailyTravelKm
-                if (thirsty && land.water[p] < 0.05f) score -= 1f
+                // (People can dig for water in a dry bed where it lies near.)
+                score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm
+                if (thirsty && land.water[p] < 0.05f && !(s.human && land.dug[p] >= 0.05f)) score -= 1f
                 if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
                 // The going costs food: a share of the week's need (see [walkCost]).
                 score -= WALK_COST * d / days
@@ -467,7 +677,7 @@ class HexGroups(
                     if (h == b.houseHex) score += HOME_PULL * b.house
                     if (h == b.unluckyHex) score -= UNLUCKY
                     // It keeps off the known homes of bands it is not close to (unless set on raiding them).
-                    if (b.raidHex != h) for ((id, hh) in b.knownHomes) if (hh == h && b.tie(id) <= 0f) { score -= TRESPASS_AVOID; break }
+                    if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
                     // A band set on a raid heads for its target.
                     if (b.raidHex >= 0) { val from = hexKm(here, b.raidHex); if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f) }
                 }
@@ -477,12 +687,15 @@ class HexGroups(
                     if (others > 0) score += GATHER_PULL * min(1f, others / GATHER_HEADS)
                 } }
                 // Bands keep to country they know; what lies beyond they know only as a sense of better land.
-                g.band?.let { b -> if (!b.knows(h)) score -= UNKNOWN_COUNTRY }
+                // Strange country puts a band off, unless it is out to explore (then it draws it on).
+                g.band?.let { b -> if (!b.knows(h)) score -= UNKNOWN_COUNTRY * (2f - b.explore) }
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.
                 if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
                 seen?.add(p to score)
                 if (policy != null) {
-                    val f = FloatArray(HexFeatures.SIZE)
+                    val nc = candPlaces.size
+                    if (nc == candFeats.size) candFeats += FloatArray(HexFeatures.SIZE)
+                    val f = candFeats[nc].also { it.fill(0f) }
                     // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
                     if (s.carnivore) { val v = placeValue[ki][p]; f[0] = v / (v + PREY_HALF) } else { val food = foodFor(s, p); f[0] = food / (food + 0.3f) }
                     f[1] = kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
@@ -490,6 +703,15 @@ class HexGroups(
                     f[3] = predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f)
                     f[4] = min(2f, discomfort(s, p, weather))
                     f[5] = min(2f, s.discomfortC(weather.forecastTemp(p), date.month) / 10f)
+                    // People see only what they can read: the weather coming as their lore and sky-watching
+                    // allow (else they expect this week's again), the beasts about as their tracking does,
+                    // and the food of country they do not know only dimly.
+                    g.band?.let { b ->
+                        val sense = ((if (b.holds(Tradition.SKY_LORE)) 0.5f else 0f) + 0.5f * b.skill(Skill.LORE)).coerceIn(0f, 1f)
+                        f[5] = f[4] + sense * (f[5] - f[4])
+                        f[3] = SIGN_GUESS + b.skill(Skill.TRACK) * (f[3] - SIGN_GUESS)
+                        if (!b.knows(h)) f[0] = 0.5f * f[0] + 0.5f * SIGN_GUESS
+                    }
                     f[6] = if (weather.snowpack[p] > s.snowLimitMm) 1f else 0f
                     f[7] = min(2f, weather.snowpack[p] / s.snowLimitMm)
                     f[8] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
@@ -504,7 +726,7 @@ class HexGroups(
                     f[15] = g.fat / s.maxFatDays.coerceAtLeast(1f)
                     f[16] = kotlin.math.sin(season).toFloat(); f[17] = kotlin.math.cos(season).toFloat()
                     f[18] = if (restless) 1f else 0f
-                    f[19] = min(3f, land.waterKm[p] / s.dailyTravelKm)
+                    f[19] = min(3f, (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm)
                     f[20] = min(2f, g.dry / s.daysWithoutWater)
                     f[21] = pull
                     // The moon (night hunters see and are seen by it) and how far off its young are due.
@@ -515,6 +737,19 @@ class HexGroups(
                     f[31] = min(1f, g.memory.deadAt(h) / 10f)
                     f[32] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
                     f[33] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
+                    f[34] = kotlin.math.ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
+                    f[35] = min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])
+                    f[36] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
+                    // The signs of the land, as anyone who looks can read them.
+                    f[37] = min(1f, land.tree[p] / 10f); f[38] = min(1f, land.shrub[p] / 2f); f[39] = min(1f, land.herb[p] / 0.5f)
+                    f[40] = min(1f, land.logged[p])
+                    f[41] = (land.water[p] - min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])).coerceIn(-1f, 1f)
+                    f[42] = pathAt(h)
+                    f[43] = kotlin.math.ln(1f + monthHerdHeads[p] / land.areaKm2[p]) / 3f
+                    f[44] = min(1f, fauna.small.dung[p] * 1e4f)
+                    f[45] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
+                    f[46] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
+                    f[47] = beyond; f[48] = foreign
                     // What it remembers of this hex: in this season, or failing that in any.
                     val mem = g.memory
                     var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0
@@ -524,15 +759,16 @@ class HexGroups(
                         f[27] = mem.fed[slot]; f[28] = mem.water[slot]; f[29] = mem.danger[slot]
                         f[30] = min(1f, (date.absoluteDay / days - mem.lastWeek[slot]) / 52f)
                     }
-                    candPlaces += p; candFeats += f; candScores += score
+                    if (nc == sc.candScores.size) sc.candScores = sc.candScores.copyOf(2 * nc)
+                    candPlaces += p; sc.candScores[nc] = score
                     continue
                 }
-                score += 0.02f * (hashNoise(g.id, p) - 0.5f)
+                score += 0.02f * (hashNoise(g.id, p) - 0.5f) + temperPull(g, p, h, predatorKg)
                 if (score > bestScore) { bestScore = score; best = p }
             }
         }
         lap("choosing: weighing places (hand-written score)")
-        if (policy != null && candPlaces.isNotEmpty()) best = candPlaces[policy.choose(g, candFeats.toTypedArray(), candScores.toFloatArray())]
+        if (policy != null && candPlaces.size > 0) { val nc = candPlaces.size; best = candPlaces[policy.choose(g, Array(nc) { candFeats[it] }, sc.candScores.copyOf(nc), policyRandom(g.id, date.absoluteDay))] }
         lap("choosing: network")
         if (seen != null) {
             fun where(p: Int) = "hex %d at %.0f m".format(hw.placeHex[p], hw.placeElevationM[p])
@@ -549,11 +785,11 @@ class HexGroups(
                 val prog = if (fromHere > hex.hexKm) ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f) else 0f
                 return "food %.2f crowd %.2f hunters %.2f cold/heat %.2f water %.2f going %.2f season %.2f bearing %.2f stay %.2f (%.0f km from goal)".format(
                     food / (food + 0.3f), -0.5f * crowd(s, p, g), -SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG), -0.5f * discomfort(s, p, weather),
-                    -(0.02f + 0.3f * g.dry / s.daysWithoutWater) * land.waterKm[p] / s.dailyTravelKm, -WALK_COST * dist[h] / days,
+                    -(0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm, -WALK_COST * dist[h] / days,
                     SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * prog, BEARING_PULL * bearings.along(ki, here, h, pullKm),
                     if (p == g.place) STAY else 0f, toGoal)
             }
-            val towards = reached.minByOrNull { hexKm(it, goalHex) }?.let { h -> hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: hex.heart[h] }?.takeIf { it >= 0 }
+            val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h -> hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: hex.heart[h] }?.takeIf { it >= 0 }
             println("plan ${s.name} #${g.id} month ${date.month + 1}: chose " + parts(best) + (towards?.let { " | toward goal " + parts(it) } ?: ""))
         }
         // The hexes passed on the way, by the cheapest chain.
@@ -611,7 +847,7 @@ class HexGroups(
     internal var moon = 0.5f
 
     /** Time spent settling meetings, ns, over the run (for measuring the cost). */
-    var meetNs = 0L
+    @Transient var meetNs = 0L
 
 
     internal fun poisson(mean: Float, r: Random = rnd): Int {
@@ -636,6 +872,8 @@ class HexGroups(
 
     /** A random stream of group [id]'s own for the week starting on [day]: the same whatever the cores do. */
     internal fun groupRandom(id: Int, day: Long) = Random(seedBase * 1_000_003L + id * 7_919L + day)
+    /** A group's own stream for its choice of ground this week (apart from [groupRandom]'s, which its week's life draws on). */
+    internal fun policyRandom(id: Int, day: Long) = Random((seedBase * 1_000_003L + id * 7_919L + day) * 0x9E3779B97F4A7C15uL.toLong() + 0x2545F4914F6CDD1DL)
 
     internal fun hashNoise(id: Int, p: Int): Float {
         var h = id * 0x9E3779B97F4A7C15uL.toLong() + p * 0x632BE59BD9B4E019L

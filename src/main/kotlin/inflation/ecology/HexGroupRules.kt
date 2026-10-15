@@ -33,12 +33,62 @@ const val NOT_WORTH_TRYING = 0.05f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
 const val AVOID_STRONGER = 0.3f
 /** How many times its usual density a migratory herd bears where herds gather before crowding sickens it. */
-const val MIGRANTS_GATHER = 20f
+val MIGRANTS_GATHER get() = 20f * MIGRANT_UNIT
 /**
  * A herd agent stands for this many of its kind's usual bands (a gazelle herd of 120 rather than 12):
  * herds that move together are one agent, which keeps their numbers, and the step's cost, down.
  */
 const val HERD_UNIT = 10
+/** Herds lean to sizes from this many times smaller to this many times larger than their kind's usual. */
+const val SIZE_PREF_RANGE = 3f
+/** How much of a courser's success thick cover takes away (a cheetah in a wood runs into trees). */
+const val COURSING_COVER = 0.7f
+/** How much a herd or pack weighs its own kind of country (the log of [HexFauna.suits]) in choosing its ground. */
+const val GROUP_HABITAT = 0.15f
+/**
+ * Paths: share of the way to fully worn one passage of a group of [PATH_MASS_KG] or more wears;
+ * weekly share plants take back at the greenest (less on bare ground); weight of a group that wears
+ * a path at the full rate, kg; how much a fully worn path eases the going on middling ground (more
+ * on broken); how much likelier hunters meet game, or people, on a busy path (they wait there).
+ */
+const val PATH_WEAR = 0.05f
+const val PATH_FADE = 0.03f
+const val PATH_MASS_KG = 3000f
+const val PATH_EASE = 0.5f
+const val AMBUSH = 1f
+/** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
+/** Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum against a km walked; share of a swimming herd that drowns on a strait as wide as all it can swim (young twice that). */
+const val SEA_HEXES = 2
+const val SWIM_EFFORT = 10f
+const val DROWN = 0.05f
+const val NEWCOMER_BELOW = 5
+const val NEWCOMERS = 3
+/** What a band takes a sign it cannot read to be: a middling value, neither good nor bad. */
+const val SIGN_GUESS = 0.3f
+/** How much harder thick cover makes people's going; share of what the camp's own hex gives that each hex round it gives a band's gatherers at the usual range. */
+const val COVER_GOING = 0.5f
+const val RING_REACH = 0.15f
+/** How much the old, the sick and the lamed slow a band's going (all of it so: this share slower). */
+const val WEAK_SLOW = 0.6f
+/**
+ * The sides of a herd's size, against its kind's usual band: how its walking slows, how much less
+ * each attempt on it succeeds (many eyes, confusion), and how much less often its young are taken
+ * (they keep to the middle), each as a power of the bands it is; under how many bands a herd can lie
+ * hidden in cover, and how much of its being found the best cover saves a lone band.
+ */
+const val BIG_HERD_SLOW = 0.05f
+const val BIG_HERD_EYES = 0.15f
+const val BIG_HERD_SHELTERS = 0.3f
+const val SMALL_HERD_BANDS = 3f
+const val HIDE_IN_COVER = 0.6f
+/**
+ * Migratory herds: how many times more of their bands one agent stands for, and how many times the
+ * settled density they start at (goitered gazelle 0.5-5 a km² on good steppe; the long run had left
+ * them at under 0.1). Both 1 for now (-Dhex.migrantUnit, -Dhex.migrantStart): at ten times the
+ * numbers, the herds starve back to where they were within ten years, so their food is the limit.
+ */
+val MIGRANT_UNIT = System.getProperty("hex.migrantUnit")?.toInt() ?: 1
+val MIGRANT_START = System.getProperty("hex.migrantStart")?.toFloat() ?: 1f
 /** A content herd weighs its places one week in this many (others keep to their ground unweighed). */
 const val CONTENT_WEEKS = 2
 /** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
@@ -91,6 +141,9 @@ const val MEMORY_FADE = 0.998f
 /** How much a hungry pack is put off ground it has hunted out lately; weeks of hunger over which it widens its range to three times its usual ground. */
 const val HUNGRY_LEAVE = 0.5f
 const val GIVE_UP_WEEKS = 4
+/** How much a fed pack's hand-written score is put off ground beyond its territory, and ground another pack of its kind has freshly marked: enough that it keeps to its own as it did when those places were not weighed at all, while a learned policy sees both and may weigh them otherwise. */
+const val KEEP_TO_GROUND = 2f
+const val KEEP_OFF_MARKS = 2f
 /** Chance a chase at a fully catchable quarry succeeds. */
 const val CATCH = 0.35f
 /** Time a kill takes, days: the chase and making the kill, and eating it at this many kg a day per kg of hunter. */
@@ -114,7 +167,11 @@ const val COLD_MAX = 1.6f
  * a little under a hundredth of a day's energy per km, whatever their size; the walking within its
  * usual range is part of the day's need already.)
  */
-fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * kotlin.math.max(0, g.path.size - 1) * hex.hexKm.toFloat() / days
+fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * kotlin.math.max(0, g.path.size - 1) * hex.hexKm.toFloat() / days *
+    // (People pushing through thick woods and scrub go slower and tire more than in the open.)
+    (if (g.species.human) 1f + COVER_GOING * land.cover(g.place) else 1f) +
+    // (Gatherers going further than usual walk the difference out and back each day.)
+    (g.band?.let { b -> if (b.gatherRange > 1f) WALK_COST * GATHER_WALK_KM * (b.gatherRange - 1f) * 0.5f else 0f } ?: 0f)
 const val WALK_COST = 0.011f
 
 /**

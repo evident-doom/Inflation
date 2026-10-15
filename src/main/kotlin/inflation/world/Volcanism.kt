@@ -154,15 +154,11 @@ object Volcanism {
 /**
  * Eruptions over simulated time. Each active volcano erupts at random at its long-term rate;
  * the explosivity follows the observed frequency of VEI classes, each step up being roughly
- * five times rarer. Ash falls mostly downwind of the week's wind and thins with distance; it lies on the
- * ground for a few years before it is washed into the soil.
+ * five times rarer. Ash falls mostly downwind of the week's wind and thins with distance; where it
+ * lies, and how it weathers, is kept by whoever takes it (see [step]).
  */
 class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, seed: Long) {
     private val rnd = Random(seed * 7 + 5)
-    /** Ash on the ground, mm. */
-    val ash = FloatArray(grid.size)
-    /** Whether any ash lies anywhere. */
-    var anyAsh = false; private set
     val history = ArrayList<Eruption>()
 
     private var pending: List<Eruption>? = null
@@ -173,20 +169,17 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
      */
     val upcoming: List<Eruption> get() = pending ?: emptyList()
 
-    /** Advances [days] days from [date]; [wind], when given (m/s east and south at a fine cell), carries the ash plumes downwind. */
-    fun step(date: Date, days: Int, wind: ((Int) -> Pair<Float, Float>)? = null): List<Eruption> {
-        val decay = exp(-days / 720.0).toFloat() // about two years' residence
-        if (anyAsh) {
-            var left = false
-            for (i in ash.indices) if (ash[i] > 0f) { ash[i] = if (ash[i] < 0.05f) 0f else ash[i] * decay; if (ash[i] > 0f) left = true }
-            anyAsh = left
-        }
+    /**
+     * Advances [days] days from [date]; [wind], when given (m/s east and south at a fine cell), carries
+     * the ash plumes downwind, and [ash] takes the mm that fall on each fine cell.
+     */
+    fun step(date: Date, days: Int, wind: ((Int) -> Pair<Float, Float>)? = null, ash: (Int, Float) -> Unit = { _, _ -> }): List<Eruption> {
         val now = pending ?: draw(date, days)
         for (e in now) {
             history += e
             val c = grid.index(e.volcano.x, e.volcano.y)
             val (u, v) = wind?.invoke(c) ?: (1f to 0f)
-            fallAsh(e.volcano, e.vei, u, v)
+            fallAsh(e.volcano, e.vei, u, v, ash)
         }
         pending = draw(date.plusDays(days), days)
         return now
@@ -204,7 +197,7 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
         return now
     }
 
-    private fun fallAsh(v: Volcano, vei: Int, windEast: Float, windSouth: Float) {
+    private fun fallAsh(v: Volcano, vei: Int, windEast: Float, windSouth: Float, ash: (Int, Float) -> Unit) {
         if (vei < 2) return
         // Thickness 1 km downwind of the vent, and the e-folding distance, both grow with VEI.
         val nearMm = 50.0 * 2.5.pow(vei - 2)
@@ -222,7 +215,7 @@ class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, se
             // Thinner upwind and to the sides.
             val dist = sqrt((if (along < 0) along * 3 else along).pow(2) + (across * 2).pow(2))
             val mm = nearMm * exp(-dist / lengthKm)
-            if (mm > 0.1) { ash[grid.index(x, y)] += mm.toFloat(); anyAsh = true }
+            if (mm > 0.1) ash(grid.index(x, y), mm.toFloat())
         }
     }
 }

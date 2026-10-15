@@ -131,7 +131,7 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Marrying out, lineage mix, inbreeding | yes |
 | Elders and grandmothers | yes |
 | Raids for food and feuds, grudges against lineages | yes |
-| Desert kites | yes (built by large bands where open-country herds pass) |
+| Desert kites | removed (later than the Natufian; Olli, 2026-10-15) |
 | Crowding sickness | yes (people in the hex and the six round it) |
 | Burning off, camp fires against lions and hyenas, defensible camps | yes |
 | Knowing the country (walked, seen, told of by bands understood), forgetting far country | yes |

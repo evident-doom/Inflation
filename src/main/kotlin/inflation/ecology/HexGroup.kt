@@ -3,6 +3,11 @@ package inflation.ecology
 /** A herd, pack or pride on the hexes: where it stands (a place: a height band of a hex) and who it is. */
 class HexGroup(val id: Int, val species: Species, var place: Int, var adults: Int, var young: Int) {
     val size get() = adults + young
+    /**
+     * For a herd: how large it likes to grow against its kind's usual, its own leaning (a third to
+     * three times), kept by both halves when it splits; so herds of every size live side by side.
+     */
+    var sizePref = 1f
     val alive get() = adults > 0
     /** Fed last week, 0..1; body reserves, days of food. */
     var fed = 1f
@@ -30,8 +35,16 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** The places it remembers (see [PlaceMemory]). */
     val memory = PlaceMemory()
     var mergedSize = -1
+    /**
+     * A band's luck in its own week's births and deaths, summed since it began: born less died as
+     * drawn, against as expected from the week's odds (for training, which judges people by what
+     * their choices made likely, not by chance; animals keep 0).
+     */
+    var luck = 0f
     /** The month its young are born in, drifting towards the months that feed them best; -1 for its kind's. */
     var birthMonth = -1
+    /** For a herd or pack: its ways this week, 1 the hand-written way (see [AnimalWay]). */
+    val will = FloatArray(ANIMAL_WAYS_OUT) { 1f }
     /** For a band: food on hand, kg, by kind ([Store]). */
     val stores = FloatArray(Store.entries.size)
     /** All food on hand, kg; setting it scales every kind alike (gifts, raids, splits), or stores it dried. */
@@ -42,6 +55,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     var band: Band? = null
     /** For kinds that follow people's camps: the share of it bold enough to come close, 0..1 (-1 until first needed: its kind's share). */
     var bold = -1f
+    /** Its temperament ([Temperament]): a founder's by chance, an offshoot's from its parent. */
+    var temper = Temperament.founder(id)
     /** How wary it is from being hunted lately, 0..1: it keeps a sharper watch, and fades over weeks. */
     var wary = 0f
     /** How much more food it needs this week to keep warm, 1 when comfortable (see [coldNeed]). */
@@ -52,10 +67,11 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
 /**
  * How a group of a kind chooses where to go this week, among the places it can reach: each
  * candidate described by [HexFeatures] (in [features]), with the hand-written score for it in
- * [baseline]. Returns the index of the chosen candidate.
+ * [baseline]. Returns the index of the chosen candidate. Any chance in the choice comes from [rnd],
+ * the group's own stream for the week, so a run is the same whichever core the group chose on.
  */
 fun interface HexPolicy {
-    fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): Int
+    fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int
 }
 
 /**
@@ -65,6 +81,9 @@ fun interface HexPolicy {
  * place, the way to better country it senses, and the group's own state and the time of year.
  */
 object HexFeatures {
-    /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment; 33 its houses there. */
-    const val SIZE = 34
+    /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment; 33 its houses there; 34 its own size against its kind's usual group; 35 the lasting water there through the dry season; 36 sickness raging there among its kind;
+     *  37-46 the signs of the land: tree, shrub and grass cover, marsh, water now against its usual, worn paths, herds about
+     *  this month, dung, grazing this week, carcasses and bones; 46 whether a band knows the hex;
+     *  47 for a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size); 48 how fresh another pack of its kind's mark is there. */
+    const val SIZE = 49
 }
