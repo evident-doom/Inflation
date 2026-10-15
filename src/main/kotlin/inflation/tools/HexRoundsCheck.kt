@@ -28,7 +28,7 @@ fun main(args: Array<String>) {
         }
         k++
     }
-    val run = HexLearning.Run(cfg, Catalogue.learned)
+    val run = HexLearning.Run(cfg, Catalogue.learned.filter { !it.human || System.getProperty("hex.noPeople") == null })
     val herds = Catalogue.learned.filter { it in Catalogue.migratory }
     val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep; val perYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     // [kind][month]: distances of herds on a round to its place, and how many herds there were.

@@ -322,7 +322,7 @@ class Vegetation(private val world: World, private val seed: Long) {
 
     companion object {
         /** Browsing, kg/km²/day, at which seedlings and saplings are mostly eaten (a few deer per km²). */
-        const val BROWSE_SCALE = 3f
+        val BROWSE_SCALE = System.getProperty("hex.t.browseScale")?.toFloat() ?: 3f
         /** Grazing, kg/km²/day, at which most dry fuel is gone. */
         const val GRAZE_SCALE = 5f
         /** Grazing, kg/km²/day, that over years turns grassland into short lawn. */
