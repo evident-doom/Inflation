@@ -57,6 +57,10 @@ const val PATH_MASS_KG = 3000f
 const val PATH_EASE = 0.5f
 const val AMBUSH = 1f
 /** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
+/** Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum against a km walked; share of a swimming herd that drowns on a strait as wide as all it can swim (young twice that). */
+const val SEA_HEXES = 2
+const val SWIM_EFFORT = 10f
+const val DROWN = 0.05f
 const val NEWCOMER_BELOW = 5
 const val NEWCOMERS = 3
 /** What a band takes a sign it cannot read to be: a middling value, neither good nor bad. */

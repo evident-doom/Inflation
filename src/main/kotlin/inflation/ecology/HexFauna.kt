@@ -533,6 +533,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * Hungry or crowded animals spill into neighbouring hexes, at about the same height, towards
      * better feeding; the harder the border is for their way of travelling, the fewer cross it.
      */
+    /** The straits from each hex, as (hex across, km of open water) pairs; set by the groups (see [HexGroups.seaLinks]). */
+    var seaLinks: ((Int) -> List<Pair<Int, Float>>)? = null
+
     private fun spill() {
         kinds.indices.toList().parallelStream().forEach { k ->
             val s = kinds[k]
@@ -559,8 +562,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     ws[d] = ease * (foodFor(s, q) * land.nourishment(q) * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / CROWD) + 1e-4f) * max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     total += ws[d]
                 }
+                // A few swim the strait to the coast across, as far as they can swim it.
+                val swim = Catalogue.swimKm(s)
+                var seaW = 0f; var seaTo = -1
+                if (swim > 0f && seaLinks != null) {
+                    val links = seaLinks!!(h)
+                    for ((nh, gapKm) in links) { if (gapKm > swim) continue; val q = hw.placeOf[b][nh].takeIf { it >= 0 } ?: continue
+                        val wq = SEA_SPILL * (1f - gapKm / swim) * land.areaKm2[q] * (foodFor(s, q) + 1e-4f); if (wq > seaW) { seaW = wq; seaTo = q } }
+                }
                 if (total <= 0f) continue
                 val goA = a[p] * leave * land.areaKm2[p]; val goY = y[p] * leave * land.areaKm2[p]
+                if (seaTo >= 0) { val share = seaW / (total + seaW); moveA[p] -= goA * share; moveY[p] -= goY * share; moveA[seaTo] += goA * share; moveY[seaTo] += goY * share }
                 moveA[p] -= goA; moveY[p] -= goY
                 for (d in 0 until 6) {
                     if (ws[d] <= 0f) continue
@@ -580,6 +592,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 10f
+        /** How strongly a strait draws spilling residents against a neighbouring hex on land (a trickle). */
+        const val SEA_SPILL = 0.02f
         /** Newcomers among the residents: a kind under this many animals gets this many at each of this many places, once a year. */
         const val NEWCOMER_ANIMALS = 300.0
         const val NEWCOMER_HEADS = 20f

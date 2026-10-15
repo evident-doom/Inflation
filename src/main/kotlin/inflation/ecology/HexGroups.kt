@@ -98,6 +98,9 @@ class HexGroups(
     internal val small get() = fauna.small
 
     init {
+        // The residents swim the same straits.
+        val pairs by lazy { Array(hex.size) { h -> seaLinks[h].indices.map { seaLinks[h][it] to seaGaps[h][it] } } }
+        fauna.seaLinks = { h -> pairs[h] }
         // Start each kind at its usual density over the land that suits it, in groups of its usual size.
         val area = land.areaKm2.sum()
         for (s in kinds) {
@@ -230,6 +233,15 @@ class HexGroups(
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < 0.5f) meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
             g.place = choice[k]; g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f
+            // A crossing of open water drowns some, the more the nearer the strait is to all they can swim.
+            for (i in 0 until g.path.size - 1) {
+                val gapKm = seaGap(g.path[i], g.path[i + 1]); if (!gapKm.isFinite()) continue
+                val risk = DROWN * gapKm / Catalogue.swimKm(g.species).coerceAtLeast(1f)
+                val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
+                g.adults -= lostA; g.young -= lostY
+                if (lostA + lostY > 0) deaths.merge("${g.species.name}:drowned crossing", lostA + lostY, Int::plus)
+                meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
+            }
         }
         Profile.add("groups: choosing where to go", System.nanoTime() - tPlan, Profile.cpuNow() - cPlan)
         // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
@@ -280,6 +292,36 @@ class HexGroups(
      * crossings, passes and fords, and there hunters wait.
      */
     val paths = FloatArray(hex.size * 6)
+    /**
+     * Sea crossings: for each coastal land hex, the land hexes across a strait (one or two hexes of
+     * sea) and the open water between, km. Swimmers that can cover it may cross, at a great effort
+     * and a risk of drowning; for the rest the sea is a wall.
+     */
+    val seaLinks: Array<IntArray> by lazy { links().first }
+    val seaGaps: Array<FloatArray> by lazy { links().second }
+    private var linksMade: Pair<Array<IntArray>, Array<FloatArray>>? = null
+    private fun links(): Pair<Array<IntArray>, Array<FloatArray>> = linksMade ?: run {
+        val to = Array(hex.size) { IntArray(0) }; val gap = Array(hex.size) { FloatArray(0) }
+        for (a in 0 until hex.size) {
+            if (hex.heart[a] < 0 || (0 until 6).none { d -> val b = hex.neighbour(a, d); b >= 0 && hex.heart[b] < 0 }) continue
+            val found = LinkedHashMap<Int, Float>()
+            var ring = (0 until 6).mapNotNull { d -> hex.neighbour(a, d).takeIf { it >= 0 && hex.heart[it] < 0 } }; val seen = HashSet(ring + a)
+            repeat(SEA_HEXES) {
+                val next = ArrayList<Int>()
+                for (w in ring) for (d in 0 until 6) {
+                    val b = hex.neighbour(w, d); if (b < 0 || !seen.add(b)) continue
+                    if (hex.heart[b] < 0) next += b
+                    else if ((0 until 6).none { e -> hex.neighbour(a, e) == b }) found[b] = (hex.distanceKm(a, b) - hex.hexKm).toFloat().coerceAtLeast(1f)
+                }
+                ring = next
+            }
+            to[a] = found.keys.toIntArray(); gap[a] = found.values.toFloatArray()
+        }
+        (to to gap).also { linksMade = it }
+    }
+    /** The open water between hexes [a] and [b], km, if a swimmer can cross from one to the other; else infinite. */
+    fun seaGap(a: Int, b: Int): Float { val l = seaLinks[a]; for (i in l.indices) if (l[i] == b) return seaGaps[a][i]; return Float.POSITIVE_INFINITY }
+
     /** How worn the busiest path through hex [h] is. */
     fun pathAt(h: Int): Float { var m = 0f; for (d in 0 until 6) m = max(m, paths[h * 6 + d]); return m }
 
@@ -482,6 +524,15 @@ class HexGroups(
                     val worn = paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
                     val nd = d + cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
                     if (!nd.isFinite() || nd > reach) continue
+                    if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
+                }
+                // Swimmers may cross a strait they can cover, at a great effort.
+                val swim = Catalogue.swimKm(s)
+                if (swim > 0f) for ((i, nh) in seaLinks[h].withIndex()) {
+                    val gapKm = seaGaps[h][i]
+                    if (gapKm > swim) continue
+                    val nd = d + gapKm * SWIM_EFFORT
+                    if (nd > reach) continue
                     if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
                 }
             }

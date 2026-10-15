@@ -497,6 +497,22 @@ fun main(args: Array<String>) {
             "%s %.3f / %.3f (%s)".format(c, (lastHunt["bands in $c:born"] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9),
                 died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
     }
+    // Islands: land cut off from the largest land by sea; which kinds live there now.
+    run {
+        val comp = IntArray(sim.hex.size) { -1 }; var nc = 0; val sizes = ArrayList<Int>()
+        for (h0 in 0 until sim.hex.size) {
+            if (sim.hex.heart[h0] < 0 || comp[h0] >= 0) continue
+            val stack = ArrayDeque(listOf(h0)); comp[h0] = nc; var c = 0
+            while (stack.isNotEmpty()) { val h = stack.removeLast(); c++; for (d in 0 until 6) { val b = sim.hex.neighbour(h, d); if (b >= 0 && sim.hex.heart[b] >= 0 && comp[b] < 0) { comp[b] = nc; stack.addLast(b) } } }
+            sizes += c; nc++
+        }
+        val main = sizes.indices.maxByOrNull { sizes[it] } ?: -1
+        val islands = sizes.indices.filter { it != main && sizes[it] >= 3 }
+        if (islands.isNotEmpty()) println("islands (%d of 3 hexes or more; hexes / herds and packs / resident kinds above 0.01 a km²): ".format(islands.size) + islands.sortedByDescending { sizes[it] }.take(8).joinToString("; ") { c ->
+            val gs = herds.groups.filter { it.alive && comp[hw.placeHex[it.place]] == c }.map { it.species.name }.distinct()
+            val res = fauna.kinds.indices.filter { k -> var a = 0.0; var n = 0.0; for (pl in 0 until land.n) if (comp[hw.placeHex[pl]] == c) { a += land.areaKm2[pl]; n += (fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl] }; a > 0 && n / a > 0.01 }.map { fauna.kinds[it].name }
+            "%d / %s / %s".format(sizes[c], gs.joinToString(",").ifEmpty { "-" }, res.joinToString(",").ifEmpty { "-" }) })
+    }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
         val c = causes.entries.filter { it.key.substringBefore(":") == s.name && !it.key.endsWith("+born") }.map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }
