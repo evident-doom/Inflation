@@ -37,6 +37,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Last week's share of its wants each kind found in each place, 0..1. */
     val fed = Array(kinds.size) { FloatArray(n) { 1f } }
     /**
+     * For the check: where each kind's food came from, summed over its animals since last read (fresh
+     * grass, browse, fruit and roots; standing straw; small prey and carrion; its reserves), and the
+     * animals counted, so that each over the last is the share of a full need met that way.
+     */
+    val fedFrom = Array(kinds.size) { Array(5) { java.util.concurrent.atomic.DoubleAdder() } }
+    /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
      * away from ground where its kind has been killed (the landscape of fear).
      */
@@ -398,12 +404,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         animal = (gotSmall + gotCarrion) / (needKg * (1f - ps))
                         small.dung[p] += HexSmallLife.DUNG * (gotSmall + gotCarrion)
                     }
+                    val heads = adults[k][p] + 0.5f * young[k][p]
+                    if (heads > 0f) { val ff = fedFrom[k]; ff[0].add((min(1f, got[k]) * ps * heads).toDouble()); ff[1].add((strawPart * ps * heads).toDouble()); ff[2].add((min(1f, animal) * (1f - ps) * heads).toDouble()); ff[4].add(heads.toDouble()) }
                     ((got[k] + strawPart) * ps + min(1f, animal) * (1f - ps)).coerceIn(0f, 1f)
                 }
                 // Reserves carry them through lean weeks; they are laid on from what was eaten beyond need.
                 val r = reserve[k]
                 if (!sleeping) {
-                    if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days) }
+                    if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days)
+                        val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) fedFrom[k][3].add((draw / days * heads).toDouble()) }
                     else r[p] = min(s.maxFatDays, r[p] + FAT_EFFICIENCY * surplus[k] * days)
                 }
                 fed[k][p] = f

@@ -287,6 +287,11 @@ fun main(args: Array<String>) {
                 for (k in fauna.kinds.indices) { val v = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble(); if (c) coastN[k] += v else inN[k] += v }
             }
             println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) + fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0), inN[k] / inA.coerceAtLeast(1.0)) })
+            // Where the residents' food came from this year, per animal (shares of a full need).
+            println("     residents fed from (fresh plants / straw / prey and carrion / reserves, shares of need per animal this year): " + fauna.kinds.indices.joinToString(", ") { k ->
+                val ff = fauna.fedFrom[k]; val h = ff[4].sumThenReset().coerceAtLeast(1e-9)
+                "%s %.2f/%.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[0].sumThenReset() / h, ff[1].sumThenReset() / h, ff[2].sumThenReset() / h, ff[3].sumThenReset() / h)
+            })
             // And what they find there: edible forage, how green, how well the roe deer fed, how far water is.
             fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps -> ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
             val roe = fauna.kinds.indexOfFirst { it.name == "roe deer" }
