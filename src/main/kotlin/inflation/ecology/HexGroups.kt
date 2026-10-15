@@ -63,7 +63,7 @@ class HexGroups(
     internal val residentKg = FloatArray(n)
     internal fun residentKg(p: Int) = residentKg[p]
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
-    private val monthHunterKg by lazy { FloatArray(n) }
+    internal val monthHunterKg by lazy { FloatArray(n) }
     internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Which pack of a kind holds each hex as its ground (key: kind × hexes + hex). */
     /**

@@ -261,7 +261,16 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 hunting.merge("${s.name}:kills of residents", kills1, Int::plus)
             }
             1 -> smallGot += small.catchSmallIn(p, expected, min(land.areaKm2[p], smallSweep), weather)
-            2 -> scraps += small.scavengeIn(p, expected, min(land.areaKm2[p], sweep))
+            2 -> {
+                val got = small.scavengeIn(p, expected, min(land.areaKm2[p], sweep))
+                scraps += got
+                // A band at a carcass may meet its owner: lions or hyenas back at their kill. Driving
+                // them off is done with a crowd and a din, but now and then someone is mauled.
+                if (band != null && got > 1f) {
+                    val beasts = monthHunterKg[p] / land.areaKm2[p]
+                    if (rnd.nextFloat() < SCAVENGE_RISK * beasts / (beasts + 3f)) { band.wounded(1f, g.adults); meetings.merge("bands mauled at a carcass", 1, Int::plus) }
+                }
+            }
             3 -> scraps += small.crackBonesIn(p, expected, min(land.areaKm2[p], sweep))
             4, 5, 6, 7 -> {
                 val stock = when (type[i]) { 4 -> fauna.food.fruit; 5 -> fauna.food.roots; 6 -> fauna.food.seeds; else -> fauna.food.finds }
@@ -386,6 +395,9 @@ internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, dri
 }
 
 /** Share of a carcass a hunter takes as food: a band as its butchers' skill allows (all the fat and marrow, at best). */
+/** Chance a band scavenging a carcass where hunters are thick has one of its people mauled by them. */
+const val SCAVENGE_RISK = 0.2f
+
 internal fun meatShare(band: Band?) = if (band == null) MEAT_SHARE else min(MEAT_MOST, MEAT_SHARE * band.edge(Skill.BUTCHER))
 const val MEAT_MOST = 0.7f
 
