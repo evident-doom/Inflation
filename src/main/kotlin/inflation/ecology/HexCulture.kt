@@ -193,6 +193,7 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         lo.traditions[t.ordinal] = hi.holds(t)
         meetings.merge("band took ${if (hi.holds(t)) "up" else "leave of"} ${t.name.lowercase()}", 1, Int::plus)
     }
+    riteMeet(lo, hi, u)
     teach(ba, bb, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // And the sick among them pass on what is catching.
     passIllness(ba, bb)
@@ -416,3 +417,80 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
         if (rnd.nextFloat() < (if (held) DROP else TAKE_UP) * years) { b.traditions[t.ordinal] = !held; meetings.merge("band ${if (held) "dropped" else "took up"} ${t.name.lowercase()}", 1, Int::plus) }
     }
 }
+
+/** Most months of the year a band's rites take it somewhere ([Band.rite]). */
+const val RITE_SITES = 3
+/**
+ * How strongly a lineage's founders hold to their rites: from none to three times as strongly as a herd
+ * keeps its round ([ROUND_STRENGTH]), by lineage, as its traditions are (-Dhex.t.riteMax). A well-fed
+ * band feels a hold under 1 hardly at all (the round's pull grows with how much better the place
+ * promises than it fares now), so the range reaches well above it. Not measured otherwise: wide on
+ * purpose, so that some lines are bound by their rites and others hardly, and the world sorts them.
+ */
+val RITE_FOUNDER_MAX = System.getProperty("hex.t.riteMax")?.toFloat() ?: 3f
+/** How much a band's hold on its rites changes when it splits: a fifth of the founders' range, as temperament drifts. Not measured. */
+val RITE_DRIFT get() = RITE_FOUNDER_MAX / 5f
+/** Chance at a split that one of the offshoot's rites shifts by a month (the telling changes). Not measured. */
+const val RITE_SHIFT = 0.1f
+
+/** The founders' hold on their rites in lineage [lineage] (the same for every band of it, as [traditionsAt]). */
+fun riteStrengthAt(lineage: Int) = RITE_FOUNDER_MAX * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
+
+/** One of the places at hex [h], for a rite's site (the lowest-lying there is). */
+private fun HexGroups.placeIn(h: Int): Int { for (b in 0 until inflation.world.HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) return p }; return -1 }
+
+/**
+ * A band's rites through the year (rounds on, see [ROUNDS]): about once a year a band whose rites
+ * have room for another takes up one where its story is: the graves of its dead, where bands gather
+ * (both in the season they mark), or a far landmark it knows, walked to or told of (a pass, a spring,
+ * a path's end: the further, the more it stands for); and now and then it lets one go, less often
+ * where songs and stories keep them. Nothing here weighs what a rite brings.
+ */
+internal fun HexGroups.riteWeek(g: HexGroup) {
+    if (!ROUNDS) return
+    val b = g.band ?: return
+    val yearShare = days / Date.DAYS_PER_YEAR.toFloat()
+    val keep = if (b.holds(Tradition.ORAL_TRADITION)) 0.5f else 1f
+    for (m in 0 until 12) if (b.rite[m] >= 0 && rnd.nextFloat() < RITE_FORGET * keep * yearShare) { b.rite[m] = -1; meetings.merge("bands let a rite go", 1, Int::plus) }
+    if (b.rite.count { it >= 0 } >= RITE_SITES || rnd.nextFloat() >= yearShare) return
+    val held = b.rite.toHashSet()
+    var bestPlace = -1; var bestMonth = -1; var bestScore = 0f
+    fun consider(p: Int, month: Int, score: Float) { if (p >= 0 && p !in held && b.rite[month] < 0 && score > bestScore) { bestScore = score; bestPlace = p; bestMonth = month } }
+    val mem = g.memory
+    for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
+        if (mem.hex[i] < 0) continue
+        val month = mem.season[i] * 3 + 1
+        if (mem.dead[i] >= APPOINT_MIN) consider(placeIn(mem.hex[i]), month, mem.dead[i])
+        if (mem.met[i] >= APPOINT_MIN) consider(placeIn(mem.hex[i]), month, 0.5f * mem.met[i])
+    }
+    val here = hw.placeHex[g.place]; val month = weatherNow.date.month
+    for (h in routes.landmarks) {
+        val k = routes.kind(h)
+        if ((k != HexRoutes.Kind.PASS && k != HexRoutes.Kind.WATER && k != HexRoutes.Kind.END) || !b.knows(h)) continue
+        val km = hex.distanceKm(here, h)
+        if (km > REMEMBERED_KM) consider(placeIn(h), month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
+    }
+    if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; meetings.merge("bands took up a rite", 1, Int::plus) }
+}
+
+/** A band split off from another: its hold on the rites drifts, and now and then one shifts by a month (rounds on). */
+internal fun HexGroups.riteInherit(nb: Band) {
+    if (!ROUNDS) return
+    nb.riteStrength = (nb.riteStrength + RITE_DRIFT * (2f * rnd.nextFloat() - 1f) * 1.73f).coerceAtLeast(0f)
+    if (rnd.nextFloat() < RITE_SHIFT) {
+        val ms = (0 until 12).filter { nb.rite[it] >= 0 }
+        if (ms.isNotEmpty()) { val m = ms[rnd.nextInt(ms.size)]; val to = Math.floorMod(m + (if (rnd.nextBoolean()) 1 else -1), 12); if (nb.rite[to] < 0) { nb.rite[to] = nb.rite[m]; nb.rite[m] = -1 } }
+    }
+}
+
+/** Two bands talking (rounds on): the one doing less well may take up a rite of the other's in a month it has none, and its hold moves toward theirs, as far as they understand each other. */
+internal fun HexGroups.riteMeet(lo: Band, hi: Band, u: Float) {
+    if (!ROUNDS) return
+    for (m in 0 until 12) if (hi.rite[m] >= 0 && lo.rite[m] < 0 && lo.rite.count { it >= 0 } < RITE_SITES && hi.rite[m] !in lo.rite && rnd.nextFloat() < COPY_TRADITION * u) {
+        lo.rite[m] = hi.rite[m]; meetings.merge("bands took up another's rite", 1, Int::plus)
+    }
+    lo.riteStrength += COPY_TRADITION * u * (hi.riteStrength - lo.riteStrength)
+}
+
+/** Share of a band's rites let go a year (a fifth of them; half that where songs and stories keep them). Not measured. */
+const val RITE_FORGET = 0.2f

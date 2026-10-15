@@ -591,7 +591,7 @@ class HexGroups(
         // (Bands hold no hunting ground of the packs' kind: a band is restless only when hungry, thirsty or astray.)
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
         val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && ((b.appointMonth - month + 12) % 12) <= 1) || b.unluckyHex == here || b.raidHex >= 0 } ?: false
-        val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon
+        val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon || (onRound && goalFar)
             else if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
