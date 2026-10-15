@@ -21,12 +21,12 @@ object Temperament {
     const val AXES = 4
     val NAMES = listOf("boldness", "exploration", "activity", "sociability")
     /**
-     * Spread of founders' temperaments, in units of a place's score: one spread from the average
-     * weighs as much as the pull of staying put ([STAY]). Not measured; chosen so that temperament
-     * tips close choices without overriding food, water, season or danger (at three times this,
-     * herds' and packs' share of weeks moved shifted by up to 25 points in a 3-year check).
+     * Spread of founders' temperaments, in units of a place's score: three times the pull of staying
+     * put ([STAY]). Not measured; kept wide on purpose so that runs try out markedly different ways of
+     * choosing and selection and learning sort them (in a 3-year check it shifted herds' and packs'
+     * share of weeks moved by up to 25 points).
      */
-    const val FOUNDER_SD = STAY
+    const val FOUNDER_SD = 3f * STAY
     /** The change at each split: a fifth of the founders' spread, so lineages stay recognisable over a few splits. Not measured. */
     const val DRIFT_SD = FOUNDER_SD / 5f
 
