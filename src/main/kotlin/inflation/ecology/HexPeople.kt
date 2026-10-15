@@ -427,7 +427,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         }
         if (b.cacheKg < 1f) dropCache(b)
     }
-    buildKite(g, b)
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
     if (HERDING) keepHerds(g, b, date)
     val people = g.adults.toFloat()
@@ -633,22 +632,6 @@ private fun HexGroups.dropCache(b: Band) {
     b.cache.fill(0f); b.cachePlace = -1
 }
 
-/**
- * Desert kites: a large band, or one that holds feasts and can call on its neighbours, builds long
- * low walls in open country where herds pass, to drive them into a pen or pits. Once built, a kite
- * stands for generations, and any band that camps by it can use it.
- */
-private fun HexGroups.buildKite(g: HexGroup, b: Band) {
-    if (!KITES) return
-    val p = g.place
-    if (kites[p] >= 1f || g.adults < (if (b.holds(Tradition.FEASTS)) KITE_HANDS / 2 else KITE_HANDS)) return
-    if (land.cover(p) > 0.3f) return
-    val herds = KITE_QUARRY.sumOf { s -> headsHere[kindSlot[s.index]][p] }
-    if (herds < KITE_HERDS) return
-    kites[p] = min(1f, kites[p] + KITE_WORK)
-    if (kites[p] >= 1f) meetings.merge("kites built", 1, Int::plus)
-}
-
 /** The work a tool is used in (it wears when that work is done). */
 private fun usesOf(t: Tool) = when (t) {
     Tool.SPEAR, Tool.BOW -> listOf(Skill.HUNT)
@@ -715,15 +698,6 @@ const val CAMP_LURE = 0.3f
 
 /** Share of a cache lost each week to damp, mice and thieves. */
 const val CACHE_SPOIL = 0.02f
-/** Desert kites are later than the Natufian: off unless asked for (-Dhex.kites). */
-val KITES = System.getProperty("hex.kites") != null
-/** Adults it takes to build a kite (half for a band that feasts with its neighbours); share of one built in a week's work. */
-const val KITE_HANDS = 30
-const val KITE_WORK = 0.1f
-/** Open-country herds kites are built for; heads of them in a place that make a kite worth building; share of a herd taken in a drive. */
-val KITE_QUARRY by lazy { with(Catalogue) { listOf(GAZELLE, ONAGER, ORYX, HARTEBEEST, HORSE) } }
-const val KITE_HERDS = 100
-const val KITE_TAKE = 0.4f
 /** People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then. */
 const val PEOPLE_FULL_KM2 = 0.5f
 const val PEOPLE_SICK = 0.012f

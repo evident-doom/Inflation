@@ -367,8 +367,6 @@ class HexGroups(
     /** Choices made in planning, by kind: kept to its ground without weighing (content), weighed and stayed, weighed and moved. */
     val planCounts = java.util.concurrent.atomic.AtomicIntegerArray(64 * 3)
 
-    /** Desert kites in each place, 0..1 built: long low walls funnelling open-country herds into a pen or pits. They stand for generations. */
-    val kites = FloatArray(n)
 
     /** Strongest hunting party in each place last week, and its kind's index (-1 for none). */
     private val topStrength = FloatArray(n)

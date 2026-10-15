@@ -639,22 +639,6 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // (Many eyes see the hunters sooner, and one animal is hard to single out of a milling crowd.)
     val chance = CATCH * SURPRISE * catchable * (1f - 0.5f * herd.wary) * (hunter.band?.huntEdge(herd.species) ?: 1f) * bandsIn(herd).pow(-BIG_HERD_EYES)
     hunter.band?.practise(Skill.HUNT)
-    // By a kite, a band drives the herd between the walls and takes a large share of it at once.
-    if (hunter.band != null && kites[p] >= 1f && herd.species in KITE_QUARRY) {
-        val spare = hunter.band?.holds(Tradition.TABOO_YOUNG) == true
-        val ta = binomial(herd.adults, KITE_TAKE); val ty = if (spare) 0 else binomial(herd.young, KITE_TAKE)
-        herd.adults -= ta; herd.young -= ty
-        val meat = ta * herd.species.massKg * meatShare(hunter.band) + ty * 0.3f * herd.species.massKg
-        hunter.meatMet += meat
-        hunter.band?.skin(herd.species, ta)
-        small.carrion[herd.place] += ta * herd.species.massKg * (1f - meatShare(hunter.band)) / (land.areaKm2[herd.place] * 1e6f)
-        kills.merge(herd.species.name, ta + ty, Int::plus)
-        fauna.killed(herd.place, (ta + ty) * herd.species.massKg)
-        hunting.merge("${hunter.species.name}:kills in kite drives", ta + ty, Int::plus)
-        stop[hk] = min(stop[hk], hi); stop[rk] = min(stop[rk], ri)
-        herd.wary += WARY_GAIN * (1f - herd.wary)
-        return
-    }
     stop[rk] = min(stop[rk], ri) // scattered
     // Caught or not, the herd is wary for weeks after.
     herd.wary += WARY_GAIN * (1f - herd.wary)
