@@ -143,7 +143,10 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     private val kindButtons = ArrayList<javax.swing.JToggleButton>()
     @Volatile private var onlyKind: inflation.ecology.Species? = null
     /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
-    private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray()) }
+    /** Life in the water to show as a tint: fish of the sea and lakes, river fish, shellfish, and each kind of sea animal (densities per hex). */
+    private val waterLayers by lazy { listOf<Pair<String, FloatArray>>("sea and lake fish" to fauna.water.fish, "river fish" to fauna.water.riverFish, "shellfish" to fauna.water.shellfish) +
+        inflation.ecology.HexWater.SEA.mapIndexed { i, k -> k.name to fauna.water.sea[i] } }
+    private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray() + waterLayers.map { "water: " + it.first }.toTypedArray()) }
     private val map = MapPanel()
     /** The hex being inspected, -1 for none, and its groups. */
     @Volatile private var picked = -1
@@ -447,7 +450,12 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
                 val dens = DoubleArray(hex.size); val area = DoubleArray(hex.size)
                 for (p in 0 until fauna.n) { val h = hw.placeHex[p]; area[h] += land.areaKm2[p].toDouble() }
                 if (r < fauna.kinds.size) for (p in 0 until fauna.n) dens[hw.placeHex[p]] += ((fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p]).toDouble()
-                else { val s = groups.kinds[r - fauna.kinds.size]; for (gr in groups.groups) if (gr.alive && gr.species == s) dens[hw.placeHex[gr.place]] += gr.size.toDouble() }
+                else if (r < fauna.kinds.size + groups.kinds.size) { val s = groups.kinds[r - fauna.kinds.size]; for (gr in groups.groups) if (gr.alive && gr.species == s) dens[hw.placeHex[gr.place]] += gr.size.toDouble() }
+                else {
+                    // Life in the water: its density per hex as it is kept (sea hexes too).
+                    val stock = waterLayers[r - fauna.kinds.size - groups.kinds.size].second
+                    for (h in 0 until hex.size) { area[h] = 1.0; dens[h] = stock[h].toDouble() }
+                }
                 // Shaded against the densest twentieth of hexes, so that thin spreads show too.
                 val values = (0 until hex.size).filter { area[it] > 0 && dens[it] > 0 }.map { dens[it] / area[it] }.sorted()
                 val top = (if (values.isEmpty()) 0.0 else values[(values.size * 0.95).toInt().coerceAtMost(values.size - 1)]).coerceAtLeast(1e-6)
