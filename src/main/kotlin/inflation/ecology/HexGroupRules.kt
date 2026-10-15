@@ -279,3 +279,9 @@ val SUPERSENSE_LURE = System.getProperty("hex.t.superLure")?.toFloat() ?: 0.2f
 val HEADING_KEEP = System.getProperty("hex.t.headingKeep")?.toFloat() ?: 0.95f
 val HEADING_MOVED = System.getProperty("hex.t.headingMoved")?.toFloat() ?: 0.5f
 val HEADING_PULL = System.getProperty("hex.t.headingPull")?.toFloat() ?: 2f
+
+/** Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on only with -Dhex.rounds (being tried locally); how strongly a herd's round draws, as a season's place of that quality would. */
+val ROUNDS = System.getProperty("hex.rounds") != null
+val ROUND_STRENGTH = System.getProperty("hex.t.roundStrength")?.toFloat() ?: 1f
+/** How strongly a herd's round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
+val ROUND_NET_PULL = System.getProperty("hex.t.roundNetPull")?.toFloat() ?: 0.4f

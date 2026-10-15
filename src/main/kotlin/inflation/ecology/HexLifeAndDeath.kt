@@ -268,7 +268,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
                 }
                 nb.lastAdults = c.first; b.lastAdults = g.adults
                 for (i in b.ageStage.indices) { nb.ageStage[i] = b.ageStage[i] * c.first / (g.adults + c.first).coerceAtLeast(1); b.ageStage[i] -= nb.ageStage[i] } } }
-            g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
+            g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ); g.route.copyInto(n.route)
         } } // a young pack has no ground yet
     }
     groups += born

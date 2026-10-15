@@ -260,6 +260,12 @@ class Band {
     fun knows(h: Int) = h / 64 < known.size && (known[h / 64] ushr (h % 64)) and 1L == 1L
     fun learn(h: Int, size: Int) { if (known.size * 64 < size) known = known.copyOf((size + 63) / 64); known[h / 64] = known[h / 64] or (1L shl (h % 64)) }
 
+    /**
+     * The rite its culture holds it to in [month], if any: the place it must go to then and how strongly
+     * (see [inflation.ecology.roundOf]). None yet: the cultural rounds are grown elsewhere.
+     */
+    fun riteFor(month: Int): Pair<Int, Float>? = null
+
     fun holds(t: Tradition) = traditions[t.ordinal]
     fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
 

@@ -24,6 +24,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** For a herd: the place it remembers doing best in each month, and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
+    /** Its yearly round, as its elders taught it: the place it makes for each month (-1: none; see [growRounds]). */
+    val route = IntArray(12) { -1 }
     /** Days since it last drank. */
     var dry = 0f
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
@@ -94,6 +96,7 @@ object HexFeatures {
      *  this month, dung, grazing this week, carcasses and bones; 46 whether a band knows the hex;
      *  47 for a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size); 48 how fresh another pack of its kind's mark is there;
      *  49 for a band, the fish and shellfish it could take there in a week with its skill, against its week's need (0 for animals);
-     *  50 for a herd, how far going there keeps to the way it has been heading ([HexGroup.headE]; 0 for others). */
-    const val SIZE = 51
+     *  50 for a herd, how far going there keeps to the way it has been heading ([HexGroup.headE]; 0 for others);
+     *  51 for a herd on its yearly round, how far the place takes it on toward the round's place this month (0 off a round). */
+    const val SIZE = 52
 }

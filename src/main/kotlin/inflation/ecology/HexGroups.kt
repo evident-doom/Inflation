@@ -54,10 +54,13 @@ class HexGroups(
     }
     /** For each herd kind and month: how good each place was for it in that month last time round (see [herdQuality]). */
     private val qualityByMonth = HashMap<Int, Array<FloatArray?>>()
+    /** As [qualityByMonth], for the rounds; and each herd kind's rounds as last grown (see [growRounds]). */
+    internal val seasonNotes get() = qualityByMonth
+    internal val herdRounds = HashMap<Int, List<IntArray>>()
     private val bestByMonth = HashMap<Long, IntArray>()
     /** Each month, the herds' kinds note how good every place is for them now (a memory of the land's seasons). */
     internal fun noteSeasons(month: Int) {
-        if (!SUPERSENSE) return
+        if (!SUPERSENSE && !ROUNDS) return
         for (s in kinds) {
             if (s.carnivore || groups.none { it.alive && it.species == s }) continue
             val q = FloatArray(n) { p -> herdQuality(s, p, month) }
@@ -307,7 +310,18 @@ class HexGroups(
         merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
         groups.removeIf { !it.alive }
         newcomers(date)
-        Profile.part("herds: remembering places") { if (date.dayOfMonth <= days) noteSeasons(date.month); remember(date) }
+        Profile.part("herds: remembering places") {
+            if (date.dayOfMonth <= days) {
+                noteSeasons(date.month)
+                // The rounds are grown once a whole year's seasons are in, and again every [ROUND_YEARS] years;
+                // herds without one (newcomers) take the nearest.
+                if (ROUNDS) {
+                    if (herdRounds.isEmpty() || (date.month == 0 && date.year % ROUND_YEARS == 0L)) growRounds(date.month)
+                    for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] < 0) herdRounds[g.species.index]?.let { takeRound(g, it, date.month) }
+                }
+            }
+            remember(date)
+        }
     }
 
     /**
@@ -556,7 +570,12 @@ class HexGroups(
         val thirsty = g.dry > 0.5f * s.daysWithoutWater
         // The place it remembers doing best at this time of year: while it is far off, the herd is on its way.
         val month = (date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0) % 12
-        val goal = g.seasonPlace[month]
+        // (Its round, if its elders taught it one, else the place it remembers doing best at this time of year.)
+        val round = roundOf(g, month)
+        val onRound = round != null
+        val goal = round?.first ?: g.seasonPlace[month]
+        val goalQ = if (round != null) max(g.seasonQ[month], round.second) else g.seasonQ[month]
+        val roundStrength = round?.second ?: 0f
         val goalFar = goal >= 0 && (!s.carnivore || s.human) && hexKm(here, hw.placeHex[goal]) > 2 * hex.hexKm
         // Far out of its country, it treks.
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
@@ -705,7 +724,7 @@ class HexGroups(
                     // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
                     // Bands that watch the sky keep their round on time.
                     val sky = if (g.band?.holds(Tradition.SKY_LORE) == true) 1.3f else 1f
-                    if (fromHere > hex.hexKm) score += sky * SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
+                    if (fromHere > hex.hexKm) score += sky * SEASON_PULL * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
                 }
                 score += BEARING_PULL * pull + HEADING_PULL * keepOn
                 if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
@@ -765,7 +784,9 @@ class HexGroups(
                     f[11] = if (h == here) 1f else 0f
                     if (goal >= 0) {
                         f[12] = if (fromHere > hex.hexKm) ((fromHere - toGoal) / fromHere).toFloat().coerceIn(-1f, 1f) else 0f
-                        f[13] = (g.seasonQ[month] - g.fed).coerceIn(-1f, 1f)
+                        f[13] = (goalQ - g.fed).coerceIn(-1f, 1f)
+                        // (On its round, how far the place takes it on toward the round's place this month: see [SharedMover.pull].)
+                        if (onRound) f[51] = f[12] * roundStrength
                     }
                     f[14] = g.fed
                     f[15] = g.fat / s.maxFatDays.coerceAtLeast(1f)
@@ -835,7 +856,7 @@ class HexGroups(
                 return "food %.2f crowd %.2f hunters %.2f cold/heat %.2f water %.2f going %.2f season %.2f bearing %.2f stay %.2f (%.0f km from goal)".format(
                     food / (food + 0.3f) * freshness(s, p), -0.5f * crowd(s, p, g), -SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG), -0.5f * discomfort(s, p, weather),
                     -(0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm, -WALK_COST * dist[h] / days,
-                    SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * prog, BEARING_PULL * bearings.along(ki, here, h, pullKm),
+                    SEASON_PULL * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog, BEARING_PULL * bearings.along(ki, here, h, pullKm),
                     if (p == g.place) STAY else 0f, toGoal)
             }
             val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h -> hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: hex.heart[h] }?.takeIf { it >= 0 }
