@@ -95,8 +95,7 @@ internal fun HexGroups.graze(weather: Weather) {
             // (The week's grazing and browsing at a place is shared by all that eat there: what the residents
             // and the herds before it left, see [HexFauna.grazeLeft].)
             fun eatGrass(kg: Float): Float { val t = land.consume(p, LifeForm.HERB, min(kg, fauna.grazeLeft[p])); fauna.grazeLeft[p] -= t; return t }
-            val shrubShare = fauna.shrubShareOfBrowse[p]
-            fun eatBrowse(kg: Float): Float { val x = min(kg, fauna.browseLeft[p]); val t = land.consume(p, LifeForm.SHRUB, x * shrubShare) + land.consume(p, LifeForm.TREE, x * (1f - shrubShare)); fauna.browseLeft[p] -= t; return t }
+            fun eatBrowse(kg: Float): Float { val t = land.eatBrowse(p, min(kg, fauna.browseLeft[p])); fauna.browseLeft[p] -= t; return t }
             val grass = eatGrass(wantGrass)
             val wantBrowse = want * rest * fill * access * d.browse / total
             val browse = eatBrowse(wantBrowse)

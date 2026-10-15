@@ -1046,7 +1046,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         val need = n * s.dailyIntakeKg * days / m2
         val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
         val got = land.consume(p, LifeForm.HERB, min(need * d.grass / total, land.palatable[p] * land.herb[p] * 0.1f)) +
-            land.consume(p, LifeForm.SHRUB, min(need * d.browse / total, land.palatable[p] * land.shrub[p] * 0.1f))
+            land.eatBrowse(p, need * d.browse / total)
         val fed = if (need > 0f) min(1f, got / need) else 1f
         val inSeason = (date.month - s.birthMonth + 12) % 12 < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * s.littersPerYear * fed * (0.3f + 0.7f * tame) / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
