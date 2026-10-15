@@ -84,6 +84,7 @@ object HexFeatures {
     /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment; 33 its houses there; 34 its own size against its kind's usual group; 35 the lasting water there through the dry season; 36 sickness raging there among its kind;
      *  37-46 the signs of the land: tree, shrub and grass cover, marsh, water now against its usual, worn paths, herds about
      *  this month, dung, grazing this week, carcasses and bones; 46 whether a band knows the hex;
-     *  47 for a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size); 48 how fresh another pack of its kind's mark is there. */
-    const val SIZE = 49
+     *  47 for a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size); 48 how fresh another pack of its kind's mark is there;
+     *  49 for a band, the fish and shellfish it could take there in a week with its skill, against its week's need (0 for animals). */
+    const val SIZE = 50
 }
