@@ -50,7 +50,7 @@ fun main(args: Array<String>) {
     val stock0 = stock()
     var landNs = 0L
     for (y in 0 until years) {
-        val minWater = FloatArray(n) { 9f }; val maxKm = FloatArray(n)
+        val minWater = FloatArray(n) { 9f }; val maxKm = FloatArray(n); val minPeople = FloatArray(n) { 9f }
         val sMin = FloatArray(hw.hex.size) { 9f }
         val rMin = FloatArray(hw.hex.size) { 9f }; val dryWeeks = IntArray(hw.hex.size)
         val rain = DoubleArray(classes.size)
@@ -59,6 +59,8 @@ fun main(args: Array<String>) {
             weather.step(); val t0 = System.nanoTime(); land.step(weather); landNs += System.nanoTime() - t0
             for (p in 0 until n) {
                 if (land.water[p] < minWater[p]) minWater[p] = land.water[p]
+                val forPeople = maxOf(land.water[p], land.dug[p])
+                if (forPeople < minPeople[p]) minPeople[p] = forPeople
                 if (land.waterKm[p] > maxKm[p]) maxKm[p] = land.waterKm[p]
                 if (cls[p] >= 0) rain[cls[p]] += weather.precipitation[p] * land.areaKm2[p]
                 if (land.nearSpring[p] > 0f) { val h = hw.placeHex[p]; sMin[h] = minOf(sMin[h], land.springFlow(p)) }
@@ -79,12 +81,16 @@ fun main(args: Array<String>) {
             val ps = (0 until n).filter { cls[it] == c }; if (ps.isEmpty()) continue
             val a = ps.sumOf { land.areaKm2[it].toDouble() }
             val spP = ps.filter { land.nearSpring[it] > 0f }
-            println("  %-20s rain %4.0f mm; no water in driest week %.2f; worst walk %4.1f km; springs: driest week %.2f of usual, under 0.1: %.2f".format(
+            println("  %-20s rain %4.0f mm; no water in driest week %.2f (for people, who dig: %.2f); worst walk %4.1f km; springs: driest week %.2f of usual, under 0.1: %.2f".format(
                 cl.first, rain[c] / a,
                 ps.filter { minWater[it] < 0.05f }.sumOf { land.areaKm2[it].toDouble() } / a,
+                ps.filter { minPeople[it] < 0.05f }.sumOf { land.areaKm2[it].toDouble() } / a,
                 ps.sumOf { (maxKm[it] * land.areaKm2[it]).toDouble() } / a,
                 if (spP.isEmpty()) Double.NaN else spP.map { sMin[hw.placeHex[it]].toDouble() }.average(),
                 if (spP.isEmpty()) Double.NaN else spP.count { sMin[hw.placeHex[it]] < 0.1f }.toDouble() / spP.size))
+            val dry = ps.filter { minPeople[it] < 0.05f }
+            if (dry.isNotEmpty()) println("  %-20s   where people find none: by a stream bed %.0f%% of places (mean share %.2f); water table %.0f m down (median)".format(
+                "", 100.0 * dry.count { land.nearRiver[it] > 0f } / dry.size, dry.map { land.nearRiver[it].toDouble() }.average(), dry.map { land.waterTableM(it) }.sorted()[dry.size / 2]))
         }
         for ((c, r) in rivers.withIndex()) {
             val hs = (0 until hw.hex.size).filter { rcls[it] == c }; if (hs.isEmpty()) continue

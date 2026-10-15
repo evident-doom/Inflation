@@ -98,11 +98,31 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     val nearRiver = FloatArray(n); val nearLake = FloatArray(n); val nearSpring = FloatArray(n)
     /** Mean distance from each place's ground to the nearest lasting water, km. */
     val waterKmMean = FloatArray(n)
+    /** Share of each place's ground within an easy walk of a stream or dry bed (a valley draining [WADI_KM2] or more); area of those beds, m². */
+    val nearBed = FloatArray(n)
+    private val bedM2 = FloatArray(n)
+    /**
+     * How full the sand and gravel under each place's beds is, 0..1: a flood fills it, and then the
+     * water in it sinks away into the rock below at [SAND_DROP_M] a day, so it lies deeper the longer
+     * since the beds last ran.
+     */
+    val sand = FloatArray(n) { 1f }
     /** Mean distance from each place's ground to the nearest stream, km: how far its ground water has to go. */
     private val streamKm = FloatArray(n)
     /** This week: share of each place within an easy walk of drinkable water (0..1), and the mean walk to it, km. */
     val water = FloatArray(n)
     val waterKm = FloatArray(n)
+    /**
+     * This week: share of each place within an easy walk of a stream bed where people can dig down to
+     * water (a soak), 0..1: where the water table under the valley floor lies within [DIG_M] and the
+     * ground is not frozen. Animals do not count it; a band pays for it in time (see the ecology).
+     */
+    val dug = FloatArray(n)
+
+    /** Whether people at [p] with water within [fetchKm] only by digging must dig for it this week. */
+    fun mustDig(p: Int, fetchKm: Float) = water[p] < 0.05f && waterKm[p] > fetchKm && dug[p] >= 0.05f
+    /** How far people at [p] have to go for water, km: no way at all where they can dig for it. */
+    fun peopleWaterKm(p: Int) = if (water[p] < 0.05f && dug[p] >= 0.05f) 0f else waterKm[p]
 
     init {
         val c = world.climate
@@ -133,6 +153,14 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val dRiver = near { !world.isSea[it] && !world.water.isLake(it) && world.water.discharge[it] >= 0.1f }
         val dLake = near { world.water.isLake(it) && !world.water.lakeClosed[it] }
         val dSpring = near { spring[it] }
+        // Dry beds: every valley that drains enough ground to carry flash floods, which lay sand and gravel in it.
+        val drained = dr.accumulate(FloatArray(grid.size) { if (world.isSea[it]) 0f else cellArea })
+        val bed = { i: Int -> !world.isSea[i] && !world.water.isLake(i) && drained[i] >= WADI_KM2 * 1e6f }
+        val dBed = near(bed)
+        for (p in 0 until n) {
+            nearBed[p] = mean(p) { if (dBed[it] <= DRINK_KM) 1f else 0f }
+            bedM2[p] = (hw.placeCells[p].count(bed) * grid.cellKm * 1000.0 * WADI_WIDTH_M).toFloat()
+        }
         for (p in 0 until n) {
             nearRiver[p] = mean(p) { if (dRiver[it] <= DRINK_KM) 1f else 0f }
             nearLake[p] = mean(p) { if (dLake[it] <= DRINK_KM) 1f else 0f }
@@ -162,6 +190,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val lasting = nearRiver[p] * running + nearLake[p] + (if (thawed) springs else 0f)
             water[p] = max(pools, min(1f, lasting + flooded))
             waterKm[p] = if (pools > 0f) 0f else waterKmMean[p] / max(0.2f, running.coerceAtLeast(nearLake[p] + springs))
+            // In a dry bed the water may lie a little way down, in the sand and gravel under it.
+            // (Under the beds of the valleys the water in the sands sinks away after each flood; under the
+            // streams it stands as high as the water table.)
+            dug[p] = if (thawed) max(nearBed[p] * (1f - SAND_M * (1f - sand[p]) / DIG_M), nearRiver[p] * (1f - waterTableM(p) / DIG_M)).coerceIn(0f, 1f) else 0f
         }
     }
 
@@ -376,6 +408,17 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val taken = min(excess * intake[p], aquiferCap[p] - groundwater[p]).coerceAtLeast(0f)
             groundwater[p] += taken
             volume[hw.placeHex[p]] += (excess - taken) / 1000.0 * areaM2[p]
+            ranOff[p] = excess - taken > 0f
+            // The water in the bed sands sinks into the rock below.
+            if (bedM2[p] > 0f && sand[p] > 0f) {
+                val sink = min(sand[p], SAND_DROP_M * days / SAND_M)
+                sand[p] -= sink
+                val mm = (sink * SAND_M * SAND_YIELD * bedM2[p] / areaM2[p] * 1000f)
+                // (What the rock has no room for comes out in the stream.)
+                val into = min(mm, aquiferCap[p] - groundwater[p]).coerceAtLeast(0f)
+                groundwater[p] += into
+                volume[hw.placeHex[p]] += (mm - into) / 1000.0 * areaM2[p]
+            }
         }
         for (h in order) {
             // Ground water drains into the hex's stream, or on underground to the valley of the hex below.
@@ -446,6 +489,14 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
                     soil[p] += mm; volume[h] -= mm / 1000.0 * areaM2[p]
                 }
             }
+            // Where the beds ran this week (the place shed water, or a flood came down), the water fills the sands under them.
+            for (band in 0 until HexWorld.BANDS_M.size) {
+                val p = hw.placeOf[band][h]; if (p < 0 || bedM2[p] <= 0f || sand[p] >= 1f) continue
+                if (!ranOff[p] && flood[p] <= 0f) continue
+                val m3 = min(volume[h], ((1f - sand[p]) * SAND_M * SAND_YIELD * bedM2[p]).toDouble())
+                if (m3 <= 0.0) continue
+                sand[p] += (m3 / (SAND_M * SAND_YIELD * bedM2[p])).toFloat(); volume[h] -= m3
+            }
             if (d >= 0) volume[d] += volume[h]
         }
     }
@@ -474,6 +525,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     fun springFlow(p: Int) = min(1f, groundwater[p] / usualGround[p])
     /** Scratch per place: water lost into it through a river bed or a flood, m³; then what its soil still needs, mm. */
     private val soak = FloatArray(n)
+    /** Scratch per place: whether it shed water this step (so its beds ran). */
+    private val ranOff = BooleanArray(n)
 
     private fun stepPlants(weather: Weather) {
         val years = days / Date.DAYS_PER_YEAR.toFloat()
@@ -642,6 +695,27 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
          * silt, typically 0.01-1 m/day against several m/day for the sand below (from memory).
          */
         const val BED_CONDUCTIVITY = 0.1
+        /**
+         * Deepest people dig for water in a dry bed with sticks and their hands, m (soaks and sip-wells
+         * are rarely deeper than 2-3 m, from memory).
+         */
+        const val DIG_M = 3f
+        /**
+         * Dry beds: least ground a valley drains to have one, km²; their width, m; depth of the sand and
+         * gravel in them, m, and the share of it water can fill; how fast the water in it sinks away after a
+         * flood, m a day (so it lies out of reach of digging some five months after the last flood). Rough
+         * values for wadis, from memory.
+         */
+        const val WADI_KM2 = 25f
+        const val WADI_WIDTH_M = 30.0
+        const val SAND_M = 5f
+        const val SAND_YIELD = 0.25f
+        const val SAND_DROP_M = 0.02f
+        /**
+         * Share of a band's days that digging soaks and drawing water from them takes: a soak is opened
+         * again each day and the water seeps in slowly, an hour or two of each person's day (rough, from memory).
+         */
+        const val DIG_SHARE = 0.1f
         /** Depth to which phreatophytes (tamarisk, poplar, acacia, date palm) reach the water table, m (often 5-10 m, from memory). */
         const val ROOT_REACH_M = 5f
         /** Share of the plants of each kind of country that are edible (see [palatable]). */
