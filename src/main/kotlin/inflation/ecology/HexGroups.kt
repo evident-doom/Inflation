@@ -240,7 +240,7 @@ class HexGroups(
                 val gapKm = seaGap(g.path[i], g.path[i + 1]); if (!gapKm.isFinite()) continue
                 val risk = DROWN * gapKm / Catalogue.swimKm(g.species).coerceAtLeast(1f)
                 val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
-                g.adults -= lostA; g.young -= lostY
+                adultsDied(g, lostA, rnd); g.young -= lostY
                 if (lostA + lostY > 0) deaths.merge("${g.species.name}:drowned crossing", lostA + lostY, Int::plus)
                 meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
             }

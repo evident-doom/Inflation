@@ -671,7 +671,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     }
     // Big, armed prey fight back: a horn or a kick now and then kills one of the hunters.
     if (hunter.adults > 0 && rnd.nextFloat() < fightBack(herd.species, hunter.adults * hunter.species.massKg)) {
-        hunter.adults--
+        adultsDied(hunter, 1, rnd)
         deaths.merge("${hunter.species.name}:prey fought back", 1, Int::plus)
         hunter.band?.wounded(WOUNDED_PER_DEAD, hunter.adults)
         small.carrion[hunter.place] += hunter.species.massKg / (land.areaKm2[hunter.place] * 1e6f)
@@ -712,7 +712,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         strong.meatMet += 0.3f * 0.5f * weak.species.massKg
         deaths.merge("${weak.species.name}:young killed by ${strong.species.name}", 1, Int::plus)
     } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
-        weak.adults--
+        adultsDied(weak, 1, rnd)
         strong.meatMet += 0.5f * weak.species.massKg
         deaths.merge("${weak.species.name}:killed by ${strong.species.name}", 1, Int::plus)
     }
@@ -756,7 +756,7 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
     }
     meetings.merge("packs fought", 1, Int::plus)
     val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
-    if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) { loser.adults--; deaths.merge("${loser.species.name}:rivals", 1, Int::plus) }
+    if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) { adultsDied(loser, 1, rnd); deaths.merge("${loser.species.name}:rivals", 1, Int::plus) }
     if (loser.home == h) {
         loser.home = -1
         // The winners take over the ground and kill the young they find there (as lions and wolves do).

@@ -269,6 +269,27 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     Profile.part("groups: merging and pairing") { mergeAndPair(date) }
 }
 
+/**
+ * [n] of [g]'s grown members died, of any cause but old age (hunger, illness, a fight, a horn, a
+ * crossing): in a band the elders and each stage of the childbearing years lose their share of them
+ * (rounded at random, so single deaths fall on the old as often as their share says), so the age
+ * structure stays whole and births are not reckoned on the dead. Never more than there are.
+ */
+internal fun adultsDied(g: HexGroup, n: Int, r: Random) {
+    val dead = min(n, g.adults)
+    if (dead <= 0) return
+    g.band?.let { b ->
+        b.elders -= min(b.elders, (dead * b.elders + r.nextInt(g.adults)) / g.adults)
+        for (i in b.ageStage.indices) b.ageStage[i] -= min(b.ageStage[i], (dead * b.ageStage[i] + r.nextInt(g.adults)) / g.adults)
+    }
+    g.adults -= dead
+    g.band?.let { b ->
+        // (Rounding can leave more counted old than are left alive; the rest are of the first stage.)
+        b.elders = min(b.elders, g.adults)
+        for (i in b.ageStage.indices) b.ageStage[i] = min(b.ageStage[i], g.adults - b.elders - b.ageStage.take(i).sum())
+    }
+}
+
 /** What a group's week left for others: carcasses (kg), births, deaths by cause, orphans, a split-off part (adults, young). */
 internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val causes: List<Pair<String, Int>>, val orphans: Int, val split: Pair<Int, Int>?, val youngDied: Int = 0)
 
@@ -399,14 +420,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
         val diedExpected = g.adults * pa + g.young * py + (band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f)
         // Elders die as the others do (their share of the adults who died), and of old age besides.
+        adultsDied(g, da, r)
         var oldAge = 0
-        if (band != null && g.adults > 0) {
-            band.elders -= min(band.elders, (da * band.elders + r.nextInt(g.adults)) / g.adults)
-            for (i in band.ageStage.indices) band.ageStage[i] -= min(band.ageStage[i], (da * band.ageStage[i] + r.nextInt(g.adults)) / g.adults)
+        if (band != null) {
             oldAge = binomial(band.elders, ELDER_DEATHS * years, r)
-            band.elders -= oldAge
+            band.elders -= oldAge; g.adults -= oldAge
         }
-        g.adults -= da + oldAge
         if (s.human) g.luck += (bornNow - bornExpected) - (da + dy + oldAge - diedExpected)
         // The sick and the newborn teach their carers.
         band?.let { b -> if (disease > 0f || da > 0) b.practise(Skill.HERBS, 0.2f * PRACTICE); if (bornNow > 0) b.practise(Skill.MIDWIFERY) }
