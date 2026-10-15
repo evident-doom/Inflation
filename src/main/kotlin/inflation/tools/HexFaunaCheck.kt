@@ -413,6 +413,11 @@ fun main(args: Array<String>) {
             val meat = (huntYear["people:meat eaten, kg"] ?: 0).toDouble(); val plants = (huntYear["people:plants eaten, kg"] ?: 0).toDouble()
             val violent = yearly("raids") + causes.keys.filter { it.startsWith("people:killed by") }.sumOf { yearly(it.substringAfter(':')) }
             val bandsSeen = walked.size.coerceAtLeast(1)
+            run {
+                val all = herds.childDeaths.mapValues { it.value.sumThenReset() }.filter { it.value > 0.0 }
+                val total = all.values.sum().coerceAtLeast(1e-9)
+                println("     children's deaths by cause this year (expected from the odds, share): " + all.entries.sortedByDescending { it.value }.joinToString(", ") { "%s %.0f%%".format(it.key, 100 * it.value / total) })
+            }
             println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | years between births %.1f [3-4] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
                 bandHeads / bandWeeks, bandHeads / weeks / land.areaKm2.sum(), moves.toDouble() / bandsSeen,
                 walked.values.map { it.size }.average() * sim.hex.hexKm * sim.hex.hexKm * 0.866, 100 * plants / (meat + plants).coerceAtLeast(1.0),

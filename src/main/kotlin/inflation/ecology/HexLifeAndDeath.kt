@@ -417,6 +417,16 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
         val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults + festered).coerceIn(0f, 0.9f)
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
+        if (s.human && g.young > 0) {
+            val care = g.young * (1f - ELDER_CARE * help)
+            fun add(name: String, v: Float) { if (v > 0f) childDeaths.computeIfAbsent(name) { java.util.concurrent.atomic.DoubleAdder() }.add((care * v).toDouble()) }
+            add("infancy and ordinary illness", healed * cared * s.youngMortality * Tuning.humanYoung * years)
+            add("hunger", 1.5f * hunger); add("cold and exposure", 1.5f * (cold + exposure)); add("thirst", 1.5f * thirst)
+            add("crowd sickness and outbreaks", disease); add("fire, flood and snow", fireY + floodY + snowY); add("camp fouling", fouled)
+            add("inbreeding", inbred); add("snakes and scorpions", venom)
+            add("taken by beasts", YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked)
+            ill?.let { a -> for (it in Illness.entries) add(it.label, a[it.ordinal] * it.young) }
+        }
         val py = ((healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
         // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
