@@ -178,6 +178,7 @@ object HexPpo {
         var checkSeeds = 12
         var checkOnMaps = false
         var teacherCheck = false
+        var learnWays = true
         var k = 0
         while (k < args.size) {
             when (args[k]) {
@@ -198,6 +199,8 @@ object HexPpo {
                 "--people-choices" -> PEOPLE_CHOICES = args[++k].toFloat()
                 "--teacher" -> { val dir = File(args[++k]); TEACHERS = Catalogue.all.mapNotNull { s -> HexLearning.file(dir, s).takeIf { it.exists() }?.let { s to Schema.load(it, Schema.TEACHER_IN, Schema.MOVER_OUT) } }.toMap() }
                 "--teacher-check" -> teacherCheck = true
+                // Bands' ways stay the scaffold's (or as evolved) instead of being learned beside their moves.
+                "--no-ways" -> learnWays = false
                 "--maps" -> MAPS = args[++k].split(",").map { m -> val (s, l) = m.split(":"); s.toLong() to l.toDouble() }
                 else -> error("unknown argument ${args[k]}")
             }
@@ -220,6 +223,9 @@ object HexPpo {
         val adams = models.map { Adam(it.net.w.size, rate) to Adam(it.identity.size, rate) }
         // One critic for each role: what a group's return can be expected to be where it stands.
         val critics = ROLES.mapIndexed { i, r -> Critic.loadOrNew(File(out, "$r.value.mlp"), hidden, models[i]) }
+        // Bands' ways, learned beside their moves (see [WaysPpo]).
+        val waysState = if (learnWays) WaysPpo.State(out, hidden, rate) else null
+        WAYS = waysState?.ways
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
         if (!files[0].exists()) {
             imitate(kinds, models, worlds, size)
@@ -238,7 +244,9 @@ object HexPpo {
                 play(world(50_000L + round * 100L + w, size, w), years, kinds, models)
             }.toList()
             val tPlay = System.nanoTime()
-            val all = choices.flatMap { it.first }
+            val everything = choices.flatMap { it.first }
+            val waysChoices = everything.filterIsInstance<WaysChoice>()
+            val all = everything.filter { it !is WaysChoice }
             // ---- judge each choice against what its group could expect where it stood (the critic's
             // estimate), not only against its kind's average: much of what befalls a group is its
             // situation and its luck, not the move; then scaled within its kind.
@@ -278,6 +286,7 @@ object HexPpo {
                 model.save(files[mi]); critics[mi].save(File(out, "${ROLES[mi]}.value.mlp"))
                 stats.append(ROLES[mi]).append(' ').append(mine.size).append(" choices; ")
             }
+            waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round)).append("; "); it.save() }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
             val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns)
             println(line); log.appendText(line + "\n")
@@ -299,6 +308,12 @@ object HexPpo {
                 File(deployedDir, "scores.txt").writeText(best.entries.joinToString("\n") { "${it.key.name}\t${it.value}" } + "\n")
                 val c = "check round %d (each role learned alone vs all hand-written, animal-weeks per animal, %d %s worlds: mean change +- its standard error, worlds better): %s".format(round + 1, seeds.size, if (checkOnMaps && MAPS.isNotEmpty()) "training" else "fresh", parts.joinToString(", "))
                 println(c); File(out, "check.txt").appendText(c + "\n")
+                // Bands' learned ways (their middles) against the scaffold's, everything else hand-written.
+                waysState?.let { st ->
+                    val w = seeds.parallelStream().map { seed -> WaysPpo.check(checkWorld(seed, size, checkOnMaps), years + 1, kinds, st.ways) }.toList()
+                    val cw = "check round %d ways (learned vs scaffold, people-weeks per person): %s".format(round + 1, compare(w.map { it.first }, w.map { it.second }))
+                    println(cw); File(out, "check.txt").appendText(cw + "\n")
+                }
             }
         }
     }
@@ -402,6 +417,8 @@ object HexPpo {
 
     /** Networks to copy instead of the hand-written behaviour, by kind (e.g. the herds' evolved ones). */
     var TEACHERS: Map<Species, Mlp> = emptyMap()
+    /** Bands' ways to draw from while playing (null: the scaffold's). */
+    var WAYS: LearnedWays? = null
     var RESIDUAL: Map<String, Float> = emptyMap()
 
     /** How much sharper the copied preference is than the hand-written scores themselves. */
@@ -421,6 +438,10 @@ object HexPpo {
         fun setRates() { for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(1f, PER_KIND_YEAR * (if (s.human) PEOPLE_CHOICES else 1f) / (n * stepsPerYear)) } }
         setRates()
         val policies = models.map { MoverPolicy(it, record, { s -> rates[s] ?: 0f }, { week }) }
+        var waysRate = 0f
+        WAYS?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed) }
+        fun setWaysRate() { waysRate = WaysPpo.rate(run.groups.groups.count { it.alive && it.band != null }, stepsPerYear) }
+        setWaysRate()
         for (s in kinds) run.groups.policies[s] = policies[role(s)]
         val steps = years * stepsPerYear
         // Each group's numbers week by week, and where its offshoots came from, to follow each choice's outcome.
@@ -433,7 +454,7 @@ object HexPpo {
         repeat(steps) {
             run.step()
             week++
-            if (week % stepsPerYear == 0) setRates()
+            if (week % stepsPerYear == 0) { setRates(); setWaysRate() }
             for (g in run.groups.groups) {
                 if (g.parent >= 0 && g.id !in parent) { parent[g.id] = g.parent; born[g.id] = week }
                 if (g.mergedSize >= 0) merged.putIfAbsent(g.id, g.mergedSize)
@@ -535,7 +556,7 @@ object HexPpo {
      * installs; for people, less their luck in their own births and deaths (see [HexGroup.luck]), so
      * that a small gain shows through the chance of who was born and who died.
      */
-    private fun score(cfg: WorldConfig, years: Int, kinds: List<Species>, setUp: (HexLearning.Run) -> Unit): Map<Species, Double> {
+    internal fun score(cfg: WorldConfig, years: Int, kinds: List<Species>, setUp: (HexLearning.Run) -> Unit): Map<Species, Double> {
         val run = HexLearning.Run(cfg, kinds)
         setUp(run)
         val start = kinds.associateWith { run.groups.count(it).toDouble() }

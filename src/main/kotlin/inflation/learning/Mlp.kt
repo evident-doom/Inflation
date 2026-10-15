@@ -47,9 +47,19 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
 
     /** Adds to [grad] the gradient of the (first) output times [dOut], after a [forward] on [b]. */
     fun backward(b: Buffers, dOut: Float, grad: FloatArray, dInput: FloatArray? = null) {
+        b.d.last()[0] = dOut
+        backprop(b, grad, dInput)
+    }
+
+    /** Adds to [grad] the gradient of the outputs, each times its [dOut], after a [forward] on [b]. */
+    fun backwardAll(b: Buffers, dOut: FloatArray, grad: FloatArray, dInput: FloatArray? = null) {
+        dOut.copyInto(b.d.last())
+        backprop(b, grad, dInput)
+    }
+
+    private fun backprop(b: Buffers, grad: FloatArray, dInput: FloatArray?) {
         val offs = IntArray(sizes.size)
         for (l in 1 until sizes.size) offs[l] = offs[l - 1] + (if (l > 1) sizes[l - 2] * sizes[l - 1] + sizes[l - 1] else 0)
-        b.d.last()[0] = dOut
         for (l in sizes.size - 1 downTo 1) {
             val nIn = sizes[l - 1]; val nOut = sizes[l]
             val off = offs[l]
