@@ -216,11 +216,14 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
             // the dry weeks' share too. Dry country swings more from year to year, with bust years.
             val pMonth = pNow[i] * wind
             val wetChance = 1f - exp(-pMonth / WET_MONTH_MM)
-            val z = sample(rainAnomaly, x, y) / RAIN_SIGMA
+            // (Between the nodes of the coarse field the blend of their anomalies spreads less than at a node:
+            // the samples are scaled back to a node's spread, so wet weeks are as likely midway as at a node.)
+            val spread = spreadAt(x, y)
+            val z = sample(rainAnomaly, x, y) / spread / RAIN_SIGMA
             val wet = 1f / (1f + exp(-1.7f * z)) > 1f - wetChance
             val swing = yearSwing[i]
             nextPrecip[i] = if (!wet || wetChance <= 0f) 0f
-                else pMonth * stepShare / wetChance * exp(swing * sample(yearAnomaly, x, y) - (0.3f * swing).let { it * it } / 2 + sample(rainShock, x, y))
+                else pMonth * stepShare / wetChance * exp(swing * sample(yearAnomaly, x, y) / spread - (YEAR_SIGMA * swing).let { it * it } / 2 + sample(rainShock, x, y))
         }
         prepared = true
     }
@@ -315,7 +318,7 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     }
 
     private fun newYear() {
-        ar1(yearAnomaly, phi = 0.4, sigma = 0.25f)
+        ar1(yearAnomaly, phi = 0.4, sigma = YEAR_SIGMA)
         // AR(2) with complex roots: a damped oscillation of about five years.
         val r = 0.8; val period = 5.0
         val next = 2 * r * cos(2 * PI / period) * oscillation - r * r * oscillationPrev + 0.75 * gaussian()
@@ -409,6 +412,19 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
     }
 
+    /**
+     * The spread of a [sample] at ([x], [y]) against a node's, 0..1: the four nodes it blends are
+     * correlated as [ar1]'s smoothing over 3×3 cells makes them (6/9 side by side, 4/9 across the
+     * corner), so midway between them the blend spreads about 0.8 as much as at a node.
+     */
+    private fun spreadAt(x: Double, y: Double): Float {
+        val x0 = min(x.toInt(), cw - 2); val y0 = min(y.toInt(), ch - 2)
+        val fx = (x - x0).toFloat(); val fy = (y - y0).toFloat()
+        val a = (1 - fx) * (1 - fy); val b = fx * (1 - fy); val c = (1 - fx) * fy; val d = fx * fy
+        val v = a * a + b * b + c * c + d * d + 2f * (6f / 9f) * (a * b + c * d + a * c + b * d) + 2f * (4f / 9f) * (a * d + b * c)
+        return sqrt(v)
+    }
+
     private fun gaussian(): Double {
         // Box–Muller
         val u = max(rnd.nextDouble(), 1e-12)
@@ -419,6 +435,8 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         /** Spread of the week-to-week temperature (°C) and log-rain anomalies, on top of the regimes. */
         const val TEMP_SIGMA = 1.5f
         const val RAIN_SIGMA = 0.35f
+        /** Spread of the yearly log-rain anomaly at a node of the coarse field. */
+        const val YEAR_SIGMA = 0.25f
         /** Rain in a month (mm) at which about two weeks in three are wet. */
         const val WET_MONTH_MM = 25f
         /** Chance a regime holds into the next week. */
