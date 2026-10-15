@@ -762,7 +762,7 @@ class HexGroups(
                     candPlaces += p; sc.candScores[nc] = score
                     continue
                 }
-                score += 0.02f * (hashNoise(g.id, p) - 0.5f)
+                score += 0.02f * (hashNoise(g.id, p) - 0.5f) + temperPull(g, p, h, predatorKg)
                 if (score > bestScore) { bestScore = score; best = p }
             }
         }

@@ -246,7 +246,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         o.split?.let { c -> born += HexGroup(nextId++, s, g.place, c.first, c.second).also { n ->
             g.memory.copyInto(n.memory)
-            n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.sizePref = g.sizePref; n.parent = g.id; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth
+            n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.sizePref = g.sizePref; n.parent = g.id; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth; n.temper = Temperament.inherit(g.temper, n.id)
             // A band that splits shares out its larder by heads.
             val share = (c.first + c.second).toFloat() / (g.size + c.first + c.second).coerceAtLeast(1)
             n.larder = g.larder * share; g.larder -= n.larder

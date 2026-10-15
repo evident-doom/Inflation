@@ -38,12 +38,12 @@ fun main(args: Array<String>) {
     }
     val kinds = Catalogue.learned
     fun mine(s: inflation.ecology.Species) = when (role) { "people" -> s.human; "hunters" -> s.carnivore && !s.human; else -> !s.carnivore }
-    class Seen(val kind: inflation.ecology.Species, val f: Array<FloatArray>, val band: FloatArray?, val hand: FloatArray)
+    class Seen(val kind: inflation.ecology.Species, val f: Array<FloatArray>, val band: FloatArray?, val hand: FloatArray, val temper: FloatArray)
     val seen = (0 until worlds).toList().parallelStream().map { w ->
         val run = HexLearning.Run(WorldConfig(seed = 7000L + w, widthKm = size, heightKm = size), kinds)
         val kept = ConcurrentLinkedQueue<Seen>()
         for (s in kinds) if (mine(s)) run.groups.policies[s] = HexPolicy { g, f, b, _ ->
-            kept += Seen(g.species, Array(f.size) { f[it].copyOf() }, g.band?.state?.copyOf(), b.copyOf())
+            kept += Seen(g.species, Array(f.size) { f[it].copyOf() }, g.band?.state?.copyOf(), b.copyOf(), g.temper.copyOf())
             var best = 0; for (i in b.indices) if (b[i] > b[best]) best = i; best
         }
         repeat(weeks) { run.step() }
@@ -56,7 +56,7 @@ fun main(args: Array<String>) {
         var agree = 0; var pHand = 0.0; var stay = 0; var handStay = 0; var tv = 0.0
         val ps = ArrayList<FloatArray>()
         for (c in seen) {
-            val sc = FloatArray(c.f.size) { i -> m.fill(c.kind, c.f[i], c.band, b.a[0]); m.net.forward(b) + m.residual * c.hand[i] }
+            val sc = FloatArray(c.f.size) { i -> m.fill(c.kind, c.f[i], c.band, b.a[0], c.temper); m.net.forward(b) + m.residual * c.hand[i] + m.pull(c.temper, c.f[i]) }
             val p = softmax(sc); ps += p
             var best = 0; for (i in sc.indices) if (sc[i] > sc[best]) best = i
             var hb = 0; for (i in c.hand.indices) if (c.hand[i] > c.hand[hb]) hb = i

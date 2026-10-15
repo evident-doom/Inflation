@@ -55,6 +55,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     var band: Band? = null
     /** For kinds that follow people's camps: the share of it bold enough to come close, 0..1 (-1 until first needed: its kind's share). */
     var bold = -1f
+    /** Its temperament ([Temperament]): a founder's by chance, an offshoot's from its parent. */
+    var temper = Temperament.founder(id)
     /** How wary it is from being hunted lately, 0..1: it keeps a sharper watch, and fades over weeks. */
     var wary = 0f
     /** How much more food it needs this week to keep warm, 1 when comfortable (see [coldNeed]). */

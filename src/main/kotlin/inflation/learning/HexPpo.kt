@@ -2,6 +2,7 @@ package inflation.learning
 
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFeatures
+import inflation.ecology.Temperament
 import inflation.ecology.HexGroup
 import inflation.ecology.HexPolicy
 import inflation.ecology.Species
@@ -47,13 +48,18 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         for (e in 0 until IDENTITY) into[i++] = identity[s.index * IDENTITY + e]
     }
 
+    /** What the group's temperament [temper] pulls it toward a candidate place with [features] (see [Temperament.pull]): added to the network's score, as to the hand-written one. */
+    fun pull(temper: FloatArray?, features: FloatArray): Float =
+        if (temper == null) 0f else Temperament.pull(temper, features[3], features[25], features[10], features[2])
+
     /** How many numbers of the band's own view ([inflation.ecology.Band.state]) it reads after the kind's part: [WAYS_IN] for people, 0 for animals. */
     val band get() = inputs - INPUTS
 
-    /** Writes a candidate's whole input for kind [s]: its place features, the kind's part, and (people's) the band's view of itself, [state]. */
-    fun fill(s: Species, features: FloatArray, state: FloatArray?, into: FloatArray) {
+    /** Writes a candidate's whole input for kind [s]: its place features, the kind's part, the group's temperament [temper], and (people's) the band's view of itself, [state]. */
+    fun fill(s: Species, features: FloatArray, state: FloatArray?, into: FloatArray, temper: FloatArray? = null) {
         features.copyInto(into, 0, 0, min(features.size, HexFeatures.SIZE))
         kindInputs(s, into, HexFeatures.SIZE)
+        for (k in 0 until Temperament.AXES) into[HexFeatures.SIZE + KIND + IDENTITY + k] = temper?.getOrElse(k) { 0f } ?: 0f
         if (band > 0) { into.fill(0f, INPUTS, inputs); state?.copyInto(into, INPUTS, 0, min(state.size, band)) }
     }
 
@@ -68,7 +74,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
     companion object {
         const val KIND = 14
         const val IDENTITY = 6
-        val INPUTS = HexFeatures.SIZE + KIND + IDENTITY
+        val INPUTS = HexFeatures.SIZE + KIND + IDENTITY + Temperament.AXES
 
         fun random(hidden: Int, rnd: Random, band: Int = 0) = SharedMover(Mlp.random(intArrayOf(INPUTS + band, hidden, hidden, 1), rnd), FloatArray(Catalogue.all.size * IDENTITY) { 0.1f * (rnd.nextFloat() - 0.5f) })
 
@@ -94,6 +100,8 @@ open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: 
     var baseline = FloatArray(0)
     /** A band's view of itself when it chose ([inflation.ecology.Band.state]); null for animals. */
     var band: FloatArray? = null
+    /** The group's temperament when it chose ([inflation.ecology.HexGroup.temper]). */
+    var temper: FloatArray? = null
     /** What followed: the group's (and its offshoots') numbers over the next weeks against its numbers now, discounted. */
     var ret = 0f
     var advantage = 0f
@@ -105,13 +113,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
         val b = buffers.get()
         val n = features.size
-        val state = g.band?.state
-        val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], state, b.a[0]); mover.net.forward(b) + mover.residual * baseline[k] }
+        val state = g.band?.state; val temper = g.temper
+        val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], state, b.a[0], temper); mover.net.forward(b) + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
         if (record == null) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
         val p = softmax(scores)
         var u = rnd.nextFloat(); var taken = n - 1
         for (k in 0 until n) { u -= p[k]; if (u <= 0f) { taken = k; break } }
-        if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); if (mover.band > 0) it.band = state?.copyOf() }
+        if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf() }
         return taken
     }
 }
@@ -365,7 +373,7 @@ object HexPpo {
     }
 
     /** Choices of the hand-written behaviour: the candidates' inputs and their hand-written scores. */
-    class Shown(val kind: Species, val inputs: Array<FloatArray>, val scores: FloatArray, val day: Long = 0L, val groupId: Int = 0, val band: FloatArray? = null)
+    class Shown(val kind: Species, val inputs: Array<FloatArray>, val scores: FloatArray, val day: Long = 0L, val groupId: Int = 0, val band: FloatArray? = null, val temper: FloatArray? = null)
 
     /**
      * Fits the networks to the hand-written behaviour: worlds run on it, a share of its choices of
@@ -384,7 +392,7 @@ object HexPpo {
                 val b = teachers[g.species]?.let { (bufs, net) -> val bb = bufs.get(); FloatArray(f.size) { k -> f[k].copyInto(bb.a[0], 0, 0, min(f[k].size, bb.a[0].size)); net.forward(bb) } } ?: b0
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
                 if (rnd.nextFloat() < (rates[g.species] ?: 0f)) {
-                    kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf(), run.weather.date.absoluteDay, g.id, g.band?.state?.copyOf())
+                    kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf(), run.weather.date.absoluteDay, g.id, g.band?.state?.copyOf(), g.temper.copyOf())
                 }
                 best
             }
@@ -412,7 +420,7 @@ object HexPpo {
                         for (c in part) {
                             val n = c.inputs.size
                             while (bufs.size < n) bufs += model.net.buffers()
-                            val p = softmax(FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], c.band, bufs[k].a[0]); model.net.forward(bufs[k]) })
+                            val p = softmax(FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], c.band, bufs[k].a[0], c.temper); model.net.forward(bufs[k]) })
                             val q = softmax(FloatArray(n) { IMITATE_SHARPNESS * c.scores[it] })
                             val w = 1f / (kindsHere.size * counts.getValue(c.kind))
                             for (k in 0 until n) {
@@ -606,7 +614,7 @@ object HexPpo {
         for (c in part) {
             val n = c.inputs.size
             while (bufs.size < n) bufs += model.net.buffers()
-            val scores = FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], c.band, bufs[k].a[0]); model.net.forward(bufs[k]) + model.residual * (c.baseline.getOrNull(k) ?: 0f) }
+            val scores = FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], c.band, bufs[k].a[0], c.temper); model.net.forward(bufs[k]) + model.residual * (c.baseline.getOrNull(k) ?: 0f) + model.pull(c.temper, c.inputs[k]) }
             val p = softmax(scores)
             val logp = ln(max(p[c.taken], 1e-8f))
             val ratio = exp(logp - c.logp)
@@ -701,7 +709,7 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
 
     fun value(model: SharedMover, c: Choice): Float {
         val b = buffers.get()
-        model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0])
+        model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0], c.temper)
         return net.forward(b)
     }
 
@@ -712,7 +720,7 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
                 val parts = batch.chunked((batch.size + HexPpo.PARTS - 1) / HexPpo.PARTS).parallelStream().map { part ->
                     val g = FloatArray(net.w.size); val b = net.buffers()
                     for (c in part) {
-                        model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0])
+                        model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0], c.temper)
                         val v = net.forward(b)
                         net.backward(b, 2f * (v - c.ret) / batch.size, g, null)
                     }

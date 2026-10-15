@@ -13,7 +13,7 @@ import kotlin.math.min
  */
 fun interface AnimalWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 
-const val ANIMAL_WAYS_IN = 18
+val ANIMAL_WAYS_IN = 18 + Temperament.AXES
 const val ANIMAL_WAYS_OUT = 6
 
 /**
@@ -69,6 +69,8 @@ internal fun HexGroups.animalInputs(g: HexGroup, weather: Weather, into: FloatAr
     into[i++] = ln(s.massKg.coerceAtLeast(1f)) / 5f
     into[i++] = d.grass; into[i++] = d.browse; into[i++] = d.fruit + d.roots
     into[i++] = d.meat; into[i++] = d.smallPrey; into[i++] = d.carrion
+    // Its temperament.
+    for (k in 0 until Temperament.AXES) into[i++] = g.temper.getOrElse(k) { 0f }
 }
 
 /** Sets a herd's or pack's ways from [ways]' outputs. */

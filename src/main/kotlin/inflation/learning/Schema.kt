@@ -32,7 +32,9 @@ object Schema {
     val KIND = listOf("mass", "speed", "daily travel", "group size", "grass", "browse", "fruit and roots", "meat", "small prey", "carrion", "migratory", "carnivore", "stalking", "foresight")
         .also { require(it.size == SharedMover.KIND) }
 
-    val MOVER_IN: List<String> get() = PLACE.map { "place:$it" } + KIND.map { "kind:$it" } + (0 until SharedMover.IDENTITY).map { "identity:$it" }
+    val MOVER_IN: List<String> get() = PLACE.map { "place:$it" } + KIND.map { "kind:$it" } + (0 until SharedMover.IDENTITY).map { "identity:$it" } + TEMPER.map { "temper:$it" }
+    /** A group's inherited temperament ([inflation.ecology.Temperament]). */
+    val TEMPER: List<String> get() = inflation.ecology.Temperament.NAMES
     val MOVER_OUT = listOf("score")
     /** People's mover: the mover's inputs, then the band's view of itself and of the bands about it ([WAYS_IN], from [inflation.ecology.Band.state]). */
     val PEOPLE_IN: List<String> get() = MOVER_IN + WAYS_IN.map { "band:$it" }
@@ -44,15 +46,16 @@ object Schema {
         listOf("adults", "young per adult") + Skill.FORAGING.map { "skill:${it.name.lowercase()}" } + Tool.entries.map { "tool:${it.name.lowercase()}" } +
         listOf("temperature", "camp weeks", "spare days") + inflation.ecology.Illness.entries.map { "sick:${it.name.lowercase()}" } +
         listOf("wounded", "lamed", "elders", "taken by beasts", "beasts about", "friendly bands about", "strange bands about", "hostile bands about",
-            "sickness of bands about", "raided lately", "set on a raid", "inbreeding")
+            "sickness of bands about", "raided lately", "set on a raid", "inbreeding") +
+        inflation.ecology.Tradition.entries.map { "custom:${it.name.lowercase()}" } + TEMPER.map { "temper:$it" }
     /** A band's ways ([inflation.ecology.setWays], in order). */
     val WAYS_OUT: List<String> get() = (0 until FOOD_TYPES).map { "effort:$it" } + listOf("store aim") + Tool.entries.map { "make first:${it.name.lowercase()}" } +
         listOf("scouts", "houses", "raids", "palisades", "sowing", "gathering range", "watching children", "night fire", "shunning the sick", "exploring",
             "giving", "taking from caches", "caching", "drying", "keeping young animals", "shelters", "feasting", "appointments", "burning off")
 
     /** A herd's or pack's view of itself ([inflation.ecology.animalInputs], in order). */
-    val ANIMAL_WAYS_IN = listOf("year sin", "year cos", "fed", "fat", "days dry", "own size", "young per adult", "wary", "holds ground", "weeks hungry", "temperature",
-        "mass", "diet:grass", "diet:browse", "diet:fruit and roots", "diet:meat", "diet:small prey", "diet:carrion")
+    val ANIMAL_WAYS_IN: List<String> get() = (listOf("year sin", "year cos", "fed", "fat", "days dry", "own size", "young per adult", "wary", "holds ground", "weeks hungry", "temperature",
+        "mass", "diet:grass", "diet:browse", "diet:fruit and roots", "diet:meat", "diet:small prey", "diet:carrion") + TEMPER.map { "temper:$it" })
         .also { require(it.size == inflation.ecology.ANIMAL_WAYS_IN) }
     /** A herd's ways and a pack's ([inflation.ecology.AnimalWay], in order). */
     val HERD_WAYS_OUT = listOf("herd size", "grass", "browse", "fruit and roots", "fattening", "births earlier or later")
@@ -80,8 +83,10 @@ object Schema {
         val (savedIn, savedOut) = if (nf.exists()) nf.readLines().let { it[0].split("|") to it[1].split("|") } else {
             val nIn = net.sizes.first(); val nOut = net.sizes.last()
             val ins = if (legacyMover && nIn < inputs.size) {
+                // Legacy movers end with the kind's part; today's inputs carry the temperament after it.
                 val tail = SharedMover.KIND + SharedMover.IDENTITY
-                inputs.take(nIn - tail) + inputs.takeLast(tail)
+                val kindAt = PLACE.size
+                inputs.take(nIn - tail) + inputs.subList(kindAt, kindAt + tail)
             } else inputs.take(nIn)
             ins to outputs.take(nOut)
         }

@@ -791,7 +791,7 @@ const val FOOD_TYPES = 9
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 /** The part of [bandInputs] about its health and the dangers and bands about it. */
-val BAND_SITUATION = Illness.entries.size + 12
+val BAND_SITUATION = Illness.entries.size + 12 + Tradition.entries.size + Temperament.AXES
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3 + BAND_SITUATION
 val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 19
 
@@ -839,6 +839,9 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather,
     into[i++] = 1f - min(1f, b.sinceRaided / 52f)
     into[i++] = if (b.raidHex >= 0) 1f else 0f
     into[i++] = min(1f, b.inbred * 4f)
+    // Its customs, and its temperament.
+    for (t in Tradition.entries) into[i++] = if (b.holds(t)) 1f else 0f
+    for (k in 0 until Temperament.AXES) into[i++] = g.temper.getOrElse(k) { 0f }
 }
 
 /**
