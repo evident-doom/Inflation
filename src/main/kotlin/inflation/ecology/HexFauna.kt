@@ -237,15 +237,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * Food for [s] in place [p] from its diet, as standing plants, kg/m²: grass from herbs, browse
-     * from shrubs and trees, and the fruit and roots stocks (counted as the standing plants that
-     * would give as much in a week); less on cliffs it cannot climb.
+     * Food for [s] in place [p] from its diet, as standing plants, kg/m²: grass from herbs, and the
+     * browse (shoots), fruit and roots stocks (counted as the standing plants that would give as much
+     * in a week); less on cliffs it cannot climb.
      */
     fun foodFor(s: Species, p: Int): Float {
         val d = s.diet
         val total = d.grass + d.browse + d.fruit + d.roots
         if (total <= 0f) return 0f
-        val plants = land.palatable[p] * (d.grass * land.herb[p] + d.browse * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p])) + (d.fruit * food.fruit[p] + d.roots * food.roots[p]) / REACH
+        val plants = land.palatable[p] * d.grass * land.herb[p] + (d.browse * land.browse(p) + d.fruit * food.fruit[p] + d.roots * food.roots[p]) / REACH
         // (Reindeer also reckon with the lichen they can dig.)
         val lichen = if (s.eatsLichen) food.lichen[p] * HexFood.LICHEN_VALUE / REACH else 0f
         return (plants / total + lichen) * HexFood.access(s, land.ruggedness[p])
@@ -301,12 +301,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     /**
      * The grass and browse, kg/m², that can still be eaten at each place this week without eating it
-     * bare, once the residents have had theirs: the herds passing through share it (see [HexGroups.graze]);
-     * and the share of browse that comes off shrubs (the rest off trees).
+     * bare, once the residents have had theirs: the herds passing through share it (see [HexGroups.graze]).
      */
     val grazeLeft = FloatArray(n)
     val browseLeft = FloatArray(n)
-    val shrubShareOfBrowse = FloatArray(n) { 1f }
 
     private fun graze(weather: Weather) {
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
@@ -336,9 +334,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // growing season, far less of the dry standing stuff in the cold. Supply against demand:
             val reach = REACH_DORMANT + (REACH - REACH_DORMANT) * land.green[p]
             // (Only the edible share of the plants, see [HexLand.palatable].)
-            val grass = reach * land.palatable[p] * land.herb[p]; val browse = reach * land.palatable[p] * (land.shrub[p] + BROWSE_OF_TREE * land.tree[p])
-            // (Browse comes off shrubs and trees in the shares they offer it.)
-            val shrubBrowse = if (land.shrub[p] + BROWSE_OF_TREE * land.tree[p] > 0f) land.shrub[p] / (land.shrub[p] + BROWSE_OF_TREE * land.tree[p]) else 1f
+            val grass = reach * land.palatable[p] * land.herb[p]; val browse = land.browse(p)
+            // (Browse is the shoots the shrubs and trees put out within reach, see [HexLand.shrubShoots].)
             val rg = if (wantGrass > 0f) grass / wantGrass else 1f
             val rb = if (wantBrowse > 0f) browse / wantBrowse else 1f
             val rf = if (wantFruit > 0f) food.fruit[p] / wantFruit else 1f
@@ -422,11 +419,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (s.hibernates && weather.date.month in 7..11 && !asleep(s, p, weather)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
             }
             // What is left of the week's grazing and browsing for the herds that come through after.
-            grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB); shrubShareOfBrowse[p] = shrubBrowse
+            grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB)
             val dug = food.take(food.roots, p, eatR)
             val ate = food.take(food.fruit, p, eatF)
             val eaten = land.consume(p, LifeForm.HERB, eatG) +
-                land.consume(p, LifeForm.SHRUB, eatB * shrubBrowse) + land.consume(p, LifeForm.TREE, eatB * (1f - shrubBrowse)) +
+                land.eatBrowse(p, eatB) +
                 ate + dug + food.take(food.straw, p, wantStraw * rs)
             // Fruit-eaters drop the seed where they go: shrubs and trees come up away from any parent.
             land.animalSeed[p] = min(1f, land.animalSeed[p] * SEED_KEEP + ate * 1e6f / SEED_KG)
@@ -615,8 +612,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         /** How many times more disease strikes a herd that is not fed at all than a well-fed one. */
         const val MALNOURISHED = 4f
         const val DISEASE = 0.3f
-        /** Share of tree biomass that is browse within reach, and that is fruit and mast. */
-        const val BROWSE_OF_TREE = 0.03f
+        /** Share of tree biomass that is fruit and mast. */
         const val FRUIT_OF_TREE = 0.01f
         /** Food, kg/m², at which a place carries a kind's usual density. */
         const val FOOD_FULL = 0.3f

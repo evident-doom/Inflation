@@ -334,6 +334,14 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     /** Fires this step: the place each started in and the km² it burned. */
     val fires = ArrayList<Pair<Int, Float>>()
     val litterfall = FloatArray(n)
+    /**
+     * Browse within an animal's reach at each place, kg/m² of the edible part: the leaves and shoots
+     * the shrubs and trees put out (their growth and the leaves and twigs they renew each year), not
+     * yet eaten or shed. Shoots last about a year, as the yearly renewal they come from.
+     */
+    val shrubShoots = FloatArray(n); val treeShoots = FloatArray(n)
+    /** Whether the shoots have been set; a world saved before they were kept gets a year's worth from its plants. */
+    private var shootsSet = false
     /** Set by the ecology: browsing, grazing and rooting lately, kg/km²/day; seed carried by animals, 0..1; trampling. */
     val browsing = FloatArray(n); val grazing = FloatArray(n); val rooting = FloatArray(n); val animalSeed = FloatArray(n)
     private val trampling = FloatArray(n)
@@ -379,6 +387,19 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     }
 
     fun trample(p: Int, intensity: Float) { trampling[p] += intensity }
+
+    /** Browse at [p], kg/m². */
+    fun browse(p: Int) = shrubShoots[p] + treeShoots[p]
+
+    /** Eats up to [kgPerM2] of the browse at [p], shrubs and trees alike; what was eaten comes off the plants too. */
+    fun eatBrowse(p: Int, kgPerM2: Float): Float {
+        val all = browse(p)
+        if (all <= 0f || kgPerM2 <= 0f) return 0f
+        val x = min(kgPerM2, all)
+        val s = x * shrubShoots[p] / all; val t = x - s
+        shrubShoots[p] -= s; treeShoots[p] -= t
+        return consume(p, LifeForm.SHRUB, s) + consume(p, LifeForm.TREE, t)
+    }
 
     /** Advances one step with the weather of that step on the same places. */
     fun step(weather: Weather) {
@@ -532,6 +553,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val years = days / Date.DAYS_PER_YEAR.toFloat()
         val memory = 1 - exp(-days / 360f)
         if (stepCount++ % 5 == 0) seedSources()
+        if (!shootsSet) { for (p in 0 until n) { shrubShoots[p] = palatable[p] * SHRUB_RENEWAL * shrub[p]; treeShoots[p] = palatable[p] * TREE_IN_REACH * TREE_RENEWAL * tree[p] }; shootsSet = true }
+        val shootsKept = exp(-years)
         spreadFires(weather, years)
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             val before = biomass(p)
@@ -551,8 +574,13 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val rooted = 1f - exp(-rooting[p] / Vegetation.ROOT_SCALE)
             val treeSeedHere = max(treeSeed[p], 0.5f * animalSeed[p]) * (1f + 1.5f * rooted)
             val shrubSeedHere = max(shrubSeed[p], animalSeed[p]) * (1f + 1.5f * rooted)
+            val tree0 = tree[p]; val shrub0 = shrub[p]
             grow(LifeForm.TREE, tree, p, season * water0 * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed))
             grow(LifeForm.SHRUB, shrub, p, season * water0 * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed))
+            // New shoots: what the woody plants grew, and the leaves and twigs they renew, in growing weather.
+            val renew = season * water0 * years
+            shrubShoots[p] = shrubShoots[p] * shootsKept + palatable[p] * (max(0f, shrub[p] - shrub0) + SHRUB_RENEWAL * renew * shrub[p])
+            treeShoots[p] = treeShoots[p] * shootsKept + palatable[p] * TREE_IN_REACH * (max(0f, tree[p] - tree0) + TREE_RENEWAL * renew * tree[p])
             val lawn = 1f - exp(-grazing[p] / Vegetation.LAWN_SCALE)
             grow(LifeForm.HERB, herb, p, season * water0 * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
             // Ash smothers the low plants and scorches leaves; as it weathers it enriches the soil.
@@ -572,7 +600,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val bare = (1f - cover) * (1f - cover)
             if (bare > 0.01f) fertility[p] *= 1f - min(0.5f, Vegetation.EROSION * bare * weather.precipitation[p] / 50f * slope[p] / 0.2f * years)
             val burned = if (burning[p] > 0f) burn(p, burning[p]) else 0f
-            litterfall[p] = max(0f, before - biomass(p) - burned) + years * (herb[p] + 0.2f * shrub[p] + 0.04f * tree[p])
+            litterfall[p] = max(0f, before - biomass(p) - burned) + years * (herb[p] + SHRUB_RENEWAL * shrub[p] + TREE_RENEWAL * tree[p])
             // Trampling, spread over the place: a herd beats down a share of it.
             val tr = trampling[p] / areaKm2[p]
             if (tr > 0f) {
@@ -679,6 +707,11 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
         const val DRY_VALUE = 0.65f
         const val PALATABLE_FLOOR = 0.5f
+        /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
+        const val SHRUB_RENEWAL = 0.2f
+        const val TREE_RENEWAL = 0.04f
+        /** Share of trees' new growth within a browser's reach (saplings and low boughs). */
+        const val TREE_IN_REACH = 0.03f
         /** How moist the water table keeps the ground round fresh lakes and springs, as a share of a full soil. */
         const val WATER_TABLE = 0.6f
         /**
