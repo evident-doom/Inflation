@@ -71,6 +71,8 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         val widthKm: Double,
         val heightKm: Double,
         val cellKm: Double,
+        /** The sun on each place's shaded and sunny slopes ([Sunlight]); null for level ground everywhere. */
+        val sunlight: Sunlight? = null,
     ) {
         companion object {
             fun of(grid: Grid, climate: Climate, cfg: WorldConfig, elevation: FloatArray?): Places = Places(
@@ -131,6 +133,13 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     val snowpack = FloatArray(n)
     /** Snowmelt released during the last step, mm. */
     val meltwater = FloatArray(n)
+    /**
+     * The snow and its melt on the sunny slopes and on the shaded ones (facing the pole: [Sunlight.shade] of
+     * the place), mm. Snow melts by the warmth of the air and by the sun on it (Hock 1999), so it lies longer
+     * on the shaded slopes; [snowpack] and [meltwater] are the place's mean.
+     */
+    val snowSun = FloatArray(n); val snowShade = FloatArray(n)
+    val meltSun = FloatArray(n); val meltShade = FloatArray(n)
 
     val winds = Winds(places.sector)
     /** The weather pattern of the last step, and of the coming one (already drawn, see [prepare]). */
@@ -314,14 +323,22 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
             val p = nextPrecip[i] * shockRain
             temperature[i] = t
             precipitation[i] = p
+            // (A world saved before the slopes were kept apart has its snow only as the place's mean.)
+            if (snowpack[i] > 0f && snowSun[i] == 0f && snowShade[i] == 0f) { snowSun[i] = snowpack[i]; snowShade[i] = snowpack[i] }
             if (t < 0) {
-                snowpack[i] += p
-                meltwater[i] = 0f
+                snowSun[i] += p; snowShade[i] += p
+                meltSun[i] = 0f; meltShade[i] = 0f
             } else {
-                val melt = min(snowpack[i], 4f * t * days) // 4 mm per degree-day
-                snowpack[i] -= melt
-                meltwater[i] = melt
+                // 4 mm a degree-day on level ground, of which the sun's share follows the sun on the slope.
+                val sun = places.sunlight
+                val m = date.month
+                meltSun[i] = min(snowSun[i], (MELT_AIR + (MELT_DEGREE_DAY - MELT_AIR) * (sun?.ratio?.get(0)?.get(m)?.get(i) ?: 1f)) * t * days)
+                meltShade[i] = min(snowShade[i], (MELT_AIR + (MELT_DEGREE_DAY - MELT_AIR) * (sun?.ratio?.get(1)?.get(m)?.get(i) ?: 1f)) * t * days)
+                snowSun[i] -= meltSun[i]; snowShade[i] -= meltShade[i]
             }
+            val f = places.sunlight?.shade?.get(i) ?: 0f
+            snowpack[i] = (1 - f) * snowSun[i] + f * snowShade[i]
+            meltwater[i] = (1 - f) * meltSun[i] + f * meltShade[i]
         }
         date = date.plusDays(days)
         prepare()
@@ -461,6 +478,9 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     }
 
     companion object {
+        /** Snow melted per degree-day above freezing on level ground, mm; the part of it that the air's warmth melts without the sun (Hock 1999: about 1.8). */
+        const val MELT_DEGREE_DAY = 4f
+        const val MELT_AIR = 1.8f
         /** Spread of the week-to-week temperature (°C) and log-rain anomalies, on top of the regimes. */
         const val TEMP_SIGMA = 1.5f
         const val RAIN_SIGMA = 0.35f
