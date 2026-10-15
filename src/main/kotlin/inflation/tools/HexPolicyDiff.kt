@@ -36,7 +36,7 @@ fun main(args: Array<String>) {
         }
         k++
     }
-    val kinds = Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }
+    val kinds = Catalogue.learned
     fun mine(s: inflation.ecology.Species) = when (role) { "people" -> s.human; "hunters" -> s.carnivore && !s.human; else -> !s.carnivore }
     class Seen(val kind: inflation.ecology.Species, val f: Array<FloatArray>, val band: FloatArray?, val hand: FloatArray)
     val seen = (0 until worlds).toList().parallelStream().map { w ->

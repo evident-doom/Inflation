@@ -19,7 +19,7 @@ fun main(args: Array<String>) {
     var worlds = 4; var size = 1000; var years = 3
     var k = 0
     while (k < args.size) { when (args[k]) { "--worlds" -> worlds = args[++k].toInt(); "--size" -> size = args[++k].toInt(); "--years" -> years = args[++k].toInt() }; k++ }
-    val kinds = Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }
+    val kinds = Catalogue.learned
     val ways = listOf("hand-written", "stay", "random", "worst")
     fun score(seed: Long, way: String): Double {
         val run = HexLearning.Run(WorldConfig(seed = seed, widthKm = size, heightKm = size), kinds)

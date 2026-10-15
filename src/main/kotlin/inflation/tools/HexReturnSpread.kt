@@ -17,7 +17,7 @@ fun main(args: Array<String>) {
     val dir = File(args[0]); var worlds = 2; var size = 1000; var years = 2
     var k = 1
     while (k < args.size) { when (args[k]) { "--worlds" -> worlds = args[++k].toInt(); "--size" -> size = args[++k].toInt(); "--years" -> years = args[++k].toInt() }; k++ }
-    val kinds = Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }
+    val kinds = Catalogue.learned
     val models = HexPpo.ROLES.map { SharedMover.load(File(dir, "$it.mlp")) }
     val all = (0 until worlds).toList().parallelStream().map { w -> HexPpo.play(WorldConfig(seed = 50_000L + w, widthKm = size, heightKm = size), years, kinds, models).first }.toList().flatten()
     for ((ri, r) in HexPpo.ROLES.withIndex()) {
