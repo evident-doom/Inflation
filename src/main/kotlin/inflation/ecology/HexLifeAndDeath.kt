@@ -187,7 +187,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
     houseOf = groups.filter { g -> g.alive && g.band.let { it != null && it.houseHex >= 0 && it.house >= 0.2f } }.associate { it.id to it.band!!.houseHex }
-    Profile.part("people: camps, tools, culture") { for (g in groups) if (g.alive && g.band != null) { bandWeek(g, date); cultureWeek(g) } }
+    Profile.part("people: camps, tools, culture") { for (g in groups) if (g.alive && g.band != null) { bandWeek(g, date); cultureWeek(g); riteWeek(g) } }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
         if (!g.alive || !g.species.carnivore) continue
@@ -257,7 +257,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             n.larder = g.larder * share; g.larder -= n.larder
             // Both halves keep what the band knew and share out its tools and goods.
             n.bold = g.bold
-            g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }; for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
+            g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); riteInherit(nb); for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }; for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
                 nb.ornaments = b.ornaments * share; b.ornaments -= nb.ornaments; nb.exotic = b.exotic * share; b.exotic -= nb.exotic
                 nb.elders = b.elders * c.first / (g.adults + c.first).coerceAtLeast(1); b.elders -= nb.elders
                 // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.

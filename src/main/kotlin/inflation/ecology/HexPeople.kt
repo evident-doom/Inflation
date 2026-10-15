@@ -262,9 +262,25 @@ class Band {
 
     /**
      * The rite its culture holds it to in [month], if any: the place it must go to then and how strongly
-     * (see [inflation.ecology.roundOf]). None yet: the cultural rounds are grown elsewhere.
+     * (see [inflation.ecology.roundOf]): the site of its rite that month ([rite]) at the strength its
+     * people hold to their rites ([riteStrength]); none in a month without a site, or with no hold.
      */
-    fun riteFor(month: Int): Pair<Int, Float>? = null
+    fun riteFor(month: Int): Pair<Int, Float>? {
+        if (riteStrength <= 0f) return null
+        // (A rite's month is spent at its site: the band is drawn there from the month before, as a
+        // herd is to next month's place, and kept there until the month after, unless that has its own.)
+        val site = if (rite[month] >= 0) rite[month] else rite[(month + 11) % 12]
+        return if (site >= 0) site to riteStrength else null
+    }
+    /**
+     * Its rites: for each month, the place its round of observance takes it to then (-1: none) — the
+     * graves of its dead, where bands gather, far landmarks it walked to or was told of (see [riteWeek]).
+     * Handed down whole to bands that split off, taken up from bands met, now and then let go; never
+     * chosen for what they bring, so a rite that costs lives lasts as long as the line that keeps it.
+     */
+    val rite = IntArray(12) { -1 }
+    /** How strongly its people hold to their rites (0: not at all; [ROUND_STRENGTH] as a herd keeps its round). */
+    var riteStrength = 0f
 
     fun holds(t: Tradition) = traditions[t.ordinal]
     fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
@@ -275,6 +291,7 @@ class Band {
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); sick.copyInto(o.sick); immune.copyInto(o.immune); o.hurt = hurt; o.lame = lame; holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
+        rite.copyInto(o.rite); o.riteStrength = riteStrength
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
     }
@@ -385,6 +402,7 @@ class Band {
             lineage[l] = 1f
             wordsAt(x, y).copyInto(words)
             traditionsAt(l).copyInto(traditions)
+            riteStrength = riteStrengthAt(l)
             skills[Skill.GATHER.ordinal] = START_CRAFT; skills[Skill.SMALL_GAME.ordinal] = START_CRAFT; skills[Skill.HUNT.ordinal] = START_CRAFT
             skills[Skill.FISH.ordinal] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE.ordinal] = 0.4f
             kit[Tool.SPEAR.ordinal] = 1f; kit[Tool.NET.ordinal] = 0.5f; kit[Tool.BASKET.ordinal] = 0.5f; kit[Tool.CLOTHES.ordinal] = 0.5f
