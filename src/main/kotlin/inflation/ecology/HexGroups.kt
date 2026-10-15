@@ -698,7 +698,10 @@ class HexGroups(
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
         // hungry pack ranges wider: up to three times that after weeks of hunger.
         val homeValue = if (g.home >= 0) placeValue[ki][hw.placeOf[hw.placeBand[g.place]][g.home].takeIf { it >= 0 } ?: g.place] else PREY_HALF
-        val territory = territoryKm(s) * kotlin.math.sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f) * (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))
+        // (With -Dhex.t.denning, a pack with young in the den, from its births for [DEN_MONTHS], hunts only
+        // within [DEN_KM] of its home, however hungry: it cannot follow game that moves on.)
+        val denning = DENNING && s.carnivore && !s.human && g.home >= 0 && g.young > 0 && (month - g.birthMonth + 12) % 12 < DEN_MONTHS
+        val territory = if (denning) DEN_KM else territoryKm(s) * kotlin.math.sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f) * (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))
         val goalHex = if (goal >= 0) hw.placeHex[goal] else -1
         val fromHere = if (goal >= 0) hexKm(here, goalHex) else 0.0
         val pullKm = reach.toDouble().coerceAtLeast(hex.hexKm)
@@ -712,7 +715,7 @@ class HexGroups(
             val foreign = if (s.carnivore && !s.human && h != g.home) foreignMark(s, h, g.id) else 0f
             // A pack on its own ground stays on it while fed, and keeps off ground another pack of its kind holds
             // (its choice: the hand-written score weighs these heavily; a learned one sees both, see [HexFeatures]).
-            val offGround = (if (beyond > 0f && g.fed >= 0.5f && !astray) KEEP_TO_GROUND else 0f) + (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
+            val offGround = (if (beyond > 0f && (denning || (g.fed >= 0.5f && !astray))) KEEP_TO_GROUND else 0f) + (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
             val toGoal = if (goal >= 0) hexKm(h, goalHex) else 0.0
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(ki, here, h, pullKm)
