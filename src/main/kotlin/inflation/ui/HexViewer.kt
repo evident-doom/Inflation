@@ -105,6 +105,8 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     private val herdsBox = javax.swing.JCheckBox("Herds", true)
     private val huntersBox = javax.swing.JCheckBox("Hunters", true)
     private val peopleBox = javax.swing.JCheckBox("People", true)
+    /** Paths worn by herds, packs and bands, drawn hex to hex, darker and wider the more worn. */
+    private val pathsBox = javax.swing.JCheckBox("Paths", true)
     /** Follow mode: the group followed (-1 none), kept in view week by week, with what happened to it. */
     private val followBox = javax.swing.JCheckBox("Follow", false)
     @Volatile private var followId = -1
@@ -158,9 +160,9 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         residentChoice.addActionListener { map.repaint() }
         tintChoice.addActionListener { map.repaint() }
         windBox.addActionListener { map.repaint() }
-        herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }; peopleBox.addActionListener { map.repaint() }
+        herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }; peopleBox.addActionListener { map.repaint() }; pathsBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(windBox); bar.add(pullChoice)
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(pathsBox); bar.add(windBox); bar.add(pullChoice)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { inflation.ecology.HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
@@ -446,6 +448,21 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
                     val ys = IntArray(6) { sy((cy + rad * kotlin.math.sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                     g.color = Color(1f, 0.1f, 0.6f, 0.6f * v); g.fillPolygon(xs, ys, 6)
                 }
+            }
+            // Paths: hex centre to hex centre, each pair once, darker and wider the more worn.
+            if (pathsBox.isSelected) {
+                val stroke = g.stroke
+                for (h in 0 until hex.size) for (d in 0 until 3) {
+                    val nh = hex.neighbour(h, d); if (nh < 0) continue
+                    val back = (0 until 6).firstOrNull { hex.neighbour(nh, it) == h } ?: continue
+                    val s = max(groups.paths[h * 6 + d], groups.paths[nh * 6 + back])
+                    if (s < 0.05f) continue
+                    val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(nh)
+                    g.color = Color(0.45f, 0.3f, 0.12f, (0.25f + 0.65f * s).coerceAtMost(1f))
+                    g.stroke = java.awt.BasicStroke((0.5f + 3f * s) * max(0.5f, scale.toFloat()))
+                    g.drawLine(sx(x0.toFloat()), sy(y0.toFloat()), sx(x1.toFloat()), sy(y1.toFloat()))
+                }
+                g.stroke = stroke
             }
             // The hex being inspected.
             if (picked >= 0) {

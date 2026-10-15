@@ -203,6 +203,7 @@ class HexGroups(
         val t0 = System.nanoTime()
         Profile.time("groups: meetings") { meet(weather) }
         meetNs += System.nanoTime() - t0
+        Profile.part("groups: wearing paths") { wearPaths() }
         // Who passed through which hex this week.
         val visits = HashMap<Int, ArrayList<HexGroup>>()
         for (g in groups) if (g.alive) for (h in g.path) visits.getOrPut(h) { ArrayList() } += g
@@ -230,6 +231,36 @@ class HexGroups(
     /** This week's searches, shared by the groups of a kind starting from the same place in the same mood. */
     private class Reach(val hexes: IntArray, val dist: FloatArray, val via: IntArray)
     private val reachCache = java.util.concurrent.ConcurrentHashMap<Long, Reach>()
+    /**
+     * Paths: how worn the way is from each hex to each of its six neighbours (index h * 6 + side),
+     * 0..1. Every group that goes that way wears it, the heavier and more numerous the more; plants
+     * grow back over it, the faster the greener the ground. Worn paths make the going easier, the
+     * more so in broken country, so herds and people keep to them: they gather at the easy
+     * crossings, passes and fords, and there hunters wait.
+     */
+    val paths = FloatArray(hex.size * 6)
+    /** How worn the busiest path through hex [h] is. */
+    fun pathAt(h: Int): Float { var m = 0f; for (d in 0 until 6) m = max(m, paths[h * 6 + d]); return m }
+
+    /** This week's going wears the ways the groups went; the rest grow back a little. */
+    private fun wearPaths() {
+        for (h in 0 until hex.size) {
+            val p = (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: -1
+            val regrow = PATH_FADE * (0.3f + (if (p >= 0) land.green[p] else 0f)) * days / 7f
+            for (d in 0 until 6) { val i = h * 6 + d; if (paths[i] > 0f) paths[i] = max(0f, paths[i] - regrow * paths[i] - 1e-4f) }
+        }
+        for (g in groups) {
+            if (!g.alive || g.path.size < 2) continue
+            val w = min(1f, g.size * g.species.massKg / PATH_MASS_KG)
+            for (i in 0 until g.path.size - 1) {
+                val a = g.path[i]; val b = g.path[i + 1]
+                val d = (0 until 6).firstOrNull { hex.neighbour(a, it) == b } ?: continue
+                val back = (0 until 6).firstOrNull { hex.neighbour(b, it) == a } ?: continue
+                paths[a * 6 + d] += PATH_WEAR * w * (1f - paths[a * 6 + d])
+                paths[b * 6 + back] += PATH_WEAR * w * (1f - paths[b * 6 + back])
+            }
+        }
+    }
     /** Effort and hex packed in one number, ordered by effort (efforts are never negative). */
     private fun Long.withPlace(d: Float, h: Int): Long = (d.toRawBits().toLong() shl 32) or h.toLong()
 
@@ -404,7 +435,9 @@ class HexGroups(
                 // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper.
                 val np = hw.placeOf[hw.placeBand[g.place]][nh].takeIf { it >= 0 } ?: hex.heart[nh]
                 val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
-                val nd = d + cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM)
+                // A worn path makes the going easier, the more so where the country is broken.
+                val worn = paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
+                val nd = d + cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
                 if (!nd.isFinite() || nd > reach) continue
                 if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
             }
@@ -499,7 +532,8 @@ class HexGroups(
                     if (others > 0) score += GATHER_PULL * min(1f, others / GATHER_HEADS)
                 } }
                 // Bands keep to country they know; what lies beyond they know only as a sense of better land.
-                g.band?.let { b -> if (!b.knows(h)) score -= UNKNOWN_COUNTRY }
+                // Strange country puts a band off, unless it is out to explore (then it draws it on).
+                g.band?.let { b -> if (!b.knows(h)) score -= UNKNOWN_COUNTRY * (2f - b.explore) }
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.
                 if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
                 seen?.add(p to score)
@@ -544,10 +578,11 @@ class HexGroups(
                     f[37] = min(1f, land.tree[p] / 10f); f[38] = min(1f, land.shrub[p] / 2f); f[39] = min(1f, land.herb[p] / 0.5f)
                     f[40] = min(1f, land.logged[p])
                     f[41] = (land.water[p] - min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])).coerceIn(-1f, 1f)
-                    f[42] = min(1f, land.trails[p])
+                    f[42] = pathAt(h)
                     f[43] = kotlin.math.ln(1f + kinds.indices.sumOf { k -> if (kinds[k].carnivore) 0.0 else monthHeads[k][p].toDouble() }.toFloat() / land.areaKm2[p]) / 3f
                     f[44] = min(1f, fauna.small.dung[p] * 1e4f)
                     f[45] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
+                    f[46] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
                     // What it remembers of this hex: in this season, or failing that in any.
                     val mem = g.memory
                     var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0

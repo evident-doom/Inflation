@@ -294,6 +294,16 @@ fun main(args: Array<String>) {
                 mean({ land.waterKm[it].toDouble() }, true), mean({ land.waterKm[it].toDouble() }, false),
                 mean({ weather.temperature[it].toDouble() }, true), mean({ weather.temperature[it].toDouble() }, false)))
         }
+        // Paths: how many ways are worn, and whether they gather where the going is hard (broken ground, rivers).
+        run {
+            val ps = herds.paths
+            val worn = (0 until sim.hex.size).filter { herds.pathAt(it) > 0.3f }
+            val rug = { h: Int -> hw.placeOf[0][h].takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f }
+            val landHexes = (0 until sim.hex.size).filter { hw.land[it] > 0.5f }
+            println("     paths: %d hexes with a worn path (%.1f%% of land); ruggedness where worn %.2f against %.2f overall; mean wear %.3f".format(
+                worn.size, 100.0 * worn.size / landHexes.size.coerceAtLeast(1), worn.map { rug(it).toDouble() }.average().takeIf { !it.isNaN() } ?: 0.0,
+                landHexes.map { rug(it).toDouble() }.average(), ps.average()))
+        }
         // How many groups, how big, how much of the land they cover, and how far each herd is from the nearest hunting pack.
         run {
             val live = herds.groups.filter { it.alive }

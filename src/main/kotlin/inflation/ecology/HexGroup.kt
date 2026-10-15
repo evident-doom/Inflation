@@ -72,6 +72,6 @@ fun interface HexPolicy {
 object HexFeatures {
     /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment; 33 its houses there; 34 its own size against its kind's usual group; 35 the lasting water there through the dry season; 36 sickness raging there among its kind;
      *  37-46 the signs of the land: tree, shrub and grass cover, marsh, water now against its usual, worn paths, herds about
-     *  this month, dung, grazing this week, carcasses and bones. */
-    const val SIZE = 46
+     *  this month, dung, grazing this week, carcasses and bones; 46 whether a band knows the hex. */
+    const val SIZE = 47
 }

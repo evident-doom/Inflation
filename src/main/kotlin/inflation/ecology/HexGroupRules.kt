@@ -45,6 +45,17 @@ const val SIZE_PREF_RANGE = 3f
 const val COURSING_COVER = 0.7f
 /** How much a herd or pack weighs its own kind of country (the log of [HexFauna.suits]) in choosing its ground. */
 const val GROUP_HABITAT = 0.15f
+/**
+ * Paths: share of the way to fully worn one passage of a group of [PATH_MASS_KG] or more wears;
+ * weekly share plants take back at the greenest (less on bare ground); weight of a group that wears
+ * a path at the full rate, kg; how much a fully worn path eases the going on middling ground (more
+ * on broken); how much likelier hunters meet game, or people, on a busy path (they wait there).
+ */
+const val PATH_WEAR = 0.05f
+const val PATH_FADE = 0.03f
+const val PATH_MASS_KG = 3000f
+const val PATH_EASE = 0.5f
+const val AMBUSH = 1f
 /** How much harder thick cover makes people's going; share of what the camp's own hex gives that each hex round it gives a band's gatherers at the usual range. */
 const val COVER_GOING = 0.5f
 const val RING_REACH = 0.15f

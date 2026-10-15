@@ -589,7 +589,8 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
     val spread = b.gatherRange * b.gatherRange
     val company = (STALKED_BAND / max(1, g.size).toFloat()).coerceIn(0.5f, 2f).pow(0.3f)
     val sign = b.lapse(Skill.TRACK).pow(0.5f)
-    val rate = STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * spread * years
+    // (Beasts lie up by the paths people and game use: a camp on a busy way is the more dangerous.)
+    val rate = STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * spread * (1f + 0.5f * AMBUSH * pathAt(h)) * years
     // (Where one was taken the band remembers the danger.)
     return rate to worst
 }

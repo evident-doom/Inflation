@@ -559,7 +559,9 @@ internal fun HexGroups.meetChance(a: HexGroup, b: HexGroup, p: Int, span: Float)
     val hours = Niches.overlap(a.species, b.species)
     // Bands seek each other out at springs and lake shores, where people come together.
     val gather = if (a.band != null && b.band != null) 1f + 2f * (land.nearSpring[p] + land.nearLake[p]).coerceAtMost(1f) else 1f
-    val one = min(1f, searched * gather / land.areaKm2[p]) * (if (hunting) 0.5f + 0.5f * hours else hours)
+    // (Hunters wait where the paths funnel the game: at fords, passes and water.)
+    val waylaid = if (hunting) 1f + AMBUSH * pathAt(hw.placeHex[p]) else 1f
+    val one = min(1f, searched * gather * waylaid / land.areaKm2[p]) * (if (hunting) 0.5f + 0.5f * hours else hours)
     if (!hunting) return one
     // A herd agent stands for several of its kind's usual bands spread over the ground: a hunter finds
     // one of them as often as it would find any of so many herds (the bundling saves reckoning, and

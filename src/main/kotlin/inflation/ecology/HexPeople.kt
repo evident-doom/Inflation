@@ -171,6 +171,8 @@ class Band {
     var childWatch = 1f
     var nightFire = 1f
     var shunSick = 0f
+    /** How keen it is to go into country it does not know (1: the usual wariness of strange ground; 2: drawn to it). */
+    var explore = 1f
     /** The fire as it guards the camp at night: kept only as faithfully as the band chooses. */
     val nightGuard get() = fire * min(1f, nightFire) * nightWood
     /** Share of the night's firewood it had this week. */
@@ -782,7 +784,7 @@ const val FOOD_TYPES = 9
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 9
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 10
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
@@ -821,6 +823,7 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     b.childWatch = squash(out[FOOD_TYPES + 7 + Tool.entries.size])
     b.nightFire = squash(out[FOOD_TYPES + 8 + Tool.entries.size])
     b.shunSick = (squash(out[FOOD_TYPES + 9 + Tool.entries.size]) - 1f).coerceAtLeast(0f)
+    b.explore = squash(out[FOOD_TYPES + 10 + Tool.entries.size])
 }
 
 /**
