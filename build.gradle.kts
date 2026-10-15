@@ -71,25 +71,3 @@ tasks.register<JavaExec>("climateCheck") {
     maxHeapSize = "12g"
     args = (project.findProperty("climateArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
-
-tasks.register<JavaExec>("greenProbe") {
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.tools.GreenProbeKt")
-    maxHeapSize = "12g"
-    (project.findProperty("probeJvm") as String?)?.let { jvmArgs(it.split(" ")) }
-    args = (project.findProperty("probeArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
-}
-
-tasks.register<JavaExec>("herdSeasons") {
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.tools.HerdSeasonsKt")
-    maxHeapSize = "12g"
-    (project.findProperty("probeJvm") as String?)?.let { jvmArgs(it.split(" ")) }
-    args = (project.findProperty("probeArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
-}
-
-tasks.register<JavaExec>("sunCheck") {
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("inflation.tools.SunCheckKt")
-    maxHeapSize = "12g"
-}

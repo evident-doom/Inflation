@@ -290,12 +290,6 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         (1.0 - exp(-rate * days)).toFloat()
     }
     val soil = FloatArray(n) { soilCap[it] * 0.6f }
-    /**
-     * The soil water of the shaded slopes (those facing the pole, [Sunlight.shade] of each place), mm; [soil] is
-     * the sunny rest. Less sun dries them more slowly and melts their snow later.
-     */
-    val soilShade = FloatArray(n) { soilCap[it] * 0.6f }
-    private val slopeShade = hw.sunlight.shade
     /** Degree-days above 5 °C a place has in a normal year, and so far this year (from the winter solstice). */
     val annualGdd = FloatArray(n) { p -> (0 until 12).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
     val gdd = FloatArray(n) { p -> (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
@@ -385,10 +379,6 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
      * [green] is the two together.
      */
     private val greenOpen = FloatArray(n); val greenSeep = FloatArray(n)
-    /** The same for the grass of the shaded slopes: how green it is, and whether it has cured. */
-    val greenShade = FloatArray(n); private val curedShade = BooleanArray(n)
-    /** How green the river band is: the valley floor ([floodShare]) where the roots reach the water under the river. */
-    val greenBank = FloatArray(n)
     /** How the seeps of place [p] run, 0..1: with the ground water under it, against a usual year (as its springs). */
     fun seeping(p: Int) = springFlow(p)
 
@@ -458,20 +448,16 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             if (weather.date.month == 0 && weather.date.dayOfMonth <= days) gdd[p] = 0f
             gdd[p] += max(0f, t - 5f) * days
             val rain = if (t >= 0f) weather.precipitation[p] else 0f
-            // Evaporation follows the week's heat against the month's normal (about 6% a degree) and the sun on the
-            // slopes; plants draw at full rate until the soil is half dry, then less as it dries (the same stress their
-            // growth feels). The sunny and the shaded slopes each keep their own soil water.
+            var s = soil[p] + rain + weather.meltwater[p]
+            // Evaporation follows the week's heat against the month's normal (about 6% a degree); plants draw at
+            // full rate until the soil is half dry, then less as it dries (the same stress their growth feels).
             val heat = exp(0.06f * (t - hw.placeTemp(p, m))).coerceIn(0.3f, 3f)
-            fun bucket(water: Float, sun: Float): Float {
-                val et = min(water, pet[m][p] * sun * share * heat * min(1f, water / (UNSTRESSED * soilCap[p])))
-                return water - et
-            }
-            val sunny = bucket(soil[p] + rain + weather.meltSun[p], hw.sunlight.ratio[0][m][p])
-            val shady = bucket(soilShade[p] + rain + weather.meltShade[p], hw.sunlight.ratio[1][m][p])
-            soil[p] = min(sunny, soilCap[p]); soilShade[p] = min(shady, soilCap[p])
-            val excess = (1 - slopeShade[p]) * max(0f, sunny - soilCap[p]) + slopeShade[p] * max(0f, shady - soilCap[p])
+            val et = min(s, pet[m][p] * share * heat * min(1f, s / (UNSTRESSED * soilCap[p])))
+            s -= et
+            val excess = max(0f, s - soilCap[p])
+            soil[p] = s - excess
             // The turf of the seeps draws what it evaporates from the ground water seeping out under it.
-            if (SEEPS && t > 0f) groundwater[p] = max(0f, groundwater[p] - SEEP_SHARE * pet[m][p] * share * heat * seeping(p))
+            if (t > 0f) groundwater[p] = max(0f, groundwater[p] - SEEP_SHARE * pet[m][p] * share * heat * seeping(p))
             // The rock takes in its share of what the soil cannot hold, as far as the aquifer has room; the rest runs off.
             val taken = min(excess * intake[p], aquiferCap[p] - groundwater[p]).coerceAtLeast(0f)
             groundwater[p] += taken
@@ -607,39 +593,27 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val before = biomass(p)
             val t = weather.temperature[p]
             val wet = soil[p] / soilCap[p]
-            moisture[p] += (((1 - slopeShade[p]) * soil[p] + slopeShade[p] * soilShade[p]) / soilCap[p] - moisture[p]) * memory
+            moisture[p] += (wet - moisture[p]) * memory
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
             // Plants are adapted to their place: where summers are cool they grow fully at less warmth (alpine
             // grasses at 5-10 °C), where they are hot as before.
             val season = growthWarmth(p, t)
             val water0 = (wet / UNSTRESSED).coerceIn(0f, 1f)
-            val waterShade = (soilShade[p] / soilCap[p] / UNSTRESSED).coerceIn(0f, 1f)
             // Grass that dries out in growing weather sets seed and cures to straw where it stands; it greens
             // again only when rain wets the soil enough to sprout it (to where plants take water unstressed).
             // So do the annual grasses of hot, dry summers. Where summers are cool the sward is perennial: deep
             // roots keep it growing until the soil is a quarter full, it browns as the soil dries further and
             // greens again with the next rain, without curing for the year.
             if (season > 0f && water0 < 0.5f) cured[p] = true else if (water0 >= 1f) cured[p] = false
-            if (season > 0f && waterShade < 0.5f) curedShade[p] = true else if (waterShade >= 1f) curedShade[p] = false
-            val shaded = slopeShade[p]
-            val sunnyGrowth = herbGrowth(p, season, wet, cured[p])
-            val shadyGrowth = herbGrowth(p, season, soilShade[p] / soilCap[p], curedShade[p])
-            val openGrowth = (1 - shaded) * sunnyGrowth + shaded * shadyGrowth
+            val openGrowth = herbGrowth(p, season, wet, cured[p])
             // The seeps grow as long as the ground water flows, whatever the weather brings.
             val seepGrowth = season * seeping(p)
-            // The river band: the valley floor, where the roots reach the water table under the river or a flood wets it.
-            val bank = if (RIVER_BAND) floodShare[p] else 0f
-            val bankGrowth = season * max(if (flood[p] > 0f) 1f else 0f, (1f - waterTableM(p) / ROOT_REACH_M).coerceIn(0f, 1f))
-            val seeps = if (SEEPS) SEEP_SHARE * (1 - bank) else 0f
-            val open = 1 - seeps - bank
-            val grassGrowth = open * openGrowth + seeps * seepGrowth + bank * bankGrowth
+            val grassGrowth = (1 - SEEP_SHARE) * openGrowth + SEEP_SHARE * seepGrowth
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, as long as it is growing weather.
-            greenOpen[p] += (min(1f, sunnyGrowth + FLUSH * burnt[p] * season) - greenOpen[p]) * GREEN_RATE
-            greenShade[p] += (min(1f, shadyGrowth + FLUSH * burnt[p] * season) - greenShade[p]) * GREEN_RATE
+            greenOpen[p] += (min(1f, openGrowth + FLUSH * burnt[p] * season) - greenOpen[p]) * GREEN_RATE
             greenSeep[p] += (seepGrowth - greenSeep[p]) * GREEN_RATE
-            greenBank[p] += (bankGrowth - greenBank[p]) * GREEN_RATE
-            green[p] = open * ((1 - shaded) * greenOpen[p] + shaded * greenShade[p]) + seeps * greenSeep[p] + bank * greenBank[p]
+            green[p] = (1 - SEEP_SHARE) * greenOpen[p] + SEEP_SHARE * greenSeep[p]
             val shade = canopy(p)
             val browsed = 1f - exp(-browsing[p] / Vegetation.BROWSE_SCALE)
             val young = 1f - min(1f, tree[p] / (0.3f * ceiling(LifeForm.TREE, p).coerceAtLeast(1e-3f)))
@@ -803,9 +777,6 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
          * with a wet strip some 40 m wide along them (both banks), from memory.
          */
         const val SEEP_SHARE = 2.5f * 0.04f
-        /** Experiment switches: seeps, and the river band (both on unless set to false). */
-        val SEEPS = System.getProperty("hex.t.seeps")?.toBoolean() ?: true
-        val RIVER_BAND = System.getProperty("hex.t.riverBand")?.toBoolean() ?: true
         /**
          * Streams: the least usual flow of a creek counted as drinking water (as [nearRiver] is set), m³/s;
          * the flow that still keeps pools in its bed, m³/s (about 860 m³ a day, far more than any band and herd drink).
