@@ -406,6 +406,8 @@ class HexGroups(
 
     /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
     internal var followersByHex: Map<Int, List<HexGroup>> = emptyMap()
+    /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
+    internal var houseOf: Map<Int, Int> = emptyMap()
 
     /**
      * How big a herd of [g]'s kind grows before it splits, now: herds gather on a green flush and

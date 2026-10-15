@@ -376,6 +376,12 @@ internal fun HexGroups.visitKin() {
 /** A band's year, a week at a time: inbreeding builds in a closed band, grudges fade, words drift, traditions are now and then taken up or dropped. */
 internal fun HexGroups.cultureWeek(g: HexGroup) {
     val b = g.band ?: return
+    // A home it knows of that it passed this week and found no house standing (its people dead, or
+    // moved on) is forgotten: it is no longer ground to keep off, nor a place to raid.
+    if (b.knownHomes.isNotEmpty()) {
+        val it = b.knownHomes.entries.iterator()
+        while (it.hasNext()) { val (id, hh) = it.next(); if (hh in g.path && houseOf[id] != hh) { it.remove(); b.knownLineage.remove(id) } }
+    }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.
     if (b.appointHex < 0 && rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat() * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill)) {

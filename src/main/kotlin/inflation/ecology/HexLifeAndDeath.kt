@@ -181,6 +181,7 @@ const val RANGE_RINGS = 3
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
+    houseOf = groups.filter { g -> g.alive && g.band.let { it != null && it.houseHex >= 0 && it.house >= 0.2f } }.associate { it.id to it.band!!.houseHex }
     Profile.part("people: camps, tools, culture") { for (g in groups) if (g.alive && g.band != null) { bandWeek(g, date); cultureWeek(g) } }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
