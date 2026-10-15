@@ -95,7 +95,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // (Its own stream of chance, so that regions can be worked at once.)
     val rnd = kotlin.random.Random(g.id * 1_000_003L + weatherNow.date.absoluteDay)
     // (A band's scouts range ahead instead of foraging.)
-    val hands = max(1, (g.adults * (1f - (band?.scoutShare ?: 0f))).toInt())
+    // (Lookouts, and adults kept back with the children beyond the usual, do not gather or hunt.)
+    val hands = max(1, (g.adults * (1f - (band?.scoutShare ?: 0f)) * (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
     // (Walking costs food, see [walkCost].)
     val wantAll = g.dailyNeedKg * days * (1f + walkCost(g))
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
@@ -177,7 +178,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // A band can strip so much of a place in a week, as its skill allows; an animal finds what lies along its way.
         // (On strange ground people find little of it.)
         val knowHere = band?.let { plantKnow(it, hw.placeHex[q]) } ?: 1f
-        val reach = band?.let { it.gatherShare(false) * knowHere } ?: min(1f, smallSweep * g.path.size / land.areaKm2[q])
+        // (Gatherers who go further from camp cover more of the ground.)
+        val reach = band?.let { min(0.9f, it.gatherShare(false) * knowHere * it.gatherRange) } ?: min(1f, smallSweep * g.path.size / land.areaKm2[q])
         // (The unskilled, and strangers to its plants, are slow at it.)
         val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
         val pickQ = (pickDays - eats) * slow + eats; val seedQ = (seedDays - eats) * slow + eats

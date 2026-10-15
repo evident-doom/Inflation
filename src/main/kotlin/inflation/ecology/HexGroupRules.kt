@@ -139,7 +139,9 @@ const val COLD_MAX = 1.6f
  * a little under a hundredth of a day's energy per km, whatever their size; the walking within its
  * usual range is part of the day's need already.)
  */
-fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * kotlin.math.max(0, g.path.size - 1) * hex.hexKm.toFloat() / days
+fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * kotlin.math.max(0, g.path.size - 1) * hex.hexKm.toFloat() / days +
+    // (Gatherers going further than usual walk the difference out and back each day.)
+    (g.band?.let { b -> if (b.gatherRange > 1f) WALK_COST * GATHER_WALK_KM * (b.gatherRange - 1f) * 0.5f else 0f } ?: 0f)
 const val WALK_COST = 0.011f
 
 /**

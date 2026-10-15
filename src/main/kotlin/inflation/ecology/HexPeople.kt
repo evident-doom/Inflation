@@ -149,6 +149,24 @@ class Band {
     var seedDomestic = 0f
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
     var sowWill = 1f
+    /**
+     * Its choices against the dangers (each 1 for the scaffold's way, as before):
+     * - how far from camp its gatherers go, against today's reach: further brings more food and
+     *   more ground to watch (beasts take more where the gatherers are spread thin);
+     * - how closely it watches its children: adults kept by them cost hands, children left alone are
+     *   easy pickings;
+     * - how faithfully it keeps a fire through the night (wood to gather; the fire keeps beasts off);
+     * - how readily it keeps away from bands with sickness among them (0: not at all), losing their
+     *   company, news and partners.
+     */
+    var gatherRange = 1f
+    var childWatch = 1f
+    var nightFire = 1f
+    var shunSick = 0f
+    /** The fire as it guards the camp at night: kept only as faithfully as the band chooses. */
+    val nightGuard get() = fire * min(1f, nightFire) * nightWood
+    /** Share of the night's firewood it had this week. */
+    var nightWood = 1f
     /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
     var raidWill = 1f
     var fortifyWill = 1f
@@ -470,6 +488,13 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
     if (b.shelter < 1f && time > 0f && people > 0f) { val built = min(1f - b.shelter, time / shelterDays); b.shelter += built; time -= built * shelterDays; b.practise(Skill.WOODWORK, 0.2f * PRACTICE) }
     keepFire(g, b)
+    // A fire through the night burns wood: where there is little, the night goes dark.
+    run {
+        val want = NIGHT_WOOD * people * min(1f, b.nightFire)
+        val got = min(want, gd[Material.WOOD.ordinal])
+        gd[Material.WOOD.ordinal] -= got
+        b.nightWood = if (want > 0f) got / want else 1f
+    }
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
@@ -749,7 +774,7 @@ const val FOOD_TYPES = 9
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 5
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 9
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
@@ -784,6 +809,10 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     b.raidWill = squash(out[FOOD_TYPES + 3 + Tool.entries.size])
     b.fortifyWill = squash(out[FOOD_TYPES + 4 + Tool.entries.size])
     b.sowWill = squash(out[FOOD_TYPES + 5 + Tool.entries.size])
+    b.gatherRange = squash(out[FOOD_TYPES + 6 + Tool.entries.size])
+    b.childWatch = squash(out[FOOD_TYPES + 7 + Tool.entries.size])
+    b.nightFire = squash(out[FOOD_TYPES + 8 + Tool.entries.size])
+    b.shunSick = (squash(out[FOOD_TYPES + 9 + Tool.entries.size]) - 1f).coerceAtLeast(0f)
 }
 
 /**
@@ -1105,3 +1134,14 @@ const val PRESTIGE = 0.5f
 const val SHORTFALL = 0.02f
 /** How far below its teacher a newcomer's skill falls, at best. */
 const val TRANSMIT_LOSS = 0.1f
+
+/**
+ * Choices against danger: share of the hands lost (or gained) for each step of watching the
+ * children beyond (or short of) the usual; how far beyond the usual round a gatherer walks at twice
+ * the usual range, km a day; share of a band sick before others can see it.
+ */
+const val CHILD_WATCH_HANDS = 0.15f
+const val GATHER_WALK_KM = 6f
+const val SICK_SHOWS = 0.05f
+/** Firewood a fire through the night burns in a week, kg a person. */
+const val NIGHT_WOOD = 3f

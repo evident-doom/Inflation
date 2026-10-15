@@ -537,6 +537,14 @@ class HexGroups(
                     f[34] = kotlin.math.ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
                     f[35] = min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])
                     f[36] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
+                    // The signs of the land, as anyone who looks can read them.
+                    f[37] = min(1f, land.tree[p] / 10f); f[38] = min(1f, land.shrub[p] / 2f); f[39] = min(1f, land.herb[p] / 0.5f)
+                    f[40] = min(1f, land.logged[p])
+                    f[41] = (land.water[p] - min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])).coerceIn(-1f, 1f)
+                    f[42] = min(1f, land.trails[p])
+                    f[43] = kotlin.math.ln(1f + kinds.indices.sumOf { k -> if (kinds[k].carnivore) 0.0 else monthHeads[k][p].toDouble() }.toFloat() / land.areaKm2[p]) / 3f
+                    f[44] = min(1f, fauna.small.dung[p] * 1e4f)
+                    f[45] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
                     // What it remembers of this hex: in this season, or failing that in any.
                     val mem = g.memory
                     var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0

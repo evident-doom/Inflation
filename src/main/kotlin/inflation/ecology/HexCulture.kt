@@ -175,6 +175,9 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
     val ba = a.band ?: return false; val bb = b.band ?: return false
     val u = Language.understanding(ba.words, bb.words)
     if (raid(a, ba, b, bb, u) || raid(b, bb, a, ba, u)) return true
+    // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
+    fun showsSickness(x: Band) = x.sick.sum() > SICK_SHOWS
+    if ((showsSickness(bb) && rnd.nextFloat() < ba.shunSick) || (showsSickness(ba) && rnd.nextFloat() < bb.shunSick)) { meetings.merge("bands kept away from the sick", 1, Int::plus); return false }
     // Meeting in peace makes them a little closer; how close they are colours the rest.
     ba.befriend(b.id, TIE_MEET); bb.befriend(a.id, TIE_MEET)
     val close = max(0f, 0.5f * (ba.tie(b.id) + bb.tie(a.id)))

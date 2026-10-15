@@ -362,7 +362,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
         val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults).coerceIn(0f, 0.9f)
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
-        val py = ((healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
+        val py = ((healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
         // Elders die as the others do (their share of the adults who died), and of old age besides.
         var oldAge = 0
@@ -570,10 +570,12 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
     }
     if (pressure <= 0f) return 0f to ""
     val cover = 0.5f + land.cover(p)
-    val guard = (1f - FIRE_GUARD * b.fire) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
+    val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
+    // (Gatherers spread further from camp leave more ground to watch: about as its square.)
+    val spread = b.gatherRange * b.gatherRange
     val company = (STALKED_BAND / max(1, g.size).toFloat()).coerceIn(0.5f, 2f).pow(0.3f)
     val sign = b.lapse(Skill.TRACK).pow(0.5f)
-    val rate = STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * years
+    val rate = STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * spread * years
     // (Where one was taken the band remembers the danger.)
     return rate to worst
 }
