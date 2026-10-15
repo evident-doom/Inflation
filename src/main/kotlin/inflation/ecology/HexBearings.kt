@@ -123,7 +123,7 @@ class HexBearings(
     }
 
     /** Time spent working out bearings, ns. */
-    var updateNs = 0L; private set
+    @Transient var updateNs = 0L; private set
 
     private fun updateMonth(m: Int) {
         month = m

@@ -96,7 +96,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Migrant birds away beyond the map, kg, per kind; and how much ground each kind finds when it comes back. */
     private val away = DoubleArray(BIRDS.size)
     private val returning = DoubleArray(BIRDS.size)
-    private val leaving = Array(BIRDS.size) { java.util.concurrent.atomic.DoubleAdder() }
+    /** Migrant birds leaving this week from each place, kg (summed in place order after the parallel loop, so the sum is the same on any number of cores). */
+    private val leaving = Array(BIRDS.size) { FloatArray(n) }
     private var lastMonth = -1
     private var steps = 0
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
@@ -271,7 +272,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             stepGame(p, t, month, b); Profile.lap("small life: hares, hyrax, birds, tortoises, foxes, owls, eagles", pt)
         }
         Profile.part("small life: locusts") { stepLocusts(weather) }
-        for (k in BIRDS.indices) away[k] += leaving[k].sumThenReset()
+        for (k in BIRDS.indices) { val l = leaving[k]; var sum = 0.0; for (p in l.indices) if (l[p] != 0f) { sum += l[p]; l[p] = 0f }; away[k] += sum }
         lastMonth = month
         Profile.part("small life: vultures") { stepVultures(weather) }
         if (++steps % 5 == 0) {
@@ -328,7 +329,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val here = b.present?.contains(month) ?: true
             f[p] = when {
                 // Migrants leave for beyond the map at the end of their months here, and come back.
-                !here -> { if (f[p] > 0f) leaving[k].add((f[p] * land.areaKm2[p]).toDouble()); 0f }
+                !here -> { if (f[p] > 0f) leaving[k][p] = f[p] * land.areaKm2[p]; 0f }
                 returning[k] > 0.0 -> f[p] + (returning[k] * birdCapacity(k, p)).toFloat()
                 else -> logistic(p, f[p], if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) else 0f, b.deaths, birdCapacity(k, p))
             }

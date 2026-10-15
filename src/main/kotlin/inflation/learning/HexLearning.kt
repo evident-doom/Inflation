@@ -17,7 +17,6 @@ import inflation.world.World
 import inflation.world.WorldConfig
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.ThreadLocalRandom
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.ln
@@ -69,12 +68,12 @@ object HexLearning {
     /** Chooses with one network per kind: the best-scoring candidate. */
     class NetPolicy(private val net: Mlp) : HexPolicy {
         private val buffers = ThreadLocal.withInitial { net.buffers() }
-        override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): Int {
+        override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
             val b = buffers.get()
             var best = 0; var bestV = Float.NEGATIVE_INFINITY
             for ((k, f) in features.withIndex()) {
                 f.copyInto(b.a[0], 0, 0, minOf(f.size, b.a[0].size))
-                val v = net.forward(b) + 0.01f * (ThreadLocalRandom.current().nextFloat() - 0.5f)
+                val v = net.forward(b) + 0.01f * (rnd.nextFloat() - 0.5f)
                 if (v > bestV) { bestV = v; best = k }
             }
             return best
@@ -84,15 +83,14 @@ object HexLearning {
     /** Chooses by the hand-written score, keeping a sample of decisions to copy. */
     class Recorder : HexPolicy {
         val data = ConcurrentLinkedQueue<Pair<Species, FloatArray>>()
-        override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): Int {
+        override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
             var best = 0
             for (k in baseline.indices) if (baseline[k] > baseline[best]) best = k
-            val rnd = ThreadLocalRandom.current()
             if (rnd.nextFloat() < 0.3f && data.size < 400_000) {
                 // The chosen one, staying put, and a random sample of the rest.
                 val pick = LinkedHashSet<Int>(); pick += best
                 features.indices.firstOrNull { features[it][10] > 0.5f }?.let { pick += it }
-                val rest = features.indices.shuffled().iterator()
+                val rest = features.indices.shuffled(rnd).iterator()
                 while (pick.size < minOf(SLOTS, features.size) && rest.hasNext()) pick += rest.next()
                 val rec = FloatArray(SLOTS * STRIDE)
                 for ((j, k) in pick.withIndex()) {
@@ -301,7 +299,7 @@ object HexEvolve {
         val started = variants.mapValues { DoubleArray(it.value.size) }
         for ((s, vs) in variants) run.groups.groups.filter { it.species == s }.shuffled(rnd).forEachIndexed { i, g -> g.tag = i % vs.size; started.getValue(s)[g.tag] += g.size.toDouble() }
         val nets = variants.mapValues { (_, vs) -> vs.map { HexLearning.NetPolicy(it) } }
-        for (s in variants.keys) run.groups.policies[s] = HexPolicy { g, f, b -> nets.getValue(g.species)[g.tag.coerceIn(0, variants.getValue(g.species).size - 1)].choose(g, f, b) }
+        for (s in variants.keys) run.groups.policies[s] = HexPolicy { g, f, b, rnd -> nets.getValue(g.species)[g.tag.coerceIn(0, variants.getValue(g.species).size - 1)].choose(g, f, b, rnd) }
         val weeks = variants.mapValues { DoubleArray(it.value.size) }
         val start = variants.keys.associateWith { run.groups.count(it) }
         val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep

@@ -229,8 +229,10 @@ class HexGroups(
     }
     private val scratch = ThreadLocal.withInitial { Scratch(hex.size) }
     /** This week's searches, shared by the groups of a kind starting from the same place in the same mood. */
-    private class Reach(val hexes: IntArray, val dist: FloatArray, val via: IntArray)
-    private val reachCache = java.util.concurrent.ConcurrentHashMap<Long, Reach>()
+    private class Reach(val reach: Float, val hexes: IntArray, val dist: FloatArray, val via: IntArray)
+    @Transient private val reachCache = java.util.concurrent.ConcurrentHashMap<Long, Reach>()
+    /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
+    internal val outbreaksStarting: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     /**
      * Paths: how worn the way is from each hex to each of its six neighbours (index h * 6 + side),
      * 0..1. Every group that goes that way wears it, the heavier and more numerous the more; plants
@@ -419,31 +421,40 @@ class HexGroups(
         reached.clear()
         val q = sc.queue; q.clear()
         // Groups of a kind starting from the same place this week share the search (herds often do).
+        // Each group's reach is its own (hunger, herd size, the band's weak), so a search is shared only
+        // with groups that reach no further, and each takes the hexes within its own reach: least-effort
+        // distances within a reach do not depend on how far the search went beyond it. The hexes are kept
+        // in index order, so the choice does not depend on which group's search was kept.
         val reachKey = ((s.index.toLong() * 8 + hw.placeBand[g.place]) * hex.size + here) * 2 + (if (restless) 1 else 0)
-        val shared = reachCache[reachKey]
-        if (shared != null) {
-            for (i in shared.hexes.indices) { val h = shared.hexes[i]; reached += h; dist[h] = shared.dist[i]; via[h] = shared.via[i] }
-        } else {
-        dist[here] = 0f; reached += here; q += 0L.withPlace(0f, here)
-        while (q.isNotEmpty()) {
-            val e = q.poll()
-            val d = Float.fromBits((e ushr 32).toInt()); val h = (e and 0xffffffffL).toInt()
-            if (d > dist[h]) continue
-            for (k in 0 until 6) {
-                val nh = hex.neighbour(h, k)
-                if (nh < 0 || hex.heart[nh] < 0) continue
-                // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper.
-                val np = hw.placeOf[hw.placeBand[g.place]][nh].takeIf { it >= 0 } ?: hex.heart[nh]
-                val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
-                // A worn path makes the going easier, the more so where the country is broken.
-                val worn = paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
-                val nd = d + cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
-                if (!nd.isFinite() || nd > reach) continue
-                if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
+        var shared = reachCache[reachKey]
+        if (shared == null || shared.reach < reach) {
+            dist[here] = 0f; reached += here; q += 0L.withPlace(0f, here)
+            while (q.isNotEmpty()) {
+                val e = q.poll()
+                val d = Float.fromBits((e ushr 32).toInt()); val h = (e and 0xffffffffL).toInt()
+                if (d > dist[h]) continue
+                for (k in 0 until 6) {
+                    val nh = hex.neighbour(h, k)
+                    if (nh < 0 || hex.heart[nh] < 0) continue
+                    // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper.
+                    val np = hw.placeOf[hw.placeBand[g.place]][nh].takeIf { it >= 0 } ?: hex.heart[nh]
+                    val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
+                    // A worn path makes the going easier, the more so where the country is broken.
+                    val worn = paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
+                    val nd = d + cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
+                    if (!nd.isFinite() || nd > reach) continue
+                    if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
+                }
             }
+            val hs = reached.toIntArray().also { it.sort() }
+            val mine = Reach(reach, hs, FloatArray(hs.size) { dist[hs[it]] }, IntArray(hs.size) { via[hs[it]] })
+            shared = reachCache.merge(reachKey, mine) { a, b -> if (a.reach >= b.reach) a else b }!!
+            for (h in reached) { dist[h] = Float.MAX_VALUE; via[h] = -1 }
+            reached.clear()
         }
-        val hs = reached.toIntArray()
-        reachCache[reachKey] = Reach(hs, FloatArray(hs.size) { dist[hs[it]] }, IntArray(hs.size) { via[hs[it]] })
+        for (i in shared.hexes.indices) {
+            if (shared.dist[i] > reach) continue
+            val h = shared.hexes[i]; reached += h; dist[h] = shared.dist[i]; via[h] = shared.via[i]
         }
         lap("choosing: reach (least-effort search)")
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
@@ -609,7 +620,7 @@ class HexGroups(
             }
         }
         lap("choosing: weighing places (hand-written score)")
-        if (policy != null && candPlaces.isNotEmpty()) best = candPlaces[policy.choose(g, candFeats.toTypedArray(), candScores.toFloatArray())]
+        if (policy != null && candPlaces.isNotEmpty()) best = candPlaces[policy.choose(g, candFeats.toTypedArray(), candScores.toFloatArray(), policyRandom(g.id, date.absoluteDay))]
         lap("choosing: network")
         if (seen != null) {
             fun where(p: Int) = "hex %d at %.0f m".format(hw.placeHex[p], hw.placeElevationM[p])
@@ -688,7 +699,7 @@ class HexGroups(
     internal var moon = 0.5f
 
     /** Time spent settling meetings, ns, over the run (for measuring the cost). */
-    var meetNs = 0L
+    @Transient var meetNs = 0L
 
 
     internal fun poisson(mean: Float, r: Random = rnd): Int {
@@ -713,6 +724,8 @@ class HexGroups(
 
     /** A random stream of group [id]'s own for the week starting on [day]: the same whatever the cores do. */
     internal fun groupRandom(id: Int, day: Long) = Random(seedBase * 1_000_003L + id * 7_919L + day)
+    /** A group's own stream for its choice of ground this week (apart from [groupRandom]'s, which its week's life draws on). */
+    internal fun policyRandom(id: Int, day: Long) = Random((seedBase * 1_000_003L + id * 7_919L + day) * 0x9E3779B97F4A7C15uL.toLong() + 0x2545F4914F6CDD1DL)
 
     internal fun hashNoise(id: Int, p: Int): Float {
         var h = id * 0x9E3779B97F4A7C15uL.toLong() + p * 0x632BE59BD9B4E019L

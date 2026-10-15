@@ -9,7 +9,6 @@ import inflation.world.Date
 import inflation.world.WorldConfig
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.ThreadLocalRandom
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
@@ -91,13 +90,12 @@ class Choice(val kind: Species, val groupId: Int, val size: Int, val week: Int, 
 /** Chooses with a [SharedMover], recording a share of its choices in [record] (null: the best, not sampled). */
 class MoverPolicy(private val mover: SharedMover, private val record: ConcurrentLinkedQueue<Choice>?, private val rate: (Species) -> Float, private val week: () -> Int) : HexPolicy {
     private val buffers = ThreadLocal.withInitial { mover.net.buffers() }
-    override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): Int {
+    override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
         val b = buffers.get()
         val n = features.size
         val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], b.a[0]); mover.net.forward(b) + mover.residual * baseline[k] }
         if (record == null) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
         val p = softmax(scores)
-        val rnd = ThreadLocalRandom.current()
         var u = rnd.nextFloat(); var taken = n - 1
         for (k in 0 until n) { u -= p[k]; if (u <= 0f) { taken = k; break } }
         if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf() }
@@ -277,7 +275,7 @@ object HexPpo {
     }
 
     /** Choices of the hand-written behaviour: the candidates' inputs and their hand-written scores. */
-    class Shown(val kind: Species, val inputs: Array<FloatArray>, val scores: FloatArray)
+    class Shown(val kind: Species, val inputs: Array<FloatArray>, val scores: FloatArray, val day: Long = 0L, val groupId: Int = 0)
 
     /**
      * Fits the networks to the hand-written behaviour: worlds run on it, a share of its choices of
@@ -291,17 +289,18 @@ object HexPpo {
             val stepsPerYear = Date.DAYS_PER_YEAR / (WorldConfig().daysPerStep)
             val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, PER_KIND_YEAR.toFloat() / (n * stepsPerYear)) }
             val teachers = TEACHERS.mapValues { (_, net) -> ThreadLocal.withInitial { net.buffers() } to net }
-            for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b0 ->
+            for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b0, rnd ->
                 // A teacher network, where there is one for the kind, in place of the hand-written scores.
                 val b = teachers[g.species]?.let { (bufs, net) -> val bb = bufs.get(); FloatArray(f.size) { k -> f[k].copyInto(bb.a[0], 0, 0, min(f[k].size, bb.a[0].size)); net.forward(bb) } } ?: b0
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
-                if (ThreadLocalRandom.current().nextFloat() < (rates[g.species] ?: 0f)) {
-                    kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf())
+                if (rnd.nextFloat() < (rates[g.species] ?: 0f)) {
+                    kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf(), run.weather.date.absoluteDay, g.id)
                 }
                 best
             }
             repeat(stepsPerYear) { run.step() }
-            kept.toList()
+            // (In the order of the days and the groups, not of the cores that recorded them.)
+            kept.sortedWith(compareBy<Shown>({ it.day }, { it.groupId }))
         }.toList().flatten()
         for ((mi, model) in models.withIndex()) {
             val mine = shown.filter { role(it.kind) == mi }
@@ -397,7 +396,8 @@ object HexPpo {
             return n
         }
         val out = ArrayList<Choice>()
-        for (c in record) {
+        // (In the order of the weeks and the groups, not of the cores that recorded them.)
+        for (c in record.sortedWith(compareBy<Choice>({ it.week }, { it.groupId }))) {
             // (People change in numbers slowly: their moves are judged over a year, the animals' over half.)
             val horizon = if (c.kind.human) PEOPLE_HORIZON else HORIZON
             if (c.week + horizon > steps) continue

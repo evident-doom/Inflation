@@ -218,9 +218,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** This week's flows of sea and lake fish, tonnes: grown, died of age or hunger, eaten by each kind, drifted. */
-    val fishFlows = java.util.concurrent.ConcurrentHashMap<String, Double>()
+    @Transient val fishFlows = java.util.concurrent.ConcurrentHashMap<String, Double>()
     // (Summed in adders during the parallel loop, without contention, and written to [fishFlows] after it.)
-    private val flowAdders = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.DoubleAdder>()
+    @Transient private val flowAdders = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.DoubleAdder>()
     private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { java.util.concurrent.atomic.DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble()) }
     private val eatenBy = SEA.map { "eaten by ${it.name}" }
 

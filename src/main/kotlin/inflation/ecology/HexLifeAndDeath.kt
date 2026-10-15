@@ -196,6 +196,10 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val g = list[k]
         if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
     }
+    // Outbreaks that broke out this week rage from next week: started after every group has lived its
+    // week, so no group's plague depends on which core another group's ran on.
+    for (key in outbreaksStarting.sorted()) fauna.startOutbreak(Catalogue.all[(key / hex.size).toInt()], (key % hex.size).toInt())
+    outbreaksStarting.clear()
     val born = ArrayList<HexGroup>()
     for ((k, o) in outcome.withIndex()) {
         val g = list[k]; val s = g.species
@@ -355,7 +359,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
         val plague = fauna.outbreakDeaths(s, g.place)
         val crowdNow = if (s.human) peopleCrowding(g) else crowd
-        if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * Tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years) fauna.startOutbreak(s, hw.placeHex[g.place])
+        if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * Tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years) outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
         val disease = plague + if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
             else if (s.carnivore) {
                 // Hunters catch mange, distemper and rabies from other packs of their kind crowding the same ground.

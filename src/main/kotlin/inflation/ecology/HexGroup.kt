@@ -57,10 +57,11 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
 /**
  * How a group of a kind chooses where to go this week, among the places it can reach: each
  * candidate described by [HexFeatures] (in [features]), with the hand-written score for it in
- * [baseline]. Returns the index of the chosen candidate.
+ * [baseline]. Returns the index of the chosen candidate. Any chance in the choice comes from [rnd],
+ * the group's own stream for the week, so a run is the same whichever core the group chose on.
  */
 fun interface HexPolicy {
-    fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): Int
+    fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int
 }
 
 /**

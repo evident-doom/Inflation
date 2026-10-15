@@ -52,7 +52,7 @@ object HexExplain {
             var agree = 0; var asked = 0
             if (learned) {
                 val buffers = ThreadLocal.withInitial { net.buffers() }
-                run.groups.policies[kind] = HexPolicy { _, f, b ->
+                run.groups.policies[kind] = HexPolicy { _, f, b, _ ->
                     val bb = buffers.get()
                     val scores = FloatArray(f.size) { i -> f[i].copyInto(bb.a[0], 0, 0, minOf(f[i].size, bb.a[0].size)); net.forward(bb) }
                     var n = 0; var h = 0
