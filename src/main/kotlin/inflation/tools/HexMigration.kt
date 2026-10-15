@@ -59,6 +59,21 @@ fun main(args: Array<String>) {
         for (p in 0 until n) if (qs[p] >= cut && qs[p] > 0f) { val (cx, cy) = hex.centreKm(placeHex[p]); x += cx * qs[p]; y += cy * qs[p]; wsum += qs[p] }
         return if (wsum > 0) (x / wsum) to (y / wsum) else 0.0 to 0.0
     }
+    // The land by height: how much of it, how rough, how much a non-climbing grazer can get at, its grass, and how good it is for gazelle in month 5.
+    run {
+        val gaz = herds.indexOfFirst { it.name == "gazelle" }
+        val bands = listOf(0.0 to 500.0, 500.0 to 1000.0, 1000.0 to 2000.0, 2000.0 to 9000.0)
+        for ((lo, hi) in bands) {
+            val ps = (0 until n).filter { run.hw.placeElevationM[it] in lo..hi }
+            if (ps.isEmpty()) continue
+            val area = ps.sumOf { run.land.areaKm2[it].toDouble() }
+            fun mean(f: (Int) -> Double) = ps.sumOf { f(it) * run.land.areaKm2[it] } / area
+            val g = herds[gaz]
+            println("height %4.0f-%4.0f m: %.0f km², ruggedness %.2f, a grazer gets at %.2f of it, grass %.3f kg/m², green month 5 %.2f, month 8 %.2f, gazelle quality month 5 %.2f".format(lo, hi, area,
+                mean { run.land.ruggedness[it].toDouble() }, mean { inflation.ecology.HexFood.access(g, run.land.crag[it]).toDouble() },
+                mean { run.land.herb[it].toDouble() }, mean { green[5][it].toDouble() }, mean { green[8][it].toDouble() }, mean { q[gaz][5][it].toDouble() }))
+        }
+    }
     println("all land, green by month: " + (0 until 12).joinToString(" ") { m -> "%.2f".format((0 until n).sumOf { green[m][it].toDouble() } / n) })
     println("kind | best tenth's centre, January to July km | herds: gain by moving within 50 / 150 / 300 km at the turn of the season (quality, July at the July best within reach against July where they stood in January) | herds' January to July km (mean)")
     for ((i, s) in herds.withIndex()) {
@@ -90,6 +105,8 @@ fun main(args: Array<String>) {
             if (mx > 0f) { swing += (1 - mn / mx).toDouble(); low += mn.toDouble(); c2++ } }
         val gm = (0 until 12).map { m -> at[i][0].values.mapNotNull { hw.placeOf[0][it[0]].takeIf { p -> p >= 0 } }.map { green[m][it].toDouble() }.average() }
         println("%-11s green at its January ground by month: %s".format(s.name, gm.joinToString(" ") { "%.2f".format(it) }))
+        val elev = (0 until 12).map { m -> at[i][m].values.map { hex.midM[it[0]].toDouble() }.average() }
+        println("%-11s mean height of its herds by month, m: %s".format(s.name, elev.joinToString(" ") { "%.0f".format(it) }))
         println("%-11s | %4.0f | %.3f / %.3f / %.3f | %.0f (%d herds) | swing over the year at their January ground %.0f%%, worst month quality %.2f".format(s.name, shift, gains[0] / count, gains[1] / count, gains[2] / count, walked / count, count, 100 * swing / c2.coerceAtLeast(1), low / c2.coerceAtLeast(1)))
     }
 }

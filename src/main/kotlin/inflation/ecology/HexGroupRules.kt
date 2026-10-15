@@ -253,8 +253,8 @@ const val FIGHT_RATIO = 1.5f
 const val CARRION_FOUND = 0.5f
 const val SCAVENGER_CARRION = 0.5f
 
-/** Experiment: herds' sense of better country weighs food by how fresh and green it is (as their choice of place does). */
-val GREEN_BEARING = System.getProperty("hex.t.greenBearing") != null
+/** Herds' sense of better country weighs food by how fresh and green it is, as their choice of place does (-Dhex.t.noGreenBearing: not). */
+val GREEN_BEARING = System.getProperty("hex.t.noGreenBearing") == null
 
 /** Experiment: how far off a herd weighs far country for its season's places, km (0: not at all); chance a month it does; how much better it must be. */
 val SCOUT_KM = System.getProperty("hex.t.scoutKm")?.toFloat() ?: 0f

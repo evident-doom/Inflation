@@ -71,12 +71,12 @@ internal fun HexGroups.graze(weather: Weather) {
         // poor steppe, and keeps close on rich pasture).
         val range = grazingRange(g)
         val wantKg = g.dailyNeedKg * days * (1f + walkCost(g))
-        var gotKg = 0f; var surplusKg = 0f
+        var gotKg = 0f; var surplusKg = 0f; var eatenKg = 0f; var proteinKg = 0f
         g.surplus = 0f
         for ((p, share) in range) {
             // (Walking costs food: a share of a day's need for each km of the week's going, see [walkCost].)
             val want = wantKg * share / 1e6f / land.areaKm2[p] // kg per m² of the place
-            val access = HexFood.access(s, land.ruggedness[p])
+            val access = HexFood.access(s, land.crag[p])
             val snowed = weather.snowpack[p] > s.snowLimitMm
             // (Its diet as it leans this week: its kind's, weighted by its own choice.)
             val d = s.diet.let { k -> inflation.ecology.Diet(grass = k.grass * g.will[AnimalWay.GRASS], browse = k.browse * g.will[AnimalWay.BROWSE], fruit = k.fruit * g.will[AnimalWay.FRUIT], roots = k.roots * g.will[AnimalWay.FRUIT]) }
@@ -130,6 +130,11 @@ internal fun HexGroups.graze(weather: Weather) {
             // Grass and browse nourish fully only when green; fruit and roots keep their value.
             val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + lichen * HexFood.LICHEN_VALUE + min(short, straw * HexFood.roughage(s))
             gotKg += got * land.areaKm2[p] * 1e6f
+            // (And the protein in it: fresh growth full, cured grass, straw and lichen little; see [HexFauna.proteinMet].)
+            val m2p = land.areaKm2[p] * 1e6f
+            eatenKg += (grass + grass2 + browse + browse2 + fruit + fruit2 + roots + roots2 + straw + lichen) * m2p
+            proteinKg += ((grass + grass2) * fauna.grassProtein(p) + (browse + browse2) * fauna.browseProtein(p) + (fruit + fruit2 + roots + roots2) * HexFauna.PROTEIN_FRUIT +
+                straw * HexFauna.PROTEIN_STRAW + lichen * HexFauna.PROTEIN_LICHEN) * m2p
             if (p == g.place) note(g) { "grazed at %.0f m: fed %.2f (green %.2f, grass %.3f browse %.3f lichen %.3f kg/m² there; ate grass %.2g browse %.2g lichen %.2g straw %.2g; gut room left %.2g; snowed %s; grazing over %d places)".format(hw.placeElevationM[p], got / want.coerceAtLeast(1e-9f), land.green[p], land.herb[p], land.shrub[p], food.lichen[p], grass + grass2, browse + browse2, lichen, straw, room, snowed, range.size) }
             // With food to spare and reserves short, it eats more and lays the surplus on.
             var grass3 = 0f; var browse3 = 0f
@@ -146,6 +151,7 @@ internal fun HexGroups.graze(weather: Weather) {
         hunting.merge("${s.name}:ate fruit and roots, kg", ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus); hunting.merge("${s.name}:ate straw and lichen, kg", ((straw + lichen) * m2).toInt(), Int::plus)
         }
         g.fed = (gotKg / wantKg.coerceAtLeast(1e-6f)).coerceIn(0f, 1f)
+        if (eatenKg > 0f) g.protein += (fauna.proteinMet(proteinKg / eatenKg) - g.protein) * HexFauna.PROTEIN_MEMORY
         if (surplusKg > 0f) g.surplus = surplusKg / (wantKg / days)
         hunting.merge("${s.name}:ranged over places", range.size, Int::plus)
     }
@@ -337,7 +343,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
                 val rate = s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * Tuning.humanBirths else 1f) * (1f + GRANDMOTHERS * help) / stepsInSeason
                 bornExpected = mothers * min(1f, rate)
-                binomial(mothers, rate, r)
+                // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
+                binomial(mothers, rate * (if (s.carnivore) 1f else g.protein), r)
             }
             g.young += births
             bornNow = births
@@ -431,7 +438,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             add("taken by beasts", YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked)
             ill?.let { a -> for (it in Illness.entries) add(it.label, a[it.ordinal] * it.young) }
         }
-        val py = ((healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
+        // (Young plant-eaters short of protein grow slowly and die more.)
+        val starved = if (s.carnivore) 0f else HexFauna.YOUNG_PROTEIN_DEATHS * (1f - g.protein) * years
+        val py = ((starved + healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
         // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
         val diedExpected = g.adults * pa + g.young * py + (band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f)

@@ -35,6 +35,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** The places it remembers (see [PlaceMemory]). */
     val memory = PlaceMemory()
     var mergedSize = -1
+    /** How well its diet met its need for protein over the last weeks, 0..1 (see [HexFauna.proteinMet]). */
+    var protein = 1f
     /**
      * A band's luck in its own week's births and deaths, summed since it began: born less died as
      * drawn, against as expected from the week's odds (for training, which judges people by what

@@ -191,7 +191,7 @@ fun main(args: Array<String>) {
                         val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble()
                         if (h <= 0.0) continue
                         heads += h; fed += h * fauna.fed[k][p]; if (fauna.fed[k][p] < 0.6f) hungry += h
-                        teth += h * fauna.tether(s, p); acc += h * inflation.ecology.HexFood.access(s, land.ruggedness[p]); gr += h * land.green[p]; res += h * fauna.reserve[k][p]
+                        teth += h * fauna.tether(s, p); acc += h * inflation.ecology.HexFood.access(s, land.crag[p]); gr += h * land.green[p]; res += h * fauna.reserve[k][p]
                     }
                     if (heads > 0) println("       %-12s %.2f / %.0f%% / %.2f / %.2f / %.2f / %.0f".format(s.name, fed / heads, 100 * hungry / heads, teth / heads, acc / heads, gr / heads, res / heads))
                 }

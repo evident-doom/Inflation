@@ -68,6 +68,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     private val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }
     /** Mean ruggedness, cover from broken ground and the best refuge and lookout of each place. */
     val ruggedness = FloatArray(n) { p -> mean(p) { world.terrain.ruggedness[it] } }
+    /** Share of a place that is crag, slopes over 45% (see [inflation.ecology.HexFood.access]). */
+    val crag = FloatArray(n) { p -> mean(p) { if (world.terrain.slope[it] > 0.45f) 1f else 0f } }
     /** Share of a place with caves and rock shelters: karst limestone in broken ground. */
     val caves = FloatArray(n) { p -> mean(p) { if (world.geology.rock[it] == Rock.LIMESTONE) 1f else 0.2f } * (ruggedness[p] / 0.5f).coerceIn(0f, 1f) }
     val bestDefence = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.defensibility[it] } }
