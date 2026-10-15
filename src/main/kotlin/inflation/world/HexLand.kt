@@ -860,6 +860,11 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     }
 }
 
-/** Share of the herbs and shrubs a place loses a step for each unit of trampling over it (see [HexLand.trample]; -Dhex.t.trampleHerb, -Dhex.t.trampleShrub). */
-val TRAMPLE_HERB = System.getProperty("hex.t.trampleHerb")?.toFloat() ?: 0.05f
-val TRAMPLE_SHRUB = System.getProperty("hex.t.trampleShrub")?.toFloat() ?: 0.1f
+/**
+ * Share of the herbs and shrubs a place loses a step for each unit of trampling over it (see
+ * [HexLand.trample]; -Dhex.t.trampleHerb, -Dhex.t.trampleShrub): about 5% of the shrubs a year where a
+ * tonne of animals a km² goes about (it was ten times that, more than shrubs regrow: the shrub layer
+ * fell by half in four years and the browsers starved).
+ */
+val TRAMPLE_HERB = System.getProperty("hex.t.trampleHerb")?.toFloat() ?: 0.005f
+val TRAMPLE_SHRUB = System.getProperty("hex.t.trampleShrub")?.toFloat() ?: 0.01f
