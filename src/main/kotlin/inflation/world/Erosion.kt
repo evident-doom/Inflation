@@ -51,6 +51,8 @@ object Erosion {
         seed: Long,
         diffusivity: Double = DIFFUSIVITY,
         criticalSlope: Double = 0.0,
+        /** Told after each step: how many are done of how many. */
+        progress: (Int, Int) -> Unit = { _, _ -> },
         isOutlet: (Int) -> Boolean,
     ): FloatArray {
         val n = grid.size
@@ -65,7 +67,7 @@ object Erosion {
         val rnd = Random(seed)
         val sedimentErodibility = Rock.ALLUVIUM.erodibility
         var tag = 0
-        repeat(steps) {
+        repeat(steps) { step ->
             // Closed basins fill with sediment.
             val filled = priorityFlood(grid, elevation, isOutlet, routable = true)
             for (i in 0 until n) {
@@ -110,6 +112,7 @@ object Erosion {
             tag = depositOffshore(grid, elevation, sediment, toSea, isOutlet, stamp, tag)
             diffuse(grid, elevation, lap, dtYears, diffusivity, isOutlet)
             if (criticalSlope > 0) slide(grid, elevation, criticalSlope.toFloat(), isOutlet)
+            progress(step + 1, steps)
         }
         return sediment
     }

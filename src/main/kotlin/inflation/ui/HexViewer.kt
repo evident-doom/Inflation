@@ -272,7 +272,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             followLog = groups.watchLog.joinToString("\n")
             val g = groups.groups.firstOrNull { it.id == followId && it.alive }
             if (g == null) { followLog = "the group followed is gone (died out or joined another)"; SwingUtilities.invokeLater { followBox.isSelected = false; followId = -1; groups.watched = -1; groupInfo.text = followLog } }
-            else { val h = hw.placeHex[g.place]; picked = h; val (x, y) = hex.centreKm(h); SwingUtilities.invokeLater { map.centreOn(x, y) } }
+            else { val h = hw.placeHex[g.place]; picked = h; val (x, y) = hex.centreKm(h); SwingUtilities.invokeLater { map.keepInView(x, y) } }
         }
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
         frames = max(8, 30 / stepsPerSecond); frame = 0
@@ -302,6 +302,17 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
 
         /** Puts the point ([x], [y]) km in the middle of the view. */
         fun centreOn(x: Double, y: Double) { val kmPx = px * scale; ox = width / 2.0 - x * kmPx; oy = height / 2.0 - y * kmPx; repaint() }
+        /**
+         * Keeps (x, y) km in view without moving the map while it stays in the middle of it: only when
+         * it strays into the outer fifth of the view on a side is the map moved, to bring it back to
+         * the middle (so a followed group walks across a still map, not the map under a still group).
+         */
+        fun keepInView(x: Double, y: Double) {
+            val kmPx = px * scale
+            val sx = ox + x * kmPx; val sy = oy + y * kmPx
+            val mx = 0.2 * width; val my = 0.2 * height
+            if (sx < mx || sx > width - mx || sy < my || sy > height - my) centreOn(x, y) else repaint()
+        }
 
         init {
             preferredSize = Dimension(1200, 900)
