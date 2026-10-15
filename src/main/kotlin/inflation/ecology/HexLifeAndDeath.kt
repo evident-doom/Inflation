@@ -231,6 +231,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.second > 0 }.joinToString(", ") { "${it.second} ${it.first}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name}:$cause", k, Int::plus)
         if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
+        // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
+        if (ROUNDS && !s.carnivore && g.route[0] != -1) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) deaths.merge("${s.name} $way:born", o.births, Int::plus) }
         if (s.human) { val c = inflation.world.Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' '); for ((cause, k) in o.causes) if (k > 0) hunting.merge("bands in $c:died of $cause", k, Int::plus); if (o.births > 0) hunting.merge("bands in $c:born", o.births, Int::plus) }
         if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
@@ -591,7 +593,9 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
     a.lastAdults += from.adults
     for (i in a.knowsSkill.indices) a.knowsSkill[i] = a.knowsSkill[i] || b.knowsSkill[i]
     for (i in a.plants.indices) a.plants[i] = max(a.plants[i], b.plants[i])
-    for (i in a.kit.indices) a.kit[i] += w * (b.kit[i] - a.kit[i])
+    for (i in a.kit.indices) { val ka = a.kit[i] * (1f - w); val kb = b.kit[i] * w; if (ka + kb > 0f) a.fine[i] = (ka * a.fine[i] + kb * b.fine[i]) / (ka + kb); a.kit[i] += w * (b.kit[i] - a.kit[i]) }
+    val dried = into.stores[Store.DRIED.ordinal] + from.stores[Store.DRIED.ordinal]; if (dried > 0f) a.salted = (into.stores[Store.DRIED.ordinal] * a.salted + from.stores[Store.DRIED.ordinal] * b.salted) / dried
+    a.renown = max(a.renown, b.renown)
     for (i in a.knows.indices) a.knows[i] = a.knows[i] || b.knows[i]
     for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
     for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])

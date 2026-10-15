@@ -63,6 +63,12 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     val graveGoods = FloatArray(n)
     /** Share of the ground where good knapping stone (flint, obsidian) crops out. */
     val stone = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and (Mineral.FLINT or Mineral.OBSIDIAN) != 0) 1f else 0f } }
+    /** How far from a salt lake's water (or a desert sea) its salt crusts reach, km; how dry a shore must be (rain against evaporative demand) for salt flats. */
+    private val SALT_REACH_KM = 10f
+    private val SABKHA_ARIDITY = 0.15f
+    /** Share of the ground where salt can be got (crusts on dry lake beds and salt pans), and where red and yellow ochre crops out. */
+    val salt = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.SALT != 0) 1f else 0f } }
+    val ochre = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.OCHRE != 0) 1f else 0f } }
     /** Share of floodplain, which a river in spate covers. */
     val floodShare = FloatArray(n) { p -> mean(p) { if (world.floodplain.isFloodplain[it]) 1f else 0f } }
     private val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }
@@ -155,6 +161,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val dRiver = near { !world.isSea[it] && !world.water.isLake(it) && world.water.discharge[it] >= 0.1f }
         val dLake = near { world.water.isLake(it) && !world.water.lakeClosed[it] }
         val dSpring = near { spring[it] }
+        // Salt: on the dry beds and shores of salt lakes and pans, and on the flats of a desert shore (sabkha).
+        val dSaltLake = near { world.water.isLake(it) && world.water.lakeClosed[it] }
+        val dSea = near { world.isSea[it] }
+        for (p in 0 until n) salt[p] = max(salt[p], mean(p) { if (dSaltLake[it] <= SALT_REACH_KM || (dSea[it] <= SALT_REACH_KM && c.aridity(it) < SABKHA_ARIDITY)) 1f else 0f })
         // Dry beds: every valley that drains enough ground to carry flash floods, which lay sand and gravel in it.
         val drained = dr.accumulate(FloatArray(grid.size) { if (world.isSea[it]) 0f else cellArea })
         val bed = { i: Int -> !world.isSea[i] && !world.water.isLake(i) && drained[i] >= WADI_KM2 * 1e6f }

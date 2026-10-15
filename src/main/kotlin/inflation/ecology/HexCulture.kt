@@ -187,7 +187,7 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         if (ba.words[k] != bb.words[k]) { if (rnd.nextFloat() < a.size.toFloat() / (a.size + b.size)) bb.words[k] = ba.words[k] else ba.words[k] = bb.words[k] }
     }
     // Ways are copied from the band that does better: more food in hand, more children.
-    fun doing(g: HexGroup) = g.fed + g.larder / max(1f, g.dailyNeedKg * 60f) + g.young.toFloat() / max(1, g.adults) + STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size)
+    fun doing(g: HexGroup) = g.fed + g.larder / max(1f, g.dailyNeedKg * 60f) + g.young.toFloat() / max(1, g.adults) + STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + (if (TRADE) RENOWN * (g.band?.renown ?: 0f) else 0f)
     val (lo, hi) = if (doing(a) < doing(b)) ba to bb else bb to ba
     for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {
         lo.traditions[t.ordinal] = hi.holds(t)
@@ -470,8 +470,22 @@ internal fun HexGroups.riteWeek(g: HexGroup) {
         val km = hex.distanceKm(here, h)
         if (km > REMEMBERED_KM) consider(placeIn(h), month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
     }
+    // (Trade on: where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
+    if (TRADE && SOURCE_RITES) for (m in TRADED) {
+        val want = 1f - b.goods[m.ordinal] / (KEEP_YEARS * YEAR_NEED[m.ordinal] * max(1, g.adults))
+        if (want <= 0f) continue
+        for (h in materialSources.getValue(m)) if (b.knows(h)) {
+            val km = hex.distanceKm(here, h)
+            if (km > ROUND_ARRIVED_KM) consider(placeIn(h), month, APPOINT_MIN * SOURCE_RITE * want)
+        }
+    }
     if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; meetings.merge("bands took up a rite", 1, Int::plus) }
 }
+
+/** Material sources (trade on): the square each is gathered from, km; the least share of a place's ground for it to count; how a source counts as a rite's site against a band's graves (at full want). Not measured. */
+const val SOURCE_KM = 50.0
+const val SOURCE_MIN = 0.1f
+const val SOURCE_RITE = 2f
 
 /** A band split off from another: its hold on the rites drifts, and now and then one shifts by a month (rounds on). */
 internal fun HexGroups.riteInherit(nb: Band) {

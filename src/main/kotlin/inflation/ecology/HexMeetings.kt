@@ -356,6 +356,16 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         for (st in EAT_ORDER) { val e = min(need, got[st.ordinal]); got[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
         for (st in EAT_ORDER) { val e = min(need, g.stores[st.ordinal]); g.stores[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
         eaten = wantAll - need
+        // (Trade on: people living mostly on plant food need salt, which meat and fish carry; short of it,
+        // they are listless and weak, and the food does them the less good.)
+        if (TRADE && eaten > 0f) {
+            val plantShare = ((eaten - ateMeat) / eaten).coerceIn(0f, 1f)
+            val want = SALT_A_PERSON_WEEK * plantShare * g.size * days / 7f
+            if (want > 0f) {
+                val had = min(want, band.goods[Material.SALT.ordinal]); band.goods[Material.SALT.ordinal] -= had
+                eaten *= 1f - SALT_LACK * plantShare * (1f - had / want)
+            }
+        }
         hunting.merge("${s.name}:meat eaten, kg", ateMeat.toInt(), Int::plus); hunting.merge("${s.name}:plants eaten, kg", (eaten - ateMeat).toInt(), Int::plus)
         // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
         for (i in got.indices) g.stores[i] += got[i]
@@ -364,10 +374,19 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
         val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
         val smoke = if (band.knowsSkill[Skill.SMOKING.ordinal] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
-        val dryRate = max(sun, smoke)
+        // (With trade on, a band with salt salts what it cures: salt cures in any weather.)
+        val salt = if (TRADE) band.goods[Material.SALT.ordinal] else 0f
+        val salting = if (salt > 0f) band.skill(Skill.STORE) else 0f
+        val dryRate = max(max(sun, smoke), salting)
         // (As much of it as the band chooses to.)
         val dried = min(g.stores[Store.FRESH.ordinal] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
-        if (dried > 0f) { g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE) }
+        if (dried > 0f) {
+            if (TRADE) {
+                val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT.ordinal] -= saltedNow * SALT_PER_KG
+                val before = g.stores[Store.DRIED.ordinal]; band.salted = (before * band.salted + saltedNow) / (before + dried)
+            }
+            g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
+        }
         // What time is left is for making and mending (see [bandWeek]).
         band.spareDays = max(0f, spareDays * hands - if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
@@ -375,7 +394,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val home = if (band.atHome) band.house else 0f
         // (Smoked meat keeps longer than sun-dried; pits sealed with clay and plaster keep the mice out.)
         val smoked = if (band.knowsSkill[Skill.SMOKING.ordinal]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
-        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked)
+        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (if (TRADE) 1f - SALT_KEEP * band.salted else 1f))
         val sealed = if (band.knowsSkill[Skill.SEALING.ordinal]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
         if (home > 0f) {
             for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) { val x = g.stores[st.ordinal] * MICE * sealed * home * days / 7f; g.stores[st.ordinal] -= x; rotten += x }
@@ -557,6 +576,28 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         meetings.merge("ornaments given", 1, Int::plus)
     }
+    // Useful gifts (trade on): a band gives of the good stone, salt and ochre it has beyond its own needs to
+    // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
+    // the giver's name goes about among the bands.
+    if (TRADE && GIFTS) for ((giver, taker) in listOf(a to b, b to a)) {
+        val gb = giver.band ?: continue; val tb = taker.band ?: continue
+        if (gb.tie(taker.id) < FEUD_GIFT) continue
+        var useful = 0f
+        for (m in TRADED) {
+            val need = YEAR_NEED[m.ordinal]
+            val spare = gb.goods[m.ordinal] - KEEP_YEARS * need * giver.adults
+            val lack = KEEP_YEARS * need * taker.adults - tb.goods[m.ordinal]
+            if (spare <= 0f || lack <= 0f) continue
+            val gift = min(spare, lack) * min(1f, gb.giveWill)
+            gb.goods[m.ordinal] -= gift; tb.goods[m.ordinal] += gift
+            useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
+            meetings.merge("${m.name.lowercase()} given", 1, Int::plus)
+        }
+        if (useful <= 0f) continue
+        tb.befriend(giver.id, TIE_USEFUL * useful); gb.befriend(taker.id, 0.5f * TIE_USEFUL * useful)
+        gb.renown += useful
+        note(giver) { "gave band #%d stone, salt or ochre it lacked".format(taker.id) }; note(taker) { "was given stone, salt or ochre by band #%d".format(giver.id) }
+    }
     // Feasts: a band that holds to feasting and has more laid by than it means to keep sets food
     // before the other; the guests remember it.
     for ((host, guest) in listOf(a to b, b to a)) {
@@ -689,6 +730,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
             small.carrion[herd.place] += herd.species.massKg * (1f - meatShare(hunter.band)) / (land.areaKm2[herd.place] * 1e6f)
         }
         kills.merge(herd.species.name, 1, Int::plus)
+        if (ROUNDS && herd.route[0] != -1) deaths.merge("${herd.species.name} ${if (herd.route[0] >= 0) "on round" else "own country"}:hunted", 1, Int::plus)
         fauna.killed(herd.place, herd.species.massKg)
         hunting.merge("${hunter.species.name}:kills from herds", 1, Int::plus)
         hunting.merge("herd size ${sizeClass(herd)}:killed", 1, Int::plus)

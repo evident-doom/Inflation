@@ -18,6 +18,10 @@ enum class Material {
     RESIN,
     /** Sea shells (dentalium, cowrie) gathered on the shore, for beads. */
     SHELL,
+    /** Salt scraped from dry lake beds and salt pans (and a little from the shore): meat and fish salted keep, and cure in any weather (with trade on, see [TRADE]). */
+    SALT,
+    /** Ochre, the red and yellow earth: hides tanned with it last (with trade on). */
+    OCHRE,
 }
 
 /** Making skills: the doing behind every tool, built by practice like getting food. */
@@ -110,6 +114,15 @@ class Band {
     val kit = FloatArray(Tool.entries.size)
     val knows = BooleanArray(Tool.entries.size) { Tool.entries[it].known }
     val goods = FloatArray(Material.entries.size)
+    /**
+     * Of each tool in its kit, the share made well (with trade on, see [TRADE]): stone tools of good
+     * knapping stone rather than of whatever stone is at hand, clothes of hide tanned with ochre.
+     */
+    val fine = FloatArray(Tool.entries.size) { if (TRADE && Tool.entries[it] == Tool.CLOTHES) 0f else 1f }
+    /** Of its dried meat and fish, the share salted (with trade on). */
+    var salted = 0f
+    /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
+    var renown = 0f
     var campWeeks = 0
     var campHex = -1
     var campPlace = -1
@@ -290,7 +303,7 @@ class Band {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
-        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); sick.copyInto(o.sick); immune.copyInto(o.immune); o.hurt = hurt; o.lame = lame; holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
+        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); sick.copyInto(o.sick); immune.copyInto(o.immune); o.hurt = hurt; o.lame = lame; holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows); fine.copyInto(o.fine); o.salted = salted; o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
@@ -357,7 +370,7 @@ class Band {
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species) =
-        skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + BOW_GAIN * has(Tool.BOW) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
+        skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR.ordinal]) + BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW.ordinal]) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
 
     /** Its dogs against its hunters (one to three a full pack): they track, bay and hold game, and bark at night. */
     var dogShare = 0f
@@ -367,7 +380,7 @@ class Band {
 
     /** Gathering: the most of a plant food's stock in a place it can take in a week; [seed] for grass seed. */
     fun gatherShare(seed: Boolean): Float {
-        val kit = 1f + BASKET_GAIN * has(Tool.BASKET) + if (seed) SICKLE_GAIN * has(Tool.SICKLE) + GRINDER_GAIN * has(Tool.GRINDER) else GRINDER_GAIN * 0.5f * has(Tool.GRINDER)
+        val kit = 1f + BASKET_GAIN * has(Tool.BASKET) + if (seed) SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE.ordinal]) + GRINDER_GAIN * has(Tool.GRINDER) else GRINDER_GAIN * 0.5f * has(Tool.GRINDER)
         return min(0.9f, GATHER_SHARE * skill(Skill.GATHER) * kit)
     }
 
@@ -490,8 +503,15 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
     // along the way (poorer stone anywhere), wood and resin where there are trees, fibre from grass,
     // scrub and reeds; hides, bone and sinew from the big game it killed.
-    val stone = g.path.maxOfOrNull { q -> hw.placeOf[hw.placeBand[p]][q].takeIf { it >= 0 }?.let { land.stone[it] } ?: 0f } ?: land.stone[p]
-    gd[Material.STONE.ordinal] += people * (0.2f + 0.8f * min(1f, 5f * max(stone, land.stone[p])))
+    fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.placeOf[hw.placeBand[p]][q].takeIf { it >= 0 }?.let { a[it] } ?: 0f } ?: 0f)
+    val stone = alongTheWay(land.stone)
+    // (With trade on, only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADE].)
+    gd[Material.STONE.ordinal] += people * ((if (TRADE) 0f else 0.2f) + 0.8f * min(1f, 5f * stone))
+    if (TRADE) {
+        // Salt scraped from a dry lake bed or pan along the way, and a little from the shore; ochre dug where it crops out.
+        gd[Material.SALT.ordinal] += people * (SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)) + if (hw.coast[h]) SEA_SALT_A_WEEK else 0f)
+        gd[Material.OCHRE.ordinal] += people * OCHRE_A_WEEK * min(1f, 5f * alongTheWay(land.ochre))
+    }
     val woody = land.tree[p] + land.shrub[p]
     val wood = 2f * people * min(1f, woody / 3f)
     gd[Material.WOOD.ordinal] += wood
@@ -508,7 +528,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         val k = t.ordinal
         // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
         val inUse = t == Tool.CLOTHES || usesOf(t).any { b.weeks - b.lastUsed[it.ordinal] <= 1 }
-        b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years * (if (inUse) 1f else IDLE_WEAR) * (if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.lapse(Skill.GLUING) else 1f))
+        b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years * (if (inUse) 1f else IDLE_WEAR) * (if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[k]))
         if (!b.knows[k]) {
             // A band that has a use for a tool now and then hits on it: bows where game is shy and
             // fast, sickles and grinding stones where it reaps seed, and so on.
@@ -534,9 +554,18 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         val stoneUse = if (way == Skill.BLADES || way == Skill.MICROLITHS) BLADE_STONE else 1f
         var can = min(1f - b.kit[k], time / daysEach)
         fun use(m: Material) = if (m == Material.STONE) stoneUse else 1f
-        for ((m, perPerson) in t.recipe) can = min(can, gd[m.ordinal] / max(1e-3f, perPerson * use(m) * people))
+        // (With trade on, stone lacking is made up from whatever stone is at hand, and the tool is the poorer
+        // for it; clothes are tanned with ochre as far as it goes.)
+        val made = if (TRADE) fineMaterial(t) else null
+        for ((m, perPerson) in t.recipe) if (m != made) can = min(can, gd[m.ordinal] / max(1e-3f, perPerson * use(m) * people))
         if (can <= 0f) continue
-        for ((m, perPerson) in t.recipe) gd[m.ordinal] -= can * perPerson * use(m) * people
+        for ((m, perPerson) in t.recipe) if (m != made) gd[m.ordinal] -= can * perPerson * use(m) * people
+        if (made != null) {
+            val want = can * (t.recipe[made] ?: TAN_OCHRE) * use(made) * people
+            val good = if (want > 0f) min(1f, gd[made.ordinal] / want) else 1f
+            gd[made.ordinal] = max(0f, gd[made.ordinal] - good * want)
+            b.fine[k] = (b.kit[k] * b.fine[k] + can * good) / (b.kit[k] + can)
+        }
         b.kit[k] += can; time -= can * daysEach
         b.practise(way); b.practise(Skill.TINKER, 0.02f * PRACTICE)
         // (And tries the other ways of the craft it knows now and then, so a new way can come to beat the old.)
@@ -544,6 +573,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         if (t == Tool.CLOTHES) { b.practise(Skill.SEWING); b.practise(Skill.BONE_TOOLS) }
         if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.practise(Skill.GLUING)
     }
+    if (TRADE) b.renown *= 1f - RENOWN_FADE * years
     if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
     b.sinceRaided++
     plotRaid(g, b)
@@ -1049,6 +1079,64 @@ const val GRAVE_GOODS = 0.05f
 
 /** Herd animals kept by bands (-Dhex.noHerding turns them off). */
 val HERDING = System.getProperty("hex.noHerding") == null
+
+/**
+ * Trade (-Dhex.trade, off by default): good knapping stone, salt and ochre are found only in some
+ * country, and each is worth having. Stone tools of good stone (flint, chert, obsidian) cut and wear
+ * better than those of whatever stone is at hand; meat and fish salted keep far longer and cure in
+ * any weather; hides tanned with ochre last. Bands give what they have to spare of them to bands that
+ * lack them, which binds both, and a band's rites may take it to where they are got.
+ */
+val TRADE = System.getProperty("hex.trade") != null
+/** For comparison runs: trade on but no useful gifts (-Dhex.t.noGifts), or no rites at the sources (-Dhex.t.noSourceRites). */
+val GIFTS = System.getProperty("hex.t.noGifts") == null
+val SOURCE_RITES = System.getProperty("hex.t.noSourceRites") == null
+/**
+ * What a person gets in a week at a source, kg: salt where a salt pan or dry lake bed lies along the way,
+ * from the shore; ochre where it crops out. Not measured: a day's scraping or digging gives far more,
+ * these are a week's worth carried off by a band passing by.
+ */
+const val SALT_A_WEEK = 1f
+const val SEA_SALT_A_WEEK = 0.05f
+const val OCHRE_A_WEEK = 0.3f
+/** A tool of poor stone: how much worse it serves (its edge against one of good stone), and how much faster it wears. Not measured. */
+val POOR_STONE_EDGE = System.getProperty("hex.t.poorStoneEdge")?.toFloat() ?: 0.75f
+val POOR_STONE_WEAR = System.getProperty("hex.t.poorStoneWear")?.toFloat() ?: 1f
+/** Ochre to tan a person's share of clothes, kg; how much slower tanned clothes wear. */
+const val TAN_OCHRE = 0.2f
+const val TANNED_WEAR = 0.5f
+/**
+ * Salt a person living wholly on plant food needs in a week, kg (a few grams a day, more in the heat),
+ * and how much less good their food does them wholly without it. Not measured: salt hunger among
+ * farmers and plant gatherers is well known, its toll here a guess.
+ */
+const val SALT_A_PERSON_WEEK = 0.05f
+val SALT_LACK = System.getProperty("hex.t.saltLack")?.toFloat() ?: 0.15f
+/** Salt to cure a kilo of meat or fish, kg; how much less salted meat and fish spoil. */
+const val SALT_PER_KG = 0.1f
+val SALT_KEEP = System.getProperty("hex.t.saltKeep")?.toFloat() ?: 0.7f
+
+/** The materials bands give each other for their use (trade on); what a person uses of each in a year, kg (not measured: a full kit's wear, a year's curing, a year's tanning); how many years' worth a band keeps before it gives of it. */
+val TRADED = listOf(Material.STONE, Material.SALT, Material.OCHRE)
+val YEAR_NEED = FloatArray(Material.entries.size).also { it[Material.STONE.ordinal] = 1f; it[Material.SALT.ordinal] = 4f; it[Material.OCHRE.ordinal] = 0.2f }
+const val KEEP_YEARS = 1f
+/** How much a gift that meets a band's whole want binds it to the giver (the giver half as much); ties below which no gift is given. Not measured: as a feast. */
+const val TIE_USEFUL = 0.3f
+const val FEUD_GIFT = -0.2f
+/** How a band's name for its gifts counts against food in hand when other bands weigh whose ways to take up; share of it that fades a year. */
+const val RENOWN = 0.2f
+const val RENOWN_FADE = 0.2f
+
+/** The material that makes tool [t] well (with trade on): good stone for stone tools, ochre for tanned clothes; null for the others. */
+fun fineMaterial(t: Tool): Material? = when { Material.STONE in t.recipe -> Material.STONE; t == Tool.CLOTHES -> Material.OCHRE; else -> null }
+/** How much faster tool [t] wears for being made well only in share [fine] (with trade on). */
+fun wearOfMake(t: Tool, fine: Float): Float = if (!TRADE) 1f else when (fineMaterial(t)) {
+    Material.STONE -> 1f + POOR_STONE_WEAR * (1f - fine)
+    Material.OCHRE -> 1f - TANNED_WEAR * fine
+    else -> 1f
+}
+/** How well tool [t] serves for being made well only in share [fine] (with trade on): stone tools of poor stone, less. */
+fun serveOfMake(t: Tool, fine: Float): Float = if (!TRADE || fineMaterial(t) != Material.STONE) 1f else POOR_STONE_EDGE + (1f - POOR_STONE_EDGE) * fine
 
 /**
  * A band's kept animals' week: they graze round the camp, breed in their season as they are fed

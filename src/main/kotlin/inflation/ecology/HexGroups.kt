@@ -425,6 +425,22 @@ class HexGroups(
 
     /** The worn paths read as a graph of landmarks and the legs between them. */
     val routes = HexRoutes(this)
+    /**
+     * Where each material bands give each other ([TRADED]) is got (trade on): for each, the hexes where
+     * it is richest, one in a square of [SOURCE_KM] at most, for bands' rites to take them to.
+     */
+    internal val materialSources: Map<Material, IntArray> by lazy {
+        TRADED.associateWith { m ->
+            val share = when (m) { Material.STONE -> land.stone; Material.SALT -> land.salt; else -> land.ochre }
+            val best = HashMap<Long, Int>()
+            for (p in 0 until n) {
+                if (share[p] < SOURCE_MIN) continue
+                val (x, y) = hex.centreKm(hw.placeHex[p]); val key = (x / SOURCE_KM).toLong() * 100_000 + (y / SOURCE_KM).toLong()
+                val b = best[key]; if (b == null || share[p] > share[b]) best[key] = p
+            }
+            best.values.map { hw.placeHex[it] }.sorted().toIntArray()
+        }
+    }
 
     /** How worn the busiest path through hex [h] is. */
     fun pathAt(h: Int): Float { var m = 0f; for (d in 0 until 6) m = max(m, paths[h * 6 + d]); return m }
