@@ -70,15 +70,20 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
         inputs.copyInto(b.a[0])
         val mean = ways.net.forwardAll(b)
         if (record == null) { mean.copyInto(out); return }
+        // A band keeps its draw about the middle for a season ([WaysPpo.SEASON] weeks, its own seasons
+        // staggered by its id), and the draw is judged once, by that season: a week's ways alone make no
+        // difference a return can show (see tools/HexChoiceEffect).
         val w = week()
-        val rnd = Random(seed * 1_000_003L + g.id * 7_919L + w)
+        val t = w + g.id % WaysPpo.SEASON
+        val season = t / WaysPpo.SEASON
+        val rnd = Random(seed * 1_000_003L + g.id * 7_919L + season * 104_729L)
         var logp = 0f
         for (i in 0 until WAYS_OUT) {
             val z = gaussian(rnd)
             out[i] = mean[i] + exp(ways.logStd[i]) * z
             logp += -0.5f * z * z - ways.logStd[i]
         }
-        if (rnd.nextFloat() < rate()) record += WaysChoice(g.species, g.id, g.size, w, inputs.copyOf(), out.copyOf(WAYS_OUT), logp)
+        if (t % WaysPpo.SEASON == 0 && rnd.nextFloat() < rate()) record += WaysChoice(g.species, g.id, g.size, w, inputs.copyOf(), out.copyOf(WAYS_OUT), logp)
     }
 }
 
@@ -116,8 +121,11 @@ object WaysPpo {
         }
     }
 
-    /** The share of bands' weekly ways to record in a world with [bands] bands. */
-    fun rate(bands: Int, stepsPerYear: Int) = if (bands == 0) 0f else min(1f, PER_YEAR.toFloat() / (bands * stepsPerYear))
+    /** Weeks a band keeps one draw of its ways, and over which the draw is judged (as people's moves are, [HexPpo.PEOPLE_HORIZON]). */
+    const val SEASON = HexPpo.PEOPLE_HORIZON
+
+    /** The share of bands' seasonal draws of their ways to record in a world with [bands] bands. */
+    fun rate(bands: Int, stepsPerYear: Int) = if (bands == 0) 0f else min(1f, PER_YEAR.toFloat() * SEASON / (bands * stepsPerYear))
 
     /** One round of learning from [cs] (with their returns); a line saying how it went. */
     fun learn(st: State, cs: List<WaysChoice>, round: Int): String {

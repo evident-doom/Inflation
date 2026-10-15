@@ -159,7 +159,12 @@ object HexPpo {
 
     const val HORIZON = 26
     const val DISCOUNT = 0.95f
-    const val PEOPLE_HORIZON = 52
+    /**
+     * Weeks over which a band's choice is judged: a season. What a move does to its band shows within
+     * about 8 to 13 weeks, while the drift every other band's choices cause grows on through the year
+     * (at 52 weeks it was as large as the spread between bands; see tools/HexChoiceEffect).
+     */
+    const val PEOPLE_HORIZON = 13
     const val PEOPLE_DISCOUNT = 0.98f
     const val CLIP = 0.2f
     /**

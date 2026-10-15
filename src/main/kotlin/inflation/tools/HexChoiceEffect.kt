@@ -33,7 +33,7 @@ fun main(args: Array<String>) {
     var variants = listOf("base", "base-again", "move-1wk", "move-52wk", "ways-1wk", "ways-52wk")
     var k = 0
     while (k < args.size) { when (args[k]) { "--seed" -> seed = args[++k].toLong(); "--size" -> size = args[++k].toInt(); "--warm" -> warm = args[++k].toInt(); "--noise" -> noise = args[++k].toFloat(); "--variants" -> variants = listOf("base") + args[++k].split(",") }; k++ }
-    val horizon = HexPpo.PEOPLE_HORIZON; val discount = HexPpo.PEOPLE_DISCOUNT
+    val horizon = 52; val discount = HexPpo.PEOPLE_DISCOUNT
     val kinds = Catalogue.learned
     fun perturbed(id: Int) = Random(id * 31L + 7).nextFloat() < 0.5f
     fun waysDraw(id: Int, salt: Long) = Random(id * 1_000_003L + salt).let { r -> FloatArray(WAYS_OUT) { gaussian(r) * 0.3f } }
