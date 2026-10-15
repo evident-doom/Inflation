@@ -419,9 +419,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             gdd[p] += max(0f, t - 5f) * days
             val rain = if (t >= 0f) weather.precipitation[p] else 0f
             var s = soil[p] + rain + weather.meltwater[p]
-            // Evaporation follows the week's heat against the month's normal (about 6% a degree).
+            // Evaporation follows the week's heat against the month's normal (about 6% a degree); plants draw at
+            // full rate until the soil is half dry, then less as it dries (the same stress their growth feels).
             val heat = exp(0.06f * (t - hw.placeTemp(p, m))).coerceIn(0.3f, 3f)
-            val et = min(s, pet[m][p] * share * heat * min(1f, s / soilCap[p]))
+            val et = min(s, pet[m][p] * share * heat * min(1f, s / (UNSTRESSED * soilCap[p])))
             s -= et
             val excess = max(0f, s - soilCap[p])
             soil[p] = s - excess
@@ -563,7 +564,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             moisture[p] += (wet - moisture[p]) * memory
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
             val season = ((t - GROW_FROM_C) / GROW_SPAN_C).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
-            val water0 = (wet / 0.5f).coerceIn(0f, 1f)
+            val water0 = (wet / UNSTRESSED).coerceIn(0f, 1f)
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, as long as it is growing weather.
             val flush = min(1f, season * water0 + FLUSH * burnt[p] * season)
@@ -710,6 +711,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val GROW_FROM_C = System.getProperty("hex.t.growFrom")?.toFloat() ?: 2f
         val GROW_SPAN_C = System.getProperty("hex.t.growSpan")?.toFloat() ?: 13f
         const val PALATABLE_FLOOR = 0.5f
+        /** Share of the soil's water plants take up without stress; drier than that, growth and evaporation fall in step (FAO-56, p about 0.5). */
+        const val UNSTRESSED = 0.5f
         /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
