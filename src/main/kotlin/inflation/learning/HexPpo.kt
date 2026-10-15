@@ -322,6 +322,8 @@ object HexPpo {
             // so a role's gain is its own and not the others'), on worlds it has not trained on; and keep
             // each kind's last good version
             if (round % checkEvery == checkEvery - 1) {
+                // (The next round's play finishes first: its worlds and the check's would not all fit in memory at once.)
+                ahead?.join()
                 val seeds = (91L until 91L + checkSeeds).toList()
                 val scores = seeds.parallelStream().map { seed -> check(checkWorld(seed, size, checkOnMaps), years + 1, kinds, models) }.toList()
                 val parts = ArrayList<String>()
