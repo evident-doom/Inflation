@@ -546,6 +546,15 @@ class HexGroups(
                     f[3] = predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f)
                     f[4] = min(2f, discomfort(s, p, weather))
                     f[5] = min(2f, s.discomfortC(weather.forecastTemp(p), date.month) / 10f)
+                    // People see only what they can read: the weather coming as their lore and sky-watching
+                    // allow (else they expect this week's again), the beasts about as their tracking does,
+                    // and the food of country they do not know only dimly.
+                    g.band?.let { b ->
+                        val sense = ((if (b.holds(Tradition.SKY_LORE)) 0.5f else 0f) + 0.5f * b.skill(Skill.LORE)).coerceIn(0f, 1f)
+                        f[5] = f[4] + sense * (f[5] - f[4])
+                        f[3] = SIGN_GUESS + b.skill(Skill.TRACK) * (f[3] - SIGN_GUESS)
+                        if (!b.knows(h)) f[0] = 0.5f * f[0] + 0.5f * SIGN_GUESS
+                    }
                     f[6] = if (weather.snowpack[p] > s.snowLimitMm) 1f else 0f
                     f[7] = min(2f, weather.snowpack[p] / s.snowLimitMm)
                     f[8] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
