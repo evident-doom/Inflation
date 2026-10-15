@@ -70,12 +70,15 @@ class HexGroups(
     /** The best country of kind [s] in month [m] as last noted, or null if not yet. */
     internal fun seasonBest(s: Species, m: Int): IntArray? = bestByMonth[s.index.toLong() * 12 + m]
 
+    /** How good the forage at place [p] is for [s], 0..1: how nourishing and how rich in protein (see [HexFauna.forageProtein]). */
+    internal fun freshness(s: Species, p: Int) = land.nourishment(p) * fauna.forageProtein(s, p)
+
     /** How good place [p] is for a herd of [s] in month [m], 0..1: food, its ground, water, the month's climate, few hunters. */
     internal fun herdQuality(s: Species, p: Int, m: Int): Float {
-        val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f * (if (GREEN_BEARING) land.nourishment(p) else 1f)
+        val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f
         // Country thick with hunters is the less good for it.
         val hunters = monthHunterKg[p] / land.areaKm2[p]
-        return food / (food + 0.3f) * fauna.tether(s, p) * fauna.monthFit(s, p, m) * (1f - 0.5f * hunters / (hunters + HUNTERS_HALF_KG))
+        return food / (food + 0.3f) * (if (GREEN_BEARING) freshness(s, p) else 1f) * fauna.tether(s, p) * fauna.monthFit(s, p, m) * (1f - 0.5f * hunters / (hunters + HUNTERS_HALF_KG))
     }
 
     /** Game each hunting kind can catch in each place, kg/km² weighed by catchability, worked out once a month for the bearings. */
@@ -435,7 +438,7 @@ class HexGroups(
             for ((k, s) in kinds.withIndex()) placeValue[k][p] =
                 if (s.human) campValue(s, p)
                 else if (s.carnivore) dietValue(s, p, preyHere(s, p) + herdPrey(s, p))
-                else foodFor(s, p) * land.nourishment(p) * fauna.suits(s, p) * (1f - land.burning[p])
+                else foodFor(s, p) * fauna.suits(s, p) * (1f - land.burning[p])
         }
     }
 
@@ -660,7 +663,9 @@ class HexGroups(
                     // Ground thick with hunters is shunned, as far as the food elsewhere allows.
                     val hunters = predatorKg[p] / land.areaKm2[p]
                     // And ground where game was killed lately is shunned (the landscape of fear).
-                    food / (food + 0.3f) - 0.5f * crowd(s, p, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
+                    // (How much there is levels off, how good it is does not: fresh, protein-rich growth is worth
+                    // more however much of the dry stuff stands, as it is to a mother and her young.)
+                    food / (food + 0.3f) * freshness(s, p) - 0.5f * crowd(s, p, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
                 }
                 score -= 0.5f * discomfort(s, p, weather) + offGround
                 // Its own kind of country: open plains for a cheetah, crags for a wild goat, whatever the food.
@@ -810,7 +815,7 @@ class HexGroups(
                 val toGoal = hexKm(h, goalHex)
                 val prog = if (fromHere > hex.hexKm) ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f) else 0f
                 return "food %.2f crowd %.2f hunters %.2f cold/heat %.2f water %.2f going %.2f season %.2f bearing %.2f stay %.2f (%.0f km from goal)".format(
-                    food / (food + 0.3f), -0.5f * crowd(s, p, g), -SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG), -0.5f * discomfort(s, p, weather),
+                    food / (food + 0.3f) * freshness(s, p), -0.5f * crowd(s, p, g), -SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG), -0.5f * discomfort(s, p, weather),
                     -(0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm, -WALK_COST * dist[h] / days,
                     SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * prog, BEARING_PULL * bearings.along(ki, here, h, pullKm),
                     if (p == g.place) STAY else 0f, toGoal)
