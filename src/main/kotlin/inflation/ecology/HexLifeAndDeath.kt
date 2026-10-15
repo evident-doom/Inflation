@@ -296,6 +296,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         }
         val inSeason = (date.month - g.birthMonth + 12) % 12 < s.birthMonths
         var bornNow = 0
+        var bornExpected = 0f
         // In a band, the elders are past bearing children; they help their daughters raise theirs.
         val band = g.band
         // Women bear most in their twenties and early thirties: few in their teens, fewer after
@@ -310,7 +311,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
                 if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
             } else {
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                binomial(mothers, s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * Tuning.humanBirths else 1f) * (1f + GRANDMOTHERS * help) / stepsInSeason, r)
+                val rate = s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * Tuning.humanBirths else 1f) * (1f + GRANDMOTHERS * help) / stepsInSeason
+                bornExpected = mothers * min(1f, rate)
+                binomial(mothers, rate, r)
             }
             g.young += births
             bornNow = births
@@ -393,6 +396,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
         val py = ((healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
+        // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
+        val diedExpected = g.adults * pa + g.young * py + (band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f)
         // Elders die as the others do (their share of the adults who died), and of old age besides.
         var oldAge = 0
         if (band != null && g.adults > 0) {
@@ -402,6 +407,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             band.elders -= oldAge
         }
         g.adults -= da + oldAge
+        if (s.human) g.luck += (bornNow - bornExpected) - (da + dy + oldAge - diedExpected)
         // The sick and the newborn teach their carers.
         band?.let { b -> if (disease > 0f || da > 0) b.practise(Skill.HERBS, 0.2f * PRACTICE); if (bornNow > 0) b.practise(Skill.MIDWIFERY) }
         g.young -= dy

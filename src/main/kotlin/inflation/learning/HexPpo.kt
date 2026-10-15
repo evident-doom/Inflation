@@ -89,7 +89,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
 }
 
 /** One recorded choice: the candidates' place features (the kind's part is added when learning), the one taken and its log-probability, who chose, and when. */
-class Choice(val kind: Species, val groupId: Int, val size: Int, val week: Int, val inputs: Array<FloatArray>, val taken: Int, val logp: Float) {
+open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: Int, val inputs: Array<FloatArray>, val taken: Int, val logp: Float) {
     /** The hand-written scores of the candidates (for networks that start from them). */
     var baseline = FloatArray(0)
     /** A band's view of itself when it chose ([inflation.ecology.Band.state]); null for animals. */
@@ -137,7 +137,7 @@ internal fun softmax(x: FloatArray): FloatArray {
  * (the other roles hand-written), reported per kind with its spread over the worlds; a kind that
  * does worse than with the last version it did well with keeps that version (in `deployed/`).
  *
- * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
+ * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
  */
 object HexPpo {
     /**
@@ -160,6 +160,8 @@ object HexPpo {
      */
     const val PARTS = 128
     const val ENTROPY = 0.01f
+    /** How many times as many choices a year are recorded of people as of each animal kind (one kind against fourteen). */
+    var PEOPLE_CHOICES = 8f
     /** Choices recorded a year for each kind in each world. */
     var PER_KIND_YEAR = 1500
 
@@ -193,6 +195,7 @@ object HexPpo {
                 // Check on the training maps (--maps) instead of fresh worlds: how well they are fitted, not how well the networks do elsewhere.
                 "--check-on-maps" -> checkOnMaps = true
                 "--per-kind" -> PER_KIND_YEAR = args[++k].toInt()
+                "--people-choices" -> PEOPLE_CHOICES = args[++k].toFloat()
                 "--teacher" -> { val dir = File(args[++k]); TEACHERS = Catalogue.all.mapNotNull { s -> HexLearning.file(dir, s).takeIf { it.exists() }?.let { s to Schema.load(it, Schema.TEACHER_IN, Schema.MOVER_OUT) } }.toMap() }
                 "--teacher-check" -> teacherCheck = true
                 "--maps" -> MAPS = args[++k].split(",").map { m -> val (s, l) = m.split(":"); s.toLong() to l.toDouble() }
@@ -414,13 +417,16 @@ object HexPpo {
         val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
         // The same number of choices a year of each kind, however many groups it has.
         val rates = HashMap<Species, Float>()
-        fun setRates() { for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(1f, PER_KIND_YEAR.toFloat() / (n * stepsPerYear)) } }
+        // (People, the one kind of their role, get [PEOPLE_CHOICES] times as many as each animal kind.)
+        fun setRates() { for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(1f, PER_KIND_YEAR * (if (s.human) PEOPLE_CHOICES else 1f) / (n * stepsPerYear)) } }
         setRates()
         val policies = models.map { MoverPolicy(it, record, { s -> rates[s] ?: 0f }, { week }) }
         for (s in kinds) run.groups.policies[s] = policies[role(s)]
         val steps = years * stepsPerYear
         // Each group's numbers week by week, and where its offshoots came from, to follow each choice's outcome.
         val sizes = HashMap<Int, IntArray>()
+        // (And for bands, their luck in their own births and deaths: see [HexGroup.luck].)
+        val lucks = HashMap<Int, FloatArray>()
         val parent = HashMap<Int, Int>()
         val merged = HashMap<Int, Int>()
         val born = HashMap<Int, Int>()
@@ -432,6 +438,7 @@ object HexPpo {
                 if (g.parent >= 0 && g.id !in parent) { parent[g.id] = g.parent; born[g.id] = week }
                 if (g.mergedSize >= 0) merged.putIfAbsent(g.id, g.mergedSize)
                 sizes.getOrPut(g.id) { IntArray(steps + 1) }[week] = if (g.alive) g.size else 0
+                if (g.species.human) lucks.getOrPut(g.id) { FloatArray(steps + 1) { Float.NaN } }[week] = g.luck
             }
             // Groups that merged into another this week are gone from the list by now: their numbers carry on as at the merge.
             for (g in run.groups.merged) merged.putIfAbsent(g.id, g.mergedSize)
@@ -439,11 +446,16 @@ object HexPpo {
         // Offshoots of each group, for adding their numbers to its own.
         val children = HashMap<Int, MutableList<Int>>()
         for ((c, p) in parent) children.getOrPut(p) { ArrayList() } += c
-        fun numbers(id: Int, w: Int, depth: Int = 0): Int {
+        // A band's luck by week [w] (as last seen, once it is gone).
+        fun luck(id: Int, w: Int): Float { val l = lucks[id] ?: return 0f; var k = w; while (k > 0 && l[k].isNaN()) k--; return if (l[k].isNaN()) 0f else l[k] }
+        // A group's numbers (and its offshoots') at week [w]; for bands, less their luck in births and
+        // deaths since week [from], so that a choice is judged by what it made likely, not by chance.
+        fun numbers(id: Int, w: Int, from: Int, depth: Int = 0): Float {
             val own = sizes[id]?.get(w) ?: 0
             val m = merged[id]
-            var n = if (own == 0 && m != null) m else own
-            if (depth < 3) for (c in children[id].orEmpty()) if ((born[c] ?: 0) <= w) n += numbers(c, w, depth + 1)
+            var n = (if (own == 0 && m != null) m else own).toFloat()
+            if (id in lucks) n = max(0f, n - (luck(id, w) - luck(id, max(from, born[id] ?: 0))))
+            if (depth < 3) for (c in children[id].orEmpty()) if ((born[c] ?: 0) <= w) n += numbers(c, w, from, depth + 1)
             return n
         }
         val out = ArrayList<Choice>()
@@ -454,7 +466,7 @@ object HexPpo {
             if (c.week + horizon > steps) continue
             var sum = 0f; var norm = 0f; var d = 1f
             val discount = if (c.kind.human) PEOPLE_DISCOUNT else DISCOUNT
-            for (k in 1..horizon) { sum += d * numbers(c.groupId, c.week + k) / c.size.coerceAtLeast(1).toFloat(); norm += d; d *= discount }
+            for (k in 1..horizon) { sum += d * numbers(c.groupId, c.week + k, c.week) / c.size.coerceAtLeast(1).toFloat(); norm += d; d *= discount }
             c.ret = sum / norm
             out += c
         }
@@ -518,16 +530,25 @@ object HexPpo {
         return both[0] to both[1]
     }
 
-    /** Animal-weeks per animal at the start, by kind, over [years] in [cfg] with the policies [setUp] installs. */
+    /**
+     * Animal-weeks per animal at the start, by kind, over [years] in [cfg] with the policies [setUp]
+     * installs; for people, less their luck in their own births and deaths (see [HexGroup.luck]), so
+     * that a small gain shows through the chance of who was born and who died.
+     */
     private fun score(cfg: WorldConfig, years: Int, kinds: List<Species>, setUp: (HexLearning.Run) -> Unit): Map<Species, Double> {
         val run = HexLearning.Run(cfg, kinds)
         setUp(run)
         val start = kinds.associateWith { run.groups.count(it).toDouble() }
         val weeks = HashMap<Species, Double>()
         val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
+        val lastLuck = HashMap<Int, Float>(); val luck = HashMap<Species, Double>()
         repeat(steps) {
             run.step()
-            for (g in run.groups.groups) if (g.alive) weeks.merge(g.species, g.size.toDouble(), Double::plus)
+            for (g in run.groups.groups) {
+                if (g.species.human) { luck.merge(g.species, (g.luck - (lastLuck[g.id] ?: 0f)).toDouble(), Double::plus); lastLuck[g.id] = g.luck }
+                if (g.alive) weeks.merge(g.species, g.size.toDouble(), Double::plus)
+            }
+            for ((s, l) in luck) weeks.merge(s, -l, Double::plus)
         }
         return kinds.associateWith { s -> val st = start.getValue(s); if (st <= 0.0) 0.0 else (weeks[s] ?: 0.0) / st / steps }
     }

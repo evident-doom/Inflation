@@ -35,6 +35,12 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** The places it remembers (see [PlaceMemory]). */
     val memory = PlaceMemory()
     var mergedSize = -1
+    /**
+     * A band's luck in its own week's births and deaths, summed since it began: born less died as
+     * drawn, against as expected from the week's odds (for training, which judges people by what
+     * their choices made likely, not by chance; animals keep 0).
+     */
+    var luck = 0f
     /** The month its young are born in, drifting towards the months that feed them best; -1 for its kind's. */
     var birthMonth = -1
     /** For a herd or pack: its ways this week, 1 the hand-written way (see [AnimalWay]). */
