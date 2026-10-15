@@ -63,11 +63,18 @@ private fun HexGroups.roundsFor(s: Species, q: Array<FloatArray>): List<IntArray
         }
         sum.entries.filter { it.value[1] > 0.3 * RANGE_KM * RANGE_KM }.map { (key, a) ->
             val p = bestP.getValue(key); val (x, y) = hex.centreKm(hw.placeHex[p]); Range(p, (a[0] / a[1]).toFloat(), x, y)
-        }.sortedByDescending { it.worth }.take(RANGES_KEPT).sortedBy { it.place }
+        }.let { all -> val top = all.maxOfOrNull { it.worth } ?: 0f; all.filter { it.worth >= RANGE_FLOOR * top } }
+            .sortedByDescending { it.worth }.take(RANGES_KEPT).sortedBy { it.place }
     }
     if (ranges.any { it.isEmpty() }) return emptyList()
     val legMax = s.maxDailyTravelKm * Date.DAYS_PER_MONTH * 0.5
-    fun km(a: Range, b: Range) = kotlin.math.hypot(a.x - b.x, a.y - b.y)
+    // (A leg over open water is not taken: herds walk their rounds. Sampled every [hex.hexKm] along the way.)
+    val wet = HashMap<Long, Boolean>()
+    fun overSea(a: Range, b: Range): Boolean = wet.getOrPut(a.place.toLong() * 1_000_003 + b.place) {
+        val d = kotlin.math.hypot(a.x - b.x, a.y - b.y); val steps = (d / hex.hexKm).toInt().coerceAtLeast(1)
+        (1 until steps).any { i -> val f = i.toDouble() / steps; val h = hex.hexAt(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f); h in 0 until hex.size && hex.heart[h] < 0 }
+    }
+    fun km(a: Range, b: Range) = if (overSea(a, b)) Double.MAX_VALUE else kotlin.math.hypot(a.x - b.x, a.y - b.y)
     // From each month-one range, the best circuit by dynamic programming over the months, closing back on it.
     val out = ArrayList<IntArray>()
     for (r0 in ranges[0]) {
@@ -114,5 +121,7 @@ private fun HexGroups.seasonQuality(s: Species): Array<FloatArray>? {
  */
 const val ROUND_YEARS = 10
 const val RANGE_KM = 100.0
-const val RANGES_KEPT = 40
+const val RANGES_KEPT = 300
+/** A range is kept for a month if it is at least this good against the month's best (so rounds cover the kind's whole country, not only its few best spots, where every herd would crowd). */
+const val RANGE_FLOOR = 0.3f
 val ROUND_KM_COST = System.getProperty("hex.t.roundKmCost")?.toDouble() ?: 0.002

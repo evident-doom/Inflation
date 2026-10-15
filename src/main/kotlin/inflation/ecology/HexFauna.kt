@@ -104,7 +104,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun grassProtein(p: Int) = PROTEIN_DRY_GRASS + (1f - PROTEIN_DRY_GRASS) * land.green[p]
     fun browseProtein(p: Int) = PROTEIN_DRY_BROWSE + (1f - PROTEIN_DRY_BROWSE) * land.green[p]
     /** How well a diet with [share] of fresh growth's protein meets a mother's and a growing young's need, 0..1. */
-    fun proteinMet(share: Float) = min(1f, share / PROTEIN_NEED)
+    fun proteinMet(share: Float) = if (NO_PROTEIN) 1f else min(1f, share / PROTEIN_NEED)
 
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
@@ -496,7 +496,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 fed[k][p] = f
                 val fm = fedByMonth[k]; val i = p * 12 + weather.date.month
-                fm[i] += (fed[k][p] - fm[i]) * FED_MEMORY
+                // (What the young would be born to: food, and the protein their mothers' milk and their growth need.)
+                fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * FED_MEMORY
                 // Laying on fat for the winter: how well fed through late summer and autumn.
                 if (s.hibernates && weather.date.month in 7..11 && !asleep(s, p, weather)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
             }
@@ -738,6 +739,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
          * crude protein); below it births fall and the young die more, by [YOUNG_PROTEIN_DEATHS] a year
          * at none. Worked out as a mean over the last weeks ([PROTEIN_MEMORY] a week).
          */
+        /** For comparison runs: -Dhex.t.noProtein leaves protein out (every diet meets the need). */
+        val NO_PROTEIN = System.getProperty("hex.t.noProtein") != null
         const val PROTEIN_DRY_GRASS = 0.25f
         const val PROTEIN_DRY_BROWSE = 0.6f
         const val PROTEIN_FRUIT = 0.4f

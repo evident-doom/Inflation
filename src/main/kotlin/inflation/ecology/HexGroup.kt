@@ -39,6 +39,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     var mergedSize = -1
     /** How well its diet met its need for protein over the last weeks, 0..1 (see [HexFauna.proteinMet]). */
     var protein = 1f
+    /** How well its diet met its need for protein in each month, as it remembers (births move toward the months rich in it). */
+    val proteinByMonth = FloatArray(12) { 1f }
     /**
      * Which way a herd has been heading, as east and south parts (km-free, at most 1 long): kept from week
      * to week and bent a little each week toward better country, so small nudges add up to a long trek.

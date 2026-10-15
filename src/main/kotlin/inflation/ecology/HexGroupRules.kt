@@ -284,4 +284,10 @@ val HEADING_PULL = System.getProperty("hex.t.headingPull")?.toFloat() ?: 2f
 val ROUNDS = System.getProperty("hex.rounds") != null
 val ROUND_STRENGTH = System.getProperty("hex.t.roundStrength")?.toFloat() ?: 1f
 /** How strongly a herd's round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
-val ROUND_NET_PULL = System.getProperty("hex.t.roundNetPull")?.toFloat() ?: 0.4f
+val ROUND_NET_PULL = System.getProperty("hex.t.roundNetPull")?.toFloat() ?: 1.5f
+/** How strongly a round draws the hand-written choice: per unit of progress toward its place this month (a full week's going toward it). */
+val ROUND_PULL = System.getProperty("hex.t.roundPull")?.toFloat() ?: 1.5f
+/** Within this of its round's place this month, km, a herd has arrived and grazes as it likes (half a range across). */
+val ROUND_ARRIVED_KM = System.getProperty("hex.t.roundArrived")?.toDouble() ?: 50.0
+/** Days of a week a herd far behind its round spends trekking on (the rest grazing). */
+val ROUND_TREK_DAYS = System.getProperty("hex.t.roundTrekDays")?.toFloat() ?: 4f

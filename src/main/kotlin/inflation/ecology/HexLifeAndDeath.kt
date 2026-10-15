@@ -152,6 +152,7 @@ internal fun HexGroups.graze(weather: Weather) {
         }
         g.fed = (gotKg / wantKg.coerceAtLeast(1e-6f)).coerceIn(0f, 1f)
         if (eatenKg > 0f) g.protein += (fauna.proteinMet(proteinKg / eatenKg) - g.protein) * HexFauna.PROTEIN_MEMORY
+        val pm = weather.date.month; g.proteinByMonth[pm] += (g.protein - g.proteinByMonth[pm]) * HexFauna.PROTEIN_MEMORY
         if (surplusKg > 0f) g.surplus = surplusKg / (wantKg / days)
         hunting.merge("${s.name}:ranged over places", range.size, Int::plus)
     }
@@ -268,7 +269,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
                 }
                 nb.lastAdults = c.first; b.lastAdults = g.adults
                 for (i in b.ageStage.indices) { nb.ageStage[i] = b.ageStage[i] * c.first / (g.adults + c.first).coerceAtLeast(1); b.ageStage[i] -= nb.ageStage[i] } } }
-            g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ); g.route.copyInto(n.route)
+            g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ); g.route.copyInto(n.route); g.proteinByMonth.copyInto(n.proteinByMonth)
         } } // a young pack has no ground yet
     }
     groups += born
@@ -312,7 +313,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         if (g.birthMonth < 0) g.birthMonth = s.birthMonth
         // Once a year its births move a month towards the months it fed best in (the birth month and the two after).
         if (date.month == 3 && date.dayOfMonth <= days && !s.carnivore) {
-            fun window(m0: Int) = (0 until 3).sumOf { g.seasonQ[(m0 + it + 12) % 12].toDouble() }
+            // (How well fed, and on how rich a diet, in the months the young would be born and suckled.)
+            fun window(m0: Int) = (0 until 3).sumOf { (g.seasonQ[(m0 + it + 12) % 12] * g.proteinByMonth[(m0 + it + 12) % 12]).toDouble() }
             val m = g.birthMonth
             // (Or it moves them itself, when it leans far enough one way, see [AnimalWay.BIRTHS].)
             val lean = g.will[AnimalWay.BIRTHS] - 1f

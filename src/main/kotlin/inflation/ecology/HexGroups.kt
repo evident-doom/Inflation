@@ -277,8 +277,15 @@ class HexGroups(
                 val km = kotlin.math.hypot(x1 - x0, y1 - y0)
                 val ki = kindIndex[g.species] ?: 0
                 val mE = if (km > 0.0) ((x1 - x0) / km).toFloat() else 0f; val mS = if (km > 0.0) ((y1 - y0) / km).toFloat() else 0f
-                var e = HEADING_KEEP * g.headE + (1f - HEADING_KEEP) * (HEADING_MOVED * mE + bearings.east[ki][to])
-                var so = HEADING_KEEP * g.headS + (1f - HEADING_KEEP) * (HEADING_MOVED * mS + bearings.south[ki][to])
+                // (On a round, it bends toward the round's place this month rather than the sense of better country.)
+                val round = roundOf(g, date.month)
+                var bE = bearings.east[ki][to]; var bS = bearings.south[ki][to]
+                if (round != null) {
+                    val (rx, ry) = hex.centreKm(hw.placeHex[round.first]); val rk = kotlin.math.hypot(rx - x1, ry - y1)
+                    if (rk > hex.hexKm) { bE = ((rx - x1) / rk).toFloat(); bS = ((ry - y1) / rk).toFloat() } else { bE = 0f; bS = 0f }
+                }
+                var e = HEADING_KEEP * g.headE + (1f - HEADING_KEEP) * (HEADING_MOVED * mE + bE)
+                var so = HEADING_KEEP * g.headS + (1f - HEADING_KEEP) * (HEADING_MOVED * mS + bS)
                 val len = kotlin.math.hypot(e, so); if (len > 1f) { e /= len; so /= len }
                 g.headE = e; g.headS = so
             }
@@ -571,7 +578,9 @@ class HexGroups(
         // The place it remembers doing best at this time of year: while it is far off, the herd is on its way.
         val month = (date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0) % 12
         // (Its round, if its elders taught it one, else the place it remembers doing best at this time of year.)
-        val round = roundOf(g, month)
+        // (Within a range's reach of the round's place it has arrived: it grazes the range as it likes, and
+        // the herds on one round spread over it instead of crowding onto one spot.)
+        val round = roundOf(g, month)?.takeIf { hexKm(here, hw.placeHex[it.first]) > ROUND_ARRIVED_KM }
         val onRound = round != null
         val goal = round?.first ?: g.seasonPlace[month]
         val goalQ = if (round != null) max(g.seasonQ[month], round.second) else g.seasonQ[month]
@@ -592,7 +601,9 @@ class HexGroups(
         if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
         // (A big herd moves more slowly than a small one: it waits for its stragglers.)
         // (A starving herd on eaten-out ground goes as far as it must, up to its whole week's travel.)
-        val shiftDays = if (restless && !s.carnivore) SHIFT_DAYS + (days - SHIFT_DAYS) * (1f - g.fed / 0.7f).coerceIn(0f, 1f) else SHIFT_DAYS
+        // (A herd far behind its round treks: the whole week's going.)
+        val shiftDays = if (onRound && goalFar && !s.carnivore && g.fed >= 0.6f) ROUND_TREK_DAYS
+            else if (restless && !s.carnivore) SHIFT_DAYS + (days - SHIFT_DAYS) * (1f - g.fed / 0.7f).coerceIn(0f, 1f) else SHIFT_DAYS
         // (A band goes at the pace of its slowest: the old, the sick and the lamed hold it back.)
         val weak = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * shiftDays * (if (s.carnivore) 1f else bandsIn(g).pow(-BIG_HERD_SLOW)) * (1f - WEAK_SLOW * weak) *
@@ -724,7 +735,11 @@ class HexGroups(
                     // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
                     // Bands that watch the sky keep their round on time.
                     val sky = if (g.band?.holds(Tradition.SKY_LORE) == true) 1.3f else 1f
-                    if (fromHere > hex.hexKm) score += sky * SEASON_PULL * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
+                    val prog = ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
+                    // (A round draws it on however well it fares where it is: it is what its kind does in this month.)
+                    // (A hungry herd stops to graze before going on: the round draws it the less the hungrier it is.)
+                    if (fromHere > hex.hexKm) score += if (onRound) sky * ROUND_PULL * roundStrength * (g.fed / 0.7f).coerceIn(0f, 1f) * prog
+                        else sky * SEASON_PULL * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog
                 }
                 score += BEARING_PULL * pull + HEADING_PULL * keepOn
                 if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
