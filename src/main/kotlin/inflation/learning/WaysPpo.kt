@@ -195,7 +195,7 @@ object WaysPpo {
      */
     fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, ways: LearnedWays): Pair<Double, Double> {
         val both = listOf(false, true).parallelStream().map { learned ->
-            HexPpo.score(cfg, years, kinds) { run -> if (learned) run.groups.ways = WaysSampler(ways, null, { 0f }, { 0 }, cfg.seed) }[Catalogue.HUMAN] ?: 0.0
+            (if (learned) HexPpo.score(cfg, years, kinds) { run -> run.groups.ways = WaysSampler(ways, null, { 0f }, { 0 }, cfg.seed) } else HexPpo.handScore(cfg, years, kinds))[Catalogue.HUMAN] ?: 0.0
         }.toList()
         return both[1] to both[0]
     }

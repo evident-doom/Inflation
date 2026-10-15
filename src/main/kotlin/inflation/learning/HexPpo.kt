@@ -137,7 +137,7 @@ internal fun softmax(x: FloatArray): FloatArray {
  * (the other roles hand-written), reported per kind with its spread over the worlds; a kind that
  * does worse than with the last version it did well with keeps that version (in `deployed/`).
  *
- * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
+ * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
  */
 object HexPpo {
     /**
@@ -178,6 +178,9 @@ object HexPpo {
         var checkSeeds = 12
         var checkOnMaps = false
         var teacherCheck = false
+        var worldRounds = 0
+        var overlap = true
+        var burnYears = 1
         var learnWays = true
         var k = 0
         while (k < args.size) {
@@ -196,6 +199,14 @@ object HexPpo {
                 // Check on the training maps (--maps) instead of fresh worlds: how well they are fitted, not how well the networks do elsewhere.
                 "--check-on-maps" -> checkOnMaps = true
                 "--per-kind" -> PER_KIND_YEAR = args[++k].toInt()
+                // How many rounds a training world lives before a fresh one takes its place (0, the default: until it goes
+                // badly off the rails, so that the networks learn in worlds that have run long, where what bands and herds
+                // did compounds; 1: fresh every round, as before).
+                "--world-rounds" -> worldRounds = args[++k].toInt()
+                // Play each round only after the last one has learnt (slower; each round's choices made by the networks just learnt).
+                "--no-overlap" -> overlap = false
+                // Years a fresh training world runs, with the networks choosing, before any choice is recorded (its first state is not like a lived-in world's).
+                "--burn-in" -> burnYears = args[++k].toInt()
                 "--people-choices" -> PEOPLE_CHOICES = args[++k].toFloat()
                 "--teacher" -> { val dir = File(args[++k]); TEACHERS = Catalogue.all.mapNotNull { s -> HexLearning.file(dir, s).takeIf { it.exists() }?.let { s to Schema.load(it, Schema.TEACHER_IN, Schema.MOVER_OUT) } }.toMap() }
                 "--teacher-check" -> teacherCheck = true
@@ -235,16 +246,33 @@ object HexPpo {
         val deployedDir = File(out, "deployed").also { it.mkdirs() }
         val best = HashMap<Species, Double>()
         File(deployedDir, "scores.txt").takeIf { it.exists() }?.readLines()?.forEach { l -> val (n, v) = l.split("\t"); kinds.firstOrNull { it.name == n }?.let { best[it] = v.toDouble() } }
+        // The training worlds, living on from round to round (for [worldRounds] rounds, if set, then a fresh one takes its place).
+        val players = arrayOfNulls<Player>(worlds)
+        val steps = years * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
+        fun playRound(r: Int, ms: List<SharedMover>, ways: LearnedWays?): List<List<Choice>> {
+            for (w in 0 until worlds) if (players[w]?.done != false) {
+                players[w]?.derailed?.let { why -> println("world $w replaced after round ${r - 1}: $why"); File(out, "log.txt").appendText("world $w replaced after round ${r - 1}: $why\n") }
+                players[w] = Player(world(50_000L + r * 100L + w, size, w), kinds, steps * worldRounds, burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep)
+            }
+            return (0 until worlds).toList().parallelStream().map { w -> players[w]!!.play(steps, ms, ways) }.toList()
+        }
+        var ahead: java.util.concurrent.CompletableFuture<List<List<Choice>>>? = null
         val log = File(out, "log.txt")
         val firstRound = if (log.exists()) log.readLines().count { it.startsWith("round ") } else 0
         for (round in firstRound until firstRound + rounds) {
             val t0 = System.nanoTime()
             // ---- play
-            val choices = (0 until worlds).toList().parallelStream().map { w ->
-                play(world(50_000L + round * 100L + w, size, w), years, kinds, models)
-            }.toList()
+            val choices = ahead?.join() ?: playRound(round, models, waysState?.ways)
             val tPlay = System.nanoTime()
-            val everything = choices.flatMap { it.first }
+            // The next round's play goes on beside this round's learning and check, with the networks as
+            // they are now (a round behind when it is learnt from: each choice keeps the probability it
+            // was made with, and the clipped update allows for it).
+            ahead = if (overlap && round + 1 < firstRound + rounds) {
+                val ms = models.map { m -> SharedMover(m.net.copy(), m.identity.copyOf()).also { it.residual = m.residual } }
+                val wy = waysState?.ways?.copy()
+                java.util.concurrent.CompletableFuture.supplyAsync { playRound(round + 1, ms, wy) }
+            } else null
+            val everything = choices.flatten()
             val waysChoices = everything.filterIsInstance<WaysChoice>()
             val all = everything.filter { it !is WaysChoice }
             // ---- judge each choice against what its group could expect where it stood (the critic's
@@ -426,72 +454,146 @@ object HexPpo {
 
     /** One world for [years] with the networks choosing by chance; the recorded choices with their returns. */
     fun play(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Pair<List<Choice>, String> {
-        val run = HexLearning.Run(cfg, kinds)
-        // (Kinds that dwindle get newcomers, so every kind stays in the data; checks run without them.)
-        run.groups.newcomersOn = true; run.fauna.newcomersOn = true
-        var week = 0
-        val record = ConcurrentLinkedQueue<Choice>()
-        val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
+        val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
+        return Player(cfg, kinds, steps).play(steps, models) to "seed ${cfg.seed}"
+    }
+
+    /**
+     * A training world that lives on from round to round (for up to [lifeSteps] weeks), so that no
+     * round's play is spent setting up a world, and the choices whose outcome runs past a round's end
+     * are judged in the next round instead of being dropped. Choices keep the probability they were
+     * made with, so being a round old does not mislead the clipped update.
+     */
+    class Player(val cfg: WorldConfig, private val kinds: List<Species>, private val lifeSteps: Int, private val burnSteps: Int = 0) {
+        private val run = HexLearning.Run(cfg, kinds).also {
+            // (Kinds that dwindle get newcomers, so every kind stays in the data; checks run without them.)
+            it.groups.newcomersOn = true; it.fauna.newcomersOn = true
+        }
+        private var week = 0
+        private val record = ConcurrentLinkedQueue<Choice>()
+        /** Choices whose outcome is not yet all seen. */
+        private val pending = ArrayList<Choice>()
+        private val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
         // The same number of choices a year of each kind, however many groups it has.
-        val rates = HashMap<Species, Float>()
-        // (People, the one kind of their role, get [PEOPLE_CHOICES] times as many as each animal kind.)
-        fun setRates() { for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(1f, PER_KIND_YEAR * (if (s.human) PEOPLE_CHOICES else 1f) / (n * stepsPerYear)) } }
-        setRates()
-        val policies = models.map { MoverPolicy(it, record, { s -> rates[s] ?: 0f }, { week }) }
-        var waysRate = 0f
-        WAYS?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed) }
-        fun setWaysRate() { waysRate = WaysPpo.rate(run.groups.groups.count { it.alive && it.band != null }, stepsPerYear) }
-        setWaysRate()
-        for (s in kinds) run.groups.policies[s] = policies[role(s)]
-        val steps = years * stepsPerYear
-        // Each group's numbers week by week, and where its offshoots came from, to follow each choice's outcome.
-        val sizes = HashMap<Int, IntArray>()
-        // (And for bands, their luck in their own births and deaths: see [HexGroup.luck].)
-        val lucks = HashMap<Int, FloatArray>()
-        val parent = HashMap<Int, Int>()
-        val merged = HashMap<Int, Int>()
-        val born = HashMap<Int, Int>()
-        repeat(steps) {
-            run.step()
-            week++
-            if (week % stepsPerYear == 0) { setRates(); setWaysRate() }
-            for (g in run.groups.groups) {
-                if (g.parent >= 0 && g.id !in parent) { parent[g.id] = g.parent; born[g.id] = week }
-                if (g.mergedSize >= 0) merged.putIfAbsent(g.id, g.mergedSize)
-                sizes.getOrPut(g.id) { IntArray(steps + 1) }[week] = if (g.alive) g.size else 0
-                if (g.species.human) lucks.getOrPut(g.id) { FloatArray(steps + 1) { Float.NaN } }[week] = g.luck
+        private val rates = HashMap<Species, Float>()
+        private var waysRate = 0f
+        /**
+         * A group's numbers week by week from week [base] (and for bands, their luck in their own
+         * births and deaths, see [HexGroup.luck]); the weeks no choice still waiting needs are let go,
+         * so a world can live on for ever.
+         */
+        private class Track(var base: Int) {
+            var size = IntArray(64); var luck = FloatArray(64) { Float.NaN }; var n = 0
+            fun set(w: Int, s: Int, l: Float) {
+                val i = w - base
+                if (i >= size.size) { val m = max(2 * size.size, i + 1); size = size.copyOf(m); val old = luck.size; luck = luck.copyOf(m); for (k in old until m) luck[k] = Float.NaN }
+                size[i] = s; luck[i] = l; n = max(n, i + 1)
             }
-            // Groups that merged into another this week are gone from the list by now: their numbers carry on as at the merge.
-            for (g in run.groups.merged) merged.putIfAbsent(g.id, g.mergedSize)
+            fun size(w: Int) = (w - base).let { if (it in 0 until n) size[it] else 0 }
+            // (As last seen, once it is gone.)
+            fun luck(w: Int): Float { var k = min(w - base, n - 1); while (k > 0 && luck[k].isNaN()) k--; return if (k < 0 || luck[k].isNaN()) 0f else luck[k] }
+            /** Lets go of the weeks before [w]. */
+            fun cut(w: Int) {
+                val d = w - base; if (d <= 0) return
+                val keep = luck(w - 1)
+                if (d >= n) { n = 0 } else { size = size.copyOfRange(d, size.size); luck = luck.copyOfRange(d, luck.size); n -= d; if (luck[0].isNaN()) luck[0] = keep }
+                base = w
+            }
         }
-        // Offshoots of each group, for adding their numbers to its own.
-        val children = HashMap<Int, MutableList<Int>>()
-        for ((c, p) in parent) children.getOrPut(p) { ArrayList() } += c
-        // A band's luck by week [w] (as last seen, once it is gone).
-        fun luck(id: Int, w: Int): Float { val l = lucks[id] ?: return 0f; var k = w; while (k > 0 && l[k].isNaN()) k--; return if (l[k].isNaN()) 0f else l[k] }
-        // A group's numbers (and its offshoots') at week [w]; for bands, less their luck in births and
-        // deaths since week [from], so that a choice is judged by what it made likely, not by chance.
-        fun numbers(id: Int, w: Int, from: Int, depth: Int = 0): Float {
-            val own = sizes[id]?.get(w) ?: 0
-            val m = merged[id]
-            var n = (if (own == 0 && m != null) m else own).toFloat()
-            if (id in lucks) n = max(0f, n - (luck(id, w) - luck(id, max(from, born[id] ?: 0))))
-            if (depth < 3) for (c in children[id].orEmpty()) if ((born[c] ?: 0) <= w) n += numbers(c, w, from, depth + 1)
-            return n
+        // Each group's numbers, and where its offshoots came from, to follow each choice's outcome.
+        private val tracks = HashMap<Int, Track>()
+        private val parent = HashMap<Int, Int>()
+        private val merged = HashMap<Int, Int>()
+        private val born = HashMap<Int, Int>()
+        /** Whether it has lived its time (if it has one), or gone badly off the rails: then a fresh world takes its place. */
+        val done get() = (lifeSteps > 0 && week >= lifeSteps) || derailed != null
+        /**
+         * Why it has gone off the rails, if it has (else null): no bands left, herds or hunters down
+         * to a tenth of their numbers at the start, herds, hunters or people grown tenfold, or half the
+         * kinds gone. Short of that it lives
+         * on, whatever befalls it: the networks are to learn in worlds that have run long.
+         */
+        var derailed: String? = null; private set
+        private val startNumbers = HashMap<Int, Int>()
+        private fun numbersByRole(): Map<Int, Int> = run.groups.groups.filter { it.alive }.groupingBy { role(it.species) }.fold(0) { a, g -> a + g.size }
+        private fun checkRails() {
+            val now = numbersByRole()
+            if (startNumbers.isEmpty()) { startNumbers.putAll(now); return }
+            val gone = kinds.count { s -> run.groups.groups.none { it.alive && it.species == s } }
+            derailed = when {
+                (startNumbers[2] ?: 0) > 0 && (now[2] ?: 0) == 0 -> "no bands left"
+                (0..1).any { r -> (now[r] ?: 0) < 0.1 * (startNumbers[r] ?: 0) } -> "herds or hunters down to a tenth"
+                (0..2).any { r -> (now[r] ?: 0) > 10.0 * (startNumbers[r] ?: Int.MAX_VALUE / 20) } -> "a role grown tenfold"
+                gone * 2 > kinds.size -> "$gone of ${kinds.size} kinds gone"
+                else -> null
+            }
         }
-        val out = ArrayList<Choice>()
-        // (In the order of the weeks and the groups, not of the cores that recorded them.)
-        for (c in record.sortedWith(compareBy<Choice>({ it.week }, { it.groupId }))) {
-            // (People change in numbers slowly: their moves are judged over a year, the animals' over half.)
-            val horizon = if (c.kind.human) PEOPLE_HORIZON else HORIZON
-            if (c.week + horizon > steps) continue
-            var sum = 0f; var norm = 0f; var d = 1f
-            val discount = if (c.kind.human) PEOPLE_DISCOUNT else DISCOUNT
-            for (k in 1..horizon) { sum += d * numbers(c.groupId, c.week + k, c.week) / c.size.coerceAtLeast(1).toFloat(); norm += d; d *= discount }
-            c.ret = sum / norm
-            out += c
+
+        // (People, the one kind of their role, get [PEOPLE_CHOICES] times as many as each animal kind.)
+        private fun setRates() {
+            // (Nothing is recorded while a fresh world settles.)
+            if (week < burnSteps) { for (s in kinds) rates[s] = 0f; waysRate = 0f; return }
+            for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(1f, PER_KIND_YEAR * (if (s.human) PEOPLE_CHOICES else 1f) / (n * stepsPerYear)) }
+            waysRate = WaysPpo.rate(run.groups.groups.count { it.alive && it.band != null }, stepsPerYear)
         }
-        return out to "seed ${cfg.seed}"
+
+        /** [steps] more weeks with [models] choosing (and the bands' ways drawn from [WAYS]); the choices whose outcome is now all seen, with their returns. */
+        fun play(steps: Int, models: List<SharedMover>, ways: LearnedWays? = WAYS): List<Choice> {
+            if (week == 0) { setRates(); checkRails() }
+            // A fresh world first settles for [burnSteps] weeks, its choices unrecorded (they come on top of this round's).
+            val total = steps + if (week == 0) burnSteps else 0
+            val policies = models.map { MoverPolicy(it, record, { s -> rates[s] ?: 0f }, { week }) }
+            for (s in kinds) run.groups.policies[s] = policies[role(s)]
+            ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed) }
+            repeat(if (lifeSteps > 0) min(total, lifeSteps - week) else total) {
+                run.step()
+                week++
+                if (week % stepsPerYear == 0) setRates()
+                for (g in run.groups.groups) {
+                    if (g.parent >= 0 && g.id !in parent) { parent[g.id] = g.parent; born[g.id] = week }
+                    if (g.mergedSize >= 0) merged.putIfAbsent(g.id, g.mergedSize)
+                    tracks.getOrPut(g.id) { Track(week) }.set(week, if (g.alive) g.size else 0, if (g.species.human) g.luck else 0f)
+                }
+                // Groups that merged into another this week are gone from the list by now: their numbers carry on as at the merge.
+                for (g in run.groups.merged) merged.putIfAbsent(g.id, g.mergedSize)
+            }
+            // Offshoots of each group, for adding their numbers to its own.
+            val children = HashMap<Int, MutableList<Int>>()
+            for ((c, p) in parent) children.getOrPut(p) { ArrayList() } += c
+            // A group's numbers (and its offshoots') at week [w]; for bands, less their luck in births and
+            // deaths since week [from], so that a choice is judged by what it made likely, not by chance.
+            fun numbers(id: Int, w: Int, from: Int, depth: Int = 0): Float {
+                val tr = tracks[id]
+                val own = tr?.size(w) ?: 0
+                val m = merged[id]
+                var n = (if (own == 0 && m != null) m else own).toFloat()
+                if (tr != null) n = max(0f, n - (tr.luck(w) - tr.luck(max(from, born[id] ?: 0))))
+                if (depth < 3) for (c in children[id].orEmpty()) if ((born[c] ?: 0) <= w) n += numbers(c, w, from, depth + 1)
+                return n
+            }
+            val out = ArrayList<Choice>()
+            val waiting = ArrayList<Choice>()
+            // (In the order of the weeks and the groups, not of the cores that recorded them.)
+            val now = record.sortedWith(compareBy<Choice>({ it.week }, { it.groupId })); record.clear()
+            for (c in pending + now) {
+                // (People change in numbers slowly: their moves are judged over a year, the animals' over half.)
+                val horizon = if (c.kind.human) PEOPLE_HORIZON else HORIZON
+                if (c.week + horizon > week) { if (!done) waiting += c; continue }
+                var sum = 0f; var norm = 0f; var d = 1f
+                val discount = if (c.kind.human) PEOPLE_DISCOUNT else DISCOUNT
+                for (k in 1..horizon) { sum += d * numbers(c.groupId, c.week + k, c.week) / c.size.coerceAtLeast(1).toFloat(); norm += d; d *= discount }
+                c.ret = sum / norm
+                out += c
+            }
+            pending.clear(); pending += waiting
+            checkRails()
+            // Let go of what no waiting choice needs: the weeks before the oldest of them, and the groups gone before it.
+            val oldest = pending.minOfOrNull { it.week } ?: week
+            val here = run.groups.groups.mapTo(HashSet()) { it.id }
+            val it = tracks.entries.iterator()
+            while (it.hasNext()) { val (id, tr) = it.next(); if (id !in here && tr.base + tr.n <= oldest) it.remove() else tr.cut(oldest) }
+            return out
+        }
     }
 
     /** The clipped surrogate's gradient over [part] (to be minimised), for the network's weights and the identities. */
@@ -535,8 +637,8 @@ object HexPpo {
         val roles = kinds.map { role(it) }.distinct()
         // (The runs go side by side: the hand-written one, and one for each role learned.)
         val runs = (listOf(-1) + roles).parallelStream().map { r ->
-            r to score(cfg, years, kinds) { run ->
-                if (r >= 0) { val p = MoverPolicy(models[r], null, { 0f }, { 0 }); for (s in kinds) if (role(s) == r) run.groups.policies[s] = p }
+            r to if (r < 0) handScore(cfg, years, kinds) else score(cfg, years, kinds) { run ->
+                val p = MoverPolicy(models[r], null, { 0f }, { 0 }); for (s in kinds) if (role(s) == r) run.groups.policies[s] = p
             }
         }.toList().toMap()
         val hand = runs.getValue(-1)
@@ -556,6 +658,14 @@ object HexPpo {
      * installs; for people, less their luck in their own births and deaths (see [HexGroup.luck]), so
      * that a small gain shows through the chance of who was born and who died.
      */
+    /**
+     * [score] with everything hand-written, worked out once for each world and kept: it is the same
+     * every check (the runs are reproducible), and it was a quarter of each check's work.
+     */
+    internal fun handScore(cfg: WorldConfig, years: Int, kinds: List<Species>): Map<Species, Double> =
+        handScores.computeIfAbsent(Triple(cfg, years, kinds.map { it.name })) { score(cfg, years, kinds) { } }
+    private val handScores = java.util.concurrent.ConcurrentHashMap<Triple<WorldConfig, Int, List<String>>, Map<Species, Double>>()
+
     internal fun score(cfg: WorldConfig, years: Int, kinds: List<Species>, setUp: (HexLearning.Run) -> Unit): Map<Species, Double> {
         val run = HexLearning.Run(cfg, kinds)
         setUp(run)
