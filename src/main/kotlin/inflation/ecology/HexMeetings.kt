@@ -112,9 +112,15 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val seedDays = SEED_HANDLING_DAYS_PER_KG * Tuning.plantHandling / hands / carry / (1f + SICKLE_GAIN * (band?.has(Tool.SICKLE) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
     val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } }.ifEmpty { listOf(g.place) } else listOf(g.place)
+    // A band's gatherers also work the country round its camp, the further the more: a camp where
+    // woodland, valley and plain meet has more kinds of food within a day's walk than one in the
+    // middle of any one of them. (Each hex round gives a share of what the camp's own does.)
+    val roundCamp: List<Int> = if (band != null) { val h0 = hw.placeHex[g.place]; val bb = hw.placeBand[g.place]
+        (0 until 6).mapNotNull { d -> hex.neighbour(h0, d).takeIf { it >= 0 }?.let { hw.placeOf[bb][it] }?.takeIf { it >= 0 && it !in gatherAt } } } else emptyList()
+    val roundShare = (band?.let { RING_REACH * it.gatherRange } ?: 0f)
     // The foods on offer: type (0 big game of [kinds] index k, 1 small game, 2 carrion, 3 bones,
     // 4 fruit, 5 roots, 6 grass seed, 7 small finds, 8 fish), place, rate a day, kg each, days each.
-    val n = g.path.size * (fauna.kinds.size + 4) + gatherAt.size * 5 + 1
+    val n = g.path.size * (fauna.kinds.size + 4) + (gatherAt.size + roundCamp.size) * 5 + 1
     val type = IntArray(n); val kind = IntArray(n); val place = IntArray(n)
     val rate = FloatArray(n); val kg = FloatArray(n); val time = FloatArray(n)
     var m = 0
@@ -173,13 +179,14 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             if (Niches.cracksBones(s)) offer(3, 0, p, 0.5f * small.bones[p] * 1e6f * swept / days, 1f, eats * BONE_DAYS)
         }
     }
-    if (eatsPlants) for (q in gatherAt) {
+    if (eatsPlants) for (q in gatherAt + roundCamp) {
         val m2 = land.areaKm2[q] * 1e6f
+        val part = if (q in gatherAt) 1f else roundShare
         // A band can strip so much of a place in a week, as its skill allows; an animal finds what lies along its way.
         // (On strange ground people find little of it.)
         val knowHere = band?.let { plantKnow(it, hw.placeHex[q]) } ?: 1f
         // (Gatherers who go further from camp cover more of the ground.)
-        val reach = band?.let { min(0.9f, it.gatherShare(false) * knowHere * it.gatherRange) } ?: min(1f, smallSweep * g.path.size / land.areaKm2[q])
+        val reach = band?.let { min(0.9f, it.gatherShare(false) * knowHere * it.gatherRange) * part } ?: min(1f, smallSweep * g.path.size / land.areaKm2[q])
         // (The unskilled, and strangers to its plants, are slow at it.)
         val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
         val pickQ = (pickDays - eats) * slow + eats; val seedQ = (seedDays - eats) * slow + eats
@@ -187,9 +194,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         offer(5, 0, q, reach * fauna.food.roots[q] * m2 / days, 1f, ROOT_DIGGING * pickQ)
         offer(7, 0, q, reach * fauna.food.finds[q] * m2 / days, 1f, ROOT_DIGGING * pickQ)
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
-        offer(6, 0, q, (band?.let { it.gatherShare(true) * knowHere } ?: reach) * fauna.food.seeds[q] * m2 / days, 1f, seedQ)
+        offer(6, 0, q, (band?.let { it.gatherShare(true) * knowHere * part } ?: reach) * fauna.food.seeds[q] * m2 / days, 1f, seedQ)
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        offer(9, 0, q, (band?.let { it.gatherShare(true) * knowHere } ?: reach) * fauna.food.grain[q] * m2 / days, 1f, seedQ)
+        offer(9, 0, q, (band?.let { it.gatherShare(true) * knowHere * part } ?: reach) * fauna.food.grain[q] * m2 / days, 1f, seedQ)
     }
     // Bands fish the river, the lake or the sea shore by their camp.
     if (band != null) {

@@ -45,6 +45,11 @@ const val SIZE_PREF_RANGE = 3f
 const val COURSING_COVER = 0.7f
 /** How much a herd or pack weighs its own kind of country (the log of [HexFauna.suits]) in choosing its ground. */
 const val GROUP_HABITAT = 0.15f
+/** How much harder thick cover makes people's going; share of what the camp's own hex gives that each hex round it gives a band's gatherers at the usual range. */
+const val COVER_GOING = 0.5f
+const val RING_REACH = 0.15f
+/** How much the old, the sick and the lamed slow a band's going (all of it so: this share slower). */
+const val WEAK_SLOW = 0.6f
 /**
  * The sides of a herd's size, against its kind's usual band: how its walking slows, how much less
  * each attempt on it succeeds (many eyes, confusion), and how much less often its young are taken
@@ -139,7 +144,9 @@ const val COLD_MAX = 1.6f
  * a little under a hundredth of a day's energy per km, whatever their size; the walking within its
  * usual range is part of the day's need already.)
  */
-fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * kotlin.math.max(0, g.path.size - 1) * hex.hexKm.toFloat() / days +
+fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * kotlin.math.max(0, g.path.size - 1) * hex.hexKm.toFloat() / days *
+    // (People pushing through thick woods and scrub go slower and tire more than in the open.)
+    (if (g.species.human) 1f + COVER_GOING * land.cover(g.place) else 1f) +
     // (Gatherers going further than usual walk the difference out and back each day.)
     (g.band?.let { b -> if (b.gatherRange > 1f) WALK_COST * GATHER_WALK_KM * (b.gatherRange - 1f) * 0.5f else 0f } ?: 0f)
 const val WALK_COST = 0.011f
