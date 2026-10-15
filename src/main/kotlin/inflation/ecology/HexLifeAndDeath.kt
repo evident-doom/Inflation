@@ -616,6 +616,36 @@ internal fun HexGroups.remember(date: Date) {
             g.seasonQ[m] *= MEMORY_FADE
             if (g.fed > g.seasonQ[m] + 0.1f) { g.seasonPlace[m] = g.place; g.seasonQ[m] = g.fed }
         }
+        // Experiment: a herd's kind knows the land's seasons (from millennia in it): as each month begins,
+        // the herd takes as next month's place the nearest of the best country its kind found in that
+        // month last year.
+        if (SUPERSENSE && date.dayOfMonth <= days) {
+            val next = (m + 1) % 12
+            val best = seasonBest(g.species, next)
+            if (best != null && best.isNotEmpty()) {
+                val here = hw.placeHex[g.place]
+                var pick = -1; var pickKm = Double.MAX_VALUE
+                for (p in best) { val km = hex.distanceKm(here, hw.placeHex[p]); if (km < pickKm) { pickKm = km; pick = p } }
+                if (pick >= 0 && pickKm <= SUPERSENSE_KM) { g.seasonPlace[next] = pick; g.seasonQ[next] = min(1f, max(g.seasonQ[next], g.fed) + SUPERSENSE_LURE) }
+            }
+        }
+        // Experiment: what a herd knows of far country in this month (as its elders would, from years
+        // gone by): now and then it weighs a place far off against its season's place, and if that is
+        // clearly better, it makes it the season's place.
+        if (SCOUT_KM > 0f && date.dayOfMonth <= days) {
+            val rnd = groupRandom(g.id, date.absoluteDay * 31 + 7)
+            if (rnd.nextFloat() < SCOUT_CHANCE) {
+                val here = hw.placeHex[g.place]
+                val (cx, cy) = hex.centreKm(here)
+                val a = rnd.nextDouble() * 2 * Math.PI; val r = SCOUT_KM * (0.3 + 0.7 * rnd.nextDouble())
+                val far = hex.hexAt(cx + r * kotlin.math.cos(a), cy + r * kotlin.math.sin(a))
+                val p = if (far in 0 until hex.size) hw.placeOf[0][far] else -1
+                val ref = g.seasonPlace[m].takeIf { it >= 0 } ?: g.place
+                if (p >= 0 && herdQuality(g.species, p, m) > herdQuality(g.species, ref, m) + SCOUT_MARGIN) {
+                    g.seasonPlace[m] = p; g.seasonQ[m] = min(1f, max(g.seasonQ[m], g.fed) + SCOUT_MARGIN)
+                }
+            }
+        }
     }
 }
 

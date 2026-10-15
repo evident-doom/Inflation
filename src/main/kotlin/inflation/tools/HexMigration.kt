@@ -83,6 +83,11 @@ fun main(args: Array<String>) {
             count++
         }
         if (count == 0) { println("%-11s | %4.0f | no herds".format(s.name, shift)); continue }
-        println("%-11s | %4.0f | %.3f / %.3f / %.3f | %.0f (%d herds)".format(s.name, shift, gains[0] / count, gains[1] / count, gains[2] / count, walked / count, count))
+        // How much the places its herds stood on in January swing over the year: worst month against best.
+        var swing = 0.0; var low = 0.0; var c2 = 0
+        for ((_, hJ) in at[i][0]) { val p = hw.placeOf[0][hJ[0]]; if (p < 0) continue
+            var mx = 0f; var mn = Float.MAX_VALUE; for (m in 0 until 12) { mx = maxOf(mx, q[i][m][p]); mn = minOf(mn, q[i][m][p]) }
+            if (mx > 0f) { swing += (1 - mn / mx).toDouble(); low += mn.toDouble(); c2++ } }
+        println("%-11s | %4.0f | %.3f / %.3f / %.3f | %.0f (%d herds) | swing over the year at their January ground %.0f%%, worst month quality %.2f".format(s.name, shift, gains[0] / count, gains[1] / count, gains[2] / count, walked / count, count, 100 * swing / c2.coerceAtLeast(1), low / c2.coerceAtLeast(1)))
     }
 }

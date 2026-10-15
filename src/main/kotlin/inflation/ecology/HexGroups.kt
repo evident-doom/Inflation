@@ -49,14 +49,35 @@ class HexGroups(
                 // Hunters that live on the water in their prey (cheetahs, leopards) care less how far it is.
                 val w = land.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
                 prey / (prey + PREY_HALF) * fit / (1f + w * w)
-            } else {
-                val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f * (if (GREEN_BEARING) land.nourishment(p) else 1f)
-                // Country thick with hunters is the less good for it.
-                val hunters = monthHunterKg[p] / land.areaKm2[p]
-                food / (food + 0.3f) * fauna.tether(s, p) * fit * (1f - 0.5f * hunters / (hunters + HUNTERS_HALF_KG))
-            }
+            } else herdQuality(s, p, m)
         }, { s -> groups.any { it.alive && it.species == s } })
     }
+    /** For each herd kind and month: how good each place was for it in that month last time round (see [herdQuality]). */
+    private val qualityByMonth = HashMap<Int, Array<FloatArray?>>()
+    private val bestByMonth = HashMap<Long, IntArray>()
+    /** Each month, the herds' kinds note how good every place is for them now (a memory of the land's seasons). */
+    internal fun noteSeasons(month: Int) {
+        if (!SUPERSENSE) return
+        for (s in kinds) {
+            if (s.carnivore || groups.none { it.alive && it.species == s }) continue
+            val q = FloatArray(n) { p -> herdQuality(s, p, month) }
+            qualityByMonth.getOrPut(s.index) { arrayOfNulls(12) }[month] = q
+            // The best [SUPERSENSE_TOP] of the places.
+            val cut = q.sortedArrayDescending().let { it[(it.size * SUPERSENSE_TOP).toInt().coerceIn(0, it.size - 1)] }
+            bestByMonth[s.index.toLong() * 12 + month] = (0 until n).filter { q[it] >= cut && q[it] > 0f }.toIntArray()
+        }
+    }
+    /** The best country of kind [s] in month [m] as last noted, or null if not yet. */
+    internal fun seasonBest(s: Species, m: Int): IntArray? = bestByMonth[s.index.toLong() * 12 + m]
+
+    /** How good place [p] is for a herd of [s] in month [m], 0..1: food, its ground, water, the month's climate, few hunters. */
+    internal fun herdQuality(s: Species, p: Int, m: Int): Float {
+        val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f * (if (GREEN_BEARING) land.nourishment(p) else 1f)
+        // Country thick with hunters is the less good for it.
+        val hunters = monthHunterKg[p] / land.areaKm2[p]
+        return food / (food + 0.3f) * fauna.tether(s, p) * fauna.monthFit(s, p, m) * (1f - 0.5f * hunters / (hunters + HUNTERS_HALF_KG))
+    }
+
     /** Game each hunting kind can catch in each place, kg/km² weighed by catchability, worked out once a month for the bearings. */
     internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
     /** Resident game in each place, kg/km², worked out once a month for the bearings. */
@@ -271,7 +292,7 @@ class HexGroups(
         merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
         groups.removeIf { !it.alive }
         newcomers(date)
-        Profile.part("herds: remembering places") { remember(date) }
+        Profile.part("herds: remembering places") { if (date.dayOfMonth <= days) noteSeasons(date.month); remember(date) }
     }
 
     /**

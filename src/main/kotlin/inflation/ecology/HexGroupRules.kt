@@ -255,3 +255,18 @@ const val SCAVENGER_CARRION = 0.5f
 
 /** Experiment: herds' sense of better country weighs food by how fresh and green it is (as their choice of place does). */
 val GREEN_BEARING = System.getProperty("hex.t.greenBearing") != null
+
+/** Experiment: how far off a herd weighs far country for its season's places, km (0: not at all); chance a month it does; how much better it must be. */
+val SCOUT_KM = System.getProperty("hex.t.scoutKm")?.toFloat() ?: 0f
+val SCOUT_CHANCE = System.getProperty("hex.t.scoutChance")?.toFloat() ?: 0.3f
+val SCOUT_MARGIN = System.getProperty("hex.t.scoutMargin")?.toFloat() ?: 0.1f
+/**
+ * Experiment: herds know the land's seasons (as kinds long adapted to it): as each month begins, a herd
+ * takes as next month's place the nearest of its kind's best country in that month last year (the top
+ * [SUPERSENSE_TOP] of places, within [SUPERSENSE_KM]), drawn on to it by [SUPERSENSE_LURE] more than by
+ * what it has walked.
+ */
+val SUPERSENSE = System.getProperty("hex.t.supersense") != null
+val SUPERSENSE_TOP = System.getProperty("hex.t.superTop")?.toFloat() ?: 0.05f
+val SUPERSENSE_KM = System.getProperty("hex.t.superKm")?.toFloat() ?: 600f
+val SUPERSENSE_LURE = System.getProperty("hex.t.superLure")?.toFloat() ?: 0.2f
