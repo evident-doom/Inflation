@@ -219,6 +219,8 @@ class HexGroups(
         }
         // Herds and packs set their ways for the week (bands set theirs as they forage, see [hunt]).
         Profile.part("animals: setting their ways") { setAnimalWays(weather) }
+        // Bands take stock of themselves and of the bands about them, for the people networks.
+        Profile.part("bands: taking stock") { fillBandStates(weather) }
         // Plan and move, in parallel: each group's choice depends only on last week's world.
         val tPlan = System.nanoTime(); val cPlan = Profile.cpuNow()
         Profile.part("choosing: valuing places for hunters") { valuePlaces() }
@@ -281,6 +283,8 @@ class HexGroups(
     private class Reach(val reach: Float, val hexes: IntArray, val dist: FloatArray, val via: IntArray)
     /** The groups that merged into another in the last step (gone from [groups]), with their numbers when they did ([HexGroup.mergedSize]). */
     @Transient val merged = ArrayList<HexGroup>()
+    /** Bands by the hex they are in at the start of the week (see [fillBandStates]). */
+    @Transient internal val bandIndex = HashMap<Int, ArrayList<HexGroup>>()
     @Transient private val reachCache = java.util.concurrent.ConcurrentHashMap<Long, Reach>()
     /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
     internal val outbreaksStarting: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()

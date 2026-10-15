@@ -43,7 +43,7 @@ fun main(args: Array<String>) {
         "show" -> {
             val dir = File(root, args[1])
             File(dir, "info.txt").takeIf { it.exists() }?.let { println(it.readText().trim()) }
-            for (r in HexPpo.ROLES) { val f = File(dir, "$r.mlp"); if (f.exists()) report(r, f, Schema.MOVER_IN, Schema.MOVER_OUT) }
+            for (r in HexPpo.ROLES) { val f = File(dir, "$r.mlp"); if (f.exists()) report(r, f, if (r == "people") Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT) }
             File(dir, "ways.mlp").takeIf { it.exists() }?.let { report("ways", it, Schema.WAYS_IN, Schema.WAYS_OUT) }
         }
         else -> println("usage: baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT] | baseline list | baseline show NAME")

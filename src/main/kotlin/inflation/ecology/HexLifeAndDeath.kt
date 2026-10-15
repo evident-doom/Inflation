@@ -232,7 +232,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (s.human && o.deaths > 0) g.band?.let { b -> if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) { b.unluckyHex = hw.placeHex[g.place]; b.unluckyWeeks = UNLUCKY_WEEKS; note(g) { "left the camp where its dead lie" } } }
         // A band that buries its dead buries them where it is: its ancestors' place.
         // For each taken by a beast, others got away hurt.
-        g.band?.let { b -> val taken = o.causes.filter { it.first.startsWith("taken by") }.sumOf { it.second }; if (taken > 0) b.wounded(WOUNDED_PER_DEAD * taken, g.adults) }
+        g.band?.let { b -> val taken = o.causes.filter { it.first.startsWith("taken by") }.sumOf { it.second }; if (taken > 0) { b.wounded(WOUNDED_PER_DEAD * taken, g.adults); b.beastLoss += taken / g.size.coerceAtLeast(1).toFloat() } }
         // Where a beast took one of them, the band remembers the place as dangerous.
         if (s.human && o.causes.any { it.first.startsWith("taken by") && it.second > 0 })
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.danger, 1f)

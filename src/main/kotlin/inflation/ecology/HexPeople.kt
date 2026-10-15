@@ -98,6 +98,10 @@ class Band {
      */
     var hurt = 0f
     var lame = 0f
+    /** People taken by beasts of prey lately, per head (fading by a tenth a week). */
+    var beastLoss = 0f
+    /** What it knows of itself and of the bands about it, as of the start of the week ([bandInputs]): the people networks' view of the band. */
+    @Transient var state = FloatArray(0)
     /** Its working hands, against all its adults: the hurt and the lamed do less. */
     val ableShare get() = (1f - HURT_HANDS * hurt - LAME_HANDS * lame).coerceIn(0.3f, 1f)
     /** Its weeks so far, and its adults last week (to see how many it lost). */
@@ -786,7 +790,9 @@ const val FOOD_TYPES = 9
  * each kind of food, the days of food it aims to keep, and how it ranks making each tool.
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
-val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3
+/** The part of [bandInputs] about its health and the dangers and bands about it. */
+val BAND_SITUATION = Illness.entries.size + 12
+val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3 + BAND_SITUATION
 val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 19
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
@@ -805,6 +811,50 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather,
     into[i++] = weather.temperature[g.place] / 30f
     into[i++] = min(1f, b.campWeeks / 26f)
     into[i++] = b.spareDays / max(1f, g.adults * days.toFloat())
+    // Its health: the sick with each illness, the wounded and lamed, its old; and those beasts took lately.
+    for (k in Illness.entries.indices) into[i++] = b.sick[k]
+    into[i++] = b.hurt; into[i++] = b.lame
+    into[i++] = b.elders / g.size.coerceAtLeast(1).toFloat()
+    into[i++] = min(1f, b.beastLoss * 10f)
+    // The beasts of prey about its camp, as its tracking reads their sign.
+    val beasts = monthHunterKg[g.place] / land.areaKm2[g.place]
+    into[i++] = SIGN_GUESS + b.skill(Skill.TRACK) * (beasts / (beasts + 3f) - SIGN_GUESS)
+    // The bands about it (in its hex and the next): friends, strangers and those it holds a grudge
+    // against, and how sick they are; how lately it was raided, and whether it is set on a raid.
+    var friends = 0; var strangers = 0; var foes = 0; var theirSick = 0f; var near = 0
+    val here = hw.placeHex[g.place]
+    for (d in -1 until 6) {
+        val h = if (d < 0) here else hex.neighbour(here, d)
+        if (h < 0) continue
+        for (o in bandIndex[h] ?: continue) {
+            if (o === g) continue
+            val ob = o.band ?: continue
+            val t = b.tie(o.id)
+            if (t > 0.3f) friends++ else if (t < 0f || b.grudge[ob.mainLineage()] > 0.5f) foes++ else strangers++
+            theirSick += ob.sick.sum(); near++
+        }
+    }
+    into[i++] = min(1f, friends / 3f); into[i++] = min(1f, strangers / 3f); into[i++] = min(1f, foes / 3f)
+    into[i++] = if (near > 0) min(1f, theirSick / near) else 0f
+    into[i++] = 1f - min(1f, b.sinceRaided / 52f)
+    into[i++] = if (b.raidHex >= 0) 1f else 0f
+    into[i++] = min(1f, b.inbred * 4f)
+}
+
+/**
+ * Every band's view of itself and of the bands about it, as the week starts ([Band.state]), for the
+ * people networks to choose by: worked out once, before any band moves.
+ */
+internal fun HexGroups.fillBandStates(weather: inflation.world.Weather) {
+    bandIndex.clear()
+    for (g in groups) if (g.alive && g.band != null) bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    val list = groups.filter { it.alive && it.band != null }
+    java.util.stream.IntStream.range(0, list.size).parallel().forEach { k ->
+        val g = list[k]; val b = g.band!!
+        if (b.state.size != WAYS_IN) b.state = FloatArray(WAYS_IN)
+        bandInputs(g, weather, b.state)
+    }
+    for (g in list) g.band!!.beastLoss *= 0.9f
 }
 
 /** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [STORE_AIM_DAYS], every tool alike). */

@@ -47,16 +47,20 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         for (e in 0 until IDENTITY) into[i++] = identity[s.index * IDENTITY + e]
     }
 
-    /** Writes a candidate's whole input for kind [s]: its place features, then the kind's part. */
-    fun fill(s: Species, features: FloatArray, into: FloatArray) {
+    /** How many numbers of the band's own view ([inflation.ecology.Band.state]) it reads after the kind's part: [WAYS_IN] for people, 0 for animals. */
+    val band get() = inputs - INPUTS
+
+    /** Writes a candidate's whole input for kind [s]: its place features, the kind's part, and (people's) the band's view of itself, [state]. */
+    fun fill(s: Species, features: FloatArray, state: FloatArray?, into: FloatArray) {
         features.copyInto(into, 0, 0, min(features.size, HexFeatures.SIZE))
         kindInputs(s, into, HexFeatures.SIZE)
+        if (band > 0) { into.fill(0f, INPUTS, inputs); state?.copyInto(into, INPUTS, 0, min(state.size, band)) }
     }
 
     fun copy() = SharedMover(net.copy(), identity.copyOf())
 
     fun save(file: File) {
-        Schema.save(net, file, Schema.MOVER_IN, Schema.MOVER_OUT)
+        Schema.save(net, file, if (band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT)
         File(file.path + ".residual").let { if (residual != 0f) it.writeText(residual.toString()) else it.delete() }
         File(file.path + ".identity").writeText(identity.joinToString(" ") + "\n")
     }
@@ -66,11 +70,17 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         const val IDENTITY = 6
         val INPUTS = HexFeatures.SIZE + KIND + IDENTITY
 
-        fun random(hidden: Int, rnd: Random) = SharedMover(Mlp.random(intArrayOf(INPUTS, hidden, hidden, 1), rnd), FloatArray(Catalogue.all.size * IDENTITY) { 0.1f * (rnd.nextFloat() - 0.5f) })
+        fun random(hidden: Int, rnd: Random, band: Int = 0) = SharedMover(Mlp.random(intArrayOf(INPUTS + band, hidden, hidden, 1), rnd), FloatArray(Catalogue.all.size * IDENTITY) { 0.1f * (rnd.nextFloat() - 0.5f) })
+
+        /** Whether a mover saved in [file] is people's (it reads the band's view of itself too). */
+        fun isPeople(file: File) = file.name.startsWith("people")
 
         fun load(file: File): SharedMover {
-            // (Fitted by name to today's inputs: see [Schema].)
-            val net = Schema.load(file, Schema.MOVER_IN, Schema.MOVER_OUT, legacyMover = true)
+            // (Fitted by name to today's inputs: see [Schema]. A people's network saved before it read
+            // the band's view is fitted to it with zero weights there, so it chooses as it did.)
+            val net = if (!isPeople(file)) Schema.load(file, Schema.MOVER_IN, Schema.MOVER_OUT, legacyMover = true)
+                else if (Schema.namesFile(file).exists()) Schema.load(file, Schema.PEOPLE_IN, Schema.MOVER_OUT)
+                else Schema.fit(Schema.load(file, Schema.MOVER_IN, Schema.MOVER_OUT, legacyMover = true), Schema.MOVER_IN, Schema.MOVER_OUT, Schema.PEOPLE_IN, Schema.MOVER_OUT)
             val idFile = File(file.path + ".identity")
             val id = if (idFile.exists()) idFile.readText().trim().split(" ").map { it.toFloat() }.toFloatArray() else FloatArray(Catalogue.all.size * IDENTITY)
             return SharedMover(net, id).also { m -> File(file.path + ".residual").takeIf { it.exists() }?.let { m.residual = it.readText().trim().toFloat() } }
@@ -82,6 +92,8 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
 class Choice(val kind: Species, val groupId: Int, val size: Int, val week: Int, val inputs: Array<FloatArray>, val taken: Int, val logp: Float) {
     /** The hand-written scores of the candidates (for networks that start from them). */
     var baseline = FloatArray(0)
+    /** A band's view of itself when it chose ([inflation.ecology.Band.state]); null for animals. */
+    var band: FloatArray? = null
     /** What followed: the group's (and its offshoots') numbers over the next weeks against its numbers now, discounted. */
     var ret = 0f
     var advantage = 0f
@@ -93,12 +105,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
         val b = buffers.get()
         val n = features.size
-        val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], b.a[0]); mover.net.forward(b) + mover.residual * baseline[k] }
+        val state = g.band?.state
+        val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], state, b.a[0]); mover.net.forward(b) + mover.residual * baseline[k] }
         if (record == null) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
         val p = softmax(scores)
         var u = rnd.nextFloat(); var taken = n - 1
         for (k in 0 until n) { u -= p[k]; if (u <= 0f) { taken = k; break } }
-        if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf() }
+        if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); if (mover.band > 0) it.band = state?.copyOf() }
         return taken
     }
 }
@@ -140,6 +153,12 @@ object HexPpo {
     const val PEOPLE_HORIZON = 52
     const val PEOPLE_DISCOUNT = 0.98f
     const val CLIP = 0.2f
+    /**
+     * Parts each batch of learning is split into, to be worked on all cores (with 16 parts, as
+     * before, most of a big machine stood idle while learning); the same on every machine, so that
+     * a run's sums come out the same.
+     */
+    const val PARTS = 128
     const val ENTROPY = 0.01f
     /** Choices recorded a year for each kind in each world. */
     var PER_KIND_YEAR = 1500
@@ -192,12 +211,12 @@ object HexPpo {
             return
         }
         val files = ROLES.map { File(out, "$it.mlp") }
-        val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(hidden, Random(7L + i)) }
+        val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(hidden, Random(7L + i), if (ROLES[i] == "people") inflation.ecology.WAYS_IN else 0) }
         for ((i, r) in ROLES.withIndex()) RESIDUAL[r]?.let { models[i].residual = it }
         fun modelOf(s: Species) = models[role(s)]
         val adams = models.map { Adam(it.net.w.size, rate) to Adam(it.identity.size, rate) }
         // One critic for each role: what a group's return can be expected to be where it stands.
-        val critics = ROLES.map { r -> Critic.loadOrNew(File(out, "$r.value.mlp"), hidden) }
+        val critics = ROLES.mapIndexed { i, r -> Critic.loadOrNew(File(out, "$r.value.mlp"), hidden, models[i]) }
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
         if (!files[0].exists()) {
             imitate(kinds, models, worlds, size)
@@ -244,7 +263,7 @@ object HexPpo {
                 val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
                 repeat(4) { epoch ->
                     for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
-                        val parts = batch.chunked((batch.size + 15) / 16).parallelStream().map { part -> gradient(model, part, weight) }.toList()
+                        val parts = batch.chunked((batch.size + PARTS - 1) / PARTS).parallelStream().map { part -> gradient(model, part, weight) }.toList()
                         val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
                         for ((a, bb) in parts) { for (i in gw.indices) gw[i] += a[i]; for (i in gi.indices) gi[i] += bb[i] }
                         // (Each batch is a share of the whole, so its weights are scaled up to stand for it.)
@@ -298,7 +317,7 @@ object HexPpo {
     }
 
     /** Choices of the hand-written behaviour: the candidates' inputs and their hand-written scores. */
-    class Shown(val kind: Species, val inputs: Array<FloatArray>, val scores: FloatArray, val day: Long = 0L, val groupId: Int = 0)
+    class Shown(val kind: Species, val inputs: Array<FloatArray>, val scores: FloatArray, val day: Long = 0L, val groupId: Int = 0, val band: FloatArray? = null)
 
     /**
      * Fits the networks to the hand-written behaviour: worlds run on it, a share of its choices of
@@ -317,7 +336,7 @@ object HexPpo {
                 val b = teachers[g.species]?.let { (bufs, net) -> val bb = bufs.get(); FloatArray(f.size) { k -> f[k].copyInto(bb.a[0], 0, 0, min(f[k].size, bb.a[0].size)); net.forward(bb) } } ?: b0
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
                 if (rnd.nextFloat() < (rates[g.species] ?: 0f)) {
-                    kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf(), run.weather.date.absoluteDay, g.id)
+                    kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf(), run.weather.date.absoluteDay, g.id, g.band?.state?.copyOf())
                 }
                 best
             }
@@ -325,6 +344,11 @@ object HexPpo {
             // (In the order of the days and the groups, not of the cores that recorded them.)
             kept.sortedWith(compareBy<Shown>({ it.day }, { it.groupId }))
         }.toList().flatten()
+        imitateShown(shown, models)
+    }
+
+    /** Fits each role's network to the hand-written choices in [shown] (see [imitate]). */
+    fun imitateShown(shown: List<Shown>, models: List<SharedMover>) {
         for ((mi, model) in models.withIndex()) {
             val mine = shown.filter { role(it.kind) == mi }
             if (mine.isEmpty()) continue
@@ -334,13 +358,13 @@ object HexPpo {
             repeat(15) { epoch ->
                 var loss = 0.0
                 for (batch in mine.shuffled(Random(epoch.toLong())).chunked(256)) {
-                    val parts = batch.chunked((batch.size + 15) / 16).parallelStream().map { part ->
+                    val parts = batch.chunked((batch.size + PARTS - 1) / PARTS).parallelStream().map { part ->
                         val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size); val dIn = FloatArray(model.inputs)
                         val bufs = ArrayList<Mlp.Buffers>(); var l = 0.0
                         for (c in part) {
                             val n = c.inputs.size
                             while (bufs.size < n) bufs += model.net.buffers()
-                            val p = softmax(FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], bufs[k].a[0]); model.net.forward(bufs[k]) })
+                            val p = softmax(FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], c.band, bufs[k].a[0]); model.net.forward(bufs[k]) })
                             val q = softmax(FloatArray(n) { IMITATE_SHARPNESS * c.scores[it] })
                             val w = 1f / (kindsHere.size * counts.getValue(c.kind))
                             for (k in 0 until n) {
@@ -445,7 +469,7 @@ object HexPpo {
         for (c in part) {
             val n = c.inputs.size
             while (bufs.size < n) bufs += model.net.buffers()
-            val scores = FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], bufs[k].a[0]); model.net.forward(bufs[k]) + model.residual * (c.baseline.getOrNull(k) ?: 0f) }
+            val scores = FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], c.band, bufs[k].a[0]); model.net.forward(bufs[k]) + model.residual * (c.baseline.getOrNull(k) ?: 0f) }
             val p = softmax(scores)
             val logp = ln(max(p[c.taken], 1e-8f))
             val ratio = exp(logp - c.logp)
@@ -523,7 +547,7 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
 
     fun value(model: SharedMover, c: Choice): Float {
         val b = buffers.get()
-        model.fill(c.kind, c.inputs[here(c)], b.a[0])
+        model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0])
         return net.forward(b)
     }
 
@@ -531,10 +555,10 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
     fun learn(model: SharedMover, cs: List<Choice>, round: Int) {
         repeat(3) { epoch ->
             for (batch in cs.shuffled(kotlin.random.Random(round * 17L + epoch)).chunked(1024)) {
-                val parts = batch.chunked((batch.size + 15) / 16).parallelStream().map { part ->
+                val parts = batch.chunked((batch.size + HexPpo.PARTS - 1) / HexPpo.PARTS).parallelStream().map { part ->
                     val g = FloatArray(net.w.size); val b = net.buffers()
                     for (c in part) {
-                        model.fill(c.kind, c.inputs[here(c)], b.a[0])
+                        model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0])
                         val v = net.forward(b)
                         net.backward(b, 2f * (v - c.ret) / batch.size, g, null)
                     }
@@ -546,10 +570,14 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
         }
     }
 
-    fun save(f: File) = Schema.save(net, f, Schema.MOVER_IN, listOf("value"))
+    fun save(f: File) = Schema.save(net, f, if (net.sizes[0] > SharedMover.INPUTS) Schema.PEOPLE_IN else Schema.MOVER_IN, listOf("value"))
 
     companion object {
-        fun loadOrNew(f: File, hidden: Int) = Critic(if (f.exists()) Schema.load(f, Schema.MOVER_IN, listOf("value")) else
-            Mlp.random(intArrayOf(SharedMover.INPUTS, hidden, 1), kotlin.random.Random(91)).also { m -> m.w[m.w.size - 1] = 1f })
+        /** The critic in [f], or a new one, reading what [model] reads (for people, the band's view of itself too). */
+        fun loadOrNew(f: File, hidden: Int, model: SharedMover): Critic {
+            val names = if (model.band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN
+            return Critic(if (f.exists()) Schema.load(f, names, listOf("value")) else
+                Mlp.random(intArrayOf(model.inputs, hidden, 1), kotlin.random.Random(91)).also { m -> m.w[m.w.size - 1] = 1f })
+        }
     }
 }

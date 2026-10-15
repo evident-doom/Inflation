@@ -34,13 +34,17 @@ object Schema {
 
     val MOVER_IN: List<String> get() = PLACE.map { "place:$it" } + KIND.map { "kind:$it" } + (0 until SharedMover.IDENTITY).map { "identity:$it" }
     val MOVER_OUT = listOf("score")
+    /** People's mover: the mover's inputs, then the band's view of itself and of the bands about it ([WAYS_IN], from [inflation.ecology.Band.state]). */
+    val PEOPLE_IN: List<String> get() = MOVER_IN + WAYS_IN.map { "band:$it" }
     /** Per-kind networks (teachers): the place features only. */
     val TEACHER_IN: List<String> get() = PLACE.map { "place:$it" }
 
     /** A band's view of itself ([inflation.ecology.bandInputs], in order). */
     val WAYS_IN: List<String> get() = listOf("year sin", "year cos", "fed", "larder") + Store.entries.map { "store:${it.name.lowercase()}" } +
         listOf("adults", "young per adult") + Skill.FORAGING.map { "skill:${it.name.lowercase()}" } + Tool.entries.map { "tool:${it.name.lowercase()}" } +
-        listOf("temperature", "camp weeks", "spare days")
+        listOf("temperature", "camp weeks", "spare days") + inflation.ecology.Illness.entries.map { "sick:${it.name.lowercase()}" } +
+        listOf("wounded", "lamed", "elders", "taken by beasts", "beasts about", "friendly bands about", "strange bands about", "hostile bands about",
+            "sickness of bands about", "raided lately", "set on a raid", "inbreeding")
     /** A band's ways ([inflation.ecology.setWays], in order). */
     val WAYS_OUT: List<String> get() = (0 until FOOD_TYPES).map { "effort:$it" } + listOf("store aim") + Tool.entries.map { "make first:${it.name.lowercase()}" } +
         listOf("scouts", "houses", "raids", "palisades", "sowing", "gathering range", "watching children", "night fire", "shunning the sick", "exploring",
