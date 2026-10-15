@@ -741,13 +741,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
          */
         /** For comparison runs: -Dhex.t.noProtein leaves protein out (every diet meets the need). */
         val NO_PROTEIN = System.getProperty("hex.t.noProtein") != null
-        const val PROTEIN_DRY_GRASS = 0.25f
+        val PROTEIN_DRY_GRASS = System.getProperty("hex.t.proteinDryGrass")?.toFloat() ?: 0.25f
         const val PROTEIN_DRY_BROWSE = 0.6f
         const val PROTEIN_FRUIT = 0.4f
-        const val PROTEIN_STRAW = 0.15f
-        const val PROTEIN_LICHEN = 0.2f
+        val PROTEIN_STRAW = System.getProperty("hex.t.proteinStraw")?.toFloat() ?: 0.15f
+        val PROTEIN_LICHEN = System.getProperty("hex.t.proteinLichen")?.toFloat() ?: 0.2f
         const val PROTEIN_NEED = 0.5f
-        const val YOUNG_PROTEIN_DEATHS = 0.5f
+        val YOUNG_PROTEIN_DEATHS = System.getProperty("hex.t.youngProteinDeaths")?.toFloat() ?: 0.5f
         const val PROTEIN_MEMORY = 0.3f
         /** Share a week of residents that leave for the best country next door when it is as good again as here (none when it is no better). */
         const val SPILL_BETTER = 0.1f

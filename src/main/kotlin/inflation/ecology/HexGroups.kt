@@ -65,11 +65,19 @@ class HexGroups(
             if (s.carnivore || groups.none { it.alive && it.species == s }) continue
             val q = FloatArray(n) { p -> herdQuality(s, p, month) }
             qualityByMonth.getOrPut(s.index) { arrayOfNulls(12) }[month] = q
+            // (Rounds: the best place this month in each of the ranges a round may lead to, see [roundOf].)
+            if (ROUNDS && ROUND_FOLLOW_GREEN) rangeBest[s.index.toLong() * 12 + month] = HashMap<Long, Int>().also { best ->
+                for (p in 0 until n) { val key = rangeKey(p); val b = best[key]; if (b == null || q[p] > q[b]) best[key] = p }
+            }
             // The best [SUPERSENSE_TOP] of the places.
             val cut = q.sortedArrayDescending().let { it[(it.size * SUPERSENSE_TOP).toInt().coerceIn(0, it.size - 1)] }
             bestByMonth[s.index.toLong() * 12 + month] = (0 until n).filter { q[it] >= cut && q[it] > 0f }.toIntArray()
         }
     }
+    /** For each kind and month (key kind × 12 + month), the best place this year in each range square ([rangeKey]), as last noted. */
+    internal val rangeBest = HashMap<Long, HashMap<Long, Int>>()
+    /** The range square ([RANGE_KM] across) place [p] lies in. */
+    internal fun rangeKey(p: Int): Long { val (x, y) = hex.centreKm(hw.placeHex[p]); return (x / RANGE_KM).toLong() * 100_000 + (y / RANGE_KM).toLong() }
     /** The best country of kind [s] in month [m] as last noted, or null if not yet. */
     internal fun seasonBest(s: Species, m: Int): IntArray? = bestByMonth[s.index.toLong() * 12 + m]
 
@@ -596,7 +604,10 @@ class HexGroups(
         // (Its round, if its elders taught it one, else the place it remembers doing best at this time of year.)
         // (Within a range's reach of the round's place it has arrived: it grazes the range as it likes, and
         // the herds on one round spread over it instead of crowding onto one spot.)
+        // (With -Dhex.t.roundCue, a herd sets off on its round only when the round's place promises better
+        // grazing this month than where it is, as the kind found them: a herd on good ground waits.)
         val round = roundOf(g, month)?.takeIf { hexKm(here, hw.placeHex[it.first]) > ROUND_ARRIVED_KM }
+            ?.takeIf { r -> g.band != null || ROUND_CUE <= 0f || qualityByMonth[s.index]?.get(month)?.let { q -> q[r.first] - q[g.place] > ROUND_CUE } ?: true }
         val onRound = round != null
         val goal = round?.first ?: g.seasonPlace[month]
         val goalQ = if (round != null) max(g.seasonQ[month], round.second) else g.seasonQ[month]

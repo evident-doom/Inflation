@@ -1,6 +1,7 @@
 package inflation.tools
 
 import inflation.ecology.Catalogue
+import inflation.ecology.roundOf
 import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
@@ -38,14 +39,18 @@ fun main(args: Array<String>) {
     val heads = Array(herds.size) { DoubleArray(2) }; val fedSum = Array(herds.size) { DoubleArray(2) }; val protSum = Array(herds.size) { DoubleArray(2) }
     // (And in the birth season only: mothers, fed and protein then.)
     val sHeads = Array(herds.size) { DoubleArray(2) }; val sFed = Array(herds.size) { DoubleArray(2) }; val sProt = Array(herds.size) { DoubleArray(2) }; val sMothers = Array(herds.size) { DoubleArray(2) }
+    // (And where they are: hunters about, kg/km², and animals of the kind in the same hex, by head.)
+    val huntSum = Array(herds.size) { DoubleArray(2) }; val kinSum = Array(herds.size) { DoubleArray(2) }
     val events = Array(herds.size) { Array(2) { java.util.TreeMap<String, Int>() } }
     val ways = listOf("on round", "own country")
     val shareByYear = Array(herds.size) { ArrayList<Int>() }
     repeat(steps) { w ->
         run.step()
         for ((i, s) in herds.withIndex()) {
+            val inHex = HashMap<Int, Int>(); for (g in run.groups.groups) if (g.alive && g.species == s) inHex.merge(run.hw.placeHex[g.place], g.size, Int::plus)
             for (g in run.groups.groups) if (g.alive && g.species == s && g.route[0] != -1) {
                 val k = if (g.route[0] >= 0) 0 else 1
+                huntSum[i][k] += g.size * run.groups.monthHunterKg[g.place].toDouble() / run.groups.land.areaKm2[g.place]; kinSum[i][k] += g.size * inHex.getValue(run.hw.placeHex[g.place]).toDouble()
                 heads[i][k] += g.size.toDouble(); fedSum[i][k] += g.fed * g.size.toDouble(); protSum[i][k] += g.protein * g.size.toDouble()
                 if ((run.weather.date.month - g.birthMonth + 12) % 12 < s.birthMonths) { sHeads[i][k] += g.size.toDouble(); sFed[i][k] += g.fed * g.size.toDouble(); sProt[i][k] += g.protein * g.size.toDouble(); sMothers[i][k] += g.adults / 2.0 }
             }
@@ -57,7 +62,7 @@ fun main(args: Array<String>) {
         for ((i, s) in herds.withIndex()) for (g in run.groups.groups) {
             if (!g.alive || g.species != s) continue
             total[i][m]++
-            val r = g.route[m]; if (r < 0) continue
+            val r = run.groups.roundOf(g, m)?.first ?: continue
             dists[i][m] += run.hex.distanceKm(run.hw.placeHex[g.place], run.hw.placeHex[r])
         }
     }
@@ -70,8 +75,8 @@ fun main(args: Array<String>) {
         println("   share on a round by year: " + shareByYear[i].joinToString(" ") { "$it%" })
         for ((k, way) in ways.withIndex()) {
             val years = heads[i][k] / perYear; if (years <= 0.0) continue
-            println("   %-12s fed %.2f protein %.2f; in the birth season %.0f%% of animal-weeks, fed %.2f protein %.2f, mothers %.2f a head; per 100 a year: %s".format(way, fedSum[i][k] / heads[i][k], protSum[i][k] / heads[i][k],
-                100.0 * sHeads[i][k] / heads[i][k], sFed[i][k] / sHeads[i][k].coerceAtLeast(1.0), sProt[i][k] / sHeads[i][k].coerceAtLeast(1.0), sMothers[i][k] / sHeads[i][k].coerceAtLeast(1.0),
+            println("   %-12s fed %.2f protein %.2f; in the birth season %.0f%% of animal-weeks, fed %.2f protein %.2f, mothers %.2f a head; hunters about %.2f kg/km², kin in the hex %.0f; per 100 a year: %s".format(way, fedSum[i][k] / heads[i][k], protSum[i][k] / heads[i][k],
+                100.0 * sHeads[i][k] / heads[i][k], sFed[i][k] / sHeads[i][k].coerceAtLeast(1.0), sProt[i][k] / sHeads[i][k].coerceAtLeast(1.0), sMothers[i][k] / sHeads[i][k].coerceAtLeast(1.0), huntSum[i][k] / heads[i][k], kinSum[i][k] / heads[i][k],
                 events[i][k].entries.sortedByDescending { it.value }.take(8).joinToString(", ") { "%s %.1f".format(it.key, 100.0 * it.value / years) }))
         }
     }

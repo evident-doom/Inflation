@@ -55,7 +55,7 @@ const val PATH_WEAR = 0.05f
 const val PATH_FADE = 0.03f
 const val PATH_MASS_KG = 3000f
 const val PATH_EASE = 0.5f
-const val AMBUSH = 1f
+val AMBUSH = System.getProperty("hex.t.ambush")?.toFloat() ?: 1f
 /** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
 /** Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum against a km walked; share of a swimming herd that drowns on a strait as wide as all it can swim (young twice that). */
 const val SEA_HEXES = 2
@@ -104,7 +104,7 @@ const val TRACKING = 8f
 const val CONTENT = 0.95f
 /** How much herds shun ground thick with hunters; hunters, kg per km², at which the shunning is half. */
 const val SHUN_HUNTERS = 0.3f
-const val HUNTERS_HALF_KG = 1f
+val HUNTERS_HALF_KG = System.getProperty("hex.t.huntersHalf")?.toFloat() ?: 1f
 /** Share of a migratory herd's weight a hunter's sense of good hunting country counts as game (herds watch and move). */
 const val HERD_GAME = 0.3f
 /** People: plant food counted against game by weight (it is easier to come by, but not all is worth gathering); how much a safe camp site adds. */
@@ -290,4 +290,6 @@ val ROUND_PULL = System.getProperty("hex.t.roundPull")?.toFloat() ?: 1.5f
 /** Within this of its round's place this month, km, a herd has arrived and grazes as it likes (half a range across). */
 val ROUND_ARRIVED_KM = System.getProperty("hex.t.roundArrived")?.toDouble() ?: 50.0
 /** Days of a week a herd far behind its round spends trekking on (the rest grazing). */
+/** With rounds on: how much better (0..1 of the kind's quality) a round's place must be this month than where a herd is for the round to draw it on (0: always). */
+val ROUND_CUE = System.getProperty("hex.t.roundCue")?.toFloat() ?: 0f
 val ROUND_TREK_DAYS = System.getProperty("hex.t.roundTrekDays")?.toFloat() ?: 4f

@@ -40,7 +40,11 @@ internal fun HexGroups.growRounds(month: Int) {
 internal fun HexGroups.roundOf(g: HexGroup, month: Int): Pair<Int, Float>? {
     if (!ROUNDS) return null
     g.band?.let { return it.riteFor(month) }
-    return if (g.route[month] >= 0) g.route[month] to ROUND_STRENGTH else null
+    val r = g.route[month]; if (r < 0) return null
+    // (With -Dhex.t.roundFollowGreen, a round keeps to its ranges but within each makes for where the
+    // grazing is best this year: the herd knows its range, and the rains do not fall the same each year.)
+    if (ROUND_FOLLOW_GREEN) rangeBest[g.species.index.toLong() * 12 + month]?.get(rangeKey(r))?.let { return it to ROUND_STRENGTH }
+    return r to ROUND_STRENGTH
 }
 
 /**
@@ -55,10 +59,8 @@ internal fun HexGroups.driftRound(g: HexGroup) {
     if (g.route[0] >= 0) {
         if (r < ROUND_SWITCH) { java.util.Arrays.fill(g.route, NO_ROUND); return }
         if (r < ROUND_SWITCH + ROUND_DRIFT) {
-            val m = rnd.nextInt(12); val h0 = hw.placeHex[g.route[m]]
-            val (x, y) = hex.centreKm(h0); val a = rnd.nextDouble() * 2 * Math.PI; val d = rnd.nextDouble() * RANGE_KM
-            val h = hex.hexAt(x + d * kotlin.math.cos(a), y + d * kotlin.math.sin(a))
-            val p = if (h in 0 until hex.size) hw.placeOf[hw.placeBand[g.route[m]]][h].takeIf { it >= 0 } ?: hw.placeOf[0][h] else -1
+            val m = rnd.nextInt(12)
+            val p = placeNear(g.route[m], RANGE_KM)
             if (p >= 0) g.route[m] = p
         }
     } else if (g.route[0] == NO_ROUND && r < ROUND_SWITCH) java.util.Arrays.fill(g.route, -1) // (to take the nearest round at the month's turn)
@@ -70,6 +72,15 @@ internal fun HexGroups.takeRound(g: HexGroup, rounds: List<IntArray>, month: Int
     var best: IntArray? = null; var bestKm = Double.MAX_VALUE
     for (r in rounds) { val km = hex.distanceKm(here, hw.placeHex[r[month]]); if (km < bestKm) { bestKm = km; best = r } }
     best?.copyInto(g.route)
+    // (Each herd keeps to its own part of the round's range, so a round's herds spread over it: -Dhex.t.roundSpread, km.)
+    if (best != null && ROUND_SPREAD > 0.0) for (m in 0 until 12) { val p = placeNear(g.route[m], ROUND_SPREAD); if (p >= 0) g.route[m] = p }
+}
+
+/** A place up to [km] from place [p], at random (-1 if that falls off the land). */
+private fun HexGroups.placeNear(p: Int, km: Double): Int {
+    val (x, y) = hex.centreKm(hw.placeHex[p]); val a = rnd.nextDouble() * 2 * Math.PI; val d = rnd.nextDouble() * km
+    val h = hex.hexAt(x + d * kotlin.math.cos(a), y + d * kotlin.math.sin(a))
+    return if (h in 0 until hex.size) hw.placeOf[hw.placeBand[p]][h].takeIf { it >= 0 } ?: hw.placeOf[0][h] else -1
 }
 
 /** The yearly circuits of kind [s], from how good each place was for it each month ([q]: [month][place]). */
@@ -151,6 +162,8 @@ const val NO_ROUND = -2
 /** Share of herds that start with a round when the rounds are first grown (the rest keep to their country, and the two ways compete). */
 val ROUND_START_SHARE = System.getProperty("hex.t.roundStart")?.toFloat() ?: 0.5f
 const val RANGE_KM = 100.0
+val ROUND_FOLLOW_GREEN = System.getProperty("hex.t.roundFollowGreen") != null
+val ROUND_SPREAD = System.getProperty("hex.t.roundSpread")?.toDouble() ?: 0.0
 const val RANGES_KEPT = 300
 /** A range is kept for a month if it is at least this good against the month's best (so rounds cover the kind's whole country, not only its few best spots, where every herd would crowd). */
 const val RANGE_FLOOR = 0.3f

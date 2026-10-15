@@ -634,7 +634,7 @@ internal fun HexGroups.meetChance(a: HexGroup, b: HexGroup, p: Int, span: Float)
     // matters; and finds the herd lying up as well as out feeding, if less often.
     val hunting = a.species.carnivore != b.species.carnivore
     val track = if (hunting) TRACKING * ((if (a.species.carnivore) a.band else b.band)?.edge(Skill.TRACK) ?: 1f) else 1f
-    val searched = (sweptKm2(a.species) + sweptKm2(b.species)) * track * max(span, 0.5f) / days
+    val searched = (sweptKm2(a.species) + sweptKm2(b.species)) * track * max(span, SPAN_FLOOR) / days
     val hours = Niches.overlap(a.species, b.species)
     // Bands seek each other out at springs and lake shores, where people come together.
     val gather = if (a.band != null && b.band != null) 1f + 2f * (land.nearSpring[p] + land.nearLake[p]).coerceAtMost(1f) else 1f
@@ -730,7 +730,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
             small.carrion[herd.place] += herd.species.massKg * (1f - meatShare(hunter.band)) / (land.areaKm2[herd.place] * 1e6f)
         }
         kills.merge(herd.species.name, 1, Int::plus)
-        if (ROUNDS && herd.route[0] != -1) deaths.merge("${herd.species.name} ${if (herd.route[0] >= 0) "on round" else "own country"}:hunted", 1, Int::plus)
+        if (ROUNDS && herd.route[0] != -1) deaths.merge("${herd.species.name} ${if (herd.route[0] >= 0) "on round" else "own country"}:hunted by ${if (hunter.band != null) "people" else hunter.species.name}", 1, Int::plus)
         fauna.killed(herd.place, herd.species.massKg)
         hunting.merge("${hunter.species.name}:kills from herds", 1, Int::plus)
         hunting.merge("herd size ${sizeClass(herd)}:killed", 1, Int::plus)
@@ -852,3 +852,6 @@ internal fun HexGroups.settle() {
         if (foreignMark(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) g.home = h
     }
 }
+
+/** The least time two groups passing through the same hex count as spending there together, days (for comparison runs: -Dhex.t.spanFloor). */
+val SPAN_FLOOR = System.getProperty("hex.t.spanFloor")?.toFloat() ?: 0.5f
