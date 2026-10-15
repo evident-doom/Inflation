@@ -242,12 +242,34 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun count(k: Int): Double = (0 until n).sumOf { ((adults[k][it] + young[k][it]) * land.areaKm2[it]).toDouble() }
 
     /** One week, with the weather on the same places. */
+    /**
+     * Newcomers: once a year a resident kind that has dwindled below [NEWCOMER_ANIMALS] (or died out)
+     * gets a few animals at places that suit it, as if wandering in from beyond the map; whether they
+     * last is up to their niche. (-Dhex.noNewcomers turns it off.)
+     */
+    private fun newcomers(date: Date) {
+        if (NO_NEWCOMERS) return
+        val r = kotlin.random.Random(date.absoluteDay * 7919L + 13)
+        for (k in kinds.indices) {
+            if (count(k) >= NEWCOMER_ANIMALS) continue
+            val s = kinds[k]
+            val w = FloatArray(n) { p -> land.areaKm2[p] * suits(s, p) * climateSuits(s, p) }
+            val total = w.sum(); if (total <= 0f) continue
+            repeat(NEWCOMER_PLACES) {
+                var u = r.nextFloat() * total; var p = 0
+                while (p < n - 1 && u > w[p]) { u -= w[p]; p++ }
+                adults[k][p] += NEWCOMER_HEADS / land.areaKm2[p]
+            }
+        }
+    }
+
     fun step(weather: Weather, date: Date) {
         for (p in 0 until n) fear[p] *= FEAR_KEEP
         Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
         deaths.clear()
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
+            if (date.month == 0) newcomers(date)
             Profile.time("sense of direction") { bearings.update(date.month) }
             if (date.month == 3) shiftBreeding()
         }
@@ -557,6 +579,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 10f
+        /** Newcomers among the residents: a kind under this many animals gets this many at each of this many places, once a year. */
+        const val NEWCOMER_ANIMALS = 300.0
+        const val NEWCOMER_HEADS = 20f
+        const val NEWCOMER_PLACES = 5
         /** How many times more disease strikes a herd that is not fed at all than a well-fed one. */
         const val MALNOURISHED = 4f
         const val DISEASE = 0.3f

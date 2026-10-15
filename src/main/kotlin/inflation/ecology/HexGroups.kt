@@ -134,6 +134,33 @@ class HexGroups(
         }
     }
 
+    /**
+     * Newcomers: once a year, a kind of herd or pack that has dwindled to a few groups (or died out)
+     * gets a few groups more, at places that suit it, as if wandering in from beyond the map. Its
+     * niche then decides whether they last. (-Dhex.noNewcomers turns it off.)
+     */
+    internal fun newcomers(date: Date) {
+        if (NO_NEWCOMERS || date.month != 0 || date.dayOfMonth > days) return
+        for (s in kinds) {
+            if (s.human) continue
+            val now = groups.count { it.alive && it.species == s }
+            if (now >= NEWCOMER_BELOW) continue
+            val weights = FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
+            val total = weights.sum(); if (total <= 0f) continue
+            val unit = unitSize(s)
+            repeat(NEWCOMERS) {
+                var u = rnd.nextFloat() * total; var p = 0
+                while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
+                val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
+                if (!s.carnivore) g.sizePref = kotlin.math.exp((rnd.nextFloat() * 2f - 1f) * kotlin.math.ln(SIZE_PREF_RANGE))
+                g.fat = 0.5f * s.maxFatDays
+                if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
+                groups += g
+            }
+            meetings.merge("newcomers: ${s.name}", NEWCOMERS, Int::plus)
+        }
+    }
+
     internal fun foodFor(s: Species, p: Int) = fauna.foodFor(s, p)
 
     fun count(s: Species) = groups.filter { it.species == s && it.alive }.sumOf { it.size }
@@ -216,6 +243,7 @@ class HexGroups(
         // (Groups that merged into another this week, kept for following what became of their choices.)
         merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
         groups.removeIf { !it.alive }
+        newcomers(date)
         Profile.part("herds: remembering places") { remember(date) }
     }
 
