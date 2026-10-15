@@ -324,7 +324,7 @@ class HexGroups(
                 // herds without one (newcomers) take the nearest.
                 if (ROUNDS) {
                     if (herdRounds.isEmpty() || (date.month == 0 && date.year % ROUND_YEARS == 0L)) growRounds(date.month)
-                    for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] < 0) herdRounds[g.species.index]?.let { takeRound(g, it, date.month) }
+                    for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] == -1) herdRounds[g.species.index]?.let { takeRound(g, it, date.month) }
                 }
             }
             remember(date)

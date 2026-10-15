@@ -15,13 +15,16 @@ import inflation.world.Date
  * but is not given up for a place it happens to fare better at.
  */
 internal fun HexGroups.growRounds(month: Int) {
+    val firstGrowth = herdRounds.isEmpty()
     for (s in kinds) {
         if (s.carnivore) continue
         val q = seasonQuality(s) ?: continue
         val rounds = roundsFor(s, q)
         if (rounds.isEmpty()) continue
         herdRounds[s.index] = rounds
-        for (g in groups) if (g.alive && g.species == s && g.route[0] < 0) takeRound(g, rounds, month)
+        for (g in groups) if (g.alive && g.species == s && g.route[0] == -1) {
+            if (firstGrowth && hashNoise(g.id, 77) >= ROUND_START_SHARE) java.util.Arrays.fill(g.route, NO_ROUND) else takeRound(g, rounds, month)
+        }
         meetings.merge("${s.name}: yearly rounds grown", rounds.size, Int::plus)
         // (And how far apart their January and July places lie, km, on average: for the check.)
         meetings.merge("${s.name}: rounds' January-July km", rounds.map { hex.distanceKm(hw.placeHex[it[0]], hw.placeHex[it[6]]) }.average().toInt(), Int::plus)
@@ -38,6 +41,27 @@ internal fun HexGroups.roundOf(g: HexGroup, month: Int): Pair<Int, Float>? {
     if (!ROUNDS) return null
     g.band?.let { return it.riteFor(month) }
     return if (g.route[month] >= 0) g.route[month] to ROUND_STRENGTH else null
+}
+
+/**
+ * An offshoot keeps its parent's round, but not always exactly: now and then it changes one month's
+ * place for one nearby ([ROUND_DRIFT]); a herd with a round now and then gives it up and keeps to
+ * its own country, and one without now and then takes up the nearest round ([ROUND_SWITCH]).
+ * Herds whose rounds feed them better grow and split more, so better rounds spread and poorer ones
+ * die out: rounds are kept where they pay, as tradition is.
+ */
+internal fun HexGroups.driftRound(g: HexGroup) {
+    val r = rnd.nextFloat()
+    if (g.route[0] >= 0) {
+        if (r < ROUND_SWITCH) { java.util.Arrays.fill(g.route, NO_ROUND); return }
+        if (r < ROUND_SWITCH + ROUND_DRIFT) {
+            val m = rnd.nextInt(12); val h0 = hw.placeHex[g.route[m]]
+            val (x, y) = hex.centreKm(h0); val a = rnd.nextDouble() * 2 * Math.PI; val d = rnd.nextDouble() * RANGE_KM
+            val h = hex.hexAt(x + d * kotlin.math.cos(a), y + d * kotlin.math.sin(a))
+            val p = if (h in 0 until hex.size) hw.placeOf[hw.placeBand[g.route[m]]][h].takeIf { it >= 0 } ?: hw.placeOf[0][h] else -1
+            if (p >= 0) g.route[m] = p
+        }
+    } else if (g.route[0] == NO_ROUND && r < ROUND_SWITCH) java.util.Arrays.fill(g.route, -1) // (to take the nearest round at the month's turn)
 }
 
 /** A herd takes the round that passes nearest to where it stands this month. */
@@ -120,6 +144,12 @@ private fun HexGroups.seasonQuality(s: Species): Array<FloatArray>? {
  * kept; what a km of the round costs against the quality of a month's grazing (0..1).
  */
 const val ROUND_YEARS = 10
+/** Rounds kept by inheritance: chance an offshoot changes one month's place of its round; chance it gives its round up, or takes one up; the mark of a herd keeping to its own country. */
+val ROUND_DRIFT = System.getProperty("hex.t.roundDrift")?.toFloat() ?: 0.3f
+val ROUND_SWITCH = System.getProperty("hex.t.roundSwitch")?.toFloat() ?: 0.05f
+const val NO_ROUND = -2
+/** Share of herds that start with a round when the rounds are first grown (the rest keep to their country, and the two ways compete). */
+val ROUND_START_SHARE = System.getProperty("hex.t.roundStart")?.toFloat() ?: 0.5f
 const val RANGE_KM = 100.0
 const val RANGES_KEPT = 300
 /** A range is kept for a month if it is at least this good against the month's best (so rounds cover the kind's whole country, not only its few best spots, where every herd would crowd). */
