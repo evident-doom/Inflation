@@ -139,7 +139,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
-    val aim = wantAll + if (band != null) max(0f, band.storeAim * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg - g.larder) * STORE_FILL else 0f
+    val aim = wantAll + (band?.let { storeWant(g, it) } ?: 0f)
     val plantKind = FloatArray(Store.entries.size)
     var busy = 0f
     val spareYoung = band?.holds(Tradition.TABOO_YOUNG) == true
@@ -631,6 +631,12 @@ internal fun HexGroups.openness(h: Int, band: Int): Float {
 }
 
 /**
+ * What band [g] works this week to lay by towards the stores it aims to keep (its choice), kg: a share
+ * of what it lacks. (A band holding to demand sharing stores less: what it lays by is asked of it.)
+ */
+internal fun storeWant(g: HexGroup, band: Band) = max(0f, band.storeAim * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg - g.larder) * STORE_FILL
+
+/**
  * Standing orders, hunter and herd. The herd watches for hunters: in open country it often sees
  * them first and turns aside, ending its week short of that hex. Otherwise there is a chase,
  * likelier to end in a kill if the hunters came on it unseen; a herd that was chased scatters and
@@ -651,8 +657,9 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         stop[rk] = min(stop[rk], max(0, ri - 1))
         return
     }
-    // A hunter that has eaten its fill this week lets the herd pass.
-    val need = hunter.dailyNeedKg * days * (if (hunter.band == null) hunter.will[AnimalWay.CHASE] else 1f)
+    // A hunter that has eaten its fill this week lets the herd pass; a band hunts on for the stores it
+    // aims to keep, as it does at its own foraging.
+    val need = hunter.dailyNeedKg * days * (if (hunter.band == null) hunter.will[AnimalWay.CHASE] else 1f) + (hunter.band?.let { storeWant(hunter, it) } ?: 0f)
     if (hunter.meatMet >= need) return
     val p = hw.placeOf[hw.placeBand[herd.place]][h].takeIf { it >= 0 } ?: herd.place
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
