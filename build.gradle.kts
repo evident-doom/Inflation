@@ -62,3 +62,12 @@ tasks.register<JavaExec>("hexWaterCheck") {
     maxHeapSize = "12g"
     args = (project.findProperty("waterArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
+
+tasks.register<JavaExec>("climateCheck") {
+    description = "Generates a world and summarises its climate (-PclimateArgs=\"--seed 1 --width 1000 --height 2000\")."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.ClimateCheckKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("climateArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}

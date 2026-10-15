@@ -3,6 +3,7 @@ package inflation.world
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -10,9 +11,10 @@ import kotlin.math.pow
 /**
  * Long-term monthly climate normals. Temperature follows latitude, elevation (6.5 °C/km lapse
  * rate) and distance from the sea (continentality widens the seasonal range). Precipitation is
- * carried by westerly winds from the sea: each row is swept west to east, air loses moisture
- * as it rains, and rising terrain forces extra rain on windward slopes, leaving rain shadows
- * behind mountains. The southern part has a Mediterranean regime with dry summers.
+ * carried from every sea by the winds of each weather regime ([Regime]): the air holds what the
+ * sea's warmth allows, gains what the land evaporates, and rains in fronts under the jet and where
+ * it is lifted over high ground, leaving rain shadows behind mountains (see [carry]). Summers are
+ * dry where the jet and its storms have moved north, as in the Mediterranean.
  */
 class Climate(
     val latitude: DoubleArray,
@@ -41,15 +43,14 @@ class Climate(
 
     companion object {
         const val LAPSE_RATE = 6.5e-3
-        /** Day of the year (from the winter solstice) with the warmest and wettest climate: late July, early January. */
+        /** Day of the year (from the winter solstice) with the warmest climate: late July. */
         const val WARMEST_DAY = 210.0
-        const val WETTEST_DAY = 30.0
-
+        
         fun latitudeOfRow(cfg: WorldConfig, grid: Grid, y: Int): Double =
             cfg.northLatitude - (cfg.northLatitude - cfg.southLatitude) * y / (grid.height - 1).coerceAtLeast(1)
 
         fun generate(grid: Grid, cfg: WorldConfig, elevation: FloatArray, isSea: BooleanArray, noise: Noise): Climate {
-            val n = grid.size; val w = grid.width
+            val n = grid.size
             val lat = DoubleArray(grid.height) { latitudeOfRow(cfg, grid, it) }
             val dSea = distanceTransformKm(grid, isSea)
             val temp = Array(12) { FloatArray(n) }
@@ -57,80 +58,179 @@ class Climate(
 
             for (i in 0 until n) {
                 val l = lat[grid.y(i)]
-                val seaLevelMean = 21.0 - 0.65 * (l - 31.0)
                 val cont = 1 - exp(-dSea[i] / 250.0)
-                val amplitude = 6.5 + 0.35 * (l - 31.0) + 7.0 * cont
                 val lapse = LAPSE_RATE * max(elevation[i], 0f)
-                for (m in 0 until 12) {
-                    val day = m * 30 + 15.0
-                    temp[m][i] = (seaLevelMean - lapse + amplitude * cos(2 * PI * (day - WARMEST_DAY) / 360)).toFloat()
-                }
+                for (m in 0 until 12) temp[m][i] = (seaLevelTemp(l, m * 30 + 15.0, cont) - lapse).toFloat()
             }
-
-            // Moisture sweep along each row, west to east.
-            val baseFraction = 0.004 * grid.cellKm   // share of carried moisture that rains out per cell on flat land
-            val orographic = 0.0004                  // extra share per metre of rise across one cell
-            val smoothElevation = blur(grid, elevation, (8 / grid.cellKm).toInt().coerceAtLeast(1))
-            for (m in 0 until 12) {
-                val day = m * 30 + 15.0
-                for (y in 0 until grid.height) {
-                    val l = lat[y]
-                    val south = ((cfg.northLatitude - l) / (cfg.northLatitude - cfg.southLatitude)).coerceIn(0.0, 1.0)
-                    val seasonality = 0.6 + 0.35 * south
-                    val wet = max(0.02, 1 + seasonality * cos(2 * PI * (day - WETTEST_DAY) / 360))
-                    val coastAnnual = 950 - 550 * south          // mm/yr at a western coast
-                    val background = (380 - 340 * south) / 12.0  // moisture arriving from other directions
-                    val q0 = coastAnnual / 12.0 * wet / baseFraction
-                    var q = q0
-                    for (x in 0 until w) {
-                        val i = y * w + x
-                        if (isSea[i]) {
-                            // Air picks up moisture over open water; a narrow inland sea adds little.
-                            q += (q0 - q) * min(1.0, 0.02 * grid.cellKm)
-                            precip[m][i] = (coastAnnual / 12.0 * wet * 0.8).toFloat()
-                            continue
-                        }
-                        // Forced ascent follows the large-scale terrain, not every ridge and gully.
-                        val prev = if (x > 0) smoothElevation[i - 1] else smoothElevation[i]
-                        val rise = max(0f, smoothElevation[i] - max(prev, 0f)).toDouble()
-                        val frac = min(0.5, baseFraction + orographic * rise)
-                        val rain = q * frac
-                        // Much of what rains is given back to the air by wet ground, plants and lakes and falls
-                        // again further on: over the continents about two fifths of the rain is such recycled
-                        // water (van der Ent and colleagues 2010), more downwind of a large land.
-                        q -= rain * (1 - RECYCLED)
-                        val texture = 1 + 0.25 * noise.fbm(x.toDouble() + m * 3.0, y.toDouble(), 120.0 / grid.cellKm, 3)
-                        precip[m][i] = ((rain + background * wet.coerceAtMost(1.6) * 0.8) * texture).toFloat().coerceAtLeast(0f)
-                    }
-                }
-            }
-
-            // Fronts and storms are hundreds of km across; smooth out row-by-row sweep artefacts.
-            for (m in 0 until 12) precip[m] = blur(grid, precip[m], (20 / grid.cellKm).toInt().coerceAtLeast(1))
-            val annualP = FloatArray(n) { i -> (0 until 12).sumOf { precip[it][i].toDouble() }.toFloat() }
             val pet = FloatArray(n)
             val monthlyPet = Array(12) { FloatArray(n) }
+            for (i in 0 until n) {
+                val monthly = thornthwaite(DoubleArray(12) { temp[it][i].toDouble() }, lat[grid.y(i)])
+                for (m in 0 until 12) monthlyPet[m][i] = monthly[m].toFloat()
+                pet[i] = monthly.sum().toFloat()
+            }
+
+            // Moisture carried by the winds of each weather regime from every sea (see [carry]). What the land
+            // evaporates goes back into the air, and how much it evaporates depends on the rain, so the two
+            // are worked out together a few times over.
+            val evap = Array(12) { FloatArray(n) }
+            repeat(RECYCLING_PASSES) { pass ->
+                carry(grid, cfg, elevation, isSea, lat, temp, evap, precip)
+                if (pass == RECYCLING_PASSES - 1) return@repeat
+                java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+                    val p = (0 until 12).sumOf { precip[it][i].toDouble() }
+                    val aet = if (isSea[i] || p <= 0 || pet[i] <= 0) 0.0 else p * fu(pet[i] / p)
+                    // Evaporation follows the month's demand: water stored from the wet season goes in the warm one.
+                    for (m in 0 until 12) evap[m][i] = if (pet[i] > 0) (aet * monthlyPet[m][i] / pet[i] / 30).toFloat() else 0f
+                }
+            }
+            for (m in 0 until 12) for (i in 0 until n) {
+                val x = grid.x(i); val y = grid.y(i)
+                val texture = 1 + 0.25 * noise.fbm(x.toDouble() + m * 3.0, y.toDouble(), 120.0 / grid.cellKm, 3)
+                precip[m][i] = (precip[m][i] * texture).toFloat().coerceAtLeast(0f)
+            }
+
+            // Fronts and storms are hundreds of km across.
+            for (m in 0 until 12) precip[m] = blur(grid, precip[m], (20 / grid.cellKm).toInt().coerceAtLeast(1))
+            val annualP = FloatArray(n) { i -> (0 until 12).sumOf { precip[it][i].toDouble() }.toFloat() }
             val aet = FloatArray(n)
             val runoff = FloatArray(n)
             for (i in 0 until n) {
-                val l = lat[grid.y(i)]
-                val monthly = thornthwaite(DoubleArray(12) { temp[it][i].toDouble() }, l)
-                for (m in 0 until 12) monthlyPet[m][i] = monthly[m].toFloat()
-                pet[i] = monthly.sum().toFloat()
                 val p = annualP[i].toDouble()
                 if (isSea[i] || p <= 0) continue
-                val ratio = pet[i] / p
-                val fu = 1 + ratio - (1 + ratio.pow(2.6)).pow(1 / 2.6)
-                aet[i] = (p * fu).toFloat()
+                aet[i] = (p * fu(pet[i] / p)).toFloat()
                 runoff[i] = (p - aet[i]).toFloat().coerceAtLeast(0f)
             }
             return Climate(lat, dSea, temp, precip, annualP, monthlyPet, pet, aet, runoff)
         }
 
-        /** Thornthwaite (1948) potential evapotranspiration in mm per month from monthly mean temperatures. */
-        /** Share of each cell's rain the air takes back up and carries on. */
-        const val RECYCLED = 0.45
+        /** Mean air temperature at sea level, °C, at latitude [l] on [day], [cont] 0 on the coast to 1 far inland. */
+        fun seaLevelTemp(l: Double, day: Double, cont: Double): Double {
+            val amplitude = 6.5 + 0.35 * (l - 31.0) + 7.0 * cont
+            return 21.0 - 0.65 * (l - 31.0) + amplitude * cos(2 * PI * (day - WARMEST_DAY) / 360)
+        }
 
+        /** Fu's (1981) form of the Budyko curve: evaporation as a share of rain, from the dryness ([pet] / rain). */
+        private fun fu(dryness: Double) = 1 + dryness - (1 + dryness.pow(2.6)).pow(1 / 2.6)
+
+        /** Water vapour that saturates air at [t] °C, g/m³ (Tetens' formula for the vapour pressure). */
+        fun saturatedVapour(t: Double): Double = 6.1078 * exp(17.27 * t / (t + 237.3)) * 100 / (461.5 * (t + 273.15)) * 1000
+
+        /** Water a column of saturated air holds over ground at [t] °C, mm, cooling upwards at [LAPSE_RATE]. */
+        fun saturatedColumn(t: Double): Double {
+            var sum = 0.0
+            var z = 0.0
+            while (z < 10000) { sum += saturatedVapour(t - LAPSE_RATE * (z + 125)) * 250; z += 250 }
+            return sum / 1000
+        }
+
+        /** Size of the cells the moisture is carried over, km. */
+        const val CARRY_KM = 10.0
+        /** Relative humidity of air over the sea (it is near 80% over the open oceans). */
+        const val SEA_HUMIDITY = 0.8
+        /** Height over which water vapour thins by e, m (about 2 km in the real atmosphere). */
+        const val VAPOUR_HEIGHT_M = 2200.0
+        /** Days a unit of water vapour stays in the air under average weather before it rains out (about 8–9 days, worldwide). */
+        const val VAPOUR_DAYS = 8.0
+        /** Latitude band of the storm track either side of the jet, degrees: the same width the westerlies have in [Winds.baseWind]. */
+        const val STORM_TRACK_DEG = 8.0
+        /** Buoyancy frequency of the lower air, per second (about 0.01 in a standard atmosphere). */
+        const val BUOYANCY_HZ = 0.01
+        /** Share per km of the gap to the sea's moisture that air takes up over open water. */
+        const val PICKUP_PER_KM = 0.02
+        /** Times the rain and the land's evaporation are worked out against each other. */
+        const val RECYCLING_PASSES = 3
+
+        /**
+         * Monthly rain, mm, into [precip]. In each weather regime ([Regime], weighted by how often it blows that
+         * month) the air comes in from the seas round about along the regime's wind. Over open water it holds
+         * what the sea's warmth allows ([SEA_HUMIDITY] of saturation through [VAPOUR_HEIGHT_M]); over land
+         * it gains what the land evaporates ([evap], mm a day) and loses what rains out. Rain needs rising
+         * air: fronts in the storm track under the jet (by the regime's storminess, fading with distance from
+         * the jet, over [VAPOUR_DAYS]), and ground rising into the wind, where air lifted past saturation rains
+         * out what it cannot hold. Highs give rain only on windward slopes.
+         * Worked on cells of [CARRY_KM] and spread back to the fine cells.
+         */
+        private fun carry(grid: Grid, cfg: WorldConfig, elevation: FloatArray, isSea: BooleanArray, lat: DoubleArray,
+                          temp: Array<FloatArray>, evap: Array<FloatArray>, precip: Array<FloatArray>) {
+            val f = max(1, Math.round(CARRY_KM / grid.cellKm).toInt())
+            val cw = (grid.width + f - 1) / f; val ch = (grid.height + f - 1) / f
+            val ckm = f * grid.cellKm
+            val elev = FloatArray(cw * ch); val sea = FloatArray(cw * ch); val cnt = IntArray(cw * ch)
+            for (i in 0 until grid.size) { val c = (grid.y(i) / f) * cw + grid.x(i) / f; elev[c] += max(0f, elevation[i]); if (isSea[i]) sea[c] += 1f; cnt[c]++ }
+            for (c in 0 until cw * ch) { elev[c] /= cnt[c].coerceAtLeast(1); sea[c] /= cnt[c].coerceAtLeast(1) }
+            val rowLat = DoubleArray(ch) { lat[min(grid.height - 1, it * f + f / 2)] }
+            val winds = Winds(null)
+            val tmp = FloatArray(2)
+            val q = FloatArray(cw * ch); val rain = FloatArray(cw * ch); val total = FloatArray(cw * ch)
+            val gain = FloatArray(cw * ch); val wSat = FloatArray(cw * ch)
+            fun at(a: FloatArray, x: Double, y: Double, outside: Float): Float {
+                if (x < 0 || y < 0 || x > cw - 1 || y > ch - 1) return outside
+                val x0 = x.toInt().coerceAtMost(cw - 2).coerceAtLeast(0); val y0 = y.toInt().coerceAtMost(ch - 2).coerceAtLeast(0)
+                val fx = (x - x0).toFloat().coerceIn(0f, 1f); val fy = (y - y0).toFloat().coerceIn(0f, 1f)
+                val x1 = min(cw - 1, x0 + 1); val y1 = min(ch - 1, y0 + 1)
+                return (a[y0 * cw + x0] * (1 - fx) + a[y0 * cw + x1] * fx) * (1 - fy) + (a[y1 * cw + x0] * (1 - fx) + a[y1 * cw + x1] * fx) * fy
+            }
+            for (m in 0 until 12) {
+                val day = m * 30 + 15.0
+                val season = cos(2 * PI * (day - WARMEST_DAY) / 360)
+                val jet = winds.jetLatitude(season)
+                // The moisture of air that has been over the sea a long time, mm of water in the column.
+                val w0 = FloatArray(ch) { y -> (SEA_HUMIDITY * saturatedVapour(seaLevelTemp(rowLat[y], day, 0.0)) * VAPOUR_HEIGHT_M / 1000).toFloat() }
+                // Each cell's evaporation, mm a day over the cell.
+                gain.fill(0f)
+                for (i in 0 until grid.size) { val c = (grid.y(i) / f) * cw + grid.x(i) / f; gain[c] += evap[m][i] }
+                for (c in 0 until cw * ch) gain[c] /= cnt[c].coerceAtLeast(1)
+                total.fill(0f)
+                var weights = 0.0
+                for (r in Regime.entries) {
+                    val w = winds.weight(r, season)
+                    weights += w
+                    val frontal = r == Regime.WESTERLY || r == Regime.SOUTHERLY || r == Regime.NORTHERLY
+                    // Unit wind of each row (towards the east and the south), its speed in km a day, and how fast fronts rain the air out, a day.
+                    val ux = DoubleArray(ch); val uy = DoubleArray(ch); val kmDay = DoubleArray(ch); val lift = DoubleArray(ch)
+                    for (y in 0 until ch) {
+                        winds.baseWind(r, rowLat[y], jet, tmp)
+                        val sp = hypot(tmp[0].toDouble(), tmp[1].toDouble()).coerceAtLeast(1.0)
+                        ux[y] = tmp[0] / sp; uy[y] = tmp[1] / sp; kmDay[y] = sp * 86.4
+                        lift[y] = if (frontal) r.storminess * exp(-((rowLat[y] - jet) / STORM_TRACK_DEG).let { it * it }) / VAPOUR_DAYS else 0.0
+                    }
+                    // Air from the sea keeps the sea's warmth aloft and cools only as it is lifted over high ground,
+                    // and a wind of speed U lifts it at most U/N over a ridge; below that it flows round (the Froude limit).
+                    for (c in 0 until cw * ch) {
+                        val y = c / cw
+                        val lifted = min(elev[c].toDouble(), kmDay[y] / 86.4 / BUOYANCY_HZ)
+                        wSat[c] = saturatedColumn(seaLevelTemp(rowLat[y], day, 0.0) - LAPSE_RATE * lifted).toFloat()
+                    }
+                    // Downwind order: each cell after the cells upwind of it.
+                    val order = (0 until cw * ch).sortedBy { c -> val y = c / cw; (c % cw) * ux[y] + y * uy[y] }
+                    for (c in 0 until cw * ch) q[c] = w0[c / cw]
+                    repeat(2) {
+                        for (c in order) {
+                            val x = c % cw; val y = c / cw
+                            val bx = x - ux[y]; val by = y - uy[y]
+                            val qin = at(q, bx, by, w0[y])
+                            val days = ckm / kmDay[y]
+                            // Over the sea the air takes up moisture towards the sea's level.
+                            val wet = qin + sea[c] * (w0[y] - qin) * (1 - exp(-PICKUP_PER_KM * ckm)).toFloat()
+                            val keep = exp(-lift[y] * days)
+                            // Air lifted over high ground holds less; what it cannot hold rains out.
+                            val left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
+                            rain[c] = ((wet + (1 - sea[c]) * gain[c] * days - left) / days * 30).toFloat()
+                            q[c] = left.toFloat()
+                        }
+                    }
+                    for (c in 0 until cw * ch) total[c] += (w * rain[c]).toFloat()
+                }
+                for (c in 0 until cw * ch) total[c] = (total[c] / weights).toFloat()
+                // Back to the fine cells.
+                java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
+                    precip[m][i] = at(total, (grid.x(i) + 0.5) / f - 0.5, (grid.y(i) + 0.5) / f - 0.5, 0f)
+                }
+            }
+        }
+
+        /** Thornthwaite (1948) potential evapotranspiration in mm per month from monthly mean temperatures. */
         fun thornthwaite(monthlyTemp: DoubleArray, latitudeDeg: Double): DoubleArray {
             val out = DoubleArray(12)
             val heat = monthlyTemp.sumOf { t -> if (t > 0) (t / 5).pow(1.514) else 0.0 }
