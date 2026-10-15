@@ -615,8 +615,9 @@ object Catalogue {
      * How far a kind will swim open water, km: elk, hippos, red deer, boar and bears cross straits of
      * ten or more; most others a few; people none (until boats). From memory of the record, mild.
      */
-    fun swimKm(s: Species): Float = SWIM_KM[s.name] ?: if (s.human) 0f else when (travel(s)) {
-        inflation.world.HexMap.Travel.SWIM -> 8f; inflation.world.HexMap.Travel.CLIMB -> 2f; else -> 3f }
+    fun swimKm(s: Species): Float = swimByIndex[s.index]
+    private val swimByIndex by lazy { FloatArray(all.size) { i -> val s = all[i]; SWIM_KM[s.name] ?: if (s.human) 0f else when (travel(s)) {
+        inflation.world.HexMap.Travel.SWIM -> 8f; inflation.world.HexMap.Travel.CLIMB -> 2f; else -> 3f } } }
     private val SWIM_KM = mapOf("elk" to 15f, "hippo" to 15f, "red deer" to 10f, "wild boar" to 10f, "brown bear" to 10f,
         "aurochs" to 8f, "fallow deer" to 6f, "roe deer" to 4f, "wolf" to 4f, "gazelle" to 1f, "cheetah" to 1f)
 

@@ -259,10 +259,11 @@ object HexPpo {
         val players = arrayOfNulls<Player>(worlds)
         val steps = years * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
         fun playRound(r: Int, ms: List<SharedMover>, ways: LearnedWays?): List<List<Choice>> {
-            for (w in 0 until worlds) if (players[w]?.done != false) {
-                players[w]?.derailed?.let { why -> println("world $w replaced after round ${r - 1}: $why"); File(out, "log.txt").appendText("world $w replaced after round ${r - 1}: $why\n") }
-                players[w] = Player(world(50_000L + r * 100L + w, size, w), kinds, steps * worldRounds, burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep)
-            }
+            val fresh = (0 until worlds).filter { w -> players[w]?.done != false }
+            for (w in fresh) players[w]?.derailed?.let { why -> println("world $w replaced after round ${r - 1}: $why"); File(out, "log.txt").appendText("world $w replaced after round ${r - 1}: $why\n") }
+            // (New worlds are made side by side, as each round's fresh worlds were before they lived on.)
+            fresh.parallelStream().map { w -> w to Player(world(50_000L + r * 100L + w, size, w), kinds, steps * worldRounds, burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep) }
+                .toList().forEach { (w, p) -> players[w] = p }
             return (0 until worlds).toList().parallelStream().map { w -> players[w]!!.play(steps, ms, ways) }.toList()
         }
         var ahead: java.util.concurrent.CompletableFuture<List<List<Choice>>>? = null

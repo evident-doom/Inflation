@@ -37,12 +37,14 @@ fun main(args: Array<String>) {
     val q = Array(herds.size) { Array(12) { FloatArray(n) } }
     val seen = Array(herds.size) { BooleanArray(12) }
     val at = Array(herds.size) { Array(12) { HashMap<Int, IntArray>() } }
+    val green = Array(12) { FloatArray(n) }; val greenSeen = BooleanArray(12)
     repeat(steps) { w ->
         run.step()
         if (w < steps - perYear) return@repeat
         val m = run.weather.date.month
         for ((i, s) in herds.withIndex()) {
             for (g in run.groups.groups) if (g.alive && g.species == s) at[i][m].getOrPut(g.id) { IntArray(1) }[0] = run.hw.placeHex[g.place]
+            if (!greenSeen[m]) { greenSeen[m] = true; for (p in 0 until n) green[m][p] = run.land.green[p] }
             if (seen[i][m]) continue
             seen[i][m] = true
             val f = run.fauna
@@ -60,6 +62,7 @@ fun main(args: Array<String>) {
         for (p in 0 until n) if (qs[p] >= cut && qs[p] > 0f) { val (cx, cy) = hex.centreKm(placeHex[p]); x += cx * qs[p]; y += cy * qs[p]; wsum += qs[p] }
         return if (wsum > 0) (x / wsum) to (y / wsum) else 0.0 to 0.0
     }
+    println("all land, green by month: " + (0 until 12).joinToString(" ") { m -> "%.2f".format((0 until n).sumOf { green[m][it].toDouble() } / n) })
     println("kind | best tenth's centre, January to July km | herds: gain by moving within 50 / 150 / 300 km at the turn of the season (quality, July at the July best within reach against July where they stood in January) | herds' January to July km (mean)")
     for ((i, s) in herds.withIndex()) {
         val (jx, jy) = centre(q[i][0]); val (ux, uy) = centre(q[i][6])
@@ -83,6 +86,13 @@ fun main(args: Array<String>) {
             count++
         }
         if (count == 0) { println("%-11s | %4.0f | no herds".format(s.name, shift)); continue }
-        println("%-11s | %4.0f | %.3f / %.3f / %.3f | %.0f (%d herds)".format(s.name, shift, gains[0] / count, gains[1] / count, gains[2] / count, walked / count, count))
+        // How much the places its herds stood on in January swing over the year: worst month against best.
+        var swing = 0.0; var low = 0.0; var c2 = 0
+        for ((_, hJ) in at[i][0]) { val p = hw.placeOf[0][hJ[0]]; if (p < 0) continue
+            var mx = 0f; var mn = Float.MAX_VALUE; for (m in 0 until 12) { mx = maxOf(mx, q[i][m][p]); mn = minOf(mn, q[i][m][p]) }
+            if (mx > 0f) { swing += (1 - mn / mx).toDouble(); low += mn.toDouble(); c2++ } }
+        val gm = (0 until 12).map { m -> at[i][0].values.mapNotNull { hw.placeOf[0][it[0]].takeIf { p -> p >= 0 } }.map { green[m][it].toDouble() }.average() }
+        println("%-11s green at its January ground by month: %s".format(s.name, gm.joinToString(" ") { "%.2f".format(it) }))
+        println("%-11s | %4.0f | %.3f / %.3f / %.3f | %.0f (%d herds) | swing over the year at their January ground %.0f%%, worst month quality %.2f".format(s.name, shift, gains[0] / count, gains[1] / count, gains[2] / count, walked / count, count, 100 * swing / c2.coerceAtLeast(1), low / c2.coerceAtLeast(1)))
     }
 }

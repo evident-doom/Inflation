@@ -584,7 +584,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         fun most(stock: FloatArray, q: Int, areaKm2: Float, search: Float): Float { val s = stock[q] * areaKm2; return if (s > 0f) min(0.5f * s, s * skill / search) else 0f }
         var kg = most(run, h, landKm2, RUN_SEARCH) + most(riverFish, h, landKm2, RIVER_SEARCH)
         if (nesting && shoreKm[h] <= 0f) kg += most(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH)
-        for (q in listOf(h) + (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 }) kg += most(fish, q, waterKm2[q], FISH_SEARCH) + most(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH)
+        // (The hex and the six round it, in that order, without making a list each time: it is asked often.)
+        for (d in -1 until 6) { val q = if (d < 0) h else hex.neighbour(h, d); if (q < 0) continue
+            kg += most(fish, q, waterKm2[q], FISH_SEARCH) + most(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH) }
         return kg
     }
 
