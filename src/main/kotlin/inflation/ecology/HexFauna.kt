@@ -102,7 +102,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** For kinds that sleep through the winter: how well fed they went to sleep, 0..1. */
     private val autumnFed = Array(kinds.size) { FloatArray(n) { 0.8f } }
     /** Life in the sea, lakes and rivers. */
-    val water = HexWater(hw, land, days)
+    val water = HexWater(hw, land, days, small)
     /** Fruit, roots and straw as stocks. */
     val food = HexFood(land, small, days)
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
