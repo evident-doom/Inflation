@@ -562,7 +562,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val wet = soil[p] / soilCap[p]
             moisture[p] += (wet - moisture[p]) * memory
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
-            val season = ((t - 2f) / 13f).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
+            val season = ((t - GROW_FROM_C) / GROW_SPAN_C).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
             val water0 = (wet / 0.5f).coerceIn(0f, 1f)
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, as long as it is growing weather.
@@ -705,7 +705,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         const val MIN_SPRING_FLOW = 3e4f
         const val SPRING_KM2 = 150f
         /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
-        const val DRY_VALUE = 0.65f
+        val DRY_VALUE = System.getProperty("hex.t.dryValue")?.toFloat() ?: 0.65f
+        /** Experiment knobs: the warmth at which plants start to grow, °C, and the span over which they reach full growth, °C. */
+        val GROW_FROM_C = System.getProperty("hex.t.growFrom")?.toFloat() ?: 2f
+        val GROW_SPAN_C = System.getProperty("hex.t.growSpan")?.toFloat() ?: 13f
         const val PALATABLE_FLOOR = 0.5f
         /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         const val SHRUB_RENEWAL = 0.2f
