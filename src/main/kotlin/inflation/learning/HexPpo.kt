@@ -120,10 +120,11 @@ internal fun softmax(x: FloatArray): FloatArray {
  * same number a year of each kind, however common it is), and what became of the group over the
  * following weeks is its return. Each kind is judged against its own average, and counts the same
  * in the update as every other kind, so the common herds do not drown out the rare hunters. Every
- * few rounds the networks play the hand-written behaviour on fixed worlds, kind by kind; a kind that
+ * few rounds each role's network plays against the hand-written behaviour on fixed fresh worlds
+ * (the other roles hand-written), reported per kind with its spread over the worlds; a kind that
  * does worse than with the last version it did well with keeps that version (in `deployed/`).
  *
- * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...]
+ * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
  */
 object HexPpo {
     /**
@@ -153,7 +154,8 @@ object HexPpo {
         var hidden = 48
         var rate = 3e-4f
         var checkEvery = 5
-        var checkSeeds = 4
+        var checkSeeds = 12
+        var checkOnMaps = false
         var teacherCheck = false
         var k = 0
         while (k < args.size) {
@@ -169,6 +171,8 @@ object HexPpo {
                 "--residual" -> RESIDUAL = args[++k].split(",").associate { r -> val (n, v) = r.split(":"); n to v.toFloat() }
                 "--check" -> checkEvery = args[++k].toInt()
                 "--check-seeds" -> checkSeeds = args[++k].toInt()
+                // Check on the training maps (--maps) instead of fresh worlds: how well they are fitted, not how well the networks do elsewhere.
+                "--check-on-maps" -> checkOnMaps = true
                 "--per-kind" -> PER_KIND_YEAR = args[++k].toInt()
                 "--teacher" -> { val dir = File(args[++k]); TEACHERS = Catalogue.all.mapNotNull { s -> HexLearning.file(dir, s).takeIf { it.exists() }?.let { s to Schema.load(it, Schema.TEACHER_IN, Schema.MOVER_OUT) } }.toMap() }
                 "--teacher-check" -> teacherCheck = true
@@ -183,8 +187,8 @@ object HexPpo {
         // Only how the teachers do against the hand-written behaviour, in today's world.
         if (teacherCheck) {
             val seeds = (91L until 91L + checkSeeds).toList()
-            val scores = seeds.parallelStream().map { seed -> check(world(seed, size), years + 1, kindsAll, emptyList(), teachers = true) }.toList()
-            println("teachers vs hand-written: " + kindsAll.filter { it in TEACHERS }.joinToString(", ") { s -> "%s %.3f vs %.3f".format(s.name, scores.map { it.first[s] ?: 0.0 }.average(), scores.map { it.second[s] ?: 0.0 }.average()) })
+            val scores = seeds.parallelStream().map { seed -> teacherCheck(checkWorld(seed, size, checkOnMaps), years + 1, kindsAll) }.toList()
+            println("teachers vs hand-written over ${seeds.size} worlds: " + kindsAll.filter { it in TEACHERS }.joinToString(", ") { s -> s.name + " " + compare(scores.map { it.first[s] ?: 0.0 }, scores.map { it.second[s] ?: 0.0 }) })
             return
         }
         val files = ROLES.map { File(out, "$it.mlp") }
@@ -255,23 +259,42 @@ object HexPpo {
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
             val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns)
             println(line); log.appendText(line + "\n")
-            // ---- check against the hand-written behaviour, and keep each kind's last good version
+            // ---- check against the hand-written behaviour, one role at a time (the others hand-written,
+            // so a role's gain is its own and not the others'), on worlds it has not trained on; and keep
+            // each kind's last good version
             if (round % checkEvery == checkEvery - 1) {
                 val seeds = (91L until 91L + checkSeeds).toList()
-                val scores = seeds.parallelStream().map { seed -> check(world(seed, size, (seed - 91L).toInt()), years + 1, kinds, models) }.toList()
+                val scores = seeds.parallelStream().map { seed -> check(checkWorld(seed, size, checkOnMaps), years + 1, kinds, models) }.toList()
                 val parts = ArrayList<String>()
                 for (s in kinds) {
-                    val learned = scores.map { it.first[s] ?: 0.0 }.average()
-                    val hand = scores.map { it.second[s] ?: 0.0 }.average()
+                    val learnedEach = scores.map { it.first[s] ?: 0.0 }
+                    val handEach = scores.map { it.second[s] ?: 0.0 }
+                    val learned = learnedEach.average()
                     val keep = learned >= (best[s] ?: Double.NEGATIVE_INFINITY)
                     if (keep) { best[s] = learned; modelOf(s).save(File(deployedDir, s.name.replace(' ', '-') + ".mlp")) }
-                    parts += "%s %.3f vs %.3f%s".format(s.name, learned, hand, if (keep) "" else " (kept older)")
+                    parts += s.name + " " + compare(learnedEach, handEach) + if (keep) "" else " (kept older)"
                 }
                 File(deployedDir, "scores.txt").writeText(best.entries.joinToString("\n") { "${it.key.name}\t${it.value}" } + "\n")
-                val c = "check round %d (learned vs hand-written, animal-weeks per animal): %s".format(round + 1, parts.joinToString(", "))
+                val c = "check round %d (each role learned alone vs all hand-written, animal-weeks per animal, %d %s worlds: mean change +- its standard error, worlds better): %s".format(round + 1, seeds.size, if (checkOnMaps && MAPS.isNotEmpty()) "training" else "fresh", parts.joinToString(", "))
                 println(c); File(out, "check.txt").appendText(c + "\n")
             }
         }
+    }
+
+    /** A world to check on: a fresh one for [seed] (never a training map unless [onMaps]). */
+    fun checkWorld(seed: Long, size: Int, onMaps: Boolean): WorldConfig =
+        if (onMaps && MAPS.isNotEmpty()) world(seed, size, (seed - 91L).toInt()) else WorldConfig(seed = seed, widthKm = size, heightKm = size)
+
+    /**
+     * How [learned] compares with [hand], world by world (paired: the same worlds): the mean relative
+     * change, its standard error over the worlds, and in how many worlds the learned did better.
+     */
+    fun compare(learned: List<Double>, hand: List<Double>): String {
+        val rel = learned.indices.filter { hand[it] > 0.0 }.map { learned[it] / hand[it] - 1.0 }
+        if (rel.isEmpty()) return "n/a"
+        val mean = rel.average()
+        val se = if (rel.size > 1) sqrt(rel.sumOf { (it - mean) * (it - mean) } / (rel.size - 1) / rel.size) else Double.NaN
+        return "%+.1f%% +- %.1f%% (%d/%d)".format(100 * mean, 100 * se, rel.count { it > 0.0 }, rel.size)
     }
 
     /** Choices of the hand-written behaviour: the candidates' inputs and their hand-written scores. */
@@ -444,27 +467,43 @@ object HexPpo {
         return gw to gi
     }
 
-    /** Fixed world [cfg] run twice for [years]: with the networks choosing their best, then with the hand-written behaviour; animal-weeks per animal at the start, kind by kind. */
-    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>, teachers: Boolean = false): Pair<Map<Species, Double>, Map<Species, Double>> {
-        fun score(learned: Boolean): Map<Species, Double> {
-            val run = HexLearning.Run(cfg, kinds)
-            if (learned && teachers) { for ((s, net) in TEACHERS) if (s in kinds) run.groups.policies[s] = HexLearning.NetPolicy(net) }
-            else if (learned) {
-                val ps = models.map { MoverPolicy(it, null, { 0f }, { 0 }) }
-                for (s in kinds) run.groups.policies[s] = ps[role(s)]
+    /**
+     * How the kinds do in [cfg] over [years] (animal-weeks per animal at the start) with each role's
+     * network choosing alone, the other roles hand-written, against all hand-written: for each kind,
+     * its score in the run where its own role was learned, and in the hand-written run.
+     */
+    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Pair<Map<Species, Double>, Map<Species, Double>> {
+        val roles = kinds.map { role(it) }.distinct()
+        // (The runs go side by side: the hand-written one, and one for each role learned.)
+        val runs = (listOf(-1) + roles).parallelStream().map { r ->
+            r to score(cfg, years, kinds) { run ->
+                if (r >= 0) { val p = MoverPolicy(models[r], null, { 0f }, { 0 }); for (s in kinds) if (role(s) == r) run.groups.policies[s] = p }
             }
-            val start = kinds.associateWith { run.groups.count(it).toDouble() }
-            val weeks = HashMap<Species, Double>()
-            val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
-            repeat(steps) {
-                run.step()
-                for (g in run.groups.groups) if (g.alive) weeks.merge(g.species, g.size.toDouble(), Double::plus)
-            }
-            return kinds.associateWith { s -> val st = start.getValue(s); if (st <= 0.0) 0.0 else (weeks[s] ?: 0.0) / st / steps }
-        }
-        // (The two runs go side by side.)
-        val both = listOf(true, false).parallelStream().map { score(it) }.toList()
+        }.toList().toMap()
+        val hand = runs.getValue(-1)
+        return kinds.associateWith { s -> runs.getValue(role(s))[s] ?: 0.0 } to hand
+    }
+
+    /** The teachers (every kind that has one) against the hand-written behaviour in [cfg]. */
+    fun teacherCheck(cfg: WorldConfig, years: Int, kinds: List<Species>): Pair<Map<Species, Double>, Map<Species, Double>> {
+        val both = listOf(true, false).parallelStream().map { t ->
+            score(cfg, years, kinds) { run -> if (t) for ((s, net) in TEACHERS) if (s in kinds) run.groups.policies[s] = HexLearning.NetPolicy(net) }
+        }.toList()
         return both[0] to both[1]
+    }
+
+    /** Animal-weeks per animal at the start, by kind, over [years] in [cfg] with the policies [setUp] installs. */
+    private fun score(cfg: WorldConfig, years: Int, kinds: List<Species>, setUp: (HexLearning.Run) -> Unit): Map<Species, Double> {
+        val run = HexLearning.Run(cfg, kinds)
+        setUp(run)
+        val start = kinds.associateWith { run.groups.count(it).toDouble() }
+        val weeks = HashMap<Species, Double>()
+        val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
+        repeat(steps) {
+            run.step()
+            for (g in run.groups.groups) if (g.alive) weeks.merge(g.species, g.size.toDouble(), Double::plus)
+        }
+        return kinds.associateWith { s -> val st = start.getValue(s); if (st <= 0.0) 0.0 else (weeks[s] ?: 0.0) / st / steps }
     }
 }
 
