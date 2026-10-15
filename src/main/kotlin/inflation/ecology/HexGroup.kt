@@ -38,6 +38,12 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** How well its diet met its need for protein over the last weeks, 0..1 (see [HexFauna.proteinMet]). */
     var protein = 1f
     /**
+     * Which way a herd has been heading, as east and south parts (km-free, at most 1 long): kept from week
+     * to week and bent a little each week toward better country, so small nudges add up to a long trek.
+     */
+    var headE = 0f
+    var headS = 0f
+    /**
      * A band's luck in its own week's births and deaths, summed since it began: born less died as
      * drawn, against as expected from the week's odds (for training, which judges people by what
      * their choices made likely, not by chance; animals keep 0).

@@ -270,3 +270,12 @@ val SUPERSENSE = System.getProperty("hex.t.supersense") != null
 val SUPERSENSE_TOP = System.getProperty("hex.t.superTop")?.toFloat() ?: 0.05f
 val SUPERSENSE_KM = System.getProperty("hex.t.superKm")?.toFloat() ?: 600f
 val SUPERSENSE_LURE = System.getProperty("hex.t.superLure")?.toFloat() ?: 0.2f
+
+/**
+ * Herds' heading (see [HexGroup.headE]): share of last week's kept; weight of the way it actually went
+ * against its sense of better country in bending it; and how strongly it draws the next week's choice
+ * (as the bearing's [BEARING_PULL]): small persistent nudges that add up to a migration.
+ */
+val HEADING_KEEP = System.getProperty("hex.t.headingKeep")?.toFloat() ?: 0.95f
+val HEADING_MOVED = System.getProperty("hex.t.headingMoved")?.toFloat() ?: 0.5f
+val HEADING_PULL = System.getProperty("hex.t.headingPull")?.toFloat() ?: 2f

@@ -267,6 +267,18 @@ class HexGroups(
         }
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < 0.5f) meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
+            // A herd's heading: what it kept of last week's, bent toward the way it went and the way its sense of better country points.
+            if (!g.species.carnivore) {
+                val from = hw.placeHex[g.place]; val to = hw.placeHex[choice[k]]
+                val (x0, y0) = hex.centreKm(from); val (x1, y1) = hex.centreKm(to)
+                val km = kotlin.math.hypot(x1 - x0, y1 - y0)
+                val ki = kindIndex[g.species] ?: 0
+                val mE = if (km > 0.0) ((x1 - x0) / km).toFloat() else 0f; val mS = if (km > 0.0) ((y1 - y0) / km).toFloat() else 0f
+                var e = HEADING_KEEP * g.headE + (1f - HEADING_KEEP) * (HEADING_MOVED * mE + bearings.east[ki][to])
+                var so = HEADING_KEEP * g.headS + (1f - HEADING_KEEP) * (HEADING_MOVED * mS + bearings.south[ki][to])
+                val len = kotlin.math.hypot(e, so); if (len > 1f) { e /= len; so /= len }
+                g.headE = e; g.headS = so
+            }
             g.place = choice[k]; g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f
             // A crossing of open water drowns some, the more the nearer the strait is to all they can swim.
             for (i in 0 until g.path.size - 1) {
@@ -647,6 +659,11 @@ class HexGroups(
             val toGoal = if (goal >= 0) hexKm(h, goalHex) else 0.0
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(ki, here, h, pullKm)
+            // And a herd goes on the way it has been going, as far as it has kept to one way (see [HexGroup.headE]).
+            val keepOn = if (s.carnivore) 0f else {
+                val (x0, y0) = hex.centreKm(here); val (x1, y1) = hex.centreKm(h)
+                ((g.headE * (x1 - x0) + g.headS * (y1 - y0)) / pullKm).toFloat()
+            }
             for (b in 0 until HexWorld.BANDS_M.size) {
                 val p = hw.placeOf[b][h]
                 if (p < 0) continue
@@ -690,7 +707,7 @@ class HexGroups(
                     val sky = if (g.band?.holds(Tradition.SKY_LORE) == true) 1.3f else 1f
                     if (fromHere > hex.hexKm) score += sky * SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
                 }
-                score += BEARING_PULL * pull
+                score += BEARING_PULL * pull + HEADING_PULL * keepOn
                 if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
                 // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
                 if (TAMING && s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, headsHere[peopleSlot][p] / 25f)
