@@ -128,7 +128,7 @@ const val SEASON_PULL = 1.0f
 /** For tracing: the kind whose herds' reasons the plan prints (-Dhex.planDiag=kind). */
 val PLAN_DIAG: String? = System.getProperty("hex.planDiag")
 /** How strongly a group follows its sense of better country, per reach moved along it. */
-const val BEARING_PULL = 0.5f
+val BEARING_PULL = System.getProperty("hex.t.bearingPull")?.toFloat() ?: 0.5f
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
 const val ASTRAY = 0.5f
 /** How far a herd's inherited seasonal places may lie from where it starts, km. */
@@ -252,3 +252,6 @@ const val FIGHT_RATIO = 1.5f
  */
 const val CARRION_FOUND = 0.5f
 const val SCAVENGER_CARRION = 0.5f
+
+/** Experiment: herds' sense of better country weighs food by how fresh and green it is (as their choice of place does). */
+val GREEN_BEARING = System.getProperty("hex.t.greenBearing") != null

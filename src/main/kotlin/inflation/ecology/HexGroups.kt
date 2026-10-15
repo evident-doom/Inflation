@@ -38,7 +38,7 @@ class HexGroups(
     internal var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. */
     /** For comparison runs, -Dhex.noPeople leaves people out. */
-    val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators.filter { !it.human || System.getProperty("hex.noPeople") == null })
+    val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || System.getProperty("hex.noPeople") == null) })
     /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
     val bearings by lazy {
         HexBearings(hw, kinds, { s, p, m ->
@@ -50,7 +50,7 @@ class HexGroups(
                 val w = land.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
                 prey / (prey + PREY_HALF) * fit / (1f + w * w)
             } else {
-                val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f
+                val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f * (if (GREEN_BEARING) land.nourishment(p) else 1f)
                 // Country thick with hunters is the less good for it.
                 val hunters = monthHunterKg[p] / land.areaKm2[p]
                 food / (food + 0.3f) * fauna.tether(s, p) * fit * (1f - 0.5f * hunters / (hunters + HUNTERS_HALF_KG))

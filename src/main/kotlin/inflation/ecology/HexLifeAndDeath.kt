@@ -327,7 +327,10 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             ((FERTILE_BY_SPAN[0] * first + FERTILE_BY_SPAN[1] * band.ageStage[0] + FERTILE_BY_SPAN[2] * band.ageStage[1]) / 2f).toInt()
         } else g.adults / 2
         val help = if (band != null) min(1f, band.elders * ELDER_MOTHERS / max(1, mothers)) else 0f
-        if (inSeason && g.adults >= 2) {
+        // (Births follow one rule for every kind, groups and residents alike: each mother bears her
+        // litter as she is fed, through the birth season; only where just the leading pair of a pack
+        // breeds ([Species.packLitter]: wolves) is there one litter a pack. A pack bears only on ground of its own.)
+        if (inSeason && g.adults >= 2 && !(s.carnivore && !s.human && g.home < 0)) {
             val births = if (s.packLitter > 0) {
                 if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
             } else {
@@ -341,7 +344,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             // The young are made of what their mothers ate: their weight comes off the mothers' reserves.
             if (births > 0) g.fat = max(0f, g.fat - births * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / max(1, g.adults / 2))
         }
-        val hunger = if (g.fed < 0.5f) (0.5f - g.fed) * 0.3f else 0f
+        val hunger = if (g.fed < HexFauna.HUNGER_FROM) (HexFauna.HUNGER_FROM - g.fed) * HexFauna.HUNGER_RATE else 0f
         // People feel the cold as their clothes allow.
         // Exposure: the unprotected die of the cold within days.
         val exposure = g.band?.let { min(0.9f, EXPOSURE * it.exposure(weather.temperature[g.place]) * days / 7f) } ?: 0f
@@ -389,7 +392,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
         val thirst = (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) * (if (s.human) HUMAN_THIRST * Tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
         // Crowded herds catch each other's diseases and parasites.
-        val usual = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.1f
+        val usual = HexFauna.usualDensity(s)
         // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
         val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
         // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
@@ -399,11 +402,13 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val disease = plague + if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
             else if (s.carnivore) {
                 // Hunters catch mange, distemper and rabies from other packs of their kind crowding the same ground.
-                // (Counted over its hex and the six round it: a pack's ground is wider than one hex.)
+                // (Counted, as for residents, over the ground it ranges over: its hex, and the six round it
+                // where its kind's home range reaches beyond one hex.)
                 val h0 = hw.placeHex[g.place]
-                var heads = -g.size
-                for (k in -1 until 6) { val q = if (k < 0) h0 else hex.neighbour(h0, k); if (q >= 0) heads += kinNow[s.index.toLong() * hex.size + q] ?: 0 }
-                val others = max(0, heads) / (7f * (hex.hexKm * hex.hexKm * 0.87).toFloat()) / (HexFauna.CROWDED * usual)
+                var heads = -g.size; var hexes = 0
+                val wide = territoryKm(s) > 0.6f * hex.hexKm
+                for (k in -1 until (if (wide) 6 else 0)) { val q = if (k < 0) h0 else hex.neighbour(h0, k); if (q >= 0) { heads += kinNow[s.index.toLong() * hex.size + q] ?: 0; hexes++ } }
+                val others = max(0, heads) / (hexes * (hex.hexKm * hex.hexKm * 0.87).toFloat()) / (HexFauna.CROWDED * usual)
                 HexFauna.DISEASE * others * others * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
             }
             else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
@@ -411,11 +416,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
         val homeless = if (s.carnivore && !s.human && g.home < 0) DISPERSAL_DEATHS * years else 0f
         // Eagles take the young of the smaller hoofed animals in the open.
-        val eagle = if (!s.carnivore && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
+        val eagle = if (!s.human && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
         val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
         val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults + festered).coerceIn(0f, 0.9f)
-        val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
+        val croc = if (s.human) 0f else fauna.water.crocodileRisk(g.place, weather) * years
         if (s.human && g.young > 0) {
             val care = g.young * (1f - ELDER_CARE * help)
             fun add(name: String, v: Float) { if (v > 0f) childDeaths.computeIfAbsent(name) { java.util.concurrent.atomic.DoubleAdder() }.add((care * v).toDouble()) }
