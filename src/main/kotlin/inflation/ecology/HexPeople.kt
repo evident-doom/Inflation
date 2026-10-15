@@ -89,6 +89,9 @@ class Band {
     /** How many of its adults are practised in each skill (-1 until first counted), and the week each was last used. */
     val holders = FloatArray(Skill.entries.size) { -1f }
     val lastUsed = IntArray(Skill.entries.size)
+    /** Share of its people sick with each [Illness] now, and share spared for having had it. */
+    val sick = FloatArray(Illness.entries.size)
+    val immune = FloatArray(Illness.entries.size)
     /** Its weeks so far, and its adults last week (to see how many it lost). */
     var weeks = 0
     var lastAdults = 0
@@ -209,7 +212,7 @@ class Band {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
-        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
+        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); sick.copyInto(o.sick); immune.copyInto(o.immune); holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
     }
@@ -688,7 +691,7 @@ const val KITE_HERDS = 100
 const val KITE_TAKE = 0.4f
 /** People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then. */
 const val PEOPLE_FULL_KM2 = 0.5f
-const val PEOPLE_SICK = 0.025f
+const val PEOPLE_SICK = 0.012f
 /** Outbreaks start among people at this share of the rate for animals of the same crowding (small bands keep few diseases going). */
 const val PEOPLE_OUTBREAK = 0.3f
 /** How much a cave or rock shelter adds to a camp's worth (dry, warm, easy to defend). */
