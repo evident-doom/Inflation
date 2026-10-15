@@ -318,6 +318,8 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     }
 
     private fun newYear() {
+        // Shocks that are over are let go.
+        events.removeAll { it.endDay <= date.absoluteDay }
         ar1(yearAnomaly, phi = 0.4, sigma = YEAR_SIGMA)
         // AR(2) with complex roots: a damped oscillation of about five years.
         val r = 0.8; val period = 5.0
