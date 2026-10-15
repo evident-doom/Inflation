@@ -31,7 +31,8 @@ fun main(args: Array<String>) {
     val bands = listOf(0.0 to 300.0, 300.0 to 700.0, 700.0 to 1200.0, 1200.0 to 1800.0, 1800.0 to 2500.0, 2500.0 to 9000.0)
     val bandOf = IntArray(n) { p -> bands.indexOfFirst { (lo, hi) -> hw.placeElevationM[p] >= lo && hw.placeElevationM[p] < hi } }
     @Suppress("UNCHECKED_CAST") val pet = HexLand::class.java.getDeclaredField("pet").also { it.isAccessible = true }.get(land) as Array<FloatArray>
-    val names = listOf("evaporative demand mm/week", "soil holds mm", "temperature °C", "rain mm/week", "snow lying mm", "melt mm/week", "soil water / held", "warmth part", "water part", "share cured", "green", "grass kg/m²", "growth (warmth × water)")
+    val watchKinds = run.fauna.kinds.filter { it.name in setOf("red deer", "ibex", "mouflon", "aurochs", "fallow deer", "wild boar") }
+    val names = watchKinds.map { it.name + " per km²" } + listOf("evaporative demand mm/week", "soil holds mm", "temperature °C", "rain mm/week", "snow lying mm", "melt mm/week", "soil water / held", "warmth part", "water part", "share cured", "green", "grass kg/m²", "growth (warmth × water)")
     // [band][quantity][month]: sums weighted by area, and the area.
     val sum = Array(bands.size) { Array(names.size) { DoubleArray(12) } }
     val area = Array(bands.size) { DoubleArray(12) }
@@ -49,7 +50,7 @@ fun main(args: Array<String>) {
             val wet = land.soil[p] / land.soilCap[p]
             val season = ((t - HexLand.GROW_FROM_C) / HexLand.GROW_SPAN_C).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
             val water0 = (wet / HexLand.UNSTRESSED).coerceIn(0f, 1f)
-            val v = doubleArrayOf((pet[m][p] * cfg.daysPerStep / Date.DAYS_PER_MONTH).toDouble(), land.soilCap[p].toDouble(), t.toDouble(), run.weather.precipitation[p].toDouble(), run.weather.snowpack[p].toDouble(), run.weather.meltwater[p].toDouble(),
+            val v = doubleArrayOf(*watchKinds.map { s -> val kk = run.fauna.kinds.indexOf(s); (run.fauna.adults[kk][p] + run.fauna.young[kk][p]).toDouble() }.toDoubleArray(), (pet[m][p] * cfg.daysPerStep / Date.DAYS_PER_MONTH).toDouble(), land.soilCap[p].toDouble(), t.toDouble(), run.weather.precipitation[p].toDouble(), run.weather.snowpack[p].toDouble(), run.weather.meltwater[p].toDouble(),
                 wet.toDouble(), season.toDouble(), water0.toDouble(), if (cured[p]) 1.0 else 0.0, land.green[p].toDouble(), land.herb[p].toDouble(), (season * water0).toDouble())
             for (q in names.indices) sum[b][q][m] += v[q] * a
             area[b][m] += a
