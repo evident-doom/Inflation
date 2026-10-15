@@ -137,10 +137,12 @@ class HexGroups(
     /**
      * Newcomers: once a year, a kind of herd or pack that has dwindled to a few groups (or died out)
      * gets a few groups more, at places that suit it, as if wandering in from beyond the map. Its
-     * niche then decides whether they last. (-Dhex.noNewcomers turns it off.)
+     * niche then decides whether they last. Only in training's play worlds ([newcomersOn]), to keep
+     * every kind in the data; never in checks or ordinary runs, where a collapse must show.
      */
+    var newcomersOn = System.getProperty("hex.newcomers") != null
     internal fun newcomers(date: Date) {
-        if (NO_NEWCOMERS || date.month != 0 || date.dayOfMonth > days) return
+        if (!newcomersOn || date.month != 0 || date.dayOfMonth > days) return
         for (s in kinds) {
             if (s.human) continue
             val now = groups.count { it.alive && it.species == s }

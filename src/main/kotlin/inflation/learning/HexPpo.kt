@@ -383,6 +383,8 @@ object HexPpo {
     /** One world for [years] with the networks choosing by chance; the recorded choices with their returns. */
     fun play(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Pair<List<Choice>, String> {
         val run = HexLearning.Run(cfg, kinds)
+        // (Kinds that dwindle get newcomers, so every kind stays in the data; checks run without them.)
+        run.groups.newcomersOn = true; run.fauna.newcomersOn = true
         var week = 0
         val record = ConcurrentLinkedQueue<Choice>()
         val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep

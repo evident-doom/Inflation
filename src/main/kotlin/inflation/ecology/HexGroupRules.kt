@@ -59,7 +59,6 @@ const val AMBUSH = 1f
 /** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
 const val NEWCOMER_BELOW = 5
 const val NEWCOMERS = 3
-val NO_NEWCOMERS = System.getProperty("hex.noNewcomers") != null
 /** What a band takes a sign it cannot read to be: a middling value, neither good nor bad. */
 const val SIGN_GUESS = 0.3f
 /** How much harder thick cover makes people's going; share of what the camp's own hex gives that each hex round it gives a band's gatherers at the usual range. */

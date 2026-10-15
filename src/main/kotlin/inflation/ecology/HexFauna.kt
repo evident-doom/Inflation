@@ -245,10 +245,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * Newcomers: once a year a resident kind that has dwindled below [NEWCOMER_ANIMALS] (or died out)
      * gets a few animals at places that suit it, as if wandering in from beyond the map; whether they
-     * last is up to their niche. (-Dhex.noNewcomers turns it off.)
+     * last is up to their niche. Only in training's play worlds ([newcomersOn]).
      */
+    var newcomersOn = System.getProperty("hex.newcomers") != null
     private fun newcomers(date: Date) {
-        if (NO_NEWCOMERS) return
+        if (!newcomersOn) return
         val r = kotlin.random.Random(date.absoluteDay * 7919L + 13)
         for (k in kinds.indices) {
             if (count(k) >= NEWCOMER_ANIMALS) continue
