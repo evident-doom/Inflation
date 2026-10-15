@@ -396,7 +396,7 @@ internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, dri
 
 /** Share of a carcass a hunter takes as food: a band as its butchers' skill allows (all the fat and marrow, at best). */
 /** Chance a band scavenging a carcass where hunters are thick has one of its people mauled by them. */
-const val SCAVENGE_RISK = 0.2f
+const val SCAVENGE_RISK = 0.01f
 
 internal fun meatShare(band: Band?) = if (band == null) MEAT_SHARE else min(MEAT_MOST, MEAT_SHARE * band.edge(Skill.BUTCHER))
 const val MEAT_MOST = 0.7f
