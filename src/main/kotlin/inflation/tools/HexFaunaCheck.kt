@@ -469,6 +469,21 @@ fun main(args: Array<String>) {
             println("  %-14s %8.0f in %d groups | lives in: %s | fed %.2f | moved %.0f km a year%s%s".format(s.name, heads, gs.size, top(byB), gs.sumOf { it.fed.toDouble() * it.size } / heads.coerceAtLeast(1.0), (movedKm[s] ?: 0.0) / gs.size.coerceAtLeast(1), diet, ranged))
         }
     }
+    // Bands by kind of country over the last year: how many, how they fed and on what.
+    run {
+        val cs = lastHunt.keys.filter { it.startsWith("bands in ") && it.endsWith(":band-weeks") }.map { it.removePrefix("bands in ").removeSuffix(":band-weeks") }
+        println("bands by kind of country, last year (share of band-weeks; food got of food wanted; meat / plants / fish): " + cs.sortedByDescending { lastHunt["bands in $it:band-weeks"] ?: 0 }.joinToString(", ") { c ->
+            fun v(k: String) = (lastHunt["bands in $c:$k"] ?: 0).toDouble()
+            val got = v("meat") + v("plants") + v("fish")
+            "%s %.0f%%: %.0f%%, %.0f/%.0f/%.0f%%".format(c, 100 * v("band-weeks") / cs.sumOf { (lastHunt["bands in $it:band-weeks"] ?: 0).toDouble() }.coerceAtLeast(1.0), 100 * got / v("asked").coerceAtLeast(1.0),
+                100 * v("meat") / got.coerceAtLeast(1.0), 100 * v("plants") / got.coerceAtLeast(1.0), 100 * v("fish") / got.coerceAtLeast(1.0)) })
+        // And how they live and die there: yearly births and deaths per person, and the main causes.
+        println("bands by kind of country, last year (births / deaths per person a year; main causes): " + cs.sortedByDescending { lastHunt["bands in $it:band-weeks"] ?: 0 }.joinToString(", ") { c ->
+            val years = (lastHunt["bands in $c:people-weeks"] ?: 0).toDouble() / stepsPerYear
+            val died = lastHunt.filterKeys { it.startsWith("bands in $c:died of ") }.mapKeys { it.key.substringAfter("died of ") }
+            "%s %.3f / %.3f (%s)".format(c, (lastHunt["bands in $c:born"] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9),
+                died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
+    }
     println("deaths over the run, by cause:")
     for (s in fauna.kinds + herds.kinds) {
         val c = causes.entries.filter { it.key.substringBefore(":") == s.name && !it.key.endsWith("+born") }.map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }

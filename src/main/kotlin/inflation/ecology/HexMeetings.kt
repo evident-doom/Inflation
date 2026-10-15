@@ -306,6 +306,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     hunting.merge("${s.name}:diet small prey, kg", smallGot.toInt(), Int::plus)
     hunting.merge("${s.name}:diet carrion, kg", scraps.toInt(), Int::plus)
     hunting.merge("${s.name}:diet plants, kg", plants.toInt(), Int::plus)
+    // For bands, the same by the kind of country they are in, and how they fared.
+    if (band != null) {
+        val c = inflation.world.Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
+        hunting.merge("bands in $c:asked", wantAll.toInt(), Int::plus); hunting.merge("bands in $c:meat", (meat + smallGot + scraps).toInt(), Int::plus)
+        hunting.merge("bands in $c:plants", plants.toInt(), Int::plus); hunting.merge("bands in $c:fish", fish.toInt(), Int::plus)
+        hunting.merge("bands in $c:band-weeks", 1, Int::plus); hunting.merge("bands in $c:people-weeks", g.size, Int::plus)
+    }
     var spare = meat - meatEaten
     if (band != null) {
         // This week's food: fresh meat and fish (small game and scraps with it), and plant food by kind.
