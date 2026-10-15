@@ -637,7 +637,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         return
     }
     // A hunter that has eaten its fill this week lets the herd pass.
-    val need = hunter.dailyNeedKg * days
+    val need = hunter.dailyNeedKg * days * (if (hunter.band == null) hunter.will[AnimalWay.CHASE] else 1f)
     if (hunter.meatMet >= need) return
     val p = hw.placeOf[hw.placeBand[herd.place]][h].takeIf { it >= 0 } ?: herd.place
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
@@ -697,7 +697,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     if (ratio < THEFT_RATIO) return // near equals keep their distance
     // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
     val cached = if (Niches.Shelter.TREE in Niches.shelters(weak.species)) land.canopy(weak.place) else 0f
-    if (weak.meatMet > 0f && rnd.nextFloat() < THEFT * (1f - cached)) {
+    if (weak.meatMet > 0f && rnd.nextFloat() < THEFT * strong.will[AnimalWay.STEAL] * (1f - cached)) {
         val taken = 0.7f * weak.meatMet
         weak.meatMet -= taken; strong.meatMet += taken
         meetings.merge("kill stolen", 1, Int::plus)
@@ -705,7 +705,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
-    val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land))
+    val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land)) * strong.will[AnimalWay.KILL]
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * Tuning.intraguildYoung * odds) {
         weak.young--
@@ -747,7 +747,8 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
     meetings.merge("rival packs", 1, Int::plus)
     val sa = a.adults * (if (a.home == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home == h) HOME_ADVANTAGE else 1f)
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
-    if (ratio > FIGHT_RATIO) {
+    // (How much stronger the other has to be before the weaker gives way is the weaker's choice.)
+    if (ratio > FIGHT_RATIO * (if (sa < sb) a else b).will[AnimalWay.FIGHT]) {
         // The weaker gives way: back the way it came.
         if (sa < sb) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
         meetings.merge("pack gave way", 1, Int::plus)
@@ -775,6 +776,9 @@ internal fun HexGroups.settle() {
     for (g in groups) if (g.alive && g.species.carnivore && !g.species.human && g.home < 0) {
         val h = hw.placeHex[g.place]
         val key = g.species.index.toLong() * hex.size + h
+        // (Whether it takes it is its choice: always at the hand-written way.)
+        val w = g.will[AnimalWay.SETTLE]
+        if (w < 1f && rnd.nextFloat() >= w) continue
         if (foreignMark(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) g.home = h
     }
 }

@@ -26,7 +26,7 @@ object Schema {
         "restless", "water distance", "days dry", "pull", "moon", "to births sin", "to births cos",
         "remembered", "remembered same season", "remembered fed", "remembered water", "remembered danger", "remembered age",
         "ancestors", "appointment", "houses", "own size", "lasting water", "sickness",
-        "trees", "shrubs", "grass", "marsh", "water against usual", "paths", "herds about", "dung", "grazing and kills", "known ground",
+        "trees", "shrubs", "grass", "marsh", "water against usual", "paths", "herds about", "dung", "grazing and kills", "known ground", "beyond own ground", "others' marks",
     ).also { require(it.size == HexFeatures.SIZE) { "Schema.PLACE has ${it.size} names, HexFeatures.SIZE is ${HexFeatures.SIZE}" } }
     /** A kind's traits, then its learned identity (see [SharedMover.kindInputs]). */
     val KIND = listOf("mass", "speed", "daily travel", "group size", "grass", "browse", "fruit and roots", "meat", "small prey", "carrion", "migratory", "carnivore", "stalking", "foresight")
@@ -45,6 +45,16 @@ object Schema {
     val WAYS_OUT: List<String> get() = (0 until FOOD_TYPES).map { "effort:$it" } + listOf("store aim") + Tool.entries.map { "make first:${it.name.lowercase()}" } +
         listOf("scouts", "houses", "raids", "palisades", "sowing", "gathering range", "watching children", "night fire", "shunning the sick", "exploring",
             "giving", "taking from caches", "caching", "drying", "keeping young animals", "shelters", "feasting", "appointments", "burning off")
+
+    /** A herd's or pack's view of itself ([inflation.ecology.animalInputs], in order). */
+    val ANIMAL_WAYS_IN = listOf("year sin", "year cos", "fed", "fat", "days dry", "own size", "young per adult", "wary", "holds ground", "weeks hungry", "temperature",
+        "mass", "diet:grass", "diet:browse", "diet:fruit and roots", "diet:meat", "diet:small prey", "diet:carrion")
+        .also { require(it.size == inflation.ecology.ANIMAL_WAYS_IN) }
+    /** A herd's ways and a pack's ([inflation.ecology.AnimalWay], in order). */
+    val HERD_WAYS_OUT = listOf("herd size", "grass", "browse", "fruit and roots", "fattening", "births earlier or later")
+        .also { require(it.size == inflation.ecology.ANIMAL_WAYS_OUT) }
+    val HUNTER_WAYS_OUT = listOf("chasing", "stealing kills", "killing other hunters", "fighting rivals", "seeking a mate", "settling")
+        .also { require(it.size == inflation.ecology.ANIMAL_WAYS_OUT) }
 
     fun namesFile(f: File) = File(f.path + ".names")
 

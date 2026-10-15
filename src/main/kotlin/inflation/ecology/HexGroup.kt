@@ -37,6 +37,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     var mergedSize = -1
     /** The month its young are born in, drifting towards the months that feed them best; -1 for its kind's. */
     var birthMonth = -1
+    /** For a herd or pack: its ways this week, 1 the hand-written way (see [AnimalWay]). */
+    val will = FloatArray(ANIMAL_WAYS_OUT) { 1f }
     /** For a band: food on hand, kg, by kind ([Store]). */
     val stores = FloatArray(Store.entries.size)
     /** All food on hand, kg; setting it scales every kind alike (gifts, raids, splits), or stores it dried. */
@@ -73,6 +75,7 @@ fun interface HexPolicy {
 object HexFeatures {
     /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment; 33 its houses there; 34 its own size against its kind's usual group; 35 the lasting water there through the dry season; 36 sickness raging there among its kind;
      *  37-46 the signs of the land: tree, shrub and grass cover, marsh, water now against its usual, worn paths, herds about
-     *  this month, dung, grazing this week, carcasses and bones; 46 whether a band knows the hex. */
-    const val SIZE = 47
+     *  this month, dung, grazing this week, carcasses and bones; 46 whether a band knows the hex;
+     *  47 for a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size); 48 how fresh another pack of its kind's mark is there. */
+    const val SIZE = 49
 }

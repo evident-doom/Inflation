@@ -82,6 +82,9 @@ class HexGroups(
     val policies = HashMap<Species, HexPolicy>()
     /** How bands set their ways each week; null for the scaffold's. */
     var ways: BandWays? = null
+    /** How herds and packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
+    @Transient var herdWays: AnimalWays? = null
+    @Transient var hunterWays: AnimalWays? = null
     /** Kills this week by prey kind; meetings this week by kind of meeting. */
     // (Concurrent and sorted: hunting runs region by region on all cores.)
     val kills = java.util.concurrent.ConcurrentSkipListMap<String, Int>()
@@ -209,6 +212,8 @@ class HexGroups(
             val st = strength(g)
             if (st > topStrength[g.place]) { topStrength[g.place] = st; topKind[g.place] = g.species.index }
         }
+        // Herds and packs set their ways for the week (bands set theirs as they forage, see [hunt]).
+        Profile.part("animals: setting their ways") { setAnimalWays(weather) }
         // Plan and move, in parallel: each group's choice depends only on last week's world.
         val tPlan = System.nanoTime(); val cPlan = Profile.cpuNow()
         Profile.part("choosing: valuing places for hunters") { valuePlaces() }
@@ -365,7 +370,7 @@ class HexGroups(
         val birth = if (g.birthMonth >= 0) g.birthMonth else s.birthMonth
         val calving = (date.month - birth + 12) % 12 < s.birthMonths
         val flush = 1f + AGGREGATION * land.green[g.place] * g.fed
-        return max(unitSize(s), (s.maxGroupSize * herdUnit(s) * g.sizePref * flush * (if (calving) 0.5f else 1f)).toInt())
+        return max(unitSize(s), (s.maxGroupSize * herdUnit(s) * g.sizePref * g.will[AnimalWay.HERD_SIZE] * flush * (if (calving) 0.5f else 1f)).toInt())
     }
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
@@ -504,9 +509,12 @@ class HexGroups(
         val pullKm = reach.toDouble().coerceAtLeast(hex.hexKm)
         for (h in reached) {
             val d = dist[h]
-            // A pack on its own ground stays on it while fed; and keeps off ground another pack of its kind holds.
-            if (s.carnivore && !s.human && g.home >= 0 && g.fed >= 0.5f && !astray && hexKm(h, g.home) > territory) continue
-            if (s.carnivore && !s.human && g.fed >= 0.3f && h != g.home && foreignMark(s, h, g.id) > MARK_FRESH) continue
+            // How far beyond its ground the hex lies (0 within it), and how fresh another pack's mark on it is.
+            val beyond = if (s.carnivore && !s.human && g.home >= 0) (hexKm(h, g.home) / territory - 1.0).toFloat().coerceIn(0f, 2f) else 0f
+            val foreign = if (s.carnivore && !s.human && h != g.home) foreignMark(s, h, g.id) else 0f
+            // A pack on its own ground stays on it while fed, and keeps off ground another pack of its kind holds
+            // (its choice: the hand-written score weighs these heavily; a learned one sees both, see [HexFeatures]).
+            val offGround = (if (beyond > 0f && g.fed >= 0.5f && !astray) KEEP_TO_GROUND else 0f) + (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
             val toGoal = if (goal >= 0) hexKm(h, goalHex) else 0.0
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(ki, here, h, pullKm)
@@ -528,7 +536,7 @@ class HexGroups(
                     // And ground where game was killed lately is shunned (the landscape of fear).
                     food / (food + 0.3f) - 0.5f * crowd(s, p, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
                 }
-                score -= 0.5f * discomfort(s, p, weather)
+                score -= 0.5f * discomfort(s, p, weather) + offGround
                 // Its own kind of country: open plains for a cheetah, crags for a wild goat, whatever the food.
                 if (!s.human) score += GROUP_HABITAT * kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f))
                 // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
@@ -635,6 +643,7 @@ class HexGroups(
                     f[44] = min(1f, fauna.small.dung[p] * 1e4f)
                     f[45] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
                     f[46] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
+                    f[47] = beyond; f[48] = foreign
                     // What it remembers of this hex: in this season, or failing that in any.
                     val mem = g.memory
                     var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0

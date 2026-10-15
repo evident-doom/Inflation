@@ -63,6 +63,9 @@ fun main(args: Array<String>) {
     inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
     System.getProperty("hex.ways")?.let { herds.ways = inflation.learning.NetWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.WAYS_IN, inflation.learning.Schema.WAYS_OUT)) }
+    // Herds' and packs' ways from learned networks (-Dhex.herdWays=FILE, -Dhex.hunterWays=FILE), else the hand-written ways.
+    System.getProperty("hex.herdWays")?.let { herds.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
+    System.getProperty("hex.hunterWays")?.let { herds.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
     // Every kind moving by learned role networks (-Dhex.nets=DIR with herds.mlp, hunters.mlp, people.mlp, as HexPpo writes them), else by the hand-written choices.
     System.getProperty("hex.nets")?.let { dir ->
         val ps = inflation.learning.HexPpo.ROLES.map { r -> inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(java.io.File(baselineDir(dir), "$r.mlp")), null, { 0f }, { 0 }) }

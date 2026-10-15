@@ -138,6 +138,9 @@ const val MEMORY_FADE = 0.998f
 /** How much a hungry pack is put off ground it has hunted out lately; weeks of hunger over which it widens its range to three times its usual ground. */
 const val HUNGRY_LEAVE = 0.5f
 const val GIVE_UP_WEEKS = 4
+/** How much a fed pack's hand-written score is put off ground beyond its territory, and ground another pack of its kind has freshly marked: enough that it keeps to its own as it did when those places were not weighed at all, while a learned policy sees both and may weigh them otherwise. */
+const val KEEP_TO_GROUND = 2f
+const val KEEP_OFF_MARKS = 2f
 /** Chance a chase at a fully catchable quarry succeeds. */
 const val CATCH = 0.35f
 /** Time a kill takes, days: the chase and making the kill, and eating it at this many kg a day per kg of hunter. */
