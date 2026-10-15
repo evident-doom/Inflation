@@ -605,7 +605,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val HABITAT = 3f
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
-        const val CROWDED = 10f
+        const val CROWDED = 4f
         /** How strongly a strait draws spilling residents against a neighbouring hex on land (a trickle). */
         const val SEA_SPILL = 0.02f
         /** Newcomers among the residents: a kind under this many animals gets this many at each of this many places, once a year. */

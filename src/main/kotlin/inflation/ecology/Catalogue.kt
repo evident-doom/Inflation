@@ -42,7 +42,8 @@ object Catalogue {
         dailyTravelKm = 3f, maxDailyTravelKm = 20f, senseKm = 1f,
         daysWithoutWater = 4, waterFromFood = 0.9f,
         birthMonth = 5, birthMonths = 1, youngPerFemale = 1.6f, yearsToMaturity = 2f,
-        backgroundMortality = 0.07f, snowLimitMm = 150f,
+        // (Half or more of the fawns are lost in their first year, to foxes, eagles, boar, cold and wet.)
+        backgroundMortality = 0.07f, youngMortality = 0.4f, snowLimitMm = 150f,
         products = Products(meat = 12f, fat = 0.5f, hide = 1.5f, bone = 3f, sinew = 0.2f, hornOrAntler = 0.3f),
         comfortC = -8f..29f, winterCoat = true,
         speedKmh = 70f,
@@ -277,6 +278,31 @@ object Catalogue {
         stalking = 1f,
         ferocity = 1.1f,
         startKm2PerAnimal = 50f,
+    )
+
+    /**
+     * Eurasian lynx: a solitary stalker of forest and broken ground, the roe deer's chief hunter (a
+     * roe or a chamois a week or so), with hares and birds between; a mother keeps her kits with
+     * her through their first winter.
+     */
+    val LYNX = Species(
+        name = "lynx", massKg = 20f,
+        fearOfPeople = 0.9f, boldShare = 0.01f,
+        diet = Diet(meat = 0.75f, smallPrey = 0.22f, carrion = 0.03f),
+        groupSize = 1, maxGroupSize = 4,
+        dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 3f,
+        daysWithoutWater = 6, waterFromFood = 0.8f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, youngMortality = 0.5f, snowLimitMm = 900f,
+        products = Products(meat = 8f, fat = 0.3f, hide = 1.5f, bone = 2f, sinew = 0.1f, fur = true),
+        comfortC = -30f..28f, winterCoat = true,
+        speedKmh = 50f,
+        domestication = floatArrayOf(0.1f, 0.3f, 0.1f, 0.0f, 0.2f, 0.0f),
+        habitat = Habitat(cover = 0.8f, rugged = 0.4f),
+        packLitter = 2,
+        stalking = 1f,
+        ferocity = 0.6f,
+        startKm2PerAnimal = 150f,
     )
 
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
@@ -568,7 +594,8 @@ object Catalogue {
         GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR,
         ELK, REINDEER, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
     )
-    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN)
+    // (New kinds go at the end, so that every kind keeps its index, and saved networks their identities.)
+    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN, LYNX)
 
     /** Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges. */
     val migratory = setOf(GAZELLE, REINDEER, HORSE, ONAGER, ORYX, OSTRICH, HARTEBEEST, DROMEDARY)

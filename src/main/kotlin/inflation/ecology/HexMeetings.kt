@@ -186,9 +186,12 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val small = this.small
         offer(1, 0, p, small.smallPreyKg(p) * min(area, smallSweep) * smallCatch / days, 1f, smallDays)
         if (d.carrion > 0f) {
-            // (At most half of what lies on the ground searched: the rest is not found in time, or others get it.)
-            offer(2, 0, p, 0.5f * small.carrion[p] * 1e6f * swept / days, 1f, eats)
-            if (Niches.cracksBones(s)) offer(3, 0, p, 0.5f * small.bones[p] * 1e6f * swept / days, 1f, eats * BONE_DAYS)
+            // (At most half of what lies on the ground searched: the rest is not found in time, or others get it;
+            // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
+            // that much: a wolf or a band comes on a carcass now and then, not every week.)
+            val found = CARRION_FOUND * min(1f, d.carrion / SCAVENGER_CARRION)
+            offer(2, 0, p, found * small.carrion[p] * 1e6f * swept / days, 1f, eats)
+            if (Niches.cracksBones(s)) offer(3, 0, p, found * small.bones[p] * 1e6f * swept / days, 1f, eats * BONE_DAYS)
         }
     }
     if (eatsPlants) for (q in gatherAt + roundCamp) {

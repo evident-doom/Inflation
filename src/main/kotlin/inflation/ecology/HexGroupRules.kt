@@ -243,3 +243,12 @@ const val EAGLE_PREY_KG = 80f
 const val SURPRISE = 1.5f
 /** Strength ratio beyond which the weaker pack gives way without a fight. */
 const val FIGHT_RATIO = 1.5f
+
+/**
+ * Carrion: the most of what lies on the ground searched that a scavenger by trade finds (the rest is
+ * not found in time, or others get it); and the share of carrion in a kind's diet that makes it one
+ * (striped hyenas): kinds that eat less of it find less, as far as their share falls short (a wolf,
+ * at 0.15, finds under a third as much).
+ */
+const val CARRION_FOUND = 0.5f
+const val SCAVENGER_CARRION = 0.5f
