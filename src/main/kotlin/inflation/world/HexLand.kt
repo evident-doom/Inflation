@@ -351,6 +351,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
      * fraction from the rest (see [nourishment]).
      */
     val green = FloatArray(n)
+    /** The grass has dried out and cured this season (it waits for rain to sprout again). */
+    val cured = BooleanArray(n)
 
     /** Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when dry or dormant. */
     fun nourishment(p: Int) = DRY_VALUE + (1f - DRY_VALUE) * green[p]
@@ -565,9 +567,13 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
             val season = ((t - GROW_FROM_C) / GROW_SPAN_C).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
             val water0 = (wet / UNSTRESSED).coerceIn(0f, 1f)
+            // Grass that dries out in growing weather sets seed and cures to straw where it stands; it greens
+            // again only when rain wets the soil enough to sprout it (to where plants take water unstressed).
+            if (season > 0f && water0 < 0.5f) cured[p] = true else if (water0 >= 1f) cured[p] = false
+            val herbGrowth = if (cured[p]) 0f else season * water0
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, as long as it is growing weather.
-            val flush = min(1f, season * water0 + FLUSH * burnt[p] * season)
+            val flush = min(1f, herbGrowth + FLUSH * burnt[p] * season)
             green[p] += (flush - green[p]) * GREEN_RATE
             val shade = canopy(p)
             val browsed = 1f - exp(-browsing[p] / Vegetation.BROWSE_SCALE)
@@ -583,7 +589,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             shrubShoots[p] = shrubShoots[p] * shootsKept + palatable[p] * (max(0f, shrub[p] - shrub0) + SHRUB_RENEWAL * renew * shrub[p])
             treeShoots[p] = treeShoots[p] * shootsKept + palatable[p] * TREE_IN_REACH * (max(0f, tree[p] - tree0) + TREE_RENEWAL * renew * tree[p])
             val lawn = 1f - exp(-grazing[p] / Vegetation.LAWN_SCALE)
-            grow(LifeForm.HERB, herb, p, season * water0 * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
+            grow(LifeForm.HERB, herb, p, herbGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
             // Ash smothers the low plants and scorches leaves; as it weathers it enriches the soil.
             if (ash[p] > 1f) {
                 herb[p] *= exp(-ash[p] / ASH_SMOTHER_MM * years * 52f / 10f); shrub[p] *= exp(-ash[p] / (4f * ASH_SMOTHER_MM) * years * 52f / 10f)
