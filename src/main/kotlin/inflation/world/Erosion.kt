@@ -63,10 +63,13 @@ object Erosion {
         val sediment = FloatArray(n)
         val qs = FloatArray(n)
         val toSea = FloatArray(n)
-        val stamp = IntArray(n)
+        // (Whether each cell is an outlet, worked out once; the sea floor round a mouth in order of
+        // distance, worked out once; and for each mouth how far out its sea floor is already full.)
+        val outlet = BooleanArray(n) { isOutlet(it) }
+        val ring = Ring(grid)
+        val fullTo = IntArray(n); val fullDelta = BooleanArray(n)
         val rnd = Random(seed)
         val sedimentErodibility = Rock.ALLUVIUM.erodibility
-        var tag = 0
         repeat(steps) { step ->
             // Closed basins fill with sediment.
             val filled = priorityFlood(grid, elevation, isOutlet, routable = true)
@@ -109,7 +112,7 @@ object Erosion {
                 }
                 qs[r] += qs[i]
             }
-            tag = depositOffshore(grid, elevation, sediment, toSea, isOutlet, stamp, tag)
+            depositOffshore(grid, elevation, sediment, toSea, outlet, ring, fullTo, fullDelta)
             diffuse(grid, elevation, lap, dtYears, diffusivity, isOutlet)
             if (criticalSlope > 0) slide(grid, elevation, criticalSlope.toFloat(), isOutlet)
             progress(step + 1, steps)
@@ -117,16 +120,33 @@ object Erosion {
         return sediment
     }
 
+    /** The cells within [MAX_SPREAD_KM] of a cell, as steps across and down, in order of distance, km. */
+    private class Ring(grid: Grid) {
+        val dx: IntArray; val dy: IntArray; val km: FloatArray
+        init {
+            val r = (MAX_SPREAD_KM / grid.cellKm).toInt() + 1
+            val all = ArrayList<Triple<Int, Int, Float>>()
+            for (y in -r..r) for (x in -r..r) {
+                val d = (kotlin.math.sqrt((x * x + y * y).toDouble()) * grid.cellKm).toFloat()
+                if (d < MAX_SPREAD_KM) all += Triple(x, y, d)
+            }
+            all.sortWith(compareBy<Triple<Int, Int, Float>>({ it.third }, { it.second }, { it.first }))
+            dx = IntArray(all.size) { all[it].first }; dy = IntArray(all.size) { all[it].second }; km = FloatArray(all.size) { all[it].third }
+        }
+    }
+
     /**
      * Sediment reaching the coast spreads outward from the river mouth, nearest sea floor first,
      * filling it up to a profile: a delta plain just above sea level near the mouth, then a shelf
      * deepening gently to the shelf break, then the steep continental slope. What remains spills
-     * into the deep sea.
+     * into the deep sea. (The sea floor round a mouth is taken in order of distance from a table
+     * worked out once; a mouth remembers how far out its floor is already filled to the profile,
+     * which stays so, since the sea floor does not wear, and starts from there next time.)
      */
     private fun depositOffshore(
         grid: Grid, elevation: FloatArray, sediment: FloatArray, toSea: FloatArray,
-        isOutlet: (Int) -> Boolean, stamp: IntArray, lastTag: Int,
-    ): Int {
+        isOutlet: BooleanArray, ring: Ring, fullTo: IntArray, fullDelta: BooleanArray,
+    ) {
         val cellArea = grid.cellAreaM2.toFloat()
         // The coast is cut into tiles twice as wide as sediment ever spreads, and tiles of one colour
         // of a four-colour chessboard are filled at the same time on separate cores: their spreads
@@ -135,48 +155,44 @@ object Erosion {
         val tilesX = (grid.width + tileCells - 1) / tileCells; val tilesY = (grid.height + tileCells - 1) / tileCells
         val byTile = Array(tilesX * tilesY) { ArrayList<Int>() }
         for (s in 0 until grid.size) if (toSea[s] > 0f) byTile[(grid.y(s) / tileCells) * tilesX + grid.x(s) / tileCells] += s
-        val heaps = ThreadLocal.withInitial { FloatHeap(1024) }
-        val marks = ThreadLocal.withInitial { IntArray(grid.size) }
-        val tags = ThreadLocal.withInitial { intArrayOf(0) }
         for (colour in 0 until 4) {
             val tiles = (0 until tilesX * tilesY).filter { ((it / tilesX) % 2) * 2 + (it % tilesX) % 2 == colour && byTile[it].isNotEmpty() }
             tiles.parallelStream().forEach { tile ->
-                val heap = heaps.get(); val mine = marks.get(); val tag = tags.get()
                 for (s in byTile[tile]) {
                     var volume = toSea[s]
-                    val deltaKm = if (volume > DELTA_VOLUME) DELTA_KM else 0f
-                    tag[0]++
+                    val delta = volume > DELTA_VOLUME
+                    val deltaKm = if (delta) DELTA_KM else 0f
+                    // (A mouth that has just grown a delta has a higher profile near it to fill again.)
+                    if (fullDelta[s] != delta) { fullTo[s] = 0; fullDelta[s] = delta }
                     val sx = grid.x(s); val sy = grid.y(s)
-                    heap.push(0f, s); mine[s] = tag[0]
-                    while (heap.size > 0 && volume > 0f) {
-                        val km = heap.peekKey()
-                        val i = heap.pop()
-                        val target = when {
-                            km < deltaKm -> DELTA_TOP
-                            km < SHELF_BREAK_KM -> SHELF_TOP - SHELF_SLOPE * (km - deltaKm)
-                            else -> SHELF_TOP - SHELF_SLOPE * (SHELF_BREAK_KM - deltaKm) - 25f * (km - SHELF_BREAK_KM)
-                        }
-                        val room = (target - elevation[i]) * cellArea
-                        if (room > 0f) {
-                            val dep = min(room, volume)
-                            elevation[i] += dep / cellArea
-                            sediment[i] += dep / cellArea
-                            volume -= dep
-                        }
-                        grid.forNeighbours(i) { j, _ ->
-                            if (mine[j] != tag[0] && isOutlet(j)) {
-                                mine[j] = tag[0]
-                                val dx = (grid.x(j) - sx).toDouble(); val dy = (grid.y(j) - sy).toDouble()
-                                val d = (kotlin.math.sqrt(dx * dx + dy * dy) * grid.cellKm).toFloat()
-                                if (d < MAX_SPREAD_KM) heap.push(d, j)
+                    var k = fullTo[s]; var allFull = true
+                    while (k < ring.km.size && volume > 0f) {
+                        val x = sx + ring.dx[k]; val y = sy + ring.dy[k]
+                        if (x in 0 until grid.width && y in 0 until grid.height) {
+                            val i = y * grid.width + x
+                            if (isOutlet[i]) {
+                                val km = ring.km[k]
+                                val target = when {
+                                    km < deltaKm -> DELTA_TOP
+                                    km < SHELF_BREAK_KM -> SHELF_TOP - SHELF_SLOPE * (km - deltaKm)
+                                    else -> SHELF_TOP - SHELF_SLOPE * (SHELF_BREAK_KM - deltaKm) - 25f * (km - SHELF_BREAK_KM)
+                                }
+                                val room = (target - elevation[i]) * cellArea
+                                if (room > 0f) {
+                                    val dep = min(room, volume)
+                                    elevation[i] += dep / cellArea
+                                    sediment[i] += dep / cellArea
+                                    volume -= dep
+                                    if (dep < room) allFull = false
+                                }
                             }
                         }
+                        if (allFull) fullTo[s] = k + 1
+                        k++
                     }
-                    while (heap.size > 0) heap.pop()
                 }
             }
         }
-        return lastTag
     }
 
     /**
