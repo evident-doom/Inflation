@@ -290,6 +290,8 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         val wb = who.band!!
         wb.elders = (wb.elders - (lost * wb.elders + who.adults / 2) / who.adults.coerceAtLeast(1)).coerceAtLeast(0)
         who.adults -= lost
+        // (And as many again are wounded, some to be lamed for life.)
+        who.band?.wounded(WOUNDED_PER_DEAD * lost, who.adults)
         wb.elders = min(wb.elders, who.adults)
         deaths.merge("${who.species.name}:raids", lost, Int::plus)
         small.carrion[who.place] += lost * who.species.massKg / (land.areaKm2[who.place] * 1e6f)

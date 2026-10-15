@@ -91,7 +91,15 @@ class Band {
     val lastUsed = IntArray(Skill.entries.size)
     /** Share of its people sick with each [Illness] now, and share spared for having had it. */
     val sick = FloatArray(Illness.entries.size)
-    val immune = FloatArray(Illness.entries.size)
+    val immune = FloatArray(Illness.entries.size) { Illness.entries[it].endemic }
+    /**
+     * Its wounded: the share of its adults nursing a wound, broken bone or sprain (they do little,
+     * and a wound may fester and kill), and the share lamed for life by one that healed badly.
+     */
+    var hurt = 0f
+    var lame = 0f
+    /** Its working hands, against all its adults: the hurt and the lamed do less. */
+    val ableShare get() = (1f - HURT_HANDS * hurt - LAME_HANDS * lame).coerceIn(0.3f, 1f)
     /** Its weeks so far, and its adults last week (to see how many it lost). */
     var weeks = 0
     var lastAdults = 0
@@ -230,7 +238,7 @@ class Band {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
-        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); sick.copyInto(o.sick); immune.copyInto(o.immune); holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
+        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); sick.copyInto(o.sick); immune.copyInto(o.immune); o.hurt = hurt; o.lame = lame; holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows)
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
     }
@@ -1145,3 +1153,24 @@ const val GATHER_WALK_KM = 6f
 const val SICK_SHOWS = 0.05f
 /** Firewood a fire through the night burns in a week, kg a person. */
 const val NIGHT_WOOD = 3f
+
+/** A band takes [n] wounded among its [adults]: from a fight, a hunt gone wrong, a beast, a fall. */
+internal fun Band.wounded(n: Float, adults: Int) { if (adults > 0) hurt = min(1f, hurt + n / adults) }
+
+/**
+ * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
+ * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
+ * killed in a fight, by prey or by a beast; weekly share of the wounded who heal, untended and with
+ * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
+ * the healed lamed for life, untended (care halves it); yearly share of the lamed lost as the band's
+ * people turn over.
+ */
+const val HURT_HANDS = 0.8f
+const val LAME_HANDS = 0.4f
+const val MISHAPS = 0.08f
+const val WOUNDED_PER_DEAD = 2f
+const val HEAL_UNTENDED = 0.15f
+const val HEAL_TENDED = 0.35f
+const val FESTER = 0.02f
+const val LAMED = 0.2f
+const val LAME_TURNOVER = 0.04f

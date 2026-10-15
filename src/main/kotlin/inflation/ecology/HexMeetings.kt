@@ -96,7 +96,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val rnd = kotlin.random.Random(g.id * 1_000_003L + weatherNow.date.absoluteDay)
     // (A band's scouts range ahead instead of foraging.)
     // (Lookouts, and adults kept back with the children beyond the usual, do not gather or hunt.)
-    val hands = max(1, (g.adults * (1f - (band?.scoutShare ?: 0f)) * (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
+    val hands = max(1, (g.adults * (band?.ableShare ?: 1f) * (1f - (band?.scoutShare ?: 0f)) * (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
     // (Walking costs food, see [walkCost].)
     val wantAll = g.dailyNeedKg * days * (1f + walkCost(g))
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
@@ -661,6 +661,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     if (hunter.adults > 0 && rnd.nextFloat() < fightBack(herd.species, hunter.adults * hunter.species.massKg)) {
         hunter.adults--
         deaths.merge("${hunter.species.name}:prey fought back", 1, Int::plus)
+        hunter.band?.wounded(WOUNDED_PER_DEAD, hunter.adults)
         small.carrion[hunter.place] += hunter.species.massKg / (land.areaKm2[hunter.place] * 1e6f)
     }
     }

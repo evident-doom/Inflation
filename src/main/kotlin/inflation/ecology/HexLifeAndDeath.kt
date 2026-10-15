@@ -220,6 +220,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // A band that keeps the old way leaves a camp where someone died.
         if (s.human && o.deaths > 0) g.band?.let { b -> if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) { b.unluckyHex = hw.placeHex[g.place]; b.unluckyWeeks = UNLUCKY_WEEKS; note(g) { "left the camp where its dead lie" } } }
         // A band that buries its dead buries them where it is: its ancestors' place.
+        // For each taken by a beast, others got away hurt.
+        g.band?.let { b -> val taken = o.causes.filter { it.first.startsWith("taken by") }.sumOf { it.second }; if (taken > 0) b.wounded(WOUNDED_PER_DEAD * taken, g.adults) }
         // Where a beast took one of them, the band remembers the place as dangerous.
         if (s.human && o.causes.any { it.first.startsWith("taken by") && it.second > 0 })
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.danger, 1f)
@@ -306,6 +308,18 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val exposure = g.band?.let { min(0.9f, EXPOSURE * it.exposure(weather.temperature[g.place]) * days / 7f) } ?: 0f
         val cold = (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: discomfort(s, g.place, weather)) * 0.02f
         val fouled = campFouling(g) * years
+        // Wounds: mishaps of the work (the further the gatherers range, the more), and those hurt in
+        // fights, hunts and by beasts last week; tended wounds heal faster, fester less and lame fewer.
+        val festered = if (s.human && band != null) {
+            val care = (if (band.holds(Tradition.MEDICINE)) 0.5f else 0f) + 0.5f * band.skill(Skill.HERBS)
+            band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * years)
+            val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
+            val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f
+            val mended = band.hurt * heal
+            band.lame = min(1f, band.lame * (1f - LAME_TURNOVER * years) + mended * LAMED * (1f - 0.5f * care))
+            band.hurt = max(0f, band.hurt - mended - fester)
+            fester
+        } else 0f
         // Beasts of prey about: now and then one takes a gatherer, a child or an old one alone.
         val (stalked, stalker) = if (s.human && band != null) stalkedBy(g, band, kinNow) else 0f to ""
         // Vipers and scorpions, out in the warm months.
@@ -360,7 +374,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val eagle = if (!s.carnivore && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
         val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
         val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
-        val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults).coerceIn(0f, 0.9f)
+        val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults + festered).coerceIn(0f, 0.9f)
         val croc = if (s.carnivore) 0f else fauna.water.crocodileRisk(g.place, weather) * years
         val py = ((healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
         val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
@@ -379,7 +393,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // The dead lie where they fell, for the scavengers and the soil.
         var carrion = (da + oldAge + 0.3f * dy) * s.massKg
         // The week's deaths are shared among the causes by how much each weighed ("other": age, accidents, ordinary illness).
-        val hazards = listOf("other" to healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, "hunger" to hunger, "cold" to cold, "exposure" to exposure, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "snakes and scorpions" to venom, "inbreeding" to inbred, "taken by $stalker" to stalked) + (ill?.let { a -> Illness.entries.map { it.label to a[it.ordinal] * (1f + it.young) / 2f } } ?: emptyList())
+        val hazards = listOf("other" to healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, "hunger" to hunger, "cold" to cold, "exposure" to exposure, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "snakes and scorpions" to venom, "inbreeding" to inbred, "taken by $stalker" to stalked, "wounds" to festered) + (ill?.let { a -> Illness.entries.map { it.label to a[it.ordinal] * (1f + it.young) / 2f } } ?: emptyList())
         var left = da + dy; var weight = hazards.sumOf { it.second.toDouble() }.toFloat()
         val causes = ArrayList<Pair<String, Int>>()
         for ((name, h) in hazards) {
