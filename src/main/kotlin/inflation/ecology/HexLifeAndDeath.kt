@@ -78,7 +78,9 @@ internal fun HexGroups.graze(weather: Weather) {
             val want = wantKg * share / 1e6f / land.areaKm2[p] // kg per m² of the place
             val access = HexFood.access(s, land.ruggedness[p])
             val snowed = weather.snowpack[p] > s.snowLimitMm
-            val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
+            // (Its diet as it leans this week: its kind's, weighted by its own choice.)
+            val d = s.diet.let { k -> inflation.ecology.Diet(grass = k.grass * g.will[AnimalWay.GRASS], browse = k.browse * g.will[AnimalWay.BROWSE], fruit = k.fruit * g.will[AnimalWay.FRUIT], roots = k.roots * g.will[AnimalWay.FRUIT]) }
+            val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
             val reach = HexFauna.REACH_DORMANT + (HexFauna.REACH - HexFauna.REACH_DORMANT) * land.green[p]
             // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
             val fill = gutFill(s, land.nourishment(p))
@@ -133,7 +135,7 @@ internal fun HexGroups.graze(weather: Weather) {
             // With food to spare and reserves short, it eats more and lays the surplus on.
             var grass3 = 0f; var browse3 = 0f
             if (got >= want && g.fat < s.maxFatDays) {
-                val extra = FATTEN * want
+                val extra = FATTEN * g.will[AnimalWay.FATTEN] * want
                 if (d.grass > 0f && !snowed) grass3 = eatGrass(extra / q * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 if (d.browse > 0f) browse3 = eatBrowse(extra / q * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 surplusKg += (grass3 + browse3) * q * land.areaKm2[p] * 1e6f
@@ -285,7 +287,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         if (date.month == 3 && date.dayOfMonth <= days && !s.carnivore) {
             fun window(m0: Int) = (0 until 3).sumOf { g.seasonQ[(m0 + it + 12) % 12].toDouble() }
             val m = g.birthMonth
-            if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = (m + 11) % 12
+            // (Or it moves them itself, when it leans far enough one way, see [AnimalWay.BIRTHS].)
+            val lean = g.will[AnimalWay.BIRTHS] - 1f
+            if (lean < -AnimalWay.BIRTHS_LEAN) g.birthMonth = (m + 11) % 12
+            else if (lean > AnimalWay.BIRTHS_LEAN) g.birthMonth = (m + 1) % 12
+            else if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = (m + 11) % 12
             else if (window(m + 1) > window(m) + 0.1) g.birthMonth = (m + 1) % 12
         }
         val inSeason = (date.month - g.birthMonth + 12) % 12 < s.birthMonths
@@ -511,7 +517,8 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         val used = HashSet<Int>()
         for (a in list) {
             if (a.id in used) continue
-            val b = list.firstOrNull { it.id != a.id && it.id !in used && hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM } ?: continue
+            // (As far as it chooses to look; and only among its own lineage while variants are weighed against each other.)
+            val b = list.firstOrNull { it.id != a.id && it.id !in used && it.tag == a.tag && hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM * a.will[AnimalWay.MATE] } ?: continue
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f
