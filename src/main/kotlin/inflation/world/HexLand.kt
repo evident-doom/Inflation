@@ -34,8 +34,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     private fun mean(p: Int, f: (Int) -> Float): Float { val cs = hw.placeCells[p]; var s = 0.0; for (i in cs) s += f(i); return (s / cs.size).toFloat() }
     private val soilFertility = FloatArray(n) { p -> mean(p) { world.soilFertility[it] } }
     private val slope = FloatArray(n) { p -> mean(p) { world.terrain.slope[it] } }
-    /** Share of waterlogged ground (marsh, bog, salt marsh), where woody plants drown. */
-    val logged = FloatArray(n)
+    /** Share of waterlogged ground (marsh, bog, salt marsh), where woody plants drown (fixed by the world, so not taken from a saved run: runs saved before it was filled hold zeros). */
+    @Transient val logged = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
     /**
      * The share of each place's plants an animal or a forager can eat, 0..1: most of an open
      * grassland, little of aromatic garrigue, thorny scrub, desert bush, bog or conifer forest, where
@@ -54,7 +54,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
 
     /** The dead buried at each place (graves weather away over centuries), and the ornaments buried with them. */
     val burials = FloatArray(n)
-    val graveGoods = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
+    val graveGoods = FloatArray(n)
     /** Share of the ground where good knapping stone (flint, obsidian) crops out. */
     val stone = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and (Mineral.FLINT or Mineral.OBSIDIAN) != 0) 1f else 0f } }
     /** Share of floodplain, which a river in spate covers. */
