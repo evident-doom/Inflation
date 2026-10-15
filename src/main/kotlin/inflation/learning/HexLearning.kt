@@ -483,7 +483,7 @@ object HexEvolveWays {
 
     /** One small world with all the animals for [years], each band on one of [variants]; person-weeks per person at the start. */
     fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
-        val run = HexLearning.Run(cfg, Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }.distinct())
+        val run = HexLearning.Run(cfg, Catalogue.learned.distinct())
         movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[HexPpo.role(s)] }
         if (role != "bands") return evaluateAnimals(run, cfg, years, variants)
         val rnd = Random(cfg.seed)

@@ -218,8 +218,8 @@ object HexPpo {
             k++
         }
         out.mkdirs()
-        val kinds = Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }
-        val kindsAll = Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }
+        val kinds = Catalogue.learned
+        val kindsAll = Catalogue.learned
         // Only how the teachers do against the hand-written behaviour, in today's world.
         if (teacherCheck) {
             val seeds = (91L until 91L + checkSeeds).toList()

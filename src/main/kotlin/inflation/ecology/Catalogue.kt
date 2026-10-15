@@ -592,6 +592,12 @@ object Catalogue {
     fun travel(s: Species) = if (s in climbers) inflation.world.HexMap.Travel.CLIMB
         else if (!s.carnivore && s.massKg > 60f) inflation.world.HexMap.Travel.SWIM else inflation.world.HexMap.Travel.FOOT
     val all = herbivores + predators
+    /**
+     * The kinds that move as groups with a learned mover: the migratory herds, the beasts of prey and
+     * people. Named, not read from the diet: people eat about half meat, and a small retune of their
+     * diet would otherwise drop them from training and from the check without a word.
+     */
+    val learned = all.filter { it in migratory || it in predators }
 
     init {
         all.forEachIndexed { i, s -> s.index = i }

@@ -43,7 +43,7 @@ object HexExplain {
         }
         val net = Mlp.load(netFile!!.readText())
         val kind = Catalogue.all.first { it.name == kindName }
-        val kinds = Catalogue.all.filter { it in Catalogue.migratory || it.carnivore }
+        val kinds = Catalogue.learned
         val cfg = WorldConfig(seed = seed, widthKm = size, heightKm = size)
         class Pick(val net: FloatArray, val hand: FloatArray)
         fun play(learned: Boolean): Pair<Map<String, Int>, List<Pick>> {
