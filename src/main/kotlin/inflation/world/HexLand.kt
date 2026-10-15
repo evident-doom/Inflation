@@ -359,6 +359,24 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
      * fraction from the rest (see [nourishment]).
      */
     val green = FloatArray(n)
+    /** Each place's warmest month, °C (normal); and from it how plants there are adapted: the warmth at which they start to grow and over which they reach full growth, °C, and the share of the sward that is perennial. */
+    private val warmest = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
+    private val growFrom = FloatArray(n) { p -> (warmest[p] - 20f).coerceIn(-2f, GROW_FROM_C) }
+    private val growSpan = FloatArray(n) { p -> (warmest[p] - 6f).coerceIn(6f, GROW_SPAN_C) }
+    val perennialShare = FloatArray(n) { p -> ((PERENNIAL_FULL_C + 4f - warmest[p]) / 4f).coerceIn(0f, 1f) }
+    /** How far the warmth [t], °C, lets the plants of place [p] grow, 0..1, as they are adapted to it. */
+    fun growthWarmth(p: Int, t: Float) = ((t - growFrom[p]) / growSpan[p]).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
+    /**
+     * How fast the grass of place [p] grows, 0..1, at warmth [season] (see [growthWarmth]) with the soil
+     * [wet] (its water against what it holds), the annuals of it [cured] or not: the annuals grow with the
+     * soil's water to where plants take it unstressed and not at all once cured; the perennials, by their
+     * deep roots, until the soil is a quarter full; mixed as the place's sward is.
+     */
+    fun herbGrowth(p: Int, season: Float, wet: Float, cured: Boolean): Float {
+        val annual = if (cured) 0f else season * (wet / UNSTRESSED).coerceIn(0f, 1f)
+        val perennial = season * (wet / PERENNIAL_UNSTRESSED).coerceIn(0f, 1f)
+        return (1f - perennialShare[p]) * annual + perennialShare[p] * perennial
+    }
     /** The grass has dried out and cured this season (it waits for rain to sprout again). */
     val cured = BooleanArray(n)
     /**
@@ -591,16 +609,21 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val wet = soil[p] / soilCap[p]
             moisture[p] += (((1 - slopeShade[p]) * soil[p] + slopeShade[p] * soilShade[p]) / soilCap[p] - moisture[p]) * memory
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
-            val season = ((t - GROW_FROM_C) / GROW_SPAN_C).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
+            // Plants are adapted to their place: where summers are cool they grow fully at less warmth (alpine
+            // grasses at 5-10 °C), where they are hot as before.
+            val season = growthWarmth(p, t)
             val water0 = (wet / UNSTRESSED).coerceIn(0f, 1f)
             val waterShade = (soilShade[p] / soilCap[p] / UNSTRESSED).coerceIn(0f, 1f)
             // Grass that dries out in growing weather sets seed and cures to straw where it stands; it greens
             // again only when rain wets the soil enough to sprout it (to where plants take water unstressed).
+            // So do the annual grasses of hot, dry summers. Where summers are cool the sward is perennial: deep
+            // roots keep it growing until the soil is a quarter full, it browns as the soil dries further and
+            // greens again with the next rain, without curing for the year.
             if (season > 0f && water0 < 0.5f) cured[p] = true else if (water0 >= 1f) cured[p] = false
             if (season > 0f && waterShade < 0.5f) curedShade[p] = true else if (waterShade >= 1f) curedShade[p] = false
             val shaded = slopeShade[p]
-            val sunnyGrowth = if (cured[p]) 0f else season * water0
-            val shadyGrowth = if (curedShade[p]) 0f else season * waterShade
+            val sunnyGrowth = herbGrowth(p, season, wet, cured[p])
+            val shadyGrowth = herbGrowth(p, season, soilShade[p] / soilCap[p], curedShade[p])
             val openGrowth = (1 - shaded) * sunnyGrowth + shaded * shadyGrowth
             // The seeps grow as long as the ground water flows, whatever the weather brings.
             val seepGrowth = season * seeping(p)
@@ -609,7 +632,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val bankGrowth = season * max(if (flood[p] > 0f) 1f else 0f, (1f - waterTableM(p) / ROOT_REACH_M).coerceIn(0f, 1f))
             val seeps = if (SEEPS) SEEP_SHARE * (1 - bank) else 0f
             val open = 1 - seeps - bank
-            val herbGrowth = open * openGrowth + seeps * seepGrowth + bank * bankGrowth
+            val grassGrowth = open * openGrowth + seeps * seepGrowth + bank * bankGrowth
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, as long as it is growing weather.
             greenOpen[p] += (min(1f, sunnyGrowth + FLUSH * burnt[p] * season) - greenOpen[p]) * GREEN_RATE
@@ -631,7 +654,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             shrubShoots[p] = shrubShoots[p] * shootsKept + palatable[p] * (max(0f, shrub[p] - shrub0) + SHRUB_RENEWAL * renew * shrub[p])
             treeShoots[p] = treeShoots[p] * shootsKept + palatable[p] * TREE_IN_REACH * (max(0f, tree[p] - tree0) + TREE_RENEWAL * renew * tree[p])
             val lawn = 1f - exp(-grazing[p] / Vegetation.LAWN_SCALE)
-            grow(LifeForm.HERB, herb, p, herbGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
+            grow(LifeForm.HERB, herb, p, grassGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
             // Ash smothers the low plants and scorches leaves; as it weathers it enriches the soil.
             if (ash[p] > 1f) {
                 herb[p] *= exp(-ash[p] / ASH_SMOTHER_MM * years * 52f / 10f); shrub[p] *= exp(-ash[p] / (4f * ASH_SMOTHER_MM) * years * 52f / 10f)
@@ -758,6 +781,12 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         /** Experiment knobs: the warmth at which plants start to grow, °C, and the span over which they reach full growth, °C. */
         val GROW_FROM_C = System.getProperty("hex.t.growFrom")?.toFloat() ?: 2f
         val GROW_SPAN_C = System.getProperty("hex.t.growSpan")?.toFloat() ?: 13f
+        /**
+         * Perennial swards: wholly so where the warmest month is at most this, °C (annuals wholly where it is
+         * 4 °C warmer); the share of what the soil holds down to which their deep roots keep them growing.
+         */
+        const val PERENNIAL_FULL_C = 18f
+        const val PERENNIAL_UNSTRESSED = 0.25f
         const val PALATABLE_FLOOR = 0.5f
         /** Share of the soil's water plants take up without stress; drier than that, growth and evaporation fall in step (FAO-56, p about 0.5). */
         const val UNSTRESSED = 0.5f
