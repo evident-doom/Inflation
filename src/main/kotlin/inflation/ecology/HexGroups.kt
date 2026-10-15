@@ -649,8 +649,9 @@ class HexGroups(
                 if (tAhead < 0f && weather.snowpack[p] + weather.forecastRain(p) > s.snowLimitMm) score -= 0.5f * s.foresight
                 if (land.soil[p] < DRY_SOIL_MM) score += 0.3f * s.foresight * min(1f, weather.forecastRain(p) / RAIN_AHEAD_MM)
                 // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
-                score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * land.waterKm[p] / s.dailyTravelKm
-                if (thirsty && land.water[p] < 0.05f) score -= 1f
+                // (People can dig for water in a dry bed where it lies near.)
+                score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm
+                if (thirsty && land.water[p] < 0.05f && !(s.human && land.dug[p] >= 0.05f)) score -= 1f
                 if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
                 // The going costs food: a share of the week's need (see [walkCost]).
                 score -= WALK_COST * d / days
@@ -725,7 +726,7 @@ class HexGroups(
                     f[15] = g.fat / s.maxFatDays.coerceAtLeast(1f)
                     f[16] = kotlin.math.sin(season).toFloat(); f[17] = kotlin.math.cos(season).toFloat()
                     f[18] = if (restless) 1f else 0f
-                    f[19] = min(3f, land.waterKm[p] / s.dailyTravelKm)
+                    f[19] = min(3f, (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm)
                     f[20] = min(2f, g.dry / s.daysWithoutWater)
                     f[21] = pull
                     // The moon (night hunters see and are seen by it) and how far off its young are due.
@@ -784,7 +785,7 @@ class HexGroups(
                 val prog = if (fromHere > hex.hexKm) ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f) else 0f
                 return "food %.2f crowd %.2f hunters %.2f cold/heat %.2f water %.2f going %.2f season %.2f bearing %.2f stay %.2f (%.0f km from goal)".format(
                     food / (food + 0.3f), -0.5f * crowd(s, p, g), -SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG), -0.5f * discomfort(s, p, weather),
-                    -(0.02f + 0.3f * g.dry / s.daysWithoutWater) * land.waterKm[p] / s.dailyTravelKm, -WALK_COST * dist[h] / days,
+                    -(0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm, -WALK_COST * dist[h] / days,
                     SEASON_PULL * (0.3f * g.seasonQ[month] + (g.seasonQ[month] - g.fed).coerceIn(0f, 1f)) * prog, BEARING_PULL * bearings.along(ki, here, h, pullKm),
                     if (p == g.place) STAY else 0f, toGoal)
             }

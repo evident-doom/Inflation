@@ -381,7 +381,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // will do. Animals go to water and back as often as they must: a kind that can go days without
         // drinking can live as many half-days' going from it.
         val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
-        if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= fetch)) g.dry = 0f
+        // (People also dig for it in a dry bed where the water lies near: see [HexLand.dug].)
+        if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= fetch) || (s.human && land.mustDig(p0, fetch))) g.dry = 0f
         // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
         else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
         // (People carry water in skins and know every spring: they suffer far less from it than animals.)
