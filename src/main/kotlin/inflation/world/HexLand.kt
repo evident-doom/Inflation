@@ -214,6 +214,9 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val o = ArrayList<Int>(hex.size)
         while (q.isNotEmpty()) { val h = q.removeFirst(); o += h; val d = down[h]; if (d >= 0 && --inDeg[d] == 0) q += d }
         order = o.toIntArray()
+        // (Each hex drains to the hex whose main river its own reaches downstream on the fine grid, which
+        // has no loops, so neither has this; a hex left out would never route its water, so make sure.)
+        check(order.size == hex.size) { "hex rivers form a loop: ${hex.size - order.size} hexes never drain" }
         // What the hex network would carry on average from the long-term runoff of the places,
         // against the long-term flow of the fine rivers: lakes, splits and losses the coarse
         // network misses are put back as a fixed factor per hex.
