@@ -146,7 +146,7 @@ internal fun softmax(x: FloatArray): FloatArray {
  * (the other roles hand-written), reported per kind with its spread over the worlds; a kind that
  * does worse than with the last version it did well with keeps that version (in `deployed/`).
  *
- * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
+ * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--hold ROLE[,ROLE]:ROUNDS] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
  */
 object HexPpo {
     /**
@@ -194,6 +194,7 @@ object HexPpo {
         var teacherCheck = false
         var worldRounds = 0
         var overlap = true
+        var fixed = emptySet<String>(); var fixedRounds = 0
         var burnYears = 1
         var learnWays = true
         var k = 0
@@ -226,6 +227,8 @@ object HexPpo {
                 "--teacher-check" -> teacherCheck = true
                 // Bands' ways stay the scaffold's (or as evolved) instead of being learned beside their moves.
                 "--no-ways" -> learnWays = false
+                // --hold hunters:3 keeps the named roles' networks as they are for the first rounds of this run (they play, but do not learn).
+                "--hold" -> { val (rs, n) = args[++k].split(":").let { it[0] to (it.getOrNull(1)?.toInt() ?: Int.MAX_VALUE) }; fixed = rs.split(",").toSet(); fixedRounds = n }
                 "--maps" -> MAPS = args[++k].split(",").map { m -> val (s, l) = m.split(":"); s.toLong() to l.toDouble() }
                 else -> error("unknown argument ${args[k]}")
             }
@@ -313,6 +316,8 @@ object HexPpo {
             for ((mi, model) in models.withIndex()) {
                 val mine = all.filter { role(it.kind) == mi }
                 if (mine.isEmpty()) continue
+                // (A role held fixed plays with its network as it is and does not learn, while the others catch up.)
+                if (ROLES[mi] in fixed && round < firstRound + fixedRounds) { stats.append(ROLES[mi]).append(" held; "); continue }
                 val kindsHere = mine.map { it.kind }.distinct()
                 val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
                 repeat(4) { epoch ->

@@ -47,11 +47,8 @@ fun main(args: Array<String>) {
             if (!greenSeen[m]) { greenSeen[m] = true; for (p in 0 until n) green[m][p] = run.land.green[p] }
             if (seen[i][m]) continue
             seen[i][m] = true
-            val f = run.fauna
-            for (p in 0 until n) {
-                val food = f.foodFor(s, p) * min(1.5f, f.suits(s, p)) / 1.5f
-                q[i][m][p] = food / (food + 0.3f) * f.tether(s, p) * f.monthFit(s, p, m)
-            }
+            // (As the herds themselves reckon it: see [inflation.ecology.HexGroups.herdQuality].)
+            for (p in 0 until n) q[i][m][p] = run.groups.herdQuality(s, p, m)
         }
     }
     val hex = run.hex; val hw = run.hw
