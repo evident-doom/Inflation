@@ -23,7 +23,7 @@ import kotlin.math.pow
  * - Biting insects (mosquitoes, midges): breed in standing water when it is warm.
  * - Rodents and other small mammals: breed fast on seeds and herbs in good years, crash in drought,
  *   cold and deep snow.
- * - Reptiles and amphibians: active and breeding on insects in warm, moist weeks, torpid in cold
+ * - Reptiles and amphibians: active and breeding on insects in warm weeks, slow to turn over, torpid in cold
  *   winters and hot, dry summers.
  * - Pollinators: build up on flowers in spring, fewer where grazing is hard; how well the flowers
  *   were visited sets the summer and autumn fruit crop.
@@ -271,19 +271,19 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             smallDead[p] += rodents[p] * death + starved
             rodents[p] = capped(p, r, 3000f)
             pt = Profile.lap("small life: rodents", pt)
-            // ---- reptiles and amphibians
+            // ---- reptiles and amphibians: cold-blooded, they need little food and turn over slowly. Out,
+            // they live on the insects that are out (plant-eaters, pollinators, locusts, mosquitoes and
+            // midges), from each kind as it is met, and breed as far as they are fed: what they find
+            // per head, not the plants, holds their numbers. In the cold and in hot drought they lie
+            // up, losing few. (Toads and lizards take the dry country where frogs and newts cannot.)
             var h = herps[p]
             if (herpsActive(t, soilWater)) {
-                val moist = (soilWater / 40f).coerceIn(0.2f, 1f)
-                // They live on the insects that are out (plant-eaters, pollinators, locusts, mosquitoes
-                // and midges), eating about 5% of their weight a day, from each kind as it is met.
-                val bugs = insects[p] + pollinators[p] + locusts[p] + biting[p]
-                val grow = 4f * years * moist * bugs / (bugs + 400f)
-                val hc = 80f * food / (food + 0.3f)
-                smallDead[p] += h * years
-                h += h * grow * (1 - h / hc.coerceAtLeast(1f)) - h * years
-                takeSwitching(p, h * 0.05f * days, 0.5f, insectFood)
-            } else { smallDead[p] += h * 0.3f * years; h -= h * 0.3f * years }
+                val need = h * HERP_INTAKE * days
+                val fed = if (need > 0f) takeSwitching(p, need, 0.5f, insectFood) / need else 1f
+                val died = h * (HERP_DEATHS + HERP_HUNGER * (1f - fed)) * years
+                smallDead[p] += died
+                h += h * HERP_YOUNG * fed * years - died
+            } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died }
             herps[p] = capped(p, h, 200f)
             pt = Profile.lap("small life: reptiles and amphibians", pt)
             // ---- fire kills what cannot flee, on the share that burned.
@@ -693,6 +693,17 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val EAGLE_RATE = 0.15f
         /** Share of what small plant-eaters eat that comes back as frass and droppings; share of migrant birds that come back. */
         const val FRASS = 0.5f
+        /**
+         * Reptiles and amphibians: what they eat a day out, as a share of their weight (cold-blooded,
+         * some 1-3%); young raised a year per head while out and fed (a clutch or spawn a year, few of
+         * which live); yearly share dying while out, more when hungry, and while lying up (most adults
+         * live some years, and most come through a winter).
+         */
+        const val HERP_INTAKE = 0.02f
+        const val HERP_YOUNG = 2f
+        const val HERP_DEATHS = 0.4f
+        const val HERP_HUNGER = 1f
+        const val HERP_DORMANT_DEATHS = 0.15f
         /**
          * Plant-eating insects: the warmth at which they start to grow (the usual lower threshold for
          * development, about 10 °C, down to about 5 °C in cool-summer insects), and the warmth above it
