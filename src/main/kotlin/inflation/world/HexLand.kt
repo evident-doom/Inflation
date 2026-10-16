@@ -872,5 +872,5 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
 val TRAMPLE_HERB = System.getProperty("hex.t.trampleHerb")?.toFloat() ?: 0.005f
 val TRAMPLE_SHRUB = System.getProperty("hex.t.trampleShrub")?.toFloat() ?: 0.01f
 
-/** How fast the leaves of the shoots fall in the cold, a year (-Dhex.t.leafFall; 0: they last as twigs do). */
-val LEAF_FALL = System.getProperty("hex.t.leafFall")?.toFloat() ?: 0f
+/** How fast the leaves of the shoots fall in the cold, a year: about two-thirds gone over a four-month winter, the twigs and buds left (-Dhex.t.leafFall; 0: they last as twigs do). */
+val LEAF_FALL = System.getProperty("hex.t.leafFall")?.toFloat() ?: 4f

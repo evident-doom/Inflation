@@ -734,8 +734,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 4f
-        /** Residents: how many times their usual numbers can each hold a breeding range (-Dhex.t.breedSpacing; 0: no limit). */
-        val BREED_SPACING = System.getProperty("hex.t.breedSpacing")?.toFloat() ?: 0f
+        /**
+         * Residents: how many times their usual numbers ([usualDensity]) can each hold a breeding range
+         * (-Dhex.t.breedSpacing; 0: no limit). At 1.5 roe deer level off at about 20-25 a km² of their forest, the high end of what is seen.
+         */
+        val BREED_SPACING = System.getProperty("hex.t.breedSpacing")?.toFloat() ?: 1.5f
         /**
          * Protein in forage, against fresh growth: cured grass and straw keep some of their energy but
          * lose most of their protein (about 4% crude protein against 16% green, though grazers pick the

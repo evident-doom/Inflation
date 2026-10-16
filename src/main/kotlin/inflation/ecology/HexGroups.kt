@@ -703,7 +703,7 @@ class HexGroups(
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
         // hungry pack ranges wider: up to three times that after weeks of hunger.
         val homeValue = if (g.home >= 0) placeValue[ki][hw.placeOf[hw.placeBand[g.place]][g.home].takeIf { it >= 0 } ?: g.place] else PREY_HALF
-        // (With -Dhex.t.denning, a pack with young in the den, from its births for [DEN_MONTHS], hunts only
+        // (A pack with young in the den, from its births for [DEN_MONTHS], hunts only
         // within [DEN_KM] of its home, however hungry: it cannot follow game that moves on.)
         val denning = DENNING && s.carnivore && !s.human && g.home >= 0 && g.young > 0 && (month - g.birthMonth + 12) % 12 < DEN_MONTHS
         val territory = if (denning) DEN_KM else territoryKm(s) * kotlin.math.sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f) * (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))

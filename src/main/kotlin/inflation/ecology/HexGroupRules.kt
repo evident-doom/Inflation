@@ -292,8 +292,8 @@ val ROUND_ARRIVED_KM = System.getProperty("hex.t.roundArrived")?.toDouble() ?: 5
 /** Days of a week a herd far behind its round spends trekking on (the rest grazing). */
 /** With rounds on: how much better (0..1 of the kind's quality) a round's place must be this month than where a herd is for the round to draw it on (0: always). */
 val ROUND_CUE = System.getProperty("hex.t.roundCue")?.toFloat() ?: 0f
-/** Packs tied to their dens (-Dhex.t.denning, off by default): months from the births a pack with young hunts near its den; how near, km. */
-val DENNING = System.getProperty("hex.t.denning") != null
+/** Packs tied to their dens (-Dhex.t.noDenning for comparison runs): months from the births a pack with young hunts near its den; how near, km. Not measured: wolves and hyenas keep to dens for two to three months, lions to their cubs' lairs about as long. */
+val DENNING = System.getProperty("hex.t.noDenning") == null
 val DEN_MONTHS = System.getProperty("hex.t.denMonths")?.toInt() ?: 3
 val DEN_KM = System.getProperty("hex.t.denKm")?.toFloat() ?: 15f
 val ROUND_TREK_DAYS = System.getProperty("hex.t.roundTrekDays")?.toFloat() ?: 4f
