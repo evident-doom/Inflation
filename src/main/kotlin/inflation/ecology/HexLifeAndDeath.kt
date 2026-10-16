@@ -113,8 +113,9 @@ internal fun HexGroups.graze(weather: Weather) {
             val browse = eatBrowse(wantBrowse)
             val fruit = food.take(food.fruit, p, want * rest * access * d.fruit / total)
             val roots = food.take(food.roots, p, want * rest * access * d.roots / total)
-            // Diet switching: a food that fell short is made up from the others, each to at most (1 + SWITCH)
-            // times its usual share (an ostrich out of fruit season picks more shoots and leaves).
+            // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
+            // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
+            // usual share (an ostrich out of fruit season picks more shoots and leaves).
             val q = land.nourishment(p)
             var gap = want - ((grass + browse) * q + fruit + roots + lichen * HexFood.LICHEN_VALUE)
             var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
@@ -122,8 +123,8 @@ internal fun HexGroups.graze(weather: Weather) {
             // more of it (switching shifts what it eats, not how much its gut takes).
             // (Its need is reckoned in forage of middling quality, [HexFauna.GUT_QREF]: on that it fills its need exactly.)
             var room = max(0f, want * fill * access / HexFauna.GUT_QREF - (grass + browse + lichen))
-            if (gap > 0f && d.browse > 0f) { browse2 = eatBrowse(min(min(gap / q, room), SWITCH * wantBrowse)); gap -= browse2 * q; room -= browse2 }
-            if (gap > 0f && d.grass > 0f && !snowed) { grass2 = eatGrass(min(min(gap / q, room), SWITCH * want * fill * access * d.grass / total)); gap -= grass2 * q; room -= grass2 }
+            if (gap > 0f && d.browse > 0f) { browse2 = eatBrowse(min(gap / q, room)); gap -= browse2 * q; room -= browse2 }
+            if (gap > 0f && d.grass > 0f && !snowed) { grass2 = eatGrass(min(gap / q, room)); gap -= grass2 * q; room -= grass2 }
             if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, min(gap, SWITCH * want * access * d.fruit / total)); gap -= fruit2 }
             if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, min(gap, SWITCH * want * access * d.roots / total)); gap -= roots2 }
             // Reindeer dig lichen, even from under the snow: rich in energy, within what the gut holds.

@@ -18,7 +18,7 @@ const val NEWBORN_SHARE = 0.08f
 const val WELL_FED = 0.9f
 /** How many times its usual most a herd may grow to on a full green flush, well fed (herds gather where the grass is new). */
 const val AGGREGATION = 4f
-/** How far a part of a group's diet stretches to make up for another that fell short: to (1 + this) times its usual share. */
+/** How far fruit, roots or prey stretch to make up for a food that fell short: to (1 + this) times their usual share (grass and browse go as far as the gut holds). */
 const val SWITCH = 1f
 /** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */
 const val MARK_KEEP = 0.85f

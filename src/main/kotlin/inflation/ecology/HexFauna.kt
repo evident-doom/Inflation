@@ -490,13 +490,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val snowed = weather.snowpack[p] > s.snowLimitMm
                 val fill = gutFill(s, quality)
                 val g = gs[k]; val b = bs[k]
-                // Diet switching: a food that fell short is made up from what the others left over, each
-                // to at most (1 + SWITCH) times its usual share.
+                // Diet switching: a food that fell short is made up from what the others left over: grass and
+                // browse as far as the gut holds (a grazer short of grass eats shrubs, as wild asses do in the dry
+                // season), fruit and roots to at most (1 + SWITCH) times their usual share.
                 var gap = 1f - got[k]
                 // (Within what the gut holds: switching shifts what it eats, not how much bulk it takes.)
                 var room = max(0f, fill / GUT_QREF - (d.grass / total * g + d.browse / total * b) * fill)
-                if (gap > 0f && d.browse > 0f) { val x = min(min(min(gap, room * quality), SWITCH * d.browse / total * fill * quality), avail[k] * spareB / need[k] * quality); spareB -= x * need[k] / quality; eatB += x * need[k] / quality; got[k] += x; gap -= x; room -= x / quality }
-                if (gap > 0f && d.grass > 0f && !snowed) { val x = min(min(min(gap, room * quality), SWITCH * d.grass / total * fill * quality), avail[k] * spareG / need[k] * quality); spareG -= x * need[k] / quality; eatG += x * need[k] / quality; got[k] += x; gap -= x; room -= x / quality }
+                if (gap > 0f && d.browse > 0f) { val x = min(min(gap, room * quality), avail[k] * spareB / need[k] * quality); spareB -= x * need[k] / quality; eatB += x * need[k] / quality; got[k] += x; gap -= x; room -= x / quality }
+                if (gap > 0f && d.grass > 0f && !snowed) { val x = min(min(gap, room * quality), avail[k] * spareG / need[k] * quality); spareG -= x * need[k] / quality; eatG += x * need[k] / quality; got[k] += x; gap -= x; room -= x / quality }
                 if (gap > 0f && d.fruit > 0f) { val x = min(min(gap, SWITCH * d.fruit / total), avail[k] * spareF / need[k]); spareF -= x * need[k]; eatF += x * need[k]; got[k] += x; gap -= x }
                 if (gap > 0f && d.roots > 0f) { val x = min(min(gap, SWITCH * d.roots / total), avail[k] * spareR / need[k]); spareR -= x * need[k]; eatR += x * need[k]; got[k] += x; gap -= x }
                 // With food to spare and reserves short, they eat more and lay the surplus on.
