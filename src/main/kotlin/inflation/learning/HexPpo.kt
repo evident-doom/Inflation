@@ -724,7 +724,7 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
     private val buffers = ThreadLocal.withInitial { net.buffers() }
 
     /** Where [c]'s group stood: the candidate that is staying put (else the first). */
-    private fun here(c: Choice) = c.inputs.indices.firstOrNull { c.inputs[it].getOrElse(10) { 0f } > 0.5f } ?: 0
+    private fun here(c: Choice) = c.inputs.indices.firstOrNull { c.inputs[it].getOrElse(inflation.ecology.HexFeatures.STAYS) { 0f } > 0.5f } ?: 0
 
     fun value(model: SharedMover, c: Choice): Float {
         val b = buffers.get()
