@@ -42,6 +42,9 @@ fun main(args: Array<String>) {
     fun rcl(i: Int) = rc.indexOfLast { q(i) >= it.second }
     // Channel length by river class, so floodplain per km of river can be told.
     val chan = IntArray(rc.size); for (i in land) { val d = w.water.discharge[i]; val r = rc.indexOfLast { d >= it.second }; if (r >= 0) chan[r]++ }
+    val big = land.filter { w.water.discharge[it] >= 100f }
+    println("  largest river %.0f m³/s; channel ≥100 m³/s %d km, of it in aridity <0.75 %d km; ≥300 m³/s in aridity <0.75 %d km".format(
+        land.maxOf { w.water.discharge[it] }, big.size, big.count { c.aridity(it) < 0.75f }, big.count { c.aridity(it) < 0.75f && w.water.discharge[it] >= 300f }))
     for ((r, x) in rc.withIndex()) {
         val ps = plain.filter { rcl(it) == r }
         println("  by river %-13s %7.0f km² floodplain, %6d km channel, %.2f km² per km".format(x.first, ps.size * km2, chan[r], ps.size * km2 / chan[r].coerceAtLeast(1)))
