@@ -98,7 +98,7 @@ fun main(args: Array<String>) {
     val stepsY = Date.DAYS_PER_YEAR / cfg.daysPerStep
     for (y in 0 until years) {
         val floodWeeks = IntArray(n); val minWet = FloatArray(n) { 9f }; val dry = BooleanArray(n)
-        val augGreenWet = FloatArray(n); val augGreen = FloatArray(n); var augN = 0
+        val augGreenWet = FloatArray(n); val augGreen = FloatArray(n); var augN = 0; val augHerb = FloatArray(n); val herbYear = FloatArray(n)
         repeat(stepsY) { s ->
             weather.step(); hl.step(weather)
             val month = s * 12 / stepsY
@@ -107,7 +107,8 @@ fun main(args: Array<String>) {
                 val wf = hl.wetFloor(p) / hl.floodShare[p]
                 if (wf < minWet[p]) minWet[p] = wf
                 if (hl.flow[hw.placeHex[p]] < HexLand.TRICKLE) dry[p] = true
-                if (month == 7) { augGreenWet[p] += hl.greenWet[p]; augGreen[p] += hl.green[p] }
+                herbYear[p] += hl.herb[p] / stepsY
+                if (month == 7) { augGreenWet[p] += hl.greenWet[p]; augGreen[p] += hl.green[p]; augHerb[p] += hl.herb[p] }
             }
             if (month == 7) augN++
         }
@@ -121,9 +122,10 @@ fun main(args: Array<String>) {
             val sub = ps.filter { ac0(plainAi[it], ariCls) == a }; if (sub.isEmpty()) continue
             val st = sub.sumOf { fpArea[it] }
             fun sh(f: (Int) -> Boolean) = sub.filter(f).sumOf { fpArea[it] } / st
-            println("  aridity %-9s %6.0f km²: flooded %.2f, moist ≥0.5 in driest week %.2f, river ran dry %.3f; August green: wet floor %.2f, whole place %.2f".format(x.first, st,
+            println("  aridity %-9s %6.0f km²: flooded %.2f, moist ≥0.5 in driest week %.2f, river ran dry %.3f; August green: wet floor %.2f, whole place %.2f; herb on these places, kg/m²: August %.3f, year %.3f".format(x.first, st,
                 sh { floodWeeks[it] > 0 }, sh { minWet[it] >= 0.5f }, sh { dry[it] },
-                sub.sumOf { augGreenWet[it] / augN * fpArea[it] } / st, sub.sumOf { augGreen[it] / augN * fpArea[it] } / st))
+                sub.sumOf { augGreenWet[it] / augN * fpArea[it] } / st, sub.sumOf { augGreen[it] / augN * fpArea[it] } / st,
+                sub.sumOf { (augHerb[it] / augN * hl.areaKm2[it]).toDouble() } / sub.sumOf { hl.areaKm2[it].toDouble() }, sub.sumOf { (herbYear[it] * hl.areaKm2[it]).toDouble() } / sub.sumOf { hl.areaKm2[it].toDouble() }))
         }
     }
 }
