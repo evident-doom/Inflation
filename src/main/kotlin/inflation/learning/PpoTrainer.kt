@@ -1,0 +1,203 @@
+package inflation.learning
+
+import inflation.ecology.Catalogue
+import inflation.ecology.HexFeatures
+import inflation.ecology.Species
+import inflation.ecology.WAYS_IN
+import inflation.learning.HexPpo.CLIP
+import inflation.learning.HexPpo.ENTROPY
+import inflation.learning.HexPpo.PARTS
+import inflation.learning.HexPpo.ROLES
+import inflation.learning.HexPpo.role
+import inflation.world.Date
+import inflation.world.WorldConfig
+import java.io.File
+import java.util.concurrent.CompletableFuture
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.max
+import kotlin.math.sqrt
+import kotlin.random.Random
+
+/**
+ * A training run of [HexPpo]: the networks and their optimisers, critics and the bands' ways, kept in
+ * [PpoOptions.out] (and carried on from there if a run left them); the training worlds; and the rounds,
+ * each of them play, judge, learn and, every few rounds, a check against the hand-written behaviour.
+ */
+class PpoTrainer(private val o: PpoOptions) {
+    private val out = o.out.also { it.mkdirs() }
+    private val kinds = Catalogue.learned
+    private val files = ROLES.map { File(out, "$it.mlp") }
+    private val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(o.hidden, Random(7L + i), if (ROLES[i] == "people") WAYS_IN else 0) }
+        .also { ms -> for ((i, r) in ROLES.withIndex()) o.residual[r]?.let { ms[i].residual = it } }
+    private fun modelOf(s: Species) = models[role(s)]
+    private val adams = models.map { Adam(it.net.w.size, o.rate) to Adam(it.identity.size, o.rate) }
+    /** One critic for each role: what a group's return can be expected to be where it stands. */
+    private val critics = ROLES.mapIndexed { i, r -> Critic.loadOrNew(File(out, "$r.value.mlp"), o.hidden, models[i]) }
+    /** Bands' ways, learned beside their moves (see [WaysPpo]). */
+    private val waysState = if (o.learnWays) WaysPpo.State(out, o.hidden, o.rate) else null
+    /** The versions each kind plays with outside training: its last good one, and the score it had. */
+    private val deployedDir = File(out, "deployed")
+    private val best = HashMap<Species, Double>()
+    /** The training worlds, living on from round to round (for [PpoOptions.worldRounds] rounds, if set, then a fresh one takes its place). */
+    private val players = arrayOfNulls<HexPpo.Player>(o.worlds)
+    private val steps = o.years * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
+    private val log = File(out, "log.txt")
+
+    fun run() {
+        // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
+        if (!files[0].exists()) {
+            HexPpo.imitate(kinds, models, o.worlds, o.size, o.sampling, o.teachers, o.maps)
+            for (i in models.indices) models[i].save(files[i])
+        }
+        deployedDir.mkdirs()
+        File(deployedDir, "scores.txt").takeIf { it.exists() }?.readLines()?.forEach { l -> val (n, v) = l.split("\t"); kinds.firstOrNull { it.name == n }?.let { best[it] = v.toDouble() } }
+        var ahead: CompletableFuture<List<List<Choice>>>? = null
+        val firstRound = if (log.exists()) log.readLines().count { it.startsWith("round ") } else 0
+        for (round in firstRound until firstRound + o.rounds) {
+            val t0 = System.nanoTime()
+            val choices = ahead?.join() ?: playRound(round, models, waysState?.ways)
+            val tPlay = System.nanoTime()
+            // The next round's play goes on beside this round's learning and check, with the networks as
+            // they are now (a round behind when it is learnt from: each choice keeps the probability it
+            // was made with, and the clipped update allows for it).
+            ahead = if (o.overlap && round + 1 < firstRound + o.rounds) {
+                val ms = models.map { m -> SharedMover(m.net.copy(), m.identity.copyOf()).also { it.residual = m.residual } }
+                val wy = waysState?.ways?.copy()
+                CompletableFuture.supplyAsync { playRound(round + 1, ms, wy) }
+            } else null
+            val everything = choices.flatten()
+            val waysChoices = everything.filterIsInstance<WaysChoice>()
+            val all = everything.filter { it !is WaysChoice }
+            val byKind = judge(all, round)
+            val stats = StringBuilder()
+            for (mi in models.indices) learn(mi, all, byKind, round - firstRound, round, stats)
+            waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round)).append("; "); it.save() }
+            val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
+            val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns)
+            println(line); log.appendText(line + "\n")
+            if (round % o.checkEvery == o.checkEvery - 1) {
+                // (The next round's play finishes first: its worlds and the check's would not all fit in memory at once.)
+                ahead?.join()
+                check(round)
+            }
+        }
+    }
+
+    /** One round's play in every training world, with [ms] choosing and the bands' ways drawn from [ways]; fresh worlds where one is done. */
+    private fun playRound(r: Int, ms: List<SharedMover>, ways: LearnedWays?): List<List<Choice>> {
+        val fresh = (0 until o.worlds).filter { w -> players[w]?.done != false }
+        for (w in fresh) players[w]?.derailed?.let { why -> println("world $w replaced after round ${r - 1}: $why"); log.appendText("world $w replaced after round ${r - 1}: $why\n") }
+        // (New worlds are made side by side, as each round's fresh worlds were before they lived on.)
+        fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.size, w), kinds, steps * o.worldRounds, o.burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep, o.sampling) }
+            .toList().forEach { (w, p) -> players[w] = p }
+        return (0 until o.worlds).toList().parallelStream().map { w -> players[w]!!.play(steps, ms, ways) }.toList()
+    }
+
+    /**
+     * Judges each choice against what its group could expect where it stood (the critic's estimate),
+     * not only against its kind's average: much of what befalls a group is its situation and its luck,
+     * not the move; then scales it within its kind. Teaches the critics this round's returns. The choices by kind.
+     */
+    private fun judge(all: List<Choice>, round: Int): Map<Species, List<Choice>> {
+        val byKind = all.groupBy { it.kind }
+        val expected = HashMap<Choice, Float>()
+        for ((mi, model) in models.withIndex()) {
+            val mine = all.filter { role(it.kind) == mi }
+            if (mine.isEmpty()) continue
+            val critic = critics[mi]
+            for (c in mine) expected[c] = critic.value(model, c)
+            critic.learn(model, mine, round)
+        }
+        for ((_, cs) in byKind) {
+            val mean = cs.map { it.ret.toDouble() }.average().toFloat()
+            val gap = cs.associateWith { c -> c.ret - (expected[c] ?: mean) }
+            val sd = sqrt(gap.values.map { (it * it).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
+            for (c in cs) c.advantage = gap.getValue(c) / sd
+        }
+        return byKind
+    }
+
+    /** A few passes of clipped policy gradient for role [mi], every kind weighing the same; saves its network and critic. [sinceStart]: rounds into this run. */
+    private fun learn(mi: Int, all: List<Choice>, byKind: Map<Species, List<Choice>>, sinceStart: Int, round: Int, stats: StringBuilder) {
+        val model = models[mi]
+        val mine = all.filter { role(it.kind) == mi }
+        if (mine.isEmpty()) return
+        // (A role held fixed plays with its network as it is and does not learn, while the others catch up.)
+        if (ROLES[mi] in o.fixed && sinceStart < o.fixedRounds) { stats.append(ROLES[mi]).append(" held; "); return }
+        val kindsHere = mine.map { it.kind }.distinct()
+        val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
+        repeat(4) { epoch ->
+            for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
+                val parts = batch.chunked((batch.size + PARTS - 1) / PARTS).parallelStream().map { part -> gradient(model, part, weight) }.toList()
+                val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
+                for ((a, bb) in parts) { for (i in gw.indices) gw[i] += a[i]; for (i in gi.indices) gi[i] += bb[i] }
+                // (Each batch is a share of the whole, so its weights are scaled up to stand for it.)
+                val scale = mine.size.toFloat() / batch.size
+                for (i in gw.indices) gw[i] *= scale; for (i in gi.indices) gi[i] *= scale
+                adams[mi].first.step(model.net.w, gw); adams[mi].second.step(model.identity, gi)
+            }
+        }
+        model.save(files[mi]); critics[mi].save(File(out, "${ROLES[mi]}.value.mlp"))
+        stats.append(ROLES[mi]).append(' ').append(mine.size).append(" choices; ")
+    }
+
+    /**
+     * Checks against the hand-written behaviour, one role at a time (the others hand-written, so a role's
+     * gain is its own and not the others'), on worlds it has not trained on; and keeps each kind's last
+     * good version. Then the bands' learned ways (their middles) against the scaffold's.
+     */
+    private fun check(round: Int) {
+        val seeds = (91L until 91L + o.checkSeeds).toList()
+        val scores = seeds.parallelStream().map { seed -> HexPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, models) }.toList()
+        val parts = ArrayList<String>()
+        for (s in kinds) {
+            val learnedEach = scores.map { it.first[s] ?: 0.0 }
+            val handEach = scores.map { it.second[s] ?: 0.0 }
+            val learned = learnedEach.average()
+            val keep = learned >= (best[s] ?: Double.NEGATIVE_INFINITY)
+            if (keep) { best[s] = learned; modelOf(s).save(File(deployedDir, s.name.replace(' ', '-') + ".mlp")) }
+            parts += s.name + " " + HexPpo.compare(learnedEach, handEach) + if (keep) "" else " (kept older)"
+        }
+        File(deployedDir, "scores.txt").writeText(best.entries.joinToString("\n") { "${it.key.name}\t${it.value}" } + "\n")
+        val c = "check round %d (each role learned alone vs all hand-written, animal-weeks per animal, %d %s worlds: mean change +- its standard error, worlds better): %s".format(round + 1, seeds.size, if (o.checkOnMaps && !o.maps.isEmpty()) "training" else "fresh", parts.joinToString(", "))
+        println(c); File(out, "check.txt").appendText(c + "\n")
+        waysState?.let { st ->
+            val w = seeds.parallelStream().map { seed -> WaysPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, st.ways) }.toList()
+            val cw = "check round %d ways (learned vs scaffold, people-weeks per person): %s".format(round + 1, HexPpo.compare(w.map { it.first }, w.map { it.second }))
+            println(cw); File(out, "check.txt").appendText(cw + "\n")
+        }
+    }
+
+    /** The clipped surrogate's gradient over [part] (to be minimised), for the network's weights and the identities. */
+    private fun gradient(model: SharedMover, part: List<Choice>, weight: Map<Choice, Float>): Pair<FloatArray, FloatArray> {
+        val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
+        val dIn = FloatArray(model.inputs)
+        val bufs = ArrayList<Mlp.Buffers>()
+        for (c in part) {
+            val n = c.inputs.size
+            while (bufs.size < n) bufs += model.net.buffers()
+            val scores = FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], c.band, bufs[k].a[0], c.temper); model.net.forward(bufs[k]) + model.residual * (c.baseline.getOrNull(k) ?: 0f) + model.pull(c.temper, c.inputs[k]) }
+            val p = softmax(scores)
+            val logp = ln(max(p[c.taken], 1e-8f))
+            val ratio = exp(logp - c.logp)
+            val a = c.advantage
+            // The clipped objective passes no gradient once the ratio has moved past the clip in the advantage's direction.
+            val clipped = (a > 0f && ratio > 1f + CLIP) || (a < 0f && ratio < 1f - CLIP)
+            val coef = if (clipped) 0f else a * ratio
+            var entropy = 0f; for (q in p) if (q > 0f) entropy -= q * ln(q)
+            val w = weight.getValue(c)
+            for (k in 0 until n) {
+                // d(objective)/d(score k): the policy term, and the entropy bonus that keeps it exploring.
+                val dPolicy = coef * ((if (k == c.taken) 1f else 0f) - p[k])
+                val dEntropy = -p[k] * (ln(max(p[k], 1e-8f)) + entropy)
+                val dOut = -w * (dPolicy + ENTROPY * dEntropy)
+                if (dOut == 0f) continue
+                model.net.backward(bufs[k], dOut, gw, dIn)
+                val s = c.kind
+                for (e in 0 until SharedMover.IDENTITY) gi[s.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.SIZE + SharedMover.KIND + e]
+            }
+        }
+        return gw to gi
+    }
+}
