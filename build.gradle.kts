@@ -41,6 +41,15 @@ tasks.register<JavaExec>("hexFauna") {
     args = (project.findProperty("faunaArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
+tasks.register<JavaExec>("testWorld") {
+    description = "Settled test worlds for short runs: list, build NAME... [--years N], compare runs on them with the full map (-PtestArgs=\"list\"); a test then runs as hexFauna --world NAME."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.TestWorldsKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("testArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
 tasks.register<JavaExec>("pollinationProbe") {
     description = "Runs the hex world and prints, month by month, how well the fruit-bearing plants are pollinated, north to south."
     group = "application"
