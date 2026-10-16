@@ -95,9 +95,10 @@ class HexHistory {
         put("weather/snow lying mm", mean { w.snowpack[it] })
         put("weather/droughts under way", w.droughtCount().toFloat())
         put("weather/soil water mm", mean { land.soil[it] })
-        // By kind of country: plants per km² and head counts.
+        // By kind of country: its area, plants per km² and head counts (and the whole land's area, to set worlds of other sizes beside each other).
         val biomeArea = DoubleArray(Biome.entries.size)
         for (p in 0 until n) biomeArea[biomeOf(sim, p)] += area[p].toDouble()
+        put("land/area km²", biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
         for (p in 0 until n) plants[biomeOf(sim, p)] += (land.biomass(p) * area[p]).toDouble()
         val heads = HashMap<String, DoubleArray>()
@@ -109,6 +110,7 @@ class HexHistory {
         for (b in Biome.entries) {
             if (biomeArea[b.ordinal] <= 0.0) continue
             val name = b.name.lowercase().replace('_', ' ')
+            put("biome/$name/area km²", biomeArea[b.ordinal].toFloat())
             put("biome/$name/plants kg per m²", (plants[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((kind, a) in heads) put("biome/$name/$kind", a[b.ordinal].toFloat())
         }

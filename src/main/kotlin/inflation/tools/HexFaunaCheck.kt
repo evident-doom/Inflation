@@ -19,16 +19,22 @@ import inflation.world.WorldConfig
  * prints each kind's numbers year by year with the main causes of death, and the cost of a step.
  *
  * Usage (--history FILE writes the week-by-week history as CSV for the graphs; --save FILE saves the
- * world every five years and at the end, --load FILE carries on a saved one): hex-fauna-check [--seed N]
- * [--width KM] [--height KM] [--years N] [--save FILE] [--load FILE]
+ * world every five years and at the end, --load FILE carries on a saved one; --world NAME carries on
+ * one of the settled test worlds, see [TestWorlds]; --replicate R draws the weather afresh after a
+ * load, for another run from the same start): hex-fauna-check [--seed N] [--width KM] [--height KM]
+ * [--years N] [--save FILE] [--load FILE] [--world NAME] [--replicate R]
  */
-fun main(args: Array<String>) {
+fun main(args: Array<String>) = faunaCheck(args)
+
+fun faunaCheck(args: Array<String>) {
     var cfg = WorldConfig(seed = 1)
     var years = 10
     var uniform = false
     var historyFile: java.io.File? = null
     var saveFile: java.io.File? = null
     var loadFile: java.io.File? = null
+    var testWorld: TestWorlds.Entry? = null
+    var replicate = 0L
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -40,15 +46,19 @@ fun main(args: Array<String>) {
             "--history" -> historyFile = java.io.File(args[++k])
             "--save" -> saveFile = java.io.File(args[++k])
             "--load" -> loadFile = java.io.File(args[++k])
+            "--world" -> { val w = TestWorlds.named(args[++k]); testWorld = w; cfg = w.config; loadFile = w.state }
+            "--replicate" -> replicate = args[++k].toLong()
             else -> error("unknown argument ${args[k]}")
         }
         k++
     }
     val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { println(it) }, uniformStart = uniform)
+    testWorld?.let { TestWorlds.check(it, sim) }
     loadFile?.let { f ->
         val t0 = System.nanoTime()
         inflation.ecology.HexSnapshot.load(sim, f)
         println("carrying on the world saved in $f, at ${sim.weather.date} (loaded in %.1f s)".format((System.nanoTime() - t0) / 1e9))
+        if (replicate != 0L) { sim.weather.reseed(replicate); println("weather drawn afresh: replicate $replicate") }
     }
     val hw = sim.hw; val weather = sim.weather; val land = sim.land; val fauna = sim.fauna; val herds = sim.groups
     // Sample places for local swings: every so many places with some plant cover.

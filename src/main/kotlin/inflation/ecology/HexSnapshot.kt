@@ -103,7 +103,7 @@ object HexSnapshot {
         }
 
         /** The settings, and the compiled world-generating code: any change to either makes a new world. */
-        private fun key(cfg: inflation.world.WorldConfig): Long {
+        fun key(cfg: inflation.world.WorldConfig): Long {
             val crc = java.util.zip.CRC32()
             crc.update(cfg.toString().toByteArray())
             val loader = HexSnapshot::class.java.classLoader
@@ -403,7 +403,10 @@ object HexSnapshot {
                 for ((kn, vn) in node.items) {
                     val k = make(kn, null, Any::class.java); if (k === Skip) continue
                     val v = make(vn, old[k], Any::class.java)
-                    m[k] = if (v === Skip) old[k] else v
+                    val kept = if (v === Skip) old[k] else v
+                    // (A concurrent map holds no nulls: an entry whose value could not be made is left out.)
+                    if (kept == null && m is java.util.concurrent.ConcurrentMap<*, *>) continue
+                    m[k] = kept
                 }
                 m
             }
