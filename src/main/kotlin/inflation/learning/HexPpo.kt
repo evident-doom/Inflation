@@ -156,13 +156,8 @@ internal fun softmax(x: FloatArray): FloatArray {
  * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--hold ROLE[,ROLE]:ROUNDS] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
  */
 object HexPpo {
-    /**
-     * The networks, by role: one for the herds, one for the hunters and one for people. (Prey and
-     * hunters learn apart, so that what makes a hunter better and what makes its prey better do
-     * not pull at the same weights; within a role, kinds share what they learn.)
-     */
-    val ROLES = listOf("herds", "hunters", "people")
-    fun role(s: Species) = if (s.human) 2 else if (s.carnivore) 1 else 0
+    /** The index of [s]'s role's network in a list of them ([Role]). */
+    fun role(s: Species) = Role.of(s).ordinal
 
     const val HORIZON = 26
     const val DISCOUNT = 0.95f
@@ -256,7 +251,7 @@ object HexPpo {
             repeat(15) { epoch ->
                 var loss = 0.0
                 for (batch in mine.shuffled(Random(epoch.toLong())).chunked(256)) {
-                    val parts = batch.chunked((batch.size + PARTS - 1) / PARTS).parallelStream().map { part ->
+                    val parts = inParts(batch) { part ->
                         val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size); val dIn = FloatArray(model.inputs)
                         val bufs = ArrayList<Mlp.Buffers>(); var l = 0.0
                         for (c in part) {
@@ -274,14 +269,14 @@ object HexPpo {
                             }
                         }
                         Triple(gw, gi, l)
-                    }.toList()
+                    }
                     val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
-                    for ((a, b, l) in parts) { for (i in gw.indices) gw[i] += a[i]; for (i in gi.indices) gi[i] += b[i]; loss += l }
+                    for ((a, b, l) in parts) { gw.add(a); gi.add(b); loss += l }
                     val scale = mine.size.toFloat() / batch.size
                     for (i in gw.indices) gw[i] *= scale; for (i in gi.indices) gi[i] *= scale
                     adam.step(model.net.w, gw); adamId.step(model.identity, gi)
                 }
-                println("imitating, %s, epoch %d: loss %.4f on %d choices".format(ROLES[mi], epoch, loss, mine.size))
+                println("imitating, %s, epoch %d: loss %.4f on %d choices".format(Role.entries[mi], epoch, loss, mine.size))
             }
         }
     }
@@ -512,7 +507,7 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
     fun learn(model: SharedMover, cs: List<Choice>, round: Int) {
         repeat(3) { epoch ->
             for (batch in cs.shuffled(kotlin.random.Random(round * 17L + epoch)).chunked(1024)) {
-                val parts = batch.chunked((batch.size + HexPpo.PARTS - 1) / HexPpo.PARTS).parallelStream().map { part ->
+                val parts = inParts(batch) { part ->
                     val g = FloatArray(net.w.size); val b = net.buffers()
                     for (c in part) {
                         model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0], c.temper)
@@ -520,8 +515,8 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
                         net.backward(b, 2f * (v - c.ret) / batch.size, g, null)
                     }
                     g
-                }.toList()
-                val g = FloatArray(net.w.size); for (p in parts) for (i in g.indices) g[i] += p[i]
+                }
+                val g = FloatArray(net.w.size); for (p in parts) g.add(p)
                 adam.step(net.w, g)
             }
         }

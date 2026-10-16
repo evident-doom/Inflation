@@ -6,9 +6,6 @@ import inflation.ecology.Species
 import inflation.ecology.WAYS_IN
 import inflation.learning.HexPpo.CLIP
 import inflation.learning.HexPpo.ENTROPY
-import inflation.learning.HexPpo.PARTS
-import inflation.learning.HexPpo.ROLES
-import inflation.learning.HexPpo.role
 import inflation.world.Date
 import inflation.world.WorldConfig
 import java.io.File
@@ -27,13 +24,13 @@ import kotlin.random.Random
 class PpoTrainer(private val o: PpoOptions) {
     private val out = o.out.also { it.mkdirs() }
     private val kinds = Catalogue.learned
-    private val files = ROLES.map { File(out, "$it.mlp") }
-    private val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(o.hidden, Random(7L + i), if (ROLES[i] == "people") WAYS_IN else 0) }
-        .also { ms -> for ((i, r) in ROLES.withIndex()) o.residual[r]?.let { ms[i].residual = it } }
-    private fun modelOf(s: Species) = models[role(s)]
+    private val files = Role.entries.map { it.file(out) }
+    private val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(o.hidden, Random(7L + i), if (Role.entries[i] == Role.PEOPLE) WAYS_IN else 0) }
+        .also { ms -> for ((i, r) in Role.entries.withIndex()) o.residual[r]?.let { ms[i].residual = it } }
+    private fun modelOf(s: Species) = models[Role.of(s).ordinal]
     private val adams = models.map { Adam(it.net.w.size, o.rate) to Adam(it.identity.size, o.rate) }
     /** One critic for each role: what a group's return can be expected to be where it stands. */
-    private val critics = ROLES.mapIndexed { i, r -> Critic.loadOrNew(File(out, "$r.value.mlp"), o.hidden, models[i]) }
+    private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.valueFile(out), o.hidden, models[i]) }
     /** Bands' ways, learned beside their moves (see [WaysPpo]). */
     private val waysState = if (o.learnWays) WaysPpo.State(out, o.hidden, o.rate) else null
     /** The versions each kind plays with outside training: its last good one, and the score it had. */
@@ -42,7 +39,7 @@ class PpoTrainer(private val o: PpoOptions) {
     /** The training worlds, living on from round to round (for [PpoOptions.worldRounds] rounds, if set, then a fresh one takes its place). */
     private val players = arrayOfNulls<HexPpo.Player>(o.worlds)
     private val steps = o.years * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
-    private val log = File(out, "log.txt")
+    private val log = RunLog(out, "round")
 
     fun run() {
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
@@ -53,7 +50,7 @@ class PpoTrainer(private val o: PpoOptions) {
         deployedDir.mkdirs()
         File(deployedDir, "scores.txt").takeIf { it.exists() }?.readLines()?.forEach { l -> val (n, v) = l.split("\t"); kinds.firstOrNull { it.name == n }?.let { best[it] = v.toDouble() } }
         var ahead: CompletableFuture<List<List<Choice>>>? = null
-        val firstRound = if (log.exists()) log.readLines().count { it.startsWith("round ") } else 0
+        val firstRound = log.done()
         for (round in firstRound until firstRound + o.rounds) {
             val t0 = System.nanoTime()
             val choices = ahead?.join() ?: playRound(round, models, waysState?.ways)
@@ -75,7 +72,7 @@ class PpoTrainer(private val o: PpoOptions) {
             waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round)).append("; "); it.save() }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
             val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns)
-            println(line); log.appendText(line + "\n")
+            log.write(line)
             if (round % o.checkEvery == o.checkEvery - 1) {
                 // (The next round's play finishes first: its worlds and the check's would not all fit in memory at once.)
                 ahead?.join()
@@ -87,7 +84,7 @@ class PpoTrainer(private val o: PpoOptions) {
     /** One round's play in every training world, with [ms] choosing and the bands' ways drawn from [ways]; fresh worlds where one is done. */
     private fun playRound(r: Int, ms: List<SharedMover>, ways: LearnedWays?): List<List<Choice>> {
         val fresh = (0 until o.worlds).filter { w -> players[w]?.done != false }
-        for (w in fresh) players[w]?.derailed?.let { why -> println("world $w replaced after round ${r - 1}: $why"); log.appendText("world $w replaced after round ${r - 1}: $why\n") }
+        for (w in fresh) players[w]?.derailed?.let { why -> log.write("world $w replaced after round ${r - 1}: $why") }
         // (New worlds are made side by side, as each round's fresh worlds were before they lived on.)
         fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.size, w), kinds, steps * o.worldRounds, o.burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep, o.sampling) }
             .toList().forEach { (w, p) -> players[w] = p }
@@ -103,7 +100,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val byKind = all.groupBy { it.kind }
         val expected = HashMap<Choice, Float>()
         for ((mi, model) in models.withIndex()) {
-            val mine = all.filter { role(it.kind) == mi }
+            val mine = all.filter { Role.of(it.kind).ordinal == mi }
             if (mine.isEmpty()) continue
             val critic = critics[mi]
             for (c in mine) expected[c] = critic.value(model, c)
@@ -121,25 +118,25 @@ class PpoTrainer(private val o: PpoOptions) {
     /** A few passes of clipped policy gradient for role [mi], every kind weighing the same; saves its network and critic. [sinceStart]: rounds into this run. */
     private fun learn(mi: Int, all: List<Choice>, byKind: Map<Species, List<Choice>>, sinceStart: Int, round: Int, stats: StringBuilder) {
         val model = models[mi]
-        val mine = all.filter { role(it.kind) == mi }
+        val mine = all.filter { Role.of(it.kind).ordinal == mi }
         if (mine.isEmpty()) return
         // (A role held fixed plays with its network as it is and does not learn, while the others catch up.)
-        if (ROLES[mi] in o.fixed && sinceStart < o.fixedRounds) { stats.append(ROLES[mi]).append(" held; "); return }
+        if (Role.entries[mi] in o.fixed && sinceStart < o.fixedRounds) { stats.append(Role.entries[mi]).append(" held; "); return }
         val kindsHere = mine.map { it.kind }.distinct()
         val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
         repeat(4) { epoch ->
             for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
-                val parts = batch.chunked((batch.size + PARTS - 1) / PARTS).parallelStream().map { part -> gradient(model, part, weight) }.toList()
+                val parts = inParts(batch) { part -> gradient(model, part, weight) }
                 val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
-                for ((a, bb) in parts) { for (i in gw.indices) gw[i] += a[i]; for (i in gi.indices) gi[i] += bb[i] }
+                for ((a, bb) in parts) { gw.add(a); gi.add(bb) }
                 // (Each batch is a share of the whole, so its weights are scaled up to stand for it.)
                 val scale = mine.size.toFloat() / batch.size
                 for (i in gw.indices) gw[i] *= scale; for (i in gi.indices) gi[i] *= scale
                 adams[mi].first.step(model.net.w, gw); adams[mi].second.step(model.identity, gi)
             }
         }
-        model.save(files[mi]); critics[mi].save(File(out, "${ROLES[mi]}.value.mlp"))
-        stats.append(ROLES[mi]).append(' ').append(mine.size).append(" choices; ")
+        model.save(files[mi]); critics[mi].save(Role.entries[mi].valueFile(out))
+        stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices; ")
     }
 
     /**
@@ -161,11 +158,11 @@ class PpoTrainer(private val o: PpoOptions) {
         }
         File(deployedDir, "scores.txt").writeText(best.entries.joinToString("\n") { "${it.key.name}\t${it.value}" } + "\n")
         val c = "check round %d (each role learned alone vs all hand-written, animal-weeks per animal, %d %s worlds: mean change +- its standard error, worlds better): %s".format(round + 1, seeds.size, if (o.checkOnMaps && !o.maps.isEmpty()) "training" else "fresh", parts.joinToString(", "))
-        println(c); File(out, "check.txt").appendText(c + "\n")
+        log.check(c)
         waysState?.let { st ->
             val w = seeds.parallelStream().map { seed -> WaysPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, st.ways) }.toList()
             val cw = "check round %d ways (learned vs scaffold, people-weeks per person): %s".format(round + 1, HexPpo.compare(w.map { it.first }, w.map { it.second }))
-            println(cw); File(out, "check.txt").appendText(cw + "\n")
+            log.check(cw)
         }
     }
 

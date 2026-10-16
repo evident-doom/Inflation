@@ -39,8 +39,7 @@ class LearnedWays(val net: Mlp, val logStd: FloatArray) {
 
         /** A network that keeps to the scaffold's ways (its last layer at zero). */
         fun fresh(hidden: Int, rnd: Random): LearnedWays {
-            val m = Mlp.random(intArrayOf(WAYS_IN, hidden, WAYS_OUT), rnd)
-            for (i in Mlp.count(intArrayOf(WAYS_IN, hidden)) until m.w.size) m.w[i] = 0f
+            val m = Mlp.random(intArrayOf(WAYS_IN, hidden, WAYS_OUT), rnd).zeroOutputLayer()
             return LearnedWays(m, FloatArray(WAYS_OUT) { ln(START_STD) })
         }
 
@@ -110,7 +109,7 @@ object WaysPpo {
         val ways = LearnedWays.loadOrNew(file, hidden)
         val critic: Mlp = if (criticFile.exists()) Schema.load(criticFile, Schema.WAYS_IN, listOf("value")) else
             // (A new critic expects every band to hold its numbers until it has learned better.)
-            Mlp.random(intArrayOf(WAYS_IN, hidden, 1), Random(91)).also { m -> for (i in Mlp.count(intArrayOf(WAYS_IN, hidden)) until m.w.size) m.w[i] = 0f; m.w[m.w.size - 1] = 1f }
+            Mlp.random(intArrayOf(WAYS_IN, hidden, 1), Random(91)).zeroOutputLayer().also { m -> m.w[m.w.size - 1] = 1f }
         val adam = Adam(ways.net.w.size, rate)
         val adamStd = Adam(WAYS_OUT, rate)
         val adamCritic = Adam(critic.w.size, 1e-3f)
@@ -134,12 +133,12 @@ object WaysPpo {
         // ---- the critic: least squares toward the returns seen
         repeat(CRITIC_EPOCHS) { epoch ->
             for (batch in cs.shuffled(Random(round * 17L + epoch + 5)).chunked(256)) {
-                val parts = batch.chunked((batch.size + HexPpo.PARTS - 1) / HexPpo.PARTS).parallelStream().map { part ->
+                val parts = inParts(batch) { part ->
                     val g = FloatArray(critic.w.size); val b = critic.buffers()
                     for (c in part) { c.x.copyInto(b.a[0]); val v = critic.forward(b); critic.backward(b, 2f * (v - c.ret) / batch.size, g) }
                     g
-                }.toList()
-                val g = FloatArray(critic.w.size); for (p in parts) for (i in g.indices) g[i] += p[i]
+                }
+                val g = FloatArray(critic.w.size); for (p in parts) g.add(p)
                 st.adamCritic.step(critic.w, g)
             }
         }
@@ -158,9 +157,9 @@ object WaysPpo {
         var clippedShare = 0.0; var seen = 0
         repeat(4) { epoch ->
             for (batch in cs.shuffled(Random(round * 31L + epoch + 7)).chunked(512)) {
-                val parts = batch.chunked((batch.size + HexPpo.PARTS - 1) / HexPpo.PARTS).parallelStream().map { part -> gradient(ways, part, 1f / batch.size) }.toList()
+                val parts = inParts(batch) { part -> gradient(ways, part, 1f / batch.size) }
                 val gw = FloatArray(ways.net.w.size); val gs = FloatArray(WAYS_OUT); var clipped = 0
-                for ((a, s, c) in parts) { for (i in gw.indices) gw[i] += a[i]; for (i in gs.indices) gs[i] += s[i]; clipped += c }
+                for ((a, s, c) in parts) { gw.add(a); gs.add(s); clipped += c }
                 for (i in gs.indices) gs[i] -= ENTROPY
                 st.adam.step(ways.net.w, gw); st.adamStd.step(ways.logStd, gs)
                 for (i in ways.logStd.indices) ways.logStd[i] = ways.logStd[i].coerceIn(ln(LearnedWays.MIN_STD), ln(LearnedWays.MAX_STD))
