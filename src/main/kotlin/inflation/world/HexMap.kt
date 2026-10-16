@@ -126,7 +126,6 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         return kotlin.math.sqrt(dx * dx + dy * dy)
     }
 
-    /** The neighbour of [h] in direction [d] (0 E, 1 SE, 2 SW, 3 W, 4 NW, 5 NE), or -1 off the map. */
     /** The hexes next to [ring] not yet in [seen] (which takes them in), in the order they are reached: the next ring outward. */
     fun nextRing(ring: List<Int>, seen: MutableSet<Int>): List<Int> {
         val next = ArrayList<Int>()
@@ -134,6 +133,7 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         return next
     }
 
+    /** The neighbour of [h] in direction [d] (0 E, 1 SE, 2 SW, 3 W, 4 NW, 5 NE), or -1 off the map. */
     fun neighbour(h: Int, d: Int): Int {
         val col = h % cols; val row = h / cols
         val odd = row and 1

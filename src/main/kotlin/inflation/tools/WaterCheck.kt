@@ -17,19 +17,10 @@ import inflation.world.WorldConfig
  * Usage: hex-water-check [--seed N] [--width KM] [--height KM] [--years N]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var years = 8
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--years" -> years = args[++k].toInt()
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    val a = inflation.Args(args, "hex-water-check [--seed N] [--width KM] [--height KM] [--years N]")
+    val cfg = a.world(WorldConfig(seed = 1))
+    val years = a.int("--years", 8)
+    a.done()
     val world = World.generate(cfg, inflation.world.LandformCache.load(cfg) {})
     val hw = HexWorld(world, HexMap(world))
     val n = hw.placeCells.size

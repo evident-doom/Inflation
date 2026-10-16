@@ -55,9 +55,9 @@ object Config {
     fun double(key: String, default: Double): Double = string(key)?.toDouble() ?: default
     fun int(key: String, default: Int): Int = string(key)?.toInt() ?: default
 
-    /** The keys set under a prefix, as "name value" (for a check's header). */
     /** The keys set under a prefix that the run has not read (so far). */
     fun unread(prefix: String): List<String> = props.stringPropertyNames().filter { it.startsWith(prefix) && it !in read }.sorted()
 
+    /** The keys set under a prefix, as "name value" (for a check's header). */
     fun set(prefix: String): String = props.stringPropertyNames().filter { it.startsWith(prefix) }.sorted().joinToString(", ") { "${it.removePrefix(prefix)} ${string(it)}" }
 }

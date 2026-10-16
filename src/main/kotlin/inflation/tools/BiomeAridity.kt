@@ -12,8 +12,8 @@ import inflation.world.WorldConfig
  * Usage: biome-aridity [--seed N] [--width KM] [--height KM]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1); var k = 0
-    while (k < args.size) { when (args[k]) { "--seed" -> cfg = cfg.copy(seed = args[++k].toLong()); "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt()); "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt()) }; k++ }
+    val a = inflation.Args(args, "biome-aridity [--seed N] [--width KM] [--height KM]")
+    val cfg = a.world(WorldConfig(seed = 1)); a.done()
     val w = World.generate(cfg, inflation.world.LandformCache.load(cfg) {}); val c = w.climate
     val land = (0 until w.grid.size).filter { !w.isSea[it] }
     val classes = listOf("<0.05" to 0.05f, "0.05-0.2" to 0.2f, "0.2-0.45" to 0.45f, "0.45-0.75" to 0.75f, ">0.75" to 1e9f)

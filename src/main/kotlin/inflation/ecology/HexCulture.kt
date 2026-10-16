@@ -436,8 +436,6 @@ const val RITE_SHIFT = 0.1f
 /** The founders' hold on their rites in lineage [lineage] (the same for every band of it, as [traditionsAt]). */
 fun riteStrengthAt(lineage: Int) = RITE_FOUNDER_MAX * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
 
-/** One of the places at hex [h], for a rite's site (the lowest-lying there is). */
-
 /**
  * A band's rites through the year (rounds on, see [ROUNDS]): about once a year a band whose rites
  * have room for another takes up one where its story is: the graves of its dead, where bands gather

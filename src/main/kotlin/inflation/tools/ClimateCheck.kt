@@ -11,17 +11,8 @@ import inflation.world.WorldConfig
  * Usage: climate-check [--seed N] [--width KM] [--height KM]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    val a = inflation.Args(args, "climate-check [--seed N] [--width KM] [--height KM]")
+    val cfg = a.world(WorldConfig(seed = 1)); a.done()
     // (The land and its rocks from the kept landform where there is one: only the climate is made again.)
     val world = World.generate(cfg, inflation.world.LandformCache.load(cfg) {})
     val g = world.grid; val c = world.climate
