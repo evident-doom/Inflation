@@ -1,5 +1,11 @@
 package inflation.learning
 
+import inflation.ecology.BandWay
+import inflation.ecology.FOOD_TYPES
+import inflation.ecology.HexFeatures
+import inflation.ecology.Tool
+import inflation.ecology.WAYS_IN
+import inflation.ecology.WAYS_OUT
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,5 +31,77 @@ class SchemaTest {
             assertEquals(before[0], after[2], 1e-5f)
             assertEquals(0f, after[1], 1e-6f)
         }
+    }
+
+    /** The named feature slots are the places of the names saved networks are fitted by: a slot that moved would feed a network the wrong input. */
+    @Test
+    fun theNamedPlaceFeaturesAreWhereTheSavedNamesSayTheyAre() {
+        val named = listOf(
+            HexFeatures.FOOD to "food",
+            HexFeatures.CLIMATE to "climate suits",
+            HexFeatures.CROWDING to "crowding",
+            HexFeatures.HUNTERS to "hunters",
+            HexFeatures.DISCOMFORT to "discomfort",
+            HexFeatures.DISCOMFORT_FORECAST to "discomfort forecast",
+            HexFeatures.SNOW_OVER_LIMIT to "snow over limit",
+            HexFeatures.SNOW to "snow",
+            HexFeatures.CLIMB to "climb",
+            HexFeatures.EFFORT to "effort",
+            HexFeatures.STAYS to "stays",
+            HexFeatures.SAME_HEX to "same hex",
+            HexFeatures.TOWARD_BEARING to "toward bearing",
+            HexFeatures.SEASON_PLACE to "season's place",
+            HexFeatures.FED to "fed",
+            HexFeatures.FAT to "fat",
+            HexFeatures.SEASON_SIN to "season sin",
+            HexFeatures.SEASON_COS to "season cos",
+            HexFeatures.RESTLESS to "restless",
+            HexFeatures.WATER_DISTANCE to "water distance",
+            HexFeatures.DAYS_DRY to "days dry",
+            HexFeatures.PULL to "pull",
+            HexFeatures.MOON to "moon",
+            HexFeatures.TO_BIRTHS_SIN to "to births sin",
+            HexFeatures.TO_BIRTHS_COS to "to births cos",
+            HexFeatures.REMEMBERED to "remembered",
+            HexFeatures.REMEMBERED_SAME_SEASON to "remembered same season",
+            HexFeatures.REMEMBERED_FED to "remembered fed",
+            HexFeatures.REMEMBERED_WATER to "remembered water",
+            HexFeatures.REMEMBERED_DANGER to "remembered danger",
+            HexFeatures.REMEMBERED_AGE to "remembered age",
+            HexFeatures.ANCESTORS to "ancestors",
+            HexFeatures.APPOINTMENT to "appointment",
+            HexFeatures.HOUSES to "houses",
+            HexFeatures.OWN_SIZE to "own size",
+            HexFeatures.LASTING_WATER to "lasting water",
+            HexFeatures.SICKNESS to "sickness",
+            HexFeatures.TREES to "trees",
+            HexFeatures.SHRUBS to "shrubs",
+            HexFeatures.GRASS to "grass",
+            HexFeatures.MARSH to "marsh",
+            HexFeatures.WATER_AGAINST_USUAL to "water against usual",
+            HexFeatures.PATHS to "paths",
+            HexFeatures.HERDS_ABOUT to "herds about",
+            HexFeatures.DUNG to "dung",
+            HexFeatures.GRAZING_AND_KILLS to "grazing and kills",
+            HexFeatures.KNOWN_GROUND to "known ground",
+            HexFeatures.BEYOND_OWN_GROUND to "beyond own ground",
+            HexFeatures.OTHERS_MARKS to "others' marks",
+            HexFeatures.FISH to "fish and shellfish",
+            HexFeatures.KEEPS_HEADING to "keeps heading",
+            HexFeatures.ON_ROUND to "on round",
+            HexFeatures.FORAGE_QUALITY to "forage quality"
+        )
+        assertEquals(HexFeatures.SIZE, named.size)
+        for ((slot, name) in named) assertEquals(name, Schema.PLACE[slot], "feature slot $slot")
+    }
+
+    /** The bands' named ways sit in their outputs where the saved names say, and the lists of names fit the numbers the bands read and write. */
+    @Test
+    fun theBandsWaysAreWhereTheSavedNamesSayTheyAre() {
+        assertEquals(WAYS_IN, Schema.WAYS_IN.size)
+        assertEquals(WAYS_OUT, Schema.WAYS_OUT.size)
+        for (w in BandWay.entries) assertEquals(w.label, Schema.WAYS_OUT[w.slot], w.name)
+        assertEquals("scouts", Schema.WAYS_OUT[FOOD_TYPES + 1 + Tool.entries.size])
+        assertEquals("burning off", Schema.WAYS_OUT.last())
     }
 }

@@ -62,7 +62,7 @@ fun main(args: Array<String>) {
             var hb = 0; for (i in c.hand.indices) if (c.hand[i] > c.hand[hb]) hb = i
             if (best == hb) agree++
             pHand += p[hb]
-            val st = c.f.indices.firstOrNull { c.f[it].getOrElse(10) { 0f } > 0.5f } ?: -1
+            val st = c.f.indices.firstOrNull { c.f[it].getOrElse(inflation.ecology.HexFeatures.STAYS) { 0f } > 0.5f } ?: -1
             if (best == st) stay++; if (hb == st) handStay++
         }
         first?.let { f0 -> for (i in ps.indices) { var d = 0.0; for (j in ps[i].indices) d += abs(ps[i][j] - f0[i][j]); tv += d / 2 } }
