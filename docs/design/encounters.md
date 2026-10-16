@@ -1,6 +1,6 @@
 # Encounters and what hunters know
 
-Status (2026-10-16): Olli approved the herds' side by the same rule; being built.
+Status (2026-10-16): built. Olli approved the same rule for herds and for people.
 
 ## Why
 
@@ -46,7 +46,7 @@ multiply `λ` as they multiply the chance today.
 
 What happens on a meeting stays as it is (`hunterMeetsHerd`: the herd may see the hunters first and
 turn aside; otherwise a chase, the herd scatters, the hunter stops to eat a kill), except that the
-number of tries in the chase is the number of encounters drawn, not `bands`. Satiation (`need`) and
+number of tries in the chase is the number of encounters drawn, at most one for each band (a band that was chased has scattered), not always `bands`. Satiation (`need`) and
 stopping to eat a kill already give a type II response: a fed hunter lets herds pass, and a hunter
 eating a kill is not searching. A big herd swamps the hunters about it as it does today (eyes, the
 young in the middle), now without the compounding that made it a sure find.
@@ -72,15 +72,12 @@ sources, the best one it has:
 
 1. **Senses: its own hex and the six around it.** A week's ranging covers them, and a wolf's 8 km
    or a band's 10 km of sense reaches a hex over. Here it knows the true heads, as today.
-2. **Sign: hexes it passed through lately.** Each hex keeps herd sign for each kind: heads × days
+2. **Sign: hexes it passed through last week.** Each place keeps herd sign for each kind: heads × days
    herds spent there, fading by half each week (hoofprints last days, dung piles weeks; one step is
-   the finest the model can tell apart). When a hunter's path crosses a hex it reads the sign there
-   and keeps it, aging, for two weeks. People read sign as well as their tracking skill lets them
+   the finest the model can tell apart). A hunter reads the sign in the hexes of last week's path. People read sign as well as their tracking skill lets them
    (`Skill.TRACK`, as `SIGN_GUESS` already does for input 3).
-3. **Memory: where it did well at this season.** `PlaceMemory` already keeps per season what a group
-   met and how well it fed. A hunter that killed on a calving ground last spring expects game there
-   this spring. Herds that keep a round are found where they are predictable. This is where a round
-   should cost something, and it is learnable for both sides.
+3. **Memory: where it did well at this season.** This works through what exists: bands' season
+   places and `PlaceMemory` (fed, danger), packs' held ground. No new memory was added.
 4. **Expectation: elsewhere.** What the land suggests: each grazing kind's usual density for that
    habitat (its density last year per unit of `suits`), times `suits` there. Hunters go to good
    grazing and water, as real ones do. Without this, unknown country would read as empty and no
@@ -89,6 +86,13 @@ sources, the best one it has:
 Resident prey (`preyHere`, the density fields) stays as it is: residents are everywhere their
 habitat suits, so a hunter's expectation of them is close to the truth. Bands keep sharing their
 season places when they meet (`bandsMeet`, `PlaceMemory.hear`): word of game travels.
+
+**People, by the same rule** (Olli, 2026-10-16): bands see game, hunters and other bands only in the
+ring; beyond it they go by sign (as their trackers read it), memory, word from other bands and what they
+expect. Raids already go by homes a band knows.
+
+**Each group's own kind, and stronger hunters** are seen by the same rule: crowding beyond the ring is
+expected, and a hunter keeps out of a stronger kind's way only where it senses it.
 
 **The herds' side, by the same rule.** A herd sees hunters in its own hex and the six around it.
 Beyond, it has the landscape of fear (`fauna.afraid`, kills there lately: exists, `FEAR_WEIGHT`) and
