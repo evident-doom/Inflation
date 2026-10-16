@@ -265,8 +265,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 nutrients[h] = nu / NUTRIENT_SCALE; phyto[h] = p; zoo[h] = z
                 if (isSea) deep[h] = dp + (DEEP_BASE * NUTRIENT_SCALE - dp) * min(1f, DEEP_RENEW * years)
-                // Fish: shoaling sea fish breed fast, lake fish slower; they eat about three times their weight a year in zooplankton.
-                // They eat about three times their weight a year in zooplankton (g/m2 = t/km2), as far as there is any;
+                // Fish: shoaling sea fish breed fast, lake fish slower. They eat about three times their weight a
+                // year in zooplankton (g/m2 = t/km2), as far as there is any;
                 // they grow as they eat and starve when it fails.
                 // They grow by a fifth of what they eat (the rest goes back to the water as waste), so a
                 // fish that can double in a year must eat about ten times its weight.
@@ -385,11 +385,6 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
-    /**
-     * Share of the fish in hex [h] the sea hunters can catch this week: thin shoals are hard to find
-     * and not worth the chase, so the share falls as the fish do, and a thinned-out sea is left to
-     * recover while the hunters go hungry or move on.
-     */
 
     /** Sea animals in hex [h]: each eats its food, breeds in its season as it ate, and dies back. */
     private fun stepSea(h: Int, month: Int) {

@@ -16,6 +16,8 @@ dependencies {
 
 kotlin {
     jvmToolchain(21)
+    // The code compiles clean; keep it so.
+    compilerOptions { allWarningsAsErrors.set(true) }
 }
 
 application {

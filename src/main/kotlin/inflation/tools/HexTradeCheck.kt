@@ -1,7 +1,6 @@
 package inflation.tools
 
 import inflation.ecology.Catalogue
-import inflation.ecology.Material
 import inflation.ecology.ROUNDS
 import inflation.ecology.TRADED
 import inflation.ecology.Tool

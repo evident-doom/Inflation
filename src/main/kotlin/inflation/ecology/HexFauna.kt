@@ -4,7 +4,6 @@ import inflation.Config
 
 import inflation.world.Date
 import inflation.world.HexLand
-import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.LifeForm
 import inflation.world.Weather
@@ -373,7 +372,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     fun count(k: Int): Double = (0 until n).sumOf { ((adults[k][it] + young[k][it]) * land.areaKm2[it]).toDouble() }
 
-    /** One week, with the weather on the same places. */
     /**
      * Newcomers: once a year a resident kind that has dwindled below [NEWCOMER_ANIMALS] (or died out)
      * gets a few animals at places that suit it, as if wandering in from beyond the map; whether they
@@ -396,6 +394,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
+    /** One week, with the weather on the same places. */
     fun step(weather: Weather, date: Date) {
         for (p in 0 until n) fear[p] *= FEAR_KEEP
         Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
@@ -416,17 +415,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * Every kind takes its share of the place's grass, browse, fruit and roots, in proportion to
-     * what each wants and can get at (cliffs keep all but climbers off part of it); a shortfall of
-     * grass and browse is made up from the standing straw, at what each kind's gut gets out of it.
-     */
-    /**
      * The grass and browse, kg/m², that can still be eaten at each place this week without eating it
      * bare, once the residents have had theirs: the herds passing through share it (see [HexGroups.graze]).
      */
     val grazeLeft = FloatArray(n)
     val browseLeft = FloatArray(n)
 
+    /**
+     * Every kind takes its share of the place's grass, browse, fruit and roots, in proportion to
+     * what each wants and can get at (cliffs keep all but climbers off part of it); a shortfall of
+     * grass and browse is made up from the standing straw, at what each kind's gut gets out of it.
+     */
     private fun graze(weather: Weather) {
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             // How much each kind eats of poor forage depends on its gut (see [gutFill]).
@@ -747,13 +746,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
+    /** The straits from each hex, as (hex across, km of open water) pairs; set by the groups (see [HexGroups.seaLinks]). */
+    var seaLinks: ((Int) -> List<Pair<Int, Float>>)? = null
+
     /**
      * Hungry or crowded animals spill into neighbouring hexes, at about the same height, towards
      * better feeding; the harder the border is for their way of travelling, the fewer cross it.
      */
-    /** The straits from each hex, as (hex across, km of open water) pairs; set by the groups (see [HexGroups.seaLinks]). */
-    var seaLinks: ((Int) -> List<Pair<Int, Float>>)? = null
-
     private fun spill() {
         kinds.indices.toList().parallelStream().forEach { k ->
             val s = kinds[k]
@@ -828,7 +827,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val REACH = 0.01f
         /** How strongly a kind is drawn to the ground it prefers. */
         const val HABITAT = 3f
-        /** Kinds take to rough or smooth ground by the share of a place that is so ([suits]); false: by the place's mean ruggedness. */
+        /** The same share where nothing is green: the dry standing stuff in the cold ([REACH] is for full green). */
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 4f
@@ -870,12 +869,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         /** How many times more disease strikes a herd that is not fed at all than a well-fed one. */
         const val MALNOURISHED = 4f
         const val DISEASE = 0.3f
-        /** Share of tree biomass that is fruit and mast. */
-        const val FRUIT_OF_TREE = 0.01f
         /** Food, kg/m², at which a place carries a kind's usual density. */
         const val FOOD_FULL = 0.3f
-        /** Extra share dying in a week per unit of hunger below 0.6 fed; per 10 °C of cold beyond the coat. */
-        const val HUNGER_DEATHS = 0.08f
         /** Hunger, for every animal and band alike: below this share of its need fed, a week kills this share of the shortfall. */
         const val HUNGER_FROM = 0.5f
         const val HUNGER_RATE = 0.3f

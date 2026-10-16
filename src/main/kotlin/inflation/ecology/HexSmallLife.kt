@@ -12,6 +12,29 @@ import kotlin.math.min
 import kotlin.math.pow
 
 /**
+ * A wild bird as a density field: when it breeds, how fast it grows and dies back, the months it is
+ * here at all (migrants), and [domestication] by the same six criteria as the large animals (diet
+ * breadth, growth, captive breeding, temperament, calm, hierarchy).
+ */
+class BirdKind(
+    val name: String,
+    val breedMonths: IntRange,
+    /** Young raised a year per head; yearly share of the birds dying. */
+    val growth: Float,
+    val deaths: Float,
+    /** Months present; null for residents. Outside them the birds are away. */
+    val present: Set<Int>?,
+    val domestication: FloatArray,
+    /**
+     * Share of the food that is insects (for most, what the chicks are raised on). Migrants that
+     * live mostly on insects ([followsInsects]) come and go with the insect booms within their months.
+     */
+    val insectShare: Float = 0f,
+) {
+    val followsInsects get() = present != null && insectShare >= 0.3f
+}
+
+/**
  * The life in the soil and the small animals of each place (height band of a hex), as in the 1 km
  * model's soil life and small fauna:
  *
@@ -37,29 +60,6 @@ import kotlin.math.pow
  *   animals in the open; they thrive where the crags and the game are, and dwindle where food fails.
  * - Fire kills what cannot flee. Every month each kind spreads a little to the places around.
  */
-/**
- * A wild bird as a density field: when it breeds, how fast it grows and dies back, the months it is
- * here at all (migrants), and [domestication] by the same six criteria as the large animals (diet
- * breadth, growth, captive breeding, temperament, calm, hierarchy).
- */
-class BirdKind(
-    val name: String,
-    val breedMonths: IntRange,
-    /** Young raised a year per head; yearly share of the birds dying. */
-    val growth: Float,
-    val deaths: Float,
-    /** Months present; null for residents. Outside them the birds are away. */
-    val present: Set<Int>?,
-    val domestication: FloatArray,
-    /**
-     * Share of the food that is insects (for most, what the chicks are raised on). Migrants that
-     * live mostly on insects ([followsInsects]) come and go with the insect booms within their months.
-     */
-    val insectShare: Float = 0f,
-) {
-    val followsInsects get() = present != null && insectShare >= 0.3f
-}
-
 class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private val days: Int) {
     val n = land.n
     /** Soil: litter and organic matter, kg/m²; carrion, kg/m²; soil animals, g/m². */
@@ -505,17 +505,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         birds[p] -= birds[p] * f
     }
 
-    /**
-     * Logistic growth at [r] a year in season, deaths at [d] a year, toward [k], in place [p]; the
-     * dead go to the litter. An empty place stays empty until animals spread in from around it.
-     */
     /** The rate in the breeding months that gives [perYear] young a head a year when they last [months] months. */
     private fun inSeason(perYear: Float, months: Int) = perYear * 12f / months
 
     /**
      * Logistic growth with deaths, kg/km²: what dies (and what crowding beyond [k] takes back) goes to
      * the dead; a kind that [grazes] grows only by the plants it eats, at [SMALL_EFFICIENCY]. [counted]
-     * false for an index that is not kg.
+     * false for an index that is not kg. Growth is at [r] a year in season, deaths at [d] a year, toward
+     * [k], in place [p]. An empty place stays empty until animals spread in from around it.
      */
     private fun logistic(p: Int, x: Float, r: Float, d: Float, k: Float, grazes: Boolean = false, counted: Boolean = true, ledger: Array<FloatArray>? = null, born: Int = -1): Float {
         val kk = max(k, 0.01f)
@@ -874,12 +871,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     companion object {
         val WETLANDS = setOf("MARSH", "SWAMP_FOREST", "BOG", "SALT_MARSH", "MANGROVE")
+        /** Share of what small plant-eaters eat that becomes their own growth (about a tenth for warm-blooded animals, Lindeman's rule). */
+        const val SMALL_EFFICIENCY = 0.1f
         /**
          * The wild birds. Months count from the winter solstice (0 about January): quail are here
          * from spring to early autumn, greylag geese from autumn to early spring.
          */
-        /** Share of what small plant-eaters eat that becomes their own growth (about a tenth for warm-blooded animals, Lindeman's rule). */
-        const val SMALL_EFFICIENCY = 0.1f
         val BIRDS = listOf(
             BirdKind("chukar", 4..6, 4f, 0.9f, null, floatArrayOf(0.7f, 0.7f, 0.5f, 0.5f, 0.6f, 0.6f), insectShare = 0.3f),
             BirdKind("quail", 4..7, 6f, 1.2f, (4..9).toSet(), floatArrayOf(0.7f, 0.9f, 0.7f, 0.5f, 0.5f, 0.4f), insectShare = 0.4f),

@@ -1,18 +1,12 @@
 package inflation.learning
 
 import inflation.ecology.Catalogue
-import inflation.ecology.HexFauna
 import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
-import inflation.ecology.HexGroups
 import inflation.ecology.HexPolicy
 import inflation.ecology.HexSim
 import inflation.ecology.Species
 import inflation.world.Date
-import inflation.world.HexLand
-import inflation.world.HexMap
-import inflation.world.HexWorld
-import inflation.world.Weather
 import inflation.world.World
 import inflation.world.WorldConfig
 import java.io.File

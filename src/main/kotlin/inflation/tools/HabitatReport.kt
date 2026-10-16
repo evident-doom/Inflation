@@ -1,6 +1,5 @@
 package inflation.tools
 
-import inflation.ecology.Catalogue
 import inflation.ecology.HexSim
 import inflation.world.Biome
 import inflation.world.World

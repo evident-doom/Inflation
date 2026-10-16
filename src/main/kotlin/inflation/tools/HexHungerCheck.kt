@@ -28,7 +28,7 @@ fun main(args: Array<String>) {
         k++
     }
     val run = HexLearning.Run(cfg, Catalogue.learned.filter { !it.human || Config.flag("people", true) })
-    val herds = Catalogue.learned.filter { it in Catalogue.migratory && (only == null || it.name in only!!) }
+    val herds = Catalogue.learned.filter { it in Catalogue.migratory && (only == null || it.name in only) }
     val perYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     val heads = Array(herds.size) { DoubleArray(12) }; val hungry = Array(herds.size) { DoubleArray(12) }; val fed = Array(herds.size) { DoubleArray(12) }
     val snow = Array(herds.size) { DoubleArray(12) }

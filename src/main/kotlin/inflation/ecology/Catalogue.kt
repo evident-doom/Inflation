@@ -1,7 +1,5 @@
 package inflation.ecology
 
-import kotlin.math.max
-import kotlin.math.pow
 
 object Catalogue {
     /**
@@ -639,7 +637,6 @@ object Catalogue {
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
 
-    /** How a kind crosses hex borders: climbers over crags, big plant-eaters swim rivers, the rest walk. */
     /**
      * How far a kind will swim open water, km: elk, hippos, red deer, boar and bears cross straits of
      * ten or more; most others a few; people none (until boats). From memory of the record, mild.
@@ -650,6 +647,7 @@ object Catalogue {
     private val SWIM_KM = mapOf("elk" to 15f, "hippo" to 15f, "red deer" to 10f, "wild boar" to 10f, "brown bear" to 10f,
         "aurochs" to 8f, "fallow deer" to 6f, "roe deer" to 4f, "wolf" to 4f, "gazelle" to 1f, "cheetah" to 1f)
 
+    /** How a kind crosses hex borders: climbers over crags, big plant-eaters swim rivers, the rest walk. */
     fun travel(s: Species) = if (s in climbers) inflation.world.HexMap.Travel.CLIMB
         else if (!s.carnivore && s.massKg > 60f) inflation.world.HexMap.Travel.SWIM else inflation.world.HexMap.Travel.FOOT
     val all = firstHerbivores + predators + laterHerbivores

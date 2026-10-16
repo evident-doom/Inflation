@@ -683,11 +683,6 @@ object HexPpo {
     }
 
     /**
-     * Animal-weeks per animal at the start, by kind, over [years] in [cfg] with the policies [setUp]
-     * installs; for people, less their luck in their own births and deaths (see [HexGroup.luck]), so
-     * that a small gain shows through the chance of who was born and who died.
-     */
-    /**
      * [score] with everything hand-written, worked out once for each world and kept: it is the same
      * every check (the runs are reproducible), and it was a quarter of each check's work.
      */
@@ -695,6 +690,11 @@ object HexPpo {
         handScores.computeIfAbsent(Triple(cfg, years, kinds.map { it.name })) { score(cfg, years, kinds) { } }
     private val handScores = java.util.concurrent.ConcurrentHashMap<Triple<WorldConfig, Int, List<String>>, Map<Species, Double>>()
 
+    /**
+     * Animal-weeks per animal at the start, by kind, over [years] in [cfg] with the policies [setUp]
+     * installs; for people, less their luck in their own births and deaths (see [HexGroup.luck]), so
+     * that a small gain shows through the chance of who was born and who died.
+     */
     internal fun score(cfg: WorldConfig, years: Int, kinds: List<Species>, setUp: (HexLearning.Run) -> Unit): Map<Species, Double> {
         val run = HexLearning.Run(cfg, kinds)
         setUp(run)

@@ -6,11 +6,9 @@ import inflation.ecology.HexPolicy
 import inflation.ecology.WAYS_OUT
 import inflation.learning.HexLearning
 import inflation.learning.HexPpo
-import inflation.world.Date
 import inflation.world.WorldConfig
 import kotlin.math.ln
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -130,7 +128,7 @@ fun main(args: Array<String>) {
     }
     // The moved bands: the change against how far below the best the forced place scored by the hand-written score.
     val mv = outs["move-1wk"]
-    val gaps = if (mv == null) emptyList() else mv.moveAlt.entries.filter { it.key in base && it.key in mv.ret }.map { (id, p) -> (p.first - p.second).toDouble() to mv!!.ret.getValue(id) - base.getValue(id) }
+    val gaps = if (mv == null) emptyList() else mv.moveAlt.entries.filter { it.key in base && it.key in mv.ret }.map { (id, p) -> (p.first - p.second).toDouble() to mv.ret.getValue(id) - base.getValue(id) }
     if (gaps.isNotEmpty()) {
         val sorted = gaps.sortedBy { it.first }
         for (q in sorted.chunked((sorted.size + 2) / 3)) println("  move-1wk, hand-written score gap %.3f..%.3f (n %d): change mean %+.5f, SD %.5f".format(q.first().first, q.last().first, q.size, q.map { it.second }.average(), sd(q.map { it.second })))

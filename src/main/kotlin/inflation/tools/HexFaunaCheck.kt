@@ -7,11 +7,7 @@ import inflation.ecology.HexSim
 
 
 import inflation.world.Date
-import inflation.world.HexLand
-import inflation.world.HexMap
 import inflation.world.HexWorld
-import inflation.world.Weather
-import inflation.world.World
 import inflation.world.WorldConfig
 
 /**
@@ -141,7 +137,7 @@ fun faunaCheck(args: Array<String>) {
                 stands, fields.size, fields.maxOfOrNull { f.domestic[it] } ?: 0f, if (fields.isEmpty()) 0.0 else fields.map { f.domestic[it].toDouble() }.average(), grainReapedYear,
                 herds.groups.filter { it.alive && it.band != null }.sumOf { it.stores[inflation.ecology.Store.SEED.ordinal].toDouble() } / 1000,
                 herds.groups.filter { it.alive && it.band?.atHome == true }.sumOf { it.stores[inflation.ecology.Store.SEED.ordinal].toDouble() } / 1000,
-                (0 until land.n).sumOf { (f.grain[it] * land.areaKm2[it] * 1e6).toDouble() } / 1000, f.grainRipenedLastYear,
+                (0 until land.n).sumOf { f.grain[it] * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
                 herds.groups.count { it.alive && it.band?.atHome == true && f.cereal[it.place] > 0f }, herds.groups.count { it.alive && it.band?.atHome == true }))
         }
     }

@@ -12,7 +12,6 @@ import java.awt.BasicStroke
 import java.awt.Color
 import java.io.File
 import javax.imageio.ImageIO
-import kotlin.math.hypot
 import kotlin.math.ln
 import kotlin.math.sqrt
 

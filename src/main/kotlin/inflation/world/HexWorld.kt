@@ -109,7 +109,7 @@ class HexWorld(val world: World, val hex: HexMap) {
     /** Each hex's places, by band (-1 where the band holds no land). */
     val placeOf = Array(BANDS_M.size) { IntArray(size) { -1 } }
     /** Mean elevation of each place, m. */
-    lateinit var placeElevationM: FloatArray
+    val placeElevationM: FloatArray
     /** How much sun the shaded and sunny slopes of each place get, by month (worked out once, from the terrain). */
     val sunlight: Sunlight by lazy { Sunlight.of(world, placeCells) }
 
