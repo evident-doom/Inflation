@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 /**
  * The JIT does not compile a method of more than 8000 bytes of bytecode (HotSpot's HugeMethodLimit):
  * it runs interpreted, many times slower. The planner once grew 1 byte past it and the weekly choosing
- * ran 4.5 times slower on the big worlds. The step's methods must stay under it.
+ * ran 4.5 times slower on the big worlds. No method of the model may pass it.
  */
 class HugeMethodTest {
     private val limit = 8000
@@ -50,13 +50,23 @@ class HugeMethodTest {
         }
     }
 
+    /**
+     * Every class compiled from src/main, as loaded from the same output as [HexGroups], except the
+     * one-off checks in inflation.tools: their long mains run once a run and only call into the step.
+     */
+    private fun mainClasses(): List<Class<*>> {
+        val root = java.io.File(HexGroups::class.java.protectionDomain.codeSource.location.toURI())
+        return root.walkTopDown().filter { it.isFile && it.name.endsWith(".class") }
+            .map { Class.forName(it.relativeTo(root).path.removeSuffix(".class").replace(java.io.File.separatorChar, '.'), false, javaClass.classLoader) }
+            .filterNot { it.name.startsWith("inflation.tools.") }.toList()
+    }
+
     @Test
     fun theStepsMethodsAreSmallEnoughToCompile() {
-        for (c in listOf(HexGroups::class.java, Class.forName("inflation.ecology.HexMeetingsKt"))) {
-            val huge = codeLengths(c).filter { it.value > limit && it.key != "<clinit>" }
-            assertTrue(huge.isEmpty(), "${c.simpleName}: methods over $limit bytes run interpreted: $huge")
-        }
-        val plan = codeLengths(HexGroups::class.java).getValue("planInner")
-        println("planInner: $plan bytes of $limit")
+        val classes = mainClasses()
+        val huge = classes.flatMap { c -> codeLengths(c).filter { it.value > limit && it.key != "<clinit>" }.map { "${c.name}.${it.key}: ${it.value}" } }
+        assertTrue(huge.isEmpty(), "methods over $limit bytes run interpreted: $huge")
+        val near = classes.flatMap { c -> codeLengths(c).filter { it.value > limit * 3 / 4 && it.key != "<clinit>" }.map { "${c.simpleName}.${it.key} ${it.value}" } }
+        println("methods over 3/4 of $limit bytes: $near")
     }
 }
