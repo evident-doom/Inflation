@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
 import inflation.world.Biome
@@ -15,12 +16,13 @@ import java.io.File
  * Usage: settled-start HISTORY.csv OUT.properties [--seed N] [--from-year Y]
  */
 fun main(args: Array<String>) {
-    val history = HexHistory.readCsv(File(args[0]))
-    val out = File(args[1])
-    var cfg = WorldConfig(seed = 1)
-    var fromYear = -1f
-    var k = 2
-    while (k < args.size) { when (args[k]) { "--seed" -> cfg = cfg.copy(seed = args[++k].toLong()); "--from-year" -> fromYear = args[++k].toFloat(); else -> error("unknown argument ${args[k]}") }; k++ }
+    val a = Args(args, "settled-start HISTORY.csv OUT.properties [--seed N] [--from-year Y]")
+    val cfg = WorldConfig(seed = a.long("--seed", 1))
+    val fromYear = a.float("--from-year", -1f)
+    val files = a.rest()
+    a.done()
+    val history = HexHistory.readCsv(File(files[0]))
+    val out = File(files[1])
     // The area of each kind of country on the map the history was run on.
     val sim = HexSim(World.generate(cfg))
     val land = sim.land

@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
 import inflation.world.Date
@@ -16,21 +17,13 @@ import inflation.world.WorldConfig
  * Usage: resident-hunger-check (--world NAME | --seed N [--width KM] [--height KM]) [--years N] [--kinds a,b]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1); var years = 1; var kinds = listOf("hippo")
-    var loadFile: java.io.File? = null
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--years" -> years = args[++k].toInt()
-            "--kinds" -> kinds = args[++k].split(",")
-            "--world" -> { val w = TestWorlds.named(args[++k]); cfg = w.config; loadFile = w.state }
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    val a = Args(args, "resident-hunger-check (--world NAME | --seed N [--width KM] [--height KM]) [--years N] [--kinds a,b]")
+    val named = a.string("--world")?.let { TestWorlds.named(it) }
+    var cfg = named?.config ?: WorldConfig(seed = 1)
+    val loadFile: java.io.File? = named?.state
+    cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
+    val years = a.int("--years", 1); val kinds = a.string("--kinds")?.split(",") ?: listOf("hippo")
+    a.done()
     val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { })
     loadFile?.let { inflation.ecology.HexSnapshot.load(sim, it); println("carrying on $it at ${sim.weather.date}") }
     val fauna = sim.fauna; val land = sim.land; val n = land.n

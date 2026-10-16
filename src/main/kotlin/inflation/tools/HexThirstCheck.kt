@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.Date
 import inflation.world.WorldConfig
@@ -13,9 +14,11 @@ import inflation.world.WorldConfig
  * Usage: hex-thirst-check [--seed N] [--width KM] [--height KM] [--years N]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1); var years = 2
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seed" -> cfg = cfg.copy(seed = args[++k].toLong()); "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt()); "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt()); "--years" -> years = args[++k].toInt() }; k++ }
+    val a = Args(args, "hex-thirst-check [--seed N] [--width KM] [--height KM] [--years N]")
+    var cfg = WorldConfig(seed = 1)
+    cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
+    val years = a.int("--years", 2)
+    a.done()
     val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { })
     val land = sim.land; val herds = sim.groups
     val stepsY = Date.DAYS_PER_YEAR / cfg.daysPerStep

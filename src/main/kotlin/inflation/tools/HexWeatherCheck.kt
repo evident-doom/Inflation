@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.world.Date
 import inflation.world.HexMap
 import inflation.world.HexWorld
@@ -20,19 +21,11 @@ import kotlin.math.sqrt
  * Usage: hex-weather-check [--seed N] [--width KM] [--height KM] [--years N]
  */
 fun main(args: Array<String>) {
+    val a = Args(args, "hex-weather-check [--seed N] [--width KM] [--height KM] [--years N]")
     var cfg = WorldConfig(seed = 1)
-    var years = 2
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--years" -> years = args[++k].toInt()
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
+    val years = a.int("--years", 2)
+    a.done()
     val world = World.generate(cfg)
     val hw = HexWorld(world, HexMap(world))
     val n = hw.placeCells.size

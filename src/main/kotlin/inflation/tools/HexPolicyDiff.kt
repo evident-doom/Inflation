@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
 import inflation.learning.HexLearning
@@ -22,20 +23,12 @@ import kotlin.math.abs
  * (a network's .residual file is used if it lies beside it; name a file NET.mlp@0 to leave it out)
  */
 fun main(args: Array<String>) {
-    var role = "people"; var worlds = 4; var size = 1000; var weeks = 26
-    val nets = ArrayList<Pair<String, SharedMover>>()
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--role" -> role = args[++k]
-            "--worlds" -> worlds = args[++k].toInt()
-            "--size" -> size = args[++k].toInt()
-            "--weeks" -> weeks = args[++k].toInt()
-            else -> { val (path, res) = args[k].split("@").let { it[0] to it.getOrNull(1)?.toFloat() }
-                nets += args[k] to SharedMover.load(File(path)).also { m -> if (res != null) m.residual = res } }
-        }
-        k++
-    }
+    val a = Args(args, "hex-policy-diff [--role people] [--worlds N] [--size KM] [--weeks N] NET.mlp [NET.mlp ...]")
+    val role = a.string("--role") ?: "people"; val worlds = a.int("--worlds", 4); val size = a.int("--size", 1000); val weeks = a.int("--weeks", 26)
+    val names = a.rest()
+    a.done()
+    val nets = names.map { name -> val (path, res) = name.split("@").let { it[0] to it.getOrNull(1)?.toFloat() }
+        name to SharedMover.load(File(path)).also { m -> if (res != null) m.residual = res } }
     val kinds = Catalogue.learned
     fun mine(s: inflation.ecology.Species) = when (role) { "people" -> s.human; "hunters" -> s.carnivore && !s.human; else -> !s.carnivore }
     class Seen(val kind: inflation.ecology.Species, val f: Array<FloatArray>, val band: FloatArray?, val hand: FloatArray, val temper: FloatArray)

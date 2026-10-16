@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
@@ -27,10 +28,10 @@ import kotlin.random.Random
  *   with chance P, and draws its ways as in training, each week (the noise training plays under).
  */
 fun main(args: Array<String>) {
-    var seed = 91L; var size = 600; var warm = 60; var noise = 0f
-    var variants = listOf("base", "base-again", "move-1wk", "move-52wk", "ways-1wk", "ways-52wk")
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seed" -> seed = args[++k].toLong(); "--size" -> size = args[++k].toInt(); "--warm" -> warm = args[++k].toInt(); "--noise" -> noise = args[++k].toFloat(); "--variants" -> variants = listOf("base") + args[++k].split(",") }; k++ }
+    val a = Args(args, "hex-choice-effect [--seed N] [--size KM] [--warm WEEKS] [--noise P]")
+    val seed = a.long("--seed", 91L); val size = a.int("--size", 600); val warm = a.int("--warm", 60); val noise = a.float("--noise", 0f)
+    val variants = a.string("--variants")?.let { listOf("base") + it.split(",") } ?: listOf("base", "base-again", "move-1wk", "move-52wk", "ways-1wk", "ways-52wk")
+    a.done()
     val horizon = 52; val discount = HexPpo.PEOPLE_DISCOUNT
     val kinds = Catalogue.learned
     fun perturbed(id: Int) = Random(id * 31L + 7).nextFloat() < 0.5f

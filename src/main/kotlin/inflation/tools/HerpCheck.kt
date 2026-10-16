@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.learning.HexLearning
 import inflation.world.Date
@@ -13,9 +14,11 @@ import inflation.world.WorldConfig
  * and its hunters (and wild boar), and the rodents in March and September.
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1); var years = 5; var show = 2
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seed" -> cfg = cfg.copy(seed = args[++k].toLong()); "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt()); "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt()); "--years" -> years = args[++k].toInt(); "--show" -> show = args[++k].toInt() }; k++ }
+    val a = Args(args, "herp-check [--seed N] [--width KM] [--height KM] [--years N] [--show N]")
+    val base = WorldConfig(seed = 1)
+    val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
+    val years = a.int("--years", 5); val show = a.int("--show", 2)
+    a.done()
     val run = HexLearning.Run(cfg, Catalogue.learned)
     val land = run.land; val hw = run.hw; val n = land.n; val sl = run.fauna.small
     val meanT = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(p, it) }.average().toFloat() }

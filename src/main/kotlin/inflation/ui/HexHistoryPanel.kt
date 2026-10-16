@@ -1,5 +1,6 @@
 package inflation.ui
 
+import inflation.Args
 import inflation.ecology.HexHistory
 import java.awt.BasicStroke
 import java.awt.BorderLayout
@@ -261,18 +262,23 @@ class HexHistoryPanel(private var history: HexHistory, live: Boolean) : JPanel(B
  * series by year into a picture instead, without a window (a key ending in / takes the whole group).
  */
 fun main(args: Array<String>) {
-    if (args.size >= 3 && args[1] == "--png") {
-        val h = HexHistory.readCsv(File(args[0]))
+    val a = Args(args, "hex-history [file.csv] | hex-history FILE.csv --png OUT KEY...")
+    val png = a.file("--png")
+    val words = a.rest()
+    a.done()
+    if (png != null && words.isNotEmpty()) {
+        val h = HexHistory.readCsv(File(words[0]))
         val p = HexHistoryPanel(h, live = false)
-        p.selectForPicture(args.drop(3), stackedBands = args.drop(3).any { it.startsWith("deaths/") })
+        val keys = words.drop(1)
+        p.selectForPicture(keys, stackedBands = keys.any { it.startsWith("deaths/") })
         p.setSize(1250, 650); p.doLayout()
         val img = java.awt.image.BufferedImage(1250, 650, java.awt.image.BufferedImage.TYPE_INT_RGB)
         val g = img.createGraphics(); g.color = Color.WHITE; g.fillRect(0, 0, 1250, 650)
         p.paintChart(g, 1250, 650); g.dispose()
-        javax.imageio.ImageIO.write(img, "png", File(args[2]))
+        javax.imageio.ImageIO.write(img, "png", png)
         return
     }
-    val file = args.firstOrNull()?.let { File(it) }
+    val file = words.firstOrNull()?.let { File(it) }
     val h = if (file != null && file.exists()) HexHistory.readCsv(file) else HexHistory()
     javax.swing.SwingUtilities.invokeLater {
         val f = JFrame("History" + (file?.let { " — ${it.name}" } ?: ""))

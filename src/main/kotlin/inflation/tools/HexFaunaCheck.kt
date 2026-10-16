@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.Config
 
 import inflation.ecology.HexHistory
@@ -23,31 +24,24 @@ import inflation.world.WorldConfig
 fun main(args: Array<String>) = faunaCheck(args)
 
 fun faunaCheck(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var years = 10
-    var uniform = false
-    var historyFile: java.io.File? = null
-    var saveFile: java.io.File? = null
-    var loadFile: java.io.File? = null
-    var testWorld: TestWorlds.Entry? = null
-    var replicate = 0L
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--years" -> years = args[++k].toInt()
-            "--uniform" -> uniform = true
-            "--history" -> historyFile = java.io.File(args[++k])
-            "--save" -> saveFile = java.io.File(args[++k])
-            "--load" -> loadFile = java.io.File(args[++k])
-            "--world" -> { val w = TestWorlds.named(args[++k]); testWorld = w; cfg = w.config; loadFile = w.state }
-            "--replicate" -> replicate = args[++k].toLong()
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    val a = Args(args, "hex-fauna-check [--seed N] [--width KM] [--height KM] [--years N] [--save FILE] [--load FILE] [--world NAME] [--replicate R]")
+    // A test world sets the map and the state to carry on from; an option before --world on the line
+    // gives way to it, one after it changes it.
+    val testWorld = a.string("--world")?.let { TestWorlds.named(it) }
+    val worldAt = args.indexOf("--world")
+    fun stands(name: String) = testWorld == null || args.indexOf(name) > worldAt
+    var cfg = testWorld?.config ?: WorldConfig(seed = 1)
+    val seed = a.long("--seed", cfg.seed); val widthKm = a.int("--width", cfg.widthKm); val heightKm = a.int("--height", cfg.heightKm)
+    if (stands("--seed")) cfg = cfg.copy(seed = seed)
+    if (stands("--width")) cfg = cfg.copy(widthKm = widthKm)
+    if (stands("--height")) cfg = cfg.copy(heightKm = heightKm)
+    val years = a.int("--years", 10)
+    val uniform = a.flag("--uniform")
+    val historyFile = a.file("--history")
+    val saveFile = a.file("--save")
+    val loadFile = a.file("--load").takeIf { stands("--load") } ?: testWorld?.state
+    val replicate = a.long("--replicate", 0L)
+    a.done()
     // The world's centre latitude (latitude=DEGREES), as the training maps set it; a test world keeps its own.
     if (testWorld == null) Config.string("latitude")?.let { cfg = cfg.copy(centreLatitude = it.toDouble()) }
     val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { println(it) }, uniformStart = uniform)

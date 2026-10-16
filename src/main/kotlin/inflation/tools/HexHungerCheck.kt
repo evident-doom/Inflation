@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.Config
 
 import inflation.ecology.Catalogue
@@ -17,16 +18,10 @@ import inflation.world.WorldConfig
  * Usage: hex-hunger-check [--seed N] [--years N] [--kinds a,b]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(); var years = 4; var only: Set<String>? = null
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--years" -> years = args[++k].toInt()
-            "--kinds" -> only = args[++k].split(",").toSet()
-        }
-        k++
-    }
+    val a = Args(args, "hex-hunger-check [--seed N] [--years N] [--kinds a,b]")
+    val cfg = WorldConfig().let { it.copy(seed = a.long("--seed", it.seed)) }
+    val years = a.int("--years", 4); val only = a.string("--kinds")?.split(",")?.toSet()
+    a.done()
     val run = HexLearning.Run(cfg, Catalogue.learned.filter { !it.human || Config.flag("people", true) })
     val herds = Catalogue.learned.filter { it in Catalogue.migratory && (only == null || it.name in only) }
     val perYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
