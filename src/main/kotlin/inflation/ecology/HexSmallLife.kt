@@ -444,51 +444,75 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         hares[p] = logistic(p, hares[p], if (month in 3..9 && mild) inSeason(4f, 7) else 0f, 0.9f, hareCapacity(p), grazes = true, born = NEST_HARES)
         hyrax[p] = logistic(p, hyrax[p], if (month in 4..6) inSeason(1.2f, 3) else 0f, 0.4f, hyraxCapacity(p), grazes = true, born = NEST_HYRAX)
         var all = 0f
-        for (k in bird.indices) {
-            val b = BIRDS[k]; val f = bird[k]
-            val here = b.present?.contains(month) ?: true
-            // The insects they eat (most of what the chicks are raised on): short of them, fewer young
-            // are raised and more birds die.
-            var fed = 1f
-            if (here && b.insectShare > 0f && f[p] > 0f) {
-                val need = f[p] * BIRD_INTAKE * days * b.insectShare
-                // (A few birds' need can round to nothing.)
-                if (need > 0f) {
-                    val ate = takeSwitching(p, need, 0.5f, insectFood, insectEaseAt(p))
-                    herpLedger[HerpLedger.EATEN_BY_BIRDS][p] += ate
-                    fed = ate / need
-                }
-            }
-            f[p] = when {
-                // Migrants leave for beyond the map at the end of their months here, and come back.
-                !here -> { if (f[p] > 0f) { leaving[k][p] = f[p] * land.areaKm2[p]; birdLedger[k][BirdLedger.LEFT][p] += f[p] }; 0f }
-                returning[k] > 0.0 && !b.followsInsects -> { val back = (returning[k] * birdCapacity(k, p)).toFloat(); birdLedger[k][BirdLedger.BACK][p] += back; f[p] + back }
-                else -> {
-                    val hunger = b.insectShare * (1f - fed)
-                    // (Insect-eating migrants settling this week arrive where the insects boom, and live on as the rest.)
-                    val arrived = if (b.followsInsects && returning[k] > 0.0) (returning[k] * birdCapacity(k, p) * boom(p)).toFloat() else 0f
-                    birdLedger[k][BirdLedger.BACK][p] += arrived; if (here && b.insectShare > 0f) { birdLedger[k][BirdLedger.FED_DAYS][p] += fed * days; birdLedger[k][BirdLedger.INSECT_DAYS][p] += days }
-                    var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f, b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, ledger = birdLedger[k], born = NEST_BIRDS)
-                    // Insect-eating migrants leave a place where the insects have failed, for one where they boom.
-                    if (b.followsInsects && fed < 0.5f && x > 0f) { val go = x * (1f - 2f * fed); leaving[k][p] = go * land.areaKm2[p]; birdLedger[k][BirdLedger.LEFT][p] += go; x -= go }
-                    x
-                }
-            }
-            all += f[p]
-        }
+        for (k in bird.indices) { stepBird(k, p, month, mild); all += bird[k][p] }
         birds[p] = all
         nest(p, NEST_HARES, hares[p], 0f); nest(p, NEST_HYRAX, hyrax[p], 0f); nest(p, NEST_BIRDS, all, 0f)
+        val active = stepTortoises(p, t, month)
+        smallGrazing(p, all, active)
+        stepFoxesAndOwls(p, month)
+        if (eagleCrags[p] > 0f) stepEagles(p, month)
+        // Fire: tortoises die where it burns; the rest bolt and many young die.
+        if (burnt > 0f) {
+            smallDead[p] += tortoises[p] * 0.6f * burnt + hares[p] * 0.3f * burnt + birds[p] * 0.3f * burnt
+            tortLedger[TortLedger.BURNT][p] += tortoises[p] * 0.6f * burnt
+            tortoises[p] *= 1f - 0.6f * burnt; hares[p] *= 1f - 0.3f * burnt; takeBirds(p, 0.3f * burnt)
+        }
+    }
+
+    /** Bird kind [k] at place [p] this week: migrants leave and come back, the rest feed on insects as their kind does, breed in their months as fed ([mild] weather), and die more when short. */
+    private fun stepBird(k: Int, p: Int, month: Int, mild: Boolean) {
+        val b = BIRDS[k]; val f = bird[k]
+        val here = b.present?.contains(month) ?: true
+        // The insects they eat (most of what the chicks are raised on): short of them, fewer young
+        // are raised and more birds die.
+        var fed = 1f
+        if (here && b.insectShare > 0f && f[p] > 0f) {
+            val need = f[p] * BIRD_INTAKE * days * b.insectShare
+            // (A few birds' need can round to nothing.)
+            if (need > 0f) {
+                val ate = takeSwitching(p, need, 0.5f, insectFood, insectEaseAt(p))
+                herpLedger[HerpLedger.EATEN_BY_BIRDS][p] += ate
+                fed = ate / need
+            }
+        }
+        f[p] = when {
+            // Migrants leave for beyond the map at the end of their months here, and come back.
+            !here -> { if (f[p] > 0f) { leaving[k][p] = f[p] * land.areaKm2[p]; birdLedger[k][BirdLedger.LEFT][p] += f[p] }; 0f }
+            returning[k] > 0.0 && !b.followsInsects -> { val back = (returning[k] * birdCapacity(k, p)).toFloat(); birdLedger[k][BirdLedger.BACK][p] += back; f[p] + back }
+            else -> {
+                val hunger = b.insectShare * (1f - fed)
+                // (Insect-eating migrants settling this week arrive where the insects boom, and live on as the rest.)
+                val arrived = if (b.followsInsects && returning[k] > 0.0) (returning[k] * birdCapacity(k, p) * boom(p)).toFloat() else 0f
+                birdLedger[k][BirdLedger.BACK][p] += arrived; if (here && b.insectShare > 0f) { birdLedger[k][BirdLedger.FED_DAYS][p] += fed * days; birdLedger[k][BirdLedger.INSECT_DAYS][p] += days }
+                var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f, b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, ledger = birdLedger[k], born = NEST_BIRDS)
+                // Insect-eating migrants leave a place where the insects have failed, for one where they boom.
+                if (b.followsInsects && fed < 0.5f && x > 0f) { val go = x * (1f - 2f * fed); leaving[k][p] = go * land.areaKm2[p]; birdLedger[k][BirdLedger.LEFT][p] += go; x -= go }
+                x
+            }
+        }
+    }
+
+    /** Tortoises at place [p]: out in the warm (when the soil is not dry), breeding in summer. Returns whether they are out. */
+    private fun stepTortoises(p: Int, t: Float, month: Int): Boolean {
         val active = t in 14f..33f && land.soil[p] > 8f
         tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f, tortoiseCapacity(p), grazes = true, ledger = tortLedger, born = NEST_TORTOISES)
         nest(p, NEST_TORTOISES, tortoises[p], 0f)
         if (active) tortLedger[TortLedger.DAYS_OUT][p] += days; if (active && month in 4..8) tortLedger[TortLedger.BREEDING_DAYS][p] += days
-        // They eat what they grow on (a small share of their weight a day; tortoises only when out),
-        // and drop half of it again.
-        val eaters = hares[p] + hyrax[p] + all + (if (active) tortoises[p] else 0f) // kg/km²
+        return active
+    }
+
+    /** The small plant-eaters at place [p] ([birdsHere] the birds, tortoises when [tortoisesOut]) eat what they grow on, and drop half of it again. */
+    private fun smallGrazing(p: Int, birdsHere: Float, tortoisesOut: Boolean) {
+        // (A small share of their weight a day; tortoises only when out.)
+        val eaters = hares[p] + hyrax[p] + birdsHere + (if (tortoisesOut) tortoises[p] else 0f) // kg/km²
         if (eaters > 0f) {
             val eaten = land.consume(p, LifeForm.HERB, 0.7f * SMALL_INTAKE * eaters * days / 1e6f) + land.consume(p, LifeForm.SHRUB, 0.3f * SMALL_INTAKE * eaters * days / 1e6f)
             dung[p] += DUNG * eaten
         }
+    }
+
+    /** Foxes and wildcats at place [p], and the owls and small hawks that hunt the same rodents. */
+    private fun stepFoxesAndOwls(p: Int, month: Int) {
         // Foxes and wildcats eat about a fourteenth of their weight a day: carrion where they find it, then
         // rodents, hares and birds; they breed in spring as the food allows, and die back when it fails.
         // (They stalk: what they reach of each, as [reach]; the young in the nest they take as found.)
@@ -499,7 +523,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // under the snow and much lies dead, it is much of what they live on. At most half of what lies
         // there in a week, found as readily as prey.
         val dead = carrion[p] * 1e6f
-        val scavenged = if (dead > 0f && need > 0f) scavenge(p, min(0.5f * dead, need * dead / (dead + FOX_HALF)) / 1e6f) * 1e6f else 0f
+        val scavenged = scavengeFirst(p, dead, need, FOX_HALF)
         val left = need - scavenged
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
         val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + FOX_HALF)), 0.5f, foxPrey, floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { eB })
@@ -519,30 +543,28 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             owls[p] = logistic(p, owls[p], if (month in 3..5) 3f * fedO else 0f, 0.3f + 0.8f * (1f - fedO), 0.02f * r)
         }
         foxes[p] = logistic(p, foxes[p], if (month in 4..6) 6f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * (prey + dead))
-        // Eagles: a pair needs about a kilo a day; they take what is out in the open among the rocks.
-        if (eagleCrags[p] > 0f) {
-            val open = open(p)
-            val prey = (hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]) * (0.3f + 0.7f * open)
-            val need = eagles[p] * EAGLE_NEED * days
-            // Carrion first, as the foxes: a carcass seen from the air costs no chase, and in winter it is
-            // much of what they live on. They see it as they see prey, best in the open.
-            val dead = carrion[p] * 1e6f * (0.3f + 0.7f * open)
-            val scavenged = if (dead > 0f && need > 0f) scavenge(p, min(0.5f * dead, need * dead / (dead + EAGLE_HALF)) / 1e6f) * 1e6f else 0f
-            val left = need - scavenged
-            val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
-            val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + EAGLE_HALF)), 0.5f, eaglePrey)
-            noteTaken(p, TAKER_EAGLES, r0, ha0, hy0, b0)
-            // Fawns and kids make up much of what the small game does not.
-            val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
-            eagles[p] = logistic(p, eagles[p], if (month in 4..6) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p], counted = false) // (an index, not kg: their dead are not counted)
-        }
-        // Fire: tortoises die where it burns; the rest bolt and many young die.
-        if (burnt > 0f) {
-            smallDead[p] += tortoises[p] * 0.6f * burnt + hares[p] * 0.3f * burnt + birds[p] * 0.3f * burnt
-            tortLedger[TortLedger.BURNT][p] += tortoises[p] * 0.6f * burnt
-            tortoises[p] *= 1f - 0.6f * burnt; hares[p] *= 1f - 0.3f * burnt; takeBirds(p, 0.3f * burnt)
-        }
     }
+
+    /** Eagles at place [p] (where there are crags): a pair needs about a kilo a day; they take what is out in the open among the rocks. */
+    private fun stepEagles(p: Int, month: Int) {
+        val open = open(p)
+        val prey = (hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]) * (0.3f + 0.7f * open)
+        val need = eagles[p] * EAGLE_NEED * days
+        // Carrion first, as the foxes: a carcass seen from the air costs no chase, and in winter it is
+        // much of what they live on. They see it as they see prey, best in the open.
+        val dead = carrion[p] * 1e6f * (0.3f + 0.7f * open)
+        val scavenged = scavengeFirst(p, dead, need, EAGLE_HALF)
+        val left = need - scavenged
+        val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
+        val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + EAGLE_HALF)), 0.5f, eaglePrey)
+        noteTaken(p, TAKER_EAGLES, r0, ha0, hy0, b0)
+        // Fawns and kids make up much of what the small game does not.
+        val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
+        eagles[p] = logistic(p, eagles[p], if (month in 4..6) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p], counted = false) // (an index, not kg: their dead are not counted)
+    }
+
+    /** Carrion a hunter of small game at place [p] eats before it hunts, kg/km²: of [dead] kg/km² lying there, as readily as prey ([half]: where it finds half its [need]), at most half in a week. */
+    private fun scavengeFirst(p: Int, dead: Float, need: Float, half: Float) = if (dead > 0f && need > 0f) scavenge(p, min(0.5f * dead, need * dead / (dead + half)) / 1e6f) * 1e6f else 0f
 
     /** Yearly share of the young of small hoofed animals eagles take in place [p]. */
     fun eagleRisk(p: Int) = EAGLE_RATE * eagles[p] * open(p)
