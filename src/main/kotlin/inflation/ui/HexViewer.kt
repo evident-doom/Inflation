@@ -315,6 +315,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         }
     }
 
+    /** A colour from components that may stray outside 0..1 (a measure beyond its scale): clamped, as Color would otherwise throw and leave the map unpainted. */
+    private fun rgba(r: Float, g: Float, b: Float, a: Float) = Color(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f), a.coerceIn(0f, 1f))
+
     private inner class MapPanel : JPanel() {
         private var scale = 0.5
         private var ox = 0.0; private var oy = 0.0
@@ -383,22 +386,22 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                     val v = (sum[h] / area[h]).toFloat()
                     val colour = when (tint) {
                         Tint.TEMPERATURE -> heat(((v + 15f) / 50f).coerceIn(0f, 1f), 0.55f)
-                        Tint.SNOW -> if (v < 5f) null else Color(1f, 1f, 1f, (0.25f + 0.6f * min(1f, v / 300f)))
-                        Tint.RAIN -> if (v < 2f) null else Color(0.1f, 0.3f, 1f, (0.2f + 0.6f * min(1f, v / 80f)))
-                        Tint.GREEN -> Color(1f - v, 0.9f, 0.1f, 0.5f)
-                        Tint.FORAGE -> Color(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
-                        Tint.SOIL -> Color(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
-                        Tint.WATER -> Color(0.1f, 0.4f, 1f, 0.1f + 0.6f * v)
-                        Tint.INSECTS -> Color(0.6f, 0.8f, 0.1f, (0.1f + 0.7f * min(1f, v / 1500f)))
-                        Tint.BITING -> Color(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
-                        Tint.POLLINATORS -> Color(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
-                        Tint.ORGANIC -> Color(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
-                        Tint.SMALL_GAME -> Color(0.9f, 0.5f, 0.1f, (0.1f + 0.7f * min(1f, v / 60f)))
-                        Tint.FOXES -> Color(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
-                        Tint.OWLS -> Color(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
-                        Tint.EAGLES -> Color(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
-                        Tint.CARRION -> Color(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
-                        Tint.RESIDENTS -> Color(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
+                        Tint.SNOW -> if (v < 5f) null else rgba(1f, 1f, 1f, (0.25f + 0.6f * min(1f, v / 300f)))
+                        Tint.RAIN -> if (v < 2f) null else rgba(0.1f, 0.3f, 1f, (0.2f + 0.6f * min(1f, v / 80f)))
+                        Tint.GREEN -> rgba(1f - v, 0.9f, 0.1f, 0.5f)
+                        Tint.FORAGE -> rgba(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
+                        Tint.SOIL -> rgba(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
+                        Tint.WATER -> rgba(0.1f, 0.4f, 1f, 0.1f + 0.6f * v)
+                        Tint.INSECTS -> rgba(0.6f, 0.8f, 0.1f, (0.1f + 0.7f * min(1f, v / 1500f)))
+                        Tint.BITING -> rgba(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
+                        Tint.POLLINATORS -> rgba(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
+                        Tint.ORGANIC -> rgba(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
+                        Tint.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.1f + 0.7f * min(1f, v / 60f)))
+                        Tint.FOXES -> rgba(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
+                        Tint.OWLS -> rgba(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
+                        Tint.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
+                        Tint.CARRION -> rgba(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
+                        Tint.RESIDENTS -> rgba(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
                         Tint.NONE -> null
                     } ?: continue
                     val (cx, cy) = hex.centreKm(h)
