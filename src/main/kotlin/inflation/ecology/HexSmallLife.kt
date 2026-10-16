@@ -188,11 +188,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (lastMonth >= 0 && month in pr && lastMonth !in pr) {
                 var cap = 0.0
                 for (p in 0 until n) cap += (birdCapacity(k, p) * land.areaKm2[p]).toDouble()
-                // Kinds that breed while away (winter visitors such as geese) come back with their young.
-                // (Passage migrants come through twice: only the passage after the breeding months brings young.)
+                // Kinds that breed far away (winter visitors such as geese, passage migrants) come from a
+                // flyway's whole population, held by its breeding grounds, not by the few that wintered here:
+                // as many come as the ground draws. Those that breed here come back as many as lived.
                 val awayMonths = generateSequence((month + 11) % 12) { (it + 11) % 12 }.takeWhile { it !in pr }.toSet()
-                val bredAway = if (b.breedMonths.any { it in awayMonths }) 1f + b.growth else 1f
-                val back = away[k] * MIGRANT_SURVIVAL * bredAway
+                val bredAway = b.breedMonths.any { it in awayMonths }
+                val back = if (bredAway) cap else away[k] * MIGRANT_SURVIVAL
                 // (Those that live on insects wait to settle where the insects boom, below.)
                 if (b.followsInsects) waiting[k] += back else returning[k] = if (cap > 0.0) back / cap else 0.0
                 away[k] = 0.0
@@ -408,7 +409,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         birds[p] = all
         nest(p, NEST_HARES, hares[p], 0f); nest(p, NEST_HYRAX, hyrax[p], 0f); nest(p, NEST_BIRDS, all, 0f)
         val active = t in 14f..33f && land.soil[p] > 8f
-        tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f, tortoiseCapacity(p), grazes = true, ledger = tortLedger)
+        tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f, tortoiseCapacity(p), grazes = true, ledger = tortLedger, born = NEST_TORTOISES)
+        nest(p, NEST_TORTOISES, tortoises[p], 0f)
         if (active) tortLedger[6][p] += days; if (active && month in 4..8) tortLedger[5][p] += days
         // They eat what they grow on (a small share of their weight a day; tortoises only when out),
         // and drop half of it again.
@@ -588,18 +590,18 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * can reach at place [p] among the grown ones: how the prey escapes against how the hunter hunts.
      * Stalking and pouncing beasts ([STALK]: foxes, jackals, lynx) catch rodents and hares out
      * foraging, hyrax only away from their rocks, reptiles only out of cover ([herpExposed]), grown
-     * tortoises not at all (the shell; only [SHELL_YOUNG_SHARE] of them, the young, are soft), and
+     * tortoises not at all (the shell: only the young of the year, whose shells are still soft), and
      * flying birds only as far as they are caught on the ground ([FLIGHT_REACH]). Rooting beasts
      * ([ROOT]: boar, bears) catch none of the grown, only what is in the nest. People ([PEOPLE], and
      * the hunting groups of herds and packs) reach all, with snares, nets and digging sticks.
      */
     fun reach(style: Int, prey: Int, p: Int): Float = when (style) {
         PEOPLE -> 1f
-        ROOT -> when (prey) { 3 -> 1f; 5 -> SHELL_YOUNG_SHARE; 6, 7 -> INSECT_CATCH; else -> 0f }
+        ROOT -> when (prey) { 3 -> 1f; 6, 7 -> INSECT_CATCH; else -> 0f }
         else -> when (prey) {
             2 -> 1f / (1f + min(1f, land.ruggedness[p]))
             4 -> herpExposed(p)
-            5 -> SHELL_YOUNG_SHARE
+            5 -> 0f
             6, 7 -> INSECT_CATCH
             8 -> FLIGHT_REACH
             else -> 1f
@@ -623,12 +625,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // Desert rodents sleep through the summer heat in their burrows.
         val rodentsOut = !(t > 30f && land.soil[p] < 10f && annualRain[p] < DORMANT_RAIN_MM)
         // (Prey that is not out is not met: in the same order as [huntedAll].)
-        val yr = young[NEST_RODENTS][p]; val yha = young[NEST_HARES][p]; val yhy = young[NEST_HYRAX][p]; val yb = young[NEST_BIRDS][p]; val yh = young[NEST_HERPS][p]
+        val yr = young[NEST_RODENTS][p]; val yha = young[NEST_HARES][p]; val yhy = young[NEST_HYRAX][p]; val yb = young[NEST_BIRDS][p]; val yh = young[NEST_HERPS][p]; val yt = young[NEST_TORTOISES][p]
         val eR = if (rodentsOut) reachable(rodents[p], yr, reach(style, 0, p)) else 0f
         val eHa = reachable(hares[p], yha, reach(style, 1, p)); val eHy = reachable(hyrax[p], yhy, reach(style, 2, p))
         val eH = if (herpsOut) reachable(herps[p], yh, reach(style, 4, p)) else 0f
         val eB = reachable(birds[p], yb, reach(style, 8, p))
-        val eT = if (tortOut) reach(style, 5, p) else 0f
+        val eT = if (tortOut) reachable(tortoises[p], yt, reach(style, 5, p)) else 0f
         val eI = reach(style, 6, p)
         val ease = floatArrayOf(eR, eHa, eHy, 1f, eH, eT, eI, eI) + FloatArray(bird.size) { eB }
         val total = eR * rodents[p] + eHa * hares[p] + eHy * hyrax[p] + eB * birds[p] + eH * herps[p] + eT * tortoises[p] + locusts[p] + eI * (insects[p] + pollinators[p])
@@ -639,7 +641,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // (Of what was taken of each kind, the young's share came out of the nest.)
         fun tookYoung(i: Int, before: Float, now: Float, e: Float) { if (before > 0f && e > 0f) young[i][p] = max(0f, young[i][p] - (before - now) * min(1f, young[i][p] / (e * before))) }
         tookYoung(NEST_RODENTS, r0, rodents[p], eR); tookYoung(NEST_HARES, ha0, hares[p], eHa); tookYoung(NEST_HYRAX, hy0, hyrax[p], eHy)
-        tookYoung(NEST_BIRDS, b0, birdSum(p), eB); tookYoung(NEST_HERPS, h0, herps[p], eH)
+        tookYoung(NEST_BIRDS, b0, birdSum(p), eB); tookYoung(NEST_HERPS, h0, herps[p], eH); tookYoung(NEST_TORTOISES, t0, tortoises[p], eT)
         herpLedger[4][p] += h0 - herps[p]
         herpTakenBy[min(who, TAKER_GROUPS)][p] += h0 - herps[p]
         tortLedger[3][p] += t0 - tortoises[p]; tortTakenBy[min(who, TAKER_GROUPS)][p] += t0 - tortoises[p]
@@ -880,12 +882,6 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
          */
         const val HERP_MOST = 1000f
         /**
-         * Share of the tortoises' weight in young whose shells have not yet hardened (some years), the only
-         * ones most beasts can kill (adults are rarely taken but by eagles and people; Sci. Rep. 2022,
-         * doi:10.1038/s41598-022-22288-9). An estimate: the young are many but small.
-         */
-        const val SHELL_YOUNG_SHARE = 0.1f
-        /**
          * Tortoises in warm scrub at its best, kg/km²: some 11-13 Hermann's tortoises a hectare in good
          * Spanish sites (Mascort 1997; Garraf 2010) at about a kilo each.
          */
@@ -899,19 +895,22 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val STALK = 0
         const val ROOT = 1
         const val PEOPLE = 2
-        /** The kinds whose [young] are kept: rodents, hares, hyrax, birds, reptiles and amphibians. */
+        /** The kinds whose [young] are kept: rodents, hares, hyrax, birds, reptiles and amphibians, tortoises. */
         const val NEST_RODENTS = 0
         const val NEST_HARES = 1
         const val NEST_HYRAX = 2
         const val NEST_BIRDS = 3
         const val NEST_HERPS = 4
-        const val NEST_KINDS = 5
+        const val NEST_TORTOISES = 5
+        const val NEST_KINDS = 6
         /**
          * Days the young stay where they were born, unable to flee: mouse and vole pups some three weeks in
          * the nest, leverets four lying up in their forms, hyrax young a month by the rocks, chicks a month
-         * from laying to fledging, and the eggs and hatchlings of reptiles and amphibians some two months.
+         * from laying to fledging, the eggs and hatchlings of reptiles and amphibians some two months, and
+         * young tortoises their first year, while the shell is soft (grown ones beasts rarely kill: Sci.
+         * Rep. 2022, doi:10.1038/s41598-022-22288-9).
          */
-        val NEST_DAYS = floatArrayOf(21f, 28f, 30f, 30f, 60f)
+        val NEST_DAYS = floatArrayOf(21f, 28f, 30f, 30f, 60f, 360f)
         /** The [herpTakenBy] slot of hunting groups and people (resident kinds take the slots below it). */
         const val TAKER_GROUPS = 40
         const val TAKER_FOXES = 41
