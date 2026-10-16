@@ -437,14 +437,20 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val eaten = land.consume(p, LifeForm.HERB, 0.7f * SMALL_INTAKE * eaters * days / 1e6f) + land.consume(p, LifeForm.SHRUB, 0.3f * SMALL_INTAKE * eaters * days / 1e6f)
             dung[p] += DUNG * eaten
         }
-        // Foxes and wildcats eat about a seventh of their weight a day, mostly rodents, then hares and
-        // birds; they breed in spring as the food allows, and die back when it fails.
+        // Foxes and wildcats eat about a fourteenth of their weight a day: carrion where they find it, then
+        // rodents, hares and birds; they breed in spring as the food allows, and die back when it fails.
         // (They stalk: what they reach of each, as [reach]; the young in the nest they take as found.)
         val eB = reachable(birds[p], young[NEST_BIRDS][p], FLIGHT_REACH)
         val prey = rodents[p] + hares[p] + eB * birds[p] + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
         val need = foxes[p] * FOX_INTAKE * days
+        // Carrion first: a carcass they smell out costs no chase, and in winter, when the rodents keep
+        // under the snow and much lies dead, it is much of what they live on. At most half of what lies
+        // there in a week, found as readily as prey.
+        val dead = carrion[p] * 1e6f
+        val scavenged = if (dead > 0f && need > 0f) scavenge(p, min(0.5f * dead, need * dead / (dead + FOX_HALF)) / 1e6f) * 1e6f else 0f
+        val left = need - scavenged
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
-        val got = takeSwitching(p, min(0.5f * prey, need * prey / (prey + FOX_HALF)), 0.5f, foxPrey, floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { eB })
+        val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + FOX_HALF)), 0.5f, foxPrey, floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { eB })
         if (b0 > 0f && eB > 0f) young[NEST_BIRDS][p] = max(0f, young[NEST_BIRDS][p] - (b0 - birdSum(p)) * min(1f, young[NEST_BIRDS][p] / (eB * b0)))
         if (r0 > 0f) young[NEST_RODENTS][p] *= rodents[p] / r0; if (ha0 > 0f) young[NEST_HARES][p] *= hares[p] / ha0
         noteTaken(p, TAKER_FOXES, r0, ha0, hy0, b0)
@@ -460,7 +466,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val fedO = if (needO > 0f) gotO / needO else 1f
             owls[p] = logistic(p, owls[p], if (month in 3..5) 3f * fedO else 0f, 0.3f + 0.8f * (1f - fedO), 0.02f * r)
         }
-        foxes[p] = logistic(p, foxes[p], if (month in 4..6) 6f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey)
+        foxes[p] = logistic(p, foxes[p], if (month in 4..6) 6f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * (prey + dead))
         // Eagles: a pair needs about a kilo a day; they take what is out in the open among the rocks.
         if (eagleCrags[p] > 0f) {
             val open = open(p)
@@ -1002,7 +1008,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Owls and small hawks: food a day per kg of them; rodents (kg/km²) at which they get half of it; their share of the rodents where they first appear. */
         const val OWL_INTAKE = 0.2f
         const val OWL_HALF = 3f
-        /** Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the birds and dogs not counted here): half in three or four days. */
+        /** Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the crows and ravens not counted here; foxes and wildcats are counted, below): half in three or four days. */
         const val CARRION_ROT = 0.2f
         /** Small prey of one kind, kg/km², at which hunters find it half as readily as a common kind. */
         const val SMALL_FIND_HALF = 2f
