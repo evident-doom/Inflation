@@ -526,6 +526,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         return dead
     }
 
+    /**
+     * The share of the reptiles and amphibians of place [p] a hunter can find: the rest are in cover,
+     * in rock cracks and screes, under shrubs and in the leaf litter, and come out only to bask and
+     * hunt close by it. Each kind of cover hides more as there is more of it: [HERP_COVER_KG] of shrub
+     * or of litter to the m² hides half of them, and so does the most broken ground.
+     */
+    fun herpExposed(p: Int) = 1f / (1f + min(1f, land.ruggedness[p])) * HERP_COVER_KG / (HERP_COVER_KG + land.shrub[p]) * HERP_COVER_KG / (HERP_COVER_KG + litter[p])
+
     /** Whether reptiles and amphibians are out: warm, and not baking in a drought. */
     fun herpsActive(t: Float, soilWater: Float) = t in 12f..34f && !(t > 28f && soilWater < 10f)
 
@@ -542,10 +550,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val tortOut = t in 14f..33f
         // Desert rodents sleep through the summer heat in their burrows.
         val rodentsOut = !(t > 30f && land.soil[p] < 10f && annualRain[p] < DORMANT_RAIN_MM)
-        val total = (if (rodentsOut) rodents[p] else 0f) + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] else 0f) + (if (tortOut) tortoises[p] else 0f) + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
+        val total = (if (rodentsOut) rodents[p] else 0f) + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] * herpExposed(p) else 0f) + (if (tortOut) tortoises[p] else 0f) + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
         if (total <= 0f) return 0f
         // (Prey that is not out is not met: in the same order as [huntedAll].)
-        val ease = floatArrayOf(if (rodentsOut) 1f else 0f, 1f, 1f, 1f, if (herpsOut) 1f else 0f, if (tortOut) 1f else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f }
+        val ease = floatArrayOf(if (rodentsOut) 1f else 0f, 1f, 1f, 1f, if (herpsOut) herpExposed(p) else 0f, if (tortOut) 1f else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f }
         val h0 = herps[p]
         val took = takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
         herpLedger[4][p] += h0 - herps[p]
@@ -738,6 +746,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val HERP_DEATHS = 0.4f
         const val HERP_HUNGER = 1f
         const val HERP_DORMANT_DEATHS = 0.15f
+        const val HERP_COVER_KG = 1f
         /**
          * Plant-eating insects: the warmth at which they start to grow (the usual lower threshold for
          * development, about 10 °C, down to about 5 °C in cool-summer insects), and the warmth above it
