@@ -56,9 +56,8 @@ object Temperament {
 }
 
 /** What temperament pulls group [g] toward place [p] (in hex [h]) with: the hand-written path's share. */
-internal fun HexGroups.temperPull(g: HexGroup, p: Int, h: Int, predatorKg: FloatArray): Float {
-    val hunters = predatorKg[p] / land.areaKm2[p]
+internal fun HexGroups.temperPull(g: HexGroup, p: Int, h: Int, hunters: Float, crowded: Float): Float {
     var remembered = 0f
     for (i in g.memory.hex.indices) if (g.memory.hex[i] == h) { remembered = 1f; break }
-    return Temperament.pull(g.temper, hunters / (hunters + 3f), remembered, if (p == g.place) 1f else 0f, crowd(g.species, p, g))
+    return Temperament.pull(g.temper, hunters / (hunters + 3f), remembered, if (p == g.place) 1f else 0f, crowded)
 }

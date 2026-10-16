@@ -98,8 +98,6 @@ const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */
 const val SHELTER_EFFECT = 0.7f
 const val AVOID_SKILL = 0.6f
-/** How much more ground that matters a hunter covers when it follows a herd's tracks than when it happens on it (lions try a hunt about every day or two). */
-const val TRACKING = 8f
 /** How well fed a group must be to keep to its ground without weighing where else to go (every other week). */
 const val CONTENT = 0.95f
 /** How much herds shun ground thick with hunters; hunters, kg per km², at which the shunning is half. */
@@ -224,8 +222,6 @@ const val HOME_ADVANTAGE = 1.5f
 const val RIVAL_KILL = 0.02f
 /** Share of a beaten pack's young the winners kill when they take its ground. */
 const val INFANTICIDE = 0.25f
-/** Most meetings settled one by one for a group in a week. */
-const val MAX_MEETINGS = 4
 /** Chance a herd in fully open country sees coursing hunters first; how much likelier a kill when hunters come unseen. */
 const val VIGILANCE = 0.6f
 /** Wariness gained in a chase, and kept from week to week. */
@@ -284,3 +280,6 @@ val ROUND_TREK_DAYS = Config.float("t.roundTrekDays", 4f)
  * as the residents do, and value places by what they can graze so; false: they graze a whole place wherever its water lies.
  */
 val HERD_WATER_TIE = Config.flag("t.herdWaterTie", true)
+
+/** Months over which a group's sense of how thick each kind usually is follows the change (about a year). */
+const val USUAL_MONTHS = 12f

@@ -5,7 +5,7 @@ import kotlin.math.min
 
 /**
  * How animals sharing a hex keep out of each other's way: when they are about, and where they can
- * shelter. Together with how much of a place each searches in a week (see [HexGroups.meetChance]),
+ * shelter. Together with how much of a place each searches in a week (see [HexGroups.encounters]),
  * these set how often two groups in the same hex actually meet.
  */
 object Niches {
