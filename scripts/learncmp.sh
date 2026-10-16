@@ -11,12 +11,12 @@ LIB=$(find "${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2" -name 'kotlin-s
 SEP=":"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) SEP=";"; LIB=$(cygpath -w "$LIB");; esac
 
 # name | main class | arguments ({OUT}: the run's own output folder; {W}: WORKDIR). evolve starts from the herd networks base's imitate wrote;
-# if imitate wrote none (0 files), the evolve case tests nothing and says so by its empty fitness line.
+# imitate fits a kind only from 200 recorded choices (HexLearning.train), hence its larger world; if it wrote none, the evolve case tests nothing.
 CMDS=(
   "ppo|inflation.learning.HexPpo|--out {OUT} --worlds 2 --size 300 --years 1 --rounds 2 --check 2 --check-seeds 2 --hidden 8 --hold herds:1 --residual people:0.5"
   "evolve-ways-bands|inflation.learning.HexEvolveWays|--role bands --out {OUT} --seeds 1,2 --size 300 --years 1 --gens 2 --pairs 2 --hidden 8"
   "evolve-ways-herds|inflation.learning.HexEvolveWays|--role herds --out {OUT} --seeds 1,2 --size 300 --years 1 --gens 2 --pairs 2 --hidden 8"
-  "imitate|inflation.learning.HexImitate|--seed 3 --size 300 --years 2 --out {OUT}"
+  "imitate|inflation.learning.HexImitate|--seed 3 --size 500 --years 2 --out {OUT}"
   "evolve|inflation.learning.HexEvolve|--start {W}/imitate/base/files --out {OUT} --seeds 1,2 --size 300 --years 1 --gens 2 --pairs 2"
   "pick-world|inflation.learning.HexPickWorld|--seeds 1-2 --size 300 --lats 36"
 )
