@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.world.World
 import inflation.world.WorldConfig
 
@@ -17,31 +18,19 @@ import kotlin.random.Random
  * across lowland, how much longer and harder the easiest way is than the straight line.
  *
  * Usage: terrain-report [--seed N] [--width KM] [--height KM] [--km N] [--belt KM] [--ridges KM] [--ridge-share S]
- *                       [--diffusivity D] [--critical S] [--steps N] [--png FILE]
+ *                       [--diffusivity D] [--critical S] [--steps N] [--uplift U] [--png FILE]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var km = 40
-    var png: java.io.File? = null
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--km" -> km = args[++k].toInt()
-            "--belt" -> cfg = cfg.copy(beltKm = args[++k].toDouble())
-            "--ridges" -> cfg = cfg.copy(ridgeKm = args[++k].toDouble())
-            "--ridge-share" -> cfg = cfg.copy(ridgeShare = args[++k].toDouble())
-            "--diffusivity" -> cfg = cfg.copy(hillDiffusivity = args[++k].toDouble())
-            "--critical" -> cfg = cfg.copy(criticalSlope = args[++k].toDouble())
-            "--steps" -> cfg = cfg.copy(erosionSteps = args[++k].toInt())
-            "--uplift" -> cfg = cfg.copy(upliftScale = args[++k].toDouble())
-            "--png" -> png = java.io.File(args[++k])
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    val a = Args(args, "terrain-report [--seed N] [--width KM] [--height KM] [--km N] [--belt KM] [--ridges KM] [--ridge-share S] " +
+        "[--diffusivity D] [--critical S] [--steps N] [--uplift U] [--png FILE]")
+    val base = WorldConfig(seed = 1)
+    val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm),
+        beltKm = a.double("--belt", base.beltKm), ridgeKm = a.double("--ridges", base.ridgeKm), ridgeShare = a.double("--ridge-share", base.ridgeShare),
+        hillDiffusivity = a.double("--diffusivity", base.hillDiffusivity), criticalSlope = a.double("--critical", base.criticalSlope),
+        erosionSteps = a.int("--steps", base.erosionSteps), upliftScale = a.double("--uplift", base.upliftScale))
+    val km = a.int("--km", 40)
+    val png = a.file("--png")
+    a.done()
     val world = World.generate(cfg)
     val g = world.grid
     val t = world.terrain

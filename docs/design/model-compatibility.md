@@ -22,7 +22,7 @@ Networks are saved as bare weight matrices. When a feature or an output is added
    - Train only the new rows first, with the old ones frozen for a few rounds.
    - Then train everything at a lowered learning rate.
    - Optionally, start with a few rounds of imitation of the old network (distillation), so behaviour does not jump.
-6. **A registry of baselines.** `runs/baselines/NAME/` holds the networks with their input and output names, the commit, the settings, the seeds and the check's record line. The check and the trainers load any of them by name (`-Dhex.nets=baselines/natufian-1`). The Natufian baseline planned for tomorrow is the first entry.
+6. **A registry of baselines.** `runs/baselines/NAME/` holds the networks with their input and output names, the commit, the settings, the seeds and the check's record line. The check and the trainers load any of them by name (`nets=runs/baselines/natufian-3` in the config). The Natufian baseline planned for tomorrow is the first entry.
 7. **A regression suite.** Fixed seeds and maps, run with every baseline and with the hand-written behaviour, comparing the record line. It flags any change in an old network's results that a new mechanic causes.
 
 ## Order proposed

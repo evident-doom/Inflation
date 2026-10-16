@@ -2,12 +2,9 @@ package inflation.ecology
 
 import inflation.world.Date
 import inflation.world.HexLand
-import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.LifeForm
 import inflation.world.Weather
-import java.util.PriorityQueue
-import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.pow
@@ -63,7 +60,17 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
  */
 internal fun HexGroups.graze(weather: Weather) {
     val food = fauna.food
-    for (g in groups) {
+    // Where food is short the bigger kinds drive the smaller off it: the herds graze in turn by body mass,
+    // the biggest first, as the residents do (see [HexFauna.graze]); within a kind, as they stand.
+    val count = IntArray(Catalogue.all.size)
+    for (g in groups) count[g.species.index]++
+    val start = IntArray(Catalogue.all.size)
+    var at = 0
+    for (i in Catalogue.all.indices.sortedByDescending { Catalogue.all[it].massKg }) { start[i] = at; at += count[i] }
+    val ordered = arrayOfNulls<HexGroup>(groups.size)
+    for (g in groups) ordered[start[g.species.index]++] = g
+    for (g in ordered) {
+        g!!
         val s = g.species
         if (!g.alive || s.carnivore) continue
         // A herd grazes over its range: as many hexes round where it stands as it takes to find a good
@@ -103,8 +110,9 @@ internal fun HexGroups.graze(weather: Weather) {
             val browse = eatBrowse(wantBrowse)
             val fruit = food.take(food.fruit, p, want * rest * access * d.fruit / total)
             val roots = food.take(food.roots, p, want * rest * access * d.roots / total)
-            // Diet switching: a food that fell short is made up from the others, each to at most (1 + SWITCH)
-            // times its usual share (an ostrich out of fruit season picks more shoots and leaves).
+            // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
+            // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
+            // usual share (an ostrich out of fruit season picks more shoots and leaves).
             val q = land.nourishment(p)
             var gap = want - ((grass + browse) * q + fruit + roots + lichen * HexFood.LICHEN_VALUE)
             var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
@@ -112,8 +120,8 @@ internal fun HexGroups.graze(weather: Weather) {
             // more of it (switching shifts what it eats, not how much its gut takes).
             // (Its need is reckoned in forage of middling quality, [HexFauna.GUT_QREF]: on that it fills its need exactly.)
             var room = max(0f, want * fill * access / HexFauna.GUT_QREF - (grass + browse + lichen))
-            if (gap > 0f && d.browse > 0f) { browse2 = eatBrowse(min(min(gap / q, room), SWITCH * wantBrowse)); gap -= browse2 * q; room -= browse2 }
-            if (gap > 0f && d.grass > 0f && !snowed) { grass2 = eatGrass(min(min(gap / q, room), SWITCH * want * fill * access * d.grass / total)); gap -= grass2 * q; room -= grass2 }
+            if (gap > 0f && d.browse > 0f) { browse2 = eatBrowse(min(gap / q, room)); gap -= browse2 * q; room -= browse2 }
+            if (gap > 0f && d.grass > 0f && !snowed) { grass2 = eatGrass(min(gap / q, room)); gap -= grass2 * q; room -= grass2 }
             if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, min(gap, SWITCH * want * access * d.fruit / total)); gap -= fruit2 }
             if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, min(gap, SWITCH * want * access * d.roots / total)); gap -= roots2 }
             // Reindeer dig lichen, even from under the snow: rich in energy, within what the gut holds.
@@ -232,6 +240,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (o.births > 0) births.merge(s.name, o.births, Int::plus)
         note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.second > 0 }.joinToString(", ") { "${it.second} ${it.first}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name}:$cause", k, Int::plus)
+        fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
         if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
         if (ROUNDS && !s.carnivore && g.route[0] != -1) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) deaths.merge("${s.name} $way:born", o.births, Int::plus) }

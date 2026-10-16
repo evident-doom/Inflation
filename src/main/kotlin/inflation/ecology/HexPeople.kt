@@ -26,8 +26,6 @@ enum class Material {
     OCHRE,
 }
 
-/** Making skills: the doing behind every tool, built by practice like getting food. */
-
 /**
  * A kind of tool, with what one person's share takes to make ([recipe], kg per person), the skill
  * that makes it, how fast it wears out (share a year), whether it is too heavy to take along when
@@ -391,13 +389,13 @@ class Band {
     fun snares() = (1f + NET_GAIN * has(Tool.NET)) * skill(Skill.SMALL_GAME)
     fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Skill.FISH)
 
-    /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
     /** How much more (above 1) or less a skill's work leaves undone than a start band's: the sick die, infants are lost. */
     fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.ref) / skill(s)
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
+    /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
     fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
+    /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
     fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
 
     /**
@@ -658,7 +656,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         val over = gd[m] - (GOODS_PER_PERSON + stack) * people
         if (over > 0f) { gd[m] -= over; if (m == Material.WOOD.ordinal || m == Material.FIBRE.ordinal || m == Material.HIDE.ordinal) small.litter[p] += over / area }
     }
-    // Songs and stories keep what is not practised from fading as fast.
     // Knowledge fades fast unused, unless songs and stories keep it; hand skills last for years.
     val forgetKnowledge = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET_KNOWLEDGE * 0.4f else FORGET_KNOWLEDGE) * b.lapse(Skill.LORE)
     for (s in Skill.entries) {
@@ -847,7 +844,34 @@ fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatA
 /** The part of [bandInputs] about its health and the dangers and bands about it. */
 val BAND_SITUATION = Illness.entries.size + 12 + Tradition.entries.size + Temperament.AXES
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3 + BAND_SITUATION
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + 19
+/**
+ * A band's ways after its effort on each food, its store aim and its ranking of the tools, in the order of
+ * [setWays]' outputs; [label] is the output's name in saved networks ([inflation.learning.Schema.WAYS_OUT]).
+ */
+enum class BandWay(val label: String) {
+    SCOUTS("scouts"),
+    HOUSES("houses"),
+    RAIDS("raids"),
+    PALISADES("palisades"),
+    SOWING("sowing"),
+    GATHERING_RANGE("gathering range"),
+    WATCHING_CHILDREN("watching children"),
+    NIGHT_FIRE("night fire"),
+    SHUNNING_THE_SICK("shunning the sick"),
+    EXPLORING("exploring"),
+    GIVING("giving"),
+    TAKING_FROM_CACHES("taking from caches"),
+    CACHING("caching"),
+    DRYING("drying"),
+    KEEPING_YOUNG_ANIMALS("keeping young animals"),
+    SHELTERS("shelters"),
+    FEASTING("feasting"),
+    APPOINTMENTS("appointments"),
+    BURNING_OFF("burning off");
+    /** Its place among the ways' outputs. */
+    val slot = FOOD_TYPES + 1 + Tool.entries.size + ordinal
+}
+val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + BandWay.entries.size
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
@@ -922,28 +946,29 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     ways.choose(g, inputs, out)
     if (g.id == watched) control?.ways(g, out)
     fun squash(x: Float) = 2f / (1f + kotlin.math.exp(-x))
+    fun way(w: BandWay) = squash(out[w.slot])
     for (t in 0 until FOOD_TYPES) b.effort[t] = squash(out[t])
     b.storeAim = STORE_AIM_DAYS * squash(out[FOOD_TYPES])
     for (t in Tool.entries) b.makeFirst[t.ordinal] = squash(out[FOOD_TYPES + 1 + t.ordinal])
-    b.scoutShare = SCOUT_SHARE * squash(out[FOOD_TYPES + 1 + Tool.entries.size])
-    b.houseWill = squash(out[FOOD_TYPES + 2 + Tool.entries.size])
-    b.raidWill = squash(out[FOOD_TYPES + 3 + Tool.entries.size])
-    b.fortifyWill = squash(out[FOOD_TYPES + 4 + Tool.entries.size])
-    b.sowWill = squash(out[FOOD_TYPES + 5 + Tool.entries.size])
-    b.gatherRange = squash(out[FOOD_TYPES + 6 + Tool.entries.size])
-    b.childWatch = squash(out[FOOD_TYPES + 7 + Tool.entries.size])
-    b.nightFire = squash(out[FOOD_TYPES + 8 + Tool.entries.size])
-    b.shunSick = (squash(out[FOOD_TYPES + 9 + Tool.entries.size]) - 1f).coerceAtLeast(0f)
-    b.explore = squash(out[FOOD_TYPES + 10 + Tool.entries.size])
-    b.giveWill = squash(out[FOOD_TYPES + 11 + Tool.entries.size])
-    b.robWill = squash(out[FOOD_TYPES + 12 + Tool.entries.size])
-    b.cacheWill = squash(out[FOOD_TYPES + 13 + Tool.entries.size])
-    b.dryWill = squash(out[FOOD_TYPES + 14 + Tool.entries.size])
-    b.keepWill = squash(out[FOOD_TYPES + 15 + Tool.entries.size])
-    b.shelterWill = squash(out[FOOD_TYPES + 16 + Tool.entries.size])
-    b.feastWill = squash(out[FOOD_TYPES + 17 + Tool.entries.size])
-    b.appointWill = squash(out[FOOD_TYPES + 18 + Tool.entries.size])
-    b.burnWill = squash(out[FOOD_TYPES + 19 + Tool.entries.size])
+    b.scoutShare = SCOUT_SHARE * way(BandWay.SCOUTS)
+    b.houseWill = way(BandWay.HOUSES)
+    b.raidWill = way(BandWay.RAIDS)
+    b.fortifyWill = way(BandWay.PALISADES)
+    b.sowWill = way(BandWay.SOWING)
+    b.gatherRange = way(BandWay.GATHERING_RANGE)
+    b.childWatch = way(BandWay.WATCHING_CHILDREN)
+    b.nightFire = way(BandWay.NIGHT_FIRE)
+    b.shunSick = (way(BandWay.SHUNNING_THE_SICK) - 1f).coerceAtLeast(0f)
+    b.explore = way(BandWay.EXPLORING)
+    b.giveWill = way(BandWay.GIVING)
+    b.robWill = way(BandWay.TAKING_FROM_CACHES)
+    b.cacheWill = way(BandWay.CACHING)
+    b.dryWill = way(BandWay.DRYING)
+    b.keepWill = way(BandWay.KEEPING_YOUNG_ANIMALS)
+    b.shelterWill = way(BandWay.SHELTERS)
+    b.feastWill = way(BandWay.FEASTING)
+    b.appointWill = way(BandWay.APPOINTMENTS)
+    b.burnWill = way(BandWay.BURNING_OFF)
 }
 
 /**
@@ -1079,7 +1104,7 @@ const val ORNAMENT_GIFT = 0.03f
 const val GRAVE_GOODS = 0.05f
 
 
-/**
+/*
  * Trade: good knapping stone, salt and ochre are found only in some
  * country, and each is worth having. Stone tools of good stone (flint, chert, obsidian) cut and wear
  * better than those of whatever stone is at hand; meat and fish salted keep far longer and cure in

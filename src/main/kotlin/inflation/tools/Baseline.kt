@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.Config
 
 import inflation.learning.HexPpo
@@ -24,9 +25,9 @@ fun main(args: Array<String>) {
     when (args.getOrNull(0)) {
         "save" -> {
             val name = args[1]; val from = File(args[2])
-            var ways: File? = null; var commit = gitCommit(); var note = ""
-            var k = 3
-            while (k < args.size) { when (args[k]) { "--ways" -> ways = File(args[++k]); "--commit" -> commit = args[++k]; "--note" -> note = args[++k]; else -> error("unknown argument ${args[k]}") }; k++ }
+            val a = Args(args.copyOfRange(3, args.size), "baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT]")
+            val ways = a.file("--ways"); val commit = a.string("--commit") ?: gitCommit(); val note = a.string("--note") ?: ""
+            a.done()
             val dir = File(root, name)
             require(!dir.exists()) { "baseline $name exists already: baselines are kept as they are" }
             dir.mkdirs()

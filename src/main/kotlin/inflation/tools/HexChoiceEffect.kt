@@ -1,16 +1,15 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
 import inflation.ecology.WAYS_OUT
 import inflation.learning.HexLearning
 import inflation.learning.HexPpo
-import inflation.world.Date
 import inflation.world.WorldConfig
 import kotlin.math.ln
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -29,10 +28,10 @@ import kotlin.random.Random
  *   with chance P, and draws its ways as in training, each week (the noise training plays under).
  */
 fun main(args: Array<String>) {
-    var seed = 91L; var size = 600; var warm = 60; var noise = 0f
-    var variants = listOf("base", "base-again", "move-1wk", "move-52wk", "ways-1wk", "ways-52wk")
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seed" -> seed = args[++k].toLong(); "--size" -> size = args[++k].toInt(); "--warm" -> warm = args[++k].toInt(); "--noise" -> noise = args[++k].toFloat(); "--variants" -> variants = listOf("base") + args[++k].split(",") }; k++ }
+    val a = Args(args, "hex-choice-effect [--seed N] [--size KM] [--warm WEEKS] [--noise P]")
+    val seed = a.long("--seed", 91L); val size = a.int("--size", 600); val warm = a.int("--warm", 60); val noise = a.float("--noise", 0f)
+    val variants = a.string("--variants")?.let { listOf("base") + it.split(",") } ?: listOf("base", "base-again", "move-1wk", "move-52wk", "ways-1wk", "ways-52wk")
+    a.done()
     val horizon = 52; val discount = HexPpo.PEOPLE_DISCOUNT
     val kinds = Catalogue.learned
     fun perturbed(id: Int) = Random(id * 31L + 7).nextFloat() < 0.5f
@@ -130,7 +129,7 @@ fun main(args: Array<String>) {
     }
     // The moved bands: the change against how far below the best the forced place scored by the hand-written score.
     val mv = outs["move-1wk"]
-    val gaps = if (mv == null) emptyList() else mv.moveAlt.entries.filter { it.key in base && it.key in mv.ret }.map { (id, p) -> (p.first - p.second).toDouble() to mv!!.ret.getValue(id) - base.getValue(id) }
+    val gaps = if (mv == null) emptyList() else mv.moveAlt.entries.filter { it.key in base && it.key in mv.ret }.map { (id, p) -> (p.first - p.second).toDouble() to mv.ret.getValue(id) - base.getValue(id) }
     if (gaps.isNotEmpty()) {
         val sorted = gaps.sortedBy { it.first }
         for (q in sorted.chunked((sorted.size + 2) / 3)) println("  move-1wk, hand-written score gap %.3f..%.3f (n %d): change mean %+.5f, SD %.5f".format(q.first().first, q.last().first, q.size, q.map { it.second }.average(), sd(q.map { it.second })))

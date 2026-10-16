@@ -8,7 +8,6 @@ import inflation.Config
 const val SHIFT_DAYS = 2f
 /** Snow depth that doubles the effort of going, mm. */
 const val SNOW_EFFORT_MM = 150f
-/** Days of reserves laid on a week by a well-fed group in late summer and autumn (0.3 the rest of the year). */
 /** How much more than its needs an animal eats, at most, when food is plentiful and its reserves are short; share of that surplus laid on as reserves. */
 const val FATTEN = 0.3f
 const val FAT_EFFICIENCY = 0.6f
@@ -18,7 +17,7 @@ const val NEWBORN_SHARE = 0.08f
 const val WELL_FED = 0.9f
 /** How many times its usual most a herd may grow to on a full green flush, well fed (herds gather where the grass is new). */
 const val AGGREGATION = 4f
-/** How far a part of a group's diet stretches to make up for another that fell short: to (1 + this) times its usual share. */
+/** How far fruit, roots or prey stretch to make up for a food that fell short: to (1 + this) times their usual share (grass and browse go as far as the gut holds). */
 const val SWITCH = 1f
 /** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */
 const val MARK_KEEP = 0.85f
@@ -58,11 +57,11 @@ const val PATH_FADE = 0.03f
 const val PATH_MASS_KG = 3000f
 const val PATH_EASE = 0.5f
 const val AMBUSH = 1f
-/** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
 /** Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum against a km walked; share of a swimming herd that drowns on a strait as wide as all it can swim (young twice that). */
 const val SEA_HEXES = 2
 const val SWIM_EFFORT = 10f
 const val DROWN = 0.05f
+/** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
 const val NEWCOMER_BELOW = 5
 const val NEWCOMERS = 3
 /** What a band takes a sign it cannot read to be: a middling value, neither good nor bad. */
@@ -98,8 +97,6 @@ const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */
 const val SHELTER_EFFECT = 0.7f
 const val AVOID_SKILL = 0.6f
-/** How much more ground that matters a hunter covers when it follows a herd's tracks than when it happens on it (lions try a hunt about every day or two). */
-const val TRACKING = 8f
 /** How well fed a group must be to keep to its ground without weighing where else to go (every other week). */
 const val CONTENT = 0.95f
 /** How much herds shun ground thick with hunters; hunters, kg per km², at which the shunning is half. */
@@ -224,8 +221,6 @@ const val HOME_ADVANTAGE = 1.5f
 const val RIVAL_KILL = 0.02f
 /** Share of a beaten pack's young the winners kill when they take its ground. */
 const val INFANTICIDE = 0.25f
-/** Most meetings settled one by one for a group in a week. */
-const val MAX_MEETINGS = 4
 /** Chance a herd in fully open country sees coursing hunters first; how much likelier a kill when hunters come unseen. */
 const val VIGILANCE = 0.6f
 /** Wariness gained in a chase, and kept from week to week. */
@@ -264,8 +259,8 @@ val HEADING_KEEP = Config.float("t.headingKeep", 0.95f)
 val HEADING_MOVED = Config.float("t.headingMoved", 0.5f)
 val HEADING_PULL = Config.float("t.headingPull", 2f)
 
-/** Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on only with rounds=true (being tried locally); how strongly a herd's round draws, as a season's place of that quality would. */
-val ROUNDS = Config.flag("rounds", false)
+/** Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on unless rounds=false; how strongly a herd's round draws, as a season's place of that quality would. */
+val ROUNDS = Config.flag("rounds", true)
 val ROUND_STRENGTH = Config.float("t.roundStrength", 1f)
 /** How strongly a herd's round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
 val ROUND_NET_PULL = Config.float("t.roundNetPull", 1.5f)
@@ -284,3 +279,6 @@ val ROUND_TREK_DAYS = Config.float("t.roundTrekDays", 4f)
  * as the residents do, and value places by what they can graze so; false: they graze a whole place wherever its water lies.
  */
 val HERD_WATER_TIE = Config.flag("t.herdWaterTie", true)
+
+/** Months over which a group's sense of how thick each kind usually is follows the change (about a year). */
+const val USUAL_MONTHS = 12f

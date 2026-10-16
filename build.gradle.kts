@@ -16,6 +16,8 @@ dependencies {
 
 kotlin {
     jvmToolchain(21)
+    // The code compiles clean; keep it so.
+    compilerOptions { allWarningsAsErrors.set(true) }
 }
 
 application {
@@ -113,4 +115,13 @@ tasks.register<JavaExec>("herpCheck") {
     mainClass.set("inflation.tools.HerpCheckKt")
     maxHeapSize = "12g"
     args = (project.findProperty("herpArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
+tasks.register<JavaExec>("residentHunger") {
+    description = "Check: when and where resident kinds (hippo by default) go hungry, by water within reach, green and density."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.ResidentHungerCheckKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("hungerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }

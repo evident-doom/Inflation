@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.learning.HexLearning
 import inflation.world.Date
@@ -15,17 +16,11 @@ import inflation.world.WorldConfig
  * Usage: hex-coast-rings [--seed N] [--width KM] [--height KM] [--years N]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(widthKm = 1000, heightKm = 1000); var years = 5
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--years" -> years = args[++k].toInt()
-        }
-        k++
-    }
+    val a = Args(args, "hex-coast-rings [--seed N] [--width KM] [--height KM] [--years N]")
+    val base = WorldConfig(widthKm = 1000, heightKm = 1000)
+    val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
+    val years = a.int("--years", 5)
+    a.done()
     val run = HexLearning.Run(cfg, Catalogue.learned)
     val human = Catalogue.learned.first { it.human }
     val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep; val perYear = Date.DAYS_PER_YEAR / cfg.daysPerStep

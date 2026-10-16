@@ -95,12 +95,112 @@ fun interface HexPolicy {
  * place, the way to better country it senses, and the group's own state and the time of year.
  */
 object HexFeatures {
-    /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment; 33 its houses there; 34 its own size against its kind's usual group; 35 the lasting water there through the dry season; 36 sickness raging there among its kind;
-     *  37-46 the signs of the land: tree, shrub and grass cover, marsh, water now against its usual, worn paths, herds about
-     *  this month, dung, grazing this week, carcasses and bones; 46 whether a band knows the hex;
-     *  47 for a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size); 48 how fresh another pack of its kind's mark is there;
-     *  49 for a band, the fish and shellfish it could take there in a week with its skill, against its week's need (0 for animals);
-     *  50 for a herd, how far going there keeps to the way it has been heading ([HexGroup.headE]; 0 for others);
-     *  51 for a herd on its yearly round, how far the place takes it on toward the round's place this month (0 off a round). */
-    const val SIZE = 52
+    // Each slot's name in saved networks is [inflation.learning.Schema.PLACE] at the same index; SchemaTest checks they line up.
+    /** The food there for the group, 0..1. */
+    const val FOOD = 0
+    /** How well the climate there suits its kind, log. */
+    const val CLIMATE = 1
+    /** Crowding by its own kind. */
+    const val CROWDING = 2
+    /** The hunters about. */
+    const val HUNTERS = 3
+    /** Its discomfort there now: the cold or heat, and what the place drains from it. */
+    const val DISCOMFORT = 4
+    /** Its discomfort there as the forecast reads. */
+    const val DISCOMFORT_FORECAST = 5
+    /** 1 where the snow is deeper than its kind can go. */
+    const val SNOW_OVER_LIMIT = 6
+    /** The snow against its kind's limit. */
+    const val SNOW = 7
+    /** How far up or down the place lies, km. */
+    const val CLIMB = 8
+    /** The effort of getting there, against its reach. */
+    const val EFFORT = 9
+    /** 1 for the place it is in: staying. */
+    const val STAYS = 10
+    /** 1 for a place in its own hex. */
+    const val SAME_HEX = 11
+    /** How far going there brings it toward its goal place. */
+    const val TOWARD_BEARING = 12
+    /** How much better it did at its goal place than it is fed now. */
+    const val SEASON_PLACE = 13
+    /** How fed it is. */
+    const val FED = 14
+    /** Its fat against its kind's most. */
+    const val FAT = 15
+    /** The time of year, sine. */
+    const val SEASON_SIN = 16
+    /** The time of year, cosine. */
+    const val SEASON_COS = 17
+    /** 1 if it is restless. */
+    const val RESTLESS = 18
+    /** How far the water is there, in days' travel. */
+    const val WATER_DISTANCE = 19
+    /** How long it has gone without water, against how long it can. */
+    const val DAYS_DRY = 20
+    /** The pull of better country it senses. */
+    const val PULL = 21
+    /** The moon. */
+    const val MOON = 22
+    /** The time to its births, sine. */
+    const val TO_BIRTHS_SIN = 23
+    /** The time to its births, cosine. */
+    const val TO_BIRTHS_COS = 24
+    /** 1 if it remembers the place ([PlaceMemory]). */
+    const val REMEMBERED = 25
+    /** 1 if it remembers it from this season. */
+    const val REMEMBERED_SAME_SEASON = 26
+    /** How fed it was there. */
+    const val REMEMBERED_FED = 27
+    /** The water it found there. */
+    const val REMEMBERED_WATER = 28
+    /** The danger it met there. */
+    const val REMEMBERED_DANGER = 29
+    /** How long ago, against a year. */
+    const val REMEMBERED_AGE = 30
+    /** Its ancestors buried there. */
+    const val ANCESTORS = 31
+    /** The pull of its appointment. */
+    const val APPOINTMENT = 32
+    /** Its houses there. */
+    const val HOUSES = 33
+    /** Its own size against its kind's usual group, log. */
+    const val OWN_SIZE = 34
+    /** The lasting water there through the dry season. */
+    const val LASTING_WATER = 35
+    /** Sickness raging there among its kind. */
+    const val SICKNESS = 36
+    /** Tree cover. */
+    const val TREES = 37
+    /** Shrub cover. */
+    const val SHRUBS = 38
+    /** Grass cover. */
+    const val GRASS = 39
+    /** Waterlogged ground ([inflation.world.HexLand.logged]). */
+    const val MARSH = 40
+    /** Water now against its usual. */
+    const val WATER_AGAINST_USUAL = 41
+    /** Worn paths. */
+    const val PATHS = 42
+    /** Herds about this month. */
+    const val HERDS_ABOUT = 43
+    /** Dung. */
+    const val DUNG = 44
+    /** Grazing and browsing this week, and carcasses and bones. */
+    const val GRAZING_AND_KILLS = 45
+    /** For a band, 1 if it knows the hex (1 for animals). */
+    const val KNOWN_GROUND = 46
+    /** For a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size). */
+    const val BEYOND_OWN_GROUND = 47
+    /** How fresh another pack of its kind's mark is there. */
+    const val OTHERS_MARKS = 48
+    /** For a band, the fish and shellfish it could take there in a week with its skill, against its week's need (0 for animals). */
+    const val FISH = 49
+    /** For a herd, how far going there keeps to the way it has been heading ([HexGroup.headE]; 0 for others). */
+    const val KEEPS_HEADING = 50
+    /** For a herd on its yearly round, how far the place takes it on toward the round's place this month (0 off a round). */
+    const val ON_ROUND = 51
+    /** For a herd, how good the forage there is, 0..1: how nourishing and how rich in protein ([HexGroups.freshness]; 0 for others). */
+    const val FORAGE_QUALITY = 52
+    const val SIZE = 53
 }

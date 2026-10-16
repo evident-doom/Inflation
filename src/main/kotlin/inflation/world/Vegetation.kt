@@ -243,18 +243,18 @@ class Vegetation(private val world: World, private val seed: Long) {
         return fuel(i) >= 0.2f && wet < 0.3f && weather.temperature[i] > 15f && weather.precipitation[i] < 5f
     }
 
-    /**
-     * Fires: lightning and dry-season sparks start them in hot, dry, fuel-rich ground, and each
-     * spreads through the step from cell to cell, fastest downwind and the faster the stronger the wind,
-     * until it runs out of fuel, reaches wet or grazed-down ground, water or bare rock, or has
-     * burned for the step. Many fires stay small; a few run for tens of km.
-     */
     /** Fires people have set, to be lit at the start of the next step (where the ground will burn). */
     private val lit = java.util.concurrent.ConcurrentLinkedQueue<Int>()
 
     /** Sets a fire at [i] next step: people burning off old grass to bring on new growth and draw game. */
     fun ignite(i: Int) { lit += i }
 
+    /**
+     * Fires: lightning and dry-season sparks start them in hot, dry, fuel-rich ground, and each
+     * spreads through the step from cell to cell, fastest downwind and the faster the stronger the wind,
+     * until it runs out of fuel, reaches wet or grazed-down ground, water or bare rock, or has
+     * burned for the step. Many fires stay small; a few run for tens of km.
+     */
     private fun spreadFires(weather: Weather, water: LiveWater, years: Float) {
         burning.fill(false)
         fires.clear()

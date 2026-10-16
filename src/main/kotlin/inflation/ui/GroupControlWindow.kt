@@ -11,7 +11,6 @@ import inflation.ecology.Store
 import inflation.ecology.Tool
 import inflation.ecology.WAYS_OUT
 import inflation.learning.Schema
-import inflation.world.HexWorld
 import java.awt.BasicStroke
 import java.awt.BorderLayout
 import java.awt.Color
@@ -371,10 +370,10 @@ class GroupControlWindow(
                 1 -> where(d.places[i]) + if (d.places[i] == d.group.place) " (stay)" else ""
                 2 -> d.netScores?.let { "%.3f".format(it[i]) } ?: "-"
                 3 -> "%.3f".format(d.handScores[i])
-                4 -> "%.2f".format(f[0])
-                5 -> "%.1f".format(f[19] * s.dailyTravelKm)
-                6 -> "%.0f%%".format(100 * f[9])
-                else -> if (f[46] > 0f) "yes" else "no"
+                4 -> "%.2f".format(f[HexFeatures.FOOD])
+                5 -> "%.1f".format(f[HexFeatures.WATER_DISTANCE] * s.dailyTravelKm)
+                6 -> "%.0f%%".format(100 * f[HexFeatures.EFFORT])
+                else -> if (f[HexFeatures.KNOWN_GROUND] > 0f) "yes" else "no"
             }
         }
     }

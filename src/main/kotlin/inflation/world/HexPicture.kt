@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Args
 import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.RenderingHints
@@ -24,24 +25,12 @@ import kotlin.math.sqrt
  * where x, y, size pick a square of the map (km from the north-west corner) and px is pixels per km.
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var out = java.io.File("hex-picture.png")
-    var x0 = -1.0; var y0 = -1.0; var sizeKm = -1.0; var px = 4
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--out" -> out = java.io.File(args[++k])
-            "--x" -> x0 = args[++k].toDouble()
-            "--y" -> y0 = args[++k].toDouble()
-            "--size" -> sizeKm = args[++k].toDouble()
-            "--px" -> px = args[++k].toInt()
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    val a = Args(args, "hex-picture [--seed N] [--width KM] [--height KM] [--out FILE] [--x KM --y KM --size KM] [--px N]")
+    val base = WorldConfig(seed = 1)
+    val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
+    val out = a.file("--out") ?: java.io.File("hex-picture.png")
+    var x0 = a.double("--x", -1.0); var y0 = a.double("--y", -1.0); var sizeKm = a.double("--size", -1.0); val px = a.int("--px", 4)
+    a.done()
     val world = World.generate(cfg)
     val hex = HexMap(world)
     if (sizeKm < 0) { x0 = 0.0; y0 = 0.0; sizeKm = max(cfg.widthKm, cfg.heightKm).toDouble() }

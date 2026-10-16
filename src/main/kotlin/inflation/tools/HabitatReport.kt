@@ -1,6 +1,6 @@
 package inflation.tools
 
-import inflation.ecology.Catalogue
+import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.Biome
 import inflation.world.World
@@ -14,9 +14,9 @@ import inflation.world.WorldConfig
  * Usage: habitat-report [--seed N]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seed" -> cfg = cfg.copy(seed = args[++k].toLong()); else -> error("unknown argument ${args[k]}") }; k++ }
+    val a = Args(args, "habitat-report [--seed N]")
+    val cfg = WorldConfig(seed = a.long("--seed", 1))
+    a.done()
     val sim = HexSim(World.generate(cfg))
     val land = sim.land; val hw = sim.hw; val fauna = sim.fauna
     val n = land.n

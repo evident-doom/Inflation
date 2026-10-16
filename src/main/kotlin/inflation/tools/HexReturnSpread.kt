@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.learning.HexPpo
 import inflation.learning.SharedMover
@@ -14,9 +15,10 @@ import java.io.File
  * Usage: hex-return-spread DIR [--worlds N] [--size KM] [--years N]
  */
 fun main(args: Array<String>) {
-    val dir = File(args[0]); var worlds = 2; var size = 1000; var years = 2
-    var k = 1
-    while (k < args.size) { when (args[k]) { "--worlds" -> worlds = args[++k].toInt(); "--size" -> size = args[++k].toInt(); "--years" -> years = args[++k].toInt() }; k++ }
+    val a = Args(args, "hex-return-spread DIR [--worlds N] [--size KM] [--years N]")
+    val worlds = a.int("--worlds", 2); val size = a.int("--size", 1000); val years = a.int("--years", 2)
+    val dir = File(a.rest().single())
+    a.done()
     val kinds = Catalogue.learned
     val models = HexPpo.ROLES.map { SharedMover.load(File(dir, "$it.mlp")) }
     val all = (0 until worlds).toList().parallelStream().map { w -> HexPpo.play(WorldConfig(seed = 50_000L + w, widthKm = size, heightKm = size), years, kinds, models).first }.toList().flatten()

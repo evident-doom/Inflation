@@ -1,7 +1,7 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.Catalogue
-import inflation.ecology.Material
 import inflation.ecology.ROUNDS
 import inflation.ecology.TRADED
 import inflation.ecology.Tool
@@ -12,7 +12,7 @@ import inflation.world.Date
 import inflation.world.WorldConfig
 
 /**
- * What trade does (with rounds=true in the config for the rites at the sources): where good stone, salt
+ * What trade does (with rounds on for the rites at the sources): where good stone, salt
  * and ochre are got (sources), and each year the share of bands holding a year's worth of each, how
  * much of their spears and clothes is made well, how much of their dried food is salted, the useful
  * gifts given, how many rites stand at a source, the share of band-weeks spent in country of another
@@ -21,9 +21,9 @@ import inflation.world.WorldConfig
  * Usage: hex-trade-check [--seeds A,B] [--size KM] [--years N]
  */
 fun main(args: Array<String>) {
-    var seeds = listOf(91L); var size = 600; var years = 4
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seeds" -> seeds = args[++k].split(",").map { it.toLong() }; "--size" -> size = args[++k].toInt(); "--years" -> years = args[++k].toInt() }; k++ }
+    val a = Args(args, "hex-trade-check [--seeds A,B] [--size KM] [--years N]")
+    val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(91L); val size = a.int("--size", 600); val years = a.int("--years", 4)
+    a.done()
     println("rounds ${if (ROUNDS) "on" else "off"}, $size km, $years years")
     val lines = seeds.parallelStream().map { seed ->
         val run = HexLearning.Run(WorldConfig(seed = seed, widthKm = size, heightKm = size), Catalogue.learned)

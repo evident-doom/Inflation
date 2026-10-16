@@ -41,9 +41,6 @@ class HexBearings(
     /** Month the bearings were last worked out for. */
     var month = -1; private set
 
-    /** Forgets the month worked out, so the next update works it out again (after a saved world is loaded). */
-    fun forget() { month = -1 }
-
     private val cx = DoubleArray(size); private val cy = DoubleArray(size)
     /** Hexes within [NEAR_KM] of each land hex. */
     private val near: Array<IntArray>
@@ -165,9 +162,11 @@ class HexBearings(
                     e = ve / len0 * keen; so = vs / len0 * keen
                 }
                 // Too hot for its coat this month: toward cooler country; too cold: toward warmer.
-                val t = hw.temp[m][h]
-                val cold = min(1f, s.coldC(t, m) / 10f)
-                val hot = min(1f, max(0f, t - s.comfortC.endInclusive) / 10f)
+                // (A kind bound to water feels the water's warmth through the cold: see [HexFauna.feltC].)
+                val air = hw.temp[m][h]
+                val water = if (s.maxWaterKm.isFinite()) hexWaterNormalC[h][m] else 0f
+                val cold = min(1f, s.coldC(if (water > 0f && water > air) water else air, m) / 10f)
+                val hot = min(1f, max(0f, air - s.comfortC.endInclusive) / 10f)
                 e += INSTINCT * (cold - hot) * warmerE[h]; so += INSTINCT * (cold - hot) * warmerS[h]
                 val len = len(e, so)
                 if (len > 1f) { e /= len; so /= len }
@@ -175,6 +174,9 @@ class HexBearings(
             }
         }
     }
+
+    /** Open water's monthly normals by hex, °C (see [HexFauna.laggedNormals]). */
+    private val hexWaterNormalC by lazy { Array(hw.hex.size) { h -> HexFauna.laggedNormals { m -> hw.temp[m][h] } } }
 
     /** How far moving from hex [from] to hex [to] goes along kind [k]'s bearing, in units of [km]. */
     fun along(k: Int, from: Int, to: Int, km: Double): Float =

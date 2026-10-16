@@ -30,7 +30,7 @@ fun main(args: Array<String>) {
         }
         k++
     }
-    val world = World.generate(cfg)
+    val world = World.generate(cfg, inflation.ecology.HexSnapshot.LandformCache.load(cfg) {})
     val hw = HexWorld(world, HexMap(world))
     val n = hw.placeCells.size
     val land = HexLand(hw, cfg.seed)

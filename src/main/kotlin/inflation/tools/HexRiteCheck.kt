@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.ecology.ROUNDS
 import inflation.learning.HexLearning
@@ -7,7 +8,7 @@ import inflation.world.Date
 import inflation.world.WorldConfig
 
 /**
- * What bands' rites do (run once with rounds=true, once without, same seeds): each year, how far a
+ * What bands' rites do (run once as is, once with rounds=false, same seeds): each year, how far a
  * band gets from where it began the year (km, its furthest), the share of bands that set foot in
  * country of another kind than their own (by each hex's chief kind of country), how many bands hold
  * rites and how strongly, and people's score (people-weeks per person at the start, less their luck in
@@ -16,9 +17,9 @@ import inflation.world.WorldConfig
  * Usage: hex-rite-check [--seeds A,B] [--size KM] [--years N]
  */
 fun main(args: Array<String>) {
-    var seeds = listOf(91L); var size = 600; var years = 4
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seeds" -> seeds = args[++k].split(",").map { it.toLong() }; "--size" -> size = args[++k].toInt(); "--years" -> years = args[++k].toInt() }; k++ }
+    val a = Args(args, "hex-rite-check [--seeds A,B] [--size KM] [--years N]")
+    val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(91L); val size = a.int("--size", 600); val years = a.int("--years", 4)
+    a.done()
     val kinds = Catalogue.learned
     println("rounds ${if (ROUNDS) "on" else "off"}, $size km, $years years")
     val lines = seeds.parallelStream().map { seed ->

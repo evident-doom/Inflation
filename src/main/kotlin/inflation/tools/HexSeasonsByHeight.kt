@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.learning.HexLearning
 import inflation.world.Date
@@ -15,17 +16,11 @@ import inflation.world.WorldConfig
  * Usage: hex-seasons-by-height [--seed N] [--width KM] [--height KM] [--years N]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(); var years = 3
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--years" -> years = args[++k].toInt()
-        }
-        k++
-    }
+    val a = Args(args, "hex-seasons-by-height [--seed N] [--width KM] [--height KM] [--years N]")
+    var cfg = WorldConfig()
+    cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
+    val years = a.int("--years", 3)
+    a.done()
     val run = HexLearning.Run(cfg, Catalogue.learned)
     val land = run.land; val hw = run.hw; val n = land.n
     val bands = listOf(0.0 to 300.0, 300.0 to 700.0, 700.0 to 1200.0, 1200.0 to 1800.0, 1800.0 to 2500.0, 2500.0 to 9000.0)

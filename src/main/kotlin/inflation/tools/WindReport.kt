@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.world.Date
 import inflation.world.Regime
 import inflation.world.Render
@@ -12,7 +13,6 @@ import java.awt.BasicStroke
 import java.awt.Color
 import java.io.File
 import javax.imageio.ImageIO
-import kotlin.math.hypot
 import kotlin.math.ln
 import kotlin.math.sqrt
 
@@ -24,21 +24,14 @@ import kotlin.math.sqrt
  * Usage: wind-report [--seed N] [--size KM] [--height KM] [--years N] [--out DIR]
  */
 fun main(args: Array<String>) {
+    val a = Args(args, "wind-report [--seed N] [--size KM] [--height KM] [--years N] [--out DIR]")
     var cfg = WorldConfig()
-    var years = 10
-    var out = File("output/wind")
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--years" -> years = args[++k].toInt()
-            "--out" -> out = File(args[++k])
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    cfg = cfg.copy(seed = a.long("--seed", cfg.seed))
+    a.string("--size")?.let { val s = a.int("--size", 0); cfg = cfg.copy(widthKm = s, heightKm = s) }
+    cfg = cfg.copy(heightKm = a.int("--height", cfg.heightKm))
+    val years = a.int("--years", 10)
+    val out = a.file("--out") ?: File("output/wind")
+    a.done()
     out.mkdirs()
     val world = World.generate(cfg)
     val g = world.grid

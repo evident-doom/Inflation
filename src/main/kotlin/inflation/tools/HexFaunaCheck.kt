@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.Config
 
 import inflation.ecology.HexHistory
@@ -7,11 +8,7 @@ import inflation.ecology.HexSim
 
 
 import inflation.world.Date
-import inflation.world.HexLand
-import inflation.world.HexMap
 import inflation.world.HexWorld
-import inflation.world.Weather
-import inflation.world.World
 import inflation.world.WorldConfig
 
 /**
@@ -27,31 +24,26 @@ import inflation.world.WorldConfig
 fun main(args: Array<String>) = faunaCheck(args)
 
 fun faunaCheck(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var years = 10
-    var uniform = false
-    var historyFile: java.io.File? = null
-    var saveFile: java.io.File? = null
-    var loadFile: java.io.File? = null
-    var testWorld: TestWorlds.Entry? = null
-    var replicate = 0L
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--years" -> years = args[++k].toInt()
-            "--uniform" -> uniform = true
-            "--history" -> historyFile = java.io.File(args[++k])
-            "--save" -> saveFile = java.io.File(args[++k])
-            "--load" -> loadFile = java.io.File(args[++k])
-            "--world" -> { val w = TestWorlds.named(args[++k]); testWorld = w; cfg = w.config; loadFile = w.state }
-            "--replicate" -> replicate = args[++k].toLong()
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    val a = Args(args, "hex-fauna-check [--seed N] [--width KM] [--height KM] [--years N] [--save FILE] [--load FILE] [--world NAME] [--replicate R]")
+    // A test world sets the map and the state to carry on from; an option before --world on the line
+    // gives way to it, one after it changes it.
+    val testWorld = a.string("--world")?.let { TestWorlds.named(it) }
+    val worldAt = args.indexOf("--world")
+    fun stands(name: String) = testWorld == null || args.indexOf(name) > worldAt
+    var cfg = testWorld?.config ?: WorldConfig(seed = 1)
+    val seed = a.long("--seed", cfg.seed); val widthKm = a.int("--width", cfg.widthKm); val heightKm = a.int("--height", cfg.heightKm)
+    if (stands("--seed")) cfg = cfg.copy(seed = seed)
+    if (stands("--width")) cfg = cfg.copy(widthKm = widthKm)
+    if (stands("--height")) cfg = cfg.copy(heightKm = heightKm)
+    val years = a.int("--years", 10)
+    val uniform = a.flag("--uniform")
+    val historyFile = a.file("--history")
+    val saveFile = a.file("--save")
+    val loadFile = a.file("--load").takeIf { stands("--load") } ?: testWorld?.state
+    val replicate = a.long("--replicate", 0L)
+    a.done()
+    // The world's centre latitude (latitude=DEGREES), as the training maps set it; a test world keeps its own.
+    if (testWorld == null) Config.string("latitude")?.let { cfg = cfg.copy(centreLatitude = it.toDouble()) }
     val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { println(it) }, uniformStart = uniform)
     testWorld?.let { TestWorlds.check(it, sim) }
     loadFile?.let { f ->
@@ -139,7 +131,7 @@ fun faunaCheck(args: Array<String>) {
                 stands, fields.size, fields.maxOfOrNull { f.domestic[it] } ?: 0f, if (fields.isEmpty()) 0.0 else fields.map { f.domestic[it].toDouble() }.average(), grainReapedYear,
                 herds.groups.filter { it.alive && it.band != null }.sumOf { it.stores[inflation.ecology.Store.SEED.ordinal].toDouble() } / 1000,
                 herds.groups.filter { it.alive && it.band?.atHome == true }.sumOf { it.stores[inflation.ecology.Store.SEED.ordinal].toDouble() } / 1000,
-                (0 until land.n).sumOf { (f.grain[it] * land.areaKm2[it] * 1e6).toDouble() } / 1000, f.grainRipenedLastYear,
+                (0 until land.n).sumOf { f.grain[it] * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
                 herds.groups.count { it.alive && it.band?.atHome == true && f.cereal[it.place] > 0f }, herds.groups.count { it.alive && it.band?.atHome == true }))
         }
     }
@@ -216,10 +208,12 @@ fun faunaCheck(args: Array<String>) {
                         gs.sumOf { s.coldC(weather.temperature[it.place], weather.date.month).toDouble() * it.size } / heads))
                 }
             }
-            val t0 = System.nanoTime()
             // follow=kind: follow one group of that kind week by week, as the viewer's follow mode does.
             Config.string("follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
+            // Only the step itself: the tallies below run in this method, which is too big for the JIT.
+            val t0 = System.nanoTime()
             sim.step()
+            ns += System.nanoTime() - t0
             grainReapedNow += (herds.hunting["people:grain reaped, kg"] ?: 0) / 1000.0
             if (w == 0) movedKm.clear()
             for (gr in herds.groups) if (gr.alive && gr.path.size > 1) movedKm.merge(gr.species, (gr.path.size - 1) * sim.hex.hexKm, Double::plus)
@@ -235,7 +229,6 @@ fun faunaCheck(args: Array<String>) {
                 println("   follow #%d (%s, %d) %s:".format(herds.watched, g?.species?.name ?: "?", g?.size ?: 0, weather.date))
                 for (l in herds.watchLog) println("      $l")
             }
-            ns += System.nanoTime() - t0
             if (historyFile != null) history.record(sim)
             for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
             for ((key, v) in herds.deaths) causes.merge(key, v.toDouble(), Double::plus)

@@ -103,8 +103,8 @@ season's place), how it stands and who shares its hex, what it knows of itself a
 can reach, the places coloured by how the model scores them with the model's pick in yellow, and its
 ways for the week. Click another place or pin a way to override the model; Next step runs the week,
 and the next week then waits at the group's choice (unless "Model decides" is ticked). The
-overview's Run and Step take over: their weeks run on the model's choices. `--nets DIR` (or
-`nets=DIR`, with `ways=FILE`, in the config file) makes the learned networks the model, as in `hexFauna`;
+overview's Run and Step take over: their weeks run on the model's choices. `nets=DIR`, with `ways=FILE`,
+in the config file makes the learned networks the model, as in `hexFauna`;
 without them it is the hand-written choices.
 
 `hexFauna` runs the hex world for some years and prints each kind's numbers, the small life, the
