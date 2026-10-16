@@ -59,6 +59,9 @@ class RiverOverlay(world: World, hex: HexMap, private val land: HexLand) {
         src = IntArray(cells.size) { follows[cells[it]] }
     }
 
+    /** Whether the rivers are drawn at all (the viewer's "River flows" box). */
+    @Volatile var visible = true
+
     /** Stretches drawn. */
     val size get() = usual.size
 
@@ -67,6 +70,7 @@ class RiverOverlay(world: World, hex: HexMap, private val land: HexLand) {
      * (ox + x·kmPx, oy + y·kmPx).
      */
     fun draw(g: Graphics2D, ox: Double, oy: Double, kmPx: Double, wPx: Int, hPx: Int) {
+        if (!visible) return
         val x0 = (-ox / kmPx).toFloat(); val y0 = (-oy / kmPx).toFloat()
         val x1 = ((wPx - ox) / kmPx).toFloat(); val y1 = ((hPx - oy) / kmPx).toFloat()
         // Stretches of like width and colour go in one path: (width in quarter pixels) × spate level.
