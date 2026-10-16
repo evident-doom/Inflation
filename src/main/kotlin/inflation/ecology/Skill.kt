@@ -1,4 +1,5 @@
 package inflation.ecology
+import kotlin.math.exp
 
 /**
  * Kinds of work people know how to do. Each is done by one or more [Skill]s, its variants (fire by the
@@ -166,7 +167,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
         else -> null
     }
     /** The best level [n] holders can keep a way at: what is passed on falls a little short each time, and more learners make up for it. */
-    fun cap(n: Float) = 1f - kotlin.math.exp(-n / complexity)
+    fun cap(n: Float) = 1f - exp(-n / complexity)
 
     /** The level its effects are set for (a start band's, unless bands start without it). */
     val ref = if (ref >= 0f) ref else start

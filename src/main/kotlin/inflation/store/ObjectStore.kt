@@ -7,10 +7,12 @@ import java.lang.reflect.Modifier
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.IdentityHashMap
+import inflation.ecology.HexSnapshot
+import java.util.concurrent.ConcurrentMap
 
 /*
  * Objects written to a stream field by field and read back into live objects (or new ones), by field
- * names rather than layout: what [inflation.ecology.HexSnapshot] saves a running model with, and what
+ * names rather than layout: what [HexSnapshot] saves a running model with, and what
  * the world caches keep generated worlds with. See HexSnapshot for what a restore keeps and drops.
  */
 
@@ -237,7 +239,7 @@ internal class Restorer {
                 val v = make(vn, old[k], Any::class.java)
                 val kept = if (v === Skip) old[k] else v
                 // (A concurrent map holds no nulls: an entry whose value could not be made is left out.)
-                if (kept == null && m is java.util.concurrent.ConcurrentMap<*, *>) continue
+                if (kept == null && m is ConcurrentMap<*, *>) continue
                 m[k] = kept
             }
             m

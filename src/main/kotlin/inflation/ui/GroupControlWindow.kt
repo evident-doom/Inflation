@@ -49,6 +49,11 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
+import inflation.ecology.Illness
+import inflation.ecology.Tradition
+import java.util.ArrayDeque
+import kotlin.math.atan2
+import kotlin.math.hypot
 
 /**
  * The group controls of follow mode: a window beside the overview map that shows the followed group
@@ -68,6 +73,8 @@ class GroupControlWindow(
     private val px: Int,
     /** The rivers as they run this week, drawn over the ground. */
     private val rivers: RiverOverlay,
+    /** Read the world only while it stands still (see [WorldLock]). */
+    private val world: WorldLock,
     /** Lets one more week run (on the simulation's thread). */
     private val requestStep: () -> Unit,
     /** Whether the overview is running weeks on its own. */
@@ -95,7 +102,7 @@ class GroupControlWindow(
     private val handsOff = JCheckBox("Model decides", false)
     private val reset = JButton("Undo my changes")
     /** Where the followed group went in the last few weeks, newest last (the hexes of each week's way). */
-    private val trail = java.util.ArrayDeque<IntArray>()
+    private val trail = ArrayDeque<IntArray>()
     /** The groups it saw about it when it last chose (to show where they went). */
     @Volatile private var seenBefore = emptySet<Int>()
     private val next = JButton("Next step")
@@ -157,7 +164,7 @@ class GroupControlWindow(
     private fun text() = JTextArea().apply { isEditable = false; font = Font(Font.MONOSPACED, Font.PLAIN, 12); (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE }
 
     /** Follows group [id] in the window (opening it). */
-    fun follow(id: Int) {
+    fun follow(id: Int) = world.whileStill {
         if (id != groups.watched) { groups.watched = id; followChanged() }
         open()
     }
@@ -176,7 +183,7 @@ class GroupControlWindow(
     }
 
     /** Closes it: the group goes back to the model, and a week waiting on the player runs on its picks. */
-    fun close() {
+    fun close() = world.whileStill {
         groups.control = null
         groups.watched = -1
         startNext = false
@@ -200,7 +207,8 @@ class GroupControlWindow(
         groups.groups.firstOrNull { it.id == groups.watched && it.alive }?.let { g ->
             synchronized(trail) { trail.addLast(g.path.copyOf()); while (trail.size > TRAIL_WEEKS) trail.removeFirst() }
         }
-        SwingUtilities.invokeLater { lastWeek.text = groups.watchLog.joinToString("\n"); refresh() }
+        val log = groups.watchLog.joinToString("\n")
+        SwingUtilities.invokeLater { lastWeek.text = log; refresh() }
         playerWeek = false
         if (startNext && isOpen && !running() && groups.watched >= 0 && !handsOff.isSelected) { startNext = false; stepHere() }
         else startNext = false
@@ -243,7 +251,8 @@ class GroupControlWindow(
         val f = if (handsOff.isSelected || !isOpen || !playerWeek || running()) null else CompletableFuture<Int>()
         waiting = f
         SwingUtilities.invokeLater { refresh() }
-        return f?.let { runCatching { it.get() }.getOrDefault(d.model) } ?: d.model
+        // (While it waits on the player the world stands still, and the windows may read it.)
+        return f?.let { world.waiting { runCatching { it.get() }.getOrDefault(d.model) } } ?: d.model
     }
 
     override fun ways(g: HexGroup, out: FloatArray) {
@@ -257,7 +266,9 @@ class GroupControlWindow(
 
     // ---- What the window shows ----
 
-    private fun refresh() {
+    private fun refresh() = world.whileStill { refreshNow() }
+
+    private fun refreshNow() {
         val d = decision
         val g = groups.groups.firstOrNull { it.id == groups.watched && it.alive }
         val w = waiting != null
@@ -310,11 +321,11 @@ class GroupControlWindow(
         if (b != null) {
             sb.appendLine("larder %.0f kg (%.0f days): ".format(g.larder, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)) +
                 Store.entries.filter { g.stores[it.ordinal] >= 1f }.joinToString(", ") { "%s %.0f".format(it.name.lowercase(), g.stores[it.ordinal]) })
-            val sick = inflation.ecology.Illness.entries.filter { b.sick[it.ordinal] > 0.005f }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.sick[it.ordinal]) }
+            val sick = Illness.entries.filter { b.sick[it.ordinal] > 0.005f }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.sick[it.ordinal]) }
             sb.appendLine("health: wounded %.0f%%, lamed %.0f%%%s".format(100 * b.hurt, 100 * b.lame, if (sick.isNotEmpty()) "; sick: $sick" else ""))
             sb.appendLine("camp kept %d weeks%s".format(b.campWeeks, if (b.houseHex >= 0) "; houses at hex %d (%.0f%%)".format(b.houseHex, 100 * b.house) else ""))
             sb.appendLine("tools: " + Tool.entries.filter { b.knows[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
-            sb.appendLine("customs: " + inflation.ecology.Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }.ifEmpty { "none" })
+            sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }.ifEmpty { "none" })
             sb.appendLine("knows %d hexes; knows the homes of %d bands".format((0 until hex.size).count { b.knows(it) }, b.knownHomes.size))
             if (b.raidHex >= 0) sb.appendLine("set on a raid at hex %d".format(b.raidHex))
             if (b.appointHex >= 0) sb.appendLine("meets others at hex %d in month %d".format(b.appointHex, b.appointMonth + 1))
@@ -453,9 +464,14 @@ class GroupControlWindow(
             })
         }
 
+        private val painter = world.Painter(this)
+
         override fun paintComponent(g0: Graphics) {
             super.paintComponent(g0)
-            val g = g0 as Graphics2D
+            painter.paint(g0) { paintMap(it) }
+        }
+
+        private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             val grp = groups.groups.firstOrNull { it.id == groups.watched && it.alive } ?: run {
                 g.color = Color.WHITE; g.drawString("No group followed", 20, 30); return
@@ -507,8 +523,8 @@ class GroupControlWindow(
                     val gxp = sx(gx); val gyp = sy(gy)
                     val inside = gxp in 0..width && gyp in 0..height
                     if (inside) { val (xs, ys) = outline(gh); g.color = Color(1f, 0.55f, 1f, 0.3f); g.fillPolygon(xs, ys, 6); g.color = pink; g.drawPolygon(xs, ys, 6) }
-                    val ang = kotlin.math.atan2(gy - cy, gx - cx)
-                    val dist = kotlin.math.hypot((gxp - width / 2).toDouble(), (gyp - height / 2).toDouble())
+                    val ang = atan2(gy - cy, gx - cx)
+                    val dist = hypot((gxp - width / 2).toDouble(), (gyp - height / 2).toDouble())
                     val len = min(dist - (if (inside) 10.0 else 0.0), min(width, height) / 2.0 - 14)
                     if (len > 15) arrow(g, width / 2 + (12 * cos(ang)).toInt(), height / 2 + (12 * sin(ang)).toInt(), width / 2 + (len * cos(ang)).toInt(), height / 2 + (len * sin(ang)).toInt(), pink, 3f)
                     val lx = (width / 2 + (len * cos(ang)).toInt() + 8).coerceIn(4, width - 130); val ly = (height / 2 + (len * sin(ang)).toInt() - 6).coerceIn(14, height - 4)
@@ -516,7 +532,7 @@ class GroupControlWindow(
                 }
                 groups.kindIndex[grp.species]?.let { ki ->
                     val e = groups.bearings.east[ki][centre]; val so = groups.bearings.south[ki][centre]
-                    val st = kotlin.math.hypot(e, so)
+                    val st = hypot(e, so)
                     if (st > 0.02f) {
                         val len = (st.coerceAtMost(1f) * 2.5 * hex.hexKm * kmPx)
                         arrow(g, width / 2, height / 2, width / 2 + (len * e / st).toInt(), height / 2 + (len * so / st).toInt(), Color(1f, 0.95f, 0.6f, 0.8f), 1.5f)
@@ -590,7 +606,7 @@ class GroupControlWindow(
     private fun arrow(g: Graphics2D, x0: Int, y0: Int, x1: Int, y1: Int, c: Color, w: Float) {
         g.color = c; g.stroke = BasicStroke(w, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
         g.drawLine(x0, y0, x1, y1)
-        val ang = kotlin.math.atan2((y1 - y0).toDouble(), (x1 - x0).toDouble()); val head = 6 + 2 * w
+        val ang = atan2((y1 - y0).toDouble(), (x1 - x0).toDouble()); val head = 6 + 2 * w
         for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - head * cos(ang + sgn * 0.45)).toInt(), (y1 - head * sin(ang + sgn * 0.45)).toInt())
         g.stroke = BasicStroke(1f)
     }

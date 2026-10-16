@@ -5,6 +5,7 @@ import inflation.Config
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.abs
 
 // What passes between bands: words, traditions, partners and grudges. A band's culture is data on
 // the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
@@ -173,54 +174,54 @@ fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indic
  * they show each other tools, and bands that marry out exchange partners, who bring their skills.
  * Returns true if it came to a raid.
  */
-internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
-    val ba = a.band ?: return false; val bb = b.band ?: return false
-    val u = Language.understanding(ba.words, bb.words)
-    if (raid(a, ba, b, bb, u) || raid(b, bb, a, ba, u)) return true
+internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup): Boolean {
+    val bandA = a.band ?: return false; val bandB = b.band ?: return false
+    val u = Language.understanding(bandA.words, bandB.words)
+    if (raid(a, bandA, b, bandB, u) || raid(b, bandB, a, bandA, u)) return true
     // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
     fun showsSickness(x: Band) = x.sick.sum() > SICK_SHOWS
-    if ((showsSickness(bb) && rnd.nextFloat() < ba.shunSick) || (showsSickness(ba) && rnd.nextFloat() < bb.shunSick)) { meetings.merge("bands kept away from the sick", 1, Int::plus); return false }
+    if ((showsSickness(bandB) && rnd.nextFloat() < bandA.shunSick) || (showsSickness(bandA) && rnd.nextFloat() < bandB.shunSick)) { meetings.merge("bands kept away from the sick", 1, Int::plus); return false }
     // Meeting in peace makes them a little closer; how close they are colours the rest.
-    ba.befriend(b.id, TIE_MEET); bb.befriend(a.id, TIE_MEET)
-    val close = max(0f, 0.5f * (ba.tie(b.id) + bb.tie(a.id)))
+    bandA.befriend(b.id, TIE_MEET); bandB.befriend(a.id, TIE_MEET)
+    val close = max(0f, 0.5f * (bandA.tie(b.id) + bandB.tie(a.id)))
     // The naming game: the larger band's word tends to win.
     repeat(WORDS_PER_MEETING) {
         val k = rnd.nextInt(Language.CONCEPTS)
-        if (ba.words[k] != bb.words[k]) { if (rnd.nextFloat() < a.size.toFloat() / (a.size + b.size)) bb.words[k] = ba.words[k] else ba.words[k] = bb.words[k] }
+        if (bandA.words[k] != bandB.words[k]) { if (rnd.nextFloat() < a.size.toFloat() / (a.size + b.size)) bandB.words[k] = bandA.words[k] else bandA.words[k] = bandB.words[k] }
     }
     // Ways are copied from the band that does better: more food in hand, more children.
     fun doing(g: HexGroup) = g.fed + g.larder / max(1f, g.dailyNeedKg * 60f) + g.young.toFloat() / max(1, g.adults) + STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + RENOWN * (g.band?.renown ?: 0f)
-    val (lo, hi) = if (doing(a) < doing(b)) ba to bb else bb to ba
+    val (lo, hi) = if (doing(a) < doing(b)) bandA to bandB else bandB to bandA
     for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {
         lo.traditions[t.ordinal] = hi.holds(t)
         meetings.merge("band took ${if (hi.holds(t)) "up" else "leave of"} ${t.name.lowercase()}", 1, Int::plus)
     }
     riteMeet(lo, hi, u)
-    teach(ba, bb, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
+    teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // And the sick among them pass on what is catching.
-    passIllness(ba, bb)
+    passIllness(bandA, bandB)
     // Each tells the other of the country it knows round about, as far as they understand each other.
     if (rnd.nextFloat() < u * (0.6f + 0.4f * close)) {
         val h0 = hw.placeHex[a.place]
         var ring = listOf(h0); val seen = hashSetOf(h0)
         for (r in 0..TOLD_RINGS) {
-            for (h in ring) { if (ba.knows(h)) bb.learn(h, hex.size); if (bb.knows(h)) ba.learn(h, hex.size) }
+            for (h in ring) { if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
             if (r == TOLD_RINGS) break
             ring = hex.nextRing(ring, seen)
         }
         meetings.merge("bands told of country", 1, Int::plus)
         // And of the ways they know further off: landmarks, and the legs between those they know.
-        val toldWays = routes.tell(ba, bb, h0) + routes.tell(bb, ba, h0)
+        val toldWays = routes.tell(bandA, bandB, h0) + routes.tell(bandB, bandA, h0)
         if (toldWays > 0) meetings.merge("bands told of routes", 1, Int::plus)
         // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
         // takes up the other's (the more they are close, the likelier).
         val hMeet = hw.placeHex[a.place]; val wk = (weatherNow.date.absoluteDay / days).toInt(); val sMeet = PlaceMemory.seasonOf(weatherNow.date.month)
         a.memory.mark(hMeet, sMeet, wk, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, b.memory.met, 1f)
         // And where each has its houses, and the homes of others they know of: settled bands can be found.
-        if (bb.houseHex >= 0 && bb.house >= Thresholds.HOUSE_STANDING) { ba.knownHomes[b.id] = bb.houseHex; ba.knownLineage[b.id] = bb.mainLineage() }
-        if (ba.houseHex >= 0 && ba.house >= Thresholds.HOUSE_STANDING) { bb.knownHomes[a.id] = ba.houseHex; bb.knownLineage[a.id] = ba.mainLineage() }
-        for ((id, hh) in bb.knownHomes) if (id != a.id && rnd.nextFloat() < u) { ba.knownHomes.putIfAbsent(id, hh); bb.knownLineage[id]?.let { ba.knownLineage.putIfAbsent(id, it) } }
-        for ((id, hh) in ba.knownHomes) if (id != b.id && rnd.nextFloat() < u) { bb.knownHomes.putIfAbsent(id, hh); ba.knownLineage[id]?.let { bb.knownLineage.putIfAbsent(id, it) } }
+        if (bandB.houseHex >= 0 && bandB.house >= Thresholds.HOUSE_STANDING) { bandA.knownHomes[b.id] = bandB.houseHex; bandA.knownLineage[b.id] = bandB.mainLineage() }
+        if (bandA.houseHex >= 0 && bandA.house >= Thresholds.HOUSE_STANDING) { bandB.knownHomes[a.id] = bandA.houseHex; bandB.knownLineage[a.id] = bandA.mainLineage() }
+        for ((id, hh) in bandB.knownHomes) if (id != a.id && rnd.nextFloat() < u) { bandA.knownHomes.putIfAbsent(id, hh); bandB.knownLineage[id]?.let { bandA.knownLineage.putIfAbsent(id, it) } }
+        for ((id, hh) in bandA.knownHomes) if (id != b.id && rnd.nextFloat() < u) { bandB.knownHomes.putIfAbsent(id, hh); bandA.knownLineage[id]?.let { bandB.knownLineage.putIfAbsent(id, it) } }
         fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {
             if (by.appointHex < 0 || by.appointHex == bx.appointHex) return
             val theirs = y.memory.deadAt(by.appointHex) + y.memory.metAt(by.appointHex)
@@ -230,17 +231,17 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
                 meetings.merge("bands took up another's appointment", 1, Int::plus)
             }
         }
-        adopt(a, ba, b, bb); adopt(b, bb, a, ba)
+        adopt(a, bandA, b, bandB); adopt(b, bandB, a, bandA)
         // And of the places they remember, as far as they trust each other.
         val week = (weatherNow.date.absoluteDay / days).toInt()
-        val trust = (0.5f + 0.5f * max(0f, ba.tie(b.id))) * u
+        val trust = (0.5f + 0.5f * max(0f, bandA.tie(b.id))) * u
         a.memory.hear(b.memory, week, trust); b.memory.hear(a.memory, week, trust)
     }
     // Partners: where either holds to marrying out, young adults change bands, both ways.
-    val marry = (if (ba.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bb.holds(Tradition.EXOGAMY)) 0.5f else 0f)
+    val marry = (if (bandA.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bandB.holds(Tradition.EXOGAMY)) 0.5f else 0f)
     if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry * (0.5f + close)) {
-        marryOut(a, ba, b, bb)
-        ba.befriend(b.id, TIE_MARRY); bb.befriend(a.id, TIE_MARRY)
+        marryOut(a, bandA, b, bandB)
+        bandA.befriend(b.id, TIE_MARRY); bandB.befriend(a.id, TIE_MARRY)
         meetings.merge("bands exchanged partners", 1, Int::plus)
     }
     return false
@@ -308,32 +309,32 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */
-private fun HexGroups.marryOut(a: HexGroup, ba: Band, b: HexGroup, bb: Band) {
+private fun HexGroups.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band) {
     val sa = min(2, a.adults / 4).coerceAtLeast(1).toFloat() / a.adults
     val sb = min(2, b.adults / 4).coerceAtLeast(1).toFloat() / b.adults
-    val kin = kinship(ba.lineage, bb.lineage)
+    val kin = kinship(bandA.lineage, bandB.lineage)
     // The children of a partner from outside are less inbred: as kin as the two bands' shared descent allows.
-    val fa = ba.inbred; val fb = bb.inbred
-    ba.inbred = (1f - sa) * fa + sa * OUTSIDER_KIN * kin
-    bb.inbred = (1f - sb) * fb + sb * OUTSIDER_KIN * kin
-    val la = ba.lineage.copyOf()
-    for (i in la.indices) { ba.lineage[i] += sa * (bb.lineage[i] - la[i]); bb.lineage[i] += sb * (la[i] - bb.lineage[i]) }
+    val fa = bandA.inbred; val fb = bandB.inbred
+    bandA.inbred = (1f - sa) * fa + sa * OUTSIDER_KIN * kin
+    bandB.inbred = (1f - sb) * fb + sb * OUTSIDER_KIN * kin
+    val la = bandA.lineage.copyOf()
+    for (i in la.indices) { bandA.lineage[i] += sa * (bandB.lineage[i] - la[i]); bandB.lineage[i] += sb * (la[i] - bandB.lineage[i]) }
     // Partners bring what they know how to do.
-    for (i in ba.plants.indices) { val x = ba.plants[i]; ba.plants[i] = max(x, x + sa * (bb.plants[i] - x)); bb.plants[i] = max(bb.plants[i], bb.plants[i] + sb * (x - bb.plants[i])) }
+    for (i in bandA.plants.indices) { val x = bandA.plants[i]; bandA.plants[i] = max(x, x + sa * (bandB.plants[i] - x)); bandB.plants[i] = max(bandB.plants[i], bandB.plants[i] + sb * (x - bandB.plants[i])) }
     // (Each partner holds the skills its band's people do, as many as hold them; it brings them along,
     // a little short of the best it learned from, and its old band loses them.)
     val na = sa * a.adults; val nb = sb * b.adults
-    val fromA = FloatArray(ba.holders.size) { i -> if (ba.holders[i] > 0f) min(na, na * ba.holders[i] / a.adults) else 0f }
-    val fromB = FloatArray(bb.holders.size) { i -> if (bb.holders[i] > 0f) min(nb, nb * bb.holders[i] / b.adults) else 0f }
-    for (i in ba.skills.indices) {
-        val la = ba.skills[i]; val lb = bb.skills[i]
-        if (fromB[i] > 0f) { if (!ba.knowsSkill[i]) { ba.knowsSkill[i] = true; ba.skills[i] = 0f; ba.lastUsed[i] = ba.weeks }; ba.skills[i] = max(ba.skills[i], lb - TRANSMIT_LOSS); ba.holders[i] = max(0f, ba.holders[i]) + fromB[i] }
-        if (fromA[i] > 0f) { if (!bb.knowsSkill[i]) { bb.knowsSkill[i] = true; bb.skills[i] = 0f; bb.lastUsed[i] = bb.weeks }; bb.skills[i] = max(bb.skills[i], la - TRANSMIT_LOSS); bb.holders[i] = max(0f, bb.holders[i]) + fromA[i] }
-        if (ba.holders[i] > 0f) ba.holders[i] = max(0f, ba.holders[i] - fromA[i])
-        if (bb.holders[i] > 0f) bb.holders[i] = max(0f, bb.holders[i] - fromB[i])
+    val fromA = FloatArray(bandA.holders.size) { i -> if (bandA.holders[i] > 0f) min(na, na * bandA.holders[i] / a.adults) else 0f }
+    val fromB = FloatArray(bandB.holders.size) { i -> if (bandB.holders[i] > 0f) min(nb, nb * bandB.holders[i] / b.adults) else 0f }
+    for (i in bandA.skills.indices) {
+        val la = bandA.skills[i]; val lb = bandB.skills[i]
+        if (fromB[i] > 0f) { if (!bandA.knowsSkill[i]) { bandA.knowsSkill[i] = true; bandA.skills[i] = 0f; bandA.lastUsed[i] = bandA.weeks }; bandA.skills[i] = max(bandA.skills[i], lb - TRANSMIT_LOSS); bandA.holders[i] = max(0f, bandA.holders[i]) + fromB[i] }
+        if (fromA[i] > 0f) { if (!bandB.knowsSkill[i]) { bandB.knowsSkill[i] = true; bandB.skills[i] = 0f; bandB.lastUsed[i] = bandB.weeks }; bandB.skills[i] = max(bandB.skills[i], la - TRANSMIT_LOSS); bandB.holders[i] = max(0f, bandB.holders[i]) + fromA[i] }
+        if (bandA.holders[i] > 0f) bandA.holders[i] = max(0f, bandA.holders[i] - fromA[i])
+        if (bandB.holders[i] > 0f) bandB.holders[i] = max(0f, bandB.holders[i] - fromB[i])
     }
     // Kin by marriage forgive.
-    ba.grudge[bb.mainLineage()] *= 0.5f; bb.grudge[ba.mainLineage()] *= 0.5f
+    bandA.grudge[bandB.mainLineage()] *= 0.5f; bandB.grudge[bandA.mainLineage()] *= 0.5f
 }
 
 /**
@@ -355,7 +356,7 @@ internal fun HexGroups.visitKin() {
         val h0 = hw.placeHex[g.place]
         var ring = listOf(h0); val seen = hashSetOf(h0)
         for (r in 0..VISIT_RINGS) {
-            for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) { val sc = o.larder / (1f + r); if (sc > bestScore) { bestScore = sc; best = o } }
+            for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) { val score = o.larder / (1f + r); if (score > bestScore) { bestScore = score; best = o } }
             if (r == VISIT_RINGS) break
             ring = hex.nextRing(ring, seen)
         }
@@ -390,8 +391,8 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
         var best = -1; var bestScore = 0f
         for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
             if (mem.hex[i] < 0) continue
-            val sc = mem.dead[i] + 0.5f * mem.met[i] + mem.fed[i]
-            if (mem.dead[i] + mem.met[i] >= APPOINT_MIN && sc > bestScore) { bestScore = sc; best = i }
+            val score = mem.dead[i] + 0.5f * mem.met[i] + mem.fed[i]
+            if (mem.dead[i] + mem.met[i] >= APPOINT_MIN && score > bestScore) { bestScore = score; best = i }
         }
         if (best >= 0) { b.appointHex = mem.hex[best]; b.appointMonth = mem.season[best] * 3 + 1; meetings.merge("bands made an appointment", 1, Int::plus) }
     }
@@ -399,7 +400,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     if (b.ties.isNotEmpty()) {
         val keep = 1f - TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
         val it = b.ties.entries.iterator()
-        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * keep); if (kotlin.math.abs(e.value) < 0.01f) it.remove() }
+        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * keep); if (abs(e.value) < 0.01f) it.remove() }
     }
     // Country far from where it now lives fades from memory, a share of it a year.
     if (rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat()) {
@@ -435,8 +436,6 @@ const val RITE_SHIFT = 0.1f
 
 /** The founders' hold on their rites in lineage [lineage] (the same for every band of it, as [traditionsAt]). */
 fun riteStrengthAt(lineage: Int) = RITE_FOUNDER_MAX * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
-
-/** One of the places at hex [h], for a rite's site (the lowest-lying there is). */
 
 /**
  * A band's rites through the year (rounds on, see [ROUNDS]): about once a year a band whose rites

@@ -4,6 +4,11 @@ import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.Date
 import inflation.world.WorldConfig
+import inflation.ecology.Tuning
+import inflation.learning.MoverPolicy
+import inflation.learning.Role
+import inflation.learning.SharedMover
+import inflation.world.WorldCache
 
 /**
  * Where the migratory herds are by height through the year, how well fed they are
@@ -18,15 +23,15 @@ fun main(args: Array<String>) {
     val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
     val years = a.int("--years", 3)
     a.done()
-    val sim = HexSim(inflation.world.WorldCache.load(cfg) { })
+    val sim = HexSim(WorldCache.load(cfg) { })
     val hw = sim.hw; val land = sim.land; val herds = sim.groups
     // Every kind moving by learned role networks (nets=DIR), else by the hand-written choices.
     inflation.Config.string("nets")?.let { dir ->
-        val ps = inflation.learning.Role.entries.map { r -> inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(r.file(baselineDir(dir))), null, { 0f }, { 0 }) }
-        for (s in herds.kinds) herds.policies[s] = ps[inflation.learning.Role.of(s).ordinal]
+        val ps = Role.entries.map { r -> MoverPolicy(SharedMover.load(r.file(baselineDir(dir))), null, { 0f }, { 0 }) }
+        for (s in herds.kinds) herds.policies[s] = ps[Role.of(s).ordinal]
         println("moving by the learned networks in $dir")
     }
-    inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
+    Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     val elev = hw.placeElevationM
     fun band(p: Int) = when { elev[p] < 500 -> 0; elev[p] < 1000 -> 1; else -> 2 }
     val bands = listOf("low <500", "mid", "high >1000")

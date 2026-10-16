@@ -6,6 +6,8 @@ import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
 import kotlin.math.sqrt
+import inflation.ecology.HexFood
+import inflation.ecology.HexGroups
 
 /**
  * Whether the land gives the herds a reason to migrate, and whether they take it. For each herd
@@ -41,7 +43,7 @@ fun main(args: Array<String>) {
             if (!greenSeen[m]) { greenSeen[m] = true; for (p in 0 until n) green[m][p] = run.land.green[p] }
             if (seen[i][m]) continue
             seen[i][m] = true
-            // (As the herds themselves reckon it: see [inflation.ecology.HexGroups.herdQuality].)
+            // (As the herds themselves reckon it: see [HexGroups.herdQuality].)
             for (p in 0 until n) q[i][m][p] = run.groups.herdQuality(s, p, m)
         }
     }
@@ -64,7 +66,7 @@ fun main(args: Array<String>) {
             fun mean(f: (Int) -> Double) = ps.sumOf { f(it) * run.land.areaKm2[it] } / area
             val g = herds[gaz]
             println("height %4.0f-%4.0f m: %.0f km², ruggedness %.2f, a grazer gets at %.2f of it, grass %.3f kg/m², green month 5 %.2f, month 8 %.2f, gazelle quality month 5 %.2f".format(lo, hi, area,
-                mean { run.land.ruggedness[it].toDouble() }, mean { inflation.ecology.HexFood.access(g, run.land.crag[it]).toDouble() },
+                mean { run.land.ruggedness[it].toDouble() }, mean { HexFood.access(g, run.land.crag[it]).toDouble() },
                 mean { run.land.herb[it].toDouble() }, mean { green[5][it].toDouble() }, mean { green[8][it].toDouble() }, mean { q[gaz][5][it].toDouble() }))
         }
     }

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.Config
 
@@ -7,6 +8,13 @@ import inflation.world.Date
 import inflation.world.LifeForm
 import kotlin.math.max
 import kotlin.math.min
+import inflation.learning.Schema
+import inflation.world.Biome
+import inflation.world.Weather
+import java.util.stream.IntStream
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
 
 // What makes bands of people more than a pack: skills learned in practice, tools made from what the
 // country gives, and camps they stay in.
@@ -283,7 +291,7 @@ class Band {
         if (riteStrength <= 0f) return null
         // (A rite's month is spent at its site: the band is drawn there from the month before, as a
         // herd is to next month's place, and kept there until the month after, unless that has its own.)
-        val site = if (rite[month] >= 0) rite[month] else rite[(month + 11) % 12]
+        val site = if (rite[month] >= 0) rite[month] else rite[wrapMonth(month - 1)]
         return if (site >= 0) site to riteStrength else null
     }
     /**
@@ -315,11 +323,11 @@ class Band {
     /** How well it does at a kind of work, by the best of the variants it knows. */
     fun skill(d: Domain) = Skill.of(d).maxOf { if (knowsSkill[it.ordinal]) skill(it) * it.gain else 0f }
     /**
-     * What it knows of the plants of each kind of country ([inflation.world.Biome]), 0..1: which are
+     * What it knows of the plants of each kind of country ([Biome]), 0..1: which are
      * food, where and when they are found, and how to make them safe. Learned by gathering there and
      * from partners; on strange ground people find little and risk the wrong plants.
      */
-    val plants = FloatArray(inflation.world.Biome.entries.size)
+    val plants = FloatArray(Biome.entries.size)
     /** Share of the week it has had a fire going: warmth, cooked food. */
     var fire = 0f
     /**
@@ -512,14 +520,16 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band) {
     }
 }
 
+/** What [g]'s band can carry, kg: its adults' loads, more with baskets and bags. */
+private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
+
 /** [g]'s band at its camp in place [p] (hex [h]): moving camp caches what it cannot carry and leaves the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it has room for. */
 private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: Date) {
     if (h != b.campHex) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
         if (b.campHex >= 0) {
-            // What it can carry: its adults' loads, more with baskets and bags.
-            val carry = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
+            val carry = carryKg(g, b)
             val total = g.larder
             if (total > carry && b.campPlace >= 0) {
                 // (It chooses how much of what it cannot carry to cache; the rest is left where it lies.)
@@ -551,7 +561,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: D
         for (i in b.cache.indices) b.cache[i] *= 1f - CACHE_SPOIL
         small.litter[b.cachePlace] += spoilt / (land.areaKm2[b.cachePlace] * 1e6f)
         if (hw.placeHex[b.cachePlace] == h) {
-            val room = max(0f, CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET)) - g.larder)
+            val room = max(0f, carryKg(g, b) - g.larder)
             val take = min(b.cacheKg, room)
             val share = if (b.cacheKg > 0f) take / b.cacheKg else 0f
             for (i in b.cache.indices) { val x = b.cache[i] * share; b.cache[i] -= x; g.stores[i] += x }
@@ -751,7 +761,7 @@ private fun HexGroups.forget(b: Band) {
  * raises it. Its dogs breed when the band eats well, help it hunt and guard its camp.
  */
 private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
-    val years = days / inflation.world.Date.DAYS_PER_YEAR.toFloat()
+    val years = days / Date.DAYS_PER_YEAR.toFloat()
     val h = hw.placeHex[g.place]
     for (o in followersByHex[h].orEmpty()) {
         if (!o.alive) continue
@@ -917,7 +927,7 @@ val BAND_SITUATION = Illness.entries.size + 12 + Tradition.entries.size + Temper
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3 + BAND_SITUATION
 /**
  * A band's ways after its effort on each food, its store aim and its ranking of the tools, in the order of
- * [setWays]' outputs; [label] is the output's name in saved networks ([inflation.learning.Schema.WAYS_OUT]).
+ * [setWays]' outputs; [label] is the output's name in saved networks ([Schema.WAYS_OUT]).
  */
 enum class BandWay(val label: String) {
     SCOUTS("scouts"),
@@ -945,11 +955,11 @@ enum class BandWay(val label: String) {
 val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + BandWay.entries.size
 
 /** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
-internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather, into: FloatArray) {
+internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArray) {
     val b = g.band ?: return
     var i = 0
     val angle = 2.0 * Math.PI * weather.date.dayOfYear / Date.DAYS_PER_YEAR
-    into[i++] = kotlin.math.sin(angle).toFloat(); into[i++] = kotlin.math.cos(angle).toFloat()
+    into[i++] = sin(angle).toFloat(); into[i++] = cos(angle).toFloat()
     into[i++] = g.fed
     val total = g.larder
     into[i++] = total / max(1e-3f, 60f * g.dailyNeedKg)
@@ -997,11 +1007,11 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: inflation.world.Weather,
  * Every band's view of itself and of the bands about it, as the week starts ([Band.state]), for the
  * people networks to choose by: worked out once, before any band moves.
  */
-internal fun HexGroups.fillBandStates(weather: inflation.world.Weather) {
+internal fun HexGroups.fillBandStates(weather: Weather) {
     bandIndex.clear()
     for (g in groups) if (g.alive && g.band != null) bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     val list = groups.filter { it.alive && it.band != null }
-    java.util.stream.IntStream.range(0, list.size).parallel().forEach { k ->
+    IntStream.range(0, list.size).parallel().forEach { k ->
         val g = list[k]; val b = g.band!!
         if (b.state.size != WAYS_IN) b.state = FloatArray(WAYS_IN)
         bandInputs(g, weather, b.state)
@@ -1010,13 +1020,13 @@ internal fun HexGroups.fillBandStates(weather: inflation.world.Weather) {
 }
 
 /** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [STORE_AIM_DAYS], every tool alike). */
-internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
+internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
     val b = g.band ?: return
     bandInputs(g, weather, inputs)
     out.fill(0f)
     ways.choose(g, inputs, out)
     if (g.id == watched) control?.ways(g, out)
-    fun squash(x: Float) = 2f / (1f + kotlin.math.exp(-x))
+    fun squash(x: Float) = 2f / (1f + exp(-x))
     fun way(w: BandWay) = squash(out[w.slot])
     for (t in 0 until FOOD_TYPES) b.effort[t] = squash(out[t])
     b.storeAim = STORE_AIM_DAYS * squash(out[FOOD_TYPES])

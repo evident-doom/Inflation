@@ -8,6 +8,7 @@ import inflation.ecology.Catalogue
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
 import inflation.ui.ViewLayers.Measure
+import inflation.world.Date
 import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.World
@@ -39,6 +40,29 @@ import javax.swing.Timer
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import inflation.ecology.HexHistory
+import inflation.ecology.HexSnapshot
+import inflation.ecology.HexWater
+import inflation.ecology.Material
+import inflation.ecology.Skill
+import inflation.ecology.Species
+import inflation.ecology.Tool
+import inflation.ecology.Tradition
+import inflation.learning.MoverPolicy
+import inflation.learning.NetAnimalWays
+import inflation.learning.NetWays
+import inflation.learning.Role
+import inflation.learning.Schema
+import inflation.learning.SharedMover
+import inflation.world.Biome
+import inflation.world.WorldCache
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.ln
+import kotlin.math.log10
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,
@@ -66,7 +90,7 @@ fun main(args: Array<String>) {
     frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
     frame.isVisible = true
     Thread {
-        val world = inflation.world.WorldCache.load(cfg) { step -> SwingUtilities.invokeLater { status.text = "Generating: $step…" } }
+        val world = WorldCache.load(cfg) { step -> SwingUtilities.invokeLater { status.text = "Generating: $step…" } }
         SwingUtilities.invokeLater { status.text = "Summarising into hexes and drawing the ground…" }
         val view = HexViewer(world, load, nets, ways)
         SwingUtilities.invokeLater {
@@ -89,6 +113,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     /** The rivers as they run this week, drawn over the ground (see [RiverOverlay]). */
     private val rivers = RiverOverlay(world, hex, land)
     private val commands = ConcurrentLinkedQueue<() -> Unit>()
+    /** Held by the simulation's thread while it changes the world; the windows read it only when it stands still. */
+    private val worldLock = WorldLock()
     @Volatile private var running = false
     @Volatile private var stepsPerSecond = 2
 
@@ -116,7 +142,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     @Volatile private var followLog = ""
 
     /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
-    private val control by lazy { GroupControlWindow(sim, ground, px, rivers, requestStep = { commands += { advance() } }, running = { running }) }
+    private val control by lazy { GroupControlWindow(sim, ground, px, rivers, worldLock, requestStep = { commands += { advance() } }, running = { running }) }
 
     /**
      * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
@@ -139,7 +165,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private val lastDrawn = HashMap<Int, Pair<Float, Float>>()
     @Volatile private var shown = emptyList<Shown>()
     @Volatile private var frame = 0
-    private var frames = 1
+    @Volatile private var frames = 1
     private val date = JLabel()
     /**
      * The kinds and their numbers along the bottom, as buttons: pressing one shows where that kind is
@@ -147,10 +173,10 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
      */
     private val kindButtons = ArrayList<javax.swing.JToggleButton>()
     /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
-    @Volatile private var onlyKind: inflation.ecology.Species? = null
+    @Volatile private var onlyKind: Species? = null
     /** Life in the water to show as a tint: fish of the sea and lakes, river fish, shellfish, and each kind of sea animal (densities per hex). */
     private val waterLayers by lazy { listOf<Pair<String, FloatArray>>("sea and lake fish" to fauna.water.fish, "river fish" to fauna.water.riverFish, "shellfish" to fauna.water.shellfish) +
-        inflation.ecology.HexWater.SEA.mapIndexed { i, k -> k.name to fauna.water.sea[i] } }
+        HexWater.SEA.mapIndexed { i, k -> k.name to fauna.water.sea[i] } }
     private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray() + waterLayers.map { "water: " + it.first }.toTypedArray()) }
     private val map = MapPanel()
     /** The hex being inspected, -1 for none, and its groups. */
@@ -177,7 +203,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(modeChoice); bar.add(causeChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(pathsBox); bar.add(windBox); bar.add(riversBox); bar.add(pullChoice)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
-        val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { inflation.ecology.HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
+        val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
         val open = JButton("Load…"); open.addActionListener { chooseFile(false)?.let { f -> commands += { loadWorld(f) } } }
         // Following a group is the follow window: open it on the group picked in the list.
         val follow = JButton("Follow…")
@@ -228,7 +254,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     /** Carries on the world saved in [f] (on the simulation's thread). */
     private fun loadWorld(f: java.io.File) {
         try {
-            inflation.ecology.HexSnapshot.load(sim, f)
+            HexSnapshot.load(sim, f)
             layers.reset()
             useNetworks()
             lastDrawn.clear()
@@ -239,7 +265,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     }
 
     /** Week-by-week history of everything worth watching, for the graphs. */
-    private val history = inflation.ecology.HexHistory()
+    private val history = HexHistory()
 
     private fun advance() {
         sim.step()
@@ -253,19 +279,19 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private fun useNetworks() {
         nets?.let { name ->
             val dir = inflation.tools.baselineDir(name)
-            for (role in inflation.learning.Role.entries) {
+            for (role in Role.entries) {
                 val f = role.file(dir).takeIf { it.exists() } ?: continue
-                val p = inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(f), null, { 0f }, { 0 })
-                for (s in groups.kinds) if (inflation.learning.Role.of(s) == role) groups.policies[s] = p
+                val p = MoverPolicy(SharedMover.load(f), null, { 0f }, { 0 })
+                for (s in groups.kinds) if (Role.of(s) == role) groups.policies[s] = p
             }
-            java.io.File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(it, inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
-            java.io.File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(it, inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
+            java.io.File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let { groups.herdWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT)) }
+            java.io.File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let { groups.hunterWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
         }
         (waysFile ?: nets?.let { java.io.File(inflation.tools.baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
-            groups.ways = inflation.learning.NetWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.WAYS_IN, inflation.learning.Schema.WAYS_OUT))
+            groups.ways = NetWays(Schema.load(java.io.File(it), Schema.WAYS_IN, Schema.WAYS_OUT))
         }
-        Config.string("herdWays")?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
-        Config.string("hunterWays")?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
+        Config.string("herdWays")?.let { groups.herdWays = NetAnimalWays(Schema.load(java.io.File(it), Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT)) }
+        Config.string("hunterWays")?.let { groups.hunterWays = NetAnimalWays(Schema.load(java.io.File(it), Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
     }
 
     private fun snapshot() {
@@ -281,7 +307,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             val slots = inHex.getValue(h); val slot = slotOf.getValue(g.id)
             val r = if (slots > 1) min(3.5, 1.2 + 0.35 * slots) else 0.0
             val a = 2 * Math.PI * slot / max(1, slots)
-            val end = (hx + r * kotlin.math.cos(a)).toFloat() to (hy + r * kotlin.math.sin(a)).toFloat()
+            val end = (hx + r * cos(a)).toFloat() to (hy + r * sin(a)).toFloat()
             // From where it was drawn last, through the centres of the hexes passed, to its spot.
             val pts = ArrayList<Float>()
             val start = lastDrawn[g.id] ?: end
@@ -298,21 +324,21 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         followLog = if (groups.watched >= 0) groups.watchLog.joinToString("\n") else ""
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
         frames = max(8, 30 / stepsPerSecond); frame = 0
+        // (The texts are made here, on the simulation's thread, from the world as the week left it.)
+        val dateText = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
+        val all = fauna.kinds + groups.kinds
+        val kindTexts = all.mapIndexed { i, s -> "${s.name} " + (if (i < fauna.kinds.size) "%.0f".format(fauna.count(i)) else "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}") }
         SwingUtilities.invokeLater {
-            date.text = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
-            val all = fauna.kinds + groups.kinds
-            for ((i, b) in kindButtons.withIndex()) {
-                val s = all[i]
-                b.text = "${s.name} " + (if (i < fauna.kinds.size) "%.0f".format(fauna.count(i)) else "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}")
-            }
+            date.text = dateText
+            for ((i, b) in kindButtons.withIndex()) b.text = kindTexts[i]
         }
     }
 
     private fun loop() {
         var last = 0L
         while (true) {
-            while (true) { val c = commands.poll() ?: break; c() }
-            if (running && frame >= frames && System.nanoTime() - last > 1_000_000_000L / stepsPerSecond) { last = System.nanoTime(); advance() }
+            while (true) { val c = commands.poll() ?: break; worldLock.changing(c) }
+            if (running && frame >= frames && System.nanoTime() - last > 1_000_000_000L / stepsPerSecond) { last = System.nanoTime(); worldLock.changing { advance() } }
             else Thread.sleep(5)
         }
     }
@@ -347,9 +373,14 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             addMouseListener(mouse); addMouseMotionListener(mouse); addMouseWheelListener(mouse)
         }
 
+        private val painter = worldLock.Painter(this)
+
         override fun paintComponent(g0: Graphics) {
             super.paintComponent(g0)
-            val g = g0 as Graphics2D
+            painter.paint(g0) { paintMap(it) }
+        }
+
+        private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             g.drawImage(ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
             val kmPx = px * scale
@@ -359,7 +390,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             // The chosen measure as a tint over the hexes (see [ViewLayers]), shown as the mode says.
             val tint = Measure.entries[tintChoice.selectedIndex]
             if (tint != Measure.NONE) {
-                val rad = hex.hexKm / kotlin.math.sqrt(3.0)
+                val rad = hex.hexKm / sqrt(3.0)
                 val mode = ViewLayers.Mode.entries[modeChoice.selectedIndex]
                 val key = layers.key(tint, causeChoice.selectedIndex)
                 val colours = arrayOfNulls<Color>(hex.size)
@@ -368,8 +399,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 for (h in 0 until hex.size) {
                     val colour = colours[h] ?: continue
                     val (cx, cy) = hex.centreKm(h)
-                    val xs = IntArray(6) { sx((cx + rad * kotlin.math.cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                    val ys = IntArray(6) { sy((cy + rad * kotlin.math.sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                    val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                    val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                     g.color = colour; g.fillPolygon(xs, ys, 6)
                 }
             } else if (legendText.text.isNotEmpty()) SwingUtilities.invokeLater { legendText.text = "" }
@@ -389,8 +420,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                     val x1 = sx(cx.toFloat() + u / speed * len); val y1 = sy(cy.toFloat() + v / speed * len)
                     g.color = Color(1f, 1f, 1f, (0.4f + 0.6f * min(1f, speed / 12f)))
                     g.drawLine(x0, y0, x1, y1)
-                    val ang = kotlin.math.atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
-                    for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * kotlin.math.cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * kotlin.math.sin(ang + sgn * 0.5)).toInt())
+                    val ang = atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
+                    for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * sin(ang + sgn * 0.5)).toInt())
                 }
             }
             // A kind's sense of where better country lies, as yellow arrows, longer the stronger.
@@ -410,14 +441,14 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                     val x1 = sx(cx.toFloat() + u / st * len); val y1 = sy(cy.toFloat() + v / st * len)
                     g.color = Color(1f, 0.85f, 0.1f, (0.4f + 0.6f * min(1f, st * 2f)))
                     g.drawLine(x0, y0, x1, y1)
-                    val ang = kotlin.math.atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
-                    for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * kotlin.math.cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * kotlin.math.sin(ang + sgn * 0.5)).toInt())
+                    val ang = atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
+                    for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * sin(ang + sgn * 0.5)).toInt())
                 }
             }
             // A resident kind's density as a tint over the hexes.
             val r = residentChoice.selectedIndex - 1
             if (r >= 0) {
-                val rad = hex.hexKm / kotlin.math.sqrt(3.0)
+                val rad = hex.hexKm / sqrt(3.0)
                 val dens = DoubleArray(hex.size); val area = DoubleArray(hex.size)
                 for (p in 0 until fauna.n) { val h = hw.placeHex[p]; area[h] += land.areaKm2[p].toDouble() }
                 if (r < fauna.kinds.size) for (p in 0 until fauna.n) dens[hw.placeHex[p]] += ((fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p]).toDouble()
@@ -433,10 +464,10 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 for (h in 0 until hex.size) {
                     if (area[h] <= 0) continue
                     if (dens[h] <= 0) continue
-                    val v = kotlin.math.sqrt(dens[h] / area[h] / top).toFloat().coerceIn(0.15f, 1f)
+                    val v = sqrt(dens[h] / area[h] / top).toFloat().coerceIn(0.15f, 1f)
                     val (cx, cy) = hex.centreKm(h)
-                    val xs = IntArray(6) { sx((cx + rad * kotlin.math.cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                    val ys = IntArray(6) { sy((cy + rad * kotlin.math.sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                    val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                    val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                     g.color = Color(1f, 0.1f, 0.6f, 0.6f * v); g.fillPolygon(xs, ys, 6)
                 }
             }
@@ -470,9 +501,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             // The hex being inspected.
             if (picked >= 0) {
                 val (cx, cy) = hex.centreKm(picked)
-                val rad = hex.hexKm / kotlin.math.sqrt(3.0)
-                val xs = IntArray(6) { sx((cx + rad * kotlin.math.cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                val ys = IntArray(6) { sy((cy + rad * kotlin.math.sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                val rad = hex.hexKm / sqrt(3.0)
+                val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                 g.stroke = java.awt.BasicStroke(2.5f); g.color = Color.WHITE; g.drawPolygon(xs, ys, 6); g.stroke = java.awt.BasicStroke(1f)
             }
             // The groups, each part of the way along the hexes it walked this week; at the end of the
@@ -532,17 +563,17 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             if (l.isEmpty()) return 0f to 1f
             return l[(l.size * 0.05).toInt()] to l[(l.size * 0.95).toInt().coerceAtMost(l.size - 1)]
         }
-        fun f(x: Float) = when { kotlin.math.abs(x) >= 100 -> "%.0f".format(x); kotlin.math.abs(x) >= 1 -> "%.1f".format(x); else -> "%.3g".format(x) }
+        fun f(x: Float) = when { abs(x) >= 100 -> "%.0f".format(x); abs(x) >= 1 -> "%.1f".format(x); else -> "%.3g".format(x) }
         fun shade(h: Int, a: Float) { out[h] = rgba(tint.r, tint.g, tint.b, a) }
         val kept = layers.monthsKept(key)
         when (mode) {
             ViewLayers.Mode.WEEK -> {
                 if (tint.weeks) {
-                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) shade(h, 0.05f + 0.75f * min(1f, kotlin.math.ln(1f + v[h]) / kotlin.math.ln(1f + 104f)))
+                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) shade(h, 0.05f + 0.75f * min(1f, ln(1f + v[h]) / ln(1f + 104f)))
                     return "${tint.label}: what lies there over what went in a week. Pale: gone within days; full: two years or more (accumulating)."
                 }
                 if (tint == Measure.HUNTERS_PER_PREY) {
-                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) { val l = (kotlin.math.log10(v[h]) / 1.5f).coerceIn(-1f, 1f); out[h] = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l) }
+                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) { val l = (log10(v[h]) / 1.5f).coerceIn(-1f, 1f); out[h] = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l) }
                     return "Hunters per prey, kg per 100 kg over a hex and its ring (people not counted). Clear at 1, about what prey carries of one carnivore kind in nature (Carbone & Gittleman 2002); red above (full at 30), blue below (full at 0.03)."
                 }
                 fixedColour(tint, v, out)?.let { return it }
@@ -583,8 +614,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 val r = layers.yearAgo(key, tint.signed) ?: return "${tint.label}: needs the same month twice (a year and a month of record)"
                 for (h in r.indices) {
                     if (r[h].isNaN()) continue
-                    val x = if (tint.signed) (r[h] / 5f).coerceIn(-1f, 1f) else (kotlin.math.ln(r[h]) / kotlin.math.ln(4f)).coerceIn(-1f, 1f)
-                    if (kotlin.math.abs(x) < 0.05f) continue
+                    val x = if (tint.signed) (r[h] / 5f).coerceIn(-1f, 1f) else (ln(r[h]) / ln(4f)).coerceIn(-1f, 1f)
+                    if (abs(x) < 0.05f) continue
                     out[h] = if (x > 0) rgba(0.9f, 0.15f, 0.1f, 0.1f + 0.65f * x) else rgba(0.1f, 0.35f, 0.95f, 0.1f - 0.65f * x)
                 }
                 val month = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")[layers.lastMonth]
@@ -620,7 +651,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 Measure.BITING -> rgba(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
                 Measure.POLLINATORS -> rgba(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
                 Measure.ORGANIC -> rgba(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
-                Measure.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.05f + 0.75f * min(1f, kotlin.math.ln(1f + v) / kotlin.math.ln(1f + 600f)))) // log scale: 1 to 600 kg/km²
+                Measure.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.05f + 0.75f * min(1f, ln(1f + v) / ln(1f + 600f)))) // log scale: 1 to 600 kg/km²
                 Measure.FOXES -> rgba(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
                 Measure.OWLS -> rgba(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
                 Measure.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
@@ -632,7 +663,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     }
 
     /** Fills the side panel with what is in hex [h]: its ground, weather, plants, resident herds and borders, and the groups standing in it. */
-    private fun inspect(h: Int) {
+    private fun inspect(h: Int) = worldLock.whileStill { inspectNow(h) }
+
+    private fun inspectNow(h: Int) {
         val sb = StringBuilder()
         val (cx, cy) = hex.centreKm(h)
         sb.appendLine("Hex %d at (%.0f, %.0f) km%s".format(h, cx, cy, if (hex.water[h]) " - water" else ""))
@@ -695,11 +728,13 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
         while (groupList.size() > rows.size) groupList.removeElementAt(groupList.size() - 1)
         val again = groupIds.indexOf(picked)
-        if (again >= 0) { groupView.selectedIndex = again; showGroup() } else { groupView.clearSelection(); groupInfo.text = "" }
+        if (again >= 0) { groupView.selectedIndex = again; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = "" }
     }
 
     /** Shows the group picked in the list. */
-    private fun showGroup() {
+    private fun showGroup() = worldLock.whileStill { showGroupNow() }
+
+    private fun showGroupNow() {
         val i = groupView.selectedIndex
         if (i < 0 || i >= groupIds.size) return
         val g = groups.groups.firstOrNull { it.id == groupIds[i] } ?: return
@@ -712,16 +747,16 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         if (g.days.isNotEmpty()) sb.appendLine("entering them on days: " + g.days.joinToString(" ") { "%.1f".format(it) })
         g.band?.let { b ->
             sb.appendLine("larder %.0f kg (%.0f days); camp kept %d weeks".format(g.larder, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f), b.campWeeks))
-            sb.appendLine("skills: " + inflation.ecology.Skill.entries.filter { b.knowsSkill[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.skills[it.ordinal]) })
-            sb.appendLine("tools: " + inflation.ecology.Tool.entries.filter { b.knows[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
+            sb.appendLine("skills: " + Skill.entries.filter { b.knowsSkill[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.skills[it.ordinal]) })
+            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
             sb.appendLine("elders %d; children inbred %.3f; descent mostly lineage %d".format(b.elders, b.inbred, b.mainLineage()))
-            if (b.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") { "%.0f %s".format(it.value, if (inflation.ecology.Catalogue.all[it.index].name == "wolf") "dogs" else "tame " + inflation.ecology.Catalogue.all[it.index].name) })
-            sb.appendLine("customs: " + inflation.ecology.Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }.ifEmpty { "none" })
-            sb.appendLine("goods: " + inflation.ecology.Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it.ordinal]) })
+            if (b.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") { "%.0f %s".format(it.value, if (Catalogue.all[it.index].name == "wolf") "dogs" else "tame " + Catalogue.all[it.index].name) })
+            sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }.ifEmpty { "none" })
+            sb.appendLine("goods: " + Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it.ordinal]) })
         }
         if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat from herds met this week %.0f kg".format(if (g.home >= 0) g.home.toString() else "none", g.meatMet))
         else {
-            val months = (0 until 12).filter { g.seasonPlace[it] >= 0 }
+            val months = (0 until Date.MONTHS_PER_YEAR).filter { g.seasonPlace[it] >= 0 }
             sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
         }
         if (g.id == groups.watched && followLog.isNotEmpty()) { sb.appendLine(); sb.appendLine("this week:"); sb.appendLine(followLog) }
@@ -733,7 +768,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
      * are, how green, and the fruit and dry fodder this season.
      */
     private fun describe(h: Int): String {
-        val names = inflation.world.Biome.entries.map { it to hw.biome[it.ordinal][h] }.filter { it.second >= 0.1f }.sortedByDescending { it.second }
+        val names = Biome.entries.map { it to hw.biome[it.ordinal][h] }.filter { it.second >= 0.1f }.sortedByDescending { it.second }
         val parts = ArrayList<String>()
         if (hw.sea[h] > 0.3f) parts += "%s sea".format(share(hw.sea[h]))
         if (hw.lake[h] > 0.1f) parts += "%s lake".format(share(hw.lake[h]))
@@ -765,7 +800,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
 
     /** A colour from blue (0) through green and yellow to red (1), with alpha [a]. */
     private fun heat(v: Float, a: Float): Color {
-        val r = (1.5f * v - 0.25f).coerceIn(0f, 1f); val g = (1f - kotlin.math.abs(v - 0.5f) * 2f).coerceIn(0f, 1f); val b = (1f - 1.5f * v).coerceIn(0f, 1f)
+        val r = (1.5f * v - 0.25f).coerceIn(0f, 1f); val g = (1f - abs(v - 0.5f) * 2f).coerceIn(0f, 1f); val b = (1f - 1.5f * v).coerceIn(0f, 1f)
         return Color(r, g, b, a)
     }
 

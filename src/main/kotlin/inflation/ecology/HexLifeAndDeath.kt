@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.world.Date
 import inflation.world.HexLand
@@ -11,6 +12,10 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.min
 import kotlin.random.Random
+import inflation.world.Biome
+import java.util.concurrent.atomic.DoubleAdder
+import java.util.stream.IntStream
+import kotlin.math.abs
 
 // Grazing, births and deaths, splitting, and what herds remember of the seasons.
 
@@ -29,7 +34,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     val near = ArrayList<Int>()
     for (p in 0 until n) {
         val (cx, cy) = hex.centreKm(hw.placeHex[p])
-        if (kotlin.math.abs(cx - hx) <= reachKm && kotlin.math.abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm) near += p
+        if (abs(cx - hx) <= reachKm && abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm) near += p
     }
     if (near.isEmpty()) return
     var top = 0f
@@ -89,7 +94,7 @@ internal fun HexGroups.graze(weather: Weather) {
             val access = HexFood.access(s, land.crag[p]) * (if (HERD_WATER_TIE) fauna.tether(s, p) else 1f) * (1f - HexSmallLife.HARASS_FEED * small.harassment(p))
             val snowed = weather.snowpack[p] > s.snowLimitMm
             // (Its diet as it leans this week: its kind's, weighted by its own choice.)
-            val d = s.diet.let { k -> inflation.ecology.Diet(grass = k.grass * g.will[AnimalWay.GRASS], browse = k.browse * g.will[AnimalWay.BROWSE], fruit = k.fruit * g.will[AnimalWay.FRUIT], roots = k.roots * g.will[AnimalWay.FRUIT]) }
+            val d = s.diet.let { k -> Diet(grass = k.grass * g.will[AnimalWay.GRASS], browse = k.browse * g.will[AnimalWay.BROWSE], fruit = k.fruit * g.will[AnimalWay.FRUIT], roots = k.roots * g.will[AnimalWay.FRUIT]) }
             val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
             val reach = HexFauna.REACH_DORMANT + (HexFauna.REACH - HexFauna.REACH_DORMANT) * land.green[p]
             // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
@@ -216,7 +221,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     // the counts, a split-off herd) is gathered and handed on after, in the groups' order.
     val list = groups.toList()
     val outcome = arrayOfNulls<Outcome>(list.size)
-    java.util.stream.IntStream.range(0, list.size).parallel().forEach { k ->
+    IntStream.range(0, list.size).parallel().forEach { k ->
         val g = list[k]
         if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
     }
@@ -244,7 +249,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
         if (ROUNDS && !s.carnivore && g.route[0] != -1) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) deaths.merge("${s.name} $way:born", o.births, Int::plus) }
-        if (s.human) { val c = inflation.world.Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' '); for ((cause, k) in o.causes) if (k > 0) hunting.merge("bands in $c:died of $cause", k, Int::plus); if (o.births > 0) hunting.merge("bands in $c:born", o.births, Int::plus) }
+        if (s.human) { val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' '); for ((cause, k) in o.causes) if (k > 0) hunting.merge("bands in $c:died of $cause", k, Int::plus); if (o.births > 0) hunting.merge("bands in $c:born", o.births, Int::plus) }
         if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
         if (s.human && o.youngDied > 0) hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
@@ -316,199 +321,245 @@ internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, v
 
 /** One group's week of feeding on its reserves, births, deaths and growing up; with its own random stream [r]. */
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
-    run {
-        val s = g.species
-        // Reserves carry a group through lean weeks; a group that ate (nearly) its fill lays them on,
-        // most in late summer and autumn. (Only a full 100% used to count, which a pack or band that
-        // hunts and gathers seldom reaches exactly: they never laid on reserves.)
-        if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
-        else g.fat = min(s.maxFatDays, g.fat + FAT_EFFICIENCY * g.surplus)
-        g.surplus = 0f
-        if (g.birthMonth < 0) g.birthMonth = s.birthMonth
-        // Once a year its births move a month towards the months it fed best in (the birth month and the two after).
-        if (date.month == 3 && date.dayOfMonth <= days && !s.carnivore) {
-            // (How well fed, and on how rich a diet, in the months the young would be born and suckled.)
-            fun window(m0: Int) = (0 until 3).sumOf { (g.seasonQ[(m0 + it + 12) % 12] * g.proteinByMonth[(m0 + it + 12) % 12]).toDouble() }
-            val m = g.birthMonth
-            // (Or it moves them itself, when it leans far enough one way, see [AnimalWay.BIRTHS].)
-            val lean = g.will[AnimalWay.BIRTHS] - 1f
-            if (lean < -AnimalWay.BIRTHS_LEAN) g.birthMonth = (m + 11) % 12
-            else if (lean > AnimalWay.BIRTHS_LEAN) g.birthMonth = (m + 1) % 12
-            else if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = (m + 11) % 12
-            else if (window(m + 1) > window(m) + 0.1) g.birthMonth = (m + 1) % 12
+    val s = g.species
+    feedOnReserves(g)
+    moveBirthMonth(g, date)
+    val inSeason = monthsFrom(g.birthMonth, date.month) < s.birthMonths
+    var bornNow = 0
+    var bornExpected = 0f
+    // In a band, the elders are past bearing children; they help their daughters raise theirs.
+    val band = g.band
+    val mothers = mothersIn(g)
+    val help = if (band != null) min(1f, band.elders * ELDER_MOTHERS / max(1, mothers)) else 0f
+    // (Births follow one rule for every kind, groups and residents alike: each mother bears her
+    // litter as she is fed, through the birth season; only where just the leading pair of a pack
+    // breeds ([Species.packLitter]: wolves) is there one litter a pack. A pack bears only on ground of its own.)
+    if (inSeason && g.adults >= 2 && !(s.carnivore && !s.human && g.home < 0)) {
+        val births = if (s.packLitter > 0) {
+            if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
+        } else {
+            val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
+            val rate = s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * Tuning.humanBirths else 1f) * (1f + GRANDMOTHERS * help) / stepsInSeason
+            bornExpected = mothers * min(1f, rate)
+            // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
+            binomial(mothers, rate * (if (s.carnivore) 1f else g.protein * herdRanges(g, kinNow)), r)
         }
-        val inSeason = monthsFrom(g.birthMonth, date.month) < s.birthMonths
-        var bornNow = 0
-        var bornExpected = 0f
-        // In a band, the elders are past bearing children; they help their daughters raise theirs.
-        val band = g.band
-        // Women bear most in their twenties and early thirties: few in their teens, fewer after
-        // thirty-five, none past the childbearing years (the elders).
-        val mothers = if (band != null) {
-            val first = max(0, g.adults - band.elders - band.ageStage[0] - band.ageStage[1])
-            ((FERTILE_BY_SPAN[0] * first + FERTILE_BY_SPAN[1] * band.ageStage[0] + FERTILE_BY_SPAN[2] * band.ageStage[1]) / 2f).toInt()
-        } else g.adults / 2
-        val help = if (band != null) min(1f, band.elders * ELDER_MOTHERS / max(1, mothers)) else 0f
-        // (Births follow one rule for every kind, groups and residents alike: each mother bears her
-        // litter as she is fed, through the birth season; only where just the leading pair of a pack
-        // breeds ([Species.packLitter]: wolves) is there one litter a pack. A pack bears only on ground of its own.)
-        if (inSeason && g.adults >= 2 && !(s.carnivore && !s.human && g.home < 0)) {
-            val births = if (s.packLitter > 0) {
-                if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
-            } else {
-                val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                val rate = s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * Tuning.humanBirths else 1f) * (1f + GRANDMOTHERS * help) / stepsInSeason
-                bornExpected = mothers * min(1f, rate)
-                // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
-                binomial(mothers, rate * (if (s.carnivore) 1f else g.protein * herdRanges(g, kinNow)), r)
-            }
-            g.young += births
-            bornNow = births
-            // The young are made of what their mothers ate: their weight comes off the mothers' reserves.
-            if (births > 0) g.fat = max(0f, g.fat - births * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / max(1, g.adults / 2))
+        g.young += births
+        bornNow = births
+        // The young are made of what their mothers ate: their weight comes off the mothers' reserves.
+        if (births > 0) g.fat = max(0f, g.fat - births * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / max(1, g.adults / 2))
+    }
+    val hunger = if (g.fed < HexFauna.HUNGER_FROM) (HexFauna.HUNGER_FROM - g.fed) * HexFauna.HUNGER_RATE else 0f
+    // People feel the cold as their clothes allow.
+    // Exposure: the unprotected die of the cold within days.
+    val exposure = g.band?.let { min(0.9f, EXPOSURE * it.exposure(weather.temperature[g.place]) * days / 7f) } ?: 0f
+    val cold = (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: discomfort(s, g.place, weather)) * 0.02f
+    val fouled = campFouling(g) * years
+    // Wounds: mishaps of the work (the further the gatherers range, the more), and those hurt in
+    // fights, hunts and by beasts last week; tended wounds heal faster, fester less and lame fewer.
+    val festered = if (s.human && band != null) woundsWeek(band) else 0f
+    // Beasts of prey about: now and then one takes a gatherer, a child or an old one alone.
+    val (stalked, stalker) = if (s.human && band != null) stalkedBy(g, band, kinNow) else Stalking.NONE
+    // Vipers and scorpions, out in the warm months.
+    val venom = if (s.human && weather.temperature[g.place] > 18f) VENOM * years else 0f
+    // Children of a closed band are inbred; medicine saves some of the sick and wounded.
+    val inbred = if (band != null) INBREEDING_DEATHS * band.inbred * years else 0f
+    // (Healers save some of the sick and wounded, the more the more they know.)
+    val healed = (if (band?.holds(Tradition.MEDICINE) == true) 0.85f else 1f) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
+    // (And practised midwives and carers lose fewer infants.)
+    val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
+    // Sicknesses of their own: the flux, marsh fever, the cough (see [Illness]); healers save some.
+    val ill = if (s.human && band != null) illnessWeek(g, band, weather, r).also { for (i in it.indices) it[i] *= healed } else null
+    val illAdults = ill?.sum() ?: 0f
+    val illYoung = ill?.let { a -> Illness.entries.sumOf { (a[it.ordinal] * it.young).toDouble() }.toFloat() } ?: 0f
+    val thirst = thirstWeek(g)
+    // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
+    val plague = fauna.outbreakDeaths(s, g.place)
+    val disease = plague + sicknessWeek(g, weather, kinNow, r)
+    g.wary *= WARY_KEEP
+    // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
+    val homeless = if (s.carnivore && !s.human && g.home < 0) DISPERSAL_DEATHS * years else 0f
+    // Eagles take the young of the smaller hoofed animals in the open.
+    val eagle = if (!s.human && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
+    val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
+    val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
+    val adultOdds = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults + festered).coerceIn(0f, 0.9f)
+    val croc = if (s.human) 0f else fauna.water.crocodileRisk(g.place, weather) * years
+    if (s.human && g.young > 0) {
+        val care = g.young * (1f - ELDER_CARE * help)
+        fun add(name: String, v: Float) { if (v > 0f) childDeaths.computeIfAbsent(name) { DoubleAdder() }.add((care * v).toDouble()) }
+        add("infancy and ordinary illness", healed * cared * s.youngMortality * Tuning.humanYoung * years)
+        add("hunger", 1.5f * hunger); add("cold and exposure", 1.5f * (cold + exposure)); add("thirst", 1.5f * thirst)
+        add("crowd sickness and outbreaks", disease); add("fire, flood and snow", fireY + floodY + snowY); add("camp fouling", fouled)
+        add("inbreeding", inbred); add("snakes and scorpions", venom)
+        add("taken by beasts", YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked)
+        ill?.let { a -> for (it in Illness.entries) add(it.label, a[it.ordinal] * it.young) }
+    }
+    // (Young plant-eaters short of protein grow slowly and die more.)
+    val starved = if (s.carnivore) 0f else HexFauna.YOUNG_PROTEIN_DEATHS * (1f - g.protein) * years
+    val youngOdds = ((starved + healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
+    val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
+    // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
+    val diedExpected = g.adults * adultOdds + g.young * youngOdds + (band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f)
+    // Elders die as the others do (their share of the adults who died), and of old age besides.
+    adultsDied(g, da, r)
+    var oldAge = 0
+    if (band != null) {
+        oldAge = binomial(band.elders, ELDER_DEATHS * years, r)
+        band.elders -= oldAge; g.adults -= oldAge
+    }
+    if (s.human) g.luck += (bornNow - bornExpected) - (da + dy + oldAge - diedExpected)
+    // The sick and the newborn teach their carers.
+    band?.let { b -> if (disease > 0f || da > 0) b.practise(Skill.HERBS, 0.2f * PRACTICE); if (bornNow > 0) b.practise(Skill.MIDWIFERY) }
+    g.young -= dy
+    // The dead lie where they fell, for the scavengers and the soil.
+    var carrion = (da + oldAge + 0.3f * dy) * s.massKg
+    // The week's deaths are shared among the causes by how much each weighed ("other": age, accidents, ordinary illness).
+    val hazards = listOf("other" to healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, "hunger" to hunger, "cold" to cold, "exposure" to exposure, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "snakes and scorpions" to venom, "inbreeding" to inbred, "taken by $stalker" to stalked, "wounds" to festered) + (ill?.let { a -> Illness.entries.map { it.label to a[it.ordinal] * (1f + it.young) / 2f } } ?: emptyList())
+    val causes = shareDeaths(hazards, da + dy, r)
+    if (oldAge > 0) causes += "old age" to oldAge
+    growUp(g, r)
+    if (g.adults == 0) {
+        // Young left without a grown animal of their kind die.
+        val orphans = g.young
+        carrion += 0.3f * orphans * s.massKg
+        g.young = 0
+        return Outcome(carrion, bornNow, da + oldAge + dy, causes, orphans, null, dy + orphans)
+    }
+    var split: Pair<Int, Int>? = null
+    // Bands that feast together hold together longer.
+    if (g.size > maxSize(g, date)) {
+        split = (g.adults / 2) to (g.young / 2)
+        g.adults -= split.first; g.young -= split.second
+    }
+    return Outcome(carrion, bornNow, da + oldAge + dy, causes, 0, split, dy)
+}
+
+/** Reserves carry [g] through lean weeks; a group that ate (nearly) its fill lays them on, most in late summer and autumn. */
+private fun HexGroups.feedOnReserves(g: HexGroup) {
+    val s = g.species
+    if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
+    else g.fat = min(s.maxFatDays, g.fat + FAT_EFFICIENCY * g.surplus)
+    g.surplus = 0f
+}
+
+/** [g]'s birth month: its kind's to begin with; once a year it moves a month towards the months it fed best in (the birth month and the two after), or as the group leans. */
+private fun HexGroups.moveBirthMonth(g: HexGroup, date: Date) {
+    val s = g.species
+    if (g.birthMonth < 0) g.birthMonth = s.birthMonth
+    // Once a year its births move a month towards the months it fed best in (the birth month and the two after).
+    if (date.month == 3 && date.dayOfMonth <= days && !s.carnivore) {
+        // (How well fed, and on how rich a diet, in the months the young would be born and suckled.)
+        fun window(m0: Int) = (0 until 3).sumOf { (g.seasonQ[wrapMonth(m0 + it)] * g.proteinByMonth[wrapMonth(m0 + it)]).toDouble() }
+        val m = g.birthMonth
+        // (Or it moves them itself, when it leans far enough one way, see [AnimalWay.BIRTHS].)
+        val lean = g.will[AnimalWay.BIRTHS] - 1f
+        if (lean < -AnimalWay.BIRTHS_LEAN) g.birthMonth = wrapMonth(m - 1)
+        else if (lean > AnimalWay.BIRTHS_LEAN) g.birthMonth = wrapMonth(m + 1)
+        else if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = wrapMonth(m - 1)
+        else if (window(m + 1) > window(m) + 0.1) g.birthMonth = wrapMonth(m + 1)
+    }
+}
+
+/** [band]'s wounds this week: mishaps of the work and last week's hurts heal, the tended faster; some lame, some fester. Returns the deaths from festering, a year's rate. */
+private fun HexGroups.woundsWeek(band: Band): Float {
+    val care = (if (band.holds(Tradition.MEDICINE)) 0.5f else 0f) + 0.5f * band.skill(Skill.HERBS)
+    band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * years)
+    val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
+    val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f
+    val mended = band.hurt * heal
+    band.lame = min(1f, band.lame * (1f - LAME_TURNOVER * years) + mended * LAMED * (1f - 0.5f * care))
+    band.hurt = max(0f, band.hurt - mended - fester)
+    return fester
+}
+
+/** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
+private fun HexGroups.thirstWeek(g: HexGroup): Float {
+    val s = g.species
+    val p0 = g.place
+    // It drinks where there is water, or where water is within half a day's going of where it is.
+    // People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round
+    // will do. Animals go to water and back as often as they must: a kind that can go days without
+    // drinking can live as many half-days' going from it.
+    val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
+    // (People also dig for it in a dry bed where the water lies near: see [HexLand.dug].)
+    if (land.water[p0] >= Thresholds.WET || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= fetch) || (s.human && land.mustDig(p0, fetch))) g.dry = 0f
+    // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
+    else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
+    // (People carry water in skins and know every spring: they suffer far less from it than animals.)
+    // (Strangers to the country do not know its springs.)
+    val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
+    return (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) * (if (s.human) HUMAN_THIRST * Tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
+}
+
+/**
+ * The mothers among [g]'s adults: half of them, or in a band, the women in their bearing years: most in
+ * their twenties and early thirties, few in their teens, fewer after thirty-five, none past the
+ * childbearing years (the elders).
+ */
+private fun mothersIn(g: HexGroup): Int {
+    val band = g.band
+    return if (band != null) {
+        val first = max(0, g.adults - band.elders - band.ageStage[0] - band.ageStage[1])
+        ((FERTILE_BY_SPAN[0] * first + FERTILE_BY_SPAN[1] * band.ageStage[0] + FERTILE_BY_SPAN[2] * band.ageStage[1]) / 2f).toInt()
+    } else g.adults / 2
+}
+
+/**
+ * [g]'s deaths of sickness this week besides a raging outbreak's, a year's rate: people's crowd
+ * sicknesses; hunters' mange, distemper and rabies from packs of their kind about; herds' diseases and
+ * parasites where they crowd. Where its kind is crowded, an outbreak may break out (drawn from [r]).
+ */
+private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMap<Long, Int>, r: Random): Float {
+    val s = g.species
+    // Crowded herds catch each other's diseases and parasites.
+    val usual = HexFauna.usualDensity(s)
+    // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
+    val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
+    val crowdNow = if (s.human) peopleCrowding(g) else crowd
+    if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * Tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years) outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
+    return if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+        else if (s.carnivore) {
+            // Hunters catch mange, distemper and rabies from other packs of their kind crowding the same ground.
+            // (Counted, as for residents, over the ground it ranges over: its hex, and the six round it
+            // where its kind's home range reaches beyond one hex.)
+            val h0 = hw.placeHex[g.place]
+            var heads = -g.size; var hexes = 0
+            val wide = territoryKm(s) > 0.6f * hex.hexKm
+            for (k in -1 until (if (wide) 6 else 0)) { val q = if (k < 0) h0 else hex.neighbour(h0, k); if (q >= 0) { heads += kinNow[s.index.toLong() * hex.size + q] ?: 0; hexes++ } }
+            val others = max(0, heads) / (hexes * (hex.hexKm * hex.hexKm * 0.87).toFloat()) / (HexFauna.CROWDED * usual)
+            HexFauna.DISEASE * others * others * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         }
-        val hunger = if (g.fed < HexFauna.HUNGER_FROM) (HexFauna.HUNGER_FROM - g.fed) * HexFauna.HUNGER_RATE else 0f
-        // People feel the cold as their clothes allow.
-        // Exposure: the unprotected die of the cold within days.
-        val exposure = g.band?.let { min(0.9f, EXPOSURE * it.exposure(weather.temperature[g.place]) * days / 7f) } ?: 0f
-        val cold = (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: discomfort(s, g.place, weather)) * 0.02f
-        val fouled = campFouling(g) * years
-        // Wounds: mishaps of the work (the further the gatherers range, the more), and those hurt in
-        // fights, hunts and by beasts last week; tended wounds heal faster, fester less and lame fewer.
-        val festered = if (s.human && band != null) {
-            val care = (if (band.holds(Tradition.MEDICINE)) 0.5f else 0f) + 0.5f * band.skill(Skill.HERBS)
-            band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * years)
-            val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
-            val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f
-            val mended = band.hurt * heal
-            band.lame = min(1f, band.lame * (1f - LAME_TURNOVER * years) + mended * LAMED * (1f - 0.5f * care))
-            band.hurt = max(0f, band.hurt - mended - fester)
-            fester
-        } else 0f
-        // Beasts of prey about: now and then one takes a gatherer, a child or an old one alone.
-        val (stalked, stalker) = if (s.human && band != null) stalkedBy(g, band, kinNow) else 0f to ""
-        // Vipers and scorpions, out in the warm months.
-        val venom = if (s.human && weather.temperature[g.place] > 18f) VENOM * years else 0f
-        // Children of a closed band are inbred; medicine saves some of the sick and wounded.
-        val inbred = if (band != null) INBREEDING_DEATHS * band.inbred * years else 0f
-        // (Healers save some of the sick and wounded, the more the more they know.)
-        val healed = (if (band?.holds(Tradition.MEDICINE) == true) 0.85f else 1f) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
-        // (And practised midwives and carers lose fewer infants.)
-        val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
-        // Sicknesses of their own: the flux, marsh fever, the cough (see [Illness]); healers save some.
-        val ill = if (s.human && band != null) illnessWeek(g, band, weather, r).also { for (i in it.indices) it[i] *= healed } else null
-        val illAdults = ill?.sum() ?: 0f
-        val illYoung = ill?.let { a -> Illness.entries.sumOf { (a[it.ordinal] * it.young).toDouble() }.toFloat() } ?: 0f
-        // Thirst: drinks where there is water; otherwise days without water mount, eased by the water in green food.
-        val p0 = g.place
-        // It drinks where there is water, or where water is within half a day's going of where it is.
-        // People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round
-        // will do. Animals go to water and back as often as they must: a kind that can go days without
-        // drinking can live as many half-days' going from it.
-        val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
-        // (People also dig for it in a dry bed where the water lies near: see [HexLand.dug].)
-        if (land.water[p0] >= 0.05f || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= fetch) || (s.human && land.mustDig(p0, fetch))) g.dry = 0f
-        // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
-        else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
-        // (People carry water in skins and know every spring: they suffer far less from it than animals.)
-        // (Strangers to the country do not know its springs.)
-        val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
-        val thirst = (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) * (if (s.human) HUMAN_THIRST * Tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
-        // Crowded herds catch each other's diseases and parasites.
-        val usual = HexFauna.usualDensity(s)
-        // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
-        val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
-        // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
-        val plague = fauna.outbreakDeaths(s, g.place)
-        val crowdNow = if (s.human) peopleCrowding(g) else crowd
-        if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * Tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years) outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
-        val disease = plague + if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
-            else if (s.carnivore) {
-                // Hunters catch mange, distemper and rabies from other packs of their kind crowding the same ground.
-                // (Counted, as for residents, over the ground it ranges over: its hex, and the six round it
-                // where its kind's home range reaches beyond one hex.)
-                val h0 = hw.placeHex[g.place]
-                var heads = -g.size; var hexes = 0
-                val wide = territoryKm(s) > 0.6f * hex.hexKm
-                for (k in -1 until (if (wide) 6 else 0)) { val q = if (k < 0) h0 else hex.neighbour(h0, k); if (q >= 0) { heads += kinNow[s.index.toLong() * hex.size + q] ?: 0; hexes++ } }
-                val others = max(0, heads) / (hexes * (hex.hexKm * hex.hexKm * 0.87).toFloat()) / (HexFauna.CROWDED * usual)
-                HexFauna.DISEASE * others * others * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
-            }
-            else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
-        g.wary *= WARY_KEEP
-        // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
-        val homeless = if (s.carnivore && !s.human && g.home < 0) DISPERSAL_DEATHS * years else 0f
-        // Eagles take the young of the smaller hoofed animals in the open.
-        val eagle = if (!s.human && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
-        val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
-        val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
-        val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults + festered).coerceIn(0f, 0.9f)
-        val croc = if (s.human) 0f else fauna.water.crocodileRisk(g.place, weather) * years
-        if (s.human && g.young > 0) {
-            val care = g.young * (1f - ELDER_CARE * help)
-            fun add(name: String, v: Float) { if (v > 0f) childDeaths.computeIfAbsent(name) { java.util.concurrent.atomic.DoubleAdder() }.add((care * v).toDouble()) }
-            add("infancy and ordinary illness", healed * cared * s.youngMortality * Tuning.humanYoung * years)
-            add("hunger", 1.5f * hunger); add("cold and exposure", 1.5f * (cold + exposure)); add("thirst", 1.5f * thirst)
-            add("crowd sickness and outbreaks", disease); add("fire, flood and snow", fireY + floodY + snowY); add("camp fouling", fouled)
-            add("inbreeding", inbred); add("snakes and scorpions", venom)
-            add("taken by beasts", YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked)
-            ill?.let { a -> for (it in Illness.entries) add(it.label, a[it.ordinal] * it.young) }
-        }
-        // (Young plant-eaters short of protein grow slowly and die more.)
-        val starved = if (s.carnivore) 0f else HexFauna.YOUNG_PROTEIN_DEATHS * (1f - g.protein) * years
-        val py = ((starved + healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
-        val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
-        // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
-        val diedExpected = g.adults * pa + g.young * py + (band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f)
-        // Elders die as the others do (their share of the adults who died), and of old age besides.
-        adultsDied(g, da, r)
-        var oldAge = 0
-        if (band != null) {
-            oldAge = binomial(band.elders, ELDER_DEATHS * years, r)
-            band.elders -= oldAge; g.adults -= oldAge
-        }
-        if (s.human) g.luck += (bornNow - bornExpected) - (da + dy + oldAge - diedExpected)
-        // The sick and the newborn teach their carers.
-        band?.let { b -> if (disease > 0f || da > 0) b.practise(Skill.HERBS, 0.2f * PRACTICE); if (bornNow > 0) b.practise(Skill.MIDWIFERY) }
-        g.young -= dy
-        // The dead lie where they fell, for the scavengers and the soil.
-        var carrion = (da + oldAge + 0.3f * dy) * s.massKg
-        // The week's deaths are shared among the causes by how much each weighed ("other": age, accidents, ordinary illness).
-        val hazards = listOf("other" to healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, "hunger" to hunger, "cold" to cold, "exposure" to exposure, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "snakes and scorpions" to venom, "inbreeding" to inbred, "taken by $stalker" to stalked, "wounds" to festered) + (ill?.let { a -> Illness.entries.map { it.label to a[it.ordinal] * (1f + it.young) / 2f } } ?: emptyList())
-        var left = da + dy; var weight = hazards.sumOf { it.second.toDouble() }.toFloat()
-        val causes = ArrayList<Pair<String, Int>>()
-        for ((name, h) in hazards) {
-            if (left <= 0 || weight <= 0f) break
-            val k = if (h >= weight) left else binomial(left, h / weight, r)
-            if (k > 0) causes += name to k
-            left -= k; weight -= h
-        }
-        if (left > 0) causes += "other" to left
-        if (oldAge > 0) causes += "old age" to oldAge
-        val up = binomial(g.young, years / s.yearsToMaturity, r)
-        g.young -= up; g.adults += up
-        // Adults age through three spans of adult life, then become elders.
-        band?.let { b ->
-            val rate = 3f * years / ADULT_YEARS
-            val toElder = binomial(b.ageStage[1], rate, r); val toThird = binomial(b.ageStage[0], rate, r)
-            val first = max(0, g.adults - b.elders - b.ageStage[0] - b.ageStage[1])
-            val toSecond = binomial(first, rate, r)
-            b.elders += toElder; b.ageStage[1] += toThird - toElder; b.ageStage[0] += toSecond - toThird
-        }
-        if (g.adults == 0) {
-            // Young left without a grown animal of their kind die.
-            val orphans = g.young
-            carrion += 0.3f * orphans * s.massKg
-            g.young = 0
-            return Outcome(carrion, bornNow, da + oldAge + dy, causes, orphans, null, dy + orphans)
-        }
-        var split: Pair<Int, Int>? = null
-        // Bands that feast together hold together longer.
-        if (g.size > maxSize(g, date)) {
-            split = (g.adults / 2) to (g.young / 2)
-            g.adults -= split.first; g.young -= split.second
-        }
-        return Outcome(carrion, bornNow, da + oldAge + dy, causes, 0, split, dy)
+        else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+}
+
+/** The week's [died] shared among the [hazards] by how much each weighed (drawn from [r]); what is left over is "other". */
+private fun HexGroups.shareDeaths(hazards: List<Pair<String, Float>>, died: Int, r: Random): ArrayList<Pair<String, Int>> {
+    var left = died; var weight = hazards.sumOf { it.second.toDouble() }.toFloat()
+    val causes = ArrayList<Pair<String, Int>>()
+    for ((name, h) in hazards) {
+        if (left <= 0 || weight <= 0f) break
+        val k = if (h >= weight) left else binomial(left, h / weight, r)
+        if (k > 0) causes += name to k
+        left -= k; weight -= h
+    }
+    if (left > 0) causes += "other" to left
+    return causes
+}
+
+/** [g]'s young grow up, and in a band the adults age through three spans of adult life, then become elders (drawn from [r]). */
+private fun HexGroups.growUp(g: HexGroup, r: Random) {
+    val s = g.species
+    val band = g.band
+    val up = binomial(g.young, years / s.yearsToMaturity, r)
+    g.young -= up; g.adults += up
+    // Adults age through three spans of adult life, then become elders.
+    band?.let { b ->
+        val rate = 3f * years / ADULT_YEARS
+        val toElder = binomial(b.ageStage[1], rate, r); val toThird = binomial(b.ageStage[0], rate, r)
+        val first = max(0, g.adults - b.elders - b.ageStage[0] - b.ageStage[1])
+        val toSecond = binomial(first, rate, r)
+        b.elders += toElder; b.ageStage[1] += toThird - toElder; b.ageStage[0] += toSecond - toThird
     }
 }
 
@@ -653,7 +704,7 @@ internal fun HexGroups.remember(date: Date) {
  * lookouts, company and an eye for sign (tracking) keep them off. No set battle: the beasts take
  * the unwary, not armed men.
  */
-internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int>): Pair<Float, String> {
+internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int>): Stalking {
     val h = hw.placeHex[g.place]; val p = g.place
     val hexKm2 = (hex.hexKm * hex.hexKm * 0.87).toFloat()
     var pressure = 0f; var worst = ""; var worstP = 0f
@@ -668,7 +719,7 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
         val v = w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg
         pressure += v; if (v > worstP) { worstP = v; worst = k.name }
     }
-    if (pressure <= 0f) return 0f to ""
+    if (pressure <= 0f) return Stalking.NONE
     val cover = 0.5f + land.cover(p)
     val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
@@ -678,7 +729,12 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
     // (Beasts lie up by the paths people and game use: a camp on a busy way is the more dangerous.)
     val rate = STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * spread * (1f + 0.5f * AMBUSH * pathAt(h)) * years
     // (Where one was taken the band remembers the danger.)
-    return rate to worst
+    return Stalking(rate, worst)
+}
+
+/** A band's [rate] of loss to beasts of prey (yearly-scaled share) and the beast most to blame, [by] ("" when none). */
+data class Stalking(val rate: Float, val by: String) {
+    companion object { val NONE = Stalking(0f, "") }
 }
 
 /**

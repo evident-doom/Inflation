@@ -8,6 +8,9 @@ import inflation.ecology.WAYS_OUT
 import inflation.learning.HexPpo
 import inflation.learning.Schema
 import inflation.world.WorldConfig
+import inflation.ecology.HexFeatures
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.abs
 
 /**
  * How far people's score (as the training checks it: people-weeks per person at the start, less
@@ -34,13 +37,13 @@ fun main(args: Array<String>) {
     }
     fun label(c: String) = if (c.startsWith("way")) "${names[c.substring(4).toInt()]} ${if (c[3] == '-') "low" else "high"}" else c
     val jobs = seeds.flatMap { s -> configs.map { s to it } }
-    val done = java.util.concurrent.atomic.AtomicInteger()
+    val done = AtomicInteger()
     val r = jobs.parallelStream().map { (seed, c) ->
         val cfg = WorldConfig(seed = seed, widthKm = size, heightKm = size)
         val score = HexPpo.score(cfg, years, kinds) { run ->
             for (s in kinds) if (s.human) run.groups.policies[s] = HexPolicy { _, f, b, rnd ->
                 when (c) {
-                    "stay" -> f.indices.firstOrNull { f[it].getOrElse(inflation.ecology.HexFeatures.STAYS) { 0f } > 0.5f } ?: b.indices.maxBy { b[it] }
+                    "stay" -> f.indices.firstOrNull { f[it].getOrElse(HexFeatures.STAYS) { 0f } > 0.5f } ?: b.indices.maxBy { b[it] }
                     "random" -> rnd.nextInt(f.size)
                     "worst" -> b.indices.minBy { b[it] }
                     else -> b.indices.maxBy { b[it] }
@@ -62,5 +65,5 @@ fun main(args: Array<String>) {
         val rel = seeds.map { s -> 100 * (of(s, c) / of(s, "hand") - 1) }
         Triple(c, rel, rel.average())
     }
-    for ((c, rel, m) in rows.sortedByDescending { kotlin.math.abs(it.third) }) println("%-28s %+6.2f%%   (%s)".format(label(c), m, rel.joinToString(" ") { "%+.2f".format(it) }))
+    for ((c, rel, m) in rows.sortedByDescending { abs(it.third) }) println("%-28s %+6.2f%%   (%s)".format(label(c), m, rel.joinToString(" ") { "%+.2f".format(it) }))
 }

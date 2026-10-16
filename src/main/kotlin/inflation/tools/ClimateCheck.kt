@@ -3,6 +3,7 @@ package inflation.tools
 import inflation.world.Biome
 import inflation.world.World
 import inflation.world.WorldConfig
+import inflation.world.LandformCache
 
 /**
  * Generates a world and summarises its climate: yearly rain on land by latitude and by position
@@ -11,19 +12,10 @@ import inflation.world.WorldConfig
  * Usage: climate-check [--seed N] [--width KM] [--height KM]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    val a = inflation.Args(args, "climate-check [--seed N] [--width KM] [--height KM]")
+    val cfg = a.world(WorldConfig(seed = 1)); a.done()
     // (The land and its rocks from the kept landform where there is one: only the climate is made again.)
-    val world = World.generate(cfg, inflation.world.LandformCache.load(cfg) {})
+    val world = World.generate(cfg, LandformCache.load(cfg) {})
     val g = world.grid; val c = world.climate
     val land = (0 until g.size).filter { !world.isSea[it] }
     fun table(name: String, bins: Int, bin: (Int) -> Int) {

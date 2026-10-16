@@ -15,6 +15,13 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.min
 import kotlin.random.Random
+import inflation.world.Biome
+import java.util.Arrays
+import java.util.BitSet
+import java.util.stream.Collectors
+import java.util.stream.IntStream
+import kotlin.math.ceil
+import kotlin.math.sqrt
 
 // Hunting along the way, and the meetings of a week settled one by one in the order they happen.
 
@@ -84,13 +91,13 @@ internal fun HexGroups.hunt(weather: Weather) {
         for (colour in 0 until 4) {
             // (The squares with the most parties first, so the slowest is not left to last on one core.)
             val squares = blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }.sortedByDescending { e -> e.value.sumOf { g -> if (g.band != null) 4 * g.path.size else g.path.size } }
-            java.util.stream.IntStream.range(0, squares.size).parallel().forEach { i ->
+            IntStream.range(0, squares.size).parallel().forEach { i ->
                 for (g in squares[i].value) {
                     val s = g.species
                     // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
                     // over more of it, as the square root of its numbers against its kind's usual party.
                     // And it searches less of it when the rain, haze or cover hide game (see [sight]).
-                    val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
+                    val sweep = sweptKm2(s) * sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
                     Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
                 }
             }
@@ -130,7 +137,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
-    val smallSweep = s.dailyTravelKm * days * 2f * SMALL_SENSE_KM * kotlin.math.sqrt(hands.toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
+    val smallSweep = s.dailyTravelKm * days * 2f * SMALL_SENSE_KM * sqrt(hands.toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
     val smallCatch = smallCatch(s)
     val smallDays = SMALL_HANDLING_DAYS_PER_KG / hands * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
@@ -143,8 +150,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // A band's gatherers also work the country round its camp, the further the more: a camp where
     // woodland, valley and plain meet has more kinds of food within a day's walk than one in the
     // middle of any one of them. (Each hex round gives a share of what the camp's own does.)
-    val roundCamp: List<Int> = if (band != null) { val h0 = hw.placeHex[g.place]; val bb = hw.placeBand[g.place]
-        (0 until 6).mapNotNull { d -> hex.neighbour(h0, d).takeIf { it >= 0 }?.let { hw.placeOf[bb][it] }?.takeIf { it >= 0 && it !in gatherAt } } } else emptyList()
+    val roundCamp: List<Int> = if (band != null) { val h0 = hw.placeHex[g.place]; val campBand = hw.placeBand[g.place]
+        (0 until 6).mapNotNull { d -> hex.neighbour(h0, d).takeIf { it >= 0 }?.let { hw.placeOf[campBand][it] }?.takeIf { it >= 0 && it !in gatherAt } } } else emptyList()
     val roundShare = (band?.let { RING_REACH * it.gatherRange } ?: 0f)
     // The foods on offer: type (0 big game of [kinds] index k, 1 small game, 2 carrion, 3 bones,
     // 4 fruit, 5 roots, 6 grass seed, 7 small finds, 8 fish), place, rate a day, kg each, days each ([Food] numbers the types).
@@ -324,7 +331,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     hunting.merge("${s.name}:diet plants, kg", plants.toInt(), Int::plus)
     // For bands, the same by the kind of country they are in, and how they fared.
     if (band != null) {
-        val c = inflation.world.Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
+        val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
         hunting.merge("bands in $c:asked", wantAll.toInt(), Int::plus); hunting.merge("bands in $c:meat", (meat + smallGot + scraps).toInt(), Int::plus)
         hunting.merge("bands in $c:plants", plants.toInt(), Int::plus); hunting.merge("bands in $c:fish", fish.toInt(), Int::plus)
         hunting.merge("bands in $c:band-weeks", 1, Int::plus); hunting.merge("bands in $c:people-weeks", g.size, Int::plus)
@@ -543,7 +550,7 @@ internal fun HexGroups.timetable(s: Species, path: IntArray): FloatArray {
 internal fun HexGroups.meet(weather: Weather) {
     // Only hexes a hunter passes through can hold a meeting that matters: herds pass each other by.
     var mt = Profile.mark()
-    val hunted = java.util.BitSet(hex.size)
+    val hunted = BitSet(hex.size)
     for (g in groups) if (g.alive && g.species.carnivore) for (h in g.path) hunted.set(h)
     // (With rounds on, for hex-rounds-check: each herd's week as it set out, by heads and by herds.)
     if (ROUNDS) for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] != -1) {
@@ -571,7 +578,7 @@ internal fun HexGroups.meet(weather: Weather) {
             out += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index)
         } }
         out.stream()
-    }.collect(java.util.stream.Collectors.toCollection { ArrayList<Meeting>() })
+    }.collect(Collectors.toCollection { ArrayList<Meeting>() })
     mt = Profile.lap("meetings: pairs", mt)
     // Meetings at the same hour come in an order drawn afresh each week, not by age in the list
     // (the first gets first chase and uses up the herd's meetings).
@@ -579,7 +586,7 @@ internal fun HexGroups.meet(weather: Weather) {
     // (Each meeting's draw worked out once, then sorted on all cores: the order is the same as one by one.)
     events.parallelStream().forEach { it.tie = tieBreak(groups[it.a].id, groups[it.b].id, today) }
     val sorted = events.toTypedArray()
-    java.util.Arrays.parallelSort(sorted) { x, y ->
+    Arrays.parallelSort(sorted) { x, y ->
         val c = java.lang.Float.compare(x.day, y.day)
         if (c != 0) c else { val t = java.lang.Long.compare(x.tie, y.tie); if (t != 0) t else { val ca = Integer.compare(x.a, y.a); if (ca != 0) ca else Integer.compare(x.b, y.b) } }
     }
@@ -627,7 +634,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
     meetings.merge("bands met", 1, Int::plus)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
-    if (cultureMeets(a, b)) return
+    if (meetingEndsInRaid(a, b)) return
     val (poor, rich) = if (a.fed + a.larder / (a.dailyNeedKg * 30f) < b.fed + b.larder / (b.dailyNeedKg * 30f)) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
@@ -716,7 +723,7 @@ internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Int, span: Float)
     // A hunter finds a herd by its own senses (a band as well as its trackers read sign); two hunters, by the keener.
     val r = if (hunting) { val hunter = if (a.species.carnivore) a else b; hunter.species.senseKm * (hunter.band?.edge(Skill.TRACK) ?: 1f) }
         else max(a.species.senseKm, b.species.senseKm)
-    val v = kotlin.math.sqrt(a.species.dailyTravelKm * a.species.dailyTravelKm + b.species.dailyTravelKm * b.species.dailyTravelKm)
+    val v = sqrt(a.species.dailyTravelKm * a.species.dailyTravelKm + b.species.dailyTravelKm * b.species.dailyTravelKm)
     val hours = Niches.overlap(a.species, b.species)
     // Bands seek each other out at springs and lake shores, where people come together.
     val gather = if (a.band != null && b.band != null) 1f + 2f * (land.nearSpring[p] + land.nearLake[p]).coerceAtMost(1f) else 1f
@@ -802,7 +809,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     hunting.merge("${hunter.species.name}:chases", 1, Int::plus)
     // A big herd stands for several of its kind's usual bands: the hunters try each one they ran into while hungry
     // (once each: a band that was chased has scattered).
-    val tries = max(1, min(met, kotlin.math.ceil(bandsIn(herd)).toInt()))
+    val tries = max(1, min(met, ceil(bandsIn(herd)).toInt()))
     for (attempt in 0 until tries) {
     if (attempt > 0 && hunter.meatMet >= need) break
     if (rnd.nextFloat() < chance && herd.adults > 0) {

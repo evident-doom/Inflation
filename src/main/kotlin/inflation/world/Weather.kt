@@ -101,7 +101,7 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
 
     /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
     private val yearSwing = FloatArray(n) { i ->
-        val annual = (0 until 12).sumOf { places.monthlyPrecip[it][i].toDouble() }.toFloat()
+        val annual = (0 until Date.MONTHS_PER_YEAR).sumOf { places.monthlyPrecip[it][i].toDouble() }.toFloat()
         0.7f + 1.3f * (1f - annual / 600f).coerceIn(0f, 1f)
     }
     private val tempAnomaly = FloatArray(cw * ch)
@@ -213,7 +213,7 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         // The monthly normals stand for mid-month: before the 16th the step lies between last month and this.
         val m = date.month
         val pos = (date.dayOfMonth - 15.5f) / Date.DAYS_PER_MONTH
-        val (from, to) = if (pos >= 0f) m to (m + 1) % 12 else (m + 11) % 12 to m
+        val (from, to) = if (pos >= 0f) m to (m + 1) % Date.MONTHS_PER_YEAR else (m + Date.MONTHS_PER_YEAR - 1) % Date.MONTHS_PER_YEAR to m
         val f = if (pos >= 0f) pos else 1f + pos
         val tNow = climate.monthlyTemp[from]; val tNext = climate.monthlyTemp[to]
         val pNow = climate.monthlyPrecip[m]
