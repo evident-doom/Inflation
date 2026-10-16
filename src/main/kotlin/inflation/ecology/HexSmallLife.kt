@@ -390,15 +390,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             }
             f[p] = when {
                 // Migrants leave for beyond the map at the end of their months here, and come back.
-                !here -> { if (f[p] > 0f) leaving[k][p] = f[p] * land.areaKm2[p]; 0f }
-                returning[k] > 0.0 && !b.followsInsects -> f[p] + (returning[k] * birdCapacity(k, p)).toFloat()
+                !here -> { if (f[p] > 0f) { leaving[k][p] = f[p] * land.areaKm2[p]; birdLedger[k][3][p] += f[p] }; 0f }
+                returning[k] > 0.0 && !b.followsInsects -> { val back = (returning[k] * birdCapacity(k, p)).toFloat(); birdLedger[k][4][p] += back; f[p] + back }
                 else -> {
                     val hunger = b.insectShare * (1f - fed)
                     // (Insect-eating migrants settling this week arrive where the insects boom, and live on as the rest.)
                     val arrived = if (b.followsInsects && returning[k] > 0.0) (returning[k] * birdCapacity(k, p) * boom(p)).toFloat() else 0f
-                    var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f, b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, born = NEST_BIRDS)
+                    birdLedger[k][4][p] += arrived; if (here && b.insectShare > 0f) { birdLedger[k][6][p] += fed * days; birdLedger[k][7][p] += days }
+                    var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f, b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, ledger = birdLedger[k], born = NEST_BIRDS)
                     // Insect-eating migrants leave a place where the insects have failed, for one where they boom.
-                    if (b.followsInsects && fed < 0.5f && x > 0f) { val go = x * (1f - 2f * fed); leaving[k][p] = go * land.areaKm2[p]; x -= go }
+                    if (b.followsInsects && fed < 0.5f && x > 0f) { val go = x * (1f - 2f * fed); leaving[k][p] = go * land.areaKm2[p]; birdLedger[k][3][p] += go; x -= go }
                     x
                 }
             }
@@ -465,7 +466,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     /** Takes share [f] of every kind of bird at [p]. */
     private fun takeBirds(p: Int, f: Float) {
-        for (b in bird) b[p] -= b[p] * f
+        for ((k, b) in bird.withIndex()) { birdLedger[k][5][p] += b[p] * f; b[p] -= b[p] * f }
         birds[p] -= birds[p] * f
     }
 
@@ -658,6 +659,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         grubsDug[p] += took
         return took
     }
+    /**
+     * Each kind of [BIRDS] since cleared, kg/km² (for checks): 0 grown, 1 died (more when short of
+     * insects), 2 died of crowding, 3 left (migrants, and insect-eaters leaving a failed place), 4 came
+     * back, 5 burnt; 6 days fed (weighted by how well), 7 days out eating insects.
+     */
+    val birdLedger = Array(BIRDS.size) { Array(8) { FloatArray(n) } }
+    fun birdCapacityAt(k: Int, p: Int) = birdCapacity(k, p)
     /** Grubs dug since cleared, kg/km² (for checks). */
     val grubsDug = FloatArray(n)
 
