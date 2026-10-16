@@ -49,6 +49,16 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     private fun mean(p: Int, f: (Int) -> Float): Float { val cs = hw.placeCells[p]; var s = 0.0; for (i in cs) s += f(i); return (s / cs.size).toFloat() }
     private val soilFertility = FloatArray(n) { p -> mean(p) { world.soilFertility[it] } }
     private val slope = FloatArray(n) { p -> mean(p) { world.terrain.slope[it] } }
+    /**
+     * Soil fertility of each place's floodplain, 0..1: what its rock (alluvium) gives on its slope, as [Biomes.soilFertility]
+     * but without the cut for a dry climate, since its water comes from the river. (Fixed by the world, so not taken from a
+     * saved run.)
+     */
+    @Transient private val floorFertility = FloatArray(n) { p ->
+        var s = 0.0; var k = 0
+        for (i in hw.placeCells[p]) if (world.floodplain.isFloodplain[i]) { s += world.geology.rock[i].fertility * exp(-Biomes.slope(grid, world.elevation, i) / 0.15f); k++ }
+        if (k == 0) 0f else (s / k).toFloat()
+    }
     /** Share of waterlogged ground (marsh, bog, salt marsh), where woody plants drown (fixed by the world, so not taken from a saved run: runs saved before it was filled hold zeros). */
     @Transient val logged = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
     /**
@@ -471,7 +481,12 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val t = ((warmth[p] - form.warmthMin) / (form.warmthFull - form.warmthMin)).coerceIn(0f, 1f)
         val soilF = 0.3f + 0.7f * min(1f, fertility[p] + organicFertility[p])
         val wetFactor = when (form) { LifeForm.HERB -> 1f; LifeForm.SHRUB -> 1f - 0.6f * logged[p]; LifeForm.TREE -> 1f - 0.95f * logged[p] }
-        return form.maxBiomass * m * t * soilF * wetFactor
+        val open = form.maxBiomass * m * t * soilF * wetFactor
+        if (form != LifeForm.HERB) return open
+        // The turf of the wet valley floor grows on its own soil: moist from the water table and as fertile as its alluvium.
+        val wf = wetFloor(p); if (wf <= 0f) return open
+        val floor = form.maxBiomass * t * (0.3f + 0.7f * min(1f, floorFertility[p] + organicFertility[p]))
+        return (1f - wf) * open + wf * floor
     }
 
     fun consume(p: Int, form: LifeForm, kgPerM2: Float): Float {
