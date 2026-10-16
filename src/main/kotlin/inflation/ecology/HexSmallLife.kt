@@ -172,7 +172,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             else -> 0f
         }
     }
-    private fun tortoiseCapacity(p: Int): Float {
+    fun tortoiseCapacity(p: Int): Float {
         val warm = ((meanTemp[p] - 12f) / 8f).coerceIn(0f, 1f)
         return 30f * warm * min(1f, (land.shrub[p] + land.herb[p]) / 0.8f)
     }
@@ -400,7 +400,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
         birds[p] = all
         val active = t in 14f..33f && land.soil[p] > 8f
-        tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f, tortoiseCapacity(p), grazes = true)
+        tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f, tortoiseCapacity(p), grazes = true, ledger = tortLedger)
+        if (active) tortLedger[6][p] += days; if (active && month in 4..8) tortLedger[5][p] += days
         // They eat what they grow on (a small share of their weight a day; tortoises only when out),
         // and drop half of it again.
         val eaters = hares[p] + hyrax[p] + all + (if (active) tortoises[p] else 0f) // kg/km²
@@ -439,6 +440,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // Fire: tortoises die where it burns; the rest bolt and many young die.
         if (burnt > 0f) {
             smallDead[p] += tortoises[p] * 0.6f * burnt + hares[p] * 0.3f * burnt + birds[p] * 0.3f * burnt
+            tortLedger[4][p] += tortoises[p] * 0.6f * burnt
             tortoises[p] *= 1f - 0.6f * burnt; hares[p] *= 1f - 0.3f * burnt; takeBirds(p, 0.3f * burnt)
         }
     }
@@ -464,13 +466,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * the dead; a kind that [grazes] grows only by the plants it eats, at [SMALL_EFFICIENCY]. [counted]
      * false for an index that is not kg.
      */
-    private fun logistic(p: Int, x: Float, r: Float, d: Float, k: Float, grazes: Boolean = false, counted: Boolean = true): Float {
+    private fun logistic(p: Int, x: Float, r: Float, d: Float, k: Float, grazes: Boolean = false, counted: Boolean = true, ledger: Array<FloatArray>? = null): Float {
         val kk = max(k, 0.01f)
         val dead = min(x, x * d * years * if (x > kk) 2f else 1f)
         var change = x * r * years * (1f - x / kk)
         if (change > 0f && grazes) change = land.consume(p, LifeForm.HERB, change / SMALL_EFFICIENCY / 1e6f) * SMALL_EFFICIENCY * 1e6f
         val crowded = if (change < 0f) min(x - dead, -change) else 0f
         if (counted) smallDead[p] += dead + crowded
+        if (ledger != null) { ledger[0][p] += max(0f, change); ledger[1][p] += dead; ledger[2][p] += crowded }
         return max(0f, x - dead + max(0f, change) - crowded)
     }
 
@@ -563,10 +566,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         if (total <= 0f) return 0f
         // (Prey that is not out is not met: in the same order as [huntedAll].)
         val ease = floatArrayOf(if (rodentsOut) 1f else 0f, 1f, 1f, 1f, if (herpsOut) herpExposed(p) else 0f, if (tortOut) 1f else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f }
-        val h0 = herps[p]
+        val h0 = herps[p]; val t0 = tortoises[p]
         val took = takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
         herpLedger[4][p] += h0 - herps[p]
         herpTakenBy[min(who, TAKER_GROUPS)][p] += h0 - herps[p]
+        tortLedger[3][p] += t0 - tortoises[p]; tortTakenBy[min(who, TAKER_GROUPS)][p] += t0 - tortoises[p]
         return took
     }
 
@@ -579,6 +583,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val herpLedger = Array(8) { FloatArray(n) }
     /** Reptiles and amphibians taken by hunters since the ledger was cleared, kg/km², by who took them: the resident kind of that index, or (at [TAKER_GROUPS]) herds' and packs' hunters and people. */
     val herpTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
+    /**
+     * The same for tortoises (for checks), kg/km² unless said: 0 grown, 1 died, 2 died of crowding, 3 taken by
+     * hunters, 4 burnt; 5 days out in the breeding months, 6 days out; and taken by who, as [herpTakenBy].
+     */
+    val tortLedger = Array(7) { FloatArray(n) }
+    val tortTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
 
     private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
     private val foxPrey by lazy { (listOf(rodents, hares, locusts, insects, pollinators) + bird).toTypedArray() }
