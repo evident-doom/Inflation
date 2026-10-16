@@ -210,9 +210,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val food = land.herb[p] + 0.3f * land.shrub[p]
             val snow = weather.snowpack[p]
             pt = Profile.lap("small life: soil and decay", pt)
-            // ---- plant-eating insects (see [insectSeason]): on the green leaves of herbs and shrubs.
+            // ---- plant-eating insects (see [insectSeason]): on the young leaves of herbs and shrubs, as green as the place is.
             val active = ((t - insectFrom[p]) / INSECT_SPAN_C).coerceIn(0f, 1f)
-            val greenFood = land.herb[p] * land.green[p] + 0.3f * land.shrub[p] * active
+            val greenFood = (land.herb[p] + 0.3f * land.shrub[p]) * land.green[p]
             smallDead[p] += insectSeason(p, insects, dormantInsects, active, 2000f * greenFood / (greenFood + 0.15f))
             if (active > 0f) {
                 // They eat about a quarter of their weight a day, and half of it comes back as frass.
