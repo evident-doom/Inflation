@@ -89,6 +89,8 @@ const val CONTENT_WEEKS = 2
 const val BAND_CONTENT_WEEKS = 1
 /** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
 const val HUNT_BLOCK_KM = 300f
+/** Parties that kept near home this week are worked in squares this wide, km (see [hunt]). */
+const val HUNT_FINE_KM = 100f
 /** How far a lone hunter goes looking for a mate in a week, km. */
 const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */

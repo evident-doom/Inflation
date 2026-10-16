@@ -70,29 +70,38 @@ internal fun HexGroups.hunt(weather: Weather) {
     if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
     if (ways == null) controlledWays()?.let { w -> hunters.firstOrNull { it.id == watched && it.band != null }?.let { setWays(it, weather, w, inputs, out) } }
-    // Then region by region on all cores: the map is cut into squares of [HUNT_BLOCK_KM] coloured
-    // like a chessboard of four colours, so that squares of one colour lie a square apart, further
-    // than any party's week takes it; the squares of one colour are worked at once.
-    val blocks = HashMap<Int, ArrayList<HexGroup>>()
-    for (g in hunters) {
-        val (x, y) = hex.centreKm(hw.placeHex[g.place])
-        blocks.getOrPut((x / HUNT_BLOCK_KM).toInt() + 1000 * (y / HUNT_BLOCK_KM).toInt()) { ArrayList() } += g
-    }
-    for (colour in 0 until 4) {
-        // (The squares with the most parties first, so the slowest is not left to last on one core; squares
-        // of one colour share no ground, so the order they are worked in changes nothing.)
-        val squares = blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }.sortedByDescending { e -> e.value.sumOf { g -> if (g.band != null) 4 * g.path.size else g.path.size } }
-        java.util.stream.IntStream.range(0, squares.size).parallel().forEach { i -> val list = squares[i].value
-            for (g in list) {
-                val s = g.species
-                // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
-                // over more of it, as the square root of its numbers against its kind's usual party.
-                // And it searches less of it when the rain, haze or cover hide game (see [sight]).
-                val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
-                Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+    // Then region by region on all cores: the map is cut into squares coloured like a chessboard of four
+    // colours, so that squares of one colour lie a square apart; the squares of one colour are worked at
+    // once. Parties whose week kept within half a square of where they ended it are worked first in squares
+    // of [HUNT_FINE_KM] (two such parties in squares of one colour cannot have passed the same ground); the
+    // few that ranged further after them, in squares of [HUNT_BLOCK_KM], wider than twice any party's week.
+    fun work(parties: List<HexGroup>, squareKm: Float) {
+        val blocks = HashMap<Int, ArrayList<HexGroup>>()
+        for (g in parties) {
+            val (x, y) = hex.centreKm(hw.placeHex[g.place])
+            blocks.getOrPut((x / squareKm).toInt() + 1000 * (y / squareKm).toInt()) { ArrayList() } += g
+        }
+        for (colour in 0 until 4) {
+            // (The squares with the most parties first, so the slowest is not left to last on one core.)
+            val squares = blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }.sortedByDescending { e -> e.value.sumOf { g -> if (g.band != null) 4 * g.path.size else g.path.size } }
+            java.util.stream.IntStream.range(0, squares.size).parallel().forEach { i ->
+                for (g in squares[i].value) {
+                    val s = g.species
+                    // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
+                    // over more of it, as the square root of its numbers against its kind's usual party.
+                    // And it searches less of it when the rain, haze or cover hide game (see [sight]).
+                    val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
+                    Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+                }
             }
         }
     }
+    val (near, far) = hunters.partition { g ->
+        val end = hw.placeHex[g.place]
+        g.path.all { h -> hex.distanceKm(end, h) + hex.hexKm < HUNT_FINE_KM / 2 }
+    }
+    work(near, HUNT_FINE_KM)
+    work(far, HUNT_BLOCK_KM)
 }
 
 /**
