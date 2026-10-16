@@ -21,7 +21,7 @@ import kotlin.random.Random
 /** Group [k] is in hex at its path's [index] from day [from] to day [to]. */
 private class Stay(val k: Int, val index: Int, val from: Float, val to: Float)
 /** Groups [a] and [b] are in the same hex from [day], for [span] days, at their paths' [ai] and [bi]. */
-private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int)
+private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int) { var tie = 0L }
 
 /**
  * A draw of order for groups [id] and [other] on day [day]: who comes first when two things happen at
@@ -494,6 +494,7 @@ internal fun HexGroups.timetable(s: Species, path: IntArray): FloatArray {
  */
 internal fun HexGroups.meet(weather: Weather) {
     // Only hexes a hunter passes through can hold a meeting that matters: herds pass each other by.
+    var mt = Profile.mark()
     val hunted = java.util.BitSet(hex.size)
     for (g in groups) if (g.alive && g.species.carnivore) for (h in g.path) hunted.set(h)
     val byHex = HashMap<Int, ArrayList<Stay>>()
@@ -505,6 +506,7 @@ internal fun HexGroups.meet(weather: Weather) {
             byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.days[i], to)
         }
     }
+    mt = Profile.lap("meetings: who is in each hex", mt)
     // Pairs with a hunter or band in them (herds pass each other by), hex by hex on all cores.
     val events = byHex.values.parallelStream().filter { it.size >= 2 }.flatMap { stays ->
         val out = ArrayList<Meeting>()
@@ -518,10 +520,19 @@ internal fun HexGroups.meet(weather: Weather) {
         } }
         out.stream()
     }.collect(java.util.stream.Collectors.toCollection { ArrayList<Meeting>() })
+    mt = Profile.lap("meetings: pairs", mt)
     // Meetings at the same hour come in an order drawn afresh each week, not by age in the list
     // (the first gets first chase and uses up the herd's meetings).
     val today = weather.date.absoluteDay
-    events.sortWith(compareBy({ it.day }, { tieBreak(groups[it.a].id, groups[it.b].id, today) }, { it.a }, { it.b }))
+    // (Each meeting's draw worked out once, then sorted on all cores: the order is the same as one by one.)
+    events.parallelStream().forEach { it.tie = tieBreak(groups[it.a].id, groups[it.b].id, today) }
+    val sorted = events.toTypedArray()
+    java.util.Arrays.parallelSort(sorted) { x, y ->
+        val c = java.lang.Float.compare(x.day, y.day)
+        if (c != 0) c else { val t = java.lang.Long.compare(x.tie, y.tie); if (t != 0) t else { val ca = Integer.compare(x.a, y.a); if (ca != 0) ca else Integer.compare(x.b, y.b) } }
+    }
+    events.clear(); events.addAll(sorted)
+    mt = Profile.lap("meetings: sorting", mt)
     val stop = IntArray(groups.size) { groups[it].path.size - 1 }
     val count = IntArray(groups.size)
     for (e in events) {
@@ -555,6 +566,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val band = hw.placeBand[g.place]
         g.place = hw.placeOf[band][h].takeIf { it >= 0 } ?: (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: g.place
     }
+    Profile.lap("meetings: settling them", mt)
 }
 
 /**
