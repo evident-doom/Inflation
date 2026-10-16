@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
 import inflation.world.Date
@@ -19,29 +20,17 @@ import kotlin.math.abs
  * Usage: hex-explain --net FILE --kind NAME [--seed N] [--size KM] [--years N]
  */
 object HexExplain {
-    val FEATURES = listOf(
-        "food", "suits it", "crowding", "hunters", "discomfort now", "discomfort ahead", "deep snow", "snow depth",
-        "height change km", "effort", "stays", "same hex", "toward season place", "season promise - fed", "fed", "reserves",
-        "season sin", "season cos", "restless", "water distance", "thirst", "bearing pull", "moon", "birth sin", "birth cos",
-        "remembers it", "remembers it this season", "remembered fed", "remembered water", "remembered danger", "time since there", "ancestors there", "appointment pull", "its houses there",
-    )
+    /** Each place feature's name, as saved networks name their inputs. */
+    val FEATURES get() = Schema.PLACE
 
     @JvmStatic
     fun main(args: Array<String>) {
-        var netFile: File? = null; var kindName = "ostrich"; var seed = 91L; var size = 600; var years = 3
-        var k = 0
-        while (k < args.size) {
-            when (args[k]) {
-                "--net" -> netFile = File(args[++k])
-                "--kind" -> kindName = args[++k]
-                "--seed" -> seed = args[++k].toLong()
-                "--size" -> size = args[++k].toInt()
-                "--years" -> years = args[++k].toInt()
-                else -> error("unknown argument ${args[k]}")
-            }
-            k++
-        }
-        val net = Mlp.load(netFile!!.readText())
+        val a = Args(args, "hex-explain --net FILE [--kind NAME] [--seed N] [--size KM] [--years N]")
+        val netFile = a.file("--net"); val kindName = a.string("--kind") ?: "ostrich"
+        val seed = a.long("--seed", 91L); val size = a.int("--size", 600); val years = a.int("--years", 3)
+        a.done()
+        requireNotNull(netFile) { "hex-explain needs --net FILE" }
+        val net = Mlp.load(netFile.readText())
         val kind = Catalogue.all.first { it.name == kindName }
         val kinds = Catalogue.learned
         val cfg = WorldConfig(seed = seed, widthKm = size, heightKm = size)

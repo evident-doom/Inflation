@@ -208,9 +208,3 @@ object WaysPpo {
         return both[1] to both[0]
     }
 }
-
-private fun gaussian(rnd: Random): Float {
-    var u: Double
-    do u = rnd.nextDouble() while (u <= 1e-12)
-    return (sqrt(-2.0 * ln(u)) * kotlin.math.cos(2.0 * Math.PI * rnd.nextDouble())).toFloat()
-}

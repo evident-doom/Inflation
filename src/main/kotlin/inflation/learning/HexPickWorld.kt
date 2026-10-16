@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.Args
 import inflation.world.World
 import inflation.world.WorldConfig
 import kotlin.math.max
@@ -21,17 +22,11 @@ object HexPickWorld {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        var seeds = (1L..40L).toList(); var size = 600; var lats = listOf(30.0, 36.0, 42.0)
-        var k = 0
-        while (k < args.size) {
-            when (args[k]) {
-                "--seeds" -> seeds = args[++k].split("-").let { (a, b) -> (a.toLong()..b.toLong()).toList() }
-                "--size" -> size = args[++k].toInt()
-                "--lats" -> lats = args[++k].split(",").map { it.toDouble() }
-                else -> error("unknown argument ${args[k]}")
-            }
-            k++
-        }
+        val a = Args(args, "hex-pick-world [--seeds 1-40] [--size KM] [--lats 30,36,42]")
+        val seeds = a.string("--seeds")?.split("-")?.let { (lo, hi) -> (lo.toLong()..hi.toLong()).toList() } ?: (1L..40L).toList()
+        val size = a.int("--size", 600)
+        val lats = a.string("--lats")?.split(",")?.map { it.toDouble() } ?: listOf(30.0, 36.0, 42.0)
+        a.done()
         val jobs = seeds.flatMap { s -> lats.map { s to it } }
         val results = jobs.parallelStream().map { (seed, lat) ->
             val w = World.generate(WorldConfig(seed = seed, widthKm = size, heightKm = size, centreLatitude = lat))
