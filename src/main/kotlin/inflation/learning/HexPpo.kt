@@ -16,6 +16,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
+import inflation.ecology.Band
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Where to go, for every animal kind with one shared network, and for people with their own: each
@@ -54,7 +56,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
             // A herd's yearly round draws it on outside the network, as tradition does, so that learning does not unlearn it.
             inflation.ecology.ROUND_NET_PULL * features.getOrElse(51) { 0f }
 
-    /** How many numbers of the band's own view ([inflation.ecology.Band.state]) it reads after the kind's part: [WAYS_IN] for people, 0 for animals. */
+    /** How many numbers of the band's own view ([Band.state]) it reads after the kind's part: [WAYS_IN] for people, 0 for animals. */
     val band get() = inputs - INPUTS
 
     /** Writes a candidate's whole input for kind [s]: its place features, the kind's part, the group's temperament [temper], and (people's) the band's view of itself, [state]. */
@@ -101,9 +103,9 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
 open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: Int, val inputs: Array<FloatArray>, val taken: Int, val logp: Float) {
     /** The hand-written scores of the candidates (for networks that start from them). */
     var baseline = FloatArray(0)
-    /** A band's view of itself when it chose ([inflation.ecology.Band.state]); null for animals. */
+    /** A band's view of itself when it chose ([Band.state]); null for animals. */
     var band: FloatArray? = null
-    /** The group's temperament when it chose ([inflation.ecology.HexGroup.temper]). */
+    /** The group's temperament when it chose ([HexGroup.temper]). */
     var temper: FloatArray? = null
     /** What followed: the group's (and its offshoots') numbers over the next weeks against its numbers now, discounted. */
     var ret = 0f
@@ -459,7 +461,7 @@ object HexPpo {
      */
     internal fun handScore(cfg: WorldConfig, years: Int, kinds: List<Species>): Map<Species, Double> =
         handScores.computeIfAbsent(Triple(cfg, years, kinds.map { it.name })) { score(cfg, years, kinds) { } }
-    private val handScores = java.util.concurrent.ConcurrentHashMap<Triple<WorldConfig, Int, List<String>>, Map<Species, Double>>()
+    private val handScores = ConcurrentHashMap<Triple<WorldConfig, Int, List<String>>, Map<Species, Double>>()
 
     /**
      * Animal-weeks per animal at the start, by kind, over [years] in [cfg] with the policies [setUp]
@@ -495,7 +497,7 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
     private val buffers = ThreadLocal.withInitial { net.buffers() }
 
     /** Where [c]'s group stood: the candidate that is staying put (else the first). */
-    private fun here(c: Choice) = c.inputs.indices.firstOrNull { c.inputs[it].getOrElse(inflation.ecology.HexFeatures.STAYS) { 0f } > 0.5f } ?: 0
+    private fun here(c: Choice) = c.inputs.indices.firstOrNull { c.inputs[it].getOrElse(HexFeatures.STAYS) { 0f } > 0.5f } ?: 0
 
     fun value(model: SharedMover, c: Choice): Float {
         val b = buffers.get()

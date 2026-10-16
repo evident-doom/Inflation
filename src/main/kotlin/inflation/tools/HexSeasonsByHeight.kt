@@ -6,6 +6,9 @@ import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.WorldConfig
+import inflation.world.HexWorld
+import kotlin.math.exp
+import kotlin.math.ln
 
 /**
  * The seasons by height: for land in bands of height, month by month over the last year of a run,
@@ -39,10 +42,10 @@ fun main(args: Array<String>) {
         if (w < steps - perYear) return@repeat
         val m = run.weather.date.month
         val cured = curedField.get(land) as BooleanArray
-        for (kk in run.fauna.kinds.indices) for (h in 0 until run.hex.size) for (bb in 0 until inflation.world.HexWorld.BANDS_M.size - 1) {
+        for (kk in run.fauna.kinds.indices) for (h in 0 until run.hex.size) for (bb in 0 until HexWorld.BANDS_M.size - 1) {
             val lo = hw.placeOf[bb][h]; val hi = hw.placeOf[bb + 1][h]; if (lo < 0 || hi < 0) continue
             val al = run.fauna.appeal(kk, lo, run.weather); val ah = run.fauna.appeal(kk, hi, run.weather)
-            if (al > 0f && ah > 0f) { ratioSum[kk][m] += kotlin.math.ln((ah / al).toDouble()); ratioN[kk][m]++ }
+            if (al > 0f && ah > 0f) { ratioSum[kk][m] += ln((ah / al).toDouble()); ratioN[kk][m]++ }
         }
         for (p in 0 until n) {
             val b = bandOf[p]; if (b < 0) continue
@@ -60,7 +63,7 @@ fun main(args: Array<String>) {
     // How much better the higher of two neighbouring height bands in a hex looks to red deer and mouflon, month by month (geometric mean of high/low).
     for (name in listOf("red deer", "mouflon", "ibex")) {
         val kk = run.fauna.kinds.indexOfFirst { it.name == name }; if (kk < 0) continue
-        println("$name: higher band's appeal against the lower's, by month: " + (0 until 12).joinToString(" ") { m -> if (ratioN[kk][m] > 0) "%.2f".format(kotlin.math.exp(ratioSum[kk][m] / ratioN[kk][m])) else "-" })
+        println("$name: higher band's appeal against the lower's, by month: " + (0 until 12).joinToString(" ") { m -> if (ratioN[kk][m] > 0) "%.2f".format(exp(ratioSum[kk][m] / ratioN[kk][m])) else "-" })
     }
     for ((b, band) in bands.withIndex()) {
         if (area[b].all { it <= 0.0 }) continue

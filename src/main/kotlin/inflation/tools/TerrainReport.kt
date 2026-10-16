@@ -11,6 +11,7 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.random.Random
+import kotlin.math.sqrt
 
 /**
  * How mountainous country is shaped and how much it steers travel: slopes and relief of the high
@@ -123,7 +124,7 @@ private fun hillshade(world: World, file: java.io.File) {
         val ey = world.elevation[g.index(x, (y + 1).coerceAtMost(g.height - 1))] - world.elevation[g.index(x, (y - 1).coerceAtLeast(0))]
         // Light from the north-west, 45 degrees up.
         val nx = -ex / (2 * cm); val ny = -ey / (2 * cm)
-        val shade = ((nx * -0.5f + ny * -0.5f + 0.7071f) / kotlin.math.sqrt(nx * nx + ny * ny + 1f)).coerceIn(0f, 1f)
+        val shade = ((nx * -0.5f + ny * -0.5f + 0.7071f) / sqrt(nx * nx + ny * ny + 1f)).coerceIn(0f, 1f)
         val h = (e / 4000f).coerceIn(0f, 1f)
         val r = (90 + 140 * h) * (0.35f + 0.65f * shade); val gg = (130 + 90 * h) * (0.35f + 0.65f * shade); val b = (80 + 150 * h) * (0.35f + 0.65f * shade)
         img.setRGB(x, y, (r.toInt().coerceIn(0, 255) shl 16) or (gg.toInt().coerceIn(0, 255) shl 8) or b.toInt().coerceIn(0, 255))

@@ -15,6 +15,7 @@ import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.sqrt
 import kotlin.random.Random
+import inflation.ecology.AnimalWay
 
 /** A standard normal draw (Box-Muller). */
 internal fun gaussian(rnd: Random): Float {
@@ -131,7 +132,7 @@ object HexEvolve {
  * the network round-robin, and each variant is scored by the person-weeks its bands live, per
  * person at the start. It starts from the scaffold (a network of zeros chooses exactly as it does).
  *
- * With --role herds or --role hunters it evolves the herds' or the packs' ways instead ([inflation.ecology.AnimalWay],
+ * With --role herds or --role hunters it evolves the herds' or the packs' ways instead ([AnimalWay],
  * in herd-ways.mlp or hunter-ways.mlp), each variant scored by the head-weeks its groups live per head
  * at the start, averaged over the kinds of the role (so the many jackals do not outweigh the few lions).
  *

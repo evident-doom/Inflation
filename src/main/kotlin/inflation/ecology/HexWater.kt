@@ -11,6 +11,10 @@ import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.DoubleAdder
+import java.util.stream.IntStream
+import kotlin.math.sqrt
 
 /**
  * Life in the water of each hex, as in the 1 km model's plankton, fish and sea, on the hexes:
@@ -37,7 +41,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private val hex = hw.hex
     private val world = hw.world
     private val size = hex.size
-    private val hexKm2 = (hex.hexKm * hex.hexKm * kotlin.math.sqrt(3.0) / 2).toFloat()
+    private val hexKm2 = (hex.hexKm * hex.hexKm * sqrt(3.0) / 2).toFloat()
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
 
     /** Open water in each hex, km²: sea, and lake (fresh or closed). */
@@ -89,6 +93,15 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private val dead = FloatArray(size)
 
     init {
+        measureWater()
+        measureShore()
+        startWater(riverMouthFlows())
+        walkRivers()
+        placeColonies()
+    }
+
+    /** The open water of each hex from the fine grid: the sea's mean depth and its shallows near land (shellfish beds), the share of lake that is closed, and the water's temperature by month. */
+    private fun measureWater() {
         val grid = world.grid
         val depthSum = DoubleArray(size); val seaCells = IntArray(size); val shallowCells = IntArray(size); val closedCells = IntArray(size); val lakeCells = IntArray(size)
         val tSum = Array(12) { DoubleArray(size) }; val wCells = IntArray(size)
@@ -113,7 +126,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             if (lakeCells[h] > 0) closedLake[h] = closedCells[h].toFloat() / lakeCells[h]
             for (m in 0 until 12) waterTemp[m][h] = if (wCells[h] > 0) (tSum[m][h] / wCells[h]).toFloat() else hw.temp[m][h]
         }
-        // Distance to land, hex by hex.
+    }
+
+    /** Distance from each hex to land, hex by hex. */
+    private fun measureShore() {
         val dist = FloatArray(size) { Float.MAX_VALUE }
         val queue = ArrayDeque<Int>()
         for (h in 0 until size) if (hw.land[h] > 0f) { dist[h] = 0f; queue += h }
@@ -122,13 +138,21 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && dist[q] > dist[h] + hex.hexKm) { dist[q] = (dist[h] + hex.hexKm).toFloat(); queue += q } }
         }
         for (h in 0 until size) shoreKm[h] = dist[h]
-        // Rivers into the sea: each land hex whose river leaves the land feeds the sea hexes around its mouth.
+    }
+
+    /** Rivers into the sea: each land hex whose river leaves the land feeds the sea hexes around its mouth, m³/s. */
+    private fun riverMouthFlows(): FloatArray {
         val mouthFlow = FloatArray(size)
         for (h in 0 until size) {
             if (land.meanFlow[h] <= 0f || hw.land[h] <= 0f || land.down[h] >= 0) continue
             for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seaKm2[q] > 0f) mouthFlow[q] += land.meanFlow[h] / 6f }
             if (seaKm2[h] > 0f) mouthFlow[h] += land.meanFlow[h]
         }
+        return mouthFlow
+    }
+
+    /** The water's nutrient supply and its first plankton, fish, shellfish and sea animals; for each coastal sea hex the way out to sea and the land whose wind blows over it ([mouthFlow]: what the rivers bring, m³/s). */
+    private fun startWater(mouthFlow: FloatArray) {
         for (h in 0 until size) {
             if (waterKm2[h] <= 0f) continue
             supply[h] = if (seaKm2[h] <= 0f) (if (closedLake[h] > 0.5f) 0.2f else 0.6f)
@@ -152,7 +176,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             if (shallow[h] > 0f) shellfish[h] = 0.7f * shellCapacity(h)
             for ((k, a) in SEA.withIndex()) if (seaKm2[h] > 0f && shoreKm[h] <= a.maxShoreKm) sea[k][h] = a.massKg / a.startKm2
         }
-        // Rivers: distance up from the sea and cascades, down the network from the mouths.
+    }
+
+    /** Rivers: distance up from the sea and cascades, down the network from the mouths; the first river fish. */
+    private fun walkRivers() {
         val byDist = (0 until size).filter { land.meanFlow[it] >= RiverClass.STREAM.minDischarge && hw.land[it] > 0f }
         fun up(h: Int): Float {
             if (mouth[h] != -1 || upKm[h] < 0f) return upKm[h]
@@ -172,7 +199,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
         for (h in byDist) up(h)
         for (h in byDist) riverFish[h] = 0.7f * riverCapacity(h, 6)
-        // Sea-bird colonies: the most broken coast in each stretch, fishing the sea within reach.
+    }
+
+    /** Sea-bird colonies: the most broken coast in each stretch, fishing the sea within reach. */
+    private fun placeColonies() {
         val blocks = HashMap<Long, Int>()
         for (h in 0 until size) {
             if (!hw.coast[h] || hw.land[h] <= 0f) continue
@@ -219,10 +249,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** This week's flows of sea and lake fish, tonnes: grown, died of age or hunger, eaten by each kind, drifted. */
-    @Transient val fishFlows = java.util.concurrent.ConcurrentHashMap<String, Double>()
+    @Transient val fishFlows = ConcurrentHashMap<String, Double>()
     // (Summed in adders during the parallel loop, without contention, and written to [fishFlows] after it.)
-    @Transient private val flowAdders = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.DoubleAdder>()
-    private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { java.util.concurrent.atomic.DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble()) }
+    @Transient private val flowAdders = ConcurrentHashMap<String, DoubleAdder>()
+    private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble()) }
     private val eatenBy = SEA.map { "eaten by ${it.name}" }
 
     fun step(weather: Weather) {
@@ -230,7 +260,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val date = weather.date
         val month = date.month
         val light = (Date(date.absoluteDay).dayLengthHours(38.0) / 12.0).toFloat()
-        java.util.stream.IntStream.range(0, size).parallel().forEach { h ->
+        IntStream.range(0, size).parallel().forEach { h ->
             val pt = Profile.mark()
             if (waterKm2[h] > 0f) {
                 // Upwelling: the wind's drift is bent to the right; where it carries water off the coast, deep water wells up.
@@ -374,7 +404,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         // Exchange between neighbouring water of the same kind (sea with sea, lake with lake), as much
         // leaving one as reaches the other: what moves is the density difference over the narrower water.
         val old = f.copyOf()
-        java.util.stream.IntStream.range(0, size).parallel().forEach { h ->
+        IntStream.range(0, size).parallel().forEach { h ->
             if (waterKm2[h] <= 0f) return@forEach
             var delta = 0f
             for (d in 0 until 6) {
@@ -632,7 +662,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val RIVER_FISH_PER_KM2_WATER = 15_000f
         const val MAX_SHELLFISH = 20_000f
         const val FISH_GROWTH = 0.6f
-        /** Shellfish's yearly growth at low numbers (as before, now paid for in plankton). */
+        /** Shellfish's yearly growth at low numbers (paid for in plankton). */
         const val SHELL_GROWTH = 0.8f
         /** Share of what fish eat that becomes fish. */
         const val FISH_EFFICIENCY = 0.2f

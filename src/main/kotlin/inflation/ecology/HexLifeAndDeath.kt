@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.world.Date
 import inflation.world.HexLand
@@ -11,6 +12,10 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.min
 import kotlin.random.Random
+import inflation.world.Biome
+import java.util.concurrent.atomic.DoubleAdder
+import java.util.stream.IntStream
+import kotlin.math.abs
 
 // Grazing, births and deaths, splitting, and what herds remember of the seasons.
 
@@ -29,7 +34,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     val near = ArrayList<Int>()
     for (p in 0 until n) {
         val (cx, cy) = hex.centreKm(hw.placeHex[p])
-        if (kotlin.math.abs(cx - hx) <= reachKm && kotlin.math.abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm) near += p
+        if (abs(cx - hx) <= reachKm && abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm) near += p
     }
     if (near.isEmpty()) return
     var top = 0f
@@ -89,7 +94,7 @@ internal fun HexGroups.graze(weather: Weather) {
             val access = HexFood.access(s, land.crag[p]) * (if (HERD_WATER_TIE) fauna.tether(s, p) else 1f) * (1f - HexSmallLife.HARASS_FEED * small.harassment(p))
             val snowed = weather.snowpack[p] > s.snowLimitMm
             // (Its diet as it leans this week: its kind's, weighted by its own choice.)
-            val d = s.diet.let { k -> inflation.ecology.Diet(grass = k.grass * g.will[AnimalWay.GRASS], browse = k.browse * g.will[AnimalWay.BROWSE], fruit = k.fruit * g.will[AnimalWay.FRUIT], roots = k.roots * g.will[AnimalWay.FRUIT]) }
+            val d = s.diet.let { k -> Diet(grass = k.grass * g.will[AnimalWay.GRASS], browse = k.browse * g.will[AnimalWay.BROWSE], fruit = k.fruit * g.will[AnimalWay.FRUIT], roots = k.roots * g.will[AnimalWay.FRUIT]) }
             val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
             val reach = HexFauna.REACH_DORMANT + (HexFauna.REACH - HexFauna.REACH_DORMANT) * land.green[p]
             // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
@@ -216,7 +221,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     // the counts, a split-off herd) is gathered and handed on after, in the groups' order.
     val list = groups.toList()
     val outcome = arrayOfNulls<Outcome>(list.size)
-    java.util.stream.IntStream.range(0, list.size).parallel().forEach { k ->
+    IntStream.range(0, list.size).parallel().forEach { k ->
         val g = list[k]
         if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
     }
@@ -244,7 +249,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
         if (ROUNDS && !s.carnivore && g.route[0] != -1) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) deaths.merge("${s.name} $way:born", o.births, Int::plus) }
-        if (s.human) { val c = inflation.world.Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' '); for ((cause, k) in o.causes) if (k > 0) hunting.merge("bands in $c:died of $cause", k, Int::plus); if (o.births > 0) hunting.merge("bands in $c:born", o.births, Int::plus) }
+        if (s.human) { val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' '); for ((cause, k) in o.causes) if (k > 0) hunting.merge("bands in $c:died of $cause", k, Int::plus); if (o.births > 0) hunting.merge("bands in $c:born", o.births, Int::plus) }
         if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
         if (s.human && o.youngDied > 0) hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
@@ -382,7 +387,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val croc = if (s.human) 0f else fauna.water.crocodileRisk(g.place, weather) * years
     if (s.human && g.young > 0) {
         val care = g.young * (1f - ELDER_CARE * help)
-        fun add(name: String, v: Float) { if (v > 0f) childDeaths.computeIfAbsent(name) { java.util.concurrent.atomic.DoubleAdder() }.add((care * v).toDouble()) }
+        fun add(name: String, v: Float) { if (v > 0f) childDeaths.computeIfAbsent(name) { DoubleAdder() }.add((care * v).toDouble()) }
         add("infancy and ordinary illness", healed * cared * s.youngMortality * Tuning.humanYoung * years)
         add("hunger", 1.5f * hunger); add("cold and exposure", 1.5f * (cold + exposure)); add("thirst", 1.5f * thirst)
         add("crowd sickness and outbreaks", disease); add("fire, flood and snow", fireY + floodY + snowY); add("camp fouling", fouled)
@@ -445,14 +450,14 @@ private fun HexGroups.moveBirthMonth(g: HexGroup, date: Date) {
     // Once a year its births move a month towards the months it fed best in (the birth month and the two after).
     if (date.month == 3 && date.dayOfMonth <= days && !s.carnivore) {
         // (How well fed, and on how rich a diet, in the months the young would be born and suckled.)
-        fun window(m0: Int) = (0 until 3).sumOf { (g.seasonQ[(m0 + it + 12) % 12] * g.proteinByMonth[(m0 + it + 12) % 12]).toDouble() }
+        fun window(m0: Int) = (0 until 3).sumOf { (g.seasonQ[wrapMonth(m0 + it)] * g.proteinByMonth[wrapMonth(m0 + it)]).toDouble() }
         val m = g.birthMonth
         // (Or it moves them itself, when it leans far enough one way, see [AnimalWay.BIRTHS].)
         val lean = g.will[AnimalWay.BIRTHS] - 1f
-        if (lean < -AnimalWay.BIRTHS_LEAN) g.birthMonth = (m + 11) % 12
-        else if (lean > AnimalWay.BIRTHS_LEAN) g.birthMonth = (m + 1) % 12
-        else if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = (m + 11) % 12
-        else if (window(m + 1) > window(m) + 0.1) g.birthMonth = (m + 1) % 12
+        if (lean < -AnimalWay.BIRTHS_LEAN) g.birthMonth = wrapMonth(m - 1)
+        else if (lean > AnimalWay.BIRTHS_LEAN) g.birthMonth = wrapMonth(m + 1)
+        else if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = wrapMonth(m - 1)
+        else if (window(m + 1) > window(m) + 0.1) g.birthMonth = wrapMonth(m + 1)
     }
 }
 

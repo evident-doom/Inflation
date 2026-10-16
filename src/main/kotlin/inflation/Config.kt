@@ -2,6 +2,7 @@ package inflation
 
 import java.io.File
 import java.util.Properties
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Run settings, read from a properties file of keys (see config.example.properties): the file
@@ -25,7 +26,7 @@ object Config {
 
     private val props = Properties()
     /** The keys set in the file that the run has read. */
-    private val read = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val read = ConcurrentHashMap.newKeySet<String>()
     val source: File?
 
     init {

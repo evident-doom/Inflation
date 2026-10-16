@@ -1,4 +1,7 @@
 package inflation.ecology
+import inflation.learning.Schema
+import inflation.world.HexLand
+import kotlin.math.max
 
 /** A herd, pack or pride on the hexes: where it stands (a place: a height band of a hex) and who it is. */
 class HexGroup(val id: Int, val species: Species, var place: Int, var adults: Int, var young: Int) {
@@ -62,7 +65,7 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** All food on hand, kg; setting it scales every kind alike (gifts, raids, splits), or stores it dried. */
     var larder: Float
         get() = stores.sum()
-        set(v) { val s = stores.sum(); if (s > 0f) { val k = kotlin.math.max(0f, v) / s; for (i in stores.indices) stores[i] *= k } else { stores.fill(0f); stores[Store.DRIED.ordinal] = kotlin.math.max(0f, v) } }
+        set(v) { val s = stores.sum(); if (s > 0f) { val k = max(0f, v) / s; for (i in stores.indices) stores[i] *= k } else { stores.fill(0f); stores[Store.DRIED.ordinal] = max(0f, v) } }
     /** For a band: its skills, tools and camp. */
     var band: Band? = null
     /** For kinds that follow people's camps: the share of it bold enough to come close, 0..1 (-1 until first needed: its kind's share). */
@@ -95,7 +98,7 @@ fun interface HexPolicy {
  * place, the way to better country it senses, and the group's own state and the time of year.
  */
 object HexFeatures {
-    // Each slot's name in saved networks is [inflation.learning.Schema.PLACE] at the same index; SchemaTest checks they line up.
+    // Each slot's name in saved networks is [Schema.PLACE] at the same index; SchemaTest checks they line up.
     /** The food there for the group, 0..1. */
     const val FOOD = 0
     /** How well the climate there suits its kind, log. */
@@ -176,7 +179,7 @@ object HexFeatures {
     const val SHRUBS = 38
     /** Grass cover. */
     const val GRASS = 39
-    /** Waterlogged ground ([inflation.world.HexLand.logged]). */
+    /** Waterlogged ground ([HexLand.logged]). */
     const val MARSH = 40
     /** Water now against its usual. */
     const val WATER_AGAINST_USUAL = 41

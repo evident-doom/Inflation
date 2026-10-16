@@ -2,6 +2,8 @@ package inflation.ecology
 
 import inflation.world.Biome
 import java.io.File
+import inflation.world.Date
+import inflation.world.WorldConfig
 
 /**
  * The history of a hex world, week by week, for finding imbalances: every number worth watching as
@@ -214,7 +216,7 @@ class HexHistory {
 
     companion object {
         /** Half a year in weeks (steps). */
-        val HALF_YEAR_WEEKS = inflation.world.Date.DAYS_PER_YEAR / inflation.world.WorldConfig().daysPerStep / 2
+        val HALF_YEAR_WEEKS = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep / 2
 
         fun readCsv(file: File): HexHistory {
             val h = HexHistory()

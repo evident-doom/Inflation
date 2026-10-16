@@ -1,6 +1,8 @@
 package inflation.ecology
 
 import inflation.Config
+import kotlin.math.max
+import kotlin.math.min
 
 // The numbers the herds and packs on the hexes live by.
 
@@ -154,7 +156,7 @@ const val SEARCHING = 0.3f
  * for each 10 °C of cold it feels beyond what its coat (or clothes and house) keeps off, at most
  * [COLD_MAX] times its need.
  */
-fun coldNeed(s: Species, felt: Float, month: Int): Float = kotlin.math.min(COLD_MAX, 1f + COLD_COST * Tuning.coldCost * s.coldC(felt, month) / 10f)
+fun coldNeed(s: Species, felt: Float, month: Int): Float = min(COLD_MAX, 1f + COLD_COST * Tuning.coldCost * s.coldC(felt, month) / 10f)
 const val COLD_COST = 0.1f
 const val COLD_MAX = 1.6f
 
@@ -164,7 +166,7 @@ const val COLD_MAX = 1.6f
  * a little under a hundredth of a day's energy per km, whatever their size; the walking within its
  * usual range is part of the day's need already.)
  */
-fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * kotlin.math.max(0, g.path.size - 1) * hex.hexKm.toFloat() / days *
+fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * max(0, g.path.size - 1) * hex.hexKm.toFloat() / days *
     // (People pushing through thick woods and scrub go slower and tire more than in the open.)
     (if (g.species.human) 1f + COVER_GOING * land.cover(g.place) else 1f) +
     // (Gatherers going further than usual walk the difference out and back each day.)

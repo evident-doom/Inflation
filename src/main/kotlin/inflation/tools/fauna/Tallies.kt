@@ -10,6 +10,7 @@ import inflation.ecology.Tool
 import inflation.ecology.Tradition
 import inflation.ecology.boldness
 import java.util.TreeMap
+import inflation.ecology.HexGroups
 
 /** Deaths and births by "kind:cause" over the run, from the model's weekly ledgers; and herds' head-weeks by size. */
 class DeathTally(private val sim: HexSim) {
@@ -71,7 +72,7 @@ class DeathTally(private val sim: HexSim) {
     }
 }
 
-/** The hunting and feeding tallies the groups keep ([inflation.ecology.HexGroups.hunting]), by year; and the grain people reaped. */
+/** The hunting and feeding tallies the groups keep ([HexGroups.hunting]), by year; and the grain people reaped. */
 class HuntTally(private val sim: HexSim) {
     /** This year's tallies, and the hunters' fed sums and group-weeks, by kind. */
     val year = TreeMap<String, Int>()

@@ -4,6 +4,11 @@ import inflation.world.Weather
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
+import inflation.world.Date
+import java.util.stream.IntStream
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
 
 /**
  * How a herd or a pack sets its ways for the week, as bands do theirs ([BandWays]): given what it knows
@@ -53,8 +58,8 @@ object AnimalWay {
 internal fun HexGroups.animalInputs(g: HexGroup, weather: Weather, into: FloatArray) {
     val s = g.species
     var i = 0
-    val angle = 2.0 * Math.PI * weather.date.dayOfYear / inflation.world.Date.DAYS_PER_YEAR
-    into[i++] = kotlin.math.sin(angle).toFloat(); into[i++] = kotlin.math.cos(angle).toFloat()
+    val angle = 2.0 * Math.PI * weather.date.dayOfYear / Date.DAYS_PER_YEAR
+    into[i++] = sin(angle).toFloat(); into[i++] = cos(angle).toFloat()
     into[i++] = g.fed
     into[i++] = g.fat / s.maxFatDays.coerceAtLeast(1f)
     into[i++] = min(2f, g.dry / s.daysWithoutWater)
@@ -79,7 +84,7 @@ internal fun HexGroups.setAnimalWays(g: HexGroup, weather: Weather, ways: Animal
     out.fill(0f)
     ways.choose(g, inputs, out)
     if (g.id == watched) control?.ways(g, out)
-    for (k in 0 until ANIMAL_WAYS_OUT) g.will[k] = 2f / (1f + kotlin.math.exp(-out[k]))
+    for (k in 0 until ANIMAL_WAYS_OUT) g.will[k] = 2f / (1f + exp(-out[k]))
 }
 
 /** Each herd and pack sets its ways for the week, on all cores (each only from its own state). */
@@ -87,7 +92,7 @@ internal fun HexGroups.setAnimalWays(weather: Weather) {
     val herds = herdWays; val hunters = hunterWays
     if (herds == null && hunters == null) return
     val inputs = ThreadLocal.withInitial { FloatArray(ANIMAL_WAYS_IN) }; val out = ThreadLocal.withInitial { FloatArray(ANIMAL_WAYS_OUT) }
-    java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k ->
+    IntStream.range(0, groups.size).parallel().forEach { k ->
         val g = groups[k]
         if (!g.alive || g.species.human) return@forEach
         val ways = (if (g.species.carnivore) hunters else herds) ?: return@forEach

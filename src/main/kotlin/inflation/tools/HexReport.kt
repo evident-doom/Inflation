@@ -13,6 +13,8 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.random.Random
+import inflation.ui.HexWorldPicture
+import kotlin.math.sqrt
 
 /**
  * How well a hex map keeps what matters for movement in the fine terrain: what kinds of border it
@@ -123,7 +125,7 @@ fun main(args: Array<String>) {
         t0 = System.nanoTime()
         val hw = HexWorld(world, hex)
         println("hex world summarised in %.1f s".format((System.nanoTime() - t0) / 1e9))
-        inflation.ui.HexWorldPicture.draw(hw, java.io.File(p.parentFile, p.nameWithoutExtension + "-hexworld.png"), 1.0)
+        HexWorldPicture.draw(hw, java.io.File(p.parentFile, p.nameWithoutExtension + "-hexworld.png"), 1.0)
     }
 }
 
@@ -200,7 +202,7 @@ private fun draw(world: World, hex: HexMap, file: java.io.File) {
             // Draw the border itself: the segment between the two hexes' shared corners.
             val mx = (ax + bx) / 2; val my = (ay + by) / 2
             val nx = -(by - ay); val ny = bx - ax
-            val len = hypot(nx, ny); val half = hex.hexKm / kotlin.math.sqrt(3.0) / 2
+            val len = hypot(nx, ny); val half = hex.hexKm / sqrt(3.0) / 2
             gr.stroke = java.awt.BasicStroke(if (!e.isFinite() || e >= 4 * hex.hexKm) 2.5f else 1.2f)
             gr.drawLine(((mx + nx / len * half) * px).toInt(), ((my + ny / len * half) * px).toInt(), ((mx - nx / len * half) * px).toInt(), ((my - ny / len * half) * px).toInt())
         }

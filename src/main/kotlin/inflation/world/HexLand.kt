@@ -663,7 +663,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             moisture[p] += (((1 - slopeShade[p]) * soil[p] + slopeShade[p] * soilShade[p]) / soilCap[p] - moisture[p]) * memory
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
             // Plants are adapted to their place: where summers are cool they grow fully at less warmth (alpine
-            // grasses at 5-10 °C), where they are hot as before.
+            // grasses at 5-10 °C); where summers are hot they need the usual warmth.
             val season = growthWarmth(p, t)
             val water0 = (wet / UNSTRESSED).coerceIn(0f, 1f)
             val waterShade = (soilShade[p] / soilCap[p] / UNSTRESSED).coerceIn(0f, 1f)
