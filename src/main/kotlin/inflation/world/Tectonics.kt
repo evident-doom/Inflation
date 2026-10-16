@@ -61,6 +61,8 @@ class Tectonics(
         const val RIFT_DEPTH_M = 900.0
         /** Extra crustal freeboard at the middle of the map, falling to none at its edges, m. */
         const val CORE_FREEBOARD_M = 450.0
+        /** Height of the old plains and basins where plateaus later rose, m: low, but above the sea. */
+        const val PLATEAU_FLOOR_M = 100f
         fun generate(grid: Grid, cfg: WorldConfig, noise: Noise): Tectonics {
             val rnd = Random(cfg.seed * 7919 + 13)
             val w = grid.width.toDouble(); val h = grid.height.toDouble()
@@ -121,6 +123,7 @@ class Tectonics(
             val elevation = FloatArray(n)
             val reliefField = FloatArray(n)
             val plateauField = FloatArray(n)
+            val plateauShape = FloatArray(n)
             for (i in 0 until n) {
                 val x = grid.x(i).toDouble(); val y = grid.y(i).toDouble()
                 val a = plates[plateId[i]]; val b = plates[neighbourId[i]]
@@ -144,14 +147,6 @@ class Tectonics(
                     // Collision or the overriding side of a subduction zone: uplift scales with closing speed.
                     u = conv * 0.025 * belt * cfg.upliftScale
                     relief = conv * 25_000.0 * belt * (0.5 + noise.ridged(x, y, 120.0 / grid.cellKm, 5)) * cfg.upliftScale
-                    // Where two continents collide, one is thrust under the other (of two, the higher-numbered
-                    // goes under), and the upper one's crust thickens far behind the belt and stands as a broad
-                    // high plateau (Anatolia, Iran, Tibet): rising behind the belt, flat on top out to
-                    // [WorldConfig.plateauKm] from the boundary, then falling away to the lowland. The
-                    // plateaus rose late, faster than rivers could cut them up, so the old lowland on top
-                    // stays smooth: they are raised after erosion.
-                    if (b.continental && cfg.plateauKm > 0 && plateId[i] < neighbourId[i])
-                        plateauField[i] = (conv * cfg.plateauM * (1 - exp(-km / beltWidth)) / (1 + (km / cfg.plateauKm).pow(4))).toFloat()
                 } else if (conv < 0 && a.continental) {
                     // Rifting: a narrow subsiding valley along the boundary, a chain of lakes or at most a
                     // narrow gulf; a young rift does not split a continent with open ocean.
@@ -161,11 +156,17 @@ class Tectonics(
                 reliefField[i] = relief.toFloat()
                 elevation[i] = base.toFloat()
             }
+            if (cfg.plateauKm > 0) plateaus(grid, cfg, plates, plateId, neighbourId, convergence, boundaryDist, plateauShape, plateauField)
             // The nearest-boundary rule switches abruptly near plate corners; real belts are smooth.
             val r = (30 / grid.cellKm).toInt().coerceAtLeast(1)
             val smoothRelief = blur(grid, blur(grid, reliefField, r), r)
             val smoothUplift = blur(grid, blur(grid, uplift, r), r)
             val smoothPlateau = blur(grid, blur(grid, plateauField, 2 * r), 2 * r)
+            val plateauLow = blur(grid, blur(grid, plateauShape, 2 * r), 2 * r)
+            // The plateaus rose late, and before that their ground was low basins and plains, filled with
+            // what the belts shed into them. So it stands low through erosion: the crust's own height above
+            // the old plain (not the belts' relief) is taken off and given back with the lift (see [World.landform]).
+            val down = FloatArray(n) { if (elevation[it] > PLATEAU_FLOOR_M) plateauLow[it] * (elevation[it] - PLATEAU_FLOOR_M) else 0f }
             for (i in 0 until n) {
                 // Ridges: belts are not smooth domes but folds and thrust sheets, crest after crest.
                 val ridges = if (cfg.ridgeKm > 0) {
@@ -180,6 +181,10 @@ class Tectonics(
             for (i in 0 until n) {
                 val keep = (boundaryDist[i] / 60f).coerceIn(0f, 1f)
                 elevation[i] = smooth[i] * (1 - keep) + elevation[i] * keep
+            }
+            for (i in 0 until n) if (down[i] > 0f) {
+                val d = min(down[i], elevation[i] - PLATEAU_FLOOR_M).coerceAtLeast(0f)
+                elevation[i] -= d; smoothPlateau[i] += d
             }
 
             val tect = Tectonics(plates, plateId, neighbourId, convergence, boundaryDist, uplift, elevation, smoothPlateau)
@@ -196,6 +201,48 @@ class Tectonics(
                 smoothPlateau[i] *= keep
             }
             return tect
+        }
+
+        /**
+         * Where two continents collide, one is thrust under the other (of two, the higher-numbered goes
+         * under), and the upper one's crust thickens far behind the belt and stands as a broad high
+         * plateau (Anatolia, Iran, Tibet): rising behind the belt, flat on top out to
+         * [WorldConfig.plateauKm] from the collision, then falling away to the lowland. The thickening
+         * spreads through the upper plate from its colliding edge, whatever other boundaries lie
+         * nearer. Fills [shape] (0..1) and [lift] (m, by the closing speed at the nearest colliding edge).
+         */
+        private fun plateaus(grid: Grid, cfg: WorldConfig, plates: List<Plate>, plateId: IntArray, neighbourId: IntArray,
+                             convergence: FloatArray, boundaryDist: FloatArray, shape: FloatArray, lift: FloatArray) {
+            val n = grid.size; val w = grid.width; val h = grid.height
+            val big = Float.MAX_VALUE / 4
+            val d = FloatArray(n) { big }
+            val conv = FloatArray(n)
+            val ck = grid.cellKm.toFloat()
+            for (i in 0 until n) {
+                val a = plateId[i]; val b = neighbourId[i]
+                if (convergence[i] > 0f && plates[a].continental && plates[b].continental && a < b && boundaryDist[i] < 2 * ck) { d[i] = boundaryDist[i]; conv[i] = convergence[i] }
+            }
+            // Distance from the colliding edge within the same plate (two chamfer passes).
+            fun relax(i: Int, j: Int, step: Float) {
+                if (plateId[j] == plateId[i] && d[j] + step < d[i]) { d[i] = d[j] + step; conv[i] = conv[j] }
+            }
+            val s1 = ck; val s2 = ck * 1.4142f
+            for (y in 0 until h) for (x in 0 until w) {
+                val i = y * w + x
+                if (x > 0) relax(i, i - 1, s1)
+                if (y > 0) { relax(i, i - w, s1); if (x > 0) relax(i, i - w - 1, s2); if (x < w - 1) relax(i, i - w + 1, s2) }
+            }
+            for (y in h - 1 downTo 0) for (x in w - 1 downTo 0) {
+                val i = y * w + x
+                if (x < w - 1) relax(i, i + 1, s1)
+                if (y < h - 1) { relax(i, i + w, s1); if (x < w - 1) relax(i, i + w + 1, s2); if (x > 0) relax(i, i + w - 1, s2) }
+            }
+            for (i in 0 until n) {
+                if (d[i] >= big) continue
+                val km = d[i].toDouble()
+                val f = (1 - exp(-km / cfg.beltKm)).pow(3) / (1 + (km / cfg.plateauKm).pow(4))
+                shape[i] = f.toFloat(); lift[i] = (conv[i] * cfg.plateauM * f).toFloat()
+            }
         }
     }
 }

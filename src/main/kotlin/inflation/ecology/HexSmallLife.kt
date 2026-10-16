@@ -372,7 +372,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var fed = 1f
             if (here && b.insectShare > 0f && f[p] > 0f) {
                 val need = f[p] * BIRD_INTAKE * days * b.insectShare
-                fed = takeSwitching(p, need, 0.5f, insectFood) / need
+                // (A few birds' need can round to nothing.)
+                if (need > 0f) fed = takeSwitching(p, need, 0.5f, insectFood) / need
             }
             f[p] = when {
                 // Migrants leave for beyond the map at the end of their months here, and come back.

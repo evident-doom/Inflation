@@ -274,7 +274,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val h = s.habitat
         val cover = land.cover(p)
         val wet = land.floodShare[p]
-        if (!HABITAT_BY_SHARE || h.rugged == 0f) return exp(HABITAT * (h.cover * (cover - 0.5f) + h.rugged * (land.ruggedness[p] - 0.3f) + h.wet * (wet - 0.2f)))
+        if (h.rugged == 0f) return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f)))
         // (The ground it likes is a share of the place: the valley floors of a rough hex for a plains kind,
         // its crags for a wild goat; it suits as the mean over its ground, see [HexLand.ruggedSpread].)
         return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f))) * ruggedFit(h.rugged)[p]
@@ -755,7 +755,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         /** How strongly a kind is drawn to the ground it prefers. */
         const val HABITAT = 3f
         /** Kinds take to rough or smooth ground by the share of a place that is so ([suits]); false: by the place's mean ruggedness. */
-        val HABITAT_BY_SHARE = Config.flag("t.habitatByShare", true)
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 4f
