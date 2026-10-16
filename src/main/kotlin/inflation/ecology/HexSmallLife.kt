@@ -174,7 +174,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     }
     fun tortoiseCapacity(p: Int): Float {
         val warm = ((meanTemp[p] - 12f) / 8f).coerceIn(0f, 1f)
-        return 30f * warm * min(1f, (land.shrub[p] + land.herb[p]) / 0.8f)
+        return TORTOISE_MOST * warm * min(1f, (land.shrub[p] + land.herb[p]) / 0.8f)
     }
 
     fun step(weather: Weather, carcassKg: FloatArray) {
@@ -885,6 +885,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
          * doi:10.1038/s41598-022-22288-9). An estimate: the young are many but small.
          */
         const val SHELL_YOUNG_SHARE = 0.1f
+        /**
+         * Tortoises in warm scrub at its best, kg/km²: some 11-13 Hermann's tortoises a hectare in good
+         * Spanish sites (Mascort 1997; Garraf 2010) at about a kilo each.
+         */
+        const val TORTOISE_MOST = 1000f
         /**
          * Share of grown birds a stalking beast can catch: those it surprises on the ground, at roost or
          * on the nest; the rest fly. An estimate.
