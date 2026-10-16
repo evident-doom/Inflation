@@ -8,7 +8,7 @@ import java.util.IdentityHashMap
 import java.util.zip.GZIPInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class HexSnapshotTest {
     private val cfg = WorldConfig(seed = 5, widthKm = 300, heightKm = 300, erosionSteps = 10, plates = 6, oceanMarginKm = 40.0)
@@ -35,7 +35,7 @@ class HexSnapshotTest {
             repeat(30) { b.step() }
             val x = bytes(a); val y = bytes(b)
             val diff = (0 until minOf(x.size, y.size)).firstOrNull { x[it] != y[it] } ?: if (x.size == y.size) -1 else minOf(x.size, y.size)
-            assertTrue(diff < 0) { "the loaded world's state differs from the one that ran on, from byte $diff of ${x.size}, in:\n" + StateDiff().of(a, b).joinToString("\n") }
+            if (diff >= 0) fail("the loaded world's state differs from the one that ran on, from byte $diff of ${x.size}, in:\n" + StateDiff().of(a, b).joinToString("\n"))
         } finally { f.delete() }
     }
 
@@ -66,7 +66,7 @@ class HexSnapshotTest {
 
 /**
  * The fields in which two models differ, walked by reflection over everything the model's own classes
- * hold (what lazy fields hold too), so that a failed comparison names what was lost.
+ * save (what lazy fields hold too), so that a failed comparison names what was lost.
  */
 private class StateDiff {
     private val out = ArrayList<String>()
@@ -89,14 +89,14 @@ private class StateDiff {
             is List<*> -> if (x.size != (y as List<*>).size) out += path else x.indices.forEach { walk("$path[$it]", x[it], y[it]) }
             is Set<*> -> if (x.size != (y as Set<*>).size) out += path else walk(path, x.toList(), y.toList())
             is Map<*, *> -> if (x.size != (y as Map<*, *>).size) out += path else walk(path, x.entries.map { listOf(it.key, it.value) }, y.entries.map { listOf(it.key, it.value) })
-            is Number, is String, is Boolean, is Char, is Enum<*> -> if (x != y) out += path
+            is Int, is Long, is Float, is Double, is Short, is Byte, is String, is Boolean, is Char, is Enum<*> -> if (x != y) out += path
             is Lazy<*> -> if (x.isInitialized() || (y as Lazy<*>).isInitialized()) walk(path, x.value, (y as Lazy<*>).value)
             else -> {
                 val c = x.javaClass
                 if (c.isSynthetic || c.name.contains("Lambda") || !c.name.startsWith("inflation.")) return
                 var k: Class<*>? = c
                 while (k != null && k != Any::class.java) {
-                    for (f in k.declaredFields) if (!Modifier.isStatic(f.modifiers)) { f.isAccessible = true; walk("$path.${f.name}", f.get(x), f.get(y)) }
+                    for (f in k.declaredFields) if (!Modifier.isStatic(f.modifiers) && !Modifier.isTransient(f.modifiers)) { f.isAccessible = true; walk("$path.${f.name}", f.get(x), f.get(y)) }
                     k = k.superclass
                 }
             }
