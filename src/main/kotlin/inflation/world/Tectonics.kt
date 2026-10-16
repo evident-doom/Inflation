@@ -5,6 +5,7 @@ import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -36,6 +37,8 @@ class Tectonics(
     val uplift: FloatArray,
     /** Initial elevation before erosion, m. */
     val elevation: FloatArray,
+    /** Late uplift of the high plateaus, raised after erosion (see [World.landform]), m. */
+    val plateauLift: FloatArray,
 ) {
     fun isContinental(i: Int): Boolean = plates[plateId[i]].continental
 
@@ -117,6 +120,7 @@ class Tectonics(
             val uplift = FloatArray(n)
             val elevation = FloatArray(n)
             val reliefField = FloatArray(n)
+            val plateauField = FloatArray(n)
             for (i in 0 until n) {
                 val x = grid.x(i).toDouble(); val y = grid.y(i).toDouble()
                 val a = plates[plateId[i]]; val b = plates[neighbourId[i]]
@@ -140,6 +144,14 @@ class Tectonics(
                     // Collision or the overriding side of a subduction zone: uplift scales with closing speed.
                     u = conv * 0.025 * belt * cfg.upliftScale
                     relief = conv * 25_000.0 * belt * (0.5 + noise.ridged(x, y, 120.0 / grid.cellKm, 5)) * cfg.upliftScale
+                    // Where two continents collide, one is thrust under the other (of two, the higher-numbered
+                    // goes under), and the upper one's crust thickens far behind the belt and stands as a broad
+                    // high plateau (Anatolia, Iran, Tibet): rising behind the belt, flat on top out to
+                    // [WorldConfig.plateauKm] from the boundary, then falling away to the lowland. The
+                    // plateaus rose late, faster than rivers could cut them up, so the old lowland on top
+                    // stays smooth: they are raised after erosion.
+                    if (b.continental && cfg.plateauKm > 0 && plateId[i] < neighbourId[i])
+                        plateauField[i] = (conv * cfg.plateauM * (1 - exp(-km / beltWidth)) / (1 + (km / cfg.plateauKm).pow(4))).toFloat()
                 } else if (conv < 0 && a.continental) {
                     // Rifting: a narrow subsiding valley along the boundary, a chain of lakes or at most a
                     // narrow gulf; a young rift does not split a continent with open ocean.
@@ -153,6 +165,7 @@ class Tectonics(
             val r = (30 / grid.cellKm).toInt().coerceAtLeast(1)
             val smoothRelief = blur(grid, blur(grid, reliefField, r), r)
             val smoothUplift = blur(grid, blur(grid, uplift, r), r)
+            val smoothPlateau = blur(grid, blur(grid, plateauField, 2 * r), 2 * r)
             for (i in 0 until n) {
                 // Ridges: belts are not smooth domes but folds and thrust sheets, crest after crest.
                 val ridges = if (cfg.ridgeKm > 0) {
@@ -169,7 +182,7 @@ class Tectonics(
                 elevation[i] = smooth[i] * (1 - keep) + elevation[i] * keep
             }
 
-            val tect = Tectonics(plates, plateId, neighbourId, convergence, boundaryDist, uplift, elevation)
+            val tect = Tectonics(plates, plateId, neighbourId, convergence, boundaryDist, uplift, elevation, smoothPlateau)
             for (i in 0 until n) {
                 // Trenches: a narrow deep on the sinking plate along the boundary.
                 if (tect.isSubducting(i)) elevation[i] -= (3000.0 * exp(-boundaryDist[i] / 20.0)).toFloat()
@@ -180,6 +193,7 @@ class Tectonics(
                 val keep = (t * t * (3 - 2 * t)).toFloat()
                 elevation[i] = elevation[i] * keep + (-4200f) * (1 - keep)
                 uplift[i] *= keep
+                smoothPlateau[i] *= keep
             }
             return tect
         }

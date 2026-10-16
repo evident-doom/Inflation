@@ -37,6 +37,8 @@ fun main(args: Array<String>) {
             "--critical" -> cfg = cfg.copy(criticalSlope = args[++k].toDouble())
             "--steps" -> cfg = cfg.copy(erosionSteps = args[++k].toInt())
             "--uplift" -> cfg = cfg.copy(upliftScale = args[++k].toDouble())
+            "--plateau-km" -> cfg = cfg.copy(plateauKm = args[++k].toDouble())
+            "--plateau-m" -> cfg = cfg.copy(plateauM = args[++k].toDouble())
             "--png" -> png = java.io.File(args[++k])
             else -> error("unknown argument ${args[k]}")
         }
