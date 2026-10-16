@@ -66,7 +66,7 @@ fun main(args: Array<String>) {
     frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
     frame.isVisible = true
     Thread {
-        val world = inflation.ecology.HexSnapshot.WorldCache.load(cfg) { step -> SwingUtilities.invokeLater { status.text = "Generating: $step…" } }
+        val world = inflation.world.WorldCache.load(cfg) { step -> SwingUtilities.invokeLater { status.text = "Generating: $step…" } }
         SwingUtilities.invokeLater { status.text = "Summarising into hexes and drawing the ground…" }
         val view = HexViewer(world, load, nets, ways)
         SwingUtilities.invokeLater {

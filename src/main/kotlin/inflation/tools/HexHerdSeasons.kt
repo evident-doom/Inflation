@@ -18,7 +18,7 @@ fun main(args: Array<String>) {
     val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
     val years = a.int("--years", 3)
     a.done()
-    val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { })
+    val sim = HexSim(inflation.world.WorldCache.load(cfg) { })
     val hw = sim.hw; val land = sim.land; val herds = sim.groups
     // Every kind moving by learned role networks (nets=DIR), else by the hand-written choices.
     inflation.Config.string("nets")?.let { dir ->

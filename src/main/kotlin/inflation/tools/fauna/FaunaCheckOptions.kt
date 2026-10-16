@@ -35,7 +35,7 @@ class FaunaCheckOptions(
      * networks the config names (ways=, herdWays=, hunterWays=, nets=). Prints what it loaded.
      */
     fun start(): HexSim {
-        val sim = HexSim(HexSnapshot.WorldCache.load(cfg) { println(it) }, uniformStart = uniform)
+        val sim = HexSim(inflation.world.WorldCache.load(cfg) { println(it) }, uniformStart = uniform)
         testWorld?.let { TestWorlds.check(it, sim) }
         loadFile?.let { f ->
             val t0 = System.nanoTime()

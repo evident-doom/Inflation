@@ -46,7 +46,7 @@ class World(
         fun generate(cfg: WorldConfig, made: Landform? = null, log: (String) -> Unit = {}): World {
             // The lie of the land and its rocks (the slow part): as given, else as kept on disk from an
             // earlier run with the same settings and landform code, else made now (and kept).
-            val land = made ?: inflation.ecology.HexSnapshot.LandformCache.load(cfg, log)
+            val land = made ?: LandformCache.load(cfg, log)
             val grid = land.grid; val noise = Noise(cfg.seed)
             val tect = land.tectonics; val volcanoes = land.volcanoes; val elevation = land.elevation; val geology = land.geology
             val sea = seaMask(grid, elevation)
@@ -71,7 +71,7 @@ class World(
         /**
          * The lie of the land and its rocks: tectonics, volcanoes, bedrock, erosion and sediment, the
          * recent warping and the young volcanoes. It does not depend on the climate, so it can be kept
-         * and reused while the weather is worked on (see [inflation.ecology.HexSnapshot.LandformCache]).
+         * and reused while the weather is worked on (see [LandformCache]).
          */
         fun landform(cfg: WorldConfig, log: (String) -> Unit = {}): Landform {
             val grid = Grid(cfg.width, cfg.height, cfg.cellKm)

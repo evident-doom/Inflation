@@ -21,7 +21,7 @@ kotlin {
 }
 
 application {
-    mainClass.set("inflation.world.GenerateWorldKt")
+    mainClass.set("inflation.tools.GenerateWorldKt")
     applicationDefaultJvmArgs = listOf("-Xmx4g")
 }
 
