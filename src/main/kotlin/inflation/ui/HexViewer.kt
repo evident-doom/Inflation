@@ -404,7 +404,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                         Tint.BITING -> rgba(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
                         Tint.POLLINATORS -> rgba(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
                         Tint.ORGANIC -> rgba(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
-                        Tint.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.1f + 0.7f * min(1f, v / 60f)))
+                        Tint.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.05f + 0.75f * min(1f, kotlin.math.ln(1f + v) / kotlin.math.ln(1f + 600f)))) // log scale: 1 to 600 kg/km²
                         Tint.FOXES -> rgba(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
                         Tint.OWLS -> rgba(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
                         Tint.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))

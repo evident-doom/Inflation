@@ -253,15 +253,23 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val standing = land.flood[p] > 0f || wetland[p] > 0.1f || soilWater / LiveWater.SOIL_CAPACITY > 0.9f
             smallDead[p] += insectSeason(p, biting, dormantBiting, active, if (standing) 500f else 0f, least = 0f)
             pt = Profile.lap("small life: biting insects", pt)
-            // ---- rodents (a female raises some twenty young a year): logistic on food, losses to cold and deep snow; they eat ~10% of their mass a day.
+            // ---- rodents (a female raises some twenty young a year): they eat ~10% of their mass a day, and
+            // a mouse or vole lasts only a few days without food, so the share that found none in the week
+            // dies. They breed on fresh growth (young shoots and seeds carry the protein a litter needs),
+            // logistic on food; losses to cold and deep snow.
             var r = rodents[p]
-            val birth = if (t > 5f) 10f * years * food / (food + 0.2f) else 0f
-            val death = 1.2f * years + if (snow > 30f || t < -5f) 3f * years else 0f
+            val need = r * 0.1f * days / 1e6f
+            val eaten = land.consume(p, LifeForm.HERB, need)
+            litter[p] += FRASS * eaten
+            val fed = if (need > 0f) eaten / need else 1f
+            val fresh = food * land.green[p]
+            val birth = if (t > 5f) 10f * years * fed * fresh / (fresh + 0.05f) else 0f // (half the most at 0.05 kg/m² of green forage)
+            val death = RODENT_DEATH * years + (if (snow > 30f || t < -5f) 3f * years else 0f)
+            val starved = r * (1f - fed)
             val ceil = 600f * food / (food + 0.3f)
-            r += r * birth * (1 - r / ceil.coerceAtLeast(1f)) - r * death
-            smallDead[p] += rodents[p] * death
+            r += r * birth * (1 - r / ceil.coerceAtLeast(1f)) - r * death - starved
+            smallDead[p] += rodents[p] * death + starved
             rodents[p] = capped(p, r, 3000f)
-            litter[p] += FRASS * land.consume(p, LifeForm.HERB, rodents[p] * 0.1f * days / 1e6f)
             pt = Profile.lap("small life: rodents", pt)
             // ---- reptiles and amphibians
             var h = herps[p]
@@ -740,6 +748,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val EAGLE_HALF = 1f
         /** Share of the difference with its neighbours a small animal population evens out in a month. */
         const val SPREAD = 0.2f
+        /** Rodents' deaths a year from all causes but predators, cold, snow and hunger. */
+        val RODENT_DEATH = inflation.Config.float("t.rodentDeath", 1.2f)
         /** Share of what herds and packs eat that comes back as dung. */
         const val DUNG = 0.5f
         private val CHUKAR = BIRDS.indexOfFirst { it.name == "chukar" }
