@@ -449,7 +449,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     }
     val p = g.place
     val h = hw.placeHex[p]
-    val area = land.areaKm2[p] * 1e6f
+    val area = land.m2(p)
     if (h != b.campHex) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
@@ -481,7 +481,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
             val diggers = small.rodents[cp] / CACHE_RODENTS_HALF + small.foxes[cp] / CACHE_FOXES_HALF +
                 cacheDiggers.sumOf { (fauna.adults[it][cp] / 0.5f).toDouble() }.toFloat()
             val dug = min(0.5f, CACHE_DUG * min(1f, diggers) * years)
-            if (dug > 0f) { var lost = 0f; for (i in b.cache.indices) { val x = b.cache[i] * dug; b.cache[i] -= x; lost += x }; small.carrion[cp] += 0.3f * lost / (land.areaKm2[cp] * 1e6f) }
+            if (dug > 0f) { var lost = 0f; for (i in b.cache.indices) { val x = b.cache[i] * dug; b.cache[i] -= x; lost += x }; small.carrion[cp] += 0.3f * lost / land.m2(cp) }
         }
         val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]]) + CACHE_SPOIL * b.cacheKg
         for (i in b.cache.indices) b.cache[i] *= 1f - CACHE_SPOIL
@@ -630,7 +630,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         val sow = minOf(stock * SOW_SHARE * b.sowWill, time * hands(g) / SOW_DAYS_PER_KG)
         if (sow > 0.1f) {
             g.stores[Store.SEED.ordinal] -= sow; time -= sow * SOW_DAYS_PER_KG / hands(g)
-            val food = fauna.food; val m2 = land.areaKm2[p] * 1e6f
+            val food = fauna.food; val m2 = land.m2(p)
             val standing = food.cereal[p] * land.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
             val add = sow / m2
             food.domestic[p] = (food.domestic[p] * standing + b.seedDomestic * add) / (standing + add).coerceAtLeast(1e-9f)
@@ -1166,7 +1166,7 @@ fun serveOfMake(t: Tool, fine: Float): Float = if (fineMaterial(t) != Material.S
 private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
     if (b.herd.isEmpty()) return
     val years = days / Date.DAYS_PER_YEAR.toFloat()
-    val p = g.place; val m2 = land.areaKm2[p] * 1e6f
+    val p = g.place; val m2 = land.m2(p)
     val moved = max(0, g.path.size - 1)
     for (k in b.herd.indices) {
         var n = b.herd[k]

@@ -211,7 +211,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // (The ground it walked, then the country round its camp, which holds none of it.)
     if (eatsPlants) for (qi in 0 until gatherAt.size + roundCamp.size) {
         val q = if (qi < gatherAt.size) gatherAt[qi] else roundCamp[qi - gatherAt.size]
-        val m2 = land.areaKm2[q] * 1e6f
+        val m2 = land.m2(q)
         val part = if (qi < gatherAt.size) 1f else roundShare
         // A band can strip so much of a place in a week, as its skill allows; an animal finds what lies along its way.
         // (On strange ground people find little of it.)
@@ -302,7 +302,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             3 -> scraps += small.crackBonesIn(p, expected, min(land.areaKm2[p], sweep))
             4, 5, 6, 7 -> {
                 val stock = when (type[i]) { 4 -> fauna.food.fruit; 5 -> fauna.food.roots; 6 -> fauna.food.seeds; else -> fauna.food.finds }
-                val m2 = land.areaKm2[p] * 1e6f
+                val m2 = land.m2(p)
                 var took = fauna.food.take(stock, p, expected / m2) * m2
                 // Raw seed is poorly digested; ground and baked into bread it feeds fully.
                 if (type[i] == 6) took *= seedValue(band)
@@ -320,7 +320,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             }
             8 -> fish += fauna.water.fishFor(p, expected, band?.fishing() ?: 1f)
             9 -> {
-                val m2 = land.areaKm2[p] * 1e6f
+                val m2 = land.m2(p)
                 val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2 * seedValue(band) * (band?.cookValue(9) ?: 1f)
                 plants += took; plantKind[Store.SEED.ordinal] += took
                 // A sickle takes the ears that hold their grain more than those that shatter at a touch.

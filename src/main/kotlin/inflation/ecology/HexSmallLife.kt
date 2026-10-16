@@ -252,7 +252,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 record?.let { it.carrionGone[p] += gone }
                 if (carrion[p] < 1e-9f) carrion[p] = 0f
             }
-            carrion[p] += carcassKg[p] / (land.areaKm2[p] * 1e6f)
+            carrion[p] += carcassKg[p] / land.m2(p)
             // Bones weather away over a couple of years into the soil.
             if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b; record?.let { it.bonesGone[p] += b } }
             val food = land.herb[p] + 0.3f * land.shrub[p]
@@ -545,7 +545,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var got = 0f
             for (q in vultureReach[k]) {
                 if (got >= need) break
-                if (carrion[q] > 0f) { val m2 = land.areaKm2[q] * 1e6f; got += scavenge(q, (need - got) / m2) * m2 }
+                if (carrion[q] > 0f) { val m2 = land.m2(q); got += scavenge(q, (need - got) / m2) * m2 }
             }
             val fed = if (need > 0f) min(1f, got / need) else 1f
             var b = vultures[k]

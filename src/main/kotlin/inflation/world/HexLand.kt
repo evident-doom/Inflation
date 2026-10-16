@@ -43,6 +43,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
 
     /** Area of each place, km², and m². */
     val areaKm2 = FloatArray(n) { (hw.placeCells[it].size * grid.cellKm * grid.cellKm).toFloat() }
+    /** Place [p]'s area, m². */
+    fun m2(p: Int) = areaKm2[p] * 1e6f
     private val areaM2 = FloatArray(n) { (areaKm2[it] * 1e6).toFloat() }
     private fun mean(p: Int, f: (Int) -> Float): Float { val cs = hw.placeCells[p]; var s = 0.0; for (i in cs) s += f(i); return (s / cs.size).toFloat() }
     private val soilFertility = FloatArray(n) { p -> mean(p) { world.soilFertility[it] } }
