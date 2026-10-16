@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.saturate
 import inflation.monthsFrom
 import inflation.HASH_A
 import inflation.HASH_B
@@ -188,7 +189,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Each kind's sense of where better country lies. */
     val bearings = HexBearings(hw, kinds, { s, p, m ->
         val food = foodFor(s, p) * min(1.5f, suits(s, p)) / 1.5f
-        food / (food + 0.3f) * tether(s, p) * monthFit(s, p, m)
+        saturate(food, Thresholds.FOOD_HALF) * tether(s, p) * monthFit(s, p, m)
     }, { s -> val k = kinds.indexOf(s); (0 until n).any { adults[k][it] > 0f } })
     /**
      * Each kind's month births begin in each place, which drifts year by year towards the months

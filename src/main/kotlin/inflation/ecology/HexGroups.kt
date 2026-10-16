@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.saturate
 import inflation.monthsFrom
 import inflation.HASH_A
 import inflation.HASH_B
@@ -79,7 +80,7 @@ class HexGroups(
         val food = foodFor(s, p) * min(1.5f, fauna.suits(s, p)) / 1.5f
         // Country thick with hunters is the less good for it.
         val hunters = monthHunterKg[p] / land.areaKm2[p]
-        return food / (food + 0.3f) * freshness(s, p) * fauna.tether(s, p) * fauna.monthFit(s, p, m) * (1f - 0.5f * hunters / (hunters + HUNTERS_HALF_KG))
+        return saturate(food, Thresholds.FOOD_HALF) * freshness(s, p) * fauna.tether(s, p) * fauna.monthFit(s, p, m) * (1f - 0.5f * hunters / (hunters + HUNTERS_HALF_KG))
     }
 
     /** Game each hunting kind can catch in each place, kg/km² weighed by catchability, worked out once a month for the bearings. */
@@ -903,7 +904,7 @@ class HexGroups(
                     // And ground where game was killed lately is shunned (the landscape of fear).
                     // (How much there is levels off, how good it is does not: fresh, protein-rich growth is worth
                     // more however much of the dry stuff stands, as it is to a mother and her young.)
-                    food / (food + 0.3f) * freshness(s, p) - 0.5f * crowded - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
+                    saturate(food, Thresholds.FOOD_HALF) * freshness(s, p) - 0.5f * crowded - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
                 }
                 // The cold or heat it bears there, and what the place drains from it (the extra food the
                 // cold burns, the feeding or working time the flies take), weighed as the going is: in
@@ -948,7 +949,7 @@ class HexGroups(
                     if (nc == candFeats.size) candFeats += FloatArray(Feature.SIZE)
                     val f = candFeats[nc].also { it.fill(0f) }
                     // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
-                    if (s.carnivore) f[Feature.FOOD] = prey / (prey + PREY_HALF) else { val food = foodFor(s, p); f[Feature.FOOD] = food / (food + 0.3f) }
+                    if (s.carnivore) f[Feature.FOOD] = prey / (prey + PREY_HALF) else { val food = foodFor(s, p); f[Feature.FOOD] = saturate(food, Thresholds.FOOD_HALF) }
                     // (And for herds how good it is, nourishment and protein, as the hand-written score weighs it: high ground's draw in summer.)
                     if (!s.carnivore && !s.human) f[Feature.FORAGE_QUALITY] = freshness(s, p)
                     f[Feature.CLIMATE] = kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
