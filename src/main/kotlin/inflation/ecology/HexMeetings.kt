@@ -79,7 +79,10 @@ internal fun HexGroups.hunt(weather: Weather) {
         blocks.getOrPut((x / HUNT_BLOCK_KM).toInt() + 1000 * (y / HUNT_BLOCK_KM).toInt()) { ArrayList() } += g
     }
     for (colour in 0 until 4) {
-        blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }.parallelStream().forEach { (_, list) ->
+        // (The squares with the most parties first, so the slowest is not left to last on one core; squares
+        // of one colour share no ground, so the order they are worked in changes nothing.)
+        val squares = blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }.sortedByDescending { e -> e.value.sumOf { g -> if (g.band != null) 4 * g.path.size else g.path.size } }
+        java.util.stream.IntStream.range(0, squares.size).parallel().forEach { i -> val list = squares[i].value
             for (g in list) {
                 val s = g.species
                 // The ground it searches this week, shared over the hexes it passed: a bigger party fans out

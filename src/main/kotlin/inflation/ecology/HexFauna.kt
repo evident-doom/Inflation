@@ -676,6 +676,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val a = adults[k]; val y = young[k]; val f = fed[k]
             val cross = hex.crossings[travel[k].ordinal]
             val moveA = FloatArray(n); val moveY = FloatArray(n)
+            // What each place is worth to the kind this week: food, how fresh and rich in protein, its
+            // ground, water within reach, fear, crowding (worked out once a place, for every neighbour that weighs it).
+            val worthOf = FloatArray(n)
+            java.util.stream.IntStream.range(0, n).parallel().forEach { q ->
+                val fresh = if (s.carnivore) 1f else land.nourishment(q) * forageProtein(s, q)
+                worthOf[q] = foodFor(s, q) * fresh * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / (CROWD * usual[k]))
+            }
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
                 val need = (1f - f[p]).coerceIn(0f, 1f)
@@ -698,9 +705,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         val bb = b + db; if (bb !in 0 until HexWorld.BANDS_M.size) continue
                         val q = hw.placeOf[bb][nh]
                         if (q < 0) continue
-                        val fresh = if (s.carnivore) 1f else land.nourishment(q) * forageProtein(s, q)
                         val i = d * 3 + db + 1
-                        val worth = foodFor(s, q) * fresh * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / (CROWD * usual[k]))
+                        val worth = worthOf[q]
                         if (worth > best) best = worth
                         ws[i] = ease * (worth + 1e-4f) * toward
                         wq[i] = q
@@ -717,7 +723,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 if (total <= 0f) continue
                 // (And the more so the better the country next door is than here: as the seasons turn, they follow the fresh pasture.)
-                val here = foodFor(s, p) * (if (s.carnivore) 1f else land.nourishment(p) * forageProtein(s, p)) * suits(s, p) * tether(s, p) * (1f - FEAR_WEIGHT * afraid(p)) / (1f + (a[p] + y[p]) / (CROWD * usual[k]))
+                val here = worthOf[p]
                 val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
                 val go = min(0.5f, leave + SPILL_BETTER * better)
                 val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]

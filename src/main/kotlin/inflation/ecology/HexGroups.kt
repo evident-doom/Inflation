@@ -256,7 +256,7 @@ class HexGroups(
             herdHeadsMonth = bearings.month
         }
         Profile.part("choosing: valuing places for hunters") { valuePlaces() }
-        reachCache.clear()
+        reachCache.clear(); stepEffort.clear()
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
         java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k ->
             val g = groups[k]
@@ -379,6 +379,30 @@ class HexGroups(
     /** Bands by the hex they are in at the start of the week (see [fillBandStates]). */
     @Transient internal val bandIndex = HashMap<Int, ArrayList<HexGroup>>()
     @Transient private val reachCache = java.util.concurrent.ConcurrentHashMap<Long, Reach>()
+    /**
+     * This week's effort of each crossing (hex × 6 + direction) for a kind's way of going and the height
+     * band it walks in: the crossing's own effort, harder through lying snow, easier along a worn path.
+     * The same for every group of those, so worked out once a week for each (see [planInner]); +∞ where
+     * there is no way across.
+     */
+    @Transient private val stepEffort = java.util.concurrent.ConcurrentHashMap<Int, FloatArray>()
+    private fun stepEffort(travel: Int, band: Int, weather: Weather): FloatArray = stepEffort.computeIfAbsent(travel * 64 + band) {
+        val cross = hex.crossings[travel]
+        val out = FloatArray(hex.size * 6) { Float.POSITIVE_INFINITY }
+        java.util.stream.IntStream.range(0, hex.size).parallel().forEach { h ->
+            for (k in 0 until 6) {
+                val nh = hex.neighbour(h, k)
+                if (nh < 0 || hex.heart[nh] < 0) continue
+                // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper.
+                val np = hw.placeOf[band][nh].takeIf { it >= 0 } ?: hex.heart[nh]
+                val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
+                // A worn path makes the going easier, the more so where the country is broken.
+                val worn = paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
+                out[h * 6 + k] = cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
+            }
+        }
+        out
+    }
     /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
     internal val outbreaksStarting: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     /**
@@ -640,19 +664,16 @@ class HexGroups(
         var shared = reachCache[reachKey]
         if (shared == null || shared.reach < reach) {
             dist[here] = 0f; reached += here; q += 0L.withPlace(0f, here)
+            // (The effort of each crossing this week, through snow and along worn paths: see [stepEffort].)
+            val effort = stepEffort(Catalogue.travel(s).ordinal, hw.placeBand[g.place], weather)
             while (q.isNotEmpty()) {
                 val e = q.poll()
                 val d = Float.fromBits((e ushr 32).toInt()); val h = (e and 0xffffffffL).toInt()
                 if (d > dist[h]) continue
                 for (k in 0 until 6) {
                     val nh = hex.neighbour(h, k)
-                    if (nh < 0 || hex.heart[nh] < 0) continue
-                    // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper.
-                    val np = hw.placeOf[hw.placeBand[g.place]][nh].takeIf { it >= 0 } ?: hex.heart[nh]
-                    val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
-                    // A worn path makes the going easier, the more so where the country is broken.
-                    val worn = paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
-                    val nd = d + cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
+                    if (nh < 0) continue
+                    val nd = d + effort[h * 6 + k]
                     if (!nd.isFinite() || nd > reach) continue
                     if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
                 }
