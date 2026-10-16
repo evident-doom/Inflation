@@ -62,8 +62,6 @@ object HexSnapshot {
                 val node = r.node()
                 byName[name]?.let { restore.into(it, node) }
             }
-            // What the groups work out once a month is worked out again (it is not saved).
-            sim.groups.bearings.forget()
             return day
         }
     }
@@ -217,7 +215,10 @@ object HexSnapshot {
         const val SET = 22; const val MAP = 23; const val REF = 24; const val OBJ = 25; const val ENUMS = 26; const val LAZY = 27
     }
 
-    /** Writes values to [out]: objects of the classes [keep] accepts field by field, and with [lazies] what lazy fields hold (worked out first if need be). */
+    /**
+     * Writes values to [out]: objects of the classes [keep] accepts field by field, and what lazy fields
+     * hold once worked out (with [lazies], worked out first if need be).
+     */
     private class Writer(val out: DataOutputStream, val keep: (Class<*>) -> Boolean, val lazies: Boolean) {
         val ids = IdentityHashMap<Any, Int>()
         val buf: ByteBuffer = ByteBuffer.allocate(1 shl 16).order(ByteOrder.BIG_ENDIAN)
@@ -247,7 +248,7 @@ object HexSnapshot {
                     out.writeByte(T.ENUMS); out.writeUTF(v.javaClass.componentType.name); out.writeInt(v.size)
                     bulk(v.size, 4) { b, i -> b.putInt((v[i] as Enum<*>?)?.ordinal ?: -1) }
                 } else { out.writeByte(T.ARRAY); out.writeUTF(v.javaClass.componentType.name); out.writeInt(v.size); for (x in v) value(x) }
-                is Lazy<*> -> if (lazies) { out.writeByte(T.LAZY); value(v.value) } else out.writeByte(T.SKIP)
+                is Lazy<*> -> if (lazies || v.isInitialized()) { out.writeByte(T.LAZY); value(v.value) } else out.writeByte(T.SKIP)
                 is List<*> -> { out.writeByte(T.LIST); out.writeInt(v.size); for (x in v) value(x) }
                 is Set<*> -> { out.writeByte(T.SET); out.writeInt(v.size); for (x in v) value(x) }
                 is Map<*, *> -> { out.writeByte(T.MAP); out.writeInt(v.size); for ((a, b) in v) { value(a); value(b) } }
@@ -415,7 +416,11 @@ object HexSnapshot {
                 m
             }
             is Ref -> made[node.id] ?: Skip
-            is LazyNode -> make(node.value, null, Any::class.java).let { if (it === Skip) Skip else lazyOf(it) }
+            // A live lazy field is worked out and restored in place, so that what holds it keeps it.
+            is LazyNode -> if (cur is Lazy<*>) {
+                val live = cur.value
+                make(node.value, live, Any::class.java).let { if (it === Skip || it === live) cur else lazyOf(it) }
+            } else make(node.value, null, Any::class.java).let { if (it === Skip) Skip else lazyOf(it) }
             is Obj -> {
                 // Live objects of the same kind are restored in place (others may hold them); values
                 // (data classes) and objects the fresh model lacks are made anew.

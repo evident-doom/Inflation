@@ -41,9 +41,6 @@ class HexBearings(
     /** Month the bearings were last worked out for. */
     var month = -1; private set
 
-    /** Forgets the month worked out, so the next update works it out again (after a saved world is loaded). */
-    fun forget() { month = -1 }
-
     private val cx = DoubleArray(size); private val cy = DoubleArray(size)
     /** Hexes within [NEAR_KM] of each land hex. */
     private val near: Array<IntArray>

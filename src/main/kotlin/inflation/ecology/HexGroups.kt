@@ -720,7 +720,7 @@ class HexGroups(
     private val expectHeads by lazy { Array(kinds.size) { FloatArray(n) } }
     /** The herd game each hunting kind may expect in each place ([herdPrey] of [expectHeads]); the month both were reckoned for. */
     private val expectPrey by lazy { Array(kinds.size) { FloatArray(n) } }
-    @Transient private var expectMonth = -1
+    private var expectMonth = -1
 
     /** A hunting party's fighting strength: weight, ferocity. */
     internal fun strength(g: HexGroup) = g.adults * g.species.massKg * ferocity(g)
