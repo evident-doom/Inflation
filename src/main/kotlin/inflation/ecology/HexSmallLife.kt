@@ -66,6 +66,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val litter = FloatArray(n) { p -> 0.5f * (land.herb[p] + 0.2f * land.shrub[p] + 0.04f * land.tree[p]) + 0.3f }
     val organicMatter = FloatArray(n) { p -> 4f * min(1f, land.biomass(p) / 5f) }
     val carrion = FloatArray(n)
+    /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
+    @Transient var record: PlaceRecord? = null
     /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */
     val bones = FloatArray(n)
     /**
@@ -233,6 +235,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             dung[p] = 0f; smallDead[p] = 0f
             val decomposed = litter[p] * min(1f, 1.2f * warm * wet * years)
             litter[p] -= decomposed
+            record?.let { it.litterGone[p] += decomposed; it.organicGone[p] += 0.05f * years * organicMatter[p] }
             organicMatter[p] += 0.3f * decomposed - 0.05f * years * organicMatter[p]
             land.organicFertility[p] = 0.3f * organicMatter[p] / (organicMatter[p] + 4f)
             soilAnimals[p] += SOIL_YIELD * decomposed * 1e6f - soilAnimals[p] * min(1f, SOIL_DEATHS * years)
@@ -242,11 +245,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (carrion[p] > 0f) {
                 val gone = carrion[p] * (1f - exp(-CARRION_ROT * max(0.1f, warm) * days))
                 carrion[p] -= gone; litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
+                record?.let { it.carrionGone[p] += gone }
                 if (carrion[p] < 1e-9f) carrion[p] = 0f
             }
             carrion[p] += carcassKg[p] / (land.areaKm2[p] * 1e6f)
             // Bones weather away over a couple of years into the soil.
-            if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b }
+            if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b; record?.let { it.bonesGone[p] += b } }
             val food = land.herb[p] + 0.3f * land.shrub[p]
             val snow = weather.snowpack[p]
             pt = Profile.lap("small life: soil and decay", pt)
@@ -437,14 +441,20 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val eaten = land.consume(p, LifeForm.HERB, 0.7f * SMALL_INTAKE * eaters * days / 1e6f) + land.consume(p, LifeForm.SHRUB, 0.3f * SMALL_INTAKE * eaters * days / 1e6f)
             dung[p] += DUNG * eaten
         }
-        // Foxes and wildcats eat about a seventh of their weight a day, mostly rodents, then hares and
-        // birds; they breed in spring as the food allows, and die back when it fails.
+        // Foxes and wildcats eat about a fourteenth of their weight a day: carrion where they find it, then
+        // rodents, hares and birds; they breed in spring as the food allows, and die back when it fails.
         // (They stalk: what they reach of each, as [reach]; the young in the nest they take as found.)
         val eB = reachable(birds[p], young[NEST_BIRDS][p], FLIGHT_REACH)
         val prey = rodents[p] + hares[p] + eB * birds[p] + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
         val need = foxes[p] * FOX_INTAKE * days
+        // Carrion first: a carcass they smell out costs no chase, and in winter, when the rodents keep
+        // under the snow and much lies dead, it is much of what they live on. At most half of what lies
+        // there in a week, found as readily as prey.
+        val dead = carrion[p] * 1e6f
+        val scavenged = if (dead > 0f && need > 0f) scavenge(p, min(0.5f * dead, need * dead / (dead + FOX_HALF)) / 1e6f) * 1e6f else 0f
+        val left = need - scavenged
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
-        val got = takeSwitching(p, min(0.5f * prey, need * prey / (prey + FOX_HALF)), 0.5f, foxPrey, floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { eB })
+        val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + FOX_HALF)), 0.5f, foxPrey, floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { eB })
         if (b0 > 0f && eB > 0f) young[NEST_BIRDS][p] = max(0f, young[NEST_BIRDS][p] - (b0 - birdSum(p)) * min(1f, young[NEST_BIRDS][p] / (eB * b0)))
         if (r0 > 0f) young[NEST_RODENTS][p] *= rodents[p] / r0; if (ha0 > 0f) young[NEST_HARES][p] *= hares[p] / ha0
         noteTaken(p, TAKER_FOXES, r0, ha0, hy0, b0)
@@ -460,14 +470,19 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val fedO = if (needO > 0f) gotO / needO else 1f
             owls[p] = logistic(p, owls[p], if (month in 3..5) 3f * fedO else 0f, 0.3f + 0.8f * (1f - fedO), 0.02f * r)
         }
-        foxes[p] = logistic(p, foxes[p], if (month in 4..6) 6f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * prey)
+        foxes[p] = logistic(p, foxes[p], if (month in 4..6) 6f * fed else 0f, 0.4f + 0.8f * (1f - fed), 0.02f * (prey + dead))
         // Eagles: a pair needs about a kilo a day; they take what is out in the open among the rocks.
         if (eagleCrags[p] > 0f) {
             val open = open(p)
             val prey = (hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]) * (0.3f + 0.7f * open)
             val need = eagles[p] * EAGLE_NEED * days
+            // Carrion first, as the foxes: a carcass seen from the air costs no chase, and in winter it is
+            // much of what they live on. They see it as they see prey, best in the open.
+            val dead = carrion[p] * 1e6f * (0.3f + 0.7f * open)
+            val scavenged = if (dead > 0f && need > 0f) scavenge(p, min(0.5f * dead, need * dead / (dead + EAGLE_HALF)) / 1e6f) * 1e6f else 0f
+            val left = need - scavenged
             val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
-            val got = takeSwitching(p, min(0.5f * prey, need * prey / (prey + EAGLE_HALF)), 0.5f, eaglePrey)
+            val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + EAGLE_HALF)), 0.5f, eaglePrey)
             noteTaken(p, TAKER_EAGLES, r0, ha0, hy0, b0)
             // Fawns and kids make up much of what the small game does not.
             val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
@@ -805,10 +820,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     }
 
     /** Takes up to [kgPerM2] of carrion in place [p]; returns what was taken. */
-    fun scavenge(p: Int, kgPerM2: Float): Float { val t = min(carrion[p], kgPerM2); carrion[p] -= t; return t }
+    fun scavenge(p: Int, kgPerM2: Float): Float { val t = min(carrion[p], kgPerM2); carrion[p] -= t; record?.let { it.carrionGone[p] += t }; return t }
+
 
     /** Takes up to [kgPerM2] of bones in place [p] (for bone-crackers); returns what was taken. */
-    fun crackBones(p: Int, kgPerM2: Float): Float { val t = min(bones[p], kgPerM2); bones[p] -= t; return t }
+    fun crackBones(p: Int, kgPerM2: Float): Float { val t = min(bones[p], kgPerM2); bones[p] -= t; record?.let { it.bonesGone[p] += t }; return t }
 
     /** The fruit crop's share of what the trees could bear, from this year's pollination. */
     fun fruitSet(p: Int) = 0.3f + 0.7f * pollination[p]
@@ -1002,7 +1018,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Owls and small hawks: food a day per kg of them; rodents (kg/km²) at which they get half of it; their share of the rodents where they first appear. */
         const val OWL_INTAKE = 0.2f
         const val OWL_HALF = 3f
-        /** Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the birds and dogs not counted here): half in three or four days. */
+        /** Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the crows and ravens not counted here; foxes, wildcats and eagles are counted, below): half in three or four days. */
         const val CARRION_ROT = 0.2f
         /** Small prey of one kind, kg/km², at which hunters find it half as readily as a common kind. */
         const val SMALL_FIND_HALF = 2f

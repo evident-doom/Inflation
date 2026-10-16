@@ -32,6 +32,18 @@ import kotlin.math.min
 class HexFauna(private val hw: HexWorld, private val land: HexLand, private val days: Int) {
     private val hex = hw.hex
     val n = land.n
+    /**
+     * Open water's temperature at each place this week, °C: it follows the air slowly (see
+     * [WATER_LAG_DAYS]) and freezes at 0. NaN until the first week (and in worlds saved before it was
+     * kept), when it starts from its normal for the month.
+     */
+    val waterC = FloatArray(n) { Float.NaN }
+    /** [waterC]'s normal for each month and place, from the month's normal air temperatures. */
+    private val waterNormalC by lazy {
+        val byPlace = Array(n) { p -> laggedNormals { m -> hw.placeTemp(p, m) } }
+        Array(12) { m -> FloatArray(n) { p -> byPlace[p][m] } }
+    }
+
     /** The resident kinds, and for each, adults and young per km² of each place. */
     val kinds = Catalogue.all.filter { Catalogue.resident(it) }
     val adults = Array(kinds.size) { FloatArray(n) }
@@ -191,6 +203,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals. */
     val deaths = java.util.TreeMap<String, Double>()
+    /** Where things died and dead matter went, for the viewer; null (and not kept) unless something reads it. */
+    @Transient var record: PlaceRecord? = null
+        set(v) { field = v; small.record = v }
 
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
     /** How each kind travels between places. */
@@ -224,15 +239,37 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     fun climateSuits(s: Species, p: Int): Float {
         var worst = 0f
-        for (m in 0 until 12) worst = max(worst, s.discomfortC(hw.placeTemp(p, m), m))
+        for (m in 0 until 12) worst = max(worst, s.discomfortC(feltNormalC(s, p, m), m))
         return exp(-worst / 5f)
     }
 
     /** How well the normal temperatures of month [m] and the next at place [p] suit [s]'s coat, 0..1. */
     fun monthFit(s: Species, p: Int, m: Int): Float {
         val m1 = (m + 1) % 12
-        return exp(-(s.discomfortC(hw.placeTemp(p, m), m) + s.discomfortC(hw.placeTemp(p, m1), m1)) / 10f)
+        return exp(-(s.discomfortC(feltNormalC(s, p, m), m) + s.discomfortC(feltNormalC(s, p, m1), m1)) / 10f)
     }
+
+    private fun stepWater(weather: Weather) {
+        val m = weather.date.month
+        val k = 1f - exp(-days / WATER_LAG_DAYS)
+        for (p in 0 until n) {
+            val w = waterC[p]
+            waterC[p] = if (w.isNaN()) waterNormalC[m][p] else w + (max(0f, weather.temperature[p]) - w) * k
+        }
+    }
+
+    /**
+     * The temperature [s] feels at place [p] with the air at [t] °C: a kind bound to water (hippos)
+     * lies in it through the cold, as far as open water is at hand; ice shelters nothing.
+     */
+    fun feltC(s: Species, p: Int, t: Float): Float = if (s.maxWaterKm.isInfinite()) t else refugeC(s, t, waterC[p], tether(s, p))
+
+    /** [feltC] in month [m] of an ordinary year, from the normals. */
+    fun feltNormalC(s: Species, p: Int, m: Int): Float =
+        if (s.maxWaterKm.isInfinite()) hw.placeTemp(p, m) else refugeC(s, hw.placeTemp(p, m), waterNormalC[m][p], usualTether(s, p))
+
+    private fun refugeC(s: Species, t: Float, water: Float, share: Float): Float =
+        if (water.isNaN() || water <= 0f || water <= t) t else t + share * (water - t)
 
     /** Share of [s]'s diet that is plants. */
     fun plantShare(s: Species): Float {
@@ -367,6 +404,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             Profile.time("sense of direction") { bearings.update(date.month) }
             if (date.month == 3) shiftBreeding()
         }
+        stepWater(weather)
         Profile.time("food stocks") { food.step(weather) }
         Profile.time("water life") { water.step(weather) }
         Profile.time("residents: grazing") { graze(weather) }
@@ -401,7 +439,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Bears asleep through the cold eat nothing.
                 // (Only the plant part of the diet here; omnivores' small prey and carrion below.)
                 // (More in the cold, see [coldNeed].)
-                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * coldNeed(s, weather.temperature[p], weather.date.month) * days / 1e6f * plantShare(s) // kg per m2 this week
+                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month) * days / 1e6f * plantShare(s) // kg per m2 this week
                 // (Biting insects harassing them cost them feeding time.)
                 avail[k] = HexFood.access(s, land.crag[p]) * tether(s, p) * (1f - HexSmallLife.HARASS_FEED * small.harassment(p))
                 val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
@@ -482,15 +520,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     // these or of the plants, is made up from whichever of them is to be had (as a pack does).
                     val ps = plantShare(s)
                     var animal = 0f
-                    val needAll = (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * coldNeed(s, weather.temperature[p], weather.date.month) * days / 1e6f // all of the diet, kg per m2
+                    val needAll = (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month) * days / 1e6f // all of the diet, kg per m2
                     if (ps < 1f && needAll > 0f) {
                         val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
                         val animalNeed = needAll * (1f - ps)
                         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - got[k] - strawPart) else 0f
-                        var gotMeat = huntResidents(k, p, needAll * d.meat / all * avail[k])
-                        var gotSmall = smallFood(k, p, needAll * d.smallPrey / all * avail[k], weather)
-                        var gotCarrion = small.scavenge(p, min(needAll * d.carrion / all, 0.5f * small.carrion[p]))
-                        var gap = animalNeed + plantGap - gotMeat - gotSmall - gotCarrion
+                        // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
+                        // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
+                        var gotCarrion = if (d.carrion > 0f) small.scavenge(p, min(animalNeed + plantGap, 0.5f * small.carrion[p])) else 0f
+                        var left = animalNeed + plantGap - gotCarrion
+                        var gotMeat = if (left > 0f) huntResidents(k, p, min(left, needAll * d.meat / all) * avail[k]) else 0f
+                        left -= gotMeat
+                        var gotSmall = if (left > 0f) smallFood(k, p, min(left, needAll * d.smallPrey / all) * avail[k], weather) else 0f
+                        var gap = left - gotSmall
                         // (The shortfall is made up first from the food it mostly lives on, then from the others,
                         // each to at most (1 + SWITCH) times its usual share, as with the plants.)
                         val most = (1f + SWITCH) * needAll / all
@@ -585,7 +627,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Deaths.
                 // (Hunger, cold and heat, and thirst kill residents by the same rules as herds and packs.)
                 val hunger = if (f[p] < HUNGER_FROM) (HUNGER_FROM - f[p]) * HUNGER_RATE else 0f
-                val t = weather.temperature[p]
+                val t = feltC(s, p, weather.temperature[p])
                 val sleeping = asleep(s, p, weather)
                 val cold = if (sleeping) 0f else s.discomfortC(t, date.month) / 10f * COLD_DEATHS
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
@@ -627,6 +669,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 dead[k][7] += (a[p] * snowA + y[p] * snowY) * area
                 dead[k][8] += y[p] * croc * area
                 dead[k][9] += ((a[p] + 1.5f * y[p]) * thirst) * area
+                record?.let { r ->
+                    val kg = s.massKg * area
+                    r.resident(k, p, PlaceRecord.Cause.HUNGER, (a[p] + 1.5f * y[p]) * hunger * kg); r.resident(k, p, PlaceRecord.Cause.THIRST, (a[p] + 1.5f * y[p]) * thirst * kg)
+                    r.resident(k, p, PlaceRecord.Cause.COLD, ((a[p] + 1.5f * y[p]) * cold + a[p] * snowA + y[p] * snowY) * kg); r.resident(k, p, PlaceRecord.Cause.ILLNESS, (a[p] + y[p]) * disease * kg)
+                    r.resident(k, p, PlaceRecord.Cause.KILLED, y[p] * (eagle + croc) * kg)
+                    r.resident(k, p, PlaceRecord.Cause.OTHER, (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years + a[p] * (fireA + floodA) + y[p] * (fireY + floodY)) * kg)
+                }
                 a[p] -= da; y[p] -= dy
                 carcassKg[p] += (da + 0.3f * dy) * area * s.massKg
                 // Growing up.
@@ -636,9 +685,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             }
         }
         for (c in carcasses) for (p in 0 until n) carcassKg[p] += c[p]
+        record?.foldResidents()
         for ((k, s) in kinds.withIndex()) {
             // (Summed place by place in order, so that a run is the same on any number of cores.)
-            deaths["${s.name}:resident hunters"] = huntedByResidents[k].let { h -> var sum = 0.0; for (p in h.indices) { sum += h[p]; h[p] = 0f }; sum }
+            deaths["${s.name}:resident hunters"] = huntedByResidents[k].let { h -> var sum = 0.0; for (p in h.indices) { sum += h[p]; record?.let { it.animalKg[PlaceRecord.Cause.KILLED.ordinal][p] += h[p] * s.massKg }; h[p] = 0f }; sum }
             deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]; deaths["${s.name}:eagles"] = dead[k][4]
             deaths["${s.name}:fire"] = dead[k][5]; deaths["${s.name}:flood"] = dead[k][6]; deaths["${s.name}:snow"] = dead[k][7]; deaths["${s.name}:crocodiles"] = dead[k][8]; deaths["${s.name}:thirst"] = dead[k][9]
         }
@@ -650,7 +700,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val heads = adults[k][p] + young[k][p]
         // Weather now, and as far as the kind senses it, what is coming.
         val m = weather.date.month
-        val discomfort = ((1f - s.foresight) * s.discomfortC(weather.temperature[p], m) + s.foresight * s.discomfortC(weather.forecastTemp(p), m)) / 10f
+        val discomfort = ((1f - s.foresight) * s.discomfortC(feltC(s, p, weather.temperature[p]), m) + s.foresight * s.discomfortC(feltC(s, p, weather.forecastTemp(p)), m)) / 10f
         val snowed = if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f
         // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
         // protein, as herds do: so they go up to the green high pasture in summer and down for the winter.)
@@ -828,6 +878,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
          */
         fun usualDensity(s: Species) = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else Allometry.herbivoreDensityPerKm2(s.massKg)
         const val COLD_DEATHS = 0.02f
+        /**
+         * How slowly open water follows the air, days (an exponential lag): lakes and big lowland rivers
+         * lag the air by weeks, small streams by days (from memory of stream- and lake-temperature
+         * studies, not checked). It smooths a cold snap for kinds that lie in water.
+         */
+        const val WATER_LAG_DAYS = 30f
+
+        /** The monthly normals of water under air with normals [t] (by month), °C, lagged by [WATER_LAG_DAYS] and kept from freezing below 0. */
+        fun laggedNormals(t: (Int) -> Float): FloatArray {
+            val k = 1f - exp(-Date.DAYS_PER_YEAR / 12f / WATER_LAG_DAYS)
+            val out = FloatArray(12)
+            var w = (0 until 12).map { max(0f, t(it)) }.average().toFloat()
+            repeat(3) { for (m in 0 until 12) { w += (max(0f, t(m)) - w) * k; out[m] = w } }
+            return out
+        }
         /** Below this density, per km², a kind is gone from a place. */
         const val EXTINCT = 1e-4f
         /** Density, as a multiple of a kind's usual, at which crowding halves a place's appeal (10/km² against the 0.5/km² all kinds were given before). */

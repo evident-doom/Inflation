@@ -264,8 +264,8 @@ val HEADING_KEEP = Config.float("t.headingKeep", 0.95f)
 val HEADING_MOVED = Config.float("t.headingMoved", 0.5f)
 val HEADING_PULL = Config.float("t.headingPull", 2f)
 
-/** Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on only with rounds=true (being tried locally); how strongly a herd's round draws, as a season's place of that quality would. */
-val ROUNDS = Config.flag("rounds", false)
+/** Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on unless rounds=false; how strongly a herd's round draws, as a season's place of that quality would. */
+val ROUNDS = Config.flag("rounds", true)
 val ROUND_STRENGTH = Config.float("t.roundStrength", 1f)
 /** How strongly a herd's round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
 val ROUND_NET_PULL = Config.float("t.roundNetPull", 1.5f)
