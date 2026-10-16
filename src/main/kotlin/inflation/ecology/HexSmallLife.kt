@@ -99,7 +99,6 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Migrant birds leaving this week from each place, kg (summed in place order after the parallel loop, so the sum is the same on any number of cores). */
     private val leaving = Array(BIRDS.size) { FloatArray(n) }
     private var lastMonth = -1
-    private var steps = 0
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
     /** Share of each place that is wetland, where biting insects breed. */
     val wetland = FloatArray(n) { p -> hw.placeCells[p].count { val b = hw.world.biome[it]; b.name in WETLANDS }.toFloat() / hw.placeCells[p].size }
@@ -275,8 +274,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         for (k in BIRDS.indices) { val l = leaving[k]; var sum = 0.0; for (p in l.indices) if (l[p] != 0f) { sum += l[p]; l[p] = 0f }; away[k] += sum }
         lastMonth = month
         Profile.part("small life: vultures") { stepVultures(weather) }
-        if (++steps % 5 == 0) {
-            Profile.part("small life: spreading to neighbours") { for (f in listOf(insects, rodents, herps, pollinators, hares, hyrax, tortoises, foxes) + bird) spread(f) }
+        // A little every week, not all at once each month: a monthly lump showed as a pulse at the
+        // start of each month where the spreaders arrived and then died back over the weeks.
+        Profile.part("small life: spreading to neighbours") {
+            spread(spreaders)
             spread(eagles) { eagleCrags[it] > 0f }
         }
     }
@@ -537,17 +538,43 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * Small animals wander between neighbouring places: as many leave one as arrive in the other, the
      * density difference over the smaller place; [where] keeps a kind to the places it can live in.
      */
-    private fun spread(f: FloatArray, where: (Int) -> Boolean = { true }) {
+    private fun spread(f: FloatArray, where: (Int) -> Boolean) {
         val old = f.copyOf()
         for (p in 0 until n) {
             if (!where(p)) continue
             val nb = land.neighbours[p]
-            if (nb.isEmpty()) continue
+            val w = spreadWeight[p]
             var delta = 0f
-            // (The same flow both ways between two places, so what one gains the other loses.)
-            for (q in nb) if (where(q)) delta += SPREAD / max(nb.size, land.neighbours[q].size) * (old[q] - old[p]) * min(land.areaKm2[p], land.areaKm2[q]) / land.areaKm2[p]
+            for (i in nb.indices) { val q = nb[i]; if (where(q)) delta += w[i] * (old[q] - old[p]) }
             f[p] = max(0f, old[p] + delta)
         }
+    }
+
+    /** [spread] for kinds that can wander anywhere, all in one pass over the places. */
+    private fun spread(fs: Array<FloatArray>) {
+        val olds = Array(fs.size) { fs[it].copyOf() }
+        java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+            val nb = land.neighbours[p]
+            val w = spreadWeight[p]
+            for (k in fs.indices) {
+                val old = olds[k]
+                var delta = 0f
+                for (i in nb.indices) delta += w[i] * (old[nb[i]] - old[p])
+                fs[k][p] = max(0f, old[p] + delta)
+            }
+        }
+    }
+
+    private val spreaders by lazy { (listOf(insects, rodents, herps, pollinators, hares, hyrax, tortoises, foxes) + bird).toTypedArray() }
+    /**
+     * The share of the difference with each neighbour that crosses in a step: [SPREAD] a month, over
+     * the larger place's count of neighbours and scaled to the smaller place's area. (The same flow
+     * both ways between two places, so what one gains the other loses.)
+     */
+    private val spreadWeight = Array(n) { p ->
+        val nb = land.neighbours[p]
+        val rate = SPREAD * days / Date.DAYS_PER_MONTH
+        FloatArray(nb.size) { i -> val q = nb[i]; rate / max(nb.size, land.neighbours[q].size) * min(land.areaKm2[p], land.areaKm2[q]) / land.areaKm2[p] }
     }
 
     companion object {
@@ -605,7 +632,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val OWL_SEED = 0.002f
         /** Small prey out in the open (kg/km²) at which eagles get half of what they need. */
         const val EAGLE_HALF = 1f
-        /** Share of the difference with its neighbours a small animal population evens out every five weeks. */
+        /** Share of the difference with its neighbours a small animal population evens out in a month. */
         const val SPREAD = 0.2f
         /** Share of what herds and packs eat that comes back as dung. */
         const val DUNG = 0.5f
