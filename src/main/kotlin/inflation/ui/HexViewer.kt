@@ -7,6 +7,8 @@ import inflation.ecology.Catalogue
 import inflation.ecology.HexFauna
 import inflation.ecology.HexGroups
 import inflation.ecology.HexSim
+import inflation.ecology.PlaceRecord
+import inflation.ui.ViewLayers.Measure
 import inflation.world.HexLand
 import inflation.world.HexMap
 import inflation.world.HexPicture
@@ -107,12 +109,15 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...; from where it was drawn last), its size. */
     private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float)
 
-    /** What the hexes are tinted by. */
-    private enum class Tint(val label: String) {
-        NONE("Ground only"), TEMPERATURE("Temperature"), SNOW("Snow lying"), RAIN("Rain this week"), GREEN("Green forage"),
-        FORAGE("Grass and browse"), SOIL("Soil water"), WATER("Drinking water"), SMALL_GAME("Rodents and reptiles"), FOXES("Foxes"), OWLS("Owls and small hawks"), EAGLES("Eagles"), INSECTS("Insects"), BITING("Biting insects"), POLLINATORS("Pollinators"), ORGANIC("Soil organic matter"), CARRION("Carrion"), RESIDENTS("Resident herds (all)"),
-    }
-    private val tintChoice = JComboBox(Tint.entries.map { it.label }.toTypedArray())
+    /** What the hexes are tinted by, worked out each week and kept month by month (see [ViewLayers]). */
+    private val layers = ViewLayers(sim)
+    private val tintChoice = JComboBox(Measure.entries.map { it.label }.toTypedArray())
+    /** How the tint is shown: this week (as drawn so far), scaled to the map, or over the last year. */
+    private val modeChoice = JComboBox(ViewLayers.Mode.entries.map { it.label }.toTypedArray())
+    /** For the deaths: which cause, or all. */
+    private val causeChoice = JComboBox((PlaceRecord.Cause.entries.map { "died of " + it.label } + "all causes").toTypedArray()).apply { selectedIndex = PlaceRecord.Cause.entries.size; isEnabled = false }
+    /** What the tint's colours mean. */
+    private val legendText = JLabel("")
     private val windBox = javax.swing.JCheckBox("Wind", false)
     /** Rivers by this week's flow (see [RiverOverlay]); unticked, no rivers are drawn. */
     private val riversBox = javax.swing.JCheckBox("River flows", true)
@@ -177,12 +182,13 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         val step = JButton("Step"); step.addActionListener { control.overviewTakesOver(); commands += { advance() } }
         val speed = JSlider(1, 10, stepsPerSecond); speed.addChangeListener { stepsPerSecond = speed.value }
         residentChoice.addActionListener { map.repaint() }
-        tintChoice.addActionListener { map.repaint() }
+        tintChoice.addActionListener { causeChoice.isEnabled = Measure.entries[tintChoice.selectedIndex].byCause; map.repaint(); if (picked >= 0) inspect(picked) }
+        modeChoice.addActionListener { map.repaint() }; causeChoice.addActionListener { map.repaint(); if (picked >= 0) inspect(picked) }
         windBox.addActionListener { map.repaint() }
         riversBox.addActionListener { rivers.visible = riversBox.isSelected; map.repaint() }
         herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }; peopleBox.addActionListener { map.repaint() }; pathsBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(pathsBox); bar.add(windBox); bar.add(riversBox); bar.add(pullChoice)
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(modeChoice); bar.add(causeChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(pathsBox); bar.add(windBox); bar.add(riversBox); bar.add(pullChoice)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { inflation.ecology.HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
@@ -218,7 +224,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) showGroup() }
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
-        add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(bottom, BorderLayout.SOUTH)
+        val south = JPanel(BorderLayout()); south.add(legendText.apply { border = javax.swing.BorderFactory.createEmptyBorder(2, 6, 2, 6) }, BorderLayout.NORTH); south.add(bottom, BorderLayout.CENTER)
+        add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(south, BorderLayout.SOUTH)
         snapshot()
         Thread(::loop, "hex simulation").apply { isDaemon = true }.start()
         Timer(33) { if (frame < frames) { frame++; map.repaint() } }.start()
@@ -236,6 +243,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private fun loadWorld(f: java.io.File) {
         try {
             inflation.ecology.HexSnapshot.load(sim, f)
+            layers.reset()
             useNetworks()
             lastDrawn.clear()
             snapshot()
@@ -250,6 +258,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private fun advance() {
         sim.step()
         history.record(sim)
+        layers.week()
         snapshot()
         control.weekDone()
     }
@@ -361,63 +370,23 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             rivers.draw(g, ox, oy, kmPx, width, height)
             fun sx(km: Float) = (ox + km * kmPx).toInt()
             fun sy(km: Float) = (oy + km * kmPx).toInt()
-            // The chosen measure as a tint over the hexes: the area-weighted mean of its bands.
-            val tint = Tint.entries[tintChoice.selectedIndex]
-            if (tint != Tint.NONE) {
+            // The chosen measure as a tint over the hexes (see [ViewLayers]), shown as the mode says.
+            val tint = Measure.entries[tintChoice.selectedIndex]
+            if (tint != Measure.NONE) {
                 val rad = hex.hexKm / kotlin.math.sqrt(3.0)
-                val sum = DoubleArray(hex.size); val area = DoubleArray(hex.size)
-                for (p in 0 until fauna.n) {
-                    val v = when (tint) {
-                        Tint.TEMPERATURE -> weather.temperature[p]
-                        Tint.SNOW -> weather.snowpack[p]
-                        Tint.RAIN -> weather.precipitation[p]
-                        Tint.GREEN -> land.green[p]
-                        Tint.FORAGE -> land.herb[p] + land.shrub[p]
-                        Tint.SOIL -> land.soil[p]
-                        Tint.WATER -> land.water[p]
-                        Tint.INSECTS -> fauna.small.insects[p]
-                        Tint.BITING -> fauna.small.biting[p]
-                        Tint.POLLINATORS -> fauna.small.pollinators[p]
-                        Tint.ORGANIC -> fauna.small.organicMatter[p]
-                        Tint.SMALL_GAME -> fauna.small.rodents[p] + fauna.small.herps[p]
-                        Tint.FOXES -> fauna.small.foxes[p]
-                        Tint.OWLS -> fauna.small.owls[p]
-                        Tint.EAGLES -> fauna.small.eagles[p]
-                        Tint.CARRION -> fauna.small.carrion[p] * 1e6f
-                        Tint.RESIDENTS -> fauna.kinds.indices.sumOf { (fauna.adults[it][p] + fauna.young[it][p]).toDouble() }.toFloat()
-                        Tint.NONE -> 0f
-                    }
-                    val h = hw.placeHex[p]; sum[h] += v * land.areaKm2[p].toDouble(); area[h] += land.areaKm2[p].toDouble()
-                }
+                val mode = ViewLayers.Mode.entries[modeChoice.selectedIndex]
+                val key = layers.key(tint, causeChoice.selectedIndex)
+                val colours = arrayOfNulls<Color>(hex.size)
+                val legend = paintTint(tint, mode, key, colours)
+                if (legendText.text != legend) SwingUtilities.invokeLater { legendText.text = legend }
                 for (h in 0 until hex.size) {
-                    if (area[h] <= 0) continue
-                    val v = (sum[h] / area[h]).toFloat()
-                    val colour = when (tint) {
-                        Tint.TEMPERATURE -> heat(((v + 15f) / 50f).coerceIn(0f, 1f), 0.55f)
-                        Tint.SNOW -> if (v < 5f) null else rgba(1f, 1f, 1f, (0.25f + 0.6f * min(1f, v / 300f)))
-                        Tint.RAIN -> if (v < 2f) null else rgba(0.1f, 0.3f, 1f, (0.2f + 0.6f * min(1f, v / 80f)))
-                        Tint.GREEN -> rgba(1f - v, 0.9f, 0.1f, 0.5f)
-                        Tint.FORAGE -> rgba(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
-                        Tint.SOIL -> rgba(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
-                        Tint.WATER -> rgba(0.1f, 0.4f, 1f, 0.1f + 0.6f * v)
-                        Tint.INSECTS -> rgba(0.6f, 0.8f, 0.1f, (0.1f + 0.7f * min(1f, v / 1500f)))
-                        Tint.BITING -> rgba(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
-                        Tint.POLLINATORS -> rgba(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
-                        Tint.ORGANIC -> rgba(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
-                        Tint.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.05f + 0.75f * min(1f, kotlin.math.ln(1f + v) / kotlin.math.ln(1f + 600f)))) // log scale: 1 to 600 kg/km²
-                        Tint.FOXES -> rgba(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
-                        Tint.OWLS -> rgba(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
-                        Tint.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
-                        Tint.CARRION -> rgba(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
-                        Tint.RESIDENTS -> rgba(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
-                        Tint.NONE -> null
-                    } ?: continue
+                    val colour = colours[h] ?: continue
                     val (cx, cy) = hex.centreKm(h)
                     val xs = IntArray(6) { sx((cx + rad * kotlin.math.cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                     val ys = IntArray(6) { sy((cy + rad * kotlin.math.sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                     g.color = colour; g.fillPolygon(xs, ys, 6)
                 }
-            }
+            } else if (legendText.text.isNotEmpty()) SwingUtilities.invokeLater { legendText.text = "" }
             // Wind as small arrows, every few hexes, longer and brighter the stronger.
             if (windBox.isSelected) {
                 val every = max(1, (2.0 / scale).toInt())
@@ -563,6 +532,120 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         }
     }
 
+    /**
+     * Colours each hex by [tint] as [mode] says (into [out], null for none) and returns what the
+     * colours mean. "This week" keeps the measures' own fixed scales; "scaled" stretches the map's
+     * 5th to 95th percentile of the hexes with any over the full range; the seasonal modes read the
+     * months kept by [layers].
+     */
+    private fun paintTint(tint: Measure, mode: ViewLayers.Mode, key: String, out: Array<Color?>): String {
+        val v = layers.now[key] ?: return "${tint.label}: waiting for the first week"
+        val unit = tint.unit
+        fun pct(vals: FloatArray, keep: (Float) -> Boolean): Pair<Float, Float> {
+            val l = vals.filter { !it.isNaN() && keep(it) }.sorted()
+            if (l.isEmpty()) return 0f to 1f
+            return l[(l.size * 0.05).toInt()] to l[(l.size * 0.95).toInt().coerceAtMost(l.size - 1)]
+        }
+        fun f(x: Float) = when { kotlin.math.abs(x) >= 100 -> "%.0f".format(x); kotlin.math.abs(x) >= 1 -> "%.1f".format(x); else -> "%.3g".format(x) }
+        fun shade(h: Int, a: Float) { out[h] = rgba(tint.r, tint.g, tint.b, a) }
+        val kept = layers.monthsKept(key)
+        when (mode) {
+            ViewLayers.Mode.WEEK -> {
+                if (tint.weeks) {
+                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) shade(h, 0.05f + 0.75f * min(1f, kotlin.math.ln(1f + v[h]) / kotlin.math.ln(1f + 104f)))
+                    return "${tint.label}: what lies there over what went in a week. Pale: gone within days; full: two years or more (accumulating)."
+                }
+                if (tint == Measure.HUNTERS_PER_PREY) {
+                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) { val l = (kotlin.math.log10(v[h]) / 1.5f).coerceIn(-1f, 1f); out[h] = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l) }
+                    return "Hunters per prey, kg per 100 kg over a hex and its ring (people not counted). Clear at 1, about what prey carries of one carnivore kind in nature (Carbone & Gittleman 2002); red above (full at 30), blue below (full at 0.03)."
+                }
+                fixedColour(tint, v, out)?.let { return it }
+                return paintTint(tint, ViewLayers.Mode.SCALED, key, out)
+            }
+            ViewLayers.Mode.SCALED -> {
+                val (lo, hi) = pct(v) { tint.signed || it > 0f }
+                val span = (hi - lo).coerceAtLeast(1e-9f)
+                for (h in v.indices) {
+                    if (v[h].isNaN() || (!tint.signed && v[h] <= 0f)) continue
+                    val x = ((v[h] - lo) / span).coerceIn(0f, 1f)
+                    out[h] = if (tint.signed) heat(x, 0.55f) else rgba(tint.r, tint.g, tint.b, 0.08f + 0.72f * x)
+                }
+                val zero = if (tint.signed) "" else "; hexes with none left clear (${v.count { !it.isNaN() && it <= 0f }} of ${v.count { !it.isNaN() }})"
+                return "${tint.label}${causeNote(tint)}: ${f(lo)} to ${f(hi)} $unit (the map's 5th to 95th percentile)$zero"
+            }
+            ViewLayers.Mode.SWING -> {
+                val sw = layers.swing(key, tint.signed) ?: return "${tint.label}: the swing needs two months kept ($kept so far)"
+                val (_, hi) = pct(sw) { true }
+                val top = if (tint.signed) hi.coerceAtLeast(1e-6f) else 2f
+                for (h in sw.indices) if (!sw[h].isNaN()) out[h] = heat((sw[h] / top).coerceIn(0f, 1f), 0.6f)
+                return if (tint.signed) "${tint.label}${causeNote(tint)}: highest month less lowest over the $kept months kept; blue none, red ${f(top)} $unit or more"
+                else "${tint.label}${causeNote(tint)}: (highest month - lowest) / mean over the $kept months kept; blue flat all year, green 1, red 2 or more"
+            }
+            ViewLayers.Mode.PEAK -> {
+                val pk = layers.peak(key) ?: return "${tint.label}: the peak month needs two months kept ($kept so far)"
+                val sw = layers.swing(key, tint.signed)
+                val (_, top) = if (sw != null) pct(sw) { true } else 0f to 1f
+                for (h in pk.indices) {
+                    if (pk[h] < 0) continue
+                    val strength = sw?.get(h)?.takeIf { !it.isNaN() }?.let { if (tint.signed) it / top.coerceAtLeast(1e-6f) else it } ?: 1f
+                    val c = Color.getHSBColor(pk[h] / 12f, 0.85f, 0.95f)
+                    out[h] = Color(c.red, c.green, c.blue, (255 * (0.1f + 0.6f * strength.coerceIn(0f, 1f))).toInt())
+                }
+                return "${tint.label}${causeNote(tint)}: month of the highest monthly mean, Jan red, Mar yellow, May green, Jul cyan, Sep blue, Nov purple; faint where it hardly swings ($kept months kept)"
+            }
+            ViewLayers.Mode.YEAR_AGO -> {
+                val r = layers.yearAgo(key, tint.signed) ?: return "${tint.label}: needs the same month twice (a year and a month of record)"
+                for (h in r.indices) {
+                    if (r[h].isNaN()) continue
+                    val x = if (tint.signed) (r[h] / 5f).coerceIn(-1f, 1f) else (kotlin.math.ln(r[h]) / kotlin.math.ln(4f)).coerceIn(-1f, 1f)
+                    if (kotlin.math.abs(x) < 0.05f) continue
+                    out[h] = if (x > 0) rgba(0.9f, 0.15f, 0.1f, 0.1f + 0.65f * x) else rgba(0.1f, 0.35f, 0.95f, 0.1f - 0.65f * x)
+                }
+                val month = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")[layers.lastMonth]
+                return if (tint.signed) "${tint.label}: $month against $month a year before; red warmer, blue colder, full at 5 $unit"
+                else "${tint.label}${causeNote(tint)}: $month against $month a year before; red more, blue less, full at 4 times or a quarter"
+            }
+        }
+    }
+
+    private fun causeNote(tint: Measure) = if (tint.byCause) " (" + causeChoice.selectedItem + ")" else ""
+
+    /** The measures' own fixed colour scales, as the viewer has always drawn them; null for a measure without one. */
+    private fun fixedColour(tint: Measure, values: FloatArray, out: Array<Color?>): String? {
+        val legend = when (tint) {
+            Measure.TEMPERATURE -> "blue -15 °C to red 35 °C"; Measure.SNOW -> "white from 5 mm, full at 300 mm"; Measure.RAIN -> "blue from 2 mm, full at 80 mm"
+            Measure.GREEN -> "yellow dry to green"; Measure.FORAGE -> "full at 2 kg/m²"; Measure.SOIL -> "brown dry to blue 150 mm"; Measure.WATER -> "full where all the ground is within reach of water"
+            Measure.INSECTS -> "full at 1500 kg/km²"; Measure.BITING -> "full at 400 kg/km²"; Measure.POLLINATORS -> "full at 50 kg/km²"; Measure.ORGANIC -> "full at 8 kg/m²"
+            Measure.SMALL_GAME -> "log scale, 1 to 600 kg/km²"; Measure.FOXES -> "full at 2 kg/km²"; Measure.OWLS -> "full at 1 kg/km²"; Measure.EAGLES -> "full where every range is held"
+            Measure.CARRION -> "full at 20 kg/km²"; Measure.RESIDENTS -> "full at 20 head/km²"
+            else -> return null
+        }
+        for (h in values.indices) {
+            val v = values[h]; if (v.isNaN()) continue
+            out[h] = when (tint) {
+                Measure.TEMPERATURE -> heat(((v + 15f) / 50f).coerceIn(0f, 1f), 0.55f)
+                Measure.SNOW -> if (v < 5f) null else rgba(1f, 1f, 1f, (0.25f + 0.6f * min(1f, v / 300f)))
+                Measure.RAIN -> if (v < 2f) null else rgba(0.1f, 0.3f, 1f, (0.2f + 0.6f * min(1f, v / 80f)))
+                Measure.GREEN -> rgba(1f - v, 0.9f, 0.1f, 0.5f)
+                Measure.FORAGE -> rgba(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
+                Measure.SOIL -> rgba(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
+                Measure.WATER -> rgba(0.1f, 0.4f, 1f, 0.1f + 0.6f * v)
+                Measure.INSECTS -> rgba(0.6f, 0.8f, 0.1f, (0.1f + 0.7f * min(1f, v / 1500f)))
+                Measure.BITING -> rgba(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
+                Measure.POLLINATORS -> rgba(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
+                Measure.ORGANIC -> rgba(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
+                Measure.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.05f + 0.75f * min(1f, kotlin.math.ln(1f + v) / kotlin.math.ln(1f + 600f)))) // log scale: 1 to 600 kg/km²
+                Measure.FOXES -> rgba(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
+                Measure.OWLS -> rgba(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
+                Measure.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
+                Measure.CARRION -> rgba(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
+                Measure.RESIDENTS -> rgba(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
+                else -> null
+            }
+        }
+        return "${tint.label}: $legend (the viewer's fixed scale; \"scaled to the map\" stretches it)"
+    }
+
     /** Fills the side panel with what is in hex [h]: its ground, weather, plants, resident herds and borders, and the groups standing in it. */
     private fun inspect(h: Int) {
         val sb = StringBuilder()
@@ -599,6 +682,18 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         sb.appendLine("   herds and packs: " + gs.groupBy { it.species }.entries.joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
         sb.appendLine("   forage (grass and browse) %.0f t, rodents and reptiles %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
         sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.meanFlow[h], land.flow[h]))
+        // The tinted measure here: this week, and month by month over the last year.
+        val tint = Measure.entries[tintChoice.selectedIndex]
+        if (tint != Measure.NONE) {
+            val key = layers.key(tint, causeChoice.selectedIndex)
+            layers.now[key]?.get(h)?.takeIf { !it.isNaN() }?.let { v ->
+                sb.appendLine("%s%s: %.3g %s".format(tint.label, causeNote(tint), v, tint.unit))
+                val m = layers.byMonth(key, h)
+                if (m.any { !it.isNaN() }) sb.appendLine("   by month: " + m.withIndex().filter { !it.value.isNaN() }.joinToString(" ") { "%d:%.3g".format(it.index + 1, it.value) })
+            }
+            if (tint == Measure.HUNGRY_BY_PLENTY && h < layers.hunger.size) sb.appendLine("   plant-eaters short of their wants %.0f%%; most forage left uneaten within 2 hexes %.2f kg/m²".format(100 * layers.hunger[h], layers.plenty[h]))
+            if (tint.byCause) sb.appendLine("   by cause: " + PlaceRecord.Cause.entries.joinToString(", ") { c -> "%s %.3g".format(c.label, layers.now[layers.key(tint, c.ordinal)]?.get(h) ?: 0f) })
+        }
         sb.append("borders (on foot, ground + water):")
         val dirs = arrayOf("E", "SE", "SW", "W", "NW", "NE")
         for (d in 0 until 6) {

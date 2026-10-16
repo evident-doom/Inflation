@@ -15,6 +15,7 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.min
 import kotlin.random.Random
+import inflation.ecology.HexFeatures as Feature
 
 /**
  * The migratory herds and the hunters on the hexes, as groups. Each week every group looks at the
@@ -946,79 +947,79 @@ class HexGroups(
                 seen?.add(p to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
-                    if (nc == candFeats.size) candFeats += FloatArray(HexFeatures.SIZE)
+                    if (nc == candFeats.size) candFeats += FloatArray(Feature.SIZE)
                     val f = candFeats[nc].also { it.fill(0f) }
                     // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
-                    if (s.carnivore) f[0] = prey / (prey + PREY_HALF) else { val food = foodFor(s, p); f[0] = food / (food + 0.3f) }
+                    if (s.carnivore) f[Feature.FOOD] = prey / (prey + PREY_HALF) else { val food = foodFor(s, p); f[Feature.FOOD] = food / (food + 0.3f) }
                     // (And for herds how good it is, nourishment and protein, as the hand-written score weighs it: high ground's draw in summer.)
-                    if (!s.carnivore && !s.human) f[52] = freshness(s, p)
-                    f[1] = kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
-                    f[2] = crowded
-                    f[3] = hunters / (hunters + 3f)
-                    f[4] = min(2f, discomfort(s, p, weather) + drain(g, p, weather))
+                    if (!s.carnivore && !s.human) f[Feature.FORAGE_QUALITY] = freshness(s, p)
+                    f[Feature.CLIMATE] = kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
+                    f[Feature.CROWDING] = crowded
+                    f[Feature.HUNTERS] = hunters / (hunters + 3f)
+                    f[Feature.DISCOMFORT] = min(2f, discomfort(s, p, weather) + drain(g, p, weather))
                     // (The flies are felt now; only the weather is foreseen.)
-                    f[5] = min(2f, s.discomfortC(weather.forecastTemp(p), date.month) / 10f + drain(g, p, weather))
+                    f[Feature.DISCOMFORT_FORECAST] = min(2f, s.discomfortC(weather.forecastTemp(p), date.month) / 10f + drain(g, p, weather))
                     // People see only what they can read: the weather coming as their lore and sky-watching
                     // allow (else they expect this week's again), the beasts about as their tracking does,
                     // and the food of country they do not know only dimly.
                     g.band?.let { b ->
                         val sense = ((if (b.holds(Tradition.SKY_LORE)) 0.5f else 0f) + 0.5f * b.skill(Skill.LORE)).coerceIn(0f, 1f)
-                        f[5] = f[4] + sense * (f[5] - f[4])
-                        f[3] = SIGN_GUESS + b.skill(Skill.TRACK) * (f[3] - SIGN_GUESS)
-                        if (!b.knows(h)) f[0] = 0.5f * f[0] + 0.5f * SIGN_GUESS
+                        f[Feature.DISCOMFORT_FORECAST] = f[Feature.DISCOMFORT] + sense * (f[Feature.DISCOMFORT_FORECAST] - f[Feature.DISCOMFORT])
+                        f[Feature.HUNTERS] = SIGN_GUESS + b.skill(Skill.TRACK) * (f[Feature.HUNTERS] - SIGN_GUESS)
+                        if (!b.knows(h)) f[Feature.FOOD] = 0.5f * f[Feature.FOOD] + 0.5f * SIGN_GUESS
                     }
-                    f[6] = if (weather.snowpack[p] > s.snowLimitMm) 1f else 0f
-                    f[7] = min(2f, weather.snowpack[p] / s.snowLimitMm)
-                    f[8] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
-                    f[9] = (d / reach.coerceAtLeast(1f)).coerceIn(0f, 1f)
-                    f[10] = if (p == g.place) 1f else 0f
-                    f[11] = if (h == here) 1f else 0f
+                    f[Feature.SNOW_OVER_LIMIT] = if (weather.snowpack[p] > s.snowLimitMm) 1f else 0f
+                    f[Feature.SNOW] = min(2f, weather.snowpack[p] / s.snowLimitMm)
+                    f[Feature.CLIMB] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
+                    f[Feature.EFFORT] = (d / reach.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                    f[Feature.STAYS] = if (p == g.place) 1f else 0f
+                    f[Feature.SAME_HEX] = if (h == here) 1f else 0f
                     if (goal >= 0) {
-                        f[12] = if (fromHere > hex.hexKm) ((fromHere - toGoal) / fromHere).toFloat().coerceIn(-1f, 1f) else 0f
-                        f[13] = (goalQ - g.fed).coerceIn(-1f, 1f)
+                        f[Feature.TOWARD_BEARING] = if (fromHere > hex.hexKm) ((fromHere - toGoal) / fromHere).toFloat().coerceIn(-1f, 1f) else 0f
+                        f[Feature.SEASON_PLACE] = (goalQ - g.fed).coerceIn(-1f, 1f)
                         // (On its round, how far the place takes it on toward the round's place this month: see [SharedMover.pull].)
-                        if (onRound) f[51] = f[12] * roundStrength
+                        if (onRound) f[Feature.ON_ROUND] = f[Feature.TOWARD_BEARING] * roundStrength
                     }
-                    f[14] = g.fed
-                    f[15] = g.fat / s.maxFatDays.coerceAtLeast(1f)
-                    f[16] = kotlin.math.sin(season).toFloat(); f[17] = kotlin.math.cos(season).toFloat()
-                    f[18] = if (restless) 1f else 0f
-                    f[19] = min(3f, (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm)
-                    f[20] = min(2f, g.dry / s.daysWithoutWater)
-                    f[21] = pull
+                    f[Feature.FED] = g.fed
+                    f[Feature.FAT] = g.fat / s.maxFatDays.coerceAtLeast(1f)
+                    f[Feature.SEASON_SIN] = kotlin.math.sin(season).toFloat(); f[Feature.SEASON_COS] = kotlin.math.cos(season).toFloat()
+                    f[Feature.RESTLESS] = if (restless) 1f else 0f
+                    f[Feature.WATER_DISTANCE] = min(3f, (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm)
+                    f[Feature.DAYS_DRY] = min(2f, g.dry / s.daysWithoutWater)
+                    f[Feature.PULL] = pull
                     // The moon (night hunters see and are seen by it) and how far off its young are due.
-                    f[22] = moon
+                    f[Feature.MOON] = moon
                     val toBirth = 2.0 * Math.PI * (((if (g.birthMonth >= 0) g.birthMonth else s.birthMonth) - month + 12) % 12) / 12.0
-                    f[23] = kotlin.math.sin(toBirth).toFloat(); f[24] = kotlin.math.cos(toBirth).toFloat()
+                    f[Feature.TO_BIRTHS_SIN] = kotlin.math.sin(toBirth).toFloat(); f[Feature.TO_BIRTHS_COS] = kotlin.math.cos(toBirth).toFloat()
                     // Its ancestors buried here, and how far going here brings it toward its appointment.
-                    f[31] = min(1f, g.memory.deadAt(h) / 10f)
-                    f[32] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
-                    f[33] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
-                    f[34] = kotlin.math.ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
-                    f[35] = min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])
-                    f[36] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
+                    f[Feature.ANCESTORS] = min(1f, g.memory.deadAt(h) / 10f)
+                    f[Feature.APPOINTMENT] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
+                    f[Feature.HOUSES] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
+                    f[Feature.OWN_SIZE] = kotlin.math.ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
+                    f[Feature.LASTING_WATER] = min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])
+                    f[Feature.SICKNESS] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
                     // The signs of the land, as anyone who looks can read them.
-                    f[37] = min(1f, land.tree[p] / 10f); f[38] = min(1f, land.shrub[p] / 2f); f[39] = min(1f, land.herb[p] / 0.5f)
-                    f[40] = min(1f, land.logged[p])
-                    f[41] = (land.water[p] - min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])).coerceIn(-1f, 1f)
-                    f[42] = pathAt(h)
-                    f[43] = kotlin.math.ln(1f + monthHerdHeads[p] / land.areaKm2[p]) / 3f
-                    f[44] = min(1f, fauna.small.dung[p] * 1e4f)
-                    f[45] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
-                    f[46] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
-                    f[47] = beyond; f[48] = foreign
-                    f[50] = keepOn
+                    f[Feature.TREES] = min(1f, land.tree[p] / 10f); f[Feature.SHRUBS] = min(1f, land.shrub[p] / 2f); f[Feature.GRASS] = min(1f, land.herb[p] / 0.5f)
+                    f[Feature.MARSH] = min(1f, land.logged[p])
+                    f[Feature.WATER_AGAINST_USUAL] = (land.water[p] - min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])).coerceIn(-1f, 1f)
+                    f[Feature.PATHS] = pathAt(h)
+                    f[Feature.HERDS_ABOUT] = kotlin.math.ln(1f + monthHerdHeads[p] / land.areaKm2[p]) / 3f
+                    f[Feature.DUNG] = min(1f, fauna.small.dung[p] * 1e4f)
+                    f[Feature.GRAZING_AND_KILLS] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
+                    f[Feature.KNOWN_GROUND] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
+                    f[Feature.BEYOND_OWN_GROUND] = beyond; f[Feature.OTHERS_MARKS] = foreign
+                    f[Feature.KEEPS_HEADING] = keepOn
                     // The fish and shellfish a band could take there, with its skill, against its need (the
                     // shore and the river are plain to see; how rich they are, less so where it is a stranger).
-                    f[49] = g.band?.let { b -> min(2f, fauna.water.fishWithin(h, b.fishing()) / (g.size * s.dailyIntakeKg * days).coerceAtLeast(1f)) * (if (b.knows(h)) 1f else 0.5f) } ?: 0f
+                    f[Feature.FISH] = g.band?.let { b -> min(2f, fauna.water.fishWithin(h, b.fishing()) / (g.size * s.dailyIntakeKg * days).coerceAtLeast(1f)) * (if (b.knows(h)) 1f else 0.5f) } ?: 0f
                     // What it remembers of this hex: in this season, or failing that in any.
                     val mem = g.memory
                     var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0
                     if (slot < 0) for (i in 0 until PlaceMemory.MEMORY_SLOTS) if (mem.hex[i] == h) { slot = i; break }
                     if (slot >= 0) {
-                        f[25] = 1f; f[26] = if (sameSeason) 1f else 0f
-                        f[27] = mem.fed[slot]; f[28] = mem.water[slot]; f[29] = mem.danger[slot]
-                        f[30] = min(1f, (date.absoluteDay / days - mem.lastWeek[slot]) / 52f)
+                        f[Feature.REMEMBERED] = 1f; f[Feature.REMEMBERED_SAME_SEASON] = if (sameSeason) 1f else 0f
+                        f[Feature.REMEMBERED_FED] = mem.fed[slot]; f[Feature.REMEMBERED_WATER] = mem.water[slot]; f[Feature.REMEMBERED_DANGER] = mem.danger[slot]
+                        f[Feature.REMEMBERED_AGE] = min(1f, (date.absoluteDay / days - mem.lastWeek[slot]) / 52f)
                     }
                     if (nc == sc.candScores.size) sc.candScores = sc.candScores.copyOf(2 * nc)
                     candPlaces += p; sc.candScores[nc] = score

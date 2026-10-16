@@ -250,7 +250,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         gain += rate[i] * kg[i]; spent += rate[i] * time[i]; used++
     }
     note(g) {
-        val names = arrayOf("big game", "small game", "carrion", "bones", "fruit", "roots", "grass seed", "small finds", "fish")
+        val names = arrayOf("big game", "small game", "carrion", "bones", "fruit", "roots", "grass seed", "small finds", "fish", "grain")
         "pass %d: took up %d of %d foods, best first: ".format(pass + 1, used, m) + (0 until min(used, 6)).joinToString(", ") { r -> val i = order[r]
             (if (type[i] == 0) fauna.kinds[kind[i]].name else names[type[i]]) + " %.1f kg/day of work".format(profit[i]) }
     }

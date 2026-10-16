@@ -40,7 +40,7 @@ fun main(args: Array<String>) {
         val score = HexPpo.score(cfg, years, kinds) { run ->
             for (s in kinds) if (s.human) run.groups.policies[s] = HexPolicy { _, f, b, rnd ->
                 when (c) {
-                    "stay" -> f.indices.firstOrNull { f[it].getOrElse(10) { 0f } > 0.5f } ?: b.indices.maxBy { b[it] }
+                    "stay" -> f.indices.firstOrNull { f[it].getOrElse(inflation.ecology.HexFeatures.STAYS) { 0f } > 0.5f } ?: b.indices.maxBy { b[it] }
                     "random" -> rnd.nextInt(f.size)
                     "worst" -> b.indices.minBy { b[it] }
                     else -> b.indices.maxBy { b[it] }

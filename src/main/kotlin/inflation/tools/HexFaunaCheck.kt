@@ -218,10 +218,12 @@ fun faunaCheck(args: Array<String>) {
                         gs.sumOf { s.coldC(weather.temperature[it.place], weather.date.month).toDouble() * it.size } / heads))
                 }
             }
-            val t0 = System.nanoTime()
             // follow=kind: follow one group of that kind week by week, as the viewer's follow mode does.
             Config.string("follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
+            // Only the step itself: the tallies below run in this method, which is too big for the JIT.
+            val t0 = System.nanoTime()
             sim.step()
+            ns += System.nanoTime() - t0
             grainReapedNow += (herds.hunting["people:grain reaped, kg"] ?: 0) / 1000.0
             if (w == 0) movedKm.clear()
             for (gr in herds.groups) if (gr.alive && gr.path.size > 1) movedKm.merge(gr.species, (gr.path.size - 1) * sim.hex.hexKm, Double::plus)
@@ -237,7 +239,6 @@ fun faunaCheck(args: Array<String>) {
                 println("   follow #%d (%s, %d) %s:".format(herds.watched, g?.species?.name ?: "?", g?.size ?: 0, weather.date))
                 for (l in herds.watchLog) println("      $l")
             }
-            ns += System.nanoTime() - t0
             if (historyFile != null) history.record(sim)
             for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
             for ((key, v) in herds.deaths) causes.merge(key, v.toDouble(), Double::plus)

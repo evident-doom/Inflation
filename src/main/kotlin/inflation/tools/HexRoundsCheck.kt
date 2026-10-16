@@ -10,7 +10,7 @@ import inflation.world.Date
 import inflation.world.WorldConfig
 
 /**
- * Whether herds keep to their yearly rounds (run with rounds=true): for each herd kind, month by
+ * Whether herds keep to their yearly rounds: for each herd kind, month by
  * month over the last year of a run, the share of its herds on a round, how far they are from the
  * round's place that month (median km), the share within 50 km of it, and how far apart a round's
  * places lie on average from January to July; with the kind's numbers. And, over the whole run, herds
