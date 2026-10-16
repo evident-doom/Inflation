@@ -30,7 +30,8 @@ import java.util.zip.GZIPOutputStream
  */
 object HexSnapshot {
     private const val MAGIC = 0x48455853 // "HEXS"
-    private const val VERSION = 1
+    /** 2: what lazy fields hold is saved. Version 1 saves still load; code from before version 2 refuses version 2 saves. */
+    private const val VERSION = 2
 
     /** Writes the state of [sim] to [file]. */
     fun save(sim: HexSim, file: File) {
@@ -51,7 +52,7 @@ object HexSnapshot {
         DataInputStream(BufferedInputStream(GZIPInputStream(file.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
             require(inp.readInt() == MAGIC) { "$file is not a saved hex world" }
             val version = inp.readInt()
-            require(version == VERSION) { "$file was saved by another version ($version)" }
+            require(version in 1..VERSION) { "$file was saved by another version ($version)" }
             val seed = inp.readLong(); val n = inp.readInt(); val day = inp.readLong()
             require(seed == sim.cfg.seed && n == sim.land.n) { "$file is of another world (seed $seed, $n places; this one seed ${sim.cfg.seed}, ${sim.land.n} places)" }
             val r = Reader(inp)
