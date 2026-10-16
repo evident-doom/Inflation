@@ -12,7 +12,7 @@ import inflation.world.Date
 import inflation.world.WorldConfig
 
 /**
- * What trade does (with rounds=true in the config for the rites at the sources): where good stone, salt
+ * What trade does (with rounds on for the rites at the sources): where good stone, salt
  * and ochre are got (sources), and each year the share of bands holding a year's worth of each, how
  * much of their spears and clothes is made well, how much of their dried food is salted, the useful
  * gifts given, how many rites stand at a source, the share of band-weeks spent in country of another
