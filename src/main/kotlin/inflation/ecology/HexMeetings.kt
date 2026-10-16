@@ -213,9 +213,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             if (Niches.cracksBones(s)) offer(3, 0, p, found * small.bones[p] * 1e6f * swept / days, 1f, eats * BONE_DAYS)
         }
     }
-    if (eatsPlants) for (q in gatherAt + roundCamp) {
+    // (The ground it walked, then the country round its camp, which holds none of it.)
+    if (eatsPlants) for (qi in 0 until gatherAt.size + roundCamp.size) {
+        val q = if (qi < gatherAt.size) gatherAt[qi] else roundCamp[qi - gatherAt.size]
         val m2 = land.areaKm2[q] * 1e6f
-        val part = if (q in gatherAt) 1f else roundShare
+        val part = if (qi < gatherAt.size) 1f else roundShare
         // A band can strip so much of a place in a week, as its skill allows; an animal finds what lies along its way.
         // (On strange ground people find little of it.)
         val knowHere = band?.let { plantKnow(it, hw.placeHex[q]) } ?: 1f
@@ -237,13 +239,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val h = hw.placeHex[g.place]
         offer(8, 0, h, fauna.water.fishWithin(h, band.fishing()) / days, 1f, FISH_HANDLING_DAYS_PER_KG / hands * band.slowness(Skill.FISH) + eats)
     }
-    // Rank by kilos a day of handling, best first.
-    for (i in 0 until m) {
-        profit[i] = kg[i] / time[i]
-        var r = i
-        while (r > 0 && profit[order[r - 1]] < profit[i]) { order[r] = order[r - 1]; r-- }
-        order[r] = i
-    }
+    // Rank by kilos a day of handling, best first. (A stable sort: foods worth the same keep the order they were offered in.)
+    for (i in 0 until m) profit[i] = kg[i] / time[i]
+    val ranked = (0 until m).sortedWith { x, y -> java.lang.Float.compare(profit[y], profit[x]) }
+    for (r in 0 until m) order[r] = ranked[r]
     var gain = 0f; var spent = 1f; var used = 0
     for (r in 0 until m) {
         val i = order[r]
