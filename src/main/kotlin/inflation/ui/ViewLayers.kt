@@ -3,6 +3,7 @@ package inflation.ui
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
+import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
 
@@ -224,7 +225,7 @@ internal class ViewLayers(private val sim: HexSim) {
     fun monthsKept(key: String) = months[key]?.count { it != null } ?: 0
 
     /** [key]'s monthly means at hex [h], by month (NaN where not kept). */
-    fun byMonth(key: String, h: Int): FloatArray = FloatArray(12) { months[key]?.get(it)?.get(h) ?: Float.NaN }
+    fun byMonth(key: String, h: Int): FloatArray = FloatArray(Date.MONTHS_PER_YEAR) { months[key]?.get(it)?.get(h) ?: Float.NaN }
 
     /** The swing over the year at each hex: (highest month - lowest) / mean of the months, or for a measure that can go below 0, highest - lowest; NaN with fewer than two months. */
     fun swing(key: String, signed: Boolean): FloatArray? {
@@ -243,7 +244,7 @@ internal class ViewLayers(private val sim: HexSim) {
         if (slots.count { it != null } < 2) return null
         return IntArray(nh) { h ->
             var best = -1; var bv = -Float.MAX_VALUE
-            for (m in 0 until 12) { val v = slots[m]?.get(h) ?: continue; if (!v.isNaN() && v > bv) { bv = v; best = m } }
+            for (m in 0 until Date.MONTHS_PER_YEAR) { val v = slots[m]?.get(h) ?: continue; if (!v.isNaN() && v > bv) { bv = v; best = m } }
             best
         }
     }

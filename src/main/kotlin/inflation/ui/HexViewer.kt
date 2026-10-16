@@ -8,6 +8,7 @@ import inflation.ecology.Catalogue
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
 import inflation.ui.ViewLayers.Measure
+import inflation.world.Date
 import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.World
@@ -721,7 +722,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         }
         if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat from herds met this week %.0f kg".format(if (g.home >= 0) g.home.toString() else "none", g.meatMet))
         else {
-            val months = (0 until 12).filter { g.seasonPlace[it] >= 0 }
+            val months = (0 until Date.MONTHS_PER_YEAR).filter { g.seasonPlace[it] >= 0 }
             sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
         }
         if (g.id == groups.watched && followLog.isNotEmpty()) { sb.appendLine(); sb.appendLine("this week:"); sb.appendLine(followLog) }
