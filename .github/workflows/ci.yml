@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, claude/project-thread-6gdbsm]
+  push:
+    branches: [main, claude/project-thread-6gdbsm]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      # build compiles with warnings as errors and runs the tests (HexSnapshotTest, HugeMethodTest and the rest).
+      - run: ./gradlew build
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: build/reports/tests/test
+
+  # The cost of a step on the PR's base and on its head, run one after the other on the same runner so the
+  # shared hardware's speed mostly cancels out. A small world: catches big jumps (a method falling out of the
+  # JIT, a loop gone quadratic), not a few per cent.
+  step-time:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+      - uses: actions/checkout@v4
+        with:
+          path: head
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build both
+        run: |
+          (cd base && ./gradlew -q classes)
+          (cd head && ./gradlew -q classes)
+      - name: Run both
+        run: |
+          args="--seed 1 --width 400 --height 600 --years 2"
+          for side in base head; do
+            (cd $side && ./gradlew -q hexFauna -PfaunaArgs="$args") > $side.txt 2>&1 || { tail -30 $side.txt; exit 1; }
+          done
+      - name: Compare
+        run: |
+          line() { grep -m1 '^a step of weather' $1.txt; }
+          ms() { line $1 | sed -E 's/^[^:]*: ([0-9.]+) ms.*/\1/'; }
+          b=$(ms base); h=$(ms head)
+          [ -n "$b" ] && [ -n "$h" ] || { echo "no step-time line found"; tail -20 base.txt head.txt; exit 1; }
+          r=$(awk -v b=$b -v h=$h 'BEGIN { printf "%.2f", h / b }')
+          {
+            echo "### Step time, 400x600 km, seed 1, 2 years"
+            echo "| | ms per step |"; echo "|---|---|"
+            echo "| base ${{ github.event.pull_request.base.sha }} | $b |"
+            echo "| head ${{ github.event.pull_request.head.sha }} | $h |"
+            echo; echo "head / base: **$r**"; echo
+            echo '```'; echo "base: $(line base)"; echo "head: $(line head)"; echo '```'
+            echo; echo "where a step's time goes (head):"; echo '```'
+            sed -n "/^where a step's time goes:/,/^a step of weather/p" head.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "head / base = $r"
+          # A warning, not a failure, until a few runs show how noisy the hosted runners are.
+          if awk -v r=$r 'BEGIN { exit !(r > 1.5) }'; then echo "::warning::step time $h ms on head vs $b ms on base (x$r)"; fi
