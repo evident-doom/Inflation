@@ -53,8 +53,8 @@ object HexPicture {
         javax.imageio.ImageIO.write(render(world, hex, x0, y0, sizeKm, sizeKm, px), "png", file)
     }
 
-    /** The picture of the [w] × [h] km from (x0, y0), at [px] pixels per km. */
-    fun render(world: World, hex: HexMap, x0: Double, y0: Double, wKm: Double, hKm: Double, px: Int): BufferedImage {
+    /** The picture of the [w] × [h] km from (x0, y0), at [px] pixels per km; without [rivers], the river courses are left for the viewer to draw by their flow. */
+    fun render(world: World, hex: HexMap, x0: Double, y0: Double, wKm: Double, hKm: Double, px: Int, rivers: Boolean = true): BufferedImage {
         val g = world.grid
         val ck = g.cellKm
         val w = min(wKm, g.width * ck - x0); val h = min(hKm, g.height * ck - y0)
@@ -71,7 +71,7 @@ object HexPicture {
         fun sy(km: Double) = ((km - y0) * px).toInt()
         // Rivers on their own courses: each river cell joined to the next one down, wider the bigger.
         val recv = world.water.drainage.receiver
-        for (i in 0 until g.size) {
+        if (rivers) for (i in 0 until g.size) {
             val cls = world.riverClass(i)
             if (cls < RiverClass.STREAM) continue
             val r = recv[i]

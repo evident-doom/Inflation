@@ -67,6 +67,8 @@ class GroupControlWindow(
     private val ground: BufferedImage,
     /** Km to the ground picture's pixels. */
     private val px: Int,
+    /** The rivers as they run this week, drawn over the ground. */
+    private val rivers: RiverOverlay,
     /** Lets one more week run (on the simulation's thread). */
     private val requestStep: () -> Unit,
     /** Whether the overview is running weeks on its own. */
@@ -469,6 +471,7 @@ class GroupControlWindow(
             // The ground.
             val halfW = width / 2.0 / kmPx; val halfH = height / 2.0 / kmPx
             g.drawImage(ground, 0, 0, width, height, ((cx - halfW) * px).toInt(), ((cy - halfH) * px).toInt(), ((cx + halfW) * px).toInt(), ((cy + halfH) * px).toInt(), null)
+            rivers.draw(g, width / 2.0 - cx * kmPx, height / 2.0 - cy * kmPx, kmPx, width, height)
             val rad = hex.hexKm / sqrt(3.0)
             fun outline(h: Int): Pair<IntArray, IntArray> {
                 val (hx, hy) = hex.centreKm(h)

@@ -97,7 +97,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private val fauna = sim.fauna
     private val groups = sim.groups
     private val px = 2
-    private val ground: BufferedImage = HexPicture.render(world, hex, 0.0, 0.0, cfg.widthKm.toDouble(), cfg.heightKm.toDouble(), px)
+    private val ground: BufferedImage = HexPicture.render(world, hex, 0.0, 0.0, cfg.widthKm.toDouble(), cfg.heightKm.toDouble(), px, rivers = false)
+    /** The rivers as they run this week, drawn over the ground (see [RiverOverlay]). */
+    private val rivers = RiverOverlay(world, hex, land)
     private val commands = ConcurrentLinkedQueue<() -> Unit>()
     @Volatile private var running = false
     @Volatile private var stepsPerSecond = 2
@@ -121,7 +123,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     @Volatile private var followLog = ""
 
     /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
-    private val control by lazy { GroupControlWindow(sim, ground, px, requestStep = { commands += { advance() } }, running = { running }) }
+    private val control by lazy { GroupControlWindow(sim, ground, px, rivers, requestStep = { commands += { advance() } }, running = { running }) }
 
     /**
      * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
@@ -353,6 +355,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             g.drawImage(ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
             val kmPx = px * scale
+            rivers.draw(g, ox, oy, kmPx, width, height)
             fun sx(km: Float) = (ox + km * kmPx).toInt()
             fun sy(km: Float) = (oy + km * kmPx).toInt()
             // The chosen measure as a tint over the hexes: the area-weighted mean of its bands.
