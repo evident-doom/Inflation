@@ -1,6 +1,11 @@
 package inflation.ecology
 
 import inflation.Config
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.HASH_C
+import inflation.mix64
+import inflation.unitOf
 
 import inflation.world.HexLand
 import inflation.world.HexWorld
@@ -251,7 +256,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     }
     // What the week brings at that rate, as far as the party wants: it stops when fed.
     val f = if (gain > 0f) min(1f, left / (days * gain / spent)) else 0f
-    if (FORAGE_DIAG == s.name && rnd.nextFloat() < 0.002f) System.err.println("forage ${s.name} adults ${g.adults} want ${wantAll} left $left offers $m used $used gain $gain spent $spent f $f: " +
+    if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println("forage ${s.name} adults ${g.adults} want ${wantAll} left $left offers $m used $used gain $gain spent $spent f $f: " +
         order.take(min(6, m)).joinToString("; ") { "t${type[it]} k${kind[it]} r=${rate[it]} e=${kg[it]} h=${time[it]}" })
     for (r in 0 until used) {
         val i = order[r]
@@ -345,7 +350,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     }
     var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
     note(g) { "foraged for %.0f kg wanted: meat %.0f (%.0f from herds met), small game %.0f, carrion %.0f, plants %.0f, fish %.0f; busy %.1f of %d days; sight %.2f of a clear day in the open%s".format(wantAll, meat, g.meatMet, smallGot, scraps, plants, fish, busy, days, sight(g.place), if (band != null) "; %.0f%% of adults scouting".format(100 * band.scoutShare) else "") }
-    if (FORAGE_DIAG == s.name && rnd.nextFloat() < 0.003f) System.err.println("ate ${s.name} want $wantAll meat $meat small $smallGot scraps $scraps plants $plants fish $fish path ${g.path.size}")
+    if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.003f, 2)) System.err.println("ate ${s.name} want $wantAll meat $meat small $smallGot scraps $scraps plants $plants fish $fish path ${g.path.size}")
     var eaten = meatEaten + smallGot + scraps + plants + fish
     hunting.merge("${s.name}:diet asked, kg", wantAll.toInt(), Int::plus)
     hunting.merge("${s.name}:diet meat, kg", (meatEaten + fish).toInt(), Int::plus)
@@ -428,6 +433,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
 }
 
 private val FORAGE_DIAG = Config.string("forageDiag")
+
+/**
+ * Whether group [g]'s week is one of the [share] sampled for the forage diagnostic: drawn from a hash of the group
+ * and the day, not from the group's random stream, so that turning the diagnostic on does not change the run.
+ */
+private fun diagSampled(g: HexGroup, weather: Weather, share: Float, salt: Int) =
+    unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + salt * HASH_C)) < share
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost. */
 internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, driedKeep: Float = 1f): Float {
