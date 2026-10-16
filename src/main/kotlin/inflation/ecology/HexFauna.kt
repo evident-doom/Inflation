@@ -540,7 +540,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val inSeason = (date.month - start[p] + 12) % 12 < s.birthMonths
                 if (inSeason) {
                     // (Mothers short of protein bear and suckle fewer.)
-                    val born = 0.5f * a[p] * s.youngPerFemale * s.littersPerYear * f[p] * protein[k][p] / stepsInSeason
+                    // (A mother needs a range of her own to bear and raise her young in: where they crowd beyond
+                    // [BREED_SPACING] times their usual numbers, only as many as there are ranges breed.)
+                    val ranges = if (BREED_SPACING > 0f) min(1f, BREED_SPACING * usual[k] / (a[p] + y[p])) else 1f
+                    val born = 0.5f * a[p] * ranges * s.youngPerFemale * s.littersPerYear * f[p] * protein[k][p] / stepsInSeason
                     y[p] += born
                     // The young are made of what their mothers ate: their weight comes off the mothers' reserves (as in groups).
                     if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - born * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / (0.5f * a[p]))
@@ -731,6 +734,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 4f
+        /** Residents: how many times their usual numbers can each hold a breeding range (-Dhex.t.breedSpacing; 0: no limit). */
+        val BREED_SPACING = System.getProperty("hex.t.breedSpacing")?.toFloat() ?: 0f
         /**
          * Protein in forage, against fresh growth: cured grass and straw keep some of their energy but
          * lose most of their protein (about 4% crude protein against 16% green, though grazers pick the

@@ -655,6 +655,9 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val renew = season * water0 * years
             shrubShoots[p] = shrubShoots[p] * shootsKept + palatable[p] * (max(0f, shrub[p] - shrub0) + SHRUB_RENEWAL * renew * shrub[p])
             treeShoots[p] = treeShoots[p] * shootsKept + palatable[p] * TREE_IN_REACH * (max(0f, tree[p] - tree0) + TREE_RENEWAL * renew * tree[p])
+            // In the cold the deciduous leaves fall: through the winter only twigs and buds are left to browse.
+            // (Where winters are mild enough to grow on, the leaves stay, as on the evergreen scrub of the south.)
+            if (LEAF_FALL > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-LEAF_FALL * years); shrubShoots[p] *= k; treeShoots[p] *= k }
             val lawn = 1f - exp(-grazing[p] / Vegetation.LAWN_SCALE)
             grow(LifeForm.HERB, herb, p, grassGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
             // Ash smothers the low plants and scorches leaves; as it weathers it enriches the soil.
@@ -868,3 +871,6 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
  */
 val TRAMPLE_HERB = System.getProperty("hex.t.trampleHerb")?.toFloat() ?: 0.005f
 val TRAMPLE_SHRUB = System.getProperty("hex.t.trampleShrub")?.toFloat() ?: 0.01f
+
+/** How fast the leaves of the shoots fall in the cold, a year (-Dhex.t.leafFall; 0: they last as twigs do). */
+val LEAF_FALL = System.getProperty("hex.t.leafFall")?.toFloat() ?: 0f
