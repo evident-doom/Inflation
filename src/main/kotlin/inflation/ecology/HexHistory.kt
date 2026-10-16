@@ -64,14 +64,14 @@ class HexHistory {
         put("biomass/herbs", perM2(land.herb)); put("biomass/shrubs", perM2(land.shrub)); put("biomass/trees", perM2(land.tree))
         put("biomass/litter", perM2(sl.litter)); put("biomass/soil organic matter", perM2(sl.organicMatter)); put("biomass/carrion", perM2(sl.carrion)); put("biomass/bones", perM2(sl.bones))
         put("biomass/fruit", perM2(fauna.food.fruit)); put("biomass/roots and mast", perM2(fauna.food.roots)); put("biomass/straw", perM2(fauna.food.straw))
-        put("biomass/small animals", listOf(sl.insects, sl.rodents, sl.herps, sl.pollinators, sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it).toDouble() }.toFloat())
+        put("biomass/small animals", listOf(sl.insects, sl.dormantInsects, sl.rodents, sl.herps, sl.pollinators, sl.dormantPollinators, sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it).toDouble() }.toFloat())
         put("biomass/resident herds", fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg }.toFloat() / 1e6f)
         put("biomass/herds and packs", groups.groups.filter { it.alive }.sumOf { (it.adults + 0.3 * it.young) * it.species.massKg }.toFloat() / 1e6f)
         val wl = fauna.water
         put("biomass/sea and lake fish", wl.fishTonnes() / 1000f)
         // Small life, tonnes.
-        for ((name, f) in listOf("insects" to sl.insects, "biting insects" to sl.biting, "rodents" to sl.rodents, "reptiles and amphibians" to sl.herps,
-            "pollinators" to sl.pollinators, "hares" to sl.hares, "hyrax" to sl.hyrax, "tortoises" to sl.tortoises, "foxes and wildcats" to sl.foxes, "wild birds" to sl.birds))
+        for ((name, f) in listOf("insects" to sl.insects, "insects waiting as eggs and larvae" to sl.dormantInsects, "biting insects" to sl.biting, "biting insects waiting as eggs and larvae" to sl.dormantBiting, "rodents" to sl.rodents, "reptiles and amphibians" to sl.herps,
+            "pollinators" to sl.pollinators, "pollinators waiting as eggs and larvae" to sl.dormantPollinators, "hares" to sl.hares, "hyrax" to sl.hyrax, "tortoises" to sl.tortoises, "foxes and wildcats" to sl.foxes, "wild birds" to sl.birds))
             put("small life/$name", perKm2(f) * 1000f)
         put("small life/eagle pairs", sl.eagles.indices.sumOf { (sl.eagles[it] * area[it]).toDouble() }.toFloat() / HexSmallLife.EAGLE_KM2.toFloat())
         put("small life/vultures", sl.vultures.sum())
@@ -95,9 +95,10 @@ class HexHistory {
         put("weather/snow lying mm", mean { w.snowpack[it] })
         put("weather/droughts under way", w.droughtCount().toFloat())
         put("weather/soil water mm", mean { land.soil[it] })
-        // By kind of country: plants per km² and head counts.
+        // By kind of country: its area, plants per km² and head counts (and the whole land's area, to set worlds of other sizes beside each other).
         val biomeArea = DoubleArray(Biome.entries.size)
         for (p in 0 until n) biomeArea[biomeOf(sim, p)] += area[p].toDouble()
+        put("land/area km²", biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
         for (p in 0 until n) plants[biomeOf(sim, p)] += (land.biomass(p) * area[p]).toDouble()
         val heads = HashMap<String, DoubleArray>()
@@ -109,6 +110,7 @@ class HexHistory {
         for (b in Biome.entries) {
             if (biomeArea[b.ordinal] <= 0.0) continue
             val name = b.name.lowercase().replace('_', ' ')
+            put("biome/$name/area km²", biomeArea[b.ordinal].toFloat())
             put("biome/$name/plants kg per m²", (plants[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((kind, a) in heads) put("biome/$name/$kind", a[b.ordinal].toFloat())
         }

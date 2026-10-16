@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.Config
+
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
@@ -92,7 +94,10 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     private val coarseKm = 50.0
     private val cw = (places.widthKm / coarseKm).toInt() + 2
     private val ch = (places.heightKm / coarseKm).toInt() + 2
-    private val rnd = Random(cfg.seed * 31 + 7)
+    private var rnd = Random(cfg.seed * 31 + 7)
+
+    /** Draws the weather's turns (regimes, droughts) afresh from [replicate]: a run carried on from a saved world then meets other years' weather. */
+    fun reseed(replicate: Long) { rnd = Random(cfg.seed * 31 + 7 + replicate * 0x9E3779B97F4A7C15uL.toLong()) }
 
     /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
     private val yearSwing = FloatArray(n) { i ->
@@ -347,10 +352,10 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     /**
      * A long climate shock, like the Younger Dryas (about 12,900 years ago: some 1,200 years colder
      * and drier, setting in over decades and lifting quickly), set with
-     * -Dhex.climateShock=startYear,years,degrees,rainShare (for example 20,1200,-4,0.7): the
+     * climateShock=startYear,years,degrees,rainShare (for example 20,1200,-4,0.7): the
      * temperature offset and the share of the rain, now; nothing when unset.
      */
-    private val shockSpec = System.getProperty("hex.climateShock")?.split(",")?.map { it.trim().toDouble() }
+    private val shockSpec = Config.string("climateShock")?.split(",")?.map { it.trim().toDouble() }
     fun shock(): Pair<Float, Float> {
         val s = shockSpec ?: return 0f to 1f
         val (start, years, dT, rain) = s

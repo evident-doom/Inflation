@@ -36,6 +36,14 @@ data class WorldConfig(
     val ridgeKm: Double = 12.0,
     /** Share of a belt's height and uplift that follows the ridges, 0..1. */
     val ridgeShare: Double = 0.9,
+    /**
+     * High plateaus behind continental collisions: how far the thickened crust stands high from the
+     * colliding edge, km (0 for none), and how high it stands per m/yr of closing speed, m. With the
+     * closing speeds here the flat plateau tops stand mostly 500-1200 m, as on the Anatolian and
+     * Iranian plateaus.
+     */
+    val plateauKm: Double = inflation.Config.double("t.plateauKm", 180.0),
+    val plateauM: Double = inflation.Config.double("t.plateauM", 50_000.0),
     /** Scale on rock uplift rates in mountain belts (and on the belts' starting height). */
     val upliftScale: Double = 0.7,
     /** Hillslope diffusivity, m²/yr. */

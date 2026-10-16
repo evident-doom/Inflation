@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.Config
+
 import inflation.learning.HexPpo
 import inflation.learning.Schema
 import inflation.learning.SharedMover
@@ -18,7 +20,7 @@ import java.io.File
  *   baseline show NAME      (loads each network into today's model, by name, and says what it lacks)
  */
 fun main(args: Array<String>) {
-    val root = File(System.getProperty("hex.baselines") ?: "runs/baselines")
+    val root = File(Config.string("baselines") ?: "runs/baselines")
     when (args.getOrNull(0)) {
         "save" -> {
             val name = args[1]; val from = File(args[2])
@@ -51,7 +53,7 @@ fun main(args: Array<String>) {
 }
 
 /** Where [name] is a baseline's name, its directory; otherwise [name] as a path. */
-fun baselineDir(name: String): File = File(name).takeIf { it.exists() } ?: File(System.getProperty("hex.baselines") ?: "runs/baselines", name)
+fun baselineDir(name: String): File = File(name).takeIf { it.exists() } ?: File(Config.string("baselines") ?: "runs/baselines", name)
 
 private fun report(what: String, f: File, inputs: List<String>, outputs: List<String>) {
     val nf = Schema.namesFile(f)
@@ -62,6 +64,6 @@ private fun report(what: String, f: File, inputs: List<String>, outputs: List<St
         (newIn + newOut).joinToString(", ").ifEmpty { "none" } + "; no longer in the model (dropped): " + (goneIn + goneOut).joinToString(", ").ifEmpty { "none" })
 }
 
-private fun gitCommit(): String = try {
+internal fun gitCommit(): String = try {
     ProcessBuilder("git", "rev-parse", "--short", "HEAD").redirectErrorStream(true).start().inputStream.bufferedReader().readText().trim().ifEmpty { "unknown" }
 } catch (e: Exception) { "unknown" }

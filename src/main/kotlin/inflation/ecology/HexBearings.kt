@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+
 import inflation.world.HexWorld
 import kotlin.math.max
 import kotlin.math.min
@@ -129,7 +131,7 @@ class HexBearings(
         month = m
         val places = hw.placeHex.size
         for ((k, s) in kinds.withIndex()) {
-            if (OFF || !present(s)) { east[k].fill(0f); south[k].fill(0f); continue }
+            if (!present(s)) { east[k].fill(0f); south[k].fill(0f); continue }
             // Best of each hex this month, over its height bands.
             val pq = FloatArray(places)
             java.util.stream.IntStream.range(0, places).parallel().forEach { p -> pq[p] = quality(s, p, m) }
@@ -182,11 +184,9 @@ class HexBearings(
     fun strength(k: Int, h: Int): Float = len(east[k][h], south[k][h])
 
     companion object {
-        /** For comparison runs: -Dhex.noBearings leaves every kind without a sense of direction. */
-        val OFF = System.getProperty("hex.noBearings") != null
         /** Country an animal knows around it, km; how fast the draw of a place fades with distance, km. */
-        val NEAR_KM = System.getProperty("hex.t.nearKm")?.toDouble() ?: 60.0
-        val FADE_KM = System.getProperty("hex.t.fadeKm")?.toDouble() ?: 50.0
+        val NEAR_KM = Config.double("t.nearKm", 60.0)
+        val FADE_KM = Config.double("t.fadeKm", 50.0)
         /** Peaks: lowest standing out, m; one per this spacing at most, km; the massif a peak stands for, km; furthest seen, km. */
         const val PEAK_M = 600f
         const val PEAK_SPACING_KM = 30.0

@@ -1,5 +1,7 @@
 package inflation.ui
 
+import inflation.Config
+
 import inflation.ecology.HexRoutes
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFauna
@@ -49,13 +51,13 @@ import kotlin.math.min
  * (--load carries on a saved world: the seed and size must be the ones it was saved with;
  * --nets moves every kind by the learned networks in DIR (herds.mlp, hunters.mlp, people.mlp, as
  * hex-ppo writes them, and herd-ways.mlp, hunter-ways.mlp where present), --ways sets the bands'
- * ways by a learned network; -Dhex.nets, -Dhex.ways, -Dhex.herdWays and -Dhex.hunterWays do the
+ * ways by a learned network; nets, ways, herdWays and hunterWays do the
  * same, as for hex-fauna. Without them the hand-written choices are the model.)
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 1)
     var load: java.io.File? = null
-    var nets = System.getProperty("hex.nets"); var ways = System.getProperty("hex.ways")
+    var nets = Config.string("nets"); var ways = Config.string("ways")
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -95,7 +97,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private val fauna = sim.fauna
     private val groups = sim.groups
     private val px = 2
-    private val ground: BufferedImage = HexPicture.render(world, hex, 0.0, 0.0, cfg.widthKm.toDouble(), cfg.heightKm.toDouble(), px)
+    private val ground: BufferedImage = HexPicture.render(world, hex, 0.0, 0.0, cfg.widthKm.toDouble(), cfg.heightKm.toDouble(), px, rivers = false)
+    /** The rivers as they run this week, drawn over the ground (see [RiverOverlay]). */
+    private val rivers = RiverOverlay(world, hex, land)
     private val commands = ConcurrentLinkedQueue<() -> Unit>()
     @Volatile private var running = false
     @Volatile private var stepsPerSecond = 2
@@ -110,6 +114,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     }
     private val tintChoice = JComboBox(Tint.entries.map { it.label }.toTypedArray())
     private val windBox = javax.swing.JCheckBox("Wind", false)
+    /** Rivers by this week's flow (see [RiverOverlay]); unticked, no rivers are drawn. */
+    private val riversBox = javax.swing.JCheckBox("River flows", true)
     private val herdsBox = javax.swing.JCheckBox("Herds", true)
     private val huntersBox = javax.swing.JCheckBox("Hunters", true)
     private val peopleBox = javax.swing.JCheckBox("People", true)
@@ -119,7 +125,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     @Volatile private var followLog = ""
 
     /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
-    private val control by lazy { GroupControlWindow(sim, ground, px, requestStep = { commands += { advance() } }, running = { running }) }
+    private val control by lazy { GroupControlWindow(sim, ground, px, rivers, requestStep = { commands += { advance() } }, running = { running }) }
 
     /**
      * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
@@ -173,9 +179,10 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         residentChoice.addActionListener { map.repaint() }
         tintChoice.addActionListener { map.repaint() }
         windBox.addActionListener { map.repaint() }
+        riversBox.addActionListener { rivers.visible = riversBox.isSelected; map.repaint() }
         herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }; peopleBox.addActionListener { map.repaint() }; pathsBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(pathsBox); bar.add(windBox); bar.add(pullChoice)
+        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(pathsBox); bar.add(windBox); bar.add(riversBox); bar.add(pullChoice)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { inflation.ecology.HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
@@ -262,8 +269,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         (waysFile ?: nets?.let { java.io.File(inflation.tools.baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
             groups.ways = inflation.learning.NetWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.WAYS_IN, inflation.learning.Schema.WAYS_OUT))
         }
-        System.getProperty("hex.herdWays")?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
-        System.getProperty("hex.hunterWays")?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
+        Config.string("herdWays")?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
+        Config.string("hunterWays")?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
     }
 
     private fun snapshot() {
@@ -315,6 +322,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         }
     }
 
+    /** A colour from components that may stray outside 0..1 (a measure beyond its scale): clamped, as Color would otherwise throw and leave the map unpainted. */
+    private fun rgba(r: Float, g: Float, b: Float, a: Float) = Color(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f), a.coerceIn(0f, 1f))
+
     private inner class MapPanel : JPanel() {
         private var scale = 0.5
         private var ox = 0.0; private var oy = 0.0
@@ -348,6 +358,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             g.drawImage(ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
             val kmPx = px * scale
+            rivers.draw(g, ox, oy, kmPx, width, height)
             fun sx(km: Float) = (ox + km * kmPx).toInt()
             fun sy(km: Float) = (oy + km * kmPx).toInt()
             // The chosen measure as a tint over the hexes: the area-weighted mean of its bands.
@@ -383,22 +394,22 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                     val v = (sum[h] / area[h]).toFloat()
                     val colour = when (tint) {
                         Tint.TEMPERATURE -> heat(((v + 15f) / 50f).coerceIn(0f, 1f), 0.55f)
-                        Tint.SNOW -> if (v < 5f) null else Color(1f, 1f, 1f, (0.25f + 0.6f * min(1f, v / 300f)))
-                        Tint.RAIN -> if (v < 2f) null else Color(0.1f, 0.3f, 1f, (0.2f + 0.6f * min(1f, v / 80f)))
-                        Tint.GREEN -> Color(1f - v, 0.9f, 0.1f, 0.5f)
-                        Tint.FORAGE -> Color(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
-                        Tint.SOIL -> Color(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
-                        Tint.WATER -> Color(0.1f, 0.4f, 1f, 0.1f + 0.6f * v)
-                        Tint.INSECTS -> Color(0.6f, 0.8f, 0.1f, (0.1f + 0.7f * min(1f, v / 1500f)))
-                        Tint.BITING -> Color(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
-                        Tint.POLLINATORS -> Color(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
-                        Tint.ORGANIC -> Color(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
-                        Tint.SMALL_GAME -> Color(0.9f, 0.5f, 0.1f, (0.1f + 0.7f * min(1f, v / 60f)))
-                        Tint.FOXES -> Color(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
-                        Tint.OWLS -> Color(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
-                        Tint.EAGLES -> Color(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
-                        Tint.CARRION -> Color(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
-                        Tint.RESIDENTS -> Color(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
+                        Tint.SNOW -> if (v < 5f) null else rgba(1f, 1f, 1f, (0.25f + 0.6f * min(1f, v / 300f)))
+                        Tint.RAIN -> if (v < 2f) null else rgba(0.1f, 0.3f, 1f, (0.2f + 0.6f * min(1f, v / 80f)))
+                        Tint.GREEN -> rgba(1f - v, 0.9f, 0.1f, 0.5f)
+                        Tint.FORAGE -> rgba(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
+                        Tint.SOIL -> rgba(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
+                        Tint.WATER -> rgba(0.1f, 0.4f, 1f, 0.1f + 0.6f * v)
+                        Tint.INSECTS -> rgba(0.6f, 0.8f, 0.1f, (0.1f + 0.7f * min(1f, v / 1500f)))
+                        Tint.BITING -> rgba(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
+                        Tint.POLLINATORS -> rgba(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
+                        Tint.ORGANIC -> rgba(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
+                        Tint.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.05f + 0.75f * min(1f, kotlin.math.ln(1f + v) / kotlin.math.ln(1f + 600f)))) // log scale: 1 to 600 kg/km²
+                        Tint.FOXES -> rgba(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
+                        Tint.OWLS -> rgba(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
+                        Tint.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
+                        Tint.CARRION -> rgba(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
+                        Tint.RESIDENTS -> rgba(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
                         Tint.NONE -> null
                     } ?: continue
                     val (cx, cy) = hex.centreKm(h)

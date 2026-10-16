@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+
 // The numbers the herds and packs on the hexes live by.
 
 /** Days of going a week's net shift amounts to, at the usual pace or a trek's. */
@@ -33,7 +35,7 @@ const val NOT_WORTH_TRYING = 0.05f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
 const val AVOID_STRONGER = 0.3f
 /** How many times its usual density a migratory herd bears where herds gather before crowding sickens it. */
-val MIGRANTS_GATHER get() = 20f * MIGRANT_UNIT
+const val MIGRANTS_GATHER = 20f
 /**
  * A herd agent stands for this many of its kind's usual bands (a gazelle herd of 120 rather than 12):
  * herds that move together are one agent, which keeps their numbers, and the step's cost, down.
@@ -55,7 +57,7 @@ const val PATH_WEAR = 0.05f
 const val PATH_FADE = 0.03f
 const val PATH_MASS_KG = 3000f
 const val PATH_EASE = 0.5f
-val AMBUSH = System.getProperty("hex.t.ambush")?.toFloat() ?: 1f
+const val AMBUSH = 1f
 /** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
 /** Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum against a km walked; share of a swimming herd that drowns on a strait as wide as all it can swim (young twice that). */
 const val SEA_HEXES = 2
@@ -81,20 +83,16 @@ const val BIG_HERD_EYES = 0.15f
 const val BIG_HERD_SHELTERS = 0.3f
 const val SMALL_HERD_BANDS = 3f
 const val HIDE_IN_COVER = 0.6f
-/**
- * Migratory herds: how many times more of their bands one agent stands for, and how many times the
- * settled density they start at (goitered gazelle 0.5-5 a km² on good steppe; the long run had left
- * them at under 0.1). Both 1 for now (-Dhex.migrantUnit, -Dhex.migrantStart): at ten times the
- * numbers, the herds starve back to where they were within ten years, so their food is the limit.
- */
-val MIGRANT_UNIT = System.getProperty("hex.migrantUnit")?.toInt() ?: 1
-val MIGRANT_START = System.getProperty("hex.migrantStart")?.toFloat() ?: 1f
 /** A content herd weighs its places one week in this many (others keep to their ground unweighed). */
 const val CONTENT_WEEKS = 2
 /** A content band choosing by a network weighs its places one week in this many: every week, as everything a band does is its choice (hand-written bands: every other week). */
 const val BAND_CONTENT_WEEKS = 1
 /** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
 const val HUNT_BLOCK_KM = 300f
+/** A herd that shares its plan still weighs where to go for itself one week in this many (see [HexGroups.step]). */
+const val OWN_PLAN_WEEKS = 3
+/** Parties that kept near home this week are worked in squares this wide, km (see [hunt]). */
+const val HUNT_FINE_KM = 100f
 /** How far a lone hunter goes looking for a mate in a week, km. */
 const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */
@@ -106,7 +104,7 @@ const val TRACKING = 8f
 const val CONTENT = 0.95f
 /** How much herds shun ground thick with hunters; hunters, kg per km², at which the shunning is half. */
 const val SHUN_HUNTERS = 0.3f
-val HUNTERS_HALF_KG = System.getProperty("hex.t.huntersHalf")?.toFloat() ?: 1f
+val HUNTERS_HALF_KG = Config.float("t.huntersHalf", 1f)
 /** Share of a migratory herd's weight a hunter's sense of good hunting country counts as game (herds watch and move). */
 const val HERD_GAME = 0.3f
 /** People: plant food counted against game by weight (it is easier to come by, but not all is worth gathering); how much a safe camp site adds. */
@@ -127,10 +125,10 @@ const val RAIN_AHEAD_MM = 20f
 const val PREY_HALF = 200f
 /** Pull of the season's remembered place, and of staying where one is. */
 const val SEASON_PULL = 1.0f
-/** For tracing: the kind whose herds' reasons the plan prints (-Dhex.planDiag=kind). */
-val PLAN_DIAG: String? = System.getProperty("hex.planDiag")
+/** For tracing: the kind whose herds' reasons the plan prints (planDiag=kind). */
+val PLAN_DIAG: String? = Config.string("planDiag")
 /** How strongly a group follows its sense of better country, per reach moved along it. */
-val BEARING_PULL = System.getProperty("hex.t.bearingPull")?.toFloat() ?: 0.5f
+val BEARING_PULL = Config.float("t.bearingPull", 0.5f)
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
 const val ASTRAY = 0.5f
 /** How far a herd's inherited seasonal places may lie from where it starts, km. */
@@ -255,47 +253,34 @@ const val FIGHT_RATIO = 1.5f
 const val CARRION_FOUND = 0.5f
 const val SCAVENGER_CARRION = 0.5f
 
-/** Herds' sense of better country weighs food by how fresh and green it is, as their choice of place does (-Dhex.t.noGreenBearing: not). */
-val GREEN_BEARING = System.getProperty("hex.t.noGreenBearing") == null
 
-/** Experiment: how far off a herd weighs far country for its season's places, km (0: not at all); chance a month it does; how much better it must be. */
-val SCOUT_KM = System.getProperty("hex.t.scoutKm")?.toFloat() ?: 0f
-val SCOUT_CHANCE = System.getProperty("hex.t.scoutChance")?.toFloat() ?: 0.3f
-val SCOUT_MARGIN = System.getProperty("hex.t.scoutMargin")?.toFloat() ?: 0.1f
-/**
- * Experiment: herds know the land's seasons (as kinds long adapted to it): as each month begins, a herd
- * takes as next month's place the nearest of its kind's best country in that month last year (the top
- * [SUPERSENSE_TOP] of places, within [SUPERSENSE_KM]), drawn on to it by [SUPERSENSE_LURE] more than by
- * what it has walked.
- */
-val SUPERSENSE = System.getProperty("hex.t.supersense") != null
-val SUPERSENSE_TOP = System.getProperty("hex.t.superTop")?.toFloat() ?: 0.05f
-val SUPERSENSE_KM = System.getProperty("hex.t.superKm")?.toFloat() ?: 600f
-val SUPERSENSE_LURE = System.getProperty("hex.t.superLure")?.toFloat() ?: 0.2f
 
 /**
  * Herds' heading (see [HexGroup.headE]): share of last week's kept; weight of the way it actually went
  * against its sense of better country in bending it; and how strongly it draws the next week's choice
  * (as the bearing's [BEARING_PULL]): small persistent nudges that add up to a migration.
  */
-val HEADING_KEEP = System.getProperty("hex.t.headingKeep")?.toFloat() ?: 0.95f
-val HEADING_MOVED = System.getProperty("hex.t.headingMoved")?.toFloat() ?: 0.5f
-val HEADING_PULL = System.getProperty("hex.t.headingPull")?.toFloat() ?: 2f
+val HEADING_KEEP = Config.float("t.headingKeep", 0.95f)
+val HEADING_MOVED = Config.float("t.headingMoved", 0.5f)
+val HEADING_PULL = Config.float("t.headingPull", 2f)
 
-/** Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on only with -Dhex.rounds (being tried locally); how strongly a herd's round draws, as a season's place of that quality would. */
-val ROUNDS = System.getProperty("hex.rounds") != null
-val ROUND_STRENGTH = System.getProperty("hex.t.roundStrength")?.toFloat() ?: 1f
+/** Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on only with rounds=true (being tried locally); how strongly a herd's round draws, as a season's place of that quality would. */
+val ROUNDS = Config.flag("rounds", false)
+val ROUND_STRENGTH = Config.float("t.roundStrength", 1f)
 /** How strongly a herd's round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
-val ROUND_NET_PULL = System.getProperty("hex.t.roundNetPull")?.toFloat() ?: 1.5f
+val ROUND_NET_PULL = Config.float("t.roundNetPull", 1.5f)
 /** How strongly a round draws the hand-written choice: per unit of progress toward its place this month (a full week's going toward it). */
-val ROUND_PULL = System.getProperty("hex.t.roundPull")?.toFloat() ?: 1.5f
+val ROUND_PULL = Config.float("t.roundPull", 1.5f)
 /** Within this of its round's place this month, km, a herd has arrived and grazes as it likes (half a range across). */
-val ROUND_ARRIVED_KM = System.getProperty("hex.t.roundArrived")?.toDouble() ?: 50.0
+val ROUND_ARRIVED_KM = Config.double("t.roundArrived", 50.0)
+/** Packs tied to their dens: months from the births a pack with young hunts near its den; how near, km. Not measured: wolves and hyenas keep to dens for two to three months, lions to their cubs' lairs about as long. */
+val DEN_MONTHS = Config.int("t.denMonths", 3)
+val DEN_KM = Config.float("t.denKm", 15f)
 /** Days of a week a herd far behind its round spends trekking on (the rest grazing). */
-/** With rounds on: how much better (0..1 of the kind's quality) a round's place must be this month than where a herd is for the round to draw it on (0: always). */
-val ROUND_CUE = System.getProperty("hex.t.roundCue")?.toFloat() ?: 0f
-/** Packs tied to their dens (-Dhex.t.noDenning for comparison runs): months from the births a pack with young hunts near its den; how near, km. Not measured: wolves and hyenas keep to dens for two to three months, lions to their cubs' lairs about as long. */
-val DENNING = System.getProperty("hex.t.noDenning") == null
-val DEN_MONTHS = System.getProperty("hex.t.denMonths")?.toInt() ?: 3
-val DEN_KM = System.getProperty("hex.t.denKm")?.toFloat() ?: 15f
-val ROUND_TREK_DAYS = System.getProperty("hex.t.roundTrekDays")?.toFloat() ?: 4f
+val ROUND_TREK_DAYS = Config.float("t.roundTrekDays", 4f)
+
+/**
+ * Herds graze only the ground within reach of water, as far as their kind must drink (see [HexFauna.tether]),
+ * as the residents do, and value places by what they can graze so; false: they graze a whole place wherever its water lies.
+ */
+val HERD_WATER_TIE = Config.flag("t.herdWaterTie", true)

@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexMap
@@ -19,7 +21,7 @@ import kotlin.random.Random
 /** Group [k] is in hex at its path's [index] from day [from] to day [to]. */
 private class Stay(val k: Int, val index: Int, val from: Float, val to: Float)
 /** Groups [a] and [b] are in the same hex from [day], for [span] days, at their paths' [ai] and [bi]. */
-private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int)
+private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int) { var tie = 0L }
 
 /**
  * A draw of order for groups [id] and [other] on day [day]: who comes first when two things happen at
@@ -68,26 +70,38 @@ internal fun HexGroups.hunt(weather: Weather) {
     if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
     if (ways == null) controlledWays()?.let { w -> hunters.firstOrNull { it.id == watched && it.band != null }?.let { setWays(it, weather, w, inputs, out) } }
-    // Then region by region on all cores: the map is cut into squares of [HUNT_BLOCK_KM] coloured
-    // like a chessboard of four colours, so that squares of one colour lie a square apart, further
-    // than any party's week takes it; the squares of one colour are worked at once.
-    val blocks = HashMap<Int, ArrayList<HexGroup>>()
-    for (g in hunters) {
-        val (x, y) = hex.centreKm(hw.placeHex[g.place])
-        blocks.getOrPut((x / HUNT_BLOCK_KM).toInt() + 1000 * (y / HUNT_BLOCK_KM).toInt()) { ArrayList() } += g
-    }
-    for (colour in 0 until 4) {
-        blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }.parallelStream().forEach { (_, list) ->
-            for (g in list) {
-                val s = g.species
-                // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
-                // over more of it, as the square root of its numbers against its kind's usual party.
-                // And it searches less of it when the rain, haze or cover hide game (see [sight]).
-                val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
-                Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+    // Then region by region on all cores: the map is cut into squares coloured like a chessboard of four
+    // colours, so that squares of one colour lie a square apart; the squares of one colour are worked at
+    // once. Parties whose week kept within half a square of where they ended it are worked first in squares
+    // of [HUNT_FINE_KM] (two such parties in squares of one colour cannot have passed the same ground); the
+    // few that ranged further after them, in squares of [HUNT_BLOCK_KM], wider than twice any party's week.
+    fun work(parties: List<HexGroup>, squareKm: Float) {
+        val blocks = HashMap<Int, ArrayList<HexGroup>>()
+        for (g in parties) {
+            val (x, y) = hex.centreKm(hw.placeHex[g.place])
+            blocks.getOrPut((x / squareKm).toInt() + 1000 * (y / squareKm).toInt()) { ArrayList() } += g
+        }
+        for (colour in 0 until 4) {
+            // (The squares with the most parties first, so the slowest is not left to last on one core.)
+            val squares = blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }.sortedByDescending { e -> e.value.sumOf { g -> if (g.band != null) 4 * g.path.size else g.path.size } }
+            java.util.stream.IntStream.range(0, squares.size).parallel().forEach { i ->
+                for (g in squares[i].value) {
+                    val s = g.species
+                    // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
+                    // over more of it, as the square root of its numbers against its kind's usual party.
+                    // And it searches less of it when the rain, haze or cover hide game (see [sight]).
+                    val sweep = sweptKm2(s) * kotlin.math.sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
+                    Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+                }
             }
         }
     }
+    val (near, far) = hunters.partition { g ->
+        val end = hw.placeHex[g.place]
+        g.path.all { h -> hex.distanceKm(end, h) + hex.hexKm < HUNT_FINE_KM / 2 }
+    }
+    work(near, HUNT_FINE_KM)
+    work(far, HUNT_BLOCK_KM)
 }
 
 /**
@@ -169,7 +183,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // A band meets each kind of food the more, the more of its effort it puts into it.
         val rr = if (band != null) r * band.effort[if (t == 9) 6 else t] else r
         if (rr <= 0f || e <= 0f) return
-        type[m] = t; kind[m] = k; place[m] = p; rate[m] = rr; kg[m] = e; time[m] = h; m++
+        // (Biting insects slow people at whatever they do out there; fish are offered by hex, so the
+        // camp's place stands for the water they fish.)
+        val hh = if (band != null) h * (1f + HexSmallLife.HARASS_TIME * small.harassment(if (t == 8) g.place else p)) else h
+        type[m] = t; kind[m] = k; place[m] = p; rate[m] = rr; kg[m] = e; time[m] = hh; m++
     }
     for ((j, h) in g.path.withIndex()) {
         val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
@@ -258,7 +275,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 busy += kills1 * time[i]
                 var ny = if (spareYoung) 0 else (kills1 * fauna.young[k][p] / dens).toInt(); val na = kills1 - ny
                 // A band at home may keep young it catches, to raise by its camp.
-                if (HERDING && band != null && band.atHome && ny > 0) {
+                if (band != null && band.atHome && ny > 0) {
                     val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
                     if (kept > 0) {
                         if (band.herd.size < fauna.kinds.size) { band.herd = band.herd.copyOf(fauna.kinds.size); band.herdTame = band.herdTame.copyOf(fauna.kinds.size) }
@@ -358,9 +375,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         for (st in EAT_ORDER) { val e = min(need, got[st.ordinal]); got[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
         for (st in EAT_ORDER) { val e = min(need, g.stores[st.ordinal]); g.stores[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
         eaten = wantAll - need
-        // (Trade on: people living mostly on plant food need salt, which meat and fish carry; short of it,
+        // (People living mostly on plant food need salt, which meat and fish carry; short of it,
         // they are listless and weak, and the food does them the less good.)
-        if (TRADE && eaten > 0f) {
+        if (eaten > 0f) {
             val plantShare = ((eaten - ateMeat) / eaten).coerceIn(0f, 1f)
             val want = SALT_A_PERSON_WEEK * plantShare * g.size * days / 7f
             if (want > 0f) {
@@ -376,17 +393,15 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
         val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
         val smoke = if (band.knowsSkill[Skill.SMOKING.ordinal] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
-        // (With trade on, a band with salt salts what it cures: salt cures in any weather.)
-        val salt = if (TRADE) band.goods[Material.SALT.ordinal] else 0f
+        // (A band with salt salts what it cures: salt cures in any weather.)
+        val salt = band.goods[Material.SALT.ordinal]
         val salting = if (salt > 0f) band.skill(Skill.STORE) else 0f
         val dryRate = max(max(sun, smoke), salting)
         // (As much of it as the band chooses to.)
         val dried = min(g.stores[Store.FRESH.ordinal] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
         if (dried > 0f) {
-            if (TRADE) {
-                val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT.ordinal] -= saltedNow * SALT_PER_KG
-                val before = g.stores[Store.DRIED.ordinal]; band.salted = (before * band.salted + saltedNow) / (before + dried)
-            }
+            val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT.ordinal] -= saltedNow * SALT_PER_KG
+            val before = g.stores[Store.DRIED.ordinal]; band.salted = (before * band.salted + saltedNow) / (before + dried)
             g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
         }
         // What time is left is for making and mending (see [bandWeek]).
@@ -396,7 +411,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val home = if (band.atHome) band.house else 0f
         // (Smoked meat keeps longer than sun-dried; pits sealed with clay and plaster keep the mice out.)
         val smoked = if (band.knowsSkill[Skill.SMOKING.ordinal]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
-        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (if (TRADE) 1f - SALT_KEEP * band.salted else 1f))
+        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (1f - SALT_KEEP * band.salted))
         val sealed = if (band.knowsSkill[Skill.SEALING.ordinal]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
         if (home > 0f) {
             for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) { val x = g.stores[st.ordinal] * MICE * sealed * home * days / 7f; g.stores[st.ordinal] -= x; rotten += x }
@@ -418,7 +433,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     small.dung[g.place] += HexSmallLife.DUNG * (meatEaten + smallGot + scraps + fish) / (land.areaKm2[g.place] * 1e6f)
 }
 
-private val FORAGE_DIAG = System.getProperty("hex.forageDiag")
+private val FORAGE_DIAG = Config.string("forageDiag")
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost. */
 internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, driedKeep: Float = 1f): Float {
@@ -479,6 +494,7 @@ internal fun HexGroups.timetable(s: Species, path: IntArray): FloatArray {
  */
 internal fun HexGroups.meet(weather: Weather) {
     // Only hexes a hunter passes through can hold a meeting that matters: herds pass each other by.
+    var mt = Profile.mark()
     val hunted = java.util.BitSet(hex.size)
     for (g in groups) if (g.alive && g.species.carnivore) for (h in g.path) hunted.set(h)
     val byHex = HashMap<Int, ArrayList<Stay>>()
@@ -490,6 +506,7 @@ internal fun HexGroups.meet(weather: Weather) {
             byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.days[i], to)
         }
     }
+    mt = Profile.lap("meetings: who is in each hex", mt)
     // Pairs with a hunter or band in them (herds pass each other by), hex by hex on all cores.
     val events = byHex.values.parallelStream().filter { it.size >= 2 }.flatMap { stays ->
         val out = ArrayList<Meeting>()
@@ -503,10 +520,19 @@ internal fun HexGroups.meet(weather: Weather) {
         } }
         out.stream()
     }.collect(java.util.stream.Collectors.toCollection { ArrayList<Meeting>() })
+    mt = Profile.lap("meetings: pairs", mt)
     // Meetings at the same hour come in an order drawn afresh each week, not by age in the list
     // (the first gets first chase and uses up the herd's meetings).
     val today = weather.date.absoluteDay
-    events.sortWith(compareBy({ it.day }, { tieBreak(groups[it.a].id, groups[it.b].id, today) }, { it.a }, { it.b }))
+    // (Each meeting's draw worked out once, then sorted on all cores: the order is the same as one by one.)
+    events.parallelStream().forEach { it.tie = tieBreak(groups[it.a].id, groups[it.b].id, today) }
+    val sorted = events.toTypedArray()
+    java.util.Arrays.parallelSort(sorted) { x, y ->
+        val c = java.lang.Float.compare(x.day, y.day)
+        if (c != 0) c else { val t = java.lang.Long.compare(x.tie, y.tie); if (t != 0) t else { val ca = Integer.compare(x.a, y.a); if (ca != 0) ca else Integer.compare(x.b, y.b) } }
+    }
+    events.clear(); events.addAll(sorted)
+    mt = Profile.lap("meetings: sorting", mt)
     val stop = IntArray(groups.size) { groups[it].path.size - 1 }
     val count = IntArray(groups.size)
     for (e in events) {
@@ -540,6 +566,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val band = hw.placeBand[g.place]
         g.place = hw.placeOf[band][h].takeIf { it >= 0 } ?: (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: g.place
     }
+    Profile.lap("meetings: settling them", mt)
 }
 
 /**
@@ -578,10 +605,10 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         meetings.merge("ornaments given", 1, Int::plus)
     }
-    // Useful gifts (trade on): a band gives of the good stone, salt and ochre it has beyond its own needs to
+    // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
     // the giver's name goes about among the bands.
-    if (TRADE && GIFTS) for ((giver, taker) in listOf(a to b, b to a)) {
+    for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
         if (gb.tie(taker.id) < FEUD_GIFT) continue
         var useful = 0f
@@ -855,5 +882,5 @@ internal fun HexGroups.settle() {
     }
 }
 
-/** The least time two groups passing through the same hex count as spending there together, days (for comparison runs: -Dhex.t.spanFloor). */
-val SPAN_FLOOR = System.getProperty("hex.t.spanFloor")?.toFloat() ?: 0.5f
+/** The least time two groups passing through the same hex count as spending there together, days */
+const val SPAN_FLOOR = 0.5f

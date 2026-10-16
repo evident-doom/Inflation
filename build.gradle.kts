@@ -29,8 +29,6 @@ tasks.register<JavaExec>("hexViewer") {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("inflation.ui.HexViewerKt")
     maxHeapSize = "16g"
-    // (-Dhex.nets=DIR, -Dhex.ways=FILE and the other hex.* settings given to Gradle reach the viewer.)
-    systemProperties(System.getProperties().filterKeys { it.toString().startsWith("hex.") }.mapKeys { it.key.toString() })
     args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
@@ -43,6 +41,24 @@ tasks.register<JavaExec>("hexFauna") {
     args = (project.findProperty("faunaArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
+tasks.register<JavaExec>("testWorld") {
+    description = "Settled test worlds for short runs: list, build NAME... [--years N], compare runs on them with the full map (-PtestArgs=\"list\"); a test then runs as hexFauna --world NAME."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.TestWorldsKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("testArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
+tasks.register<JavaExec>("pollinationProbe") {
+    description = "Runs the hex world and prints, month by month, how well the fruit-bearing plants are pollinated, north to south."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.PollinationProbeKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("probeArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
 tasks.register<JavaExec>("hexHistory") {
     description = "Opens the graphs of a history the check wrote (pass the CSV with -PhistoryFile=...)."
     group = "application"
@@ -51,8 +67,15 @@ tasks.register<JavaExec>("hexHistory") {
     args = listOfNotNull(project.findProperty("historyFile") as String?)
 }
 
+// Run settings come from inflation.properties in the project directory, or from the file
+// -Dhex.config=FILE names (see config.example.properties); every task is given that file.
+tasks.withType<JavaExec>().configureEach {
+    System.getProperty("hex.config")?.let { systemProperty("hex.config", file(it).absolutePath) }
+}
+
 tasks.test {
     useJUnitPlatform()
+    systemProperty("hex.config", "none") // (tests run on the defaults, whatever inflation.properties says)
     maxHeapSize = "4g"
 }
 
@@ -72,4 +95,22 @@ tasks.register<JavaExec>("climateCheck") {
     mainClass.set("inflation.tools.ClimateCheckKt")
     maxHeapSize = "12g"
     args = (project.findProperty("climateArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
+tasks.register<JavaExec>("insectSeasons") {
+    description = "Probe: insects and small life month by month, by climate class, over the last years of a run."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.InsectSeasonsKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("insectArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
+tasks.register<JavaExec>("herpCheck") {
+    description = "Probe: reptiles and amphibians by climate class, the terms of their rule against how they changed."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.HerpCheckKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("herpArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }

@@ -15,7 +15,7 @@ Networks are saved as bare weight matrices. When a feature or an output is added
 
    This replaces `widen` for all networks (movers, ways, teachers).
 2. **A neutral default for every addition.** A new feature has a value that means "nothing new here". A new choice has a hand-written default that a zero output selects (the band's ways already work like this: 0 is the scaffold's choice). An old network then plays the new model with the old behaviour, and the hand-written default for anything it was not trained on.
-3. **Switches for mechanics.** Each new mechanic sits behind a run-time switch, as herding does now (`-Dhex.noHerding`). An old network can then be run with the new mechanics on or off, and the effect of each mechanic is measured on its own.
+3. **Switches for mechanics.** (Superseded 2026-10-16: a mechanic that has replaced the old way is simply on, and only features still being tried keep a key in the config file, see `config.example.properties`.) Each new mechanic sits behind a run-time switch. An old network can then be run with the new mechanics on or off, and the effect of each mechanic is measured on its own.
 4. **Side by side in one world.** Bands or animals driven by different networks share one world, dealt out round robin as `HexEvolveWays` does with its variants. A comparison is then fair, with the same weather, prey and neighbours. The check reports each version's scores separately.
 5. **Continuing from a checkpoint.**
    - Load the old network, expanded by name as in point 1.
@@ -37,4 +37,4 @@ Built:
 - **A registry of baselines** (`tools/Baseline.kt`):
   - `baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT]`, `baseline list`, `baseline show NAME` (what each network lacks against today's model);
   - kept in `runs/baselines/NAME`, and never overwritten;
-  - `-Dhex.nets=NAME` in the check loads one by name.
+  - `nets=NAME` in the config file loads one by name.

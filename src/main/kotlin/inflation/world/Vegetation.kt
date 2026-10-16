@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.Config
+
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -322,7 +324,7 @@ class Vegetation(private val world: World, private val seed: Long) {
 
     companion object {
         /** Browsing, kg/km²/day, at which seedlings and saplings are mostly eaten (a few deer per km²). */
-        val BROWSE_SCALE = System.getProperty("hex.t.browseScale")?.toFloat() ?: 3f
+        val BROWSE_SCALE = Config.float("t.browseScale", 3f)
         /** Grazing, kg/km²/day, at which most dry fuel is gone. */
         const val GRAZE_SCALE = 5f
         /** Grazing, kg/km²/day, that over years turns grassland into short lawn. */
@@ -330,7 +332,7 @@ class Vegetation(private val world: World, private val seed: Long) {
         /** Rooting, kg/km²/day, at which most of the ground is churned. */
         const val ROOT_SCALE = 2f
         /** Fires started per km² per year in hot, dry, fuel-rich ground. */
-        val IGNITIONS_PER_KM2_YEAR = System.getProperty("hex.t.ignitions")?.toFloat() ?: 0.01f
+        val IGNITIONS_PER_KM2_YEAR = Config.float("t.ignitions", 0.01f)
         /** How far a fire front can run in a day, km. */
         const val SPREAD_KM_PER_DAY = 5f
         /** How fast trampling wears a path (per unit of trampling, slowing as the path deepens), and how fast an unused one fades, per year. */

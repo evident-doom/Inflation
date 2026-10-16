@@ -21,7 +21,7 @@ import kotlin.random.Random
  * itself ([inflation.ecology.bandInputs]), the middle of each of its ways ([inflation.ecology.setWays]:
  * 0 is the scaffold's way), and while learning each way is drawn about that middle with a spread
  * of its own ([logStd], learned too); otherwise the band keeps to the middle. Saved as `ways.mlp`
- * (readable wherever the evolved ways were, e.g. `-Dhex.ways`) with its spreads beside it (`.std`).
+ * (readable wherever the evolved ways were, e.g. `ways`) with its spreads beside it (`.std`).
  */
 class LearnedWays(val net: Mlp, val logStd: FloatArray) {
     fun copy() = LearnedWays(net.copy(), logStd.copyOf())

@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.DataInputStream
@@ -23,8 +25,8 @@ import java.util.zip.GZIPOutputStream
  * (terrain, rivers, climate normals, the hexes) is not saved: it is generated again from the seed.
  *
  * It goes by field names, not by layout: a field the code no longer has is dropped, a field the
- * saved state lacks keeps what the fresh model gave it, and an array whose length changed is taken
- * as saved. So small changes to the code still load; large ones (a different map) are refused.
+ * saved state lacks keeps what the fresh model gave it, an array that has grown (a kind added at its
+ * end) keeps the fresh model's values past the saved ones, and an array that has shrunk is taken as saved. So small changes to the code still load; large ones (a different map) are refused.
  */
 object HexSnapshot {
     private const val MAGIC = 0x48455853 // "HEXS"
@@ -69,14 +71,14 @@ object HexSnapshot {
     /**
      * A generated world kept on disk, so a run need not generate it again: [load] gives it back if
      * one for [cfg] was saved by the same world-generating code, else generates it with [log] and
-     * keeps it. -Dhex.noWorldCache turns this off.
+     * keeps it. worldCache=false in the config turns this off.
      */
     object WorldCache {
         private const val WORLD_MAGIC = 0x48455857 // "HEXW"
         val dir = File(System.getProperty("user.home"), ".inflation/world-cache")
 
         fun load(cfg: inflation.world.WorldConfig, log: (String) -> Unit = {}): inflation.world.World {
-            if (System.getProperty("hex.noWorldCache") != null) return inflation.world.World.generate(cfg, log = log)
+            if (!Config.flag("worldCache", true)) return inflation.world.World.generate(cfg, log = log)
             val f = File(dir, "world-%016x.bin".format(key(cfg)))
             if (f.exists()) runCatching {
                 DataInputStream(BufferedInputStream(GZIPInputStream(f.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
@@ -101,7 +103,7 @@ object HexSnapshot {
         }
 
         /** The settings, and the compiled world-generating code: any change to either makes a new world. */
-        private fun key(cfg: inflation.world.WorldConfig): Long {
+        fun key(cfg: inflation.world.WorldConfig): Long {
             val crc = java.util.zip.CRC32()
             crc.update(cfg.toString().toByteArray())
             val loader = HexSnapshot::class.java.classLoader
@@ -129,7 +131,7 @@ object HexSnapshot {
      * and sediment) kept on disk, so that a world made again after a change to the climate, the
      * rivers or the soils skips the erosion, which takes most of the time. Kept by the settings and the
      * landform-making code only (tectonics, volcanoes, geology, erosion, hydrology, noise, the grid and
-     * the world's own making). -Dhex.noLandformCache turns this off.
+     * the world's own making). landformCache=false in the config turns this off.
      */
     object LandformCache {
         private const val MAGIC = 0x4845584C // "HEXL"
@@ -137,7 +139,7 @@ object HexSnapshot {
         private val PARTS = listOf("Tectonics", "Volcan", "Geology", "Erosion", "Hydrology", "Drainage", "Noise", "Grid", "FloatHeap", "Rock", "World", "Landform", "Plate")
 
         fun load(cfg: inflation.world.WorldConfig, log: (String) -> Unit = {}): inflation.world.Landform {
-            if (System.getProperty("hex.noLandformCache") != null) return inflation.world.World.landform(cfg, log)
+            if (!Config.flag("landformCache", true)) return inflation.world.World.landform(cfg, log)
             val f = File(dir, "landform-%016x.bin".format(key(cfg)))
             if (f.exists()) runCatching {
                 DataInputStream(BufferedInputStream(GZIPInputStream(f.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
@@ -371,12 +373,16 @@ object HexSnapshot {
                     v is BooleanArray && cur is BooleanArray && cur.size == v.size -> { v.copyInto(cur); cur }
                     v is LongArray && cur is LongArray && cur.size == v.size -> { v.copyInto(cur); cur }
                     v is ShortArray && cur is ShortArray && cur.size == v.size -> { v.copyInto(cur); cur }
+                    // A table that has grown (a kind added at the end) keeps what the fresh model gave the new ones.
+                    v is FloatArray && cur is FloatArray && cur.size > v.size -> { v.copyInto(cur); cur }
+                    v is DoubleArray && cur is DoubleArray && cur.size > v.size -> { v.copyInto(cur); cur }
+                    v is IntArray && cur is IntArray && cur.size > v.size -> { v.copyInto(cur); cur }
                     else -> v
                 }
             }
             is Arr -> {
                 @Suppress("UNCHECKED_CAST")
-                val a = if (cur is Array<*> && cur.size == node.items.size) cur as Array<Any?>
+                val a = if (cur is Array<*> && cur.size >= node.items.size) cur as Array<Any?>
                     else runCatching { java.lang.reflect.Array.newInstance(Class.forName(node.component), node.items.size) as Array<Any?> }.getOrNull()
                 if (a == null) Skip
                 else { for (i in node.items.indices) { val v = make(node.items[i], a.getOrNull(i), a.javaClass.componentType); if (v !== Skip) a[i] = v }; a }
@@ -401,7 +407,10 @@ object HexSnapshot {
                 for ((kn, vn) in node.items) {
                     val k = make(kn, null, Any::class.java); if (k === Skip) continue
                     val v = make(vn, old[k], Any::class.java)
-                    m[k] = if (v === Skip) old[k] else v
+                    val kept = if (v === Skip) old[k] else v
+                    // (A concurrent map holds no nulls: an entry whose value could not be made is left out.)
+                    if (kept == null && m is java.util.concurrent.ConcurrentMap<*, *>) continue
+                    m[k] = kept
                 }
                 m
             }
