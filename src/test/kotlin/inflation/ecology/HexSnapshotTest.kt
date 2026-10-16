@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.learning.Mlp
+import inflation.learning.NetWays
 import inflation.world.World
 import inflation.world.WorldConfig
 import java.io.File
@@ -36,6 +38,20 @@ class HexSnapshotTest {
             val x = bytes(a); val y = bytes(b)
             val diff = (0 until minOf(x.size, y.size)).firstOrNull { x[it] != y[it] } ?: if (x.size == y.size) -1 else minOf(x.size, y.size)
             if (diff >= 0) fail("the loaded world's state differs from the one that ran on, from byte $diff of ${x.size}, in:\n" + StateDiff().of(a, b).joinToString("\n"))
+        } finally { f.delete() }
+    }
+
+    @Test
+    fun `a saved world does not bring the learned ways it ran with`() {
+        val world = World.generate(cfg)
+        val a = HexSim(world)
+        a.groups.ways = NetWays(Mlp.random(intArrayOf(WAYS_IN, 4, WAYS_OUT), kotlin.random.Random(1)))
+        val f = File.createTempFile("hexsnap", ".hexs")
+        try {
+            HexSnapshot.save(a, f)
+            val b = HexSim(world)
+            HexSnapshot.load(b, f)
+            assertEquals(null, b.groups.ways)
         } finally { f.delete() }
     }
 

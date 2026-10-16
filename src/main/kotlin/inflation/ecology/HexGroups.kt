@@ -101,8 +101,8 @@ class HexGroups(
     }
     /** Learned choosers by kind; kinds without one use the hand-written score. */
     val policies = HashMap<Species, HexPolicy>()
-    /** How bands set their ways each week; null for the scaffold's. */
-    var ways: BandWays? = null
+    /** How bands set their ways each week; null for the scaffold's. Not saved: what drives a run is set by the config (ways=), not carried in a save. */
+    @Transient var ways: BandWays? = null
     /** How herds and packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var herdWays: AnimalWays? = null
     @Transient var hunterWays: AnimalWays? = null
