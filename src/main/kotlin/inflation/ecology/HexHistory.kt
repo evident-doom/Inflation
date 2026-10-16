@@ -70,7 +70,7 @@ class HexHistory {
         val wl = fauna.water
         put("biomass/sea and lake fish", wl.fishTonnes() / 1000f)
         // Small life, tonnes.
-        for ((name, f) in listOf("insects" to sl.insects, "insects waiting as eggs and larvae" to sl.dormantInsects, "biting insects" to sl.biting, "rodents" to sl.rodents, "reptiles and amphibians" to sl.herps,
+        for ((name, f) in listOf("insects" to sl.insects, "insects waiting as eggs and larvae" to sl.dormantInsects, "biting insects" to sl.biting, "biting insects waiting as eggs and larvae" to sl.dormantBiting, "rodents" to sl.rodents, "reptiles and amphibians" to sl.herps,
             "pollinators" to sl.pollinators, "pollinators waiting as eggs and larvae" to sl.dormantPollinators, "hares" to sl.hares, "hyrax" to sl.hyrax, "tortoises" to sl.tortoises, "foxes and wildcats" to sl.foxes, "wild birds" to sl.birds))
             put("small life/$name", perKm2(f) * 1000f)
         put("small life/eagle pairs", sl.eagles.indices.sumOf { (sl.eagles[it] * area[it]).toDouble() }.toFloat() / HexSmallLife.EAGLE_KM2.toFloat())

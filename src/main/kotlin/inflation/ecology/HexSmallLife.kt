@@ -51,7 +51,14 @@ class BirdKind(
     /** Months present; null for residents. Outside them the birds are away. */
     val present: Set<Int>?,
     val domestication: FloatArray,
-)
+    /**
+     * Share of the food that is insects (for most, what the chicks are raised on). Migrants that
+     * live mostly on insects ([followsInsects]) come and go with the insect booms within their months.
+     */
+    val insectShare: Float = 0f,
+) {
+    val followsInsects get() = present != null && insectShare >= 0.3f
+}
 
 class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private val days: Int) {
     val n = land.n
@@ -67,6 +74,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Plant-eating insects waiting out the cold or the drought as eggs, larvae and pupae, kg/km² (as the active insects they will become). */
     val dormantInsects = FloatArray(n)
     val biting = FloatArray(n)
+    /** Biting insects waiting as eggs and larvae in the mud and water, kg/km² (as the adults they will become). */
+    val dormantBiting = FloatArray(n)
     val rodents = FloatArray(n) { p -> 150f * min(1f, land.herb[p] / 0.4f) }
     val herps = FloatArray(n) { p -> 20f * min(1f, land.herb[p] / 0.4f) }
     val pollinators = FloatArray(n) { p -> 10f * min(1f, land.herb[p] / 0.4f) }
@@ -100,6 +109,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Migrant birds away beyond the map, kg, per kind; and how much ground each kind finds when it comes back. */
     private val away = DoubleArray(BIRDS.size)
     private val returning = DoubleArray(BIRDS.size)
+    /** Migrants that live on insects, back on the map but not yet settled, kg per kind: they settle where the insects boom. */
+    private val waiting = DoubleArray(BIRDS.size)
     /** Migrant birds leaving this week from each place, kg (summed in place order after the parallel loop, so the sum is the same on any number of cores). */
     private val leaving = Array(BIRDS.size) { FloatArray(n) }
     private var lastMonth = -1
@@ -121,6 +132,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             for (k in bird.indices) bird[k][p] = 0.5f * birdCapacity(k, p)
             birds[p] = bird.sumOf { it[p].toDouble() }.toFloat()
             tortoises[p] = 0.5f * tortoiseCapacity(p); foxes[p] = 0.3f
+            dormantBiting[p] = 50f * waterfowl[p]
         }
         // Vultures: the most broken ground with plants in each block, if broken enough for cliffs.
         val hex = hw.hex
@@ -170,18 +182,31 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // Migrant birds: those leaving this week go beyond the map; those coming back spread over the
         // ground that draws them, as many as survived the winter away.
         for (k in BIRDS.indices) {
-            val pr = BIRDS[k].present ?: continue
+            val b = BIRDS[k]
+            val pr = b.present ?: continue
             returning[k] = 0.0
             if (lastMonth >= 0 && month in pr && lastMonth !in pr) {
                 var cap = 0.0
                 for (p in 0 until n) cap += (birdCapacity(k, p) * land.areaKm2[p]).toDouble()
                 // Kinds that breed while away (winter visitors such as geese) come back with their young.
-                val b = BIRDS[k]
                 // (Passage migrants come through twice: only the passage after the breeding months brings young.)
                 val awayMonths = generateSequence((month + 11) % 12) { (it + 11) % 12 }.takeWhile { it !in pr }.toSet()
                 val bredAway = if (b.breedMonths.any { it in awayMonths }) 1f + b.growth else 1f
-                returning[k] = if (cap > 0.0) away[k] * MIGRANT_SURVIVAL * bredAway / cap else 0.0
+                val back = away[k] * MIGRANT_SURVIVAL * bredAway
+                // (Those that live on insects wait to settle where the insects boom, below.)
+                if (b.followsInsects) waiting[k] += back else returning[k] = if (cap > 0.0) back / cap else 0.0
                 away[k] = 0.0
+            }
+            if (b.followsInsects) {
+                if (month !in pr) { away[k] += waiting[k]; waiting[k] = 0.0 }
+                else if (waiting[k] > 0.0) {
+                    // Half of those waiting settle each week, over the ground that draws them, as the
+                    // insects there are booming; the rest pass on and look again.
+                    var draw = 0.0
+                    for (p in 0 until n) draw += (birdCapacity(k, p) * boom(p) * land.areaKm2[p]).toDouble()
+                    if (draw > 0.0) { returning[k] = SETTLE * waiting[k] / draw; waiting[k] *= 1.0 - SETTLE }
+                    waiting[k] *= 1.0 - b.deaths * years
+                }
             }
         }
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
@@ -223,9 +248,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             }
             insects[p] = capped(p, insects[p], 3000f)
             pt = Profile.lap("small life: insects", pt)
-            // ---- biting insects: standing water and warmth.
+            // ---- biting insects (see [insectSeason]): their larvae live in standing water; when it dries
+            // or the cold comes, the eggs wait in the mud.
             val standing = land.flood[p] > 0f || wetland[p] > 0.1f || soilWater / LiveWater.SOIL_CAPACITY > 0.9f
-            biting[p] = if (t > 15f && standing) min(500f, biting[p] + 60f * days * max(wetland[p], 0.3f)) else biting[p] * 0.7f
+            smallDead[p] += insectSeason(p, biting, dormantBiting, active, if (standing) 500f else 0f, least = 0f)
             pt = Profile.lap("small life: biting insects", pt)
             // ---- rodents (a female raises some twenty young a year): logistic on food, losses to cold and deep snow; they eat ~10% of their mass a day.
             var r = rodents[p]
@@ -241,9 +267,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var h = herps[p]
             if (herpsActive(t, soilWater)) {
                 val moist = (soilWater / 40f).coerceIn(0.2f, 1f)
-                // They live on the insects that are out (plant-eaters, pollinators, locusts), eating
-                // about 5% of their weight a day, from each kind as it is met.
-                val bugs = insects[p] + pollinators[p] + locusts[p]
+                // They live on the insects that are out (plant-eaters, pollinators, locusts, mosquitoes
+                // and midges), eating about 5% of their weight a day, from each kind as it is met.
+                val bugs = insects[p] + pollinators[p] + locusts[p] + biting[p]
                 val grow = 4f * years * moist * bugs / (bugs + 400f)
                 val hc = 80f * food / (food + 0.3f)
                 smallDead[p] += h * years
@@ -270,7 +296,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             stepGame(p, t, month, b); Profile.lap("small life: hares, hyrax, birds, tortoises, foxes, owls, eagles", pt)
         }
         Profile.part("small life: locusts") { stepLocusts(weather) }
-        for (k in BIRDS.indices) { val l = leaving[k]; var sum = 0.0; for (p in l.indices) if (l[p] != 0f) { sum += l[p]; l[p] = 0f }; away[k] += sum }
+        for (k in BIRDS.indices) {
+            val l = leaving[k]; var sum = 0.0; for (p in l.indices) if (l[p] != 0f) { sum += l[p]; l[p] = 0f }
+            // (Insect-eaters leaving a place where the insects failed, within their months, look for another.)
+            if (BIRDS[k].followsInsects && month in BIRDS[k].present!!) waiting[k] += sum else away[k] += sum
+        }
         lastMonth = month
         Profile.part("small life: vultures") { stepVultures(weather) }
         // A little every week, not all at once each month: a monthly lump showed as a pulse at the
@@ -328,11 +358,26 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         for (k in bird.indices) {
             val b = BIRDS[k]; val f = bird[k]
             val here = b.present?.contains(month) ?: true
+            // The insects they eat (most of what the chicks are raised on): short of them, fewer young
+            // are raised and more birds die.
+            var fed = 1f
+            if (here && b.insectShare > 0f && f[p] > 0f) {
+                val need = f[p] * BIRD_INTAKE * days * b.insectShare
+                fed = takeSwitching(p, need, 0.5f, insectFood) / need
+            }
             f[p] = when {
                 // Migrants leave for beyond the map at the end of their months here, and come back.
                 !here -> { if (f[p] > 0f) leaving[k][p] = f[p] * land.areaKm2[p]; 0f }
-                returning[k] > 0.0 -> f[p] + (returning[k] * birdCapacity(k, p)).toFloat()
-                else -> logistic(p, f[p], if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) else 0f, b.deaths, birdCapacity(k, p), grazes = true)
+                returning[k] > 0.0 && !b.followsInsects -> f[p] + (returning[k] * birdCapacity(k, p)).toFloat()
+                else -> {
+                    val hunger = b.insectShare * (1f - fed)
+                    // (Insect-eating migrants settling this week arrive where the insects boom, and live on as the rest.)
+                    val arrived = if (b.followsInsects && returning[k] > 0.0) (returning[k] * birdCapacity(k, p) * boom(p)).toFloat() else 0f
+                    var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f, b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true)
+                    // Insect-eating migrants leave a place where the insects have failed, for one where they boom.
+                    if (b.followsInsects && fed < 0.5f && x > 0f) { val go = x * (1f - 2f * fed); leaving[k][p] = go * land.areaKm2[p]; x -= go }
+                    x
+                }
             }
             all += f[p]
         }
@@ -491,8 +536,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
     private val foxPrey by lazy { (listOf(rodents, hares, locusts, insects, pollinators) + bird).toTypedArray() }
     private val foxEase by lazy { floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f } }
-    /** What reptiles and amphibians eat: the insects that are out. */
-    private val insectFood by lazy { arrayOf(insects, pollinators, locusts) }
+    /** What reptiles, amphibians and insect-eating birds eat: the insects that are out. */
+    private val insectFood by lazy { arrayOf(insects, pollinators, locusts, biting) }
+
+    /** How far the insects that are out at [p] are booming, 0..1: what draws the insect-eating migrants. */
+    private fun boom(p: Int): Float { val x = insects[p] + pollinators[p] + locusts[p] + biting[p]; return x / (x + BOOM_HALF) }
     private val eaglePrey by lazy { arrayOf(hyrax, hares, bird[CHUKAR], bird[ROCK_DOVE]) }
 
     /**
@@ -595,7 +643,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
     }
 
-    private val spreaders by lazy { (listOf(insects, rodents, herps, pollinators, hares, hyrax, tortoises, foxes) + bird).toTypedArray() }
+    private val spreaders by lazy { (listOf(insects, rodents, herps, pollinators, biting, hares, hyrax, tortoises, foxes) + bird).toTypedArray() }
     /**
      * The share of the difference with each neighbour that crosses in a step: [SPREAD] a month, over
      * the larger place's count of neighbours and scaled to the smaller place's area. (The same flow
@@ -616,16 +664,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Share of what small plant-eaters eat that becomes their own growth (about a tenth for warm-blooded animals, Lindeman's rule). */
         const val SMALL_EFFICIENCY = 0.1f
         val BIRDS = listOf(
-            BirdKind("chukar", 4..6, 4f, 0.9f, null, floatArrayOf(0.7f, 0.7f, 0.5f, 0.5f, 0.6f, 0.6f)),
-            BirdKind("quail", 4..7, 6f, 1.2f, (4..9).toSet(), floatArrayOf(0.7f, 0.9f, 0.7f, 0.5f, 0.5f, 0.4f)),
-            BirdKind("sandgrouse", 4..7, 1.5f, 0.7f, null, floatArrayOf(0.5f, 0.6f, 0.2f, 0.3f, 0.3f, 0.4f)),
+            BirdKind("chukar", 4..6, 4f, 0.9f, null, floatArrayOf(0.7f, 0.7f, 0.5f, 0.5f, 0.6f, 0.6f), insectShare = 0.3f),
+            BirdKind("quail", 4..7, 6f, 1.2f, (4..9).toSet(), floatArrayOf(0.7f, 0.9f, 0.7f, 0.5f, 0.5f, 0.4f), insectShare = 0.4f),
+            BirdKind("sandgrouse", 4..7, 1.5f, 0.7f, null, floatArrayOf(0.5f, 0.6f, 0.2f, 0.3f, 0.3f, 0.4f), insectShare = 0.05f),
             BirdKind("rock dove", 3..10, 5f, 0.8f, null, floatArrayOf(0.9f, 0.9f, 0.9f, 0.8f, 0.7f, 0.6f)), // became the pigeon
-            BirdKind("mallard", 4..6, 4f, 0.8f, null, floatArrayOf(0.9f, 0.8f, 0.8f, 0.7f, 0.6f, 0.6f)), // became the duck
+            BirdKind("mallard", 4..6, 4f, 0.8f, null, floatArrayOf(0.9f, 0.8f, 0.8f, 0.7f, 0.6f, 0.6f), insectShare = 0.3f), // became the duck
             BirdKind("greylag goose", 5..6, 1.5f, 0.5f, (setOf(10, 11, 0, 1, 2, 3)), floatArrayOf(0.8f, 0.8f, 0.8f, 0.6f, 0.6f, 0.8f)), // became the goose
             // Common cranes winter by the thousand in the rift's marshes and fields; white storks pass
             // through on the way to and from Africa in spring and late summer. Both breed far away.
-            BirdKind("crane", 5..6, 0.5f, 0.3f, setOf(10, 11, 0, 1, 2), floatArrayOf(0.5f, 0.3f, 0.3f, 0.4f, 0.3f, 0.5f)),
-            BirdKind("white stork", 5..6, 1.2f, 0.3f, setOf(2, 3, 7, 8), floatArrayOf(0.5f, 0.3f, 0.3f, 0.5f, 0.4f, 0.4f)),
+            BirdKind("crane", 5..6, 0.5f, 0.3f, setOf(10, 11, 0, 1, 2), floatArrayOf(0.5f, 0.3f, 0.3f, 0.4f, 0.3f, 0.5f), insectShare = 0.1f),
+            BirdKind("white stork", 5..6, 1.2f, 0.3f, setOf(2, 3, 7, 8), floatArrayOf(0.5f, 0.3f, 0.3f, 0.5f, 0.4f, 0.4f), insectShare = 0.6f),
         )
         /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
         const val VULTURE_RANGE_KM = 80.0
@@ -653,6 +701,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Share of a rotting carcass left as bones. */
         const val BONE_SHARE = 0.2f
         const val MIGRANT_SURVIVAL = 0.7f
+        /**
+         * Birds: what they eat a day, as a share of their weight (small birds a tenth to a quarter);
+         * the share of the insect-eating migrants waiting on the map that settle in a week; and the
+         * insects out, kg/km², at which a place draws them half as strongly as a booming one.
+         */
+        const val BIRD_INTAKE = 0.1f
+        const val SETTLE = 0.5
+        const val BOOM_HALF = 200f
         /** Plant food small plant-eaters (hares, hyrax, game birds, tortoises) eat, kg a day per kg of them. */
         const val SMALL_INTAKE = 0.08f
         /** Foxes and wildcats eat about a fourteenth of their weight a day; prey on the ground (kg/km²) at which they get half of it. */
