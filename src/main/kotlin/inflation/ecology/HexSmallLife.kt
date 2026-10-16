@@ -863,8 +863,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             BirdKind("crane", 5..6, 0.5f, 0.3f, setOf(10, 11, 0, 1, 2), floatArrayOf(0.5f, 0.3f, 0.3f, 0.4f, 0.3f, 0.5f), insectShare = 0.1f),
             BirdKind("white stork", 5..6, 1.2f, 0.3f, setOf(2, 3, 7, 8), floatArrayOf(0.5f, 0.3f, 0.3f, 0.5f, 0.4f, 0.4f), insectShare = 0.6f),
             // Songbirds (larks, warblers, tits, finches, thrushes) as one guild: small, many, short-lived,
-            // raising their broods on insects. About half the adults die each year.
-            BirdKind("songbirds", 4..7, 3f, 0.6f, null, floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f), insectShare = 0.7f),
+            // raising their broods on insects. About half the adults die each year; the hunters here take
+            // some 10-15% of them, so the rest (cold, hunger, sickness, old age) is about 0.45.
+            BirdKind("songbirds", 4..7, 3f, 0.45f, null, floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f), insectShare = 0.7f),
         )
         /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
         const val VULTURE_RANGE_KM = 80.0
