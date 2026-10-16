@@ -42,7 +42,7 @@ fun main(args: Array<String>) {
     val ks = kinds.mapNotNull { name -> fauna.kinds.indexOfFirst { it.name == name }.takeIf { it >= 0 } }
     // By month: heads, fed (heads-weighted), heads and hunger deaths with tether < 0.2, green < 0.2, and at the edge (under 1% of the kind's usual density).
     class Acc { val heads = DoubleArray(12); val fed = DoubleArray(12); val tether = DoubleArray(12); val dry = DoubleArray(12); val brown = DoubleArray(12); val edge = DoubleArray(12)
-        val hunger = DoubleArray(12); val hungerDry = DoubleArray(12); val hungerBrown = DoubleArray(12); val hungerEdge = DoubleArray(12); val weeks = IntArray(12)
+        val wetFloor = DoubleArray(12); val flood = DoubleArray(12); val table = DoubleArray(12); val green = DoubleArray(12); val hunger = DoubleArray(12); val hungerDry = DoubleArray(12); val hungerBrown = DoubleArray(12); val hungerEdge = DoubleArray(12); val weeks = IntArray(12)
         val byTether = DoubleArray(5); val byGreen = DoubleArray(5); val byDensity = DoubleArray(5); val headsByTether = DoubleArray(5); val headsByGreen = DoubleArray(5); val headsByDensity = DoubleArray(5)
         var hungerReported = 0.0 }
     val acc = ks.associateWith { Acc() }
@@ -65,7 +65,7 @@ fun main(args: Array<String>) {
                 val died = ((ad + 1.5f * yd) * hunger * area).toDouble()
                 val t = fauna.tether(s, p); val g = land.green[p]
                 val edge = (ad + yd) < 0.01f * usual
-                a.heads[m] += heads; a.fed[m] += heads * f; a.tether[m] += heads * t; a.hunger[m] += died
+                a.heads[m] += heads; a.fed[m] += heads * f; a.wetFloor[m] += heads * land.wetFloor(p); a.flood[m] += heads * land.floodShare[p]; a.table[m] += heads * land.waterTableM(p); a.green[m] += heads * land.green[p]; a.tether[m] += heads * t; a.hunger[m] += died
                 if (t < 0.2f) { a.dry[m] += heads; a.hungerDry[m] += died }
                 if (g < 0.2f) { a.brown[m] += heads; a.hungerBrown[m] += died }
                 if (edge) { a.edge[m] += heads; a.hungerEdge[m] += died }
@@ -83,7 +83,11 @@ fun main(args: Array<String>) {
         println("%-34s".format("month") + (0 until 12).joinToString(" ") { "%7d".format(it) })
         row("heads (weekly mean)") { a.heads[it] / a.weeks[it].coerceAtLeast(1) }
         row("fed") { a.fed[it] / a.heads[it].coerceAtLeast(1e-9) }
+        row("green") { a.green[it] / a.heads[it].coerceAtLeast(1e-9) }
         row("water within reach (tether)") { a.tether[it] / a.heads[it].coerceAtLeast(1e-9) }
+        row("floodplain share") { a.flood[it] / a.heads[it].coerceAtLeast(1e-9) }
+        row("water table depth, m") { a.table[it] / a.heads[it].coerceAtLeast(1e-9) }
+        row("wet valley floor share") { a.wetFloor[it] / a.heads[it].coerceAtLeast(1e-9) }
         row("share of heads: tether < 0.2") { a.dry[it] / a.heads[it].coerceAtLeast(1e-9) }
         row("share of heads: green < 0.2") { a.brown[it] / a.heads[it].coerceAtLeast(1e-9) }
         row("share of heads: at the edge") { a.edge[it] / a.heads[it].coerceAtLeast(1e-9) }
