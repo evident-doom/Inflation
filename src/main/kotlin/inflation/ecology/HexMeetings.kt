@@ -634,7 +634,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
     meetings.merge("bands met", 1, Int::plus)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
-    if (cultureMeets(a, b)) return
+    if (meetingEndsInRaid(a, b)) return
     val (poor, rich) = if (a.fed + a.larder / (a.dailyNeedKg * 30f) < b.fed + b.larder / (b.dailyNeedKg * 30f)) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true

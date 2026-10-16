@@ -174,7 +174,7 @@ fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indic
  * they show each other tools, and bands that marry out exchange partners, who bring their skills.
  * Returns true if it came to a raid.
  */
-internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
+internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     val u = Language.understanding(bandA.words, bandB.words)
     if (raid(a, bandA, b, bandB, u) || raid(b, bandB, a, bandA, u)) return true

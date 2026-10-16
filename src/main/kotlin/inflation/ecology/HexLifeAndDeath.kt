@@ -359,7 +359,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // fights, hunts and by beasts last week; tended wounds heal faster, fester less and lame fewer.
     val festered = if (s.human && band != null) woundsWeek(band) else 0f
     // Beasts of prey about: now and then one takes a gatherer, a child or an old one alone.
-    val (stalked, stalker) = if (s.human && band != null) stalkedBy(g, band, kinNow) else 0f to ""
+    val (stalked, stalker) = if (s.human && band != null) stalkedBy(g, band, kinNow) else Stalking.NONE
     // Vipers and scorpions, out in the warm months.
     val venom = if (s.human && weather.temperature[g.place] > 18f) VENOM * years else 0f
     // Children of a closed band are inbred; medicine saves some of the sick and wounded.
@@ -704,7 +704,7 @@ internal fun HexGroups.remember(date: Date) {
  * lookouts, company and an eye for sign (tracking) keep them off. No set battle: the beasts take
  * the unwary, not armed men.
  */
-internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int>): Pair<Float, String> {
+internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int>): Stalking {
     val h = hw.placeHex[g.place]; val p = g.place
     val hexKm2 = (hex.hexKm * hex.hexKm * 0.87).toFloat()
     var pressure = 0f; var worst = ""; var worstP = 0f
@@ -719,7 +719,7 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
         val v = w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg
         pressure += v; if (v > worstP) { worstP = v; worst = k.name }
     }
-    if (pressure <= 0f) return 0f to ""
+    if (pressure <= 0f) return Stalking.NONE
     val cover = 0.5f + land.cover(p)
     val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
@@ -729,7 +729,12 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
     // (Beasts lie up by the paths people and game use: a camp on a busy way is the more dangerous.)
     val rate = STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * spread * (1f + 0.5f * AMBUSH * pathAt(h)) * years
     // (Where one was taken the band remembers the danger.)
-    return rate to worst
+    return Stalking(rate, worst)
+}
+
+/** A band's [rate] of loss to beasts of prey (yearly-scaled share) and the beast most to blame, [by] ("" when none). */
+data class Stalking(val rate: Float, val by: String) {
+    companion object { val NONE = Stalking(0f, "") }
 }
 
 /**
