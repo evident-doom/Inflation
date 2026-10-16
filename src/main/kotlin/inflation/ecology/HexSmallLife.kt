@@ -252,6 +252,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             // or the cold comes, the eggs wait in the mud.
             val standing = land.flood[p] > 0f || wetland[p] > 0.1f || soilWater / LiveWater.SOIL_CAPACITY > 0.9f
             smallDead[p] += insectSeason(p, biting, dormantBiting, active, if (standing) 500f else 0f, least = 0f)
+            harass[p] = harassmentNow(p, weather)
             pt = Profile.lap("small life: biting insects", pt)
             // ---- rodents (a female raises some twenty young a year): they eat ~10% of their mass a day, and
             // a mouse or vole lasts only a few days without food, so the share that found none in the week
@@ -552,7 +553,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * many are out, and less in a wind (mosquitoes and midges barely fly in a breeze of a few m/s; a
      * herd on a windy ridge is left in peace).
      */
-    fun harassment(p: Int, weather: Weather): Float {
+    fun harassment(p: Int): Float = harass[p]
+    /** [harassment] this week, worked out once a step for all who ask. */
+    private val harass = FloatArray(n)
+    private fun harassmentNow(p: Int, weather: Weather): Float {
         val b = biting[p]
         if (b <= 0f) return 0f
         val wind = kotlin.math.hypot(weather.windEast(p), weather.windSouth(p))
