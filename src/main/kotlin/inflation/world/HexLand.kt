@@ -413,6 +413,25 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
      * [green] is the two together.
      */
     private val greenOpen = FloatArray(n); val greenSeep = FloatArray(n)
+    /** How green the turf of the wet valley floor is (see [wetFloor]). */
+    val greenWet = FloatArray(n)
+    /**
+     * Share of place [p] that is wet valley floor: the floodplain where the water table lies within reach
+     * of roots, so that its turf and reeds grow on through a dry summer as long as it is growing weather
+     * (the river meadows and marshes that stay green when the hills have cured).
+     */
+    fun wetFloor(p: Int) = min(1f - SEEP_SHARE, floodShare[p] * (1f - floorTableM(p) / ROOT_REACH_M).coerceIn(0f, 1f))
+    /**
+     * Depth of the water table under the valley floor of place [p], m: where the hex's river runs, the
+     * alluvium under its floodplain stands at the river's level, as far below the floodplain as the river
+     * falls short of its bankfull depth (see [Channel]); where it has run dry, the ground water under the place.
+     */
+    fun floorTableM(p: Int): Float {
+        val h = hw.placeHex[p]
+        val regional = waterTableM(p)
+        if (meanFlow[h] <= 0f || flow[h] <= 0f) return regional
+        return min(regional, max(0f, Channel.depthM(Channel.bankfull(meanFlow[h])) - Channel.depthM(flow[h])))
+    }
     /** The same for the grass of the shaded slopes: how green it is, and whether it has cured. */
     val greenShade = FloatArray(n); private val curedShade = BooleanArray(n)
     /** How the seeps of place [p] run, 0..1: with the ground water under it, against a usual year (as its springs). */
@@ -606,7 +625,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         // On the valley floor (the floodplain) deep roots (tamarisk, poplar, palms, reeds) reach the water
         // table where it lies within their reach; round fresh lakes and springs it is near the surface.
         // Their share of the place stays moist through the driest weeks.
-        val valleyFloor = floodShare[p] * (1f - waterTableM(p) / ROOT_REACH_M).coerceIn(0f, 1f)
+        val valleyFloor = wetFloor(p)
         val edge = min(1f, valleyFloor + WATER_TABLE * (nearLake[p] + nearSpring[p] * springFlow(p)))
         if (edge > 0f) to = max(to, soilCap[p] * edge)
         return to
@@ -653,13 +672,17 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val openGrowth = (1 - shaded) * sunnyGrowth + shaded * shadyGrowth
             // The seeps grow as long as the ground water flows, whatever the weather brings.
             val seepGrowth = season * seeping(p)
-            val grassGrowth = (1 - SEEP_SHARE) * openGrowth + SEEP_SHARE * seepGrowth
+            // So does the wet valley floor, on the water table under it.
+            val wetShare = wetFloor(p); val openShare = 1f - SEEP_SHARE - wetShare
+            val wetGrowth = season
+            val grassGrowth = openShare * openGrowth + SEEP_SHARE * seepGrowth + wetShare * wetGrowth
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, as long as it is growing weather.
             greenOpen[p] += (min(1f, sunnyGrowth + FLUSH * burnt[p] * season) - greenOpen[p]) * GREEN_RATE
             greenShade[p] += (min(1f, shadyGrowth + FLUSH * burnt[p] * season) - greenShade[p]) * GREEN_RATE
             greenSeep[p] += (seepGrowth - greenSeep[p]) * GREEN_RATE
-            green[p] = (1 - SEEP_SHARE) * ((1 - shaded) * greenOpen[p] + shaded * greenShade[p]) + SEEP_SHARE * greenSeep[p]
+            greenWet[p] += (wetGrowth - greenWet[p]) * GREEN_RATE
+            green[p] = openShare * ((1 - shaded) * greenOpen[p] + shaded * greenShade[p]) + SEEP_SHARE * greenSeep[p] + wetShare * greenWet[p]
             val shade = canopy(p)
             val browsed = 1f - exp(-browsing[p] / Vegetation.BROWSE_SCALE)
             val young = 1f - min(1f, tree[p] / (0.3f * ceiling(LifeForm.TREE, p).coerceAtLeast(1e-3f)))
