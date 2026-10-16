@@ -1,5 +1,9 @@
 package inflation.ecology
 
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.mix64Once
+import inflation.unitOf
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexWorld
@@ -248,7 +252,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 record?.let { it.carrionGone[p] += gone }
                 if (carrion[p] < 1e-9f) carrion[p] = 0f
             }
-            carrion[p] += carcassKg[p] / (land.areaKm2[p] * 1e6f)
+            carrion[p] += carcassKg[p] / land.m2(p)
             // Bones weather away over a couple of years into the soil.
             if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b; record?.let { it.bonesGone[p] += b } }
             val food = land.herb[p] + 0.3f * land.shrub[p]
@@ -313,9 +317,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 // (Young crowd the place's breeding sites: tadpoles the pools, eggs the warm sheltered ground.)
                 val born = h * HERP_YOUNG * fed * max(0f, 1f - h / herpSites(p).coerceAtLeast(1e-3f)) * years
                 h += born - died; herpBorn = born
-                herpLedger[0][p] += born; herpLedger[1][p] += old; herpLedger[2][p] += hungry
-                herpLedger[5][p] += ate; herpLedger[6][p] += need
-            } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died; herpLedger[3][p] += died }
+                herpLedger[HerpLedger.BORN][p] += born; herpLedger[HerpLedger.DIED_OUT][p] += old; herpLedger[HerpLedger.HUNGER][p] += hungry
+                herpLedger[HerpLedger.ATE][p] += ate; herpLedger[HerpLedger.NEEDED][p] += need
+            } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died; herpLedger[HerpLedger.LYING_UP][p] += died }
             herps[p] = capped(p, h, HERP_MOST)
             nest(p, NEST_HERPS, herps[p], herpBorn)
             pt = Profile.lap("small life: reptiles and amphibians", pt)
@@ -383,9 +387,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     private var locustSalt = 0L
     private fun locustHash(p: Int): Float {
-        var h = (p.toLong() * 0x9E3779B97F4A7C15uL.toLong()) xor (++locustSalt * 0x632BE59BD9B4E019L)
-        h = (h xor (h ushr 33)) * -0xae502812aa7333L; h = h xor (h ushr 33)
-        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+        return unitOf(mix64Once((p.toLong() * HASH_A) xor (++locustSalt * HASH_B)))
     }
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
@@ -407,22 +409,22 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 // (A few birds' need can round to nothing.)
                 if (need > 0f) {
                     val ate = takeSwitching(p, need, 0.5f, insectFood, insectEaseAt(p))
-                    herpLedger[7][p] += ate
+                    herpLedger[HerpLedger.EATEN_BY_BIRDS][p] += ate
                     fed = ate / need
                 }
             }
             f[p] = when {
                 // Migrants leave for beyond the map at the end of their months here, and come back.
-                !here -> { if (f[p] > 0f) { leaving[k][p] = f[p] * land.areaKm2[p]; birdLedger[k][3][p] += f[p] }; 0f }
-                returning[k] > 0.0 && !b.followsInsects -> { val back = (returning[k] * birdCapacity(k, p)).toFloat(); birdLedger[k][4][p] += back; f[p] + back }
+                !here -> { if (f[p] > 0f) { leaving[k][p] = f[p] * land.areaKm2[p]; birdLedger[k][BirdLedger.LEFT][p] += f[p] }; 0f }
+                returning[k] > 0.0 && !b.followsInsects -> { val back = (returning[k] * birdCapacity(k, p)).toFloat(); birdLedger[k][BirdLedger.BACK][p] += back; f[p] + back }
                 else -> {
                     val hunger = b.insectShare * (1f - fed)
                     // (Insect-eating migrants settling this week arrive where the insects boom, and live on as the rest.)
                     val arrived = if (b.followsInsects && returning[k] > 0.0) (returning[k] * birdCapacity(k, p) * boom(p)).toFloat() else 0f
-                    birdLedger[k][4][p] += arrived; if (here && b.insectShare > 0f) { birdLedger[k][6][p] += fed * days; birdLedger[k][7][p] += days }
+                    birdLedger[k][BirdLedger.BACK][p] += arrived; if (here && b.insectShare > 0f) { birdLedger[k][BirdLedger.FED_DAYS][p] += fed * days; birdLedger[k][BirdLedger.INSECT_DAYS][p] += days }
                     var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f, b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, ledger = birdLedger[k], born = NEST_BIRDS)
                     // Insect-eating migrants leave a place where the insects have failed, for one where they boom.
-                    if (b.followsInsects && fed < 0.5f && x > 0f) { val go = x * (1f - 2f * fed); leaving[k][p] = go * land.areaKm2[p]; birdLedger[k][3][p] += go; x -= go }
+                    if (b.followsInsects && fed < 0.5f && x > 0f) { val go = x * (1f - 2f * fed); leaving[k][p] = go * land.areaKm2[p]; birdLedger[k][BirdLedger.LEFT][p] += go; x -= go }
                     x
                 }
             }
@@ -433,7 +435,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val active = t in 14f..33f && land.soil[p] > 8f
         tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f, tortoiseCapacity(p), grazes = true, ledger = tortLedger, born = NEST_TORTOISES)
         nest(p, NEST_TORTOISES, tortoises[p], 0f)
-        if (active) tortLedger[6][p] += days; if (active && month in 4..8) tortLedger[5][p] += days
+        if (active) tortLedger[TortLedger.DAYS_OUT][p] += days; if (active && month in 4..8) tortLedger[TortLedger.BREEDING_DAYS][p] += days
         // They eat what they grow on (a small share of their weight a day; tortoises only when out),
         // and drop half of it again.
         val eaters = hares[p] + hyrax[p] + all + (if (active) tortoises[p] else 0f) // kg/km²
@@ -466,7 +468,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (owls[p] <= 0f && r > 0f) owls[p] = OWL_SEED * r
             val needO = owls[p] * OWL_INTAKE * days
             val gotO = min(0.5f * r, needO * r / (r + OWL_HALF))
-            if (gotO > 0f) { rodents[p] -= gotO; preyTakenBy[0][TAKER_OWLS][p] += gotO }
+            if (gotO > 0f) { rodents[p] -= gotO; preyTakenBy[Prey.RODENTS][TAKER_OWLS][p] += gotO }
             val fedO = if (needO > 0f) gotO / needO else 1f
             owls[p] = logistic(p, owls[p], if (month in 3..5) 3f * fedO else 0f, 0.3f + 0.8f * (1f - fedO), 0.02f * r)
         }
@@ -491,7 +493,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // Fire: tortoises die where it burns; the rest bolt and many young die.
         if (burnt > 0f) {
             smallDead[p] += tortoises[p] * 0.6f * burnt + hares[p] * 0.3f * burnt + birds[p] * 0.3f * burnt
-            tortLedger[4][p] += tortoises[p] * 0.6f * burnt
+            tortLedger[TortLedger.BURNT][p] += tortoises[p] * 0.6f * burnt
             tortoises[p] *= 1f - 0.6f * burnt; hares[p] *= 1f - 0.3f * burnt; takeBirds(p, 0.3f * burnt)
         }
     }
@@ -501,7 +503,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     /** Takes share [f] of every kind of bird at [p]. */
     private fun takeBirds(p: Int, f: Float) {
-        for ((k, b) in bird.withIndex()) { birdLedger[k][5][p] += b[p] * f; b[p] -= b[p] * f }
+        for ((k, b) in bird.withIndex()) { birdLedger[k][BirdLedger.BURNT][p] += b[p] * f; b[p] -= b[p] * f }
         birds[p] -= birds[p] * f
     }
 
@@ -521,7 +523,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         if (change > 0f && grazes) change = land.consume(p, LifeForm.HERB, change / SMALL_EFFICIENCY / 1e6f) * SMALL_EFFICIENCY * 1e6f
         val crowded = if (change < 0f) min(x - dead, -change) else 0f
         if (counted) smallDead[p] += dead + crowded
-        if (ledger != null) { ledger[0][p] += max(0f, change); ledger[1][p] += dead; ledger[2][p] += crowded }
+        if (ledger != null) { ledger[Ledger.GROWN][p] += max(0f, change); ledger[Ledger.DIED][p] += dead; ledger[Ledger.CROWDED][p] += crowded }
         if (born >= 0) newborn[born][p] += max(0f, change)
         return max(0f, x - dead + max(0f, change) - crowded)
     }
@@ -543,7 +545,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var got = 0f
             for (q in vultureReach[k]) {
                 if (got >= need) break
-                if (carrion[q] > 0f) { val m2 = land.areaKm2[q] * 1e6f; got += scavenge(q, (need - got) / m2) * m2 }
+                if (carrion[q] > 0f) { val m2 = land.m2(q); got += scavenge(q, (need - got) / m2) * m2 }
             }
             val fed = if (need > 0f) min(1f, got / need) else 1f
             var b = vultures[k]
@@ -672,9 +674,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         fun tookYoung(i: Int, before: Float, now: Float, e: Float) { if (before > 0f && e > 0f) young[i][p] = max(0f, young[i][p] - (before - now) * min(1f, young[i][p] / (e * before))) }
         tookYoung(NEST_RODENTS, r0, rodents[p], eR); tookYoung(NEST_HARES, ha0, hares[p], eHa); tookYoung(NEST_HYRAX, hy0, hyrax[p], eHy)
         tookYoung(NEST_BIRDS, b0, birdSum(p), eB); tookYoung(NEST_HERPS, h0, herps[p], eH); tookYoung(NEST_TORTOISES, t0, tortoises[p], eT)
-        herpLedger[4][p] += h0 - herps[p]
+        herpLedger[HerpLedger.HUNTED][p] += h0 - herps[p]
         herpTakenBy[min(who, TAKER_GROUPS)][p] += h0 - herps[p]
-        tortLedger[3][p] += t0 - tortoises[p]; tortTakenBy[min(who, TAKER_GROUPS)][p] += t0 - tortoises[p]
+        tortLedger[TortLedger.HUNTED][p] += t0 - tortoises[p]; tortTakenBy[min(who, TAKER_GROUPS)][p] += t0 - tortoises[p]
         noteTaken(p, min(who, TAKER_GROUPS), r0, ha0, hy0, b0)
         return took
     }
@@ -696,7 +698,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * insects), 2 died of crowding, 3 left (migrants, and insect-eaters leaving a failed place), 4 came
      * back, 5 burnt; 6 days fed (weighted by how well), 7 days out eating insects.
      */
-    val birdLedger = Array(BIRDS.size) { Array(8) { FloatArray(n) } }
+    val birdLedger = Array(BIRDS.size) { Array(BirdLedger.SIZE) { FloatArray(n) } }
     fun birdCapacityAt(k: Int, p: Int) = birdCapacity(k, p)
     /** Grubs dug since cleared, kg/km² (for checks). */
     val grubsDug = FloatArray(n)
@@ -707,24 +709,24 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * 5 insects they ate, 6 insects they needed, 7 insects the birds ate. (Hunters at the same place
      * in parallel may undercount 4 a little.)
      */
-    val herpLedger = Array(8) { FloatArray(n) }
+    val herpLedger = Array(HerpLedger.SIZE) { FloatArray(n) }
     /** Reptiles and amphibians taken by hunters since the ledger was cleared, kg/km², by who took them: the resident kind of that index, or (at [TAKER_GROUPS]) herds' and packs' hunters and people. */
     val herpTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
     /**
      * The same for tortoises (for checks), kg/km² unless said: 0 grown, 1 died, 2 died of crowding, 3 taken by
      * hunters, 4 burnt; 5 days out in the breeding months, 6 days out; and taken by who, as [herpTakenBy].
      */
-    val tortLedger = Array(7) { FloatArray(n) }
+    val tortLedger = Array(TortLedger.SIZE) { FloatArray(n) }
     val tortTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
     /**
      * Rodents, hares, hyrax and birds (0..3) taken since cleared, kg/km², by who took them: as [herpTakenBy],
      * and foxes and wildcats ([TAKER_FOXES]), eagles ([TAKER_EAGLES]), owls ([TAKER_OWLS]). For checks.
      */
-    val preyTakenBy = Array(4) { Array(TAKER_OWLS + 1) { FloatArray(n) } }
+    val preyTakenBy = Array(Prey.SIZE) { Array(TAKER_OWLS + 1) { FloatArray(n) } }
     private fun birdSum(p: Int): Float { var all = 0f; for (b in bird) all += b[p]; return all }
     private fun noteTaken(p: Int, who: Int, r0: Float, ha0: Float, hy0: Float, b0: Float) {
         val t = preyTakenBy
-        t[0][who][p] += r0 - rodents[p]; t[1][who][p] += ha0 - hares[p]; t[2][who][p] += hy0 - hyrax[p]; t[3][who][p] += b0 - birdSum(p)
+        t[Prey.RODENTS][who][p] += r0 - rodents[p]; t[Prey.HARES][who][p] += ha0 - hares[p]; t[Prey.HYRAX][who][p] += hy0 - hyrax[p]; t[Prey.BIRDS][who][p] += b0 - birdSum(p)
     }
 
     private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
@@ -1049,4 +1051,58 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         private val CHUKAR = BIRDS.indexOfFirst { it.name == "chukar" }
         private val ROCK_DOVE = BIRDS.indexOfFirst { it.name == "rock dove" }
     }
+}
+
+/** The slots [HexSmallLife.logistic] fills in a ledger: what grew, what died, what died of crowding. */
+object Ledger {
+    const val GROWN = 0
+    const val DIED = 1
+    const val CROWDED = 2
+}
+
+/** Slots of [HexSmallLife.herpLedger]. */
+object HerpLedger {
+    const val BORN = 0
+    const val DIED_OUT = 1
+    const val HUNGER = 2
+    const val LYING_UP = 3
+    const val HUNTED = 4
+    const val ATE = 5
+    const val NEEDED = 6
+    const val EATEN_BY_BIRDS = 7
+    const val SIZE = 8
+}
+
+/** Slots of [HexSmallLife.tortLedger] (the first three as [Ledger]). */
+object TortLedger {
+    const val GROWN = 0
+    const val DIED = 1
+    const val CROWDED = 2
+    const val HUNTED = 3
+    const val BURNT = 4
+    const val BREEDING_DAYS = 5
+    const val DAYS_OUT = 6
+    const val SIZE = 7
+}
+
+/** Slots of each kind's [HexSmallLife.birdLedger] (the first three as [Ledger]). */
+object BirdLedger {
+    const val GROWN = 0
+    const val DIED = 1
+    const val CROWDED = 2
+    const val LEFT = 3
+    const val BACK = 4
+    const val BURNT = 5
+    const val FED_DAYS = 6
+    const val INSECT_DAYS = 7
+    const val SIZE = 8
+}
+
+/** The small prey of [HexSmallLife.preyTakenBy]. */
+object Prey {
+    const val RODENTS = 0
+    const val HARES = 1
+    const val HYRAX = 2
+    const val BIRDS = 3
+    const val SIZE = 4
 }

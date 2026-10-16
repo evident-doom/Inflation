@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.monthsFrom
 import inflation.world.Channel
 import inflation.world.Date
 import inflation.world.HexLand
@@ -141,9 +142,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     val q = hex.neighbour(h, d)
                     if (q < 0 || hw.land[q] <= 0f) continue
                     val (qx, qy) = hex.centreKm(q); e += cx - qx; s += cy - qy
-                    if (windPlace[h] < 0) windPlace[h] = (0 until 5).map { hw.placeOf[it][q] }.firstOrNull { it >= 0 } ?: -1
+                    if (windPlace[h] < 0) windPlace[h] = hw.firstPlaceIn(q)
                 }
-                if (hw.land[h] > 0f && windPlace[h] < 0) windPlace[h] = (0 until 5).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: -1
+                if (hw.land[h] > 0f && windPlace[h] < 0) windPlace[h] = hw.firstPlaceIn(h)
                 val len = hypot(e, s)
                 if (len > 0) { offE[h] = (e / len).toFloat(); offS[h] = (s / len).toFloat() }
             }
@@ -175,12 +176,12 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val blocks = HashMap<Long, Int>()
         for (h in 0 until size) {
             if (!hw.coast[h] || hw.land[h] <= 0f) continue
-            val p = (0 until 5).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: continue
+            val p = hw.firstPlaceIn(h).takeIf { it >= 0 } ?: continue
             if (land.ruggedness[p] < 0.3f) continue
             val (x, y) = hex.centreKm(h)
             val key = (x / COLONY_SPACING_KM).toLong() * 100000 + (y / COLONY_SPACING_KM).toLong()
             val best = blocks[key]
-            val pb = best?.let { b -> (0 until 5).map { hw.placeOf[it][b] }.firstOrNull { it >= 0 } }
+            val pb = best?.let { b -> hw.firstPlaceIn(b).takeIf { it >= 0 } }
             if (best == null || pb == null || land.ruggedness[p] > land.ruggedness[pb]) blocks[key] = h
         }
         for (c in blocks.values.sorted()) {
@@ -412,7 +413,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val fed = if (need > 0f) got / need else 1f
             // Turtles lay on warm beaches only.
             val beach = !a.nestsAshore || (shoreKm[h] <= 0f && waterTemp[month][h] >= NEST_TEMP)
-            val born = if (beach && (month - a.birthMonth + 12) % 12 < a.birthMonths) m * a.youngPerFemale * 0.5f * fed / (a.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
+            val born = if (beach && monthsFrom(a.birthMonth, month) < a.birthMonths) m * a.youngPerFemale * 0.5f * fed / (a.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
             val crowd = m / (SEA_FULL * a.massKg / a.startKm2)
             val died = m * min(0.9f, a.backgroundMortality * years + 0.6f * years * (1f - fed) + SEA_DISEASE * years * crowd * crowd)
             sea[k][h] = max(0f, m + born - died)

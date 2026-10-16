@@ -1,5 +1,8 @@
 package inflation.ecology
 
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.mix64Once
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.sqrt
@@ -47,8 +50,7 @@ object Temperament {
     /** A standard normal number from [id], [axis] and [salt]. */
     private fun normal(id: Int, axis: Int, salt: Int): Float {
         fun u(k: Int): Double {
-            var h = id.toLong() * 0x9E3779B97F4A7C15uL.toLong() + (axis * 31 + salt * 1009 + k).toLong() * 0x632BE59BD9B4E019L
-            h = (h xor (h ushr 33)) * -0xae502812aa7333L; h = h xor (h ushr 33)
+            val h = mix64Once(id.toLong() * HASH_A + (axis * 31 + salt * 1009 + k).toLong() * HASH_B)
             return ((h ushr 11).toDouble() + 0.5) / (1L shl 53).toDouble()
         }
         return (sqrt(-2.0 * ln(u(0))) * cos(2.0 * Math.PI * u(1))).toFloat()

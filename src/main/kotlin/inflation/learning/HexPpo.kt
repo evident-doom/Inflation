@@ -156,13 +156,8 @@ internal fun softmax(x: FloatArray): FloatArray {
  * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--hold ROLE[,ROLE]:ROUNDS] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
  */
 object HexPpo {
-    /**
-     * The networks, by role: one for the herds, one for the hunters and one for people. (Prey and
-     * hunters learn apart, so that what makes a hunter better and what makes its prey better do
-     * not pull at the same weights; within a role, kinds share what they learn.)
-     */
-    val ROLES = listOf("herds", "hunters", "people")
-    fun role(s: Species) = if (s.human) 2 else if (s.carnivore) 1 else 0
+    /** The index of [s]'s role's network in a list of them ([Role]). */
+    fun role(s: Species) = Role.of(s).ordinal
 
     const val HORIZON = 26
     const val DISCOUNT = 0.95f
@@ -181,203 +176,25 @@ object HexPpo {
      */
     const val PARTS = 128
     const val ENTROPY = 0.01f
-    /** How many times as many choices a year are recorded of people as of each animal kind (one kind against fourteen). */
-    var PEOPLE_CHOICES = 8f
-    /** Choices recorded a year for each kind in each world. */
-    var PER_KIND_YEAR = 1500
 
     @JvmStatic
     fun main(args: Array<String>) {
-        var out = File("hex-ppo")
-        var worlds = 8
-        var size = 600
-        var years = 2
-        var rounds = 1000
-        var hidden = 48
-        var rate = 3e-4f
-        var checkEvery = 5
-        var checkSeeds = 12
-        var checkOnMaps = false
-        var teacherCheck = false
-        var worldRounds = 0
-        var overlap = true
-        var fixed = emptySet<String>(); var fixedRounds = 0
-        var burnYears = 1
-        var learnWays = true
-        var k = 0
-        while (k < args.size) {
-            when (args[k]) {
-                "--out" -> out = File(args[++k])
-                "--worlds" -> worlds = args[++k].toInt()
-                "--size" -> size = args[++k].toInt()
-                "--years" -> years = args[++k].toInt()
-                "--rounds" -> rounds = args[++k].toInt()
-                "--hidden" -> hidden = args[++k].toInt()
-                "--rate" -> rate = args[++k].toFloat()
-                // --residual people:3,herds:0 sets how much of the hand-written score each role's network starts from.
-                "--residual" -> RESIDUAL = args[++k].split(",").associate { r -> val (n, v) = r.split(":"); n to v.toFloat() }
-                "--check" -> checkEvery = args[++k].toInt()
-                "--check-seeds" -> checkSeeds = args[++k].toInt()
-                // Check on the training maps (--maps) instead of fresh worlds: how well they are fitted, not how well the networks do elsewhere.
-                "--check-on-maps" -> checkOnMaps = true
-                "--per-kind" -> PER_KIND_YEAR = args[++k].toInt()
-                // How many rounds a training world lives before a fresh one takes its place (0, the default: until it goes
-                // badly off the rails, so that the networks learn in worlds that have run long, where what bands and herds
-                // did compounds; 1: fresh every round, as before).
-                "--world-rounds" -> worldRounds = args[++k].toInt()
-                // Play each round only after the last one has learnt (slower; each round's choices made by the networks just learnt).
-                "--no-overlap" -> overlap = false
-                // Years a fresh training world runs, with the networks choosing, before any choice is recorded (its first state is not like a lived-in world's).
-                "--burn-in" -> burnYears = args[++k].toInt()
-                "--people-choices" -> PEOPLE_CHOICES = args[++k].toFloat()
-                "--teacher" -> { val dir = File(args[++k]); TEACHERS = Catalogue.all.mapNotNull { s -> HexLearning.file(dir, s).takeIf { it.exists() }?.let { s to Schema.load(it, Schema.TEACHER_IN, Schema.MOVER_OUT) } }.toMap() }
-                "--teacher-check" -> teacherCheck = true
-                // Bands' ways stay the scaffold's (or as evolved) instead of being learned beside their moves.
-                "--no-ways" -> learnWays = false
-                // --hold hunters:3 keeps the named roles' networks as they are for the first rounds of this run (they play, but do not learn).
-                "--hold" -> { val (rs, n) = args[++k].split(":").let { it[0] to (it.getOrNull(1)?.toInt() ?: Int.MAX_VALUE) }; fixed = rs.split(",").toSet(); fixedRounds = n }
-                "--maps" -> MAPS = args[++k].split(",").map { m -> val (s, l) = m.split(":"); s.toLong() to l.toDouble() }
-                else -> error("unknown argument ${args[k]}")
-            }
-            k++
-        }
-        out.mkdirs()
-        val kinds = Catalogue.learned
-        val kindsAll = Catalogue.learned
+        val o = PpoOptions.parse(args)
+        o.out.mkdirs()
         // Only how the teachers do against the hand-written behaviour, in today's world.
-        if (teacherCheck) {
-            val seeds = (91L until 91L + checkSeeds).toList()
-            val scores = seeds.parallelStream().map { seed -> teacherCheck(checkWorld(seed, size, checkOnMaps), years + 1, kindsAll) }.toList()
-            println("teachers vs hand-written over ${seeds.size} worlds: " + kindsAll.filter { it in TEACHERS }.joinToString(", ") { s -> s.name + " " + compare(scores.map { it.first[s] ?: 0.0 }, scores.map { it.second[s] ?: 0.0 }) })
+        if (o.teacherCheck) {
+            val kinds = Catalogue.learned
+            val seeds = (91L until 91L + o.checkSeeds).toList()
+            val scores = seeds.parallelStream().map { seed -> teacherCheck(checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, o.teachers) }.toList()
+            println("teachers vs hand-written over ${seeds.size} worlds: " + kinds.filter { it in o.teachers }.joinToString(", ") { s -> s.name + " " + compare(scores.map { it.first[s] ?: 0.0 }, scores.map { it.second[s] ?: 0.0 }) })
             return
         }
-        val files = ROLES.map { File(out, "$it.mlp") }
-        val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(hidden, Random(7L + i), if (ROLES[i] == "people") inflation.ecology.WAYS_IN else 0) }
-        for ((i, r) in ROLES.withIndex()) RESIDUAL[r]?.let { models[i].residual = it }
-        fun modelOf(s: Species) = models[role(s)]
-        val adams = models.map { Adam(it.net.w.size, rate) to Adam(it.identity.size, rate) }
-        // One critic for each role: what a group's return can be expected to be where it stands.
-        val critics = ROLES.mapIndexed { i, r -> Critic.loadOrNew(File(out, "$r.value.mlp"), hidden, models[i]) }
-        // Bands' ways, learned beside their moves (see [WaysPpo]).
-        val waysState = if (learnWays) WaysPpo.State(out, hidden, rate) else null
-        WAYS = waysState?.ways
-        // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
-        if (!files[0].exists()) {
-            imitate(kinds, models, worlds, size)
-            for (i in models.indices) models[i].save(files[i])
-        }
-        // The versions each kind plays with outside training: its last good one.
-        val deployedDir = File(out, "deployed").also { it.mkdirs() }
-        val best = HashMap<Species, Double>()
-        File(deployedDir, "scores.txt").takeIf { it.exists() }?.readLines()?.forEach { l -> val (n, v) = l.split("\t"); kinds.firstOrNull { it.name == n }?.let { best[it] = v.toDouble() } }
-        // The training worlds, living on from round to round (for [worldRounds] rounds, if set, then a fresh one takes its place).
-        val players = arrayOfNulls<Player>(worlds)
-        val steps = years * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
-        fun playRound(r: Int, ms: List<SharedMover>, ways: LearnedWays?): List<List<Choice>> {
-            val fresh = (0 until worlds).filter { w -> players[w]?.done != false }
-            for (w in fresh) players[w]?.derailed?.let { why -> println("world $w replaced after round ${r - 1}: $why"); File(out, "log.txt").appendText("world $w replaced after round ${r - 1}: $why\n") }
-            // (New worlds are made side by side, as each round's fresh worlds were before they lived on.)
-            fresh.parallelStream().map { w -> w to Player(world(50_000L + r * 100L + w, size, w), kinds, steps * worldRounds, burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep) }
-                .toList().forEach { (w, p) -> players[w] = p }
-            return (0 until worlds).toList().parallelStream().map { w -> players[w]!!.play(steps, ms, ways) }.toList()
-        }
-        var ahead: java.util.concurrent.CompletableFuture<List<List<Choice>>>? = null
-        val log = File(out, "log.txt")
-        val firstRound = if (log.exists()) log.readLines().count { it.startsWith("round ") } else 0
-        for (round in firstRound until firstRound + rounds) {
-            val t0 = System.nanoTime()
-            // ---- play
-            val choices = ahead?.join() ?: playRound(round, models, waysState?.ways)
-            val tPlay = System.nanoTime()
-            // The next round's play goes on beside this round's learning and check, with the networks as
-            // they are now (a round behind when it is learnt from: each choice keeps the probability it
-            // was made with, and the clipped update allows for it).
-            ahead = if (overlap && round + 1 < firstRound + rounds) {
-                val ms = models.map { m -> SharedMover(m.net.copy(), m.identity.copyOf()).also { it.residual = m.residual } }
-                val wy = waysState?.ways?.copy()
-                java.util.concurrent.CompletableFuture.supplyAsync { playRound(round + 1, ms, wy) }
-            } else null
-            val everything = choices.flatten()
-            val waysChoices = everything.filterIsInstance<WaysChoice>()
-            val all = everything.filter { it !is WaysChoice }
-            // ---- judge each choice against what its group could expect where it stood (the critic's
-            // estimate), not only against its kind's average: much of what befalls a group is its
-            // situation and its luck, not the move; then scaled within its kind.
-            val byKind = all.groupBy { it.kind }
-            val expected = HashMap<Choice, Float>()
-            for ((mi, model) in models.withIndex()) {
-                val mine = all.filter { role(it.kind) == mi }
-                if (mine.isEmpty()) continue
-                val critic = critics[mi]
-                for (c in mine) expected[c] = critic.value(model, c)
-                critic.learn(model, mine, round)
-            }
-            for ((_, cs) in byKind) {
-                val mean = cs.map { it.ret.toDouble() }.average().toFloat()
-                val gap = cs.associateWith { c -> c.ret - (expected[c] ?: mean) }
-                val sd = sqrt(gap.values.map { (it * it).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
-                for (c in cs) c.advantage = gap.getValue(c) / sd
-            }
-            // ---- learn: a few passes of clipped policy gradient, every kind weighing the same
-            val stats = StringBuilder()
-            for ((mi, model) in models.withIndex()) {
-                val mine = all.filter { role(it.kind) == mi }
-                if (mine.isEmpty()) continue
-                // (A role held fixed plays with its network as it is and does not learn, while the others catch up.)
-                if (ROLES[mi] in fixed && round - firstRound < fixedRounds) { stats.append(ROLES[mi]).append(" held; "); continue }
-                val kindsHere = mine.map { it.kind }.distinct()
-                val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
-                repeat(4) { epoch ->
-                    for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
-                        val parts = batch.chunked((batch.size + PARTS - 1) / PARTS).parallelStream().map { part -> gradient(model, part, weight) }.toList()
-                        val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
-                        for ((a, bb) in parts) { for (i in gw.indices) gw[i] += a[i]; for (i in gi.indices) gi[i] += bb[i] }
-                        // (Each batch is a share of the whole, so its weights are scaled up to stand for it.)
-                        val scale = mine.size.toFloat() / batch.size
-                        for (i in gw.indices) gw[i] *= scale; for (i in gi.indices) gi[i] *= scale
-                        adams[mi].first.step(model.net.w, gw); adams[mi].second.step(model.identity, gi)
-                    }
-                }
-                model.save(files[mi]); critics[mi].save(File(out, "${ROLES[mi]}.value.mlp"))
-                stats.append(ROLES[mi]).append(' ').append(mine.size).append(" choices; ")
-            }
-            waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round)).append("; "); it.save() }
-            val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
-            val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns)
-            println(line); log.appendText(line + "\n")
-            // ---- check against the hand-written behaviour, one role at a time (the others hand-written,
-            // so a role's gain is its own and not the others'), on worlds it has not trained on; and keep
-            // each kind's last good version
-            if (round % checkEvery == checkEvery - 1) {
-                // (The next round's play finishes first: its worlds and the check's would not all fit in memory at once.)
-                ahead?.join()
-                val seeds = (91L until 91L + checkSeeds).toList()
-                val scores = seeds.parallelStream().map { seed -> check(checkWorld(seed, size, checkOnMaps), years + 1, kinds, models) }.toList()
-                val parts = ArrayList<String>()
-                for (s in kinds) {
-                    val learnedEach = scores.map { it.first[s] ?: 0.0 }
-                    val handEach = scores.map { it.second[s] ?: 0.0 }
-                    val learned = learnedEach.average()
-                    val keep = learned >= (best[s] ?: Double.NEGATIVE_INFINITY)
-                    if (keep) { best[s] = learned; modelOf(s).save(File(deployedDir, s.name.replace(' ', '-') + ".mlp")) }
-                    parts += s.name + " " + compare(learnedEach, handEach) + if (keep) "" else " (kept older)"
-                }
-                File(deployedDir, "scores.txt").writeText(best.entries.joinToString("\n") { "${it.key.name}\t${it.value}" } + "\n")
-                val c = "check round %d (each role learned alone vs all hand-written, animal-weeks per animal, %d %s worlds: mean change +- its standard error, worlds better): %s".format(round + 1, seeds.size, if (checkOnMaps && MAPS.isNotEmpty()) "training" else "fresh", parts.joinToString(", "))
-                println(c); File(out, "check.txt").appendText(c + "\n")
-                // Bands' learned ways (their middles) against the scaffold's, everything else hand-written.
-                waysState?.let { st ->
-                    val w = seeds.parallelStream().map { seed -> WaysPpo.check(checkWorld(seed, size, checkOnMaps), years + 1, kinds, st.ways) }.toList()
-                    val cw = "check round %d ways (learned vs scaffold, people-weeks per person): %s".format(round + 1, compare(w.map { it.first }, w.map { it.second }))
-                    println(cw); File(out, "check.txt").appendText(cw + "\n")
-                }
-            }
-        }
+        PpoTrainer(o).run()
     }
 
     /** A world to check on: a fresh one for [seed] (never a training map unless [onMaps]). */
-    fun checkWorld(seed: Long, size: Int, onMaps: Boolean): WorldConfig =
-        if (onMaps && MAPS.isNotEmpty()) world(seed, size, (seed - 91L).toInt()) else WorldConfig(seed = seed, widthKm = size, heightKm = size)
+    fun checkWorld(seed: Long, size: Int, onMaps: Boolean, maps: Maps): WorldConfig =
+        if (onMaps && !maps.isEmpty()) maps.world(seed, size, (seed - 91L).toInt()) else WorldConfig(seed = seed, widthKm = size, heightKm = size)
 
     /**
      * How [learned] compares with [hand], world by world (paired: the same worlds): the mean relative
@@ -397,18 +214,19 @@ object HexPpo {
     /**
      * Fits the networks to the hand-written behaviour: worlds run on it, a share of its choices of
      * every kind is kept, and the networks learn to give the same candidates the same preference
-     * (the softmax of their scores matching that of the hand-written scores, sharpened).
+     * (the softmax of their scores matching that of the hand-written scores, sharpened). Where a kind
+     * has one of [teachers], it is copied instead of the hand-written behaviour.
      */
-    fun imitate(kinds: List<Species>, models: List<SharedMover>, worlds: Int, size: Int) {
+    fun imitate(kinds: List<Species>, models: List<SharedMover>, worlds: Int, size: Int, sampling: Sampling, teachers: Map<Species, Mlp>, maps: Maps) {
         val shown = (0 until worlds).toList().parallelStream().map { w ->
-            val run = HexLearning.Run(world(40_000L + w, size, w), kinds)
+            val run = HexLearning.Run(maps.world(40_000L + w, size, w), kinds)
             val kept = ConcurrentLinkedQueue<Shown>()
             val stepsPerYear = Date.DAYS_PER_YEAR / (WorldConfig().daysPerStep)
-            val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, PER_KIND_YEAR.toFloat() / (n * stepsPerYear)) }
-            val teachers = TEACHERS.mapValues { (_, net) -> ThreadLocal.withInitial { net.buffers() } to net }
+            val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, sampling.perKindYear.toFloat() / (n * stepsPerYear)) }
+            val teachersHere = teachers.mapValues { (_, net) -> ThreadLocal.withInitial { net.buffers() } to net }
             for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b0, rnd ->
                 // A teacher network, where there is one for the kind, in place of the hand-written scores.
-                val b = teachers[g.species]?.let { (bufs, net) -> val bb = bufs.get(); FloatArray(f.size) { k -> f[k].copyInto(bb.a[0], 0, 0, min(f[k].size, bb.a[0].size)); net.forward(bb) } } ?: b0
+                val b = teachersHere[g.species]?.let { (bufs, net) -> val bb = bufs.get(); FloatArray(f.size) { k -> f[k].copyInto(bb.a[0], 0, 0, min(f[k].size, bb.a[0].size)); net.forward(bb) } } ?: b0
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
                 if (rnd.nextFloat() < (rates[g.species] ?: 0f)) {
                     kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf(), run.weather.date.absoluteDay, g.id, g.band?.state?.copyOf(), g.temper.copyOf())
@@ -433,7 +251,7 @@ object HexPpo {
             repeat(15) { epoch ->
                 var loss = 0.0
                 for (batch in mine.shuffled(Random(epoch.toLong())).chunked(256)) {
-                    val parts = batch.chunked((batch.size + PARTS - 1) / PARTS).parallelStream().map { part ->
+                    val parts = inParts(batch) { part ->
                         val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size); val dIn = FloatArray(model.inputs)
                         val bufs = ArrayList<Mlp.Buffers>(); var l = 0.0
                         for (c in part) {
@@ -451,32 +269,17 @@ object HexPpo {
                             }
                         }
                         Triple(gw, gi, l)
-                    }.toList()
+                    }
                     val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
-                    for ((a, b, l) in parts) { for (i in gw.indices) gw[i] += a[i]; for (i in gi.indices) gi[i] += b[i]; loss += l }
+                    for ((a, b, l) in parts) { gw.add(a); gi.add(b); loss += l }
                     val scale = mine.size.toFloat() / batch.size
                     for (i in gw.indices) gw[i] *= scale; for (i in gi.indices) gi[i] *= scale
                     adam.step(model.net.w, gw); adamId.step(model.identity, gi)
                 }
-                println("imitating, %s, epoch %d: loss %.4f on %d choices".format(ROLES[mi], epoch, loss, mine.size))
+                println("imitating, %s, epoch %d: loss %.4f on %d choices".format(Role.entries[mi], epoch, loss, mine.size))
             }
         }
     }
-
-    /**
-     * Hand-picked maps (seed and centre latitude) to play and check on, in turn (e.g. those
-     * hex-pick-world finds push herds hardest to migrate); empty for fresh worlds every round.
-     */
-    var MAPS: List<Pair<Long, Double>> = emptyList()
-    fun world(seed: Long, size: Int, i: Int = 0): WorldConfig =
-        if (MAPS.isEmpty()) WorldConfig(seed = seed, widthKm = size, heightKm = size)
-        else MAPS[((i % MAPS.size) + MAPS.size) % MAPS.size].let { (s, lat) -> WorldConfig(seed = s, widthKm = size, heightKm = size, centreLatitude = lat) }
-
-    /** Networks to copy instead of the hand-written behaviour, by kind (e.g. the herds' evolved ones). */
-    var TEACHERS: Map<Species, Mlp> = emptyMap()
-    /** Bands' ways to draw from while playing (null: the scaffold's). */
-    var WAYS: LearnedWays? = null
-    var RESIDUAL: Map<String, Float> = emptyMap()
 
     /** How much sharper the copied preference is than the hand-written scores themselves. */
     const val IMITATE_SHARPNESS = 10f
@@ -484,7 +287,7 @@ object HexPpo {
     /** One world for [years] with the networks choosing by chance; the recorded choices with their returns. */
     fun play(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Pair<List<Choice>, String> {
         val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
-        return Player(cfg, kinds, steps).play(steps, models) to "seed ${cfg.seed}"
+        return Player(cfg, kinds, steps).play(steps, models, null) to "seed ${cfg.seed}"
     }
 
     /**
@@ -493,7 +296,7 @@ object HexPpo {
      * are judged in the next round instead of being dropped. Choices keep the probability they were
      * made with, so being a round old does not mislead the clipped update.
      */
-    class Player(val cfg: WorldConfig, private val kinds: List<Species>, private val lifeSteps: Int, private val burnSteps: Int = 0) {
+    class Player(val cfg: WorldConfig, private val kinds: List<Species>, private val lifeSteps: Int, private val burnSteps: Int = 0, private val sampling: Sampling = Sampling()) {
         private val run = HexLearning.Run(cfg, kinds).also {
             // (Kinds that dwindle get newcomers, so every kind stays in the data; checks run without them.)
             it.groups.newcomersOn = true; it.fauna.newcomersOn = true
@@ -558,16 +361,16 @@ object HexPpo {
             }
         }
 
-        // (People, the one kind of their role, get [PEOPLE_CHOICES] times as many as each animal kind.)
+        // (People, the one kind of their role, get [Sampling.peopleChoices] times as many as each animal kind.)
         private fun setRates() {
             // (Nothing is recorded while a fresh world settles.)
             if (week < burnSteps) { for (s in kinds) rates[s] = 0f; waysRate = 0f; return }
-            for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(1f, PER_KIND_YEAR * (if (s.human) PEOPLE_CHOICES else 1f) / (n * stepsPerYear)) }
+            for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(1f, sampling.perKindYear * (if (s.human) sampling.peopleChoices else 1f) / (n * stepsPerYear)) }
             waysRate = WaysPpo.rate(run.groups.groups.count { it.alive && it.band != null }, stepsPerYear)
         }
 
-        /** [steps] more weeks with [models] choosing (and the bands' ways drawn from [WAYS]); the choices whose outcome is now all seen, with their returns. */
-        fun play(steps: Int, models: List<SharedMover>, ways: LearnedWays? = WAYS): List<Choice> {
+        /** [steps] more weeks with [models] choosing (and the bands' ways drawn from [ways], else the scaffold's); the choices whose outcome is now all seen, with their returns. */
+        fun play(steps: Int, models: List<SharedMover>, ways: LearnedWays?): List<Choice> {
             if (week == 0) { setRates(); checkRails() }
             // A fresh world first settles for [burnSteps] weeks, its choices unrecorded (they come on top of this round's).
             val total = steps + if (week == 0) burnSteps else 0
@@ -625,38 +428,6 @@ object HexPpo {
         }
     }
 
-    /** The clipped surrogate's gradient over [part] (to be minimised), for the network's weights and the identities. */
-    private fun gradient(model: SharedMover, part: List<Choice>, weight: Map<Choice, Float>): Pair<FloatArray, FloatArray> {
-        val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
-        val dIn = FloatArray(model.inputs)
-        val bufs = ArrayList<Mlp.Buffers>()
-        for (c in part) {
-            val n = c.inputs.size
-            while (bufs.size < n) bufs += model.net.buffers()
-            val scores = FloatArray(n) { k -> model.fill(c.kind, c.inputs[k], c.band, bufs[k].a[0], c.temper); model.net.forward(bufs[k]) + model.residual * (c.baseline.getOrNull(k) ?: 0f) + model.pull(c.temper, c.inputs[k]) }
-            val p = softmax(scores)
-            val logp = ln(max(p[c.taken], 1e-8f))
-            val ratio = exp(logp - c.logp)
-            val a = c.advantage
-            // The clipped objective passes no gradient once the ratio has moved past the clip in the advantage's direction.
-            val clipped = (a > 0f && ratio > 1f + CLIP) || (a < 0f && ratio < 1f - CLIP)
-            val coef = if (clipped) 0f else a * ratio
-            var entropy = 0f; for (q in p) if (q > 0f) entropy -= q * ln(q)
-            val w = weight.getValue(c)
-            for (k in 0 until n) {
-                // d(objective)/d(score k): the policy term, and the entropy bonus that keeps it exploring.
-                val dPolicy = coef * ((if (k == c.taken) 1f else 0f) - p[k])
-                val dEntropy = -p[k] * (ln(max(p[k], 1e-8f)) + entropy)
-                val dOut = -w * (dPolicy + ENTROPY * dEntropy)
-                if (dOut == 0f) continue
-                model.net.backward(bufs[k], dOut, gw, dIn)
-                val s = c.kind
-                for (e in 0 until SharedMover.IDENTITY) gi[s.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.SIZE + SharedMover.KIND + e]
-            }
-        }
-        return gw to gi
-    }
-
     /**
      * How the kinds do in [cfg] over [years] (animal-weeks per animal at the start) with each role's
      * network choosing alone, the other roles hand-written, against all hand-written: for each kind,
@@ -674,10 +445,10 @@ object HexPpo {
         return kinds.associateWith { s -> runs.getValue(role(s))[s] ?: 0.0 } to hand
     }
 
-    /** The teachers (every kind that has one) against the hand-written behaviour in [cfg]. */
-    fun teacherCheck(cfg: WorldConfig, years: Int, kinds: List<Species>): Pair<Map<Species, Double>, Map<Species, Double>> {
+    /** The [teachers] (every kind that has one) against the hand-written behaviour in [cfg]. */
+    fun teacherCheck(cfg: WorldConfig, years: Int, kinds: List<Species>, teachers: Map<Species, Mlp>): Pair<Map<Species, Double>, Map<Species, Double>> {
         val both = listOf(true, false).parallelStream().map { t ->
-            score(cfg, years, kinds) { run -> if (t) for ((s, net) in TEACHERS) if (s in kinds) run.groups.policies[s] = HexLearning.NetPolicy(net) }
+            score(cfg, years, kinds) { run -> if (t) for ((s, net) in teachers) if (s in kinds) run.groups.policies[s] = HexLearning.NetPolicy(net) }
         }.toList()
         return both[0] to both[1]
     }
@@ -736,7 +507,7 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
     fun learn(model: SharedMover, cs: List<Choice>, round: Int) {
         repeat(3) { epoch ->
             for (batch in cs.shuffled(kotlin.random.Random(round * 17L + epoch)).chunked(1024)) {
-                val parts = batch.chunked((batch.size + HexPpo.PARTS - 1) / HexPpo.PARTS).parallelStream().map { part ->
+                val parts = inParts(batch) { part ->
                     val g = FloatArray(net.w.size); val b = net.buffers()
                     for (c in part) {
                         model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0], c.temper)
@@ -744,8 +515,8 @@ class Critic(val net: Mlp, rate: Float = 1e-3f) {
                         net.backward(b, 2f * (v - c.ret) / batch.size, g, null)
                     }
                     g
-                }.toList()
-                val g = FloatArray(net.w.size); for (p in parts) for (i in g.indices) g[i] += p[i]
+                }
+                val g = FloatArray(net.w.size); for (p in parts) g.add(p)
                 adam.step(net.w, g)
             }
         }

@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.monthsFrom
 import inflation.Args
 import inflation.Config
 
@@ -54,7 +55,7 @@ fun main(args: Array<String>) {
                 val k = if (g.route[0] >= 0) 0 else 1
                 huntSum[i][k] += g.size * run.groups.monthHunterKg[g.place].toDouble() / run.groups.land.areaKm2[g.place]; kinSum[i][k] += g.size * inHex.getValue(run.hw.placeHex[g.place]).toDouble()
                 heads[i][k] += g.size.toDouble(); fedSum[i][k] += g.fed * g.size.toDouble(); protSum[i][k] += g.protein * g.size.toDouble()
-                if ((run.weather.date.month - g.birthMonth + 12) % 12 < s.birthMonths) { sHeads[i][k] += g.size.toDouble(); sFed[i][k] += g.fed * g.size.toDouble(); sProt[i][k] += g.protein * g.size.toDouble(); sMothers[i][k] += g.adults / 2.0 }
+                if (monthsFrom(g.birthMonth, run.weather.date.month) < s.birthMonths) { sHeads[i][k] += g.size.toDouble(); sFed[i][k] += g.fed * g.size.toDouble(); sProt[i][k] += g.protein * g.size.toDouble(); sMothers[i][k] += g.adults / 2.0 }
             }
             for ((key, n) in run.groups.hunting.subMap("rounds|${s.name}|", "rounds|${s.name}}")) {
                 val c = key.substringAfter("rounds|${s.name}|")

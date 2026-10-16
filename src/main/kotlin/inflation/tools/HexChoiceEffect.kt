@@ -155,8 +155,4 @@ fun main(args: Array<String>) {
 
 private val HS = intArrayOf(1, 2, 4, 8, 13, 26, 52)
 
-private fun gaussian(r: Random): Float {
-    var u: Double
-    do u = r.nextDouble() while (u <= 1e-12)
-    return (sqrt(-2.0 * ln(u)) * kotlin.math.cos(2.0 * Math.PI * r.nextDouble())).toFloat()
-}
+private fun gaussian(r: Random): Float = inflation.learning.gaussian(r)

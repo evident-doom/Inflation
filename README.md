@@ -88,6 +88,7 @@ Requires Gradle 9 (the wrapper is included); a JDK 21 toolchain is downloaded if
 ./gradlew run --args="--seed 7 --out output/seed7"
 ./gradlew hexViewer -PviewerArgs="--seed 1"
 ./gradlew hexFauna -PfaunaArgs="--seed 1 --years 10"
+./gradlew runTool -Pmain=inflation.tools.WindReportKt -PtoolArgs="--seed 1"   # any tool, by its main class
 ```
 
 `run` writes PNG maps (relief, biomes, geology, minerals, sediment, rivers, precipitation,

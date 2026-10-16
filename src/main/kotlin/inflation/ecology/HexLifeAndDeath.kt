@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.monthsFrom
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexWorld
@@ -141,7 +142,7 @@ internal fun HexGroups.graze(weather: Weather) {
             val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + lichen * HexFood.LICHEN_VALUE + min(short, straw * HexFood.roughage(s))
             gotKg += got * land.areaKm2[p] * 1e6f
             // (And the protein in it: fresh growth full, cured grass, straw and lichen little; see [HexFauna.proteinMet].)
-            val m2p = land.areaKm2[p] * 1e6f
+            val m2p = land.m2(p)
             eatenKg += (grass + grass2 + browse + browse2 + fruit + fruit2 + roots + roots2 + straw + lichen) * m2p
             proteinKg += ((grass + grass2) * fauna.grassProtein(p) + (browse + browse2) * fauna.browseProtein(p) + (fruit + fruit2 + roots + roots2) * HexFauna.PROTEIN_FRUIT +
                 straw * HexFauna.PROTEIN_STRAW + lichen * HexFauna.PROTEIN_LICHEN) * m2p
@@ -156,7 +157,7 @@ internal fun HexGroups.graze(weather: Weather) {
                 small.dung[p] += HexSmallLife.DUNG * (grass3 + browse3)
             }
             land.grazing[p] += (grass + grass2 + grass3) * 1e6f / days; land.browsing[p] += (browse + browse2 + browse3) * 1e6f / days; land.rooting[p] += (roots + roots2) * 1e6f / days
-        val m2 = land.areaKm2[p] * 1e6f
+        val m2 = land.m2(p)
         hunting.merge("${s.name}:ate grass, kg", ((grass + grass2 + grass3) * m2).toInt(), Int::plus); hunting.merge("${s.name}:ate browse, kg", ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
         hunting.merge("${s.name}:ate fruit and roots, kg", ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus); hunting.merge("${s.name}:ate straw and lichen, kg", ((straw + lichen) * m2).toInt(), Int::plus)
         }
@@ -181,8 +182,7 @@ internal fun HexGroups.grazingRange(g: HexGroup): List<Pair<Int, Float>> {
     var ring = listOf(h0); val seen = hashSetOf(h0)
     var r = 0
     while (have < needKg && r < RANGE_RINGS) {
-        val next = ArrayList<Int>()
-        for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }
+        val next = hex.nextRing(ring, seen)
         for (h in next) { val q = hw.placeOf[band][h]; if (q >= 0) { places += q; have += forage(q) } }
         ring = next; r++
     }
@@ -197,14 +197,14 @@ const val RANGE_RINGS = 3
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
-    houseOf = groups.filter { g -> g.alive && g.band.let { it != null && it.houseHex >= 0 && it.house >= 0.2f } }.associate { it.id to it.band!!.houseHex }
+    houseOf = groups.filter { g -> g.alive && g.band.let { it != null && it.houseHex >= 0 && it.house >= Thresholds.HOUSE_STANDING } }.associate { it.id to it.band!!.houseHex }
     Profile.part("people: camps, tools, culture") { for (g in groups) if (g.alive && g.band != null) { bandWeek(g, date); cultureWeek(g); riteWeek(g) } }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
         if (!g.alive || !g.species.carnivore) continue
         val h = hw.placeHex[g.place]
         if (g.recent[0] != h) { for (i in g.recent.size - 1 downTo 1) g.recent[i] = g.recent[i - 1]; g.recent[0] = h }
-        g.lean = if (g.fed < 0.5f) g.lean + 1 else 0
+        g.lean = if (g.fed < Thresholds.HUNGRY) g.lean + 1 else 0
         // A pack long hungry keeps its ground but ranges wider over it (see [HexGroups.plan]).
     }
     val kinNow = HashMap<Long, Int>()
@@ -337,7 +337,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             else if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = (m + 11) % 12
             else if (window(m + 1) > window(m) + 0.1) g.birthMonth = (m + 1) % 12
         }
-        val inSeason = (date.month - g.birthMonth + 12) % 12 < s.birthMonths
+        val inSeason = monthsFrom(g.birthMonth, date.month) < s.birthMonths
         var bornNow = 0
         var bornExpected = 0f
         // In a band, the elders are past bearing children; they help their daughters raise theirs.
@@ -569,7 +569,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
                 if (k > bestKin) { bestKin = k; best = o }
             }
             if (best != null || r == VISIT_RINGS) break
-            val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next
+            ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
         joinBand(o, g)

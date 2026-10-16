@@ -18,12 +18,12 @@ fun main(args: Array<String>) {
     val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
     val years = a.int("--years", 3)
     a.done()
-    val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { })
+    val sim = HexSim(inflation.world.WorldCache.load(cfg) { })
     val hw = sim.hw; val land = sim.land; val herds = sim.groups
     // Every kind moving by learned role networks (nets=DIR), else by the hand-written choices.
     inflation.Config.string("nets")?.let { dir ->
-        val ps = inflation.learning.HexPpo.ROLES.map { r -> inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(java.io.File(baselineDir(dir), "$r.mlp")), null, { 0f }, { 0 }) }
-        for (s in herds.kinds) herds.policies[s] = ps[inflation.learning.HexPpo.role(s)]
+        val ps = inflation.learning.Role.entries.map { r -> inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(r.file(baselineDir(dir))), null, { 0f }, { 0 }) }
+        for (s in herds.kinds) herds.policies[s] = ps[inflation.learning.Role.of(s).ordinal]
         println("moving by the learned networks in $dir")
     }
     inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }

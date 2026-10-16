@@ -206,7 +206,7 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         for (r in 0..TOLD_RINGS) {
             for (h in ring) { if (ba.knows(h)) bb.learn(h, hex.size); if (bb.knows(h)) ba.learn(h, hex.size) }
             if (r == TOLD_RINGS) break
-            val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next
+            ring = hex.nextRing(ring, seen)
         }
         meetings.merge("bands told of country", 1, Int::plus)
         // And of the ways they know further off: landmarks, and the legs between those they know.
@@ -217,8 +217,8 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         val hMeet = hw.placeHex[a.place]; val wk = (weatherNow.date.absoluteDay / days).toInt(); val sMeet = PlaceMemory.seasonOf(weatherNow.date.month)
         a.memory.mark(hMeet, sMeet, wk, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, b.memory.met, 1f)
         // And where each has its houses, and the homes of others they know of: settled bands can be found.
-        if (bb.houseHex >= 0 && bb.house >= 0.2f) { ba.knownHomes[b.id] = bb.houseHex; ba.knownLineage[b.id] = bb.mainLineage() }
-        if (ba.houseHex >= 0 && ba.house >= 0.2f) { bb.knownHomes[a.id] = ba.houseHex; bb.knownLineage[a.id] = ba.mainLineage() }
+        if (bb.houseHex >= 0 && bb.house >= Thresholds.HOUSE_STANDING) { ba.knownHomes[b.id] = bb.houseHex; ba.knownLineage[b.id] = bb.mainLineage() }
+        if (ba.houseHex >= 0 && ba.house >= Thresholds.HOUSE_STANDING) { bb.knownHomes[a.id] = ba.houseHex; bb.knownLineage[a.id] = ba.mainLineage() }
         for ((id, hh) in bb.knownHomes) if (id != a.id && rnd.nextFloat() < u) { ba.knownHomes.putIfAbsent(id, hh); bb.knownLineage[id]?.let { ba.knownLineage.putIfAbsent(id, it) } }
         for ((id, hh) in ba.knownHomes) if (id != b.id && rnd.nextFloat() < u) { bb.knownHomes.putIfAbsent(id, hh); ba.knownLineage[id]?.let { bb.knownLineage.putIfAbsent(id, it) } }
         fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {
@@ -357,9 +357,7 @@ internal fun HexGroups.visitKin() {
         for (r in 0..VISIT_RINGS) {
             for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) { val sc = o.larder / (1f + r); if (sc > bestScore) { bestScore = sc; best = o } }
             if (r == VISIT_RINGS) break
-            val next = ArrayList<Int>()
-            for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }
-            ring = next
+            ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
         // (How much the band visited gives is its choice.)
@@ -439,7 +437,6 @@ const val RITE_SHIFT = 0.1f
 fun riteStrengthAt(lineage: Int) = RITE_FOUNDER_MAX * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
 
 /** One of the places at hex [h], for a rite's site (the lowest-lying there is). */
-private fun HexGroups.placeIn(h: Int): Int { for (b in 0 until inflation.world.HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) return p }; return -1 }
 
 /**
  * A band's rites through the year (rounds on, see [ROUNDS]): about once a year a band whose rites
@@ -462,15 +459,15 @@ internal fun HexGroups.riteWeek(g: HexGroup) {
     for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
         if (mem.hex[i] < 0) continue
         val month = mem.season[i] * 3 + 1
-        if (mem.dead[i] >= APPOINT_MIN) consider(placeIn(mem.hex[i]), month, mem.dead[i])
-        if (mem.met[i] >= APPOINT_MIN) consider(placeIn(mem.hex[i]), month, 0.5f * mem.met[i])
+        if (mem.dead[i] >= APPOINT_MIN) consider(hw.firstPlaceIn(mem.hex[i]), month, mem.dead[i])
+        if (mem.met[i] >= APPOINT_MIN) consider(hw.firstPlaceIn(mem.hex[i]), month, 0.5f * mem.met[i])
     }
     val here = hw.placeHex[g.place]; val month = weatherNow.date.month
     for (h in routes.landmarks) {
         val k = routes.kind(h)
         if ((k != HexRoutes.Kind.PASS && k != HexRoutes.Kind.WATER && k != HexRoutes.Kind.END) || !b.knows(h)) continue
         val km = hex.distanceKm(here, h)
-        if (km > REMEMBERED_KM) consider(placeIn(h), month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
+        if (km > REMEMBERED_KM) consider(hw.firstPlaceIn(h), month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
     }
     // (Where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
     for (m in TRADED) {
@@ -478,7 +475,7 @@ internal fun HexGroups.riteWeek(g: HexGroup) {
         if (want <= 0f) continue
         for (h in materialSources.getValue(m)) if (b.knows(h)) {
             val km = hex.distanceKm(here, h)
-            if (km > ROUND_ARRIVED_KM) consider(placeIn(h), month, APPOINT_MIN * SOURCE_RITE * want)
+            if (km > ROUND_ARRIVED_KM) consider(hw.firstPlaceIn(h), month, APPOINT_MIN * SOURCE_RITE * want)
         }
     }
     if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; meetings.merge("bands took up a rite", 1, Int::plus) }
