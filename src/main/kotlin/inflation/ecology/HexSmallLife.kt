@@ -64,6 +64,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val soilFauna = FloatArray(n)
     /** Small animals, kg/km². */
     val insects = FloatArray(n) { p -> 300f * min(1f, land.herb[p] / 0.4f) }
+    /** Plant-eating insects waiting out the cold or the drought as eggs, larvae and pupae, kg/km² (as the active insects they will become). */
+    val dormantInsects = FloatArray(n)
     val biting = FloatArray(n)
     val rodents = FloatArray(n) { p -> 150f * min(1f, land.herb[p] / 0.4f) }
     val herps = FloatArray(n) { p -> 20f * min(1f, land.herb[p] / 0.4f) }
@@ -107,6 +109,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** The year's mean temperature and rain at each place. */
     private val meanTemp = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(p, it) }.average().toFloat() }
     private val annualRain = FloatArray(n) { p -> (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat() }
+    /** The warmth, °C, at which the plant-eating insects of each place start to grow: about 10 °C, lower where summers are cool and the insects are adapted to them. */
+    private val insectFrom = FloatArray(n) { p -> ((0 until 12).maxOf { hw.placeTemp(p, it) } - 12f).coerceIn(INSECT_FROM_MIN_C, INSECT_FROM_C) }
 
     init {
         for (p in 0 until n) {
@@ -206,22 +210,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val food = land.herb[p] + 0.3f * land.shrub[p]
             val snow = weather.snowpack[p]
             pt = Profile.lap("small life: soil and decay", pt)
-            // ---- plant-eating insects
-            var ins = insects[p]
-            val dry = soilWater < 10f
-            val insDead: Float
-            if (t > 32f && dry) { insDead = ins * min(0.5f, 2f * years); ins -= insDead }
-            else if (t > 10f) {
-                val ceiling = 2000f * food / (food + 0.15f)
-                val g = 15f * years * ((t - 10f) / 15f).coerceIn(0f, 1f)
-                insDead = ins * 2f * years
-                ins += ins * g * (1 - ins / ceiling.coerceAtLeast(10f)) - insDead
+            // ---- plant-eating insects (see [insectSeason]): on the green leaves of herbs and shrubs.
+            val active = ((t - insectFrom[p]) / INSECT_SPAN_C).coerceIn(0f, 1f)
+            val greenFood = land.herb[p] * land.green[p] + 0.3f * land.shrub[p] * active
+            smallDead[p] += insectSeason(p, insects, dormantInsects, active, 2000f * greenFood / (greenFood + 0.15f))
+            if (active > 0f) {
                 // They eat about a quarter of their weight a day, and half of it comes back as frass.
-                val eaten = land.consume(p, LifeForm.HERB, ins * 0.2f * days / 1e6f) + land.consume(p, LifeForm.SHRUB, ins * 0.05f * days / 1e6f)
+                val eaten = land.consume(p, LifeForm.HERB, insects[p] * 0.2f * days / 1e6f) + land.consume(p, LifeForm.SHRUB, insects[p] * 0.05f * days / 1e6f)
                 litter[p] += FRASS * eaten
-            } else { insDead = ins * min(0.9f, 6f * years); ins -= insDead }
-            smallDead[p] += insDead
-            insects[p] = capped(p, ins, 3000f)
+            }
+            insects[p] = capped(p, insects[p], 3000f)
             pt = Profile.lap("small life: insects", pt)
             // ---- biting insects: standing water and warmth.
             val standing = land.flood[p] > 0f || wetland[p] > 0.1f || soilWater / LiveWater.SOIL_CAPACITY > 0.9f
@@ -440,6 +438,32 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
     }
 
+    /**
+     * A week of an insect's year at place [p], for any kind of insect kept as an [active] field and a
+     * [dormant] one (kg/km², the dormant counted as the active insects they will become): they are out
+     * while it is warm enough for them ([warm], 0..1, how far toward their best warmth) and grow fast
+     * (larvae and nymphs gain some 10-20% of their weight a day) up to what their food carries
+     * ([ceiling], kg/km²); when the food fades below that, or it is too cold, the adults lay their eggs
+     * and die, and the next generation waits as eggs, larvae and pupae, with modest losses, and comes
+     * out again over a few weeks as it warms. Returns what died, kg/km².
+     */
+    private fun insectSeason(p: Int, active: FloatArray, dormant: FloatArray, warm: Float, ceiling: Float): Float {
+        var ins = active[p]; var dor = dormant[p]
+        var dead = dor * min(1f, DORMANT_DEATHS * years)
+        dor -= dead
+        if (warm > 0f) {
+            val out = dor * 0.5f * warm; dor -= out; ins += out
+            val k = max(10f, ceiling)
+            if (ins > 0f && ins < k) ins = k / (1f + (k / ins - 1f) * exp(-INSECT_GROWTH * warm * days))
+            val died = ins * 2f * years; dead += died; ins -= died
+            if (ins > k) { val spent = 0.5f * (ins - k); ins -= spent; dor += EGG_SHARE * spent; dead += (1f - EGG_SHARE) * spent }
+        } else {
+            val spent = 0.5f * ins; ins -= spent; dor += EGG_SHARE * spent; dead += (1f - EGG_SHARE) * spent
+        }
+        active[p] = ins; dormant[p] = dor
+        return dead
+    }
+
     /** Whether reptiles and amphibians are out: warm, and not baking in a drought. */
     fun herpsActive(t: Float, soilWater: Float) = t in 12f..34f && !(t > 28f && soilWater < 10f)
 
@@ -607,6 +631,19 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val EAGLE_RATE = 0.15f
         /** Share of what small plant-eaters eat that comes back as frass and droppings; share of migrant birds that come back. */
         const val FRASS = 0.5f
+        /**
+         * Plant-eating insects: the warmth at which they start to grow (the usual lower threshold for
+         * development, about 10 °C, down to about 5 °C in cool-summer insects), and the warmth above it
+         * at which they grow fastest, °C; their fastest growth, a day (larvae and nymphs gain some 10-20%
+         * of their weight a day); the yearly share of the dormant ones dying (some half to two thirds
+         * live through a winter); and the share of the spent adults' weight left as the next generation.
+         */
+        const val INSECT_FROM_C = 10f
+        const val INSECT_FROM_MIN_C = 5f
+        const val INSECT_SPAN_C = 15f
+        const val INSECT_GROWTH = 0.15f
+        const val DORMANT_DEATHS = 1f
+        const val EGG_SHARE = 0.5f
         /** Share of a rotting carcass left as bones. */
         const val BONE_SHARE = 0.2f
         const val MIGRANT_SURVIVAL = 0.7f

@@ -64,13 +64,13 @@ class HexHistory {
         put("biomass/herbs", perM2(land.herb)); put("biomass/shrubs", perM2(land.shrub)); put("biomass/trees", perM2(land.tree))
         put("biomass/litter", perM2(sl.litter)); put("biomass/soil organic matter", perM2(sl.organicMatter)); put("biomass/carrion", perM2(sl.carrion)); put("biomass/bones", perM2(sl.bones))
         put("biomass/fruit", perM2(fauna.food.fruit)); put("biomass/roots and mast", perM2(fauna.food.roots)); put("biomass/straw", perM2(fauna.food.straw))
-        put("biomass/small animals", listOf(sl.insects, sl.rodents, sl.herps, sl.pollinators, sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it).toDouble() }.toFloat())
+        put("biomass/small animals", listOf(sl.insects, sl.dormantInsects, sl.rodents, sl.herps, sl.pollinators, sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it).toDouble() }.toFloat())
         put("biomass/resident herds", fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg }.toFloat() / 1e6f)
         put("biomass/herds and packs", groups.groups.filter { it.alive }.sumOf { (it.adults + 0.3 * it.young) * it.species.massKg }.toFloat() / 1e6f)
         val wl = fauna.water
         put("biomass/sea and lake fish", wl.fishTonnes() / 1000f)
         // Small life, tonnes.
-        for ((name, f) in listOf("insects" to sl.insects, "biting insects" to sl.biting, "rodents" to sl.rodents, "reptiles and amphibians" to sl.herps,
+        for ((name, f) in listOf("insects" to sl.insects, "insects waiting as eggs and larvae" to sl.dormantInsects, "biting insects" to sl.biting, "rodents" to sl.rodents, "reptiles and amphibians" to sl.herps,
             "pollinators" to sl.pollinators, "hares" to sl.hares, "hyrax" to sl.hyrax, "tortoises" to sl.tortoises, "foxes and wildcats" to sl.foxes, "wild birds" to sl.birds))
             put("small life/$name", perKm2(f) * 1000f)
         put("small life/eagle pairs", sl.eagles.indices.sumOf { (sl.eagles[it] * area[it]).toDouble() }.toFloat() / HexSmallLife.EAGLE_KM2.toFloat())
