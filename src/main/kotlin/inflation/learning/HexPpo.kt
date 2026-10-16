@@ -319,7 +319,7 @@ object HexPpo {
                 val mine = all.filter { role(it.kind) == mi }
                 if (mine.isEmpty()) continue
                 // (A role held fixed plays with its network as it is and does not learn, while the others catch up.)
-                if (ROLES[mi] in fixed && round < firstRound + fixedRounds) { stats.append(ROLES[mi]).append(" held; "); continue }
+                if (ROLES[mi] in fixed && round - firstRound < fixedRounds) { stats.append(ROLES[mi]).append(" held; "); continue }
                 val kindsHere = mine.map { it.kind }.distinct()
                 val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
                 repeat(4) { epoch ->
