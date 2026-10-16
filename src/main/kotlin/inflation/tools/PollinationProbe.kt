@@ -35,6 +35,9 @@ fun main(args: Array<String>) {
             }
             fun tonnes(f: FloatArray) = (0 until land.n).sumOf { (f[it] * land.areaKm2[it]).toDouble() } / 1000
             val kinds = inflation.ecology.HexSmallLife.BIRDS.indices.joinToString(" ") { "%s %.0f".format(inflation.ecology.HexSmallLife.BIRDS[it].name.replace(' ', '_'), tonnes(sl.bird[it])) }
+            val hz = DoubleArray(3); val hzA = DoubleArray(3)
+            for (p in 0 until land.n) { val t = third(p); val a = land.areaKm2[p].toDouble(); hz[t] += sl.harassment(p, sim.weather) * a; hzA[t] += a }
+            println("      harassment by biting insects N/M/S %.3f %.3f %.3f".format(hz[0] / hzA[0], hz[1] / hzA[1], hz[2] / hzA[2]))
             println("      t: insects %.0f, pollinators %.0f, biting %.0f, herps %.0f, foxes %.0f | birds %s".format(tonnes(sl.insects), tonnes(sl.pollinators), tonnes(sl.biting), tonnes(sl.herps), tonnes(sl.foxes), kinds))
             println("y%d m%2d  fruitSet N/M/S %.3f %.3f %.3f | bearing with pollination<0.9 %.0f%% %.0f%% %.0f%% | pollinators kg/km2 %.1f %.1f %.1f  (%.0f s)".format(
                 s * cfg.daysPerStep / 360, m, ws[0] / w[0], ws[1] / w[1], ws[2] / w[2], 100 * low[0] / w[0], 100 * low[1] / w[1], 100 * low[2] / w[2], po[0] / area[0], po[1] / area[1], po[2] / area[2], (System.nanoTime() - t0) / 1e9))
