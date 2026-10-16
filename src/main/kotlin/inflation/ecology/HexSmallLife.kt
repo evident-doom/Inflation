@@ -252,6 +252,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             // or the cold comes, the eggs wait in the mud.
             val standing = land.flood[p] > 0f || wetland[p] > 0.1f || soilWater / LiveWater.SOIL_CAPACITY > 0.9f
             smallDead[p] += insectSeason(p, biting, dormantBiting, active, if (standing) 500f else 0f, least = 0f)
+            harass[p] = harassmentNow(p, weather)
             pt = Profile.lap("small life: biting insects", pt)
             // ---- rodents (a female raises some twenty young a year): they eat ~10% of their mass a day, and
             // a mouse or vole lasts only a few days without food, so the share that found none in the week
@@ -547,6 +548,21 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** What reptiles, amphibians and insect-eating birds eat: the insects that are out. */
     private val insectFood by lazy { arrayOf(insects, pollinators, locusts, biting) }
 
+    /**
+     * How hard the biting insects at [p] harass the animals and people there this week, 0..1: by how
+     * many are out, and less in a wind (mosquitoes and midges barely fly in a breeze of a few m/s; a
+     * herd on a windy ridge is left in peace).
+     */
+    fun harassment(p: Int): Float = harass[p]
+    /** [harassment] this week, worked out once a step for all who ask. */
+    private val harass = FloatArray(n)
+    private fun harassmentNow(p: Int, weather: Weather): Float {
+        val b = biting[p]
+        if (b <= 0f) return 0f
+        val wind = kotlin.math.hypot(weather.windEast(p), weather.windSouth(p))
+        return b / (b + HARASS_HALF) * exp(-wind / WIND_CALM)
+    }
+
     /** How far the insects that are out at [p] are booming, 0..1: what draws the insect-eating migrants. */
     private fun boom(p: Int): Float { val x = insects[p] + pollinators[p] + locusts[p] + biting[p]; return x / (x + BOOM_HALF) }
     private val eaglePrey by lazy { arrayOf(hyrax, hares, bird[CHUKAR], bird[ROCK_DOVE]) }
@@ -728,6 +744,17 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val BIRD_INTAKE = 0.1f
         const val SETTLE = 0.5
         const val BOOM_HALF = 200f
+        /**
+         * Harassment by biting insects: the biting insects out, kg/km², at which it is half its worst;
+         * the wind, m/s, that cuts it to about a third; the share of their feeding time harassed
+         * animals lose at its worst (reindeer under mosquitoes and warble flies stand, run and bunch
+         * instead of grazing for much of the day); and how much longer people take at what they do
+         * outdoors at its worst.
+         */
+        const val HARASS_HALF = 100f
+        const val WIND_CALM = 3f
+        const val HARASS_FEED = 0.4f
+        const val HARASS_TIME = 0.5f
         /** Plant food small plant-eaters (hares, hyrax, game birds, tortoises) eat, kg a day per kg of them. */
         const val SMALL_INTAKE = 0.08f
         /** Foxes and wildcats eat about a fourteenth of their weight a day; prey on the ground (kg/km²) at which they get half of it. */
