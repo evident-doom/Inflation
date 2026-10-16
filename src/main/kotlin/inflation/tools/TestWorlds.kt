@@ -10,22 +10,29 @@ import java.util.Properties
 import kotlin.math.ln
 
 /**
- * Settled worlds kept ready for short tests: a few seeds of the full map and of smaller ones, each run
+ * Settled worlds kept ready for short tests: three seeds of the full map (and one small map for checking that code runs), each run
  * for some years and saved, so a test of a change starts from a world past its first years' swings
  * (the herds' slow climb from their start numbers, the plants finding their level) and needs only the
  * years the change itself takes to show. They live in ~/.inflation/test-worlds/NAME: state.bin (the
  * saved world), about.properties (how and when it was made) and settle.csv (the history of its settling).
  *
- * A smaller world is cheaper but not the same world: the 400 x 800 km map covers 32-40°N only, without
- * the cold north and the hot south, and small game crashed there when it did not on the full map. So
- * every smaller world is to be trusted only as far as [compare] shows it tracks the full map: its
- * numbers, their trends and the effect of a change, set against the spread between the full map's seeds.
+ * Smaller worlds were tried and are not kept for questions about the animals: on 298e7e7, 400 x 800 km
+ * maps (32-40°N only) had 5-7 of about 28 kinds within the full map's seeds' range, with 4-5 kinds
+ * missing, and 500 x 2000 km strips matched 10-16 of 31 trends while saving only a quarter of a step's
+ * time. small-1 stays for checking that code runs. [compare] remains for setting any other world
+ * beside the full map.
+ *
+ * A settled world still drifts (after 30 years wild boar and mouflon fell about 5% a year), so a change
+ * is judged only against a base run from the same start: [ab] runs both on each full map, with the
+ * weather drawn several ways, and reports each kind's effect, paired by weather.
  *
  * Usage:
  *   testWorld list
- *   testWorld build NAME... [--years N]       (settles each and saves it; the config file's keys apply, as in hexFauna)
+ *   testWorld build NAME... [--years N] [--commit HASH]   (settles each and saves it; the config file's keys apply, as in hexFauna)
+ *   testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR]
+ *        (FILE: config keys; the variant's are laid over the base's, the base being the run's own config file unless given)
  *   testWorld compare --full A.csv,B.csv[,..] [--full-variant A2.csv,B2.csv,..] NAME=BASE.csv[,VARIANT.csv] ...
- * A test then runs as hexFauna --world NAME --years N [--replicate R] [--history FILE].
+ * A single run on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE].
  */
 object TestWorlds {
     class Entry(val name: String, val seed: Long, val widthKm: Int, val heightKm: Int, val note: String) {
@@ -46,11 +53,11 @@ object TestWorlds {
         Entry("full-1", 1, 1000, 2000, "the full map"),
         Entry("full-2", 2, 1000, 2000, "the full map"),
         Entry("full-3", 3, 1000, 2000, "the full map"),
-        Entry("strip-1", 1, 500, 2000, "half as wide, every latitude 27-45°N"),
-        Entry("strip-2", 2, 500, 2000, "half as wide, every latitude 27-45°N"),
-        Entry("small-1", 1, 400, 800, "a sixth of the area, 32-40°N only"),
-        Entry("small-2", 2, 400, 800, "a sixth of the area, 32-40°N only"),
+        Entry("small-1", 1, 400, 800, "for checking code runs only: 32-40°N, kinds missing"),
     )
+
+    /** The worlds a change is tested on. */
+    val FULL = ALL.filter { it.name.startsWith("full-") }
 
     fun named(name: String): Entry = ALL.firstOrNull { it.name == name } ?: error("no test world $name; they are ${ALL.joinToString(", ") { it.name }}")
 
@@ -65,7 +72,7 @@ object TestWorlds {
         if (then != now) println("WARNING: the config differs from when ${e.name} was settled.\n  then: ${then.ifEmpty { "(defaults)" }}\n  now:  ${now.ifEmpty { "(defaults)" }}")
     }
 
-    fun build(e: Entry, years: Int) {
+    fun build(e: Entry, years: Int, commit: String = gitCommit()) {
         e.dir.mkdirs()
         val building = File(e.dir, "building.bin")
         val t0 = System.nanoTime()
@@ -76,7 +83,7 @@ object TestWorlds {
         val area = HexHistory.readCsv(e.settle).series["land/area km²"]?.let { it[it.size - 1] } ?: Float.NaN
         val p = Properties()
         p["name"] = e.name; p["seed"] = "${e.seed}"; p["widthKm"] = "${e.widthKm}"; p["heightKm"] = "${e.heightKm}"
-        p["years"] = "$years"; p["commit"] = gitCommit(); p["built"] = java.time.LocalDateTime.now().withNano(0).toString()
+        p["years"] = "$years"; p["commit"] = commit; p["built"] = java.time.LocalDateTime.now().withNano(0).toString()
         p["worldKey"] = "%016x".format(HexSnapshot.WorldCache.key(e.config)); p["config"] = Config.set("")
         p["landKm2"] = "%.0f".format(area); p["buildSeconds"] = "%.0f".format(seconds)
         p["secondsPerYear"] = "%.1f".format(seconds / years)
@@ -98,6 +105,83 @@ object TestWorlds {
             }
             println("%-8s %5d %5d x %4d  %-38s %s".format(e.name, e.seed, e.widthKm, e.heightKm, e.note, built))
         }
+    }
+
+    // ---- a change against its base
+
+    /**
+     * Runs the base and the variant on each of [worlds] from its settled state, [replicates] times with
+     * the weather drawn a different way each time (the same way for the base and the variant), each in a
+     * JVM of its own (the config is read once at a JVM's start), [parallel] at a time; then [abReport].
+     */
+    fun ab(variant: File, base: File?, worlds: List<Entry>, years: Int, replicates: Int, parallel: Int, out: File) {
+        out.mkdirs()
+        for (w in worlds) require(w.state.isFile) { "test world ${w.name} is not built yet (testWorld build ${w.name})" }
+        val baseProps = Properties()
+        (base ?: Config.source)?.let { f -> f.reader().use { baseProps.load(it) } }
+        val varProps = Properties().also { it.putAll(baseProps) }
+        variant.reader().use { varProps.load(it) }
+        val baseFile = File(out, "base.properties"); val varFile = File(out, "variant.properties")
+        baseFile.writer().use { baseProps.store(it, "base, written by testWorld ab") }
+        varFile.writer().use { varProps.store(it, "variant (${variant.path} over the base), written by testWorld ab") }
+        val javaBin = ProcessHandle.current().info().command().orElse("java")
+        val heap = "-Xmx${Runtime.getRuntime().maxMemory() / (1 shl 20)}m"
+        data class Job(val label: String, val cfg: File, val args: List<String>)
+        val jobs = worlds.flatMap { w -> (0 until replicates).flatMap { r -> listOf("base" to baseFile, "variant" to varFile).map { (side, cfg) ->
+            Job("${w.name}-$side-r$r", cfg, listOf("--world", w.name, "--years", "$years", "--replicate", "$r", "--history", File(out, "${w.name}-$side-r$r.csv").path))
+        } } }
+        println("testWorld ab: ${jobs.size} runs of $years years into $out, $parallel at a time")
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(parallel)
+        val failed = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        for (j in jobs) pool.submit {
+            val t0 = System.nanoTime()
+            val p = ProcessBuilder(listOf(javaBin, heap, "-Dhex.config=${j.cfg.absolutePath}", "-Duser.home=${System.getProperty("user.home")}", "-cp", System.getProperty("java.class.path"), "inflation.tools.HexFaunaCheckKt") + j.args)
+                .redirectErrorStream(true).redirectOutput(File(out, "${j.label}.txt")).start()
+            val code = p.waitFor()
+            if (code != 0) failed += j.label
+            println("  ${j.label}: ${if (code == 0) "done" else "FAILED (exit $code, see ${j.label}.txt)"} in %.0f s".format((System.nanoTime() - t0) / 1e9))
+        }
+        pool.shutdown(); pool.awaitTermination(Long.MAX_VALUE, java.util.concurrent.TimeUnit.DAYS)
+        require(failed.isEmpty()) { "runs failed: ${failed.joinToString(", ")}" }
+        abReport(out, worlds.map { it.name }, replicates, variant.name)
+    }
+
+    /**
+     * For each key number and world: the variant's effect against its base in the last whole year, %,
+     * paired by weather (mean and range over the replicates); how far the base itself swings with the
+     * weather (highest against lowest replicate, %); and whether every pair went the same way.
+     */
+    fun abReport(out: File, worlds: List<String>, replicates: Int, what: String) {
+        val runs = worlds.associateWith { w -> (0 until replicates).map { r -> Run(File(out, "$w-base-r$r.csv")) to Run(File(out, "$w-variant-r$r.csv")) } }
+        val keys = runs.values.first().first().first.keys
+        val lines = ArrayList<String>()
+        lines += "effect of $what, % in the last whole year (${runs.values.first().first().first.years.size} years), paired by weather; per world: mean [range over $replicates replicates] / the base's own swing with the weather"
+        lines += "%-24s ".format("") + worlds.joinToString(" | ") { "%-32s".format(it) } + " | all pairs"
+        var same = 0; var mixed = 0
+        for (k in keys) {
+            val cells = ArrayList<String>(); val all = ArrayList<Double>()
+            for (w in worlds) {
+                val pairs = runs.getValue(w)
+                val effs = pairs.map { (b, v) -> val a = b.yearly(k, b.years.last()); val c = v.yearly(k, v.years.last()); if (a > 0 && c > 0) 100 * ln(c / a) else Double.NaN }.filter { !it.isNaN() }
+                val bases = pairs.map { (b, _) -> b.yearly(k, b.years.last()) }.filter { it > 0 }
+                val swing = if (bases.size > 1) 100 * ln(bases.max() / bases.min()) else Double.NaN
+                all += effs
+                cells += if (effs.isEmpty()) "%-32s".format("-") else "%-32s".format("%s [%s, %s] / %s".format(fmt(effs.average()), fmt(effs.min()), fmt(effs.max()), fmt(swing)))
+            }
+            val way = when {
+                all.isEmpty() -> "-"
+                all.all { it > 0 } -> { same++; "all up" }
+                all.all { it < 0 } -> { same++; "all down" }
+                all.all { it == 0.0 } -> "none"
+                else -> { mixed++; "mixed" }
+            }
+            lines += "%-24s ".format(k.substringAfter('/').take(24)) + cells.joinToString(" | ") + " | " + way
+        }
+        val n = worlds.size * replicates
+        lines += "-> $same key numbers moved the same way in all $n pairs, $mixed were mixed (a mixed one is not shown to change by this test; a number the change does not touch goes one way in all $n pairs by chance %.0f%% of the time)".format(100 * 2 * Math.pow(0.5, n.toDouble()))
+        File(out, "ab-report.txt").writeText(lines.joinToString("\n", postfix = "\n"))
+        println(lines.joinToString("\n"))
+        println("(written to ${File(out, "ab-report.txt")})")
     }
 
     // ---- how well a smaller world tracks the full map
@@ -200,11 +284,35 @@ fun main(args: Array<String>) {
         "list" -> TestWorlds.list()
         "build" -> {
             var years = TestWorlds.SETTLE_YEARS
+            var commit: String? = null
             val names = ArrayList<String>()
             var k = 1
-            while (k < args.size) { when (args[k]) { "--years" -> years = args[++k].toInt(); else -> names += args[k] }; k++ }
+            while (k < args.size) { when (args[k]) { "--years" -> years = args[++k].toInt(); "--commit" -> commit = args[++k]; else -> names += args[k] }; k++ }
             require(names.isNotEmpty()) { "build which? ${TestWorlds.ALL.joinToString(", ") { it.name }}" }
-            for (n in names) TestWorlds.build(TestWorlds.named(n), years)
+            for (n in names) TestWorlds.build(TestWorlds.named(n), years, commit ?: gitCommit())
+        }
+        "ab" -> {
+            var variant: File? = null; var base: File? = null; var worlds = TestWorlds.FULL; var years = 3; var replicates = 2; var parallel = 1
+            var out = File("runs/ab-" + java.time.LocalDateTime.now().withNano(0).toString().replace(":", ""))
+            var k = 1
+            while (k < args.size) {
+                when (args[k]) {
+                    "--variant" -> variant = File(args[++k]); "--base" -> base = File(args[++k])
+                    "--worlds" -> worlds = args[++k].split(',').map { TestWorlds.named(it.trim()) }
+                    "--years" -> years = args[++k].toInt(); "--replicates" -> replicates = args[++k].toInt()
+                    "--parallel" -> parallel = args[++k].toInt(); "--out" -> out = File(args[++k])
+                    else -> error("unknown argument ${args[k]}")
+                }
+                k++
+            }
+            TestWorlds.ab(requireNotNull(variant) { "ab needs --variant FILE (config keys of the change)" }, base, worlds, years, replicates, parallel, out)
+        }
+        "ab-report" -> {
+            // ab-report DIR [--worlds a,b] [--replicates N]: the report again from runs already made.
+            val out = File(args[1]); var worlds = TestWorlds.FULL.map { it.name }; var replicates = 2
+            var k = 2
+            while (k < args.size) { when (args[k]) { "--worlds" -> worlds = args[++k].split(','); "--replicates" -> replicates = args[++k].toInt(); else -> error("unknown argument ${args[k]}") }; k++ }
+            TestWorlds.abReport(out, worlds, replicates, "the variant")
         }
         "compare" -> {
             var full = emptyList<TestWorlds.Run>(); var fullVariant = emptyList<TestWorlds.Run>()
@@ -222,7 +330,7 @@ fun main(args: Array<String>) {
             }
             TestWorlds.compare(full, fullVariant, tests)
         }
-        else -> println("usage: testWorld list | testWorld build NAME... [--years N] | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
+        else -> println("usage: testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
             "a test on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE]")
     }
 }

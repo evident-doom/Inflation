@@ -128,15 +128,17 @@ dropped. The generated world itself is kept in `~/.inflation/world-cache` and lo
 while the world-generating code and settings are unchanged (`worldCache=false` turns this off).
 
 Short tests start from settled test worlds rather than from year 0, so they see a change's effect
-and not the first years' swings. `./gradlew testWorld -PtestArgs="build full-1 strip-1"` runs each
-named world for 30 years (`--years N`) under the config file's keys and keeps it in
-`~/.inflation/test-worlds`; `testWorld -PtestArgs="list"` shows what is built and from which commit;
-`hexFauna -PfaunaArgs="--world strip-1 --years 3"` carries one on, and `--replicate R` draws its
-weather afresh, for repeat runs from the same start. The worlds are three seeds of the full map
-(`full-1..3`), two strips half as wide with every latitude (`strip-1, strip-2`) and two 400 x 800
-km maps (`small-1, small-2`, 32-40°N only). A smaller world is to be trusted as far as
-`testWorld compare` shows it tracks the full map: each kind's level, trend and the effect of a
-variant, against the range across the full map's seeds (usage in `TestWorlds.kt`).
+and not the first years' swings. `./gradlew testWorld -PtestArgs="build full-1 full-2 full-3"` runs
+each of the three full-map seeds for 30 years (`--years N`) under the config file's keys and keeps it
+in `~/.inflation/test-worlds`; `testWorld -PtestArgs="list"` shows what is built and from which
+commit. A change is tested with `testWorld -PtestArgs="ab --variant change.properties"`: the base and
+the variant (the change's keys laid over the base config) run for 3 years on each full map, twice
+with the weather drawn differently (`--years`, `--replicates`, `--parallel`, `--worlds`), and the
+report gives each kind's effect paired by weather, the base's own swing with the weather, and whether
+every pair went the same way. A settled world still drifts, so a change is never judged against older
+numbers, only against its base. Smaller maps did not track the full map (see `TestWorlds.kt`);
+`small-1` is kept for checking that code runs. `hexFauna --world NAME --years N [--replicate R]`
+carries one settled world on by itself.
 
 ## Known simplifications
 

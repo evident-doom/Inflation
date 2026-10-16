@@ -280,12 +280,18 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var h = herps[p]
             if (herpsActive(t, soilWater)) {
                 val need = h * HERP_INTAKE * days
-                val fed = if (need > 0f) takeSwitching(p, need, 0.5f, insectFood) / need else 1f
-                val died = h * (HERP_DEATHS + HERP_HUNGER * (1f - fed)) * years
+                val ate = if (need > 0f) takeSwitching(p, need, 0.5f, insectFood) else 0f
+                val fed = if (need > 0f) ate / need else 1f
+                val old = h * HERP_DEATHS * years; val hungry = h * HERP_HUNGER * (1f - fed) * years
+                val died = old + hungry
                 smallDead[p] += died
-                h += h * HERP_YOUNG * fed * years - died
-            } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died }
-            herps[p] = capped(p, h, 200f)
+                // (Young crowd the place's breeding sites: tadpoles the pools, eggs the warm sheltered ground.)
+                val born = h * HERP_YOUNG * fed * max(0f, 1f - h / herpSites(p).coerceAtLeast(1e-3f)) * years
+                h += born - died
+                herpLedger[0][p] += born; herpLedger[1][p] += old; herpLedger[2][p] += hungry
+                herpLedger[5][p] += ate; herpLedger[6][p] += need
+            } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died; herpLedger[3][p] += died }
+            herps[p] = capped(p, h, HERP_MOST)
             pt = Profile.lap("small life: reptiles and amphibians", pt)
             // ---- fire kills what cannot flee, on the share that burned.
             val b = land.burning[p]
@@ -373,7 +379,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (here && b.insectShare > 0f && f[p] > 0f) {
                 val need = f[p] * BIRD_INTAKE * days * b.insectShare
                 // (A few birds' need can round to nothing.)
-                if (need > 0f) fed = takeSwitching(p, need, 0.5f, insectFood) / need
+                if (need > 0f) {
+                    val ate = takeSwitching(p, need, 0.5f, insectFood)
+                    herpLedger[7][p] += ate
+                    fed = ate / need
+                }
             }
             f[p] = when {
                 // Migrants leave for beyond the map at the end of their months here, and come back.
@@ -520,6 +530,22 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         return dead
     }
 
+    /**
+     * The share of the reptiles and amphibians of place [p] a hunter can find: the rest are in cover,
+     * in rock cracks and screes, under shrubs and in the leaf litter, and come out only to bask and
+     * hunt close by it. Each kind of cover hides more as there is more of it: [HERP_COVER_KG] of shrub
+     * or of litter to the m² hides half of them, and so does the most broken ground.
+     */
+    fun herpExposed(p: Int) = 1f / (1f + min(1f, land.ruggedness[p])) * HERP_COVER_KG / (HERP_COVER_KG + land.shrub[p]) * HERP_COVER_KG / (HERP_COVER_KG + litter[p])
+
+    /**
+     * How many reptiles and amphibians place [p] has breeding sites for, kg/km²: frogs, toads and newts
+     * spawn in standing water (marsh, bog, floodplain), lizards, snakes and tortoises lay their eggs in
+     * sheltered ground (cover, as [herpExposed]); taken as half of each. As they near it, the young
+     * crowd the sites and fewer come through.
+     */
+    fun herpSites(p: Int) = HERP_MOST * (0.5f * min(1f, wetland[p] + land.floodShare[p]) + 0.5f * (1f - herpExposed(p)))
+
     /** Whether reptiles and amphibians are out: warm, and not baking in a drought. */
     fun herpsActive(t: Float, soilWater: Float) = t in 12f..34f && !(t > 28f && soilWater < 10f)
 
@@ -530,18 +556,32 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * pollinators) as far as a vertebrate hunting by sight can pick them up ([INSECT_CATCH]). Returns
      * kg per km² caught.
      */
-    fun catchSmall(p: Int, kgPerKm2: Float, weather: Weather, most: Float = 0.5f): Float {
+    fun catchSmall(p: Int, kgPerKm2: Float, weather: Weather, most: Float = 0.5f, who: Int = TAKER_GROUPS): Float {
         val t = weather.temperature[p]
         val herpsOut = herpsActive(t, land.soil[p])
         val tortOut = t in 14f..33f
         // Desert rodents sleep through the summer heat in their burrows.
         val rodentsOut = !(t > 30f && land.soil[p] < 10f && annualRain[p] < DORMANT_RAIN_MM)
-        val total = (if (rodentsOut) rodents[p] else 0f) + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] else 0f) + (if (tortOut) tortoises[p] else 0f) + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
+        val total = (if (rodentsOut) rodents[p] else 0f) + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] * herpExposed(p) else 0f) + (if (tortOut) tortoises[p] else 0f) + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
         if (total <= 0f) return 0f
         // (Prey that is not out is not met: in the same order as [huntedAll].)
-        val ease = floatArrayOf(if (rodentsOut) 1f else 0f, 1f, 1f, 1f, if (herpsOut) 1f else 0f, if (tortOut) 1f else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f }
-        return takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
+        val ease = floatArrayOf(if (rodentsOut) 1f else 0f, 1f, 1f, 1f, if (herpsOut) herpExposed(p) else 0f, if (tortOut) 1f else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f }
+        val h0 = herps[p]
+        val took = takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
+        herpLedger[4][p] += h0 - herps[p]
+        herpTakenBy[min(who, TAKER_GROUPS)][p] += h0 - herps[p]
+        return took
     }
+
+    /**
+     * What happened to the reptiles and amphibians of each place since the ledger was last cleared,
+     * kg/km² (for checks): 0 born, 1 died out, 2 died of hunger, 3 died lying up, 4 taken by hunters,
+     * 5 insects they ate, 6 insects they needed, 7 insects the birds ate. (Hunters at the same place
+     * in parallel may undercount 4 a little.)
+     */
+    val herpLedger = Array(8) { FloatArray(n) }
+    /** Reptiles and amphibians taken by hunters since the ledger was cleared, kg/km², by who took them: the resident kind of that index, or (at [TAKER_GROUPS]) herds' and packs' hunters and people. */
+    val herpTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
 
     private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
     private val foxPrey by lazy { (listOf(rodents, hares, locusts, insects, pollinators) + bird).toTypedArray() }
@@ -721,6 +761,15 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val HERP_DEATHS = 0.4f
         const val HERP_HUNGER = 1f
         const val HERP_DORMANT_DEATHS = 0.15f
+        const val HERP_COVER_KG = 1f
+        /**
+         * Reptiles and amphibians where every bit of the ground is breeding site, kg/km²: some 10 kg a hectare,
+         * as woodland salamanders alone reach in moist eastern North American forest (median some 10,000 a
+         * hectare at about a gram each, range 2,000-34,000; Biol. Lett. 2024, doi:10.1098/rsbl.2024.0033).
+         */
+        const val HERP_MOST = 1000f
+        /** The [herpTakenBy] slot of hunting groups and people (resident kinds take the slots below it). */
+        const val TAKER_GROUPS = 40
         /**
          * Plant-eating insects: the warmth at which they start to grow (the usual lower threshold for
          * development, about 10 °C, down to about 5 °C in cool-summer insects), and the warmth above it
