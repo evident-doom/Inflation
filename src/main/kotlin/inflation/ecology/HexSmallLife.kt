@@ -280,11 +280,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var h = herps[p]
             if (herpsActive(t, soilWater)) {
                 val need = h * HERP_INTAKE * days
-                val fed = if (need > 0f) takeSwitching(p, need, 0.5f, insectFood) / need else 1f
-                val died = h * (HERP_DEATHS + HERP_HUNGER * (1f - fed)) * years
+                val ate = if (need > 0f) takeSwitching(p, need, 0.5f, insectFood) else 0f
+                val fed = if (need > 0f) ate / need else 1f
+                val old = h * HERP_DEATHS * years; val hungry = h * HERP_HUNGER * (1f - fed) * years
+                val died = old + hungry
                 smallDead[p] += died
-                h += h * HERP_YOUNG * fed * years - died
-            } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died }
+                val born = h * HERP_YOUNG * fed * years
+                h += born - died
+                herpLedger[0][p] += born; herpLedger[1][p] += old; herpLedger[2][p] += hungry
+                herpLedger[5][p] += ate; herpLedger[6][p] += need
+            } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died; herpLedger[3][p] += died }
             herps[p] = capped(p, h, 200f)
             pt = Profile.lap("small life: reptiles and amphibians", pt)
             // ---- fire kills what cannot flee, on the share that burned.
@@ -372,7 +377,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var fed = 1f
             if (here && b.insectShare > 0f && f[p] > 0f) {
                 val need = f[p] * BIRD_INTAKE * days * b.insectShare
-                fed = takeSwitching(p, need, 0.5f, insectFood) / need
+                val ate = takeSwitching(p, need, 0.5f, insectFood)
+                herpLedger[7][p] += ate
+                fed = ate / need
             }
             f[p] = when {
                 // Migrants leave for beyond the map at the end of their months here, and come back.
@@ -539,7 +546,19 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         if (total <= 0f) return 0f
         // (Prey that is not out is not met: in the same order as [huntedAll].)
         val ease = floatArrayOf(if (rodentsOut) 1f else 0f, 1f, 1f, 1f, if (herpsOut) 1f else 0f, if (tortOut) 1f else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f }
-        return takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
+        val h0 = herps[p]
+        val took = takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
+        herpLedger[4][p] += h0 - herps[p]
+        return took
+    }
+
+    /**
+     * What happened to the reptiles and amphibians of each place since the ledger was last cleared,
+     * kg/km² (for checks): 0 born, 1 died out, 2 died of hunger, 3 died lying up, 4 taken by hunters,
+     * 5 insects they ate, 6 insects they needed, 7 insects the birds ate. (Hunters at the same place
+     * in parallel may undercount 4 a little.)
+     */
+    val herpLedger = Array(8) { FloatArray(n) }
     }
 
     private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
