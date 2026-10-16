@@ -834,6 +834,8 @@ class HexGroups(
                     val f = candFeats[nc].also { it.fill(0f) }
                     // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
                     if (s.carnivore) { val v = placeValue[ki][p]; f[0] = v / (v + PREY_HALF) } else { val food = foodFor(s, p); f[0] = food / (food + 0.3f) }
+                    // (And for herds how good it is, nourishment and protein, as the hand-written score weighs it: high ground's draw in summer.)
+                    if (!s.carnivore && !s.human) f[52] = freshness(s, p)
                     f[1] = kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
                     f[2] = crowd(s, p, g)
                     f[3] = predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f)

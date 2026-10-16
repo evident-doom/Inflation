@@ -57,6 +57,9 @@ class HexHistory {
         // Animals.
         for ((k, s) in fauna.kinds.withIndex()) put("animals/${s.name}", fauna.count(k).toFloat())
         for (s in groups.kinds) put("animals/${s.name}", groups.count(s).toFloat())
+        // Migration: for each migratory kind, the share of its heads above 1000 m, their mean height, and how far
+        // its herds stand from where each stood half a year before (km, by heads; herds younger than that left out).
+        recordMigration(sim)
         // Biomass, thousand tonnes.
         fun perM2(a: FloatArray) = a.indices.sumOf { (a[it] * area[it]).toDouble() }.toFloat()
         fun perKm2(a: FloatArray) = perM2(a) / 1e6f
@@ -118,6 +121,39 @@ class HexHistory {
         for (s in series.values) s.pad(weeks)
     }
 
+    /** Each herd's place over the last half year, week by week (a ring), for [recordMigration]. */
+    private val pastPlaces = HashMap<Int, IntArray>()
+    private var migrationWeek = 0
+
+    private fun recordMigration(sim: HexSim) {
+        val hw = sim.hw; val hex = sim.hex
+        val slot = migrationWeek % HALF_YEAR_WEEKS
+        val full = migrationWeek >= HALF_YEAR_WEEKS
+        val heads = HashMap<Species, DoubleArray>()
+        val alive = HashSet<Int>()
+        for (g in sim.groups.groups) {
+            if (!g.alive || g.species !in Catalogue.migratory) continue
+            alive += g.id
+            // heads, heads above 1000 m, heads x height, heads with a place half a year back, heads x km from it
+            val a = heads.getOrPut(g.species) { DoubleArray(5) }
+            val n = g.size.toDouble(); val m = hw.placeElevationM[g.place]
+            a[0] += n; if (m > 1000f) a[1] += n; a[2] += n * m
+            val ring = pastPlaces.getOrPut(g.id) { IntArray(HALF_YEAR_WEEKS) { -1 } }
+            val then = ring[slot]
+            if (full && then >= 0) { a[3] += n; a[4] += n * hex.distanceKm(hw.placeHex[then], hw.placeHex[g.place]) }
+            ring[slot] = g.place
+        }
+        pastPlaces.keys.retainAll(alive)
+        migrationWeek++
+        for (s in sim.groups.kinds) {
+            if (s !in Catalogue.migratory) continue
+            val a = heads[s] ?: DoubleArray(5)
+            put("migration/${s.name}/share above 1000 m", if (a[0] > 0) (a[1] / a[0]).toFloat() else Float.NaN)
+            put("migration/${s.name}/mean height m", if (a[0] > 0) (a[2] / a[0]).toFloat() else Float.NaN)
+            put("migration/${s.name}/km from half a year before", if (a[3] > 0) (a[4] / a[3]).toFloat() else Float.NaN)
+        }
+    }
+
     private var biomes: IntArray? = null
     /** The kind of country most of place [p] is. */
     private fun biomeOf(sim: HexSim, p: Int): Int {
@@ -177,6 +213,9 @@ class HexHistory {
     }
 
     companion object {
+        /** Half a year in weeks (steps). */
+        val HALF_YEAR_WEEKS = inflation.world.Date.DAYS_PER_YEAR / inflation.world.WorldConfig().daysPerStep / 2
+
         fun readCsv(file: File): HexHistory {
             val h = HexHistory()
             file.bufferedReader().use { r ->
