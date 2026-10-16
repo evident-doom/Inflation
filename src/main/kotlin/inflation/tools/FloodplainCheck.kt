@@ -28,7 +28,7 @@ fun main(args: Array<String>) {
         k++
     }
     val t0 = System.currentTimeMillis()
-    val w = World.generate(cfg, inflation.ecology.HexSnapshot.LandformCache.load(cfg) {})
+    val w = World.generate(cfg, inflation.world.LandformCache.load(cfg) {})
     println("seed ${cfg.seed} ${cfg.widthKm}x${cfg.heightKm}: world in ${(System.currentTimeMillis() - t0) / 1000} s")
     val g = w.grid; val c = w.climate; val fp = w.floodplain
     val land = (0 until g.size).filter { !w.isSea[it] && !w.water.isLake(it) }
