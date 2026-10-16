@@ -2,12 +2,9 @@ package inflation.ecology
 
 import inflation.world.Date
 import inflation.world.HexLand
-import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.LifeForm
 import inflation.world.Weather
-import java.util.PriorityQueue
-import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.pow

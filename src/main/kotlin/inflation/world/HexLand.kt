@@ -284,7 +284,6 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
 
     // ---------------------------------------------------------------- state
 
-    /** Plant-available water in the soil, mm; groundwater, mm. */
     /**
      * Water the soil holds, mm, by the rock under it: thin and quick to drain on limestone, granite
      * and evaporites, deep on alluvium and shale (rough values, from memory).
@@ -311,6 +310,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val rate = Math.PI * Math.PI * (t / cells) / (4.0 * (sy / cells) * l * l)
         (1.0 - exp(-rate * days)).toFloat()
     }
+    /** Plant-available water in the soil, mm. */
     val soil = FloatArray(n) { soilCap[it] * 0.6f }
     /**
      * The soil water of the shaded slopes (those facing the pole, [Sunlight.shade] of each place), mm; [soil] is
@@ -849,9 +849,9 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         const val PALATABLE_FLOOR = 0.5f
         /** Share of the soil's water plants take up without stress; drier than that, growth and evaporation fall in step (FAO-56, p about 0.5). */
         const val UNSTRESSED = 0.5f
-        /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         /** Steps through each place's ground at which its ruggedness is kept (see [ruggedSpread]). */
         const val RUGGED_SHARES = 8
+        /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
         /**

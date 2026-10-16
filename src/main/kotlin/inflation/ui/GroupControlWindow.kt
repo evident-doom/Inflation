@@ -11,7 +11,6 @@ import inflation.ecology.Store
 import inflation.ecology.Tool
 import inflation.ecology.WAYS_OUT
 import inflation.learning.Schema
-import inflation.world.HexWorld
 import java.awt.BasicStroke
 import java.awt.BorderLayout
 import java.awt.Color

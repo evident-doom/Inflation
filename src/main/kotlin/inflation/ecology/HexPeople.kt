@@ -26,8 +26,6 @@ enum class Material {
     OCHRE,
 }
 
-/** Making skills: the doing behind every tool, built by practice like getting food. */
-
 /**
  * A kind of tool, with what one person's share takes to make ([recipe], kg per person), the skill
  * that makes it, how fast it wears out (share a year), whether it is too heavy to take along when
@@ -391,13 +389,13 @@ class Band {
     fun snares() = (1f + NET_GAIN * has(Tool.NET)) * skill(Skill.SMALL_GAME)
     fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Skill.FISH)
 
-    /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
     /** How much more (above 1) or less a skill's work leaves undone than a start band's: the sick die, infants are lost. */
     fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.ref) / skill(s)
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
+    /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
     fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
+    /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
     fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
 
     /**
@@ -658,7 +656,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         val over = gd[m] - (GOODS_PER_PERSON + stack) * people
         if (over > 0f) { gd[m] -= over; if (m == Material.WOOD.ordinal || m == Material.FIBRE.ordinal || m == Material.HIDE.ordinal) small.litter[p] += over / area }
     }
-    // Songs and stories keep what is not practised from fading as fast.
     // Knowledge fades fast unused, unless songs and stories keep it; hand skills last for years.
     val forgetKnowledge = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET_KNOWLEDGE * 0.4f else FORGET_KNOWLEDGE) * b.lapse(Skill.LORE)
     for (s in Skill.entries) {
@@ -1107,7 +1104,7 @@ const val ORNAMENT_GIFT = 0.03f
 const val GRAVE_GOODS = 0.05f
 
 
-/**
+/*
  * Trade: good knapping stone, salt and ochre are found only in some
  * country, and each is worth having. Stone tools of good stone (flint, chert, obsidian) cut and wear
  * better than those of whatever stone is at hand; meat and fish salted keep far longer and cure in

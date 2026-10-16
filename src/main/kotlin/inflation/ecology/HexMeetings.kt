@@ -2,15 +2,10 @@ package inflation.ecology
 
 import inflation.Config
 
-import inflation.world.Date
 import inflation.world.HexLand
-import inflation.world.HexMap
 import inflation.world.HexWorld
-import inflation.world.LifeForm
 import inflation.world.Weather
-import java.util.PriorityQueue
 import kotlin.math.exp
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.min
@@ -446,10 +441,10 @@ internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, dri
     return lost
 }
 
-/** Share of a carcass a hunter takes as food: a band as its butchers' skill allows (all the fat and marrow, at best). */
 /** Chance a band scavenging a carcass where hunters are thick has one of its people mauled by them. */
 const val SCAVENGE_RISK = 0.01f
 
+/** Share of a carcass a hunter takes as food: a band as its butchers' skill allows (all the fat and marrow, at best). */
 internal fun meatShare(band: Band?) = if (band == null) MEAT_SHARE else min(MEAT_MOST, MEAT_SHARE * band.edge(Skill.BUTCHER))
 const val MEAT_MOST = 0.7f
 

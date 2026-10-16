@@ -4,16 +4,12 @@ import inflation.Config
 
 import inflation.ecology.HexRoutes
 import inflation.ecology.Catalogue
-import inflation.ecology.HexFauna
-import inflation.ecology.HexGroups
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
 import inflation.ui.ViewLayers.Measure
-import inflation.world.HexLand
 import inflation.world.HexMap
 import inflation.world.HexPicture
 import inflation.world.HexWorld
-import inflation.world.Weather
 import inflation.world.World
 import inflation.world.WorldConfig
 import java.awt.BorderLayout
@@ -160,8 +156,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
      * (its density over the hexes, and only its herds or packs drawn); pressing it again shows all.
      */
     private val kindButtons = ArrayList<javax.swing.JToggleButton>()
-    @Volatile private var onlyKind: inflation.ecology.Species? = null
     /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
+    @Volatile private var onlyKind: inflation.ecology.Species? = null
     /** Life in the water to show as a tint: fish of the sea and lakes, river fish, shellfish, and each kind of sea animal (densities per hex). */
     private val waterLayers by lazy { listOf<Pair<String, FloatArray>>("sea and lake fish" to fauna.water.fish, "river fish" to fauna.water.riverFish, "shellfish" to fauna.water.shellfish) +
         inflation.ecology.HexWater.SEA.mapIndexed { i, k -> k.name to fauna.water.sea[i] } }
@@ -640,7 +636,6 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 Measure.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
                 Measure.CARRION -> rgba(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
                 Measure.RESIDENTS -> rgba(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
-                else -> null
             }
         }
         return "${tint.label}: $legend (the viewer's fixed scale; \"scaled to the map\" stretches it)"

@@ -4,11 +4,8 @@ import inflation.Config
 
 import inflation.world.Date
 import inflation.world.HexLand
-import inflation.world.HexMap
 import inflation.world.HexWorld
-import inflation.world.LifeForm
 import inflation.world.Weather
-import java.util.PriorityQueue
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
@@ -39,8 +36,7 @@ class HexGroups(
     internal val seedBase = seed
     val groups = ArrayList<HexGroup>()
     internal var nextId = 0
-    /** The kinds that live as groups: the migratory herds and the hunters other than people. */
-    /** For comparison runs, people=false leaves people out. */
+    /** The kinds that live as groups: the migratory herds and the hunters other than people. For comparison runs, people=false leaves people out. */
     val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag("people", true)) })
     /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
     val bearings by lazy {
@@ -85,14 +81,12 @@ class HexGroups(
     internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
     /** Resident game in each place, kg/km², worked out once a month for the bearings. */
     internal val residentKg = FloatArray(n)
-    internal fun residentKg(p: Int) = residentKg[p]
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
     /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1
     internal val monthHunterKg by lazy { FloatArray(n) }
     internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
-    /** Which pack of a kind holds each hex as its ground (key: kind × hexes + hex). */
     /**
      * Scent marks of each hunting kind on each hex: how fresh (0..1, fading week by week unless
      * renewed) and whose. A pack marks the ground it works; others of its kind keep off fresh marks.
@@ -347,11 +341,6 @@ class HexGroups(
         }
     }
 
-    /**
-     * Where [g] goes this week: the reachable place it likes best, and the hexes it passes on the way.
-     * Reach is a few hexes when content; a forced march when hungry, cold, or heading for its season's
-     * place. Hunters keep to their ground unless starving.
-     */
     /** Per thread: least effort to each hex, the hex it was reached from, the hexes reached, the queue. */
     private class Scratch(size: Int) {
         val dist = FloatArray(size) { Float.MAX_VALUE }; val via = IntArray(size) { -1 }
@@ -698,13 +687,13 @@ class HexGroups(
         return weight * ((fromHere - hexKm(h, b.appointHex)) / fromHere).toFloat().coerceIn(-1f, 1f)
     }
 
-    /** A kind's usual group as an agent: herds move as units of [HERD_UNIT] of their usual bands. */
     /** A herd's size as small (0: under its kind's unit), middling (1: up to three units) or large (2), for comparing them. */
     internal fun sizeClass(g: HexGroup) = (g.size.toFloat() / unitSize(g.species)).let { if (it < 1f) 0 else if (it < 3f) 1 else 2 }
     /** The main kind of country of each place. */
     internal val biomeOfPlace: IntArray by lazy { IntArray(land.n) { pl -> val c = IntArray(inflation.world.Biome.entries.size); for (cell in hw.placeCells[pl]) c[hw.world.biome[cell].ordinal]++; c.indices.maxBy { c[it] } } }
     /** How many of its kind's usual bands a herd is (1 or more). */
     internal fun bandsIn(g: HexGroup) = max(1f, g.size.toFloat() / g.species.groupSize)
+    /** A kind's usual group as an agent: herds move as units of [HERD_UNIT] of their usual bands. */
     internal fun unitSize(s: Species) = if (s.carnivore) s.groupSize else s.groupSize * herdUnit(s)
     /** How many of its usual bands a herd agent stands for: more for the migrants, whose herds gather in thousands. */
     internal fun herdUnit(s: Species) = HERD_UNIT
@@ -737,6 +726,11 @@ class HexGroups(
     internal fun strength(g: HexGroup) = g.adults * g.species.massKg * ferocity(g)
     internal fun ferocity(g: HexGroup) = g.band?.ferocity(g.species) ?: g.species.ferocity
 
+    /**
+     * Where [g] goes this week: the reachable place it likes best, and the hexes it passes on the way.
+     * Reach is a few hexes when content; a forced march when hungry, cold, or heading for its season's
+     * place. Hunters keep to their ground unless starving.
+     */
     internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Pair<Int, IntArray> {
         var pt = Profile.mark()
         val r = planInner(g, weather, date, predatorKg) { name -> pt = Profile.lap(name, pt) }
@@ -800,7 +794,6 @@ class HexGroups(
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * shiftDays * (if (s.carnivore) 1f else bandsIn(g).pow(-BIG_HERD_SLOW)) * (1f - WEAK_SLOW * weak) *
             (if (s.human) 1f / (1f + COVER_GOING * land.cover(g.place)) else 1f)
         val ki = kindIndex[s] ?: 0
-        val cross = hex.crossings[Catalogue.travel(s).ordinal]
         // Least effort to each hex within reach.
         val sc = scratch.get()
         val dist = sc.dist; val via = sc.via; val reached = sc.reached
@@ -1121,7 +1114,6 @@ class HexGroups(
         return others / (others + usual + 1f)
     }
 
-    /** Resident prey a hunter of kind [s] can take in place [p], kg of meat per km², weighed by how catchable. */
     /**
      * What place [p] offers a hunter of kind [s] by its whole diet, kg/km²: the big game it can catch
      * ([game]), the small prey on the ground and the carrion lying there, each by its share of the

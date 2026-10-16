@@ -8,7 +8,6 @@ import inflation.Config
 const val SHIFT_DAYS = 2f
 /** Snow depth that doubles the effort of going, mm. */
 const val SNOW_EFFORT_MM = 150f
-/** Days of reserves laid on a week by a well-fed group in late summer and autumn (0.3 the rest of the year). */
 /** How much more than its needs an animal eats, at most, when food is plentiful and its reserves are short; share of that surplus laid on as reserves. */
 const val FATTEN = 0.3f
 const val FAT_EFFICIENCY = 0.6f
@@ -58,11 +57,11 @@ const val PATH_FADE = 0.03f
 const val PATH_MASS_KG = 3000f
 const val PATH_EASE = 0.5f
 const val AMBUSH = 1f
-/** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
 /** Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum against a km walked; share of a swimming herd that drowns on a strait as wide as all it can swim (young twice that). */
 const val SEA_HEXES = 2
 const val SWIM_EFFORT = 10f
 const val DROWN = 0.05f
+/** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
 const val NEWCOMER_BELOW = 5
 const val NEWCOMERS = 3
 /** What a band takes a sign it cannot read to be: a middling value, neither good nor bad. */

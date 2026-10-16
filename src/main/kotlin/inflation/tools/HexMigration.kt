@@ -4,7 +4,6 @@ import inflation.ecology.Catalogue
 import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
-import kotlin.math.min
 import kotlin.math.sqrt
 
 /**
