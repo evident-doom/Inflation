@@ -3,7 +3,7 @@ package inflation.tools
 import inflation.Args
 import inflation.Config
 
-import inflation.learning.HexPpo
+import inflation.learning.Role
 import inflation.learning.Schema
 import inflation.learning.SharedMover
 import java.io.File
@@ -31,10 +31,10 @@ fun main(args: Array<String>) {
             val dir = File(root, name)
             require(!dir.exists()) { "baseline $name exists already: baselines are kept as they are" }
             dir.mkdirs()
-            for (r in HexPpo.ROLES) {
-                val f = File(from, "$r.mlp"); if (!f.exists()) continue
+            for (r in Role.entries) {
+                val f = r.file(from); if (!f.exists()) continue
                 // Loaded and saved again, so it carries its names.
-                SharedMover.load(f).save(File(dir, "$r.mlp"))
+                SharedMover.load(f).save(r.file(dir))
             }
             ways?.let { Schema.save(Schema.load(it, Schema.WAYS_IN, Schema.WAYS_OUT), File(dir, "ways.mlp"), Schema.WAYS_IN, Schema.WAYS_OUT) }
             File(dir, "info.txt").writeText("kept ${java.time.LocalDateTime.now()}\nfrom ${from.path}${ways?.let { " and ${it.path}" } ?: ""}\ncommit $commit\n$note\n")
@@ -46,7 +46,7 @@ fun main(args: Array<String>) {
         "show" -> {
             val dir = File(root, args[1])
             File(dir, "info.txt").takeIf { it.exists() }?.let { println(it.readText().trim()) }
-            for (r in HexPpo.ROLES) { val f = File(dir, "$r.mlp"); if (f.exists()) report(r, f, if (r == "people") Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT) }
+            for (r in Role.entries) { val f = r.file(dir); if (f.exists()) report(r.label, f, if (r == Role.PEOPLE) Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT) }
             File(dir, "ways.mlp").takeIf { it.exists() }?.let { report("ways", it, Schema.WAYS_IN, Schema.WAYS_OUT) }
         }
         else -> println("usage: baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT] | baseline list | baseline show NAME")

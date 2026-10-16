@@ -82,8 +82,8 @@ object HexEvolve {
         val kinds = (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.HUMAN).filter { HexLearning.file(start, it).exists() }
         val centres = kinds.associateWith { s -> Mlp.load((HexLearning.file(out, s).takeIf { it.exists() } ?: HexLearning.file(start, s)).readText()) }
         val adams = kinds.associateWith { Adam(centres.getValue(it).w.size, rate) }
-        val log = File(out, "log.txt")
-        val firstGen = if (log.exists()) log.readLines().count { it.startsWith("gen ") } else 0
+        val log = RunLog(out, "gen")
+        val firstGen = log.done()
         for (gen in firstGen until firstGen + gens) {
             val t0 = System.nanoTime()
             val rnd = Random(gen * 7919L + 9)
@@ -101,7 +101,7 @@ object HexEvolve {
                 parts += "%s %.2f/%.2f".format(s.name, fitness.take(2 * es.pairs).average(), fitness.last())
             }
             val line = "gen %d  %.0f s  fitness mean/centre: %s  | %s".format(gen, (System.nanoTime() - t0) / 1e9, parts.joinToString(", "), results.joinToString("  ") { it.second })
-            println(line); log.appendText(line + "\n")
+            log.write(line)
         }
     }
 
@@ -154,7 +154,7 @@ object HexEvolveWays {
         val es = EvolutionStrategy(a.int("--pairs", 8), a.float("--sigma", 0.05f))
         val rate = a.float("--rate", 0.02f)
         val hidden = a.int("--hidden", 16)
-        val movers = a.file("--nets")?.let { dir -> HexPpo.ROLES.map { SharedMover.load(File(dir, "$it.mlp").also { f -> require(f.exists()) { "no $f" } }) } }
+        val movers = a.file("--nets")?.let { dir -> Role.entries.map { SharedMover.load(it.file(dir).also { f -> require(f.exists()) { "no $f" } }) } }
         a.done()
         WaysEvolution(role, movers).run(out, seeds, size, years, gens, es, rate, hidden)
     }
@@ -171,12 +171,10 @@ class WaysEvolution(private val role: String, private val movers: List<SharedMov
         out.mkdirs()
         val file = File(out, fileName)
         // A network of zeros in its last layer chooses as the scaffold does; the hidden layer starts small and random.
-        val centre = if (file.exists()) Schema.load(file, inNames, outNames) else Mlp.random(intArrayOf(inNames.size, hidden, outNames.size), Random(1)).also { m ->
-            val last = Mlp.count(intArrayOf(inNames.size, hidden)); for (i in last until m.w.size) m.w[i] = 0f
-        }
+        val centre = if (file.exists()) Schema.load(file, inNames, outNames) else Mlp.random(intArrayOf(inNames.size, hidden, outNames.size), Random(1)).zeroOutputLayer()
         val adam = Adam(centre.w.size, rate)
-        val log = File(out, "log.txt")
-        val firstGen = if (log.exists()) log.readLines().count { it.startsWith("gen ") } else 0
+        val log = RunLog(out, "gen")
+        val firstGen = log.done()
         for (gen in firstGen until firstGen + gens) {
             val t0 = System.nanoTime()
             val rnd = Random(gen * 7919L + 17)
@@ -190,20 +188,20 @@ class WaysEvolution(private val role: String, private val movers: List<SharedMov
             if (gen % 10 == 9) {
                 Schema.save(centre, File(File(out, "gen${gen + 1}").also { it.mkdirs() }, fileName), inNames, outNames)
                 // Against the scaffold on the same fixed worlds: the centre's bands and scaffold bands side by side.
-                val scaffold = centre.copy().also { m -> val last = Mlp.count(intArrayOf(m.sizes[0], m.sizes[1])); for (i in last until m.w.size) m.w[i] = 0f }
+                val scaffold = centre.copy().zeroOutputLayer()
                 val check = checkSeeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed, widthKm = size, heightKm = size), years, arrayOf(scaffold, centre)).first }.toList()
                 val vs = "check gen %d: scaffold %.3f, learned %.3f".format(gen + 1, check.map { it[0] }.average(), check.map { it[1] }.average())
-                println(vs); File(out, "check.txt").appendText(vs + "\n")
+                log.check(vs)
             }
             val line = "gen %d  %.0f s  fitness mean/centre: %.3f/%.3f  | %s".format(gen, (System.nanoTime() - t0) / 1e9, fitness.take(2 * es.pairs).average(), fitness.last(), results.joinToString("  ") { it.second })
-            println(line); log.appendText(line + "\n")
+            log.write(line)
         }
     }
 
     /** One small world with all the animals for [years], each band on one of [variants]; person-weeks per person at the start. */
     fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
         val run = HexLearning.Run(cfg, Catalogue.learned.distinct())
-        movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[HexPpo.role(s)] }
+        movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[Role.of(s).ordinal] }
         if (role != "bands") return evaluateAnimals(run, cfg, years, variants)
         val rnd = Random(cfg.seed)
         val people = Catalogue.HUMAN

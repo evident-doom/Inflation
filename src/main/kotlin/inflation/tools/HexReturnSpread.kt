@@ -3,6 +3,7 @@ package inflation.tools
 import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.learning.HexPpo
+import inflation.learning.Role
 import inflation.learning.SharedMover
 import inflation.world.WorldConfig
 import java.io.File
@@ -20,10 +21,10 @@ fun main(args: Array<String>) {
     val dir = File(a.rest().single())
     a.done()
     val kinds = Catalogue.learned
-    val models = HexPpo.ROLES.map { SharedMover.load(File(dir, "$it.mlp")) }
+    val models = Role.entries.map { SharedMover.load(it.file(dir)) }
     val all = (0 until worlds).toList().parallelStream().map { w -> HexPpo.play(WorldConfig(seed = 50_000L + w, widthKm = size, heightKm = size), years, kinds, models).first }.toList().flatten()
-    for ((ri, r) in HexPpo.ROLES.withIndex()) {
-        val rs = all.filter { HexPpo.role(it.kind) == ri }.map { it.ret.toDouble() }.sorted()
+    for (r in Role.entries) {
+        val rs = all.filter { Role.of(it.kind) == r }.map { it.ret.toDouble() }.sorted()
         if (rs.isEmpty()) continue
         val m = rs.average(); val sd = kotlin.math.sqrt(rs.sumOf { (it - m) * (it - m) } / rs.size)
         fun q(f: Double) = rs[((rs.size - 1) * f).toInt()]

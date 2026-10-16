@@ -32,7 +32,7 @@ class PpoOptions(
     val hidden: Int,
     val rate: Float,
     /** How much of the hand-written score each role's network starts from, by role. */
-    val residual: Map<String, Float>,
+    val residual: Map<Role, Float>,
     val checkEvery: Int,
     val checkSeeds: Int,
     /** Check on the training maps instead of fresh worlds: how well they are fitted, not how well the networks do elsewhere. */
@@ -47,7 +47,7 @@ class PpoOptions(
     /** Play the next round beside this round's learning (else each round's choices are made by the networks just learnt; slower). */
     val overlap: Boolean,
     /** Roles whose networks play but do not learn, for the first [fixedRounds] rounds of this run. */
-    val fixed: Set<String>,
+    val fixed: Set<Role>,
     val fixedRounds: Int,
     /** Years a fresh training world runs, with the networks choosing, before any choice is recorded (its first state is not like a lived-in world's). */
     val burnYears: Int,
@@ -64,7 +64,7 @@ class PpoOptions(
         fun parse(args: Array<String>): PpoOptions {
             val a = Args(args, USAGE)
             val default = Sampling()
-            val hold = a.string("--hold")?.split(":")?.let { it[0].split(",").toSet() to (it.getOrNull(1)?.toInt() ?: Int.MAX_VALUE) }
+            val hold = a.string("--hold")?.split(":")?.let { it[0].split(",").map(Role::named).toSet() to (it.getOrNull(1)?.toInt() ?: Int.MAX_VALUE) }
             val o = PpoOptions(
                 out = a.file("--out") ?: File("hex-ppo"),
                 worlds = a.int("--worlds", 8),
@@ -73,7 +73,7 @@ class PpoOptions(
                 rounds = a.int("--rounds", 1000),
                 hidden = a.int("--hidden", 48),
                 rate = a.float("--rate", 3e-4f),
-                residual = a.string("--residual")?.split(",")?.associate { r -> val (n, v) = r.split(":"); n to v.toFloat() } ?: emptyMap(),
+                residual = a.string("--residual")?.split(",")?.associate { r -> val (n, v) = r.split(":"); Role.named(n) to v.toFloat() } ?: emptyMap(),
                 checkEvery = a.int("--check", 5),
                 checkSeeds = a.int("--check-seeds", 12),
                 checkOnMaps = a.flag("--check-on-maps"),

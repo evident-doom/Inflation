@@ -9,6 +9,7 @@ import inflation.learning.HexPpo
 import inflation.learning.MoverPolicy
 import inflation.learning.NetAnimalWays
 import inflation.learning.NetWays
+import inflation.learning.Role
 import inflation.learning.Schema
 import inflation.learning.SharedMover
 import inflation.tools.TestWorlds
@@ -51,8 +52,8 @@ class FaunaCheckOptions(
         Config.string("hunterWays")?.let { groups.hunterWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
         // Every kind moving by learned role networks (nets=DIR with herds.mlp, hunters.mlp, people.mlp, as HexPpo writes them), else by the hand-written choices.
         Config.string("nets")?.let { dir ->
-            val ps = HexPpo.ROLES.map { r -> MoverPolicy(SharedMover.load(File(baselineDir(dir), "$r.mlp")), null, { 0f }, { 0 }) }
-            for (s in groups.kinds) groups.policies[s] = ps[HexPpo.role(s)]
+            val ps = Role.entries.map { r -> MoverPolicy(SharedMover.load(r.file(baselineDir(dir))), null, { 0f }, { 0 }) }
+            for (s in groups.kinds) groups.policies[s] = ps[Role.of(s).ordinal]
             println("moving by the learned networks in $dir")
         }
         return sim

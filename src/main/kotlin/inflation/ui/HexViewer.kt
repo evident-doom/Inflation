@@ -254,10 +254,10 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private fun useNetworks() {
         nets?.let { name ->
             val dir = inflation.tools.baselineDir(name)
-            for ((r, role) in inflation.learning.HexPpo.ROLES.withIndex()) {
-                val f = java.io.File(dir, "$role.mlp").takeIf { it.exists() } ?: continue
+            for (role in inflation.learning.Role.entries) {
+                val f = role.file(dir).takeIf { it.exists() } ?: continue
                 val p = inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(f), null, { 0f }, { 0 })
-                for (s in groups.kinds) if (inflation.learning.HexPpo.role(s) == r) groups.policies[s] = p
+                for (s in groups.kinds) if (inflation.learning.Role.of(s) == role) groups.policies[s] = p
             }
             java.io.File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(it, inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
             java.io.File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(it, inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }

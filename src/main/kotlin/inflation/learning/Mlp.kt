@@ -82,6 +82,9 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
 
     fun copy() = Mlp(sizes, w.copyOf())
 
+    /** Zeros the last layer's weights and biases, so that the network's output is 0 whatever it reads; returns this. */
+    fun zeroOutputLayer(): Mlp { w.fill(0f, count(sizes.copyOf(sizes.size - 1)), w.size); return this }
+
     fun save(file: File) {
         file.parentFile?.mkdirs()
         file.writeText(sizes.joinToString(" ") + "\n" + w.joinToString(" ") + "\n")
