@@ -625,8 +625,9 @@ class HexGroups(
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
-        // (Herds content where they are weigh their places only one week in [CONTENT_WEEKS]: they stay while the grazing holds.)
-        val every = if (s.carnivore) 2 else Tuning.contentWeeks
+        // (Herds content where they are weigh their places only one week in [CONTENT_WEEKS]: they stay while the grazing holds;
+        // bands weigh theirs every week, [BAND_CONTENT_WEEKS].)
+        val every = if (s.human) Tuning.bandContentWeeks else if (s.carnivore) 2 else Tuning.contentWeeks
         // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
         val capture = control != null && g.id == watched
         val content = !restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L

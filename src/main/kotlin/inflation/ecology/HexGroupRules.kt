@@ -91,6 +91,8 @@ val MIGRANT_UNIT = System.getProperty("hex.migrantUnit")?.toInt() ?: 1
 val MIGRANT_START = System.getProperty("hex.migrantStart")?.toFloat() ?: 1f
 /** A content herd weighs its places one week in this many (others keep to their ground unweighed). */
 const val CONTENT_WEEKS = 2
+/** A content band weighs its places one week in this many: every week, as everything a band does is its choice. */
+const val BAND_CONTENT_WEEKS = 1
 /** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
 const val HUNT_BLOCK_KM = 300f
 /** How far a lone hunter goes looking for a mate in a week, km. */
