@@ -87,3 +87,12 @@ tasks.register<JavaExec>("insectSeasons") {
     maxHeapSize = "12g"
     args = (project.findProperty("insectArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
+
+tasks.register<JavaExec>("herpCheck") {
+    description = "Probe: reptiles and amphibians by climate class, the terms of their rule against how they changed."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.HerpCheckKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("herpArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
