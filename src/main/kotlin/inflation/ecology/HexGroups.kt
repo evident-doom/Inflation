@@ -745,12 +745,15 @@ class HexGroups(
     internal fun strength(g: HexGroup) = g.adults * g.species.massKg * ferocity(g)
     internal fun ferocity(g: HexGroup) = g.band?.ferocity(g.species) ?: g.species.ferocity
 
+    /** A week's plan: the [place] a group heads for and the hexes of its [path] there. */
+    class Plan(val place: Int, val path: IntArray) { operator fun component1() = place; operator fun component2() = path }
+
     /**
      * Where [g] goes this week: the reachable place it likes best, and the hexes it passes on the way.
      * Reach is a few hexes when content; a forced march when hungry, cold, or heading for its season's
      * place. Hunters keep to their ground unless starving.
      */
-    internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Pair<Int, IntArray> {
+    internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Plan {
         var pt = Profile.mark()
         val r = planInner(g, weather, date, predatorKg) { name -> pt = Profile.lap(name, pt) }
         Profile.lap("choosing: route", pt)
@@ -894,7 +897,7 @@ class HexGroups(
         }
     }
 
-    private fun planInner(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray, lap: (String) -> Unit): Pair<Int, IntArray> {
+    private fun planInner(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray, lap: (String) -> Unit): Plan {
         val s = g.species
         val here = hw.placeHex[g.place]
         // What it sees of the others: in its own hex and the six around, which its week's ranging covers.
@@ -939,7 +942,7 @@ class HexGroups(
         // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
         val capture = control != null && g.id == watched
         val content = !restless && !relief && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
-        if (content && !capture) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
+        if (content && !capture) { planCounts.incrementAndGet(s.index * 3); return Plan(g.place, intArrayOf(here)) }
         // (A big herd moves more slowly than a small one: it waits for its stragglers.)
         // (A starving herd on eaten-out ground goes as far as it must, up to its whole week's travel.)
         // (A herd far behind its round treks: the whole week's going.)
@@ -1100,7 +1103,7 @@ class HexGroups(
         while (true) { chain += h; if (h == here) break; h = via[h].takeIf { it >= 0 } ?: break }
         chain.reverse()
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
-        return best to chain.toIntArray()
+        return Plan(best, chain.toIntArray())
     }
 
     internal fun hexKm(a: Int, b: Int): Double = hex.distanceKm(a, b)
