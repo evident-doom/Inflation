@@ -76,7 +76,8 @@ internal fun HexGroups.graze(weather: Weather) {
         for ((p, share) in range) {
             // (Walking costs food: a share of a day's need for each km of the week's going, see [walkCost].)
             val want = wantKg * share / 1e6f / land.areaKm2[p] // kg per m² of the place
-            val access = HexFood.access(s, land.crag[p])
+            // (Far from water, a kind that must drink often uses only the ground within reach of it, as the residents do: see [HexFauna.tether].)
+            val access = HexFood.access(s, land.crag[p]) * (if (HERD_WATER_TIE) fauna.tether(s, p) else 1f)
             val snowed = weather.snowpack[p] > s.snowLimitMm
             // (Its diet as it leans this week: its kind's, weighted by its own choice.)
             val d = s.diet.let { k -> inflation.ecology.Diet(grass = k.grass * g.will[AnimalWay.GRASS], browse = k.browse * g.will[AnimalWay.BROWSE], fruit = k.fruit * g.will[AnimalWay.FRUIT], roots = k.roots * g.will[AnimalWay.FRUIT]) }

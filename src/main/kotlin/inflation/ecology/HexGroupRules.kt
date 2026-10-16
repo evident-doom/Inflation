@@ -274,3 +274,9 @@ val DEN_MONTHS = Config.int("t.denMonths", 3)
 val DEN_KM = Config.float("t.denKm", 15f)
 /** Days of a week a herd far behind its round spends trekking on (the rest grazing). */
 val ROUND_TREK_DAYS = Config.float("t.roundTrekDays", 4f)
+
+/**
+ * Herds graze only the ground within reach of water, as far as their kind must drink (see [HexFauna.tether]),
+ * as the residents do, and value places by what they can graze so; false: they graze a whole place wherever its water lies.
+ */
+val HERD_WATER_TIE = Config.flag("t.herdWaterTie", true)
