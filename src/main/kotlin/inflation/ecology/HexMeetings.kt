@@ -171,7 +171,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // A band meets each kind of food the more, the more of its effort it puts into it.
         val rr = if (band != null) r * band.effort[if (t == 9) 6 else t] else r
         if (rr <= 0f || e <= 0f) return
-        type[m] = t; kind[m] = k; place[m] = p; rate[m] = rr; kg[m] = e; time[m] = h; m++
+        // (Biting insects slow people at whatever they do out there.)
+        val hh = if (band != null) h * (1f + HexSmallLife.HARASS_TIME * small.harassment(p, weather)) else h
+        type[m] = t; kind[m] = k; place[m] = p; rate[m] = rr; kg[m] = e; time[m] = hh; m++
     }
     for ((j, h) in g.path.withIndex()) {
         val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
