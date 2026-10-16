@@ -76,6 +76,16 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     private val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }
     /** Mean ruggedness, cover from broken ground and the best refuge and lookout of each place. */
     val ruggedness = FloatArray(n) { p -> mean(p) { world.terrain.ruggedness[it] } }
+    /**
+     * How the ruggedness is spread over each place: the ruggedness at [RUGGED_SHARES] even steps through its
+     * ground, from its smoothest to its roughest (a rough hex still has its valley floors and meadows).
+     */
+    @Transient val ruggedSpread: Array<FloatArray> = Array(RUGGED_SHARES) { FloatArray(n) }.also { q ->
+        java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+            val r = FloatArray(hw.placeCells[p].size) { world.terrain.ruggedness[hw.placeCells[p][it]] }.also { it.sort() }
+            for (k in 0 until RUGGED_SHARES) q[k][p] = if (r.isEmpty()) 0f else r[((k + 0.5f) / RUGGED_SHARES * r.size).toInt().coerceIn(0, r.size - 1)]
+        }
+    }
     /** Share of a place that is crag, slopes over 45% (see [inflation.ecology.HexFood.access]). */
     val crag = FloatArray(n) { p -> mean(p) { if (world.terrain.slope[it] > 0.45f) 1f else 0f } }
     /** Share of a place with caves and rock shelters: karst limestone in broken ground. */
@@ -817,6 +827,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         /** Share of the soil's water plants take up without stress; drier than that, growth and evaporation fall in step (FAO-56, p about 0.5). */
         const val UNSTRESSED = 0.5f
         /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
+        /** Steps through each place's ground at which its ruggedness is kept (see [ruggedSpread]). */
+        const val RUGGED_SHARES = 8
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
         /**

@@ -36,11 +36,12 @@ object Niches {
         "brown bear" to floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
         "onager" to floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
         "wild horse" to floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
-        "reindeer" to floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
+        "wild goat" to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
         "oryx" to floatArrayOf(0.3f, 0.3f, 0.3f, 0.1f),
         "ostrich" to floatArrayOf(0.2f, 0.6f, 0.2f, 0f),
         "hartebeest" to floatArrayOf(0.25f, 0.45f, 0.25f, 0.05f),
         "dromedary" to floatArrayOf(0.2f, 0.5f, 0.2f, 0.1f),
+        "argali" to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
     )
     private val ALL_HOURS = floatArrayOf(0.25f, 0.25f, 0.25f, 0.25f)
 
@@ -58,7 +59,7 @@ object Niches {
     enum class Shelter { CRAG, DEN, THICKET, TREE, WATER }
 
     private val SHELTERS = mapOf(
-        "ibex" to setOf(Shelter.CRAG), "mouflon" to setOf(Shelter.CRAG),
+        "ibex" to setOf(Shelter.CRAG), "mouflon" to setOf(Shelter.CRAG), "argali" to setOf(Shelter.CRAG), "wild goat" to setOf(Shelter.CRAG),
         "leopard" to setOf(Shelter.CRAG, Shelter.DEN, Shelter.THICKET, Shelter.TREE),
         "striped hyena" to setOf(Shelter.DEN), "jackal" to setOf(Shelter.DEN, Shelter.THICKET),
         "wolf" to setOf(Shelter.DEN), "brown bear" to setOf(Shelter.DEN, Shelter.THICKET),

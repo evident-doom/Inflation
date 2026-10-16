@@ -95,6 +95,7 @@ class World(
             System.arraycopy(sediment, 0, geology.sediment, 0, grid.size)
 
             log("recent deformation and young volcanoes")
+            for (i in 0 until grid.size) if (!seaAtStart[i]) elevation[i] += tect.plateauLift[i]
             youngDeformation(grid, tect, noise, elevation)
             Volcanism.build(grid, elevation, volcanoes, young = true, noise)
             fillPuddles(grid, elevation)

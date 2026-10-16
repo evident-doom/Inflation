@@ -332,7 +332,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         // Fish come back up the rivers from below, but not past a cascade.
         for (h in 0 until size) {
             val d = land.down[h]
-            if (d < 0 || riverFish[h] <= 0f && land.meanFlow[h] < RiverClass.STREAM.minDischarge) continue
+            // (A hex all lake or sea on the river's course has no river of its own to come up into.)
+            if (d < 0 || landKm2[h] <= 0f || riverFish[h] <= 0f && land.meanFlow[h] < RiverClass.STREAM.minDischarge) continue
             val river = hw.land[d] > 0f
             val below = if (river) riverFish[d] else fish[d]
             val diff = below - riverFish[h]

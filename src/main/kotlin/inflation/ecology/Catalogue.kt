@@ -369,24 +369,27 @@ object Catalogue {
     )
 
     /**
-     * Reindeer: herds of tundra and the alpine zone above the trees, digging through snow for
-     * lichen and grazing the summer flush; the one deer people herd. Heat is its limit.
+     * Wild goat (bezoar): herds of the broken hill country, crags and open oak woods of the Taurus
+     * and Zagros; they climb to the high pastures in summer and come down to the lower slopes and
+     * valleys in winter, ahead of the deep snow. The ancestor of the goat (figures from memory).
+     * (It took the place of the reindeer, which this latitude did not suit, and keeps its index.)
      */
-    val REINDEER = Species(
-        name = "reindeer", massKg = 100f,
-        diet = Diet(grass = 0.6f, browse = 0.4f), eatsLichen = true,
-        groupSize = 20, maxGroupSize = 200,
-        dailyTravelKm = 10f, maxDailyTravelKm = 50f, senseKm = 3f,
-        daysWithoutWater = 4, waterFromFood = 0.7f,
-        birthMonth = 7, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, snowLimitMm = 300f,
-        products = Products(meat = 45f, fat = 6f, hide = 6f, bone = 10f, sinew = 1f, hornOrAntler = 4f, fur = true),
-        comfortC = -40f..13f, winterCoat = true,
-        speedKmh = 75f,
+    val WILD_GOAT = Species(
+        name = "wild goat", massKg = 40f,
+        fearOfPeople = 0.75f, boldShare = 0.05f,
+        diet = Diet(grass = 0.5f, browse = 0.5f),
+        groupSize = 10, maxGroupSize = 50,
+        dailyTravelKm = 5f, maxDailyTravelKm = 25f, senseKm = 3f,
+        daysWithoutWater = 3, waterFromFood = 0.6f,
+        birthMonth = 4, birthMonths = 1, youngPerFemale = 1.3f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, snowLimitMm = 100f,
+        products = Products(meat = 18f, fat = 1.5f, hide = 3f, bone = 5f, sinew = 0.4f, hornOrAntler = 3f),
+        comfortC = -15f..35f, winterCoat = true,
+        speedKmh = 50f,
         foresight = 0.6f,
-        domestication = floatArrayOf(0.6f, 0.5f, 0.6f, 0.6f, 0.6f, 0.7f), // herded, barely changed
-        habitat = Habitat(cover = -0.4f, rugged = 0.2f),
-        defence = 0.2f,
+        domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f), // became the goat
+        habitat = Habitat(cover = -0.2f, rugged = 0.8f),
+        defence = 0.1f,
     )
 
     /**
@@ -433,6 +436,29 @@ object Catalogue {
         domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f), // became the sheep
         habitat = Habitat(cover = -0.6f, rugged = 0.6f),
         defence = 0.1f,
+    )
+
+    /**
+     * Argali: the great wild sheep of open high country, rolling uplands and plateaus above the
+     * trees; herds go up to the summer pastures as the snow leaves them and come down before it
+     * lies deep, to the windswept slopes and valleys (figures from memory).
+     */
+    val ARGALI = Species(
+        name = "argali", massKg = 100f,
+        fearOfPeople = 0.8f, boldShare = 0.04f,
+        diet = Diet(grass = 0.85f, browse = 0.15f),
+        groupSize = 15, maxGroupSize = 80,
+        dailyTravelKm = 8f, maxDailyTravelKm = 40f, senseKm = 4f,
+        daysWithoutWater = 3, waterFromFood = 0.5f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 1.1f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, snowLimitMm = 100f,
+        products = Products(meat = 45f, fat = 5f, hide = 6f, bone = 12f, sinew = 0.8f, hornOrAntler = 8f),
+        comfortC = -30f..25f, winterCoat = true,
+        speedKmh = 60f,
+        foresight = 0.6f,
+        domestication = floatArrayOf(0.5f, 0.4f, 0.5f, 0.4f, 0.4f, 0.5f),
+        habitat = Habitat(cover = -0.8f, rugged = 0.4f, wet = -0.3f),
+        defence = 0.2f,
     )
 
     // ---------------------------------------------------------------- the hot, dry south
@@ -586,15 +612,18 @@ object Catalogue {
         intakeKg = 1.6f,
     )
 
-    val herbivores = listOf(
+    private val firstHerbivores = listOf(
         GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR,
-        ELK, REINDEER, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
+        ELK, WILD_GOAT, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
     )
     // (New kinds go at the end, so that every kind keeps its index, and saved networks their identities.)
     val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN, LYNX)
+    /** Kinds added after the predators (at the end of [all], so the others keep their indices). */
+    private val laterHerbivores = listOf(ARGALI)
+    val herbivores = firstHerbivores + laterHerbivores
 
     /** Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges. */
-    val migratory = setOf(GAZELLE, REINDEER, HORSE, ONAGER, ORYX, OSTRICH, HARTEBEEST, DROMEDARY)
+    val migratory = setOf(GAZELLE, WILD_GOAT, HORSE, ONAGER, ORYX, OSTRICH, HARTEBEEST, DROMEDARY, ARGALI)
 
     /**
      * Hunters that live everywhere they can on small home ranges and do not follow the herds, kept as
@@ -608,7 +637,7 @@ object Catalogue {
     fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
 
     /** Kinds that climb crags and screes others cannot cross. */
-    val climbers = setOf(IBEX, MOUFLON, LEOPARD)
+    val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
 
     /** How a kind crosses hex borders: climbers over crags, big plant-eaters swim rivers, the rest walk. */
     /**
@@ -623,7 +652,7 @@ object Catalogue {
 
     fun travel(s: Species) = if (s in climbers) inflation.world.HexMap.Travel.CLIMB
         else if (!s.carnivore && s.massKg > 60f) inflation.world.HexMap.Travel.SWIM else inflation.world.HexMap.Travel.FOOT
-    val all = herbivores + predators
+    val all = firstHerbivores + predators + laterHerbivores
     /**
      * The kinds that move as groups with a learned mover: the migratory herds, the beasts of prey and
      * people. Named, not read from the diet: people eat about half meat, and a small retune of their
