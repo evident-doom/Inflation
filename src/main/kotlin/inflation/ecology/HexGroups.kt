@@ -113,8 +113,8 @@ class HexGroups(
     val deaths = java.util.concurrent.ConcurrentSkipListMap<String, Int>()
     /** This week's hunting by kind of hunter: chases, kills from herds and of residents, herds that saw it first. */
     val hunting = java.util.concurrent.ConcurrentSkipListMap<String, Int>()
-    /** For the check: people's children expected to die of each cause, by the week's odds, since last read. */
-    val childDeaths = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.DoubleAdder>()
+    /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
+    @Transient val childDeaths = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.DoubleAdder>()
     /** Young born this week by kind. */
     val births = java.util.TreeMap<String, Int>()
     internal val years = days / Date.DAYS_PER_YEAR.toFloat()
