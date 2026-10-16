@@ -195,6 +195,7 @@ object Catalogue {
         name = "brown bear", massKg = 150f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.25f, fruit = 0.3f, smallPrey = 0.1f, carrion = 0.1f),
+        fibreDigestion = 0.5f, // a bear digests cellulose poorly (captive grizzlies on high-fibre feed); set as the boar
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 4f,
         daysWithoutWater = 4, waterFromFood = 0.6f,

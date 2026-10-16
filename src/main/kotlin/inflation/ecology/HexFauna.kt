@@ -505,8 +505,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 var gap = 1f - got[k]
                 // (Within what the gut holds: switching shifts what it eats, not how much bulk it takes.)
                 var room = max(0f, fill / GUT_QREF - (d.grass / total * g + d.browse / total * b) * fill)
-                if (gap > 0f && d.browse > 0f) { val x = min(min(gap, room * quality), avail[k] * spareB / need[k] * quality); spareB -= x * need[k] / quality; eatB += x * need[k] / quality; got[k] += x; gap -= x; room -= x / quality }
-                if (gap > 0f && d.grass > 0f && !snowed) { val x = min(min(gap, room * quality), avail[k] * spareG / need[k] * quality); spareG -= x * need[k] / quality; eatG += x * need[k] / quality; got[k] += x; gap -= x; room -= x / quality }
+                // (What it switches to nourishes it as well as its gut digests fibre: a pig or a bear gets less from extra grass.)
+                val qf = quality * s.fibreDigestion
+                if (gap > 0f && d.browse > 0f) { val x = min(min(gap, room * qf), avail[k] * spareB / need[k] * qf); spareB -= x * need[k] / qf; eatB += x * need[k] / qf; got[k] += x; gap -= x; room -= x / qf }
+                if (gap > 0f && d.grass > 0f && !snowed) { val x = min(min(gap, room * qf), avail[k] * spareG / need[k] * qf); spareG -= x * need[k] / qf; eatG += x * need[k] / qf; got[k] += x; gap -= x; room -= x / qf }
                 if (gap > 0f && d.fruit > 0f) { val x = min(min(gap, SWITCH * d.fruit / total), avail[k] * spareF / need[k]); spareF -= x * need[k]; eatF += x * need[k]; got[k] += x; gap -= x }
                 if (gap > 0f && d.roots > 0f) { val x = min(min(gap, SWITCH * d.roots / total), avail[k] * spareR / need[k]); spareR -= x * need[k]; eatR += x * need[k]; got[k] += x; gap -= x }
                 // With food to spare and reserves short, they eat more and lay the surplus on.
