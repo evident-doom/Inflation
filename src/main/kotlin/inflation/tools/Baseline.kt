@@ -64,6 +64,6 @@ private fun report(what: String, f: File, inputs: List<String>, outputs: List<St
         (newIn + newOut).joinToString(", ").ifEmpty { "none" } + "; no longer in the model (dropped): " + (goneIn + goneOut).joinToString(", ").ifEmpty { "none" })
 }
 
-private fun gitCommit(): String = try {
+internal fun gitCommit(): String = try {
     ProcessBuilder("git", "rev-parse", "--short", "HEAD").redirectErrorStream(true).start().inputStream.bufferedReader().readText().trim().ifEmpty { "unknown" }
 } catch (e: Exception) { "unknown" }

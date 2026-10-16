@@ -127,6 +127,17 @@ viewer. Fields are matched by name, so a field added since keeps its fresh value
 dropped. The generated world itself is kept in `~/.inflation/world-cache` and loaded in seconds
 while the world-generating code and settings are unchanged (`worldCache=false` turns this off).
 
+Short tests start from settled test worlds rather than from year 0, so they see a change's effect
+and not the first years' swings. `./gradlew testWorld -PtestArgs="build full-1 strip-1"` runs each
+named world for 30 years (`--years N`) under the config file's keys and keeps it in
+`~/.inflation/test-worlds`; `testWorld -PtestArgs="list"` shows what is built and from which commit;
+`hexFauna -PfaunaArgs="--world strip-1 --years 3"` carries one on, and `--replicate R` draws its
+weather afresh, for repeat runs from the same start. The worlds are three seeds of the full map
+(`full-1..3`), two strips half as wide with every latitude (`strip-1, strip-2`) and two 400 x 800
+km maps (`small-1, small-2`, 32-40°N only). A smaller world is to be trusted as far as
+`testWorld compare` shows it tracks the full map: each kind's level, trend and the effect of a
+variant, against the range across the full map's seeds (usage in `TestWorlds.kt`).
+
 ## Known simplifications
 
 - Rivers use single-direction (D8) routing, randomised during erosion to avoid parallel channels.

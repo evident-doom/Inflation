@@ -94,7 +94,10 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     private val coarseKm = 50.0
     private val cw = (places.widthKm / coarseKm).toInt() + 2
     private val ch = (places.heightKm / coarseKm).toInt() + 2
-    private val rnd = Random(cfg.seed * 31 + 7)
+    private var rnd = Random(cfg.seed * 31 + 7)
+
+    /** Draws the weather's turns (regimes, droughts) afresh from [replicate]: a run carried on from a saved world then meets other years' weather. */
+    fun reseed(replicate: Long) { rnd = Random(cfg.seed * 31 + 7 + replicate * 0x9E3779B97F4A7C15uL.toLong()) }
 
     /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
     private val yearSwing = FloatArray(n) { i ->
