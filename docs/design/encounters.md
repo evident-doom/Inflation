@@ -1,6 +1,6 @@
 # Encounters and what hunters know
 
-Status (2026-10-16): proposal for Olli's review. No code yet.
+Status (2026-10-16): Olli approved the herds' side by the same rule; being built.
 
 ## Why
 
@@ -93,8 +93,8 @@ season places when they meet (`bandsMeet`, `PlaceMemory.hear`): word of game tra
 **The herds' side, by the same rule.** A herd sees hunters in its own hex and the six around it.
 Beyond, it has the landscape of fear (`fauna.afraid`, kills there lately: exists, `FEAR_WEIGHT`) and
 its memory of danger (`PlaceMemory.danger`: exists). `predatorKg` beyond the ring goes. Fixing the
-hunters' side alone would leave herds with the perfect knowledge that hunters lose. Olli decides
-whether this half goes in now; the proposal is yes.
+hunters' side alone would leave herds with the perfect knowledge that hunters lose (Olli, 2026-10-16:
+same rule for herds).
 
 **For the networks.** Hunters' input 0 and herds' input 3 keep their names but now carry the
 estimate, not the truth. Saved nets play on, reading a different spread. Training was stopped for this
