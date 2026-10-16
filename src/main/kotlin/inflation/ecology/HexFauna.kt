@@ -522,10 +522,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
                         val animalNeed = needAll * (1f - ps)
                         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - got[k] - strawPart) else 0f
-                        var gotMeat = huntResidents(k, p, needAll * d.meat / all * avail[k])
-                        var gotSmall = smallFood(k, p, needAll * d.smallPrey / all * avail[k], weather)
-                        var gotCarrion = small.scavenge(p, min(needAll * d.carrion / all, 0.5f * small.carrion[p]))
-                        var gap = animalNeed + plantGap - gotMeat - gotSmall - gotCarrion
+                        // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
+                        // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
+                        var gotCarrion = if (d.carrion > 0f) small.scavenge(p, min(animalNeed + plantGap, 0.5f * small.carrion[p])) else 0f
+                        var left = animalNeed + plantGap - gotCarrion
+                        var gotMeat = if (left > 0f) huntResidents(k, p, min(left, needAll * d.meat / all) * avail[k]) else 0f
+                        left -= gotMeat
+                        var gotSmall = if (left > 0f) smallFood(k, p, min(left, needAll * d.smallPrey / all) * avail[k], weather) else 0f
+                        var gap = left - gotSmall
                         // (The shortfall is made up first from the food it mostly lives on, then from the others,
                         // each to at most (1 + SWITCH) times its usual share, as with the plants.)
                         val most = (1f + SWITCH) * needAll / all

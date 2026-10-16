@@ -472,8 +472,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val open = open(p)
             val prey = (hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]) * (0.3f + 0.7f * open)
             val need = eagles[p] * EAGLE_NEED * days
+            // Carrion first, as the foxes: a carcass seen from the air costs no chase, and in winter it is
+            // much of what they live on. They see it as they see prey, best in the open.
+            val dead = carrion[p] * 1e6f * (0.3f + 0.7f * open)
+            val scavenged = if (dead > 0f && need > 0f) scavenge(p, min(0.5f * dead, need * dead / (dead + EAGLE_HALF)) / 1e6f) * 1e6f else 0f
+            val left = need - scavenged
             val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
-            val got = takeSwitching(p, min(0.5f * prey, need * prey / (prey + EAGLE_HALF)), 0.5f, eaglePrey)
+            val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + EAGLE_HALF)), 0.5f, eaglePrey)
             noteTaken(p, TAKER_EAGLES, r0, ha0, hy0, b0)
             // Fawns and kids make up much of what the small game does not.
             val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
@@ -1008,7 +1013,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Owls and small hawks: food a day per kg of them; rodents (kg/km²) at which they get half of it; their share of the rodents where they first appear. */
         const val OWL_INTAKE = 0.2f
         const val OWL_HALF = 3f
-        /** Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the crows and ravens not counted here; foxes and wildcats are counted, below): half in three or four days. */
+        /** Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the crows and ravens not counted here; foxes, wildcats and eagles are counted, below): half in three or four days. */
         const val CARRION_ROT = 0.2f
         /** Small prey of one kind, kg/km², at which hunters find it half as readily as a common kind. */
         const val SMALL_FIND_HALF = 2f
