@@ -496,16 +496,17 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
 
     fun trample(p: Int, intensity: Float) { trampling[p] += intensity }
 
-    /** Browse at [p], kg/m². */
-    fun browse(p: Int) = shrubShoots[p] + treeShoots[p]
+    /** Browse at [p], kg/m². (Never below nothing: worlds saved before [eatBrowse] kept its floor may hold shoots a rounding below it.) */
+    fun browse(p: Int) = max(0f, shrubShoots[p]) + max(0f, treeShoots[p])
 
     /** Eats up to [kgPerM2] of the browse at [p], shrubs and trees alike; what was eaten comes off the plants too. */
     fun eatBrowse(p: Int, kgPerM2: Float): Float {
         val all = browse(p)
         if (all <= 0f || kgPerM2 <= 0f) return 0f
         val x = min(kgPerM2, all)
-        val s = x * shrubShoots[p] / all; val t = x - s
-        shrubShoots[p] -= s; treeShoots[p] -= t
+        val s = x * max(0f, shrubShoots[p]) / all; val t = x - s
+        // (Eaten bare, the shares' rounding can take a hair more than is there: bare is nothing.)
+        shrubShoots[p] = max(0f, shrubShoots[p] - s); treeShoots[p] = max(0f, treeShoots[p] - t)
         return consume(p, LifeForm.SHRUB, s) + consume(p, LifeForm.TREE, t)
     }
 

@@ -733,6 +733,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return proteinMet(ps * share + (1f - ps))
     }
 
+    /** What a place is worth to a kind for moving there: nothing when below nothing or not a number (see [shiftBands], [spill]). */
+    private fun worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w else 0f
+
     /** Within a hex, a share of each kind moves between neighbouring height bands towards the better one. */
     private fun shiftBands(weather: Weather) {
         val bands = HexWorld.BANDS_M.size
@@ -743,12 +746,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val lo = hw.placeOf[b][h]; val hi = hw.placeOf[b + 1][h]
                 if (lo < 0 || hi < 0) continue
                 if (a[lo] + y[lo] <= 0f && a[hi] + y[hi] <= 0f) continue
-                val al = appeal(k, lo, weather); val ah = appeal(k, hi, weather)
+                // (A place worth less than nothing, or past reckoning, counts as nothing: else the gain
+                // passes 1, the share can take more than the place holds and leave it below nothing,
+                // and spill's floor at nothing then makes animals out of nothing.)
+                val al = worthOrNothing(appeal(k, lo, weather)); val ah = worthOrNothing(appeal(k, hi, weather))
                 if (al <= 0f && ah <= 0f) continue
                 val (from, to) = if (ah > al) lo to hi else hi to lo
                 val gain = (max(al, ah) - min(al, ah)) / max(al, ah)
                 val share = BAND_SHIFT * gain
-                if (share <= 0f) continue
+                if (!(share > 0f)) continue
                 val ma = a[from] * share * land.areaKm2[from]; val my = y[from] * share * land.areaKm2[from]
                 a[from] -= ma / land.areaKm2[from]; y[from] -= my / land.areaKm2[from]
                 a[to] += ma / land.areaKm2[to]; y[to] += my / land.areaKm2[to]
@@ -774,7 +780,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val worthOf = FloatArray(n)
             IntStream.range(0, n).parallel().forEach { q ->
                 val fresh = if (s.carnivore) 1f else land.nourishment(q) * forageProtein(s, q)
-                worthOf[q] = foodFor(s, q) * fresh * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / (CROWD * usual[k]))
+                worthOf[q] = worthOrNothing(foodFor(s, q) * fresh * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * afraid(q)) / (1f + (a[q] + y[q]) / (CROWD * usual[k])))
             }
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
