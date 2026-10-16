@@ -311,7 +311,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                     val cook = band.cookValue(type[i])
                     if (cook > 1f) { took *= cook; band.practise(if (type[i] == 5) Skill.EARTH_OVEN else Skill.STONE_BOILING) }
                     if (type[i] != 7) {
-                        val extra = took * band.detoxExtra(land.palatable[p], land.water[p] >= 0.05f || land.waterKm[p] < 3f)
+                        val extra = took * band.detoxExtra(land.palatable[p], land.water[p] >= Thresholds.WET || land.waterKm[p] < 3f)
                         if (extra > 0f) { took += extra; busy += extra * LEACH_DAYS_PER_KG / hands; band.practise(Skill.LEACHING); hunting.merge("${s.name}:plants leached, kg", extra.toInt(), Int::plus) }
                     }
                 }

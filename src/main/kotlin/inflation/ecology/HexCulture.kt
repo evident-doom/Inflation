@@ -217,8 +217,8 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         val hMeet = hw.placeHex[a.place]; val wk = (weatherNow.date.absoluteDay / days).toInt(); val sMeet = PlaceMemory.seasonOf(weatherNow.date.month)
         a.memory.mark(hMeet, sMeet, wk, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, b.memory.met, 1f)
         // And where each has its houses, and the homes of others they know of: settled bands can be found.
-        if (bb.houseHex >= 0 && bb.house >= 0.2f) { ba.knownHomes[b.id] = bb.houseHex; ba.knownLineage[b.id] = bb.mainLineage() }
-        if (ba.houseHex >= 0 && ba.house >= 0.2f) { bb.knownHomes[a.id] = ba.houseHex; bb.knownLineage[a.id] = ba.mainLineage() }
+        if (bb.houseHex >= 0 && bb.house >= Thresholds.HOUSE_STANDING) { ba.knownHomes[b.id] = bb.houseHex; ba.knownLineage[b.id] = bb.mainLineage() }
+        if (ba.houseHex >= 0 && ba.house >= Thresholds.HOUSE_STANDING) { bb.knownHomes[a.id] = ba.houseHex; bb.knownLineage[a.id] = ba.mainLineage() }
         for ((id, hh) in bb.knownHomes) if (id != a.id && rnd.nextFloat() < u) { ba.knownHomes.putIfAbsent(id, hh); bb.knownLineage[id]?.let { ba.knownLineage.putIfAbsent(id, it) } }
         for ((id, hh) in ba.knownHomes) if (id != b.id && rnd.nextFloat() < u) { bb.knownHomes.putIfAbsent(id, hh); ba.knownLineage[id]?.let { bb.knownLineage.putIfAbsent(id, it) } }
         fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {

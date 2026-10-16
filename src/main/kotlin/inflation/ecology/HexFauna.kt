@@ -646,7 +646,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // it can bear kills as it does a herd.
                 val thirst = run {
                     val fetch = 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
-                    if (s.maxWaterKm.isFinite() || land.water[p] >= 0.05f || land.waterKm[p] <= fetch) 0f
+                    if (s.maxWaterKm.isFinite() || land.water[p] >= Thresholds.WET || land.waterKm[p] <= fetch) 0f
                     else {
                         val dryDays = days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) f[p] else 0.5f + 0.5f * land.green[p]))
                         if (dryDays > s.daysWithoutWater) min(0.5f, 0.05f * (dryDays - s.daysWithoutWater)) else 0f

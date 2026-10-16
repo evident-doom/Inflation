@@ -598,7 +598,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
         if (b.houseHex == h && b.house < 1f) {
             // It builds the way it knows that its stone, timber and clay go furthest with.
-            val clay = land.water[p] >= 0.05f || land.waterKm[p] < 3f
+            val clay = land.water[p] >= Thresholds.WET || land.waterKm[p] < 3f
             val way = listOf(Skill.STONE_FOOTING, Skill.PIT_HOUSE, Skill.MUDBRICK).filter { b.knowsSkill[it.ordinal] && (it != Skill.MUDBRICK || clay) }
                 .maxByOrNull { w -> val (st, wd, dd) = houseNeeds(w); minOf(time / (dd * people), gd[Material.STONE.ordinal] / max(1e-3f, st * people), gd[Material.WOOD.ordinal] / (wd * people)) }
                 ?: Skill.STONE_FOOTING

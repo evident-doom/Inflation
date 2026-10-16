@@ -197,14 +197,14 @@ const val RANGE_RINGS = 3
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
-    houseOf = groups.filter { g -> g.alive && g.band.let { it != null && it.houseHex >= 0 && it.house >= 0.2f } }.associate { it.id to it.band!!.houseHex }
+    houseOf = groups.filter { g -> g.alive && g.band.let { it != null && it.houseHex >= 0 && it.house >= Thresholds.HOUSE_STANDING } }.associate { it.id to it.band!!.houseHex }
     Profile.part("people: camps, tools, culture") { for (g in groups) if (g.alive && g.band != null) { bandWeek(g, date); cultureWeek(g); riteWeek(g) } }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
         if (!g.alive || !g.species.carnivore) continue
         val h = hw.placeHex[g.place]
         if (g.recent[0] != h) { for (i in g.recent.size - 1 downTo 1) g.recent[i] = g.recent[i - 1]; g.recent[0] = h }
-        g.lean = if (g.fed < 0.5f) g.lean + 1 else 0
+        g.lean = if (g.fed < Thresholds.HUNGRY) g.lean + 1 else 0
         // A pack long hungry keeps its ground but ranges wider over it (see [HexGroups.plan]).
     }
     val kinNow = HashMap<Long, Int>()

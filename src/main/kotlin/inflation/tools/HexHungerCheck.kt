@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Thresholds
 import inflation.Args
 import inflation.Config
 
@@ -36,7 +37,7 @@ fun main(args: Array<String>) {
             if (!g.alive || g.species != s) continue
             val n = g.size.toDouble()
             heads[i][m] += n; fed[i][m] += g.fed * n; snow[i][m] += run.weather.snowpack[g.place] * n
-            if (g.fed < 0.5f) {
+            if (g.fed < Thresholds.HUNGRY) {
                 hungry[i][m] += n
                 val h = run.hw.placeHex[g.place]; var best = 0; for (b in run.hw.biome.indices) if (run.hw.biome[b][h] > run.hw.biome[best][h]) best = b
                 hungryIn[i].merge(Biome.entries[best].name.lowercase().replace('_', ' '), n, Double::plus)

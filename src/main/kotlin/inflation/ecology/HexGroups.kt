@@ -270,7 +270,7 @@ class HexGroups(
                 if (!g.alive || g.species.carnivore || g.id == watched) continue
                 if ((date.absoluteDay / days + g.id) % OWN_PLAN_WEEKS == 0L) continue
                 val goal = roundOf(g, month)?.first ?: g.seasonPlace[month]
-                val state = (if (g.fed < 0.7f) 1 else 0) + (if (g.dry > 0.5f * g.species.daysWithoutWater) 2 else 0)
+                val state = (if (g.fed < Thresholds.HERD_HUNGRY) 1 else 0) + (if (g.dry > 0.5f * g.species.daysWithoutWater) 2 else 0)
                 val key = ((g.species.index.toLong() * n + g.place) * (n + 1L) + (goal + 1)) * 4 + state
                 val l = first.putIfAbsent(key, k); if (l != null) leaderOf[k] = l
             }
@@ -283,7 +283,7 @@ class HexGroups(
         }
         for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { choice[k] = choice[l]; paths[k] = paths[l]; times[k] = times[l] } }
         for ((k, g) in groups.withIndex()) if (g.alive) {
-            if (g.band != null && g.fed < 0.5f) meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
+            if (g.band != null && g.fed < Thresholds.HUNGRY) meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
             // A herd's heading: what it kept of last week's, bent toward the way it went and the way its sense of better country points.
             if (!g.species.carnivore) {
                 val from = hw.placeHex[g.place]; val to = hw.placeHex[choice[k]]
@@ -775,10 +775,10 @@ class HexGroups(
         val relief = drain(g, g.place, weather) - leastDrainNear(g, here, weather) > WALK_COST * hex.hexKm.toFloat() / days
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
         val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && monthsFrom(month, b.appointMonth) <= 1) || b.unluckyHex == here || b.raidHex >= 0 } ?: false
-        val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon || (onRound && goalFar) ||
+        val restless = if (s.human) g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon || (onRound && goalFar) ||
                 (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: 0f) > 0.5f
-            else if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
-            else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
+            else if (s.carnivore) g.fed < Thresholds.HUNGRY || g.home < 0 || thirsty || astray
+            else g.fed < Thresholds.HERD_HUNGRY || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
         // (Herds content where they are weigh their places only one week in [CONTENT_WEEKS]: they stay while the grazing holds;
@@ -874,7 +874,7 @@ class HexGroups(
             val foreign = if (s.carnivore && !s.human && h != g.home) foreignMark(s, h, g.id) else 0f
             // A pack on its own ground stays on it while fed, and keeps off ground another pack of its kind holds
             // (its choice: the hand-written score weighs these heavily; a learned one sees both, see [HexFeatures]).
-            val offGround = (if (beyond > 0f && (denning || (g.fed >= 0.5f && !astray))) KEEP_TO_GROUND else 0f) + (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
+            val offGround = (if (beyond > 0f && (denning || (g.fed >= Thresholds.HUNGRY && !astray))) KEEP_TO_GROUND else 0f) + (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
             val toGoal = if (goal >= 0) hexKm(h, goalHex) else 0.0
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(ki, here, h, pullKm)
@@ -941,7 +941,7 @@ class HexGroups(
                 if (TAMING && s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(peopleSlot, p, h, sensed) / 25f)
                 g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed) }
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.
-                if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
+                if (s.carnivore && g.fed < Thresholds.HUNGRY && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
                 seen?.add(p to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
