@@ -68,6 +68,8 @@ class GroupControlWindow(
     private val px: Int,
     /** The rivers as they run this week, drawn over the ground. */
     private val rivers: RiverOverlay,
+    /** Read the world only while it stands still (see [WorldLock]). */
+    private val world: WorldLock,
     /** Lets one more week run (on the simulation's thread). */
     private val requestStep: () -> Unit,
     /** Whether the overview is running weeks on its own. */
@@ -157,7 +159,7 @@ class GroupControlWindow(
     private fun text() = JTextArea().apply { isEditable = false; font = Font(Font.MONOSPACED, Font.PLAIN, 12); (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE }
 
     /** Follows group [id] in the window (opening it). */
-    fun follow(id: Int) {
+    fun follow(id: Int) = world.whileStill {
         if (id != groups.watched) { groups.watched = id; followChanged() }
         open()
     }
@@ -176,7 +178,7 @@ class GroupControlWindow(
     }
 
     /** Closes it: the group goes back to the model, and a week waiting on the player runs on its picks. */
-    fun close() {
+    fun close() = world.whileStill {
         groups.control = null
         groups.watched = -1
         startNext = false
@@ -200,7 +202,8 @@ class GroupControlWindow(
         groups.groups.firstOrNull { it.id == groups.watched && it.alive }?.let { g ->
             synchronized(trail) { trail.addLast(g.path.copyOf()); while (trail.size > TRAIL_WEEKS) trail.removeFirst() }
         }
-        SwingUtilities.invokeLater { lastWeek.text = groups.watchLog.joinToString("\n"); refresh() }
+        val log = groups.watchLog.joinToString("\n")
+        SwingUtilities.invokeLater { lastWeek.text = log; refresh() }
         playerWeek = false
         if (startNext && isOpen && !running() && groups.watched >= 0 && !handsOff.isSelected) { startNext = false; stepHere() }
         else startNext = false
@@ -243,7 +246,8 @@ class GroupControlWindow(
         val f = if (handsOff.isSelected || !isOpen || !playerWeek || running()) null else CompletableFuture<Int>()
         waiting = f
         SwingUtilities.invokeLater { refresh() }
-        return f?.let { runCatching { it.get() }.getOrDefault(d.model) } ?: d.model
+        // (While it waits on the player the world stands still, and the windows may read it.)
+        return f?.let { world.waiting { runCatching { it.get() }.getOrDefault(d.model) } } ?: d.model
     }
 
     override fun ways(g: HexGroup, out: FloatArray) {
@@ -257,7 +261,9 @@ class GroupControlWindow(
 
     // ---- What the window shows ----
 
-    private fun refresh() {
+    private fun refresh() = world.whileStill { refreshNow() }
+
+    private fun refreshNow() {
         val d = decision
         val g = groups.groups.firstOrNull { it.id == groups.watched && it.alive }
         val w = waiting != null
@@ -453,9 +459,14 @@ class GroupControlWindow(
             })
         }
 
+        private val painter = world.Painter(this)
+
         override fun paintComponent(g0: Graphics) {
             super.paintComponent(g0)
-            val g = g0 as Graphics2D
+            painter.paint(g0) { paintMap(it) }
+        }
+
+        private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             val grp = groups.groups.firstOrNull { it.id == groups.watched && it.alive } ?: run {
                 g.color = Color.WHITE; g.drawString("No group followed", 20, 30); return

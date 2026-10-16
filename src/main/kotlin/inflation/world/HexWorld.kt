@@ -24,11 +24,11 @@ class HexWorld(val world: World, val hex: HexMap) {
     /** Mean land elevation of each hex, m. */
     val elevationM = FloatArray(size)
     /** [month][hex]: mean temperature of the land, °C, and of its lowest and highest tenth of ground (valley floor, high pasture); rain and snow, mm; potential evaporation, mm. */
-    val temp = Array(12) { FloatArray(size) }
-    val tempLow = Array(12) { FloatArray(size) }
-    val tempHigh = Array(12) { FloatArray(size) }
-    val precip = Array(12) { FloatArray(size) }
-    val pet = Array(12) { FloatArray(size) }
+    val temp = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
+    val tempLow = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
+    val tempHigh = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
+    val precip = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
+    val pet = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
     /** Mean soil fertility of the land, 0..1. */
     val fertility = FloatArray(size)
     /** [biome][hex]: share of the land in each kind of country. */
@@ -63,7 +63,7 @@ class HexWorld(val world: World, val hex: HexMap) {
                     val b = BANDS_M.indexOfLast { world.elevation[i] >= it }.coerceAtLeast(0)
                     band[b][h] += 1f
                     if (nearWater[i] <= 2f) watered[h] += 1f
-                    for (m in 0 until 12) {
+                    for (m in 0 until Date.MONTHS_PER_YEAR) {
                         temp[m][h] += world.climate.monthlyTemp[m][i]
                         precip[m][h] += world.climate.monthlyPrecip[m][i]
                         pet[m][h] += world.climate.monthlyPet[m][i]
@@ -87,12 +87,12 @@ class HexWorld(val world: World, val hex: HexMap) {
             watered[h] /= l
             for (b in band) b[h] /= l
             for (bi in biome) bi[h] /= l
-            for (m in 0 until 12) { temp[m][h] /= l; precip[m][h] /= l; pet[m][h] /= l }
+            for (m in 0 until Date.MONTHS_PER_YEAR) { temp[m][h] /= l; precip[m][h] /= l; pet[m][h] /= l }
             // The coldest and warmest tenth of the land: the high pastures and the valley floor.
             val cs = byHex[h]
             val tenth = max(1, cs.size / 10)
             val byHeight = cs.sortedBy { world.elevation[it] }
-            for (m in 0 until 12) {
+            for (m in 0 until Date.MONTHS_PER_YEAR) {
                 tempLow[m][h] = byHeight.take(tenth).map { world.climate.monthlyTemp[m][it] }.average().toFloat()
                 tempHigh[m][h] = byHeight.takeLast(tenth).map { world.climate.monthlyTemp[m][it] }.average().toFloat()
             }
@@ -141,8 +141,8 @@ class HexWorld(val world: World, val hex: HexMap) {
             mean { (grid.x(it) * grid.cellKm).toFloat() },
             mean { (grid.y(it) * grid.cellKm).toFloat() },
             DoubleArray(n) { p -> placeCells[p].sumOf { world.climate.latitude[grid.y(it)] } / placeCells[p].size },
-            Array(12) { m -> mean { world.climate.monthlyTemp[m][it] } },
-            Array(12) { m -> mean { world.climate.monthlyPrecip[m][it] } },
+            Array(Date.MONTHS_PER_YEAR) { m -> mean { world.climate.monthlyTemp[m][it] } },
+            Array(Date.MONTHS_PER_YEAR) { m -> mean { world.climate.monthlyPrecip[m][it] } },
             Array(8) { k -> mean { fine[k][it] } },
             grid.width * grid.cellKm, grid.height * grid.cellKm, grid.cellKm,
             sunlight,
