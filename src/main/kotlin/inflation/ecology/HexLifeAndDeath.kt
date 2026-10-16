@@ -349,7 +349,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
                 val rate = s.youngPerFemale * s.littersPerYear * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * Tuning.humanBirths else 1f) * (1f + GRANDMOTHERS * help) / stepsInSeason
                 bornExpected = mothers * min(1f, rate)
                 // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
-                binomial(mothers, rate * (if (s.carnivore) 1f else g.protein), r)
+                binomial(mothers, rate * (if (s.carnivore) 1f else g.protein * herdRanges(g, kinNow)), r)
             }
             g.young += births
             bornNow = births
@@ -715,3 +715,20 @@ const val FIRE_GUARD = 0.5f
 const val DOGS_GUARD = 0.5f
 const val LOOKOUTS_GUARD = 0.3f
 const val YOUNG_STALKED = 2f
+
+/**
+ * Herds keep the residents' rule for breeding ranges (see [HexFauna.BREED_SPACING]) over the country
+ * they range over, not the hex they gather in: the share of a herd's mothers that breed, as its kind
+ * crowds the hex and the two rings of hexes about it beyond [HexFauna.BREED_SPACING] times its usual numbers.
+ * (-Dhex.t.herdRanges=0 leaves herds out of it.)
+ */
+internal fun HexGroups.herdRanges(g: HexGroup, kinNow: HashMap<Long, Int>): Float {
+    if (HexFauna.BREED_SPACING <= 0f || !HERD_RANGES || g.species.carnivore) return 1f
+    val h0 = hw.placeHex[g.place]; val key = g.species.index.toLong() * hex.size
+    val ring = HashSet<Int>(); ring += h0
+    for (k in 0 until 6) { val q = hex.neighbour(h0, k); if (q >= 0) { ring += q; for (j in 0 until 6) { val w = hex.neighbour(q, j); if (w >= 0) ring += w } } }
+    var heads = 0; for (q in ring) heads += kinNow[key + q] ?: 0
+    val density = heads / (ring.size * hex.hexKm * hex.hexKm * 0.87).toFloat()
+    return if (density <= 0f) 1f else min(1f, HexFauna.BREED_SPACING * HexFauna.usualDensity(g.species) / density)
+}
+val HERD_RANGES = (System.getProperty("hex.t.herdRanges")?.toFloat() ?: 1f) > 0f
