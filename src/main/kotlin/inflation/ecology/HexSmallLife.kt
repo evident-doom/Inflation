@@ -169,6 +169,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             "greylag goose" -> 10f * waterfowl[p] * grass
             "crane" -> 8f * waterfowl[p] * (0.5f + 0.5f * grass) + 1f * open(p) * grass
             "white stork" -> 3f * waterfowl[p] + 2f * open(p) * grass
+            // Rich woodland and scrub hold some 40-120 breeding pairs per 10 ha (Bialowieza, Tomialojc &
+            // Wesolowski, J. Ornithol. 2004, doi:10.1007/s10336-003-0017-2); at some 20-25 g a bird, up to
+            // about 40 kg/km2. Open grass holds a tenth of that (larks, pipits).
+            "songbirds" -> 40f * (0.1f + 0.9f * (1f - open(p)))
             else -> 0f
         }
     }
@@ -852,6 +856,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             // through on the way to and from Africa in spring and late summer. Both breed far away.
             BirdKind("crane", 5..6, 0.5f, 0.3f, setOf(10, 11, 0, 1, 2), floatArrayOf(0.5f, 0.3f, 0.3f, 0.4f, 0.3f, 0.5f), insectShare = 0.1f),
             BirdKind("white stork", 5..6, 1.2f, 0.3f, setOf(2, 3, 7, 8), floatArrayOf(0.5f, 0.3f, 0.3f, 0.5f, 0.4f, 0.4f), insectShare = 0.6f),
+            // Songbirds (larks, warblers, tits, finches, thrushes) as one guild: small, many, short-lived,
+            // raising their broods on insects. About half the adults die each year.
+            BirdKind("songbirds", 4..7, 3f, 0.6f, null, floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f), insectShare = 0.7f),
         )
         /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
         const val VULTURE_RANGE_KM = 80.0
