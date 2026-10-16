@@ -54,6 +54,11 @@ object TestWorlds {
         Entry("full-2", 2, 1000, 2000, "the full map"),
         Entry("full-3", 3, 1000, 2000, "the full map"),
         Entry("small-1", 1, 400, 800, "for checking code runs only: 32-40°N, kinds missing"),
+        // The full map's seeds again, settled on the rain with fronts fading over land and sea showers (beside
+        // full-1..3, which other tests still start from): test on them with --worlds rain-1,rain-2,rain-3.
+        Entry("rain-1", 1, 1000, 2000, "the full map, new rain"),
+        Entry("rain-2", 2, 1000, 2000, "the full map, new rain"),
+        Entry("rain-3", 3, 1000, 2000, "the full map, new rain"),
     )
 
     /** The worlds a change is tested on. */

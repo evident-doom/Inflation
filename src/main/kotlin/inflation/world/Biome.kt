@@ -71,7 +71,8 @@ object Biomes {
             floodplain.isFloodplain[i] && riverQ > 3f && ai < 0.75f -> Biome.FLOODPLAIN_FOREST
             ai < 0.05f -> Biome.DESERT
             ai < 0.2f -> Biome.SEMI_DESERT
-            ai < 0.45f -> if (cold < 2f) Biome.STEPPE else Biome.SHRUBLAND
+            // (Dry grass country is steppe whatever the winter: the Syrian steppe has mild winters, the Anatolian cold ones.)
+            ai < 0.45f -> Biome.STEPPE
             ai < 0.75f -> if (cold < 2f) Biome.OPEN_WOODLAND else Biome.MEDITERRANEAN_WOODLAND
             cold < -6f -> Biome.CONIFER_FOREST
             else -> Biome.TEMPERATE_FOREST
