@@ -285,12 +285,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 val old = h * HERP_DEATHS * years; val hungry = h * HERP_HUNGER * (1f - fed) * years
                 val died = old + hungry
                 smallDead[p] += died
-                val born = h * HERP_YOUNG * fed * years
+                // (Young crowd the place's breeding sites: tadpoles the pools, eggs the warm sheltered ground.)
+                val born = h * HERP_YOUNG * fed * max(0f, 1f - h / herpSites(p).coerceAtLeast(1e-3f)) * years
                 h += born - died
                 herpLedger[0][p] += born; herpLedger[1][p] += old; herpLedger[2][p] += hungry
                 herpLedger[5][p] += ate; herpLedger[6][p] += need
             } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died; herpLedger[3][p] += died }
-            herps[p] = capped(p, h, 200f)
+            herps[p] = capped(p, h, HERP_MOST)
             pt = Profile.lap("small life: reptiles and amphibians", pt)
             // ---- fire kills what cannot flee, on the share that burned.
             val b = land.burning[p]
@@ -534,6 +535,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      */
     fun herpExposed(p: Int) = 1f / (1f + min(1f, land.ruggedness[p])) * HERP_COVER_KG / (HERP_COVER_KG + land.shrub[p]) * HERP_COVER_KG / (HERP_COVER_KG + litter[p])
 
+    /**
+     * How many reptiles and amphibians place [p] has breeding sites for, kg/km²: frogs, toads and newts
+     * spawn in standing water (marsh, bog, floodplain), lizards, snakes and tortoises lay their eggs in
+     * sheltered ground (cover, as [herpExposed]); taken as half of each. As they near it, the young
+     * crowd the sites and fewer come through.
+     */
+    fun herpSites(p: Int) = HERP_MOST * (0.5f * min(1f, wetland[p] + land.floodShare[p]) + 0.5f * (1f - herpExposed(p)))
+
     /** Whether reptiles and amphibians are out: warm, and not baking in a drought. */
     fun herpsActive(t: Float, soilWater: Float) = t in 12f..34f && !(t > 28f && soilWater < 10f)
 
@@ -750,6 +759,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val HERP_HUNGER = 1f
         const val HERP_DORMANT_DEATHS = 0.15f
         const val HERP_COVER_KG = 1f
+        /** Reptiles and amphibians where every bit of the ground is breeding site, kg/km² (some 2 kg a hectare). */
+        const val HERP_MOST = 200f
         /** The [herpTakenBy] slot of hunting groups and people (resident kinds take the slots below it). */
         const val TAKER_GROUPS = 40
         /**
