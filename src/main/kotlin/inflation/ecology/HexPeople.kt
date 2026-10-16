@@ -443,9 +443,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     for (h in g.path) {
         var ring = listOf(h); val seenHex = hashSetOf(h); b.learn(h, hex.size)
         for (r in 1..rings) {
-            val next = ArrayList<Int>()
-            for (x in ring) for (d in 0 until 6) { val q = hex.neighbour(x, d); if (q >= 0 && seenHex.add(q)) { next += q; b.learn(q, hex.size) } }
-            ring = next
+            ring = hex.nextRing(ring, seenHex)
+            for (q in ring) b.learn(q, hex.size)
         }
     }
     val p = g.place

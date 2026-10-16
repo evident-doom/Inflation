@@ -206,7 +206,7 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         for (r in 0..TOLD_RINGS) {
             for (h in ring) { if (ba.knows(h)) bb.learn(h, hex.size); if (bb.knows(h)) ba.learn(h, hex.size) }
             if (r == TOLD_RINGS) break
-            val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next
+            ring = hex.nextRing(ring, seen)
         }
         meetings.merge("bands told of country", 1, Int::plus)
         // And of the ways they know further off: landmarks, and the legs between those they know.
@@ -357,9 +357,7 @@ internal fun HexGroups.visitKin() {
         for (r in 0..VISIT_RINGS) {
             for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) { val sc = o.larder / (1f + r); if (sc > bestScore) { bestScore = sc; best = o } }
             if (r == VISIT_RINGS) break
-            val next = ArrayList<Int>()
-            for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }
-            ring = next
+            ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
         // (How much the band visited gives is its choice.)

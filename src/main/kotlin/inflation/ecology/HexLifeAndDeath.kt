@@ -181,8 +181,7 @@ internal fun HexGroups.grazingRange(g: HexGroup): List<Pair<Int, Float>> {
     var ring = listOf(h0); val seen = hashSetOf(h0)
     var r = 0
     while (have < needKg && r < RANGE_RINGS) {
-        val next = ArrayList<Int>()
-        for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }
+        val next = hex.nextRing(ring, seen)
         for (h in next) { val q = hw.placeOf[band][h]; if (q >= 0) { places += q; have += forage(q) } }
         ring = next; r++
     }
@@ -569,7 +568,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
                 if (k > bestKin) { bestKin = k; best = o }
             }
             if (best != null || r == VISIT_RINGS) break
-            val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next
+            ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
         joinBand(o, g)

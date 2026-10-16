@@ -149,7 +149,7 @@ class HexGroups(
                         b.ageStage[0] = (g.adults - b.elders) / 3; b.ageStage[1] = (g.adults - b.elders) / 3
                         // It knows the country within a few hexes of its first camp.
                         var ring = listOf(hw.placeHex[p]); val seen = hashSetOf(ring[0])
-                        repeat(KNOWN_AT_START) { val next = ArrayList<Int>(); for (h in ring) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }; ring = next }
+                        repeat(KNOWN_AT_START) { ring = hex.nextRing(ring, seen) }
                         for (h in seen) b.learn(h, hex.size)
                         // And the plants of the country round it.
                         for (h in seen) for (k in b.plants.indices) if (hw.biome[k][h] > 0.1f) b.plants[k] = 0.9f
