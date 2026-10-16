@@ -437,7 +437,6 @@ const val RITE_SHIFT = 0.1f
 fun riteStrengthAt(lineage: Int) = RITE_FOUNDER_MAX * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
 
 /** One of the places at hex [h], for a rite's site (the lowest-lying there is). */
-private fun HexGroups.placeIn(h: Int): Int { for (b in 0 until inflation.world.HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) return p }; return -1 }
 
 /**
  * A band's rites through the year (rounds on, see [ROUNDS]): about once a year a band whose rites
@@ -460,15 +459,15 @@ internal fun HexGroups.riteWeek(g: HexGroup) {
     for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
         if (mem.hex[i] < 0) continue
         val month = mem.season[i] * 3 + 1
-        if (mem.dead[i] >= APPOINT_MIN) consider(placeIn(mem.hex[i]), month, mem.dead[i])
-        if (mem.met[i] >= APPOINT_MIN) consider(placeIn(mem.hex[i]), month, 0.5f * mem.met[i])
+        if (mem.dead[i] >= APPOINT_MIN) consider(hw.firstPlaceIn(mem.hex[i]), month, mem.dead[i])
+        if (mem.met[i] >= APPOINT_MIN) consider(hw.firstPlaceIn(mem.hex[i]), month, 0.5f * mem.met[i])
     }
     val here = hw.placeHex[g.place]; val month = weatherNow.date.month
     for (h in routes.landmarks) {
         val k = routes.kind(h)
         if ((k != HexRoutes.Kind.PASS && k != HexRoutes.Kind.WATER && k != HexRoutes.Kind.END) || !b.knows(h)) continue
         val km = hex.distanceKm(here, h)
-        if (km > REMEMBERED_KM) consider(placeIn(h), month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
+        if (km > REMEMBERED_KM) consider(hw.firstPlaceIn(h), month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
     }
     // (Where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
     for (m in TRADED) {
@@ -476,7 +475,7 @@ internal fun HexGroups.riteWeek(g: HexGroup) {
         if (want <= 0f) continue
         for (h in materialSources.getValue(m)) if (b.knows(h)) {
             val km = hex.distanceKm(here, h)
-            if (km > ROUND_ARRIVED_KM) consider(placeIn(h), month, APPOINT_MIN * SOURCE_RITE * want)
+            if (km > ROUND_ARRIVED_KM) consider(hw.firstPlaceIn(h), month, APPOINT_MIN * SOURCE_RITE * want)
         }
     }
     if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; meetings.merge("bands took up a rite", 1, Int::plus) }

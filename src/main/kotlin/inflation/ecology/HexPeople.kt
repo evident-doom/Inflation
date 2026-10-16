@@ -438,7 +438,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     // From the high points on its way it sees as far as the line of sight and the weather allow;
     // its scouts range further still.
     var lookKm = 0f
-    for (h in g.path) { val q = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue; lookKm = max(lookKm, land.bestViewKm[q] * sight(q) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f)) }
+    for (h in g.path) { val q = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue; lookKm = max(lookKm, land.bestViewKm[q] * sight(q) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f)) }
     val scouts = b.scoutShare * g.adults
     val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
     for (h in g.path) {
@@ -503,7 +503,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
     // along the way (poorer stone anywhere), wood and resin where there are trees, fibre from grass,
     // scrub and reeds; hides, bone and sinew from the big game it killed.
-    fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.placeOf[hw.placeBand[p]][q].takeIf { it >= 0 }?.let { a[it] } ?: 0f } ?: 0f)
+    fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.sameBandPlace(p, q).takeIf { it >= 0 }?.let { a[it] } ?: 0f } ?: 0f)
     val stone = alongTheWay(land.stone)
     // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED].)
     gd[Material.STONE.ordinal] += people * 0.8f * min(1f, 5f * stone)

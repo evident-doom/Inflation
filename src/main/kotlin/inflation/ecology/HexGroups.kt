@@ -856,7 +856,7 @@ class HexGroups(
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
         // hungry pack ranges wider: up to three times that after weeks of hunger.
-        val homeValue = if (g.home >= 0) placeValue[ki][hw.placeOf[hw.placeBand[g.place]][g.home].takeIf { it >= 0 } ?: g.place] else PREY_HALF
+        val homeValue = if (g.home >= 0) placeValue[ki][hw.sameBandPlace(g.place, g.home).takeIf { it >= 0 } ?: g.place] else PREY_HALF
         // (A pack with young in the den, from its births for [DEN_MONTHS], hunts only
         // within [DEN_KM] of its home, however hungry: it cannot follow game that moves on.)
         val denning = s.carnivore && !s.human && g.home >= 0 && g.young > 0 && monthsFrom(g.birthMonth, month) < DEN_MONTHS
@@ -1055,7 +1055,7 @@ class HexGroups(
                     SEASON_PULL * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog, BEARING_PULL * bearings.along(ki, here, h, pullKm),
                     if (p == g.place) STAY else 0f, toGoal)
             }
-            val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h -> hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: hex.heart[h] }?.takeIf { it >= 0 }
+            val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h -> hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: hex.heart[h] }?.takeIf { it >= 0 }
             println("plan ${s.name} #${g.id} month ${date.month + 1}: chose " + parts(best) + (towards?.let { " | toward goal " + parts(it) } ?: ""))
         }
         // The hexes passed on the way, by the cheapest chain.

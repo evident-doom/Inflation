@@ -134,7 +134,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * Tuning.plantHandling / hands / carry + eats
     val seedDays = SEED_HANDLING_DAYS_PER_KG * Tuning.plantHandling / hands / carry / (1f + SICKLE_GAIN * (band?.has(Tool.SICKLE) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
-    val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } }.ifEmpty { listOf(g.place) } else listOf(g.place)
+    val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> hw.sameBandPlace(g.place, h).takeIf { it >= 0 } }.ifEmpty { listOf(g.place) } else listOf(g.place)
     // A band's gatherers also work the country round its camp, the further the more: a camp where
     // woodland, valley and plain meet has more kinds of food within a day's walk than one in the
     // middle of any one of them. (Each hex round gives a share of what the camp's own does.)
@@ -158,7 +158,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val nk = fauna.kinds.size
     val odds = FloatArray(g.path.size * nk)
     for ((j, h) in g.path.withIndex()) {
-        val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
+        val p = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue
         for (k in 0 until nk) {
             if (fauna.adults[k][p] + fauna.young[k][p] <= 0f) continue
             val ps = fauna.kinds[k]
@@ -184,7 +184,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         type[m] = t; kind[m] = k; place[m] = p; rate[m] = rr; kg[m] = e; time[m] = hh; m++
     }
     for ((j, h) in g.path.withIndex()) {
-        val p = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue
+        val p = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue
         val area = land.areaKm2[p]
         val swept = min(area, sweep)
         for (k in 0 until nk) {
@@ -539,7 +539,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val h = a.path[e.ai]
         // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
         // hours, and neither slip away first. (How often they run into each other while both are there.)
-        val p = hw.placeOf[hw.placeBand[a.place]][h].takeIf { it >= 0 } ?: a.place
+        val p = hw.sameBandPlace(a.place, h).takeIf { it >= 0 } ?: a.place
         val met = poisson(encounters(a, b, p, e.span))
         if (met == 0) continue
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { meetings.merge("slipped away", 1, Int::plus); continue }
@@ -734,7 +734,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // aims to keep, as it does at its own foraging.
     val need = hunter.dailyNeedKg * days * (if (hunter.band == null) hunter.will[AnimalWay.CHASE] else 1f) + (hunter.band?.let { storeWant(hunter, it) } ?: 0f)
     if (hunter.meatMet >= need) return
-    val p = hw.placeOf[hw.placeBand[herd.place]][h].takeIf { it >= 0 } ?: herd.place
+    val p = hw.sameBandPlace(herd.place, h).takeIf { it >= 0 } ?: herd.place
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
     val catchable = catchable(hunter.species, herd.species, p, max(1, hunter.adults) * hunter.species.massKg)
     if (catchable < NOT_WORTH_TRYING) return
