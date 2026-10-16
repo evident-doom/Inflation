@@ -75,7 +75,7 @@ class Climate(
             // are worked out together a few times over.
             val evap = Array(12) { FloatArray(n) }
             repeat(RECYCLING_PASSES) { pass ->
-                carry(grid, cfg, elevation, isSea, lat, temp, evap, precip)
+                carry(grid, cfg, elevation, isSea, lat, evap, precip)
                 if (pass == RECYCLING_PASSES - 1) return@repeat
                 java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
                     val p = (0 until 12).sumOf { precip[it][i].toDouble() }
@@ -148,6 +148,29 @@ class Climate(
         const val FRONT_LAND_DAYS = 1.0
         /** Times the rain and the land's evaporation are worked out against each other. */
         const val RECYCLING_PASSES = 3
+        /**
+         * Days the sea's surface takes to follow the air, by e (its mixed layer stores the summer's heat). With
+         * 40 days the sea swings 0.8 as far as the coastal air and lags it by 5 weeks: the Levantine Sea runs
+         * from about 16-17 °C in February-March to 28 °C in August against Beirut's 13-28 °C (from memory).
+         */
+        const val SEA_HEAT_DAYS = 40.0
+        /** Air density near the sea, kg/m³. */
+        const val AIR_DENSITY = 1.2
+        /** Bulk transfer coefficient of heat and vapour between sea and air (about 1.2e-3; Large and Pond 1982). */
+        const val SEA_TRANSFER = 1.2e-3
+        /** Days a shower lives, by e: a convective cell lasts about half an hour to an hour (Byers and Braham 1949). */
+        const val SHOWER_DAYS = 1.0 / 24
+
+        /** Sea surface temperature, °C, at latitude [l] on [day]: the coastal air's, damped and delayed by [SEA_HEAT_DAYS]. */
+        fun seaSurfaceTemp(l: Double, day: Double): Double {
+            val wt = 2 * PI / 360 * SEA_HEAT_DAYS
+            val mean = 21.0 - 0.65 * (l - 31.0)
+            val amplitude = 6.5 + 0.35 * (l - 31.0)
+            return mean + amplitude / hypot(1.0, wt) * cos(2 * PI * (day - WARMEST_DAY) / 360 - kotlin.math.atan(wt))
+        }
+
+        /** Specific humidity of saturated air at [t] °C at sea-level pressure, kg/kg. */
+        private fun saturatedHumidity(t: Double) = 0.622 * 6.1078 * exp(17.27 * t / (t + 237.3)) / 1013.25
 
         /**
          * Monthly rain, mm, into [precip]. In each weather regime ([Regime], weighted by how often it blows that
@@ -156,11 +179,14 @@ class Climate(
          * it gains what the land evaporates ([evap], mm a day) and loses what rains out. Rain needs rising
          * air: fronts in the storm track under the jet (by the regime's storminess, fading with distance from
          * the jet, over [VAPOUR_DAYS], fading over land as the lows fill, see [FRONT_LAND_DAYS]), and ground rising into the wind, where air lifted past saturation rains
-         * out what it cannot hold. Highs give rain only on windward slopes.
+         * out what it cannot hold. Highs give rain only on windward slopes. Air crossing a sea warmer than
+         * itself (the sea lags the seasons, [SEA_HEAT_DAYS], so in autumn and winter) is heated from below and
+         * takes up more vapour than at its own temperature; that extra water rains out in showers that drift a
+         * few tens of km before they die ([SHOWER_DAYS]), so they fall on the sea and the coast it blows onto.
          * Worked on cells of [CARRY_KM] and spread back to the fine cells.
          */
         private fun carry(grid: Grid, cfg: WorldConfig, elevation: FloatArray, isSea: BooleanArray, lat: DoubleArray,
-                          temp: Array<FloatArray>, evap: Array<FloatArray>, precip: Array<FloatArray>) {
+                          evap: Array<FloatArray>, precip: Array<FloatArray>) {
             val f = max(1, Math.round(CARRY_KM / grid.cellKm).toInt())
             val cw = (grid.width + f - 1) / f; val ch = (grid.height + f - 1) / f
             val ckm = f * grid.cellKm
@@ -173,6 +199,9 @@ class Climate(
             val q = FloatArray(cw * ch); val rain = FloatArray(cw * ch); val total = FloatArray(cw * ch)
             // Days the air has been over land since it left the sea.
             val landDays = FloatArray(cw * ch)
+            // Shower water the air carries, mm, and the temperatures of the sea's surface and the air over it, °C.
+            val shower = FloatArray(cw * ch)
+            val seaT = FloatArray(ch); val seaAirT = FloatArray(ch)
             val gain = FloatArray(cw * ch); val wSat = FloatArray(cw * ch)
             fun at(a: FloatArray, x: Double, y: Double, outside: Float): Float {
                 if (x < 0 || y < 0 || x > cw - 1 || y > ch - 1) return outside
@@ -191,6 +220,7 @@ class Climate(
                 gain.fill(0f)
                 for (i in 0 until grid.size) { val c = (grid.y(i) / f) * cw + grid.x(i) / f; gain[c] += evap[m][i] }
                 for (c in 0 until cw * ch) gain[c] /= cnt[c].coerceAtLeast(1)
+                for (y in 0 until ch) { seaT[y] = seaSurfaceTemp(rowLat[y], day).toFloat(); seaAirT[y] = seaLevelTemp(rowLat[y], day, 0.0).toFloat() }
                 total.fill(0f)
                 var weights = 0.0
                 for (r in Regime.entries) {
@@ -216,6 +246,7 @@ class Climate(
                     val order = (0 until cw * ch).sortedBy { c -> val y = c / cw; (c % cw) * ux[y] + y * uy[y] }
                     for (c in 0 until cw * ch) q[c] = w0[c / cw]
                     landDays.fill(0f)
+                    shower.fill(0f)
                     repeat(2) {
                         for (c in order) {
                             val x = c % cw; val y = c / cw
@@ -232,6 +263,13 @@ class Climate(
                             val left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
                             rain[c] = ((wet + (1 - sea[c]) * gain[c] * days - left) / days * 30).toFloat()
                             q[c] = left.toFloat()
+                            // A sea warmer than the air over it gives the air more vapour than the air's own warmth would, mm a day,
+                            // and that rains out in showers.
+                            val extra = AIR_DENSITY * SEA_TRANSFER * kmDay[y] / 86.4 * (saturatedHumidity(seaT[y].toDouble()) - saturatedHumidity(seaAirT[y].toDouble())) * 86400
+                            val sin = at(shower, bx, by, 0f) + sea[c] * max(0.0, extra) * days
+                            val sKeep = sin * exp(-days / SHOWER_DAYS)
+                            shower[c] = sKeep.toFloat()
+                            rain[c] += ((sin - sKeep) / days * 30).toFloat()
                         }
                     }
                     for (c in 0 until cw * ch) total[c] += (w * rain[c]).toFloat()
