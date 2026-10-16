@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * A year of bands (their week in [bandWeek], foraging in [forage], their rites and ties) leaves each band's
+ * A year of bands (their week in [bandWeek], foraging in [forage], their rites, ties and descent) leaves each band's
  * state within its bounds: no stock below nothing or not a number, shares within 0..1, the old and the
  * age spans no more than the adults.
  */
@@ -37,6 +37,11 @@ class BandStateTest {
             check(g, "elders ${b.elders} and age spans ${b.ageStage.toList()} of ${g.adults} adults", b.elders >= 0 && b.ageStage.all { it >= 0 } && b.elders + b.ageStage.sum() <= g.adults)
             check(g, "rite places ${b.rite.toList()}", b.rite.all { it >= -1 })
             check(g, "ties ${b.ties}", b.ties.values.all { it.isFinite() })
+            // (Their culture: grudges and descent are amounts, inbreeding a share.)
+            check(g, "grudges ${b.grudge.toList()}", b.grudge.allIn(0f, Float.MAX_VALUE))
+            check(g, "lineage ${b.lineage.toList()}", b.lineage.allIn(0f, Float.MAX_VALUE))
+            check(g, "inbred ${b.inbred}", b.inbred.isFinite() && b.inbred in 0f..1f)
+            check(g, "hold on its rites ${b.riteStrength}", b.riteStrength.isFinite() && b.riteStrength >= 0f)
             check(g, "fed ${g.fed}, reserves ${g.fat}", g.fed.isFinite() && g.fed in 0f..1.0001f && g.fat.isFinite() && g.fat >= 0f)
         }
         assertEquals(emptyList(), bad)
