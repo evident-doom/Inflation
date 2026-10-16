@@ -28,7 +28,7 @@ object Tuning {
     val coldCost = f("coldCost", 1f)
     /** Weeks between a content herd's weighing of its places ([CONTENT_WEEKS]). */
     val contentWeeks = System.getProperty("hex.t.contentWeeks")?.toInt() ?: CONTENT_WEEKS
-    /** Bands weigh where to go every week ([BAND_CONTENT_WEEKS]); -Dhex.t.bandContentWeeks=2 gives the old every other week when content. */
+    /** Bands choosing by a network weigh where to go every week ([BAND_CONTENT_WEEKS]); -Dhex.t.bandContentWeeks=2 gives the old every other week when content. */
     val bandContentWeeks = System.getProperty("hex.t.bandContentWeeks")?.toInt() ?: BAND_CONTENT_WEEKS
 
     /** The settings that differ from the defaults, for the check's header. */

@@ -626,8 +626,9 @@ class HexGroups(
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
         // (Herds content where they are weigh their places only one week in [CONTENT_WEEKS]: they stay while the grazing holds;
-        // bands weigh theirs every week, [BAND_CONTENT_WEEKS].)
-        val every = if (s.human) Tuning.bandContentWeeks else if (s.carnivore) 2 else Tuning.contentWeeks
+        // bands choosing by a network weigh theirs every week, [BAND_CONTENT_WEEKS]; the hand-written bands keep every other
+        // week, so that they stay the baseline learned bands are judged against.)
+        val every = if (s.human && policies[s] != null) Tuning.bandContentWeeks else if (s.carnivore) 2 else Tuning.contentWeeks
         // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
         val capture = control != null && g.id == watched
         val content = !restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
