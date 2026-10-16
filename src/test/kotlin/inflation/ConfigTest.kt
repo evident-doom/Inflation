@@ -56,4 +56,42 @@ class ConfigTest {
             assertEquals("false", out.lines().last { it.isNotBlank() })
         } finally { f.delete() }
     }
+
+    @Test
+    fun `a tuning key the run never reads is named as it ends`() {
+        val f = File.createTempFile("inflation", ".properties")
+        try {
+            f.writeText("people=false\nt.headingKep=0.9\n")
+            val (code, out) = probe(emptyList(), f)
+            assertEquals(0, code, out)
+            assertTrue("never read" in out && "t.headingKep" in out, out)
+        } finally { f.delete() }
+    }
+
+    /** Every tuning key the code reads, with its default where that is written as a number: "t.name" to "1.5", or to null. */
+    private fun keysInCode(): Map<String, String?> {
+        val read = Regex("""Config\.(?:float|double|int)\("(t\.\w+)",\s*([^)]+)\)""")
+        val tuning = Regex("""\bf\("(\w+)",\s*([^)]+)\)""")
+        val out = HashMap<String, String>()
+        for (file in File("src/main/kotlin").walkTopDown().filter { it.name.endsWith(".kt") }) {
+            val text = file.readText()
+            for (m in read.findAll(text)) out[m.groupValues[1]] = m.groupValues[2]
+            if (file.name == "Tuning.kt") for (m in tuning.findAll(text)) out["t." + m.groupValues[1]] = m.groupValues[2]
+        }
+        return out.mapValues { (_, d) -> d.trim().removeSuffix("f").toDoubleOrNull()?.toString() }
+    }
+
+    @Test
+    fun `every tuning key is listed in the example config, with its default`() {
+        val listed = File("config.example.properties").readLines().mapNotNull { Regex("""^#?(t\.\w+)=(.*)$""").find(it.trim()) }
+            .associate { it.groupValues[1] to it.groupValues[2].trim().toDoubleOrNull()?.toString() }
+        val code = keysInCode()
+        assertTrue(code.size > 40, "found only ${code.size} tuning keys in the code")
+        val missing = code.keys.filter { it !in listed }.sorted()
+        assertEquals(emptyList(), missing, "tuning keys the code reads that config.example.properties does not list")
+        val wrong = code.filter { (k, d) -> d != null && listed[k] != null && d != listed[k] }.map { (k, d) -> "$k: code $d, example ${listed[k]}" }
+        assertEquals(emptyList(), wrong, "defaults that differ between the code and config.example.properties")
+        val stale = listed.keys.filter { it !in code }.sorted()
+        assertEquals(emptyList(), stale, "keys config.example.properties lists that the code no longer reads")
+    }
 }

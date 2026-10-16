@@ -6,6 +6,8 @@ import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import inflation.world.Date
+import java.util.stream.IntStream
 
 /**
  * The plant food that is not simply the standing green: stocks that build up and are eaten down, in
@@ -78,15 +80,15 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     fun step(weather: Weather) {
         // Once a year the wild cereal stands follow the climate: they spread where it suits them and
         // die back where it no longer does, over decades (a long cold, dry spell shrinks them).
-        val year = (weather.date.absoluteDay / inflation.world.Date.DAYS_PER_YEAR).toInt()
+        val year = (weather.date.absoluteDay / Date.DAYS_PER_YEAR).toInt()
         if (year != standYear) {
             val first = standYear < 0; standYear = year
             if (!first) grainRipenedLastYear = (0 until n).sumOf { (ripenedNow[it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
             ripenedNow.fill(0f)
             if (!first) { val (dT, rain) = weather.shock()
-                java.util.stream.IntStream.range(0, n).parallel().forEach { p -> cereal[p] += STAND_SHIFT * (cerealShare(p, dT, rain) - cereal[p]) } }
+                IntStream.range(0, n).parallel().forEach { p -> cereal[p] += STAND_SHIFT * (cerealShare(p, dT, rain) - cereal[p]) } }
         }
-        java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+        IntStream.range(0, n).parallel().forEach { p ->
             // The season as the plants feel it: the share of a normal year's warmth they have had since
             // midwinter. Seed ripens early, fruit from midsummer to autumn, roots and bulbs fill as the
             // plants die back; a warm year brings all of it on earlier, high ground later.
@@ -130,7 +132,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val lc = lichenCap(p)
             if (lc > 0f) {
                 // (Lichen is its own plant, growing by the light; what dies of crowding goes to the litter.)
-                val change = LICHEN_GROWTH * days / inflation.world.Date.DAYS_PER_YEAR * max(lichen[p], 0.01f * lc) * (1f - lichen[p] / lc)
+                val change = LICHEN_GROWTH * days / Date.DAYS_PER_YEAR * max(lichen[p], 0.01f * lc) * (1f - lichen[p] / lc)
                 if (change < 0f) small.litter[p] += min(lichen[p], -change)
                 lichen[p] = max(0f, lichen[p] + change)
             }

@@ -1,5 +1,10 @@
 package inflation.world
 
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.HASH_C
+import inflation.mix64
+import inflation.unitOf
 import inflation.Config
 
 import kotlin.math.exp
@@ -38,10 +43,22 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
 
     /** Area of each place, km², and m². */
     val areaKm2 = FloatArray(n) { (hw.placeCells[it].size * grid.cellKm * grid.cellKm).toFloat() }
+    /** Place [p]'s area, m². */
+    fun m2(p: Int) = areaKm2[p] * 1e6f
     private val areaM2 = FloatArray(n) { (areaKm2[it] * 1e6).toFloat() }
     private fun mean(p: Int, f: (Int) -> Float): Float { val cs = hw.placeCells[p]; var s = 0.0; for (i in cs) s += f(i); return (s / cs.size).toFloat() }
     private val soilFertility = FloatArray(n) { p -> mean(p) { world.soilFertility[it] } }
     private val slope = FloatArray(n) { p -> mean(p) { world.terrain.slope[it] } }
+    /**
+     * Soil fertility of each place's floodplain, 0..1: what its rock (alluvium) gives on its slope, as [Biomes.soilFertility]
+     * but without the cut for a dry climate, since its water comes from the river. (Fixed by the world, so not taken from a
+     * saved run.)
+     */
+    @Transient private val floorFertility = FloatArray(n) { p ->
+        var s = 0.0; var k = 0
+        for (i in hw.placeCells[p]) if (world.floodplain.isFloodplain[i]) { s += world.geology.rock[i].fertility * exp(-Biomes.slope(grid, world.elevation, i) / 0.15f); k++ }
+        if (k == 0) 0f else (s / k).toFloat()
+    }
     /** Share of waterlogged ground (marsh, bog, salt marsh), where woody plants drown (fixed by the world, so not taken from a saved run: runs saved before it was filled hold zeros). */
     @Transient val logged = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
     /**
@@ -464,7 +481,12 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val t = ((warmth[p] - form.warmthMin) / (form.warmthFull - form.warmthMin)).coerceIn(0f, 1f)
         val soilF = 0.3f + 0.7f * min(1f, fertility[p] + organicFertility[p])
         val wetFactor = when (form) { LifeForm.HERB -> 1f; LifeForm.SHRUB -> 1f - 0.6f * logged[p]; LifeForm.TREE -> 1f - 0.95f * logged[p] }
-        return form.maxBiomass * m * t * soilF * wetFactor
+        val open = form.maxBiomass * m * t * soilF * wetFactor
+        if (form != LifeForm.HERB) return open
+        // The turf of the wet valley floor grows on its own soil: moist from the water table and as fertile as its alluvium.
+        val wf = wetFloor(p); if (wf <= 0f) return open
+        val floor = form.maxBiomass * t * (0.3f + 0.7f * min(1f, floorFertility[p] + organicFertility[p]))
+        return (1f - wf) * open + wf * floor
     }
 
     fun consume(p: Int, form: LifeForm, kgPerM2: Float): Float {
@@ -656,7 +678,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             moisture[p] += (((1 - slopeShade[p]) * soil[p] + slopeShade[p] * soilShade[p]) / soilCap[p] - moisture[p]) * memory
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
             // Plants are adapted to their place: where summers are cool they grow fully at less warmth (alpine
-            // grasses at 5-10 °C), where they are hot as before.
+            // grasses at 5-10 °C); where summers are hot they need the usual warmth.
             val season = growthWarmth(p, t)
             val water0 = (wet / UNSTRESSED).coerceIn(0f, 1f)
             val waterShade = (soilShade[p] / soilCap[p] / UNSTRESSED).coerceIn(0f, 1f)
@@ -814,11 +836,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     }
 
     private fun hash(p: Int, salt: Int): Float {
-        var h = seed * -0x61c8864680b583ebL + stepCount * 0x9E3779B97F4A7C15uL.toLong() + p * 0x632BE59BD9B4E019L + salt * 0x165667B19E3779F9L
-        h = (h xor (h ushr 33)) * -0xae502812aa7333L
-        h = (h xor (h ushr 33)) * -0x3b314601e57a13adL
-        h = h xor (h ushr 33)
-        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+        return unitOf(mix64(seed * HASH_A + stepCount * HASH_A + p * HASH_B + salt * HASH_C))
     }
 
     /** Seed for trees and shrubs: from the place itself, and half as much from its neighbours. */

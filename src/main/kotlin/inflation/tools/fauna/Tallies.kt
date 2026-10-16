@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Thresholds
 import inflation.ecology.Band
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
@@ -9,6 +10,7 @@ import inflation.ecology.Tool
 import inflation.ecology.Tradition
 import inflation.ecology.boldness
 import java.util.TreeMap
+import inflation.ecology.HexGroups
 
 /** Deaths and births by "kind:cause" over the run, from the model's weekly ledgers; and herds' head-weeks by size. */
 class DeathTally(private val sim: HexSim) {
@@ -70,7 +72,7 @@ class DeathTally(private val sim: HexSim) {
     }
 }
 
-/** The hunting and feeding tallies the groups keep ([inflation.ecology.HexGroups.hunting]), by year; and the grain people reaped. */
+/** The hunting and feeding tallies the groups keep ([HexGroups.hunting]), by year; and the grain people reaped. */
 class HuntTally(private val sim: HexSim) {
     /** This year's tallies, and the hunters' fed sums and group-weeks, by kind. */
     val year = TreeMap<String, Int>()
@@ -164,7 +166,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     fun week() {
         val groups = sim.groups; val hw = sim.hw
-        for (g in groups.groups) { val b = g.band ?: continue; if (!g.alive) continue; val i = if (b.house >= 0.2f) 1 else 0; bandWeeksHouse[i]++; if (b.campWeeks == 0) movesHouse[i]++ }
+        for (g in groups.groups) { val b = g.band ?: continue; if (!g.alive) continue; val i = if (b.house >= Thresholds.HOUSE_STANDING) 1 else 0; bandWeeksHouse[i]++; if (b.campWeeks == 0) movesHouse[i]++ }
         for (g in groups.groups) { val b = g.band ?: continue; if (!g.alive || b.appointHex < 0 || b.appointMonth != sim.weather.date.month) continue; apptDue++; if (hw.placeHex[g.place] == b.appointHex) apptKept++ }
         for (g in groups.groups) if (g.alive && g.band != null) {
             bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2
@@ -203,11 +205,11 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private fun houses(bands: List<HexGroup>, bs: List<Band>): String {
         val hw = sim.hw
         return " | houses: %.0f%% of bands have them (%.0f%% at home), camps moved a year %.1f with houses vs %.1f without".format(
-                100.0 * bs.count { it.house >= 0.2f } / bs.size.coerceAtLeast(1), 100.0 * bs.count { it.atHome } / bs.size.coerceAtLeast(1),
+                100.0 * bs.count { it.house >= Thresholds.HOUSE_STANDING } / bs.size.coerceAtLeast(1), 100.0 * bs.count { it.atHome } / bs.size.coerceAtLeast(1),
                 movesWith(true), movesWith(false)) +
             " | with houses by yearly rain: " + listOf(0f to 300f, 300f to 600f, 600f to 1e9f).joinToString(", ") { (lo, hi) ->
                 val inRain = bands.filter { val h = hw.placeHex[it.place]; val r = (0 until 12).sumOf { m -> hw.precip[m][h].toDouble() }; r >= lo && r < hi }
-                "%s %.0f%% of %d".format(if (hi > 1e8f) ">600 mm" else "%.0f-%.0f mm".format(lo, hi), 100.0 * inRain.count { it.band!!.house >= 0.2f } / inRain.size.coerceAtLeast(1), inRain.size) }
+                "%s %.0f%% of %d".format(if (hi > 1e8f) ">600 mm" else "%.0f-%.0f mm".format(lo, hi), 100.0 * inRain.count { it.band!!.house >= Thresholds.HOUSE_STANDING } / inRain.size.coerceAtLeast(1), inRain.size) }
     }
 
     /** Kept herds, ornaments and shell, grave goods. */

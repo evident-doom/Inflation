@@ -4,6 +4,7 @@ import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.Date
 import inflation.world.WorldConfig
+import inflation.world.WorldCache
 
 /**
  * Whether drinking water binds: month by month over the last year, how much of the land the viewer
@@ -19,7 +20,7 @@ fun main(args: Array<String>) {
     cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
     val years = a.int("--years", 2)
     a.done()
-    val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { })
+    val sim = HexSim(WorldCache.load(cfg) { })
     val land = sim.land; val herds = sim.groups
     val stepsY = Date.DAYS_PER_YEAR / cfg.daysPerStep
     val area = DoubleArray(12); val dry = DoubleArray(12); val far15 = DoubleArray(12); val far40 = DoubleArray(12); val far100 = DoubleArray(12); val pools = DoubleArray(12); val tint = DoubleArray(12)

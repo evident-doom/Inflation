@@ -29,7 +29,7 @@ run "$NEW" new "--save $WJ/new.gz"
 run "$BASE" base-on "--load $WJ/base.gz --save $WJ/base-on.gz"
 run "$NEW" new-on "--load $WJ/base.gz --save $WJ/new-on.gz"
 
-f() { grep -v -E "saved the world|[0-9] ms|cores busy|loaded in|\(0\.[0-9] s|setting up|^where a step|a step of weather|landform-|world kept in|^climate$|^rivers|^biomes|loading the" "$1"; }
+f() { grep -v -E "saved the world|[0-9] ms|cores busy|loaded in|\(0\.[0-9] s|setting up|^where a step|a step of weather|landform-|world kept in|^climate$|^rivers|^biomes|loading the|tectonics and volcanoes|erosion and sediment|recent deformation" "$1"; }
 same() { cmp -s <(gzip -dc "$1") <(gzip -dc "$2"); }
 status=0
 for pair in "base new" "base-on new-on"; do

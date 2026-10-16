@@ -1,4 +1,6 @@
 package inflation.ecology
+import inflation.world.HexMap
+import java.util.Properties
 
 
 object Catalogue {
@@ -9,7 +11,7 @@ object Catalogue {
     fun settledPer1000Km2(s: Species): Float? = SETTLED[s.name]
 
     private val SETTLED: Map<String, Float> by lazy {
-        val props = java.util.Properties()
+        val props = Properties()
         Catalogue::class.java.getResourceAsStream("/settled-start.properties")?.use { props.load(it) }
         props.stringPropertyNames().associateWith { props.getProperty(it).trim().toFloat() }
     }
@@ -644,13 +646,13 @@ object Catalogue {
      */
     fun swimKm(s: Species): Float = swimByIndex[s.index]
     private val swimByIndex by lazy { FloatArray(all.size) { i -> val s = all[i]; SWIM_KM[s.name] ?: if (s.human) 0f else when (travel(s)) {
-        inflation.world.HexMap.Travel.SWIM -> 8f; inflation.world.HexMap.Travel.CLIMB -> 2f; else -> 3f } } }
+        HexMap.Travel.SWIM -> 8f; HexMap.Travel.CLIMB -> 2f; else -> 3f } } }
     private val SWIM_KM = mapOf("elk" to 15f, "hippo" to 15f, "red deer" to 10f, "wild boar" to 10f, "brown bear" to 10f,
         "aurochs" to 8f, "fallow deer" to 6f, "roe deer" to 4f, "wolf" to 4f, "gazelle" to 1f, "cheetah" to 1f)
 
     /** How a kind crosses hex borders: climbers over crags, big plant-eaters swim rivers, the rest walk. */
-    fun travel(s: Species) = if (s in climbers) inflation.world.HexMap.Travel.CLIMB
-        else if (!s.carnivore && s.massKg > 60f) inflation.world.HexMap.Travel.SWIM else inflation.world.HexMap.Travel.FOOT
+    fun travel(s: Species) = if (s in climbers) HexMap.Travel.CLIMB
+        else if (!s.carnivore && s.massKg > 60f) HexMap.Travel.SWIM else HexMap.Travel.FOOT
     val all = firstHerbivores + predators + laterHerbivores
     /**
      * The kinds that move as groups with a learned mover: the migratory herds, the beasts of prey and

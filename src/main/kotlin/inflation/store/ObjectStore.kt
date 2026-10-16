@@ -7,10 +7,12 @@ import java.lang.reflect.Modifier
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.IdentityHashMap
+import inflation.ecology.HexSnapshot
+import java.util.concurrent.ConcurrentMap
 
 /*
  * Objects written to a stream field by field and read back into live objects (or new ones), by field
- * names rather than layout: what [inflation.ecology.HexSnapshot] saves a running model with, and what
+ * names rather than layout: what [HexSnapshot] saves a running model with, and what
  * the world caches keep generated worlds with. See HexSnapshot for what a restore keeps and drops.
  */
 
@@ -164,6 +166,8 @@ internal class Reader(val inp: DataInputStream, val named: Named<*>? = null) {
 
 internal class Restorer {
     val made = HashMap<Int, Any>()
+    /** What the save held that the code no longer has, or has as another type, and so was dropped ("Class.field", "class Name"). */
+    val dropped = sortedSetOf<String>()
 
     /** Restores the saved [node] into the live object [target], field by field. */
     fun into(target: Any, node: Node) {
@@ -173,13 +177,15 @@ internal class Restorer {
     }
 
     private fun fill(target: Any, node: Obj) {
-        for (f in fields(target.javaClass)) {
+        val fs = fields(target.javaClass)
+        if (node.fields.size > fs.size || fs.any { it.name !in node.fields }) { val names = fs.mapTo(HashSet()) { it.name }; for (k in node.fields.keys) if (k !in names) dropped += "${target.javaClass.simpleName}.$k" }
+        for (f in fs) {
             val saved = node.fields[f.name] ?: continue
             val cur = f.get(target)
             val v = make(saved, cur, f.type)
             if (v === cur || v === Skip) continue
             if (v == null && f.type.isPrimitive) continue
-            if (v != null && !box(f.type).isInstance(v)) continue // the field changed type
+            if (v != null && !box(f.type).isInstance(v)) { dropped += "${target.javaClass.simpleName}.${f.name} (now another type)"; continue }
             runCatching { f.set(target, v) }
         }
     }
@@ -233,7 +239,7 @@ internal class Restorer {
                 val v = make(vn, old[k], Any::class.java)
                 val kept = if (v === Skip) old[k] else v
                 // (A concurrent map holds no nulls: an entry whose value could not be made is left out.)
-                if (kept == null && m is java.util.concurrent.ConcurrentMap<*, *>) continue
+                if (kept == null && m is ConcurrentMap<*, *>) continue
                 m[k] = kept
             }
             m
@@ -249,7 +255,7 @@ internal class Restorer {
             // (data classes) and objects the fresh model lacks are made anew.
             val cls = runCatching { Class.forName(node.cls) }.getOrNull()
             when {
-                cls == null -> Skip
+                cls == null -> { dropped += "class ${node.cls}"; Skip }
                 cur != null && cur.javaClass == cls && !isValue(cls) -> { made[node.id] = cur; fill(cur, node); cur }
                 else -> { val o = blank(cls); made[node.id] = o; fill(o, node); o }
             }

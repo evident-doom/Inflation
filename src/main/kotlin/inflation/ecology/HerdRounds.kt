@@ -3,6 +3,10 @@ package inflation.ecology
 import inflation.Config
 
 import inflation.world.Date
+import java.util.Arrays
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.sin
 
 /**
  * Herds' yearly rounds: the routes a herd learns young from its elders, kept for longer than any
@@ -25,7 +29,7 @@ internal fun HexGroups.growRounds(month: Int) {
         if (rounds.isEmpty()) continue
         herdRounds[s.index] = rounds
         for (g in groups) if (g.alive && g.species == s && g.route[0] == -1) {
-            if (firstGrowth && hashNoise(g.id, 77) >= ROUND_START_SHARE) java.util.Arrays.fill(g.route, NO_ROUND) else takeRound(g, rounds, month)
+            if (firstGrowth && hashNoise(g.id, 77) >= ROUND_START_SHARE) Arrays.fill(g.route, NO_ROUND) else takeRound(g, rounds, month)
         }
         meetings.merge("${s.name}: yearly rounds grown", rounds.size, Int::plus)
         // (And how far apart their January and July places lie, km, on average: for the check.)
@@ -56,13 +60,13 @@ internal fun HexGroups.roundOf(g: HexGroup, month: Int): Pair<Int, Float>? {
 internal fun HexGroups.driftRound(g: HexGroup) {
     val r = rnd.nextFloat()
     if (g.route[0] >= 0) {
-        if (r < ROUND_SWITCH) { java.util.Arrays.fill(g.route, NO_ROUND); return }
+        if (r < ROUND_SWITCH) { Arrays.fill(g.route, NO_ROUND); return }
         if (r < ROUND_SWITCH + ROUND_DRIFT) {
             val m = rnd.nextInt(12)
             val p = placeNear(g.route[m], RANGE_KM)
             if (p >= 0) g.route[m] = p
         }
-    } else if (g.route[0] == NO_ROUND && r < ROUND_SWITCH) java.util.Arrays.fill(g.route, -1) // (to take the nearest round at the month's turn)
+    } else if (g.route[0] == NO_ROUND && r < ROUND_SWITCH) Arrays.fill(g.route, -1) // (to take the nearest round at the month's turn)
 }
 
 /** A herd takes the round that passes nearest to where it stands this month. */
@@ -76,8 +80,8 @@ internal fun HexGroups.takeRound(g: HexGroup, rounds: List<IntArray>, month: Int
 /** A place up to [km] from place [p], at random (-1 if that falls off the land). */
 private fun HexGroups.placeNear(p: Int, km: Double): Int {
     val (x, y) = hex.centreKm(hw.placeHex[p]); val a = rnd.nextDouble() * 2 * Math.PI; val d = rnd.nextDouble() * km
-    val h = hex.hexAt(x + d * kotlin.math.cos(a), y + d * kotlin.math.sin(a))
-    return if (h in 0 until hex.size) hw.placeOf[hw.placeBand[p]][h].takeIf { it >= 0 } ?: hw.placeOf[0][h] else -1
+    val h = hex.hexAt(x + d * cos(a), y + d * sin(a))
+    return if (h in 0 until hex.size) hw.sameBandPlace(p, h).takeIf { it >= 0 } ?: hw.placeOf[0][h] else -1
 }
 
 /** The yearly circuits of kind [s], from how good each place was for it each month ([q]: [month][place]). */
@@ -103,10 +107,10 @@ private fun HexGroups.roundsFor(s: Species, q: Array<FloatArray>): List<IntArray
     // (A leg over open water is not taken: herds walk their rounds. Sampled every [hex.hexKm] along the way.)
     val wet = HashMap<Long, Boolean>()
     fun overSea(a: Range, b: Range): Boolean = wet.getOrPut(a.place.toLong() * 1_000_003 + b.place) {
-        val d = kotlin.math.hypot(a.x - b.x, a.y - b.y); val steps = (d / hex.hexKm).toInt().coerceAtLeast(1)
+        val d = hypot(a.x - b.x, a.y - b.y); val steps = (d / hex.hexKm).toInt().coerceAtLeast(1)
         (1 until steps).any { i -> val f = i.toDouble() / steps; val h = hex.hexAt(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f); h in 0 until hex.size && hex.heart[h] < 0 }
     }
-    fun km(a: Range, b: Range) = if (overSea(a, b)) Double.MAX_VALUE else kotlin.math.hypot(a.x - b.x, a.y - b.y)
+    fun km(a: Range, b: Range) = if (overSea(a, b)) Double.MAX_VALUE else hypot(a.x - b.x, a.y - b.y)
     // From each month-one range, the best circuit by dynamic programming over the months, closing back on it.
     val out = ArrayList<IntArray>()
     for (r0 in ranges[0]) {

@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.monthsFrom
 import inflation.Args
 import inflation.Config
 
@@ -9,6 +10,7 @@ import inflation.ecology.roundsWhere
 import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
+import java.util.TreeMap
 
 /**
  * Whether herds keep to their yearly rounds: for each herd kind, month by
@@ -39,13 +41,13 @@ fun main(args: Array<String>) {
     val sHeads = Array(herds.size) { DoubleArray(2) }; val sFed = Array(herds.size) { DoubleArray(2) }; val sProt = Array(herds.size) { DoubleArray(2) }; val sMothers = Array(herds.size) { DoubleArray(2) }
     // (And where they are: hunters about, kg/km², and animals of the kind in the same hex, by head.)
     val huntSum = Array(herds.size) { DoubleArray(2) }; val kinSum = Array(herds.size) { DoubleArray(2) }
-    val events = Array(herds.size) { Array(2) { java.util.TreeMap<String, Int>() } }
+    val events = Array(herds.size) { Array(2) { TreeMap<String, Int>() } }
     val ways = listOf("on round", "own country")
     val shareByYear = Array(herds.size) { ArrayList<Int>() }
     // Where meetings and kills happen: "WAY|GOING|WHERE|WHO|met or killed" -> count, and animal-weeks by "WAY|GOING|WHERE" (see [inflation.ecology.roundsWhere]).
-    val where = Array(herds.size) { java.util.TreeMap<String, Int>() }
-    val whereHeads = Array(herds.size) { java.util.TreeMap<String, Double>() }
-    val whereHerdWeeks = Array(herds.size) { java.util.TreeMap<String, Int>() }
+    val where = Array(herds.size) { TreeMap<String, Int>() }
+    val whereHeads = Array(herds.size) { TreeMap<String, Double>() }
+    val whereHerdWeeks = Array(herds.size) { TreeMap<String, Int>() }
     repeat(steps) { w ->
         run.step()
         for ((i, s) in herds.withIndex()) {
@@ -54,7 +56,7 @@ fun main(args: Array<String>) {
                 val k = if (g.route[0] >= 0) 0 else 1
                 huntSum[i][k] += g.size * run.groups.monthHunterKg[g.place].toDouble() / run.groups.land.areaKm2[g.place]; kinSum[i][k] += g.size * inHex.getValue(run.hw.placeHex[g.place]).toDouble()
                 heads[i][k] += g.size.toDouble(); fedSum[i][k] += g.fed * g.size.toDouble(); protSum[i][k] += g.protein * g.size.toDouble()
-                if ((run.weather.date.month - g.birthMonth + 12) % 12 < s.birthMonths) { sHeads[i][k] += g.size.toDouble(); sFed[i][k] += g.fed * g.size.toDouble(); sProt[i][k] += g.protein * g.size.toDouble(); sMothers[i][k] += g.adults / 2.0 }
+                if (monthsFrom(g.birthMonth, run.weather.date.month) < s.birthMonths) { sHeads[i][k] += g.size.toDouble(); sFed[i][k] += g.fed * g.size.toDouble(); sProt[i][k] += g.protein * g.size.toDouble(); sMothers[i][k] += g.adults / 2.0 }
             }
             for ((key, n) in run.groups.hunting.subMap("rounds|${s.name}|", "rounds|${s.name}}")) {
                 val c = key.substringAfter("rounds|${s.name}|")

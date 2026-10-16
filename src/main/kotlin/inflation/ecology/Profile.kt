@@ -3,6 +3,9 @@ package inflation.ecology
 import inflation.Config
 
 import java.lang.management.ManagementFactory
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.LongAdder
 
 /**
  * Where a step's time goes: wall time and the processor time of the whole process for each named
@@ -10,10 +13,10 @@ import java.lang.management.ManagementFactory
  */
 object Profile {
     private val os = ManagementFactory.getOperatingSystemMXBean() as com.sun.management.OperatingSystemMXBean
-    private val wall = java.util.concurrent.ConcurrentHashMap<String, Long>()
-    private val cpu = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val wall = ConcurrentHashMap<String, Long>()
+    private val cpu = ConcurrentHashMap<String, Long>()
     /** Parts in the order first timed. */
-    private val order = java.util.concurrent.CopyOnWriteArrayList<String>()
+    private val order = CopyOnWriteArrayList<String>()
 
     inline fun <T> time(name: String, block: () -> T): T {
         val w0 = System.nanoTime(); val c0 = cpuNow()
@@ -37,13 +40,13 @@ object Profile {
      * `var t = Profile.mark(); ...; t = Profile.lap("part", t)`.
      */
     val FINE = Config.string("profile") == "fine"
-    private val parts = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder>()
-    private val partOrder = java.util.concurrent.CopyOnWriteArrayList<String>()
+    private val parts = ConcurrentHashMap<String, LongAdder>()
+    private val partOrder = CopyOnWriteArrayList<String>()
     fun mark(): Long = if (FINE) System.nanoTime() else 0L
     fun lap(name: String, since: Long): Long {
         if (!FINE) return 0L
         val now = System.nanoTime()
-        parts.computeIfAbsent(name) { partOrder += it; java.util.concurrent.atomic.LongAdder() }.add(now - since)
+        parts.computeIfAbsent(name) { partOrder += it; LongAdder() }.add(now - since)
         return now
     }
     inline fun <T> part(name: String, block: () -> T): T { val t = mark(); val r = block(); lap(name, t); return r }

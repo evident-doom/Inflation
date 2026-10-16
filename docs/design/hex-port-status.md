@@ -2,7 +2,7 @@
 
 Status on 13 Oct 2026, after the ground-up port. For each feature of the 1 km (grid) model: **yes** ported, **partly** ported
 (what is missing), **no** not yet. The hex model runs from the hex viewer, the hex checks and the
-hex learning tools; it is not yet wired into `Simulation`.
+hex learning tools. (The 1 km model's `Simulation` has since been removed; the hex model is the only one.)
 
 ## Weather and climate
 
@@ -136,7 +136,7 @@ hex learning tools; it is not yet wired into `Simulation`.
 | Burning off, camp fires against lions and hyenas, defensible camps | yes |
 | Knowing the country (walked, seen, told of by bands understood), forgetting far country | yes |
 | Sharing on demand: hungry bands fed by better-stocked bands nearby | yes |
-| Camp followers growing bold, pups taken, dogs kept (hunting, guarding) | yes, behind -Dhex.taming (off by default) |
+| Camp followers growing bold, pups taken, dogs kept (hunting, guarding) | yes, behind `taming=true` in the config (off by default) |
 | Firewood, middens, worn routes, scouting, land claims, ornaments and renown, gatherings, task groups | no |
 | Keeping herd animals, tending plants | no |
 | Learned bands | started: imitation (92% same choice) and evolution |
@@ -158,7 +158,7 @@ hex learning tools; it is not yet wired into `Simulation`.
   knows of within 60 km, peaks it can see out to 200 km (standing for their massifs), and a pull
   toward cooler or warmer country when the month is wrong for its coat. Groups trek when far out of
   their country (packs leave their ground); resident kinds spill that way. The check's `--uniform`
-  starts every kind spread evenly, and `-Dhex.noBearings` turns the sense off for comparison.
+  starts every kind spread evenly. (The switch that turned the sense off for comparison is gone.)
 
 ## Still missing
 

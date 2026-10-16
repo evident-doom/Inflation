@@ -1,5 +1,6 @@
-package inflation.world
+package inflation.ui
 
+import inflation.world.*
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO

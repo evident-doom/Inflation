@@ -8,6 +8,12 @@ import inflation.world.WorldConfig
 import java.io.File
 import java.util.Properties
 import kotlin.math.ln
+import inflation.world.Date
+import inflation.world.WorldCache
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 
 /**
  * Settled worlds kept ready for short tests: three seeds of the full map (and one small map for checking that code runs), each run
@@ -71,7 +77,7 @@ object TestWorlds {
         require(e.state.isFile) { "test world ${e.name} is not built yet (testWorld build ${e.name})" }
         val a = e.info() ?: Properties()
         println("test world ${e.name}: seed ${e.seed}, ${e.widthKm} x ${e.heightKm} km (${e.note}), ${sim.land.n} places; settled ${a.getProperty("years", "?")} years at commit ${a.getProperty("commit", "?")} on ${a.getProperty("built", "?")}")
-        val key = "%016x".format(HexSnapshot.WorldCache.key(e.config))
+        val key = "%016x".format(WorldCache.key(e.config))
         if (a.getProperty("worldKey") != key) println("WARNING: the world-making code has changed since ${e.name} was settled: its saved state is of the old land and climate. Rebuild it (testWorld build ${e.name}) before trusting a test on it.")
         val then = a.getProperty("config", ""); val now = Config.set("")
         if (then != now) println("WARNING: the config differs from when ${e.name} was settled.\n  then: ${then.ifEmpty { "(defaults)" }}\n  now:  ${now.ifEmpty { "(defaults)" }}")
@@ -89,7 +95,7 @@ object TestWorlds {
         val p = Properties()
         p["name"] = e.name; p["seed"] = "${e.seed}"; p["widthKm"] = "${e.widthKm}"; p["heightKm"] = "${e.heightKm}"
         p["years"] = "$years"; p["commit"] = commit; p["built"] = java.time.LocalDateTime.now().withNano(0).toString()
-        p["worldKey"] = "%016x".format(HexSnapshot.WorldCache.key(e.config)); p["config"] = Config.set("")
+        p["worldKey"] = "%016x".format(WorldCache.key(e.config)); p["config"] = Config.set("")
         p["landKm2"] = "%.0f".format(area); p["buildSeconds"] = "%.0f".format(seconds)
         p["secondsPerYear"] = "%.1f".format(seconds / years)
         e.about.writer().use { p.store(it, "test world ${e.name}, written by testWorld build") }
@@ -103,7 +109,7 @@ object TestWorlds {
             val built = when {
                 a == null || !e.state.isFile -> "not built"
                 else -> {
-                    val stale = a.getProperty("worldKey") != "%016x".format(HexSnapshot.WorldCache.key(e.config))
+                    val stale = a.getProperty("worldKey") != "%016x".format(WorldCache.key(e.config))
                     "%s years at %s on %s, %s s a year, %.0f MB%s".format(a.getProperty("years"), a.getProperty("commit"), a.getProperty("built"), a.getProperty("secondsPerYear"),
                         e.state.length() / 1e6, if (stale) " — WORLD CODE CHANGED SINCE: rebuild" else "")
                 }
@@ -136,8 +142,8 @@ object TestWorlds {
             Job("${w.name}-$side-r$r", cfg, listOf("--world", w.name, "--years", "$years", "--replicate", "$r", "--history", File(out, "${w.name}-$side-r$r.csv").path))
         } } }
         println("testWorld ab: ${jobs.size} runs of $years years into $out, $parallel at a time")
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(parallel)
-        val failed = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val pool = Executors.newFixedThreadPool(parallel)
+        val failed = ConcurrentLinkedQueue<String>()
         for (j in jobs) pool.submit {
             val t0 = System.nanoTime()
             val p = ProcessBuilder(listOf(javaBin, heap, "-Dhex.config=${j.cfg.absolutePath}", "-Duser.home=${System.getProperty("user.home")}", "-cp", System.getProperty("java.class.path"), "inflation.tools.HexFaunaCheckKt") + j.args)
@@ -146,7 +152,7 @@ object TestWorlds {
             if (code != 0) failed += j.label
             println("  ${j.label}: ${if (code == 0) "done" else "FAILED (exit $code, see ${j.label}.txt)"} in %.0f s".format((System.nanoTime() - t0) / 1e9))
         }
-        pool.shutdown(); pool.awaitTermination(Long.MAX_VALUE, java.util.concurrent.TimeUnit.DAYS)
+        pool.shutdown(); pool.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS)
         require(failed.isEmpty()) { "runs failed: ${failed.joinToString(", ")}" }
         abReport(out, worlds.map { it.name }, replicates, variant.name)
     }
@@ -230,7 +236,7 @@ object TestWorlds {
     class Run(file: File) {
         val name = file.name
         private val h = HexHistory.readCsv(file)
-        private val weeksPerYear = inflation.world.Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
+        private val weeksPerYear = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
         /** The whole years recorded, 1 for the first; a year cut short at the end is left out. */
         val years: List<Int> = (1..h.weeks / weeksPerYear).toList()
         init { require(years.isNotEmpty()) { "$file holds less than a year" } }
@@ -322,8 +328,8 @@ object TestWorlds {
 
     private fun fmt(v: Double): String = when {
         v.isNaN() -> "-"
-        kotlin.math.abs(v) >= 100 -> "%.0f".format(v)
-        kotlin.math.abs(v) >= 10 -> "%.1f".format(v)
+        abs(v) >= 100 -> "%.0f".format(v)
+        abs(v) >= 10 -> "%.1f".format(v)
         else -> "%.2f".format(v)
     }
 }

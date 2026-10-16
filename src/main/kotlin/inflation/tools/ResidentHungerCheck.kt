@@ -5,6 +5,8 @@ import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
 import inflation.world.Date
 import inflation.world.WorldConfig
+import inflation.ecology.HexSnapshot
+import inflation.world.WorldCache
 
 /**
  * When and where resident kinds go hungry: for each kind named, month by month, its heads, how well
@@ -24,8 +26,8 @@ fun main(args: Array<String>) {
     cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
     val years = a.int("--years", 1); val kinds = a.string("--kinds")?.split(",") ?: listOf("hippo")
     a.done()
-    val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { })
-    loadFile?.let { inflation.ecology.HexSnapshot.load(sim, it); println("carrying on $it at ${sim.weather.date}") }
+    val sim = HexSim(WorldCache.load(cfg) { })
+    loadFile?.let { HexSnapshot.load(sim, it); println("carrying on $it at ${sim.weather.date}") }
     val fauna = sim.fauna; val land = sim.land; val n = land.n
     val stepsY = Date.DAYS_PER_YEAR / cfg.daysPerStep
     for (name in kinds) {

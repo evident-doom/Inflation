@@ -8,6 +8,7 @@ import inflation.world.RiverClass
 import inflation.world.Weather
 import inflation.world.World
 import inflation.world.WorldConfig
+import inflation.world.LandformCache
 
 /**
  * Runs weather, water and plants on the hexes' height bands (no animals) and reports, year by year,
@@ -17,20 +18,11 @@ import inflation.world.WorldConfig
  * Usage: hex-water-check [--seed N] [--width KM] [--height KM] [--years N]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var years = 8
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--years" -> years = args[++k].toInt()
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
-    val world = World.generate(cfg, inflation.ecology.HexSnapshot.LandformCache.load(cfg) {})
+    val a = inflation.Args(args, "hex-water-check [--seed N] [--width KM] [--height KM] [--years N]")
+    val cfg = a.world(WorldConfig(seed = 1))
+    val years = a.int("--years", 8)
+    a.done()
+    val world = World.generate(cfg, LandformCache.load(cfg) {})
     val hw = HexWorld(world, HexMap(world))
     val n = hw.placeCells.size
     val land = HexLand(hw, cfg.seed)

@@ -16,6 +16,7 @@ import inflation.tools.TestWorlds
 import inflation.tools.baselineDir
 import inflation.world.WorldConfig
 import java.io.File
+import inflation.world.WorldCache
 
 /** What a fauna check runs: the world, how long, and the files it reads and writes. */
 class FaunaCheckOptions(
@@ -35,7 +36,7 @@ class FaunaCheckOptions(
      * networks the config names (ways=, herdWays=, hunterWays=, nets=). Prints what it loaded.
      */
     fun start(): HexSim {
-        val sim = HexSim(HexSnapshot.WorldCache.load(cfg) { println(it) }, uniformStart = uniform)
+        val sim = HexSim(WorldCache.load(cfg) { println(it) }, uniformStart = uniform)
         testWorld?.let { TestWorlds.check(it, sim) }
         loadFile?.let { f ->
             val t0 = System.nanoTime()
