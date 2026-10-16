@@ -42,14 +42,17 @@ fun main(args: Array<String>) {
     // Tortoises per class: yearly mean, and over the shown years their mean and the ledger's sums.
     val tYearly = Array(classes.size) { DoubleArray(years) }; val tMean = DoubleArray(classes.size); val tLedger = Array(classes.size) { DoubleArray(7) }
     val tCap = DoubleArray(classes.size).also { for (p in 0 until n) if (c[p] >= 0) it[c[p]] += (sl.tortoiseCapacity(p) * land.areaKm2[p]).toDouble() }
+    // Rodents, hares, hyrax, birds per class: mean over the shown years (kg).
+    val preyMean = Array(4) { DoubleArray(classes.size) }
     val herpMean = DoubleArray(classes.size); val ledger = Array(classes.size) { DoubleArray(8) }; val first = DoubleArray(classes.size); val last = DoubleArray(classes.size)
     repeat(steps) { w ->
-        if (w == start) { for (l in sl.herpLedger) l.fill(0f); for (l in sl.herpTakenBy) l.fill(0f); for (l in sl.tortLedger) l.fill(0f); for (l in sl.tortTakenBy) l.fill(0f); for (p in 0 until n) if (c[p] >= 0) first[c[p]] += (sl.herps[p] * land.areaKm2[p]).toDouble() }
+        if (w == start) { for (l in sl.herpLedger) l.fill(0f); for (l in sl.herpTakenBy) l.fill(0f); for (l in sl.tortLedger) l.fill(0f); for (l in sl.tortTakenBy) l.fill(0f); for (k in sl.preyTakenBy) for (l in k) l.fill(0f); for (p in 0 until n) if (c[p] >= 0) first[c[p]] += (sl.herps[p] * land.areaKm2[p]).toDouble() }
         run.step()
         val y = w / perYear
         for (p in 0 until n) { val cc = c[p]; if (cc < 0) continue; val a = land.areaKm2[p].toDouble(); yearly[cc][y] += sl.herps[p] * a / perYear; yearlyF[if (forest[p]) 1 else 0][y] += sl.herps[p] * a / perYear
             if (w >= start) herpMean[cc] += sl.herps[p] * a / (show * perYear)
-            tYearly[cc][y] += sl.tortoises[p] * a / perYear; if (w >= start) tMean[cc] += sl.tortoises[p] * a / (show * perYear) }
+            tYearly[cc][y] += sl.tortoises[p] * a / perYear; if (w >= start) tMean[cc] += sl.tortoises[p] * a / (show * perYear)
+            if (w >= start) { val f = a / (show * perYear); preyMean[0][cc] += sl.rodents[p] * f; preyMean[1][cc] += sl.hares[p] * f; preyMean[2][cc] += sl.hyrax[p] * f; preyMean[3][cc] += sl.birds[p] * f } }
         val month = run.weather.date.month; val mi = when (month) { 2 -> 0; 8 -> 1; else -> -1 }; if (mi >= 0) monthSteps[mi][y]++
         for (p in 0 until n) { if (c[p] < 0) continue; val a = land.areaKm2[p].toDouble() / perYear
             val v = doubleArrayOf(sl.rodents[p].toDouble(), sl.hares[p].toDouble(), sl.hyrax[p].toDouble(), sl.birds[p].toDouble(), sl.tortoises[p].toDouble(), sl.foxes[p].toDouble(), sl.owls[p].toDouble(),
@@ -110,5 +113,21 @@ fun main(args: Array<String>) {
         val list = tTakers[ci].indices.filter { tTakers[ci][it] > 0.0 }.sortedByDescending { tTakers[ci][it] }.take(5)
             .joinToString(", ") { i -> "%s %.0f".format(if (i == inflation.ecology.HexSmallLife.TAKER_GROUPS) "groups and people" else names.getOrElse(i) { "kind $i" }, pct(tTakers[ci][i])) }
         println("%-16s  taken by: %s".format("", list))
+    }
+    println()
+    val HS = inflation.ecology.HexSmallLife
+    fun takerName(i: Int) = when (i) { HS.TAKER_GROUPS -> "groups and people"; HS.TAKER_FOXES -> "foxes"; HS.TAKER_EAGLES -> "eagles"; HS.TAKER_OWLS -> "owls"; else -> names.getOrElse(i) { "kind $i" } }
+    for ((ki, kind) in listOf("rodents", "hares", "hyrax", "birds").withIndex()) {
+        println("$kind taken, last $show years, % of their mean a year, by who took them (largest first; kg/km2 the mean)")
+        val sums = Array(classes.size) { DoubleArray(sl.preyTakenBy[ki].size) }
+        for (p in 0 until n) { val cc = c[p]; if (cc < 0) continue; val a = land.areaKm2[p].toDouble(); for (i in sums[cc].indices) sums[cc][i] += sl.preyTakenBy[ki][i][p] * a }
+        for ((ci, name) in classes.withIndex()) {
+            if (classArea[ci] <= 0) continue
+            val m = preyMean[ki][ci]
+            val all = sums[ci].sum()
+            val list = sums[ci].indices.filter { sums[ci][it] > 0.0 }.sortedByDescending { sums[ci][it] }.take(6)
+                .joinToString(", ") { i -> "%s %.0f".format(takerName(i), if (m > 0) 100.0 * sums[ci][i] / show / m else Double.NaN) }
+            println("%-16s%8.2f  all %.0f: %s".format(name, m / classArea[ci], if (m > 0) 100.0 * all / show / m else Double.NaN, list))
+        }
     }
 }
