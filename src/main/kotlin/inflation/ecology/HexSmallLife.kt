@@ -759,8 +759,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val HERP_HUNGER = 1f
         const val HERP_DORMANT_DEATHS = 0.15f
         const val HERP_COVER_KG = 1f
-        /** Reptiles and amphibians where every bit of the ground is breeding site, kg/km² (some 2 kg a hectare). */
-        const val HERP_MOST = 200f
+        /**
+         * Reptiles and amphibians where every bit of the ground is breeding site, kg/km²: some 10 kg a hectare,
+         * as woodland salamanders alone reach in moist eastern North American forest (median some 10,000 a
+         * hectare at about a gram each, range 2,000-34,000; Biol. Lett. 2024, doi:10.1098/rsbl.2024.0033).
+         */
+        const val HERP_MOST = 1000f
         /** The [herpTakenBy] slot of hunting groups and people (resident kinds take the slots below it). */
         const val TAKER_GROUPS = 40
         /**
