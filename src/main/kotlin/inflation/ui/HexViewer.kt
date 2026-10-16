@@ -116,8 +116,6 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     /** Paths worn by herds, packs and bands, drawn hex to hex, darker and wider the more worn. */
     private val pathsBox = javax.swing.JCheckBox("Paths", true)
     /** Follow mode: the group followed (-1 none), kept in view week by week, with what happened to it. */
-    private val followBox = javax.swing.JCheckBox("Follow", false)
-    @Volatile private var followId = -1
     @Volatile private var followLog = ""
 
     /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
@@ -168,8 +166,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
 
     init {
         val bar = JPanel()
-        val run = JButton("Run"); run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run" }
-        val step = JButton("Step"); step.addActionListener { commands += { advance() } }
+        // (The time controls here take over from the follow window: a week waiting there for the player goes on with the picks shown.)
+        val run = JButton("Run"); run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver() }
+        val step = JButton("Step"); step.addActionListener { control.overviewTakesOver(); commands += { advance() } }
         val speed = JSlider(1, 10, stepsPerSecond); speed.addChangeListener { stepsPerSecond = speed.value }
         residentChoice.addActionListener { map.repaint() }
         tintChoice.addActionListener { map.repaint() }
@@ -181,20 +180,14 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { inflation.ecology.HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
         val open = JButton("Load…"); open.addActionListener { chooseFile(false)?.let { f -> commands += { loadWorld(f) } } }
-        followBox.toolTipText = "Pick a group in the list, then tick to follow it: the map keeps it in view and the panel shows what it weighed, ate, met and lost each week"
-        followBox.addActionListener {
+        // Following a group is the follow window: open it on the group picked in the list.
+        val follow = JButton("Follow…")
+        follow.toolTipText = "Follow the group picked in the list in its own window: its local map and state, what it knows, its choices each week (the model's highlighted), yours, and Next step"
+        follow.addActionListener {
             val i = groupView.selectedIndex
-            followId = if (followBox.isSelected && i in groupIds.indices) groupIds[i] else -1
-            if (followBox.isSelected && followId < 0) followBox.isSelected = false
-            groups.watched = followId
-            control.followChanged()
-            showGroup()
+            if (i in groupIds.indices) control.follow(groupIds[i]) else javax.swing.JOptionPane.showMessageDialog(this, "Click a hex on the map and pick a group in the list first.")
         }
-        bar.add(followBox)
-        val controls = JButton("Controls…")
-        controls.toolTipText = "The followed group's controls: its local map and state, what it knows, its choices this week (the model's highlighted), yours, and Next step"
-        controls.addActionListener { control.open() }
-        bar.add(controls)
+        bar.add(follow)
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
         useNetworks()
         load?.let { f -> commands += { loadWorld(f) } }
@@ -215,15 +208,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         side.add(JScrollPane(info), BorderLayout.NORTH)
         side.add(JScrollPane(groupView), BorderLayout.CENTER)
         side.add(JScrollPane(groupInfo), BorderLayout.SOUTH)
-        // A band picked in the list is followed from hex to hex at once (other groups when Follow is ticked).
-        groupView.addListSelectionListener { e ->
-            if (!e.valueIsAdjusting) {
-                val i = groupView.selectedIndex
-                val g = if (i in groupIds.indices) groups.groups.firstOrNull { it.id == groupIds[i] } else null
-                if (g != null && g.species.human && g.id != followId) { followId = g.id; groups.watched = g.id; followBox.isSelected = true; control.followChanged() }
-            }
-            showGroup()
-        }
+        groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) showGroup() }
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
         add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(bottom, BorderLayout.SOUTH)
@@ -307,13 +292,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             lastDrawn[g.id] = end
         }
         shown = list
-        // Following a group: the week's log, and keep it in view.
-        if (followId >= 0) {
-            followLog = groups.watchLog.joinToString("\n")
-            val g = groups.groups.firstOrNull { it.id == followId && it.alive }
-            if (g == null) { followLog = "the group followed is gone (died out or joined another)"; followId = -1; groups.watched = -1; control.followChanged(); SwingUtilities.invokeLater { followBox.isSelected = false; groupInfo.text = followLog } }
-            else { val h = hw.placeHex[g.place]; picked = h; val (x, y) = hex.centreKm(h); SwingUtilities.invokeLater { map.keepInView(x, y) } }
-        }
+        // Following a group (in the follow window): the week's log, for the panel when that group is picked.
+        followLog = if (groups.watched >= 0) groups.watchLog.joinToString("\n") else ""
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
         frames = max(8, 30 / stepsPerSecond); frame = 0
         SwingUtilities.invokeLater {
@@ -342,18 +322,6 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
 
         /** Puts the point ([x], [y]) km in the middle of the view. */
         fun centreOn(x: Double, y: Double) { val kmPx = px * scale; ox = width / 2.0 - x * kmPx; oy = height / 2.0 - y * kmPx; repaint() }
-        /**
-         * Keeps (x, y) km in view without moving the map while it stays in the middle of it: only when
-         * it strays into the outer fifth of the view on a side is the map moved, to bring it back to
-         * the middle (so a followed group walks across a still map, not the map under a still group).
-         */
-        fun keepInView(x: Double, y: Double) {
-            val kmPx = px * scale
-            val sx = ox + x * kmPx; val sy = oy + y * kmPx
-            val mx = 0.2 * width; val my = 0.2 * height
-            if (sx < mx || sx > width - mx || sy < my || sy > height - my) centreOn(x, y) else repaint()
-        }
-
         init {
             preferredSize = Dimension(1200, 900)
             background = Color(0x30506e)
@@ -546,6 +514,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             val t = min(1f, frame.toFloat() / frames)
             for (s in shown) {
                 val sp = Catalogue.all[s.kind]
+                // The group followed in the follow window: a yellow ring.
+                if (s.id == groups.watched) { val (fx, fy) = along(s.way, t); g.color = Color(1f, 0.85f, 0.1f); g.stroke = java.awt.BasicStroke(2.5f); g.drawOval(sx(fx) - 9, sy(fy) - 9, 18, 18); g.stroke = java.awt.BasicStroke(1f) }
                 if (if (sp.human) !peopleBox.isSelected else if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
                 if (onlyKind != null && sp != onlyKind) continue
                 val w = s.way
@@ -628,7 +598,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         info.text = sb.toString()
         val here = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
         // Refill the list in place, keeping the picked group and where the list is scrolled to.
-        val picked = if (followId >= 0) followId else groupView.selectedIndex.let { if (it in groupIds.indices) groupIds[it] else -1 }
+        val picked = groupView.selectedIndex.let { if (it in groupIds.indices) groupIds[it] else -1 }
         groupIds = here.map { it.id }.toIntArray()
         val rows = here.map { g -> "%s #%d: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed, g.fat) }
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
@@ -663,7 +633,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             val months = (0 until 12).filter { g.seasonPlace[it] >= 0 }
             sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
         }
-        if (g.id == followId && followLog.isNotEmpty()) { sb.appendLine(); sb.appendLine("this week:"); sb.appendLine(followLog) }
+        if (g.id == groups.watched && followLog.isNotEmpty()) { sb.appendLine(); sb.appendLine("this week:"); sb.appendLine(followLog) }
         groupInfo.text = sb.toString()
     }
 

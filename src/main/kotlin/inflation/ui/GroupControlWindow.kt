@@ -82,6 +82,9 @@ class GroupControlWindow(
     @Volatile private var waiting: CompletableFuture<Int>? = null
     /** The player's pick, an index into the decision's places. */
     @Volatile private var pick = -1
+    /** Whether the week now running was started here (only those wait for the player; the overview's run on). */
+    @Volatile private var playerWeek = false
+    private fun stepHere() { playerWeek = true; requestStep() }
     /** After the player's week runs, let the next week run up to the group's choice. */
     @Volatile private var startNext = false
     /** The player's pinned ways, by output (NaN: the model's), for the kind of group followed: a band's or a herd's or pack's. */
@@ -89,6 +92,11 @@ class GroupControlWindow(
     private var pinsFor = -1
 
     private val handsOff = JCheckBox("Model decides", false)
+    private val reset = JButton("Undo my changes")
+    /** Where the followed group went in the last few weeks, newest last (the hexes of each week's way). */
+    private val trail = java.util.ArrayDeque<IntArray>()
+    /** The groups it saw about it when it last chose (to show where they went). */
+    @Volatile private var seenBefore = emptySet<Int>()
     private val next = JButton("Next step")
     private val title = JLabel(" ")
     private val note = JLabel(" ")
@@ -114,7 +122,7 @@ class GroupControlWindow(
         next.font = next.font.deriveFont(Font.BOLD, 14f)
         next.addActionListener { nextStep() }
         handsOff.addActionListener { if (handsOff.isSelected) release() else startIfIdle(); refresh() }
-        val reset = JButton("Model's picks"); reset.toolTipText = "Back to the model's place and ways"
+        reset.toolTipText = "Drop your changes this week: back to the model's place and ways"
         reset.addActionListener { decision?.let { pick = it.model }; pins = FloatArray(pins.size) { Float.NaN }; refresh() }
 
         table.model = tableModel
@@ -147,8 +155,20 @@ class GroupControlWindow(
 
     private fun text() = JTextArea().apply { isEditable = false; font = Font(Font.MONOSPACED, Font.PLAIN, 12); (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE }
 
+    /** Follows group [id] in the window (opening it). */
+    fun follow(id: Int) {
+        if (id != groups.watched) { groups.watched = id; followChanged() }
+        open()
+    }
+
+    /** The overview's own time controls were used: a week waiting here goes on with the picks shown, and weeks it runs do not wait. */
+    fun overviewTakesOver() {
+        startNext = false
+        release(pick)
+    }
+
     /** Opens the window and puts the followed group under the player's hand. */
-    fun open() {
+    private fun open() {
         groups.control = this
         frame.isVisible = true; frame.toFront()
         startIfIdle(); refresh()
@@ -157,6 +177,7 @@ class GroupControlWindow(
     /** Closes it: the group goes back to the model, and a week waiting on the player runs on its picks. */
     fun close() {
         groups.control = null
+        groups.watched = -1
         startNext = false
         release()
         frame.isVisible = false
@@ -169,24 +190,29 @@ class GroupControlWindow(
         startNext = false
         release()
         decision = null; pins = FloatArray(0); pinsFor = -1
+        synchronized(trail) { trail.clear() }; seenBefore = emptySet()
         SwingUtilities.invokeLater { refresh(); startIfIdle() }
     }
 
     /** A week has run (on the simulation's thread). */
     fun weekDone() {
+        groups.groups.firstOrNull { it.id == groups.watched && it.alive }?.let { g ->
+            synchronized(trail) { trail.addLast(g.path.copyOf()); while (trail.size > TRAIL_WEEKS) trail.removeFirst() }
+        }
         SwingUtilities.invokeLater { lastWeek.text = groups.watchLog.joinToString("\n"); refresh() }
-        if (startNext && isOpen && !running() && groups.watched >= 0 && !handsOff.isSelected) { startNext = false; requestStep() }
+        playerWeek = false
+        if (startNext && isOpen && !running() && groups.watched >= 0 && !handsOff.isSelected) { startNext = false; stepHere() }
         else startNext = false
     }
 
     /** Lets a week run up to the followed group's choice, when the player decides and nothing runs or waits. */
     private fun startIfIdle() {
-        if (isOpen && !handsOff.isSelected && waiting == null && !running() && groups.watched >= 0) requestStep()
+        if (isOpen && !handsOff.isSelected && waiting == null && !running() && groups.watched >= 0) stepHere()
     }
 
     private fun nextStep() {
         if (waiting != null) { startNext = true; release(pick) }
-        else { startNext = !handsOff.isSelected; requestStep() }
+        else if (!running()) { startNext = !handsOff.isSelected; stepHere() }
         refresh()
     }
 
@@ -210,8 +236,10 @@ class GroupControlWindow(
         val role = if (d.group.band != null) 2 else if (d.group.species.carnivore) 1 else 0
         if (pins.size != roleSize || pinsFor != d.group.id * 3 + role) { pins = FloatArray(roleSize) { Float.NaN }; pinsFor = d.group.id * 3 + role }
         pick = d.model
+        // (The groups it saw last time it chose, so that those that left can be shown going.)
+        decision?.let { old -> if (old.group.id == d.group.id) seenBefore = nearIds(hw.placeHex[old.group.place]) }
         decision = d
-        val f = if (handsOff.isSelected || !isOpen) null else CompletableFuture<Int>()
+        val f = if (handsOff.isSelected || !isOpen || !playerWeek || running()) null else CompletableFuture<Int>()
         waiting = f
         SwingUtilities.invokeLater { refresh() }
         return f?.let { runCatching { it.get() }.getOrDefault(d.model) } ?: d.model
@@ -233,10 +261,11 @@ class GroupControlWindow(
         val g = groups.groups.firstOrNull { it.id == groups.watched && it.alive }
         val w = waiting != null
         next.text = if (w) "Next step" else if (handsOff.isSelected) "Next step" else "Start the week"
+        reset.isEnabled = d != null && (pick != d.model || pins.any { !it.isNaN() })
         note.text = when {
             groups.watched < 0 -> "  Follow a group in the overview (tick Follow, or pick a band in the list) to take its controls."
-            g == null -> "  The group followed is gone."
-            running() && !handsOff.isSelected -> "  The overview is running: each week waits here for your choice."
+            g == null -> "  The group followed is gone (died out or joined another). Pick another in the overview and press Follow…."
+            running() -> "  The overview is running: the model decides. Pause it there, then use Next step here to play."
             w -> "  Choose where it goes (click the map or the list) and set its ways; Next step runs the week."
             handsOff.isSelected -> "  The model decides; the choices shown are the ones it made."
             else -> "  Running…"
@@ -261,6 +290,12 @@ class GroupControlWindow(
         map.repaint()
     }
 
+    /** The groups now in hex [h] and the six about it. */
+    private fun nearIds(h: Int): Set<Int> {
+        val near = HashSet<Int>().also { it += h; for (k in 0 until 6) hex.neighbour(h, k).takeIf { n -> n >= 0 }?.let { n -> it += n } }
+        return groups.groups.filter { it.alive && hw.placeHex[it.place] in near }.map { it.id }.toSet()
+    }
+
     private fun where(p: Int) = "hex %d, %.0f m".format(hw.placeHex[p], hw.placeElevationM[p])
 
     private fun statusText(g: HexGroup, d: MoveDecision?): String {
@@ -283,6 +318,9 @@ class GroupControlWindow(
             if (b.raidHex >= 0) sb.appendLine("set on a raid at hex %d".format(b.raidHex))
             if (b.appointHex >= 0) sb.appendLine("meets others at hex %d in month %d".format(b.appointHex, b.appointMonth + 1))
         } else if (s.carnivore) sb.appendLine(if (g.home >= 0) "holds ground about hex %d".format(g.home) else "holds no ground")
+        val here = hw.placeHex[g.place]
+        val with = groups.groups.filter { it.alive && it !== g && hw.placeHex[it.place] == here }
+        sb.appendLine("in its hex: " + with.joinToString(", ") { "%s #%d (%d)".format(it.species.name, it.id, it.size) }.ifEmpty { "no other group" })
         if (d != null && d.group.id == g.id) {
             sb.appendLine()
             sb.appendLine(if (d.content) "content where it is: the model keeps it here this week" else if (d.restless) "restless (hungry, thirsty, astray, or due somewhere): it will go far" else "weighing where to graze or camp")
@@ -458,17 +496,28 @@ class GroupControlWindow(
                     g.color = Color((1f - rank).coerceIn(0f, 1f), rank.coerceIn(0f, 1f), 0.15f, 0.38f); g.fillPolygon(xs, ys, 6)
                     g.color = Color(1f, 1f, 1f, 0.35f); g.drawPolygon(xs, ys, 6)
                 }
-                // Where its season or round draws it.
+                // The pull forward: an arrow toward the place its round or its memory of the season draws it to,
+                // that hex lightly lit (in view, or the arrow ends at the edge); and the kind's sense of better country.
                 if (d.goal >= 0) {
-                    val (gx, gy) = hex.centreKm(hw.placeHex[d.goal])
+                    val gh = hw.placeHex[d.goal]
+                    val (gx, gy) = hex.centreKm(gh)
+                    val pink = Color(1f, 0.55f, 1f)
                     val gxp = sx(gx); val gyp = sy(gy)
-                    g.color = Color(1f, 0.6f, 1f)
-                    if (gxp in 0..width && gyp in 0..height) { g.fillOval(gxp - 6, gyp - 6, 12, 12); g.drawString(if (d.onRound) "round" else "season", gxp + 8, gyp) }
-                    else {
-                        val ang = kotlin.math.atan2(gy - cy, gx - cx); val r = min(width, height) / 2.0 - 16
-                        val ax = (width / 2.0 + r * cos(ang)).toInt(); val ay = (height / 2.0 + r * sin(ang)).toInt()
-                        g.stroke = BasicStroke(3f); g.drawLine(width / 2 + ((r - 30) * cos(ang)).toInt(), height / 2 + ((r - 30) * sin(ang)).toInt(), ax, ay); g.stroke = BasicStroke(1f)
-                        g.drawString((if (d.onRound) "round" else "season") + " %.0f km".format(hex.distanceKm(centre, hw.placeHex[d.goal])), (ax - 30).coerceIn(4, width - 100), (ay - 8).coerceIn(14, height - 4))
+                    val inside = gxp in 0..width && gyp in 0..height
+                    if (inside) { val (xs, ys) = outline(gh); g.color = Color(1f, 0.55f, 1f, 0.3f); g.fillPolygon(xs, ys, 6); g.color = pink; g.drawPolygon(xs, ys, 6) }
+                    val ang = kotlin.math.atan2(gy - cy, gx - cx)
+                    val dist = kotlin.math.hypot((gxp - width / 2).toDouble(), (gyp - height / 2).toDouble())
+                    val len = min(dist - (if (inside) 10.0 else 0.0), min(width, height) / 2.0 - 14)
+                    if (len > 15) arrow(g, width / 2 + (12 * cos(ang)).toInt(), height / 2 + (12 * sin(ang)).toInt(), width / 2 + (len * cos(ang)).toInt(), height / 2 + (len * sin(ang)).toInt(), pink, 3f)
+                    val lx = (width / 2 + (len * cos(ang)).toInt() + 8).coerceIn(4, width - 130); val ly = (height / 2 + (len * sin(ang)).toInt() - 6).coerceIn(14, height - 4)
+                    g.color = pink; g.drawString((if (d.onRound) "its round" else "its season's place") + ", %.0f km".format(hex.distanceKm(centre, gh)), lx, ly)
+                }
+                groups.kindIndex[grp.species]?.let { ki ->
+                    val e = groups.bearings.east[ki][centre]; val so = groups.bearings.south[ki][centre]
+                    val st = kotlin.math.hypot(e, so)
+                    if (st > 0.02f) {
+                        val len = (st.coerceAtMost(1f) * 2.5 * hex.hexKm * kmPx)
+                        arrow(g, width / 2, height / 2, width / 2 + (len * e / st).toInt(), height / 2 + (len * so / st).toInt(), Color(1f, 0.95f, 0.6f, 0.8f), 1.5f)
                     }
                 }
                 // The model's way and pick (yellow), and the player's (cyan).
@@ -482,33 +531,71 @@ class GroupControlWindow(
                 way(d.model, Color(1f, 0.85f, 0.1f), 4f)
                 if (pick != d.model && pick in d.places.indices) way(pick, Color(0.2f, 0.95f, 1f), 3f)
             }
+            // Where it went in the last weeks: older the fainter.
+            val past = synchronized(trail) { trail.toList() }
+            for ((age, path) in past.reversed().withIndex()) {
+                val a = (0.9f * (1f - age.toFloat() / TRAIL_WEEKS)).coerceAtLeast(0.25f)
+                g.color = Color(1f, 1f, 1f, a); g.stroke = BasicStroke(3f - age * 0.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1f, floatArrayOf(6f, 4f), 0f)
+                for (k in 0 until path.size - 1) { val (ax, ay) = hex.centreKm(path[k]); val (bx, by) = hex.centreKm(path[k + 1]); g.drawLine(sx(ax), sy(ay), sx(bx), sy(by)) }
+                path.lastOrNull()?.let { h -> val (hx, hy) = hex.centreKm(h); g.fillOval(sx(hx) - 3, sy(hy) - 3, 6, 6) }
+            }
+            g.stroke = BasicStroke(1f)
             // Where it stands.
             run { val (xs, ys) = outline(centre); g.color = Color.WHITE; g.stroke = BasicStroke(2f); g.drawPolygon(xs, ys, 6); g.stroke = BasicStroke(1f) }
-            // The groups about it that it can see: in its hex and the next.
-            val near = HashSet<Int>().also { it += centre; for (k in 0 until 6) hex.neighbour(centre, k).takeIf { n -> n >= 0 }?.let { n -> it += n } }
+            // The groups about it that it can see: in its hex and the next, each with the way it came this
+            // week; and those it saw last time that have since gone, faint, with the way they went.
+            val nearHexes = HashSet<Int>().also { it += centre; for (k in 0 until 6) hex.neighbour(centre, k).takeIf { n -> n >= 0 }?.let { n -> it += n } }
+            val gone = seenBefore
             val slot = HashMap<Int, Int>()
-            for (o in groups.groups) {
-                if (!o.alive) continue
-                val h = hw.placeHex[o.place]; if (h !in near) continue
+            val shownHere = groups.groups.filter { it.alive && (hw.placeHex[it.place] in nearHexes || it.id in gone) }
+            g.font = g.font.deriveFont(10f)
+            for (o in shownHere.sortedBy { if (it === grp) 0 else 1 }) {
+                val h = hw.placeHex[o.place]
+                val left = h !in nearHexes
                 val (hx, hy) = hex.centreKm(h)
-                val k = slot.merge(h, 1, Int::plus)!! - 1
-                val a = 2 * Math.PI * k / 6; val r = if (k == 0 && o === grp) 0.0 else 0.28 * hex.hexKm
-                val ox = sx(hx + r * cos(a)); val oy = sy(hy + r * sin(a))
-                val big = if (o === grp) 9 else 6
-                when {
-                    o.species.human -> { g.color = if (o === grp) Color(1f, 0.85f, 0.1f) else Color.WHITE; g.fillPolygon(intArrayOf(ox, ox + big, ox, ox - big), intArrayOf(oy - big, oy, oy + big, oy), 4); g.color = Color(0.1f, 0.3f, 0.95f); g.fillPolygon(intArrayOf(ox, ox + big / 2, ox, ox - big / 2), intArrayOf(oy - big / 2, oy, oy + big / 2, oy), 4) }
-                    o.species.carnivore -> { g.color = if (o === grp) Color(1f, 0.85f, 0.1f) else Color.WHITE; g.fillRect(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2); g.color = Color(0.82f, 0.06f, 0.06f); g.fillRect(ox - big / 2, oy - big / 2, big, big) }
-                    else -> { g.color = if (o === grp) Color(1f, 0.85f, 0.1f) else Color(0x101010); g.fillOval(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2); g.color = Color(0.9f, 0.9f, 0.6f); g.fillOval(ox - big / 2, oy - big / 2, big, big) }
+                // The followed group stands in the middle of its hex, the others in a ring about it.
+                val (ox, oy) = if (o === grp) sx(hx) to sy(hy) else {
+                    val k = slot.merge(h, 1, Int::plus)!! - 1
+                    val a = 2 * Math.PI * k / 6 + Math.PI / 6; val r = 0.3 * hex.hexKm
+                    sx(hx + r * cos(a)) to sy(hy + r * sin(a))
                 }
-                if (o !== grp && kotlin.math.hypot((ox - width / 2).toDouble(), (oy - height / 2).toDouble()) < 1e9) { g.color = Color.WHITE; g.font = g.font.deriveFont(10f); g.drawString("%s %d".format(o.species.name, o.size), ox + big, oy - big) }
+                val alpha = if (left) 0.45f else 1f
+                if (o !== grp && o.path.size > 1) {
+                    g.color = Color(1f, 1f, 1f, 0.5f * alpha); g.stroke = BasicStroke(1.2f)
+                    for (k in 0 until o.path.size - 1) { val (ax, ay) = hex.centreKm(o.path[k]); val (bx, by) = hex.centreKm(o.path[k + 1]); g.drawLine(sx(ax), sy(ay), if (k == o.path.size - 2) ox else sx(bx), if (k == o.path.size - 2) oy else sy(by)) }
+                    g.stroke = BasicStroke(1f)
+                }
+                val big = if (o === grp) 9 else 6
+                val ring = if (o === grp) Color(1f, 0.85f, 0.1f) else Color(1f, 1f, 1f, alpha)
+                when {
+                    o.species.human -> { g.color = ring; g.fillPolygon(intArrayOf(ox, ox + big, ox, ox - big), intArrayOf(oy - big, oy, oy + big, oy), 4); g.color = Color(0.1f, 0.3f, 0.95f, alpha); g.fillPolygon(intArrayOf(ox, ox + big / 2, ox, ox - big / 2), intArrayOf(oy - big / 2, oy, oy + big / 2, oy), 4) }
+                    o.species.carnivore -> { g.color = ring; g.fillRect(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2); g.color = Color(0.82f, 0.06f, 0.06f, alpha); g.fillRect(ox - big / 2, oy - big / 2, big, big) }
+                    else -> { g.color = if (o === grp) ring else Color(0f, 0f, 0f, alpha); g.fillOval(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2); g.color = Color(0.9f, 0.9f, 0.6f, alpha); g.fillOval(ox - big / 2, oy - big / 2, big, big) }
+                }
+                if (o !== grp) { g.color = Color(1f, 1f, 1f, alpha); g.drawString("%s %d%s".format(o.species.name, o.size, if (left) " (gone)" else ""), ox + big, oy - big) }
             }
             // The legend.
             g.font = g.font.deriveFont(11f)
             val lines = listOfNotNull("yellow: the model's pick", if (d != null && pick != d.model) "cyan: yours" else null, "green to red: best to worst by the model",
+                "pink arrow: its round or season's place", "pale arrow: its kind's sense of better country", "dashed: where it went, last $TRAIL_WEEKS weeks",
                 if (b != null) "dark: country it does not know" else null, "click a hex to go there")
-            g.color = Color(0f, 0f, 0f, 0.55f); g.fillRect(6, height - 16 * lines.size - 10, 250, 16 * lines.size + 6)
+            g.color = Color(0f, 0f, 0f, 0.55f); g.fillRect(6, 6, 290, 16 * lines.size + 6)
             g.color = Color.WHITE
-            for ((i, l) in lines.withIndex()) g.drawString(l, 12, height - 16 * (lines.size - i) + 2)
+            for ((i, l) in lines.withIndex()) g.drawString(l, 12, 20 + 16 * i)
         }
     }
+
+    private fun arrow(g: Graphics2D, x0: Int, y0: Int, x1: Int, y1: Int, c: Color, w: Float) {
+        g.color = c; g.stroke = BasicStroke(w, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+        g.drawLine(x0, y0, x1, y1)
+        val ang = kotlin.math.atan2((y1 - y0).toDouble(), (x1 - x0).toDouble()); val head = 6 + 2 * w
+        for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - head * cos(ang + sgn * 0.45)).toInt(), (y1 - head * sin(ang + sgn * 0.45)).toInt())
+        g.stroke = BasicStroke(1f)
+    }
+
+    companion object {
+        /** Weeks of the followed group's way shown behind it. */
+        const val TRAIL_WEEKS = 4
+    }
+
 }
