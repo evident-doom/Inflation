@@ -138,6 +138,14 @@ class Climate(
         const val BUOYANCY_HZ = 0.01
         /** Share per km of the gap to the sea's moisture that air takes up over open water. */
         const val PICKUP_PER_KM = 0.02
+        /**
+         * Days over which a front's lift fades once its air has left the sea, by e. The lows that bring the
+         * fronts form and feed over warm water and fill over land: Cyprus lows last about 1-4 days (Hochman et
+         * al. 2019, Clim. Dyn., citing Alpert and Ziv 1989), most of it at sea, and a landfalling storm cut
+         * off from the sea's warmth and moisture fills with a half-life of hours (about 15 h by e for tropical
+         * cyclones in idealised runs). A day, from these; to be checked against an extratropical source.
+         */
+        const val FRONT_LAND_DAYS = 1.0
         /** Times the rain and the land's evaporation are worked out against each other. */
         const val RECYCLING_PASSES = 3
 
@@ -147,7 +155,7 @@ class Climate(
          * what the sea's warmth allows ([SEA_HUMIDITY] of saturation through [VAPOUR_HEIGHT_M]); over land
          * it gains what the land evaporates ([evap], mm a day) and loses what rains out. Rain needs rising
          * air: fronts in the storm track under the jet (by the regime's storminess, fading with distance from
-         * the jet, over [VAPOUR_DAYS]), and ground rising into the wind, where air lifted past saturation rains
+         * the jet, over [VAPOUR_DAYS], fading over land as the lows fill, see [FRONT_LAND_DAYS]), and ground rising into the wind, where air lifted past saturation rains
          * out what it cannot hold. Highs give rain only on windward slopes.
          * Worked on cells of [CARRY_KM] and spread back to the fine cells.
          */
@@ -163,6 +171,8 @@ class Climate(
             val winds = Winds(null)
             val tmp = FloatArray(2)
             val q = FloatArray(cw * ch); val rain = FloatArray(cw * ch); val total = FloatArray(cw * ch)
+            // Days the air has been over land since it left the sea.
+            val landDays = FloatArray(cw * ch)
             val gain = FloatArray(cw * ch); val wSat = FloatArray(cw * ch)
             fun at(a: FloatArray, x: Double, y: Double, outside: Float): Float {
                 if (x < 0 || y < 0 || x > cw - 1 || y > ch - 1) return outside
@@ -205,6 +215,7 @@ class Climate(
                     // Downwind order: each cell after the cells upwind of it.
                     val order = (0 until cw * ch).sortedBy { c -> val y = c / cw; (c % cw) * ux[y] + y * uy[y] }
                     for (c in 0 until cw * ch) q[c] = w0[c / cw]
+                    landDays.fill(0f)
                     repeat(2) {
                         for (c in order) {
                             val x = c % cw; val y = c / cw
@@ -213,7 +224,10 @@ class Climate(
                             val days = ckm / kmDay[y]
                             // Over the sea the air takes up moisture towards the sea's level.
                             val wet = qin + sea[c] * (w0[y] - qin) * (1 - exp(-PICKUP_PER_KM * ckm)).toFloat()
-                            val keep = exp(-lift[y] * days)
+                            // (Over land the front's low fills: its lift fades with the days since the air left the sea.)
+                            val overLand = (1 - sea[c]) * (at(landDays, bx, by, 0f) + days)
+                            landDays[c] = overLand.toFloat()
+                            val keep = exp(-lift[y] * exp(-overLand / FRONT_LAND_DAYS) * days)
                             // Air lifted over high ground holds less; what it cannot hold rains out.
                             val left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
                             rain[c] = ((wet + (1 - sea[c]) * gain[c] * days - left) / days * 30).toFloat()

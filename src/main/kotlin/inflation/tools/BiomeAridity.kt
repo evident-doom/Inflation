@@ -14,7 +14,7 @@ import inflation.world.WorldConfig
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 1); var k = 0
     while (k < args.size) { when (args[k]) { "--seed" -> cfg = cfg.copy(seed = args[++k].toLong()); "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt()); "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt()) }; k++ }
-    val w = World.generate(cfg); val c = w.climate
+    val w = World.generate(cfg, inflation.ecology.HexSnapshot.LandformCache.load(cfg) {}); val c = w.climate
     val land = (0 until w.grid.size).filter { !w.isSea[it] }
     val classes = listOf("<0.05" to 0.05f, "0.05-0.2" to 0.2f, "0.2-0.45" to 0.45f, "0.45-0.75" to 0.75f, ">0.75" to 1e9f)
     fun cls(i: Int): Int { val a = c.aridity(i); return classes.indexOfFirst { a < it.second } }
