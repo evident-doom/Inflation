@@ -274,7 +274,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val h = s.habitat
         val cover = land.cover(p)
         val wet = land.floodShare[p]
-        return exp(HABITAT * (h.cover * (cover - 0.5f) + h.rugged * (land.ruggedness[p] - 0.3f) + h.wet * (wet - 0.2f)))
+        if (!HABITAT_BY_SHARE || h.rugged == 0f) return exp(HABITAT * (h.cover * (cover - 0.5f) + h.rugged * (land.ruggedness[p] - 0.3f) + h.wet * (wet - 0.2f)))
+        // (The ground it likes is a share of the place: the valley floors of a rough hex for a plains kind,
+        // its crags for a wild goat; it suits as the mean over its ground, see [HexLand.ruggedSpread].)
+        return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f))) * ruggedFit(h.rugged)[p]
+    }
+
+    /** For a kind's liking for rough ground [rugged] (see [Habitat]): how well each place's ground suits it on that alone, the mean over its ground. */
+    @Transient private var ruggedFits: java.util.concurrent.ConcurrentHashMap<Float, FloatArray>? = java.util.concurrent.ConcurrentHashMap()
+    private fun ruggedFit(rugged: Float): FloatArray = (ruggedFits ?: java.util.concurrent.ConcurrentHashMap<Float, FloatArray>().also { ruggedFits = it }).getOrPut(rugged) {
+        val q = land.ruggedSpread
+        FloatArray(n) { p -> var v = 0f; for (k in q.indices) v += exp(HABITAT * rugged * (q[k][p] - 0.3f)); v / q.size }
     }
 
     /**
@@ -744,6 +754,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val REACH = 0.01f
         /** How strongly a kind is drawn to the ground it prefers. */
         const val HABITAT = 3f
+        /** Kinds take to rough or smooth ground by the share of a place that is so ([suits]); false: by the place's mean ruggedness. */
+        val HABITAT_BY_SHARE = Config.flag("t.habitatByShare", true)
         const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 4f
