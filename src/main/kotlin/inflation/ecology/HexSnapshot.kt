@@ -25,8 +25,8 @@ import java.util.zip.GZIPOutputStream
  * (terrain, rivers, climate normals, the hexes) is not saved: it is generated again from the seed.
  *
  * It goes by field names, not by layout: a field the code no longer has is dropped, a field the
- * saved state lacks keeps what the fresh model gave it, and an array whose length changed is taken
- * as saved. So small changes to the code still load; large ones (a different map) are refused.
+ * saved state lacks keeps what the fresh model gave it, an array that has grown (a kind added at its
+ * end) keeps the fresh model's values past the saved ones, and an array that has shrunk is taken as saved. So small changes to the code still load; large ones (a different map) are refused.
  */
 object HexSnapshot {
     private const val MAGIC = 0x48455853 // "HEXS"
@@ -373,12 +373,16 @@ object HexSnapshot {
                     v is BooleanArray && cur is BooleanArray && cur.size == v.size -> { v.copyInto(cur); cur }
                     v is LongArray && cur is LongArray && cur.size == v.size -> { v.copyInto(cur); cur }
                     v is ShortArray && cur is ShortArray && cur.size == v.size -> { v.copyInto(cur); cur }
+                    // A table that has grown (a kind added at the end) keeps what the fresh model gave the new ones.
+                    v is FloatArray && cur is FloatArray && cur.size > v.size -> { v.copyInto(cur); cur }
+                    v is DoubleArray && cur is DoubleArray && cur.size > v.size -> { v.copyInto(cur); cur }
+                    v is IntArray && cur is IntArray && cur.size > v.size -> { v.copyInto(cur); cur }
                     else -> v
                 }
             }
             is Arr -> {
                 @Suppress("UNCHECKED_CAST")
-                val a = if (cur is Array<*> && cur.size == node.items.size) cur as Array<Any?>
+                val a = if (cur is Array<*> && cur.size >= node.items.size) cur as Array<Any?>
                     else runCatching { java.lang.reflect.Array.newInstance(Class.forName(node.component), node.items.size) as Array<Any?> }.getOrNull()
                 if (a == null) Skip
                 else { for (i in node.items.indices) { val v = make(node.items[i], a.getOrNull(i), a.javaClass.componentType); if (v !== Skip) a[i] = v }; a }
