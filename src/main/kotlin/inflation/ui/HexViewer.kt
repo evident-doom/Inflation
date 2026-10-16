@@ -45,12 +45,17 @@ import kotlin.math.min
  * the herds and hunters as dots walking hex to hex along the ways they took each week, and one
  * resident kind's density as a tint over the hexes.
  *
- * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
- * (--load carries on a saved world: the seed and size must be the ones it was saved with)
+ * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE] [--nets DIR] [--ways FILE]
+ * (--load carries on a saved world: the seed and size must be the ones it was saved with;
+ * --nets moves every kind by the learned networks in DIR (herds.mlp, hunters.mlp, people.mlp, as
+ * hex-ppo writes them, and herd-ways.mlp, hunter-ways.mlp where present), --ways sets the bands'
+ * ways by a learned network; -Dhex.nets, -Dhex.ways, -Dhex.herdWays and -Dhex.hunterWays do the
+ * same, as for hex-fauna. Without them the hand-written choices are the model.)
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 1)
     var load: java.io.File? = null
+    var nets = System.getProperty("hex.nets"); var ways = System.getProperty("hex.ways")
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -58,6 +63,8 @@ fun main(args: Array<String>) {
             "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
             "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--load" -> load = java.io.File(args[++k])
+            "--nets" -> nets = args[++k]
+            "--ways" -> ways = args[++k]
             else -> error("unknown argument ${args[k]}")
         }
         k++
@@ -71,14 +78,14 @@ fun main(args: Array<String>) {
     Thread {
         val world = inflation.ecology.HexSnapshot.WorldCache.load(cfg) { step -> SwingUtilities.invokeLater { status.text = "Generating: $step…" } }
         SwingUtilities.invokeLater { status.text = "Summarising into hexes and drawing the ground…" }
-        val view = HexViewer(world, load)
+        val view = HexViewer(world, load, nets, ways)
         SwingUtilities.invokeLater {
             frame.contentPane.removeAll(); frame.contentPane.add(view); frame.revalidate()
         }
     }.start()
 }
 
-class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout()) {
+class HexViewer(world: World, load: java.io.File? = null, private val nets: String? = null, private val waysFile: String? = null) : JPanel(BorderLayout()) {
     private val sim = HexSim(world)
     private val cfg = sim.cfg
     private val hex = sim.hex
@@ -109,9 +116,10 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     /** Paths worn by herds, packs and bands, drawn hex to hex, darker and wider the more worn. */
     private val pathsBox = javax.swing.JCheckBox("Paths", true)
     /** Follow mode: the group followed (-1 none), kept in view week by week, with what happened to it. */
-    private val followBox = javax.swing.JCheckBox("Follow", false)
-    @Volatile private var followId = -1
     @Volatile private var followLog = ""
+
+    /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
+    private val control by lazy { GroupControlWindow(sim, ground, px, requestStep = { commands += { advance() } }, running = { running }) }
 
     /**
      * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
@@ -143,7 +151,10 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     private val kindButtons = ArrayList<javax.swing.JToggleButton>()
     @Volatile private var onlyKind: inflation.ecology.Species? = null
     /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
-    private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray()) }
+    /** Life in the water to show as a tint: fish of the sea and lakes, river fish, shellfish, and each kind of sea animal (densities per hex). */
+    private val waterLayers by lazy { listOf<Pair<String, FloatArray>>("sea and lake fish" to fauna.water.fish, "river fish" to fauna.water.riverFish, "shellfish" to fauna.water.shellfish) +
+        inflation.ecology.HexWater.SEA.mapIndexed { i, k -> k.name to fauna.water.sea[i] } }
+    private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray() + waterLayers.map { "water: " + it.first }.toTypedArray()) }
     private val map = MapPanel()
     /** The hex being inspected, -1 for none, and its groups. */
     @Volatile private var picked = -1
@@ -155,8 +166,9 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
 
     init {
         val bar = JPanel()
-        val run = JButton("Run"); run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run" }
-        val step = JButton("Step"); step.addActionListener { commands += { advance() } }
+        // (The time controls here take over from the follow window: a week waiting there for the player goes on with the picks shown.)
+        val run = JButton("Run"); run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver() }
+        val step = JButton("Step"); step.addActionListener { control.overviewTakesOver(); commands += { advance() } }
         val speed = JSlider(1, 10, stepsPerSecond); speed.addChangeListener { stepsPerSecond = speed.value }
         residentChoice.addActionListener { map.repaint() }
         tintChoice.addActionListener { map.repaint() }
@@ -168,16 +180,16 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { inflation.ecology.HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
         val open = JButton("Load…"); open.addActionListener { chooseFile(false)?.let { f -> commands += { loadWorld(f) } } }
-        followBox.toolTipText = "Pick a group in the list, then tick to follow it: the map keeps it in view and the panel shows what it weighed, ate, met and lost each week"
-        followBox.addActionListener {
+        // Following a group is the follow window: open it on the group picked in the list.
+        val follow = JButton("Follow…")
+        follow.toolTipText = "Follow the group picked in the list in its own window: its local map and state, what it knows, its choices each week (the model's highlighted), yours, and Next step"
+        follow.addActionListener {
             val i = groupView.selectedIndex
-            followId = if (followBox.isSelected && i in groupIds.indices) groupIds[i] else -1
-            if (followBox.isSelected && followId < 0) followBox.isSelected = false
-            groups.watched = followId
-            showGroup()
+            if (i in groupIds.indices) control.follow(groupIds[i]) else javax.swing.JOptionPane.showMessageDialog(this, "Click a hex on the map and pick a group in the list first.")
         }
-        bar.add(followBox)
+        bar.add(follow)
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
+        useNetworks()
         load?.let { f -> commands += { loadWorld(f) } }
         val bottom = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 2))
         val all = fauna.kinds + groups.kinds
@@ -196,15 +208,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         side.add(JScrollPane(info), BorderLayout.NORTH)
         side.add(JScrollPane(groupView), BorderLayout.CENTER)
         side.add(JScrollPane(groupInfo), BorderLayout.SOUTH)
-        // A band picked in the list is followed from hex to hex at once (other groups when Follow is ticked).
-        groupView.addListSelectionListener { e ->
-            if (!e.valueIsAdjusting) {
-                val i = groupView.selectedIndex
-                val g = if (i in groupIds.indices) groups.groups.firstOrNull { it.id == groupIds[i] } else null
-                if (g != null && g.species.human && g.id != followId) { followId = g.id; groups.watched = g.id; followBox.isSelected = true }
-            }
-            showGroup()
-        }
+        groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) showGroup() }
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
         add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(bottom, BorderLayout.SOUTH)
@@ -225,6 +229,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     private fun loadWorld(f: java.io.File) {
         try {
             inflation.ecology.HexSnapshot.load(sim, f)
+            useNetworks()
             lastDrawn.clear()
             snapshot()
         } catch (e: Exception) {
@@ -239,6 +244,26 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         sim.step()
         history.record(sim)
         snapshot()
+        control.weekDone()
+    }
+
+    /** The model: learned networks where given ([nets], [waysFile]), else the hand-written choices. */
+    private fun useNetworks() {
+        nets?.let { name ->
+            val dir = inflation.tools.baselineDir(name)
+            for ((r, role) in inflation.learning.HexPpo.ROLES.withIndex()) {
+                val f = java.io.File(dir, "$role.mlp").takeIf { it.exists() } ?: continue
+                val p = inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(f), null, { 0f }, { 0 })
+                for (s in groups.kinds) if (inflation.learning.HexPpo.role(s) == r) groups.policies[s] = p
+            }
+            java.io.File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(it, inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
+            java.io.File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(it, inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
+        }
+        (waysFile ?: nets?.let { java.io.File(inflation.tools.baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
+            groups.ways = inflation.learning.NetWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.WAYS_IN, inflation.learning.Schema.WAYS_OUT))
+        }
+        System.getProperty("hex.herdWays")?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
+        System.getProperty("hex.hunterWays")?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
     }
 
     private fun snapshot() {
@@ -267,13 +292,8 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             lastDrawn[g.id] = end
         }
         shown = list
-        // Following a group: the week's log, and keep it in view.
-        if (followId >= 0) {
-            followLog = groups.watchLog.joinToString("\n")
-            val g = groups.groups.firstOrNull { it.id == followId && it.alive }
-            if (g == null) { followLog = "the group followed is gone (died out or joined another)"; SwingUtilities.invokeLater { followBox.isSelected = false; followId = -1; groups.watched = -1; groupInfo.text = followLog } }
-            else { val h = hw.placeHex[g.place]; picked = h; val (x, y) = hex.centreKm(h); SwingUtilities.invokeLater { map.centreOn(x, y) } }
-        }
+        // Following a group (in the follow window): the week's log, for the panel when that group is picked.
+        followLog = if (groups.watched >= 0) groups.watchLog.joinToString("\n") else ""
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
         frames = max(8, 30 / stepsPerSecond); frame = 0
         SwingUtilities.invokeLater {
@@ -302,7 +322,6 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
 
         /** Puts the point ([x], [y]) km in the middle of the view. */
         fun centreOn(x: Double, y: Double) { val kmPx = px * scale; ox = width / 2.0 - x * kmPx; oy = height / 2.0 - y * kmPx; repaint() }
-
         init {
             preferredSize = Dimension(1200, 900)
             background = Color(0x30506e)
@@ -436,7 +455,12 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
                 val dens = DoubleArray(hex.size); val area = DoubleArray(hex.size)
                 for (p in 0 until fauna.n) { val h = hw.placeHex[p]; area[h] += land.areaKm2[p].toDouble() }
                 if (r < fauna.kinds.size) for (p in 0 until fauna.n) dens[hw.placeHex[p]] += ((fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p]).toDouble()
-                else { val s = groups.kinds[r - fauna.kinds.size]; for (gr in groups.groups) if (gr.alive && gr.species == s) dens[hw.placeHex[gr.place]] += gr.size.toDouble() }
+                else if (r < fauna.kinds.size + groups.kinds.size) { val s = groups.kinds[r - fauna.kinds.size]; for (gr in groups.groups) if (gr.alive && gr.species == s) dens[hw.placeHex[gr.place]] += gr.size.toDouble() }
+                else {
+                    // Life in the water: its density per hex as it is kept (sea hexes too).
+                    val stock = waterLayers[r - fauna.kinds.size - groups.kinds.size].second
+                    for (h in 0 until hex.size) { area[h] = 1.0; dens[h] = stock[h].toDouble() }
+                }
                 // Shaded against the densest twentieth of hexes, so that thin spreads show too.
                 val values = (0 until hex.size).filter { area[it] > 0 && dens[it] > 0 }.map { dens[it] / area[it] }.sorted()
                 val top = (if (values.isEmpty()) 0.0 else values[(values.size * 0.95).toInt().coerceAtMost(values.size - 1)]).coerceAtLeast(1e-6)
@@ -490,6 +514,8 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             val t = min(1f, frame.toFloat() / frames)
             for (s in shown) {
                 val sp = Catalogue.all[s.kind]
+                // The group followed in the follow window: a yellow ring.
+                if (s.id == groups.watched) { val (fx, fy) = along(s.way, t); g.color = Color(1f, 0.85f, 0.1f); g.stroke = java.awt.BasicStroke(2.5f); g.drawOval(sx(fx) - 9, sy(fy) - 9, 18, 18); g.stroke = java.awt.BasicStroke(1f) }
                 if (if (sp.human) !peopleBox.isSelected else if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
                 if (onlyKind != null && sp != onlyKind) continue
                 val w = s.way
@@ -572,7 +598,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         info.text = sb.toString()
         val here = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
         // Refill the list in place, keeping the picked group and where the list is scrolled to.
-        val picked = if (followId >= 0) followId else groupView.selectedIndex.let { if (it in groupIds.indices) groupIds[it] else -1 }
+        val picked = groupView.selectedIndex.let { if (it in groupIds.indices) groupIds[it] else -1 }
         groupIds = here.map { it.id }.toIntArray()
         val rows = here.map { g -> "%s #%d: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed, g.fat) }
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
@@ -607,7 +633,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             val months = (0 until 12).filter { g.seasonPlace[it] >= 0 }
             sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
         }
-        if (g.id == followId && followLog.isNotEmpty()) { sb.appendLine(); sb.appendLine("this week:"); sb.appendLine(followLog) }
+        if (g.id == groups.watched && followLog.isNotEmpty()) { sb.appendLine(); sb.appendLine("this week:"); sb.appendLine(followLog) }
         groupInfo.text = sb.toString()
     }
 

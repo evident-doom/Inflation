@@ -63,11 +63,19 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     val graveGoods = FloatArray(n)
     /** Share of the ground where good knapping stone (flint, obsidian) crops out. */
     val stone = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and (Mineral.FLINT or Mineral.OBSIDIAN) != 0) 1f else 0f } }
+    /** How far from a salt lake's water (or a desert sea) its salt crusts reach, km; how dry a shore must be (rain against evaporative demand) for salt flats. */
+    private val SALT_REACH_KM = 10f
+    private val SABKHA_ARIDITY = 0.15f
+    /** Share of the ground where salt can be got (crusts on dry lake beds and salt pans), and where red and yellow ochre crops out. */
+    val salt = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.SALT != 0) 1f else 0f } }
+    val ochre = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.OCHRE != 0) 1f else 0f } }
     /** Share of floodplain, which a river in spate covers. */
     val floodShare = FloatArray(n) { p -> mean(p) { if (world.floodplain.isFloodplain[it]) 1f else 0f } }
     private val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }
     /** Mean ruggedness, cover from broken ground and the best refuge and lookout of each place. */
     val ruggedness = FloatArray(n) { p -> mean(p) { world.terrain.ruggedness[it] } }
+    /** Share of a place that is crag, slopes over 45% (see [inflation.ecology.HexFood.access]). */
+    val crag = FloatArray(n) { p -> mean(p) { if (world.terrain.slope[it] > 0.45f) 1f else 0f } }
     /** Share of a place with caves and rock shelters: karst limestone in broken ground. */
     val caves = FloatArray(n) { p -> mean(p) { if (world.geology.rock[it] == Rock.LIMESTONE) 1f else 0.2f } * (ruggedness[p] / 0.5f).coerceIn(0f, 1f) }
     val bestDefence = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.defensibility[it] } }
@@ -153,6 +161,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val dRiver = near { !world.isSea[it] && !world.water.isLake(it) && world.water.discharge[it] >= 0.1f }
         val dLake = near { world.water.isLake(it) && !world.water.lakeClosed[it] }
         val dSpring = near { spring[it] }
+        // Salt: on the dry beds and shores of salt lakes and pans, and on the flats of a desert shore (sabkha).
+        val dSaltLake = near { world.water.isLake(it) && world.water.lakeClosed[it] }
+        val dSea = near { world.isSea[it] }
+        for (p in 0 until n) salt[p] = max(salt[p], mean(p) { if (dSaltLake[it] <= SALT_REACH_KM || (dSea[it] <= SALT_REACH_KM && c.aridity(it) < SABKHA_ARIDITY)) 1f else 0f })
         // Dry beds: every valley that drains enough ground to carry flash floods, which lay sand and gravel in it.
         val drained = dr.accumulate(FloatArray(grid.size) { if (world.isSea[it]) 0f else cellArea })
         val bed = { i: Int -> !world.isSea[i] && !world.water.isLake(i) && drained[i] >= WADI_KM2 * 1e6f }
@@ -288,6 +300,12 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         (1.0 - exp(-rate * days)).toFloat()
     }
     val soil = FloatArray(n) { soilCap[it] * 0.6f }
+    /**
+     * The soil water of the shaded slopes (those facing the pole, [Sunlight.shade] of each place), mm; [soil] is
+     * the sunny rest. Less sun dries them more slowly and melts their snow later.
+     */
+    val soilShade = FloatArray(n) { soilCap[it] * 0.6f }
+    private val slopeShade = hw.sunlight.shade
     /** Degree-days above 5 °C a place has in a normal year, and so far this year (from the winter solstice). */
     val annualGdd = FloatArray(n) { p -> (0 until 12).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
     val gdd = FloatArray(n) { p -> (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
@@ -334,6 +352,14 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     /** Fires this step: the place each started in and the km² it burned. */
     val fires = ArrayList<Pair<Int, Float>>()
     val litterfall = FloatArray(n)
+    /**
+     * Browse within an animal's reach at each place, kg/m² of the edible part: the leaves and shoots
+     * the shrubs and trees put out (their growth and the leaves and twigs they renew each year), not
+     * yet eaten or shed. Shoots last about a year, as the yearly renewal they come from.
+     */
+    val shrubShoots = FloatArray(n); val treeShoots = FloatArray(n)
+    /** Whether the shoots have been set; a world saved before they were kept gets a year's worth from its plants. */
+    private var shootsSet = false
     /** Set by the ecology: browsing, grazing and rooting lately, kg/km²/day; seed carried by animals, 0..1; trampling. */
     val browsing = FloatArray(n); val grazing = FloatArray(n); val rooting = FloatArray(n); val animalSeed = FloatArray(n)
     private val trampling = FloatArray(n)
@@ -343,6 +369,36 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
      * fraction from the rest (see [nourishment]).
      */
     val green = FloatArray(n)
+    /** Each place's warmest month, °C (normal); and from it how plants there are adapted: the warmth at which they start to grow and over which they reach full growth, °C, and the share of the sward that is perennial. */
+    private val warmest = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
+    private val growFrom = FloatArray(n) { p -> (warmest[p] - 20f).coerceIn(-2f, GROW_FROM_C) }
+    private val growSpan = FloatArray(n) { p -> (warmest[p] - 6f).coerceIn(6f, GROW_SPAN_C) }
+    val perennialShare = FloatArray(n) { p -> ((PERENNIAL_FULL_C + 4f - warmest[p]) / 4f).coerceIn(0f, 1f) }
+    /** How far the warmth [t], °C, lets the plants of place [p] grow, 0..1, as they are adapted to it. */
+    fun growthWarmth(p: Int, t: Float) = ((t - growFrom[p]) / growSpan[p]).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
+    /**
+     * How fast the grass of place [p] grows, 0..1, at warmth [season] (see [growthWarmth]) with the soil
+     * [wet] (its water against what it holds), the annuals of it [cured] or not: the annuals grow with the
+     * soil's water to where plants take it unstressed and not at all once cured; the perennials, by their
+     * deep roots, until the soil is a quarter full; mixed as the place's sward is.
+     */
+    fun herbGrowth(p: Int, season: Float, wet: Float, cured: Boolean): Float {
+        val annual = if (cured) 0f else season * (wet / UNSTRESSED).coerceIn(0f, 1f)
+        val perennial = season * (wet / PERENNIAL_UNSTRESSED).coerceIn(0f, 1f)
+        return (1f - perennialShare[p]) * annual + perennialShare[p] * perennial
+    }
+    /** The grass has dried out and cured this season (it waits for rain to sprout again). */
+    val cured = BooleanArray(n)
+    /**
+     * How green the open ground is, and the seeps: the hollows and stream sides ([SEEP_SHARE] of each place)
+     * where the ground water comes out and keeps the turf wet while it flows, through a dry summer.
+     * [green] is the two together.
+     */
+    private val greenOpen = FloatArray(n); val greenSeep = FloatArray(n)
+    /** The same for the grass of the shaded slopes: how green it is, and whether it has cured. */
+    val greenShade = FloatArray(n); private val curedShade = BooleanArray(n)
+    /** How the seeps of place [p] run, 0..1: with the ground water under it, against a usual year (as its springs). */
+    fun seeping(p: Int) = springFlow(p)
 
     /** Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when dry or dormant. */
     fun nourishment(p: Int) = DRY_VALUE + (1f - DRY_VALUE) * green[p]
@@ -380,6 +436,19 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
 
     fun trample(p: Int, intensity: Float) { trampling[p] += intensity }
 
+    /** Browse at [p], kg/m². */
+    fun browse(p: Int) = shrubShoots[p] + treeShoots[p]
+
+    /** Eats up to [kgPerM2] of the browse at [p], shrubs and trees alike; what was eaten comes off the plants too. */
+    fun eatBrowse(p: Int, kgPerM2: Float): Float {
+        val all = browse(p)
+        if (all <= 0f || kgPerM2 <= 0f) return 0f
+        val x = min(kgPerM2, all)
+        val s = x * shrubShoots[p] / all; val t = x - s
+        shrubShoots[p] -= s; treeShoots[p] -= t
+        return consume(p, LifeForm.SHRUB, s) + consume(p, LifeForm.TREE, t)
+    }
+
     /** Advances one step with the weather of that step on the same places. */
     fun step(weather: Weather) {
         stepWater(weather)
@@ -397,13 +466,20 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             if (weather.date.month == 0 && weather.date.dayOfMonth <= days) gdd[p] = 0f
             gdd[p] += max(0f, t - 5f) * days
             val rain = if (t >= 0f) weather.precipitation[p] else 0f
-            var s = soil[p] + rain + weather.meltwater[p]
-            // Evaporation follows the week's heat against the month's normal (about 6% a degree).
+            // Evaporation follows the week's heat against the month's normal (about 6% a degree) and the sun on the
+            // slopes; plants draw at full rate until the soil is half dry, then less as it dries (the same stress their
+            // growth feels). The sunny and the shaded slopes each keep their own soil water.
             val heat = exp(0.06f * (t - hw.placeTemp(p, m))).coerceIn(0.3f, 3f)
-            val et = min(s, pet[m][p] * share * heat * min(1f, s / soilCap[p]))
-            s -= et
-            val excess = max(0f, s - soilCap[p])
-            soil[p] = s - excess
+            fun bucket(water: Float, sun: Float): Float {
+                val et = min(water, pet[m][p] * sun * share * heat * min(1f, water / (UNSTRESSED * soilCap[p])))
+                return water - et
+            }
+            val sunny = bucket(soil[p] + rain + weather.meltSun[p], hw.sunlight.ratio[0][m][p])
+            val shady = bucket(soilShade[p] + rain + weather.meltShade[p], hw.sunlight.ratio[1][m][p])
+            soil[p] = min(sunny, soilCap[p]); soilShade[p] = min(shady, soilCap[p])
+            val excess = (1 - slopeShade[p]) * max(0f, sunny - soilCap[p]) + slopeShade[p] * max(0f, shady - soilCap[p])
+            // The turf of the seeps draws what it evaporates from the ground water seeping out under it.
+            if (t > 0f) groundwater[p] = max(0f, groundwater[p] - SEEP_SHARE * pet[m][p] * share * heat * seeping(p))
             // The rock takes in its share of what the soil cannot hold, as far as the aquifer has room; the rest runs off.
             val taken = min(excess * intake[p], aquiferCap[p] - groundwater[p]).coerceAtLeast(0f)
             groundwater[p] += taken
@@ -532,29 +608,58 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val years = days / Date.DAYS_PER_YEAR.toFloat()
         val memory = 1 - exp(-days / 360f)
         if (stepCount++ % 5 == 0) seedSources()
+        if (!shootsSet) { for (p in 0 until n) { shrubShoots[p] = palatable[p] * SHRUB_RENEWAL * shrub[p]; treeShoots[p] = palatable[p] * TREE_IN_REACH * TREE_RENEWAL * tree[p] }; shootsSet = true }
+        val shootsKept = exp(-years)
         spreadFires(weather, years)
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             val before = biomass(p)
             val t = weather.temperature[p]
             val wet = soil[p] / soilCap[p]
-            moisture[p] += (wet - moisture[p]) * memory
+            moisture[p] += (((1 - slopeShade[p]) * soil[p] + slopeShade[p] * soilShade[p]) / soilCap[p] - moisture[p]) * memory
             warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
-            val season = ((t - 2f) / 13f).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
-            val water0 = (wet / 0.5f).coerceIn(0f, 1f)
+            // Plants are adapted to their place: where summers are cool they grow fully at less warmth (alpine
+            // grasses at 5-10 °C), where they are hot as before.
+            val season = growthWarmth(p, t)
+            val water0 = (wet / UNSTRESSED).coerceIn(0f, 1f)
+            val waterShade = (soilShade[p] / soilCap[p] / UNSTRESSED).coerceIn(0f, 1f)
+            // Grass that dries out in growing weather sets seed and cures to straw where it stands; it greens
+            // again only when rain wets the soil enough to sprout it (to where plants take water unstressed).
+            // So do the annual grasses of hot, dry summers. Where summers are cool the sward is perennial: deep
+            // roots keep it growing until the soil is a quarter full, it browns as the soil dries further and
+            // greens again with the next rain, without curing for the year.
+            if (season > 0f && water0 < 0.5f) cured[p] = true else if (water0 >= 1f) cured[p] = false
+            if (season > 0f && waterShade < 0.5f) curedShade[p] = true else if (waterShade >= 1f) curedShade[p] = false
+            val shaded = slopeShade[p]
+            val sunnyGrowth = herbGrowth(p, season, wet, cured[p])
+            val shadyGrowth = herbGrowth(p, season, soilShade[p] / soilCap[p], curedShade[p])
+            val openGrowth = (1 - shaded) * sunnyGrowth + shaded * shadyGrowth
+            // The seeps grow as long as the ground water flows, whatever the weather brings.
+            val seepGrowth = season * seeping(p)
+            val grassGrowth = (1 - SEEP_SHARE) * openGrowth + SEEP_SHARE * seepGrowth
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, as long as it is growing weather.
-            val flush = min(1f, season * water0 + FLUSH * burnt[p] * season)
-            green[p] += (flush - green[p]) * GREEN_RATE
+            greenOpen[p] += (min(1f, sunnyGrowth + FLUSH * burnt[p] * season) - greenOpen[p]) * GREEN_RATE
+            greenShade[p] += (min(1f, shadyGrowth + FLUSH * burnt[p] * season) - greenShade[p]) * GREEN_RATE
+            greenSeep[p] += (seepGrowth - greenSeep[p]) * GREEN_RATE
+            green[p] = (1 - SEEP_SHARE) * ((1 - shaded) * greenOpen[p] + shaded * greenShade[p]) + SEEP_SHARE * greenSeep[p]
             val shade = canopy(p)
             val browsed = 1f - exp(-browsing[p] / Vegetation.BROWSE_SCALE)
             val young = 1f - min(1f, tree[p] / (0.3f * ceiling(LifeForm.TREE, p).coerceAtLeast(1e-3f)))
             val rooted = 1f - exp(-rooting[p] / Vegetation.ROOT_SCALE)
             val treeSeedHere = max(treeSeed[p], 0.5f * animalSeed[p]) * (1f + 1.5f * rooted)
             val shrubSeedHere = max(shrubSeed[p], animalSeed[p]) * (1f + 1.5f * rooted)
+            val tree0 = tree[p]; val shrub0 = shrub[p]
             grow(LifeForm.TREE, tree, p, season * water0 * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed))
             grow(LifeForm.SHRUB, shrub, p, season * water0 * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed))
+            // New shoots: what the woody plants grew, and the leaves and twigs they renew, in growing weather.
+            val renew = season * water0 * years
+            shrubShoots[p] = shrubShoots[p] * shootsKept + palatable[p] * (max(0f, shrub[p] - shrub0) + SHRUB_RENEWAL * renew * shrub[p])
+            treeShoots[p] = treeShoots[p] * shootsKept + palatable[p] * TREE_IN_REACH * (max(0f, tree[p] - tree0) + TREE_RENEWAL * renew * tree[p])
+            // In the cold the deciduous leaves fall: through the winter only twigs and buds are left to browse.
+            // (Where winters are mild enough to grow on, the leaves stay, as on the evergreen scrub of the south.)
+            if (LEAF_FALL > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-LEAF_FALL * years); shrubShoots[p] *= k; treeShoots[p] *= k }
             val lawn = 1f - exp(-grazing[p] / Vegetation.LAWN_SCALE)
-            grow(LifeForm.HERB, herb, p, season * water0 * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
+            grow(LifeForm.HERB, herb, p, grassGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
             // Ash smothers the low plants and scorches leaves; as it weathers it enriches the soil.
             if (ash[p] > 1f) {
                 herb[p] *= exp(-ash[p] / ASH_SMOTHER_MM * years * 52f / 10f); shrub[p] *= exp(-ash[p] / (4f * ASH_SMOTHER_MM) * years * 52f / 10f)
@@ -572,11 +677,11 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val bare = (1f - cover) * (1f - cover)
             if (bare > 0.01f) fertility[p] *= 1f - min(0.5f, Vegetation.EROSION * bare * weather.precipitation[p] / 50f * slope[p] / 0.2f * years)
             val burned = if (burning[p] > 0f) burn(p, burning[p]) else 0f
-            litterfall[p] = max(0f, before - biomass(p) - burned) + years * (herb[p] + 0.2f * shrub[p] + 0.04f * tree[p])
+            litterfall[p] = max(0f, before - biomass(p) - burned) + years * (herb[p] + SHRUB_RENEWAL * shrub[p] + TREE_RENEWAL * tree[p])
             // Trampling, spread over the place: a herd beats down a share of it.
             val tr = trampling[p] / areaKm2[p]
             if (tr > 0f) {
-                herb[p] *= exp(-0.05f * tr); shrub[p] *= exp(-0.1f * tr)
+                herb[p] *= exp(-TRAMPLE_HERB * tr); shrub[p] *= exp(-TRAMPLE_SHRUB * tr)
                 trails[p] = min(1f, trails[p] + Vegetation.TRAIL_WEAR * tr * (1f - trails[p]))
                 trampling[p] = 0f
             } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - Vegetation.TRAIL_FADE * years)
@@ -677,10 +782,32 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         const val MIN_SPRING_FLOW = 3e4f
         const val SPRING_KM2 = 150f
         /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
-        const val DRY_VALUE = 0.65f
+        val DRY_VALUE = System.getProperty("hex.t.dryValue")?.toFloat() ?: 0.65f
+        /** Experiment knobs: the warmth at which plants start to grow, °C, and the span over which they reach full growth, °C. */
+        val GROW_FROM_C = System.getProperty("hex.t.growFrom")?.toFloat() ?: 2f
+        val GROW_SPAN_C = System.getProperty("hex.t.growSpan")?.toFloat() ?: 13f
+        /**
+         * Perennial swards: wholly so where the warmest month is at most this, °C (annuals wholly where it is
+         * 4 °C warmer); the share of what the soil holds down to which their deep roots keep them growing.
+         */
+        const val PERENNIAL_FULL_C = 18f
+        const val PERENNIAL_UNSTRESSED = 0.25f
         const val PALATABLE_FLOOR = 0.5f
+        /** Share of the soil's water plants take up without stress; drier than that, growth and evaporation fall in step (FAO-56, p about 0.5). */
+        const val UNSTRESSED = 0.5f
+        /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
+        const val SHRUB_RENEWAL = 0.2f
+        const val TREE_RENEWAL = 0.04f
+        /** Share of trees' new growth within a browser's reach (saplings and low boughs). */
+        const val TREE_IN_REACH = 0.03f
         /** How moist the water table keeps the ground round fresh lakes and springs, as a share of a full soil. */
         const val WATER_TABLE = 0.6f
+        /**
+         * Share of the land in seeps: where the ground water comes out in hollows and along the streams. The
+         * streams run some 2.5 km to each km² of hill country (drainage density, about 2–4 in humid uplands)
+         * with a wet strip some 40 m wide along them (both banks), from memory.
+         */
+        const val SEEP_SHARE = 2.5f * 0.04f
         /**
          * Streams: the least usual flow of a creek counted as drinking water (as [nearRiver] is set), m³/s;
          * the flow that still keeps pools in its bed, m³/s (about 860 m³ a day, far more than any band and herd drink).
@@ -735,3 +862,15 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         const val FLOW_MEMORY = 0.01f
     }
 }
+
+/**
+ * Share of the herbs and shrubs a place loses a step for each unit of trampling over it (see
+ * [HexLand.trample]; -Dhex.t.trampleHerb, -Dhex.t.trampleShrub): about 5% of the shrubs a year where a
+ * tonne of animals a km² goes about (it was ten times that, more than shrubs regrow: the shrub layer
+ * fell by half in four years and the browsers starved).
+ */
+val TRAMPLE_HERB = System.getProperty("hex.t.trampleHerb")?.toFloat() ?: 0.005f
+val TRAMPLE_SHRUB = System.getProperty("hex.t.trampleShrub")?.toFloat() ?: 0.01f
+
+/** How fast the leaves of the shoots fall in the cold, a year: about two-thirds gone over a four-month winter, the twigs and buds left (-Dhex.t.leafFall; 0: they last as twigs do). */
+val LEAF_FALL = System.getProperty("hex.t.leafFall")?.toFloat() ?: 4f

@@ -214,12 +214,15 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         fun roughage(s: Species) = (ROUGHAGE_VALUE * s.fibreDigestion * (s.massKg / 100f).pow(0.25f)).coerceAtMost(0.75f)
 
         /**
-         * Share of a place's food [s] can get at: very broken ground (cliffs, crags) keeps all but the
-         * climbers off much of it, which is what leaves the ibex its cliffs.
+         * Share of a place's food [s] can get at, given the share of it that is crag (slopes over 45%):
+         * the crags keep all but the climbers off, which is what leaves the ibex its cliffs; the
+         * meadows, plateaus and gentler slopes between them are open to any grazer. (It was reckoned
+         * from a place's ruggedness, which in the mountains is high even where the pasture is good,
+         * and kept grazers off two thirds of the uplands.)
          */
-        fun access(s: Species, rugged: Float): Float {
+        fun access(s: Species, crag: Float): Float {
             val climber = max(0f, s.habitat.rugged)
-            return 1f - 0.8f * (1f - min(1f, climber)) * ((rugged - 0.4f) / 0.4f).coerceIn(0f, 1f)
+            return 1f - (1f - min(1f, climber)) * crag.coerceIn(0f, 1f)
         }
     }
 }

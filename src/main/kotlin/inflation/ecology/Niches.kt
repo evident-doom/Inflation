@@ -68,7 +68,8 @@ object Niches {
     )
 
     /** The shelters kind [s] uses. */
-    fun shelters(s: Species): Set<Shelter> = SHELTERS[s.name] ?: emptySet()
+    fun shelters(s: Species): Set<Shelter> = sheltersByIndex[s.index]
+    private val sheltersByIndex by lazy { Array(Catalogue.all.size) { SHELTERS[Catalogue.all[it].name] ?: emptySet() } }
 
     /**
      * How well kind [s] can shelter in place [p], 0..1: from the crags (ruggedness), the caves and

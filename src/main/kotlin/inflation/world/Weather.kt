@@ -71,6 +71,8 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         val widthKm: Double,
         val heightKm: Double,
         val cellKm: Double,
+        /** The sun on each place's shaded and sunny slopes ([Sunlight]); null for level ground everywhere. */
+        val sunlight: Sunlight? = null,
     ) {
         companion object {
             fun of(grid: Grid, climate: Climate, cfg: WorldConfig, elevation: FloatArray?): Places = Places(
@@ -131,6 +133,13 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     val snowpack = FloatArray(n)
     /** Snowmelt released during the last step, mm. */
     val meltwater = FloatArray(n)
+    /**
+     * The snow and its melt on the sunny slopes and on the shaded ones (facing the pole: [Sunlight.shade] of
+     * the place), mm. Snow melts by the warmth of the air and by the sun on it (Hock 1999), so it lies longer
+     * on the shaded slopes; [snowpack] and [meltwater] are the place's mean.
+     */
+    val snowSun = FloatArray(n); val snowShade = FloatArray(n)
+    val meltSun = FloatArray(n); val meltShade = FloatArray(n)
 
     val winds = Winds(places.sector)
     /** The weather pattern of the last step, and of the coming one (already drawn, see [prepare]). */
@@ -219,7 +228,13 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
             // (Between the nodes of the coarse field the blend of their anomalies spreads less than at a node:
             // the samples are scaled back to a node's spread, so wet weeks are as likely midway as at a node.)
             val spread = spreadAt(x, y)
-            val z = sample(rainAnomaly, x, y) / spread / RAIN_SIGMA
+            // In dry country rain comes from scattered storms, a few tens of km across, that green one
+            // stretch of desert and steppe and miss the next (as many as the month's rain asks for, placed
+            // afresh each week): the patchy rain nomadic herds follow. Where the month is wet the rain still
+            // comes with the wide weather systems.
+            val arid = (1f - pMonth / ARID_MONTH_MM).coerceIn(0f, 1f)
+            val zWide = sample(rainAnomaly, x, y) / spread / RAIN_SIGMA
+            val z = if (arid <= 0f) zWide else (1f - arid) * zWide + arid * stormField(places.xKm[i], places.yKm[i])
             val wet = 1f / (1f + exp(-1.7f * z)) > 1f - wetChance
             val swing = yearSwing[i]
             nextPrecip[i] = if (!wet || wetChance <= 0f) 0f
@@ -250,6 +265,27 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
                 nextU[c] = base[0] + eddyU[c]; nextV[c] = base[1] + eddyV[c]
             }
         }
+    }
+
+    /**
+     * Where this step's scattered storms fall, as a value whose logistic gives the same chance of rain
+     * as the wide field's: random afresh each step on cells of [STORM_KM], blended between cells.
+     */
+    private fun stormField(xKm: Float, yKm: Float): Float {
+        val gx = xKm / STORM_KM; val gy = yKm / STORM_KM
+        val x0 = kotlin.math.floor(gx).toInt(); val y0 = kotlin.math.floor(gy).toInt()
+        val fx = gx - x0; val fy = gy - y0
+        val step = date.absoluteDay / cfg.daysPerStep
+        fun at(cx: Int, cy: Int): Float {
+            var h = cfg.seed * -0x61c8864680b583ebL + step * 0x9E3779B97F4A7C15uL.toLong() + cx * 0x632BE59BD9B4E019L + cy * 0x165667B19E3779F9L
+            h = (h xor (h ushr 31)) * -0x4b47d5b1L; h = h xor (h ushr 29)
+            val u = ((h ushr 11).toDouble() / (1L shl 53).toDouble()).coerceIn(1e-6, 1 - 1e-6)
+            return (kotlin.math.ln(u / (1 - u)) / 1.7).toFloat()
+        }
+        val v = (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy
+        // (Midway between cells the blend spreads less; scaled back so a storm is as likely there.)
+        val spread = kotlin.math.sqrt(((1 - fx) * (1 - fx) + fx * fx) * ((1 - fy) * (1 - fy) + fy * fy))
+        return v / spread.coerceAtLeast(0.3f)
     }
 
     /** The seasonal mean of the wind's rain factor this month, so that rain keeps to the normals on average. */
@@ -287,14 +323,22 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
             val p = nextPrecip[i] * shockRain
             temperature[i] = t
             precipitation[i] = p
+            // (A world saved before the slopes were kept apart has its snow only as the place's mean.)
+            if (snowpack[i] > 0f && snowSun[i] == 0f && snowShade[i] == 0f) { snowSun[i] = snowpack[i]; snowShade[i] = snowpack[i] }
             if (t < 0) {
-                snowpack[i] += p
-                meltwater[i] = 0f
+                snowSun[i] += p; snowShade[i] += p
+                meltSun[i] = 0f; meltShade[i] = 0f
             } else {
-                val melt = min(snowpack[i], 4f * t * days) // 4 mm per degree-day
-                snowpack[i] -= melt
-                meltwater[i] = melt
+                // 4 mm a degree-day on level ground, of which the sun's share follows the sun on the slope.
+                val sun = places.sunlight
+                val m = date.month
+                meltSun[i] = min(snowSun[i], (MELT_AIR + (MELT_DEGREE_DAY - MELT_AIR) * (sun?.ratio?.get(0)?.get(m)?.get(i) ?: 1f)) * t * days)
+                meltShade[i] = min(snowShade[i], (MELT_AIR + (MELT_DEGREE_DAY - MELT_AIR) * (sun?.ratio?.get(1)?.get(m)?.get(i) ?: 1f)) * t * days)
+                snowSun[i] -= meltSun[i]; snowShade[i] -= meltShade[i]
             }
+            val f = places.sunlight?.shade?.get(i) ?: 0f
+            snowpack[i] = (1 - f) * snowSun[i] + f * snowShade[i]
+            meltwater[i] = (1 - f) * meltSun[i] + f * meltShade[i]
         }
         date = date.plusDays(days)
         prepare()
@@ -434,6 +478,9 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     }
 
     companion object {
+        /** Snow melted per degree-day above freezing on level ground, mm; the part of it that the air's warmth melts without the sun (Hock 1999: about 1.8). */
+        const val MELT_DEGREE_DAY = 4f
+        const val MELT_AIR = 1.8f
         /** Spread of the week-to-week temperature (°C) and log-rain anomalies, on top of the regimes. */
         const val TEMP_SIGMA = 1.5f
         const val RAIN_SIGMA = 0.35f
@@ -441,6 +488,9 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         const val YEAR_SIGMA = 0.25f
         /** Rain in a month (mm) at which about two weeks in three are wet. */
         const val WET_MONTH_MM = 25f
+        /** Scattered storms: below this month's rain, mm, rain comes as storms rather than with wide systems (wholly at none); their size, km. */
+        const val ARID_MONTH_MM = 40f
+        const val STORM_KM = 30f
         /** Chance a regime holds into the next week. */
         const val REGIME_PERSISTENCE = 0.5
         /** Spread of the wind's eddies, m/s. */

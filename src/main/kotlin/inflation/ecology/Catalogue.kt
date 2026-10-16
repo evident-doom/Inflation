@@ -42,7 +42,8 @@ object Catalogue {
         dailyTravelKm = 3f, maxDailyTravelKm = 20f, senseKm = 1f,
         daysWithoutWater = 4, waterFromFood = 0.9f,
         birthMonth = 5, birthMonths = 1, youngPerFemale = 1.6f, yearsToMaturity = 2f,
-        backgroundMortality = 0.07f, snowLimitMm = 150f,
+        // (Half or more of the fawns are lost in their first year, to foxes, eagles, boar, cold and wet.)
+        backgroundMortality = 0.07f, youngMortality = 0.4f, snowLimitMm = 150f,
         products = Products(meat = 12f, fat = 0.5f, hide = 1.5f, bone = 3f, sinew = 0.2f, hornOrAntler = 0.3f),
         comfortC = -8f..29f, winterCoat = true,
         speedKmh = 70f,
@@ -245,14 +246,13 @@ object Catalogue {
         groupSize = 5, maxGroupSize = 12,
         dailyTravelKm = 12f, maxDailyTravelKm = 30f, senseKm = 8f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
-        birthMonth = 5, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 3f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 3f,
         backgroundMortality = 0.1f, youngMortality = 0.4f, snowLimitMm = 200f,
         products = Products(meat = 60f, fat = 5f, hide = 8f, bone = 18f, sinew = 1f, fur = true),
         comfortC = 0f..38f, 
         speedKmh = 60f,
         domestication = floatArrayOf(0.1f, 0.4f, 0.2f, 0.0f, 0.3f, 0.5f),
         habitat = Habitat(cover = -0.2f, rugged = -0.3f),
-        packLitter = 3,
         stalking = 0.7f,
         ferocity = 1.2f,
         startKm2PerAnimal = 50f,
@@ -266,17 +266,41 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 6f, maxDailyTravelKm = 20f, senseKm = 4f,
         daysWithoutWater = 6, waterFromFood = 0.8f,
-        birthMonth = 6, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 2.5f,
+        birthMonth = 6, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.07f, youngMortality = 0.4f, snowLimitMm = 300f,
         products = Products(meat = 18f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = -8f..35f, 
         speedKmh = 58f,
         domestication = floatArrayOf(0.1f, 0.4f, 0.1f, 0.0f, 0.2f, 0.0f),
         habitat = Habitat(cover = 0.7f, rugged = 0.6f),
-        packLitter = 3,
         stalking = 1f,
         ferocity = 1.1f,
         startKm2PerAnimal = 50f,
+    )
+
+    /**
+     * Eurasian lynx: a solitary stalker of forest and broken ground, the roe deer's chief hunter (a
+     * roe or a chamois a week or so), with hares and birds between; a mother keeps her kits with
+     * her through their first winter.
+     */
+    val LYNX = Species(
+        name = "lynx", massKg = 20f,
+        fearOfPeople = 0.9f, boldShare = 0.01f,
+        diet = Diet(meat = 0.75f, smallPrey = 0.22f, carrion = 0.03f),
+        groupSize = 1, maxGroupSize = 4,
+        dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 3f,
+        daysWithoutWater = 6, waterFromFood = 0.8f,
+        // (Kept as a resident: a litter of two or three a year.)
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, youngMortality = 0.5f, snowLimitMm = 900f,
+        products = Products(meat = 8f, fat = 0.3f, hide = 1.5f, bone = 2f, sinew = 0.1f, fur = true),
+        comfortC = -30f..28f, winterCoat = true,
+        speedKmh = 50f,
+        domestication = floatArrayOf(0.1f, 0.3f, 0.1f, 0.0f, 0.2f, 0.0f),
+        habitat = Habitat(cover = 0.8f, rugged = 0.4f),
+        stalking = 1f,
+        ferocity = 0.6f,
+        startKm2PerAnimal = 150f,
     )
 
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
@@ -287,14 +311,13 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 5,
         dailyTravelKm = 12f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
-        birthMonth = 5, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
+        birthMonth = 5, birthMonths = 2, youngPerFemale = 2f, yearsToMaturity = 2f,
         backgroundMortality = 0.07f, youngMortality = 0.3f, snowLimitMm = 200f,
         products = Products(meat = 14f, fat = 1f, hide = 2.5f, bone = 4f, sinew = 0.2f, fur = true),
         comfortC = 0f..38f, 
         speedKmh = 50f,
         domestication = floatArrayOf(0.8f, 0.3f, 0.2f, 0.3f, 0.3f, 0.2f),
         habitat = Habitat(rugged = 0.3f),
-        packLitter = 3,
         stalking = 0.2f,
         ferocity = 1.4f,
         startKm2PerAnimal = 50f,
@@ -308,14 +331,14 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 6,
         dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 4f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
-        birthMonth = 5, birthMonths = 1, youngPerFemale = 0f, yearsToMaturity = 1f,
+        // (Kept as a resident: a litter of four to six a year.)
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 5f, yearsToMaturity = 1f,
         backgroundMortality = 0.25f, youngMortality = 0.4f, snowLimitMm = 150f,
         products = Products(meat = 4f, fat = 0.2f, hide = 0.6f, bone = 1f, sinew = 0.1f, fur = true),
         comfortC = -5f..38f, winterCoat = true,
         speedKmh = 45f,
         domestication = floatArrayOf(0.8f, 0.6f, 0.4f, 0.4f, 0.4f, 0.6f),
         habitat = Habitat(cover = 0.2f, wet = 0.2f),
-        packLitter = 4,
         stalking = 0.4f,
         ferocity = 0.8f,
         startKm2PerAnimal = 10f,
@@ -511,14 +534,13 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 6f,
         daysWithoutWater = 10, waterFromFood = 0.8f,
-        birthMonth = 5, birthMonths = 2, youngPerFemale = 0f, yearsToMaturity = 2f,
+        birthMonth = 5, birthMonths = 2, youngPerFemale = 2f, yearsToMaturity = 2f,
         backgroundMortality = 0.1f, youngMortality = 0.4f, snowLimitMm = 50f,
         products = Products(meat = 20f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = 3f..42f,
         speedKmh = 105f,
         domestication = floatArrayOf(0.2f, 0.4f, 0.0f, 0.5f, 0.3f, 0.2f), // tamed for the hunt, never bred
         habitat = Habitat(cover = -0.8f, rugged = -0.5f),
-        packLitter = 3,
         stalking = 0.3f,
         ferocity = 0.6f,
         startKm2PerAnimal = 100f,
@@ -568,13 +590,22 @@ object Catalogue {
         GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR,
         ELK, REINDEER, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
     )
-    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN)
+    // (New kinds go at the end, so that every kind keeps its index, and saved networks their identities.)
+    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN, LYNX)
 
     /** Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges. */
     val migratory = setOf(GAZELLE, REINDEER, HORSE, ONAGER, ORYX, OSTRICH, HARTEBEEST, DROMEDARY)
 
-    /** Plant-eaters that keep to small home ranges all year. */
-    fun resident(s: Species) = !s.carnivore && s !in migratory
+    /**
+     * Hunters that live everywhere they can on small home ranges and do not follow the herds, kept as
+     * numbers per place like the resident plant-eaters rather than as packs that choose where to go
+     * (cheaper, and the same rules of eating, breeding and dying): golden jackals and lynx. (They stay
+     * in [predators], so every kind keeps its index.)
+     */
+    val residentHunters by lazy { setOf(JACKAL, LYNX) }
+
+    /** Kinds that keep to small home ranges all year, kept as numbers per place: plant-eaters, and the [residentHunters]. */
+    fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, LEOPARD)
@@ -584,8 +615,9 @@ object Catalogue {
      * How far a kind will swim open water, km: elk, hippos, red deer, boar and bears cross straits of
      * ten or more; most others a few; people none (until boats). From memory of the record, mild.
      */
-    fun swimKm(s: Species): Float = SWIM_KM[s.name] ?: if (s.human) 0f else when (travel(s)) {
-        inflation.world.HexMap.Travel.SWIM -> 8f; inflation.world.HexMap.Travel.CLIMB -> 2f; else -> 3f }
+    fun swimKm(s: Species): Float = swimByIndex[s.index]
+    private val swimByIndex by lazy { FloatArray(all.size) { i -> val s = all[i]; SWIM_KM[s.name] ?: if (s.human) 0f else when (travel(s)) {
+        inflation.world.HexMap.Travel.SWIM -> 8f; inflation.world.HexMap.Travel.CLIMB -> 2f; else -> 3f } } }
     private val SWIM_KM = mapOf("elk" to 15f, "hippo" to 15f, "red deer" to 10f, "wild boar" to 10f, "brown bear" to 10f,
         "aurochs" to 8f, "fallow deer" to 6f, "roe deer" to 4f, "wolf" to 4f, "gazelle" to 1f, "cheetah" to 1f)
 
@@ -597,7 +629,7 @@ object Catalogue {
      * people. Named, not read from the diet: people eat about half meat, and a small retune of their
      * diet would otherwise drop them from training and from the check without a word.
      */
-    val learned = all.filter { it in migratory || it in predators }
+    val learned = all.filter { (it in migratory || it in predators) && it !in residentHunters }
 
     init {
         all.forEachIndexed { i, s -> s.index = i }

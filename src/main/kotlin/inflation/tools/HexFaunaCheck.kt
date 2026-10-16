@@ -191,7 +191,7 @@ fun main(args: Array<String>) {
                         val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble()
                         if (h <= 0.0) continue
                         heads += h; fed += h * fauna.fed[k][p]; if (fauna.fed[k][p] < 0.6f) hungry += h
-                        teth += h * fauna.tether(s, p); acc += h * inflation.ecology.HexFood.access(s, land.ruggedness[p]); gr += h * land.green[p]; res += h * fauna.reserve[k][p]
+                        teth += h * fauna.tether(s, p); acc += h * inflation.ecology.HexFood.access(s, land.crag[p]); gr += h * land.green[p]; res += h * fauna.reserve[k][p]
                     }
                     if (heads > 0) println("       %-12s %.2f / %.0f%% / %.2f / %.2f / %.2f / %.0f".format(s.name, fed / heads, 100 * hungry / heads, teth / heads, acc / heads, gr / heads, res / heads))
                 }
@@ -287,6 +287,11 @@ fun main(args: Array<String>) {
                 for (k in fauna.kinds.indices) { val v = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble(); if (c) coastN[k] += v else inN[k] += v }
             }
             println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) + fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0), inN[k] / inA.coerceAtLeast(1.0)) })
+            // Where the residents' food came from this year, per animal (shares of a full need).
+            println("     residents fed from (fresh plants / straw / prey and carrion / reserves, shares of need per animal this year): " + fauna.kinds.indices.joinToString(", ") { k ->
+                val ff = fauna.fedFrom[k]; val h = ff[4].sumThenReset().coerceAtLeast(1e-9)
+                "%s %.2f/%.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[0].sumThenReset() / h, ff[1].sumThenReset() / h, ff[2].sumThenReset() / h, ff[3].sumThenReset() / h)
+            })
             // And what they find there: edible forage, how green, how well the roe deer fed, how far water is.
             fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps -> ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
             val roe = fauna.kinds.indexOfFirst { it.name == "roe deer" }
@@ -408,6 +413,11 @@ fun main(args: Array<String>) {
             val meat = (huntYear["people:meat eaten, kg"] ?: 0).toDouble(); val plants = (huntYear["people:plants eaten, kg"] ?: 0).toDouble()
             val violent = yearly("raids") + causes.keys.filter { it.startsWith("people:killed by") }.sumOf { yearly(it.substringAfter(':')) }
             val bandsSeen = walked.size.coerceAtLeast(1)
+            run {
+                val all = herds.childDeaths.mapValues { it.value.sumThenReset() }.filter { it.value > 0.0 }
+                val total = all.values.sum().coerceAtLeast(1e-9)
+                println("     children's deaths by cause this year (expected from the odds, share): " + all.entries.sortedByDescending { it.value }.joinToString(", ") { "%s %.0f%%".format(it.key, 100 * it.value / total) })
+            }
             println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | years between births %.1f [3-4] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
                 bandHeads / bandWeeks, bandHeads / weeks / land.areaKm2.sum(), moves.toDouble() / bandsSeen,
                 walked.values.map { it.size }.average() * sim.hex.hexKm * sim.hex.hexKm * 0.866, 100 * plants / (meat + plants).coerceAtLeast(1.0),

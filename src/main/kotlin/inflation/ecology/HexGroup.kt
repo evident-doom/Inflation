@@ -24,6 +24,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** For a herd: the place it remembers doing best in each month, and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
+    /** Its yearly round, as its elders taught it: the place it makes for each month (-1: none; see [growRounds]). */
+    val route = IntArray(12) { -1 }
     /** Days since it last drank. */
     var dry = 0f
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
@@ -35,6 +37,16 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** The places it remembers (see [PlaceMemory]). */
     val memory = PlaceMemory()
     var mergedSize = -1
+    /** How well its diet met its need for protein over the last weeks, 0..1 (see [HexFauna.proteinMet]). */
+    var protein = 1f
+    /** How well its diet met its need for protein in each month, as it remembers (births move toward the months rich in it). */
+    val proteinByMonth = FloatArray(12) { 1f }
+    /**
+     * Which way a herd has been heading, as east and south parts (km-free, at most 1 long): kept from week
+     * to week and bent a little each week toward better country, so small nudges add up to a long trek.
+     */
+    var headE = 0f
+    var headS = 0f
     /**
      * A band's luck in its own week's births and deaths, summed since it began: born less died as
      * drawn, against as expected from the week's odds (for training, which judges people by what
@@ -72,6 +84,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
  */
 fun interface HexPolicy {
     fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int
+    /** How it scores each candidate, higher the likelier it goes there; null if it does not tell (only asked for a followed group, see [GroupControl]). */
+    fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray? = null
 }
 
 /**
@@ -84,6 +98,9 @@ object HexFeatures {
     /** 0-24 the place now; 25-30 what the group remembers of it ([PlaceMemory]); 31 its ancestors there; 32 the pull of its appointment; 33 its houses there; 34 its own size against its kind's usual group; 35 the lasting water there through the dry season; 36 sickness raging there among its kind;
      *  37-46 the signs of the land: tree, shrub and grass cover, marsh, water now against its usual, worn paths, herds about
      *  this month, dung, grazing this week, carcasses and bones; 46 whether a band knows the hex;
-     *  47 for a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size); 48 how fresh another pack of its kind's mark is there. */
-    const val SIZE = 49
+     *  47 for a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size); 48 how fresh another pack of its kind's mark is there;
+     *  49 for a band, the fish and shellfish it could take there in a week with its skill, against its week's need (0 for animals);
+     *  50 for a herd, how far going there keeps to the way it has been heading ([HexGroup.headE]; 0 for others);
+     *  51 for a herd on its yearly round, how far the place takes it on toward the round's place this month (0 off a round). */
+    const val SIZE = 52
 }

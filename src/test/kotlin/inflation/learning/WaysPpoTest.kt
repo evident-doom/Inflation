@@ -50,4 +50,23 @@ class WaysPpoTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun `a band keeps its draw of ways for a season, and it is recorded once`() {
+        val w = LearnedWays.fresh(16, Random(1))
+        val record = java.util.concurrent.ConcurrentLinkedQueue<Choice>()
+        var week = 0
+        val sampler = WaysSampler(w, record, { 1f }, { week }, 5L)
+        val g = inflation.ecology.HexGroup(3, Catalogue.HUMAN, 0, 10, 4)
+        val x = FloatArray(WAYS_IN)
+        val draws = (0 until 2 * WaysPpo.SEASON).map { week = it; FloatArray(WAYS_OUT).also { o -> sampler.choose(g, x, o) }.toList() }
+        val start = (WaysPpo.SEASON - g.id % WaysPpo.SEASON) % WaysPpo.SEASON
+        // The same draw all season, a new one when the next begins.
+        for (k in 1 until WaysPpo.SEASON) assertEquals(draws[start], draws[start + k])
+        assertTrue(draws[start] != draws[start - 1])
+        // One record a season, at its first week, holding the draw kept.
+        assertEquals(2, record.size)
+        assertEquals(listOf(start, start + WaysPpo.SEASON), record.map { it.week })
+        assertEquals(draws[start], (record.first() as WaysChoice).a.toList())
+    }
 }

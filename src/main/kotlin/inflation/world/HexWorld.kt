@@ -110,6 +110,8 @@ class HexWorld(val world: World, val hex: HexMap) {
     val placeOf = Array(BANDS_M.size) { IntArray(size) { -1 } }
     /** Mean elevation of each place, m. */
     lateinit var placeElevationM: FloatArray
+    /** How much sun the shaded and sunny slopes of each place get, by month (worked out once, from the terrain). */
+    val sunlight: Sunlight by lazy { Sunlight.of(world, placeCells) }
 
     init {
         val lists = HashMap<Long, ArrayList<Int>>()
@@ -143,6 +145,7 @@ class HexWorld(val world: World, val hex: HexMap) {
             Array(12) { m -> mean { world.climate.monthlyPrecip[m][it] } },
             Array(8) { k -> mean { fine[k][it] } },
             grid.width * grid.cellKm, grid.height * grid.cellKm, grid.cellKm,
+            sunlight,
         )
     }
 

@@ -50,7 +50,9 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
 
     /** What the group's temperament [temper] pulls it toward a candidate place with [features] (see [Temperament.pull]): added to the network's score, as to the hand-written one. */
     fun pull(temper: FloatArray?, features: FloatArray): Float =
-        if (temper == null) 0f else Temperament.pull(temper, features[3], features[25], features[10], features[2])
+        (if (temper == null) 0f else Temperament.pull(temper, features[3], features[25], features[10], features[2])) +
+            // A herd's yearly round draws it on outside the network, as tradition does, so that learning does not unlearn it.
+            inflation.ecology.ROUND_NET_PULL * features.getOrElse(51) { 0f }
 
     /** How many numbers of the band's own view ([inflation.ecology.Band.state]) it reads after the kind's part: [WAYS_IN] for people, 0 for animals. */
     val band get() = inputs - INPUTS
@@ -88,7 +90,8 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
                 else if (Schema.namesFile(file).exists()) Schema.load(file, Schema.PEOPLE_IN, Schema.MOVER_OUT)
                 else Schema.fit(Schema.load(file, Schema.MOVER_IN, Schema.MOVER_OUT, legacyMover = true), Schema.MOVER_IN, Schema.MOVER_OUT, Schema.PEOPLE_IN, Schema.MOVER_OUT)
             val idFile = File(file.path + ".identity")
-            val id = if (idFile.exists()) idFile.readText().trim().split(" ").map { it.toFloat() }.toFloatArray() else FloatArray(Catalogue.all.size * IDENTITY)
+            // (Kinds added since it was saved start with no identity of their own: zeros.)
+            val id = (if (idFile.exists()) idFile.readText().trim().split(" ").map { it.toFloat() }.toFloatArray() else FloatArray(0)).copyOf(Catalogue.all.size * IDENTITY)
             return SharedMover(net, id).also { m -> File(file.path + ".residual").takeIf { it.exists() }?.let { m.residual = it.readText().trim().toFloat() } }
         }
     }
@@ -122,6 +125,11 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf() }
         return taken
     }
+    override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
+        val b = buffers.get()
+        val state = g.band?.state; val temper = g.temper
+        return FloatArray(features.size) { k -> mover.fill(g.species, features[k], state, b.a[0], temper); mover.net.forward(b) + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
+    }
 }
 
 internal fun softmax(x: FloatArray): FloatArray {
@@ -145,7 +153,7 @@ internal fun softmax(x: FloatArray): FloatArray {
  * (the other roles hand-written), reported per kind with its spread over the worlds; a kind that
  * does worse than with the last version it did well with keeps that version (in `deployed/`).
  *
- * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
+ * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--hold ROLE[,ROLE]:ROUNDS] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
  */
 object HexPpo {
     /**
@@ -158,7 +166,12 @@ object HexPpo {
 
     const val HORIZON = 26
     const val DISCOUNT = 0.95f
-    const val PEOPLE_HORIZON = 52
+    /**
+     * Weeks over which a band's choice is judged: a season. What a move does to its band shows within
+     * about 8 to 13 weeks, while the drift every other band's choices cause grows on through the year
+     * (at 52 weeks it was as large as the spread between bands; see tools/HexChoiceEffect).
+     */
+    const val PEOPLE_HORIZON = 13
     const val PEOPLE_DISCOUNT = 0.98f
     const val CLIP = 0.2f
     /**
@@ -188,6 +201,7 @@ object HexPpo {
         var teacherCheck = false
         var worldRounds = 0
         var overlap = true
+        var fixed = emptySet<String>(); var fixedRounds = 0
         var burnYears = 1
         var learnWays = true
         var k = 0
@@ -220,6 +234,8 @@ object HexPpo {
                 "--teacher-check" -> teacherCheck = true
                 // Bands' ways stay the scaffold's (or as evolved) instead of being learned beside their moves.
                 "--no-ways" -> learnWays = false
+                // --hold hunters:3 keeps the named roles' networks as they are for the first rounds of this run (they play, but do not learn).
+                "--hold" -> { val (rs, n) = args[++k].split(":").let { it[0] to (it.getOrNull(1)?.toInt() ?: Int.MAX_VALUE) }; fixed = rs.split(",").toSet(); fixedRounds = n }
                 "--maps" -> MAPS = args[++k].split(",").map { m -> val (s, l) = m.split(":"); s.toLong() to l.toDouble() }
                 else -> error("unknown argument ${args[k]}")
             }
@@ -258,10 +274,11 @@ object HexPpo {
         val players = arrayOfNulls<Player>(worlds)
         val steps = years * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
         fun playRound(r: Int, ms: List<SharedMover>, ways: LearnedWays?): List<List<Choice>> {
-            for (w in 0 until worlds) if (players[w]?.done != false) {
-                players[w]?.derailed?.let { why -> println("world $w replaced after round ${r - 1}: $why"); File(out, "log.txt").appendText("world $w replaced after round ${r - 1}: $why\n") }
-                players[w] = Player(world(50_000L + r * 100L + w, size, w), kinds, steps * worldRounds, burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep)
-            }
+            val fresh = (0 until worlds).filter { w -> players[w]?.done != false }
+            for (w in fresh) players[w]?.derailed?.let { why -> println("world $w replaced after round ${r - 1}: $why"); File(out, "log.txt").appendText("world $w replaced after round ${r - 1}: $why\n") }
+            // (New worlds are made side by side, as each round's fresh worlds were before they lived on.)
+            fresh.parallelStream().map { w -> w to Player(world(50_000L + r * 100L + w, size, w), kinds, steps * worldRounds, burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep) }
+                .toList().forEach { (w, p) -> players[w] = p }
             return (0 until worlds).toList().parallelStream().map { w -> players[w]!!.play(steps, ms, ways) }.toList()
         }
         var ahead: java.util.concurrent.CompletableFuture<List<List<Choice>>>? = null
@@ -306,6 +323,8 @@ object HexPpo {
             for ((mi, model) in models.withIndex()) {
                 val mine = all.filter { role(it.kind) == mi }
                 if (mine.isEmpty()) continue
+                // (A role held fixed plays with its network as it is and does not learn, while the others catch up.)
+                if (ROLES[mi] in fixed && round - firstRound < fixedRounds) { stats.append(ROLES[mi]).append(" held; "); continue }
                 val kindsHere = mine.map { it.kind }.distinct()
                 val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
                 repeat(4) { epoch ->

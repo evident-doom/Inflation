@@ -29,6 +29,8 @@ tasks.register<JavaExec>("hexViewer") {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("inflation.ui.HexViewerKt")
     maxHeapSize = "16g"
+    // (-Dhex.nets=DIR, -Dhex.ways=FILE and the other hex.* settings given to Gradle reach the viewer.)
+    systemProperties(System.getProperties().filterKeys { it.toString().startsWith("hex.") }.mapKeys { it.key.toString() })
     args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
@@ -61,4 +63,13 @@ tasks.register<JavaExec>("hexWaterCheck") {
     mainClass.set("inflation.tools.WaterCheckKt")
     maxHeapSize = "12g"
     args = (project.findProperty("waterArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
+}
+
+tasks.register<JavaExec>("climateCheck") {
+    description = "Generates a world and summarises its climate (-PclimateArgs=\"--seed 1 --width 1000 --height 2000\")."
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("inflation.tools.ClimateCheckKt")
+    maxHeapSize = "12g"
+    args = (project.findProperty("climateArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }

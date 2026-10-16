@@ -26,7 +26,7 @@ object Schema {
         "restless", "water distance", "days dry", "pull", "moon", "to births sin", "to births cos",
         "remembered", "remembered same season", "remembered fed", "remembered water", "remembered danger", "remembered age",
         "ancestors", "appointment", "houses", "own size", "lasting water", "sickness",
-        "trees", "shrubs", "grass", "marsh", "water against usual", "paths", "herds about", "dung", "grazing and kills", "known ground", "beyond own ground", "others' marks",
+        "trees", "shrubs", "grass", "marsh", "water against usual", "paths", "herds about", "dung", "grazing and kills", "known ground", "beyond own ground", "others' marks", "fish and shellfish", "keeps heading", "on round",
     ).also { require(it.size == HexFeatures.SIZE) { "Schema.PLACE has ${it.size} names, HexFeatures.SIZE is ${HexFeatures.SIZE}" } }
     /** A kind's traits, then its learned identity (see [SharedMover.kindInputs]). */
     val KIND = listOf("mass", "speed", "daily travel", "group size", "grass", "browse", "fruit and roots", "meat", "small prey", "carrion", "migratory", "carnivore", "stalking", "foresight")

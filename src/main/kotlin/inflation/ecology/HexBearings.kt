@@ -185,8 +185,8 @@ class HexBearings(
         /** For comparison runs: -Dhex.noBearings leaves every kind without a sense of direction. */
         val OFF = System.getProperty("hex.noBearings") != null
         /** Country an animal knows around it, km; how fast the draw of a place fades with distance, km. */
-        const val NEAR_KM = 60.0
-        const val FADE_KM = 50.0
+        val NEAR_KM = System.getProperty("hex.t.nearKm")?.toDouble() ?: 60.0
+        val FADE_KM = System.getProperty("hex.t.fadeKm")?.toDouble() ?: 50.0
         /** Peaks: lowest standing out, m; one per this spacing at most, km; the massif a peak stands for, km; furthest seen, km. */
         const val PEAK_M = 600f
         const val PEAK_SPACING_KM = 30.0

@@ -188,7 +188,7 @@ object HexImitate {
                 "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
                 "--years" -> years = args[++k].toInt()
                 "--out" -> out = File(args[++k])
-                "--hunters" -> hunters = Catalogue.predators.filter { !it.human }
+                "--hunters" -> hunters = Catalogue.predators.filter { !it.human && it !in Catalogue.residentHunters }
                 "--people" -> people = true
                 else -> error("unknown argument ${args[k]}")
             }
@@ -248,7 +248,7 @@ object HexEvolve {
                 "--pairs" -> pairs = args[++k].toInt()
                 "--sigma" -> sigma = args[++k].toFloat()
                 "--rate" -> rate = args[++k].toFloat()
-                "--hunters" -> hunters = Catalogue.predators.filter { !it.human }
+                "--hunters" -> hunters = Catalogue.predators.filter { !it.human && it !in Catalogue.residentHunters }
                 else -> error("unknown argument ${args[k]}")
             }
             k++
@@ -339,7 +339,7 @@ object HexSeasons {
                 "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
                 "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
                 "--years" -> years = args[++k].toInt()
-                "--hunters" -> hunters = Catalogue.predators.filter { !it.human }
+                "--hunters" -> hunters = Catalogue.predators.filter { !it.human && it !in Catalogue.residentHunters }
                 else -> error("unknown argument ${args[k]}")
             }
             k++
