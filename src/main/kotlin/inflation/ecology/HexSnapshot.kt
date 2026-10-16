@@ -62,6 +62,7 @@ object HexSnapshot {
                 val node = r.node()
                 byName[name]?.let { restore.into(it, node) }
             }
+            if (restore.dropped.isNotEmpty()) System.err.println("$file: the code no longer has, and so dropped: ${restore.dropped.joinToString(", ")}")
             return day
         }
     }
