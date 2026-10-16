@@ -78,6 +78,7 @@ internal fun HexGroups.setAnimalWays(g: HexGroup, weather: Weather, ways: Animal
     animalInputs(g, weather, inputs)
     out.fill(0f)
     ways.choose(g, inputs, out)
+    if (g.id == watched) control?.ways(g, out)
     for (k in 0 until ANIMAL_WAYS_OUT) g.will[k] = 2f / (1f + kotlin.math.exp(-out[k]))
 }
 

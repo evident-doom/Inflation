@@ -66,6 +66,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     val hunters = groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)
     // Bands first set their ways for the week.
     if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
+    // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
+    if (ways == null) controlledWays()?.let { w -> hunters.firstOrNull { it.id == watched && it.band != null }?.let { setWays(it, weather, w, inputs, out) } }
     // Then region by region on all cores: the map is cut into squares of [HUNT_BLOCK_KM] coloured
     // like a chessboard of four colours, so that squares of one colour lie a square apart, further
     // than any party's week takes it; the squares of one colour are worked at once.

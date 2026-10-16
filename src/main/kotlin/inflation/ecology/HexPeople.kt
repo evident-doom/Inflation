@@ -920,6 +920,7 @@ internal fun HexGroups.setWays(g: HexGroup, weather: inflation.world.Weather, wa
     bandInputs(g, weather, inputs)
     out.fill(0f)
     ways.choose(g, inputs, out)
+    if (g.id == watched) control?.ways(g, out)
     fun squash(x: Float) = 2f / (1f + kotlin.math.exp(-x))
     for (t in 0 until FOOD_TYPES) b.effort[t] = squash(out[t])
     b.storeAim = STORE_AIM_DAYS * squash(out[FOOD_TYPES])

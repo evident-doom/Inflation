@@ -97,6 +97,13 @@ Generation takes 45–60 seconds for the full region; `--size 400` makes a small
 `hexViewer` opens the hex world over the fine terrain with time controls; herds and hunters glide
 from hex to hex, tints show weather, water, plants, small life and resident herds, arrows show the
 wind or a kind's sense of direction, and clicking a hex lists everything living there.
+Following a group (tick Follow, or pick a band in the list) and pressing Controls… opens the
+group controls: its local map (the country a band does not know dimmed), how it stands, what it
+knows of itself and of each place it can reach, the places coloured by how the model scores them
+with the model's pick in yellow, and its ways for the week. Click another place or pin a way to
+override the model; Next step runs the week (each week then waits at the group's choice, unless
+"Model decides" is ticked). `--nets DIR` (or `-Dhex.nets=DIR`, with `-Dhex.ways=FILE`) makes the
+learned networks the model, as in `hexFauna`; without them it is the hand-written choices.
 
 `hexFauna` runs the hex world for some years and prints each kind's numbers, the small life, the
 causes of death and the cost of a step, and for people a line against the ethnographic record (band

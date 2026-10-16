@@ -220,6 +220,8 @@ class HexGroups(
     @Volatile var watched = -1
     val watchLog = java.util.concurrent.ConcurrentLinkedQueue<String>()
     internal inline fun note(g: HexGroup, msg: () -> String) { if (g.id == watched) watchLog += msg() }
+    /** The player's hand on the followed group (the viewer's group controls), null for none: see [GroupControl]. */
+    @Transient @Volatile var control: GroupControl? = null
 
     fun step(weather: Weather, date: Date) {
         kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); watchLog.clear()
@@ -625,7 +627,10 @@ class HexGroups(
         // this week without weighing the alternatives: every other week, by turns.
         // (Herds content where they are weigh their places only one week in [CONTENT_WEEKS]: they stay while the grazing holds.)
         val every = if (s.carnivore) 2 else Tuning.contentWeeks
-        if (!restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
+        // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
+        val capture = control != null && g.id == watched
+        val content = !restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
+        if (content && !capture) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
         // (A big herd moves more slowly than a small one: it waits for its stragglers.)
         // (A starving herd on eaten-out ground goes as far as it must, up to its whole week's travel.)
         // (A herd far behind its round treks: the whole week's going.)
@@ -801,7 +806,7 @@ class HexGroups(
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.
                 if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
                 seen?.add(p to score)
-                if (policy != null) {
+                if (policy != null || capture) {
                     val nc = candPlaces.size
                     if (nc == candFeats.size) candFeats += FloatArray(HexFeatures.SIZE)
                     val f = candFeats[nc].also { it.fill(0f) }
@@ -876,15 +881,21 @@ class HexGroups(
                     }
                     if (nc == sc.candScores.size) sc.candScores = sc.candScores.copyOf(2 * nc)
                     candPlaces += p; sc.candScores[nc] = score
-                    continue
+                    if (policy != null) continue
                 }
                 score += 0.02f * (hashNoise(g.id, p) - 0.5f) + temperPull(g, p, h, predatorKg)
+                if (capture) sc.candScores[candPlaces.size - 1] = score
                 if (score > bestScore) { bestScore = score; best = p }
             }
         }
         lap("choosing: weighing places (hand-written score)")
         if (policy != null && candPlaces.size > 0) { val nc = candPlaces.size; best = candPlaces[policy.choose(g, Array(nc) { candFeats[it] }, sc.candScores.copyOf(nc), policyRandom(g.id, date.absoluteDay))] }
         lap("choosing: network")
+        if (capture) best = askControl(g, weather, date, policy, sc.candPlaces, sc.candFeats, sc.candScores, if (content) g.place else best, content, restless, reach, goal, onRound) { p ->
+            val chain = ArrayList<Int>(); var h = hw.placeHex[p]
+            while (true) { chain += h; if (h == here) break; h = via[h].takeIf { it >= 0 } ?: break }
+            chain.reverse(); chain.toIntArray()
+        }
         if (seen != null) {
             fun where(p: Int) = "hex %d at %.0f m".format(hw.placeHex[p], hw.placeElevationM[p])
             val top = seen.sortedByDescending { it.second }.take(5)

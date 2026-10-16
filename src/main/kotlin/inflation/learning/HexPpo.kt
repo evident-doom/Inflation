@@ -125,6 +125,11 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf() }
         return taken
     }
+    override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
+        val b = buffers.get()
+        val state = g.band?.state; val temper = g.temper
+        return FloatArray(features.size) { k -> mover.fill(g.species, features[k], state, b.a[0], temper); mover.net.forward(b) + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
+    }
 }
 
 internal fun softmax(x: FloatArray): FloatArray {

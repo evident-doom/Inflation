@@ -45,12 +45,17 @@ import kotlin.math.min
  * the herds and hunters as dots walking hex to hex along the ways they took each week, and one
  * resident kind's density as a tint over the hexes.
  *
- * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
- * (--load carries on a saved world: the seed and size must be the ones it was saved with)
+ * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE] [--nets DIR] [--ways FILE]
+ * (--load carries on a saved world: the seed and size must be the ones it was saved with;
+ * --nets moves every kind by the learned networks in DIR (herds.mlp, hunters.mlp, people.mlp, as
+ * hex-ppo writes them, and herd-ways.mlp, hunter-ways.mlp where present), --ways sets the bands'
+ * ways by a learned network; -Dhex.nets, -Dhex.ways, -Dhex.herdWays and -Dhex.hunterWays do the
+ * same, as for hex-fauna. Without them the hand-written choices are the model.)
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 1)
     var load: java.io.File? = null
+    var nets = System.getProperty("hex.nets"); var ways = System.getProperty("hex.ways")
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -58,6 +63,8 @@ fun main(args: Array<String>) {
             "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
             "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
             "--load" -> load = java.io.File(args[++k])
+            "--nets" -> nets = args[++k]
+            "--ways" -> ways = args[++k]
             else -> error("unknown argument ${args[k]}")
         }
         k++
@@ -71,14 +78,14 @@ fun main(args: Array<String>) {
     Thread {
         val world = inflation.ecology.HexSnapshot.WorldCache.load(cfg) { step -> SwingUtilities.invokeLater { status.text = "Generating: $step…" } }
         SwingUtilities.invokeLater { status.text = "Summarising into hexes and drawing the ground…" }
-        val view = HexViewer(world, load)
+        val view = HexViewer(world, load, nets, ways)
         SwingUtilities.invokeLater {
             frame.contentPane.removeAll(); frame.contentPane.add(view); frame.revalidate()
         }
     }.start()
 }
 
-class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout()) {
+class HexViewer(world: World, load: java.io.File? = null, private val nets: String? = null, private val waysFile: String? = null) : JPanel(BorderLayout()) {
     private val sim = HexSim(world)
     private val cfg = sim.cfg
     private val hex = sim.hex
@@ -112,6 +119,9 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     private val followBox = javax.swing.JCheckBox("Follow", false)
     @Volatile private var followId = -1
     @Volatile private var followLog = ""
+
+    /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
+    private val control by lazy { GroupControlWindow(sim, ground, px, requestStep = { commands += { advance() } }, running = { running }) }
 
     /**
      * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
@@ -177,10 +187,16 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             followId = if (followBox.isSelected && i in groupIds.indices) groupIds[i] else -1
             if (followBox.isSelected && followId < 0) followBox.isSelected = false
             groups.watched = followId
+            control.followChanged()
             showGroup()
         }
         bar.add(followBox)
+        val controls = JButton("Controls…")
+        controls.toolTipText = "The followed group's controls: its local map and state, what it knows, its choices this week (the model's highlighted), yours, and Next step"
+        controls.addActionListener { control.open() }
+        bar.add(controls)
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
+        useNetworks()
         load?.let { f -> commands += { loadWorld(f) } }
         val bottom = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 2))
         val all = fauna.kinds + groups.kinds
@@ -204,7 +220,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
             if (!e.valueIsAdjusting) {
                 val i = groupView.selectedIndex
                 val g = if (i in groupIds.indices) groups.groups.firstOrNull { it.id == groupIds[i] } else null
-                if (g != null && g.species.human && g.id != followId) { followId = g.id; groups.watched = g.id; followBox.isSelected = true }
+                if (g != null && g.species.human && g.id != followId) { followId = g.id; groups.watched = g.id; followBox.isSelected = true; control.followChanged() }
             }
             showGroup()
         }
@@ -228,6 +244,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
     private fun loadWorld(f: java.io.File) {
         try {
             inflation.ecology.HexSnapshot.load(sim, f)
+            useNetworks()
             lastDrawn.clear()
             snapshot()
         } catch (e: Exception) {
@@ -242,6 +259,26 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         sim.step()
         history.record(sim)
         snapshot()
+        control.weekDone()
+    }
+
+    /** The model: learned networks where given ([nets], [waysFile]), else the hand-written choices. */
+    private fun useNetworks() {
+        nets?.let { name ->
+            val dir = inflation.tools.baselineDir(name)
+            for ((r, role) in inflation.learning.HexPpo.ROLES.withIndex()) {
+                val f = java.io.File(dir, "$role.mlp").takeIf { it.exists() } ?: continue
+                val p = inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(f), null, { 0f }, { 0 })
+                for (s in groups.kinds) if (inflation.learning.HexPpo.role(s) == r) groups.policies[s] = p
+            }
+            java.io.File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(it, inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
+            java.io.File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(it, inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
+        }
+        (waysFile ?: nets?.let { java.io.File(inflation.tools.baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
+            groups.ways = inflation.learning.NetWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.WAYS_IN, inflation.learning.Schema.WAYS_OUT))
+        }
+        System.getProperty("hex.herdWays")?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
+        System.getProperty("hex.hunterWays")?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
     }
 
     private fun snapshot() {
@@ -274,7 +311,7 @@ class HexViewer(world: World, load: java.io.File? = null) : JPanel(BorderLayout(
         if (followId >= 0) {
             followLog = groups.watchLog.joinToString("\n")
             val g = groups.groups.firstOrNull { it.id == followId && it.alive }
-            if (g == null) { followLog = "the group followed is gone (died out or joined another)"; SwingUtilities.invokeLater { followBox.isSelected = false; followId = -1; groups.watched = -1; groupInfo.text = followLog } }
+            if (g == null) { followLog = "the group followed is gone (died out or joined another)"; followId = -1; groups.watched = -1; control.followChanged(); SwingUtilities.invokeLater { followBox.isSelected = false; groupInfo.text = followLog } }
             else { val h = hw.placeHex[g.place]; picked = h; val (x, y) = hex.centreKm(h); SwingUtilities.invokeLater { map.keepInView(x, y) } }
         }
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
