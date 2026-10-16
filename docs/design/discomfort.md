@@ -80,7 +80,10 @@ is not a cost unit. Biting insects had none until step 1. Wet has neither.
      A/B has to show whether it costs groups or helps them.
 4. **Missing real losses, each with its easing choice**, only if wanted:
    - flies: lost sleep at camp (a work-capacity cost), eased by a smudge fire at a fuel and time cost;
-   - marsh fever driven by the mosquitoes actually at camp, instead of the wetland share and >20 °C;
+   - **built:** marsh fever driven by the mosquitoes actually at camp (biting / (biting + `HARASS_HALF`),
+     still only above 20 °C), instead of the wetland share. Fever now follows floods and sodden
+     ground after rain as well as marsh. The choice that eases it is where to camp. Smoke was left
+     out because I found no grounded figure for how much it spares;
    - wet: rain on a band without shelter adds to cold exposure.
 5. **Tolerance by temperament**: how strongly a band feels each source (not what it costs) varies by
    inherited temperament, so some bands hold out where others move.
