@@ -601,6 +601,37 @@ class HexGroups(
         return placeValue[ki][p] + diff * (if (s.human) campFactor(p) else 1f)
     }
 
+    /**
+     * What draws band [b] (group [g]) to place [p] in hex [h] or puts it off, beyond what any group weighs: its
+     * appointment, its dead, its houses, raids and the homes of others, gatherings, and country it does not know.
+     * (Kept apart from [planInner] so that the planner stays small enough for the JIT to compile.)
+     */
+    private fun bandPull(g: HexGroup, b: Band, month: Int, h: Int, here: Int, p: Int, keepOff: IntArray?, sensed: IntArray): Float {
+        var score = 0f
+        // Its appointment draws a band in its month (to the month with sky lore; within a month
+        // either way, more weakly, without); its ancestors' places draw it a little always.
+        val pull = appointPull(g, b, month, h)
+        if (pull != 0f) score += APPOINT_PULL * pull
+        val dead = g.memory.deadAt(h)
+        if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
+        // Its houses draw it home; a camp where someone died lately is shunned by those who leave their dead.
+        if (h == b.houseHex) score += HOME_PULL * b.house
+        if (h == b.unluckyHex) score -= UNLUCKY
+        // It keeps off the known homes of bands it is not close to (unless set on raiding them).
+        if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
+        // A band set on a raid heads for its target.
+        if (b.raidHex >= 0) { val from = hexKm(here, b.raidHex); if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f) }
+        // A band with food enough to feast others is drawn to where other bands are (gatherings).
+        if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {
+            val others = knownHeads(peopleSlot, p, h, sensed) - (if (p == g.place) g.size else 0)
+            if (others > 0f) score += GATHER_PULL * min(1f, others / GATHER_HEADS)
+        }
+        // Bands keep to country they know; what lies beyond they know only as a sense of better land.
+        // Strange country puts a band off, unless it is out to explore (then it draws it on).
+        if (!b.knows(h)) score -= UNKNOWN_COUNTRY * (2f - b.explore)
+        return score
+    }
+
     /** Heads of kind slot [k] in place [p] as a group knows them: seen in its own hex and the six around, else expected. */
     private fun knownHeads(k: Int, p: Int, h: Int, sensed: IntArray): Float = if (h in sensed) headsHere[k][p].toFloat() else expectHeads[k][p]
 
@@ -909,29 +940,7 @@ class HexGroups(
                 if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
                 // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
                 if (TAMING && s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(peopleSlot, p, h, sensed) / 25f)
-                // Its appointment draws a band in its month (to the month with sky lore; within a month
-                // either way, more weakly, without); its ancestors' places draw it a little always.
-                g.band?.let { b ->
-                    val pull = appointPull(g, b, month, h)
-                    if (pull != 0f) score += APPOINT_PULL * pull
-                    val dead = g.memory.deadAt(h)
-                    if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
-                    // Its houses draw it home; a camp where someone died lately is shunned by those who leave their dead.
-                    if (h == b.houseHex) score += HOME_PULL * b.house
-                    if (h == b.unluckyHex) score -= UNLUCKY
-                    // It keeps off the known homes of bands it is not close to (unless set on raiding them).
-                    if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
-                    // A band set on a raid heads for its target.
-                    if (b.raidHex >= 0) { val from = hexKm(here, b.raidHex); if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f) }
-                }
-                // A band with food enough to feast others is drawn to where other bands are (gatherings).
-                g.band?.let { b -> if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {
-                    val others = knownHeads(peopleSlot, p, h, sensed) - (if (p == g.place) g.size else 0)
-                    if (others > 0f) score += GATHER_PULL * min(1f, others / GATHER_HEADS)
-                } }
-                // Bands keep to country they know; what lies beyond they know only as a sense of better land.
-                // Strange country puts a band off, unless it is out to explore (then it draws it on).
-                g.band?.let { b -> if (!b.knows(h)) score -= UNKNOWN_COUNTRY * (2f - b.explore) }
+                g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed) }
                 // A hungry pack gives up ground it has hunted out lately and looks further afield.
                 if (s.carnivore && g.fed < 0.5f && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
                 seen?.add(p to score)
