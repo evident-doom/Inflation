@@ -1010,11 +1010,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
          * Soil animals: the share of the litter rotting that becomes their flesh, kg fresh per kg; their
          * yearly deaths (most live about a year); and the share of them at the surface and in the litter
          * where birds, toads, lizards and shrews find them. Soil fauna eat 15-100% of the litter that
-         * falls (Hedenec et al., Sci. Rep. 2022, doi:10.1038/s41598-022-21563-z).
+         * falls (Hedenec et al., Sci. Rep. 2022, doi:10.1038/s41598-022-21563-z). Most earthworms keep to
+         * the top 5 cm, and on moist nights only some 0.04-4 a m² come up where birds can see them (Onrust
+         * et al., J. Appl. Ecol. 2019, doi:10.1111/1365-2664.13356): a few in a hundred of them at most.
          */
         const val SOIL_YIELD = 0.02f
         const val SOIL_DEATHS = 1f
-        const val SOIL_REACH = 0.1f
+        const val SOIL_REACH = 0.02f
         /**
          * Share of the scattered insects that are out (plant-eaters and pollinators) a vertebrate
          * hunting small prey (foxes, jackals, badgers, bears, people) can pick up and count on: beetles,
