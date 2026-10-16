@@ -335,8 +335,8 @@ class Band {
     fun cookValue(t: Int): Float {
         if (fire <= 0f) return 1f
         val v = when (t) {
-            5 -> if (knowsSkill[Skill.EARTH_OVEN.ordinal]) EARTH_OVEN_GAIN * skill(Skill.EARTH_OVEN) else 0f
-            6, 9 -> if (knowsSkill[Skill.STONE_BOILING.ordinal]) GRUEL_GAIN * skill(Skill.STONE_BOILING) * max(has(Tool.BASKET), 0.5f) else 0f
+            Food.ROOTS -> if (knowsSkill[Skill.EARTH_OVEN.ordinal]) EARTH_OVEN_GAIN * skill(Skill.EARTH_OVEN) else 0f
+            Food.SEED, Food.GRAIN -> if (knowsSkill[Skill.STONE_BOILING.ordinal]) GRUEL_GAIN * skill(Skill.STONE_BOILING) * max(has(Tool.BASKET), 0.5f) else 0f
             else -> 0f
         }
         return 1f + fire * v
