@@ -258,12 +258,30 @@ class HexGroups(
         Profile.part("choosing: valuing places for hunters") { valuePlaces() }
         reachCache.clear(); stepEffort.clear()
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
+        // Herds of a kind in one place making for the same place this month, and alike in hunger and thirst,
+        // go together: the first of them weighs where to go, and the others follow it (see [SHARED_PLANS]).
+        // Each still weighs for itself one week in [OWN_PLAN_WEEKS], by turns, so herds that met can part
+        // again. Bands and packs each choose their own.
+        val leaderOf = IntArray(groups.size) { -1 }
+        if (SHARED_PLANS) {
+            val month = (date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0) % 12
+            val first = HashMap<Long, Int>()
+            for ((k, g) in groups.withIndex()) {
+                if (!g.alive || g.species.carnivore || g.id == watched) continue
+                if ((date.absoluteDay / days + g.id) % OWN_PLAN_WEEKS == 0L) continue
+                val goal = roundOf(g, month)?.first ?: g.seasonPlace[month]
+                val state = (if (g.fed < 0.7f) 1 else 0) + (if (g.dry > 0.5f * g.species.daysWithoutWater) 2 else 0)
+                val key = ((g.species.index.toLong() * n + g.place) * (n + 1L) + (goal + 1)) * 4 + state
+                val l = first.putIfAbsent(key, k); if (l != null) leaderOf[k] = l
+            }
+        }
         java.util.stream.IntStream.range(0, groups.size).parallel().forEach { k ->
             val g = groups[k]
-            if (!g.alive) return@forEach
+            if (!g.alive || leaderOf[k] >= 0) return@forEach
             val (p, path) = plan(g, weather, date, predatorKg)
             choice[k] = p; paths[k] = path; times[k] = Profile.part("choosing: timetable") { timetable(g.species, path) }
         }
+        for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { choice[k] = choice[l]; paths[k] = paths[l]; times[k] = times[l] } }
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < 0.5f) meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
             // A herd's heading: what it kept of last week's, bent toward the way it went and the way its sense of better country points.
