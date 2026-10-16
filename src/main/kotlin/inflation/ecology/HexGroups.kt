@@ -522,12 +522,13 @@ class HexGroups(
     private fun valuePlaces(predatorKg: FloatArray) {
         for (a in headsHere) a.fill(0)
         for (g in groups) if (g.alive) headsHere[kindSlot[g.species.index]][g.place] += g.size
-        expect(predatorKg)
+        // (What may be expected changes slowly: it is reckoned once a month.)
+        if (weatherNow.date.month != expectMonth) { expect(predatorKg); expectMonth = weatherNow.date.month }
         // (Hunters and bands value a place by the herds they expect there; where they see or read sign, by what they find: see [knownGame].)
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             for ((k, s) in kinds.withIndex()) placeValue[k][p] =
-                if (s.human) (preyHere(s, p) + herdPrey(s, p, expectHeads)) * campFactor(p) + campPlants(p)
-                else if (s.carnivore) dietValue(s, p, preyHere(s, p) + herdPrey(s, p, expectHeads))
+                if (s.human) (preyHere(s, p) + expectPrey[k][p]) * campFactor(p) + campPlants(p)
+                else if (s.carnivore) dietValue(s, p, preyHere(s, p) + expectPrey[k][p])
                 else foodFor(s, p) * fauna.suits(s, p) * (1f - land.burning[p]) * (if (HERD_WATER_TIE) fauna.tether(s, p) else 1f)
         }
     }
@@ -540,16 +541,17 @@ class HexGroups(
         var land2 = 0.0; var kg = 0.0
         for (p in 0 until n) { land2 += land.areaKm2[p]; kg += predatorKg[p] }
         val huntersNow = (kg / land2.coerceAtLeast(1.0)).toFloat()
-        usualHuntersKm2 = if (usualHuntersKm2 <= 0f) huntersNow else usualHuntersKm2 + (huntersNow - usualHuntersKm2) / USUAL_WEEKS
+        usualHuntersKm2 = if (usualHuntersKm2 <= 0f) huntersNow else usualHuntersKm2 + (huntersNow - usualHuntersKm2) / USUAL_MONTHS
         for ((k, s) in kinds.withIndex()) {
             val e = expectHeads[k]
             val suitArea = java.util.stream.IntStream.range(0, n).parallel().mapToDouble { p -> val v = fauna.suits(s, p) * land.areaKm2[p]; e[p] = v; v.toDouble() }.sum()
             var heads = 0L; for (p in 0 until n) heads += headsHere[k][p]
             val now = (heads / suitArea.coerceAtLeast(1.0)).toFloat()
-            usualDensity[k] = if (usualDensity[k] <= 0f) now else usualDensity[k] + (now - usualDensity[k]) / USUAL_WEEKS
+            usualDensity[k] = if (usualDensity[k] <= 0f) now else usualDensity[k] + (now - usualDensity[k]) / USUAL_MONTHS
             val d = usualDensity[k]
-            for (p in 0 until n) e[p] *= d
+            java.util.stream.IntStream.range(0, n).parallel().forEach { p -> e[p] *= d }
         }
+        for ((k, s) in kinds.withIndex()) if (s.carnivore) { val e = expectPrey[k]; java.util.stream.IntStream.range(0, n).parallel().forEach { p -> e[p] = herdPrey(s, p, expectHeads) } }
     }
 
     /**
@@ -557,7 +559,7 @@ class HexGroups(
      * spent in each; last week's fades by half.
      */
     internal fun leaveSign() {
-        for ((k, s) in kinds.withIndex()) if (!s.carnivore) { val a = herdSign[k]; for (p in 0 until n) a[p] *= 0.5f }
+        for ((k, s) in kinds.withIndex()) if (!s.carnivore) { val a = herdSign[k]; java.util.stream.IntStream.range(0, n).parallel().forEach { p -> a[p] *= 0.5f } }
         for (g in groups) {
             if (!g.alive || g.species.carnivore) continue
             val a = herdSign[kindSlot[g.species.index]]; val band = hw.placeBand[g.place]
@@ -575,10 +577,10 @@ class HexGroups(
      * if it can see them (its own hex and the six around, which its week's ranging covers); else what the
      * sign it crossed last week told it (as well as a band's trackers read it); else what it expects.
      */
-    private fun knownHerdGame(g: HexGroup, p: Int, h: Int, sensed: IntArray): Float {
+    private fun knownHerdGame(g: HexGroup, ki: Int, p: Int, h: Int, sensed: IntArray): Float {
         val s = g.species
         if (h in sensed) return herdPrey(s, p)
-        val expected = herdPrey(s, p, expectHeads)
+        val expected = expectPrey[ki][p]
         if (signWeeks < 2 || h !in g.path) return expected
         // (At a steady week's passing, the fading sign holds two weeks' heads × days.)
         var v = 0f
@@ -595,7 +597,7 @@ class HexGroups(
     private fun knownGame(g: HexGroup, ki: Int, p: Int, h: Int, sensed: IntArray): Float {
         val s = g.species
         if (h !in sensed && (signWeeks < 2 || h !in g.path)) return placeValue[ki][p]
-        val diff = knownHerdGame(g, p, h, sensed) - herdPrey(s, p, expectHeads)
+        val diff = knownHerdGame(g, ki, p, h, sensed) - expectPrey[ki][p]
         return placeValue[ki][p] + diff * (if (s.human) campFactor(p) else 1f)
     }
 
@@ -695,6 +697,9 @@ class HexGroups(
     var usualHuntersKm2 = 0f
     /** Heads of each kind a place may be expected to hold, by how well it suits the kind: what a group goes by where it has not looked. */
     private val expectHeads by lazy { Array(kinds.size) { FloatArray(n) } }
+    /** The herd game each hunting kind may expect in each place ([herdPrey] of [expectHeads]); the month both were reckoned for. */
+    private val expectPrey by lazy { Array(kinds.size) { FloatArray(n) } }
+    @Transient private var expectMonth = -1
 
     /** A hunting party's fighting strength: weight, ferocity. */
     internal fun strength(g: HexGroup) = g.adults * g.species.massKg * ferocity(g)

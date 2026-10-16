@@ -281,5 +281,5 @@ val ROUND_TREK_DAYS = Config.float("t.roundTrekDays", 4f)
  */
 val HERD_WATER_TIE = Config.flag("t.herdWaterTie", true)
 
-/** Weeks over which a group's sense of how thick each kind usually is follows the change (about a year). */
-const val USUAL_WEEKS = 52f
+/** Months over which a group's sense of how thick each kind usually is follows the change (about a year). */
+const val USUAL_MONTHS = 12f
