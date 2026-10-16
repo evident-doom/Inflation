@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.wrapMonth
 import inflation.saturate
 import inflation.monthsFrom
 import inflation.HASH_A
@@ -265,7 +266,7 @@ class HexGroups(
         // again. Bands and packs each choose their own.
         val leaderOf = IntArray(groups.size) { -1 }
         run {
-            val month = (date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0) % 12
+            val month = wrapMonth(date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0)
             val first = HashMap<Long, Int>()
             for ((k, g) in groups.withIndex()) {
                 if (!g.alive || g.species.carnivore || g.id == watched) continue
@@ -847,7 +848,7 @@ class HexGroups(
         f[Feature.PULL] = pull
         // The moon (night hunters see and are seen by it) and how far off its young are due.
         f[Feature.MOON] = moon
-        val toBirth = 2.0 * Math.PI * (((if (g.birthMonth >= 0) g.birthMonth else s.birthMonth) - month + 12) % 12) / 12.0
+        val toBirth = 2.0 * Math.PI * monthsFrom(month, if (g.birthMonth >= 0) g.birthMonth else s.birthMonth) / 12.0
         f[Feature.TO_BIRTHS_SIN] = kotlin.math.sin(toBirth).toFloat(); f[Feature.TO_BIRTHS_COS] = kotlin.math.cos(toBirth).toFloat()
         // Its ancestors buried here, and how far going here brings it toward its appointment.
         f[Feature.ANCESTORS] = min(1f, g.memory.deadAt(h) / 10f)
@@ -893,7 +894,7 @@ class HexGroups(
         // when hungry, cold or snowed in. A pack holding ground patrols it; a starving or homeless one roams.
         val thirsty = g.dry > 0.5f * s.daysWithoutWater
         // The place it remembers doing best at this time of year: while it is far off, the herd is on its way.
-        val month = (date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0) % 12
+        val month = wrapMonth(date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0)
         // (Its round, if its elders taught it one, else the place it remembers doing best at this time of year.)
         // (Within a range's reach of the round's place it has arrived: it grazes the range as it likes, and
         // the herds on one round spread over it instead of crowding onto one spot.)

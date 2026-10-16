@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.Config
 
@@ -283,7 +284,7 @@ class Band {
         if (riteStrength <= 0f) return null
         // (A rite's month is spent at its site: the band is drawn there from the month before, as a
         // herd is to next month's place, and kept there until the month after, unless that has its own.)
-        val site = if (rite[month] >= 0) rite[month] else rite[(month + 11) % 12]
+        val site = if (rite[month] >= 0) rite[month] else rite[wrapMonth(month - 1)]
         return if (site >= 0) site to riteStrength else null
     }
     /**

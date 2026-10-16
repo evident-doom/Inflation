@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.wrapMonth
 import inflation.HASH_A
 import inflation.HASH_B
 import inflation.mix64Once
@@ -208,7 +209,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 // Kinds that breed far away (winter visitors such as geese, passage migrants) come from a
                 // flyway's whole population, held by its breeding grounds, not by the few that wintered here:
                 // as many come as the ground draws. Those that breed here come back as many as lived.
-                val awayMonths = generateSequence((month + 11) % 12) { (it + 11) % 12 }.takeWhile { it !in pr }.toSet()
+                val awayMonths = generateSequence(wrapMonth(month - 1)) { wrapMonth(it - 1) }.takeWhile { it !in pr }.toSet()
                 val bredAway = b.breedMonths.any { it in awayMonths }
                 val back = if (bredAway) cap else away[k] * MIGRANT_SURVIVAL
                 // (Those that live on insects wait to settle where the insects boom, below.)

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.world.Date
 import inflation.world.HexLand
@@ -445,14 +446,14 @@ private fun HexGroups.moveBirthMonth(g: HexGroup, date: Date) {
     // Once a year its births move a month towards the months it fed best in (the birth month and the two after).
     if (date.month == 3 && date.dayOfMonth <= days && !s.carnivore) {
         // (How well fed, and on how rich a diet, in the months the young would be born and suckled.)
-        fun window(m0: Int) = (0 until 3).sumOf { (g.seasonQ[(m0 + it + 12) % 12] * g.proteinByMonth[(m0 + it + 12) % 12]).toDouble() }
+        fun window(m0: Int) = (0 until 3).sumOf { (g.seasonQ[wrapMonth(m0 + it)] * g.proteinByMonth[wrapMonth(m0 + it)]).toDouble() }
         val m = g.birthMonth
         // (Or it moves them itself, when it leans far enough one way, see [AnimalWay.BIRTHS].)
         val lean = g.will[AnimalWay.BIRTHS] - 1f
-        if (lean < -AnimalWay.BIRTHS_LEAN) g.birthMonth = (m + 11) % 12
-        else if (lean > AnimalWay.BIRTHS_LEAN) g.birthMonth = (m + 1) % 12
-        else if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = (m + 11) % 12
-        else if (window(m + 1) > window(m) + 0.1) g.birthMonth = (m + 1) % 12
+        if (lean < -AnimalWay.BIRTHS_LEAN) g.birthMonth = wrapMonth(m - 1)
+        else if (lean > AnimalWay.BIRTHS_LEAN) g.birthMonth = wrapMonth(m + 1)
+        else if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = wrapMonth(m - 1)
+        else if (window(m + 1) > window(m) + 0.1) g.birthMonth = wrapMonth(m + 1)
     }
 }
 

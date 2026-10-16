@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.wrapMonth
 import inflation.saturate
 import inflation.monthsFrom
 import inflation.HASH_A
@@ -251,7 +252,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** How well the normal temperatures of month [m] and the next at place [p] suit [s]'s coat, 0..1. */
     fun monthFit(s: Species, p: Int, m: Int): Float {
-        val m1 = (m + 1) % 12
+        val m1 = wrapMonth(m + 1)
         return exp(-(s.discomfortC(feltNormalC(s, p, m), m) + s.discomfortC(feltNormalC(s, p, m1), m1)) / 10f)
     }
 
@@ -296,11 +297,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val fm = fedByMonth[k]; val start = birthStart[k]
             for (p in 0 until n) {
                 if (adults[k][p] <= 0f) continue
-                fun window(m0: Int) = (0 until 3).sumOf { fm[p * 12 + (m0 + it + 12) % 12].toDouble() }
+                fun window(m0: Int) = (0 until 3).sumOf { fm[p * 12 + wrapMonth(m0 + it)].toDouble() }
                 val m = start[p].toInt()
                 val now = window(m); val earlier = window(m - 1); val later = window(m + 1)
-                if (earlier > now + BREED_SHIFT_GAIN && earlier >= later) start[p] = ((m + 11) % 12).toByte()
-                else if (later > now + BREED_SHIFT_GAIN) start[p] = ((m + 1) % 12).toByte()
+                if (earlier > now + BREED_SHIFT_GAIN && earlier >= later) start[p] = wrapMonth(m - 1).toByte()
+                else if (later > now + BREED_SHIFT_GAIN) start[p] = wrapMonth(m + 1).toByte()
             }
         }
     }
