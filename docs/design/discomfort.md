@@ -1,6 +1,6 @@
 # Discomfort: what a group feels, and what it does about it
 
-Status: proposal (2026-10-16). Step 1 is built; the rest is for discussion.
+Status (2026-10-16): steps 1 to 3 are built (step 1 was A/B'd: no effect); steps 4 and 5 are proposals.
 
 ## Why
 
@@ -33,7 +33,7 @@ the others). So:
 
 | Source | Real loss today (code) | Felt when | Choices that ease it |
 |---|---|---|---|
-| Cold | animal deaths (`discomfort`×0.02), people's exposure deaths (`Band.exposure`) | below the kind's coat range; people through clothes, fire, shelter (`Band.feels`) | shelter, lower or sheltered ground, fire, clothes, huddling |
+| Cold | extra food burned (`coldNeed`: `COLD_COST` 0.1 of need per 10 °C beyond the coat, in `dailyNeedKg`), animal deaths (`discomfort`×0.02 a week), people's exposure deaths (`Band.exposure`) | below the kind's coat range; people through clothes, fire, shelter (`Band.feels`) | shelter, lower or sheltered ground, fire, clothes, huddling |
 | Heat | the same ×0.02 term | above the kind's range | shade, water, high ground, resting by day |
 | Wet | **none yet** | not felt until charged | shelter, a dry camp |
 | Thirst | days without water (`g.dry`), deaths past `daysWithoutWater` | `g.dry` > half the limit (exists) | go to water, dig, carry |
@@ -55,14 +55,23 @@ is not a cost unit. Biting insects had none until step 1. Wet has neither.
    No new inputs. Step cost: one array read per candidate place.
    - Limit: at worst the flies cost people a third of their time and plant-eaters 0.4 of their
      feeding, so on their own they never make a group restless. Combined with heat they can.
-2. **Cold and heat in cost units.** Replace °C/10 with the extra energy a group must burn (or water
-   lose) as a share of its daily need. The slope is per kind, from metabolic rate below the lower
-   critical temperature (Scholander), with people through `Band.feels`. The ×0.02 death term would
-   then follow from energy rather than being a separate fudge.
-3. **Restlessness by the most pressing source.** Replace the per-role `restless` lists with one rule
-   for all groups: restless when any source passes its own threshold (hunger and thirst as now; cold
-   and heat where exposure or energy loss begins; flies where their cost passes what moving costs).
-   This is where the large change in band behaviour would come from.
+2. **Built: drains in the going's unit.** Cold already costs food (`coldNeed`, about 1% of need
+   per °C beyond the coat, in line with Scholander-curve slopes for mid-size mammals). So the
+   place score now subtracts `HexGroups.drain`, the cold's extra food plus the flies' cost, as a
+   share of the week's need, the same unit and weight as the going (`WALK_COST`). The old
+   `0.5 × °C/10` term stays beside it as the felt side of the cold and heat deaths (the ×0.02 term),
+   which is a real loss of a different kind. `f[4]` and `f[5]` carry both. No deaths or needs
+   changed.
+3. **Built: restless when relief is a step away.** Every group (herds, packs, bands) is restless
+   when the drain where it stands is worse than at the best next hex by more than going one hex
+   costs (`WALK_COST` × hex km / days). This is a threshold from the cost of moving, not a new
+   constant, and it holds only where relief exists: a lower valley in the cold, a windy ridge or
+   dry ground from the flies. The per-role reasons (hunger, thirst, astray, the round, and cold or
+   heat above 0.5) stay. Cost: six extra place lookups per group per week.
+   - With a hex of 10 km, the threshold is 1.6% of the week's need: about 1.6 °C of cold
+     difference to the next hex, or a small fly difference. Expect many more groups to weigh
+     their places each week. That is the large behaviour change this step is for, and the
+     A/B has to show whether it costs groups or helps them.
 4. **Missing real losses, each with its easing choice**, only if wanted:
    - flies: lost sleep at camp (a work-capacity cost), eased by a smudge fire at a fuel and time cost;
    - marsh fever driven by the mosquitoes actually at camp, instead of the wetland share and >20 °C;
