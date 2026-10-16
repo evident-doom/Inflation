@@ -93,6 +93,9 @@ const val HUNT_BLOCK_KM = 300f
 val SHARED_PLANS = inflation.Config.flag("sharedPlans", true)
 /** A herd that shares its plan still weighs where to go for itself one week in this many (see [HexGroups.step]). */
 const val OWN_PLAN_WEEKS = 3
+/** Groups weigh every hex within this many hexes of where they are, and beyond it one hex in each two by two (config key coarseFar; see [HexGroups.planInner]). */
+val COARSE_FAR = inflation.Config.flag("coarseFar", true)
+const val COARSE_FROM_HEXES = 3.0
 /** Parties that kept near home this week are worked in squares this wide, km (see [hunt]). */
 const val HUNT_FINE_KM = 100f
 /** How far a lone hunter goes looking for a mate in a week, km. */
