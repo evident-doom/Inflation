@@ -101,6 +101,7 @@ object HexFeatures {
      *  47 for a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size); 48 how fresh another pack of its kind's mark is there;
      *  49 for a band, the fish and shellfish it could take there in a week with its skill, against its week's need (0 for animals);
      *  50 for a herd, how far going there keeps to the way it has been heading ([HexGroup.headE]; 0 for others);
-     *  51 for a herd on its yearly round, how far the place takes it on toward the round's place this month (0 off a round). */
-    const val SIZE = 52
+     *  51 for a herd on its yearly round, how far the place takes it on toward the round's place this month (0 off a round);
+     *  52 for a herd, how good the forage there is, 0..1: how nourishing and how rich in protein ([HexGroups.freshness]; 0 for others). */
+    const val SIZE = 53
 }
