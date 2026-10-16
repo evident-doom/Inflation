@@ -47,9 +47,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     /**
      * The share of each place's plants an animal or a forager can eat, 0..1: most of an open
      * grassland, little of aromatic garrigue, thorny scrub, desert bush, bog or conifer forest, where
-     * the plants are defended (bitter, aromatic, thorny or poisonous) or tough.
+     * the plants are defended (bitter, aromatic, thorny or poisonous) or tough. (Fixed by the world and
+     * the config, so not taken from a saved run.)
      */
-    val palatable = FloatArray(n) { p ->
+    @Transient val palatable = FloatArray(n) { p ->
         val h = hw.placeHex[p]
         var s = 0f; var w = 0f
         for (b in Biome.entries) { val share = hw.biome[b.ordinal][h]; if (share <= 0f) continue; val v = PALATABLE[b] ?: continue; s += share * v; w += share }
