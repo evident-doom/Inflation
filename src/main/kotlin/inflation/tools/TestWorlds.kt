@@ -135,7 +135,7 @@ object TestWorlds {
         val failed = java.util.concurrent.ConcurrentLinkedQueue<String>()
         for (j in jobs) pool.submit {
             val t0 = System.nanoTime()
-            val p = ProcessBuilder(listOf(javaBin, heap, "-Dhex.config=${j.cfg.absolutePath}", "-cp", System.getProperty("java.class.path"), "inflation.tools.HexFaunaCheckKt") + j.args)
+            val p = ProcessBuilder(listOf(javaBin, heap, "-Dhex.config=${j.cfg.absolutePath}", "-Duser.home=${System.getProperty("user.home")}", "-cp", System.getProperty("java.class.path"), "inflation.tools.HexFaunaCheckKt") + j.args)
                 .redirectErrorStream(true).redirectOutput(File(out, "${j.label}.txt")).start()
             val code = p.waitFor()
             if (code != 0) failed += j.label
