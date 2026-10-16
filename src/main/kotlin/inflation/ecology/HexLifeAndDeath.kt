@@ -383,7 +383,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val eagle = if (!s.human && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
     val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
     val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
-    val pa = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults + festered).coerceIn(0f, 0.9f)
+    val adultOdds = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults + festered).coerceIn(0f, 0.9f)
     val croc = if (s.human) 0f else fauna.water.crocodileRisk(g.place, weather) * years
     if (s.human && g.young > 0) {
         val care = g.young * (1f - ELDER_CARE * help)
@@ -397,10 +397,10 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     }
     // (Young plant-eaters short of protein grow slowly and die more.)
     val starved = if (s.carnivore) 0f else HexFauna.YOUNG_PROTEIN_DEATHS * (1f - g.protein) * years
-    val py = ((starved + healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
-    val da = binomial(g.adults, pa, r); val dy = binomial(g.young, py, r)
+    val youngOdds = ((starved + healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
+    val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
     // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
-    val diedExpected = g.adults * pa + g.young * py + (band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f)
+    val diedExpected = g.adults * adultOdds + g.young * youngOdds + (band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f)
     // Elders die as the others do (their share of the adults who died), and of old age besides.
     adultsDied(g, da, r)
     var oldAge = 0
