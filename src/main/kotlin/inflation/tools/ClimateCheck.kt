@@ -55,9 +55,9 @@ fun main(args: Array<String>) {
             line(inBand.filter { world.elevation[it] > 1000 })))
         band -= 3
     }
-    val ar = listOf(0.05f, 0.2f, 0.5f, 0.65f, 1f, 1e9f)
+    val ar = listOf(0.05f, 0.2f, 0.5f, 0.65f, 1e9f)
     println("land by aridity: " + listOf("hyperarid", "arid", "semiarid", "dry-subhumid", "humid").mapIndexed { i, nm ->
-        "%s %.1f%%".format(nm, 100.0 * land.count { c.aridity(it) >= (if (i == 0) 0f else ar[i]) && c.aridity(it) < ar[i + 1] } / land.size) }.joinToString(", "))
+        "%s %.1f%%".format(nm, 100.0 * land.count { c.aridity(it) >= (if (i == 0) 0f else ar[i - 1]) && c.aridity(it) < ar[i] } / land.size) }.joinToString(", "))
     println("kinds of country: " + Biome.entries.map { b -> b to land.count { world.biome[it] == b } }.filter { it.second > 0 }.sortedByDescending { it.second }
         .joinToString(", ") { "%s %.1f%%".format(it.first.name.lowercase(), 100.0 * it.second / land.size) })
 }
