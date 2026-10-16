@@ -90,6 +90,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     /** The rivers as they run this week, drawn over the ground (see [RiverOverlay]). */
     private val rivers = RiverOverlay(world, hex, land)
     private val commands = ConcurrentLinkedQueue<() -> Unit>()
+    /** Held by the simulation's thread while it changes the world; the windows read it only when it stands still. */
+    private val worldLock = WorldLock()
     @Volatile private var running = false
     @Volatile private var stepsPerSecond = 2
 
@@ -117,7 +119,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     @Volatile private var followLog = ""
 
     /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
-    private val control by lazy { GroupControlWindow(sim, ground, px, rivers, requestStep = { commands += { advance() } }, running = { running }) }
+    private val control by lazy { GroupControlWindow(sim, ground, px, rivers, worldLock, requestStep = { commands += { advance() } }, running = { running }) }
 
     /**
      * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
@@ -140,7 +142,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private val lastDrawn = HashMap<Int, Pair<Float, Float>>()
     @Volatile private var shown = emptyList<Shown>()
     @Volatile private var frame = 0
-    private var frames = 1
+    @Volatile private var frames = 1
     private val date = JLabel()
     /**
      * The kinds and their numbers along the bottom, as buttons: pressing one shows where that kind is
@@ -299,21 +301,21 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         followLog = if (groups.watched >= 0) groups.watchLog.joinToString("\n") else ""
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
         frames = max(8, 30 / stepsPerSecond); frame = 0
+        // (The texts are made here, on the simulation's thread, from the world as the week left it.)
+        val dateText = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
+        val all = fauna.kinds + groups.kinds
+        val kindTexts = all.mapIndexed { i, s -> "${s.name} " + (if (i < fauna.kinds.size) "%.0f".format(fauna.count(i)) else "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}") }
         SwingUtilities.invokeLater {
-            date.text = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
-            val all = fauna.kinds + groups.kinds
-            for ((i, b) in kindButtons.withIndex()) {
-                val s = all[i]
-                b.text = "${s.name} " + (if (i < fauna.kinds.size) "%.0f".format(fauna.count(i)) else "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}")
-            }
+            date.text = dateText
+            for ((i, b) in kindButtons.withIndex()) b.text = kindTexts[i]
         }
     }
 
     private fun loop() {
         var last = 0L
         while (true) {
-            while (true) { val c = commands.poll() ?: break; c() }
-            if (running && frame >= frames && System.nanoTime() - last > 1_000_000_000L / stepsPerSecond) { last = System.nanoTime(); advance() }
+            while (true) { val c = commands.poll() ?: break; worldLock.changing(c) }
+            if (running && frame >= frames && System.nanoTime() - last > 1_000_000_000L / stepsPerSecond) { last = System.nanoTime(); worldLock.changing { advance() } }
             else Thread.sleep(5)
         }
     }
@@ -348,9 +350,14 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             addMouseListener(mouse); addMouseMotionListener(mouse); addMouseWheelListener(mouse)
         }
 
+        private val painter = worldLock.Painter(this)
+
         override fun paintComponent(g0: Graphics) {
             super.paintComponent(g0)
-            val g = g0 as Graphics2D
+            painter.paint(g0) { paintMap(it) }
+        }
+
+        private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             g.drawImage(ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
             val kmPx = px * scale
@@ -633,7 +640,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     }
 
     /** Fills the side panel with what is in hex [h]: its ground, weather, plants, resident herds and borders, and the groups standing in it. */
-    private fun inspect(h: Int) {
+    private fun inspect(h: Int) = worldLock.whileStill { inspectNow(h) }
+
+    private fun inspectNow(h: Int) {
         val sb = StringBuilder()
         val (cx, cy) = hex.centreKm(h)
         sb.appendLine("Hex %d at (%.0f, %.0f) km%s".format(h, cx, cy, if (hex.water[h]) " - water" else ""))
@@ -696,11 +705,13 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
         while (groupList.size() > rows.size) groupList.removeElementAt(groupList.size() - 1)
         val again = groupIds.indexOf(picked)
-        if (again >= 0) { groupView.selectedIndex = again; showGroup() } else { groupView.clearSelection(); groupInfo.text = "" }
+        if (again >= 0) { groupView.selectedIndex = again; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = "" }
     }
 
     /** Shows the group picked in the list. */
-    private fun showGroup() {
+    private fun showGroup() = worldLock.whileStill { showGroupNow() }
+
+    private fun showGroupNow() {
         val i = groupView.selectedIndex
         if (i < 0 || i >= groupIds.size) return
         val g = groups.groups.firstOrNull { it.id == groupIds[i] } ?: return
