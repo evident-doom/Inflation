@@ -120,8 +120,10 @@ internal fun HexGroups.graze(weather: Weather) {
             // more of it (switching shifts what it eats, not how much its gut takes).
             // (Its need is reckoned in forage of middling quality, [HexFauna.GUT_QREF]: on that it fills its need exactly.)
             var room = max(0f, want * fill * access / HexFauna.GUT_QREF - (grass + browse + lichen))
-            if (gap > 0f && d.browse > 0f) { browse2 = eatBrowse(min(gap / q, room)); gap -= browse2 * q; room -= browse2 }
-            if (gap > 0f && d.grass > 0f && !snowed) { grass2 = eatGrass(min(gap / q, room)); gap -= grass2 * q; room -= grass2 }
+            // (What it switches to nourishes it as well as its gut digests fibre, [Species.fibreDigestion].)
+            val qf = q * s.fibreDigestion
+            if (gap > 0f && d.browse > 0f) { browse2 = eatBrowse(min(gap / qf, room)); gap -= browse2 * qf; room -= browse2 }
+            if (gap > 0f && d.grass > 0f && !snowed) { grass2 = eatGrass(min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
             if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, min(gap, SWITCH * want * access * d.fruit / total)); gap -= fruit2 }
             if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, min(gap, SWITCH * want * access * d.roots / total)); gap -= roots2 }
             // Reindeer dig lichen, even from under the snow: rich in energy, within what the gut holds.
