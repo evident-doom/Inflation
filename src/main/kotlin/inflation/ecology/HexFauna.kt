@@ -611,7 +611,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
-        val dead = Array(kinds.size) { DoubleArray(10) } // age, hunger, cold, disease, eagles, fire, flood, snow, crocodiles, thirst
+        val dead = Array(kinds.size) { DoubleArray(ResidentDeath.LABELS.size) }
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
         kinds.indices.toList().parallelStream().forEach { k ->
@@ -671,16 +671,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val starved = YOUNG_PROTEIN_DEATHS * (1f - protein[k][p]) * years
                 val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + eagle + fireY + floodY + snowY + croc + starved).coerceIn(0f, 0.95f)
                 val da = a[p] * pa; val dy = y[p] * py
-                dead[k][0] += (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years) * area
-                dead[k][1] += ((a[p] + 1.5f * y[p]) * hunger) * area
-                dead[k][2] += ((a[p] + 1.5f * y[p]) * cold) * area
-                dead[k][3] += ((a[p] + y[p]) * disease) * area
-                dead[k][4] += y[p] * eagle * area
-                dead[k][5] += (a[p] * fireA + y[p] * fireY) * area
-                dead[k][6] += (a[p] * floodA + y[p] * floodY) * area
-                dead[k][7] += (a[p] * snowA + y[p] * snowY) * area
-                dead[k][8] += y[p] * croc * area
-                dead[k][9] += ((a[p] + 1.5f * y[p]) * thirst) * area
+                dead[k][ResidentDeath.AGE] += (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years) * area
+                dead[k][ResidentDeath.HUNGER] += ((a[p] + 1.5f * y[p]) * hunger) * area
+                dead[k][ResidentDeath.COLD] += ((a[p] + 1.5f * y[p]) * cold) * area
+                dead[k][ResidentDeath.DISEASE] += ((a[p] + y[p]) * disease) * area
+                dead[k][ResidentDeath.EAGLES] += y[p] * eagle * area
+                dead[k][ResidentDeath.FIRE] += (a[p] * fireA + y[p] * fireY) * area
+                dead[k][ResidentDeath.FLOOD] += (a[p] * floodA + y[p] * floodY) * area
+                dead[k][ResidentDeath.SNOW] += (a[p] * snowA + y[p] * snowY) * area
+                dead[k][ResidentDeath.CROCODILES] += y[p] * croc * area
+                dead[k][ResidentDeath.THIRST] += ((a[p] + 1.5f * y[p]) * thirst) * area
                 record?.let { r ->
                     val kg = s.massKg * area
                     r.resident(k, p, PlaceRecord.Cause.HUNGER, (a[p] + 1.5f * y[p]) * hunger * kg); r.resident(k, p, PlaceRecord.Cause.THIRST, (a[p] + 1.5f * y[p]) * thirst * kg)
@@ -701,8 +701,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for ((k, s) in kinds.withIndex()) {
             // (Summed place by place in order, so that a run is the same on any number of cores.)
             deaths["${s.name}:resident hunters"] = huntedByResidents[k].let { h -> var sum = 0.0; for (p in h.indices) { sum += h[p]; record?.let { it.animalKg[PlaceRecord.Cause.KILLED.ordinal][p] += h[p] * s.massKg }; h[p] = 0f }; sum }
-            deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]; deaths["${s.name}:eagles"] = dead[k][4]
-            deaths["${s.name}:fire"] = dead[k][5]; deaths["${s.name}:flood"] = dead[k][6]; deaths["${s.name}:snow"] = dead[k][7]; deaths["${s.name}:crocodiles"] = dead[k][8]; deaths["${s.name}:thirst"] = dead[k][9]
+            for ((c, label) in ResidentDeath.LABELS.withIndex()) deaths["${s.name}:$label"] = dead[k][c]
         }
     }
 
@@ -954,4 +953,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val SPILL_MISFIT = 0.05f
         const val BEARING_SPILL = 3f
     }
+}
+
+/** Slots of the residents' deaths in a week, by cause; [LABELS] names them in the deaths ledger. */
+object ResidentDeath {
+    const val AGE = 0
+    const val HUNGER = 1
+    const val COLD = 2
+    const val DISEASE = 3
+    const val EAGLES = 4
+    const val FIRE = 5
+    const val FLOOD = 6
+    const val SNOW = 7
+    const val CROCODILES = 8
+    const val THIRST = 9
+    val LABELS = arrayOf("age", "hunger", "cold", "disease", "eagles", "fire", "flood", "snow", "crocodiles", "thirst")
 }
