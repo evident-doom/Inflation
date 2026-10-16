@@ -48,6 +48,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val kinds = Catalogue.all.filter { Catalogue.resident(it) }
     val adults = Array(kinds.size) { FloatArray(n) }
     val young = Array(kinds.size) { FloatArray(n) }
+    /** The resident kinds by body mass, the biggest first: the order they get at food that is short. */
+    private val byMass = kinds.indices.sortedByDescending { kinds[it].massKg }.toIntArray()
     /** Last week's share of its wants each kind found in each place, 0..1. */
     val fed = Array(kinds.size) { FloatArray(n) { 1f } }
     /**
@@ -426,7 +428,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             // How much each kind eats of poor forage depends on its gut (see [gutFill]).
             val quality = land.nourishment(p)
-            var wantGrass = 0f; var wantBrowse = 0f; var wantFruit = 0f; var wantRoots = 0f
             val need = FloatArray(kinds.size)
             // How much of the place's food each kind can get at: cliffs keep all but climbers off some of
             // it, and far from water a kind that must drink often uses only the ground within reach of it.
@@ -439,13 +440,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month) * days / 1e6f * plantShare(s) // kg per m2 this week
                 // (Biting insects harassing them cost them feeding time.)
                 avail[k] = HexFood.access(s, land.crag[p]) * tether(s, p) * (1f - HexSmallLife.HARASS_FEED * small.harassment(p))
-                val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
-                val snowed = weather.snowpack[p] > s.snowLimitMm
-                val fill = gutFill(s, quality)
-                wantGrass += need[k] * fill * d.grass / total * (if (snowed) 0f else 1f)
-                wantBrowse += need[k] * fill * d.browse / total
-                wantFruit += need[k] * d.fruit / total
-                wantRoots += need[k] * d.roots / total
             }
             // What can be eaten this week without eating the place bare, kg per m2: new growth in the
             // growing season, far less of the dry standing stuff in the cold. Supply against demand:
@@ -453,23 +447,28 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // (Only the edible share of the plants, see [HexLand.palatable].)
             val grass = reach * land.palatable[p] * land.herb[p]; val browse = land.browse(p)
             // (Browse is the shoots the shrubs and trees put out within reach, see [HexLand.shrubShoots].)
-            val rg = if (wantGrass > 0f) grass / wantGrass else 1f
-            val rb = if (wantBrowse > 0f) browse / wantBrowse else 1f
-            val rf = if (wantFruit > 0f) food.fruit[p] / wantFruit else 1f
-            val rr = if (wantRoots > 0f) food.roots[p] / wantRoots else 1f
             // Each kind gets its share, as far as it can get at it; nourishment from what it ate.
             val got = FloatArray(kinds.size); val short = FloatArray(kinds.size); val surplus = FloatArray(kinds.size)
             var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f; var wantStraw = 0f
-            // What is left over once every kind has its usual share, for diet switching.
-            var spareG = max(0f, grass - wantGrass); var spareB = max(0f, browse - wantBrowse)
-            var spareF = max(0f, food.fruit[p] - wantFruit); var spareR = max(0f, food.roots[p] - wantRoots)
-            for ((k, s) in kinds.withIndex()) {
+            // Where food is short the bigger kinds drive the smaller off it (a hippo or an aurochs gives way to
+            // nothing smaller): each kind in turn by body mass takes its usual share, as far as it can get at
+            // what the bigger ones left; then, in the same order, they make up a shortfall from what is still
+            // left (diet switching) and fatten on it.
+            var spareG = grass; var spareB = browse; var spareF = food.fruit[p]; var spareR = food.roots[p]
+            val gs = FloatArray(kinds.size); val bs = FloatArray(kinds.size)
+            for (k in byMass) {
+                val s = kinds[k]
                 if (need[k] <= 0f) continue
                 val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
                 val snowed = weather.snowpack[p] > s.snowLimitMm
                 val fill = gutFill(s, quality)
-                val g = if (snowed) 0f else min(1f, avail[k] * rg)
-                val b = min(1f, avail[k] * rb); val f = min(1f, avail[k] * rf); val r = min(1f, avail[k] * rr)
+                fun share(want: Float, left: Float) = if (want > 0f) min(1f, avail[k] * left / want) else 0f
+                val wG = need[k] * fill * d.grass / total; val wB = need[k] * fill * d.browse / total
+                val wF = need[k] * d.fruit / total; val wR = need[k] * d.roots / total
+                val g = if (snowed) 0f else share(wG, spareG)
+                val b = share(wB, spareB); val f = share(wF, spareF); val r = share(wR, spareR)
+                gs[k] = g; bs[k] = b
+                spareG -= wG * g; spareB -= wB * b; spareF -= wF * f; spareR -= wR * r
                 eatG += need[k] * fill * d.grass / total * g; eatB += need[k] * fill * d.browse / total * b
                 eatF += need[k] * d.fruit / total * f; eatR += need[k] * d.roots / total * r
                 got[k] = (d.grass / total * g + d.browse / total * b) * fill * quality + d.fruit / total * f + d.roots / total * r
@@ -480,6 +479,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val ps = plantShare(s)
                     protein[k][p] += (proteinMet(ps * share + (1f - ps)) - protein[k][p]) * PROTEIN_MEMORY
                 }
+            }
+            for (k in byMass) {
+                val s = kinds[k]
+                if (need[k] <= 0f) continue
+                val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
+                val snowed = weather.snowpack[p] > s.snowLimitMm
+                val fill = gutFill(s, quality)
+                val g = gs[k]; val b = bs[k]
                 // Diet switching: a food that fell short is made up from what the others left over, each
                 // to at most (1 + SWITCH) times its usual share.
                 var gap = 1f - got[k]

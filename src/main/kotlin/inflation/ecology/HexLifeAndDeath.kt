@@ -63,7 +63,17 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
  */
 internal fun HexGroups.graze(weather: Weather) {
     val food = fauna.food
-    for (g in groups) {
+    // Where food is short the bigger kinds drive the smaller off it: the herds graze in turn by body mass,
+    // the biggest first, as the residents do (see [HexFauna.graze]); within a kind, as they stand.
+    val count = IntArray(Catalogue.all.size)
+    for (g in groups) count[g.species.index]++
+    val start = IntArray(Catalogue.all.size)
+    var at = 0
+    for (i in Catalogue.all.indices.sortedByDescending { Catalogue.all[it].massKg }) { start[i] = at; at += count[i] }
+    val ordered = arrayOfNulls<HexGroup>(groups.size)
+    for (g in groups) ordered[start[g.species.index]++] = g
+    for (g in ordered) {
+        g!!
         val s = g.species
         if (!g.alive || s.carnivore) continue
         // A herd grazes over its range: as many hexes round where it stands as it takes to find a good
