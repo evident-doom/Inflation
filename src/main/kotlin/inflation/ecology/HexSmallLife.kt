@@ -559,7 +559,6 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * in parallel may undercount 4 a little.)
      */
     val herpLedger = Array(8) { FloatArray(n) }
-    }
 
     private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
     private val foxPrey by lazy { (listOf(rodents, hares, locusts, insects, pollinators) + bird).toTypedArray() }
