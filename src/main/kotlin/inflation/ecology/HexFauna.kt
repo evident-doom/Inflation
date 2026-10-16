@@ -382,10 +382,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     /**
      * The grass and browse, kg/m², that can still be eaten at each place this week without eating it
-     * bare, once the residents have had theirs: the herds passing through share it (see [HexGroups.graze]).
+     * bare, once the residents have had their share: the herds passing through share it (see [HexGroups.graze]).
      */
     val grazeLeft = FloatArray(n)
     val browseLeft = FloatArray(n)
+    /**
+     * What the herds wanted at each place last week, kg/m², of grass, browse, fruit, roots and straw
+     * (see [HexGroups.graze]). Residents and herds share a place's food in proportion to what each
+     * wants: the residents leave the herds their share, reckoned from where the herds grazed last
+     * week (they eat before the herds have moved).
+     */
+    val herdWant = Array(5) { FloatArray(n) }
 
     private fun graze(weather: Weather) {
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
@@ -418,16 +425,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // (Only the edible share of the plants, see [HexLand.palatable].)
             val grass = reach * land.palatable[p] * land.herb[p]; val browse = land.browse(p)
             // (Browse is the shoots the shrubs and trees put out within reach, see [HexLand.shrubShoots].)
-            val rg = if (wantGrass > 0f) grass / wantGrass else 1f
-            val rb = if (wantBrowse > 0f) browse / wantBrowse else 1f
-            val rf = if (wantFruit > 0f) food.fruit[p] / wantFruit else 1f
-            val rr = if (wantRoots > 0f) food.roots[p] / wantRoots else 1f
+            // (The herds' wants count against the supply too, so where food is short every eater gets the same share of its want.)
+            val hG = herdWant[0][p]; val hB = herdWant[1][p]; val hF = herdWant[2][p]; val hR = herdWant[3][p]
+            val rg = if (wantGrass > 0f) grass / (wantGrass + hG) else 1f
+            val rb = if (wantBrowse > 0f) browse / (wantBrowse + hB) else 1f
+            val rf = if (wantFruit > 0f) food.fruit[p] / (wantFruit + hF) else 1f
+            val rr = if (wantRoots > 0f) food.roots[p] / (wantRoots + hR) else 1f
             // Each kind gets its share, as far as it can get at it; nourishment from what it ate.
             val got = FloatArray(kinds.size); val short = FloatArray(kinds.size); val surplus = FloatArray(kinds.size)
             var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f; var wantStraw = 0f
             // What is left over once every kind has its usual share, for diet switching.
-            var spareG = max(0f, grass - wantGrass); var spareB = max(0f, browse - wantBrowse)
-            var spareF = max(0f, food.fruit[p] - wantFruit); var spareR = max(0f, food.roots[p] - wantRoots)
+            // (Less what the herds want: switching does not eat into their share.)
+            var spareG = max(0f, grass - wantGrass - hG); var spareB = max(0f, browse - wantBrowse - hB)
+            var spareF = max(0f, food.fruit[p] - wantFruit - hF); var spareR = max(0f, food.roots[p] - wantRoots - hR)
             for ((k, s) in kinds.withIndex()) {
                 if (need[k] <= 0f) continue
                 val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
@@ -466,7 +476,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // (Only grazers and browsers eat it, and only as far as they can get at it.)
                 if (d.grass + d.browse > 0f) wantStraw += short[k] * GUT_FILL * min(1f, avail[k]) else short[k] = 0f
             }
-            val rs = if (wantStraw > 0f) min(1f, food.straw[p] / wantStraw) else 1f
+            val rs = if (wantStraw > 0f) min(1f, food.straw[p] / (wantStraw + herdWant[4][p])) else 1f
             for ((k, s) in kinds.withIndex()) {
                 val strawPart = if (need[k] > 0f) short[k] / need[k] * min(1f, GUT_FILL * HexFood.roughage(s)) * min(1f, avail[k]) * rs else 0f
                 val sleeping = asleep(s, p, weather)
