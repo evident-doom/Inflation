@@ -3,6 +3,9 @@ package inflation.ui
 import inflation.world.Biome
 import inflation.world.HexWorld
 import kotlin.math.min
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /** A picture of the hex world as the model sees it. */
 object HexWorldPicture {
@@ -12,11 +15,11 @@ object HexWorldPicture {
         val img = java.awt.image.BufferedImage((world.grid.width * km * pxPerKm).toInt(), (world.grid.height * km * pxPerKm).toInt(), java.awt.image.BufferedImage.TYPE_INT_RGB)
         val g = img.createGraphics()
         g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON)
-        val r = hex.hexKm / kotlin.math.sqrt(3.0)
+        val r = hex.hexKm / sqrt(3.0)
         for (h in 0 until size) {
             val (cx, cy) = hex.centreKm(h)
-            val xs = IntArray(6) { ((cx + r * kotlin.math.cos(Math.PI / 6 + it * Math.PI / 3)) * pxPerKm).toInt() }
-            val ys = IntArray(6) { ((cy + r * kotlin.math.sin(Math.PI / 6 + it * Math.PI / 3)) * pxPerKm).toInt() }
+            val xs = IntArray(6) { ((cx + r * cos(Math.PI / 6 + it * Math.PI / 3)) * pxPerKm).toInt() }
+            val ys = IntArray(6) { ((cy + r * sin(Math.PI / 6 + it * Math.PI / 3)) * pxPerKm).toInt() }
             val b = mainBiome(h)
             val colour = when {
                 b == null || land[h] < 0.5f -> if (sea[h] >= lake[h]) Biome.OCEAN.rgb else Biome.LAKE.rgb
@@ -40,8 +43,8 @@ object HexWorldPicture {
                 if (n < 0 || land[n] < 0.5f || hex.crossing[h * 6 + d].isFinite()) continue
                 // The shared edge: the corners at angles -30° + 60°·d and +30° + 60°·d from the centre.
                 val a0 = Math.toRadians(-30.0 + 60.0 * d); val a1 = Math.toRadians(30.0 + 60.0 * d)
-                g.drawLine(((cx + r * kotlin.math.cos(a0)) * pxPerKm).toInt(), ((cy + r * kotlin.math.sin(a0)) * pxPerKm).toInt(),
-                    ((cx + r * kotlin.math.cos(a1)) * pxPerKm).toInt(), ((cy + r * kotlin.math.sin(a1)) * pxPerKm).toInt())
+                g.drawLine(((cx + r * cos(a0)) * pxPerKm).toInt(), ((cy + r * sin(a0)) * pxPerKm).toInt(),
+                    ((cx + r * cos(a1)) * pxPerKm).toInt(), ((cy + r * sin(a1)) * pxPerKm).toInt())
             }
         }
         javax.imageio.ImageIO.write(img, "png", file)

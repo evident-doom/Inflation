@@ -1,4 +1,8 @@
 package inflation
+import kotlin.math.cos
+import kotlin.math.ln
+import kotlin.math.max
+import kotlin.math.sqrt
 
 /*
  * Hashes for draws that must not depend on the order things are stepped in: a place's draw this week
@@ -28,6 +32,6 @@ fun unitOf(h: Long): Float = (h ushr 40).toFloat() / (1L shl 24).toFloat()
 
 /** A standard normal draw from [r] (Box–Muller, with the first draw kept off zero). */
 fun gaussian(r: kotlin.random.Random): Double {
-    val u = kotlin.math.max(r.nextDouble(), 1e-12)
-    return kotlin.math.sqrt(-2 * kotlin.math.ln(u)) * kotlin.math.cos(2 * Math.PI * r.nextDouble())
+    val u = max(r.nextDouble(), 1e-12)
+    return sqrt(-2 * ln(u)) * cos(2 * Math.PI * r.nextDouble())
 }

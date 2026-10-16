@@ -5,6 +5,7 @@ import inflation.Config
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.abs
 
 // What passes between bands: words, traditions, partners and grudges. A band's culture is data on
 // the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
@@ -399,7 +400,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     if (b.ties.isNotEmpty()) {
         val keep = 1f - TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
         val it = b.ties.entries.iterator()
-        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * keep); if (kotlin.math.abs(e.value) < 0.01f) it.remove() }
+        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * keep); if (abs(e.value) < 0.01f) it.remove() }
     }
     // Country far from where it now lives fades from memory, a share of it a year.
     if (rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat()) {

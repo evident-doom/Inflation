@@ -11,6 +11,10 @@ import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.DoubleAdder
+import java.util.stream.IntStream
+import kotlin.math.sqrt
 
 /**
  * Life in the water of each hex, as in the 1 km model's plankton, fish and sea, on the hexes:
@@ -37,7 +41,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private val hex = hw.hex
     private val world = hw.world
     private val size = hex.size
-    private val hexKm2 = (hex.hexKm * hex.hexKm * kotlin.math.sqrt(3.0) / 2).toFloat()
+    private val hexKm2 = (hex.hexKm * hex.hexKm * sqrt(3.0) / 2).toFloat()
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
 
     /** Open water in each hex, km²: sea, and lake (fresh or closed). */
@@ -245,10 +249,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** This week's flows of sea and lake fish, tonnes: grown, died of age or hunger, eaten by each kind, drifted. */
-    @Transient val fishFlows = java.util.concurrent.ConcurrentHashMap<String, Double>()
+    @Transient val fishFlows = ConcurrentHashMap<String, Double>()
     // (Summed in adders during the parallel loop, without contention, and written to [fishFlows] after it.)
-    @Transient private val flowAdders = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.DoubleAdder>()
-    private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { java.util.concurrent.atomic.DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble()) }
+    @Transient private val flowAdders = ConcurrentHashMap<String, DoubleAdder>()
+    private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble()) }
     private val eatenBy = SEA.map { "eaten by ${it.name}" }
 
     fun step(weather: Weather) {
@@ -256,7 +260,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val date = weather.date
         val month = date.month
         val light = (Date(date.absoluteDay).dayLengthHours(38.0) / 12.0).toFloat()
-        java.util.stream.IntStream.range(0, size).parallel().forEach { h ->
+        IntStream.range(0, size).parallel().forEach { h ->
             val pt = Profile.mark()
             if (waterKm2[h] > 0f) {
                 // Upwelling: the wind's drift is bent to the right; where it carries water off the coast, deep water wells up.
@@ -400,7 +404,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         // Exchange between neighbouring water of the same kind (sea with sea, lake with lake), as much
         // leaving one as reaches the other: what moves is the density difference over the narrower water.
         val old = f.copyOf()
-        java.util.stream.IntStream.range(0, size).parallel().forEach { h ->
+        IntStream.range(0, size).parallel().forEach { h ->
             if (waterKm2[h] <= 0f) return@forEach
             var delta = 0f
             for (d in 0 until 6) {

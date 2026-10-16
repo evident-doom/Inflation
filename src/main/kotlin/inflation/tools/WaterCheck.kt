@@ -8,6 +8,7 @@ import inflation.world.RiverClass
 import inflation.world.Weather
 import inflation.world.World
 import inflation.world.WorldConfig
+import inflation.world.LandformCache
 
 /**
  * Runs weather, water and plants on the hexes' height bands (no animals) and reports, year by year,
@@ -21,7 +22,7 @@ fun main(args: Array<String>) {
     val cfg = a.world(WorldConfig(seed = 1))
     val years = a.int("--years", 8)
     a.done()
-    val world = World.generate(cfg, inflation.world.LandformCache.load(cfg) {})
+    val world = World.generate(cfg, LandformCache.load(cfg) {})
     val hw = HexWorld(world, HexMap(world))
     val n = hw.placeCells.size
     val land = HexLand(hw, cfg.seed)

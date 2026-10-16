@@ -4,6 +4,7 @@ import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.ecology.Species
 import java.io.File
+import inflation.world.WorldConfig
 
 /**
  * How many choices are recorded: [perKindYear] a year of each kind in each world, and [peopleChoices]
@@ -17,9 +18,9 @@ class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 8f)
  */
 class Maps(val maps: List<Pair<Long, Double>> = emptyList()) {
     fun isEmpty() = maps.isEmpty()
-    fun world(seed: Long, size: Int, i: Int = 0): inflation.world.WorldConfig =
-        if (maps.isEmpty()) inflation.world.WorldConfig(seed = seed, widthKm = size, heightKm = size)
-        else maps[((i % maps.size) + maps.size) % maps.size].let { (s, lat) -> inflation.world.WorldConfig(seed = s, widthKm = size, heightKm = size, centreLatitude = lat) }
+    fun world(seed: Long, size: Int, i: Int = 0): WorldConfig =
+        if (maps.isEmpty()) WorldConfig(seed = seed, widthKm = size, heightKm = size)
+        else maps[((i % maps.size) + maps.size) % maps.size].let { (s, lat) -> WorldConfig(seed = s, widthKm = size, heightKm = size, centreLatitude = lat) }
 }
 
 /** HexPpo's command line (see [HexPpo] for the usage). */

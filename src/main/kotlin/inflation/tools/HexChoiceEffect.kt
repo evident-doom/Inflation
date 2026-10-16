@@ -12,6 +12,9 @@ import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.sqrt
 import kotlin.random.Random
+import inflation.learning.Schema
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
 
 /**
  * How much one band's one choice changes the return people are trained on, against how much that
@@ -42,7 +45,7 @@ fun main(args: Array<String>) {
     fun play(variant: String): Out {
         val run = HexLearning.Run(WorldConfig(seed = seed, widthKm = size, heightKm = size), kinds)
         var week = 0
-        val alt = java.util.concurrent.ConcurrentHashMap<Int, Pair<Float, Float>>()
+        val alt = ConcurrentHashMap<Int, Pair<Float, Float>>()
         for (s in kinds) if (s.human) run.groups.policies[s] = HexPolicy { g, f, b, _ ->
             val best = b.indices.maxBy { b[it] }
             val r = Random(seed * 7_919L + g.id * 104_729L + week)
@@ -56,7 +59,7 @@ fun main(args: Array<String>) {
                 var a = r.nextInt(f.size - 1); if (a >= best) a++; a
             } else best
         }
-        val draws = java.util.concurrent.ConcurrentHashMap<Int, FloatArray>()
+        val draws = ConcurrentHashMap<Int, FloatArray>()
         run.groups.ways = BandWays { g, _, out ->
             val p = perturbed(g.id)
             if (p && week == warm && variant == "ways-1wk") waysDraw(g.id, 1).also { draws[g.id] = it }.copyInto(out)
@@ -147,9 +150,9 @@ fun main(args: Array<String>) {
             val se = sqrt(resid.sumOf { it * it } / (x.size - 2) / sxx)
             b to se
         }
-        val names = inflation.learning.Schema.WAYS_OUT
+        val names = Schema.WAYS_OUT
         println("$v: slope of the change per 0.3 of draw (one SD), by way, largest |t| first:")
-        println("  " + slopes.indices.sortedByDescending { kotlin.math.abs(slopes[it].first / slopes[it].second) }.take(10).joinToString(", ") { j -> "%s %+.5f (t %.1f)".format(names[j], 0.3 * slopes[j].first, slopes[j].first / slopes[j].second) })
+        println("  " + slopes.indices.sortedByDescending { abs(slopes[it].first / slopes[it].second) }.take(10).joinToString(", ") { j -> "%s %+.5f (t %.1f)".format(names[j], 0.3 * slopes[j].first, slopes[j].first / slopes[j].second) })
     }
 }
 

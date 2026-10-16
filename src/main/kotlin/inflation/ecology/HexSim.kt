@@ -6,6 +6,7 @@ import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.Weather
 import inflation.world.World
+import kotlin.math.exp
 
 /**
  * The whole hex model over a generated [world]: the hexes and their places, the weather on them,
@@ -30,7 +31,7 @@ class HexSim(
     val eruptions = Eruptions(world.grid, world.volcanoes, cfg.seed)
     /** The place each fine cell lies in (-1 for none), for where ash falls: made at the first eruption. */
     private val cellPlace by lazy { IntArray(world.grid.size) { -1 }.also { cp -> for (p in hw.placeCells.indices) for (c in hw.placeCells[p]) cp[c] = p } }
-    private val ashKeep = kotlin.math.exp(-cfg.daysPerStep / 720.0).toFloat()
+    private val ashKeep = exp(-cfg.daysPerStep / 720.0).toFloat()
 
     /** One week: the weather, then water and plants, then the residents and small life, then the groups. */
     fun step() {

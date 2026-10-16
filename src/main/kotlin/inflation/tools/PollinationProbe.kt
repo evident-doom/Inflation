@@ -2,7 +2,7 @@ package inflation.tools
 
 /**
  * A probe for the pollinators: runs the hex world for some years and prints, at each month, the
- * fruit set ([inflation.ecology.HexSmallLife.fruitSet]) weighted by the fruit the plants could bear,
+ * fruit set ([HexSmallLife.fruitSet]) weighted by the fruit the plants could bear,
  * in the north, middle and south thirds, the share of that bearing with pollination under 0.9, and
  * pollinator density. Usage: pollination-probe [--seed N] [--width KM] [--height KM] [--years N]
  */
@@ -10,6 +10,9 @@ package inflation.tools
 import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.WorldConfig
+import inflation.ecology.HexSmallLife
+import inflation.world.WorldCache
+import kotlin.math.min
 
 fun main(args: Array<String>) {
     val a = Args(args, "pollination-probe [--seed N] [--width KM] [--height KM] [--years N]")
@@ -18,7 +21,7 @@ fun main(args: Array<String>) {
     val years = a.int("--years", 2)
     a.done()
     val t0 = System.nanoTime()
-    val sim = HexSim(inflation.world.WorldCache.load(cfg) { println(it) })
+    val sim = HexSim(WorldCache.load(cfg) { println(it) })
     println("world in %.0f s".format((System.nanoTime() - t0) / 1e9))
     val land = sim.land; val sl = sim.fauna.small; val hw = sim.hw; val cols = sim.hex.cols; val rows = sim.hex.rows
     fun third(p: Int) = (3 * (hw.placeHex[p] / cols) / rows).coerceIn(0, 2)
@@ -32,12 +35,12 @@ fun main(args: Array<String>) {
             val w = DoubleArray(3); val ws = DoubleArray(3); val low = DoubleArray(3); val po = DoubleArray(3); val area = DoubleArray(3)
             for (p in 0 until land.n) {
                 val t = third(p); val a = land.areaKm2[p].toDouble()
-                val bear = land.palatable[p] * (0.5f * land.shrub[p] + 0.05f * land.tree[p]) * kotlin.math.min(1f, land.moisture[p] / 0.5f) * a
+                val bear = land.palatable[p] * (0.5f * land.shrub[p] + 0.05f * land.tree[p]) * min(1f, land.moisture[p] / 0.5f) * a
                 w[t] += bear; ws[t] += bear * sl.fruitSet(p); if (sl.pollination[p] < 0.9f) low[t] += bear
                 po[t] += sl.pollinators[p] * a; area[t] += a
             }
             fun tonnes(f: FloatArray) = (0 until land.n).sumOf { (f[it] * land.areaKm2[it]).toDouble() } / 1000
-            val kinds = inflation.ecology.HexSmallLife.BIRDS.indices.joinToString(" ") { "%s %.0f".format(inflation.ecology.HexSmallLife.BIRDS[it].name.replace(' ', '_'), tonnes(sl.bird[it])) }
+            val kinds = HexSmallLife.BIRDS.indices.joinToString(" ") { "%s %.0f".format(HexSmallLife.BIRDS[it].name.replace(' ', '_'), tonnes(sl.bird[it])) }
             val hz = DoubleArray(3); val hzA = DoubleArray(3)
             for (p in 0 until land.n) { val t = third(p); val a = land.areaKm2[p].toDouble(); hz[t] += sl.harassment(p) * a; hzA[t] += a }
             println("      harassment by biting insects N/M/S %.3f %.3f %.3f".format(hz[0] / hzA[0], hz[1] / hzA[1], hz[2] / hzA[2]))

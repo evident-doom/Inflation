@@ -10,6 +10,7 @@ import inflation.ecology.roundsWhere
 import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
+import java.util.TreeMap
 
 /**
  * Whether herds keep to their yearly rounds: for each herd kind, month by
@@ -40,13 +41,13 @@ fun main(args: Array<String>) {
     val sHeads = Array(herds.size) { DoubleArray(2) }; val sFed = Array(herds.size) { DoubleArray(2) }; val sProt = Array(herds.size) { DoubleArray(2) }; val sMothers = Array(herds.size) { DoubleArray(2) }
     // (And where they are: hunters about, kg/km², and animals of the kind in the same hex, by head.)
     val huntSum = Array(herds.size) { DoubleArray(2) }; val kinSum = Array(herds.size) { DoubleArray(2) }
-    val events = Array(herds.size) { Array(2) { java.util.TreeMap<String, Int>() } }
+    val events = Array(herds.size) { Array(2) { TreeMap<String, Int>() } }
     val ways = listOf("on round", "own country")
     val shareByYear = Array(herds.size) { ArrayList<Int>() }
     // Where meetings and kills happen: "WAY|GOING|WHERE|WHO|met or killed" -> count, and animal-weeks by "WAY|GOING|WHERE" (see [inflation.ecology.roundsWhere]).
-    val where = Array(herds.size) { java.util.TreeMap<String, Int>() }
-    val whereHeads = Array(herds.size) { java.util.TreeMap<String, Double>() }
-    val whereHerdWeeks = Array(herds.size) { java.util.TreeMap<String, Int>() }
+    val where = Array(herds.size) { TreeMap<String, Int>() }
+    val whereHeads = Array(herds.size) { TreeMap<String, Double>() }
+    val whereHerdWeeks = Array(herds.size) { TreeMap<String, Int>() }
     repeat(steps) { w ->
         run.step()
         for ((i, s) in herds.withIndex()) {

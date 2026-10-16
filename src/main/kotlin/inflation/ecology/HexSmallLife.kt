@@ -15,6 +15,8 @@ import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import java.util.stream.IntStream
+import kotlin.math.hypot
 
 /**
  * A wild bird as a density field: when it breeds, how fast it grows and dies back, the months it is
@@ -160,7 +162,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
         for (c in blocks.values.sorted()) {
             val (cx, cy) = hex.centreKm(hw.placeHex[c])
-            fun dist(q: Int): Double { val (x, y) = hex.centreKm(hw.placeHex[q]); return kotlin.math.hypot(x - cx, y - cy) }
+            fun dist(q: Int): Double { val (x, y) = hex.centreKm(hw.placeHex[q]); return hypot(x - cx, y - cy) }
             val near = (0 until n).filter { dist(it) <= VULTURE_RANGE_KM }.sortedBy { dist(it) }
             vulturePlace += c; vultures += 40f; vultureReach += near.toIntArray()
         }
@@ -228,7 +230,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 }
             }
         }
-        java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+        IntStream.range(0, n).parallel().forEach { p ->
             var pt = Profile.mark()
             val t = weather.temperature[p]
             val soilWater = land.soil[p]
@@ -818,7 +820,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     private fun harassmentNow(p: Int, weather: Weather): Float {
         val b = biting[p]
         if (b <= 0f) return 0f
-        val wind = kotlin.math.hypot(weather.windEast(p), weather.windSouth(p))
+        val wind = hypot(weather.windEast(p), weather.windSouth(p))
         return b / (b + HARASS_HALF) * exp(-wind / WIND_CALM)
     }
 
@@ -915,7 +917,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** [spread] for kinds that can wander anywhere, all in one pass over the places. */
     private fun spread(fs: Array<FloatArray>) {
         val olds = Array(fs.size) { fs[it].copyOf() }
-        java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+        IntStream.range(0, n).parallel().forEach { p ->
             val nb = land.neighbours[p]
             val w = spreadWeight[p]
             for (k in fs.indices) {

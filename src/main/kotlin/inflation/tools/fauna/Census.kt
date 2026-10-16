@@ -7,6 +7,7 @@ import inflation.ecology.Store
 import inflation.world.Biome
 import inflation.world.HexWorld
 import kotlin.math.abs
+import java.util.Random
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's
@@ -149,7 +150,7 @@ class Census(private val sim: HexSim) {
             "%s %.0f%% %.2f/%.1f".format(s.name.lowercase().replace('_', ' '), 100.0 * k.size / bs.size, if (k.isEmpty()) 0.0 else k.map { it.skills[s.ordinal].toDouble() }.average(), if (k.isEmpty()) 0.0 else k.map { it.holders[s.ordinal].toDouble() }.average()) })
         // How different neighbours' toolkits are against distant bands' (levels of every way, 0 where unknown).
         if (gs.size > 2) {
-            val r = java.util.Random(7); var nearD = 0.0; var nearN = 0; var farD = 0.0; var farN = 0
+            val r = Random(7); var nearD = 0.0; var nearN = 0; var farD = 0.0; var farN = 0
             repeat(4000) {
                 val x = gs[r.nextInt(gs.size)]; val y = gs[r.nextInt(gs.size)]
                 if (x !== y) {

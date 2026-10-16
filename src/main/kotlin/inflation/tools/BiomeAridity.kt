@@ -3,6 +3,7 @@ package inflation.tools
 import inflation.world.Biome
 import inflation.world.World
 import inflation.world.WorldConfig
+import inflation.world.LandformCache
 
 /**
  * Generates a world and tells, for each class of aridity (rain over evaporative demand), how much land
@@ -14,7 +15,7 @@ import inflation.world.WorldConfig
 fun main(args: Array<String>) {
     val a = inflation.Args(args, "biome-aridity [--seed N] [--width KM] [--height KM]")
     val cfg = a.world(WorldConfig(seed = 1)); a.done()
-    val w = World.generate(cfg, inflation.world.LandformCache.load(cfg) {}); val c = w.climate
+    val w = World.generate(cfg, LandformCache.load(cfg) {}); val c = w.climate
     val land = (0 until w.grid.size).filter { !w.isSea[it] }
     val classes = listOf("<0.05" to 0.05f, "0.05-0.2" to 0.2f, "0.2-0.45" to 0.45f, "0.45-0.75" to 0.75f, ">0.75" to 1e9f)
     fun cls(i: Int): Int { val a = c.aridity(i); return classes.indexOfFirst { a < it.second } }

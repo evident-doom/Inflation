@@ -10,6 +10,9 @@ import inflation.ecology.KEEP_YEARS
 import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
+import inflation.ecology.HexGroup
+import inflation.ecology.Store
+import java.util.TreeMap
 
 /**
  * What trade does (with rounds on for the rites at the sources): where good stone, salt
@@ -37,7 +40,7 @@ fun main(args: Array<String>) {
         sb.append("; sources (one in 50 km at most): " + TRADED.joinToString(", ") { "${it.name.lowercase()} ${run.groups.materialSources.getValue(it).size}" })
         repeat(years) { y ->
             val home = HashMap<Int, Int>(); var bandWeeks = 0; var away = 0
-            val given = java.util.TreeMap<String, Int>()
+            val given = TreeMap<String, Int>()
             for (g in run.groups.groups) if (g.alive && g.band != null) home[g.id] = chief(hw.placeHex[g.place])
             repeat(stepsPerYear) {
                 run.step()
@@ -51,12 +54,12 @@ fun main(args: Array<String>) {
                 }
             }
             val bands = run.groups.groups.filter { it.alive && it.band != null }
-            fun share(f: (inflation.ecology.HexGroup) -> Boolean) = 100.0 * bands.count(f) / bands.size.coerceAtLeast(1)
+            fun share(f: (HexGroup) -> Boolean) = 100.0 * bands.count(f) / bands.size.coerceAtLeast(1)
             sb.append("\n  year %d: %d bands, %d people; a year's worth held: %s; spears %.0f%% and clothes %.0f%% made well, dried food %.0f%% salted; %.0f%% of band-weeks in other country"
                 .format(y + 1, bands.size, bands.sumOf { it.size },
                     TRADED.joinToString(", ") { m -> "%s %.0f%%".format(m.name.lowercase(), share { g -> g.band!!.goods[m.ordinal] >= KEEP_YEARS * YEAR_NEED[m.ordinal] * g.adults }) },
                     100.0 * bands.map { it.band!!.fine[Tool.SPEAR.ordinal].toDouble() }.average(), 100.0 * bands.map { it.band!!.fine[Tool.CLOTHES.ordinal].toDouble() }.average(),
-                    100.0 * bands.sumOf { it.band!!.salted.toDouble() * it.stores[inflation.ecology.Store.DRIED.ordinal] } / bands.sumOf { it.stores[inflation.ecology.Store.DRIED.ordinal].toDouble() }.coerceAtLeast(1e-9),
+                    100.0 * bands.sumOf { it.band!!.salted.toDouble() * it.stores[Store.DRIED.ordinal] } / bands.sumOf { it.stores[Store.DRIED.ordinal].toDouble() }.coerceAtLeast(1e-9),
                     100.0 * away / bandWeeks.coerceAtLeast(1)))
             val sources = TRADED.flatMap { run.groups.materialSources.getValue(it).toList() }.toHashSet()
             val atSources = bands.sumOf { g -> g.band!!.rite.count { it >= 0 && hw.placeHex[it] in sources } }

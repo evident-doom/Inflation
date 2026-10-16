@@ -6,6 +6,7 @@ import inflation.world.HexWorld
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import java.util.stream.IntStream
 
 /**
  * Each kind's sense of where better country lies, as a bearing per hex: a direction and how much
@@ -131,11 +132,11 @@ class HexBearings(
             if (!present(s)) { east[k].fill(0f); south[k].fill(0f); continue }
             // Best of each hex this month, over its height bands.
             val pq = FloatArray(places)
-            java.util.stream.IntStream.range(0, places).parallel().forEach { p -> pq[p] = quality(s, p, m) }
+            IntStream.range(0, places).parallel().forEach { p -> pq[p] = quality(s, p, m) }
             val hq = FloatArray(size)
             for (p in 0 until places) { val h = hw.placeHex[p]; if (pq[p] > hq[h]) hq[h] = pq[p] }
             val be = east[k]; val bs = south[k]
-            java.util.stream.IntStream.range(0, size).parallel().forEach { h ->
+            IntStream.range(0, size).parallel().forEach { h ->
                 if (hex.heart[h] < 0) return@forEach
                 val here = hq[h]
                 var ve = 0f; var vs = 0f; var w = 0f; var best = here

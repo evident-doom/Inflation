@@ -1,4 +1,5 @@
 package inflation.ecology
+import java.util.Arrays
 
 /**
  * Routes and landmarks: the worn paths read as a graph. Where the ways meet, cross a river, go over
@@ -33,7 +34,7 @@ class HexRoutes(private val g: HexGroups) {
     private fun worn(h: Int, d: Int) = g.paths[h * 6 + d] >= ROUTE_WORN
 
     fun build() {
-        java.util.Arrays.fill(landmark, 0); java.util.Arrays.fill(onRoute, false); legs.clear(); legsAt.clear()
+        Arrays.fill(landmark, 0); Arrays.fill(onRoute, false); legs.clear(); legsAt.clear()
         val hw = g.hw; val land = g.land
         fun rug(h: Int) = hw.placeOf[0][h].takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f
         for (h in 0 until hex.size) {
