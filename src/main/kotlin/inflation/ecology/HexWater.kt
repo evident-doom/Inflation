@@ -632,7 +632,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val RIVER_FISH_PER_KM2_WATER = 15_000f
         const val MAX_SHELLFISH = 20_000f
         const val FISH_GROWTH = 0.6f
-        /** Shellfish's yearly growth at low numbers (as before, now paid for in plankton). */
+        /** Shellfish's yearly growth at low numbers (paid for in plankton). */
         const val SHELL_GROWTH = 0.8f
         /** Share of what fish eat that becomes fish. */
         const val FISH_EFFICIENCY = 0.2f
