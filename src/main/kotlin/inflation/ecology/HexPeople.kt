@@ -512,14 +512,16 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band) {
     }
 }
 
+/** What [g]'s band can carry, kg: its adults' loads, more with baskets and bags. */
+private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
+
 /** [g]'s band at its camp in place [p] (hex [h]): moving camp caches what it cannot carry and leaves the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it has room for. */
 private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: Date) {
     if (h != b.campHex) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
         if (b.campHex >= 0) {
-            // What it can carry: its adults' loads, more with baskets and bags.
-            val carry = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
+            val carry = carryKg(g, b)
             val total = g.larder
             if (total > carry && b.campPlace >= 0) {
                 // (It chooses how much of what it cannot carry to cache; the rest is left where it lies.)
@@ -551,7 +553,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: D
         for (i in b.cache.indices) b.cache[i] *= 1f - CACHE_SPOIL
         small.litter[b.cachePlace] += spoilt / (land.areaKm2[b.cachePlace] * 1e6f)
         if (hw.placeHex[b.cachePlace] == h) {
-            val room = max(0f, CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET)) - g.larder)
+            val room = max(0f, carryKg(g, b) - g.larder)
             val take = min(b.cacheKg, room)
             val share = if (b.cacheKg > 0f) take / b.cacheKg else 0f
             for (i in b.cache.indices) { val x = b.cache[i] * share; b.cache[i] -= x; g.stores[i] += x }
