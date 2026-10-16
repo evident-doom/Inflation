@@ -1,5 +1,10 @@
 package inflation.world
 
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.HASH_C
+import inflation.mix64
+import inflation.unitOf
 import inflation.Config
 
 import kotlin.math.exp
@@ -814,11 +819,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     }
 
     private fun hash(p: Int, salt: Int): Float {
-        var h = seed * -0x61c8864680b583ebL + stepCount * 0x9E3779B97F4A7C15uL.toLong() + p * 0x632BE59BD9B4E019L + salt * 0x165667B19E3779F9L
-        h = (h xor (h ushr 33)) * -0xae502812aa7333L
-        h = (h xor (h ushr 33)) * -0x3b314601e57a13adL
-        h = h xor (h ushr 33)
-        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+        return unitOf(mix64(seed * HASH_A + stepCount * HASH_A + p * HASH_B + salt * HASH_C))
     }
 
     /** Seed for trees and shrubs: from the place itself, and half as much from its neighbours. */

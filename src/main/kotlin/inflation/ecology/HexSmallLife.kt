@@ -1,5 +1,9 @@
 package inflation.ecology
 
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.mix64Once
+import inflation.unitOf
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexWorld
@@ -383,9 +387,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     private var locustSalt = 0L
     private fun locustHash(p: Int): Float {
-        var h = (p.toLong() * 0x9E3779B97F4A7C15uL.toLong()) xor (++locustSalt * 0x632BE59BD9B4E019L)
-        h = (h xor (h ushr 33)) * -0xae502812aa7333L; h = h xor (h ushr 33)
-        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+        return unitOf(mix64Once((p.toLong() * HASH_A) xor (++locustSalt * HASH_B)))
     }
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */

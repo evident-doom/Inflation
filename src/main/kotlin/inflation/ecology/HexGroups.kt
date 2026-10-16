@@ -1,5 +1,9 @@
 package inflation.ecology
 
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.mix64Once
+import inflation.unitOf
 import inflation.Config
 
 import inflation.world.Date
@@ -1173,10 +1177,7 @@ class HexGroups(
         var k = 0; repeat(n) { if (r.nextFloat() < p) k++ }; return k
     }
 
-    internal fun gaussian(r: Random = rnd): Float {
-        val u = max(r.nextDouble(), 1e-12)
-        return (kotlin.math.sqrt(-2 * kotlin.math.ln(u)) * kotlin.math.cos(2 * Math.PI * r.nextDouble())).toFloat()
-    }
+    internal fun gaussian(r: Random = rnd): Float = inflation.gaussian(r).toFloat()
 
     /** A random stream of group [id]'s own for the week starting on [day]: the same whatever the cores do. */
     internal fun groupRandom(id: Int, day: Long) = Random(seedBase * 1_000_003L + id * 7_919L + day)
@@ -1184,10 +1185,7 @@ class HexGroups(
     internal fun policyRandom(id: Int, day: Long) = Random((seedBase * 1_000_003L + id * 7_919L + day) * 0x9E3779B97F4A7C15uL.toLong() + 0x2545F4914F6CDD1DL)
 
     internal fun hashNoise(id: Int, p: Int): Float {
-        var h = id * 0x9E3779B97F4A7C15uL.toLong() + p * 0x632BE59BD9B4E019L
-        h = (h xor (h ushr 33)) * -0xae502812aa7333L
-        h = h xor (h ushr 33)
-        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+        return unitOf(mix64Once(id * HASH_A + p * HASH_B))
     }
 }
 

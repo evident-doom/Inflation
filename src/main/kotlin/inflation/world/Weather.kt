@@ -476,11 +476,7 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
         return sqrt(v)
     }
 
-    private fun gaussian(): Double {
-        // Box–Muller
-        val u = max(rnd.nextDouble(), 1e-12)
-        return sqrt(-2 * ln(u)) * cos(2 * PI * rnd.nextDouble())
-    }
+    private fun gaussian(): Double = inflation.gaussian(rnd)
 
     companion object {
         /** Snow melted per degree-day above freezing on level ground, mm; the part of it that the air's warmth melts without the sun (Hock 1999: about 1.8). */
