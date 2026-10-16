@@ -29,6 +29,8 @@ tasks.register<JavaExec>("hexViewer") {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("inflation.ui.HexViewerKt")
     maxHeapSize = "16g"
+    // (-Dhex.nets=DIR, -Dhex.ways=FILE and the other hex.* settings given to Gradle reach the viewer.)
+    systemProperties(System.getProperties().filterKeys { it.toString().startsWith("hex.") }.mapKeys { it.key.toString() })
     args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
