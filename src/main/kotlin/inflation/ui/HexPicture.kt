@@ -1,6 +1,10 @@
-package inflation.world
+package inflation.ui
 
 import inflation.Args
+import inflation.world.HexMap
+import inflation.world.World
+import inflation.world.RiverClass
+import inflation.world.WorldConfig
 import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.RenderingHints

@@ -9,7 +9,6 @@ import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
 import inflation.ui.ViewLayers.Measure
 import inflation.world.HexMap
-import inflation.world.HexPicture
 import inflation.world.HexWorld
 import inflation.world.World
 import inflation.world.WorldConfig
