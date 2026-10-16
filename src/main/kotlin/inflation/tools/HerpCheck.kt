@@ -143,7 +143,7 @@ fun main(args: Array<String>) {
     println("birds, whole map: capacity kg/km2 (as at the start) | yearly mean kg/km2, year 1..$years")
     val BIRDS = inflation.ecology.HexSmallLife.BIRDS
     for (k in 0 until nb) println("%-16s%8.2f |".format(BIRDS[k].name, bCap[k] / allArea) + bYearly[k].joinToString("") { "%7.2f".format(it / allArea) })
-    println("birds, last $show years, as % of their mean a year: grown, died, crowded, left, came back, burnt, rest (hunters, spread), net; share fed on insects while eating them")
+    println("birds, last $show years, as % of their mean a year: grown, died, crowded, left, came back, burnt, rest (hunters, spread), net; share fed on insects while eating them (- for kinds that eat none)")
     println("%-16s%8s%8s%8s%8s%8s%8s%8s%8s%8s%8s".format("kind", "kg/km2", "grown", "died", "crowd", "left", "back", "burnt", "rest", "net", "fed"))
     for (k in 0 until nb) {
         val l = DoubleArray(8); for (p in 0 until n) if (c[p] >= 0) { val a = land.areaKm2[p].toDouble(); for (i in 0 until 8) l[i] += sl.birdLedger[k][i][p] * a }
@@ -151,7 +151,7 @@ fun main(args: Array<String>) {
         fun pct(x: Double) = if (m > 0) 100.0 * x / show / m else Double.NaN
         val net = (bYearly[k][years - 1] - bYearly[k][maxOf(0, years - show - 1)]) / show
         val rest = net - (l[0] - l[1] - l[2] - l[3] + l[4] - l[5]) / show
-        println("%-16s%8.2f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.2f".format(BIRDS[k].name, m / allArea, pct(l[0]), pct(l[1]), pct(l[2]), pct(l[3]), pct(l[4]), pct(l[5]),
-            if (m > 0) 100.0 * rest / m else Double.NaN, if (m > 0) 100.0 * net / m else Double.NaN, if (l[7] > 0) l[6] / l[7] else Double.NaN))
+        println("%-16s%8.2f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8s".format(BIRDS[k].name, m / allArea, pct(l[0]), pct(l[1]), pct(l[2]), pct(l[3]), pct(l[4]), pct(l[5]),
+            if (m > 0) 100.0 * rest / m else Double.NaN, if (m > 0) 100.0 * net / m else Double.NaN, if (l[7] > 0) "%.2f".format(l[6] / l[7]) else "-"))  // "-": a kind that eats no insects
     }
 }
