@@ -52,6 +52,8 @@ fun faunaCheck(args: Array<String>) {
         }
         k++
     }
+    // The world's centre latitude (latitude=DEGREES), as the training maps set it; a test world keeps its own.
+    if (testWorld == null) Config.string("latitude")?.let { cfg = cfg.copy(centreLatitude = it.toDouble()) }
     val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { println(it) }, uniformStart = uniform)
     testWorld?.let { TestWorlds.check(it, sim) }
     loadFile?.let { f ->

@@ -488,8 +488,7 @@ internal fun HexGroups.timetable(s: Species, path: IntArray): FloatArray {
  * happen, each by the two sides' standing orders. A group whose week is cut short (turned
  * aside, scattered, driven off, stopping to eat a kill) ends it where that happened, and its
  * later meetings do not take place. Herds meet hunters, and hunters of a kind meet each other;
- * herds of different kinds pass each other by. After [MAX_MEETINGS] meetings a group's week
- * runs on without more.
+ * herds of different kinds pass each other by.
  */
 internal fun HexGroups.meet(weather: Weather) {
     // Only hexes a hunter passes through can hold a meeting that matters: herds pass each other by.
@@ -537,27 +536,25 @@ internal fun HexGroups.meet(weather: Weather) {
     events.clear(); events.addAll(sorted)
     mt = Profile.lap("meetings: sorting", mt)
     val stop = IntArray(groups.size) { groups[it].path.size - 1 }
-    val count = IntArray(groups.size)
     for (e in events) {
-        // Both must still be on their way at that point, and not past their share of meetings.
+        // Both must still be on their way at that point.
         if (e.ai > stop[e.a] || e.bi > stop[e.b]) continue
-        if (count[e.a] >= MAX_MEETINGS || count[e.b] >= MAX_MEETINGS) continue
         val a = groups[e.a]; val b = groups[e.b]
         if (!a.alive || !b.alive) continue
         val h = a.path[e.ai]
         // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
-        // hours, and neither slip away first.
+        // hours, and neither slip away first. (How often they run into each other while both are there.)
         val p = hw.placeOf[hw.placeBand[a.place]][h].takeIf { it >= 0 } ?: a.place
-        if (rnd.nextFloat() >= meetChance(a, b, p, e.span)) continue
+        val met = poisson(encounters(a, b, p, e.span))
+        if (met == 0) continue
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { meetings.merge("slipped away", 1, Int::plus); continue }
-        count[e.a]++; count[e.b]++
         if (a.species.carnivore && b.species.carnivore) {
             if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { bandsMeet(a, b) }
             else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) } else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
         }
         else {
             val (hunter, hi, herd, ri) = if (a.species.carnivore) listOf(e.a, e.ai, e.b, e.bi) else listOf(e.b, e.bi, e.a, e.ai)
-            Profile.part("meetings: hunters and herds") { hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop) }
+            Profile.part("meetings: hunters and herds") { hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop, met) }
         }
     }
     // Each group ends its week where it stopped: the same height band in that hex if it has one.
@@ -658,30 +655,31 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
 }
 
 /**
- * Chance two groups that are in the same place for [span] days run into each other: the ground both
- * search in that time against the place's size, times how much they are about at the same hours.
+ * How many times two groups that are in the same place for [span] days run into each other, on
+ * average: as gas molecules do (Hutchinson & Waser 2007), 2 r v T / A, with r how far the one that
+ * finds the other senses it, v how fast they close on each other, T the time both spend about
+ * (searching, at the same hours) and A the place's size. A herd stands for several of its kind's
+ * usual bands spread over the ground: each can be run into.
  */
-internal fun HexGroups.meetChance(a: HexGroup, b: HexGroup, p: Int, span: Float): Float {
-    // A hunter after a herd follows its tracks and smell, so it covers far more of the ground that
-    // matters; and finds the herd lying up as well as out feeding, if less often.
+internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Int, span: Float): Float {
     val hunting = a.species.carnivore != b.species.carnivore
-    val track = if (hunting) TRACKING * ((if (a.species.carnivore) a.band else b.band)?.edge(Skill.TRACK) ?: 1f) else 1f
-    val searched = (sweptKm2(a.species) + sweptKm2(b.species)) * track * max(span, SPAN_FLOOR) / days
+    // A hunter finds a herd by its own senses (a band as well as its trackers read sign); two hunters, by the keener.
+    val r = if (hunting) { val hunter = if (a.species.carnivore) a else b; hunter.species.senseKm * (hunter.band?.edge(Skill.TRACK) ?: 1f) }
+        else max(a.species.senseKm, b.species.senseKm)
+    val v = kotlin.math.sqrt(a.species.dailyTravelKm * a.species.dailyTravelKm + b.species.dailyTravelKm * b.species.dailyTravelKm)
     val hours = Niches.overlap(a.species, b.species)
     // Bands seek each other out at springs and lake shores, where people come together.
     val gather = if (a.band != null && b.band != null) 1f + 2f * (land.nearSpring[p] + land.nearLake[p]).coerceAtMost(1f) else 1f
     // (Hunters wait where the paths funnel the game: at fords, passes and water.)
     val waylaid = if (hunting) 1f + AMBUSH * pathAt(hw.placeHex[p]) else 1f
-    val one = min(1f, searched * gather * waylaid / land.areaKm2[p]) * (if (hunting) 0.5f + 0.5f * hours else hours)
+    // (A hunter finds a herd lying up as well as out feeding, if less often.)
+    val one = 2f * r * v * span * SEARCHING * gather * waylaid / land.areaKm2[p] * (if (hunting) 0.5f + 0.5f * hours else hours)
     if (!hunting) return one
-    // A herd agent stands for several of its kind's usual bands spread over the ground: a hunter finds
-    // one of them as often as it would find any of so many herds (the bundling saves reckoning, and
-    // must not hide the herds from the hunters).
     val herd = if (a.species.carnivore) b else a
     val bands = bandsIn(herd)
     // A small herd can lie hidden in cover; a big one cannot.
     val hidden = if (bands < SMALL_HERD_BANDS) HIDE_IN_COVER * Niches.shelter(herd.species, p, land) * (1f - bands / SMALL_HERD_BANDS) else 0f
-    return (1f - (1f - one).pow(bands)) * (1f - hidden)
+    return one * bands * (1f - hidden)
 }
 
 /**
@@ -719,7 +717,7 @@ internal fun storeWant(g: HexGroup, band: Band) = max(0f, band.storeAim * (if (b
  * likelier to end in a kill if the hunters came on it unseen; a herd that was chased scatters and
  * stops where it is; hunters that killed stop there to eat.
  */
-internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd: HexGroup, rk: Int, ri: Int, h: Int, stop: IntArray) {
+internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd: HexGroup, rk: Int, ri: Int, h: Int, stop: IntArray, met: Int = 1) {
     meetings.merge("hunter-herd", 1, Int::plus)
     // (With rounds on, for hex-rounds-check: where herds meet hunters, by how the herd lives and where it was.)
     val roundsKey = if (ROUNDS && herd.route[0] != -1) roundsWhere(herd) + (if (hunter.band != null) "people|" else "animals|") else null
@@ -752,8 +750,9 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // Caught or not, the herd is wary for weeks after.
     herd.wary += WARY_GAIN * (1f - herd.wary)
     hunting.merge("${hunter.species.name}:chases", 1, Int::plus)
-    // A big herd stands for several of its kind's usual bands: the hunters may try again while hungry.
-    val tries = max(1, herd.size / herd.species.groupSize)
+    // A big herd stands for several of its kind's usual bands: the hunters try each one they ran into while hungry
+    // (once each: a band that was chased has scattered).
+    val tries = max(1, min(met, kotlin.math.ceil(bandsIn(herd)).toInt()))
     for (attempt in 0 until tries) {
     if (attempt > 0 && hunter.meatMet >= need) break
     if (rnd.nextFloat() < chance && herd.adults > 0) {
@@ -906,4 +905,3 @@ internal fun HexGroups.settle() {
 }
 
 /** The least time two groups passing through the same hex count as spending there together, days */
-const val SPAN_FLOOR = 0.5f
