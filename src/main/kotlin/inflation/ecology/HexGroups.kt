@@ -722,6 +722,7 @@ class HexGroups(
             val h = shared.hexes[i]; reached += h; dist[h] = shared.dist[i]; via[h] = shared.via[i]
         }
         lap("choosing: reach (least-effort search)")
+        DiagCount.add(s, reached.size, restless, thirsty, astray, relief, g.fed)
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
         val policy = policies[s]
         // (For a followed group: every place it weighed, and how it scored.)
@@ -1094,4 +1095,14 @@ internal fun HexGroups.learnPlants(b: Band, h: Int) {
     for (k in b.plants.indices) w += hw.biome[k][h]
     if (w <= 0f) return
     for (k in b.plants.indices) { val share = hw.biome[k][h] / w; if (share > 0f) b.plants[k] += PLANT_LEARN * share * (1f - b.plants[k]) }
+}
+
+object DiagCount {
+    val c = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLongArray>()
+    init { Runtime.getRuntime().addShutdownHook(Thread { for ((k, v) in c.toSortedMap()) { val n = v[0].coerceAtLeast(1); System.err.println("DIAG %s plans %d cand/plan %.1f restless %.2f thirsty %.2f astray %.2f relief %.2f hungry %.2f".format(k, v[0], v[1].toDouble()/n, v[2].toDouble()/n, v[3].toDouble()/n, v[4].toDouble()/n, v[5].toDouble()/n, v[6].toDouble()/n)) } }) }
+    fun add(s: Species, cand: Int, restless: Boolean, thirsty: Boolean, astray: Boolean, relief: Boolean, fed: Float) {
+        val k = if (s.human) "people" else if (s.carnivore) "hunter" else "herd"
+        val a = c.computeIfAbsent(k) { java.util.concurrent.atomic.AtomicLongArray(7) }
+        a.incrementAndGet(0); a.addAndGet(1, cand.toLong()); if (restless) a.incrementAndGet(2); if (thirsty) a.incrementAndGet(3); if (astray) a.incrementAndGet(4); if (relief) a.incrementAndGet(5); if (fed < (if (s.carnivore) 0.5f else 0.7f)) a.incrementAndGet(6)
+    }
 }
