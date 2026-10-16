@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.monthsFrom
 import inflation.HASH_A
 import inflation.HASH_B
 import inflation.mix64Once
@@ -673,7 +674,7 @@ class HexGroups(
             else if (b.atHome) (s.maxGroupSize * SETTLED_QUARRELS).toInt() else s.maxGroupSize
         } ?: s.maxGroupSize
         val birth = if (g.birthMonth >= 0) g.birthMonth else s.birthMonth
-        val calving = (date.month - birth + 12) % 12 < s.birthMonths
+        val calving = monthsFrom(birth, date.month) < s.birthMonths
         val flush = 1f + AGGREGATION * land.green[g.place] * g.fed
         return max(unitSize(s), (s.maxGroupSize * herdUnit(s) * g.sizePref * g.will[AnimalWay.HERD_SIZE] * flush * (if (calving) 0.5f else 1f)).toInt())
     }
@@ -681,9 +682,9 @@ class HexGroups(
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
     internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Int): Float {
         if (b.appointHex < 0) return 0f
-        val off = minOf((month - b.appointMonth + 12) % 12, (b.appointMonth - month + 12) % 12)
+        val off = minOf(monthsFrom(b.appointMonth, month), monthsFrom(month, b.appointMonth))
         // The month before, it is on its way; without sky lore it also lingers a month after, the count being loose.
-        val before = (b.appointMonth - month + 12) % 12 == 1
+        val before = monthsFrom(month, b.appointMonth) == 1
         val weight = when { off == 0 -> 1f; before -> 0.7f; off == 1 && !b.holds(Tradition.SKY_LORE) -> 0.5f; else -> return 0f }
         val here = hw.placeHex[g.place]
         val fromHere = hexKm(here, b.appointHex)
@@ -773,7 +774,7 @@ class HexGroups(
         // looks about, but does not trek for it: its usual week's going reaches the next place.)
         val relief = drain(g, g.place, weather) - leastDrainNear(g, here, weather) > WALK_COST * hex.hexKm.toFloat() / days
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
-        val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && ((b.appointMonth - month + 12) % 12) <= 1) || b.unluckyHex == here || b.raidHex >= 0 } ?: false
+        val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && monthsFrom(month, b.appointMonth) <= 1) || b.unluckyHex == here || b.raidHex >= 0 } ?: false
         val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon || (onRound && goalFar) ||
                 (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: 0f) > 0.5f
             else if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
@@ -858,7 +859,7 @@ class HexGroups(
         val homeValue = if (g.home >= 0) placeValue[ki][hw.placeOf[hw.placeBand[g.place]][g.home].takeIf { it >= 0 } ?: g.place] else PREY_HALF
         // (A pack with young in the den, from its births for [DEN_MONTHS], hunts only
         // within [DEN_KM] of its home, however hungry: it cannot follow game that moves on.)
-        val denning = s.carnivore && !s.human && g.home >= 0 && g.young > 0 && (month - g.birthMonth + 12) % 12 < DEN_MONTHS
+        val denning = s.carnivore && !s.human && g.home >= 0 && g.young > 0 && monthsFrom(g.birthMonth, month) < DEN_MONTHS
         val territory = if (denning) DEN_KM else territoryKm(s) * kotlin.math.sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f) * (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))
         val goalHex = if (goal >= 0) hw.placeHex[goal] else -1
         val fromHere = if (goal >= 0) hexKm(here, goalHex) else 0.0

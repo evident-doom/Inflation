@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.monthsFrom
 import inflation.HASH_A
 import inflation.HASH_B
 import inflation.HASH_C
@@ -623,7 +624,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (a[p] + y[p] <= 0f) continue
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a hungry mother bears and keeps fewer.
-                val inSeason = (date.month - start[p] + 12) % 12 < s.birthMonths
+                val inSeason = monthsFrom(start[p].toInt(), date.month) < s.birthMonths
                 if (inSeason) {
                     // (Mothers short of protein bear and suckle fewer.)
                     // (A mother needs a range of her own to bear and raise her young in: where they crowd beyond

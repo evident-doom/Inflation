@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.monthsFrom
 import inflation.world.Channel
 import inflation.world.Date
 import inflation.world.HexLand
@@ -412,7 +413,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val fed = if (need > 0f) got / need else 1f
             // Turtles lay on warm beaches only.
             val beach = !a.nestsAshore || (shoreKm[h] <= 0f && waterTemp[month][h] >= NEST_TEMP)
-            val born = if (beach && (month - a.birthMonth + 12) % 12 < a.birthMonths) m * a.youngPerFemale * 0.5f * fed / (a.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
+            val born = if (beach && monthsFrom(a.birthMonth, month) < a.birthMonths) m * a.youngPerFemale * 0.5f * fed / (a.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
             val crowd = m / (SEA_FULL * a.massKg / a.startKm2)
             val died = m * min(0.9f, a.backgroundMortality * years + 0.6f * years * (1f - fed) + SEA_DISEASE * years * crowd * crowd)
             sea[k][h] = max(0f, m + born - died)

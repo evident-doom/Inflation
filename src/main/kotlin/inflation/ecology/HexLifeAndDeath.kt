@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.monthsFrom
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexWorld
@@ -336,7 +337,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             else if (window(m - 1) > window(m) + 0.1 && window(m - 1) >= window(m + 1)) g.birthMonth = (m + 11) % 12
             else if (window(m + 1) > window(m) + 0.1) g.birthMonth = (m + 1) % 12
         }
-        val inSeason = (date.month - g.birthMonth + 12) % 12 < s.birthMonths
+        val inSeason = monthsFrom(g.birthMonth, date.month) < s.birthMonths
         var bornNow = 0
         var bornExpected = 0f
         // In a band, the elders are past bearing children; they help their daughters raise theirs.
