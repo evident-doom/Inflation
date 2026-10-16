@@ -89,12 +89,9 @@ const val CONTENT_WEEKS = 2
 const val BAND_CONTENT_WEEKS = 1
 /** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
 const val HUNT_BLOCK_KM = 300f
-/** Herds of a kind in one place making for the same place this month share one plan (see [HexGroups.step]). */
-val SHARED_PLANS = inflation.Config.flag("sharedPlans", true)
 /** A herd that shares its plan still weighs where to go for itself one week in this many (see [HexGroups.step]). */
 const val OWN_PLAN_WEEKS = 3
-/** Groups weigh every hex within this many hexes of where they are, and beyond it one hex in each two by two (config key coarseFar; see [HexGroups.planInner]). */
-val COARSE_FAR = inflation.Config.flag("coarseFar", true)
+/** Herds and packs search and weigh every hex within this many hexes of where they are, and beyond it one hex in each two by two (see [HexGroups.planInner]). */
 const val COARSE_FROM_HEXES = 3.0
 /** Parties that kept near home this week are worked in squares this wide, km (see [hunt]). */
 const val HUNT_FINE_KM = 100f

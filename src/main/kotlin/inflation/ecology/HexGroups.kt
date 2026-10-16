@@ -259,11 +259,11 @@ class HexGroups(
         reachCache.clear(); stepEffort.clear(); stepCoarse.clear()
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
         // Herds of a kind in one place making for the same place this month, and alike in hunger and thirst,
-        // go together: the first of them weighs where to go, and the others follow it (see [SHARED_PLANS]).
+        // go together: the first of them weighs where to go, and the others follow it (see [OWN_PLAN_WEEKS]).
         // Each still weighs for itself one week in [OWN_PLAN_WEEKS], by turns, so herds that met can part
         // again. Bands and packs each choose their own.
         val leaderOf = IntArray(groups.size) { -1 }
-        if (SHARED_PLANS) {
+        run {
             val month = (date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0) % 12
             val first = HashMap<Long, Int>()
             for ((k, g) in groups.withIndex()) {
@@ -404,7 +404,7 @@ class HexGroups(
      * there is no way across.
      */
     @Transient private val stepEffort = java.util.concurrent.ConcurrentHashMap<Int, FloatArray>()
-    /** Whether hex [h] is one of the far hexes that stand for the rest: one in each two by two of the map's rows and columns (see [COARSE_FAR]). */
+    /** Whether hex [h] is one of the far hexes that stand for the rest: one in each two by two of the map's rows and columns (see [COARSE_FROM_HEXES]). */
     private fun onLattice(h: Int) = (h % hex.cols) % 2 == 0 && (h / hex.cols) % 2 == 0
     /**
      * This week's coarse crossings for a way of going and a height band (see [stepEffort]): from each
@@ -714,8 +714,8 @@ class HexGroups(
             dist[here] = 0f; reached += here; q += 0L.withPlace(0f, here)
             // (The effort of each crossing this week, through snow and along worn paths: see [stepEffort].)
             val effort = stepEffort(Catalogue.travel(s).ordinal, hw.placeBand[g.place], weather)
-            // (Far from where it is, a herd's or pack's search goes by the coarse crossings: see [COARSE_FAR].)
-            val coarse = if (COARSE_FAR && !s.human) stepCoarse(Catalogue.travel(s).ordinal, hw.placeBand[g.place], weather) else null
+            // (Far from where it is, a herd's or pack's search goes by the coarse crossings: see [COARSE_FROM_HEXES].)
+            val coarse = if (!s.human) stepCoarse(Catalogue.travel(s).ordinal, hw.placeBand[g.place], weather) else null
             val nearKm = COARSE_FROM_HEXES * hex.hexKm
             while (q.isNotEmpty()) {
                 val e = q.poll()
@@ -786,8 +786,8 @@ class HexGroups(
         for (ri in 0 until reached.size) {
             val h = reached[ri]
             // (Beyond the country close about, a quarter of the hexes stand for the rest: one in each two by two
-            // of the map's rows and columns, and the goal's and a pack's home hex; bands weigh every hex. See [COARSE_FAR].)
-            if (COARSE_FAR && !s.human && h != here && h != goalHex && h != g.home && ((h % hex.cols) % 2 != 0 || (h / hex.cols) % 2 != 0) && hexKm(here, h) > COARSE_FROM_HEXES * hex.hexKm) continue
+            // of the map's rows and columns, and the goal's and a pack's home hex; bands weigh every hex. See [COARSE_FROM_HEXES].)
+            if (!s.human && h != here && h != goalHex && h != g.home && ((h % hex.cols) % 2 != 0 || (h / hex.cols) % 2 != 0) && hexKm(here, h) > COARSE_FROM_HEXES * hex.hexKm) continue
             val d = dist[h]
             // How far beyond its ground the hex lies (0 within it), and how fresh another pack's mark on it is.
             val beyond = if (s.carnivore && !s.human && g.home >= 0) (hexKm(h, g.home) / territory - 1.0).toFloat().coerceIn(0f, 2f) else 0f
