@@ -8,14 +8,15 @@ REPO=$1; BASE=$2; NEW=$3; W=$4
 mkdir -p "$W"; W=$(cd "$W" && pwd)
 LIB=$(find "${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2" -name 'kotlin-stdlib-2.4.10.jar' | head -1)
 [ -n "$LIB" ] || { echo "kotlin-stdlib-2.4.10.jar not found in the gradle cache; build the repo once first"; exit 1; }
-SEP=":"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) SEP=";";; esac
+SEP=":"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) SEP=";"; LIB=$(cygpath -w "$LIB");; esac
 
-# name | main class | arguments ({OUT}: the run's own output folder; {W}: WORKDIR; evolve starts from what base's imitate wrote)
+# name | main class | arguments ({OUT}: the run's own output folder; {W}: WORKDIR). evolve starts from the herd networks base's imitate wrote;
+# imitate fits a kind only from 200 recorded choices (HexLearning.train), hence its larger world; if it wrote none, the evolve case tests nothing.
 CMDS=(
-  "ppo|inflation.learning.HexPpo|--out {OUT} --worlds 2 --size 300 --years 1 --rounds 2 --check 2 --check-seeds 2 --hidden 8"
+  "ppo|inflation.learning.HexPpo|--out {OUT} --worlds 2 --size 300 --years 1 --rounds 2 --check 2 --check-seeds 2 --hidden 8 --hold herds:1 --residual people:0.5"
   "evolve-ways-bands|inflation.learning.HexEvolveWays|--role bands --out {OUT} --seeds 1,2 --size 300 --years 1 --gens 2 --pairs 2 --hidden 8"
   "evolve-ways-herds|inflation.learning.HexEvolveWays|--role herds --out {OUT} --seeds 1,2 --size 300 --years 1 --gens 2 --pairs 2 --hidden 8"
-  "imitate|inflation.learning.HexImitate|--seed 3 --size 300 --years 1 --out {OUT} --people"
+  "imitate|inflation.learning.HexImitate|--seed 3 --size 500 --years 2 --out {OUT}"
   "evolve|inflation.learning.HexEvolve|--start {W}/imitate/base/files --out {OUT} --seeds 1,2 --size 300 --years 1 --gens 2 --pairs 2"
   "pick-world|inflation.learning.HexPickWorld|--seeds 1-2 --size 300 --lats 36"
 )

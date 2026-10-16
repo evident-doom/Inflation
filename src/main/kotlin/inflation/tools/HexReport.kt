@@ -123,7 +123,7 @@ fun main(args: Array<String>) {
         t0 = System.nanoTime()
         val hw = HexWorld(world, hex)
         println("hex world summarised in %.1f s".format((System.nanoTime() - t0) / 1e9))
-        hw.draw(java.io.File(p.parentFile, p.nameWithoutExtension + "-hexworld.png"), 1.0)
+        inflation.ui.HexWorldPicture.draw(hw, java.io.File(p.parentFile, p.nameWithoutExtension + "-hexworld.png"), 1.0)
     }
 }
 
