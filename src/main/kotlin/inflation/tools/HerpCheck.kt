@@ -48,6 +48,9 @@ fun main(args: Array<String>) {
     val nb = inflation.ecology.HexSmallLife.BIRDS.size
     val bYearly = Array(nb) { DoubleArray(years) }; val bMean = DoubleArray(nb)
     val bCap = DoubleArray(nb).also { for (k in 0 until nb) for (p in 0 until n) if (c[p] >= 0) it[k] += (sl.birdCapacityAt(k, p) * land.areaKm2[p]).toDouble() }
+    // Month by month (see below): stocks (songbirds, insects, pollinators, herps) and flows since the last step.
+    val song = inflation.ecology.HexSmallLife.BIRDS.indexOfFirst { it.name == "songbirds" }
+    val mSteps = IntArray(12); val mStock = Array(12) { DoubleArray(4) }; val mFlow = Array(12) { DoubleArray(8) }; val mLast = DoubleArray(8)
     val herpMean = DoubleArray(classes.size); val ledger = Array(classes.size) { DoubleArray(8) }; val first = DoubleArray(classes.size); val last = DoubleArray(classes.size)
     repeat(steps) { w ->
         if (w == start) { for (l in sl.herpLedger) l.fill(0f); for (l in sl.herpTakenBy) l.fill(0f); for (l in sl.tortLedger) l.fill(0f); for (l in sl.tortTakenBy) l.fill(0f); for (k in sl.preyTakenBy) for (l in k) l.fill(0f); sl.grubsDug.fill(0f); for (k in sl.birdLedger) for (l in k) l.fill(0f); for (p in 0 until n) if (c[p] >= 0) first[c[p]] += (sl.herps[p] * land.areaKm2[p]).toDouble() }
@@ -59,6 +62,15 @@ fun main(args: Array<String>) {
             for (k in 0 until nb) { bYearly[k][y] += sl.bird[k][p] * a / perYear; if (w >= start) bMean[k] += sl.bird[k][p] * a / (show * perYear) }
             if (w >= start) { val f = a / (show * perYear); preyMean[0][cc] += sl.rodents[p] * f; preyMean[1][cc] += sl.hares[p] * f; preyMean[2][cc] += sl.hyrax[p] * f; preyMean[3][cc] += sl.birds[p] * f } }
         val month = run.weather.date.month; val mi = when (month) { 2 -> 0; 8 -> 1; else -> -1 }; if (mi >= 0) monthSteps[mi][y]++
+        // Month by month over the shown years, whole map: songbirds and their ledger, insects, herps.
+        if (w >= start) { val mo = month; mSteps[mo]++
+            var sb = 0.0; var ins = 0.0; var pol = 0.0; var hp = 0.0; val now = DoubleArray(8)
+            for (p in 0 until n) { if (c[p] < 0) continue; val a = land.areaKm2[p].toDouble()
+                if (song >= 0) { sb += sl.bird[song][p] * a; now[0] += sl.birdLedger[song][0][p] * a; now[1] += sl.birdLedger[song][1][p] * a; now[2] += sl.birdLedger[song][6][p] * a; now[3] += sl.birdLedger[song][7][p] * a }
+                ins += sl.insects[p] * a; pol += sl.pollinators[p] * a; hp += sl.herps[p] * a
+                now[4] += sl.herpLedger[7][p] * a; now[5] += sl.herpLedger[5][p] * a; now[6] += sl.herpLedger[6][p] * a; now[7] += sl.herpLedger[2][p] * a }
+            mStock[mo][0] += sb; mStock[mo][1] += ins; mStock[mo][2] += pol; mStock[mo][3] += hp
+            for (i in 0 until 8) { mFlow[mo][i] += now[i] - mLast[i]; mLast[i] = now[i] } }
         for (p in 0 until n) { if (c[p] < 0) continue; val a = land.areaKm2[p].toDouble() / perYear
             val v = doubleArrayOf(sl.rodents[p].toDouble(), sl.hares[p].toDouble(), sl.hyrax[p].toDouble(), sl.birds[p].toDouble(), sl.tortoises[p].toDouble(), sl.foxes[p].toDouble(), sl.owls[p].toDouble(),
                 if (boar >= 0) (run.fauna.adults[boar][p] + run.fauna.young[boar][p]).toDouble() else 0.0)
@@ -153,5 +165,13 @@ fun main(args: Array<String>) {
         val rest = net - (l[0] - l[1] - l[2] - l[3] + l[4] - l[5]) / show
         println("%-16s%8.2f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8s".format(BIRDS[k].name, m / allArea, pct(l[0]), pct(l[1]), pct(l[2]), pct(l[3]), pct(l[4]), pct(l[5]),
             if (m > 0) 100.0 * rest / m else Double.NaN, if (m > 0) 100.0 * net / m else Double.NaN, if (l[7] > 0) "%.2f".format(l[6] / l[7]) else "-"))  // "-": a kind that eats no insects
+    }
+    if (song >= 0) {
+        println()
+        println("month by month, last $show years, whole map kg/km2: songbirds; their growth and deaths a month; share fed while eating insects; insects out, pollinators, herps; insects eaten a month by birds, by herps; herps' share fed; herps dying of hunger a month")
+        println("%-5s%9s%8s%8s%6s%9s%8s%8s%9s%9s%6s%8s".format("month", "song", "grown", "died", "fed", "insects", "pollin", "herps", "ins:brd", "ins:hrp", "hfed", "hhung"))
+        for (mo in 0 until 12) { val st = mSteps[mo].coerceAtLeast(1); val f = mFlow[mo]; val perMonth = 1.0 / show / allArea
+            println("%-5d%9.2f%8.2f%8.2f%6.2f%9.1f%8.2f%8.1f%9.1f%9.1f%6.2f%8.2f".format(mo, mStock[mo][0] / st / allArea, f[0] * perMonth, f[1] * perMonth, if (f[3] > 0) f[2] / f[3] else Double.NaN,
+                mStock[mo][1] / st / allArea, mStock[mo][2] / st / allArea, mStock[mo][3] / st / allArea, f[4] * perMonth, f[5] * perMonth, if (f[6] > 0) f[5] / f[6] else Double.NaN, f[7] * perMonth)) }
     }
 }
