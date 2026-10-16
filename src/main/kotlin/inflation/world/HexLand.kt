@@ -371,6 +371,12 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
      * fraction from the rest (see [nourishment]).
      */
     val green = FloatArray(n)
+    /**
+     * The cured grass weathering where it stands: how much of the stand has fallen into the litter since
+     * it last grew, kg/m² (the crowns that grew it are still there, so it grows back as fast as it would
+     * have), and how fresh the cured part still is, 0..1: 1 just cured, 0 leached to straw (see [HAY_WEATHERING]).
+     */
+    val hayFallen = FloatArray(n); val hayFresh = FloatArray(n) { 1f }
     /** Each place's warmest month, °C (normal); and from it how plants there are adapted: the warmth at which they start to grow and over which they reach full growth, °C, and the share of the sward that is perennial. */
     private val warmest = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
     private val growFrom = FloatArray(n) { p -> (warmest[p] - 20f).coerceIn(-2f, GROW_FROM_C) }
@@ -661,7 +667,19 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             // (Where winters are mild enough to grow on, the leaves stay, as on the evergreen scrub of the south.)
             if (LEAF_FALL > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-LEAF_FALL * years); shrubShoots[p] *= k; treeShoots[p] *= k }
             val lawn = 1f - exp(-grazing[p] / Vegetation.LAWN_SCALE)
-            grow(LifeForm.HERB, herb, p, grassGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted)
+            val herb0 = herb[p]
+            grow(LifeForm.HERB, herb, p, grassGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted, hayFallen[p])
+            // Cured grass weathers where it stands: the dead stems break and fall into the litter, and what
+            // stands is leached of its protein, week by week, until rain sprouts it again. New growth makes
+            // good what fell, and freshens the stand by its share of it.
+            val grown = max(0f, herb[p] - herb0)
+            hayFallen[p] = max(0f, hayFallen[p] - grown)
+            if (HAY_WEATHERING > 0f) {
+                val kept = exp(-HAY_WEATHERING * years)
+                val fell = herb[p] * (1f - green[p]) * (1f - kept)
+                herb[p] -= fell; hayFallen[p] += fell
+                hayFresh[p] = if (herb[p] > 1e-6f) ((herb[p] - grown).coerceAtLeast(0f) * hayFresh[p] * kept + grown) / herb[p] else 1f
+            }
             // Ash smothers the low plants and scorches leaves; as it weathers it enriches the soil.
             if (ash[p] > 1f) {
                 herb[p] *= exp(-ash[p] / ASH_SMOTHER_MM * years * 52f / 10f); shrub[p] *= exp(-ash[p] / (4f * ASH_SMOTHER_MM) * years * 52f / 10f)
@@ -691,10 +709,11 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         }
     }
 
-    private fun grow(form: LifeForm, b: FloatArray, p: Int, time: Float, seedRain: Float, capFactor: Float = 1f) {
+    /** (With [crowns], kg/m², of the stand lost lately that its roots will grow back: it grows as from the whole stand.) */
+    private fun grow(form: LifeForm, b: FloatArray, p: Int, time: Float, seedRain: Float, capFactor: Float = 1f, crowns: Float = 0f) {
         val cap = ceiling(form, p) * capFactor
-        val v = b[p]
-        if (v < cap) b[p] = v + form.growthPerYear * time * (v + seedRain * cap * 0.05f) * (1 - v / cap.coerceAtLeast(1e-6f))
+        val v = b[p]; val base = v + crowns
+        if (v < cap) b[p] = v + form.growthPerYear * time * (base + seedRain * cap * 0.05f) * (1 - v / cap.coerceAtLeast(1e-6f))
         else b[p] = v - (v - cap) * min(1f, 2f * time + 0.002f)
         if (b[p] < 0f) b[p] = 0f
     }
@@ -800,6 +819,13 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
+        /**
+         * How fast cured grass weathers where it stands, a year: the share of the standing dead that falls
+         * into the litter (about 0.12-0.2 a month for grasses in the CENTURY model's fall rate, from memory),
+         * and the rate at which what stands loses its protein toward straw's (crude protein of cured grass
+         * falling from about 6% to 3% over a dry season of four to five months, from memory). 0: no weathering.
+         */
+        val HAY_WEATHERING = Config.float("t.hayWeathering", 1.8f)
         /** Share of trees' new growth within a browser's reach (saplings and low boughs). */
         const val TREE_IN_REACH = 0.03f
         /** How moist the water table keeps the ground round fresh lakes and springs, as a share of a full soil. */

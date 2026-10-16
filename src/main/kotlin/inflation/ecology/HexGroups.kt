@@ -483,7 +483,7 @@ class HexGroups(
             for ((k, s) in kinds.withIndex()) placeValue[k][p] =
                 if (s.human) campValue(s, p)
                 else if (s.carnivore) dietValue(s, p, preyHere(s, p) + herdPrey(s, p))
-                else foodFor(s, p) * fauna.suits(s, p) * (1f - land.burning[p])
+                else foodFor(s, p) * fauna.suits(s, p) * (1f - land.burning[p]) * (if (HERD_WATER_TIE) fauna.tether(s, p) else 1f)
         }
     }
 

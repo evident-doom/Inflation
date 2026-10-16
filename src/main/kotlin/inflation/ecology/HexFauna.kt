@@ -103,7 +103,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun killed(p: Int, kg: Float) { fear[p] += kg / land.areaKm2[p] }
 
     /** Protein of the grass and of the browse at place [p], against fresh growth: full when green, little when cured. */
-    fun grassProtein(p: Int) = PROTEIN_DRY_GRASS + (1f - PROTEIN_DRY_GRASS) * land.green[p]
+    fun grassProtein(p: Int): Float {
+        // (Cured grass is leached toward straw as it weathers, see [HexLand.hayFresh].)
+        val dry = PROTEIN_STRAW + (PROTEIN_DRY_GRASS - PROTEIN_STRAW) * land.hayFresh[p]
+        return dry + (1f - dry) * land.green[p]
+    }
     fun browseProtein(p: Int) = PROTEIN_DRY_BROWSE + (1f - PROTEIN_DRY_BROWSE) * land.green[p]
     /** How well a diet with [share] of fresh growth's protein meets a mother's and a growing young's need, 0..1. */
     fun proteinMet(share: Float) = min(1f, share / PROTEIN_NEED)
