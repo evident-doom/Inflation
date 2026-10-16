@@ -68,6 +68,12 @@ is not a cost unit. Biting insects had none until step 1. Wet has neither.
    constant, and it holds only where relief exists: a lower valley in the cold, a windy ridge or
    dry ground from the flies. The per-role reasons (hunger, thirst, astray, the round, and cold or
    heat above 0.5) stay. Cost: six extra place lookups per group per week.
+   - First A/B (1691d9d): treating relief as restlessness also widened the group's reach to its
+     full week's travel, and other pulls then carried it far. On full-1, wild horses drowned at
+     crossings about twice as often, were hunted 15-45% more and bore 6-15% fewer young
+     (hartebeest likewise: more hunted, fewer births). So relief now only makes a group weigh its
+     places that week, with its usual reach. Kinds whose usual two days' going is under a hex
+     (3-4 km a day) can't take the relief.
    - With a hex of 10 km, the threshold is 1.6% of the week's need: about 1.6 °C of cold
      difference to the next hex, or a small fly difference. Expect many more groups to weigh
      their places each week. That is the large behaviour change this step is for, and the

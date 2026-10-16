@@ -642,12 +642,13 @@ class HexGroups(
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
         // (Bands hold no hunting ground of the packs' kind: a band is restless when hungry, thirsty, astray,
         // or ill at ease where it is: the cold or heat as its clothes, fire and shelter leave it.)
-        // Any group is restless where what the place drains from it (the cold, the flies) is worse, by
-        // more than a step's going costs, than at the next place over: relief lies a step away.
+        // Any group weighs its places where what the place drains from it (the cold, the flies) is worse,
+        // by more than a step's going costs, than at the next place over: relief lies a step away. (It
+        // looks about, but does not trek for it: its usual week's going reaches the next place.)
         val relief = drain(g, g.place, weather) - leastDrainNear(g, here, weather) > WALK_COST * hex.hexKm.toFloat() / days
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
         val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && ((b.appointMonth - month + 12) % 12) <= 1) || b.unluckyHex == here || b.raidHex >= 0 } ?: false
-        val restless = relief || if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon || (onRound && goalFar) ||
+        val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon || (onRound && goalFar) ||
                 (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: 0f) > 0.5f
             else if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
@@ -659,7 +660,7 @@ class HexGroups(
         val every = if (s.human && policies[s] != null) BAND_CONTENT_WEEKS else if (s.carnivore) 2 else Tuning.contentWeeks
         // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
         val capture = control != null && g.id == watched
-        val content = !restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
+        val content = !restless && !relief && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
         if (content && !capture) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
         // (A big herd moves more slowly than a small one: it waits for its stragglers.)
         // (A starving herd on eaten-out ground goes as far as it must, up to its whole week's travel.)
