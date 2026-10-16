@@ -245,10 +245,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             // ---- plant-eating insects (see [insectSeason]): on the young leaves of herbs and shrubs, as green as the place is.
             val active = ((t - insectFrom[p]) / INSECT_SPAN_C).coerceIn(0f, 1f)
             val greenFood = (land.herb[p] + 0.3f * land.shrub[p]) * land.green[p]
-            smallDead[p] += insectSeason(p, insects, dormantInsects, active, 2000f * greenFood / (greenFood + 0.15f))
+            val low = 2000f * greenFood / (greenFood + 0.15f)
+            // In the canopy, caterpillars and their kin take a steady share of the leaves the trees put out
+            // ([CANOPY_HERBIVORY] of them); as many live there as eat that much while the leaves are out.
+            val canopy = land.green[p] * CANOPY_HERBIVORY * HexLand.TREE_RENEWAL * land.tree[p] * 1e6f / (INSECT_INTAKE * LEAF_DAYS)
+            smallDead[p] += insectSeason(p, insects, dormantInsects, active, low + canopy)
             if (active > 0f) {
                 // They eat about a quarter of their weight a day, and half of it comes back as frass.
-                val eaten = land.consume(p, LifeForm.HERB, insects[p] * 0.2f * days / 1e6f) + land.consume(p, LifeForm.SHRUB, insects[p] * 0.05f * days / 1e6f)
+                val up = if (canopy > 0f) canopy / (low + canopy) else 0f
+                val eaten = land.consume(p, LifeForm.HERB, (1f - up) * insects[p] * 0.2f * days / 1e6f) + land.consume(p, LifeForm.SHRUB, (1f - up) * insects[p] * 0.05f * days / 1e6f) +
+                    land.consume(p, LifeForm.TREE, up * insects[p] * INSECT_INTAKE * days / 1e6f)
                 litter[p] += FRASS * eaten
             }
             insects[p] = capped(p, insects[p], 3000f)
@@ -934,6 +940,15 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val INSECT_FROM_MIN_C = 5f
         const val INSECT_SPAN_C = 15f
         const val INSECT_GROWTH = 0.15f
+        /**
+         * Canopy insects: the share of the leaves woody plants put out each year that insects eat (about 7%
+         * worldwide, less toward the poles: Kozlov et al. 2015, "Global patterns in background losses of woody plant foliage to insects");
+         * what they eat a day, as a share of their weight; and how long the leaves are out, days (about half
+         * a year where they fall in winter).
+         */
+        const val CANOPY_HERBIVORY = 0.07f
+        const val INSECT_INTAKE = 0.25f
+        const val LEAF_DAYS = 180f
         const val DORMANT_DEATHS = 1f
         const val EGG_SHARE = 0.5f
         /** Share of a rotting carcass left as bones. */
