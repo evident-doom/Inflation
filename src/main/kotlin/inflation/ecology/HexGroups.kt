@@ -640,10 +640,16 @@ class HexGroups(
         val goalFar = goal >= 0 && (!s.carnivore || s.human) && hexKm(here, hw.placeHex[goal]) > 2 * hex.hexKm
         // Far out of its country, it treks.
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
-        // (Bands hold no hunting ground of the packs' kind: a band is restless only when hungry, thirsty or astray.)
+        // (Bands hold no hunting ground of the packs' kind: a band is restless when hungry, thirsty, astray,
+        // or ill at ease where it is: the cold or heat as its clothes, fire and shelter leave it.)
+        // Any group weighs its places where what the place drains from it (the cold, the flies) is worse,
+        // by more than a step's going costs, than at the next place over: relief lies a step away. (It
+        // looks about, but does not trek for it: its usual week's going reaches the next place.)
+        val relief = drain(g, g.place, weather) - leastDrainNear(g, here, weather) > WALK_COST * hex.hexKm.toFloat() / days
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
         val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && ((b.appointMonth - month + 12) % 12) <= 1) || b.unluckyHex == here || b.raidHex >= 0 } ?: false
-        val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon || (onRound && goalFar)
+        val restless = if (s.human) g.fed < 0.5f || thirsty || astray || dueSoon || (onRound && goalFar) ||
+                (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: 0f) > 0.5f
             else if (s.carnivore) g.fed < 0.5f || g.home < 0 || thirsty || astray
             else g.fed < 0.7f || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm || thirsty || astray || goalFar
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
@@ -654,7 +660,7 @@ class HexGroups(
         val every = if (s.human && policies[s] != null) BAND_CONTENT_WEEKS else if (s.carnivore) 2 else Tuning.contentWeeks
         // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
         val capture = control != null && g.id == watched
-        val content = !restless && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
+        val content = !restless && !relief && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
         if (content && !capture) { planCounts.incrementAndGet(s.index * 3); return g.place to intArrayOf(here) }
         // (A big herd moves more slowly than a small one: it waits for its stragglers.)
         // (A starving herd on eaten-out ground goes as far as it must, up to its whole week's travel.)
@@ -771,7 +777,10 @@ class HexGroups(
                     // more however much of the dry stuff stands, as it is to a mother and her young.)
                     food / (food + 0.3f) * freshness(s, p) - 0.5f * crowd(s, p, g) - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
                 }
-                score -= 0.5f * discomfort(s, p, weather) + offGround
+                // The cold or heat it bears there, and what the place drains from it (the extra food the
+                // cold burns, the feeding or working time the flies take), weighed as the going is: in
+                // shares of the week's need.
+                score -= 0.5f * discomfort(s, p, weather) + drain(g, p, weather) + offGround
                 // Its own kind of country: open plains for a cheetah, crags for a wild goat, whatever the food.
                 if (!s.human) score += GROUP_HABITAT * kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f))
                 // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
@@ -837,8 +846,9 @@ class HexGroups(
                     f[1] = kotlin.math.ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
                     f[2] = crowd(s, p, g)
                     f[3] = predatorKg[p] / land.areaKm2[p] / (predatorKg[p] / land.areaKm2[p] + 3f)
-                    f[4] = min(2f, discomfort(s, p, weather))
-                    f[5] = min(2f, s.discomfortC(weather.forecastTemp(p), date.month) / 10f)
+                    f[4] = min(2f, discomfort(s, p, weather) + drain(g, p, weather))
+                    // (The flies are felt now; only the weather is foreseen.)
+                    f[5] = min(2f, s.discomfortC(weather.forecastTemp(p), date.month) / 10f + drain(g, p, weather))
                     // People see only what they can read: the weather coming as their lore and sky-watching
                     // allow (else they expect this week's again), the beasts about as their tracking does,
                     // and the food of country they do not know only dimly.
@@ -931,8 +941,8 @@ class HexGroups(
                 val h = hw.placeHex[p]; val food = placeValue[ki][p]; val hunters = predatorKg[p] / land.areaKm2[p]
                 val toGoal = hexKm(h, goalHex)
                 val prog = if (fromHere > hex.hexKm) ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f) else 0f
-                return "food %.2f crowd %.2f hunters %.2f cold/heat %.2f water %.2f going %.2f season %.2f bearing %.2f stay %.2f (%.0f km from goal)".format(
-                    food / (food + 0.3f) * freshness(s, p), -0.5f * crowd(s, p, g), -SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG), -0.5f * discomfort(s, p, weather),
+                return "food %.2f crowd %.2f hunters %.2f cold/heat/flies %.2f water %.2f going %.2f season %.2f bearing %.2f stay %.2f (%.0f km from goal)".format(
+                    food / (food + 0.3f) * freshness(s, p), -0.5f * crowd(s, p, g), -SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG), -0.5f * discomfort(s, p, weather) - drain(g, p, weather),
                     -(0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm, -WALK_COST * dist[h] / days,
                     SEASON_PULL * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog, BEARING_PULL * bearings.along(ki, here, h, pullKm),
                     if (p == g.place) STAY else 0f, toGoal)
@@ -954,6 +964,44 @@ class HexGroups(
 
     internal fun discomfort(s: Species, p: Int, weather: Weather): Float {
         return s.discomfortC(weather.temperature[p], weather.date.month) / 10f
+    }
+
+    /**
+     * What place [p] drains from group [g] this week, as a share of its week's need (the unit the going
+     * is reckoned in): the extra food it burns keeping warm in the cold its coat (or clothes, fire and
+     * shelter) does not keep off ([coldNeed]), and what the biting insects cost it ([bitten]).
+     */
+    internal fun drain(g: HexGroup, p: Int, weather: Weather): Float {
+        val s = g.species; val t = weather.temperature[p]
+        return coldNeed(s, g.band?.feels(t) ?: t, weather.date.month) - 1f + bitten(s, p)
+    }
+
+    /** The least [drain] at the places next to hex [here] (in the group's band of places). */
+    private fun leastDrainNear(g: HexGroup, here: Int, weather: Weather): Float {
+        val b = hw.placeBand[g.place]
+        var least = Float.MAX_VALUE
+        for (k in 0 until 6) {
+            val q = hex.neighbour(here, k)
+            if (q < 0) continue
+            val p = hw.placeOf[b][q]
+            if (p >= 0) least = min(least, drain(g, p, weather))
+        }
+        return if (least == Float.MAX_VALUE) drain(g, g.place, weather) else least
+    }
+
+    /**
+     * What the biting insects at [p] cost a group of kind [s] this week, as a share: of the feeding time
+     * a plant-eater loses to them, of the working time people lose. Hunters lose nothing to them here,
+     * so they do not mind them.
+     */
+    internal fun bitten(s: Species, p: Int): Float {
+        val h = small.harassment(p)
+        return when {
+            h <= 0f -> 0f
+            s.human -> HexSmallLife.HARASS_TIME * h / (1f + HexSmallLife.HARASS_TIME * h)
+            s.carnivore -> 0f
+            else -> HexSmallLife.HARASS_FEED * h
+        }
     }
 
     internal fun crowd(s: Species, p: Int, g: HexGroup): Float {

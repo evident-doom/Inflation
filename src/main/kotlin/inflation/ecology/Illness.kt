@@ -15,7 +15,7 @@ import kotlin.math.min
 enum class Illness(val label: String, val weeks: Float, val deadly: Float, val young: Float, val contagion: Float, val immuneYears: Float, val endemic: Float) {
     /** Dysentery and its kin: fouled water and long-kept camps, worst in the warm months and in crowds. */
     FLUX("the flux", 3f, 0.03f, 3f, 0.25f, 2f, 0.4f),
-    /** Malaria: mosquitoes by marshes in the warm months; not caught from one another. */
+    /** Malaria: carried by the mosquitoes about the camp in the warm months; not caught from one another. */
     MARSH_FEVER("marsh fever", 6f, 0.04f, 3f, 0f, 4f, 0.3f),
     /** A virulent cough that runs from band to band, worst in winter and at gatherings, and can empty a camp. */
     COUGH("the cough", 4f, 0.08f, 2f, 0.6f, 20f, 0.6f),
@@ -38,7 +38,9 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
         val open = (1f - b.sick[i] - b.immune[i]).coerceAtLeast(0f)
         val rate = when (d) {
             Illness.FLUX -> FLUX_RATE * (min(1f, b.campWeeks / 26f) + 0.3f * crowd) * (if (t > 15f) 1f else 0.3f) * hygiene
-            Illness.MARSH_FEVER -> FEVER_RATE * Tuning.marshFever * land.logged[p] * (if (t > 20f) 1f else 0f)
+            // (As many mosquitoes as breed in the standing water about the camp: marsh, floods, sodden
+            // ground after rain; the parasite ripens in them only in warm weeks.)
+            Illness.MARSH_FEVER -> FEVER_RATE * Tuning.marshFever * small.biting[p] / (small.biting[p] + HexSmallLife.HARASS_HALF) * (if (t > 20f) 1f else 0f)
             Illness.COUGH -> if (r.nextFloat() < COUGH_BREAKS * crowd * crowd * (if (t < 10f) 2f else 1f) * days / 7f) COUGH_FIRST else 0f
         }
         b.sick[i] = min(1f, b.sick[i] + rate * open * days / 7f)
@@ -68,8 +70,8 @@ internal fun passIllness(a: Band, b: Band) {
 }
 
 /**
- * Sickness: weekly share of the well who fall to the flux in a fouled, warm camp; to marsh fever on
- * marsh ground in the warm months; weekly chance a cough breaks out among crowded people (times the
+ * Sickness: weekly share of the well who fall to the flux in a fouled, warm camp; to marsh fever where
+ * the mosquitoes swarm in the warm months (at half their worst); weekly chance a cough breaks out among crowded people (times the
  * crowding squared), and the share it first strikes; how much keeping away from the sick spares a band.
  */
 const val FLUX_RATE = 0.003f
