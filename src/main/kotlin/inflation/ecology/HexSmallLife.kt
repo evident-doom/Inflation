@@ -558,20 +558,22 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * swarms, and when they are out, reptiles, amphibians and tortoises, each in proportion to what
      * there is, at most half of all; and the scattered insects that are out (plant-eaters and
      * pollinators) as far as a vertebrate hunting by sight can pick them up ([INSECT_CATCH]). Returns
-     * kg per km² caught.
+     * kg per km² caught. A beast that roots for its food rather than hunting ([youngOnly]) gets only the
+     * young of the small vertebrates (nestlings, litters in the nest, hatchlings; [YOUNG_SHARE]).
      */
-    fun catchSmall(p: Int, kgPerKm2: Float, weather: Weather, most: Float = 0.5f, who: Int = TAKER_GROUPS): Float {
+    fun catchSmall(p: Int, kgPerKm2: Float, weather: Weather, most: Float = 0.5f, who: Int = TAKER_GROUPS, youngOnly: Boolean = false): Float {
         val t = weather.temperature[p]
         val herpsOut = herpsActive(t, land.soil[p])
         val tortOut = t in 14f..33f
         // (A tortoise's shell, once hardened, is proof against most beasts: they get only the young. People take any.)
-        val shell = if (who < TAKER_GROUPS) TORT_YOUNG_SHARE else 1f
+        val shell = if (who < TAKER_GROUPS) YOUNG_SHARE else 1f
+        val y = if (youngOnly) YOUNG_SHARE else 1f
         // Desert rodents sleep through the summer heat in their burrows.
         val rodentsOut = !(t > 30f && land.soil[p] < 10f && annualRain[p] < DORMANT_RAIN_MM)
-        val total = (if (rodentsOut) rodents[p] else 0f) + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] * herpExposed(p) else 0f) + (if (tortOut) tortoises[p] * shell else 0f) + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
+        val total = y * ((if (rodentsOut) rodents[p] else 0f) + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] * herpExposed(p) else 0f)) + (if (tortOut) tortoises[p] * shell else 0f) + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
         if (total <= 0f) return 0f
         // (Prey that is not out is not met: in the same order as [huntedAll].)
-        val ease = floatArrayOf(if (rodentsOut) 1f else 0f, 1f, 1f, 1f, if (herpsOut) herpExposed(p) else 0f, if (tortOut) shell else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f }
+        val ease = floatArrayOf(if (rodentsOut) y else 0f, y, y, 1f, if (herpsOut) y * herpExposed(p) else 0f, if (tortOut) shell else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { y }
         val h0 = herps[p]; val t0 = tortoises[p]
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birds[p]
         val took = takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
@@ -581,6 +583,21 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         noteTaken(p, min(who, TAKER_GROUPS), r0, ha0, hy0, b0)
         return took
     }
+
+    /**
+     * A beast rooting in the soil of place [p] takes up to [kgPerKm2] of the grubs lying there (the larvae
+     * and pupae of insects waiting out the cold or the drought), at most half of them; returns kg/km² taken.
+     */
+    fun digGrubs(p: Int, kgPerKm2: Float): Float {
+        val there = dormantInsects[p] + dormantPollinators[p]
+        if (kgPerKm2 <= 0f || there <= 0f) return 0f
+        val took = min(kgPerKm2, 0.5f * there); val f = 1f - took / there
+        dormantInsects[p] *= f; dormantPollinators[p] *= f
+        grubsDug[p] += took
+        return took
+    }
+    /** Grubs dug since cleared, kg/km² (for checks). */
+    val grubsDug = FloatArray(n)
 
     /**
      * What happened to the reptiles and amphibians of each place since the ledger was last cleared,
@@ -793,11 +810,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
          */
         const val HERP_MOST = 1000f
         /**
-         * Share of the tortoises' weight in young whose shells have not yet hardened, the only ones most
-         * beasts can kill (adults are rarely taken but by eagles and people; Sci. Rep. 2022,
-         * doi:10.1038/s41598-022-22288-9). An estimate: the young are many but small.
+         * Share of small animals' weight in young within reach of a beast that cannot catch the grown:
+         * tortoises whose shells have not yet hardened (adults are rarely taken but by eagles and people;
+         * Sci. Rep. 2022, doi:10.1038/s41598-022-22288-9), and the nestlings, litters and hatchlings a
+         * rooting boar or bear turns up. An estimate: the young are many but small.
          */
-        const val TORT_YOUNG_SHARE = 0.1f
+        const val YOUNG_SHARE = 0.1f
         /** The [herpTakenBy] slot of hunting groups and people (resident kinds take the slots below it). */
         const val TAKER_GROUPS = 40
         const val TAKER_FOXES = 41

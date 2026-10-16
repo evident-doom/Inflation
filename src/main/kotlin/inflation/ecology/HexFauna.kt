@@ -116,6 +116,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
 
     /**
+     * Small animal food for resident kind [k] at place [p], up to [kgPerM2], kg eaten per m2. A kind that
+     * roots for its food (roots in its diet: boar, bear) finds it mostly by digging, the grubs in the
+     * soil first, then what is out, and of the small vertebrates only the young it turns up; the
+     * others hunt it ([HexSmallLife.catchSmall]).
+     */
+    private fun smallFood(k: Int, p: Int, kgPerM2: Float, weather: Weather): Float {
+        if (kgPerM2 <= 0f) return 0f
+        val roots = kinds[k].diet.roots > 0f
+        val dug = if (roots) small.digGrubs(p, kgPerM2 * 1e6f) / 1e6f else 0f
+        return dug + small.catchSmall(p, (kgPerM2 - dug) * 1e6f, weather, who = k, youngOnly = roots) / 1e6f
+    }
+
+    /**
      * Resident hunter [k] at place [p] kills game among the residents there, for up to [kgPerM2] of
      * meat: prey from a quarter of its weight to [PREY_UP_TO] times it (the young of bigger kinds
      * too), each kind as it is common there and by its weight, at most [RESIDENT_KILL_MOST] of a
@@ -465,7 +478,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         val animalNeed = needAll * (1f - ps)
                         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - got[k] - strawPart) else 0f
                         var gotMeat = huntResidents(k, p, needAll * d.meat / all * avail[k])
-                        var gotSmall = small.catchSmall(p, needAll * d.smallPrey / all * 1e6f * avail[k], weather, who = k) / 1e6f
+                        var gotSmall = smallFood(k, p, needAll * d.smallPrey / all * avail[k], weather)
                         var gotCarrion = small.scavenge(p, min(needAll * d.carrion / all, 0.5f * small.carrion[p]))
                         var gap = animalNeed + plantGap - gotMeat - gotSmall - gotCarrion
                         // (The shortfall is made up first from the food it mostly lives on, then from the others,
@@ -476,7 +489,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                             if (gap <= 0f) break
                             val x = when (food) {
                                 0 -> min(gap, most * d.meat - gotMeat).let { if (it > 0f) huntResidents(k, p, it * avail[k]) else 0f }
-                                1 -> min(gap, most * d.smallPrey - gotSmall).let { if (it > 0f) small.catchSmall(p, it * 1e6f * avail[k], weather, who = k) / 1e6f else 0f }
+                                1 -> min(gap, most * d.smallPrey - gotSmall).let { if (it > 0f) smallFood(k, p, it * avail[k], weather) else 0f }
                                 else -> min(gap, most * d.carrion - gotCarrion).let { if (it > 0f) small.scavenge(p, min(it, 0.5f * small.carrion[p])) else 0f }
                             }
                             when (food) { 0 -> gotMeat += x; 1 -> gotSmall += x; else -> gotCarrion += x }
@@ -488,7 +501,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                             val moreMeat = min(more, most * d.meat - gotMeat)
                             if (moreMeat > 0f) { val x = huntResidents(k, p, moreMeat * avail[k]); surplus[k] += x / needAll; more -= x }
                             val moreSmall = min(more, most * d.smallPrey - gotSmall)
-                            if (moreSmall > 0f) { val x = small.catchSmall(p, moreSmall * 1e6f * avail[k], weather, who = k) / 1e6f; surplus[k] += x / needAll; more -= x }
+                            if (moreSmall > 0f) { val x = smallFood(k, p, moreSmall * avail[k], weather); surplus[k] += x / needAll; more -= x }
                         }
                         animal = (gotMeat + gotSmall + gotCarrion) / animalNeed
                         small.dung[p] += HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)
