@@ -7,7 +7,7 @@ import inflation.world.Date
 import inflation.world.WorldConfig
 
 /**
- * What bands' rites do (run once with -Dhex.rounds, once without, same seeds): each year, how far a
+ * What bands' rites do (run once with rounds=true, once without, same seeds): each year, how far a
  * band gets from where it began the year (km, its furthest), the share of bands that set foot in
  * country of another kind than their own (by each hex's chief kind of country), how many bands hold
  * rites and how strongly, and people's score (people-weeks per person at the start, less their luck in

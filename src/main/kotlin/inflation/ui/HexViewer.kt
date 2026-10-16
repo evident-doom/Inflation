@@ -1,5 +1,7 @@
 package inflation.ui
 
+import inflation.Config
+
 import inflation.ecology.HexRoutes
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFauna
@@ -49,13 +51,13 @@ import kotlin.math.min
  * (--load carries on a saved world: the seed and size must be the ones it was saved with;
  * --nets moves every kind by the learned networks in DIR (herds.mlp, hunters.mlp, people.mlp, as
  * hex-ppo writes them, and herd-ways.mlp, hunter-ways.mlp where present), --ways sets the bands'
- * ways by a learned network; -Dhex.nets, -Dhex.ways, -Dhex.herdWays and -Dhex.hunterWays do the
+ * ways by a learned network; nets, ways, herdWays and hunterWays do the
  * same, as for hex-fauna. Without them the hand-written choices are the model.)
  */
 fun main(args: Array<String>) {
     var cfg = WorldConfig(seed = 1)
     var load: java.io.File? = null
-    var nets = System.getProperty("hex.nets"); var ways = System.getProperty("hex.ways")
+    var nets = Config.string("nets"); var ways = Config.string("ways")
     var k = 0
     while (k < args.size) {
         when (args[k]) {
@@ -262,8 +264,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         (waysFile ?: nets?.let { java.io.File(inflation.tools.baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
             groups.ways = inflation.learning.NetWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.WAYS_IN, inflation.learning.Schema.WAYS_OUT))
         }
-        System.getProperty("hex.herdWays")?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
-        System.getProperty("hex.hunterWays")?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
+        Config.string("herdWays")?.let { groups.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
+        Config.string("hunterWays")?.let { groups.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
     }
 
     private fun snapshot() {

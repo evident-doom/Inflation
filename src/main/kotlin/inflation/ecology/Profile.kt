@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+
 import java.lang.management.ManagementFactory
 
 /**
@@ -30,11 +32,11 @@ object Profile {
     fun reset() { wall.clear(); cpu.clear(); order.clear(); parts.clear(); partOrder.clear() }
 
     /**
-     * Finer parts (with -Dhex.profile=fine): time spent in each, summed over all the threads that ran
+     * Finer parts (with profile=fine): time spent in each, summed over all the threads that ran
      * it (so a part inside a loop over places run on every core counts every core's time). Use as
      * `var t = Profile.mark(); ...; t = Profile.lap("part", t)`.
      */
-    val FINE = System.getProperty("hex.profile") == "fine"
+    val FINE = Config.string("profile") == "fine"
     private val parts = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder>()
     private val partOrder = java.util.concurrent.CopyOnWriteArrayList<String>()
     fun mark(): Long = if (FINE) System.nanoTime() else 0L

@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexMap
@@ -258,7 +260,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 busy += kills1 * time[i]
                 var ny = if (spareYoung) 0 else (kills1 * fauna.young[k][p] / dens).toInt(); val na = kills1 - ny
                 // A band at home may keep young it catches, to raise by its camp.
-                if (HERDING && band != null && band.atHome && ny > 0) {
+                if (band != null && band.atHome && ny > 0) {
                     val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
                     if (kept > 0) {
                         if (band.herd.size < fauna.kinds.size) { band.herd = band.herd.copyOf(fauna.kinds.size); band.herdTame = band.herdTame.copyOf(fauna.kinds.size) }
@@ -358,9 +360,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         for (st in EAT_ORDER) { val e = min(need, got[st.ordinal]); got[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
         for (st in EAT_ORDER) { val e = min(need, g.stores[st.ordinal]); g.stores[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
         eaten = wantAll - need
-        // (Trade on: people living mostly on plant food need salt, which meat and fish carry; short of it,
+        // (People living mostly on plant food need salt, which meat and fish carry; short of it,
         // they are listless and weak, and the food does them the less good.)
-        if (TRADE && eaten > 0f) {
+        if (eaten > 0f) {
             val plantShare = ((eaten - ateMeat) / eaten).coerceIn(0f, 1f)
             val want = SALT_A_PERSON_WEEK * plantShare * g.size * days / 7f
             if (want > 0f) {
@@ -376,17 +378,15 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
         val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
         val smoke = if (band.knowsSkill[Skill.SMOKING.ordinal] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
-        // (With trade on, a band with salt salts what it cures: salt cures in any weather.)
-        val salt = if (TRADE) band.goods[Material.SALT.ordinal] else 0f
+        // (A band with salt salts what it cures: salt cures in any weather.)
+        val salt = band.goods[Material.SALT.ordinal]
         val salting = if (salt > 0f) band.skill(Skill.STORE) else 0f
         val dryRate = max(max(sun, smoke), salting)
         // (As much of it as the band chooses to.)
         val dried = min(g.stores[Store.FRESH.ordinal] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
         if (dried > 0f) {
-            if (TRADE) {
-                val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT.ordinal] -= saltedNow * SALT_PER_KG
-                val before = g.stores[Store.DRIED.ordinal]; band.salted = (before * band.salted + saltedNow) / (before + dried)
-            }
+            val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT.ordinal] -= saltedNow * SALT_PER_KG
+            val before = g.stores[Store.DRIED.ordinal]; band.salted = (before * band.salted + saltedNow) / (before + dried)
             g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
         }
         // What time is left is for making and mending (see [bandWeek]).
@@ -396,7 +396,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val home = if (band.atHome) band.house else 0f
         // (Smoked meat keeps longer than sun-dried; pits sealed with clay and plaster keep the mice out.)
         val smoked = if (band.knowsSkill[Skill.SMOKING.ordinal]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
-        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (if (TRADE) 1f - SALT_KEEP * band.salted else 1f))
+        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (1f - SALT_KEEP * band.salted))
         val sealed = if (band.knowsSkill[Skill.SEALING.ordinal]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
         if (home > 0f) {
             for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) { val x = g.stores[st.ordinal] * MICE * sealed * home * days / 7f; g.stores[st.ordinal] -= x; rotten += x }
@@ -418,7 +418,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     small.dung[g.place] += HexSmallLife.DUNG * (meatEaten + smallGot + scraps + fish) / (land.areaKm2[g.place] * 1e6f)
 }
 
-private val FORAGE_DIAG = System.getProperty("hex.forageDiag")
+private val FORAGE_DIAG = Config.string("forageDiag")
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost. */
 internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, driedKeep: Float = 1f): Float {
@@ -578,10 +578,10 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         meetings.merge("ornaments given", 1, Int::plus)
     }
-    // Useful gifts (trade on): a band gives of the good stone, salt and ochre it has beyond its own needs to
+    // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
     // the giver's name goes about among the bands.
-    if (TRADE && GIFTS) for ((giver, taker) in listOf(a to b, b to a)) {
+    for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
         if (gb.tie(taker.id) < FEUD_GIFT) continue
         var useful = 0f
@@ -855,5 +855,5 @@ internal fun HexGroups.settle() {
     }
 }
 
-/** The least time two groups passing through the same hex count as spending there together, days (for comparison runs: -Dhex.t.spanFloor). */
-val SPAN_FLOOR = System.getProperty("hex.t.spanFloor")?.toFloat() ?: 0.5f
+/** The least time two groups passing through the same hex count as spending there together, days */
+const val SPAN_FLOOR = 0.5f

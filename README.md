@@ -104,21 +104,28 @@ can reach, the places coloured by how the model scores them with the model's pic
 ways for the week. Click another place or pin a way to override the model; Next step runs the week,
 and the next week then waits at the group's choice (unless "Model decides" is ticked). The
 overview's Run and Step take over: their weeks run on the model's choices. `--nets DIR` (or
-`-Dhex.nets=DIR`, with `-Dhex.ways=FILE`) makes the learned networks the model, as in `hexFauna`;
+`nets=DIR`, with `ways=FILE`, in the config file) makes the learned networks the model, as in `hexFauna`;
 without them it is the hand-written choices.
 
 `hexFauna` runs the hex world for some years and prints each kind's numbers, the small life, the
 causes of death and the cost of a step, and for people a line against the ethnographic record (band
 size, density, camp moves, ground walked, plant share of food, birth spacing, children reaching 15,
 years left at 15, violent deaths). `--uniform` starts every kind spread evenly over the land;
-`-Dhex.noBearings` turns off the sense of direction and `-Dhex.noPeople` leaves people out, for
-comparison; `-Dhex.huntDiag=KIND` traces hungry and thirsty groups of a kind.
+`people=false` in the config file leaves people out, for comparison; `huntDiag=KIND` traces hungry
+and thirsty groups of a kind.
+
+Run settings other than seeds, years and sizes are keys in a config file, not switches:
+`inflation.properties` in the directory the run starts in (the project directory for the Gradle
+tasks), or the file `-Dhex.config=FILE` names. `config.example.properties` lists every key with its
+default. A mechanic that has replaced an older way gets no key to bring the old way back; keys are
+kept for what runs really vary: the networks and paths, features still being tried (`rounds`,
+`taming`), and values under study (`t.*`).
 
 A running world can be saved and carried on after small changes to the code: `--save FILE` (every
 five years and at the end) and `--load FILE` in `hexFauna`, Save…/Load… and `--load FILE` in the
 viewer. Fields are matched by name, so a field added since keeps its fresh value and one removed is
 dropped. The generated world itself is kept in `~/.inflation/world-cache` and loaded in seconds
-while the world-generating code and settings are unchanged (`-Dhex.noWorldCache` turns this off).
+while the world-generating code and settings are unchanged (`worldCache=false` turns this off).
 
 ## Known simplifications
 

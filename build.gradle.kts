@@ -29,8 +29,6 @@ tasks.register<JavaExec>("hexViewer") {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("inflation.ui.HexViewerKt")
     maxHeapSize = "16g"
-    // (-Dhex.nets=DIR, -Dhex.ways=FILE and the other hex.* settings given to Gradle reach the viewer.)
-    systemProperties(System.getProperties().filterKeys { it.toString().startsWith("hex.") }.mapKeys { it.key.toString() })
     args = (project.findProperty("viewerArgs") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
@@ -51,8 +49,15 @@ tasks.register<JavaExec>("hexHistory") {
     args = listOfNotNull(project.findProperty("historyFile") as String?)
 }
 
+// Run settings come from inflation.properties in the project directory, or from the file
+// -Dhex.config=FILE names (see config.example.properties); every task is given that file.
+tasks.withType<JavaExec>().configureEach {
+    System.getProperty("hex.config")?.let { systemProperty("hex.config", file(it).absolutePath) }
+}
+
 tasks.test {
     useJUnitPlatform()
+    systemProperty("hex.config", "none") // (tests run on the defaults, whatever inflation.properties says)
     maxHeapSize = "4g"
 }
 

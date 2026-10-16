@@ -3,7 +3,6 @@ package inflation.tools
 import inflation.ecology.Catalogue
 import inflation.ecology.Material
 import inflation.ecology.ROUNDS
-import inflation.ecology.TRADE
 import inflation.ecology.TRADED
 import inflation.ecology.Tool
 import inflation.ecology.YEAR_NEED
@@ -13,7 +12,7 @@ import inflation.world.Date
 import inflation.world.WorldConfig
 
 /**
- * What trade does (run with -Dhex.trade -Dhex.rounds, and without, same seeds): where good stone, salt
+ * What trade does (with rounds=true in the config for the rites at the sources): where good stone, salt
  * and ochre are got (sources), and each year the share of bands holding a year's worth of each, how
  * much of their spears and clothes is made well, how much of their dried food is salted, the useful
  * gifts given, how many rites stand at a source, the share of band-weeks spent in country of another
@@ -25,7 +24,7 @@ fun main(args: Array<String>) {
     var seeds = listOf(91L); var size = 600; var years = 4
     var k = 0
     while (k < args.size) { when (args[k]) { "--seeds" -> seeds = args[++k].split(",").map { it.toLong() }; "--size" -> size = args[++k].toInt(); "--years" -> years = args[++k].toInt() }; k++ }
-    println("trade ${if (TRADE) "on" else "off"}, rounds ${if (ROUNDS) "on" else "off"}, $size km, $years years")
+    println("rounds ${if (ROUNDS) "on" else "off"}, $size km, $years years")
     val lines = seeds.parallelStream().map { seed ->
         val run = HexLearning.Run(WorldConfig(seed = seed, widthKm = size, heightKm = size), Catalogue.learned)
         val hw = run.hw; val land = run.groups.land
@@ -35,7 +34,7 @@ fun main(args: Array<String>) {
         var weeks = 0.0; val luck = HashMap<Int, Float>(); var luckSum = 0.0
         val sb = StringBuilder("seed $seed: places with good stone %d, salt %d, ochre %d of %d".format(
             land.stone.count { it > 0.1f }, land.salt.count { it > 0.1f }, land.ochre.count { it > 0.1f }, land.stone.size))
-        if (TRADE) sb.append("; sources (one in 50 km at most): " + TRADED.joinToString(", ") { "${it.name.lowercase()} ${run.groups.materialSources.getValue(it).size}" })
+        sb.append("; sources (one in 50 km at most): " + TRADED.joinToString(", ") { "${it.name.lowercase()} ${run.groups.materialSources.getValue(it).size}" })
         repeat(years) { y ->
             val home = HashMap<Int, Int>(); var bandWeeks = 0; var away = 0
             val given = java.util.TreeMap<String, Int>()
@@ -59,11 +58,9 @@ fun main(args: Array<String>) {
                     100.0 * bands.map { it.band!!.fine[Tool.SPEAR.ordinal].toDouble() }.average(), 100.0 * bands.map { it.band!!.fine[Tool.CLOTHES.ordinal].toDouble() }.average(),
                     100.0 * bands.sumOf { it.band!!.salted.toDouble() * it.stores[inflation.ecology.Store.DRIED.ordinal] } / bands.sumOf { it.stores[inflation.ecology.Store.DRIED.ordinal].toDouble() }.coerceAtLeast(1e-9),
                     100.0 * away / bandWeeks.coerceAtLeast(1)))
-            if (TRADE) {
-                val sources = TRADED.flatMap { run.groups.materialSources.getValue(it).toList() }.toHashSet()
-                val atSources = bands.sumOf { g -> g.band!!.rite.count { it >= 0 && hw.placeHex[it] in sources } }
-                sb.append("; rites at a source %d of %d".format(atSources, bands.sumOf { g -> g.band!!.rite.count { it >= 0 } }))
-            }
+            val sources = TRADED.flatMap { run.groups.materialSources.getValue(it).toList() }.toHashSet()
+            val atSources = bands.sumOf { g -> g.band!!.rite.count { it >= 0 && hw.placeHex[it] in sources } }
+            sb.append("; rites at a source %d of %d".format(atSources, bands.sumOf { g -> g.band!!.rite.count { it >= 0 } }))
             if (given.isNotEmpty()) sb.append("; " + given.entries.joinToString(", ") { "${it.key} ${it.value}" })
         }
         val score = (weeks - luckSum) / start / (years * stepsPerYear)
