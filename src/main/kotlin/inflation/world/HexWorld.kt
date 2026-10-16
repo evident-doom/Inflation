@@ -149,6 +149,12 @@ class HexWorld(val world: World, val hex: HexMap) {
         )
     }
 
+    /** The place in hex [h] at the height band of place [p], or -1 if the hex has no ground at that height. */
+    fun sameBandPlace(p: Int, h: Int) = placeOf[placeBand[p]][h]
+
+    /** The first place in hex [h], from the lowest band up, or -1 if it has none. */
+    fun firstPlaceIn(h: Int): Int { for (b in placeOf.indices) { val p = placeOf[b][h]; if (p >= 0) return p }; return -1 }
+
     /** The kind of country covering most of the land of hex [h], or null if it has no land. */
     fun mainBiome(h: Int): Biome? = if (land[h] == 0f) null else Biome.entries.maxBy { biome[it.ordinal][h] }
 

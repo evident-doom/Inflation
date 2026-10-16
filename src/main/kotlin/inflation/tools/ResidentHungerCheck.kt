@@ -24,7 +24,7 @@ fun main(args: Array<String>) {
     cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
     val years = a.int("--years", 1); val kinds = a.string("--kinds")?.split(",") ?: listOf("hippo")
     a.done()
-    val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { })
+    val sim = HexSim(inflation.world.WorldCache.load(cfg) { })
     loadFile?.let { inflation.ecology.HexSnapshot.load(sim, it); println("carrying on $it at ${sim.weather.date}") }
     val fauna = sim.fauna; val land = sim.land; val n = land.n
     val stepsY = Date.DAYS_PER_YEAR / cfg.daysPerStep

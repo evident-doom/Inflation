@@ -18,7 +18,7 @@ fun main(args: Array<String>) {
     val years = a.int("--years", 2)
     a.done()
     val t0 = System.nanoTime()
-    val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { println(it) })
+    val sim = HexSim(inflation.world.WorldCache.load(cfg) { println(it) })
     println("world in %.0f s".format((System.nanoTime() - t0) / 1e9))
     val land = sim.land; val sl = sim.fauna.small; val hw = sim.hw; val cols = sim.hex.cols; val rows = sim.hex.rows
     fun third(p: Int) = (3 * (hw.placeHex[p] / cols) / rows).coerceIn(0, 2)

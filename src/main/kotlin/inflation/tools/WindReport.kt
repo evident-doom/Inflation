@@ -1,9 +1,9 @@
 package inflation.tools
 
+import inflation.ui.Render
 import inflation.Args
 import inflation.world.Date
 import inflation.world.Regime
-import inflation.world.Render
 import inflation.world.Weather
 import inflation.world.World
 import inflation.world.WorldConfig

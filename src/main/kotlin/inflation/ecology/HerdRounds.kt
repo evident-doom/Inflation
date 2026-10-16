@@ -77,7 +77,7 @@ internal fun HexGroups.takeRound(g: HexGroup, rounds: List<IntArray>, month: Int
 private fun HexGroups.placeNear(p: Int, km: Double): Int {
     val (x, y) = hex.centreKm(hw.placeHex[p]); val a = rnd.nextDouble() * 2 * Math.PI; val d = rnd.nextDouble() * km
     val h = hex.hexAt(x + d * kotlin.math.cos(a), y + d * kotlin.math.sin(a))
-    return if (h in 0 until hex.size) hw.placeOf[hw.placeBand[p]][h].takeIf { it >= 0 } ?: hw.placeOf[0][h] else -1
+    return if (h in 0 until hex.size) hw.sameBandPlace(p, h).takeIf { it >= 0 } ?: hw.placeOf[0][h] else -1
 }
 
 /** The yearly circuits of kind [s], from how good each place was for it each month ([q]: [month][place]). */

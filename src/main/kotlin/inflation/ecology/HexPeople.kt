@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.monthsFrom
 import inflation.Config
 
 import inflation.world.Date
@@ -437,20 +438,19 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     // From the high points on its way it sees as far as the line of sight and the weather allow;
     // its scouts range further still.
     var lookKm = 0f
-    for (h in g.path) { val q = hw.placeOf[hw.placeBand[g.place]][h].takeIf { it >= 0 } ?: continue; lookKm = max(lookKm, land.bestViewKm[q] * sight(q) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f)) }
+    for (h in g.path) { val q = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue; lookKm = max(lookKm, land.bestViewKm[q] * sight(q) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f)) }
     val scouts = b.scoutShare * g.adults
     val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
     for (h in g.path) {
         var ring = listOf(h); val seenHex = hashSetOf(h); b.learn(h, hex.size)
         for (r in 1..rings) {
-            val next = ArrayList<Int>()
-            for (x in ring) for (d in 0 until 6) { val q = hex.neighbour(x, d); if (q >= 0 && seenHex.add(q)) { next += q; b.learn(q, hex.size) } }
-            ring = next
+            ring = hex.nextRing(ring, seenHex)
+            for (q in ring) b.learn(q, hex.size)
         }
     }
     val p = g.place
     val h = hw.placeHex[p]
-    val area = land.areaKm2[p] * 1e6f
+    val area = land.m2(p)
     if (h != b.campHex) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
@@ -482,7 +482,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
             val diggers = small.rodents[cp] / CACHE_RODENTS_HALF + small.foxes[cp] / CACHE_FOXES_HALF +
                 cacheDiggers.sumOf { (fauna.adults[it][cp] / 0.5f).toDouble() }.toFloat()
             val dug = min(0.5f, CACHE_DUG * min(1f, diggers) * years)
-            if (dug > 0f) { var lost = 0f; for (i in b.cache.indices) { val x = b.cache[i] * dug; b.cache[i] -= x; lost += x }; small.carrion[cp] += 0.3f * lost / (land.areaKm2[cp] * 1e6f) }
+            if (dug > 0f) { var lost = 0f; for (i in b.cache.indices) { val x = b.cache[i] * dug; b.cache[i] -= x; lost += x }; small.carrion[cp] += 0.3f * lost / land.m2(cp) }
         }
         val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]]) + CACHE_SPOIL * b.cacheKg
         for (i in b.cache.indices) b.cache[i] *= 1f - CACHE_SPOIL
@@ -503,7 +503,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
     // along the way (poorer stone anywhere), wood and resin where there are trees, fibre from grass,
     // scrub and reeds; hides, bone and sinew from the big game it killed.
-    fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.placeOf[hw.placeBand[p]][q].takeIf { it >= 0 }?.let { a[it] } ?: 0f } ?: 0f)
+    fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.sameBandPlace(p, q).takeIf { it >= 0 }?.let { a[it] } ?: 0f } ?: 0f)
     val stone = alongTheWay(land.stone)
     // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED].)
     gd[Material.STONE.ordinal] += people * 0.8f * min(1f, 5f * stone)
@@ -598,7 +598,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
         if (b.houseHex == h && b.house < 1f) {
             // It builds the way it knows that its stone, timber and clay go furthest with.
-            val clay = land.water[p] >= 0.05f || land.waterKm[p] < 3f
+            val clay = land.water[p] >= Thresholds.WET || land.waterKm[p] < 3f
             val way = listOf(Skill.STONE_FOOTING, Skill.PIT_HOUSE, Skill.MUDBRICK).filter { b.knowsSkill[it.ordinal] && (it != Skill.MUDBRICK || clay) }
                 .maxByOrNull { w -> val (st, wd, dd) = houseNeeds(w); minOf(time / (dd * people), gd[Material.STONE.ordinal] / max(1e-3f, st * people), gd[Material.WOOD.ordinal] / (wd * people)) }
                 ?: Skill.STONE_FOOTING
@@ -631,7 +631,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
         val sow = minOf(stock * SOW_SHARE * b.sowWill, time * hands(g) / SOW_DAYS_PER_KG)
         if (sow > 0.1f) {
             g.stores[Store.SEED.ordinal] -= sow; time -= sow * SOW_DAYS_PER_KG / hands(g)
-            val food = fauna.food; val m2 = land.areaKm2[p] * 1e6f
+            val food = fauna.food; val m2 = land.m2(p)
             val standing = food.cereal[p] * land.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
             val add = sow / m2
             food.domestic[p] = (food.domestic[p] * standing + b.seedDomestic * add) / (standing + add).coerceAtLeast(1e-9f)
@@ -1167,7 +1167,7 @@ fun serveOfMake(t: Tool, fine: Float): Float = if (fineMaterial(t) != Material.S
 private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
     if (b.herd.isEmpty()) return
     val years = days / Date.DAYS_PER_YEAR.toFloat()
-    val p = g.place; val m2 = land.areaKm2[p] * 1e6f
+    val p = g.place; val m2 = land.m2(p)
     val moved = max(0, g.path.size - 1)
     for (k in b.herd.indices) {
         var n = b.herd[k]
@@ -1180,7 +1180,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         val got = land.consume(p, LifeForm.HERB, min(need * d.grass / total, land.palatable[p] * land.herb[p] * 0.1f)) +
             land.eatBrowse(p, need * d.browse / total)
         val fed = if (need > 0f) min(1f, got / need) else 1f
-        val inSeason = (date.month - s.birthMonth + 12) % 12 < s.birthMonths
+        val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * s.littersPerYear * fed * (0.3f + 0.7f * tame) / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
         val died = n * min(0.9f, (s.backgroundMortality + 0.5f * (1f - fed) + HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)) * years + HERD_MOVE_LOSS * (1f - tame) * moved * b.lapse(Skill.TENDING))
         n = max(0f, n + born - died)

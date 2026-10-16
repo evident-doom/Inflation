@@ -23,7 +23,7 @@ fun main(args: Array<String>) {
         k++
     }
     // (The land and its rocks from the kept landform where there is one: only the climate is made again.)
-    val world = World.generate(cfg, inflation.ecology.HexSnapshot.LandformCache.load(cfg) {})
+    val world = World.generate(cfg, inflation.world.LandformCache.load(cfg) {})
     val g = world.grid; val c = world.climate
     val land = (0 until g.size).filter { !world.isSea[it] }
     fun table(name: String, bins: Int, bin: (Int) -> Int) {

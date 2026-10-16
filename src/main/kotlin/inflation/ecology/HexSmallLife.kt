@@ -1,5 +1,9 @@
 package inflation.ecology
 
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.mix64Once
+import inflation.unitOf
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexWorld
@@ -248,7 +252,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 record?.let { it.carrionGone[p] += gone }
                 if (carrion[p] < 1e-9f) carrion[p] = 0f
             }
-            carrion[p] += carcassKg[p] / (land.areaKm2[p] * 1e6f)
+            carrion[p] += carcassKg[p] / land.m2(p)
             // Bones weather away over a couple of years into the soil.
             if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b; record?.let { it.bonesGone[p] += b } }
             val food = land.herb[p] + 0.3f * land.shrub[p]
@@ -383,9 +387,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     private var locustSalt = 0L
     private fun locustHash(p: Int): Float {
-        var h = (p.toLong() * 0x9E3779B97F4A7C15uL.toLong()) xor (++locustSalt * 0x632BE59BD9B4E019L)
-        h = (h xor (h ushr 33)) * -0xae502812aa7333L; h = h xor (h ushr 33)
-        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+        return unitOf(mix64Once((p.toLong() * HASH_A) xor (++locustSalt * HASH_B)))
     }
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
@@ -543,7 +545,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var got = 0f
             for (q in vultureReach[k]) {
                 if (got >= need) break
-                if (carrion[q] > 0f) { val m2 = land.areaKm2[q] * 1e6f; got += scavenge(q, (need - got) / m2) * m2 }
+                if (carrion[q] > 0f) { val m2 = land.m2(q); got += scavenge(q, (need - got) / m2) * m2 }
             }
             val fed = if (need > 0f) min(1f, got / need) else 1f
             var b = vultures[k]

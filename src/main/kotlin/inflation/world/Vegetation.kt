@@ -1,5 +1,10 @@
 package inflation.world
 
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.HASH_C
+import inflation.mix64
+import inflation.unitOf
 import inflation.Config
 
 import kotlin.math.exp
@@ -226,11 +231,7 @@ class Vegetation(private val world: World, private val seed: Long) {
 
     /** A uniform 0..1 draw for cell [i] this step: a hash, so that cells can be stepped in any order. */
     private fun cellRandom(i: Int): Float {
-        var h = seed * -0x61c8864680b583ebL + stepCount * 0x9E3779B97F4A7C15uL.toLong() + i * 0x632BE59BD9B4E019L
-        h = (h xor (h ushr 33)) * -0xae502812aa7333L
-        h = (h xor (h ushr 33)) * -0x3b314601e57a13adL
-        h = h xor (h ushr 33)
-        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+        return unitOf(mix64(seed * HASH_A + stepCount * HASH_A + i * HASH_B))
     }
 
     /** Fuel in cell [i] that can carry a fire, kg/m²: grass and shrubs, less what grazing has removed. */
@@ -307,11 +308,7 @@ class Vegetation(private val world: World, private val seed: Long) {
     }
 
     private fun hash(i: Int, salt: Int): Float {
-        var h = seed * -0x61c8864680b583ebL + stepCount * 0x9E3779B97F4A7C15uL.toLong() + i * 0x632BE59BD9B4E019L + salt * 0x165667B19E3779F9L
-        h = (h xor (h ushr 33)) * -0xae502812aa7333L
-        h = (h xor (h ushr 33)) * -0x3b314601e57a13adL
-        h = h xor (h ushr 33)
-        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+        return unitOf(mix64(seed * HASH_A + stepCount * HASH_A + i * HASH_B + salt * HASH_C))
     }
 
 

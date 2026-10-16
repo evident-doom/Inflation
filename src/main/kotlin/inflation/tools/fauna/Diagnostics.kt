@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Thresholds
 import inflation.Config
 import inflation.ecology.HexFood
 import inflation.ecology.HexGroup
@@ -37,7 +38,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
     /** Packs of [kind] that went hungry this week against those that ate, and their ground; and the thirsty ones. */
     private fun hunters(w: Int, kind: String) {
         val gs = groups.groups.filter { it.alive && it.species.name == kind }
-        val (hungry, fed) = gs.partition { it.fed < 0.5f }
+        val (hungry, fed) = gs.partition { it.fed < Thresholds.HUNGRY }
         println("     week $w $kind: ${hungry.size} of ${gs.size} packs hungry: ${ground(hungry)} | fed: ${ground(fed)}")
         val thirsty = gs.filter { it.dry > it.species.daysWithoutWater }
         if (thirsty.isNotEmpty()) println("     week $w $kind: ${thirsty.size} thirsty: " + ground(thirsty) + "; water within reach %.0f%%, sea %.0f%%".format(100.0 * thirsty.count { land.water[it.place] >= 0.05f } / thirsty.size, 100.0 * thirsty.count { hw.sea[hw.placeHex[it.place]] > 0.3f } / thirsty.size))

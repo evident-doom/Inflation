@@ -1,5 +1,12 @@
 package inflation.ecology
 
+import inflation.saturate
+import inflation.monthsFrom
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.HASH_C
+import inflation.mix64Once
+import inflation.unitOf
 import inflation.Config
 
 import inflation.world.Date
@@ -90,9 +97,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private var outbreakSalt = 0L
     /** A number in 0..1 that changes from week to week, for place [p] and kind [k]. */
     private fun hash(p: Int, k: Int): Float {
-        var h = (p.toLong() * 0x9E3779B97F4A7C15uL.toLong()) xor (k.toLong() * 0x632BE59BD9B4E019L) xor (outbreakSalt * 0x165667B19E3779F9L)
-        h = (h xor (h ushr 33)) * -0xae502812aa7333L; h = h xor (h ushr 33)
-        return (h ushr 40).toFloat() / (1L shl 24).toFloat()
+        return unitOf(mix64Once((p.toLong() * HASH_A) xor (k.toLong() * HASH_B) xor (outbreakSalt * HASH_C)))
     }
 
     /** Outbreaks pass to neighbouring hexes where the kind lives, and burn out. */
@@ -184,7 +189,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Each kind's sense of where better country lies. */
     val bearings = HexBearings(hw, kinds, { s, p, m ->
         val food = foodFor(s, p) * min(1.5f, suits(s, p)) / 1.5f
-        food / (food + 0.3f) * tether(s, p) * monthFit(s, p, m)
+        saturate(food, Thresholds.FOOD_HALF) * tether(s, p) * monthFit(s, p, m)
     }, { s -> val k = kinds.indexOf(s); (0 until n).any { adults[k][it] > 0f } })
     /**
      * Each kind's month births begin in each place, which drifts year by year towards the months
@@ -620,7 +625,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (a[p] + y[p] <= 0f) continue
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a hungry mother bears and keeps fewer.
-                val inSeason = (date.month - start[p] + 12) % 12 < s.birthMonths
+                val inSeason = monthsFrom(start[p].toInt(), date.month) < s.birthMonths
                 if (inSeason) {
                     // (Mothers short of protein bear and suckle fewer.)
                     // (A mother needs a range of her own to bear and raise her young in: where they crowd beyond
@@ -642,7 +647,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // it can bear kills as it does a herd.
                 val thirst = run {
                     val fetch = 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
-                    if (s.maxWaterKm.isFinite() || land.water[p] >= 0.05f || land.waterKm[p] <= fetch) 0f
+                    if (s.maxWaterKm.isFinite() || land.water[p] >= Thresholds.WET || land.waterKm[p] <= fetch) 0f
                     else {
                         val dryDays = days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) f[p] else 0.5f + 0.5f * land.green[p]))
                         if (dryDays > s.daysWithoutWater) min(0.5f, 0.05f * (dryDays - s.daysWithoutWater)) else 0f

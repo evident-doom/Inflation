@@ -71,7 +71,7 @@ object TestWorlds {
         require(e.state.isFile) { "test world ${e.name} is not built yet (testWorld build ${e.name})" }
         val a = e.info() ?: Properties()
         println("test world ${e.name}: seed ${e.seed}, ${e.widthKm} x ${e.heightKm} km (${e.note}), ${sim.land.n} places; settled ${a.getProperty("years", "?")} years at commit ${a.getProperty("commit", "?")} on ${a.getProperty("built", "?")}")
-        val key = "%016x".format(HexSnapshot.WorldCache.key(e.config))
+        val key = "%016x".format(inflation.world.WorldCache.key(e.config))
         if (a.getProperty("worldKey") != key) println("WARNING: the world-making code has changed since ${e.name} was settled: its saved state is of the old land and climate. Rebuild it (testWorld build ${e.name}) before trusting a test on it.")
         val then = a.getProperty("config", ""); val now = Config.set("")
         if (then != now) println("WARNING: the config differs from when ${e.name} was settled.\n  then: ${then.ifEmpty { "(defaults)" }}\n  now:  ${now.ifEmpty { "(defaults)" }}")
@@ -89,7 +89,7 @@ object TestWorlds {
         val p = Properties()
         p["name"] = e.name; p["seed"] = "${e.seed}"; p["widthKm"] = "${e.widthKm}"; p["heightKm"] = "${e.heightKm}"
         p["years"] = "$years"; p["commit"] = commit; p["built"] = java.time.LocalDateTime.now().withNano(0).toString()
-        p["worldKey"] = "%016x".format(HexSnapshot.WorldCache.key(e.config)); p["config"] = Config.set("")
+        p["worldKey"] = "%016x".format(inflation.world.WorldCache.key(e.config)); p["config"] = Config.set("")
         p["landKm2"] = "%.0f".format(area); p["buildSeconds"] = "%.0f".format(seconds)
         p["secondsPerYear"] = "%.1f".format(seconds / years)
         e.about.writer().use { p.store(it, "test world ${e.name}, written by testWorld build") }
@@ -103,7 +103,7 @@ object TestWorlds {
             val built = when {
                 a == null || !e.state.isFile -> "not built"
                 else -> {
-                    val stale = a.getProperty("worldKey") != "%016x".format(HexSnapshot.WorldCache.key(e.config))
+                    val stale = a.getProperty("worldKey") != "%016x".format(inflation.world.WorldCache.key(e.config))
                     "%s years at %s on %s, %s s a year, %.0f MB%s".format(a.getProperty("years"), a.getProperty("commit"), a.getProperty("built"), a.getProperty("secondsPerYear"),
                         e.state.length() / 1e6, if (stale) " — WORLD CODE CHANGED SINCE: rebuild" else "")
                 }

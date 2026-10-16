@@ -42,8 +42,8 @@ data class WorldConfig(
      * closing speeds here the flat plateau tops stand mostly 500-1200 m, as on the Anatolian and
      * Iranian plateaus.
      */
-    val plateauKm: Double = inflation.Config.double("t.plateauKm", 180.0),
-    val plateauM: Double = inflation.Config.double("t.plateauM", 50_000.0),
+    val plateauKm: Double = 180.0,
+    val plateauM: Double = 50_000.0,
     /** Scale on rock uplift rates in mountain belts (and on the belts' starting height). */
     val upliftScale: Double = 0.7,
     /** Hillslope diffusivity, m²/yr. */
