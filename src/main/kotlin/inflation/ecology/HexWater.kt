@@ -89,6 +89,15 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private val dead = FloatArray(size)
 
     init {
+        measureWater()
+        measureShore()
+        startWater(riverMouthFlows())
+        walkRivers()
+        placeColonies()
+    }
+
+    /** The open water of each hex from the fine grid: the sea's mean depth and its shallows near land (shellfish beds), the share of lake that is closed, and the water's temperature by month. */
+    private fun measureWater() {
         val grid = world.grid
         val depthSum = DoubleArray(size); val seaCells = IntArray(size); val shallowCells = IntArray(size); val closedCells = IntArray(size); val lakeCells = IntArray(size)
         val tSum = Array(12) { DoubleArray(size) }; val wCells = IntArray(size)
@@ -113,7 +122,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             if (lakeCells[h] > 0) closedLake[h] = closedCells[h].toFloat() / lakeCells[h]
             for (m in 0 until 12) waterTemp[m][h] = if (wCells[h] > 0) (tSum[m][h] / wCells[h]).toFloat() else hw.temp[m][h]
         }
-        // Distance to land, hex by hex.
+    }
+
+    /** Distance from each hex to land, hex by hex. */
+    private fun measureShore() {
         val dist = FloatArray(size) { Float.MAX_VALUE }
         val queue = ArrayDeque<Int>()
         for (h in 0 until size) if (hw.land[h] > 0f) { dist[h] = 0f; queue += h }
@@ -122,13 +134,21 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && dist[q] > dist[h] + hex.hexKm) { dist[q] = (dist[h] + hex.hexKm).toFloat(); queue += q } }
         }
         for (h in 0 until size) shoreKm[h] = dist[h]
-        // Rivers into the sea: each land hex whose river leaves the land feeds the sea hexes around its mouth.
+    }
+
+    /** Rivers into the sea: each land hex whose river leaves the land feeds the sea hexes around its mouth, m³/s. */
+    private fun riverMouthFlows(): FloatArray {
         val mouthFlow = FloatArray(size)
         for (h in 0 until size) {
             if (land.meanFlow[h] <= 0f || hw.land[h] <= 0f || land.down[h] >= 0) continue
             for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seaKm2[q] > 0f) mouthFlow[q] += land.meanFlow[h] / 6f }
             if (seaKm2[h] > 0f) mouthFlow[h] += land.meanFlow[h]
         }
+        return mouthFlow
+    }
+
+    /** The water's nutrient supply and its first plankton, fish, shellfish and sea animals; for each coastal sea hex the way out to sea and the land whose wind blows over it ([mouthFlow]: what the rivers bring, m³/s). */
+    private fun startWater(mouthFlow: FloatArray) {
         for (h in 0 until size) {
             if (waterKm2[h] <= 0f) continue
             supply[h] = if (seaKm2[h] <= 0f) (if (closedLake[h] > 0.5f) 0.2f else 0.6f)
@@ -152,7 +172,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             if (shallow[h] > 0f) shellfish[h] = 0.7f * shellCapacity(h)
             for ((k, a) in SEA.withIndex()) if (seaKm2[h] > 0f && shoreKm[h] <= a.maxShoreKm) sea[k][h] = a.massKg / a.startKm2
         }
-        // Rivers: distance up from the sea and cascades, down the network from the mouths.
+    }
+
+    /** Rivers: distance up from the sea and cascades, down the network from the mouths; the first river fish. */
+    private fun walkRivers() {
         val byDist = (0 until size).filter { land.meanFlow[it] >= RiverClass.STREAM.minDischarge && hw.land[it] > 0f }
         fun up(h: Int): Float {
             if (mouth[h] != -1 || upKm[h] < 0f) return upKm[h]
@@ -172,7 +195,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
         for (h in byDist) up(h)
         for (h in byDist) riverFish[h] = 0.7f * riverCapacity(h, 6)
-        // Sea-bird colonies: the most broken coast in each stretch, fishing the sea within reach.
+    }
+
+    /** Sea-bird colonies: the most broken coast in each stretch, fishing the sea within reach. */
+    private fun placeColonies() {
         val blocks = HashMap<Long, Int>()
         for (h in 0 until size) {
             if (!hw.coast[h] || hw.land[h] <= 0f) continue
