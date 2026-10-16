@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.learning.HexLearning
 import inflation.world.Date
@@ -7,9 +8,10 @@ import inflation.world.WorldConfig
 
 /** Probe: insects month by month, by climate class, over the last [years] years. */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1); var years = 3; var show = 2
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seed" -> cfg = cfg.copy(seed = args[++k].toLong()); "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt()); "--years" -> years = args[++k].toInt(); "--show" -> show = args[++k].toInt() }; k++ }
+    val a = Args(args, "insect-seasons [--seed N] [--width KM] [--years N] [--show N]")
+    val cfg = WorldConfig(seed = 1).let { it.copy(seed = a.long("--seed", it.seed), widthKm = a.int("--width", it.widthKm)) }
+    val years = a.int("--years", 3); val show = a.int("--show", 2)
+    a.done()
     val t0 = System.nanoTime()
     val run = HexLearning.Run(cfg, Catalogue.learned)
     System.err.println("world built in %.0f s".format((System.nanoTime() - t0) / 1e9))

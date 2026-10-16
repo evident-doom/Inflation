@@ -7,13 +7,16 @@ package inflation.tools
  * pollinator density. Usage: pollination-probe [--seed N] [--width KM] [--height KM] [--years N]
  */
 
+import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.WorldConfig
 
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1); var years = 2
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seed" -> cfg = cfg.copy(seed = args[++k].toLong()); "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt()); "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt()); "--years" -> years = args[++k].toInt() }; k++ }
+    val a = Args(args, "pollination-probe [--seed N] [--width KM] [--height KM] [--years N]")
+    var cfg = WorldConfig(seed = 1)
+    cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
+    val years = a.int("--years", 2)
+    a.done()
     val t0 = System.nanoTime()
     val sim = HexSim(inflation.ecology.HexSnapshot.WorldCache.load(cfg) { println(it) })
     println("world in %.0f s".format((System.nanoTime() - t0) / 1e9))

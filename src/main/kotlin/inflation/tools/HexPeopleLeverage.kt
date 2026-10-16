@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
@@ -20,11 +21,10 @@ import inflation.world.WorldConfig
  * Usage: hex-people-leverage [--seeds A,B] [--size KM] [--years N] [--ways-only] [--moves-only]
  */
 fun main(args: Array<String>) {
-    var seeds = listOf(91L); var size = 600; var years = 3; var ways = true; var moves = true
-    var k = 0
-    while (k < args.size) { when (args[k]) {
-        "--seeds" -> seeds = args[++k].split(",").map { it.toLong() }; "--size" -> size = args[++k].toInt(); "--years" -> years = args[++k].toInt()
-        "--ways-only" -> moves = false; "--moves-only" -> ways = false }; k++ }
+    val a = Args(args, "hex-people-leverage [--seeds A,B] [--size KM] [--years N] [--ways-only] [--moves-only]")
+    val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(91L); val size = a.int("--size", 600); val years = a.int("--years", 3)
+    val moves = !a.flag("--ways-only"); val ways = !a.flag("--moves-only")
+    a.done()
     val kinds = Catalogue.learned
     val names = Schema.WAYS_OUT
     val configs = buildList {

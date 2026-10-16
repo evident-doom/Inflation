@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Args
 import java.io.File
 import kotlin.system.measureTimeMillis
 
@@ -9,21 +10,14 @@ import kotlin.system.measureTimeMillis
  * Usage: generate [--seed N] [--size KM] [--height KM] [--out DIR] [--weather-years N]
  */
 fun main(args: Array<String>) {
+    val a = Args(args, "generate [--seed N] [--size KM] [--height KM] [--out DIR] [--weather-years N]")
     var cfg = WorldConfig()
-    var out = File("output/world")
-    var weatherYears = 3
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--size" -> { val s = args[++k].toInt(); cfg = cfg.copy(widthKm = s, heightKm = s) }
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--out" -> out = File(args[++k])
-            "--weather-years" -> weatherYears = args[++k].toInt()
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    cfg = cfg.copy(seed = a.long("--seed", cfg.seed))
+    a.string("--size")?.let { val s = a.int("--size", 0); cfg = cfg.copy(widthKm = s, heightKm = s) }
+    cfg = cfg.copy(heightKm = a.int("--height", cfg.heightKm))
+    val out = a.file("--out") ?: File("output/world")
+    val weatherYears = a.int("--weather-years", 3)
+    a.done()
     lateinit var world: World
     val ms = measureTimeMillis { world = World.generate(cfg) { println("  $it") } }
     println("Generated ${cfg.widthKm} x ${cfg.heightKm} km world (seed ${cfg.seed}) in ${ms / 1000.0} s")

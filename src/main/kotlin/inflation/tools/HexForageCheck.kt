@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.Config
 
 import inflation.ecology.Catalogue
@@ -16,9 +17,9 @@ import inflation.world.WorldConfig
  * Usage: hex-forage-check [--seed N] [--years N]
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(); var years = 6
-    var k = 0
-    while (k < args.size) { when (args[k]) { "--seed" -> cfg = cfg.copy(seed = args[++k].toLong()); "--years" -> years = args[++k].toInt() }; k++ }
+    val a = Args(args, "hex-forage-check [--seed N] [--years N]")
+    val cfg = WorldConfig().let { it.copy(seed = a.long("--seed", it.seed)) }; val years = a.int("--years", 6)
+    a.done()
     val run = HexLearning.Run(cfg, Catalogue.learned.filter { !it.human || Config.flag("people", true) })
     val land = run.groups.land; val n = land.herb.size
     val area = land.areaKm2; val total = area.sum().toDouble()

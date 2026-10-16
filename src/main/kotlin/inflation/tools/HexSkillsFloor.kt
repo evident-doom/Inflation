@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.learning.HexLearning
 import inflation.ecology.Catalogue
 import inflation.world.Biome
@@ -19,19 +20,12 @@ import inflation.world.WorldConfig
  * Usage: hex-skills-floor [--seed N] [--size KM] [--weeks N]
  */
 fun main(args: Array<String>) {
+    val a = Args(args, "hex-skills-floor [--seed N] [--size KM] [--weeks N]")
     var cfg = WorldConfig(seed = 1)
-    var size = 600
-    var weeks = 52
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--size" -> size = args[++k].toInt()
-            "--weeks" -> weeks = args[++k].toInt()
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    cfg = cfg.copy(seed = a.long("--seed", cfg.seed))
+    val size = a.int("--size", 600)
+    val weeks = a.int("--weeks", 52)
+    a.done()
     cfg = cfg.copy(widthKm = size, heightKm = size)
     val kinds = Catalogue.all
     val people = Catalogue.HUMAN

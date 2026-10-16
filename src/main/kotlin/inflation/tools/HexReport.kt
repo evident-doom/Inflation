@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.Args
 import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.RiverClass
@@ -22,22 +23,13 @@ import kotlin.random.Random
  * Usage: hex-report [--seed N] [--width KM] [--height KM] [--cell KM] [--hex KM] [--png FILE]
  */
 fun main(args: Array<String>) {
+    val a = Args(args, "hex-report [--seed N] [--width KM] [--height KM] [--cell KM] [--hex KM] [--png FILE]")
     var cfg = WorldConfig(seed = 1)
-    var hexKm = 10.0
-    var png: java.io.File? = null
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--cell" -> cfg = cfg.copy(cellKm = args[++k].toDouble())
-            "--hex" -> hexKm = args[++k].toDouble()
-            "--png" -> png = java.io.File(args[++k])
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
+    cfg = cfg.copy(cellKm = a.double("--cell", cfg.cellKm))
+    val hexKm = a.double("--hex", 10.0)
+    val png = a.file("--png")
+    a.done()
     var t0 = System.nanoTime()
     val world = World.generate(cfg)
     println("world %d x %d km at %.0f km cells generated in %.0f s".format(cfg.widthKm, cfg.heightKm, cfg.cellKm, (System.nanoTime() - t0) / 1e9))

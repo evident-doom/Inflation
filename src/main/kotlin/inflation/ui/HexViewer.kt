@@ -1,5 +1,6 @@
 package inflation.ui
 
+import inflation.Args
 import inflation.Config
 
 import inflation.ecology.HexRoutes
@@ -45,30 +46,20 @@ import kotlin.math.min
  * the herds and hunters as dots walking hex to hex along the ways they took each week, and one
  * resident kind's density as a tint over the hexes.
  *
- * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE] [--nets DIR] [--ways FILE]
- * (--load carries on a saved world: the seed and size must be the ones it was saved with;
- * --nets moves every kind by the learned networks in DIR (herds.mlp, hunters.mlp, people.mlp, as
- * hex-ppo writes them, and herd-ways.mlp, hunter-ways.mlp where present), --ways sets the bands'
- * ways by a learned network; nets, ways, herdWays and hunterWays do the
- * same, as for hex-fauna. Without them the hand-written choices are the model.)
+ * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
+ * (--load carries on a saved world: the seed and size must be the ones it was saved with.) The
+ * config keys choose the learned networks, as for hex-fauna: nets=DIR moves every kind by the
+ * networks in DIR (herds.mlp, hunters.mlp, people.mlp, as hex-ppo writes them, and herd-ways.mlp,
+ * hunter-ways.mlp where present), ways=FILE sets the bands' ways by a learned network, and herdWays
+ * and hunterWays the herds' and packs'. Without them the hand-written choices are the model.
  */
 fun main(args: Array<String>) {
-    var cfg = WorldConfig(seed = 1)
-    var load: java.io.File? = null
-    var nets = Config.string("nets"); var ways = Config.string("ways")
-    var k = 0
-    while (k < args.size) {
-        when (args[k]) {
-            "--seed" -> cfg = cfg.copy(seed = args[++k].toLong())
-            "--width" -> cfg = cfg.copy(widthKm = args[++k].toInt())
-            "--height" -> cfg = cfg.copy(heightKm = args[++k].toInt())
-            "--load" -> load = java.io.File(args[++k])
-            "--nets" -> nets = args[++k]
-            "--ways" -> ways = args[++k]
-            else -> error("unknown argument ${args[k]}")
-        }
-        k++
-    }
+    val a = Args(args, "hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]")
+    val base = WorldConfig(seed = 1)
+    val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
+    val load = a.file("--load")
+    a.done()
+    val nets = Config.string("nets"); val ways = Config.string("ways")
     val frame = JFrame("Hex world, seed ${cfg.seed}")
     val status = JLabel("Generating the world…")
     frame.contentPane.add(status)
