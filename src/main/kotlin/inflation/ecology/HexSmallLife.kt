@@ -560,12 +560,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val t = weather.temperature[p]
         val herpsOut = herpsActive(t, land.soil[p])
         val tortOut = t in 14f..33f
+        // (A tortoise's shell, once hardened, is proof against most beasts: they get only the young. People take any.)
+        val shell = if (who < TAKER_GROUPS) TORT_YOUNG_SHARE else 1f
         // Desert rodents sleep through the summer heat in their burrows.
         val rodentsOut = !(t > 30f && land.soil[p] < 10f && annualRain[p] < DORMANT_RAIN_MM)
-        val total = (if (rodentsOut) rodents[p] else 0f) + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] * herpExposed(p) else 0f) + (if (tortOut) tortoises[p] else 0f) + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
+        val total = (if (rodentsOut) rodents[p] else 0f) + hares[p] + hyrax[p] + birds[p] + (if (herpsOut) herps[p] * herpExposed(p) else 0f) + (if (tortOut) tortoises[p] * shell else 0f) + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
         if (total <= 0f) return 0f
         // (Prey that is not out is not met: in the same order as [huntedAll].)
-        val ease = floatArrayOf(if (rodentsOut) 1f else 0f, 1f, 1f, 1f, if (herpsOut) herpExposed(p) else 0f, if (tortOut) 1f else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f }
+        val ease = floatArrayOf(if (rodentsOut) 1f else 0f, 1f, 1f, 1f, if (herpsOut) herpExposed(p) else 0f, if (tortOut) shell else 0f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { 1f }
         val h0 = herps[p]; val t0 = tortoises[p]
         val took = takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
         herpLedger[4][p] += h0 - herps[p]
@@ -775,6 +777,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
          * hectare at about a gram each, range 2,000-34,000; Biol. Lett. 2024, doi:10.1098/rsbl.2024.0033).
          */
         const val HERP_MOST = 1000f
+        /**
+         * Share of the tortoises' weight in young whose shells have not yet hardened, the only ones most
+         * beasts can kill (adults are rarely taken but by eagles and people; Sci. Rep. 2022,
+         * doi:10.1038/s41598-022-22288-9). An estimate: the young are many but small.
+         */
+        const val TORT_YOUNG_SHARE = 0.1f
         /** The [herpTakenBy] slot of hunting groups and people (resident kinds take the slots below it). */
         const val TAKER_GROUPS = 40
         /**
