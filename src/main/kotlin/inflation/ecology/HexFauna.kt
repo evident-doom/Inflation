@@ -118,14 +118,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * Small animal food for resident kind [k] at place [p], up to [kgPerM2], kg eaten per m2. A kind that
      * roots for its food (roots in its diet: boar, bear) finds it mostly by digging, the grubs in the
-     * soil first, then what is out, and of the small vertebrates only the young it turns up; the
-     * others hunt it ([HexSmallLife.catchSmall]).
+     * soil first, then what is out, and of the small vertebrates only the young in the nest; the
+     * others stalk it ([HexSmallLife.catchSmall], [HexSmallLife.reach]).
      */
     private fun smallFood(k: Int, p: Int, kgPerM2: Float, weather: Weather): Float {
         if (kgPerM2 <= 0f) return 0f
         val roots = kinds[k].diet.roots > 0f
         val dug = if (roots) small.digGrubs(p, kgPerM2 * 1e6f) / 1e6f else 0f
-        return dug + small.catchSmall(p, (kgPerM2 - dug) * 1e6f, weather, who = k, youngOnly = roots) / 1e6f
+        return dug + small.catchSmall(p, (kgPerM2 - dug) * 1e6f, weather, who = k, style = if (roots) HexSmallLife.ROOT else HexSmallLife.STALK) / 1e6f
     }
 
     /**
