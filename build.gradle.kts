@@ -89,3 +89,6 @@ tool("herpCheck", "inflation.tools.HerpCheckKt", "herpArgs",
 
 tool("residentHunger", "inflation.tools.ResidentHungerCheckKt", "hungerArgs",
     description = "Check: when and where resident kinds (hippo by default) go hungry, by water within reach, green and density.")
+
+tool("floodplainCheck", "inflation.tools.FloodplainCheckKt", "floodArgs",
+    description = "Measures the river plains world generation makes and, with --years, whether they flood and stay moist (-PfloodArgs=\"--seed 1 --years 2\").")
