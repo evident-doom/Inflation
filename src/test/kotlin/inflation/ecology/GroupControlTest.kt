@@ -8,7 +8,8 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class GroupControlTest {
-    private val cfg = WorldConfig(seed = 3, widthKm = 300, heightKm = 300, erosionSteps = 10, plates = 6, oceanMarginKm = 40.0)
+    // (Without plateaus: on this small map one turns the first band's ground into a spot with no choice of moves.)
+    private val cfg = WorldConfig(seed = 3, widthKm = 300, heightKm = 300, erosionSteps = 10, plates = 6, oceanMarginKm = 40.0, plateauKm = 0.0)
     private val world by lazy { World.generate(cfg) }
 
     private fun state(sim: HexSim): ByteArray {
