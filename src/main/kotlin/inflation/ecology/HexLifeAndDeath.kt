@@ -632,36 +632,6 @@ internal fun HexGroups.remember(date: Date) {
             g.seasonQ[m] *= MEMORY_FADE
             if (g.fed > g.seasonQ[m] + 0.1f) { g.seasonPlace[m] = g.place; g.seasonQ[m] = g.fed }
         }
-        // Experiment: a herd's kind knows the land's seasons (from millennia in it): as each month begins,
-        // the herd takes as next month's place the nearest of the best country its kind found in that
-        // month last year.
-        if (SUPERSENSE && date.dayOfMonth <= days) {
-            val next = (m + 1) % 12
-            val best = seasonBest(g.species, next)
-            if (best != null && best.isNotEmpty()) {
-                val here = hw.placeHex[g.place]
-                var pick = -1; var pickKm = Double.MAX_VALUE
-                for (p in best) { val km = hex.distanceKm(here, hw.placeHex[p]); if (km < pickKm) { pickKm = km; pick = p } }
-                if (pick >= 0 && pickKm <= SUPERSENSE_KM) { g.seasonPlace[next] = pick; g.seasonQ[next] = min(1f, max(g.seasonQ[next], g.fed) + SUPERSENSE_LURE) }
-            }
-        }
-        // Experiment: what a herd knows of far country in this month (as its elders would, from years
-        // gone by): now and then it weighs a place far off against its season's place, and if that is
-        // clearly better, it makes it the season's place.
-        if (SCOUT_KM > 0f && date.dayOfMonth <= days) {
-            val rnd = groupRandom(g.id, date.absoluteDay * 31 + 7)
-            if (rnd.nextFloat() < SCOUT_CHANCE) {
-                val here = hw.placeHex[g.place]
-                val (cx, cy) = hex.centreKm(here)
-                val a = rnd.nextDouble() * 2 * Math.PI; val r = SCOUT_KM * (0.3 + 0.7 * rnd.nextDouble())
-                val far = hex.hexAt(cx + r * kotlin.math.cos(a), cy + r * kotlin.math.sin(a))
-                val p = if (far in 0 until hex.size) hw.placeOf[0][far] else -1
-                val ref = g.seasonPlace[m].takeIf { it >= 0 } ?: g.place
-                if (p >= 0 && herdQuality(g.species, p, m) > herdQuality(g.species, ref, m) + SCOUT_MARGIN) {
-                    g.seasonPlace[m] = p; g.seasonQ[m] = min(1f, max(g.seasonQ[m], g.fed) + SCOUT_MARGIN)
-                }
-            }
-        }
     }
 }
 
@@ -720,10 +690,9 @@ const val YOUNG_STALKED = 2f
  * Herds keep the residents' rule for breeding ranges (see [HexFauna.BREED_SPACING]) over the country
  * they range over, not the hex they gather in: the share of a herd's mothers that breed, as its kind
  * crowds the hex and the two rings of hexes about it beyond [HexFauna.BREED_SPACING] times its usual numbers.
- * (-Dhex.t.herdRanges=0 leaves herds out of it.)
  */
 internal fun HexGroups.herdRanges(g: HexGroup, kinNow: HashMap<Long, Int>): Float {
-    if (HexFauna.BREED_SPACING <= 0f || !HERD_RANGES || g.species.carnivore) return 1f
+    if (HexFauna.BREED_SPACING <= 0f || g.species.carnivore) return 1f
     val h0 = hw.placeHex[g.place]; val key = g.species.index.toLong() * hex.size
     val ring = HashSet<Int>(); ring += h0
     for (k in 0 until 6) { val q = hex.neighbour(h0, k); if (q >= 0) { ring += q; for (j in 0 until 6) { val w = hex.neighbour(q, j); if (w >= 0) ring += w } } }
@@ -731,4 +700,3 @@ internal fun HexGroups.herdRanges(g: HexGroup, kinNow: HashMap<Long, Int>): Floa
     val density = heads / (ring.size * hex.hexKm * hex.hexKm * 0.87).toFloat()
     return if (density <= 0f) 1f else min(1f, HexFauna.BREED_SPACING * HexFauna.usualDensity(g.species) / density)
 }
-val HERD_RANGES = (System.getProperty("hex.t.herdRanges")?.toFloat() ?: 1f) > 0f

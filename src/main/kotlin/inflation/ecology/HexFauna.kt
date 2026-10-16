@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexMap
@@ -104,7 +106,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun grassProtein(p: Int) = PROTEIN_DRY_GRASS + (1f - PROTEIN_DRY_GRASS) * land.green[p]
     fun browseProtein(p: Int) = PROTEIN_DRY_BROWSE + (1f - PROTEIN_DRY_BROWSE) * land.green[p]
     /** How well a diet with [share] of fresh growth's protein meets a mother's and a growing young's need, 0..1. */
-    fun proteinMet(share: Float) = if (NO_PROTEIN) 1f else min(1f, share / PROTEIN_NEED)
+    fun proteinMet(share: Float) = min(1f, share / PROTEIN_NEED)
 
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
@@ -191,7 +193,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             }
             // Where a long run showed where the kind settles, start at that many, spread the same way.
             val settled = Catalogue.settledPer1000Km2(s)
-            if (settled != null && USE_SETTLED) {
+            if (settled != null) {
                 val want = settled * land.areaKm2.sum() / 1000f
                 val now = count(k).toFloat()
                 if (now > 0f) { val f = want / now; for (p in 0 until n) { adults[k][p] *= f; young[k][p] *= f } }
@@ -311,7 +313,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * gets a few animals at places that suit it, as if wandering in from beyond the map; whether they
      * last is up to their niche. Only in training's play worlds ([newcomersOn]).
      */
-    var newcomersOn = System.getProperty("hex.newcomers") != null
+    var newcomersOn = false
     private fun newcomers(date: Date) {
         if (!newcomersOn) return
         val r = kotlin.random.Random(date.absoluteDay * 7919L + 13)
@@ -736,9 +738,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val CROWDED = 4f
         /**
          * Residents: how many times their usual numbers ([usualDensity]) can each hold a breeding range
-         * (-Dhex.t.breedSpacing; 0: no limit). At 1.5 roe deer level off at about 20-25 a km² of their forest, the high end of what is seen.
+         * (t.breedSpacing; 0: no limit). At 1.5 roe deer level off at about 20-25 a km² of their forest, the high end of what is seen.
          */
-        val BREED_SPACING = System.getProperty("hex.t.breedSpacing")?.toFloat() ?: 1.5f
+        val BREED_SPACING = Config.float("t.breedSpacing", 1.5f)
         /**
          * Protein in forage, against fresh growth: cured grass and straw keep some of their energy but
          * lose most of their protein (about 4% crude protein against 16% green, though grazers pick the
@@ -748,15 +750,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
          * crude protein); below it births fall and the young die more, by [YOUNG_PROTEIN_DEATHS] a year
          * at none. Worked out as a mean over the last weeks ([PROTEIN_MEMORY] a week).
          */
-        /** For comparison runs: -Dhex.t.noProtein leaves protein out (every diet meets the need). */
-        val NO_PROTEIN = System.getProperty("hex.t.noProtein") != null
-        val PROTEIN_DRY_GRASS = System.getProperty("hex.t.proteinDryGrass")?.toFloat() ?: 0.375f
+        val PROTEIN_DRY_GRASS = Config.float("t.proteinDryGrass", 0.375f)
         const val PROTEIN_DRY_BROWSE = 0.6f
         const val PROTEIN_FRUIT = 0.4f
-        val PROTEIN_STRAW = System.getProperty("hex.t.proteinStraw")?.toFloat() ?: 0.2f
-        val PROTEIN_LICHEN = System.getProperty("hex.t.proteinLichen")?.toFloat() ?: 0.3f
+        val PROTEIN_STRAW = Config.float("t.proteinStraw", 0.2f)
+        val PROTEIN_LICHEN = Config.float("t.proteinLichen", 0.3f)
         const val PROTEIN_NEED = 0.5f
-        val YOUNG_PROTEIN_DEATHS = System.getProperty("hex.t.youngProteinDeaths")?.toFloat() ?: 0.25f
+        val YOUNG_PROTEIN_DEATHS = Config.float("t.youngProteinDeaths", 0.25f)
         const val PROTEIN_MEMORY = 0.3f
         /** Share a week of residents that leave for the best country next door when it is as good again as here (none when it is no better). */
         const val SPILL_BETTER = 0.1f
@@ -809,8 +809,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val SPILL_HUNGER = 0.1f
         /** Share of its usual density a kind starts at. */
         const val START_SHARE = 0.5f
-        /** Whether new worlds start at the settled densities (-Dhex.catalogueStart starts from the catalogue instead). */
-        val USE_SETTLED = System.getProperty("hex.catalogueStart") == null
         /** Most a plant-eater can eat in a week as a multiple of its need: coarse food fills the gut before it nourishes, so poor dry forage cannot be fully made up for (a quarter more at most). */
         const val GUT_FILL = 1.25f
         /** Forage quality (against green, 1) at which a herbivore's gut just holds its need: middling forage. */

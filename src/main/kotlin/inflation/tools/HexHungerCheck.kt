@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.Config
+
 import inflation.ecology.Catalogue
 import inflation.learning.HexLearning
 import inflation.world.Biome
@@ -10,7 +12,7 @@ import inflation.world.WorldConfig
  * When and where herds go hungry: for each herd kind, month by month over the run (after the first
  * year), the share of its animals in groups fed under half, the mean fed, the mean snow over them
  * and the share standing where their kind's food is under a fifth of what it wants; and the kinds
- * of country the hungry stand in. Hand-written moves (people left out with -Dhex.noPeople).
+ * of country the hungry stand in. Hand-written moves (people left out with people=false).
  *
  * Usage: hex-hunger-check [--seed N] [--years N] [--kinds a,b]
  */
@@ -25,7 +27,7 @@ fun main(args: Array<String>) {
         }
         k++
     }
-    val run = HexLearning.Run(cfg, Catalogue.learned.filter { !it.human || System.getProperty("hex.noPeople") == null })
+    val run = HexLearning.Run(cfg, Catalogue.learned.filter { !it.human || Config.flag("people", true) })
     val herds = Catalogue.learned.filter { it in Catalogue.migratory && (only == null || it.name in only!!) }
     val perYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     val heads = Array(herds.size) { DoubleArray(12) }; val hungry = Array(herds.size) { DoubleArray(12) }; val fed = Array(herds.size) { DoubleArray(12) }

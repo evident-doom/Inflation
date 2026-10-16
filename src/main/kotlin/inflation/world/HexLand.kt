@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.Config
+
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -53,8 +55,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         for (b in Biome.entries) { val share = hw.biome[b.ordinal][h]; if (share <= 0f) continue; val v = PALATABLE[b] ?: continue; s += share * v; w += share }
         val v = if (w > 0f) s / w else 0.5f
         // (Half of even the poorest country's plants is eaten by something; the rest of it by the
-        // share for its kind. A balancing run may change that floor: -Dhex.t.palatableFloor.)
-        val floor = System.getProperty("hex.t.palatableFloor")?.toFloat() ?: PALATABLE_FLOOR
+        // share for its kind. A balancing run may change that floor: t.palatableFloor.)
+        val floor = Config.float("t.palatableFloor", PALATABLE_FLOOR)
         floor + (1f - floor) * v
     }
 
@@ -782,10 +784,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         const val MIN_SPRING_FLOW = 3e4f
         const val SPRING_KM2 = 150f
         /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
-        val DRY_VALUE = System.getProperty("hex.t.dryValue")?.toFloat() ?: 0.65f
+        val DRY_VALUE = Config.float("t.dryValue", 0.65f)
         /** Experiment knobs: the warmth at which plants start to grow, °C, and the span over which they reach full growth, °C. */
-        val GROW_FROM_C = System.getProperty("hex.t.growFrom")?.toFloat() ?: 2f
-        val GROW_SPAN_C = System.getProperty("hex.t.growSpan")?.toFloat() ?: 13f
+        val GROW_FROM_C = Config.float("t.growFrom", 2f)
+        val GROW_SPAN_C = Config.float("t.growSpan", 13f)
         /**
          * Perennial swards: wholly so where the warmest month is at most this, °C (annuals wholly where it is
          * 4 °C warmer); the share of what the soil holds down to which their deep roots keep them growing.
@@ -865,12 +867,12 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
 
 /**
  * Share of the herbs and shrubs a place loses a step for each unit of trampling over it (see
- * [HexLand.trample]; -Dhex.t.trampleHerb, -Dhex.t.trampleShrub): about 5% of the shrubs a year where a
+ * [HexLand.trample]; t.trampleHerb, t.trampleShrub): about 5% of the shrubs a year where a
  * tonne of animals a km² goes about (it was ten times that, more than shrubs regrow: the shrub layer
  * fell by half in four years and the browsers starved).
  */
-val TRAMPLE_HERB = System.getProperty("hex.t.trampleHerb")?.toFloat() ?: 0.005f
-val TRAMPLE_SHRUB = System.getProperty("hex.t.trampleShrub")?.toFloat() ?: 0.01f
+val TRAMPLE_HERB = Config.float("t.trampleHerb", 0.005f)
+val TRAMPLE_SHRUB = Config.float("t.trampleShrub", 0.01f)
 
-/** How fast the leaves of the shoots fall in the cold, a year: about two-thirds gone over a four-month winter, the twigs and buds left (-Dhex.t.leafFall; 0: they last as twigs do). */
-val LEAF_FALL = System.getProperty("hex.t.leafFall")?.toFloat() ?: 4f
+/** How fast the leaves of the shoots fall in the cold, a year: about two-thirds gone over a four-month winter, the twigs and buds left (t.leafFall; 0: they last as twigs do). */
+val LEAF_FALL = Config.float("t.leafFall", 4f)

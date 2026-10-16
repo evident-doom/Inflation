@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.Config
+
 import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
 
@@ -61,13 +63,13 @@ fun main(args: Array<String>) {
     fun bandHeadsNow(l: List<inflation.ecology.HexGroup>): Double = l.sumOf { it.size.toDouble() }.coerceAtLeast(1.0)
     fun keptShare(): Double { val v = 100.0 * apptKept / apptDue.coerceAtLeast(1); apptDue = 0; apptKept = 0; return v }
     inflation.ecology.Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
-    // Bands' ways from a learned network (-Dhex.ways=FILE), else the scaffold's.
-    System.getProperty("hex.ways")?.let { herds.ways = inflation.learning.NetWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.WAYS_IN, inflation.learning.Schema.WAYS_OUT)) }
-    // Herds' and packs' ways from learned networks (-Dhex.herdWays=FILE, -Dhex.hunterWays=FILE), else the hand-written ways.
-    System.getProperty("hex.herdWays")?.let { herds.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
-    System.getProperty("hex.hunterWays")?.let { herds.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
-    // Every kind moving by learned role networks (-Dhex.nets=DIR with herds.mlp, hunters.mlp, people.mlp, as HexPpo writes them), else by the hand-written choices.
-    System.getProperty("hex.nets")?.let { dir ->
+    // Bands' ways from a learned network (ways=FILE), else the scaffold's.
+    Config.string("ways")?.let { herds.ways = inflation.learning.NetWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.WAYS_IN, inflation.learning.Schema.WAYS_OUT)) }
+    // Herds' and packs' ways from learned networks (herdWays=FILE, hunterWays=FILE), else the hand-written ways.
+    Config.string("herdWays")?.let { herds.herdWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HERD_WAYS_OUT)) }
+    Config.string("hunterWays")?.let { herds.hunterWays = inflation.learning.NetAnimalWays(inflation.learning.Schema.load(java.io.File(it), inflation.learning.Schema.ANIMAL_WAYS_IN, inflation.learning.Schema.HUNTER_WAYS_OUT)) }
+    // Every kind moving by learned role networks (nets=DIR with herds.mlp, hunters.mlp, people.mlp, as HexPpo writes them), else by the hand-written choices.
+    Config.string("nets")?.let { dir ->
         val ps = inflation.learning.HexPpo.ROLES.map { r -> inflation.learning.MoverPolicy(inflation.learning.SharedMover.load(java.io.File(baselineDir(dir), "$r.mlp")), null, { 0f }, { 0 }) }
         for (s in herds.kinds) herds.policies[s] = ps[inflation.learning.HexPpo.role(s)]
         println("moving by the learned networks in $dir")
@@ -164,7 +166,7 @@ fun main(args: Array<String>) {
         val walked = HashMap<Int, HashSet<Int>>(); val lastCamp = HashMap<Int, Int>()
         repeat(stepsPerYear) { w ->
             if (w == stepsPerYear / 2) println("     midsummer, land that suits / pull felt: " + drawn())
-            System.getProperty("hex.huntDiag")?.let { kinds ->
+            Config.string("huntDiag")?.let { kinds ->
                 if (w % 13 == 6) {
                     // Packs of the kind that went hungry this week against those that ate, and their ground.
                     for (kind in kinds.split(',')) {
@@ -182,7 +184,7 @@ fun main(args: Array<String>) {
                     }
                 }
             }
-            if (System.getProperty("hex.fedDiag") != null && y == 1 && w % 13 == 6) {
+            if (Config.flag("fedDiag", false) && y == 1 && w % 13 == 6) {
                 // How well each resident kind is fed where it lives, and why: weighted by head count.
                 println("     week $w, residents: fed / share hungry / tether / access / green / reserve days")
                 for ((k, s) in fauna.kinds.withIndex()) {
@@ -205,8 +207,8 @@ fun main(args: Array<String>) {
                 }
             }
             val t0 = System.nanoTime()
-            // -Dhex.follow=kind: follow one group of that kind week by week, as the viewer's follow mode does.
-            System.getProperty("hex.follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
+            // follow=kind: follow one group of that kind week by week, as the viewer's follow mode does.
+            Config.string("follow")?.let { kind -> if (herds.groups.none { it.id == herds.watched && it.alive }) herds.watched = herds.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
             sim.step()
             grainReapedNow += (herds.hunting["people:grain reaped, kg"] ?: 0) / 1000.0
             if (w == 0) movedKm.clear()
@@ -218,7 +220,7 @@ fun main(args: Array<String>) {
             for ((j, sp) in samplePlaces.withIndex()) { val sl = fauna.small; localSum[j][0] += sl.rodents[sp]; localSum[j][1] += sl.hares[sp]; localSum[j][2] += sl.foxes[sp]; localSum[j][3] += sl.owls[sp]; localSum[j][4] += sl.birds[sp] }
             localWeeks++
             if (localWeeks == Date.DAYS_PER_YEAR / cfg.daysPerStep) { for (j in samplePlaces.indices) { localYears[j] += localSum[j].map { it / localWeeks }.toFloatArray(); localSum[j].fill(0f) }; localWeeks = 0 }
-            if (System.getProperty("hex.follow") != null && herds.watched >= 0) {
+            if (Config.string("follow") != null && herds.watched >= 0) {
                 val g = herds.groups.firstOrNull { it.id == herds.watched }
                 println("   follow #%d (%s, %d) %s:".format(herds.watched, g?.species?.name ?: "?", g?.size ?: 0, weather.date))
                 for (l in herds.watchLog) println("      $l")
@@ -233,8 +235,8 @@ fun main(args: Array<String>) {
             for ((key, v) in herds.hunting) huntNow.merge(key, v, Int::plus)
             for ((key, v) in herds.hunting) if (key.startsWith("herd size ")) causes.merge(key, v.toDouble(), Double::plus)
             for (gr in herds.groups) if (gr.alive && !gr.species.carnivore) herdHeadWeeks[herds.sizeClass(gr)] += gr.size.toDouble()
-            // -Dhex.migDiag=kind: each month, how far that kind's herds are from the place they remember for the month.
-            System.getProperty("hex.migDiag")?.let { kind -> if (weather.date.dayOfMonth <= cfg.daysPerStep) {
+            // migDiag=kind: each month, how far that kind's herds are from the place they remember for the month.
+            Config.string("migDiag")?.let { kind -> if (weather.date.dayOfMonth <= cfg.daysPerStep) {
                 val m = weather.date.month
                 val gs = herds.groups.filter { it.alive && it.species.name == kind && it.seasonPlace[m] >= 0 }
                 if (gs.isNotEmpty()) println("     month ${m + 1} $kind: %.0f km from this month's place, fed %.2f, remembered worth %.2f".format(

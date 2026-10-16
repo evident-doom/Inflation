@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
@@ -187,7 +189,7 @@ internal fun HexGroups.cultureMeets(a: HexGroup, b: HexGroup): Boolean {
         if (ba.words[k] != bb.words[k]) { if (rnd.nextFloat() < a.size.toFloat() / (a.size + b.size)) bb.words[k] = ba.words[k] else ba.words[k] = bb.words[k] }
     }
     // Ways are copied from the band that does better: more food in hand, more children.
-    fun doing(g: HexGroup) = g.fed + g.larder / max(1f, g.dailyNeedKg * 60f) + g.young.toFloat() / max(1, g.adults) + STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + (if (TRADE) RENOWN * (g.band?.renown ?: 0f) else 0f)
+    fun doing(g: HexGroup) = g.fed + g.larder / max(1f, g.dailyNeedKg * 60f) + g.young.toFloat() / max(1, g.adults) + STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + RENOWN * (g.band?.renown ?: 0f)
     val (lo, hi) = if (doing(a) < doing(b)) ba to bb else bb to ba
     for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {
         lo.traditions[t.ordinal] = hi.holds(t)
@@ -422,12 +424,12 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
 const val RITE_SITES = 3
 /**
  * How strongly a lineage's founders hold to their rites: from none to three times as strongly as a herd
- * keeps its round ([ROUND_STRENGTH]), by lineage, as its traditions are (-Dhex.t.riteMax). A well-fed
+ * keeps its round ([ROUND_STRENGTH]), by lineage, as its traditions are (t.riteMax). A well-fed
  * band feels a hold under 1 hardly at all (the round's pull grows with how much better the place
  * promises than it fares now), so the range reaches well above it. Not measured otherwise: wide on
  * purpose, so that some lines are bound by their rites and others hardly, and the world sorts them.
  */
-val RITE_FOUNDER_MAX = System.getProperty("hex.t.riteMax")?.toFloat() ?: 3f
+val RITE_FOUNDER_MAX = Config.float("t.riteMax", 3f)
 /** How much a band's hold on its rites changes when it splits: a fifth of the founders' range, as temperament drifts. Not measured. */
 val RITE_DRIFT get() = RITE_FOUNDER_MAX / 5f
 /** Chance at a split that one of the offshoot's rites shifts by a month (the telling changes). Not measured. */
@@ -470,8 +472,8 @@ internal fun HexGroups.riteWeek(g: HexGroup) {
         val km = hex.distanceKm(here, h)
         if (km > REMEMBERED_KM) consider(placeIn(h), month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
     }
-    // (Trade on: where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
-    if (TRADE && SOURCE_RITES) for (m in TRADED) {
+    // (Where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
+    for (m in TRADED) {
         val want = 1f - b.goods[m.ordinal] / (KEEP_YEARS * YEAR_NEED[m.ordinal] * max(1, g.adults))
         if (want <= 0f) continue
         for (h in materialSources.getValue(m)) if (b.knows(h)) {

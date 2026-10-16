@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.DataInputStream
@@ -69,14 +71,14 @@ object HexSnapshot {
     /**
      * A generated world kept on disk, so a run need not generate it again: [load] gives it back if
      * one for [cfg] was saved by the same world-generating code, else generates it with [log] and
-     * keeps it. -Dhex.noWorldCache turns this off.
+     * keeps it. worldCache=false in the config turns this off.
      */
     object WorldCache {
         private const val WORLD_MAGIC = 0x48455857 // "HEXW"
         val dir = File(System.getProperty("user.home"), ".inflation/world-cache")
 
         fun load(cfg: inflation.world.WorldConfig, log: (String) -> Unit = {}): inflation.world.World {
-            if (System.getProperty("hex.noWorldCache") != null) return inflation.world.World.generate(cfg, log = log)
+            if (!Config.flag("worldCache", true)) return inflation.world.World.generate(cfg, log = log)
             val f = File(dir, "world-%016x.bin".format(key(cfg)))
             if (f.exists()) runCatching {
                 DataInputStream(BufferedInputStream(GZIPInputStream(f.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
@@ -129,7 +131,7 @@ object HexSnapshot {
      * and sediment) kept on disk, so that a world made again after a change to the climate, the
      * rivers or the soils skips the erosion, which takes most of the time. Kept by the settings and the
      * landform-making code only (tectonics, volcanoes, geology, erosion, hydrology, noise, the grid and
-     * the world's own making). -Dhex.noLandformCache turns this off.
+     * the world's own making). landformCache=false in the config turns this off.
      */
     object LandformCache {
         private const val MAGIC = 0x4845584C // "HEXL"
@@ -137,7 +139,7 @@ object HexSnapshot {
         private val PARTS = listOf("Tectonics", "Volcan", "Geology", "Erosion", "Hydrology", "Drainage", "Noise", "Grid", "FloatHeap", "Rock", "World", "Landform", "Plate")
 
         fun load(cfg: inflation.world.WorldConfig, log: (String) -> Unit = {}): inflation.world.Landform {
-            if (System.getProperty("hex.noLandformCache") != null) return inflation.world.World.landform(cfg, log)
+            if (!Config.flag("landformCache", true)) return inflation.world.World.landform(cfg, log)
             val f = File(dir, "landform-%016x.bin".format(key(cfg)))
             if (f.exists()) runCatching {
                 DataInputStream(BufferedInputStream(GZIPInputStream(f.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->

@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.Config
+
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
@@ -347,10 +349,10 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     /**
      * A long climate shock, like the Younger Dryas (about 12,900 years ago: some 1,200 years colder
      * and drier, setting in over decades and lifting quickly), set with
-     * -Dhex.climateShock=startYear,years,degrees,rainShare (for example 20,1200,-4,0.7): the
+     * climateShock=startYear,years,degrees,rainShare (for example 20,1200,-4,0.7): the
      * temperature offset and the share of the rain, now; nothing when unset.
      */
-    private val shockSpec = System.getProperty("hex.climateShock")?.split(",")?.map { it.trim().toDouble() }
+    private val shockSpec = Config.string("climateShock")?.split(",")?.map { it.trim().toDouble() }
     fun shock(): Pair<Float, Float> {
         val s = shockSpec ?: return 0f to 1f
         val (start, years, dT, rain) = s
