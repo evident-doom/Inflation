@@ -36,21 +36,29 @@ fun main(args: Array<String>) {
     val start = steps - show * perYear
     // Over the shown years: herps (mean, kg), and the ledger's sums (kg), per class.
     // Over the whole map, each year: rodents, hares, hyrax, birds, tortoises, foxes, owls (kg/km2), wild boar (head/km2); rodents in March and September.
-    val smallNames = listOf("rodents", "hares", "hyrax", "birds", "tortoises", "foxes", "owls", "boar/km2", "rod. Mar", "rod. Sep")
+    val smallNames = listOf("rodents", "hares", "hyrax", "birds", "tortoises", "foxes", "owls", "boar/km2", "rod. Mar", "rod. Sep", "insects", "dormant ins.", "pollinators")
     val smallYearly = Array(smallNames.size) { DoubleArray(years) }; val monthSteps = Array(2) { IntArray(years) }
     val boar = run.fauna.kinds.indexOfFirst { it.name == "wild boar" }; val allArea = classArea.sum()
+    // Tortoises per class: yearly mean, and over the shown years their mean and the ledger's sums.
+    val tYearly = Array(classes.size) { DoubleArray(years) }; val tMean = DoubleArray(classes.size); val tLedger = Array(classes.size) { DoubleArray(7) }
+    val tCap = DoubleArray(classes.size).also { for (p in 0 until n) if (c[p] >= 0) it[c[p]] += (sl.tortoiseCapacity(p) * land.areaKm2[p]).toDouble() }
+    // Rodents, hares, hyrax, birds per class: mean over the shown years (kg).
+    val preyMean = Array(4) { DoubleArray(classes.size) }
     val herpMean = DoubleArray(classes.size); val ledger = Array(classes.size) { DoubleArray(8) }; val first = DoubleArray(classes.size); val last = DoubleArray(classes.size)
     repeat(steps) { w ->
-        if (w == start) { for (l in sl.herpLedger) l.fill(0f); for (l in sl.herpTakenBy) l.fill(0f); for (p in 0 until n) if (c[p] >= 0) first[c[p]] += (sl.herps[p] * land.areaKm2[p]).toDouble() }
+        if (w == start) { for (l in sl.herpLedger) l.fill(0f); for (l in sl.herpTakenBy) l.fill(0f); for (l in sl.tortLedger) l.fill(0f); for (l in sl.tortTakenBy) l.fill(0f); for (k in sl.preyTakenBy) for (l in k) l.fill(0f); sl.grubsDug.fill(0f); for (p in 0 until n) if (c[p] >= 0) first[c[p]] += (sl.herps[p] * land.areaKm2[p]).toDouble() }
         run.step()
         val y = w / perYear
         for (p in 0 until n) { val cc = c[p]; if (cc < 0) continue; val a = land.areaKm2[p].toDouble(); yearly[cc][y] += sl.herps[p] * a / perYear; yearlyF[if (forest[p]) 1 else 0][y] += sl.herps[p] * a / perYear
-            if (w >= start) herpMean[cc] += sl.herps[p] * a / (show * perYear) }
+            if (w >= start) herpMean[cc] += sl.herps[p] * a / (show * perYear)
+            tYearly[cc][y] += sl.tortoises[p] * a / perYear; if (w >= start) tMean[cc] += sl.tortoises[p] * a / (show * perYear)
+            if (w >= start) { val f = a / (show * perYear); preyMean[0][cc] += sl.rodents[p] * f; preyMean[1][cc] += sl.hares[p] * f; preyMean[2][cc] += sl.hyrax[p] * f; preyMean[3][cc] += sl.birds[p] * f } }
         val month = run.weather.date.month; val mi = when (month) { 2 -> 0; 8 -> 1; else -> -1 }; if (mi >= 0) monthSteps[mi][y]++
         for (p in 0 until n) { if (c[p] < 0) continue; val a = land.areaKm2[p].toDouble() / perYear
             val v = doubleArrayOf(sl.rodents[p].toDouble(), sl.hares[p].toDouble(), sl.hyrax[p].toDouble(), sl.birds[p].toDouble(), sl.tortoises[p].toDouble(), sl.foxes[p].toDouble(), sl.owls[p].toDouble(),
                 if (boar >= 0) (run.fauna.adults[boar][p] + run.fauna.young[boar][p]).toDouble() else 0.0)
             for (i in v.indices) smallYearly[i][y] += v[i] * a
+            smallYearly[10][y] += sl.insects[p] * a; smallYearly[11][y] += (sl.dormantInsects[p] + sl.dormantPollinators[p]) * a; smallYearly[12][y] += sl.pollinators[p] * a
             if (mi >= 0) smallYearly[8 + mi][y] += sl.rodents[p] * land.areaKm2[p].toDouble() }
     }
     val takers = Array(classes.size) { DoubleArray(sl.herpTakenBy.size) }
@@ -63,7 +71,7 @@ fun main(args: Array<String>) {
     println()
     println("whole map, yearly mean kg/km2 (wild boar head/km2; rodents in March and September), year 1..$years")
     for ((i, name) in smallNames.withIndex()) println("%-16s".format(name) + smallYearly[i].withIndex().joinToString("") { (y, v) ->
-        val per = if (i >= 8) monthSteps[i - 8][y].toDouble() else 1.0
+        val per = if (i in 8..9) monthSteps[i - 8][y].toDouble() else 1.0
         if (per > 0) "%8.2f".format(v / per / allArea) else "%8s".format("-") })
     println()
     println("last $show years, as % of the mean herps a year: born, died out, hunger, lying up, hunters, rest (spread, fire, cap), net change; fed while out; insects eaten kg/km2 a year by herps and by birds")
@@ -87,4 +95,43 @@ fun main(args: Array<String>) {
             .joinToString(", ") { i -> "%s %.0f".format(if (i == inflation.ecology.HexSmallLife.TAKER_GROUPS) "groups and people" else names.getOrElse(i) { "kind $i" }, 100.0 * takers[ci][i] / show / m) }
         println("%-16s%s".format(name, list))
     }
+    println()
+    val tTakers = Array(classes.size) { DoubleArray(sl.tortTakenBy.size) }
+    for (p in 0 until n) { val cc = c[p]; if (cc < 0) continue; val a = land.areaKm2[p].toDouble(); for (i in 0 until 7) tLedger[cc][i] += sl.tortLedger[i][p] * a
+        for (i in sl.tortTakenBy.indices) tTakers[cc][i] += sl.tortTakenBy[i][p] * a }
+    println("tortoises: yearly mean kg/km2, year 1..$years (cap: the capacity they grow toward, as at the start)")
+    for ((ci, name) in classes.withIndex()) if (classArea[ci] > 0) println("%-16s%8.2f |".format(name, tCap[ci] / classArea[ci]) + tYearly[ci].joinToString("") { "%7.2f".format(it / classArea[ci]) })
+    println("tortoises, last $show years, as % of their mean a year: grown, died, crowded, hunters, burnt, rest (spread), net; days a year out, of them in the breeding months")
+    println("%-16s%8s%8s%8s%8s%8s%8s%8s%8s%8s%8s".format("class", "kg/km2", "grown", "died", "crowd", "hunters", "burnt", "rest", "net", "out", "breed"))
+    for ((ci, name) in classes.withIndex()) {
+        if (classArea[ci] <= 0) continue
+        val m = tMean[ci]; val l = tLedger[ci]
+        fun pct(x: Double) = if (m > 0) 100.0 * x / show / m else Double.NaN
+        val net = (tYearly[ci][years - 1] - tYearly[ci][years - show - 1].takeIf { years > show }.let { it ?: tYearly[ci][0] }) / show
+        val rest = net - (l[0] - l[1] - l[2] - l[3] - l[4]) / show
+        println("%-16s%8.2f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f".format(name, m / classArea[ci], pct(l[0]), pct(l[1]), pct(l[2]), pct(l[3]), pct(l[4]), 100.0 * rest / m, 100.0 * net / m,
+            l[6] / show / classArea[ci], l[5] / show / classArea[ci]))
+        val list = tTakers[ci].indices.filter { tTakers[ci][it] > 0.0 }.sortedByDescending { tTakers[ci][it] }.take(5)
+            .joinToString(", ") { i -> "%s %.0f".format(if (i == inflation.ecology.HexSmallLife.TAKER_GROUPS) "groups and people" else names.getOrElse(i) { "kind $i" }, pct(tTakers[ci][i])) }
+        println("%-16s  taken by: %s".format("", list))
+    }
+    println()
+    val HS = inflation.ecology.HexSmallLife
+    fun takerName(i: Int) = when (i) { HS.TAKER_GROUPS -> "groups and people"; HS.TAKER_FOXES -> "foxes"; HS.TAKER_EAGLES -> "eagles"; HS.TAKER_OWLS -> "owls"; else -> names.getOrElse(i) { "kind $i" } }
+    for ((ki, kind) in listOf("rodents", "hares", "hyrax", "birds").withIndex()) {
+        println("$kind taken, last $show years, % of their mean a year, by who took them (largest first; kg/km2 the mean)")
+        val sums = Array(classes.size) { DoubleArray(sl.preyTakenBy[ki].size) }
+        for (p in 0 until n) { val cc = c[p]; if (cc < 0) continue; val a = land.areaKm2[p].toDouble(); for (i in sums[cc].indices) sums[cc][i] += sl.preyTakenBy[ki][i][p] * a }
+        for ((ci, name) in classes.withIndex()) {
+            if (classArea[ci] <= 0) continue
+            val m = preyMean[ki][ci]
+            val all = sums[ci].sum()
+            val list = sums[ci].indices.filter { sums[ci][it] > 0.0 }.sortedByDescending { sums[ci][it] }.take(6)
+                .joinToString(", ") { i -> "%s %.0f".format(takerName(i), if (m > 0) 100.0 * sums[ci][i] / show / m else Double.NaN) }
+            println("%-16s%8.2f  all %.0f: %s".format(name, m / classArea[ci], if (m > 0) 100.0 * all / show / m else Double.NaN, list))
+        }
+    }
+    println("grubs dug by rooting beasts, last $show years, kg/km2 a year")
+    val grubs = DoubleArray(classes.size); for (p in 0 until n) if (c[p] >= 0) grubs[c[p]] += sl.grubsDug[p] * land.areaKm2[p].toDouble()
+    for ((ci, name) in classes.withIndex()) if (classArea[ci] > 0) println("%-16s%8.1f".format(name, grubs[ci] / show / classArea[ci]))
 }
