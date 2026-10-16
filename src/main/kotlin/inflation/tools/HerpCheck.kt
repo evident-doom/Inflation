@@ -36,13 +36,15 @@ fun main(args: Array<String>) {
     // Over the shown years: herps (mean, kg), and the ledger's sums (kg), per class.
     val herpMean = DoubleArray(classes.size); val ledger = Array(classes.size) { DoubleArray(8) }; val first = DoubleArray(classes.size); val last = DoubleArray(classes.size)
     repeat(steps) { w ->
-        if (w == start) { for (l in sl.herpLedger) l.fill(0f); for (p in 0 until n) if (c[p] >= 0) first[c[p]] += (sl.herps[p] * land.areaKm2[p]).toDouble() }
+        if (w == start) { for (l in sl.herpLedger) l.fill(0f); for (l in sl.herpTakenBy) l.fill(0f); for (p in 0 until n) if (c[p] >= 0) first[c[p]] += (sl.herps[p] * land.areaKm2[p]).toDouble() }
         run.step()
         val y = w / perYear
         for (p in 0 until n) { val cc = c[p]; if (cc < 0) continue; val a = land.areaKm2[p].toDouble(); yearly[cc][y] += sl.herps[p] * a / perYear; yearlyF[if (forest[p]) 1 else 0][y] += sl.herps[p] * a / perYear
             if (w >= start) herpMean[cc] += sl.herps[p] * a / (show * perYear) }
     }
-    for (p in 0 until n) { val cc = c[p]; if (cc < 0) continue; val a = land.areaKm2[p].toDouble(); last[cc] += sl.herps[p] * a; for (i in 0 until 8) ledger[cc][i] += sl.herpLedger[i][p] * a }
+    val takers = Array(classes.size) { DoubleArray(sl.herpTakenBy.size) }
+    for (p in 0 until n) { val cc = c[p]; if (cc < 0) continue; val a = land.areaKm2[p].toDouble(); last[cc] += sl.herps[p] * a; for (i in 0 until 8) ledger[cc][i] += sl.herpLedger[i][p] * a
+        for (i in sl.herpTakenBy.indices) takers[cc][i] += sl.herpTakenBy[i][p] * a }
     println("yearly mean herps kg/km2, year 1..$years")
     for ((ci, name) in classes.withIndex()) if (classArea[ci] > 0) println("%-16s".format(name) + yearly[ci].joinToString("") { "%8.2f".format(it / classArea[ci]) })
     println("%-16s".format("open (canopy<.5)") + yearlyF[0].joinToString("") { "%8.2f".format(it / fArea[0]) })
@@ -58,5 +60,15 @@ fun main(args: Array<String>) {
         val rest = net - (l[0] - l[1] - l[2] - l[3] - l[4])
         println("%-16s%8.1f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.2f%8s%10.0f%10.0f".format(name, m / classArea[ci], pct(l[0]), pct(l[1]), pct(l[2]), pct(l[3]), pct(l[4]), pct(rest), pct(net),
             if (l[6] > 0) l[5] / l[6] else Double.NaN, "", l[5] / show / classArea[ci], l[7] / show / classArea[ci]))
+    }
+    println()
+    println("taken by hunters, last $show years, % of the mean herps a year, by who took them (largest first)")
+    val names = run.fauna.kinds.map { it.name }
+    for ((ci, name) in classes.withIndex()) {
+        if (classArea[ci] <= 0) continue
+        val m = herpMean[ci]
+        val list = takers[ci].indices.filter { takers[ci][it] > 0.0 }.sortedByDescending { takers[ci][it] }.take(6)
+            .joinToString(", ") { i -> "%s %.0f".format(if (i == inflation.ecology.HexSmallLife.TAKER_GROUPS) "herds' and packs' hunters, people" else names.getOrElse(i) { "kind $i" }, 100.0 * takers[ci][i] / show / m) }
+        println("%-16s%s".format(name, list))
     }
 }

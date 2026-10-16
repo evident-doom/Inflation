@@ -544,7 +544,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * pollinators) as far as a vertebrate hunting by sight can pick them up ([INSECT_CATCH]). Returns
      * kg per km² caught.
      */
-    fun catchSmall(p: Int, kgPerKm2: Float, weather: Weather, most: Float = 0.5f): Float {
+    fun catchSmall(p: Int, kgPerKm2: Float, weather: Weather, most: Float = 0.5f, who: Int = TAKER_GROUPS): Float {
         val t = weather.temperature[p]
         val herpsOut = herpsActive(t, land.soil[p])
         val tortOut = t in 14f..33f
@@ -557,6 +557,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val h0 = herps[p]
         val took = takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
         herpLedger[4][p] += h0 - herps[p]
+        herpTakenBy[min(who, TAKER_GROUPS)][p] += h0 - herps[p]
         return took
     }
 
@@ -567,6 +568,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * in parallel may undercount 4 a little.)
      */
     val herpLedger = Array(8) { FloatArray(n) }
+    /** Reptiles and amphibians taken by hunters since the ledger was cleared, kg/km², by who took them: the resident kind of that index, or (at [TAKER_GROUPS]) herds' and packs' hunters and people. */
+    val herpTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
 
     private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
     private val foxPrey by lazy { (listOf(rodents, hares, locusts, insects, pollinators) + bird).toTypedArray() }
@@ -747,6 +750,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val HERP_HUNGER = 1f
         const val HERP_DORMANT_DEATHS = 0.15f
         const val HERP_COVER_KG = 1f
+        /** The [herpTakenBy] slot of hunting groups and people (resident kinds take the slots below it). */
+        const val TAKER_GROUPS = 40
         /**
          * Plant-eating insects: the warmth at which they start to grow (the usual lower threshold for
          * development, about 10 °C, down to about 5 °C in cool-summer insects), and the warmth above it

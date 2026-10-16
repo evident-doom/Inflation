@@ -465,7 +465,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         val animalNeed = needAll * (1f - ps)
                         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - got[k] - strawPart) else 0f
                         var gotMeat = huntResidents(k, p, needAll * d.meat / all * avail[k])
-                        var gotSmall = small.catchSmall(p, needAll * d.smallPrey / all * 1e6f * avail[k], weather) / 1e6f
+                        var gotSmall = small.catchSmall(p, needAll * d.smallPrey / all * 1e6f * avail[k], weather, who = k) / 1e6f
                         var gotCarrion = small.scavenge(p, min(needAll * d.carrion / all, 0.5f * small.carrion[p]))
                         var gap = animalNeed + plantGap - gotMeat - gotSmall - gotCarrion
                         // (The shortfall is made up first from the food it mostly lives on, then from the others.)
@@ -474,7 +474,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                             if (gap <= 0f) break
                             val x = when (food) {
                                 0 -> huntResidents(k, p, gap * avail[k])
-                                1 -> small.catchSmall(p, gap * 1e6f * avail[k], weather) / 1e6f
+                                1 -> small.catchSmall(p, gap * 1e6f * avail[k], weather, who = k) / 1e6f
                                 else -> small.scavenge(p, min(gap, 0.5f * small.carrion[p]))
                             }
                             when (food) { 0 -> gotMeat += x; 1 -> gotSmall += x; else -> gotCarrion += x }
@@ -484,7 +484,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         if (gap <= 0f && reserve[k][p] < s.maxFatDays) {
                             var more = FATTEN * animalNeed
                             if (d.meat > 0f) { val x = huntResidents(k, p, more * avail[k]); surplus[k] += x / needAll; more -= x }
-                            if (more > 0f && d.smallPrey > 0f) { val x = small.catchSmall(p, more * 1e6f * avail[k], weather) / 1e6f; surplus[k] += x / needAll; more -= x }
+                            if (more > 0f && d.smallPrey > 0f) { val x = small.catchSmall(p, more * 1e6f * avail[k], weather, who = k) / 1e6f; surplus[k] += x / needAll; more -= x }
                         }
                         animal = (gotMeat + gotSmall + gotCarrion) / animalNeed
                         small.dung[p] += HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)
