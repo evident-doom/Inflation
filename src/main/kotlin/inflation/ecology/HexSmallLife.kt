@@ -66,6 +66,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val litter = FloatArray(n) { p -> 0.5f * (land.herb[p] + 0.2f * land.shrub[p] + 0.04f * land.tree[p]) + 0.3f }
     val organicMatter = FloatArray(n) { p -> 4f * min(1f, land.biomass(p) / 5f) }
     val carrion = FloatArray(n)
+    /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
+    @Transient var record: PlaceRecord? = null
     /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */
     val bones = FloatArray(n)
     /**
@@ -233,6 +235,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             dung[p] = 0f; smallDead[p] = 0f
             val decomposed = litter[p] * min(1f, 1.2f * warm * wet * years)
             litter[p] -= decomposed
+            record?.let { it.litterGone[p] += decomposed; it.organicGone[p] += 0.05f * years * organicMatter[p] }
             organicMatter[p] += 0.3f * decomposed - 0.05f * years * organicMatter[p]
             land.organicFertility[p] = 0.3f * organicMatter[p] / (organicMatter[p] + 4f)
             soilAnimals[p] += SOIL_YIELD * decomposed * 1e6f - soilAnimals[p] * min(1f, SOIL_DEATHS * years)
@@ -242,11 +245,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (carrion[p] > 0f) {
                 val gone = carrion[p] * (1f - exp(-CARRION_ROT * max(0.1f, warm) * days))
                 carrion[p] -= gone; litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
+                record?.let { it.carrionGone[p] += gone }
                 if (carrion[p] < 1e-9f) carrion[p] = 0f
             }
             carrion[p] += carcassKg[p] / (land.areaKm2[p] * 1e6f)
             // Bones weather away over a couple of years into the soil.
-            if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b }
+            if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b; record?.let { it.bonesGone[p] += b } }
             val food = land.herb[p] + 0.3f * land.shrub[p]
             val snow = weather.snowpack[p]
             pt = Profile.lap("small life: soil and decay", pt)
@@ -816,10 +820,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     }
 
     /** Takes up to [kgPerM2] of carrion in place [p]; returns what was taken. */
-    fun scavenge(p: Int, kgPerM2: Float): Float { val t = min(carrion[p], kgPerM2); carrion[p] -= t; return t }
+    fun scavenge(p: Int, kgPerM2: Float): Float { val t = min(carrion[p], kgPerM2); carrion[p] -= t; record?.let { it.carrionGone[p] += t }; return t }
+
 
     /** Takes up to [kgPerM2] of bones in place [p] (for bone-crackers); returns what was taken. */
-    fun crackBones(p: Int, kgPerM2: Float): Float { val t = min(bones[p], kgPerM2); bones[p] -= t; return t }
+    fun crackBones(p: Int, kgPerM2: Float): Float { val t = min(bones[p], kgPerM2); bones[p] -= t; record?.let { it.bonesGone[p] += t }; return t }
 
     /** The fruit crop's share of what the trees could bear, from this year's pollination. */
     fun fruitSet(p: Int) = 0.3f + 0.7f * pollination[p]

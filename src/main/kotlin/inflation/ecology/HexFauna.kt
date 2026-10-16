@@ -205,6 +205,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals. */
     val deaths = java.util.TreeMap<String, Double>()
+    /** Where things died and dead matter went, for the viewer; null (and not kept) unless something reads it. */
+    @Transient var record: PlaceRecord? = null
+        set(v) { field = v; small.record = v }
 
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
     /** How each kind travels between places. */
@@ -673,6 +676,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 dead[k][7] += (a[p] * snowA + y[p] * snowY) * area
                 dead[k][8] += y[p] * croc * area
                 dead[k][9] += ((a[p] + 1.5f * y[p]) * thirst) * area
+                record?.let { r ->
+                    val kg = s.massKg * area
+                    r.resident(k, p, PlaceRecord.Cause.HUNGER, (a[p] + 1.5f * y[p]) * hunger * kg); r.resident(k, p, PlaceRecord.Cause.THIRST, (a[p] + 1.5f * y[p]) * thirst * kg)
+                    r.resident(k, p, PlaceRecord.Cause.COLD, ((a[p] + 1.5f * y[p]) * cold + a[p] * snowA + y[p] * snowY) * kg); r.resident(k, p, PlaceRecord.Cause.ILLNESS, (a[p] + y[p]) * disease * kg)
+                    r.resident(k, p, PlaceRecord.Cause.KILLED, y[p] * (eagle + croc) * kg)
+                    r.resident(k, p, PlaceRecord.Cause.OTHER, (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years + a[p] * (fireA + floodA) + y[p] * (fireY + floodY)) * kg)
+                }
                 a[p] -= da; y[p] -= dy
                 carcassKg[p] += (da + 0.3f * dy) * area * s.massKg
                 // Growing up.
@@ -682,9 +692,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             }
         }
         for (c in carcasses) for (p in 0 until n) carcassKg[p] += c[p]
+        record?.foldResidents()
         for ((k, s) in kinds.withIndex()) {
             // (Summed place by place in order, so that a run is the same on any number of cores.)
-            deaths["${s.name}:resident hunters"] = huntedByResidents[k].let { h -> var sum = 0.0; for (p in h.indices) { sum += h[p]; h[p] = 0f }; sum }
+            deaths["${s.name}:resident hunters"] = huntedByResidents[k].let { h -> var sum = 0.0; for (p in h.indices) { sum += h[p]; record?.let { it.animalKg[PlaceRecord.Cause.KILLED.ordinal][p] += h[p] * s.massKg }; h[p] = 0f }; sum }
             deaths["${s.name}:age"] = dead[k][0]; deaths["${s.name}:hunger"] = dead[k][1]; deaths["${s.name}:cold"] = dead[k][2]; deaths["${s.name}:disease"] = dead[k][3]; deaths["${s.name}:eagles"] = dead[k][4]
             deaths["${s.name}:fire"] = dead[k][5]; deaths["${s.name}:flood"] = dead[k][6]; deaths["${s.name}:snow"] = dead[k][7]; deaths["${s.name}:crocodiles"] = dead[k][8]; deaths["${s.name}:thirst"] = dead[k][9]
         }

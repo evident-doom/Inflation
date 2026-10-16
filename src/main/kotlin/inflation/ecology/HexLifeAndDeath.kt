@@ -242,6 +242,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (o.births > 0) births.merge(s.name, o.births, Int::plus)
         note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.second > 0 }.joinToString(", ") { "${it.second} ${it.first}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name}:$cause", k, Int::plus)
+        fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
         if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
         if (ROUNDS && !s.carnivore && g.route[0] != -1) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) deaths.merge("${s.name} $way:born", o.births, Int::plus) }
