@@ -667,15 +667,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val (fireA, floodA, snowA0) = calamities(s, p, weather, false)
                 val (fireY, floodY, snowY0) = calamities(s, p, weather, true)
                 val snowA = if (sleeping) 0f else snowA0; val snowY = if (sleeping) 0f else snowY0
-                val pa = (s.backgroundMortality * years + hunger + cold + thirst + disease + fireA + floodA + snowA).coerceIn(0f, 0.9f)
+                val adultOdds = (s.backgroundMortality * years + hunger + cold + thirst + disease + fireA + floodA + snowA).coerceIn(0f, 0.9f)
                 // Eagles take the young of the smaller hoofed animals in the open.
                 val eagle = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
                 // Crocodiles take the young that come down to warm rivers and lakes to drink.
                 val croc = water.crocodileRisk(p, weather) * years
                 // (Young short of protein grow slowly and die more.)
                 val starved = YOUNG_PROTEIN_DEATHS * (1f - protein[k][p]) * years
-                val py = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + eagle + fireY + floodY + snowY + croc + starved).coerceIn(0f, 0.95f)
-                val da = a[p] * pa; val dy = y[p] * py
+                val youngOdds = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + eagle + fireY + floodY + snowY + croc + starved).coerceIn(0f, 0.95f)
+                val da = a[p] * adultOdds; val dy = y[p] * youngOdds
                 dead[k][ResidentDeath.AGE] += (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years) * area
                 dead[k][ResidentDeath.HUNGER] += ((a[p] + 1.5f * y[p]) * hunger) * area
                 dead[k][ResidentDeath.COLD] += ((a[p] + 1.5f * y[p]) * cold) * area
@@ -795,8 +795,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val ease = hex.hexKm.toFloat() / e
                     val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     for (db in -1..1) {
-                        val bb = b + db; if (bb !in 0 until HexWorld.BANDS_M.size) continue
-                        val q = hw.placeOf[bb][nh]
+                        val nextBand = b + db; if (nextBand !in 0 until HexWorld.BANDS_M.size) continue
+                        val q = hw.placeOf[nextBand][nh]
                         if (q < 0) continue
                         val i = d * 3 + db + 1
                         val worth = worthOf[q]

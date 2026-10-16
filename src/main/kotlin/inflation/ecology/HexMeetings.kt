@@ -150,8 +150,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // A band's gatherers also work the country round its camp, the further the more: a camp where
     // woodland, valley and plain meet has more kinds of food within a day's walk than one in the
     // middle of any one of them. (Each hex round gives a share of what the camp's own does.)
-    val roundCamp: List<Int> = if (band != null) { val h0 = hw.placeHex[g.place]; val bb = hw.placeBand[g.place]
-        (0 until 6).mapNotNull { d -> hex.neighbour(h0, d).takeIf { it >= 0 }?.let { hw.placeOf[bb][it] }?.takeIf { it >= 0 && it !in gatherAt } } } else emptyList()
+    val roundCamp: List<Int> = if (band != null) { val h0 = hw.placeHex[g.place]; val campBand = hw.placeBand[g.place]
+        (0 until 6).mapNotNull { d -> hex.neighbour(h0, d).takeIf { it >= 0 }?.let { hw.placeOf[campBand][it] }?.takeIf { it >= 0 && it !in gatherAt } } } else emptyList()
     val roundShare = (band?.let { RING_REACH * it.gatherRange } ?: 0f)
     // The foods on offer: type (0 big game of [kinds] index k, 1 small game, 2 carrion, 3 bones,
     // 4 fruit, 5 roots, 6 grass seed, 7 small finds, 8 fish), place, rate a day, kg each, days each ([Food] numbers the types).
