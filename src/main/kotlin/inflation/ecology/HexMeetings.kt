@@ -234,7 +234,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 if (dens <= 0f || chance <= 0f) continue
                 // A kill is worth what the party can eat of it, gorging included (a band also what it can
                 // dry); the rest is left to others.
-                val meat1 = min(ps.massKg * meatShare(band), (1f + SURPLUS_EAT) * wantAll)
+                val meat1 = min(ps.massKg * creditShare(band), (1f + SURPLUS_EAT) * wantAll)
                 // (Each kill also costs the stalks and chases that failed before it.)
                 offer(Food.BIG_GAME, k, p, dens * swept * chance / days, meat1, HANDLING_DAYS + STALK_DAYS * stalks[j * nk + k] + meat1 * eats)
             }
@@ -455,7 +455,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     if (kills1 <= 0) return kills1
     var ny = if (spareYoung) 0 else (kills1 * fauna.young[k][p] / dens).toInt(); val na = kills1 - ny
     // A band at home may keep young it catches, to raise by its camp.
-    if (band != null && band.atHome && ny > 0) {
+    if (band != null && band.atHome && ny > 0 && k < band.herd.size) {
         val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
         if (kept > 0) {
             band.herd[k] += kept; ny -= kept
@@ -466,7 +466,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
     val young = min(0.3f * ps.massKg, kgEach)
     out.kg = na * kgEach + ny * young
-    small.carrion[p] += (na * (ps.massKg - kgEach) + ny * (0.3f * ps.massKg - young)) / (area * 1e6f)
+    small.carrion[p] += (na * leftOver(ps, kgEach, band) + ny * (0.3f * ps.massKg - young)) / (area * 1e6f)
     band?.let { it.skin(ps, na); it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps.name, kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
@@ -621,6 +621,13 @@ const val SCAVENGE_RISK = 0.01f
 
 /** Share of a carcass a hunter takes as food: a band as its butchers' skill allows (all the fat and marrow, at best). */
 internal fun meatShare(band: Band?) = if (band == null) MEAT_SHARE else min(MEAT_MOST, MEAT_SHARE * band.edge(Skill.BUTCHER))
+/**
+ * Share of a kill's weight that counts towards a hunter's need: all of it for a beast, whose need is reckoned in the weight
+ * of the prey it kills, the parts it leaves included ([Allometry.dailyIntakeKg]); for a band, what its butchers make of it.
+ */
+internal fun creditShare(band: Band?) = if (band == null) 1f else meatShare(band)
+/** What is left of a kill of [ps] as carrion when the hunter took [kgEach] of it towards its need. */
+internal fun leftOver(ps: Species, kgEach: Float, band: Band?) = max(0f, ps.massKg - kgEach * meatShare(band) / creditShare(band))
 const val MEAT_MOST = 0.7f
 
 /** What a kilo of reaped seed or grain feeds against a kilo of other food: raw, little; ground and baked, fully. */
@@ -942,7 +949,7 @@ internal fun HexGroups.killChance(hunter: HexGroup, ps: Species, catchable: Floa
 
 /** What a kill of [ps] is worth to [hunter], kg: what it can eat of it, gorging included (a band also what it can dry). */
 internal fun HexGroups.killKg(hunter: HexGroup, ps: Species) =
-    min(ps.massKg * meatShare(hunter.band), (1f + SURPLUS_EAT) * hunter.dailyNeedKg * days * (1f + walkCost(hunter)))
+    min(ps.massKg * creditShare(hunter.band), (1f + SURPLUS_EAT) * hunter.dailyNeedKg * days * (1f + walkCost(hunter)))
 
 /** Days a kill of [ps] takes [hunter], at [chance] a try: handling, the stalks that failed before it, and eating. */
 internal fun killDays(chance: Float, kg: Float, packKg: Float) =
@@ -1040,7 +1047,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         }
         else {
             herd.adults--
-            hunter.meatMet += herd.species.massKg * meatShare(hunter.band)
+            hunter.meatMet += herd.species.massKg * creditShare(hunter.band)
             hunter.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
             hunter.band?.skin(herd.species, 1)
             small.carrion[herd.place] += herd.species.massKg * (1f - meatShare(hunter.band)) / (land.areaKm2[herd.place] * 1e6f)
