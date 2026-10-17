@@ -520,7 +520,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
     // Crowded herds catch each other's diseases and parasites.
     val usual = HexFauna.usualDensity(s)
     // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
-    val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / hex.areaKm2.toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
+    val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
     val crowdNow = if (s.human) peopleCrowding(g) else crowd
     if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * Tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years) outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
     return if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
@@ -532,7 +532,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
             var heads = -g.size; var hexes = 0
             val wide = territoryKm(s) > 0.6f * hex.hexKm
             for (k in -1 until (if (wide) 6 else 0)) { val q = if (k < 0) h0 else hex.neighbour(h0, k); if (q >= 0) { heads += kinNow[s.index.toLong() * hex.size + q] ?: 0; hexes++ } }
-            val others = max(0, heads) / (hexes * hex.areaKm2.toFloat()) / (HexFauna.CROWDED * usual)
+            val others = max(0, heads) / (hexes * (hex.hexKm * hex.hexKm * 0.87).toFloat()) / (HexFauna.CROWDED * usual)
             HexFauna.DISEASE * others * others * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         }
         else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
@@ -596,7 +596,7 @@ internal fun HexGroups.peopleCrowding(g: HexGroup): Float {
         if (q < 0) continue
         for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][q]; if (p >= 0) heads += headsHere[kindSlot[g.species.index]][p] }
     }
-    return heads / (7f * hex.areaKm2.toFloat()) / PEOPLE_FULL_KM2
+    return heads / (7f * (hex.hexKm * hex.hexKm * 0.866).toFloat()) / PEOPLE_FULL_KM2
 }
 
 /** Small herds join up, and lone hunters find mates (see [demography]). */
@@ -718,7 +718,7 @@ internal fun HexGroups.remember(date: Date) {
  */
 internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int>): Stalking {
     val h = hw.placeHex[g.place]; val p = g.place
-    val hexKm2 = hex.areaKm2.toFloat()
+    val hexKm2 = (hex.hexKm * hex.hexKm * 0.87).toFloat()
     var pressure = 0f; var worst = ""; var worstP = 0f
     for (k in kinds) {
         val w = MAN_EATERS[k.name] ?: continue
@@ -776,6 +776,6 @@ internal fun HexGroups.herdRanges(g: HexGroup, kinNow: HashMap<Long, Int>): Floa
     val ring = HashSet<Int>(); ring += h0
     for (k in 0 until 6) { val q = hex.neighbour(h0, k); if (q >= 0) { ring += q; for (j in 0 until 6) { val w = hex.neighbour(q, j); if (w >= 0) ring += w } } }
     var heads = 0; for (q in ring) heads += kinNow[key + q] ?: 0
-    val density = heads / (ring.size * hex.areaKm2).toFloat()
+    val density = heads / (ring.size * hex.hexKm * hex.hexKm * 0.87).toFloat()
     return if (density <= 0f) 1f else min(1f, HexFauna.BREED_SPACING * HexFauna.usualDensity(g.species) / density)
 }
