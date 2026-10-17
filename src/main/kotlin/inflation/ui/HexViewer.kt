@@ -477,7 +477,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 for (h in 0 until hex.size) for (d in 0 until 3) {
                     val nh = hex.neighbour(h, d); if (nh < 0) continue
                     val back = (0 until 6).firstOrNull { hex.neighbour(nh, it) == h } ?: continue
-                    val s = max(groups.paths[h * 6 + d], groups.paths[nh * 6 + back])
+                    val s = max(groups.wear.paths[h * 6 + d], groups.wear.paths[nh * 6 + back])
                     if (s < 0.05f) continue
                     val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(nh)
                     g.color = Color(0.45f, 0.3f, 0.12f, (0.25f + 0.65f * s).coerceAtMost(1f))

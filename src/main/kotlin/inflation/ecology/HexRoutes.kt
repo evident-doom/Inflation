@@ -31,7 +31,7 @@ class HexRoutes(private val g: HexGroups) {
     /** Called once a week, after the paths are worn: every [ROUTE_WEEKS] weeks the graph is read afresh. */
     fun week() { if (weeks++ % ROUTE_WEEKS == 0) build() }
 
-    private fun worn(h: Int, d: Int) = g.paths[h * 6 + d] >= ROUTE_WORN
+    private fun worn(h: Int, d: Int) = g.wear.paths[h * 6 + d] >= ROUTE_WORN
 
     fun build() {
         Arrays.fill(landmark, 0); Arrays.fill(onRoute, false); legs.clear(); legsAt.clear()
