@@ -1,9 +1,9 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
-import inflation.learning.HexLearning
 import inflation.learning.SharedMover
 import inflation.learning.softmax
 import inflation.world.WorldConfig
@@ -35,7 +35,7 @@ fun main(args: Array<String>) {
     fun mine(s: Species) = when (role) { "people" -> s.human; "hunters" -> s.pack; else -> !s.carnivore }
     class Seen(val kind: Species, val f: Array<FloatArray>, val band: FloatArray?, val hand: FloatArray, val temper: FloatArray)
     val seen = (0 until worlds).toList().parallelStream().map { w ->
-        val run = HexLearning.Run(WorldConfig(seed = 7000L + w, widthKm = size, heightKm = size), kinds)
+        val run = freshSim(WorldConfig(seed = 7000L + w, widthKm = size, heightKm = size), kinds)
         val kept = ConcurrentLinkedQueue<Seen>()
         for (s in kinds) if (mine(s)) run.groups.policies[s] = HexPolicy { g, f, b, _ ->
             kept += Seen(g.species, Array(f.size) { f[it].copyOf() }, g.band?.state?.copyOf(), b.copyOf(), g.temper.copyOf())

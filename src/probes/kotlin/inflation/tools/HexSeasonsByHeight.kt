@@ -1,8 +1,8 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
-import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.HexHydrology
 import inflation.world.HexPlants
@@ -25,7 +25,7 @@ fun main(args: Array<String>) {
     cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
     val years = a.int("--years", 3)
     a.done()
-    val run = HexLearning.Run(cfg, Catalogue.learned)
+    val run = freshSim(cfg, Catalogue.learned)
     val land = run.land; val hw = run.hw; val n = land.n
     val bands = listOf(0.0 to 300.0, 300.0 to 700.0, 700.0 to 1200.0, 1200.0 to 1800.0, 1800.0 to 2500.0, 2500.0 to 9000.0)
     val bandOf = IntArray(n) { p -> bands.indexOfFirst { (lo, hi) -> hw.placeElevationM[p] >= lo && hw.placeElevationM[p] < hi } }

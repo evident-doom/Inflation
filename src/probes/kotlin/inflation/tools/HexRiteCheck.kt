@@ -1,9 +1,10 @@
 package inflation.tools
 
+import inflation.learning.RunScore
+import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.ecology.ROUNDS
-import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
 
@@ -23,23 +24,20 @@ fun main(args: Array<String>) {
     val kinds = Catalogue.learned
     println("rounds ${if (ROUNDS) "on" else "off"}, $size km, $years years")
     val lines = seeds.parallelStream().map { seed ->
-        val run = HexLearning.Run(WorldConfig(seed = seed, widthKm = size, heightKm = size), kinds)
+        val run = freshSim(WorldConfig(seed = seed, widthKm = size, heightKm = size), kinds)
         val hw = run.hw; val hex = run.hex
         fun chief(h: Int): Int { var best = 0; for (b in hw.biome.indices) if (hw.biome[b][h] > hw.biome[best][h]) best = b; return best }
         val stepsPerYear = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
-        val start = run.groups.groups.filter { it.alive && it.species.human }.sumOf { it.size }.toDouble()
-        var weeks = 0.0; val luck = HashMap<Int, Float>(); var luckSum = 0.0
+        val score = RunScore(run, listOf(Catalogue.HUMAN))
         val sb = StringBuilder("seed $seed:")
         repeat(years) { y ->
             val from = HashMap<Int, Int>(); val far = HashMap<Int, Double>(); val home = HashMap<Int, Int>(); val strayed = HashSet<Int>()
             var riteKm = 0.0; var riteWeeks = 0; var riteAt = 0
             for (g in run.groups.groups) if (g.alive && g.species.human) { val h = hw.placeHex[g.place]; from[g.id] = h; home[g.id] = chief(h) }
             repeat(stepsPerYear) {
-                run.step()
+                run.step(); score.afterStep(run)
                 for (g in run.groups.groups) if (g.species.human) {
-                    luckSum += g.luck - (luck[g.id] ?: 0f); luck[g.id] = g.luck
                     if (!g.alive) continue
-                    weeks += g.size
                     val h = hw.placeHex[g.place]; val f = from[g.id] ?: continue
                     far.merge(g.id, hex.distanceKm(f, h), ::maxOf)
                     if (chief(h) != home[g.id]) strayed += g.id
@@ -67,8 +65,7 @@ fun main(args: Array<String>) {
             if (sites.isNotEmpty()) sb.append("; sites lie %.0f km from their bands (median %.0f, furthest %.0f)".format(sites.average(),
                 sites.sorted()[sites.size / 2], sites.max()))
         }
-        val score = (weeks - luckSum) / start / (years * stepsPerYear)
-        sb.append("\n  people's score %.4f".format(score))
+        sb.append("\n  people's score %.4f".format(score.value().getValue(Catalogue.HUMAN)))
         sb.toString()
     }.toList()
     lines.forEach(::println)

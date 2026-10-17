@@ -1,9 +1,9 @@
 package inflation.tools.herps
 
+import inflation.ecology.HexSim
 import inflation.ecology.BirdLedger
 import inflation.ecology.HerpLedger
 import inflation.ecology.HexSmallLife
-import inflation.learning.HexLearning
 
 /**
  * What a herp check counts week by week: yearly means of the herps, tortoises, birds and other small game
@@ -11,7 +11,7 @@ import inflation.learning.HexLearning
  * stocks and flows. At the start of those years it clears the model's small-life ledgers, so that what
  * they hold at the end is those years' sums.
  */
-class HerpTally(private val run: HexLearning.Run, private val regions: HerpRegions, val years: Int, val show: Int, val perYear: Int) {
+class HerpTally(private val run: HexSim, private val regions: HerpRegions, val years: Int, val show: Int, val perYear: Int) {
     private val land = run.land
     private val sl = run.fauna.small
     private val n = land.n

@@ -1,12 +1,12 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.Args
 import inflation.Config
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
 import inflation.ecology.WAYS_OUT
-import inflation.learning.HexLearning
 import inflation.learning.HexPpo
 import inflation.world.WorldConfig
 import kotlin.math.max
@@ -47,7 +47,7 @@ fun main(args: Array<String>) {
         val moveAlt: Map<Int, Pair<Float, Float>>, val stepMs: Double)
 
     fun play(variant: String): Out {
-        val run = HexLearning.Run(WorldConfig(seed = seed, widthKm = size, heightKm = size), kinds)
+        val run = freshSim(WorldConfig(seed = seed, widthKm = size, heightKm = size), kinds)
         var week = 0
         val alt = ConcurrentHashMap<Int, Pair<Float, Float>>()
         for (s in kinds) if (s.human) run.groups.policies[s] = HexPolicy { g, f, b, _ ->

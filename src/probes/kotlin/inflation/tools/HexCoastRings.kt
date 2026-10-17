@@ -1,8 +1,8 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
-import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
 
@@ -21,7 +21,7 @@ fun main(args: Array<String>) {
     val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
     val years = a.int("--years", 5)
     a.done()
-    val run = HexLearning.Run(cfg, Catalogue.learned)
+    val run = freshSim(cfg, Catalogue.learned)
     val human = Catalogue.learned.first { it.human }
     val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep; val perYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     // Over the last year: each place's yearly odds of a child dying in a flood or a fire, as a camp there would run them.

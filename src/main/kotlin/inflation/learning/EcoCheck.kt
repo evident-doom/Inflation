@@ -3,6 +3,8 @@ package inflation.learning
 import inflation.Config
 import inflation.ecology.Catalogue
 import inflation.run.TestWorlds
+import inflation.run.configWith
+import inflation.run.startFaunaCheck
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
@@ -15,7 +17,7 @@ import java.util.concurrent.Executors
  * `ppo.checkYears` years (default 5), its weather drawn `ppo.checkReplicates` ways (default 2), each
  * way with: every role's new network ("new"); every role's kept one ("kept"); and, for each role, its
  * kept network with the others' new ("kept herds" and so on). The runs are their own processes, beside
- * the training. A role's new network is kept when
+ * the training, each under the training's own config with only the networks changed. A role's new network is kept when
  * - the ecosystem holds: with every new network against every kept one, no kind's numbers in the last
  *   whole year fall more than [FALL] below, no kind present with the kept ones is gone, the migratory
  *   herds stand no less far from where they stood half a year before (within [SHORTER]), and there are
@@ -45,8 +47,10 @@ class EcoCheck(private val out: File) {
         val runs = arms.mapValues { (name, from) ->
             val armDir = File(dir, name).also { it.mkdirs() }
             for ((r, src) in from) copyRoles(src, armDir, listOf(r))
-            // (Forward slashes: a properties file reads a backslash as an escape, which broke the paths on Windows.)
-            val cfg = File(armDir, "check.properties").also { it.writeText("nets=${armDir.absoluteFile.invariantSeparatorsPath}\nways=${File(armDir, "ways.mlp").absoluteFile.invariantSeparatorsPath}\n") }
+            // The training's own config (its model keys judge the networks as they were trained), with this arm's networks.
+            val cfg = File(armDir, "check.properties")
+            val keys = configWith(mapOf("nets" to armDir.absoluteFile.invariantSeparatorsPath, "ways" to File(armDir, "ways.mlp").absoluteFile.invariantSeparatorsPath))
+            cfg.writer().use { keys.store(it, "check arm $name, written by the training's ecosystem check") }
             (0 until replicates).map { r -> pool.submit<File> { runOne(cfg, armDir, r) } }
         }.mapValues { (_, fs) -> fs.map { TestWorlds.Run(it.get()) } }
         judge(round, runs)
@@ -54,10 +58,8 @@ class EcoCheck(private val out: File) {
 
     private fun runOne(cfg: File, armDir: File, r: Int): File {
         val history = File(armDir, "r$r.csv")
-        val javaBin = ProcessHandle.current().info().command().orElse("java")
-        val p = ProcessBuilder(listOf(javaBin, "-Xmx${Config.int("ppo.checkHeapGb", 12)}g", "-Dhex.config=${cfg.absolutePath}", "-Duser.home=${System.getProperty("user.home")}",
-            "-cp", System.getProperty("java.class.path"), "inflation.tools.HexFaunaCheckKt", "--world", world.name, "--years", "$years", "--replicate", "$r", "--history", history.path))
-            .redirectErrorStream(true).redirectOutput(File(armDir, "r$r.txt")).start()
+        val p = startFaunaCheck(cfg, "-Xmx${Config.int("ppo.checkHeapGb", 12)}g",
+            listOf("--world", world.name, "--years", "$years", "--replicate", "$r", "--history", history.path), File(armDir, "r$r.txt"))
         require(p.waitFor() == 0) { "check run failed: see ${File(armDir, "r$r.txt")}" }
         return history
     }

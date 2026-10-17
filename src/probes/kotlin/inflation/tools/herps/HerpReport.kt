@@ -1,13 +1,13 @@
 package inflation.tools.herps
 
+import inflation.ecology.HexSim
 import inflation.ecology.BirdLedger
 import inflation.ecology.HerpLedger
 import inflation.ecology.HexSmallLife
 import inflation.ecology.TortLedger
-import inflation.learning.HexLearning
 
 /** A herp check's report at the end of the run, section by section, from [HerpTally] and the model's small-life ledgers. */
-class HerpReport(run: HexLearning.Run, private val regions: HerpRegions, private val t: HerpTally) {
+class HerpReport(run: HexSim, private val regions: HerpRegions, private val t: HerpTally) {
     private val sl = run.fauna.small
     private val years = t.years
     private val show = t.show

@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.learning.RunScore
+import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.ecology.ROUNDS
@@ -7,7 +9,6 @@ import inflation.ecology.TRADED
 import inflation.ecology.Tool
 import inflation.ecology.YEAR_NEED
 import inflation.ecology.KEEP_YEARS
-import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
 import inflation.ecology.HexGroup
@@ -29,12 +30,11 @@ fun main(args: Array<String>) {
     a.done()
     println("rounds ${if (ROUNDS) "on" else "off"}, $size km, $years years")
     val lines = seeds.parallelStream().map { seed ->
-        val run = HexLearning.Run(WorldConfig(seed = seed, widthKm = size, heightKm = size), Catalogue.learned)
+        val run = freshSim(WorldConfig(seed = seed, widthKm = size, heightKm = size), Catalogue.learned)
         val hw = run.hw; val land = run.groups.land
         fun chief(h: Int): Int { var best = 0; for (b in hw.biome.indices) if (hw.biome[b][h] > hw.biome[best][h]) best = b; return best }
         val stepsPerYear = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
-        val start = run.groups.groups.filter { it.alive && it.species.human }.sumOf { it.size }.toDouble()
-        var weeks = 0.0; val luck = HashMap<Int, Float>(); var luckSum = 0.0
+        val score = RunScore(run, listOf(Catalogue.HUMAN))
         val sb = StringBuilder("seed $seed: places with good stone %d, salt %d, ochre %d of %d".format(
             land.stone.count { it > 0.1f }, land.salt.count { it > 0.1f }, land.ochre.count { it > 0.1f }, land.stone.size))
         sb.append("; sources (one in 50 km at most): " + TRADED.joinToString(", ") { "${it.name.lowercase()} ${run.groups.materialSources.getValue(it).size}" })
@@ -43,12 +43,10 @@ fun main(args: Array<String>) {
             val given = TreeMap<String, Int>()
             for (g in run.groups.groups) if (g.alive && g.band != null) home[g.id] = chief(hw.placeHex[g.place])
             repeat(stepsPerYear) {
-                run.step()
+                run.step(); score.afterStep(run)
                 for ((key, n) in run.groups.stats.meetings) if (key.endsWith(" given") || key.contains("rite")) given.merge(key, n, Int::plus)
                 for (g in run.groups.groups) if (g.species.human) {
-                    luckSum += g.luck - (luck[g.id] ?: 0f); luck[g.id] = g.luck
                     if (!g.alive) continue
-                    weeks += g.size
                     val hm = home[g.id] ?: continue
                     bandWeeks++; if (chief(hw.placeHex[g.place]) != hm) away++
                 }
@@ -69,8 +67,7 @@ fun main(args: Array<String>) {
             sb.append("; rites at a source %d of %d".format(atSources, bands.sumOf { g -> g.band!!.rite.count { it >= 0 } }))
             if (given.isNotEmpty()) sb.append("; " + given.entries.joinToString(", ") { "${it.key} ${it.value}" })
         }
-        val score = (weeks - luckSum) / start / (years * stepsPerYear)
-        sb.append("\n  people's score %.4f".format(score))
+        sb.append("\n  people's score %.4f".format(score.value().getValue(Catalogue.HUMAN)))
         sb.toString()
     }.toList()
     lines.forEach(::println)
