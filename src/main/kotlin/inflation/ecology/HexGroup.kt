@@ -99,6 +99,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      * Game it meets is worth chasing only if a kill of it yields more for the time it takes (Charnov's rule).
      */
     var dietRate = 0f
+    /** For hunters, with [HERDS_IN_DIET]: the herds it came on unseen this week, for its diet pass. Not saved. */
+    @Transient var herdsMetWeek: ArrayList<HerdMet>? = null
     /** How often it has come on herds of [k] lately, at [day]. */
     fun metLately(k: Int, day: Double): Float = herdsMet?.let { it[k] * exp(-(day - herdsMetOn) / SEARCH_DAYS).toFloat() } ?: SEARCH_HALF
     /** Counts a meeting with a herd of [k] at [day]. */
