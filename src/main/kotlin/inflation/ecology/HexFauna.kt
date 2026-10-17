@@ -891,8 +891,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // A few swim the strait to the coast across, as far as they can swim it.
                 val swim = Catalogue.swimKm(s)
                 var seaW = 0f; var seaTo = -1
-                if (swim > 0f && seaLinks != null) {
-                    val links = seaLinks!!(h)
+                val linksOf = seaLinks
+                if (swim > 0f && linksOf != null) {
+                    val links = linksOf(h)
                     for ((nh, gapKm) in links) { if (gapKm > swim) continue; val q = hw.placeOf[b][nh].takeIf { it >= 0 } ?: continue
                         val wq = SEA_SPILL * (1f - gapKm / swim) * land.areaKm2[q] * (foodFor(s, q) + 1e-4f); if (wq > seaW) { seaW = wq; seaTo = q } }
                 }

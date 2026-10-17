@@ -1021,8 +1021,9 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     stats.meetings.merge("hunters of other kinds", 1, Int::plus)
     val sa = strength(a) * (if (a.home == h) HOME_ADVANTAGE else 1f)
     val sb = strength(b) * (if (b.home == h) HOME_ADVANTAGE else 1f)
-    val (strong, weak, wk, wi) = if (sa >= sb) listOf(a, b, bk, bi) else listOf(b, a, ak, ai)
-    strong as HexGroup; weak as HexGroup; wk as Int; wi as Int
+    val aStrong = sa >= sb
+    val strong = if (aStrong) a else b; val weak = if (aStrong) b else a
+    val wk = if (aStrong) bk else ak; val wi = if (aStrong) bi else ai
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
     if (ratio < THEFT_RATIO) return // near equals keep their distance
     // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
