@@ -3,7 +3,6 @@ package inflation.world
 import inflation.Books
 import inflation.KgM2
 import inflation.Tuning
-import inflation.Config
 
 import kotlin.math.exp
 import kotlin.math.max
@@ -179,8 +178,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val books = land.books
         val grewBook = books?.adder(Books.Stuff.MATTER, "plants grew"); val burntBook = books?.adder(Books.Stuff.MATTER, "burnt")
         val fellBook = books?.adder(Books.Stuff.MATTER, "litterfall (to the litter)")
-        val trampleLeak = books?.leakAdder(Books.Stuff.MATTER, "trampled plants, gone")
-        val nettedLeak = books?.leakAdder(Books.Stuff.MATTER, "plants' die-back netted against their growth, gone")
         java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
             val before = biomass(p)
             var grew = 0f
@@ -277,12 +274,10 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // litter, and so do the leaves, stems and roots they renew: production beyond the stand's net growth, shed as it is made.
             val lost = max(0f, before - biomass(p) - burned + grew)
             val turnover = years * (herb[p] + SHRUB_RENEWAL * shrub[p] + TREE_RENEWAL * tree[p])
-            litterfall[p] = (if (CONSERVE_PLANTS) lost else max(0f, before - biomass(p) - burned)) + turnover
+            litterfall[p] = lost + turnover
             if (books != null) {
                 val m2 = land.areaM2[p].toDouble()
                 grewBook!!.add((grew + turnover) * m2); burntBook!!.add(-(burned + straw0 - straw[p]) * m2); fellBook!!.add(-litterfall[p] * m2)
-                // (Without [CONSERVE_PLANTS] the litter gets the plants' net loss: what died back in a week they also grew is lost.)
-                if (!CONSERVE_PLANTS) nettedLeak!!.add(-(lost - max(0f, lost - grew)) * m2)
             }
             // Trampling, spread over the place: a herd beats down a share of it.
             val tr = trampling[p] / land.areaKm2[p]
@@ -291,8 +286,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
                 herb[p] *= exp(-tuning.trampleHerb * tr); shrub[p] *= exp(-tuning.trampleShrub * tr)
                 val beaten = h0 - herb[p] + s0 - shrub[p]
                 // (What is beaten down falls into the litter.)
-                if (CONSERVE_PLANTS) { litterfall[p] += beaten; fellBook?.add(-beaten * land.areaM2[p].toDouble()) }
-                else trampleLeak?.add(-beaten * land.areaM2[p].toDouble())
+                litterfall[p] += beaten; fellBook?.add(-beaten * land.areaM2[p].toDouble())
                 trails[p] = min(1f, trails[p] + TRAIL_WEAR * tr * (1f - trails[p]))
                 trampling[p] = 0f
             } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - TRAIL_FADE * years)
@@ -328,8 +322,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     companion object {
-        /** Trial (t.conservePlants): die-back in a week of growth and trampled plants go to the litter, as the books need. */
-        @JvmField val CONSERVE_PLANTS: Boolean = Config.flag("t.conservePlants", false)
         /**
          * Perennial swards: wholly so where the warmest month is at most this, °C (annuals wholly where it is
          * 4 °C warmer); the share of what the soil holds down to which their deep roots keep them growing.

@@ -366,7 +366,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.
     val share = (adults + young).toFloat() / (g.size + adults + young).coerceAtLeast(1)
-    if (CONSERVE_STORES) moveFood(g, n, g.larder * share) else { n.larder = g.larder * share; g.larder -= n.larder }
+    moveFood(g, n, g.larder * share)
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
     g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) } } }
