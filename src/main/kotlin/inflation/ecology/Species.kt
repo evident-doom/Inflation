@@ -156,9 +156,8 @@ class Species(
     /** How readily it takes people (leopards 1.2, lions 1, bears 0.4, wolves and hyenas 0.3; 0: never), see [STALKED]. */
     val takesPeople: Float = 0f,
 ) {
-    /** Position in [Catalogue.all] (its [id]), for array lookups. */
-    var index = -1
-        internal set
+    /** Position in [Catalogue.all] (its [id], which the catalogue checks run without gaps), for array lookups. */
+    val index get() = id
     /** Mostly eats animals. */
     val carnivore: Boolean get() = diet.meat + diet.smallPrey + diet.carrion > 0.5f
     /** What kind of group it lives in: a band of people, a pack of hunters or a herd of plant-eaters. */
