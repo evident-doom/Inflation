@@ -174,8 +174,8 @@ internal fun softmax(x: FloatArray): FloatArray {
  * following weeks is its return. Each kind is judged against its own average, and counts the same
  * in the update as every other kind, so the common herds do not drown out the rare hunters. Every
  * few rounds each role's network plays against the hand-written behaviour on fixed fresh worlds
- * (the other roles hand-written), reported per kind with its spread over the worlds; a kind that
- * does worse than with the last version it did well with keeps that version (in `deployed/`).
+ * (the other roles hand-written), reported per kind with its spread over the worlds; and the ecosystem
+ * check ([EcoCheck]) keeps each role's new network only when the whole holds up with it (in `kept/`).
  *
  * Usage: hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--hold ROLE[,ROLE]:ROUNDS] [--teacher DIR] [--teacher-check] [--maps SEED:LAT,...] [--check-on-maps]
  */
