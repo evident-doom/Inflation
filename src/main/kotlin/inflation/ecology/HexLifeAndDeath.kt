@@ -10,6 +10,7 @@ import inflation.world.Weather
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.min
 import kotlin.random.Random
 import inflation.world.Biome
@@ -268,6 +269,17 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands in $c:died of $cause", k, Int::plus)
             if (o.births > 0) stats.hunting.merge("bands in $c:born", o.births, Int::plus)
+            // And, in the weeks it was cold through all the cover the band had, what each cover gave.
+            val b = g.band
+            if (b != null) {
+                val t = weather.temperature[g.place]
+                if (b.exposure(t) > 0f) {
+                    fun add(k: String, v: Float) = stats.hunting.merge("bands in $c:cold $k", (10f * v).roundToInt(), Int::plus)
+                    add("weeks", 1f); add("short", b.exposure(t)); add("air", EXPOSURE_C - t)
+                    add("clothes", PROTECT_CLOTHES * b.has(Tool.CLOTHES) * b.clothesFit()); add("fire", PROTECT_FIRE * b.fire)
+                    add("shelter", max(PROTECT_SHELTER * b.shelter, if (b.atHome) PROTECT_HOUSE * b.house else 0f))
+                }
+            }
         }
         if (o.orphans > 0) stats.deaths.merge("${s.name}:${DeathCause.ORPHANED}", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.

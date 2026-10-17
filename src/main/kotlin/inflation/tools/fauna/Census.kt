@@ -286,6 +286,15 @@ class Census(private val sim: HexSim) {
             val died = lastYear.filterKeys { it.startsWith("bands in $c:died of ") }.mapKeys { it.key.substringAfter("died of ") }
             "%s %.3f / %.3f (%s)".format(c, (lastYear["bands in $c:born"] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9),
                 died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
+        println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
+            val w = weeks(c).toDouble().coerceAtLeast(1.0)
+            "%s %.0f%% / %.0f%%".format(c, (lastYear["bands in $c:hearth, %"] ?: 0) / w, (lastYear["bands in $c:fuel days, %"] ?: 0) / w) })
+        println("bands by kind of country, last year, in weeks colder than their cover (share of band-weeks: °C short = air below 10 °C less clothes, fire, shelter): " +
+            cs.filter { (lastYear["bands in $it:cold weeks"] ?: 0) > 0 }.joinToString(", ") { c ->
+                fun v(k: String) = (lastYear["bands in $c:cold $k"] ?: 0).toDouble()
+                val n = v("weeks").coerceAtLeast(1.0)
+                "%s %.0f%%: %.1f = %.1f - %.1f - %.1f - %.1f".format(c, 10 * 100 * v("weeks") / (10 * weeks(c)).coerceAtLeast(1) / 10,
+                    v("short") / n, v("air") / n, v("clothes") / n, v("fire") / n, v("shelter") / n) })
     }
 
     /** Islands: land cut off from the largest land by sea; which kinds live there now. */

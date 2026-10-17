@@ -178,7 +178,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val plantKind = FloatArray(Store.entries.size)
     var busy = 0f
     // A band fetches the hearth's firewood first; it forages in the days left.
-    val workDays = if (band != null) days - fetchFuel(g, band, hands) else days.toFloat()
+    val fuelDays = if (band != null) fetchFuel(g, band, hands) else 0f
+    val workDays = days - fuelDays
     val spareYoung = band?.holds(Tradition.TABOO_YOUNG) == true
     // The odds a meeting with each kind ends in a kill, in each place on the way (they do not change within the week).
     val nk = fauna.kinds.size
@@ -364,6 +365,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         stats.hunting.merge("bands in $c:meat", (meat + smallGot + scraps).toInt(), Int::plus)
         stats.hunting.merge("bands in $c:plants", plants.toInt(), Int::plus); stats.hunting.merge("bands in $c:fish", fish.toInt(), Int::plus)
         stats.hunting.merge("bands in $c:band-weeks", 1, Int::plus); stats.hunting.merge("bands in $c:people-weeks", g.size, Int::plus)
+        stats.hunting.merge("bands in $c:hearth, %", (100f * band.hearthWood).toInt(), Int::plus)
+        stats.hunting.merge("bands in $c:fuel days, %", (100f * fuelDays / days).toInt(), Int::plus)
     }
     var spare = meat - meatEaten
     if (band != null) {
