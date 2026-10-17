@@ -15,7 +15,7 @@ import kotlin.math.min
  */
 class HexPlants(land: HexLand) : HexLandPart(land) {
     /** Degree-days above 5 °C a place has in a normal year, and so far this year (from the winter solstice). */
-    val annualGdd = FloatArray(n) { p -> (0 until 12).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
+    @Transient val annualGdd = FloatArray(n) { p -> (0 until 12).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
     val gdd = FloatArray(n) { p ->
         (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
     }
@@ -54,10 +54,10 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * Each place's warmest month, °C (normal); and from it how plants there are adapted: the warmth at which they start to grow
      * and over which they reach full growth, °C, and the share of the sward that is perennial.
      */
-    private val warmest = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
-    private val growFrom = FloatArray(n) { p -> (warmest[p] - 20f).coerceIn(-2f, GROW_FROM_C) }
-    private val growSpan = FloatArray(n) { p -> (warmest[p] - 6f).coerceIn(6f, GROW_SPAN_C) }
-    val perennialShare = FloatArray(n) { p -> ((PERENNIAL_FULL_C + 4f - warmest[p]) / 4f).coerceIn(0f, 1f) }
+    @Transient private val warmest = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
+    @Transient private val growFrom = FloatArray(n) { p -> (warmest[p] - 20f).coerceIn(-2f, GROW_FROM_C) }
+    @Transient private val growSpan = FloatArray(n) { p -> (warmest[p] - 6f).coerceIn(6f, GROW_SPAN_C) }
+    @Transient val perennialShare = FloatArray(n) { p -> ((PERENNIAL_FULL_C + 4f - warmest[p]) / 4f).coerceIn(0f, 1f) }
     /** How far the warmth [t], °C, lets the plants of place [p] grow, 0..1, as they are adapted to it. */
     fun growthWarmth(p: Int, t: Float) = ((t - growFrom[p]) / growSpan[p]).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
     /**

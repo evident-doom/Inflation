@@ -29,10 +29,14 @@ import java.util.zip.GZIPOutputStream
  * and water, the residents, small life and water life, the groups, the eruptions. The world itself
  * (terrain, rivers, climate normals, the hexes) is not saved: it is generated again from the seed.
  *
+ * Fields marked @Transient are not saved: what the model only works out from the world (each place's
+ * slope, soils and normals, the hex model's rivers, the water's depths), so that a fix to how it is worked
+ * out reaches a run carried on from a save too.
+ *
  * It goes by field names, not by layout: a field the code no longer has is dropped, a field the
  * saved state lacks keeps what the fresh model gave it, an array that has grown (a kind added at its
  * end) keeps the fresh model's values past the saved ones, and an array that has shrunk is taken as saved. So small changes to
- * the code still load; large ones (a different map) are refused.
+ * the code still load; large ones (a different map, other resident kinds) are refused.
  */
 object HexSnapshot {
     private const val MAGIC = 0x48455853 // "HEXS"
@@ -67,10 +71,16 @@ object HexSnapshot {
             val r = Reader(inp, SPECIES)
             val byName = roots(sim).toMap()
             val restore = Restorer()
+            // The residents' tables by kind are restored by position, so the kinds must be the ones the code has, in its order.
+            val kinds = sim.fauna.kinds.map { it.name }
             repeat(byName.size) {
                 val name = inp.readUTF()
                 val node = r.node()
                 byName[name]?.let { restore.into(it, node) }
+            }
+            val saved = sim.fauna.kinds.map { it.name }
+            require(saved == kinds) {
+                "$file holds other resident kinds than the code has, so their numbers would land on the wrong kinds: saved $saved, code $kinds"
             }
             if (restore.dropped.isNotEmpty()) System.err.println("$file: the code no longer has, and so dropped: ${restore.dropped.joinToString(", ")}")
             return day
@@ -80,7 +90,7 @@ object HexSnapshot {
     /** Kinds are saved by name: the code defines them. */
     private val SPECIES = Named(Species::class.java, { it.name }, { n -> Catalogue.all.firstOrNull { it.name == n } })
 
-    private fun roots(sim: HexSim) = listOf("weather" to sim.weather, "land" to sim.land, "fauna" to sim.fauna, "groups" to sim.groups,
+    internal fun roots(sim: HexSim) = listOf("weather" to sim.weather, "land" to sim.land, "fauna" to sim.fauna, "groups" to sim.groups,
         "eruptions" to sim.eruptions)
 
     // ---- what is saved
@@ -89,7 +99,7 @@ object HexSnapshot {
     private val FIXED = setOf(World::class.java, HexMap::class.java, HexWorld::class.java, Grid::class.java, WorldConfig::class.java,
         Climate::class.java, Terrain::class.java, Geology::class.java, Profile::class.java)
 
-    private fun saved(c: Class<*>): Boolean {
+    internal fun saved(c: Class<*>): Boolean {
         val n = c.name
         if (c.isSynthetic || n.contains("\$\$Lambda") || n.contains("\$Lambda")) return false
         if (c in FIXED) return false

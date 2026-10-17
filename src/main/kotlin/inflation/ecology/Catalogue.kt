@@ -32,6 +32,8 @@ object Catalogue {
         foresight = 0.6f,
         domestication = floatArrayOf(0.6f, 0.6f, 0.2f, 0.5f, 0.05f, 0.2f), // panics and leaps fences
         habitat = Habitat(cover = -1f, wet = -0.5f),
+        activity = floatArrayOf(0.25f, 0.4f, 0.25f, 0.1f),
+        swimKm = 1f,
     )
 
     /** Roe deer: small, solitary or in families, browsing woodland edges and thickets. */
@@ -49,6 +51,9 @@ object Catalogue {
         speedKmh = 70f,
         domestication = floatArrayOf(0.4f, 0.6f, 0.1f, 0.3f, 0.1f, 0.1f),
         habitat = Habitat(cover = 0.6f),
+        activity = floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
+        shelters = setOf(Niches.Shelter.THICKET),
+        swimKm = 4f,
     )
 
     /** Persian fallow deer: herds in open woodland and parkland; common in Levantine Epipalaeolithic sites. */
@@ -66,6 +71,9 @@ object Catalogue {
         domestication = floatArrayOf(0.5f, 0.5f, 0.4f, 0.4f, 0.3f, 0.4f), // kept in parks, never domesticated
         habitat = Habitat(cover = 0.3f),
         defence = 0.1f,
+        activity = floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
+        shelters = setOf(Niches.Shelter.THICKET),
+        swimKm = 6f,
     )
 
     /** Red deer: woodland and hills, grazing and browsing, herds split by sex outside the rut. */
@@ -83,6 +91,9 @@ object Catalogue {
         domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.3f, 0.2f, 0.3f),
         habitat = Habitat(cover = 0.5f, rugged = 0.2f),
         defence = 0.25f,
+        activity = floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
+        shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
+        swimKm = 10f,
     )
 
     /** Nubian ibex: cliffs and steep rock of the hot dry hills and gorges, where nothing can follow it. */
@@ -102,6 +113,8 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.5f, 0.4f, 0.4f, 0.4f, 0.6f), // its cousin became the goat
         habitat = Habitat(cover = -0.3f, rugged = 1f),
         defence = 0.1f,
+        activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
+        shelters = setOf(Niches.Shelter.CRAG),
     )
 
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
@@ -123,6 +136,9 @@ object Catalogue {
         habitat = Habitat(cover = 0.8f, wet = 0.6f),
         defence = 0.6f,
         fibreDigestion = 0.5f,
+        activity = floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
+        shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
+        swimKm = 10f,
     )
 
     /** Aurochs: huge wild cattle of wet lowlands, floodplains and open woodland; formidable when cornered. */
@@ -142,6 +158,8 @@ object Catalogue {
         domestication = floatArrayOf(0.8f, 0.5f, 0.7f, 0.2f, 0.4f, 0.9f), // became cattle
         habitat = Habitat(cover = 0.1f, rugged = -0.5f, wet = 0.8f),
         defence = 0.9f,
+        activity = floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
+        swimKm = 8f,
     )
 
     /** Onager (Asiatic wild ass): fast grazer of steppe and semi-desert, needs to drink often. */
@@ -162,6 +180,7 @@ object Catalogue {
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.1f), // shuns marsh, not the water's edge
         defence = 0.4f,
         hindgut = true,
+        activity = floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
     )
 
     /**
@@ -185,6 +204,9 @@ object Catalogue {
         habitat = Habitat(cover = -0.2f, rugged = -1f, wet = 1f),
         defence = 1f,
         maxWaterKm = 1.5f,
+        activity = floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
+        shelters = setOf(Niches.Shelter.WATER),
+        swimKm = 15f,
     )
 
     /**
@@ -210,6 +232,9 @@ object Catalogue {
         defence = 0.8f,
         hibernates = true,
         startKm2PerAnimal = 60f,
+        activity = floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
+        shelters = setOf(Niches.Shelter.DEN, Niches.Shelter.THICKET),
+        swimKm = 10f,
     )
 
     /**
@@ -234,6 +259,9 @@ object Catalogue {
         stalking = 0.3f,
         startKm2PerAnimal = 50f,
         followsPeople = true,
+        activity = floatArrayOf(0.3f, 0.1f, 0.3f, 0.3f),
+        shelters = setOf(Niches.Shelter.DEN),
+        swimKm = 4f,
     )
 
     /**
@@ -257,6 +285,7 @@ object Catalogue {
         stalking = 0.7f,
         ferocity = 1.2f,
         startKm2PerAnimal = 50f,
+        activity = floatArrayOf(0.25f, 0.05f, 0.3f, 0.4f),
     )
 
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
@@ -277,6 +306,8 @@ object Catalogue {
         stalking = 1f,
         ferocity = 1.1f,
         startKm2PerAnimal = 50f,
+        activity = floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
+        shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.DEN, Niches.Shelter.THICKET, Niches.Shelter.TREE),
     )
 
     /**
@@ -322,6 +353,9 @@ object Catalogue {
         stalking = 0.2f,
         ferocity = 1.4f,
         startKm2PerAnimal = 50f,
+        activity = floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
+        shelters = setOf(Niches.Shelter.DEN),
+        cracksBones = true,
     )
 
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
@@ -344,6 +378,8 @@ object Catalogue {
         ferocity = 0.8f,
         startKm2PerAnimal = 10f,
         followsPeople = true,
+        activity = floatArrayOf(0.25f, 0.1f, 0.25f, 0.4f),
+        shelters = setOf(Niches.Shelter.DEN, Niches.Shelter.THICKET),
     )
 
     // ---------------------------------------------------------------- the cold north
@@ -367,6 +403,9 @@ object Catalogue {
         domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.4f, 0.3f, 0.1f),
         habitat = Habitat(cover = 0.6f, rugged = -0.2f, wet = 0.8f),
         defence = 0.6f,
+        activity = floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
+        shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
+        swimKm = 15f,
     )
 
     /**
@@ -391,6 +430,8 @@ object Catalogue {
         domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f), // became the goat
         habitat = Habitat(cover = -0.2f, rugged = 0.8f),
         defence = 0.1f,
+        activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
+        shelters = setOf(Niches.Shelter.CRAG),
     )
 
     /**
@@ -415,6 +456,7 @@ object Catalogue {
         habitat = Habitat(cover = -0.8f, rugged = -0.2f),
         defence = 0.4f,
         hindgut = true,
+        activity = floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
     )
 
     /**
@@ -437,6 +479,8 @@ object Catalogue {
         domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f), // became the sheep
         habitat = Habitat(cover = -0.6f, rugged = 0.6f),
         defence = 0.1f,
+        activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
+        shelters = setOf(Niches.Shelter.CRAG),
     )
 
     /**
@@ -460,6 +504,8 @@ object Catalogue {
         domestication = floatArrayOf(0.5f, 0.4f, 0.5f, 0.4f, 0.4f, 0.5f),
         habitat = Habitat(cover = -0.8f, rugged = 0.4f, wet = -0.3f),
         defence = 0.2f,
+        activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
+        shelters = setOf(Niches.Shelter.CRAG),
     )
 
     // ---------------------------------------------------------------- the hot, dry south
@@ -483,6 +529,7 @@ object Catalogue {
         domestication = floatArrayOf(0.6f, 0.5f, 0.4f, 0.3f, 0.4f, 0.5f), // kept in Egyptian herds, never bred on
         habitat = Habitat(cover = -1f, rugged = -0.2f, wet = -0.8f),
         defence = 0.4f,
+        activity = floatArrayOf(0.3f, 0.3f, 0.3f, 0.1f),
     )
 
     /**
@@ -508,7 +555,8 @@ object Catalogue {
         habitat = Habitat(cover = -1f, wet = -0.5f),
         defence = 0.4f,
         fibreDigestion = 0.5f, // a bird's short gut gets little from straw
-        hindgut = true, // ostriches ferment in a long hindgut and, like horses, eat more of poor forage
+        hindgut = true, // ostriches ferment in a long hindgut and, like horses, eat more of poor forage,
+        activity = floatArrayOf(0.2f, 0.6f, 0.2f, 0f),
     )
 
     /** Bubal hartebeest: a grazer of dry grassland and semi-desert edges, in herds; kept by the Egyptians. */
@@ -526,6 +574,7 @@ object Catalogue {
         domestication = floatArrayOf(0.6f, 0.5f, 0.4f, 0.3f, 0.4f, 0.5f),
         habitat = Habitat(cover = -0.8f, rugged = -0.3f),
         defence = 0.2f,
+        activity = floatArrayOf(0.25f, 0.45f, 0.25f, 0.05f),
     )
 
     /**
@@ -547,7 +596,8 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.3f, 0.5f, 0.6f, 0.6f, 0.7f), // became the camel
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.5f),
         defence = 0.6f,
-        fibreDigestion = 1.5f, // a camel keeps coarse food long in its foregut and gets more from it than cattle do
+        fibreDigestion = 1.5f, // a camel keeps coarse food long in its foregut and gets more from it than cattle do,
+        activity = floatArrayOf(0.2f, 0.5f, 0.2f, 0.1f),
     )
 
     /**
@@ -571,6 +621,8 @@ object Catalogue {
         stalking = 0.3f,
         ferocity = 0.6f,
         startKm2PerAnimal = 100f,
+        activity = floatArrayOf(0.25f, 0.55f, 0.15f, 0.05f),
+        swimKm = 1f,
     )
 
     // ---------------------------------------------------------------- people
@@ -645,10 +697,8 @@ object Catalogue {
      * ten or more; most others a few; people none (until boats). From memory of the record, mild.
      */
     fun swimKm(s: Species): Float = swimByIndex[s.index]
-    private val swimByIndex by lazy { FloatArray(all.size) { i -> val s = all[i]; SWIM_KM[s] ?: if (s.human) 0f else when (travel(s)) {
+    private val swimByIndex by lazy { FloatArray(all.size) { i -> val s = all[i]; s.swimKm.takeIf { it >= 0f } ?: if (s.human) 0f else when (travel(s)) {
         HexMap.Travel.SWIM -> 8f; HexMap.Travel.CLIMB -> 2f; else -> 3f } } }
-    private val SWIM_KM = mapOf(ELK to 15f, HIPPO to 15f, RED_DEER to 10f, BOAR to 10f, BEAR to 10f,
-        AUROCHS to 8f, FALLOW_DEER to 6f, ROE_DEER to 4f, WOLF to 4f, GAZELLE to 1f, CHEETAH to 1f)
 
     /** How a kind crosses hex borders: climbers over crags, big plant-eaters swim rivers, the rest walk. */
     fun travel(s: Species) = if (s in climbers) HexMap.Travel.CLIMB

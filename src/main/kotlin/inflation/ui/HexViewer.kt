@@ -1,5 +1,6 @@
 package inflation.ui
 
+import inflation.learning.LearnedModel
 import inflation.Args
 import inflation.Config
 
@@ -48,12 +49,6 @@ import inflation.ecology.Skill
 import inflation.ecology.Species
 import inflation.ecology.Tool
 import inflation.ecology.Tradition
-import inflation.learning.MoverPolicy
-import inflation.learning.NetAnimalWays
-import inflation.learning.NetWays
-import inflation.learning.Role
-import inflation.learning.Schema
-import inflation.learning.SharedMover
 import inflation.world.Biome
 import inflation.world.WorldCache
 import kotlin.math.abs
@@ -77,7 +72,6 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 import java.awt.Point
 import java.awt.BasicStroke
-import inflation.tools.baselineDir
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,
@@ -86,10 +80,8 @@ import inflation.tools.baselineDir
  *
  * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
  * (--load carries on a saved world: the seed and size must be the ones it was saved with.) The
- * config keys choose the learned networks, as for hex-fauna: nets=DIR moves every kind by the
- * networks in DIR (herds.mlp, hunters.mlp, people.mlp, as hex-ppo writes them, and herd-ways.mlp,
- * hunter-ways.mlp where present), ways=FILE sets the bands' ways by a learned network, and herdWays
- * and hunterWays the herds' and packs'. Without them the hand-written choices are the model.
+ * config keys choose the learned networks as for hex-fauna (see [LearnedModel]). Without them the
+ * hand-written choices are the model.
  */
 fun main(args: Array<String>) {
     val a = Args(args, "hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]")
@@ -333,27 +325,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         control.weekDone()
     }
 
-    /** The model: learned networks where given ([nets], [waysFile]), else the hand-written choices. */
+    /** The model: learned networks where given ([nets], [waysFile], see [LearnedModel]), else the hand-written choices. */
     private fun useNetworks() {
-        nets?.let { name ->
-            val dir = baselineDir(name)
-            for (role in Role.entries) {
-                val f = role.file(dir).takeIf { it.exists() } ?: continue
-                val p = MoverPolicy(SharedMover.load(f), null, { 0f }, { 0 })
-                for (s in groups.kinds) if (Role.of(s) == role) groups.policies[s] = p
-            }
-            File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let {
-                groups.herdWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT))
-            }
-            File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let {
-                groups.hunterWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT))
-            }
-        }
-        (waysFile ?: nets?.let { File(baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
-            groups.ways = NetWays(Schema.load(File(it), Schema.WAYS_IN, Schema.WAYS_OUT))
-        }
-        Config.string("herdWays")?.let { groups.herdWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT)) }
-        Config.string("hunterWays")?.let { groups.hunterWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
+        LearnedModel.apply(groups, nets, waysFile, Config.string("herdWays"), Config.string("hunterWays")) { println(it) }
     }
 
     private fun snapshot() {

@@ -42,16 +42,16 @@ class HexBearings(
     /** Month the bearings were last worked out for. */
     var month = -1; private set
 
-    private val cx = DoubleArray(size); private val cy = DoubleArray(size)
+    @Transient private val cx = DoubleArray(size); @Transient private val cy = DoubleArray(size)
     /** Hexes within [NEAR_KM] of each land hex. */
-    private val near: Array<IntArray>
+    @Transient private val near: Array<IntArray>
     /** For each of those, the way to it (unit vector) times how much a place there weighs, and the weight. */
-    private val nearE: Array<FloatArray>; private val nearS: Array<FloatArray>; private val nearW: Array<FloatArray>
+    @Transient private val nearE: Array<FloatArray>; @Transient private val nearS: Array<FloatArray>; @Transient private val nearW: Array<FloatArray>
     /** Peaks in sight of each land hex, beyond [NEAR_KM]; and the hexes of each peak's massif. */
-    private val inSight: Array<IntArray>
-    private val massif: Array<IntArray>
+    @Transient private val inSight: Array<IntArray>
+    @Transient private val massif: Array<IntArray>
     /** Which way it gets warmer over the year, unit vector per hex. */
-    private val warmerE = FloatArray(size); private val warmerS = FloatArray(size)
+    @Transient private val warmerE = FloatArray(size); @Transient private val warmerS = FloatArray(size)
 
     init {
         for (h in 0 until size) { val (x, y) = hex.centreKm(h); cx[h] = x; cy[h] = y }
@@ -177,7 +177,7 @@ class HexBearings(
     }
 
     /** Open water's monthly normals by hex, °C (see [HexFauna.laggedNormals]). */
-    private val hexWaterNormalC by lazy { Array(hw.hex.size) { h -> HexFauna.laggedNormals { m -> hw.temp[m][h] } } }
+    @delegate:Transient private val hexWaterNormalC by lazy { Array(hw.hex.size) { h -> HexFauna.laggedNormals { m -> hw.temp[m][h] } } }
 
     /** How far moving from hex [from] to hex [to] goes along kind [k]'s bearing, in units of [km]. */
     fun along(k: Int, from: Int, to: Int, km: Double): Float =

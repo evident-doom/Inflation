@@ -22,7 +22,7 @@ import kotlin.math.min
  */
 class HexHydrology(land: HexLand) : HexLandPart(land) {
     /** The hex each hex's main river flows into, -1 at the sea or a closed basin. */
-    val down = IntArray(hex.size) { -1 }
+    @Transient val down = IntArray(hex.size) { -1 }
     /**
      * Running mean of each hex's routed flow before correction, m³/s, over about two years. The
      * buckets of whole bands shed less water than their cells would one by one, and the coarse
@@ -31,8 +31,8 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
      */
     private val rawMean = FloatArray(hex.size)
     /** Long-term mean flow of each hex's main river, m³/s. */
-    val meanFlow = FloatArray(hex.size)
-    private val order: IntArray
+    @Transient val meanFlow = FloatArray(hex.size)
+    @Transient private val order: IntArray
 
     init {
         val main = IntArray(hex.size) { -1 }
@@ -84,21 +84,21 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
      * Water the soil holds, mm, by the rock under it: thin and quick to drain on limestone, granite
      * and evaporites, deep on alluvium and shale (rough values, from memory).
      */
-    val soilCap = FloatArray(n) { p -> mean(p) { when (world.geology.rock[it]) {
+    @Transient val soilCap = FloatArray(n) { p -> mean(p) { when (world.geology.rock[it]) {
         Rock.ALLUVIUM -> 220f; Rock.SHALE -> 180f; Rock.BASALT, Rock.VOLCANIC -> 150f; Rock.SANDSTONE -> 120f
         Rock.GRANITE, Rock.METAMORPHIC -> 100f; Rock.LIMESTONE -> 80f; Rock.EVAPORITE -> 60f } } }
     /** Share of the water the soil cannot hold that the rock takes in (see [Aquifer.intake]). */
-    private val intake = FloatArray(n) { p -> mean(p) { Aquifer.of(world.geology.rock[it]).intake } }
+    @Transient private val intake = FloatArray(n) { p -> mean(p) { Aquifer.of(world.geology.rock[it]).intake } }
     /** Water the aquifer under each place holds when full, mm; its thickness, m. */
-    val aquiferCap = FloatArray(n) { p -> mean(p) { Aquifer.of(world.geology.rock[it]).let { it.yield * it.thicknessM * 1000f } } }
-    private val aquiferM = FloatArray(n) { p -> mean(p) { Aquifer.of(world.geology.rock[it]).thicknessM } }
+    @Transient val aquiferCap = FloatArray(n) { p -> mean(p) { Aquifer.of(world.geology.rock[it]).let { it.yield * it.thicknessM * 1000f } } }
+    @Transient private val aquiferM = FloatArray(n) { p -> mean(p) { Aquifer.of(world.geology.rock[it]).thicknessM } }
     /**
      * Share of each place's ground water that drains out each step. An aquifer between streams
      * [L] apart on each side drains as a linear store with rate π²T / (4 Sy L²) (the slowest term of
      * the linearised Boussinesq solution: Brutsaert 2005), T the transmissivity, Sy the specific
      * yield; L is twice the mean distance to a stream.
      */
-    private val drain = FloatArray(n) { p ->
+    @Transient private val drain = FloatArray(n) { p ->
         var t = 0.0; var sy = 0.0
         for (i in hw.placeCells[p]) { val a = Aquifer.of(world.geology.rock[i]); t += a.conductivity * a.thicknessM; sy += a.yield }
         val cells = hw.placeCells[p].size
@@ -116,9 +116,9 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     /** Ground water under each place, mm over the place (starts settled: see the init below). */
     val groundwater = FloatArray(n)
     /** The lowest place of each hex, where its stream runs and ground water from above comes out; -1 for sea. */
-    private val valley = IntArray(hex.size) { hw.firstPlaceIn(it) }
+    @Transient private val valley = IntArray(hex.size) { hw.firstPlaceIn(it) }
     /** Whether a hex has a stream its ground water seeps into; if not, the ground water goes on underground to the hex below. */
-    private val stream = BooleanArray(hex.size) { meanFlow[it] >= CREEK }
+    @Transient private val stream = BooleanArray(hex.size) { meanFlow[it] >= CREEK }
 
     init {
         // Start each aquifer at the level where what comes in over a usual year (its share of the long-term
@@ -136,7 +136,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         }
     }
     /** Each aquifer's settled level, mm, against which springs weaken (at least a millimetre). */
-    private val usualGround = FloatArray(n) { max(1f, groundwater[it]) }
+    @Transient private val usualGround = FloatArray(n) { max(1f, groundwater[it]) }
     /** Flow of each hex's river over the last step, m³/s. */
     val flow = meanFlow.copyOf()
     /** Flood depth over each place's floodplain during the last step, m. */

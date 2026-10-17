@@ -9,7 +9,6 @@ import inflation.world.LifeForm
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.min
-import inflation.learning.Schema
 import inflation.world.Biome
 import inflation.world.Weather
 import java.util.stream.IntStream
@@ -1085,7 +1084,7 @@ val BAND_SITUATION = Illness.entries.size + 12 + Tradition.entries.size + Temper
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3 + BAND_SITUATION
 /**
  * A band's ways after its effort on each food, its store aim and its ranking of the tools, in the order of
- * [setWays]' outputs; [label] is the output's name in saved networks ([Schema.WAYS_OUT]).
+ * [setWays]' outputs; [label] is the output's name in saved networks ([inflation.learning.Schema.WAYS_OUT]).
  */
 enum class BandWay(val label: String) {
     SCOUTS("scouts"),
