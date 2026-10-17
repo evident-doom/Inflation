@@ -326,7 +326,7 @@ class HexGroups(
         Profile.time("groups: meetings") { meet(weather) }
         meetNs += System.nanoTime() - t0
         Profile.part("groups: leaving sign") { leaveSign() }
-        Profile.part("groups: wearing paths") { wearPaths(); routes.week() }
+        Profile.part("groups: wearing paths") { wear.week(groups, hw, land, days); routes.week() }
         Profile.time("groups: grazing") { graze(weather) }
         Profile.time("groups: hunting") { hunt(weather) }
         Profile.part("people: burning off") { burnOff(weather) }
@@ -416,7 +416,7 @@ class HexGroups(
                 val np = hw.placeOf[band][nh].takeIf { it >= 0 } ?: hex.heart[nh]
                 val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
                 // A worn path makes the going easier, the more so where the country is broken.
-                val worn = paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
+                val worn = wear.paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
                 out[h * 6 + k] = cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
             }
         }
@@ -424,14 +424,8 @@ class HexGroups(
     }
     /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
     internal val outbreaksStarting: MutableSet<Long> = ConcurrentHashMap.newKeySet()
-    /**
-     * Paths: how worn the way is from each hex to each of its six neighbours (index h * 6 + side),
-     * 0..1. Every group that goes that way wears it, the heavier and more numerous the more; plants
-     * grow back over it, the faster the greener the ground. Worn paths make the going easier, the
-     * more so in broken country, so herds and people keep to them: they gather at the easy
-     * crossings, passes and fords, and there hunters wait.
-     */
-    val paths = FloatArray(hex.size * 6)
+    /** The worn ways between hexes ([PathWear]; saves from before it was split out kept them here as paths). */
+    @field:MovedInto("paths") val wear = PathWear(hex)
     /**
      * Sea crossings: for each coastal land hex, the land hexes across a strait (one or two hexes of
      * sea) and the open water between, km. Swimmers that can cover it may cross, at a great effort
@@ -481,28 +475,6 @@ class HexGroups(
         }
     }
 
-    /** How worn the busiest path through hex [h] is. */
-    fun pathAt(h: Int): Float { var m = 0f; for (d in 0 until 6) m = max(m, paths[h * 6 + d]); return m }
-
-    /** This week's going wears the ways the groups went; the rest grow back a little. */
-    private fun wearPaths() {
-        for (h in 0 until hex.size) {
-            val p = (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: -1
-            val regrow = PATH_FADE * (0.3f + (if (p >= 0) land.green[p] else 0f)) * days / 7f
-            for (d in 0 until 6) { val i = h * 6 + d; if (paths[i] > 0f) paths[i] = max(0f, paths[i] - regrow * paths[i] - 1e-4f) }
-        }
-        for (g in groups) {
-            if (!g.alive || g.path.size < 2) continue
-            val w = min(1f, g.size * g.species.massKg / PATH_MASS_KG)
-            for (i in 0 until g.path.size - 1) {
-                val a = g.path[i]; val b = g.path[i + 1]
-                val d = (0 until 6).firstOrNull { hex.neighbour(a, it) == b } ?: continue
-                val back = (0 until 6).firstOrNull { hex.neighbour(b, it) == a } ?: continue
-                paths[a * 6 + d] += PATH_WEAR * w * (1f - paths[a * 6 + d])
-                paths[b * 6 + back] += PATH_WEAR * w * (1f - paths[b * 6 + back])
-            }
-        }
-    }
     /** Effort and hex packed in one number, ordered by effort (efforts are never negative). */
     private fun Long.withPlace(d: Float, h: Int): Long = (d.toRawBits().toLong() shl 32) or h.toLong()
 
@@ -867,7 +839,7 @@ class HexGroups(
         f[Feature.TREES] = min(1f, land.tree[p] / 10f); f[Feature.SHRUBS] = min(1f, land.shrub[p] / 2f); f[Feature.GRASS] = min(1f, land.herb[p] / 0.5f)
         f[Feature.MARSH] = min(1f, land.waterlogged[p])
         f[Feature.WATER_AGAINST_USUAL] = (land.water[p] - min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])).coerceIn(-1f, 1f)
-        f[Feature.PATHS] = pathAt(h)
+        f[Feature.PATHS] = wear.at(h)
         f[Feature.HERDS_ABOUT] = ln(1f + monthHerdHeads[p] / land.areaKm2[p]) / 3f
         f[Feature.DUNG] = min(1f, fauna.small.dung[p] * 1e4f)
         f[Feature.GRAZING_AND_KILLS] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)

@@ -728,7 +728,7 @@ internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Int, span: Float)
     // Bands seek each other out at springs and lake shores, where people come together.
     val gather = if (a.band != null && b.band != null) 1f + 2f * (land.nearSpring[p] + land.nearLake[p]).coerceAtMost(1f) else 1f
     // (Hunters wait where the paths funnel the game: at fords, passes and water.)
-    val waylaid = if (hunting) 1f + AMBUSH * pathAt(hw.placeHex[p]) else 1f
+    val waylaid = if (hunting) 1f + AMBUSH * wear.at(hw.placeHex[p]) else 1f
     // (A hunter finds a herd lying up as well as out feeding, if less often.)
     val one = 2f * r * v * span * SEARCHING * gather * waylaid / land.areaKm2[p] * (if (hunting) 0.5f + 0.5f * hours else hours)
     if (!hunting) return one

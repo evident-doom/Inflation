@@ -101,12 +101,12 @@ class Census(private val sim: HexSim) {
 
     /** Paths: how many ways are worn, and whether they gather where the going is hard (broken ground, rivers). */
     fun printPaths() {
-        val worn = (0 until hex.size).filter { groups.pathAt(it) > 0.3f }
+        val worn = (0 until hex.size).filter { groups.wear.at(it) > 0.3f }
         val rug = { h: Int -> hw.placeOf[0][h].takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f }
         val landHexes = (0 until hex.size).filter { hw.land[it] > 0.5f }
         println("     paths: %d hexes with a worn path (%.1f%% of land); ruggedness where worn %.2f against %.2f overall; mean wear %.3f".format(
             worn.size, 100.0 * worn.size / landHexes.size.coerceAtLeast(1), worn.map { rug(it).toDouble() }.average().takeIf { !it.isNaN() } ?: 0.0,
-            landHexes.map { rug(it).toDouble() }.average(), groups.paths.average()))
+            landHexes.map { rug(it).toDouble() }.average(), groups.wear.paths.average()))
         val (fw, fa) = groups.routes.fordShare()
         println("     routes: %s; worn ways crossing rivers %.1f%% against %.1f%% of all borders".format(groups.routes.summary(), 100 * fw, 100 * fa))
     }
