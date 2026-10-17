@@ -883,16 +883,16 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         if (g.days.isNotEmpty()) sb.appendLine("entering them on days: " + g.days.joinToString(" ") { "%.1f".format(it) })
         g.band?.let { b ->
             sb.appendLine("larder %.0f kg (%.0f days); camp kept %d weeks".format(g.larder, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f), b.campWeeks))
-            sb.appendLine("skills: " + Skill.entries.filter { b.knowsSkill[it.ordinal] }
-                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.skills[it.ordinal]) })
-            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it.ordinal] }
-                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
+            sb.appendLine("skills: " + Skill.entries.filter { b.knowsSkill[it] }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.skills[it]) })
+            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it] }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it]) })
             sb.appendLine("elders %d; children inbred %.3f; descent mostly lineage %d".format(b.elders, b.inbred, b.mainLineage()))
             if (b.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") {
                 "%.0f %s".format(it.value, if (Catalogue.all[it.index].name == "wolf") "dogs" else "tame " + Catalogue.all[it.index].name) })
             sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
                 .ifEmpty { "none" })
-            sb.appendLine("goods: " + Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it.ordinal]) })
+            sb.appendLine("goods: " + Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it]) })
         }
         if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat from herds met this week %.0f kg".format(
             if (!g.home.none) g.home.toString() else "none", g.meatMet))

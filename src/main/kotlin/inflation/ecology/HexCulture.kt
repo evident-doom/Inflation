@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.Tuning
 import inflation.Config
 
+import inflation.world.Biome
 import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
@@ -160,9 +161,9 @@ fun wordsAt(x: Double, y: Double): IntArray {
  * caring for the sick and handing down knowledge are near universal among foragers, so every band
  * holds them; the others come about a quarter each, the same for neighbours.
  */
-fun traditionsAt(lineage: Int) = BooleanArray(Tradition.entries.size) { t ->
+fun traditionsAt(lineage: Int) = EnumBools<Tradition>(BooleanArray(Tradition.entries.size) { t ->
     Tradition.entries[t] in UNIVERSAL || Math.floorMod((lineage + 1) * 2_654_435_761L.toInt() xor (t * 40_503), 100) < 25
-}.also { it[Tradition.LEAVE_DEAD.ordinal] = !it[Tradition.BURIAL.ordinal] } // (the old way, where the dead are not kept)
+}.also { it[Tradition.LEAVE_DEAD.ordinal] = !it[Tradition.BURIAL.ordinal] }) // (the old way, where the dead are not kept)
 
 private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.MEDICINE, Tradition.ORAL_TRADITION)
 
@@ -201,7 +202,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + RENOWN * (g.band?.renown ?: 0f)
     val (lo, hi) = if (doing(a) < doing(b)) bandA to bandB else bandB to bandA
     for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {
-        lo.traditions[t.ordinal] = hi.holds(t)
+        lo.traditions[t] = hi.holds(t)
         stats.meetings.merge("band took ${if (hi.holds(t)) "up" else "leave of"} ${t.name.lowercase()}", 1, Int::plus)
     }
     riteMeet(lo, hi, u)
@@ -341,7 +342,7 @@ private fun HexGroups.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ban
     val la = bandA.lineage.copyOf()
     for (i in la.indices) { bandA.lineage[i] += sa * (bandB.lineage[i] - la[i]); bandB.lineage[i] += sb * (la[i] - bandB.lineage[i]) }
     // Partners bring what they know how to do.
-    for (i in bandA.plants.indices) {
+    for (i in Biome.entries) {
         val x = bandA.plants[i]
         bandA.plants[i] = max(x, x + sa * (bandB.plants[i] - x))
         bandB.plants[i] = max(bandB.plants[i], bandB.plants[i] + sb * (x - bandB.plants[i]))
@@ -349,9 +350,9 @@ private fun HexGroups.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ban
     // (Each partner holds the skills its band's people do, as many as hold them; it brings them along,
     // a little short of the best it learned from, and its old band loses them.)
     val na = sa * a.adults; val nb = sb * b.adults
-    val fromA = FloatArray(bandA.holders.size) { i -> if (bandA.holders[i] > 0f) min(na, na * bandA.holders[i] / a.adults) else 0f }
-    val fromB = FloatArray(bandB.holders.size) { i -> if (bandB.holders[i] > 0f) min(nb, nb * bandB.holders[i] / b.adults) else 0f }
-    for (i in bandA.skills.indices) {
+    val fromA = enumFloats<Skill> { i -> if (bandA.holders[i] > 0f) min(na, na * bandA.holders[i] / a.adults) else 0f }
+    val fromB = enumFloats<Skill> { i -> if (bandB.holders[i] > 0f) min(nb, nb * bandB.holders[i] / b.adults) else 0f }
+    for (i in Skill.entries) {
         val la = bandA.skills[i]; val lb = bandB.skills[i]
         if (fromB[i] > 0f) {
             if (!bandA.knowsSkill[i]) {
@@ -468,7 +469,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     for (t in Tradition.entries) {
         val held = b.holds(t)
         if (rnd.nextFloat() < (if (held) DROP else TAKE_UP) * years) {
-            b.traditions[t.ordinal] = !held
+            b.traditions[t] = !held
             stats.meetings.merge("band ${if (held) "dropped" else "took up"} ${t.name.lowercase()}", 1, Int::plus)
         }
     }
@@ -526,7 +527,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     }
     // (Where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
     for (m in TRADED) {
-        val want = 1f - b.goods[m.ordinal] / (KEEP_YEARS * YEAR_NEED[m.ordinal] * max(1, g.adults))
+        val want = 1f - b.goods[m] / (KEEP_YEARS * YEAR_NEED[m] * max(1, g.adults))
         if (want <= 0f) continue
         for (h in materialSources.getValue(m)) if (b.knows(h)) {
             val km = hex.distanceKm(here, h)

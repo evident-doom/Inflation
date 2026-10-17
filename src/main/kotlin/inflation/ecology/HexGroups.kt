@@ -151,7 +151,7 @@ class HexGroups(
                         repeat(KNOWN_AT_START) { ring = hex.nextRing(ring, seen) }
                         for (h in seen) b.learn(h, hex.size)
                         // And the plants of the country round it.
-                        for (h in seen) for (k in b.plants.indices) if (hw.biome[k][h] > 0.1f) b.plants[k] = 0.9f
+                        for (h in seen) for (k in Biome.entries) if (hw.biome[k.ordinal][h] > 0.1f) b.plants[k] = 0.9f
                     }
                 }
                 if (s.pack) claimGround(g, Hex(hw.placeHex[p])) else inheritSeasons(g)
@@ -1260,14 +1260,14 @@ class HexGroups(
 /** How well band [b] knows the plants of hex [h]'s country: [PLANT_FLOOR] for a stranger to 1. */
 internal fun HexGroups.plantKnow(b: Band, h: Hex): Float {
     var s = 0f; var w = 0f
-    for (k in b.plants.indices) { val share = hw.biome[k][h]; if (share > 0f) { s += share * b.plants[k]; w += share } }
+    for (k in Biome.entries) { val share = hw.biome[k.ordinal][h]; if (share > 0f) { s += share * b.plants[k]; w += share } }
     return PLANT_FLOOR + (1f - PLANT_FLOOR) * (if (w > 0f) s / w else 0f)
 }
 
 /** A week's gathering in hex [h] teaches band [b] its country's plants. */
 internal fun HexGroups.learnPlants(b: Band, h: Int) {
     var w = 0f
-    for (k in b.plants.indices) w += hw.biome[k][h]
+    for (k in Biome.entries) w += hw.biome[k.ordinal][h]
     if (w <= 0f) return
-    for (k in b.plants.indices) { val share = hw.biome[k][h] / w; if (share > 0f) b.plants[k] += PLANT_LEARN * share * (1f - b.plants[k]) }
+    for (k in Biome.entries) { val share = hw.biome[k.ordinal][h] / w; if (share > 0f) b.plants[k] += PLANT_LEARN * share * (1f - b.plants[k]) }
 }

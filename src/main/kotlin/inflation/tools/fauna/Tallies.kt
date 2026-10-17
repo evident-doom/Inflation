@@ -238,9 +238,9 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     private fun skillsAndKit(bands: List<HexGroup>, bs: List<Band>): String {
         val groups = sim.groups; val hex = sim.hex
-        return "skills " + Skill.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.skills[f.ordinal] }.average()) } +
+        return "skills " + Skill.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.skills[f] }.average()) } +
             " | tools known (kit) " + Tool.entries.joinToString(", ") { t -> "%s %.0f%% (%.2f)".format(t.name.lowercase(),
-                100.0 * bs.count { it.knows[t.ordinal] } / bs.size, bs.map { it.kit[t.ordinal] }.average()) } +
+                100.0 * bs.count { it.knows[t] } / bs.size, bs.map { it.kit[t] }.average()) } +
             " | customs " + Tradition.entries.joinToString(", ") { t -> "%s %.0f%%".format(t.name.lowercase(), 100.0 * bs.count { it.holds(t) } / bs.size) } +
             " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1),
                 bs.map { it.inbred.toDouble() }.average()) +
