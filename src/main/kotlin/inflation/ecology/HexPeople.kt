@@ -1395,7 +1395,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     if (best >= 0 && rnd.nextFloat() < RAID_PLOT * b.raidWill * days / 7f) {
         b.raidOn = best; b.raidHex = Hex(b.knownHomes.getValue(best)); b.raidWeeks = RAID_WEEKS
         stats.meetings.merge("raids set out", 1, Int::plus)
-        note(g) { "set out to raid band #%d at hex %d".format(best, b.raidHex) }
+        note(g) { "set out to raid band #%d at hex %d".format(best, b.raidHex.i) }
     }
 }
 
