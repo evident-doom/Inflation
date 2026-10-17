@@ -62,7 +62,8 @@ class HexSnapshotTest {
         repeat(52) { sim.step() }
         val bad = ArrayList<String>()
         // Every number the model keeps per place, here and in the residents, small life and water.
-        for ((name, o) in listOf("land" to sim.land, "fauna" to sim.fauna, "small life" to sim.fauna.small, "water" to sim.fauna.water)) {
+        for ((name, o) in listOf("land" to sim.land, "land water" to sim.land.hydro, "drinking water" to sim.land.drink, "plants" to sim.land.plants,
+            "fires" to sim.land.fire, "fauna" to sim.fauna, "small life" to sim.fauna.small, "water" to sim.fauna.water)) {
             var c: Class<*>? = o.javaClass
             while (c != null && c != Any::class.java) {
                 for (fl in c.declaredFields) {
@@ -73,8 +74,8 @@ class HexSnapshotTest {
                 c = c.superclass
             }
         }
-        val stocks = mapOf("herb" to sim.land.herb, "shrub" to sim.land.shrub, "tree" to sim.land.tree, "soil" to sim.land.soil,
-            "groundwater" to sim.land.groundwater,
+        val stocks = mapOf("herb" to sim.land.plants.herb, "shrub" to sim.land.plants.shrub, "tree" to sim.land.plants.tree, "soil" to sim.land.hydro.soil,
+            "groundwater" to sim.land.hydro.groundwater,
             "rodents" to sim.fauna.small.rodents, "fish" to sim.fauna.water.fish) +
             sim.fauna.kinds.indices.flatMap { k ->
                 listOf("${sim.fauna.kinds[k].name} adults" to sim.fauna.adults[k], "${sim.fauna.kinds[k].name} young" to sim.fauna.young[k])

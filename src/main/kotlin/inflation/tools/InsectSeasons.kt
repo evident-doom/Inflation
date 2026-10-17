@@ -22,7 +22,7 @@ fun main(args: Array<String>) {
     val tmin = FloatArray(n) { p -> (0 until 12).minOf { hw.placeTemp(p, it) } }
     val tmax = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
     val classes = ClimateClass.entries.map { "${it.label} (${it.bounds})" }
-    fun cls(p: Int): Int = if (land.biomass(p) <= 0f) -1 else ClimateClass.of(meanT[p], rain[p]).ordinal
+    fun cls(p: Int): Int = if (land.plants.biomass(p) <= 0f) -1 else ClimateClass.of(meanT[p], rain[p]).ordinal
     val c = IntArray(n) { cls(it) }
     val q = listOf("temp C", "soil mm", "herb kg/m2", "green 0..1", "empty <10 share", "insects kg/km2", "dormant kg/km2", "biting", "herps",
         "rodents", "pollinators")
@@ -34,7 +34,7 @@ fun main(args: Array<String>) {
         if (w < steps - show * perYear) return@repeat
         val m = run.weather.date.month
         for (p in 0 until n) { val cc = c[p]; if (cc < 0) continue; val a = land.areaKm2[p].toDouble()
-            val v = floatArrayOf(run.weather.temperature[p], land.soil[p], land.herb[p], land.green[p], if (sl.insects[p] < 10f) 1f else 0f,
+            val v = floatArrayOf(run.weather.temperature[p], land.hydro.soil[p], land.plants.herb[p], land.plants.green[p], if (sl.insects[p] < 10f) 1f else 0f,
                 sl.insects[p], sl.dormantInsects[p], sl.biting[p], sl.herps[p], sl.rodents[p], sl.pollinators[p])
             for (i in v.indices) sum[cc][i][m] += v[i] * a; area[cc][m] += a }
     }

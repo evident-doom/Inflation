@@ -13,8 +13,64 @@ import java.util.zip.Deflater
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
-/** The caches' own classes, which play no part in making a world and so are left out of their keys. */
-private fun isCache(simpleClassName: String) = simpleClassName.startsWith("WorldCache") || simpleClassName.startsWith("LandformCache") || simpleClassName.startsWith("WorldCaches")
+/**
+ * The world-package classes that play no part in making a world, left out of the caches' keys so that
+ * changing them does not make every world again: the caches themselves, the hex model run on the
+ * world (Hex*, Weather*, Eruption*), and the fine reference models only hex-land-check runs
+ * (LiveWater with its works, Vegetation).
+ */
+private fun makesNoWorld(simpleClassName: String) =
+    listOf("WorldCache", "LandformCache", "Hex", "Weather", "Eruption", "LiveWater", "Dam", "Diversion", "Irrigation", "Vegetation").any { simpleClassName.startsWith(it) }
+
+/**
+ * A key for [cfg] and the compiled world-package classes [counts] picks (by simple name): any change to
+ * either gives a new key.
+ */
+private fun codeKey(cfg: WorldConfig, counts: (String) -> Boolean): Long {
+    val crc = java.util.zip.CRC32()
+    crc.update(cfg.toString().toByteArray())
+    val loader = WorldCache::class.java.classLoader
+    val url = loader.getResource("inflation/world/World.class") ?: return crc.value
+    val names = ArrayList<Pair<String, () -> ByteArray>>()
+    if (url.protocol == "jar") {
+        val jar = (url.openConnection() as java.net.JarURLConnection).jarFile
+        for (e in jar.entries()) if (e.name.startsWith("inflation/world/") && e.name.endsWith(".class")) names += e.name to { jar.getInputStream(e).readBytes() }
+    } else {
+        val d = File(url.toURI()).parentFile
+        for (c in d.listFiles().orEmpty()) if (c.name.endsWith(".class")) names += ("inflation/world/" + c.name) to { c.readBytes() }
+    }
+    for ((n, bytes) in names.sortedBy { it.first }) {
+        if (!counts(n.substringAfterLast('/'))) continue
+        crc.update(n.toByteArray()); crc.update(bytes())
+    }
+    return crc.value xor (cfg.seed shl 32)
+}
+
+/**
+ * [what] kept on disk in [file] under [magic]: read back if it is there and readable, else made with
+ * [make] and kept. [name] says what it is in the log and in errors.
+ */
+@Suppress("UNCHECKED_CAST")
+private fun <T : Any> kept(file: File, magic: Int, name: String, log: (String) -> Unit, make: () -> T): T {
+    if (file.exists()) runCatching {
+        DataInputStream(BufferedInputStream(GZIPInputStream(file.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
+            require(inp.readInt() == magic)
+            log("loading the $name kept in ${file.name}")
+            return Restorer().make(Reader(inp).node(), null, Any::class.java) as T
+        }
+    }.onFailure { System.err.println("could not load the kept $name ${file.name}: ${it.message}; making it again") }
+    val made = make()
+    runCatching {
+        file.parentFile.mkdirs()
+        val tmp = File(file.path + ".tmp")
+        DataOutputStream(BufferedOutputStream(object : GZIPOutputStream(tmp.outputStream(), 1 shl 16) { init { def.setLevel(Deflater.BEST_SPEED) } }, 1 shl 16)).use { out ->
+            out.writeInt(magic)
+            Writer(out, { c -> c.name.startsWith("inflation.") && !c.isSynthetic && !c.name.contains("\$\$Lambda") }, lazies = true).value(made)
+        }
+        if (!tmp.renameTo(file)) tmp.delete()
+    }.onFailure { System.err.println("could not keep the $name: ${it.message}") }
+    return made
+}
 
 /**
  * A generated world kept on disk, so a run need not generate it again: [load] gives it back if
@@ -27,51 +83,12 @@ object WorldCache {
 
     fun load(cfg: WorldConfig, log: (String) -> Unit = {}): World {
         if (!Config.flag("worldCache", true)) return World.generate(cfg, log = log)
-        val f = File(dir, "world-%016x.bin".format(key(cfg)))
-        if (f.exists()) runCatching {
-            DataInputStream(BufferedInputStream(GZIPInputStream(f.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
-                require(inp.readInt() == WORLD_MAGIC)
-                log("loading the world kept in ${f.name}")
-                val w = Restorer().make(Reader(inp).node(), null, Any::class.java) as World
-                return w
-            }
-        }.onFailure { System.err.println("could not load the kept world ${f.name}: ${it.message}; generating it again") }
         // (The land and its rocks, the slow part, kept apart: changing the climate makes only the rest again.)
-        val w = World.generate(cfg, LandformCache.load(cfg, log), log)
-        runCatching {
-            dir.mkdirs()
-            val tmp = File(f.path + ".tmp")
-            DataOutputStream(BufferedOutputStream(object : GZIPOutputStream(tmp.outputStream(), 1 shl 16) { init { def.setLevel(Deflater.BEST_SPEED) } }, 1 shl 16)).use { out ->
-                out.writeInt(WORLD_MAGIC)
-                Writer(out, { c -> c.name.startsWith("inflation.") && !c.isSynthetic && !c.name.contains("\$\$Lambda") }, lazies = true).value(w)
-            }
-            if (!tmp.renameTo(f)) tmp.delete()
-        }.onFailure { System.err.println("could not keep the world: ${it.message}") }
-        return w
+        return kept(File(dir, "world-%016x.bin".format(key(cfg))), WORLD_MAGIC, "world", log) { World.generate(cfg, LandformCache.load(cfg, log), log) }
     }
 
     /** The settings, and the compiled world-generating code: any change to either makes a new world. */
-    fun key(cfg: WorldConfig): Long {
-        val crc = java.util.zip.CRC32()
-        crc.update(cfg.toString().toByteArray())
-        val loader = WorldCache::class.java.classLoader
-        val url = loader.getResource("inflation/world/World.class") ?: return crc.value
-        val names = ArrayList<Pair<String, () -> ByteArray>>()
-        if (url.protocol == "jar") {
-            val jar = (url.openConnection() as java.net.JarURLConnection).jarFile
-            for (e in jar.entries()) if (e.name.startsWith("inflation/world/") && e.name.endsWith(".class")) names += e.name to { jar.getInputStream(e).readBytes() }
-        } else {
-            val d = File(url.toURI()).parentFile
-            for (c in d.listFiles().orEmpty()) if (c.name.endsWith(".class")) names += ("inflation/world/" + c.name) to { c.readBytes() }
-        }
-        // The hex model's own classes live in the same package but play no part in making the world.
-        for ((n, bytes) in names.sortedBy { it.first }) {
-            val simple = n.substringAfterLast('/')
-            if (simple.startsWith("Hex") || simple.startsWith("Weather") || simple.startsWith("LiveWater") || simple.startsWith("Eruption")) continue
-            crc.update(n.toByteArray()); crc.update(bytes())
-        }
-        return crc.value xor (cfg.seed shl 32)
-    }
+    fun key(cfg: WorldConfig): Long = codeKey(cfg) { !makesNoWorld(it) }
 }
 
 /**
@@ -88,45 +105,8 @@ object LandformCache {
 
     fun load(cfg: WorldConfig, log: (String) -> Unit = {}): Landform {
         if (!Config.flag("landformCache", true)) return World.landform(cfg, log)
-        val f = File(dir, "landform-%016x.bin".format(key(cfg)))
-        if (f.exists()) runCatching {
-            DataInputStream(BufferedInputStream(GZIPInputStream(f.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
-                require(inp.readInt() == MAGIC)
-                log("loading the land and its rocks kept in ${f.name}")
-                return Restorer().make(Reader(inp).node(), null, Any::class.java) as Landform
-            }
-        }.onFailure { System.err.println("could not load the kept land ${f.name}: ${it.message}; making it again") }
-        val land = World.landform(cfg, log)
-        runCatching {
-            dir.mkdirs()
-            val tmp = File(f.path + ".tmp")
-            DataOutputStream(BufferedOutputStream(object : GZIPOutputStream(tmp.outputStream(), 1 shl 16) { init { def.setLevel(Deflater.BEST_SPEED) } }, 1 shl 16)).use { out ->
-                out.writeInt(MAGIC)
-                Writer(out, { c -> c.name.startsWith("inflation.") && !c.isSynthetic && !c.name.contains("\$\$Lambda") }, lazies = true).value(land)
-            }
-            if (!tmp.renameTo(f)) tmp.delete()
-        }.onFailure { System.err.println("could not keep the land: ${it.message}") }
-        return land
+        return kept(File(dir, "landform-%016x.bin".format(key(cfg))), MAGIC, "land and its rocks", log) { World.landform(cfg, log) }
     }
 
-    private fun key(cfg: WorldConfig): Long {
-        val crc = java.util.zip.CRC32()
-        crc.update(cfg.toString().toByteArray())
-        val loader = WorldCache::class.java.classLoader
-        val url = loader.getResource("inflation/world/World.class") ?: return crc.value
-        val names = ArrayList<Pair<String, () -> ByteArray>>()
-        if (url.protocol == "jar") {
-            val jar = (url.openConnection() as java.net.JarURLConnection).jarFile
-            for (e in jar.entries()) if (e.name.startsWith("inflation/world/") && e.name.endsWith(".class")) names += e.name to { jar.getInputStream(e).readBytes() }
-        } else {
-            val d = File(url.toURI()).parentFile
-            for (c in d.listFiles().orEmpty()) if (c.name.endsWith(".class")) names += ("inflation/world/" + c.name) to { c.readBytes() }
-        }
-        for ((n, bytes) in names.sortedBy { it.first }) {
-            val simple = n.substringAfterLast('/')
-            if (PARTS.none { simple.startsWith(it) }) continue
-            crc.update(n.toByteArray()); crc.update(bytes())
-        }
-        return crc.value xor (cfg.seed shl 32)
-    }
+    private fun key(cfg: WorldConfig): Long = codeKey(cfg) { simple -> !makesNoWorld(simple) && PARTS.any { simple.startsWith(it) } }
 }

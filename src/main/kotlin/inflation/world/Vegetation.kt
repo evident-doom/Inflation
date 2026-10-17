@@ -6,6 +6,16 @@ import inflation.HASH_C
 import inflation.mix64
 import inflation.unitOf
 import inflation.Config
+import inflation.world.HexFires.Companion.GRAZE_SCALE
+import inflation.world.HexFires.Companion.IGNITIONS_PER_KM2_YEAR
+import inflation.world.HexFires.Companion.SPREAD_KM_PER_DAY
+import inflation.world.HexPlants.Companion.BROWSE_SCALE
+import inflation.world.HexPlants.Companion.EROSION
+import inflation.world.HexPlants.Companion.LAWN_SCALE
+import inflation.world.HexPlants.Companion.ROOT_SCALE
+import inflation.world.HexPlants.Companion.SOIL_RECOVERY_YEARS
+import inflation.world.HexPlants.Companion.TRAIL_FADE
+import inflation.world.HexPlants.Companion.TRAIL_WEAR
 
 import kotlin.math.exp
 import kotlin.math.max
@@ -320,28 +330,6 @@ class Vegetation(private val world: World, private val seed: Long) {
     }
 
     companion object {
-        /** Browsing, kg/km²/day, at which seedlings and saplings are mostly eaten (a few deer per km²). */
-        val BROWSE_SCALE = Config.float("t.browseScale", 3f)
-        /** Grazing, kg/km²/day, at which most dry fuel is gone. */
-        const val GRAZE_SCALE = 5f
-        /** Grazing, kg/km²/day, that over years turns grassland into short lawn. */
-        const val LAWN_SCALE = 8f
-        /** Rooting, kg/km²/day, at which most of the ground is churned. */
-        const val ROOT_SCALE = 2f
-        /** Fires started per km² per year in hot, dry, fuel-rich ground. */
-        val IGNITIONS_PER_KM2_YEAR = Config.float("t.ignitions", 0.01f)
-        /** How far a fire front can run in a day, km. */
-        const val SPREAD_KM_PER_DAY = 5f
-        /** How fast trampling wears a path (per unit of trampling, slowing as the path deepens), and how fast an unused one fades, per year. */
-        const val TRAIL_WEAR = 0.3f
-        const val TRAIL_FADE = 1f
-        /** Years over which soil fertility returns most of the way to its natural level. */
-        const val SOIL_RECOVERY_YEARS = 50f
-        /**
-         * Share of the topsoil's fertility lost in a year from bare ground on a 1-in-5 slope under
-         * 50 mm of rain a week (from memory; bare hillsides lose cm of soil a decade).
-         */
-        const val EROSION = 0.05f
         /** Chance a burning cell lights a downwind neighbour with full fuel. */
         const val SPREAD = 0.9f
         private val DX = intArrayOf(1, 1, 0, -1, -1, -1, 0, 1)

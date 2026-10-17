@@ -1,7 +1,6 @@
 package inflation.world
 
 import kotlin.math.max
-import kotlin.math.min
 
 /**
  * What the simulation knows of each hex of a [HexMap], summarised from the fine world once:
@@ -108,6 +107,8 @@ class HexWorld(val world: World, val hex: HexMap) {
     val placeCells: Array<IntArray>
     /** Each hex's places, by band (-1 where the band holds no land). */
     val placeOf = Array(BANDS_M.size) { IntArray(size) { -1 } }
+    /** Each hex's places, from the lowest band up. */
+    private val placesIn: Array<IntArray>
     /** Mean elevation of each place, m. */
     val placeElevationM: FloatArray
     /** How much sun the shaded and sunny slopes of each place get, by month (worked out once, from the terrain). */
@@ -125,6 +126,7 @@ class HexWorld(val world: World, val hex: HexMap) {
         placeBand = IntArray(keys.size) { (keys[it] % BANDS_M.size).toInt() }
         placeCells = Array(keys.size) { lists.getValue(keys[it]).toIntArray() }
         for (p in keys.indices) placeOf[placeBand[p]][placeHex[p]] = p
+        placesIn = Array(size) { h -> placeOf.map { it[h] }.filter { it >= 0 }.toIntArray() }
         placeElevationM = FloatArray(keys.size) { p -> (placeCells[p].sumOf { world.elevation[it].toDouble() } / placeCells[p].size).toFloat() }
     }
 
@@ -151,6 +153,9 @@ class HexWorld(val world: World, val hex: HexMap) {
 
     /** The place in hex [h] at the height band of place [p], or -1 if the hex has no ground at that height. */
     fun sameBandPlace(p: Int, h: Int) = placeOf[placeBand[p]][h]
+
+    /** The places of hex [h], from the lowest band up. */
+    fun placesOf(h: Int): IntArray = placesIn[h]
 
     /** The first place in hex [h], from the lowest band up, or -1 if it has none. */
     fun firstPlaceIn(h: Int): Int { for (b in placeOf.indices) { val p = placeOf[b][h]; if (p >= 0) return p }; return -1 }

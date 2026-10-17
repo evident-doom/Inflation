@@ -25,6 +25,8 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
     private var stepNs = 0L
 
     fun run() {
+        // No years: the world only read and written again (scripts/faunacmp.sh compares saves so, when their layout changes).
+        if (options.years == 0) { options.saveFile?.let { HexSnapshot.save(sim, it) }; return }
         printStart()
         for (y in 1..options.years) {
             deaths.startYear(); hunting.startYear(); movement.startYear(); people.startYear()

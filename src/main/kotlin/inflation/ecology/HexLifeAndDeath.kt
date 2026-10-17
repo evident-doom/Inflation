@@ -100,12 +100,12 @@ internal fun HexGroups.graze(weather: Weather) {
                 fruit = k.fruit * g.will[AnimalWay.FRUIT], roots = k.roots * g.will[AnimalWay.FRUIT]) }
             val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
             // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
-            val fill = gutFill(s, land.nourishment(p))
+            val fill = gutFill(s, land.plants.nourishment(p))
             val wantGrass = if (snowed) 0f else want * fill * access * d.grass / total
             // (The week's grazing and browsing at a place is shared by all that eat there: what the residents
             // and the herds before it left, see [HexFauna.grazeLeft].)
-            fun eatGrass(kg: Float): Float { val t = land.consume(p, LifeForm.HERB, min(kg, fauna.grazeLeft[p])); fauna.grazeLeft[p] -= t; return t }
-            fun eatBrowse(kg: Float): Float { val t = land.eatBrowse(p, min(kg, fauna.browseLeft[p])); fauna.browseLeft[p] -= t; return t }
+            fun eatGrass(kg: Float): Float { val t = land.plants.consume(p, LifeForm.HERB, min(kg, fauna.grazeLeft[p])); fauna.grazeLeft[p] -= t; return t }
+            fun eatBrowse(kg: Float): Float { val t = land.plants.eatBrowse(p, min(kg, fauna.browseLeft[p])); fauna.browseLeft[p] -= t; return t }
             val grass = eatGrass(wantGrass)
             val wantBrowse = want * fill * access * d.browse / total
             val browse = eatBrowse(wantBrowse)
@@ -114,7 +114,7 @@ internal fun HexGroups.graze(weather: Weather) {
             // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
             // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
             // usual share (an ostrich out of fruit season picks more shoots and leaves).
-            val q = land.nourishment(p)
+            val q = land.plants.nourishment(p)
             var gap = want - ((grass + browse) * q + fruit + roots)
             var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
             // But the gut holds only so much bulk a day: on poor forage a ruminant cannot make up by eating
@@ -135,9 +135,9 @@ internal fun HexGroups.graze(weather: Weather) {
             val band = hw.placeBand[p]
             if (p == g.place) for (h in g.path) {
                 val q = hw.placeOf[band][h].takeIf { it >= 0 } ?: continue
-                land.trample(q, g.size * s.massKg / 1000f)
-                if (fruit > 0f) land.animalSeed[q] =
-                    min(1f, land.animalSeed[q] + fruit * land.areaKm2[p] * 1e6f / g.path.size / land.areaKm2[q] / HexFauna.SEED_KG)
+                land.plants.trample(q, g.size * s.massKg / 1000f)
+                if (fruit > 0f) land.plants.animalSeed[q] =
+                    min(1f, land.plants.animalSeed[q] + fruit * land.areaKm2[p] * 1e6f / g.path.size / land.areaKm2[q] / HexFauna.SEED_KG)
             }
             // Grass and browse nourish fully only when green; fruit and roots keep their value.
             val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + min(short, straw * HexFood.roughage(s))
@@ -150,7 +150,8 @@ internal fun HexGroups.graze(weather: Weather) {
                 straw * HexFauna.PROTEIN_STRAW) * m2p
             if (p == g.place) note(g) {
                 "grazed at %.0f m: fed %.2f (green %.2f, grass %.3f browse %.3f kg/m² there; ate grass %.2g browse %.2g straw %.2g; gut room left %.2g; snowed %s; grazing over %d places)".format(
-                    hw.placeElevationM[p], got / want.coerceAtLeast(1e-9f), land.green[p], land.herb[p], land.shrub[p], grass + grass2, browse + browse2, straw,
+                    hw.placeElevationM[p], got / want.coerceAtLeast(1e-9f), land.plants.green[p], land.plants.herb[p], land.plants.shrub[p],
+                    grass + grass2, browse + browse2, straw,
                     room, snowed, range.size)
             }
             // With food to spare and reserves short, it eats more and lays the surplus on.
@@ -162,9 +163,9 @@ internal fun HexGroups.graze(weather: Weather) {
                 surplusKg += (grass3 + browse3) * q * land.areaKm2[p] * 1e6f
                 small.dung[p] += HexSmallLife.DUNG * (grass3 + browse3)
             }
-            land.grazing[p] += (grass + grass2 + grass3) * 1e6f / days
-            land.browsing[p] += (browse + browse2 + browse3) * 1e6f / days
-            land.rooting[p] += (roots + roots2) * 1e6f / days
+            land.plants.grazing[p] += (grass + grass2 + grass3) * 1e6f / days
+            land.plants.browsing[p] += (browse + browse2 + browse3) * 1e6f / days
+            land.plants.rooting[p] += (roots + roots2) * 1e6f / days
         val m2 = land.m2(p)
         stats.hunting.merge("${s.name}:ate grass, kg", ((grass + grass2 + grass3) * m2).toInt(), Int::plus)
         stats.hunting.merge("${s.name}:ate browse, kg", ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
@@ -187,7 +188,7 @@ internal fun HexGroups.graze(weather: Weather) {
 internal fun HexGroups.grazingRange(g: HexGroup): List<Pair<Int, Float>> {
     val p0 = g.place; val band = hw.placeBand[p0]; val h0 = hw.placeHex[p0]
     val needKg = g.dailyNeedKg * days * RANGE_WEEKS
-    fun forage(p: Int) = land.palatable[p] * (land.herb[p] + land.shrub[p]) * land.areaKm2[p] * 1e6f
+    fun forage(p: Int) = land.palatable[p] * (land.plants.herb[p] + land.plants.shrub[p]) * land.areaKm2[p] * 1e6f
     val places = arrayListOf(p0); var have = forage(p0)
     var ring = listOf(h0); val seen = hashSetOf(h0)
     var r = 0
@@ -561,10 +562,11 @@ private fun HexGroups.thirstWeek(g: HexGroup): Float {
     // will do. Animals go to water and back as often as they must: a kind that can go days without
     // drinking can live as many half-days' going from it.
     val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
-    // (People also dig for it in a dry bed where the water lies near: see [HexLand.dug].)
-    if (land.water[p0] >= Thresholds.WET || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= fetch) || (s.human && land.mustDig(p0, fetch))) g.dry = 0f
+    // (People also dig for it in a dry bed where the water lies near: see [HexDrinkingWater.dug].)
+    if (land.drink.water[p0] >= Thresholds.WET || (s.maxWaterKm.isInfinite() && land.drink.waterKm[p0] <= fetch) ||
+        (s.human && land.drink.mustDig(p0, fetch))) g.dry = 0f
     // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
-    else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
+    else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.plants.green[p0]))
     // (People carry water in skins and know every spring: they suffer far less from it than animals.)
     // (Strangers to the country do not know its springs.)
     val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
@@ -784,7 +786,7 @@ internal fun HexGroups.remember(date: Date) {
     val m = date.month
     // Every group remembers where it was this week and how it fared there.
     val week = (date.absoluteDay / days).toInt()
-    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.water[g.place], fauna.afraid(g.place), week)
+    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place], fauna.afraid(g.place), week)
     for (g in groups) {
         if (g.species.pack) continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,
@@ -821,7 +823,7 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
         pressure += v; if (v > worstP) { worstP = v; worst = k.name }
     }
     if (pressure <= 0f) return Stalking.NONE
-    val cover = 0.5f + land.cover(p)
+    val cover = 0.5f + land.plants.cover(p)
     val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
     val spread = b.gatherRange * b.gatherRange

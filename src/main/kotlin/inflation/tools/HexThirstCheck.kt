@@ -32,13 +32,13 @@ fun main(args: Array<String>) {
         sim.step()
         if (y < years - 1) return@repeat
         val m = sim.weather.lastMonth
-        for (p in 0 until land.n) { val a = land.areaKm2[p].toDouble(); area[m] += a; tint[m] += a * land.water[p]
-            if (land.water[p] >= 0.999f && land.waterKm[p] == 0f) pools[m] += a
-            if (land.water[p] < 0.05f) {
+        for (p in 0 until land.n) { val a = land.areaKm2[p].toDouble(); area[m] += a; tint[m] += a * land.drink.water[p]
+            if (land.drink.water[p] >= 0.999f && land.drink.waterKm[p] == 0f) pools[m] += a
+            if (land.drink.water[p] < 0.05f) {
                 dry[m] += a
-                if (land.waterKm[p] > 15f) far15[m] += a
-                if (land.waterKm[p] > 40f) far40[m] += a
-                if (land.waterKm[p] > 100f) far100[m] += a
+                if (land.drink.waterKm[p] > 15f) far15[m] += a
+                if (land.drink.waterKm[p] > 40f) far40[m] += a
+                if (land.drink.waterKm[p] > 100f) far100[m] += a
             } }
         for (g in herds.groups) { if (!g.alive) continue; val i = grazers.indexOf(g.species); if (i < 0) continue
             heads[i][m] += g.size.toDouble()

@@ -197,7 +197,7 @@ const val COLD_MAX = 1.6f
  */
 fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * max(0, g.path.size - 1) * hex.hexKm.toFloat() / days *
     // (People pushing through thick woods and scrub go slower and tire more than in the open.)
-    (if (g.species.human) 1f + COVER_GOING * land.cover(g.place) else 1f) +
+    (if (g.species.human) 1f + COVER_GOING * land.plants.cover(g.place) else 1f) +
     // (Gatherers going further than usual walk the difference out and back each day.)
     (g.band?.let { b -> if (b.gatherRange > 1f) WALK_COST * GATHER_WALK_KM * (b.gatherRange - 1f) * 0.5f else 0f } ?: 0f)
 const val WALK_COST = 0.011f
@@ -210,7 +210,7 @@ const val WALK_COST = 0.011f
 fun HexGroups.sight(p: Int, weather: Weather): Float {
     val wet = 1f / (1f + weather.precipitation[p] / SIGHT_RAIN_MM)
     val haze = if (weather.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
-    return wet * haze * (1f - SIGHT_COVER * land.cover(p))
+    return wet * haze * (1f - SIGHT_COVER * land.plants.cover(p))
 }
 const val SIGHT_RAIN_MM = 60f
 const val SIGHT_HAZE_C = 32f

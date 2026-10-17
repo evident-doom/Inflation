@@ -55,7 +55,7 @@ class Census(private val sim: HexSim) {
         val sl = fauna.small
         fun perM2(a: FloatArray) = a.indices.sumOf { (a[it] * land.areaKm2[it]).toDouble() } // kg/m² × km² = 1e6 kg = 1000 t
         fun perKm2(a: FloatArray) = perM2(a) / 1e6
-        val plants = (0 until fauna.n).sumOf { (land.biomass(it) * land.areaKm2[it]).toDouble() }
+        val plants = (0 until fauna.n).sumOf { (land.plants.biomass(it) * land.areaKm2[it]).toDouble() }
         val smallAnimals = listOf(sl.insects, sl.dormantInsects, sl.rodents, sl.herps, sl.pollinators, sl.dormantPollinators,
             sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it) }
         val residents = fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg } / 1e6
@@ -70,7 +70,7 @@ class Census(private val sim: HexSim) {
         val herdsB = DoubleArray(bArea.size); val huntersB = DoubleArray(bArea.size); val peopleB = DoubleArray(bArea.size)
         for (pl in 0 until land.n) {
             val b = biomeOf[pl]; val a = land.areaKm2[pl].toDouble()
-            bArea[b] += a; forage[b] += (land.palatable[pl] * (land.herb[pl] + land.shrub[pl])) * a
+            bArea[b] += a; forage[b] += (land.palatable[pl] * (land.plants.herb[pl] + land.plants.shrub[pl])) * a
             for (k in fauna.kinds.indices) res[b] += residents(k, pl)
         }
         for (gr in groups.groups) if (gr.alive) {
@@ -113,10 +113,10 @@ class Census(private val sim: HexSim) {
             ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
         fun both(f: (Int) -> Double) = arrayOf(mean(f, true), mean(f, false))
         val roe = fauna.kinds.indexOfFirst { it.name == "roe deer" }
-        val forage = both { (land.palatable[it] * (land.herb[it] + land.shrub[it])).toDouble() }
-        val green = both { land.green[it].toDouble() }
+        val forage = both { (land.palatable[it] * (land.plants.herb[it] + land.plants.shrub[it])).toDouble() }
+        val green = both { land.plants.green[it].toDouble() }
         val roeFed = if (roe >= 0) both { fauna.fed[roe][it].toDouble() } else arrayOf(0.0, 0.0)
-        val water = both { land.waterKm[it].toDouble() }
+        val water = both { land.drink.waterKm[it].toDouble() }
         val temperature = both { weather.temperature[it].toDouble() }
         println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, roe deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
             forage[0], forage[1], green[0], green[1], roeFed[0], roeFed[1], water[0], water[1], temperature[0], temperature[1]))
