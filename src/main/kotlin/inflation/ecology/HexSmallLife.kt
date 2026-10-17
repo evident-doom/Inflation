@@ -126,6 +126,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val vulturePlace = ArrayList<Int>()
     val vultures = ArrayList<Float>()
     private val vultureReach = ArrayList<IntArray>()
+    /** Scratch: litter the runoff washed off each place this week, kg; organic matter floods laid on each, kg/m² (see [HexLand.carrySilt]). */
+    @Transient private val washedKg = FloatArray(n)
+    @Transient val laidKgM2 = FloatArray(n)
     /** Dung dropped this week by the herds and packs, kg/m²: it goes to the litter. */
     val dung = FloatArray(n)
     /** Small animals that died this week in each place, kg/km²: they go to the litter. */
@@ -263,6 +266,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             pt = Profile.lap("small life: pollinators", pt)
             stepGame(p, t, month, b); Profile.lap("small life: hares, hyrax, birds, tortoises, foxes, owls, eagles", pt)
         }
+        // What the runoff washed off goes down the rivers; floods lay part of it on the floodplains with their silt.
+        land.carrySilt(washedKg, laidKgM2)
+        for (p in 0 until n) if (laidKgM2[p] > 0f) organicMatter[p] += laidKgM2[p]
         Profile.part("small life: locusts") { stepLocusts(weather) }
         for (k in BIRDS.indices) {
             val l = leaving[k]; var sum = 0.0; for (p in l.indices) if (l[p] != 0f) { sum += l[p]; l[p] = 0f }
@@ -290,10 +296,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // What fell, what the animals dropped, and the small animals that died.
         litter[p] += land.litterfall[p] + dung[p] + smallDead[p] / 1e6f
         dung[p] = 0f; smallDead[p] = 0f
-        val decomposed = litter[p] * min(1f, 1.2f * warm * wet * years)
+        // In sodden soil the rot runs short of air and slows (see [ANAEROBIC]): marsh, flooded and waterlogged valley floors build up peat and muck.
+        val airless = 1f - (1f - ANAEROBIC) * land.saturated(p)
+        val decomposed = litter[p] * min(1f, 1.2f * warm * wet * airless * years)
         litter[p] -= decomposed
-        record?.let { it.litterGone[p] += decomposed; it.organicGone[p] += 0.05f * years * organicMatter[p] }
-        organicMatter[p] += 0.3f * decomposed - 0.05f * years * organicMatter[p]
+        val humusGone = 0.05f * airless * years * organicMatter[p]
+        record?.let { it.litterGone[p] += decomposed; it.organicGone[p] += humusGone }
+        organicMatter[p] += 0.3f * decomposed - humusGone
+        // Water running off over the ground washes some of the litter away into the streams (see [WASH_PER_MM]).
+        val washed = litter[p] * min(0.5f, WASH_PER_MM * land.runoffMm[p])
+        litter[p] -= washed; washedKg[p] = washed * land.m2(p)
         land.organicFertility[p] = 0.3f * organicMatter[p] / (organicMatter[p] + 4f)
         soilAnimals[p] += SOIL_YIELD * decomposed * 1e6f - soilAnimals[p] * min(1f, SOIL_DEATHS * years)
         soilReach[p] = if (t > 0f) SOIL_REACH * wet else 0f
@@ -1189,6 +1201,17 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
          * et al., J. Appl. Ecol. 2019, doi:10.1111/1365-2664.13356): a few in a hundred of them at most.
          */
         const val SOIL_YIELD = 0.02f
+        /**
+         * Soil life in sodden soil, without air: rot runs at this share of its rate in drained soil (anaerobic
+         * decomposition is some 2-3 times slower, from memory; the CENTURY model's drainage factor is of that order).
+         */
+        const val ANAEROBIC = 0.4f
+        /**
+         * Share of the litter lying on the ground that each mm of water running off over it washes into the
+         * streams. Rivers carry off some 1-5 g of organic carbon a m² of their catchment a year (from memory),
+         * about 1% of what falls as litter, with a few hundred mm of runoff: about 5e-5 a mm.
+         */
+        const val WASH_PER_MM = 5e-5f
         const val SOIL_DEATHS = 1f
         const val SOIL_REACH = 0.02f
         /**
