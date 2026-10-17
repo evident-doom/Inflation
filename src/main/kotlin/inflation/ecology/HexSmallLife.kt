@@ -291,7 +291,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * weather away.
      */
     private fun stepSoil(p: Int, t: Float, soilWater: Float, carcassKg: FloatArray) {
-        val wet = (soilWater / 75f).coerceIn(0f, 1f)
+        // (Full rate once the soil is half full of what it holds there.)
+        val wet = (soilWater / (0.5f * land.hydro.soilCap[p])).coerceIn(0f, 1f)
         val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
         // What fell, what the animals dropped, and the small animals that died.
         litter[p] += land.plants.litterfall[p] + dung[p] + smallDead[p] / 1e6f
