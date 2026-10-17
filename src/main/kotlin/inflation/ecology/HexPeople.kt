@@ -7,6 +7,7 @@ import inflation.Config
 import inflation.world.Date
 import inflation.world.LifeForm
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.min
 import inflation.world.Biome
 import inflation.world.Weather
@@ -72,6 +73,13 @@ const val BOW_GAIN = 0.5f
 const val SICKLE_GAIN = 0.3f
 const val GRINDER_GAIN = 0.4f
 const val BASKET_GAIN = 0.3f
+/**
+ * What a child (any under adulthood, infants included) adds to its band's gathering, against a grown hand: children
+ * of five and up gather fruit, small tubers and finds near camp, and Hadza children get some half of their own food
+ * in a good season (from memory, Blurton Jones, Hawkes and O'Connell), about a sixth of an adult's take for the
+ * children as a whole.
+ */
+const val CHILD_GATHER = 0.15f
 /** Extra small game and fish with nets and snares. */
 const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */
@@ -111,6 +119,13 @@ class Band {
      */
     var hurt = 0f
     var lame = 0f
+    /** Share of the work its customs ask that it got done last week: a clean camp ([Tradition.HYGIENE]), the sick and hurt nursed ([Tradition.MEDICINE]). */
+    var cleaned = 1f
+    var nursed = 1f
+    /** How much a band keeping its camp clean spares itself of what fouling spreads, as far as it did the work (1: not at all). */
+    val hygiene get() = if (holds(Tradition.HYGIENE)) 1f - (1f - HYGIENE_GUARD) * cleaned else 1f
+    /** How far its medicine reaches this week, 0..1: none without the custom, and only as far as the sick and hurt were nursed. */
+    val medicine get() = if (holds(Tradition.MEDICINE)) nursed else 0f
     /** People taken by beasts of prey lately, per head (fading by a tenth a week). */
     var beastLoss = 0f
     /** What it knows of itself and of the bands about it, as of the start of the week ([bandInputs]): the people networks' view of the band. */
@@ -203,6 +218,8 @@ class Band {
     val nightGuard get() = fire * min(1f, nightFire) * nightWood
     /** Share of the night's firewood it had this week. */
     var nightWood = 1f
+    /** Share of the hearth's firewood (warmth and cooking) it fetched this week: its fire burns only as far as that goes. */
+    var hearthWood = 1f
     /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
     var raidWill = 1f
     var fortifyWill = 1f
@@ -402,6 +419,8 @@ class Band {
     /** The way of its craft it uses for [t]. */
     fun makeWay(t: Tool) = Skill.of(t.skill.domain).filter { knowsSkill[it.ordinal] }.maxByOrNull { skill(it) * it.gain } ?: t.skill
     fun has(t: Tool) = kit[t.ordinal]
+    /** Whether any tool it knows is worn below [MEND_BELOW] of a full kit. */
+    fun worn() = Tool.entries.any { knows[it.ordinal] && kit[it.ordinal] < MEND_BELOW }
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species) =
@@ -490,12 +509,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     var time = b.spareDays
-    time = trainHolders(g, b, time)
-    time = makeTools(b, people, time)
-    b.renown *= 1f - RENOWN_FADE * years
-    if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
-    b.sinceRaided++
-    plotRaid(g, b, weather)
     // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
     if (b.campWeeks == 0) b.shelter = 0f
     // (A debris hut takes a novice an afternoon, the practised an hour.)
@@ -507,7 +520,23 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
         time -= built * shelterDays
         b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
     }
+    stats.hunting.merge("band time:shelter", ((b.spareDays - time) * 10f).roundToInt(), Int::plus)
+    val t0 = time
+    time = keepCustoms(b, people, time)
+    val t1 = time
+    time = trainHolders(g, b, time)
+    val t2 = time
+    time = makeTools(b, people, time)
+    stats.hunting.merge("band time:customs", ((t0 - t1) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge("band time:training", ((t1 - t2) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge("band time:tools", ((t2 - time) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge("band time:left", (time * 10f).roundToInt(), Int::plus)
+    b.renown *= 1f - RENOWN_FADE * years
+    if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
+    b.sinceRaided++
+    plotRaid(g, b, weather)
     keepFire(g, b)
+    b.fire *= b.hearthWood
     // A fire through the night burns wood: where there is little, the night goes dark.
     run {
         val want = NIGHT_WOOD * people * min(1f, b.nightFire)
@@ -529,7 +558,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // as its time and timber go.
     time = buildPalisade(b, people, time)
     if (b.houseHex >= 0 && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
-    b.spareDays = time
+    b.spareDays = max(0f, time)
     // A band carries only so much: the rest is left behind (and goes back to the ground); at a camp it
     // keeps, it stacks building stone and timber beyond that.
     leaveExcess(b, p, people, area)
@@ -655,6 +684,43 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Int, h: Int, peop
     land.plants.consume(p, LifeForm.HERB, fibre / area)
 }
 
+/**
+ * The hearth's firewood for the week, fetched by [hands] before they forage: dead wood from the trees and scrub
+ * round the camp, quick to gather where they are thick and slow where they are few, for everyone in the band.
+ * A band goes without rather than give more than [FUEL_MOST] of its days to it. Returns the days it took.
+ */
+internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
+    val p = g.place
+    val want = HEARTH_WOOD * days * g.size
+    val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]
+    val rate = FUEL_A_DAY * hands * min(1f, (tree + shrub) / 3f)
+    if (want <= 0f || rate <= 0f) { b.hearthWood = if (want <= 0f) 1f else 0f; return 0f }
+    val spent = min(want / rate, FUEL_MOST * days)
+    val got = spent * rate
+    b.hearthWood = got / want
+    val area = land.m2(p)
+    land.plants.consume(p, LifeForm.TREE, got * tree / (tree + shrub) / area)
+    land.plants.consume(p, LifeForm.SHRUB, got * shrub / (tree + shrub) / area)
+    return spent
+}
+
+/**
+ * The work [b]'s customs ask of it this week, from [time] (person-days) after the firewood: keeping the camp clean
+ * (middens carried off, water fetched apart from them) and nursing its sick and hurt. Each is done as far as the time
+ * goes, and helps only as far as it was done. Returns the time left.
+ */
+private fun HexGroups.keepCustoms(b: Band, people: Float, time: Float): Float {
+    var t = time
+    val clean = if (b.holds(Tradition.HYGIENE)) HYGIENE_DAYS * people * days else 0f
+    b.cleaned = if (clean > 0f) min(1f, t / clean) else 1f
+    t -= b.cleaned * clean
+    val patients = people * (b.hurt + b.sick.sum()).coerceAtMost(1f)
+    val nurse = if (b.holds(Tradition.MEDICINE)) NURSE_DAYS * patients * days else 0f
+    b.nursed = if (nurse > 0f) min(1f, t / nurse) else 1f
+    t -= b.nursed * nurse
+    return max(0f, t)
+}
+
 /** [b]'s tools wear out in use (slowly lying idle); a band with a use for a tool or practised at a kind of work now and then hits on a new one. */
 private fun HexGroups.wearAndInvent(b: Band, years: Float) {
     for (t in Tool.entries) {
@@ -706,7 +772,7 @@ private fun HexGroups.makeTools(b: Band, people: Float, time0: Float): Float {
         val made = fineMaterial(t)
         for ((m, perPerson) in t.recipe) if (m != made) can = min(can, gd[m.ordinal] / max(1e-3f, perPerson * use(m) * people))
         if (can <= 0f) continue
-        for ((m, perPerson) in t.recipe) if (m != made) gd[m.ordinal] -= can * perPerson * use(m) * people
+        for ((m, perPerson) in t.recipe) if (m != made) gd[m.ordinal] = max(0f, gd[m.ordinal] - can * perPerson * use(m) * people)
         if (made != null) {
             val want = can * (t.recipe[made] ?: TAN_OCHRE) * use(made) * people
             val good = if (want > 0f) min(1f, gd[made.ordinal] / want) else 1f
@@ -972,7 +1038,7 @@ internal fun settledFertility(g: HexGroup): Float {
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
 internal fun campFouling(g: HexGroup): Float {
     val b = g.band ?: return 0f
-    return CAMP_FOULING * Tuning.campFouling * fouled(b) * (if (b.holds(Tradition.HYGIENE)) 0.4f else 1f) * (if (b.holds(Tradition.MEDICINE)) 0.7f else 1f)
+    return CAMP_FOULING * Tuning.campFouling * fouled(b) * b.hygiene * (1f - 0.3f * b.medicine)
 }
 
 /** How fouled a band's camp is, 0..1: not at all for its first two months, fully after a year more. */
@@ -980,7 +1046,7 @@ internal fun fouled(b: Band) = min(1f, max(0, b.campWeeks - 8) / 52f)
 
 /** How much a band would rather leave its camp than stay: the camp fouled (less where it keeps it clean), against the graves of its dead. */
 internal fun stayCost(b: Band): Float {
-    var c = FOUL_AVOID * fouled(b) * (if (b.holds(Tradition.HYGIENE)) 0.4f else 1f)
+    var c = FOUL_AVOID * fouled(b) * b.hygiene
     if (b.holds(Tradition.BURIAL) && b.campWeeks > 4) c -= BURIAL_STAY
     return c
 }
@@ -1163,10 +1229,13 @@ const val CACHE_RODENTS_HALF = 200f
 const val CACHE_FOXES_HALF = 20f
 const val CACHE_FIND = 0.15f
 const val CACHE_TAKE = 0.6f
-/** Stone and timber for one person's share of a stone-footed house, kg; person-days for a brush shelter; how much warmer a brush shelter keeps, °C. */
+/**
+ * Stone and timber for one person's share of a stone-footed house, kg; person-days for one person's share of a brush
+ * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a brush shelter keeps, °C.
+ */
 const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
-const val SHELTER_DAYS = 1f
+const val SHELTER_DAYS = 0.1f
 const val SHELTER_C = 3f
 const val HOUSE_AFTER_WEEKS = 26
 const val HOUSE_DECAY = 0.3f
@@ -1561,6 +1630,30 @@ const val GATHER_WALK_KM = 6f
 const val SICK_SHOWS = 0.05f
 /** Firewood a fire through the night burns in a week, kg a person. */
 const val NIGHT_WOOD = 3f
+/**
+ * Firewood the hearth burns for warmth and cooking, kg a person a day (about 1-2 in household fuel surveys of
+ * people cooking on open fires, from memory); dead wood one person gathers in a day where trees or scrub are
+ * thick, kg (head-loads of 20-30 kg, from memory).
+ */
+const val HEARTH_WOOD = 1f
+const val FUEL_A_DAY = 25f
+/** Share of a full kit below which a band under the hand-written rules mends before it lays food by (Olli's choice, 2026-10-17). */
+const val MEND_BELOW = 0.5f
+/**
+ * Skin a kilo of small game yields, kg (a hare's or rabbit's pelt is about a tenth of its weight, from memory),
+ * and the person-days scraping, stretching and drying a kilo of small pelts takes (an hour or two a pelt of
+ * a few hundred grams, from memory): more work for the hide than a big beast's, and more seams to sew.
+ */
+const val SMALL_SKIN = 0.1f
+const val SKIN_DAYS = 0.5f
+/** Most of its days a band gives to firewood before it goes without (an estimate). */
+const val FUEL_MOST = 0.5f
+/**
+ * Days of work a clean camp takes a person each day (about a quarter of an hour of a twelve-hour day), and days a
+ * carer gives each sick or hurt person each day (half a day). Estimates: no time-use figures found (2026-10-17).
+ */
+const val HYGIENE_DAYS = 0.02f
+const val NURSE_DAYS = 0.5f
 
 /** A band takes [n] wounded among its [adults]: from a fight, a hunt gone wrong, a beast, a fall. */
 internal fun Band.wounded(n: Float, adults: Int) { if (adults > 0) hurt = min(1f, hurt + n / adults) }

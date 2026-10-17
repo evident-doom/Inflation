@@ -363,6 +363,8 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         const val BED_CONDUCTIVITY = 0.1
         /** Depth to which phreatophytes (tamarisk, poplar, acacia, date palm) reach the water table, m (often 5-10 m, from memory). */
         const val ROOT_REACH_M = 5f
+        /** Depth of water table the turf of a valley floor still draws on, m: grass roots and the capillary rise above the table (about 1-1.5 m, from memory). */
+        const val TURF_REACH_M = 1.5f
         /**
          * Depth of the water table within which the soil above it is sodden: the capillary fringe of silty
          * alluvium rises some 0.5-1 m (from memory), so woody plants drown and dead matter rots without air.

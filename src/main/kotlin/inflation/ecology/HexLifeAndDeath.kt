@@ -10,6 +10,7 @@ import inflation.world.Weather
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.min
 import kotlin.random.Random
 import inflation.world.Biome
@@ -269,6 +270,23 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands in $c:died of $cause", k, Int::plus)
             if (o.births > 0) stats.hunting.merge("bands in $c:born", o.births, Int::plus)
+            // And by how well clad the band was: what clothes are worth in lives.
+            g.band?.let { b ->
+                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) "clad" else "poorly clad"
+                stats.hunting.merge("bands $clad:people-weeks", g.size, Int::plus)
+                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands $clad:died of $cause", k, Int::plus)
+            }
+            // And, in the weeks it was cold through all the cover the band had, what each cover gave.
+            val b = g.band
+            if (b != null) {
+                val t = weather.temperature[g.place]
+                if (b.exposure(t) > 0f) {
+                    fun add(k: String, v: Float) = stats.hunting.merge("bands in $c:cold $k", (10f * v).roundToInt(), Int::plus)
+                    add("weeks", 1f); add("short", b.exposure(t)); add("air", EXPOSURE_C - t)
+                    add("clothes", PROTECT_CLOTHES * b.has(Tool.CLOTHES) * b.clothesFit()); add("fire", PROTECT_FIRE * b.fire)
+                    add("shelter", max(PROTECT_SHELTER * b.shelter, if (b.atHome) PROTECT_HOUSE * b.house else 0f))
+                }
+            }
         }
         if (o.orphans > 0) stats.deaths.merge("${s.name}:${DeathCause.ORPHANED}", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
@@ -419,7 +437,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // Children of a closed band are inbred; medicine saves some of the sick and wounded.
     val inbred = if (band != null) INBREEDING_DEATHS * band.inbred * years else 0f
     // (Healers save some of the sick and wounded, the more the more they know.)
-    val healed = (if (band?.holds(Tradition.MEDICINE) == true) 0.85f else 1f) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
+    val healed = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
     // (And practised midwives and carers lose fewer infants.)
     val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
     // Sicknesses of their own: the flux, marsh fever, the cough (see [Illness]); healers save some.
@@ -531,7 +549,7 @@ private fun HexGroups.moveBirthMonth(g: HexGroup, date: Date) {
  * Returns the deaths from festering, a year's rate.
  */
 private fun HexGroups.woundsWeek(band: Band): Float {
-    val care = (if (band.holds(Tradition.MEDICINE)) 0.5f else 0f) + 0.5f * band.skill(Skill.HERBS)
+    val care = 0.5f * band.medicine + 0.5f * band.skill(Skill.HERBS)
     band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * years)
     val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
     val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f
@@ -724,7 +742,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f
-            if (a.home < 0) a.home = b.home
+            if (a.home < 0) claimGround(a, b.home)
             b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
         }

@@ -152,7 +152,7 @@ class HexGroups(
                         for (h in seen) for (k in b.plants.indices) if (hw.biome[k][h] > 0.1f) b.plants[k] = 0.9f
                     }
                 }
-                if (s.pack) g.home = hw.placeHex[p] else inheritSeasons(g)
+                if (s.pack) claimGround(g, hw.placeHex[p]) else inheritSeasons(g)
                 groups += g
             }
         }
@@ -178,7 +178,7 @@ class HexGroups(
                 val p = drawPlace(weights, total)
                 val g = spawn(s, p, unit)
                 // (Unlike at the start, any newcomer hunter, not only a pack, comes with ground of its own.)
-                if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
+                if (s.carnivore) claimGround(g, hw.placeHex[p]) else inheritSeasons(g)
                 groups += g
             }
             stats.meetings.merge("newcomers: ${s.name}", NEWCOMERS, Int::plus)
@@ -630,11 +630,15 @@ class HexGroups(
      * the camp can stand on high, broken or water-girt ground safe from lions and raiders.
      */
     internal fun campValue(s: Species, p: Int): Float = (preyHere(s, p) + herdPrey(s, p)) * campFactor(p) + campPlants(p)
-    /** What a camp's game is worth to a band, times: the more where the camp is safe, the less the further water is. */
+    /**
+     * What a camp's game is worth to a band, times: the more where the camp is safe, the less the further water is,
+     * and the less the more of its days the hearth's firewood takes there (none left where there is nothing to burn).
+     */
     private fun campFactor(p: Int): Float {
         // Water close to camp: women and children fetch it every day.
         val w = land.drink.waterKm[p] / 3f
-        return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w)
+        val fuel = min(1f, HEARTH_WOOD / (FUEL_A_DAY * min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)).coerceAtLeast(1e-6f))
+        return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
     private fun campPlants(p: Int) = (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT * campFactor(p)
 
