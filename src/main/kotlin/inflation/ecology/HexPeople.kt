@@ -1002,8 +1002,11 @@ const val STORE_FILL = 0.25f
 /** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
 const val DRY_DAYS_PER_KG = 0.1f
 
-/** Kinds of food a party forages for (see [forage]). */
-const val FOOD_TYPES = 9
+/** Kinds of food a band sets its effort on (see [forage]): the [Food] kinds before grain, which goes by grass seed's. */
+const val FOOD_TYPES = Food.GRAIN
+/** [setWays]' outputs after the efforts: the store aim, then one for each [Tool] (which to make first), then the [BandWay]s. */
+const val STORE_AIM_SLOT = FOOD_TYPES
+const val MAKE_FIRST_SLOT = STORE_AIM_SLOT + 1
 
 /**
  * How a band sets its ways for the week: given what it knows of itself ([bandInputs], [WAYS_IN]
@@ -1039,9 +1042,9 @@ enum class BandWay(val label: String) {
     APPOINTMENTS("appointments"),
     BURNING_OFF("burning off");
     /** Its place among the ways' outputs. */
-    val slot = FOOD_TYPES + 1 + Tool.entries.size + ordinal
+    val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
 }
-val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + BandWay.entries.size
+val WAYS_OUT = MAKE_FIRST_SLOT + Tool.entries.size + BandWay.entries.size
 
 /**
  * What a band knows of itself this week, for its ways: the season, how fed it is and what it has on
@@ -1121,8 +1124,8 @@ internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, in
     fun squash(x: Float) = 2f / (1f + exp(-x))
     fun way(w: BandWay) = squash(out[w.slot])
     for (t in 0 until FOOD_TYPES) b.effort[t] = squash(out[t])
-    b.storeAim = STORE_AIM_DAYS * squash(out[FOOD_TYPES])
-    for (t in Tool.entries) b.makeFirst[t.ordinal] = squash(out[FOOD_TYPES + 1 + t.ordinal])
+    b.storeAim = STORE_AIM_DAYS * squash(out[STORE_AIM_SLOT])
+    for (t in Tool.entries) b.makeFirst[t.ordinal] = squash(out[MAKE_FIRST_SLOT + t.ordinal])
     b.scoutShare = SCOUT_SHARE * way(BandWay.SCOUTS)
     b.houseWill = way(BandWay.HOUSES)
     b.raidWill = way(BandWay.RAIDS)
