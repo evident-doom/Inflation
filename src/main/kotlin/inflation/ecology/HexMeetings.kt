@@ -220,7 +220,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 // A kill is worth what the party can eat of it, gorging included (a band also what it can
                 // dry); the rest is left to others.
                 val meat1 = min(ps.massKg * meatShare(band), (1f + SURPLUS_EAT) * wantAll)
-                offer(Food.BIG_GAME, k, p, dens * swept * chance / days, meat1, HANDLING_DAYS + meat1 * eats)
+                // (Each kill costs the stalks and chases that failed before it: 1/chance of them on average.)
+                offer(Food.BIG_GAME, k, p, dens * swept * chance / days, meat1, HANDLING_DAYS / min(1f, chance) + meat1 * eats)
             }
             val small = this.small
             offer(Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area, smallSweep) * smallCatch / days, 1f, smallDays)

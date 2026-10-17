@@ -169,7 +169,7 @@ const val KEEP_TO_GROUND = 2f
 const val KEEP_OFF_MARKS = 2f
 /** Chance a chase at a fully catchable quarry succeeds. */
 const val CATCH = 0.35f
-/** Time a kill takes, days: the chase and making the kill, and eating it at this many kg a day per kg of hunter. */
+/** Time a stalk or chase takes, days, whether or not it ends in a kill; and eating at this many kg a day per kg of hunter. */
 const val HANDLING_DAYS = 0.3f
 const val EATING_RATE = 0.15f
 /** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */
