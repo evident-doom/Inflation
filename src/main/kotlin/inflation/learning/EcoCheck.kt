@@ -2,7 +2,7 @@ package inflation.learning
 
 import inflation.Config
 import inflation.ecology.Catalogue
-import inflation.tools.TestWorlds
+import inflation.run.TestWorlds
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors

@@ -5,15 +5,8 @@ import inflation.Config
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
 import inflation.ecology.Tuning
-import inflation.learning.HexPpo
-import inflation.learning.MoverPolicy
-import inflation.learning.NetAnimalWays
-import inflation.learning.NetWays
-import inflation.learning.Role
-import inflation.learning.Schema
-import inflation.learning.SharedMover
-import inflation.tools.TestWorlds
-import inflation.tools.baselineDir
+import inflation.learning.LearnedModel
+import inflation.run.TestWorlds
 import inflation.world.WorldConfig
 import java.io.File
 import inflation.world.WorldCache
@@ -33,7 +26,7 @@ class FaunaCheckOptions(
 ) {
     /**
      * Builds the model: the world (from the cache), the saved state it carries on from, and the learned
-     * networks the config names (ways=, herdWays=, hunterWays=, nets=). Prints what it loaded.
+     * networks the config names ([LearnedModel]). Prints what it loaded.
      */
     fun start(): HexSim {
         val sim = HexSim(WorldCache.load(cfg) { println(it) }, uniformStart = uniform)
@@ -45,19 +38,7 @@ class FaunaCheckOptions(
             if (replicate != 0L) { sim.weather.reseed(replicate); println("weather drawn afresh: replicate $replicate") }
         }
         Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
-        val groups = sim.groups
-        // Bands' ways from a learned network (ways=FILE), else the scaffold's.
-        Config.string("ways")?.let { groups.ways = NetWays(Schema.load(File(it), Schema.WAYS_IN, Schema.WAYS_OUT)) }
-        // Herds' and packs' ways from learned networks (herdWays=FILE, hunterWays=FILE), else the hand-written ways.
-        Config.string("herdWays")?.let { groups.herdWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT)) }
-        Config.string("hunterWays")?.let { groups.hunterWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
-        // Every kind moving by learned role networks (nets=DIR with herds.mlp, hunters.mlp, people.mlp, as HexPpo writes them), else by
-        // the hand-written choices.
-        Config.string("nets")?.let { dir ->
-            val ps = Role.entries.map { r -> MoverPolicy(SharedMover.load(r.file(baselineDir(dir))), null, { 0f }, { 0 }) }
-            for (s in groups.kinds) groups.policies[s] = ps[Role.of(s).ordinal]
-            println("moving by the learned networks in $dir")
-        }
+        LearnedModel.fromConfig(sim.groups) { println(it) }
         return sim
     }
 

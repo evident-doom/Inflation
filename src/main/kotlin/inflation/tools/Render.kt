@@ -1,4 +1,4 @@
-package inflation.ui
+package inflation.tools
 
 import inflation.world.*
 import java.awt.image.BufferedImage
