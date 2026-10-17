@@ -4,7 +4,14 @@ import inflation.store.Named
 import inflation.store.Reader
 import inflation.store.Restorer
 import inflation.store.Writer
-
+import inflation.world.Climate
+import inflation.world.Geology
+import inflation.world.Grid
+import inflation.world.HexMap
+import inflation.world.HexWorld
+import inflation.world.Terrain
+import inflation.world.World
+import inflation.world.WorldConfig
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.DataInputStream
@@ -79,12 +86,13 @@ object HexSnapshot {
     // ---- what is saved
 
     /** The world's fixed structure, regenerated from the seed; and what is only worked out from the rest. */
-    private val FIXED = setOf("World", "HexMap", "HexWorld", "Grid", "WorldConfig", "Climate", "Terrain", "Geology", "Hydrology", "Rivers", "Profile")
+    private val FIXED = setOf(World::class.java, HexMap::class.java, HexWorld::class.java, Grid::class.java, WorldConfig::class.java,
+        Climate::class.java, Terrain::class.java, Geology::class.java, Profile::class.java)
 
     private fun saved(c: Class<*>): Boolean {
         val n = c.name
         if (c.isSynthetic || n.contains("\$\$Lambda") || n.contains("\$Lambda")) return false
-        if (c.simpleName in FIXED) return false
+        if (c in FIXED) return false
         if (HexPolicy::class.java.isAssignableFrom(c)) return false
         return n.startsWith("inflation.") || n.startsWith("kotlin.random.")
     }
