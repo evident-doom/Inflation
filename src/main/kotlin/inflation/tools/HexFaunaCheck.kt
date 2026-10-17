@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.run.TestWorlds
 import inflation.tools.fauna.FaunaCheck
 import inflation.tools.fauna.FaunaCheckOptions
 

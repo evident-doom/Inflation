@@ -1,6 +1,5 @@
 package inflation.tools
 
-import inflation.ui.Render
 import inflation.world.*
 import inflation.Args
 import java.io.File

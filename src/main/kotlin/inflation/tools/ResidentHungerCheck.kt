@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.run.TestWorlds
 import inflation.Args
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim

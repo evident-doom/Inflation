@@ -1,13 +1,11 @@
 package inflation.tools
 
+import inflation.learning.LearnedModel
 import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.Date
 import inflation.world.WorldConfig
 import inflation.ecology.Tuning
-import inflation.learning.MoverPolicy
-import inflation.learning.Role
-import inflation.learning.SharedMover
 import inflation.world.WorldCache
 
 /**
@@ -25,12 +23,7 @@ fun main(args: Array<String>) {
     a.done()
     val sim = HexSim(WorldCache.load(cfg) { })
     val hw = sim.hw; val land = sim.land; val herds = sim.groups
-    // Every kind moving by learned role networks (nets=DIR), else by the hand-written choices.
-    inflation.Config.string("nets")?.let { dir ->
-        val ps = Role.entries.map { r -> MoverPolicy(SharedMover.load(r.file(baselineDir(dir))), null, { 0f }, { 0 }) }
-        for (s in herds.kinds) herds.policies[s] = ps[Role.of(s).ordinal]
-        println("moving by the learned networks in $dir")
-    }
+    LearnedModel.fromConfig(herds) { println(it) }
     Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     val elev = hw.placeElevationM
     fun band(p: Int) = when { elev[p] < 500 -> 0; elev[p] < 1000 -> 1; else -> 2 }
