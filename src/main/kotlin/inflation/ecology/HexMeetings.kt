@@ -422,7 +422,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // pelts sewn together (hare, fox, marmot) clothe as well as a few big hides.
         val skinDays = min(band.spareDays, SMALL_SKIN * smallGot * SKIN_DAYS)
         band.goods[Material.HIDE.ordinal] += skinDays / SKIN_DAYS
-        band.spareDays -= skinDays
+        band.spareDays = max(0f, band.spareDays - skinDays)
         stats.hunting.merge("band time:skins", (skinDays * 10f).roundToInt(), Int::plus)
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
         // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)

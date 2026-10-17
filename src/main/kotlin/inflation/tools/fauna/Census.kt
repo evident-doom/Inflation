@@ -289,7 +289,7 @@ class Census(private val sim: HexSim) {
         run {
             fun v(k: String) = (lastYear["band time:$k"] ?: 0).toDouble()
             val all = v("all").coerceAtLeast(1.0)
-            println("bands' time, last year (share of their hands' days): " + listOf("firewood", "food", "drying", "skins", "customs", "training", "tools", "left")
+            println("bands' time, last year (share of their hands' days): " + listOf("firewood", "food", "drying", "skins", "shelter", "customs", "training", "tools", "left")
                 .joinToString(", ") { "%s %.0f%%".format(it, 100 * v(it) / all) })
         }
         println("bands by clothing, last year (clad: a kit of at least half; share of people-weeks; deaths per person a year, of them of exposure): " + listOf("clad", "poorly clad").joinToString(", ") { c ->

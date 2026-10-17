@@ -510,6 +510,18 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     var time = b.spareDays
+    // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
+    if (b.campWeeks == 0) b.shelter = 0f
+    // (A debris hut takes a novice an afternoon, the practised an hour.)
+    val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
+    val shelterAim = min(1f, b.shelterWill)
+    if (b.shelter < shelterAim && time > 0f && people > 0f) {
+        val built = min(shelterAim - b.shelter, time / shelterDays)
+        b.shelter += built
+        time -= built * shelterDays
+        b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
+    }
+    stats.hunting.merge("band time:shelter", ((b.spareDays - time) * 10f).roundToInt(), Int::plus)
     val t0 = time
     time = keepCustoms(b, people, time)
     val t1 = time
@@ -524,17 +536,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
     b.sinceRaided++
     plotRaid(g, b, weather)
-    // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
-    if (b.campWeeks == 0) b.shelter = 0f
-    // (A debris hut takes a novice an afternoon, the practised an hour.)
-    val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
-    val shelterAim = min(1f, b.shelterWill)
-    if (b.shelter < shelterAim && time > 0f && people > 0f) {
-        val built = min(shelterAim - b.shelter, time / shelterDays)
-        b.shelter += built
-        time -= built * shelterDays
-        b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
-    }
     keepFire(g, b)
     b.fire *= b.hearthWood
     // A fire through the night burns wood: where there is little, the night goes dark.
@@ -1229,10 +1230,13 @@ const val CACHE_RODENTS_HALF = 200f
 const val CACHE_FOXES_HALF = 20f
 const val CACHE_FIND = 0.15f
 const val CACHE_TAKE = 0.6f
-/** Stone and timber for one person's share of a stone-footed house, kg; person-days for a brush shelter; how much warmer a brush shelter keeps, °C. */
+/**
+ * Stone and timber for one person's share of a stone-footed house, kg; person-days for one person's share of a brush
+ * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a brush shelter keeps, °C.
+ */
 const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
-const val SHELTER_DAYS = 1f
+const val SHELTER_DAYS = 0.1f
 const val SHELTER_C = 3f
 const val HOUSE_AFTER_WEEKS = 26
 const val HOUSE_DECAY = 0.3f
