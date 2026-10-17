@@ -1,4 +1,5 @@
 package inflation.ecology
+import java.util.EnumSet
 import kotlin.math.exp
 
 /**
@@ -158,9 +159,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      * newborn, teaching). Fishing, trapping and the finer crafts can be lost, as the Tasmanians lost
      * fishing and bone tools.
      */
-    val losable: Boolean get() = domain !in setOf(Domain.GATHERING, Domain.FIRE, Domain.HEALING, Domain.CHILDCARE, Domain.TEACHING,
-        Domain.REMEMBERING, Domain.TINKERING) &&
-        this !in setOf(ROASTING, STONE_FOOTING, KNAPPING, WOODWORK, HIDEWORK, CORDAGE, STORE, HUNT)
+    val losable: Boolean get() = domain !in KEPT_DOMAINS && this !in KEPT
     /** A way that must be held first: microliths are snapped from bladelets; boiling with hot stones and leaching need tight baskets. */
     val needs: Skill? get() = when (this) {
         MICROLITHS -> BLADES
@@ -175,6 +174,9 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     val ref = if (ref >= 0f) ref else start
 
     companion object {
+        private val KEPT_DOMAINS = EnumSet.of(Domain.GATHERING, Domain.FIRE, Domain.HEALING, Domain.CHILDCARE, Domain.TEACHING,
+            Domain.REMEMBERING, Domain.TINKERING)
+        private val KEPT = EnumSet.of(ROASTING, STONE_FOOTING, KNAPPING, WOODWORK, HIDEWORK, CORDAGE, STORE, HUNT)
         private val byDomain = Domain.entries.map { d -> entries.filter { it.domain == d } }
         /** The variants of a kind of work. */
         fun of(d: Domain) = byDomain[d.ordinal]
