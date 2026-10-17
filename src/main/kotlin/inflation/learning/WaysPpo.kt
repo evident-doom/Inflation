@@ -160,10 +160,10 @@ object WaysPpo {
         repeat(4) { epoch ->
             for (batch in cs.shuffled(Random(round * 31L + epoch + 7)).chunked(512)) {
                 val parts = inParts(batch) { part -> gradient(ways, part, 1f / batch.size) }
-                val gw = FloatArray(ways.net.w.size); val gs = FloatArray(WAYS_OUT); var clipped = 0
-                for ((a, s, c) in parts) { gw.add(a); gs.add(s); clipped += c }
-                for (i in gs.indices) gs[i] -= ENTROPY
-                st.adam.step(ways.net.w, gw); st.adamStd.step(ways.logStd, gs)
+                val gradW = FloatArray(ways.net.w.size); val gradStd = FloatArray(WAYS_OUT); var clipped = 0
+                for ((a, s, c) in parts) { gradW.add(a); gradStd.add(s); clipped += c }
+                for (i in gradStd.indices) gradStd[i] -= ENTROPY
+                st.adam.step(ways.net.w, gradW); st.adamStd.step(ways.logStd, gradStd)
                 for (i in ways.logStd.indices) ways.logStd[i] = ways.logStd[i].coerceIn(ln(LearnedWays.MIN_STD), ln(LearnedWays.MAX_STD))
                 if (epoch == 3) { clippedShare += clipped; seen += batch.size }
             }
@@ -174,7 +174,7 @@ object WaysPpo {
 
     /** The clipped surrogate's gradient over [part], to be minimised: for the network's weights, the log-spreads, and how many draws were clipped. */
     private fun gradient(ways: LearnedWays, part: List<WaysChoice>, w: Float): Triple<FloatArray, FloatArray, Int> {
-        val gw = FloatArray(ways.net.w.size); val gs = FloatArray(WAYS_OUT); val b = ways.net.buffers()
+        val gradW = FloatArray(ways.net.w.size); val gradStd = FloatArray(WAYS_OUT); val b = ways.net.buffers()
         val dOut = FloatArray(WAYS_OUT); var clippedN = 0
         for (c in part) {
             c.x.copyInto(b.a[0])
@@ -190,22 +190,22 @@ object WaysPpo {
                 val s = exp(ways.logStd[i]); val z = (c.a[i] - mu[i]) / s
                 // d log p / d middle = z / s; d log p / d log-spread = z^2 - 1 (minimising, so negated).
                 dOut[i] = -coef * z / s
-                gs[i] += -coef * (z * z - 1f)
+                gradStd[i] += -coef * (z * z - 1f)
             }
-            ways.net.backwardAll(b, dOut, gw)
+            ways.net.backwardAll(b, dOut, gradW)
         }
-        return Triple(gw, gs, clippedN)
+        return Triple(gradW, gradStd, clippedN)
     }
 
     /**
      * People's score over [years] in [cfg] ([HexPpo.score]: people-weeks per person at the start,
      * less their luck in births and deaths), with the bands keeping to the scaffold's ways and to the
-     * middle of the learned ones, everything else hand-written: (learned, scaffold).
+     * middle of the learned ones, everything else hand-written: learned against scaffold ([Versus.hand]).
      */
-    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, ways: LearnedWays): Pair<Double, Double> {
+    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, ways: LearnedWays): Versus<Double> {
         val both = listOf(false, true).parallelStream().map { learned ->
             (if (learned) HexPpo.score(cfg, years, kinds) { run -> run.groups.ways = WaysSampler(ways, null, { 0f }, { 0 }, cfg.seed) } else HexPpo.handScore(cfg, years, kinds))[Catalogue.HUMAN] ?: 0.0
         }.toList()
-        return both[1] to both[0]
+        return Versus(both[1], both[0])
     }
 }
