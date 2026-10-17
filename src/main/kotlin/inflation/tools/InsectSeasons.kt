@@ -3,6 +3,7 @@ package inflation.tools
 import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.learning.HexLearning
+import inflation.tools.herps.ClimateClass
 import inflation.world.Date
 import inflation.world.WorldConfig
 
@@ -20,17 +21,8 @@ fun main(args: Array<String>) {
     val rain = FloatArray(n) { p -> (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat() }
     val tmin = FloatArray(n) { p -> (0 until 12).minOf { hw.placeTemp(p, it) } }
     val tmax = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
-    val classes = listOf("boreal/cold (<6C)", "cool temperate (6-11C)", "warm temperate (11-16C, rain>500)", "mediterranean (>=11C, 250-500mm)",
-        "hot desert (<250mm)", "hot wet (>16C, >500mm)")
-    fun cls(p: Int): Int = when {
-        land.biomass(p) <= 0f -> -1
-        rain[p] < 250f && meanT[p] >= 11f -> 4
-        meanT[p] < 6f -> 0
-        meanT[p] < 11f -> 1
-        rain[p] < 500f -> 3
-        meanT[p] < 16f -> 2
-        else -> 5
-    }
+    val classes = ClimateClass.entries.map { "${it.label} (${it.bounds})" }
+    fun cls(p: Int): Int = if (land.biomass(p) <= 0f) -1 else ClimateClass.of(meanT[p], rain[p]).ordinal
     val c = IntArray(n) { cls(it) }
     val q = listOf("temp C", "soil mm", "herb kg/m2", "green 0..1", "empty <10 share", "insects kg/km2", "dormant kg/km2", "biting", "herps",
         "rodents", "pollinators")
