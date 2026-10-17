@@ -755,7 +755,7 @@ private fun HexGroups.makeTools(b: Band, people: Float, time0: Float): Float {
         val made = fineMaterial(t)
         for ((m, perPerson) in t.recipe) if (m != made) can = min(can, gd[m.ordinal] / max(1e-3f, perPerson * use(m) * people))
         if (can <= 0f) continue
-        for ((m, perPerson) in t.recipe) if (m != made) gd[m.ordinal] -= can * perPerson * use(m) * people
+        for ((m, perPerson) in t.recipe) if (m != made) gd[m.ordinal] = max(0f, gd[m.ordinal] - can * perPerson * use(m) * people)
         if (made != null) {
             val want = can * (t.recipe[made] ?: TAN_OCHRE) * use(made) * people
             val good = if (want > 0f) min(1f, gd[made.ordinal] / want) else 1f
