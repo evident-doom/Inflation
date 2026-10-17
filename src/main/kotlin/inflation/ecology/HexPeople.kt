@@ -112,8 +112,13 @@ const val STRANGER_THIRST = 2f
 /** People's births against the catalogue's rate: long nursing spaces births three and a half to four years apart. */
 const val HUMAN_BIRTHS = 0.8f
 
-/** What a band is: its skills, making skills, tools (0..1 of a full kit each), the tools it knows, its goods, and how long it has kept its camp. */
-class Band {
+/**
+ * What a band is: its skills, making skills, tools (0..1 of a full kit each), the tools it knows, its goods, and how long it has kept its camp.
+ * [kinds] is the number of resident kinds ([HexFauna.kinds]), for the animals it keeps.
+ */
+class Band(kinds: Int) {
+    /** For loading a saved band (its saved arrays replace these), so that its unsaved fields start as a new band's do. */
+    @Suppress("unused") private constructor() : this(0)
     /** Its know-how, 0..1 for each [Skill] (untaught 0), and which variants it knows of. */
     val skills = enumFloats<Skill> { it.start }
     val knowsSkill = enumBools<Skill> { it.known }
@@ -202,8 +207,8 @@ class Band {
      * taken in the hunt and raised, and their offspring; and how tame each kind has grown under it
      * (the docile breed and stay, the wild ones run off), 0..1.
      */
-    var herd = FloatArray(0)
-    var herdTame = FloatArray(0)
+    val herd = FloatArray(kinds)
+    val herdTame = FloatArray(kinds)
     /** Of the grain in its stores, the share from ears that hold their grain (what it would sow). */
     var seedDomestic = 0f
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
@@ -310,7 +315,7 @@ class Band {
      */
     val ageStage = IntArray(2)
     /** Animals it keeps, by kind ([Species.index]): wolf pups taken from bold packs become dogs. */
-    var kept = FloatArray(0)
+    val kept = FloatArray(Catalogue.all.size)
     /** The country it knows, a bit for each hex: walked, seen from where it walked, or told of by bands it understands. */
     var known = LongArray(0)
 
@@ -352,7 +357,7 @@ class Band {
      */
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
-        o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf(); o.herd = herd.copyOf()
+        o.houseHex = houseHex; o.house = house; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
         o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
@@ -373,7 +378,7 @@ class Band {
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
-        o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
+        o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
         copied(o)
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
         for (i in o.herd.indices) { o.herd[i] *= share; herd[i] -= o.herd[i] }
@@ -416,10 +421,9 @@ class Band {
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
         a.ornaments += b.ornaments; a.exotic += b.exotic
-        if (a.herd.size < b.herd.size) { a.herd = a.herd.copyOf(b.herd.size); a.herdTame = a.herdTame.copyOf(b.herd.size) }
         for (i in b.herd.indices) {
             val n = a.herd[i] + b.herd[i]
-            if (n > 0f) a.herdTame[i] = (a.herd[i] * a.herdTame[i] + b.herd[i] * b.herdTame.getOrElse(i) { 0f }) / n
+            if (n > 0f) a.herdTame[i] = (a.herd[i] * a.herdTame[i] + b.herd[i] * b.herdTame[i]) / n
             a.herd[i] = n
         }
         a.renown = max(a.renown, b.renown)
@@ -431,7 +435,6 @@ class Band {
         for (i in Material.entries) a.goods[i] += b.goods[i]
         if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
         for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
-        if (a.kept.size < b.kept.size) a.kept = a.kept.copyOf(b.kept.size)
         for (i in b.kept.indices) a.kept[i] += b.kept[i]
         a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
         for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
@@ -557,7 +560,7 @@ class Band {
          * A band starting out in country it knows, founded at ([x], [y]) km: practised at what the
          * country offers, with a basic kit, and the descent, words and customs of its country.
          */
-        fun start(nearWater: Boolean, x: Double, y: Double, tuning: Tuning) = Band().apply {
+        fun start(kinds: Int, nearWater: Boolean, x: Double, y: Double, tuning: Tuning) = Band(kinds).apply {
             val l = lineageAt(x, y)
             lineage[l] = 1f
             wordsAt(x, y).copyInto(words)
@@ -1007,12 +1010,10 @@ private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
         val tameable = s.domestication.average().toFloat()
         if (o.young > 0 && rnd.nextFloat() < TAME * b.keepWill * bold * tameable * years) {
             o.young--
-            if (b.kept.size < Catalogue.all.size) b.kept = b.kept.copyOf(Catalogue.all.size)
             b.kept[s.index] += 1f
             stats.meetings.merge("bands took a ${s.name} pup", 1, Int::plus)
         }
     }
-    if (b.kept.isEmpty()) return
     var dogs = 0f
     for (i in b.kept.indices) {
         val k = b.kept[i]
@@ -1517,7 +1518,6 @@ fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(
  * grow tamer, since the docile stay and breed.
  */
 private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
-    if (b.herd.isEmpty()) return
     val years = days / Date.DAYS_PER_YEAR.toFloat()
     val p = g.place; val m2 = land.m2(p)
     val moved = max(0, g.path.size - 1)
