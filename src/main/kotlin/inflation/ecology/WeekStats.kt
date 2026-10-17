@@ -25,4 +25,12 @@ class WeekStats {
 
     /** Starts a new week (the children's ledger runs on until read). */
     fun clear() { kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear() }
+
+    companion object {
+        /** [hunting] keys the reports read back ("people:children died"). */
+        const val CHILDREN_DIED = "children died"
+        const val MEAT_EATEN = "meat eaten, kg"
+        const val PLANTS_EATEN = "plants eaten, kg"
+        const val GRAIN_REAPED = "grain reaped, kg"
+    }
 }

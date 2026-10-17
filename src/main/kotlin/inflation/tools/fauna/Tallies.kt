@@ -1,6 +1,8 @@
 package inflation.tools.fauna
 
 import inflation.ecology.Thresholds
+import inflation.ecology.DeathCause
+import inflation.ecology.WeekStats
 import inflation.ecology.Band
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
@@ -89,7 +91,7 @@ class HuntTally(private val sim: HexSim) {
 
     fun week() {
         val groups = sim.groups
-        grainReapedNow += (groups.stats.hunting["people:grain reaped, kg"] ?: 0) / 1000.0
+        grainReapedNow += (groups.stats.hunting["people:${WeekStats.GRAIN_REAPED}"] ?: 0) / 1000.0
         for ((key, v) in groups.stats.hunting) year.merge(key, v, Int::plus)
         for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
         for (g in groups.groups) if (g.alive && g.species.carnivore) { fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus); groupWeeks.merge(g.species.name, 1, Int::plus) }
@@ -244,12 +246,12 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         fun yearly(cause: String) = deaths.thisYear("people:$cause")
         val causes = deaths.causes
         val died = causes.keys.filter { it.startsWith("people:") && !it.endsWith("+born") && !it.endsWith(":hunted") }.sumOf { yearly(it.substringAfter(':')) }
-        val childDied = (hunting.year["people:children died"] ?: 0).toDouble()
+        val childDied = (hunting.year["people:${WeekStats.CHILDREN_DIED}"] ?: 0).toDouble()
         val children = childWeeks / weeks; val adults = adultWeeks / weeks
         val childQ = childDied / children.coerceAtLeast(1.0)
         val adultQ = ((died - childDied).coerceAtLeast(0.0)) / adults.coerceAtLeast(1.0)
-        val meat = (hunting.year["people:meat eaten, kg"] ?: 0).toDouble(); val plants = (hunting.year["people:plants eaten, kg"] ?: 0).toDouble()
-        val violent = yearly("raids") + causes.keys.filter { it.startsWith("people:killed by") }.sumOf { yearly(it.substringAfter(':')) }
+        val meat = (hunting.year["people:${WeekStats.MEAT_EATEN}"] ?: 0).toDouble(); val plants = (hunting.year["people:${WeekStats.PLANTS_EATEN}"] ?: 0).toDouble()
+        val violent = yearly(DeathCause.RAIDS.label) + causes.keys.filter { it.startsWith("people:${DeathCause.KILLED_BY}") }.sumOf { yearly(it.substringAfter(':')) }
         val bandsSeen = walked.size.coerceAtLeast(1)
         run {
             val all = sim.groups.stats.childDeaths.mapValues { it.value.sumThenReset() }.filter { it.value > 0.0 }
