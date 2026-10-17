@@ -35,7 +35,8 @@ internal fun HexGroups.takeResidentsKills(at: Map<Int, List<HerdAt>>) {
         val da = min(g.adults, poisson(a.adults.sum().toFloat(), rnd))
         if (da + dy == 0) continue
         g.young -= dy; g.adults -= da
-        stats.deaths.merge("${g.species.name}:resident hunters", da + dy, Int::plus)
+        // (Into the residents' week's deaths, as the groups' own tally is cleared when their week begins.)
+        fauna.deaths.merge("${g.species.name}:resident hunters", (da + dy).toDouble(), Double::plus)
         note(g) { "lost %d to jackals or lynx".format(da + dy) }
     }
 }
