@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.Config
+import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 
@@ -178,9 +179,9 @@ const val WALK_COST = 0.011f
  * view (half in [SIGHT_RAIN_MM] of rain or snow a week), so does the haze over hot ground, and thick
  * cover hides game from all but those close by.
  */
-fun HexGroups.sight(p: Int): Float {
-    val wet = 1f / (1f + weatherNow.precipitation[p] / SIGHT_RAIN_MM)
-    val haze = if (weatherNow.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
+fun HexGroups.sight(p: Int, weather: Weather): Float {
+    val wet = 1f / (1f + weather.precipitation[p] / SIGHT_RAIN_MM)
+    val haze = if (weather.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
     return wet * haze * (1f - SIGHT_COVER * land.cover(p))
 }
 const val SIGHT_RAIN_MM = 60f
