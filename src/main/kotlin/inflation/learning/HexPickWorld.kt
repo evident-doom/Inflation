@@ -31,19 +31,22 @@ object HexPickWorld {
         val results = jobs.parallelStream().map { (seed, lat) ->
             val w = World.generate(WorldConfig(seed = seed, widthKm = size, heightKm = size, centreLatitude = lat))
             Triple(seed, lat, score(w))
-        }.toList().sortedByDescending { it.third.first }
+        }.toList().sortedByDescending { it.third.pull }
         println("seed  lat   pull  swing  land")
-        for ((seed, lat, s) in results.take(15)) println("%4d  %4.0f  %.3f  %.3f  %.0f%%".format(seed, lat, s.first, s.second, 100 * s.third))
+        for ((seed, lat, s) in results.take(15)) println("%4d  %4.0f  %.3f  %.3f  %.0f%%".format(seed, lat, s.pull, s.swing, 100 * s.land))
     }
 
-    /** (pull to move, seasonal swing in place, share of land) for [w]. */
-    fun score(w: World): Triple<Double, Double, Double> {
+    /** How a world suits seasonal moving: the [pull] to move, the seasonal [swing] in place, the share of [land]. */
+    class Score(val pull: Double, val swing: Double, val land: Double)
+
+    /** The [Score] of [w]. */
+    fun score(w: World): Score {
         val g = w.grid
         val step = max(1, (STEP_KM / g.cellKm).toInt())
         val xs = (0 until g.width step step).toList(); val ys = (0 until g.height step step).toList()
         val land = ArrayList<Int>()
         for (y in ys) for (x in xs) { val i = g.index(x, y); if (!w.isSea[i]) land += i }
-        if (land.isEmpty()) return Triple(0.0, 0.0, 0.0)
+        if (land.isEmpty()) return Score(0.0, 0.0, 0.0)
         val forage = Array(12) { m -> FloatArray(land.size) { j -> val i = land[j]
             if (w.climate.monthlyTemp[m][i] < 5f) 0f else min(1f, w.climate.monthlyPrecip[m][i] / max(1f, w.climate.monthlyPet[m][i])) } }
         val r = REACH_KM / g.cellKm
@@ -59,6 +62,6 @@ object HexPickWorld {
             }
             swing += (hi - lo).toDouble()
         }
-        return Triple(pull / land.size, swing / land.size, land.size.toDouble() / (xs.size * ys.size))
+        return Score(pull / land.size, swing / land.size, land.size.toDouble() / (xs.size * ys.size))
     }
 }

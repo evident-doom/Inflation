@@ -259,7 +259,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         if (o.carrionKg > 0f) small.carrion[g.place] += o.carrionKg / (land.areaKm2[g.place] * 1e6f)
         if (o.births > 0) stats.births.merge(s.name, o.births, Int::plus)
-        note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.second > 0 }.joinToString(", ") { "${it.second} ${it.first}" }.ifEmpty { "none" }) }
+        note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
         fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
         if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.herdSize(sizeClass(g), cause), k, Int::plus)
@@ -304,14 +304,14 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // A band that buries its dead buries them where it is: its ancestors' place.
         // For each taken by a beast, others got away hurt.
         g.band?.let { b ->
-            val taken = o.causes.filter { it.first.startsWith(DeathCause.TAKEN_BY) }.sumOf { it.second }
+            val taken = o.causes.filter { it.cause.startsWith(DeathCause.TAKEN_BY) }.sumOf { it.n }
             if (taken > 0) {
                 b.wounded(WOUNDED_PER_DEAD * taken, g.adults)
                 b.beastLoss += taken / g.size.coerceAtLeast(1).toFloat()
             }
         }
         // Where a beast took one of them, the band remembers the place as dangerous.
-        if (s.human && o.causes.any { it.first.startsWith(DeathCause.TAKEN_BY) && it.second > 0 })
+        if (s.human && o.causes.any { it.cause.startsWith(DeathCause.TAKEN_BY) && it.n > 0 })
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.danger, 1f)
         if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
@@ -320,7 +320,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths); val ex = if (b.ornaments > 0f) b.exotic / b.ornaments else 0f
                 b.ornaments -= goods; b.exotic -= goods * ex; land.graveGoods[g.place] += goods }
         }
-        o.split?.let { c -> born += splitOff(g, c.first, c.second) } // a young pack has no ground yet
+        o.split?.let { c -> born += splitOff(g, c.adults, c.young) } // a young pack has no ground yet
     }
     groups += born
     Profile.part("groups: merging and pairing") { mergeAndPair(date) }
@@ -377,8 +377,14 @@ internal fun adultsDied(g: HexGroup, n: Int, r: Random) {
 }
 
 /** What a group's week left for others: carcasses (kg), births, deaths by cause, orphans, a split-off part (adults, young). */
-internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val causes: List<Pair<String, Int>>, val orphans: Int,
-    val split: Pair<Int, Int>?, val youngDied: Int = 0)
+internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val causes: List<Died>, val orphans: Int,
+    val split: Split?, val youngDied: Int = 0)
+
+/** [n] of a group died of [cause] this week. */
+internal data class Died(val cause: String, val n: Int)
+
+/** The part that splits off a group: [adults] and [young]. */
+internal class Split(val adults: Int, val young: Int)
 
 /** One group's week of feeding on its reserves, births, deaths and growing up; with its own random stream [r]. */
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
@@ -487,7 +493,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     var carrion = (da + oldAge + 0.3f * dy) * s.massKg
     // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
     val causes = shareDeaths(hazards, da, dy, r)
-    if (oldAge > 0) causes += DeathCause.OLD_AGE.label to oldAge
+    if (oldAge > 0) causes += Died(DeathCause.OLD_AGE.label, oldAge)
     growUp(g, r)
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
@@ -496,11 +502,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         g.young = 0
         return Outcome(carrion, bornNow, da + oldAge + dy, causes, orphans, null, dy + orphans)
     }
-    var split: Pair<Int, Int>? = null
+    var split: Split? = null
     // Bands that feast together hold together longer.
     if (g.size > maxSize(g, date)) {
-        split = (g.adults / 2) to (g.young / 2)
-        g.adults -= split.first; g.young -= split.second
+        split = Split(g.adults / 2, g.young / 2)
+        g.adults -= split.adults; g.young -= split.young
     }
     return Outcome(carrion, bornNow, da + oldAge + dy, causes, 0, split, dy)
 }
@@ -622,7 +628,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
 private class Hazard(val cause: String, val adult: Float, val young: Float)
 
 /** The week's deaths, [adults] and [young], shared among the [hazards] by how much each weighed for them (drawn from [r]); what is left over is "other". */
-private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int, r: Random): ArrayList<Pair<String, Int>> {
+private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int, r: Random): ArrayList<Died> {
     val died = LinkedHashMap<String, Int>()
     for ((n, ofYoung) in listOf(adults to false, young to true)) {
         var left = n; var weight = 0f
@@ -636,7 +642,7 @@ private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int
         }
         if (left > 0) died.merge(DeathCause.OTHER.label, left, Int::plus)
     }
-    return died.entries.mapTo(ArrayList()) { it.key to it.value }
+    return died.entries.mapTo(ArrayList()) { Died(it.key, it.value) }
 }
 
 /** [g]'s young grow up, and in a band the adults age through three spans of adult life, then become elders (drawn from [r]). */

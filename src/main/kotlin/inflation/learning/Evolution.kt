@@ -113,24 +113,27 @@ class WaysEvolution(private val role: String, private val movers: List<SharedMov
             val variants = es.variants(centre, eps)
             val results = seeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed + 1000L * gen, widthKm = size, heightKm = size), years, variants) }.toList()
             val fitness = DoubleArray(es.count)
-            for (r in results) for (v in 0 until es.count) fitness[v] += r.first[v] / results.size
+            for (r in results) for (v in 0 until es.count) fitness[v] += r.fitness[v] / results.size
             es.step(centre, eps, fitness, adam)
             Schema.save(centre, file, inNames, outNames)
             if (gen % 10 == 9) {
                 Schema.save(centre, File(File(out, "gen${gen + 1}").also { it.mkdirs() }, fileName), inNames, outNames)
                 // Against the scaffold on the same fixed worlds: the centre's bands and scaffold bands side by side.
                 val scaffold = centre.copy().zeroOutputLayer()
-                val check = checkSeeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed, widthKm = size, heightKm = size), years, arrayOf(scaffold, centre)).first }.toList()
+                val check = checkSeeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed, widthKm = size, heightKm = size), years, arrayOf(scaffold, centre)).fitness }.toList()
                 val vs = "check gen %d: scaffold %.3f, learned %.3f".format(gen + 1, check.map { it[0] }.average(), check.map { it[1] }.average())
                 log.check(vs)
             }
-            val line = "gen %d  %.0f s  fitness mean/centre: %.3f/%.3f  | %s".format(gen, (System.nanoTime() - t0) / 1e9, fitness.take(2 * es.pairs).average(), fitness.last(), results.joinToString("  ") { it.second })
+            val line = "gen %d  %.0f s  fitness mean/centre: %.3f/%.3f  | %s".format(gen, (System.nanoTime() - t0) / 1e9, fitness.take(2 * es.pairs).average(), fitness.last(), results.joinToString("  ") { it.note })
             log.write(line)
         }
     }
 
     /** One small world with all the animals for [years], each band (or herd, or pack, by the role) on one of [variants]; see [dealt]. */
-    fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
+    /** Each variant's [fitness] on one world, and a [note] on how the world went. */
+    class Result(val fitness: DoubleArray, val note: String)
+
+    fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Result {
         val run = freshSim(cfg, Catalogue.learned.distinct())
         movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[Role.of(s).ordinal] }
         val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
@@ -140,14 +143,14 @@ class WaysEvolution(private val role: String, private val movers: List<SharedMov
             run.groups.ways = BandWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
             val start = run.groups.count(people)
             val (fitness, _) = dealt(run, Random(cfg.seed), variants.size, steps) { it.species == people }
-            return fitness to "seed ${cfg.seed}: people $start->${run.groups.count(people)}"
+            return Result(fitness, "seed ${cfg.seed}: people $start->${run.groups.count(people)}")
         }
         val hunters = role == "hunters"
         val nets = variants.map { NetAnimalWays(it) }
         val ways = AnimalWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
         if (hunters) run.groups.hunterWays = ways else run.groups.herdWays = ways
         val (fitness, started) = dealt(run, Random(cfg.seed), variants.size, steps) { !it.species.human && it.species.carnivore == hunters }
-        return fitness to "seed ${cfg.seed}: " + started.entries.joinToString(", ") { (s, st) -> "${s.name} ${st.sum().toInt()}->${run.groups.count(s)}" }
+        return Result(fitness, "seed ${cfg.seed}: " + started.entries.joinToString(", ") { (s, st) -> "${s.name} ${st.sum().toInt()}->${run.groups.count(s)}" })
     }
 }
 

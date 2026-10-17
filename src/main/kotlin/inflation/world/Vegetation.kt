@@ -72,7 +72,7 @@ class Vegetation(private val world: World, private val seed: Long, private val t
     /** Cells burning this step. */
     val burning = BooleanArray(n)
     /** Fires this step: the cell each started in and the km² it burned. */
-    val fires = ArrayList<Pair<Int, Float>>()
+    val fires = ArrayList<Fire>()
     /** Worn paths, 0..1: rises with trampling, fades when unused. */
     val trails = FloatArray(n)
     /**
@@ -302,7 +302,7 @@ class Vegetation(private val world: World, private val seed: Long, private val t
                     burning[nb] = true; depth[nb] = d + 1; queue += nb
                 }
             }
-            fires += Pair(i, cells * (grid.cellKm * grid.cellKm).toFloat())
+            fires += Fire(i, cells * (grid.cellKm * grid.cellKm).toFloat())
         }
     }
 
