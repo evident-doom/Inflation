@@ -6,6 +6,7 @@ import inflation.saturate
 import inflation.monthsFrom
 import inflation.HASH_A
 import inflation.HASH_B
+import inflation.HASH_C
 import inflation.mix64Once
 import inflation.unitOf
 import inflation.Config
@@ -1245,7 +1246,7 @@ class HexGroups(
     internal fun policyRandom(id: Int, day: Long) = Random((seedBase * 1_000_003L + id * 7_919L + day) * 0x9E3779B97F4A7C15uL.toLong() + 0x2545F4914F6CDD1DL)
 
     internal fun hashNoise(id: Int, p: Int): Float {
-        return unitOf(mix64Once(id * HASH_A + p * HASH_B))
+        return unitOf(mix64Once(id * HASH_A + p * HASH_B + seedBase * HASH_C))
     }
 }
 

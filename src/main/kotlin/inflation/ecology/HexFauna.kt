@@ -101,9 +101,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun outbreakDeaths(s: Species, p: Int) = OUTBREAK_KILL * outbreak[s.index][hw.placeHex[p]]
 
     private var outbreakSalt = 0L
+    /** The world's own draws: outbreaks and newcomers differ from seed to seed. */
+    @Transient private val seedSalt = mix64Once(land.seed)
     /** A number in 0..1 that changes from week to week, for place [p] and kind [k]. */
     private fun hash(p: Int, k: Int): Float {
-        return unitOf(mix64Once((p.toLong() * HASH_A) xor (k.toLong() * HASH_B) xor (outbreakSalt * HASH_C)))
+        return unitOf(mix64Once((p.toLong() * HASH_A) xor (k.toLong() * HASH_B) xor (outbreakSalt * HASH_C) xor seedSalt))
     }
 
     /** Outbreaks pass to neighbouring hexes where the kind lives, and burn out. */
@@ -392,7 +394,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     var newcomersOn = false
     private fun newcomers(date: Date) {
         if (!newcomersOn) return
-        val r = kotlin.random.Random(date.absoluteDay * 7919L + 13)
+        val r = kotlin.random.Random((date.absoluteDay * 7919L + 13) xor seedSalt)
         for (k in kinds.indices) {
             if (count(k) >= NEWCOMER_ANIMALS) continue
             val s = kinds[k]
