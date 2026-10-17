@@ -67,6 +67,7 @@ fun main(args: Array<String>) {
     val gHerb = Array(4) { DoubleArray(nb) }; val gCap = Array(4) { DoubleArray(nb) }; val gCapGrazed = Array(4) { DoubleArray(nb) }
     val gMoist = Array(4) { DoubleArray(nb) }; val gMTerm = Array(4) { DoubleArray(nb) }; val gWet = Array(4) { DoubleArray(nb) }
     val gGrowWet = Array(4) { DoubleArray(nb) }; val gGrowA = Array(4) { DoubleArray(nb) }; val gPerennial = Array(4) { DoubleArray(nb) }
+    val gCanopy = Array(4) { DoubleArray(nb) }
     // Per herd kind: quality and its parts by kind of country and season (area-weighted, once a month).
     class Judge { val a = Array(4) { DoubleArray(nb) }; val q = Array(4) { DoubleArray(nb) }; val food = Array(4) { DoubleArray(nb) }
         val ground = Array(4) { DoubleArray(nb) }; val fresh = Array(4) { DoubleArray(nb) }; val tether = Array(4) { DoubleArray(nb) }
@@ -119,7 +120,7 @@ fun main(args: Array<String>) {
             gMoist[se][bi] += a * pl.moisture[p]
             gMTerm[se][bi] += a * ((pl.moisture[p] - LifeForm.HERB.moistureMin) / (LifeForm.HERB.moistureFull - LifeForm.HERB.moistureMin)).coerceIn(0f, 1f)
             val wet = sim.land.hydro.soil[p] / sim.land.hydro.soilCap[p]
-            gWet[se][bi] += a * wet; gPerennial[se][bi] += a * pl.perennialShare[p]
+            gWet[se][bi] += a * wet; gPerennial[se][bi] += a * pl.perennialShare[p]; gCanopy[se][bi] += a * pl.canopy(p)
             if (pl.growthWarmth(p, sim.weather.temperature[p]) > 0f && !pl.cured[p]) { gGrowWet[se][bi] += a * wet; gGrowA[se][bi] += a }
         }
         // How each kind judges the land, once a month.
@@ -192,13 +193,13 @@ fun main(args: Array<String>) {
             c += x * (0 until 12).minOf { hw.placeTemp(p, it) }; w += x * (0 until 12).maxOf { hw.placeTemp(p, it) } }
         "%s coldest %.1f warmest %.1f".format(bname(bi), c / a, w / a)
     })
-    println("== what holds the grass, by kind of country and season: herbs g/m² against their ceiling, and the ceiling after grazing to lawn and rooting; the year's soil moisture the ceiling is set by and its moisture term; the soil's water now (of what it holds), and in the weeks the sward is growing (share of the area-weeks); perennial share")
+    println("== what holds the grass, by kind of country and season: herbs g/m² against their ceiling, and the ceiling after grazing to lawn and rooting; the year's soil moisture the ceiling is set by and its moisture term; the soil's water now (of what it holds), and in the weeks the sward is growing (share of the area-weeks); perennial share; tree canopy")
     for (bi in shown) {
         println("  %-24s".format(bname(bi)) + (0 until 4).joinToString("  |  ") { se ->
             val a = fArea[se][bi].coerceAtLeast(1e-9); val ga = gGrowA[se][bi]
-            "%s herb %.0f cap %.0f grazed cap %.0f moist %.2f m %.2f wet %.2f growing %s (%.0f%%) per %.2f".format(seasonNames[se].take(3),
+            "%s herb %.0f cap %.0f grazed cap %.0f moist %.2f m %.2f wet %.2f growing %s (%.0f%%) per %.2f canopy %.2f".format(seasonNames[se].take(3),
                 1000 * gHerb[se][bi] / a, 1000 * gCap[se][bi] / a, 1000 * gCapGrazed[se][bi] / a, gMoist[se][bi] / a, gMTerm[se][bi] / a, gWet[se][bi] / a,
-                if (ga > 0) "%.2f".format(gGrowWet[se][bi] / ga) else "-", 100 * ga / a, gPerennial[se][bi] / a)
+                if (ga > 0) "%.2f".format(gGrowWet[se][bi] / ga) else "-", 100 * ga / a, gPerennial[se][bi] / a, gCanopy[se][bi] / a)
         })
     }
     for (s in herds) {
