@@ -153,7 +153,7 @@ class HexGroups(
                         for (h in seen) for (k in b.plants.indices) if (hw.biome[k][h] > 0.1f) b.plants[k] = 0.9f
                     }
                 }
-                if (s.carnivore && !s.human) g.home = hw.placeHex[p] else inheritSeasons(g)
+                if (s.pack) g.home = hw.placeHex[p] else inheritSeasons(g)
                 groups += g
             }
         }
@@ -773,7 +773,7 @@ class HexGroups(
         // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
         if (s.carnivore) f[Feature.FOOD] = prey / (prey + PREY_HALF) else { val food = foodFor(s, p); f[Feature.FOOD] = saturate(food, Thresholds.FOOD_HALF) }
         // (And for herds how good it is, nourishment and protein, as the hand-written score weighs it: high ground's draw in summer.)
-        if (!s.carnivore && !s.human) f[Feature.FORAGE_QUALITY] = freshness(s, p)
+        if (s.role == Role.HERD) f[Feature.FORAGE_QUALITY] = freshness(s, p)
         f[Feature.CLIMATE] = ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
         f[Feature.CROWDING] = crowded
         f[Feature.HUNTERS] = hunters / (hunters + 3f)
@@ -916,7 +916,7 @@ class HexGroups(
         val homeValue = if (g.home >= 0) placeValue[kind][hw.sameBandPlace(g.place, g.home).takeIf { it >= 0 } ?: g.place] else PREY_HALF
         // (A pack with young in the den, from its births for [DEN_MONTHS], hunts only
         // within [DEN_KM] of its home, however hungry: it cannot follow game that moves on.)
-        val denning = s.carnivore && !s.human && g.home >= 0 && g.young > 0 && monthsFrom(g.birthMonth, month) < DEN_MONTHS
+        val denning = s.pack && g.home >= 0 && g.young > 0 && monthsFrom(g.birthMonth, month) < DEN_MONTHS
         val territory = if (denning) DEN_KM else territoryKm(s) * sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f) * (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))
         val goalHex = if (goal >= 0) hw.placeHex[goal] else -1
         val fromHere = if (goal >= 0) hexKm(here, goalHex) else 0.0
@@ -927,8 +927,8 @@ class HexGroups(
             val h = reached[ri]
             val d = dist[h]
             // How far beyond its ground the hex lies (0 within it), and how fresh another pack's mark on it is.
-            val beyond = if (s.carnivore && !s.human && g.home >= 0) (hexKm(h, g.home) / territory - 1.0).toFloat().coerceIn(0f, 2f) else 0f
-            val foreign = if (s.carnivore && !s.human && h != g.home) scent.foreign(s, h, g.id) else 0f
+            val beyond = if (s.pack && g.home >= 0) (hexKm(h, g.home) / territory - 1.0).toFloat().coerceIn(0f, 2f) else 0f
+            val foreign = if (s.pack && h != g.home) scent.foreign(s, h, g.id) else 0f
             // A pack on its own ground stays on it while fed, and keeps off ground another pack of its kind holds
             // (its choice: the hand-written score weighs these heavily; a learned one sees both, see [HexFeatures]).
             val offGround = (if (beyond > 0f && (denning || (g.fed >= Thresholds.HUNGRY && !astray))) KEEP_TO_GROUND else 0f) + (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)

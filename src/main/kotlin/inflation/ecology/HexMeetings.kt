@@ -951,7 +951,7 @@ internal fun HexGroups.settle(weather: Weather) {
     val claimed = HashSet<Long>()
     // (Packs come in a drawn order: the first to come on empty ground takes it.)
     val today = weather.date.absoluteDay
-    for (g in groups.filter { it.alive && it.species.carnivore && !it.species.human && it.home < 0 }.sortedBy { tieBreak(it.id, 0, today) }) {
+    for (g in groups.filter { it.alive && it.species.pack && it.home < 0 }.sortedBy { tieBreak(it.id, 0, today) }) {
         val h = hw.placeHex[g.place]
         val key = g.species.index.toLong() * hex.size + h
         // (Whether it takes it is its choice: always at the hand-written way.)

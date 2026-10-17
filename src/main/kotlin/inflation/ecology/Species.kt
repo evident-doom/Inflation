@@ -150,6 +150,10 @@ class Species(
         internal set
     /** Mostly eats animals. */
     val carnivore: Boolean get() = diet.meat + diet.smallPrey + diet.carrion > 0.5f
+    /** What kind of group it lives in: a band of people, a pack of hunters or a herd of plant-eaters. */
+    val role: Role get() = if (human) Role.BAND else if (carnivore) Role.PACK else Role.HERD
+    /** Hunts in packs: a meat-eater that is not people. */
+    val pack: Boolean get() = carnivore && !human
     /**
      * Days of food it can carry as fat: bigger animals store more, about 8 M^0.25 days (a gazelle
      * some 17, an aurochs 42).
@@ -198,3 +202,6 @@ object Allometry {
      */
     fun herbivoreDensityPerKm2(massKg: Float): Float = 10f.pow(4.23f) * (massKg * 1000f).pow(-0.75f)
 }
+
+/** The kinds of group a species lives in (see [Species.role]). */
+enum class Role { HERD, PACK, BAND }

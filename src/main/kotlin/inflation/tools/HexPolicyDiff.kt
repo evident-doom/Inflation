@@ -32,7 +32,7 @@ fun main(args: Array<String>) {
     val nets = names.map { name -> val (path, res) = name.split("@").let { it[0] to it.getOrNull(1)?.toFloat() }
         name to SharedMover.load(File(path)).also { m -> if (res != null) m.residual = res } }
     val kinds = Catalogue.learned
-    fun mine(s: Species) = when (role) { "people" -> s.human; "hunters" -> s.carnivore && !s.human; else -> !s.carnivore }
+    fun mine(s: Species) = when (role) { "people" -> s.human; "hunters" -> s.pack; else -> !s.carnivore }
     class Seen(val kind: Species, val f: Array<FloatArray>, val band: FloatArray?, val hand: FloatArray, val temper: FloatArray)
     val seen = (0 until worlds).toList().parallelStream().map { w ->
         val run = HexLearning.Run(WorldConfig(seed = 7000L + w, widthKm = size, heightKm = size), kinds)
