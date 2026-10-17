@@ -320,7 +320,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.sizePref = g.sizePref
     n.parent = g.id
     n.dry = g.dry
-    n.wary = g.wary
+    n.chasedOn = g.chasedOn
     n.birthMonth = g.birthMonth
     n.temper = Temperament.inherit(g.temper, n.id)
     // A band that splits shares out its larder by heads.
@@ -428,7 +428,6 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val plague = fauna.outbreakDeaths(s, g.place)
     val sick = sicknessWeek(g, weather, kinNow, r)
     val disease = plague + sick
-    g.wary *= WARY_KEEP
     // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
     val homeless = if (s.pack && g.home < 0) DISPERSAL_DEATHS * years else 0f
     // Eagles take the young of the smaller hoofed animals in the open.

@@ -1,6 +1,7 @@
 package inflation.ecology
 import inflation.learning.Schema
 import inflation.world.HexLand
+import kotlin.math.exp
 import kotlin.math.max
 
 /** A herd, pack or pride on the hexes: where it stands (a place: a height band of a hex) and who it is. */
@@ -87,8 +88,10 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     var bold = -1f
     /** Its temperament ([Temperament]): a founder's by chance, an offshoot's from its parent. */
     var temper = Temperament.founder(id)
-    /** How wary it is from being hunted lately, 0..1: it keeps a sharper watch, and fades over weeks. */
-    var wary = 0f
+    /** When it was last chased, in days from the start (with the hour): it is alarmed for a while after (see [wary]). */
+    var chasedOn = Double.NEGATIVE_INFINITY
+    /** How alarmed it still is at [day] (days from the start) from its last chase, 0..1: it keeps a sharper watch, fading over [ALARM_DAYS]. */
+    fun wary(day: Double) = exp(-(day - chasedOn) / ALARM_DAYS).toFloat()
     /** How much more food it needs this week to keep warm, 1 when comfortable (see [coldNeed]). */
     var warmth = 1f
     val dailyNeedKg get() = species.dailyIntakeKg * (adults + 0.5f * young) * warmth
