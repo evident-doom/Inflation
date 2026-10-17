@@ -597,6 +597,13 @@ internal fun HexGroups.meet(weather: Weather) {
         val last = g.path.size - 1
         for (i in g.path.indices) {
             val to = if (i < last) g.days[i + 1] else days.toFloat()
+            // A herd grazing where it ends its week walks its usual day's going about it, out into the hexes
+            // round as far as that takes it, and can be come on there (see [rangeShares]); on its way, it is
+            // where its path runs.
+            if (i == last && !g.species.carnivore) {
+                rangeShares(g, g.path[i]) { h, share -> if (hunted.get(h)) byHex.getOrPut(h) { ArrayList() } += Stay(k, i, h, g.days[i], to, share) }
+                continue
+            }
             if (!hunted.get(g.path[i])) continue
             byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.path[i], g.days[i], to)
         }
@@ -642,9 +649,10 @@ internal fun HexGroups.meet(weather: Weather) {
         if (!a.alive || !b.alive) continue
         val h = e.hex
         // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
-        // hours, and neither slip away first. (How often they run into each other while both are there.)
+        // hours, and neither slip away first. (How often they run into each other while both are there,
+        // for the share of the time each is in it.)
         val p = hw.sameBandPlace(a.place, h).takeIf { it >= 0 } ?: a.place
-        val met = poisson(encounters(a, b, p, e.span))
+        val met = poisson(encounters(a, b, p, e.span * e.share))
         if (met == 0) continue
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meetings.merge("slipped away", 1, Int::plus); continue }
         if (a.species.carnivore && b.species.carnivore) {
@@ -916,6 +924,24 @@ internal fun HexGroups.roundsWhere(g: HexGroup, weather: Weather): String {
     val where = if (!onRound) "-" else roundOf(g, weather.date.month)?.first
         ?.let { r -> if (hex.distanceKm(g.path[0], hw.placeHex[r]) <= ROUND_NEAR_KM) "near" else "far" } ?: "far"
     return "rounds|${g.species.name}|${if (onRound) "on round" else "own country"}|$going|$where|"
+}
+
+/**
+ * Where herd [g], grazing about hex [h] this week, spends its time, as [into] (hex, share of the time): its
+ * usual day's going ([Species.dailyTravelKm]) takes it out round the middle of its ground, over a disc of that
+ * radius, of which the hex holds its own area's share (all of it for a herd whose day's going stays within the
+ * hex); the rest it spends in the six hexes round, as evenly as it can cross into them. (A disc reaching beyond
+ * the first ring is counted in the ring.)
+ */
+internal fun HexGroups.rangeShares(g: HexGroup, h: Int, into: (Int, Float) -> Unit) {
+    val r = g.species.dailyTravelKm
+    val home = min(1f, land.areaKm2[g.place] / (Math.PI.toFloat() * r * r))
+    val cross = hex.crossings[Catalogue.travel(g.species).ordinal]
+    var open = 0
+    for (d in 0 until 6) { val n = hex.neighbour(h, d); if (n >= 0 && hex.heart[n] >= 0 && cross[h * 6 + d].isFinite()) open++ }
+    if (open == 0 || home >= 1f) { into(h, 1f); return }
+    into(h, home)
+    for (d in 0 until 6) { val n = hex.neighbour(h, d); if (n >= 0 && hex.heart[n] >= 0 && cross[h * 6 + d].isFinite()) into(n, (1f - home) / open) }
 }
 
 /**
