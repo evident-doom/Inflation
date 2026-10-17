@@ -175,7 +175,7 @@ const val CATCH = 0.35f
  * and eating at this many kg a day per kg of hunter.
  */
 const val HANDLING_DAYS = 0.3f
-const val STALK_DAYS = 0f
+const val STALK_DAYS = 0.04f
 const val EATING_RATE = 0.15f
 /** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */
 const val SEARCHING = 0.3f
