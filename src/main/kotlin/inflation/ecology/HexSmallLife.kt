@@ -109,8 +109,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val bird = Array(BIRDS.size) { FloatArray(n) }
     val birds = FloatArray(n)
     /** Eagles hunting over each place, 0..1, and as many as the crags allow. */
-    val eagles = FloatArray(n) { p -> min(1f, 2f * land.ruggedness[p]) }
-    private val eagleCrags = eagles.copyOf()
+    @Transient private val eagleCrags = land.overGround { min(1f, 2f * it) }
+    val eagles = eagleCrags.copyOf()
+    /** Rock for the small life of broken ground, the mean over each place's ground (see [HexLand.overGround]): hyrax and rock doves, chukar, and the cracks and screes reptiles and small mammals hide in. */
+    @Transient private val rockKopje = land.overGround { it.pow(1.5f) }
+    @Transient private val rockChukar = land.overGround { min(1f, it / 0.5f) }
+    @Transient private val rockHides = land.overGround { 1f / (1f + min(1f, it)) }
     /** Vulture colonies: nest place, the birds, and the places within reach, nearest first. */
     val vulturePlace = ArrayList<Int>()
     val vultures = ArrayList<Float>()
@@ -167,17 +171,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     private fun open(p: Int) = 1f - min(1f, land.canopy(p) + 0.5f * min(1f, land.shrub[p] / 1.5f))
     private fun hareCapacity(p: Int) = 40f * land.herb[p] / (land.herb[p] + 0.3f) * open(p)
-    private fun hyraxCapacity(p: Int) = 80f * land.ruggedness[p].pow(1.5f) * min(1f, land.shrub[p] / 0.5f + 0.2f)
+    private fun hyraxCapacity(p: Int) = 80f * rockKopje[p] * min(1f, land.shrub[p] / 0.5f + 0.2f)
     private fun birdCapacity(k: Int, p: Int): Float {
         val grass = land.herb[p] / (land.herb[p] + 0.2f)
         val shrubby = min(1f, land.shrub[p])
-        val rugged = land.ruggedness[p]
         val dry = (1f - annualRain[p] / 500f).coerceIn(0f, 1f)
         return when (BIRDS[k].name) {
-            "chukar" -> 6f * min(1f, rugged / 0.5f) * (0.3f + 0.7f * open(p)) * (0.3f + 0.7f * shrubby) * grass
+            "chukar" -> 6f * rockChukar[p] * (0.3f + 0.7f * open(p)) * (0.3f + 0.7f * shrubby) * grass
             "quail" -> 5f * open(p) * grass
             "sandgrouse" -> 3f * open(p) * dry
-            "rock dove" -> 4f * rugged.pow(1.5f) * (0.3f + 0.7f * grass)
+            "rock dove" -> 4f * rockKopje[p] * (0.3f + 0.7f * grass)
             "mallard" -> 6f * waterfowl[p] * (0.5f + 0.5f * grass)
             "greylag goose" -> 10f * waterfowl[p] * grass
             "crane" -> 8f * waterfowl[p] * (0.5f + 0.5f * grass) + 1f * open(p) * grass
@@ -587,7 +590,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * hunt close by it. Each kind of cover hides more as there is more of it: [HERP_COVER_KG] of shrub
      * or of litter to the m² hides half of them, and so does the most broken ground.
      */
-    fun herpExposed(p: Int) = 1f / (1f + min(1f, land.ruggedness[p])) * HERP_COVER_KG / (HERP_COVER_KG + land.shrub[p]) * HERP_COVER_KG / (HERP_COVER_KG + litter[p])
+    fun herpExposed(p: Int) = rockHides[p] * HERP_COVER_KG / (HERP_COVER_KG + land.shrub[p]) * HERP_COVER_KG / (HERP_COVER_KG + litter[p])
 
     /**
      * How many reptiles and amphibians place [p] has breeding sites for, kg/km²: frogs, toads and newts
@@ -631,7 +634,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         PEOPLE -> 1f
         ROOT -> when (prey) { 3 -> 1f; 6, 7 -> INSECT_CATCH; else -> 0f }
         else -> when (prey) {
-            2 -> 1f / (1f + min(1f, land.ruggedness[p]))
+            2 -> rockHides[p]
             4 -> herpExposed(p)
             5 -> 0f
             6, 7 -> INSECT_CATCH

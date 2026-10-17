@@ -22,6 +22,8 @@ import kotlin.math.pow
  */
 class HexFood(private val land: HexLand, private val small: HexSmallLife, private val days: Int) {
     val n = land.n
+    /** Wild cereals do best on broken hill country: the mean over each place's ground (see [HexLand.overGround]). */
+    @Transient private val cerealGround = land.overGround { (0.5f + it).coerceAtMost(1f) }
     val fruit = FloatArray(n)
     /** Ripe grass seed (wild cereals and other grasses), kg/m²: early summer, shed and gone by autumn. People gather it. */
     val seeds = FloatArray(n)
@@ -59,7 +61,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         val warmth = dT + (0 until 12).map { land.hw.placeTemp(p, it) }.average().toFloat()
         // Winter rain and summer drought, 250-800 mm, mild; best on broken hill country.
         val climate = (if (rain in 250f..800f) 1f else 0f) * ((winter - summer) / rain.coerceAtLeast(1f) * 2f).coerceIn(0f, 1f) * (if (warmth in 10f..22f) 1f else 0f)
-        return CEREAL_MAX * climate * (0.5f + land.ruggedness[p]).coerceAtMost(1f)
+        return CEREAL_MAX * climate * cerealGround[p]
     }
 
     /** Standing straw: the land's (it burns there). */
