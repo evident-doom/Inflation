@@ -475,7 +475,6 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     if (band != null && band.atHome && ny > 0) {
         val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
         if (kept > 0) {
-            if (band.herd.size < fauna.kinds.size) { band.herd = band.herd.copyOf(fauna.kinds.size); band.herdTame = band.herdTame.copyOf(fauna.kinds.size) }
             band.herd[k] += kept; ny -= kept
             fauna.young[k][p] = max(0f, fauna.young[k][p] - kept / area)
             stats.meetings.merge("young animals kept", kept, Int::plus)

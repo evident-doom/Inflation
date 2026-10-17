@@ -205,9 +205,10 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         }
         for (g in groups.groups) {
             val b = g.band ?: continue
-            if (!g.alive || b.appointHex.none || b.appointMonth != sim.weather.date.month) continue
+            val ap = b.appointment
+            if (!g.alive || ap == null || ap.month != sim.weather.date.month) continue
             apptDue++
-            if (hw.placeHex[g.place] == b.appointHex.i) apptKept++
+            if (hw.placeHex[g.place] == ap.hex.i) apptKept++
         }
         for (g in groups.groups) if (g.alive && g.band != null) {
             bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2
@@ -294,7 +295,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return " | raids on homes, palisades %.0f%% of bands, homes known %.1f a band".format(
                 100.0 * bs.count { it.palisade >= 0.2f } / bs.size.coerceAtLeast(1), bs.map { it.knownHomes.size }.average()) +
             " | appointments %.0f%% of bands, kept %.0f%% of band-weeks due this year; burial places %d; largest gathering %d bands".format(
-                100.0 * bs.count { !it.appointHex.none } / bs.size.coerceAtLeast(1),
+                100.0 * bs.count { it.appointment != null } / bs.size.coerceAtLeast(1),
                 keptShare(),
                 land.burials.count { it >= 1f }, bands.groupBy { hw.placeHex[it.place] }.values.maxOfOrNull { it.size } ?: 0) +
             " | ties %.1f a band (close %.1f), gathered %.0f%%".format(bs.map { it.ties.size }.average(),

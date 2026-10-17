@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 class AgeStructureTest {
     private fun band(adults: Int, elders: Int, second: Int, third: Int) =
-        HexGroup(1, Catalogue.HUMAN, Place(0), adults, 5).also { g -> g.band = Band().also { it.elders = elders; it.ageStage[0] = second; it.ageStage[1] = third } }
+        HexGroup(1, Catalogue.HUMAN, Place(0), adults, 5).also { g -> g.band = Band(0).also { it.elders = elders; it.ageStage[0] = second; it.ageStage[1] = third } }
 
     @Test
     fun `adults dying keep the age structure within the living`() {

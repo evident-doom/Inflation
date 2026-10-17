@@ -19,6 +19,6 @@ class BandStateTest {
         repeat(52) { sim.step() }
         val bands = sim.groups.groups.filter { it.alive && it.band != null }
         assertTrue(bands.isNotEmpty(), "no bands lived through the year, so nothing was checked")
-        assertEquals(emptyList(), sim.groups.groups.filter { it.alive }.flatMap { it.violations(sim.hw.placeHex) })
+        assertEquals(emptyList(), sim.groups.groups.filter { it.alive }.flatMap { it.violations() })
     }
 }

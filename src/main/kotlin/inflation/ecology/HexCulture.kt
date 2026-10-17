@@ -248,7 +248,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
             val theirs = y.memory.deadAt(by.appointHex) + y.memory.metAt(by.appointHex)
             val ours = if (!bx.appointHex.none) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
             if (theirs > ours && rnd.nextFloat() < u * (0.3f + 0.7f * max(0f, bx.tie(y.id)))) {
-                bx.appointHex = by.appointHex; bx.appointMonth = by.appointMonth
+                bx.appointment = by.appointment
                 stats.meetings.merge("bands took up another's appointment", 1, Int::plus)
             }
         }
@@ -444,8 +444,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
             if (mem.dead[i] + mem.met[i] >= APPOINT_MIN && score > bestScore) { bestScore = score; best = i }
         }
         if (best >= 0) {
-            b.appointHex = Hex(mem.hex[best])
-            b.appointMonth = mem.season[best] * 3 + 1
+            b.appointment = Appointment(Hex(mem.hex[best]), mem.season[best] * 3 + 1)
             stats.meetings.merge("bands made an appointment", 1, Int::plus)
         }
     }

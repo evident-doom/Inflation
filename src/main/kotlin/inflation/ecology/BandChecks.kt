@@ -3,10 +3,10 @@ package inflation.ecology
 /**
  * What is wrong with [g]'s state, if anything: each band's stocks not below nothing nor other than a number,
  * its shares within 0..1, the old and the age spans no more than its adults, and the fields that go in
- * pairs agreeing (its camp's hex and place, an appointment's place and month, a raid's target and place,
- * an unlucky hex and its weeks, the herd and its tameness). [placeHex] is each place's hex. Empty when all is well.
+ * parts agreeing (an appointment's hex and month, a raid's target, hex and weeks, an unlucky hex and its
+ * weeks, the herd and its tameness). Empty when all is well.
  */
-fun HexGroup.violations(placeHex: IntArray): List<String> {
+fun HexGroup.violations(): List<String> {
     val bad = ArrayList<String>()
     fun check(what: String, ok: Boolean) { if (!ok) bad += "group $id (${species.name}): $what" }
     fun FloatArray.allIn(lo: Float, hi: Float) = all { it.isFinite() && it >= lo && it <= hi }
@@ -37,9 +37,8 @@ fun HexGroup.violations(placeHex: IntArray): List<String> {
     check("herd ${b.herd.toList()}", b.herd.allIn(0f, Float.MAX_VALUE))
     check("herd of ${b.herd.size} kinds, tameness of ${b.herdTame.size}", b.herd.size == b.herdTame.size)
     check("tameness ${b.herdTame.toList()}", b.herdTame.allIn(0f, 1.0001f))
-    check("camp at place ${b.campPlace} but hex ${b.campHex}", b.campPlace.none || placeHex[b.campPlace] == b.campHex.i)
-    check("appointment at hex ${b.appointHex} in month ${b.appointMonth}", (!b.appointHex.none) == (b.appointMonth >= 0))
-    check("raid on band ${b.raidOn} at hex ${b.raidHex}", (!b.raidHex.none) == (b.raidOn >= 0))
-    check("unlucky hex ${b.unluckyHex} for ${b.unluckyWeeks} weeks", (!b.unluckyHex.none) == (b.unluckyWeeks > 0))
+    b.appointment?.let { check("appointment at ${it.hex} in month ${it.month}", !it.hex.none && it.month in 0..11) }
+    b.raid?.let { check("raid on band ${it.on} at ${it.hex} for ${it.weeks} weeks", !it.hex.none && it.on >= 0 && it.weeks > 0) }
+    b.unlucky?.let { check("unlucky ${it.hex} for ${it.weeks} weeks", !it.hex.none && it.weeks > 0) }
     return bad
 }
