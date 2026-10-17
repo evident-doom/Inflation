@@ -332,7 +332,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                     if (band != null && took > 0f) {
                         val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
                         val harvested = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
-                        val have = g.stores[Store.SEED.ordinal]
+                        val have = g.stores[Store.SEED]
                         band.seedDomestic = (band.seedDomestic * have + harvested * took) / (have + took).coerceAtLeast(1e-6f)
                         stats.hunting.merge("${s.name}:${WeekStats.GRAIN_REAPED}", took.toInt(), Int::plus)
                     }
@@ -380,7 +380,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // Eaten in the order it spoils, this week's first, then from the stores.
         var need = wantAll; var ateMeat = 0f
         for (st in EAT_ORDER) { val e = min(need, got[st.ordinal]); got[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
-        for (st in EAT_ORDER) { val e = min(need, g.stores[st.ordinal]); g.stores[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
+        for (st in EAT_ORDER) { val e = min(need, g.stores[st]); g.stores[st] -= e; need -= e; if (st.meat) ateMeat += e }
         eaten = wantAll - need
         // (People living mostly on plant food need salt, which meat and fish carry; short of it,
         // they are listless and weak, and the food does them the less good.)
@@ -388,29 +388,29 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             val plantShare = ((eaten - ateMeat) / eaten).coerceIn(0f, 1f)
             val want = SALT_A_PERSON_WEEK * plantShare * g.size * days / 7f
             if (want > 0f) {
-                val had = min(want, band.goods[Material.SALT.ordinal]); band.goods[Material.SALT.ordinal] -= had
+                val had = min(want, band.goods[Material.SALT]); band.goods[Material.SALT] -= had
                 eaten *= 1f - tuning.saltLack * plantShare * (1f - had / want)
             }
         }
         stats.hunting.merge("${s.name}:${WeekStats.MEAT_EATEN}", ateMeat.toInt(), Int::plus)
         stats.hunting.merge("${s.name}:${WeekStats.PLANTS_EATEN}", (eaten - ateMeat).toInt(), Int::plus)
         // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
-        for (i in got.indices) g.stores[i] += got[i]
+        for (i in got.indices) g.stores.a[i] += got[i]
         // Digging soaks and drawing their water takes time where that is the only water (see [HexDrinkingWater.mustDig]).
         val spareDays = max(0f, workDays - busy - (if (land.drink.mustDig(g.place, s.dailyTravelKm)) HexDrinkingWater.DIG_SHARE * days else 0f))
         // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
         val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
-        val smoke = if (band.knowsSkill[Skill.SMOKING.ordinal] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
+        val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
         // (A band with salt salts what it cures: salt cures in any weather.)
-        val salt = band.goods[Material.SALT.ordinal]
+        val salt = band.goods[Material.SALT]
         val salting = if (salt > 0f) band.skill(Skill.STORE) else 0f
         val dryRate = max(max(sun, smoke), salting)
         // (As much of it as the band chooses to.)
-        val dried = min(g.stores[Store.FRESH.ordinal] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
+        val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
         if (dried > 0f) {
-            val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT.ordinal] -= saltedNow * SALT_PER_KG
-            val before = g.stores[Store.DRIED.ordinal]; band.salted = (before * band.salted + saltedNow) / (before + dried)
-            g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
+            val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
+            val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
+            g.stores[Store.FRESH] -= dried; g.stores[Store.DRIED] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
         }
         // What time is left is for making and mending (see [bandWeek]).
         band.spareDays = max(0f, spareDays * hands - if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
@@ -421,23 +421,23 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // The small game's skins are kept too, as far as there is time to scrape and dry them: many small
         // pelts sewn together (hare, fox, marmot) clothe as well as a few big hides.
         val skinDays = min(band.spareDays, SMALL_SKIN * smallGot * SKIN_DAYS)
-        band.goods[Material.HIDE.ordinal] += skinDays / SKIN_DAYS
+        band.goods[Material.HIDE] += skinDays / SKIN_DAYS
         band.spareDays = max(0f, band.spareDays - skinDays)
         stats.hunting.merge(Tally.bandTime("skins"), (skinDays * 10f).roundToInt(), Int::plus)
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
         // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
         val home = if (band.atHome) band.house else 0f
         // (Smoked meat keeps longer than sun-dried; pits sealed with clay and plaster keep the mice out.)
-        val smoked = if (band.knowsSkill[Skill.SMOKING.ordinal]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
+        val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
         var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (1f - tuning.saltKeep * band.salted))
-        val sealed = if (band.knowsSkill[Skill.SEALING.ordinal]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
+        val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
         if (home > 0f) {
             for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) {
-                val x = g.stores[st.ordinal] * MICE * sealed * home * days / 7f
-                g.stores[st.ordinal] -= x
+                val x = g.stores[st] * MICE * sealed * home * days / 7f
+                g.stores[st] -= x
                 rotten += x
             }
-            if (band.knowsSkill[Skill.SEALING.ordinal] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
+            if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
         }
         small.carrion[g.place] += rotten / (land.areaKm2[g.place] * 1e6f)
         spare = 0f; meatEaten = ateMeat
@@ -548,14 +548,14 @@ private fun diagSampled(g: HexGroup, weather: Weather, share: Float, salt: Int) 
     unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + salt * HASH_C)) < share
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost. */
-internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, driedKeep: Float = 1f): Float {
+internal fun HexGroups.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f): Float {
     var lost = 0f
     val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
     for (st in Store.entries) {
         val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f,
             st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f) * days / 7f)
-        val x = stores[st.ordinal] * share
-        stores[st.ordinal] -= x; lost += x
+        val x = stores[st] * share
+        stores[st] -= x; lost += x
     }
     return lost
 }
@@ -747,12 +747,12 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         if (gb.tie(taker.id) < FEUD_GIFT) continue
         var useful = 0f
         for (m in TRADED) {
-            val need = YEAR_NEED[m.ordinal]
-            val spare = gb.goods[m.ordinal] - KEEP_YEARS * need * giver.adults
-            val lack = KEEP_YEARS * need * taker.adults - tb.goods[m.ordinal]
+            val need = YEAR_NEED[m]
+            val spare = gb.goods[m] - KEEP_YEARS * need * giver.adults
+            val lack = KEEP_YEARS * need * taker.adults - tb.goods[m]
             if (spare <= 0f || lack <= 0f) continue
             val gift = min(spare, lack) * min(1f, gb.giveWill)
-            gb.goods[m.ordinal] -= gift; tb.goods[m.ordinal] += gift
+            gb.goods[m] -= gift; tb.goods[m] += gift
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
             stats.meetings.merge("${m.name.lowercase()} given", 1, Int::plus)
         }
@@ -774,9 +774,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         val meal = min(spare, FEAST_KG * guest.size * keen)
         host.larder -= meal; guest.larder += meal
         // With grain to spare and vessels to brew in, the host pours beer: the feast is remembered better.
-        val grain = host.stores[Store.SEED.ordinal]
+        val grain = host.stores[Store.SEED]
         val beer = if (hb.has(Tool.BASKET) > 0.5f && hb.has(Tool.GRINDER) > 0.2f) min(0.2f * grain, BEER_KG * guest.size) else 0f
-        if (beer > 0f) { host.stores[Store.SEED.ordinal] -= beer; stats.meetings.merge("feasts with beer", 1, Int::plus) }
+        if (beer > 0f) { host.stores[Store.SEED] -= beer; stats.meetings.merge("feasts with beer", 1, Int::plus) }
         val warmth = 1f + BEER_TIES * min(1f, beer / (BEER_KG * guest.size).coerceAtLeast(1e-3f))
         guest.band?.befriend(host.id, TIE_FEAST * warmth); hb.befriend(guest.id, 0.5f * TIE_FEAST * warmth)
         stats.meetings.merge("feasts", 1, Int::plus)

@@ -329,14 +329,14 @@ class GroupControlWindow(
         sb.appendLine("stands at %s, %.1f °C".format(where(g.place.i), sim.weather.temperature[g.place.i]))
         if (b != null) {
             sb.appendLine("larder %.0f kg (%.0f days): ".format(g.larder, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)) +
-                Store.entries.filter { g.stores[it.ordinal] >= 1f }.joinToString(", ") { "%s %.0f".format(it.name.lowercase(), g.stores[it.ordinal]) })
-            val sick = Illness.entries.filter { b.sick[it.ordinal] > 0.005f }
-                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.sick[it.ordinal]) }
+                Store.entries.filter { g.stores[it] >= 1f }.joinToString(", ") { "%s %.0f".format(it.name.lowercase(), g.stores[it]) })
+            val sick = Illness.entries.filter { b.sick[it] > 0.005f }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.sick[it]) }
             sb.appendLine("health: wounded %.0f%%, lamed %.0f%%%s".format(100 * b.hurt, 100 * b.lame, if (sick.isNotEmpty()) "; sick: $sick" else ""))
             sb.appendLine("camp kept %d weeks%s".format(b.campWeeks,
                 if (!b.houseHex.none) "; houses at hex %d (%.0f%%)".format(b.houseHex, 100 * b.house) else ""))
-            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it.ordinal] }
-                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
+            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it] }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it]) })
             sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
                 .ifEmpty { "none" })
             sb.appendLine("knows %d hexes; knows the homes of %d bands".format((0 until hex.size).count { b.knows(it) }, b.knownHomes.size))

@@ -67,7 +67,7 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     /** For a herd or pack: its ways this week, 1 the hand-written way (see [AnimalWay]). */
     val will = FloatArray(ANIMAL_WAYS_OUT) { 1f }
     /** For a band: food on hand, kg, by kind ([Store]). */
-    val stores = FloatArray(Store.entries.size)
+    val stores = enumFloats<Store>()
     /** All food on hand, kg; setting it scales every kind alike (gifts, raids, splits), or stores it dried. */
     var larder: Float
         get() = stores.sum()
@@ -75,10 +75,10 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
             val s = stores.sum()
             if (s > 0f) {
                 val k = max(0f, v) / s
-                for (i in stores.indices) stores[i] *= k
+                for (i in Store.entries) stores[i] *= k
             } else {
                 stores.fill(0f)
-                stores[Store.DRIED.ordinal] = max(0f, v)
+                stores[Store.DRIED] = max(0f, v)
             }
         }
     /** A band's skills, tools and camp: set for every group of people ([Species.human]) and only for them. */

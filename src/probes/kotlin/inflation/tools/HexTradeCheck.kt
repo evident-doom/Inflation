@@ -62,11 +62,11 @@ fun main(args: Array<String>) {
             sb.append("\n  year %d: %d bands, %d people; a year's worth held: %s; spears %.0f%% and clothes %.0f%% made well, dried food %.0f%% salted; %.0f%% of band-weeks in other country"
                 .format(y + 1, bands.size, bands.sumOf { it.size },
                     TRADED.joinToString(", ") { m -> "%s %.0f%%".format(m.name.lowercase(),
-                        share { g -> g.band!!.goods[m.ordinal] >= KEEP_YEARS * YEAR_NEED[m.ordinal] * g.adults }) },
-                    100.0 * bands.map { it.band!!.fine[Tool.SPEAR.ordinal].toDouble() }.average(),
-                    100.0 * bands.map { it.band!!.fine[Tool.CLOTHES.ordinal].toDouble() }.average(),
-                    100.0 * bands.sumOf { it.band!!.salted.toDouble() * it.stores[Store.DRIED.ordinal] } /
-                        bands.sumOf { it.stores[Store.DRIED.ordinal].toDouble() }.coerceAtLeast(1e-9),
+                        share { g -> g.band!!.goods[m] >= KEEP_YEARS * YEAR_NEED[m] * g.adults }) },
+                    100.0 * bands.map { it.band!!.fine[Tool.SPEAR].toDouble() }.average(),
+                    100.0 * bands.map { it.band!!.fine[Tool.CLOTHES].toDouble() }.average(),
+                    100.0 * bands.sumOf { it.band!!.salted.toDouble() * it.stores[Store.DRIED] } /
+                        bands.sumOf { it.stores[Store.DRIED].toDouble() }.coerceAtLeast(1e-9),
                     100.0 * away / bandWeeks.coerceAtLeast(1)))
             val sources = TRADED.flatMap { run.groups.materialSources.getValue(it).toList() }.toHashSet()
             val atSources = bands.sumOf { g -> g.band!!.rite.count { it >= 0 && hw.placeHex[it] in sources } }

@@ -431,7 +431,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // (And practised midwives and carers lose fewer infants.)
     val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
     // Sicknesses of their own: the flux, marsh fever, the cough (see [Illness]); healers save some.
-    val ill = if (band != null) illnessWeek(g, band, weather, r).also { for (i in it.indices) it[i] *= healed } else null
+    val ill = if (band != null) illnessWeek(g, band, weather, r).also { for (i in Illness.entries) it[i] *= healed } else null
     val thirst = thirstWeek(g)
     // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
     val plague = fauna.outbreakDeaths(s, g.place.i)
@@ -459,7 +459,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         Hazard(DeathCause.CAMP_FOULING.label, 0f, fouled), Hazard(DeathCause.SNAKES.label, venom, venom), Hazard(DeathCause.INBREEDING.label, 0f, inbred),
         Hazard(DeathCause.takenBy(stalker), stalked, YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked),
         Hazard(DeathCause.WOUNDS.label, festered, 0f))
-    ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it.label, a[it.ordinal], a[it.ordinal] * it.young) }
+    ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it.label, a[it], a[it] * it.young) }
     // The elders' care spares some of the young.
     val spared = 1f - ELDER_CARE * help
     var adultSum = 0f; var youngSum = 0f
@@ -742,10 +742,10 @@ internal fun HexGroups.mergeAndPair(date: Date) {
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
 private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
-    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED.ordinal], from.stores[Store.DRIED.ordinal],
-        into.stores[Store.SEED.ordinal], from.stores[Store.SEED.ordinal], into.id, from.id)
+    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
+        into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
-    for (i in into.stores.indices) into.stores[i] += from.stores[i]
+    for (i in Store.entries) into.stores[i] += from.stores[i]
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
     from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young

@@ -27,14 +27,14 @@ enum class Illness(val label: String, val weeks: Float, val deadly: Float, val y
  * and a spell of immunity; returns, for each sickness, the weekly share of adults it kills (children
  * by [Illness.young] times that).
  */
-internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: kotlin.random.Random): FloatArray {
+internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: kotlin.random.Random): EnumFloats<Illness> {
     val p = g.place
     val t = weather.temperature[p]
     val hygiene = b.hygiene
     val crowd = peopleCrowding(g)
-    val deaths = FloatArray(Illness.entries.size)
+    val deaths = enumFloats<Illness>()
     for (d in Illness.entries) {
-        val i = d.ordinal
+        val i = d
         val open = (1f - b.sick[i] - b.immune[i]).coerceAtLeast(0f)
         val rate = when (d) {
             Illness.FLUX -> FLUX_RATE * (min(1f, b.campWeeks / (stepsPerYear / 2f)) + 0.3f * crowd) * (if (t > 15f) 1f else 0.3f) * hygiene
@@ -62,7 +62,7 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
 internal fun passIllness(a: Band, b: Band) {
     for (d in Illness.entries) {
         if (d.contagion <= 0f) continue
-        val i = d.ordinal
+        val i = d
         val sa = a.sick[i]; val sb = b.sick[i]
         if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + d.contagion * sa * max(0f, 1f - b.sick[i] - b.immune[i]) *
             b.hygiene)
