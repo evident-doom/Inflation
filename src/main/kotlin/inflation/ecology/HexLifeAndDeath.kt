@@ -209,8 +209,8 @@ const val RANGE_RINGS = 3
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
-    houseOf = groups.filter { g -> g.alive && g.band.let { it != null && it.houseHex >= 0 && it.house >= Thresholds.HOUSE_STANDING } }
-        .associate { it.id to it.band!!.houseHex }
+    houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
+        .associate { it.id to it.band!!.houseHex.i }
     Profile.part("people: camps, tools, culture") {
         for (g in groups) if (g.alive && g.band != null) {
             bandWeek(g, weather, date)
@@ -296,7 +296,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // A band that keeps the old way leaves a camp where someone died.
         if (s.human && o.deaths > 0) g.band?.let { b ->
             if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) {
-                b.unluckyHex = hw.placeHex[g.place]
+                b.unluckyHex = Hex(hw.placeHex[g.place])
                 b.unluckyWeeks = UNLUCKY_WEEKS
                 note(g) { "left the camp where its dead lie" }
             }

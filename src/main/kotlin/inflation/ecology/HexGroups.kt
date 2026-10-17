@@ -627,17 +627,17 @@ class HexGroups(
         // either way, more weakly, without); its ancestors' places draw it a little always.
         val pull = appointPull(g, b, month, h)
         if (pull != 0f) score += APPOINT_PULL * pull
-        val dead = g.memory.deadAt(h)
+        val dead = g.memory.deadAt(Hex(h))
         if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
         // Its houses draw it home; a camp where someone died lately is shunned by those who leave their dead.
-        if (h == b.houseHex) score += HOME_PULL * b.house
-        if (h == b.unluckyHex) score -= UNLUCKY
+        if (h == b.houseHex.i) score += HOME_PULL * b.house
+        if (h == b.unluckyHex.i) score -= UNLUCKY
         // It keeps off the known homes of bands it is not close to (unless set on raiding them).
-        if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
+        if (b.raidHex.i != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
         // A band set on a raid heads for its target.
-        if (b.raidHex >= 0) {
-            val from = hexKm(here, b.raidHex)
-            if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f)
+        if (!b.raidHex.none) {
+            val from = hexKm(here, b.raidHex.i)
+            if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex.i)) / from).toFloat().coerceIn(-1f, 1f)
         }
         // A band with food enough to feast others is drawn to where other bands are (gatherings).
         if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {
@@ -718,15 +718,15 @@ class HexGroups(
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
     internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Int): Float {
-        if (b.appointHex < 0) return 0f
+        if (b.appointHex.none) return 0f
         val off = minOf(monthsFrom(b.appointMonth, month), monthsFrom(month, b.appointMonth))
         // The month before, it is on its way; without sky lore it also lingers a month after, the count being loose.
         val before = monthsFrom(month, b.appointMonth) == 1
         val weight = when { off == 0 -> 1f; before -> 0.7f; off == 1 && !b.holds(Tradition.SKY_LORE) -> 0.5f; else -> return 0f }
         val here = hw.placeHex[g.place]
-        val fromHere = hexKm(here, b.appointHex)
+        val fromHere = hexKm(here, b.appointHex.i)
         if (fromHere <= hex.hexKm) return if (h == here) weight else 0f
-        return weight * ((fromHere - hexKm(h, b.appointHex)) / fromHere).toFloat().coerceIn(-1f, 1f)
+        return weight * ((fromHere - hexKm(h, b.appointHex.i)) / fromHere).toFloat().coerceIn(-1f, 1f)
     }
 
     /** A herd's size as small (0: under its kind's unit), middling (1: up to three units) or large (2), for comparing them. */
@@ -895,9 +895,9 @@ class HexGroups(
         val toBirth = 2.0 * Math.PI * monthsFrom(month, if (g.birthMonth >= 0) g.birthMonth else s.birthMonth) / 12.0
         f[Feature.TO_BIRTHS_SIN] = sin(toBirth).toFloat(); f[Feature.TO_BIRTHS_COS] = cos(toBirth).toFloat()
         // Its ancestors buried here, and how far going here brings it toward its appointment.
-        f[Feature.ANCESTORS] = min(1f, g.memory.deadAt(h) / 10f)
+        f[Feature.ANCESTORS] = min(1f, g.memory.deadAt(Hex(h)) / 10f)
         f[Feature.APPOINTMENT] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
-        f[Feature.HOUSES] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
+        f[Feature.HOUSES] = g.band?.let { if (h == it.houseHex.i) it.house else 0f } ?: 0f
         f[Feature.OWN_SIZE] = ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
         f[Feature.LASTING_WATER] = min(1f, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p])
         f[Feature.SICKNESS] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
@@ -959,8 +959,8 @@ class HexGroups(
         // looks about, but does not trek for it: its usual week's going reaches the next place.)
         val relief = drain(g, g.place, weather) - leastDrainNear(g, here, weather) > WALK_COST * hex.hexKm.toFloat() / days
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
-        val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && monthsFrom(month, b.appointMonth) <= 1) ||
-            b.unluckyHex == here || b.raidHex >= 0 } ?: false
+        val dueSoon = g.band?.let { b -> (!b.appointHex.none && b.appointHex.i != here && monthsFrom(month, b.appointMonth) <= 1) ||
+            b.unluckyHex.i == here || !b.raidHex.none } ?: false
         val restless = restless(g, weather, thirsty, astray, dueSoon, onRound, goalFar)
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
@@ -1147,6 +1147,7 @@ class HexGroups(
     }
 
     internal fun hexKm(a: Int, b: Int): Double = hex.distanceKm(a, b)
+    internal fun hexKm(a: Hex, b: Hex): Double = hex.distanceKm(a.i, b.i)
     internal fun territoryKm(s: Species) = sqrt(max(1f, s.startKm2PerAnimal) * s.groupSize / Math.PI.toFloat()) + 5f
 
     internal fun discomfort(s: Species, p: Int, weather: Weather): Float {
