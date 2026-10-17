@@ -367,7 +367,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (band != null) {
         // This week's food: fresh meat and fish (small game and scraps with it), and plant food by kind.
         val got = plantKind
-        got[Store.FRESH.ordinal] = meat + smallGot + scraps + fish; plantKg[Store.FRESH.ordinal] = got[Store.FRESH.ordinal]
+        // (The small game's pelts are set aside as it is caught: they are not food, and go to the skins or the scavengers.)
+        val pelts = SMALL_SKIN * smallGot
+        got[Store.FRESH.ordinal] = meat + smallGot - pelts + scraps + fish; plantKg[Store.FRESH.ordinal] = got[Store.FRESH.ordinal]
         // Eaten in the order it spoils, this week's first, then from the stores.
         var need = wantAll; var ateMeat = 0f; var ateKg = 0f
         for (st in EAT_ORDER) {
@@ -390,7 +392,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         stats.hunting.merge(Tally.of(s, WeekStats.MEAT_EATEN), ateMeat.toInt(), Int::plus)
         stats.hunting.merge(Tally.of(s, WeekStats.PLANTS_EATEN), (eaten - ateMeat).toInt(), Int::plus)
-        keepAndSpoil(g, band, got, plantKg, workDays, busy, hands, fuelDays, smallGot, weather)
+        keepAndSpoil(g, band, got, plantKg, workDays, busy, hands, fuelDays, pelts, weather)
         spare = 0f; meatEaten = ateMeat
     }
     // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
@@ -437,7 +439,7 @@ private fun HexGroups.bookForage(b: Books, band: Band?, meatEaten: Float, rest: 
  * ([hands] of them, [workDays] less the [busy] days foraging) dry fresh meat and fish, the small game's skins are kept,
  * and the stores spoil, what rots going to carrion where the band is.
  */
-private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, gotKg: FloatArray, workDays: Float, busy: Float, hands: Int, fuelDays: Float, smallGot: Float,
+private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, gotKg: FloatArray, workDays: Float, busy: Float, hands: Int, fuelDays: Float, pelts: Float,
     weather: Weather) {
     val s = g.species
     // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
@@ -464,7 +466,7 @@ private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, got
     stats.hunting.merge(Tally.bandTime("firewood"), (fuelDays * hands * 10f).roundToInt(), Int::plus)
     stats.hunting.merge(Tally.bandTime("food"), ((workDays - spareDays) * hands * 10f).roundToInt(), Int::plus)
     stats.hunting.merge(Tally.bandTime("drying"), ((spareDays * hands - band.spareDays) * 10f).roundToInt(), Int::plus)
-    skinSmallGame(g, band, smallGot)
+    val unskinned = skinSmallGame(band, pelts)
     // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
     // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
     val home = if (band.atHome) band.house else 0f
@@ -480,19 +482,20 @@ private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, got
         }
         if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
     }
-    small.carrion[g.place] += land.spread(g.place, Kg(rotten)).v
+    small.carrion[g.place] += land.spread(g.place, Kg(rotten + unskinned)).v
 }
 
 /**
  * The small game's skins are kept too, as far as [b] has time to scrape and dry them: many small pelts sewn
- * together (hare, fox, marmot) clothe as well as a few big hides. (The pelts are part of the [smallGot] kg
- * caught: they come out of the fresh food not yet eaten.)
+ * together (hare, fox, marmot) clothe as well as a few big hides. [pelts] kg were set aside from the small game
+ * caught; returns the kg left unskinned, for the scavengers.
  */
-private fun HexGroups.skinSmallGame(g: HexGroup, b: Band, smallGot: Float) {
-    val skinDays = min(b.spareDays, SKIN_DAYS * min(SMALL_SKIN * smallGot, g.stores[Store.FRESH]))
-    b.goods[Material.HIDE] += skinDays / SKIN_DAYS * g.storeKgPer[Store.FRESH]; g.stores[Store.FRESH] -= skinDays / SKIN_DAYS
+private fun HexGroups.skinSmallGame(b: Band, pelts: Float): Float {
+    val skinDays = min(b.spareDays, SKIN_DAYS * pelts)
+    b.goods[Material.HIDE] += skinDays / SKIN_DAYS
     b.spareDays = max(0f, b.spareDays - skinDays)
     stats.hunting.merge(Tally.bandTime("skins"), (skinDays * 10f).roundToInt(), Int::plus)
+    return max(0f, pelts - skinDays / SKIN_DAYS)
 }
 
 /** What one of [forage]'s takes brought: kilos of food, and party-days spent on it beyond the take itself. */
