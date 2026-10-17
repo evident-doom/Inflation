@@ -158,12 +158,12 @@ class Band {
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0
-    var campHex = -1
-    var campPlace = -1
+    var campHex = Hex.NONE
+    var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = FloatArray(Store.entries.size)
     val cacheKg get() = cache.sum()
-    var cachePlace = -1
+    var cachePlace = Place.NONE
     /** Its choices: days of food it aims to keep in store (the scaffold's; a learned policy sets its own). */
     var storeAim = STORE_AIM_DAYS
     /**
@@ -171,7 +171,7 @@ class Band {
      * (with sky lore, to the month; without, a month either way), -1 for none; taken up from its
      * graves and meeting places, or from bands it meets.
      */
-    var appointHex = -1
+    var appointHex = Hex.NONE
     var appointMonth = -1
     /**
      * Its houses: round, half-sunken huts of stone and brush at hex [houseHex], built 0..1 (enough
@@ -179,13 +179,13 @@ class Band {
      * ([atHome]) they keep it warm, its stores keep better (though mice get into them) and it is
      * harder to raid.
      */
-    var houseHex = -1
+    var houseHex = Hex.NONE
     var house = 0f
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Int>()
     val knownLineage = HashMap<Int, Int>()
     /** A raid it is set on: the hex of the band's home it means to fall on, the band, and weeks left before it gives up. */
-    var raidHex = -1
+    var raidHex = Hex.NONE
     var raidOn = -1
     var raidWeeks = 0
     /** A palisade of posts and brush round its houses, 0..1; weeks since it was last raided. */
@@ -259,9 +259,9 @@ class Band {
     fun byCustom(holds: Boolean, will: Float) = (will - 1f + (if (holds) 1f else 0f)).coerceIn(0f, 1f)
 
     /** Whether it holds hex [h] as its own: its houses, its dead, its appointment place. */
-    fun claims(h: Int, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
+    fun claims(h: Hex, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
     /** A hex it shuns after a death there, and for how many more weeks ([Tradition.LEAVE_DEAD]). */
-    var unluckyHex = -1
+    var unluckyHex = Hex.NONE
     var unluckyWeeks = 0
     /** Brush shelters at its present camp, 0..1 (left behind when it moves on). */
     var shelter = 0f
@@ -583,8 +583,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val b = g.band ?: return
     b.weeks++
     learnCountry(g, b, weather)
-    val p = g.place
-    val h = hw.placeHex[p]
+    val p = Place(g.place)
+    val h = hw.hexOf(p)
     val area = land.m2(p)
     campAndCache(g, b, p, h, date)
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
@@ -620,7 +620,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     stats.hunting.merge(Tally.bandTime("tools"), ((t2 - time) * 10f).roundToInt(), Int::plus)
     stats.hunting.merge(Tally.bandTime("left"), (time * 10f).roundToInt(), Int::plus)
     b.renown *= 1f - RENOWN_FADE * years
-    if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
+    if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = Hex.NONE
     b.sinceRaided++
     plotRaid(g, b, weather)
     keepFire(g, b)
@@ -645,7 +645,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
     // as its time and timber go.
     time = buildPalisade(b, people, time)
-    if (b.houseHex >= 0 && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
+    if (!b.houseHex.none && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
     b.spareDays = max(0f, time)
     // A band carries only so much: the rest is left behind (and goes back to the ground); at a camp it
     // keeps, it stacks building stone and timber beyond that.
@@ -686,14 +686,14 @@ private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + 
  * the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it
  * has room for.
  */
-private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: Date) {
+private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date: Date) {
     if (h != b.campHex) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
-        if (b.campHex >= 0) {
+        if (!b.campHex.none) {
             val carry = carryKg(g, b)
             val total = g.larder
-            if (total > carry && b.campPlace >= 0) {
+            if (total > carry && !b.campPlace.none) {
                 // (It chooses how much of what it cannot carry to cache; the rest is left where it lies.)
                 val left = 1f - carry / total
                 val cached = min(1f, b.cacheWill)
@@ -714,7 +714,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: D
     } else b.campWeeks++
     b.campPlace = p
     // A cache keeps, but not perfectly; back at it, the band takes up what it has room for.
-    if (b.cachePlace >= 0) {
+    if (!b.cachePlace.none) {
         // (A cache spoils as stores do, and mice and badgers get into it too; boar, bears and hyenas dig
         // it up where they are about.)
         run {
@@ -735,7 +735,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: D
         val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]]) + CACHE_SPOIL * b.cacheKg
         for (i in b.cache.indices) b.cache[i] *= 1f - CACHE_SPOIL
         small.litter[b.cachePlace] += spoilt / (land.areaKm2[b.cachePlace] * 1e6f)
-        if (hw.placeHex[b.cachePlace] == h) {
+        if (hw.hexOf(b.cachePlace) == h) {
             val room = max(0f, carryKg(g, b) - g.larder)
             val take = min(b.cacheKg, room)
             val share = if (b.cacheKg > 0f) take / b.cacheKg else 0f
@@ -747,12 +747,12 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: D
 }
 
 /** What the country gives [g]'s band in a week, kg per adult, into its goods. */
-private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Int, h: Int, people: Float, area: Float) {
+private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, area: Float) {
     val gd = b.goods
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
     // along the way (poorer stone anywhere), wood and resin where there are trees, fibre from grass,
     // scrub and reeds; hides, bone and sinew from the big game it killed.
-    fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.sameBandPlace(p, q).takeIf { it >= 0 }?.let { a[it] } ?: 0f } ?: 0f)
+    fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.sameBandPlace(p.i, q).takeIf { it >= 0 }?.let { a[it] } ?: 0f } ?: 0f)
     val stone = alongTheWay(land.stone)
     // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED].)
     gd[Material.STONE.ordinal] += people * 0.8f * min(1f, 5f * stone)
@@ -768,8 +768,8 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Int, h: Int, peop
     gd[Material.FIBRE.ordinal] += fibre
     // Shells on the shore, for beads.
     if (hw.coast[h]) gd[Material.SHELL.ordinal] += SHELL_A_WEEK * people
-    land.plants.consume(p, LifeForm.TREE, wood * land.plants.tree[p] / max(1e-6f, woody) / area)
-    land.plants.consume(p, LifeForm.HERB, fibre / area)
+    land.plants.consume(p.i, LifeForm.TREE, wood * land.plants.tree[p] / max(1e-6f, woody) / area)
+    land.plants.consume(p.i, LifeForm.HERB, fibre / area)
 }
 
 /**
@@ -882,10 +882,10 @@ private fun HexGroups.makeTools(b: Band, people: Float, time0: Float): Float {
  * [time0] days to spare, as far as its stone and timber go; houses it has left weather away.
  * Returns the days left.
  */
-private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Int, h: Int, people: Float, years: Float, time0: Float): Float {
+private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, years: Float, time0: Float): Float {
     val gd = b.goods
     var time = time0
-    if (b.houseHex >= 0 && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
+    if (!b.houseHex.none && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
     // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
     if (b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f) && time > 0f && people > 0f && g.fed >= 0.9f &&
         g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
@@ -931,7 +931,7 @@ private fun HexGroups.makeOrnaments(b: Band, people: Float, time0: Float): Float
 }
 
 /** In autumn [g]'s band at home sows a share of its stored grain on its home ground, in the [time0] days to spare. Returns the days left. */
-private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Int, date: Date, time0: Float): Float {
+private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time0: Float): Float {
     var time = time0
     if (b.atHome && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f && time > 0f) {
         val stock = g.stores[Store.SEED.ordinal]
@@ -963,7 +963,7 @@ private fun HexGroups.buildPalisade(b: Band, people: Float, time0: Float): Float
 }
 
 /** What [b] cannot carry is left behind at place [p] (and goes back to the ground); at a camp it keeps, it stacks building stone and timber beyond that. */
-private fun HexGroups.leaveExcess(b: Band, p: Int, people: Float, area: Float) {
+private fun HexGroups.leaveExcess(b: Band, p: Place, people: Float, area: Float) {
     val gd = b.goods
     for (m in gd.indices) {
         val stack = if (m == Material.STONE.ordinal || m == Material.WOOD.ordinal) (if (b.campWeeks >= 4) HOUSE_STONE + HOUSE_WOOD else 0f) else 0f
@@ -1029,8 +1029,8 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
 
 /** Gives up a band's cache: what is in it goes back to the ground. */
 private fun HexGroups.dropCache(b: Band) {
-    if (b.cachePlace >= 0) small.litter[b.cachePlace] += b.cacheKg / (land.areaKm2[b.cachePlace] * 1e6f)
-    b.cache.fill(0f); b.cachePlace = -1
+    if (!b.cachePlace.none) small.litter[b.cachePlace] += b.cacheKg / (land.areaKm2[b.cachePlace] * 1e6f)
+    b.cache.fill(0f); b.cachePlace = Place.NONE
 }
 
 /** How much more slowly a tool wears lying idle than in use; how much of a craft a band learns making do without its tools. */
@@ -1232,7 +1232,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[i++] = min(1f, friends / 3f); into[i++] = min(1f, strangers / 3f); into[i++] = min(1f, foes / 3f)
     into[i++] = if (near > 0) min(1f, theirSick / near) else 0f
     into[i++] = 1f - min(1f, b.sinceRaided / stepsPerYear)
-    into[i++] = if (b.raidHex >= 0) 1f else 0f
+    into[i++] = if (!b.raidHex.none) 1f else 0f
     into[i++] = min(1f, b.inbred * 4f)
     // Its customs, and its temperament.
     for (t in Tradition.entries) into[i++] = if (b.holds(t)) 1f else 0f
@@ -1338,7 +1338,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
     val caches = HashMap<Int, ArrayList<HexGroup>>()
     for (g in groups) {
         val b = g.band ?: continue
-        if (g.alive && b.cachePlace >= 0 && b.cacheKg > 1f) caches.getOrPut(hw.placeHex[b.cachePlace]) { ArrayList() } += g
+        if (g.alive && !b.cachePlace.none && b.cacheKg > 1f) caches.getOrPut(hw.placeHex[b.cachePlace]) { ArrayList() } += g
     }
     if (caches.isEmpty()) return
     for (g in groups) {
@@ -1349,7 +1349,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
             for (o in owners) {
                 val ob = o.band ?: continue
                 if (o === g || b.tie(o.id) > 0.3f || ob.cacheKg <= 1f) continue
-                if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace, weather) * (1f + b.scoutShare * 5f)) continue
+                if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace.i, weather) * (1f + b.scoutShare * 5f)) continue
                 // (Found, it is the band's choice whether to take from it.)
                 if (rnd.nextFloat() >= min(1f, b.robWill)) continue
                 val takeShare = CACHE_TAKE * max(1f, b.robWill)
@@ -1373,13 +1373,13 @@ internal fun HexGroups.robCaches(weather: Weather) {
  * it gives up.
  */
 internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
-    val here = hw.placeHex[g.place]
-    if (b.raidHex >= 0) {
+    val here = hw.hexOf(Place(g.place))
+    if (!b.raidHex.none) {
         if (here == b.raidHex) {
-            val target = groups.firstOrNull { it.id == b.raidOn && it.alive && hw.placeHex[it.place] == here }
+            val target = groups.firstOrNull { it.id == b.raidOn && it.alive && hw.hexOf(Place(it.place)) == here }
             if (target?.band != null) raidsDue += g to target
-            b.raidHex = -1; b.raidOn = -1
-        } else if (--b.raidWeeks <= 0) { b.raidHex = -1; b.raidOn = -1 }
+            b.raidHex = Hex.NONE; b.raidOn = -1
+        } else if (--b.raidWeeks <= 0) { b.raidHex = Hex.NONE; b.raidOn = -1 }
         return
     }
     val hungry = g.fed < RAID_HUNGER * b.raidWill.coerceAtMost(1.6f)
@@ -1388,11 +1388,11 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         if (b.tie(id) > 0f) continue
         val feud = (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
         if (!hungry && !feud) continue
-        val km = hexKm(here, h)
+        val km = hexKm(here, Hex(h))
         if (km <= RAID_RANGE_KM && km < bestKm) { bestKm = km; best = id }
     }
     if (best >= 0 && rnd.nextFloat() < RAID_PLOT * b.raidWill * days / 7f) {
-        b.raidOn = best; b.raidHex = b.knownHomes.getValue(best); b.raidWeeks = RAID_WEEKS
+        b.raidOn = best; b.raidHex = Hex(b.knownHomes.getValue(best)); b.raidWeeks = RAID_WEEKS
         stats.meetings.merge("raids set out", 1, Int::plus)
         note(g) { "set out to raid band #%d at hex %d".format(best, b.raidHex) }
     }

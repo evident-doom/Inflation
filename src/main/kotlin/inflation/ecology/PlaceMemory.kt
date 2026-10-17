@@ -21,8 +21,8 @@ class PlaceMemory {
     val met = FloatArray(MEMORY_SLOTS)
 
     /** Of all seasons at hex [h]: its dead buried there, and bands met there. */
-    fun deadAt(h: Int): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h) s += dead[i]; return s }
-    fun metAt(h: Int): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h) s += met[i]; return s }
+    fun deadAt(h: Hex): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h.i) s += dead[i]; return s }
+    fun metAt(h: Hex): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h.i) s += met[i]; return s }
 
     /** Adds [n] to slot of hex [h] in season [s]'s count in [what] (making the slot if need be). */
     fun mark(h: Int, s: Int, week: Int, perYear: Float, what: FloatArray, n: Float) {

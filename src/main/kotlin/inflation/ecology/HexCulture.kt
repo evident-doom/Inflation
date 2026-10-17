@@ -226,12 +226,12 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         val hMeet = hw.placeHex[a.place]; val wk = stepOf(weather.date); val sMeet = PlaceMemory.seasonOf(weather.date.month)
         a.memory.mark(hMeet, sMeet, wk, stepsPerYear, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, stepsPerYear, b.memory.met, 1f)
         // And where each has its houses, and the homes of others they know of: settled bands can be found.
-        if (bandB.houseHex >= 0 && bandB.house >= Thresholds.HOUSE_STANDING) {
-            bandA.knownHomes[b.id] = bandB.houseHex
+        if (!bandB.houseHex.none && bandB.house >= Thresholds.HOUSE_STANDING) {
+            bandA.knownHomes[b.id] = bandB.houseHex.i
             bandA.knownLineage[b.id] = bandB.mainLineage()
         }
-        if (bandA.houseHex >= 0 && bandA.house >= Thresholds.HOUSE_STANDING) {
-            bandB.knownHomes[a.id] = bandA.houseHex
+        if (!bandA.houseHex.none && bandA.house >= Thresholds.HOUSE_STANDING) {
+            bandB.knownHomes[a.id] = bandA.houseHex.i
             bandB.knownLineage[a.id] = bandA.mainLineage()
         }
         for ((id, hh) in bandB.knownHomes) if (id != a.id && rnd.nextFloat() < u) {
@@ -243,9 +243,9 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
             bandA.knownLineage[id]?.let { bandB.knownLineage.putIfAbsent(id, it) }
         }
         fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {
-            if (by.appointHex < 0 || by.appointHex == bx.appointHex) return
+            if (by.appointHex.none || by.appointHex == bx.appointHex) return
             val theirs = y.memory.deadAt(by.appointHex) + y.memory.metAt(by.appointHex)
-            val ours = if (bx.appointHex >= 0) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
+            val ours = if (!bx.appointHex.none) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
             if (theirs > ours && rnd.nextFloat() < u * (0.3f + 0.7f * max(0f, bx.tie(y.id)))) {
                 bx.appointHex = by.appointHex; bx.appointMonth = by.appointMonth
                 stats.meetings.merge("bands took up another's appointment", 1, Int::plus)
@@ -274,7 +274,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     val feud = b.grudge[ob.mainLineage()] > FEUD
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
-    val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
+    val trespass = if (b.claims(hw.hexOf(Place(g.place)), g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
     val pressure = if (feud) 1f else maxOf(hunger, min(1f, peopleCrowding(g)), trespass)
     // Strangers (never met before) and those of other customs are easier to fight.
     val stranger = if (o.id !in b.ties) STRANGER_HOSTILITY else 0f
@@ -433,7 +433,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.
-    if (b.appointHex < 0 &&
+    if (b.appointHex.none &&
         rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat() * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill)) {
         val mem = g.memory
         var best = -1; var bestScore = 0f
@@ -443,7 +443,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
             if (mem.dead[i] + mem.met[i] >= APPOINT_MIN && score > bestScore) { bestScore = score; best = i }
         }
         if (best >= 0) {
-            b.appointHex = mem.hex[best]
+            b.appointHex = Hex(mem.hex[best])
             b.appointMonth = mem.season[best] * 3 + 1
             stats.meetings.merge("bands made an appointment", 1, Int::plus)
         }

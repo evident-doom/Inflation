@@ -37,9 +37,9 @@ fun HexGroup.violations(placeHex: IntArray): List<String> {
     check("herd ${b.herd.toList()}", b.herd.allIn(0f, Float.MAX_VALUE))
     check("herd of ${b.herd.size} kinds, tameness of ${b.herdTame.size}", b.herd.size == b.herdTame.size)
     check("tameness ${b.herdTame.toList()}", b.herdTame.allIn(0f, 1.0001f))
-    check("camp at place ${b.campPlace} but hex ${b.campHex}", b.campPlace < 0 || placeHex[b.campPlace] == b.campHex)
-    check("appointment at hex ${b.appointHex} in month ${b.appointMonth}", (b.appointHex >= 0) == (b.appointMonth >= 0))
-    check("raid on band ${b.raidOn} at hex ${b.raidHex}", (b.raidHex >= 0) == (b.raidOn >= 0))
-    check("unlucky hex ${b.unluckyHex} for ${b.unluckyWeeks} weeks", (b.unluckyHex >= 0) == (b.unluckyWeeks > 0))
+    check("camp at place ${b.campPlace} but hex ${b.campHex}", b.campPlace.none || placeHex[b.campPlace] == b.campHex.i)
+    check("appointment at hex ${b.appointHex} in month ${b.appointMonth}", (!b.appointHex.none) == (b.appointMonth >= 0))
+    check("raid on band ${b.raidOn} at hex ${b.raidHex}", (!b.raidHex.none) == (b.raidOn >= 0))
+    check("unlucky hex ${b.unluckyHex} for ${b.unluckyWeeks} weeks", (!b.unluckyHex.none) == (b.unluckyWeeks > 0))
     return bad
 }
