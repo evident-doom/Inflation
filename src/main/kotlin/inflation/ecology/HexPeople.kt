@@ -352,7 +352,8 @@ class Band {
      */
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
-        o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
+        o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf(); o.herd = herd.copyOf()
+        o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
@@ -375,6 +376,7 @@ class Band {
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
         copied(o)
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
+        for (i in o.herd.indices) { o.herd[i] *= share; herd[i] -= o.herd[i] }
         for (m in goods.indices) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
         o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
@@ -391,10 +393,12 @@ class Band {
     /**
      * Band [b] (of [bAdults] adults, [w] of the adults of the two) joins this one: the best of what either
      * knew, its goods and kept animals added, kit, descent and inbreeding blended by adults, its dried food's
-     * salting by the dried food each held ([dried] and [bDried], kg). [id] and [bId] are the two bands' ids.
+     * salting by the dried food each held ([dried] and [bDried], kg), its grain's by the seed each held ([seed],
+     * [bSeed]); its herd, ornaments and exotic goods added, the herd's tameness blended by the animals, its
+     * sick, immune, hurt and lame blended by adults. [id] and [bId] are the two bands' ids.
      * Each field's rule is in [CARRY].
      */
-    fun absorb(b: Band, bAdults: Int, w: Float, dried: Float, bDried: Float, id: Int, bId: Int) {
+    fun absorb(b: Band, bAdults: Int, w: Float, dried: Float, bDried: Float, seed: Float, bSeed: Float, id: Int, bId: Int) {
         val a = this
         for (i in a.skills.indices) a.skills[i] = max(a.skills[i], b.skills[i])
         for (i in a.holders.indices) a.holders[i] = max(0f, a.holders[i]) + max(0f, b.holders[i])
@@ -408,6 +412,16 @@ class Band {
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
         if (dried + bDried > 0f) a.salted = (dried * a.salted + bDried * b.salted) / (dried + bDried)
+        if (seed + bSeed > 0f) a.seedDomestic = (seed * a.seedDomestic + bSeed * b.seedDomestic) / (seed + bSeed)
+        for (i in a.sick.indices) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
+        a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
+        a.ornaments += b.ornaments; a.exotic += b.exotic
+        if (a.herd.size < b.herd.size) { a.herd = a.herd.copyOf(b.herd.size); a.herdTame = a.herdTame.copyOf(b.herd.size) }
+        for (i in b.herd.indices) {
+            val n = a.herd[i] + b.herd[i]
+            if (n > 0f) a.herdTame[i] = (a.herd[i] * a.herdTame[i] + b.herd[i] * b.herdTame.getOrElse(i) { 0f }) / n
+            a.herd[i] = n
+        }
         a.renown = max(a.renown, b.renown)
         for (i in a.knows.indices) a.knows[i] = a.knows[i] || b.knows[i]
         for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])

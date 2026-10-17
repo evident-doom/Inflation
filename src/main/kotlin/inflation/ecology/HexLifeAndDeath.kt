@@ -741,9 +741,10 @@ internal fun HexGroups.mergeAndPair(date: Date) {
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
 private fun joinBand(into: HexGroup, from: HexGroup) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
-    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED.ordinal], from.stores[Store.DRIED.ordinal], into.id, from.id)
+    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED.ordinal], from.stores[Store.DRIED.ordinal],
+        into.stores[Store.SEED.ordinal], from.stores[Store.SEED.ordinal], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
-    into.larder += from.larder
+    for (i in into.stores.indices) into.stores[i] += from.stores[i]
     into.memory.hear(from.memory, 0, 1f)
     from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young
