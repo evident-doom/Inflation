@@ -134,7 +134,7 @@ class HuntTally(private val sim: HexSim) {
             s.name + ": " + year.entries.filter { it.key.startsWith(prefix) }.sortedByDescending { it.value }.joinToString(", ") { (k, n) ->
                 val prey = k.removePrefix(prefix)
                 "%s %d / %d".format(prey, n, year[Tally.of(s, Tally.HURT_BY + prey)] ?: 0)
-            }
+            } + " (let pass: %d rare, %d not worth it)".format(year["${s.name}:herds let pass"] ?: 0, year["${s.name}:herds not worth it"] ?: 0)
         })
     }
 

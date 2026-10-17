@@ -1063,11 +1063,12 @@ internal fun killDays(chance: Float, kg: Float, packKg: Float) =
  * cost are worth. Armed prey kill a hunter now and then ([fightBack]) when the hunters get to grips with them
  * (at [reach] a try); a hunter lost is all it would
  * yet have eaten, its share of the food for the life still before it, by the odds it now lives under (the hungry,
- * the cold and the sick risk more, having less to lose).
+ * the cold and the sick risk more, having less to lose). People do not weigh it yet: by meat alone it turns them
+ * from big game altogether, while what a herd kill brings a band besides meat (its hide, for clothes) is not counted.
  */
 internal fun HexGroups.worthChasing(hunter: HexGroup, ps: Species, chance: Float, packKg: Float, reach: Float): Boolean {
     val kg = killKg(hunter, ps)
-    val lost = fightBack(ps, packKg) * reach / chance.coerceAtLeast(1e-3f)
+    val lost = if (hunter.band != null) 0f else fightBack(ps, packKg) * reach / chance.coerceAtLeast(1e-3f)
     val life = hunter.species.dailyIntakeKg * days / max(hunter.deathOdds, hunter.species.backgroundMortality * years)
     return (kg - lost * life) / killDays(chance, kg, packKg) >= hunter.dietRate
 }
