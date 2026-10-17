@@ -321,7 +321,7 @@ class HexGroups(
                 val risk = DROWN * gapKm / Catalogue.swimKm(g.species).coerceAtLeast(1f)
                 val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
                 adultsDied(g, lostA, rnd); g.young -= lostY
-                if (lostA + lostY > 0) stats.deaths.merge("${g.species.name}:${DeathCause.DROWNED_CROSSING}", lostA + lostY, Int::plus)
+                if (lostA + lostY > 0) stats.deaths.merge(Tally.of(g.species, DeathCause.DROWNED_CROSSING), lostA + lostY, Int::plus)
                 stats.meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
             }
         }

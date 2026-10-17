@@ -1,6 +1,7 @@
 package inflation.tools.fauna
 
 import inflation.ecology.Tally
+import inflation.ecology.Catalogue
 import inflation.ecology.Thresholds
 import inflation.ecology.DeathCause
 import inflation.ecology.WeekStats
@@ -35,8 +36,8 @@ class DeathTally(private val sim: HexSim) {
         val fauna = sim.fauna; val groups = sim.groups
         for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
         for ((key, v) in groups.stats.deaths) causes.merge(key, v.toDouble(), Double::plus)
-        for ((key, v) in groups.stats.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
-        for ((key, v) in groups.stats.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
+        for ((key, v) in groups.stats.kills) causes.merge(Tally.of(key, Tally.HUNTED), v.toDouble(), Double::plus)
+        for ((key, v) in groups.stats.births) causes.merge(Tally.of(key, Tally.BORN), v.toDouble(), Double::plus)
         for ((key, v) in groups.stats.hunting) if (key.startsWith(Tally.HERD_SIZE)) causes.merge(key, v.toDouble(), Double::plus)
         for (gr in groups.groups) if (gr.alive && !gr.species.carnivore) herdHeadWeeks[groups.sizeClass(gr)] += gr.size.toDouble()
     }
@@ -46,8 +47,8 @@ class DeathTally(private val sim: HexSim) {
 
     fun printHuntersBornAndDied() {
         println("     hunters this year, born / died: " + sim.groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
-            val born = thisYear("${s.name}:+born")
-            val died = causes.entries.filter { it.key.startsWith(s.name + ":") && !it.key.endsWith("+born") }.sumOf { it.value - (before[it.key] ?: 0.0) }
+            val born = thisYear(Tally.of(s, Tally.BORN))
+            val died = causes.entries.filter { it.key.startsWith(Tally.of(s, "")) && !it.key.endsWith(Tally.BORN) }.sumOf { it.value - (before[it.key] ?: 0.0) }
             "%s %.0f / %.0f".format(s.name, born, died)
         })
     }
@@ -56,7 +57,7 @@ class DeathTally(private val sim: HexSim) {
     fun printResidentDeathsThisYear() {
         val residentNames = sim.fauna.kinds.map { it.name }.toSet()
         val year = HashMap<String, Double>()
-        for ((key, v) in causes) if (key.substringBefore(":") in residentNames) year.merge(key.substringAfter(":"), v - (before[key] ?: 0.0), Double::plus)
+        for ((key, v) in causes) if (Tally.kindOf(key) in residentNames) year.merge(Tally.whatOf(key), v - (before[key] ?: 0.0), Double::plus)
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }
             .joinToString(", ") { "%s %.0f".format(it.key, it.value) })
     }
@@ -76,8 +77,8 @@ class DeathTally(private val sim: HexSim) {
     fun printRunDeaths() {
         println("deaths over the run, by cause:")
         for (s in sim.fauna.kinds + sim.groups.kinds) {
-            val c = causes.entries.filter { it.key.substringBefore(":") == s.name && !it.key.endsWith("+born") }
-                .map { it.key.substringAfter(":") to it.value }.sortedByDescending { it.second }
+            val c = causes.entries.filter { Tally.kindOf(it.key) == s.name && !it.key.endsWith(Tally.BORN) }
+                .map { Tally.whatOf(it.key) to it.value }.sortedByDescending { it.second }
             val all = c.sumOf { it.second }.coerceAtLeast(1.0)
             println("  %-12s ".format(s.name) + c.filter { 100 * it.second / all >= 0.5 }.joinToString(", ") { (k, v) -> "$k %.0f%%".format(100 * v / all) })
         }
@@ -101,7 +102,7 @@ class HuntTally(private val sim: HexSim) {
 
     fun week() {
         val groups = sim.groups
-        grainReapedNow += (groups.stats.hunting["people:${WeekStats.GRAIN_REAPED}"] ?: 0) / 1000.0
+        grainReapedNow += (groups.stats.hunting[Tally.of(Catalogue.HUMAN, WeekStats.GRAIN_REAPED)] ?: 0) / 1000.0
         for ((key, v) in groups.stats.hunting) year.merge(key, v, Int::plus)
         for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
         for (g in groups.groups) if (g.alive && g.species.carnivore) {
@@ -307,17 +308,17 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     fun printAgainstTheRecord(deaths: DeathTally, hunting: HuntTally) {
         if (bandWeeks <= 0) return
         val weeks = stepsPerYear.toDouble()
-        fun yearly(cause: String) = deaths.thisYear("people:$cause")
+        fun yearly(cause: String) = deaths.thisYear(Tally.of(Catalogue.HUMAN, cause))
         val causes = deaths.causes
-        val died = causes.keys.filter { it.startsWith("people:") && !it.endsWith("+born") && !it.endsWith(":hunted") }.sumOf { yearly(it.substringAfter(':')) }
-        val childDied = (hunting.year["people:${WeekStats.CHILDREN_DIED}"] ?: 0).toDouble()
+        val died = causes.keys.filter { it.startsWith(Tally.of(Catalogue.HUMAN, "")) && !it.endsWith(Tally.BORN) && !it.endsWith(":" + Tally.HUNTED) }.sumOf { yearly(Tally.whatOf(it)) }
+        val childDied = (hunting.year[Tally.of(Catalogue.HUMAN, WeekStats.CHILDREN_DIED)] ?: 0).toDouble()
         val children = childWeeks / weeks; val adults = adultWeeks / weeks
         val childQ = childDied / children.coerceAtLeast(1.0)
         val adultQ = ((died - childDied).coerceAtLeast(0.0)) / adults.coerceAtLeast(1.0)
-        val meat = (hunting.year["people:${WeekStats.MEAT_EATEN}"] ?: 0).toDouble()
-        val plants = (hunting.year["people:${WeekStats.PLANTS_EATEN}"] ?: 0).toDouble()
+        val meat = (hunting.year[Tally.of(Catalogue.HUMAN, WeekStats.MEAT_EATEN)] ?: 0).toDouble()
+        val plants = (hunting.year[Tally.of(Catalogue.HUMAN, WeekStats.PLANTS_EATEN)] ?: 0).toDouble()
         val violent = yearly(DeathCause.RAIDS.label) +
-            causes.keys.filter { it.startsWith("people:${DeathCause.KILLED_BY}") }.sumOf { yearly(it.substringAfter(':')) }
+            causes.keys.filter { it.startsWith(Tally.of(Catalogue.HUMAN, DeathCause.KILLED_BY)) }.sumOf { yearly(Tally.whatOf(it)) }
         val bandsSeen = walked.size.coerceAtLeast(1)
         run {
             val all = sim.groups.stats.childDeaths.mapValues { it.value.sumThenReset() }.filter { it.value > 0.0 }
@@ -329,7 +330,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | years between births %.1f [3-4] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
             bandHeads / bandWeeks, bandHeads / weeks / sim.land.areaKm2.sum(), moves.toDouble() / bandsSeen,
             walked.values.map { it.size }.average() * hex.areaKm2, 100 * plants / (meat + plants).coerceAtLeast(1.0),
-            (motherWeeks / weeks) / yearly("+born").coerceAtLeast(1.0), 100 * Math.pow((1 - childQ).coerceIn(0.0, 1.0), 15.0),
+            (motherWeeks / weeks) / yearly(Tally.BORN).coerceAtLeast(1.0), 100 * Math.pow((1 - childQ).coerceIn(0.0, 1.0), 15.0),
             1 / adultQ.coerceAtLeast(1e-3), 100 * violent / died.coerceAtLeast(1.0)))
     }
 }
