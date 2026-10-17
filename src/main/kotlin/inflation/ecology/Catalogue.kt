@@ -235,6 +235,7 @@ object Catalogue {
         activity = floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
         shelters = setOf(Niches.Shelter.DEN, Niches.Shelter.THICKET),
         swimKm = 10f,
+        takesPeople = 0.4f,
     )
 
     /**
@@ -262,6 +263,7 @@ object Catalogue {
         activity = floatArrayOf(0.3f, 0.1f, 0.3f, 0.3f),
         shelters = setOf(Niches.Shelter.DEN),
         swimKm = 4f,
+        takesPeople = 0.3f,
     )
 
     /**
@@ -286,6 +288,7 @@ object Catalogue {
         ferocity = 1.2f,
         startKm2PerAnimal = 50f,
         activity = floatArrayOf(0.25f, 0.05f, 0.3f, 0.4f),
+        takesPeople = 1f,
     )
 
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
@@ -308,6 +311,7 @@ object Catalogue {
         startKm2PerAnimal = 50f,
         activity = floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
         shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.DEN, Niches.Shelter.THICKET, Niches.Shelter.TREE),
+        takesPeople = 1.2f,
     )
 
     /**
@@ -356,6 +360,7 @@ object Catalogue {
         activity = floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
         shelters = setOf(Niches.Shelter.DEN),
         cracksBones = true,
+        takesPeople = 0.3f,
     )
 
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */

@@ -1,5 +1,6 @@
 package inflation
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -34,4 +35,21 @@ fun unitOf(h: Long): Float = (h ushr 40).toFloat() / (1L shl 24).toFloat()
 fun gaussian(r: kotlin.random.Random): Double {
     val u = max(r.nextDouble(), 1e-12)
     return sqrt(-2 * ln(u)) * cos(2 * Math.PI * r.nextDouble())
+}
+
+/** A Poisson draw of [mean] from [r] (normal above a mean of 30). */
+fun poisson(mean: Float, r: kotlin.random.Random): Int {
+    if (mean <= 0f) return 0
+    if (mean > 30f) return (mean + sqrt(mean) * gaussian(r).toFloat()).toInt().coerceAtLeast(0)
+    val l = exp(-mean.toDouble()); var k = 0; var pr = 1.0
+    do { k++; pr *= r.nextDouble() } while (pr > l)
+    return k - 1
+}
+
+/** A binomial draw of [n] tries at [p] from [r] (normal above 50 tries). */
+fun binomial(n: Int, p: Float, r: kotlin.random.Random): Int {
+    if (n <= 0 || p <= 0f) return 0
+    if (p >= 1f) return n
+    if (n > 50) return (n * p + sqrt(n * p * (1 - p)) * gaussian(r).toFloat()).toInt().coerceIn(0, n)
+    var k = 0; repeat(n) { if (r.nextFloat() < p) k++ }; return k
 }

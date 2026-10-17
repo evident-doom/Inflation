@@ -153,6 +153,8 @@ class Species(
     val swimKm: Float = -1f,
     /** Cracks bones and lives on what others leave long after the meat is gone. */
     val cracksBones: Boolean = false,
+    /** How readily it takes people (leopards 1.2, lions 1, bears 0.4, wolves and hyenas 0.3; 0: never), see [STALKED]. */
+    val takesPeople: Float = 0f,
 ) {
     /** Position in [Catalogue.all] (its [id]), for array lookups. */
     var index = -1
