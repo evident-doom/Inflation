@@ -3,6 +3,7 @@ package inflation.tools
 import inflation.Config
 import inflation.saturate
 import inflation.ecology.Thresholds
+import inflation.ecology.HexFauna
 import inflation.ecology.roundOf
 import inflation.ecology.get
 import inflation.tools.fauna.FaunaCheckOptions
@@ -56,6 +57,8 @@ fun main(args: Array<String>) {
     val fArea = Array(4) { DoubleArray(nb) }
     val fGrass = Array(4) { DoubleArray(nb) }; val fGreen = Array(4) { DoubleArray(nb) }; val fNour = Array(4) { DoubleArray(nb) }
     val fStraw = Array(4) { DoubleArray(nb) }; val fGrazed = Array(4) { DoubleArray(nb) }; val fCured = Array(4) { DoubleArray(nb) }
+    // What a week's grazing can take without eating the place bare (as the feeding reckons it), kg/km²/day.
+    val fSupply = Array(4) { DoubleArray(nb) }
     // Per herd kind: quality and its parts by kind of country and season (area-weighted, once a month).
     class Judge { val a = Array(4) { DoubleArray(nb) }; val q = Array(4) { DoubleArray(nb) }; val food = Array(4) { DoubleArray(nb) }
         val ground = Array(4) { DoubleArray(nb) }; val fresh = Array(4) { DoubleArray(nb) }; val tether = Array(4) { DoubleArray(nb) }
@@ -69,7 +72,8 @@ fun main(args: Array<String>) {
         val roundQ = DoubleArray(4); val hereQ = DoubleArray(4) }
     val judge = herds.associateWith { Judge() }; val stand = herds.associateWith { Stand() }
     val startCount = HashMap<String, Int>(); val endCount = HashMap<String, Int>()
-    var deathsAt = mapOf<String, Int>()
+    // Deaths and births over the measured year (the groups' tallies are for the week only).
+    val deathsYear = HashMap<String, Int>(); val bornYear = HashMap<String, Int>()
     val b = groups.bearings
     val pullKm = 40.0
     fun pullTarget(k: Int, h: Int): Int {
@@ -86,9 +90,10 @@ fun main(args: Array<String>) {
         val measuring = w >= steps - perYear
         if (!measuring) return@repeat
         if (w == steps - perYear) {
-            deathsAt = groups.stats.deaths.toMap()
             for (s in herds) startCount[s.name] = groups.groups.filter { it.alive && it.species == s }.sumOf { it.size }
         }
+        for ((k, v) in groups.stats.deaths) deathsYear.merge(k, v, Int::plus)
+        for ((k, v) in groups.stats.births) bornYear.merge(k, v, Int::plus)
         val m = b.month; val se = season(m)
         // Forage, each week.
         for (p in 0 until n) {
@@ -97,6 +102,8 @@ fun main(args: Array<String>) {
             fGrass[se][bi] += a * land.palatable[p] * land.plants.herb[p]
             fGreen[se][bi] += a * land.plants.green[p]; fNour[se][bi] += a * land.plants.nourishment(p)
             fStraw[se][bi] += a * land.plants.straw[p]; fGrazed[se][bi] += a * land.plants.grazing[p]
+            val reach = HexFauna.REACH_DORMANT + (HexFauna.REACH - HexFauna.REACH_DORMANT) * land.plants.green[p]
+            fSupply[se][bi] += a * reach * land.palatable[p] * land.plants.herb[p] * 1e6 / 7
             fCured[se][bi] += a * (if (land.plants.cured[p]) 1.0 else 0.0)
         }
         // How each kind judges the land, once a month.
@@ -154,12 +161,12 @@ fun main(args: Array<String>) {
     println()
     println("land by kind of country (each place's chief one): " + shown.joinToString(", ") { "%s %.1f%%".format(bname(it), 100 * area[it] / landArea) })
     println()
-    println("== forage by kind of country and season: grass within reach (palatable herbs) kg/m², green 0..1, nourishment, cured share, straw g/m², grazing kg/km²/day")
+    println("== forage by kind of country and season: grass within reach (palatable herbs) kg/m², green 0..1, nourishment, cured share, straw g/m², grazing kg/km²/day of the grass a week's grazing may take (kg/km²/day)")
     for (bi in shown) {
         println("  %-24s".format(bname(bi)) + (0 until 4).joinToString("  |  ") { se ->
             val a = fArea[se][bi].coerceAtLeast(1e-9)
-            "%s grass %.3f green %.2f nour %.2f cured %.2f straw %.1f grazed %.0f".format(seasonNames[se].take(3), fGrass[se][bi] / a, fGreen[se][bi] / a,
-                fNour[se][bi] / a, fCured[se][bi] / a, 1000 * fStraw[se][bi] / a, fGrazed[se][bi] / a)
+            "%s grass %.3f green %.2f nour %.2f cured %.2f straw %.1f grazed %.1f of %.0f".format(seasonNames[se].take(3), fGrass[se][bi] / a, fGreen[se][bi] / a,
+                fNour[se][bi] / a, fCured[se][bi] / a, 1000 * fStraw[se][bi] / a, fGrazed[se][bi] / a, fSupply[se][bi] / a)
         })
     }
     for (s in herds) {
@@ -202,9 +209,11 @@ fun main(args: Array<String>) {
                 100 * rn / st.herdWeeks[se].coerceAtLeast(1.0), mix(st.roundTo[se], rn),
                 st.roundQ[se] / rn.coerceAtLeast(1.0), st.hereQ[se] / rn.coerceAtLeast(1.0)))
         }
-        val years = 1.0; val mean = ((startCount[s.name] ?: 0) + (endCount[s.name] ?: 0)) / 2.0
-        val d = groups.stats.deaths.filterKeys { it.startsWith("${s.name}:") }.mapValues { (k, v) -> v - (deathsAt[k] ?: 0) }.filterValues { it > 0 }
+        val mean = ((startCount[s.name] ?: 0) + (endCount[s.name] ?: 0)) / 2.0
+        val d = deathsYear.filterKeys { it.startsWith("${s.name}:") }.filterValues { it > 0 }
+        val born = bornYear.filterKeys { it == s.name || it.startsWith("${s.name}:") || it.startsWith("${s.name} ") }.values.sum()
+        println("   born over the measured year per 100 animals: %.1f".format(100 * born / mean.coerceAtLeast(1.0)))
         println("   deaths over the measured year per 100 animals (mean of start and end): " + d.entries.sortedByDescending { it.value }.take(8)
-            .joinToString(", ") { "%s %.1f".format(it.key.substringAfter(':'), 100 * it.value / mean.coerceAtLeast(1.0) / years) })
+            .joinToString(", ") { "%s %.1f".format(it.key.substringAfter(':'), 100 * it.value / mean.coerceAtLeast(1.0)) })
     }
 }
