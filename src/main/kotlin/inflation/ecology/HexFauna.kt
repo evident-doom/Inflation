@@ -375,9 +375,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val total = d.grass + d.browse + d.fruit + d.roots
         if (total <= 0f) return 0f
         val plants = land.palatable[p] * d.grass * land.herb[p] + (d.browse * land.browse(p) + d.fruit * food.fruit[p] + d.roots * food.roots[p]) / REACH
-        // (Reindeer also reckon with the lichen they can dig.)
-        val lichen = if (s.eatsLichen) food.lichen[p] * HexFood.LICHEN_VALUE / REACH else 0f
-        return (plants / total + lichen) * HexFood.access(s, land.crag[p])
+        return plants / total * HexFood.access(s, land.crag[p])
     }
 
     fun count(k: Int): Double = (0 until n).sumOf { ((adults[k][it] + young[k][it]) * land.areaKm2[it]).toDouble() }
@@ -637,8 +635,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     // (Mothers short of protein bear and suckle fewer.)
                     // (A mother needs a range of her own to bear and raise her young in: where they crowd beyond
                     // [BREED_SPACING] times their usual numbers, only as many as there are ranges breed.)
-                    val ranges = if (BREED_SPACING > 0f) min(1f, BREED_SPACING * usual[k] / (a[p] + y[p])) else 1f
-                    val born = 0.5f * a[p] * ranges * s.youngPerFemale * s.littersPerYear * f[p] * protein[k][p] / stepsInSeason
+                    val ranges = min(1f, BREED_SPACING * usual[k] / (a[p] + y[p]))
+                    val born = 0.5f * a[p] * ranges * s.youngPerFemale * f[p] * protein[k][p] / stepsInSeason
                     y[p] += born
                     // The young are made of what their mothers ate: their weight comes off the mothers' reserves (as in groups).
                     if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - born * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / (0.5f * a[p]))
@@ -851,7 +849,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val CROWDED = 4f
         /**
          * Residents: how many times their usual numbers ([usualDensity]) can each hold a breeding range
-         * (t.breedSpacing; 0: no limit). At 1.5 roe deer level off at about 20-25 a km² of their forest, the high end of what is seen.
+         * (t.breedSpacing). At 1.5 roe deer level off at about 20-25 a km² of their forest, the high end of what is seen.
          */
         val BREED_SPACING = Config.float("t.breedSpacing", 1.5f)
         /**
@@ -867,7 +865,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val PROTEIN_DRY_BROWSE = 0.6f
         const val PROTEIN_FRUIT = 0.4f
         val PROTEIN_STRAW = Config.float("t.proteinStraw", 0.2f)
-        val PROTEIN_LICHEN = Config.float("t.proteinLichen", 0.3f)
         const val PROTEIN_NEED = 0.5f
         val YOUNG_PROTEIN_DEATHS = Config.float("t.youngProteinDeaths", 0.25f)
         const val PROTEIN_MEMORY = 0.3f

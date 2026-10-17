@@ -68,8 +68,6 @@ class Species(
     /** Birth season: first month (0-based from the winter solstice: 0 about January) and length in months. */
     val birthMonth: Int,
     val birthMonths: Int,
-    /** Litters a year in good years: small breeders fit in several. */
-    val littersPerYear: Int = 1,
     /** Young per adult female per year in good condition. */
     val youngPerFemale: Float,
     val yearsToMaturity: Float,
@@ -102,8 +100,6 @@ class Species(
      * and the rest eat less of poor forage, as it fills the gut before it nourishes.
      */
     val hindgut: Boolean = false,
-    /** Digs lichen from under the snow in winter (reindeer). */
-    val eatsLichen: Boolean = false,
     /**
      * For predators: fighting weight per kg compared with a wolf, for fights over carcasses and
      * ground: a hyena clan bites above its weight, a jackal below.

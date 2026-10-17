@@ -1377,7 +1377,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
             land.eatBrowse(p, need * d.browse / total)
         val fed = if (need > 0f) min(1f, got / need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
-        val born = if (inSeason) n * 0.5f * s.youngPerFemale * s.littersPerYear * fed * (0.3f + 0.7f * tame) /
+        val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
         val died = n * min(0.9f, (s.backgroundMortality + 0.5f * (1f - fed) + HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)) * years +
             HERD_MOVE_LOSS * (1f - tame) * moved * b.lapse(Skill.TENDING))
