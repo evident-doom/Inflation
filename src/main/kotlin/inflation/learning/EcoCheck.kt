@@ -45,7 +45,8 @@ class EcoCheck(private val out: File) {
         val runs = arms.mapValues { (name, from) ->
             val armDir = File(dir, name).also { it.mkdirs() }
             for ((r, src) in from) copyRoles(src, armDir, listOf(r))
-            val cfg = File(armDir, "check.properties").also { it.writeText("nets=${armDir.absolutePath}\nways=${File(armDir, "ways.mlp").absolutePath}\n") }
+            // (Forward slashes: a properties file reads a backslash as an escape, which broke the paths on Windows.)
+            val cfg = File(armDir, "check.properties").also { it.writeText("nets=${armDir.absoluteFile.invariantSeparatorsPath}\nways=${File(armDir, "ways.mlp").absoluteFile.invariantSeparatorsPath}\n") }
             (0 until replicates).map { r -> pool.submit<File> { runOne(cfg, armDir, r) } }
         }.mapValues { (_, fs) -> fs.map { TestWorlds.Run(it.get()) } }
         judge(round, runs)
