@@ -183,7 +183,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
         if (total <= 0f) return 0f
         // (Meat is about half of a kill's weight.)
-        val want = min(kgPerM2 / MEAT_OF_KILL, RESIDENT_KILL_MOST * total)
+        // (The numbers, and so [total] and the kills, are per km2; [kgPerM2], the carrion and what is eaten per m2.)
+        val want = min(kgPerM2 * 1e6f / MEAT_OF_KILL, RESIDENT_KILL_MOST * total)
         var ate = 0f
         for ((j, s) in kinds.withIndex()) {
             if (wA[j] + wY[j] <= 0f) continue
@@ -191,9 +192,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val fromA = kg * wA[j] / (wA[j] + wY[j]); val fromY = kg - fromA
             adults[j][p] = max(0f, adults[j][p] - fromA / s.massKg)
             young[j][p] = max(0f, young[j][p] - fromY / (YOUNG_WEIGHT * s.massKg))
-            huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * land.areaKm2[p] * 1e6f
-            small.carrion[p] += kg * (1f - MEAT_OF_KILL)
-            ate += kg * MEAT_OF_KILL
+            huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * land.areaKm2[p]
+            small.carrion[p] += kg * (1f - MEAT_OF_KILL) / 1e6f
+            ate += kg * MEAT_OF_KILL / 1e6f
         }
         killed(p, ate * land.areaKm2[p] * 1e6f)
         return ate
