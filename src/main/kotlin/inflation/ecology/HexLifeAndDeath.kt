@@ -197,13 +197,16 @@ internal fun HexGroups.graze(weather: Weather) {
 
 /**
  * The places a herd grazes this week and each one's share of its need: its own and the hexes round
- * it at its height, ring by ring, until the edible forage in reach is [RANGE_WEEKS] weeks' need (at
- * most [RANGE_RINGS] rings), shared by the forage each has.
+ * it at its height, ring by ring, until the grass and browse still to be eaten this week in reach
+ * (what the residents and the herds before it left, see [HexFauna.grazeLeft]) is [RANGE_NEED] times
+ * its week's need (at most [RANGE_RINGS] rings), shared by what each has left. (It was reckoned from
+ * the standing plants, of which a week's grazing can take only a hundredth: a crowd of herds ate its
+ * own place bare while the next hex stood untouched.)
  */
 internal fun HexGroups.grazingRange(g: HexGroup): List<Pair<Int, Float>> {
     val p0 = g.place.i; val band = hw.placeBand[p0]; val h0 = hw.placeHex[p0]
-    val needKg = g.dailyNeedKg * days * RANGE_WEEKS
-    fun forage(p: Int) = land.palatable[p] * (land.plants.herb[p] + land.plants.shrub[p]) * land.areaKm2[p] * 1e6f
+    val needKg = g.dailyNeedKg * days * RANGE_NEED
+    fun forage(p: Int) = (fauna.grazeLeft[p] + fauna.browseLeft[p]) * land.areaKm2[p] * 1e6f
     val places = arrayListOf(p0); var have = forage(p0)
     var ring = listOf(h0); val seen = hashSetOf(h0)
     var r = 0
@@ -212,12 +215,15 @@ internal fun HexGroups.grazingRange(g: HexGroup): List<Pair<Int, Float>> {
         for (h in next) { val q = hw.placeOf[band][h]; if (q >= 0) { places += q; have += forage(q) } }
         ring = next; r++
     }
-    if (places.size == 1) return listOf(p0 to 1f)
-    val total = have.coerceAtLeast(1e-6f)
+    if (places.size == 1 || have <= 0f) return listOf(p0 to 1f)
+    val total = have
     return places.map { it to forage(it) / total }
 }
-/** A herd's range: weeks of its need in edible forage it looks to have within reach; most rings of hexes round it it spreads over. */
-const val RANGE_WEEKS = 20f
+/**
+ * A herd's range: how many times its week's need in grass and browse still to be eaten it looks to have
+ * within reach (it picks the best and leaves the rest); most rings of hexes round it it spreads over.
+ */
+const val RANGE_NEED = 2f
 const val RANGE_RINGS = 3
 
 internal fun HexGroups.demography(weather: Weather, date: Date) {
