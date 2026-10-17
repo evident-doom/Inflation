@@ -1100,7 +1100,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
                 // (Found, it is the band's choice whether to take from it.)
                 if (rnd.nextFloat() >= min(1f, b.robWill)) continue
                 val takeShare = CACHE_TAKE * max(1f, b.robWill)
-                val room = max(0f, carryKg(g, b) - g.larder)
+                val room = max(0f, CARRY_KG * max(1, g.adults) - g.larder)
                 val take = min(ob.cacheKg * min(1f, takeShare), room)
                 if (take <= 0f) continue
                 val share = take / ob.cacheKg

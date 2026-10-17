@@ -372,11 +372,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
     // Sicknesses of their own: the flux, marsh fever, the cough (see [Illness]); healers save some.
     val ill = if (s.human && band != null) illnessWeek(g, band, weather, r).also { for (i in it.indices) it[i] *= healed } else null
+    val illAdults = ill?.sum() ?: 0f
+    val illYoung = ill?.let { a -> Illness.entries.sumOf { (a[it.ordinal] * it.young).toDouble() }.toFloat() } ?: 0f
     val thirst = thirstWeek(g)
     // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
     val plague = fauna.outbreakDeaths(s, g.place)
-    val sick = sicknessWeek(g, weather, kinNow, r)
-    val disease = plague + sick
+    val disease = plague + sicknessWeek(g, weather, kinNow, r)
     g.wary *= WARY_KEEP
     // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
     val homeless = if (s.carnivore && !s.human && g.home < 0) DISPERSAL_DEATHS * years else 0f
@@ -384,26 +385,21 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val eagle = if (!s.human && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
     val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
     val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
+    val adultOdds = (venom + healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years + hunger + cold + exposure + disease + thirst + homeless + fireA + floodA + snowA + stalked + illAdults + festered).coerceIn(0f, 0.9f)
     val croc = if (s.human) 0f else fauna.water.crocodileRisk(g.place, weather) * years
+    if (s.human && g.young > 0) {
+        val care = g.young * (1f - ELDER_CARE * help)
+        fun add(name: String, v: Float) { if (v > 0f) stats.childDeaths.computeIfAbsent(name) { DoubleAdder() }.add((care * v).toDouble()) }
+        add("infancy and ordinary illness", healed * cared * s.youngMortality * Tuning.humanYoung * years)
+        add("hunger", 1.5f * hunger); add("cold and exposure", 1.5f * (cold + exposure)); add("thirst", 1.5f * thirst)
+        add("crowd sickness and outbreaks", disease); add("fire, flood and snow", fireY + floodY + snowY); add("camp fouling", fouled)
+        add("inbreeding", inbred); add("snakes and scorpions", venom)
+        add("taken by beasts", YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked)
+        ill?.let { a -> for (it in Illness.entries) add(it.label, a[it.ordinal] * it.young) }
+    }
     // (Young plant-eaters short of protein grow slowly and die more.)
     val starved = if (s.carnivore) 0f else HexFauna.YOUNG_PROTEIN_DEATHS * (1f - g.protein) * years
-    // Every hazard of the week, once: its cause and the odds it adds for a grown one and for a young one.
-    val hazards = arrayListOf(
-        Hazard("other", healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years),
-        Hazard("hunger", hunger, 1.5f * hunger), Hazard("cold", cold, 1.5f * cold), Hazard("exposure", exposure, 1.5f * exposure), Hazard("thirst", thirst, 1.5f * thirst),
-        Hazard("disease", sick, sick), Hazard("outbreak", plague, plague),
-        Hazard("fire", fireA, fireY), Hazard("flood", floodA, floodY), Hazard("snow", snowA, snowY),
-        Hazard("crocodiles", 0f, croc), Hazard("eagles", 0f, eagle), Hazard("short of protein", 0f, starved), Hazard("homeless", homeless, homeless),
-        Hazard("camp fouling", 0f, fouled), Hazard("snakes and scorpions", venom, venom), Hazard("inbreeding", 0f, inbred),
-        Hazard("taken by $stalker", stalked, YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked), Hazard("wounds", festered, 0f))
-    ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it.label, a[it.ordinal], a[it.ordinal] * it.young) }
-    // The elders' care spares some of the young.
-    val spared = 1f - ELDER_CARE * help
-    var adultSum = 0f; var youngSum = 0f
-    for (h in hazards) { adultSum += h.adult; youngSum += h.young }
-    val adultOdds = adultSum.coerceIn(0f, 0.9f)
-    val youngOdds = (youngSum * spared).coerceIn(0f, 0.95f)
-    if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f) stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
+    val youngOdds = ((starved + healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years + 1.5f * (hunger + cold + exposure + thirst) + disease + homeless + eagle + fireY + floodY + snowY + croc + fouled + inbred + venom + YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked + illYoung) * (1f - ELDER_CARE * help)).coerceIn(0f, 0.95f)
     val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
     // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
     val diedExpected = g.adults * adultOdds + g.young * youngOdds + (band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f)
@@ -420,8 +416,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     g.young -= dy
     // The dead lie where they fell, for the scavengers and the soil.
     var carrion = (da + oldAge + 0.3f * dy) * s.massKg
-    // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
-    val causes = shareDeaths(hazards, da, dy, r)
+    // The week's deaths are shared among the causes by how much each weighed ("other": age, accidents, ordinary illness).
+    val hazards = listOf("other" to healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, "hunger" to hunger, "cold" to cold, "exposure" to exposure, "thirst" to thirst, "disease" to disease - plague, "outbreak" to plague, "fire" to fireY, "flood" to floodY, "snow" to snowY, "crocodiles" to croc, "homeless" to homeless, "camp fouling" to fouled, "snakes and scorpions" to venom, "inbreeding" to inbred, "taken by $stalker" to stalked, "wounds" to festered) + (ill?.let { a -> Illness.entries.map { it.label to a[it.ordinal] * (1f + it.young) / 2f } } ?: emptyList())
+    val causes = shareDeaths(hazards, da + dy, r)
     if (oldAge > 0) causes += "old age" to oldAge
     growUp(g, r)
     if (g.adults == 0) {
@@ -520,7 +517,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
     // Crowded herds catch each other's diseases and parasites.
     val usual = HexFauna.usualDensity(s)
     // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
-    val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / (hex.hexKm * hex.hexKm * 0.87).toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
+    val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / hex.areaKm2.toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
     val crowdNow = if (s.human) peopleCrowding(g) else crowd
     if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * Tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years) outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
     return if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
@@ -532,31 +529,24 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
             var heads = -g.size; var hexes = 0
             val wide = territoryKm(s) > 0.6f * hex.hexKm
             for (k in -1 until (if (wide) 6 else 0)) { val q = if (k < 0) h0 else hex.neighbour(h0, k); if (q >= 0) { heads += kinNow[s.index.toLong() * hex.size + q] ?: 0; hexes++ } }
-            val others = max(0, heads) / (hexes * (hex.hexKm * hex.hexKm * 0.87).toFloat()) / (HexFauna.CROWDED * usual)
+            val others = max(0, heads) / (hexes * hex.areaKm2.toFloat()) / (HexFauna.CROWDED * usual)
             HexFauna.DISEASE * others * others * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         }
         else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
 }
 
-/** One of the week's hazards: its [cause] and the odds it adds that a grown one ([adult]) or a young one ([young]) dies. */
-private class Hazard(val cause: String, val adult: Float, val young: Float)
-
-/** The week's deaths, [adults] and [young], shared among the [hazards] by how much each weighed for them (drawn from [r]); what is left over is "other". */
-private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int, r: Random): ArrayList<Pair<String, Int>> {
-    val died = LinkedHashMap<String, Int>()
-    for ((n, ofYoung) in listOf(adults to false, young to true)) {
-        var left = n; var weight = 0f
-        for (h in hazards) weight += if (ofYoung) h.young else h.adult
-        for (h in hazards) {
-            if (left <= 0 || weight <= 0f) break
-            val w = if (ofYoung) h.young else h.adult
-            val k = if (w >= weight) left else binomial(left, w / weight, r)
-            if (k > 0) died.merge(h.cause, k, Int::plus)
-            left -= k; weight -= w
-        }
-        if (left > 0) died.merge("other", left, Int::plus)
+/** The week's [died] shared among the [hazards] by how much each weighed (drawn from [r]); what is left over is "other". */
+private fun HexGroups.shareDeaths(hazards: List<Pair<String, Float>>, died: Int, r: Random): ArrayList<Pair<String, Int>> {
+    var left = died; var weight = hazards.sumOf { it.second.toDouble() }.toFloat()
+    val causes = ArrayList<Pair<String, Int>>()
+    for ((name, h) in hazards) {
+        if (left <= 0 || weight <= 0f) break
+        val k = if (h >= weight) left else binomial(left, h / weight, r)
+        if (k > 0) causes += name to k
+        left -= k; weight -= h
     }
-    return died.entries.mapTo(ArrayList()) { it.key to it.value }
+    if (left > 0) causes += "other" to left
+    return causes
 }
 
 /** [g]'s young grow up, and in a band the adults age through three spans of adult life, then become elders (drawn from [r]). */
@@ -596,7 +586,7 @@ internal fun HexGroups.peopleCrowding(g: HexGroup): Float {
         if (q < 0) continue
         for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][q]; if (p >= 0) heads += headsHere[kindSlot[g.species.index]][p] }
     }
-    return heads / (7f * (hex.hexKm * hex.hexKm * 0.866).toFloat()) / PEOPLE_FULL_KM2
+    return heads / (7f * hex.areaKm2.toFloat()) / PEOPLE_FULL_KM2
 }
 
 /** Small herds join up, and lone hunters find mates (see [demography]). */
@@ -718,7 +708,7 @@ internal fun HexGroups.remember(date: Date) {
  */
 internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int>): Stalking {
     val h = hw.placeHex[g.place]; val p = g.place
-    val hexKm2 = (hex.hexKm * hex.hexKm * 0.87).toFloat()
+    val hexKm2 = hex.areaKm2.toFloat()
     var pressure = 0f; var worst = ""; var worstP = 0f
     for (k in kinds) {
         val w = MAN_EATERS[k.name] ?: continue
@@ -776,6 +766,6 @@ internal fun HexGroups.herdRanges(g: HexGroup, kinNow: HashMap<Long, Int>): Floa
     val ring = HashSet<Int>(); ring += h0
     for (k in 0 until 6) { val q = hex.neighbour(h0, k); if (q >= 0) { ring += q; for (j in 0 until 6) { val w = hex.neighbour(q, j); if (w >= 0) ring += w } } }
     var heads = 0; for (q in ring) heads += kinNow[key + q] ?: 0
-    val density = heads / (ring.size * hex.hexKm * hex.hexKm * 0.87).toFloat()
+    val density = heads / (ring.size * hex.areaKm2).toFloat()
     return if (density <= 0f) 1f else min(1f, HexFauna.BREED_SPACING * HexFauna.usualDensity(g.species) / density)
 }
