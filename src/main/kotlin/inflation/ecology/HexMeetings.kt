@@ -172,7 +172,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // The foods on offer: type (0 big game of [kinds] index k, 1 small game, 2 carrion, 3 bones,
     // 4 fruit, 5 roots, 6 grass seed, 7 small finds, 8 fish), place, rate a day, kg each, days each ([Food] numbers the types).
     val n = g.path.size * (fauna.kinds.size + 4) + (gatherAt.size + roundCamp.size) * 5 + 1
-    val type = IntArray(n); val kind = IntArray(n); val place = IntArray(n)
+    val type = Array(n) { Food.BIG_GAME }; val kind = IntArray(n); val place = IntArray(n)
     val rate = FloatArray(n); val kg = FloatArray(n); val time = FloatArray(n)
     var m = 0
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
@@ -210,9 +210,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val left = aim - (meat + smallGot + scraps + plants + fish)
         if (left <= 0.01f * wantAll) break
         m = 0
-        fun offer(t: Int, k: Int, p: Int, r: Float, e: Float, h: Float) {
+        fun offer(t: Food, k: Int, p: Int, r: Float, e: Float, h: Float) {
             // A band meets each kind of food the more, the more of its effort it puts into it.
-            val rr = if (band != null) r * band.effort[if (t == Food.GRAIN) Food.SEED else t] else r
+            val rr = if (band != null) r * band.effort[(if (t == Food.GRAIN) Food.SEED else t).ordinal] else r
             if (rr <= 0f || e <= 0f) return
             // (Biting insects slow people at whatever they do out there; fish are offered by hex, so the
             // camp's place stands for the water they fish.)
@@ -283,13 +283,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         note(g) {
             "pass %d: took up %d of %d foods, best first: ".format(pass + 1, used, m) + (0 until min(used, 6)).joinToString(", ") { r -> val i = order[r]
-                (if (type[i] == Food.BIG_GAME) fauna.kinds[kind[i]].name else Food.NAMES[type[i]]) + " %.1f kg/day of work".format(profit[i]) }
+                (if (type[i] == Food.BIG_GAME) fauna.kinds[kind[i]].name else type[i].label) + " %.1f kg/day of work".format(profit[i]) }
         }
         // What the week brings at that rate, as far as the party wants: it stops when fed.
         val f = if (gain > 0f) min(1f, left / (workDays * gain / spent)) else 0f
         if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
             "forage ${s.name} adults ${g.adults} want ${wantAll} left $left offers $m used $used gain $gain spent $spent f $f: " +
-            order.take(min(6, m)).joinToString("; ") { "t${type[it]} k${kind[it]} r=${rate[it]} e=${kg[it]} h=${time[it]}" })
+            order.take(min(6, m)).joinToString("; ") { "t${type[it].ordinal} k${kind[it]} r=${rate[it]} e=${kg[it]} h=${time[it]}" })
         for (r in 0 until used) {
             val i = order[r]
             val expected = workDays * rate[i] / spent * f
@@ -324,19 +324,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                     plantKind[when (type[i]) { Food.ROOTS -> Store.ROOTS; Food.SEED -> Store.SEED; else -> Store.FRUIT }.ordinal] += haul.kg
                 }
                 Food.FISH -> fish += fauna.water.fishFor(p, expected, band?.fishing() ?: 1f)
-                Food.GRAIN -> {
-                    val m2 = land.m2(p)
-                    val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2 * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
-                    plants += took; plantKind[Store.SEED.ordinal] += took
-                    // A sickle takes the ears that hold their grain more than those that shatter at a touch.
-                    if (band != null && took > 0f) {
-                        val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
-                        val harvested = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
-                        val have = g.stores[Store.SEED]
-                        band.seedDomestic = (band.seedDomestic * have + harvested * took) / (have + took).coerceAtLeast(1e-6f)
-                        stats.hunting.merge("${s.name}:${WeekStats.GRAIN_REAPED}", took.toInt(), Int::plus)
-                    }
-                }
+                Food.GRAIN -> { val took = reap(g, p, expected); plants += took; plantKind[Store.SEED.ordinal] += took }
             }
         }
     }
@@ -492,12 +480,28 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     return kills1
 }
 
+/** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: the kilos it is worth. */
+private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float): Float {
+    val band = g.band
+    val m2 = land.m2(p)
+    val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2 * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
+    // A sickle takes the ears that hold their grain more than those that shatter at a touch.
+    if (band != null && took > 0f) {
+        val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
+        val harvested = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
+        val have = g.stores[Store.SEED]
+        band.seedDomestic = (band.seedDomestic * have + harvested * took) / (have + took).coerceAtLeast(1e-6f)
+        stats.hunting.merge("${g.species.name}:${WeekStats.GRAIN_REAPED}", took.toInt(), Int::plus)
+    }
+    return took
+}
+
 /**
  * [forage]'s gathering of plant food [t] (fruit, roots, grass seed or small finds) at place [p], [expected] kg a
  * party could take: [out] gets the kilos it is worth once seed is ground and food cooked or leached, and the
  * party-days the leaching took ([hands] at it).
  */
-private fun HexGroups.gather(g: HexGroup, t: Int, p: Int, expected: Float, hands: Int, out: Haul) {
+private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hands: Int, out: Haul) {
     val s = g.species; val band = g.band
     out.busy = 0f
     val stock = when (t) { Food.FRUIT -> fauna.food.fruit; Food.ROOTS -> fauna.food.roots; Food.SEED -> fauna.food.seeds; else -> fauna.food.finds }
@@ -522,19 +526,10 @@ private fun HexGroups.gather(g: HexGroup, t: Int, p: Int, expected: Float, hands
     out.kg = took
 }
 
-/** The kinds of food [forage] offers a party, by number; the first [FOOD_TYPES] are also a band's effort slots (grain goes by grass seed's). */
-object Food {
-    const val BIG_GAME = 0
-    const val SMALL_GAME = 1
-    const val CARRION = 2
-    const val BONES = 3
-    const val FRUIT = 4
-    const val ROOTS = 5
-    const val SEED = 6
-    const val FINDS = 7
-    const val FISH = 8
-    const val GRAIN = 9
-    val NAMES = arrayOf("big game", "small game", "carrion", "bones", "fruit", "roots", "grass seed", "small finds", "fish", "grain")
+/** The kinds of food [forage] offers a party; all but [GRAIN] are also a band's effort slots ([FOOD_TYPES]: grain goes by grass seed's). */
+enum class Food(val label: String) {
+    BIG_GAME("big game"), SMALL_GAME("small game"), CARRION("carrion"), BONES("bones"), FRUIT("fruit"), ROOTS("roots"),
+    SEED("grass seed"), FINDS("small finds"), FISH("fish"), GRAIN("grain")
 }
 
 private val FORAGE_DIAG = Config.string("forageDiag")

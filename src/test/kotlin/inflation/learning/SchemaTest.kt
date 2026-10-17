@@ -2,6 +2,7 @@ package inflation.learning
 
 import inflation.ecology.BandWay
 import inflation.ecology.FOOD_TYPES
+import inflation.ecology.Food
 import inflation.ecology.HexFeatures
 import inflation.ecology.Tool
 import inflation.ecology.WAYS_IN
@@ -103,5 +104,12 @@ class SchemaTest {
         for (w in BandWay.entries) assertEquals(w.label, Schema.WAYS_OUT[w.slot], w.name)
         assertEquals("scouts", Schema.WAYS_OUT[FOOD_TYPES + 1 + Tool.entries.size])
         assertEquals("burning off", Schema.WAYS_OUT.last())
+    }
+
+    /** A band's effort slots are every kind of food but grain, which is the last (it goes by grass seed's). */
+    @Test
+    fun theEffortSlotsAreTheFoodsBeforeGrain() {
+        assertEquals(Food.GRAIN, Food.entries.last())
+        assertEquals(Food.GRAIN.ordinal, FOOD_TYPES)
     }
 }
