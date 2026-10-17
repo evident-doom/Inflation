@@ -290,6 +290,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // crashing out of it: half its usual density where its food grows, no denser where the ground
         // suits it best, and thinner where it is far from water or the climate is wrong for it.
         for ((k, s) in kinds.withIndex()) {
+            // (A kind that also gathers into herds starts as its herds, see [HexGroups].)
+            if (s in Catalogue.gathering) continue
             val dens = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
             for (p in 0 until n) {
                 // (Hunters among the residents live on prey found wherever there is life: food is no bar to them here.)

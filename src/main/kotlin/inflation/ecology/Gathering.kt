@@ -88,10 +88,17 @@ internal fun HexGroups.scatter(month: Int) {
     if (any) groups.removeIf { !it.alive }
 }
 
-/** Herd [g]'s animals spread as residents (slot [k]) over the ground it grazes this week, their condition mixed with those there. */
+/**
+ * Herd [g]'s animals spread as residents (slot [k]) over the ground about it ([GATHER_KM], as they gathered from), by how
+ * much of it suits them and feeds them ([HexGroups.startWeight]); their condition mixed with those there.
+ */
 private fun HexGroups.spread(g: HexGroup, k: Int) {
-    rangeShares(g, hw.placeHex[g.place]) { h, share ->
-        val p = (hw.sameBandPlace(g.place, h).takeIf { !it.none } ?: g.place).i
+    val about = placesWithin(g.place.i, GATHER_KM)
+    val weights = FloatArray(about.size) { startWeight(g.species, about[it]) }
+    val total = weights.sum()
+    for ((i, p) in (if (total > 0f) about else listOf(g.place.i)).withIndex()) {
+        val share = if (total > 0f) weights[i] / total else 1f
+        if (share <= 0f) continue
         val area = land.areaKm2[p]
         val there = (fauna.adults[k][p] + fauna.young[k][p]) * area
         val come = g.size * share

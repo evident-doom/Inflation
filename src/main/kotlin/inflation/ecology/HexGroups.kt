@@ -195,8 +195,9 @@ class HexGroups(
     internal fun foodFor(s: Species, p: Int) = fauna.foodFor(s, p)
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and (for grazers and browsers) its food. */
-    private fun startWeights(s: Species) =
-        FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
+    private fun startWeights(s: Species) = FloatArray(n) { p -> startWeight(s, p) }
+    internal fun startWeight(s: Species, p: Int) =
+        land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f))
 
     /** A place drawn at random by [weights] (summing to [total]). */
     internal fun drawPlace(weights: FloatArray, total: Float): Int {
