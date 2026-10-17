@@ -687,6 +687,13 @@ class HexGroups(
         }
     }
 
+    /**
+     * The model's clock: the step [date] falls in (what the groups' "weeks" count: a step of [days] days), and how
+     * many steps make a year, for counts of weeks compared against spans of years.
+     */
+    internal fun stepOf(date: Date) = (date.absoluteDay / days).toInt()
+    internal val stepsPerYear get() = Date.DAYS_PER_YEAR.toFloat() / days
+
     /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
     internal var followersByHex: Map<Int, List<HexGroup>> = emptyMap()
     /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
@@ -919,7 +926,7 @@ class HexGroups(
         if (slot >= 0) {
             f[Feature.REMEMBERED] = 1f; f[Feature.REMEMBERED_SAME_SEASON] = if (sameSeason) 1f else 0f
             f[Feature.REMEMBERED_FED] = mem.fed[slot]; f[Feature.REMEMBERED_WATER] = mem.water[slot]; f[Feature.REMEMBERED_DANGER] = mem.danger[slot]
-            f[Feature.REMEMBERED_AGE] = min(1f, (date.absoluteDay / days - mem.lastWeek[slot]) / 52f)
+            f[Feature.REMEMBERED_AGE] = min(1f, (stepOf(date) - mem.lastWeek[slot]) / stepsPerYear)
         }
     }
 

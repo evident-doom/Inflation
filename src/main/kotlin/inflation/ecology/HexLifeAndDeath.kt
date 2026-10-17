@@ -312,9 +312,9 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         // Where a beast took one of them, the band remembers the place as dangerous.
         if (s.human && o.causes.any { it.first.startsWith(DeathCause.TAKEN_BY) && it.second > 0 })
-            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.danger, 1f)
+            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.danger, 1f)
         if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
-            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.dead, o.deaths.toFloat())
+            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
             land.burials[g.place] += o.deaths.toFloat()
             // Ornaments go into the grave with them: the more a band has, the richer its graves.
             g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths); val ex = if (b.ornaments > 0f) b.exotic / b.ornaments else 0f
@@ -715,7 +715,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
-        joinBand(o, g)
+        joinBand(o, g, stepOf(date))
         stats.meetings.merge("small bands joined kin", 1, Int::plus)
     }
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
@@ -740,13 +740,13 @@ internal fun HexGroups.mergeAndPair(date: Date) {
 }
 
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
-private fun joinBand(into: HexGroup, from: HexGroup) {
+private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
     into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED.ordinal], from.stores[Store.DRIED.ordinal],
         into.stores[Store.SEED.ordinal], from.stores[Store.SEED.ordinal], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
     for (i in into.stores.indices) into.stores[i] += from.stores[i]
-    into.memory.hear(from.memory, 0, 1f)
+    into.memory.hear(from.memory, week, stepsPerYear, 1f)
     from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f
@@ -756,8 +756,8 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
 internal fun HexGroups.remember(date: Date) {
     val m = date.month
     // Every group remembers where it was this week and how it fared there.
-    val week = (date.absoluteDay / days).toInt()
-    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place], fauna.afraid(g.place), week)
+    val week = stepOf(date)
+    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place], fauna.afraid(g.place), week, stepsPerYear)
     for (g in groups) {
         if (g.species.pack) continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,
