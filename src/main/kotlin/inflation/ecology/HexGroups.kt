@@ -874,7 +874,7 @@ class HexGroups(
         f[Feature.SICKNESS] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
         // The signs of the land, as anyone who looks can read them.
         f[Feature.TREES] = min(1f, land.tree[p] / 10f); f[Feature.SHRUBS] = min(1f, land.shrub[p] / 2f); f[Feature.GRASS] = min(1f, land.herb[p] / 0.5f)
-        f[Feature.MARSH] = min(1f, land.logged[p])
+        f[Feature.MARSH] = min(1f, land.waterlogged[p])
         f[Feature.WATER_AGAINST_USUAL] = (land.water[p] - min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])).coerceIn(-1f, 1f)
         f[Feature.PATHS] = pathAt(h)
         f[Feature.HERDS_ABOUT] = ln(1f + monthHerdHeads[p] / land.areaKm2[p]) / 3f

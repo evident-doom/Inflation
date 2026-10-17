@@ -60,7 +60,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         if (k == 0) 0f else (s / k).toFloat()
     }
     /** Share of waterlogged ground (marsh, bog, salt marsh), where woody plants drown (fixed by the world, so not taken from a saved run: runs saved before it was filled hold zeros). */
-    @Transient val logged = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
+    @Transient val waterlogged = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
     /**
      * The share of each place's plants an animal or a forager can eat, 0..1: most of an open
      * grassland, little of aromatic garrigue, thorny scrub, desert bush, bog or conifer forest, where
@@ -480,7 +480,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val m = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
         val t = ((warmth[p] - form.warmthMin) / (form.warmthFull - form.warmthMin)).coerceIn(0f, 1f)
         val soilF = 0.3f + 0.7f * min(1f, fertility[p] + organicFertility[p])
-        val wetFactor = when (form) { LifeForm.HERB -> 1f; LifeForm.SHRUB -> 1f - 0.6f * logged[p]; LifeForm.TREE -> 1f - 0.95f * logged[p] }
+        val wetFactor = when (form) { LifeForm.HERB -> 1f; LifeForm.SHRUB -> 1f - 0.6f * waterlogged[p]; LifeForm.TREE -> 1f - 0.95f * waterlogged[p] }
         val open = form.maxBiomass * m * t * soilF * wetFactor
         if (form != LifeForm.HERB) return open
         // The turf of the wet valley floor grows on its own soil: moist from the water table and as fertile as its alluvium.

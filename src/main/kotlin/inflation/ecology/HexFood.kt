@@ -71,7 +71,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     // (Only the edible kinds bear food people eat, see [HexLand.palatable].)
     private fun bearing(p: Int) = land.palatable[p] * (0.5f * land.shrub[p] + 0.05f * land.tree[p])
     private fun strawCap(p: Int) = STRAW_SHARE * (land.herb[p] + 0.3f * land.shrub[p])
-    private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * (land.herb[p] + 0.05f * land.tree[p]) + REED_ROOTS * land.logged[p]
+    private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * (land.herb[p] + 0.05f * land.tree[p]) + REED_ROOTS * land.waterlogged[p]
 
     private var standYear = -1
     /** Grain ripened at each place so far this year, kg/m², and over all the land in the last whole year, t. */
