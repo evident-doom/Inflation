@@ -155,7 +155,7 @@ internal fun HexGroups.graze(weather: Weather) {
             // With food to spare and reserves short, it eats more and lays the surplus on.
             var grass3 = 0f; var browse3 = 0f
             if (got >= want && g.fat < s.maxFatDays) {
-                val extra = FATTEN * g.will[AnimalWay.FATTEN] * want
+                val extra = SURPLUS_EAT * g.will[AnimalWay.FATTEN] * want
                 if (d.grass > 0f && !snowed) grass3 = eatGrass(extra / q * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 if (d.browse > 0f) browse3 = eatBrowse(extra / q * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 surplusKg += (grass3 + browse3) * q * land.areaKm2[p] * 1e6f

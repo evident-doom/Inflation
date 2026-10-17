@@ -544,7 +544,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 // With food to spare and reserves short, they eat more and lay the surplus on.
                 if (gap <= 0f && reserve[k][p] < s.maxFatDays) {
-                    var want = FATTEN
+                    var want = SURPLUS_EAT
                     if (d.grass > 0f && !snowed) {
                         val x = min(want * d.grass / total, avail[k] * spareG / need[k] * quality)
                         spareG -= x * need[k] / quality
@@ -618,7 +618,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         }
                         // With its need met and reserves short, it eats more and lays the surplus on (as from plants).
                         if (gap <= 0f && reserve[k][p] < s.maxFatDays) {
-                            var more = FATTEN * animalNeed
+                            var more = SURPLUS_EAT * animalNeed
                             val moreMeat = min(more, most * d.meat - gotMeat)
                             if (moreMeat > 0f) { val x = huntResidents(k, p, moreMeat * avail[k]); surplus[k] += x / needAll; more -= x }
                             val moreSmall = min(more, most * d.smallPrey - gotSmall)
