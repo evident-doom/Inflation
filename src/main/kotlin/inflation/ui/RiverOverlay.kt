@@ -17,7 +17,7 @@ import kotlin.math.pow
  * wide as its flow now (display width growing as flow^0.4, exaggerated as on the ground picture), so a
  * river that dries up in summer thins to nothing and a river in spate swells and turns pale.
  *
- * The weekly flow is kept per hex ([HexLand.flow], the hex's main river); a fine stretch takes its
+ * The weekly flow is kept per hex ([HexHydrology.flow], the hex's main river); a fine stretch takes its
  * long-term flow scaled by the flow now against the usual flow of the hex its water mostly comes
  * from (for a stretch off the hex's main river, the hex where its biggest headwater is the main
  * river, or else its own hex). Everything here is worked out on drawing; the step does nothing for it.
@@ -78,8 +78,8 @@ class RiverOverlay(world: World, hex: HexMap, private val land: HexLand) {
         for (k in usual.indices) {
             if (max(ax[k], bx[k]) < x0 || min(ax[k], bx[k]) > x1 || max(ay[k], by[k]) < y0 || min(ay[k], by[k]) > y1) continue
             val h = src[k]
-            val mean = land.meanFlow[h]
-            val ratio = (if (mean > 0f) land.flow[h] / mean else 1f).coerceIn(0f, 10f)
+            val mean = land.hydro.meanFlow[h]
+            val ratio = (if (mean > 0f) land.hydro.flow[h] / mean else 1f).coerceIn(0f, 10f)
             val q = usual[k] * ratio
             val px = (min(MAX_KM, WIDTH_KM * q.pow(0.4f)) * kmPx).toFloat()
             if (px < MIN_PX) continue

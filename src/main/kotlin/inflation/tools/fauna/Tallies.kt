@@ -330,7 +330,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 class LocalSwings(private val sim: HexSim, private val stepsPerYear: Int) {
     /** Sample places: every so many places with some plant cover. */
     private val places = sim.land.let { land ->
-        (0 until land.n step (land.n / 60).coerceAtLeast(1)).filter { land.herb[it] + land.shrub[it] > 0.05f }.take(40) }
+        (0 until land.n step (land.n / 60).coerceAtLeast(1)).filter { land.plants.herb[it] + land.plants.shrub[it] > 0.05f }.take(40) }
     private val sum = Array(places.size) { FloatArray(5) }
     /** Each place's yearly means: rodents, hares, foxes, owls, game birds. */
     private val years = Array(places.size) { ArrayList<FloatArray>() }

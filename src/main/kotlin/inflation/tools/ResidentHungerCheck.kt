@@ -61,14 +61,14 @@ fun main(args: Array<String>) {
                 val f = fauna.fed[k2][p]
                 val hunger = if (f < HexFauna.HUNGER_FROM) (HexFauna.HUNGER_FROM - f) * HexFauna.HUNGER_RATE else 0f
                 val died = ((ad + 1.5f * yd) * hunger * area).toDouble()
-                val t = fauna.tether(s, p); val g = land.green[p]
+                val t = fauna.tether(s, p); val g = land.plants.green[p]
                 val edge = (ad + yd) < 0.01f * usual
                 a.heads[m] += heads
                 a.fed[m] += heads * f
-                a.wetFloor[m] += heads * land.wetFloor(p)
+                a.wetFloor[m] += heads * land.hydro.wetFloor(p)
                 a.flood[m] += heads * land.floodShare[p]
-                a.table[m] += heads * land.waterTableM(p)
-                a.green[m] += heads * land.green[p]
+                a.table[m] += heads * land.hydro.waterTableM(p)
+                a.green[m] += heads * land.plants.green[p]
                 a.tether[m] += heads * t
                 a.hunger[m] += died
                 if (t < 0.2f) { a.dry[m] += heads; a.hungerDry[m] += died }

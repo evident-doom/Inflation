@@ -40,7 +40,7 @@ fun main(args: Array<String>) {
         val m = run.weather.date.month
         for ((i, s) in herds.withIndex()) {
             for (g in run.groups.groups) if (g.alive && g.species == s) at[i][m].getOrPut(g.id) { IntArray(1) }[0] = run.hw.placeHex[g.place]
-            if (!greenSeen[m]) { greenSeen[m] = true; for (p in 0 until n) green[m][p] = run.land.green[p] }
+            if (!greenSeen[m]) { greenSeen[m] = true; for (p in 0 until n) green[m][p] = run.land.plants.green[p] }
             if (seen[i][m]) continue
             seen[i][m] = true
             // (As the herds themselves reckon it: see [HexGroups.herdQuality].)
@@ -67,7 +67,8 @@ fun main(args: Array<String>) {
             val g = herds[gaz]
             println("height %4.0f-%4.0f m: %.0f km², ruggedness %.2f, a grazer gets at %.2f of it, grass %.3f kg/m², green month 5 %.2f, month 8 %.2f, gazelle quality month 5 %.2f".format(lo, hi, area,
                 mean { run.land.ruggedness[it].toDouble() }, mean { HexFood.access(g, run.land.crag[it]).toDouble() },
-                mean { run.land.herb[it].toDouble() }, mean { green[5][it].toDouble() }, mean { green[8][it].toDouble() }, mean { q[gaz][5][it].toDouble() }))
+                mean { run.land.plants.herb[it].toDouble() }, mean { green[5][it].toDouble() }, mean { green[8][it].toDouble() },
+                mean { q[gaz][5][it].toDouble() }))
         }
     }
     println("all land, green by month: " + (0 until 12).joinToString(" ") { m -> "%.2f".format((0 until n).sumOf { green[m][it].toDouble() } / n) })

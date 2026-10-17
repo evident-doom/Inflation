@@ -35,7 +35,7 @@ fun main(args: Array<String>) {
             val w = DoubleArray(3); val ws = DoubleArray(3); val low = DoubleArray(3); val po = DoubleArray(3); val area = DoubleArray(3)
             for (p in 0 until land.n) {
                 val t = third(p); val a = land.areaKm2[p].toDouble()
-                val bear = land.palatable[p] * (0.5f * land.shrub[p] + 0.05f * land.tree[p]) * min(1f, land.moisture[p] / 0.5f) * a
+                val bear = land.palatable[p] * (0.5f * land.plants.shrub[p] + 0.05f * land.plants.tree[p]) * min(1f, land.plants.moisture[p] / 0.5f) * a
                 w[t] += bear; ws[t] += bear * sl.fruitSet(p); if (sl.pollination[p] < 0.9f) low[t] += bear
                 po[t] += sl.pollinators[p] * a; area[t] += a
             }

@@ -43,7 +43,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         println("     week $w $kind: ${hungry.size} of ${gs.size} packs hungry: ${ground(hungry)} | fed: ${ground(fed)}")
         val thirsty = gs.filter { it.dry > it.species.daysWithoutWater }
         if (thirsty.isNotEmpty()) println("     week $w $kind: ${thirsty.size} thirsty: " + ground(thirsty) + "; water within reach %.0f%%, sea %.0f%%"
-            .format(100.0 * thirsty.count { land.water[it.place] >= 0.05f } / thirsty.size,
+            .format(100.0 * thirsty.count { land.drink.water[it.place] >= 0.05f } / thirsty.size,
                 100.0 * thirsty.count { hw.sea[hw.placeHex[it.place]] > 0.3f } / thirsty.size))
     }
 
@@ -54,7 +54,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         return "resident game %.0f kg/km², young per pack %.1f, holding ground %.0f%%, cover %.2f, water %.1f km, band %.1f".format(
             mean { g -> fauna.kinds.indices.sumOf { k -> ((fauna.adults[k][g.place] + fauna.young[k][g.place]) * fauna.kinds[k].massKg).toDouble() } },
             mean { it.young.toDouble() }, 100.0 * l.count { it.home >= 0 } / l.size,
-            mean { land.cover(it.place).toDouble() }, mean { land.waterKm[it.place].toDouble() }, mean { hw.placeBand[it.place].toDouble() }) +
+            mean { land.plants.cover(it.place).toDouble() }, mean { land.drink.waterKm[it.place].toDouble() }, mean { hw.placeBand[it.place].toDouble() }) +
             ", %.0f m, %.1f °C, fed %.2f, larder %.0f days, size %.0f, path %.1f hexes, days without water %.1f".format(
                 mean { hw.placeElevationM[it.place].toDouble() }, mean { weather.temperature[it.place].toDouble() },
                 mean { it.fed.toDouble() }, mean { (it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f)).toDouble() }, mean { it.size.toDouble() },
@@ -70,7 +70,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
                 val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble()
                 if (h <= 0.0) continue
                 heads += h; fed += h * fauna.fed[k][p]; if (fauna.fed[k][p] < 0.6f) hungry += h
-                teth += h * fauna.tether(s, p); acc += h * HexFood.access(s, land.crag[p]); gr += h * land.green[p]; res += h * fauna.reserve[k][p]
+                teth += h * fauna.tether(s, p); acc += h * HexFood.access(s, land.crag[p]); gr += h * land.plants.green[p]; res += h * fauna.reserve[k][p]
             }
             if (heads > 0) println("       %-12s %.2f / %.0f%% / %.2f / %.2f / %.2f / %.0f".format(s.name, fed / heads, 100 * hungry / heads,
                 teth / heads, acc / heads, gr / heads, res / heads))
