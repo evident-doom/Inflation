@@ -11,10 +11,14 @@ import kotlin.math.abs
  * from 0 to 1 as the hexes are shaded (over a plain earth tone, so faint shades show as they do on
  * the map, and where the ramp leaves a hex clear the earth shows through), values marked along it,
  * and a short note. Without a ramp, only the title and the note. [text] is the longer explanation
- * shown under the map.
+ * shown under the map. [swatches] are marks of single colours, each with what it stands for.
  */
 internal class MapLegend(val title: String, val text: String, val ramp: ((Float) -> Color?)? = null,
-                         val ticks: List<Pair<Float, String>> = emptyList(), val note: String = "") {
+                         val ticks: List<Pair<Float, String>> = emptyList(), val note: String = "",
+                         val swatches: List<Swatch> = emptyList()) {
+    /** A mark on the map, a dot (or a triangle), its colour and what it stands for. */
+    class Swatch(val color: Color, val label: String, val triangle: Boolean = false)
+
     companion object {
         private const val WIDTH = 230
         private const val RAMP_H = 14
@@ -58,7 +62,8 @@ internal class MapLegend(val title: String, val text: String, val ramp: ((Float)
         val noteLines = wrap(g, note, inner)
         val textH = g.fontMetrics.height
         val rampH = if (ramp != null) RAMP_H + 4 + (if (ticks.isEmpty()) 0 else 4 + textH) else 0
-        val h = PAD + titleLines.size * titleH + (if (ramp != null) 4 + rampH else 0) + noteLines.size * textH + PAD
+        val swatchH = if (swatches.isEmpty()) 0 else 4 + swatches.size * textH
+        val h = PAD + titleLines.size * titleH + (if (ramp != null) 4 + rampH else 0) + swatchH + noteLines.size * textH + PAD
 
         g.color = BOX; g.fillRoundRect(x, y, WIDTH, h, 8, 8)
         var cy = y + PAD
@@ -86,6 +91,18 @@ internal class MapLegend(val title: String, val text: String, val ramp: ((Float)
                 g.color = Color.WHITE; g.drawString(label, lx, cy + 4 + fm.ascent)
             }
             cy += 4 + (if (ticks.isEmpty()) 0 else 4 + textH)
+        }
+        if (swatches.isNotEmpty()) {
+            cy += 4
+            val r = 4
+            for (sw in swatches) {
+                val mx = x + PAD + r; val my = cy + textH / 2
+                g.color = sw.color
+                if (sw.triangle) g.fillPolygon(intArrayOf(mx - r, mx, mx + r), intArrayOf(my + r, my - r, my + r), 3)
+                else g.fillOval(mx - r, my - r, 2 * r, 2 * r)
+                g.color = Color.WHITE; g.drawString(sw.label, x + PAD + 2 * r + 6, cy + g.fontMetrics.ascent)
+                cy += textH
+            }
         }
         g.color = Color(0.85f, 0.85f, 0.85f)
         for (s in noteLines) { g.drawString(s, x + PAD, cy + g.fontMetrics.ascent); cy += textH }
