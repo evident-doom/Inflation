@@ -151,7 +151,7 @@ class HexGroups(
                         for (h in seen) for (k in b.plants.indices) if (hw.biome[k][h] > 0.1f) b.plants[k] = 0.9f
                     }
                 }
-                if (s.pack) g.home = hw.placeHex[p] else inheritSeasons(g)
+                if (s.pack) claimGround(g, hw.placeHex[p]) else inheritSeasons(g)
                 groups += g
             }
         }
@@ -177,7 +177,7 @@ class HexGroups(
                 val p = drawPlace(weights, total)
                 val g = spawn(s, p, unit)
                 // (Unlike at the start, any newcomer hunter, not only a pack, comes with ground of its own.)
-                if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
+                if (s.carnivore) claimGround(g, hw.placeHex[p]) else inheritSeasons(g)
                 groups += g
             }
             stats.meetings.merge("newcomers: ${s.name}", NEWCOMERS, Int::plus)

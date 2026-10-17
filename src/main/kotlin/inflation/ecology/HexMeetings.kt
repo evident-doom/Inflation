@@ -1023,7 +1023,9 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
 
 /**
  * Packs that hold ground mark the hexes they worked this week within their territory; marks fade
- * unless renewed, and a stale mark of another pack is marked over.
+ * unless renewed, and a stale mark of another pack is marked over. A pack whose home has gone
+ * unmarked until the mark is stale (it ranged elsewhere for weeks), or that another has marked over,
+ * has lost its ground.
  */
 internal fun HexGroups.mark() {
     for (m in scent.marks.values) for (i in m.indices) m[i] *= MARK_KEEP
@@ -1032,10 +1034,11 @@ internal fun HexGroups.mark() {
         if (!g.alive || !s.carnivore || s.human || g.home < 0) continue
         val m = scent.marks.getOrPut(s.index) { FloatArray(hex.size) }
         val who = scent.markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
-        for (h in g.path + g.home) {
+        for (h in g.path) {
             if (hex.distanceKm(h, g.home) > territoryKm(s)) continue
             if (who[h] == g.id || m[h] < MARK_FRESH) { m[h] = 1f; who[h] = g.id }
         }
+        if (who[g.home] != g.id || m[g.home] < MARK_FRESH) g.home = -1
     }
 }
 
@@ -1074,6 +1077,14 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
     if (loser === a) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
 }
 
+/** [g] takes hex [h] as its ground and marks it there and then. */
+internal fun HexGroups.claimGround(g: HexGroup, h: Int) {
+    g.home = h
+    if (h < 0) return
+    scent.marks.getOrPut(g.species.index) { FloatArray(hex.size) }[h] = 1f
+    scent.markers.getOrPut(g.species.index) { IntArray(hex.size) { -1 } }[h] = g.id
+}
+
 /** A pack without ground settles where no other pack of its kind has fresh marks. */
 internal fun HexGroups.settle(weather: Weather) {
     val claimed = HashSet<Long>()
@@ -1085,7 +1096,7 @@ internal fun HexGroups.settle(weather: Weather) {
         // (Whether it takes it is its choice: always at the hand-written way.)
         val w = g.will[AnimalWay.SETTLE]
         if (w < 1f && rnd.nextFloat() >= w) continue
-        if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) g.home = h
+        if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) claimGround(g, h)
     }
 }
 
