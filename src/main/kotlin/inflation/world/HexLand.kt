@@ -712,9 +712,12 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val wetGrowth = season
             val grassGrowth = openShare * openGrowth + SEEP_SHARE * seepGrowth + wetShare * wetGrowth
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
-            // After a fire the burn greens up with young growth, rich forage, as long as it is growing weather.
-            greenOpen[p] += (min(1f, sunnyGrowth + FLUSH * burnt[p] * season) - greenOpen[p]) * GREEN_RATE
-            greenShade[p] += (min(1f, shadyGrowth + FLUSH * burnt[p] * season) - greenShade[p]) * GREEN_RATE
+            // After a fire the burn greens up with young growth, rich forage, when the soil is moist enough to sprout
+            // it (the burnt straw no longer holds it back): a burn in the dry season stays black until the rain.
+            val sprout = herbGrowth(p, season, wet, false)
+            val sproutShade = herbGrowth(p, season, soilShade[p] / soilCap[p], false)
+            greenOpen[p] += (min(1f, sunnyGrowth + FLUSH * burnt[p] * sprout) - greenOpen[p]) * GREEN_RATE
+            greenShade[p] += (min(1f, shadyGrowth + FLUSH * burnt[p] * sproutShade) - greenShade[p]) * GREEN_RATE
             greenSeep[p] += (seepGrowth - greenSeep[p]) * GREEN_RATE
             greenWet[p] += (wetGrowth - greenWet[p]) * GREEN_RATE
             green[p] = openShare * ((1 - shaded) * greenOpen[p] + shaded * greenShade[p]) + SEEP_SHARE * greenSeep[p] + wetShare * greenWet[p]
@@ -773,7 +776,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
                 trails[p] = min(1f, trails[p] + Vegetation.TRAIL_WEAR * tr * (1f - trails[p]))
                 trampling[p] = 0f
             } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - Vegetation.TRAIL_FADE * years)
-            if (burnt[p] > 0f) burnt[p] = max(0f, burnt[p] - 0.4f * years)
+            // The young growth matures as it grows, over [FLUSH_WEEKS] of full growth; the black scar itself fades over years.
+            if (burnt[p] > 0f) burnt[p] = max(0f, burnt[p] * exp(-sprout * days / (7f * FLUSH_WEEKS)) - 0.4f * years)
         }
     }
 
@@ -949,6 +953,11 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         const val GREEN_RATE = 0.3f
         /** How green a fresh burn turns in growing weather, per share burnt. */
         const val FLUSH = 1.5f
+        /**
+         * Weeks of full growth over which a burn's young regrowth matures and loses its edge as forage (to 1/e): grazers
+         * favour fresh burns for one to a few months (from memory: tallgrass prairie and African savanna studies).
+         */
+        const val FLUSH_WEEKS = 8f
         /** Ash depth that smothers most of the herb layer within weeks, mm; fertility added per mm of ash a year as it weathers. */
         const val ASH_SMOTHER_MM = 50f
         const val ASH_FERTILITY = 0.002f
