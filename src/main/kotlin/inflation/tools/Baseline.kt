@@ -4,6 +4,8 @@ import inflation.Args
 import inflation.Config
 
 import inflation.learning.Role
+import inflation.run.baselineDir
+import inflation.run.gitCommit
 import inflation.learning.Schema
 import inflation.learning.SharedMover
 import java.io.File
@@ -56,8 +58,6 @@ fun main(args: Array<String>) {
     }
 }
 
-/** Where [name] is a baseline's name, its directory; otherwise [name] as a path. */
-fun baselineDir(name: String): File = File(name).takeIf { it.exists() } ?: File(Config.string("baselines") ?: "runs/baselines", name)
 
 private fun report(what: String, f: File, inputs: List<String>, outputs: List<String>) {
     val nf = Schema.namesFile(f)
@@ -68,7 +68,3 @@ private fun report(what: String, f: File, inputs: List<String>, outputs: List<St
         (newIn + newOut).joinToString(", ").ifEmpty { "none" } + "; no longer in the model (dropped): " +
         (goneIn + goneOut).joinToString(", ").ifEmpty { "none" })
 }
-
-internal fun gitCommit(): String = try {
-    ProcessBuilder("git", "rev-parse", "--short", "HEAD").redirectErrorStream(true).start().inputStream.bufferedReader().readText().trim().ifEmpty { "unknown" }
-} catch (e: Exception) { "unknown" }

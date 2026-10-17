@@ -145,6 +145,16 @@ class Species(
      * by hunters, and, around camps, are the start of the road to taming.
      */
     val boldShare: Float = 0.03f,
+    /** Share of its active hours spent at dawn, day, dusk and night; null: about at all hours alike. */
+    val activity: FloatArray? = null,
+    /** The shelters it uses ([Niches.shelter]). */
+    val shelters: Set<Niches.Shelter> = emptySet(),
+    /** How far it will swim open water, km; negative: as its way of travel gives ([Catalogue.swimKm]). */
+    val swimKm: Float = -1f,
+    /** Cracks bones and lives on what others leave long after the meat is gone. */
+    val cracksBones: Boolean = false,
+    /** How readily it takes people (leopards 1.2, lions 1, bears 0.4, wolves and hyenas 0.3; 0: never), see [STALKED]. */
+    val takesPeople: Float = 0f,
 ) {
     /** Position in [Catalogue.all] (its [id]), for array lookups. */
     var index = -1

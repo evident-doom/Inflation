@@ -47,7 +47,7 @@ class HexRoutes(private val g: HexGroups) {
             var round = 0f; var k = 0
             for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && hex.heart[q] >= 0) { round += rug(q); k++ } }
             val pass = rug(h) >= PASS_RUGGED && k > 0 && round / k >= rug(h)
-            val water = hw.placeOf[0][h].let { it >= 0 && land.waterKmMean[it] <= WATER_LANDMARK_KM }
+            val water = hw.placeOf[0][h].let { it >= 0 && land.drink.waterKmMean[it] <= WATER_LANDMARK_KM }
             landmark[h] = (when {
                 ways >= 3 -> Kind.JUNCTION; ford -> Kind.FORD; pass -> Kind.PASS; ways == 1 -> Kind.END; water -> Kind.WATER; else -> Kind.NONE
             }).ordinal.toByte()

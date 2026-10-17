@@ -1,5 +1,4 @@
 package inflation.ecology
-import inflation.learning.Schema
 import inflation.world.HexLand
 import kotlin.math.exp
 import kotlin.math.max
@@ -129,7 +128,7 @@ fun interface HexPolicy {
  * place, the way to better country it senses, and the group's own state and the time of year.
  */
 object HexFeatures {
-    // Each slot's name in saved networks is [Schema.PLACE] at the same index; SchemaTest checks they line up.
+    // Each slot's name in saved networks is [inflation.learning.Schema.PLACE] at the same index; SchemaTest checks they line up.
     /** The food there for the group, 0..1. */
     const val FOOD = 0
     /** How well the climate there suits its kind, log. */

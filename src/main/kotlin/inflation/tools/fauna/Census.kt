@@ -55,7 +55,7 @@ class Census(private val sim: HexSim) {
         val sl = fauna.small
         fun perM2(a: FloatArray) = a.indices.sumOf { (a[it] * land.areaKm2[it]).toDouble() } // kg/m² × km² = 1e6 kg = 1000 t
         fun perKm2(a: FloatArray) = perM2(a) / 1e6
-        val plants = (0 until fauna.n).sumOf { (land.biomass(it) * land.areaKm2[it]).toDouble() }
+        val plants = (0 until fauna.n).sumOf { (land.plants.biomass(it) * land.areaKm2[it]).toDouble() }
         val smallAnimals = listOf(sl.insects, sl.dormantInsects, sl.rodents, sl.herps, sl.pollinators, sl.dormantPollinators,
             sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it) }
         val residents = fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg } / 1e6
@@ -70,7 +70,7 @@ class Census(private val sim: HexSim) {
         val herdsB = DoubleArray(bArea.size); val huntersB = DoubleArray(bArea.size); val peopleB = DoubleArray(bArea.size)
         for (pl in 0 until land.n) {
             val b = biomeOf[pl]; val a = land.areaKm2[pl].toDouble()
-            bArea[b] += a; forage[b] += (land.palatable[pl] * (land.herb[pl] + land.shrub[pl])) * a
+            bArea[b] += a; forage[b] += (land.palatable[pl] * (land.plants.herb[pl] + land.plants.shrub[pl])) * a
             for (k in fauna.kinds.indices) res[b] += residents(k, pl)
         }
         for (gr in groups.groups) if (gr.alive) {
@@ -113,10 +113,10 @@ class Census(private val sim: HexSim) {
             ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
         fun both(f: (Int) -> Double) = arrayOf(mean(f, true), mean(f, false))
         val roe = fauna.kinds.indexOfFirst { it.name == "roe deer" }
-        val forage = both { (land.palatable[it] * (land.herb[it] + land.shrub[it])).toDouble() }
-        val green = both { land.green[it].toDouble() }
+        val forage = both { (land.palatable[it] * (land.plants.herb[it] + land.plants.shrub[it])).toDouble() }
+        val green = both { land.plants.green[it].toDouble() }
         val roeFed = if (roe >= 0) both { fauna.fed[roe][it].toDouble() } else arrayOf(0.0, 0.0)
-        val water = both { land.waterKm[it].toDouble() }
+        val water = both { land.drink.waterKm[it].toDouble() }
         val temperature = both { weather.temperature[it].toDouble() }
         println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, roe deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
             forage[0], forage[1], green[0], green[1], roeFed[0], roeFed[1], water[0], water[1], temperature[0], temperature[1]))
@@ -286,6 +286,27 @@ class Census(private val sim: HexSim) {
             val died = lastYear.filterKeys { it.startsWith("bands in $c:died of ") }.mapKeys { it.key.substringAfter("died of ") }
             "%s %.3f / %.3f (%s)".format(c, (lastYear["bands in $c:born"] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9),
                 died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
+        run {
+            fun v(k: String) = (lastYear["band time:$k"] ?: 0).toDouble()
+            val all = v("all").coerceAtLeast(1.0)
+            println("bands' time, last year (share of their hands' days): " + listOf("firewood", "food", "drying", "skins", "shelter", "customs", "training", "tools", "left")
+                .joinToString(", ") { "%s %.0f%%".format(it, 100 * v(it) / all) })
+        }
+        println("bands by clothing, last year (clad: a kit of at least half; share of people-weeks; deaths per person a year, of them of exposure): " + listOf("clad", "poorly clad").joinToString(", ") { c ->
+            val years = (lastYear["bands $c:people-weeks"] ?: 0).toDouble() / stepsPerYear
+            val all = (lastYear["bands clad:people-weeks"] ?: 0) + (lastYear["bands poorly clad:people-weeks"] ?: 0)
+            val died = lastYear.filterKeys { it.startsWith("bands $c:died of ") }
+            "%s %.0f%%: %.3f, %.3f".format(c, 100.0 * (lastYear["bands $c:people-weeks"] ?: 0) / all.coerceAtLeast(1),
+                died.values.sum() / years.coerceAtLeast(1e-9), (died["bands $c:died of exposure"] ?: 0) / years.coerceAtLeast(1e-9)) })
+        println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
+            val w = weeks(c).toDouble().coerceAtLeast(1.0)
+            "%s %.0f%% / %.0f%%".format(c, (lastYear["bands in $c:hearth, %"] ?: 0) / w, (lastYear["bands in $c:fuel days, %"] ?: 0) / w) })
+        println("bands by kind of country, last year, in weeks colder than their cover (share of band-weeks: °C short = air below 10 °C less clothes, fire, shelter): " +
+            cs.filter { (lastYear["bands in $it:cold weeks"] ?: 0) > 0 }.joinToString(", ") { c ->
+                fun v(k: String) = (lastYear["bands in $c:cold $k"] ?: 0).toDouble()
+                val n = v("weeks").coerceAtLeast(1.0)
+                "%s %.0f%%: %.1f = %.1f - %.1f - %.1f - %.1f".format(c, 10 * 100 * v("weeks") / (10 * weeks(c)).coerceAtLeast(1) / 10,
+                    v("short") / n, v("air") / n, v("clothes") / n, v("fire") / n, v("shelter") / n) })
     }
 
     /** Islands: land cut off from the largest land by sea; which kinds live there now. */

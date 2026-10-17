@@ -37,12 +37,11 @@ class HexSim(
     fun step() {
         Profile.time("weather") { weather.step() }
         // Ash on the ground weathers into the soil over about two years.
-        for (p in 0 until land.n) if (land.ash[p] > 0f) land.ash[p] = if (land.ash[p] < 0.05f) 0f else land.ash[p] * ashKeep
+        for (p in 0 until land.n) if (land.plants.ash[p] > 0f) land.plants.ash[p] = if (land.plants.ash[p] < 0.05f) 0f else land.plants.ash[p] * ashKeep
         val now = eruptions.step(weather.date, cfg.daysPerStep, wind = { c ->
-            val h = hex.owner[c]
-            val p = (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 }
-            if (p == null) 1f to 0f else weather.windEast(p) to weather.windSouth(p)
-        }) { c, mm -> val p = cellPlace[c]; if (p >= 0) land.ash[p] += mm / hw.placeCells[p].size }
+            val p = hw.firstPlaceIn(hex.owner[c])
+            if (p < 0) 1f to 0f else weather.windEast(p) to weather.windSouth(p)
+        }) { c, mm -> val p = cellPlace[c]; if (p >= 0) land.plants.ash[p] += mm / hw.placeCells[p].size }
         // A great eruption's veil cools the whole region for a couple of years.
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
         Profile.time("water and plants") { land.step(weather) }

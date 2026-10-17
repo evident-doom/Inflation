@@ -10,6 +10,7 @@ import inflation.world.Weather
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.min
 import kotlin.random.Random
 import inflation.world.Biome
@@ -99,12 +100,12 @@ internal fun HexGroups.graze(weather: Weather) {
                 fruit = k.fruit * g.will[AnimalWay.FRUIT], roots = k.roots * g.will[AnimalWay.FRUIT]) }
             val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
             // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
-            val fill = gutFill(s, land.nourishment(p))
+            val fill = gutFill(s, land.plants.nourishment(p))
             val wantGrass = if (snowed) 0f else want * fill * access * d.grass / total
             // (The week's grazing and browsing at a place is shared by all that eat there: what the residents
             // and the herds before it left, see [HexFauna.grazeLeft].)
-            fun eatGrass(kg: Float): Float { val t = land.consume(p, LifeForm.HERB, min(kg, fauna.grazeLeft[p])); fauna.grazeLeft[p] -= t; return t }
-            fun eatBrowse(kg: Float): Float { val t = land.eatBrowse(p, min(kg, fauna.browseLeft[p])); fauna.browseLeft[p] -= t; return t }
+            fun eatGrass(kg: Float): Float { val t = land.plants.consume(p, LifeForm.HERB, min(kg, fauna.grazeLeft[p])); fauna.grazeLeft[p] -= t; return t }
+            fun eatBrowse(kg: Float): Float { val t = land.plants.eatBrowse(p, min(kg, fauna.browseLeft[p])); fauna.browseLeft[p] -= t; return t }
             val grass = eatGrass(wantGrass)
             val wantBrowse = want * fill * access * d.browse / total
             val browse = eatBrowse(wantBrowse)
@@ -113,7 +114,7 @@ internal fun HexGroups.graze(weather: Weather) {
             // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
             // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
             // usual share (an ostrich out of fruit season picks more shoots and leaves).
-            val q = land.nourishment(p)
+            val q = land.plants.nourishment(p)
             var gap = want - ((grass + browse) * q + fruit + roots)
             var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
             // But the gut holds only so much bulk a day: on poor forage a ruminant cannot make up by eating
@@ -134,9 +135,9 @@ internal fun HexGroups.graze(weather: Weather) {
             val band = hw.placeBand[p]
             if (p == g.place) for (h in g.path) {
                 val q = hw.placeOf[band][h].takeIf { it >= 0 } ?: continue
-                land.trample(q, g.size * s.massKg / 1000f)
-                if (fruit > 0f) land.animalSeed[q] =
-                    min(1f, land.animalSeed[q] + fruit * land.areaKm2[p] * 1e6f / g.path.size / land.areaKm2[q] / HexFauna.SEED_KG)
+                land.plants.trample(q, g.size * s.massKg / 1000f)
+                if (fruit > 0f) land.plants.animalSeed[q] =
+                    min(1f, land.plants.animalSeed[q] + fruit * land.areaKm2[p] * 1e6f / g.path.size / land.areaKm2[q] / HexFauna.SEED_KG)
             }
             // Grass and browse nourish fully only when green; fruit and roots keep their value.
             val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + min(short, straw * HexFood.roughage(s))
@@ -149,7 +150,8 @@ internal fun HexGroups.graze(weather: Weather) {
                 straw * HexFauna.PROTEIN_STRAW) * m2p
             if (p == g.place) note(g) {
                 "grazed at %.0f m: fed %.2f (green %.2f, grass %.3f browse %.3f kg/m² there; ate grass %.2g browse %.2g straw %.2g; gut room left %.2g; snowed %s; grazing over %d places)".format(
-                    hw.placeElevationM[p], got / want.coerceAtLeast(1e-9f), land.green[p], land.herb[p], land.shrub[p], grass + grass2, browse + browse2, straw,
+                    hw.placeElevationM[p], got / want.coerceAtLeast(1e-9f), land.plants.green[p], land.plants.herb[p], land.plants.shrub[p],
+                    grass + grass2, browse + browse2, straw,
                     room, snowed, range.size)
             }
             // With food to spare and reserves short, it eats more and lays the surplus on.
@@ -161,9 +163,9 @@ internal fun HexGroups.graze(weather: Weather) {
                 surplusKg += (grass3 + browse3) * q * land.areaKm2[p] * 1e6f
                 small.dung[p] += HexSmallLife.DUNG * (grass3 + browse3)
             }
-            land.grazing[p] += (grass + grass2 + grass3) * 1e6f / days
-            land.browsing[p] += (browse + browse2 + browse3) * 1e6f / days
-            land.rooting[p] += (roots + roots2) * 1e6f / days
+            land.plants.grazing[p] += (grass + grass2 + grass3) * 1e6f / days
+            land.plants.browsing[p] += (browse + browse2 + browse3) * 1e6f / days
+            land.plants.rooting[p] += (roots + roots2) * 1e6f / days
         val m2 = land.m2(p)
         stats.hunting.merge("${s.name}:ate grass, kg", ((grass + grass2 + grass3) * m2).toInt(), Int::plus)
         stats.hunting.merge("${s.name}:ate browse, kg", ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
@@ -186,7 +188,7 @@ internal fun HexGroups.graze(weather: Weather) {
 internal fun HexGroups.grazingRange(g: HexGroup): List<Pair<Int, Float>> {
     val p0 = g.place; val band = hw.placeBand[p0]; val h0 = hw.placeHex[p0]
     val needKg = g.dailyNeedKg * days * RANGE_WEEKS
-    fun forage(p: Int) = land.palatable[p] * (land.herb[p] + land.shrub[p]) * land.areaKm2[p] * 1e6f
+    fun forage(p: Int) = land.palatable[p] * (land.plants.herb[p] + land.plants.shrub[p]) * land.areaKm2[p] * 1e6f
     val places = arrayListOf(p0); var have = forage(p0)
     var ring = listOf(h0); val seen = hashSetOf(h0)
     var r = 0
@@ -268,6 +270,23 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands in $c:died of $cause", k, Int::plus)
             if (o.births > 0) stats.hunting.merge("bands in $c:born", o.births, Int::plus)
+            // And by how well clad the band was: what clothes are worth in lives.
+            g.band?.let { b ->
+                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) "clad" else "poorly clad"
+                stats.hunting.merge("bands $clad:people-weeks", g.size, Int::plus)
+                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands $clad:died of $cause", k, Int::plus)
+            }
+            // And, in the weeks it was cold through all the cover the band had, what each cover gave.
+            val b = g.band
+            if (b != null) {
+                val t = weather.temperature[g.place]
+                if (b.exposure(t) > 0f) {
+                    fun add(k: String, v: Float) = stats.hunting.merge("bands in $c:cold $k", (10f * v).roundToInt(), Int::plus)
+                    add("weeks", 1f); add("short", b.exposure(t)); add("air", EXPOSURE_C - t)
+                    add("clothes", PROTECT_CLOTHES * b.has(Tool.CLOTHES) * b.clothesFit()); add("fire", PROTECT_FIRE * b.fire)
+                    add("shelter", max(PROTECT_SHELTER * b.shelter, if (b.atHome) PROTECT_HOUSE * b.house else 0f))
+                }
+            }
         }
         if (o.orphans > 0) stats.deaths.merge("${s.name}:${DeathCause.ORPHANED}", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
@@ -329,19 +348,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.larder = g.larder * share; g.larder -= n.larder
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
-    g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); riteInherit(nb)
-        for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }
-        for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
-        nb.ornaments = b.ornaments * share; b.ornaments -= nb.ornaments; nb.exotic = b.exotic * share; b.exotic -= nb.exotic
-        nb.elders = b.elders * adults / (g.adults + adults).coerceAtLeast(1); b.elders -= nb.elders
-        // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
-        val go = adults.toFloat() / (g.adults + adults).coerceAtLeast(1)
-        for (i in b.holders.indices) if (b.holders[i] > 0f) {
-            val held = b.holders[i].toInt() + (if (rnd.nextFloat() < b.holders[i] - b.holders[i].toInt()) 1 else 0)
-            val took = binomial(held, go, rnd).toFloat(); nb.holders[i] = took; b.holders[i] = max(0f, b.holders[i] - took)
-        }
-        nb.lastAdults = adults; b.lastAdults = g.adults
-        for (i in b.ageStage.indices) { nb.ageStage[i] = b.ageStage[i] * adults / (g.adults + adults).coerceAtLeast(1); b.ageStage[i] -= nb.ageStage[i] } } }
+    g.band?.let { b -> n.band = Band().also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) } } }
     g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ); g.route.copyInto(n.route); g.proteinByMonth.copyInto(n.proteinByMonth)
     if (ROUNDS && !s.carnivore) driftRound(n)
     return n
@@ -419,7 +426,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // Children of a closed band are inbred; medicine saves some of the sick and wounded.
     val inbred = if (band != null) INBREEDING_DEATHS * band.inbred * years else 0f
     // (Healers save some of the sick and wounded, the more the more they know.)
-    val healed = (if (band?.holds(Tradition.MEDICINE) == true) 0.85f else 1f) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
+    val healed = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
     // (And practised midwives and carers lose fewer infants.)
     val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
     // Sicknesses of their own: the flux, marsh fever, the cough (see [Illness]); healers save some.
@@ -531,7 +538,7 @@ private fun HexGroups.moveBirthMonth(g: HexGroup, date: Date) {
  * Returns the deaths from festering, a year's rate.
  */
 private fun HexGroups.woundsWeek(band: Band): Float {
-    val care = (if (band.holds(Tradition.MEDICINE)) 0.5f else 0f) + 0.5f * band.skill(Skill.HERBS)
+    val care = 0.5f * band.medicine + 0.5f * band.skill(Skill.HERBS)
     band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * years)
     val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
     val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f
@@ -550,10 +557,11 @@ private fun HexGroups.thirstWeek(g: HexGroup): Float {
     // will do. Animals go to water and back as often as they must: a kind that can go days without
     // drinking can live as many half-days' going from it.
     val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
-    // (People also dig for it in a dry bed where the water lies near: see [HexLand.dug].)
-    if (land.water[p0] >= Thresholds.WET || (s.maxWaterKm.isInfinite() && land.waterKm[p0] <= fetch) || (s.human && land.mustDig(p0, fetch))) g.dry = 0f
+    // (People also dig for it in a dry bed where the water lies near: see [HexDrinkingWater.dug].)
+    if (land.drink.water[p0] >= Thresholds.WET || (s.maxWaterKm.isInfinite() && land.drink.waterKm[p0] <= fetch) ||
+        (s.human && land.drink.mustDig(p0, fetch))) g.dry = 0f
     // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
-    else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.green[p0]))
+    else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.plants.green[p0]))
     // (People carry water in skins and know every spring: they suffer far less from it than animals.)
     // (Strangers to the country do not know its springs.)
     val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
@@ -723,7 +731,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f
-            if (a.home < 0) a.home = b.home
+            if (a.home < 0) claimGround(a, b.home)
             b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
         }
@@ -732,34 +740,8 @@ internal fun HexGroups.mergeAndPair(date: Date) {
 
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
 private fun joinBand(into: HexGroup, from: HexGroup) {
-    val a = into.band!!; val b = from.band!!
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
-    for (i in a.skills.indices) a.skills[i] = max(a.skills[i], b.skills[i])
-    for (i in a.holders.indices) a.holders[i] = max(0f, a.holders[i]) + max(0f, b.holders[i])
-    a.lastAdults += from.adults
-    for (i in a.knowsSkill.indices) a.knowsSkill[i] = a.knowsSkill[i] || b.knowsSkill[i]
-    for (i in a.plants.indices) a.plants[i] = max(a.plants[i], b.plants[i])
-    for (i in a.kit.indices) {
-        val ka = a.kit[i] * (1f - w)
-        val kb = b.kit[i] * w
-        if (ka + kb > 0f) a.fine[i] = (ka * a.fine[i] + kb * b.fine[i]) / (ka + kb)
-        a.kit[i] += w * (b.kit[i] - a.kit[i])
-    }
-    val dried = into.stores[Store.DRIED.ordinal] + from.stores[Store.DRIED.ordinal]
-    if (dried > 0f) a.salted = (into.stores[Store.DRIED.ordinal] * a.salted + from.stores[Store.DRIED.ordinal] * b.salted) / dried
-    a.renown = max(a.renown, b.renown)
-    for (i in a.knows.indices) a.knows[i] = a.knows[i] || b.knows[i]
-    for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
-    for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
-    for ((k, v) in b.ties) if (k != into.id) a.ties[k] = max(a.tie(k), v)
-    a.ties.remove(from.id)
-    for (i in a.goods.indices) a.goods[i] += b.goods[i]
-    if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
-    for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
-    if (a.kept.size < b.kept.size) a.kept = a.kept.copyOf(b.kept.size)
-    for (i in b.kept.indices) a.kept[i] += b.kept[i]
-    a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
-    for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
+    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED.ordinal], from.stores[Store.DRIED.ordinal], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
     into.larder += from.larder
     into.memory.hear(from.memory, 0, 1f)
@@ -773,7 +755,7 @@ internal fun HexGroups.remember(date: Date) {
     val m = date.month
     // Every group remembers where it was this week and how it fared there.
     val week = (date.absoluteDay / days).toInt()
-    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.water[g.place], fauna.afraid(g.place), week)
+    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place], fauna.afraid(g.place), week)
     for (g in groups) {
         if (g.species.pack) continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,
@@ -799,18 +781,18 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
     val hexKm2 = hex.areaKm2.toFloat()
     var pressure = 0f; var worst = ""; var worstP = 0f
     for (k in kinds) {
-        val w = MAN_EATERS[k] ?: continue
+        val w = k.takesPeople; if (w <= 0f) continue
         val heads = kinNow[k.index.toLong() * hex.size + h] ?: continue
         val v = w * heads * k.massKg / hexKm2
         pressure += v; if (v > worstP) { worstP = v; worst = k.name }
     }
     for ((ki, k) in fauna.kinds.withIndex()) {
-        val w = MAN_EATERS[k] ?: continue
+        val w = k.takesPeople; if (w <= 0f) continue
         val v = w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg
         pressure += v; if (v > worstP) { worstP = v; worst = k.name }
     }
     if (pressure <= 0f) return Stalking.NONE
-    val cover = 0.5f + land.cover(p)
+    val cover = 0.5f + land.plants.cover(p)
     val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
     val spread = b.gatherRange * b.gatherRange
@@ -828,13 +810,11 @@ data class Stalking(val rate: Float, val by: String) {
 }
 
 /**
- * Beasts that take people, by how readily (leopards most, then lions; bears, wolves and hyenas
- * rarely); yearly share of people they take at most where they are thick, from the unwary in thick
- * cover with no fire, dogs or lookouts; density of beast flesh, kg/km² weighted, at which they take
+ * Of the beasts that take people ([Species.takesPeople]): the yearly share of people they take at most
+ * where they are thick, from the unwary in thick cover with no fire, dogs or lookouts; density of beast flesh, kg/km² weighted, at which they take
  * half that; a band size the company factor is set for; how much a fire at night, dogs and lookouts
  * each keep off; how much more often children are taken.
  */
-val MAN_EATERS by lazy { mapOf(Catalogue.LEOPARD to 1.2f, Catalogue.LION to 1f, Catalogue.BEAR to 0.4f, Catalogue.WOLF to 0.3f, Catalogue.HYENA to 0.3f) }
 const val STALKED = 0.02f
 const val STALKED_HALF = 3f
 const val STALKED_BAND = 25f

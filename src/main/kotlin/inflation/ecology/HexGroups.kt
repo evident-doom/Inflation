@@ -6,6 +6,7 @@ import inflation.saturate
 import inflation.monthsFrom
 import inflation.HASH_A
 import inflation.HASH_B
+import inflation.HASH_C
 import inflation.mix64Once
 import inflation.unitOf
 import inflation.Config
@@ -65,7 +66,7 @@ class HexGroups(
                 val prey = huntable[kindSlot[s.index]][p] +
                     if (s.human) (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT else 0f
                 // Hunters that live on the water in their prey (cheetahs, leopards) care less how far it is.
-                val w = land.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
+                val w = land.drink.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
                 prey / (prey + PREY_HALF) * fit / (1f + w * w)
             } else herdQuality(s, p, m)
         }, { s -> groups.any { it.alive && it.species == s } })
@@ -86,7 +87,7 @@ class HexGroups(
     }
 
     /** How good the forage at place [p] is for [s], 0..1: how nourishing and how rich in protein (see [HexFauna.forageProtein]). */
-    internal fun freshness(s: Species, p: Int) = land.nourishment(p) * fauna.forageProtein(s, p)
+    internal fun freshness(s: Species, p: Int) = land.plants.nourishment(p) * fauna.forageProtein(s, p)
 
     /** How good place [p] is for a herd of [s] in month [m], 0..1: food, its ground, water, the month's climate, few hunters. */
     internal fun herdQuality(s: Species, p: Int, m: Int): Float {
@@ -139,7 +140,7 @@ class HexGroups(
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
                     val (x, y) = hex.centreKm(hw.placeHex[p])
-                    g.band = Band.start(land.waterKm[p] < 3f, x, y).also { b ->
+                    g.band = Band.start(land.drink.waterKm[p] < 3f, x, y).also { b ->
                         b.elders = g.adults / 6
                         // The rest of the adults spread over the three spans of adult life.
                         b.ageStage[0] = (g.adults - b.elders) / 3; b.ageStage[1] = (g.adults - b.elders) / 3
@@ -151,7 +152,7 @@ class HexGroups(
                         for (h in seen) for (k in b.plants.indices) if (hw.biome[k][h] > 0.1f) b.plants[k] = 0.9f
                     }
                 }
-                if (s.pack) g.home = hw.placeHex[p] else inheritSeasons(g)
+                if (s.pack) claimGround(g, hw.placeHex[p]) else inheritSeasons(g)
                 groups += g
             }
         }
@@ -177,7 +178,7 @@ class HexGroups(
                 val p = drawPlace(weights, total)
                 val g = spawn(s, p, unit)
                 // (Unlike at the start, any newcomer hunter, not only a pack, comes with ground of its own.)
-                if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
+                if (s.carnivore) claimGround(g, hw.placeHex[p]) else inheritSeasons(g)
                 groups += g
             }
             stats.meetings.merge("newcomers: ${s.name}", NEWCOMERS, Int::plus)
@@ -471,7 +472,7 @@ class HexGroups(
      */
     internal val materialSources: Map<Material, IntArray> by lazy {
         TRADED.associateWith { m ->
-            val share = when (m) { Material.STONE -> land.stone; Material.SALT -> land.salt; else -> land.ochre }
+            val share = requireNotNull(m.deposit) { "no deposits known for traded $m" }(land)
             val best = HashMap<Long, Int>()
             for (p in 0 until n) {
                 if (share[p] < SOURCE_MIN) continue
@@ -511,7 +512,7 @@ class HexGroups(
             for ((k, s) in kinds.withIndex()) placeValue[k][p] =
                 if (s.human) (preyHere(s, p) + expectPrey[k][p]) * campFactor(p) + campPlants(p)
                 else if (s.carnivore) dietValue(s, p, preyHere(s, p) + expectPrey[k][p])
-                else foodFor(s, p) * fauna.suits(s, p) * (1f - land.burning[p]) * fauna.tether(s, p)
+                else foodFor(s, p) * fauna.suits(s, p) * (1f - land.fire.burning[p]) * fauna.tether(s, p)
         }
     }
 
@@ -629,11 +630,15 @@ class HexGroups(
      * the camp can stand on high, broken or water-girt ground safe from lions and raiders.
      */
     internal fun campValue(s: Species, p: Int): Float = (preyHere(s, p) + herdPrey(s, p)) * campFactor(p) + campPlants(p)
-    /** What a camp's game is worth to a band, times: the more where the camp is safe, the less the further water is. */
+    /**
+     * What a camp's game is worth to a band, times: the more where the camp is safe, the less the further water is,
+     * and the less the more of its days the hearth's firewood takes there (none left where there is nothing to burn).
+     */
     private fun campFactor(p: Int): Float {
         // Water close to camp: women and children fetch it every day.
-        val w = land.waterKm[p] / 3f
-        return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w)
+        val w = land.drink.waterKm[p] / 3f
+        val fuel = min(1f, HEARTH_WOOD / (FUEL_A_DAY * min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)).coerceAtLeast(1e-6f))
+        return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
     private fun campPlants(p: Int) = (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT * campFactor(p)
 
@@ -645,9 +650,9 @@ class HexGroups(
         for (g in groups) {
             if (!g.alive || !g.species.human) continue
             val p = g.place
-            val dry = land.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.green[p] < 0.4f
-            if (dry && land.herb[p] > 0.3f && land.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) {
-                land.ignite(p)
+            val dry = land.hydro.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.plants.green[p] < 0.4f
+            if (dry && land.plants.herb[p] > 0.3f && land.fire.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) {
+                land.fire.ignite(p)
                 stats.meetings.merge("bands burned off grass", 1, Int::plus)
             }
         }
@@ -671,7 +676,7 @@ class HexGroups(
         } ?: s.maxGroupSize
         val birth = if (g.birthMonth >= 0) g.birthMonth else s.birthMonth
         val calving = monthsFrom(birth, date.month) < s.birthMonths
-        val flush = 1f + AGGREGATION * land.green[g.place] * g.fed
+        val flush = 1f + AGGREGATION * land.plants.green[g.place] * g.fed
         return max(unitSize(s), (s.maxGroupSize * herdUnit(s) * g.sizePref * g.will[AnimalWay.HERD_SIZE] * flush * (if (calving) 0.5f else 1f)).toInt())
     }
 
@@ -846,7 +851,7 @@ class HexGroups(
         f[Feature.FAT] = g.fat / s.maxFatDays.coerceAtLeast(1f)
         f[Feature.SEASON_SIN] = sin(season).toFloat(); f[Feature.SEASON_COS] = cos(season).toFloat()
         f[Feature.RESTLESS] = if (restless) 1f else 0f
-        f[Feature.WATER_DISTANCE] = min(3f, (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm)
+        f[Feature.WATER_DISTANCE] = min(3f, (if (s.human) land.drink.peopleWaterKm(p) else land.drink.waterKm[p]) / s.dailyTravelKm)
         f[Feature.DAYS_DRY] = min(2f, g.dry / s.daysWithoutWater)
         f[Feature.PULL] = pull
         // The moon (night hunters see and are seen by it) and how far off its young are due.
@@ -858,16 +863,18 @@ class HexGroups(
         f[Feature.APPOINTMENT] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
         f[Feature.HOUSES] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
         f[Feature.OWN_SIZE] = ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
-        f[Feature.LASTING_WATER] = min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])
+        f[Feature.LASTING_WATER] = min(1f, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p])
         f[Feature.SICKNESS] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
         // The signs of the land, as anyone who looks can read them.
-        f[Feature.TREES] = min(1f, land.tree[p] / 10f); f[Feature.SHRUBS] = min(1f, land.shrub[p] / 2f); f[Feature.GRASS] = min(1f, land.herb[p] / 0.5f)
+        f[Feature.TREES] = min(1f, land.plants.tree[p] / 10f); f[Feature.SHRUBS] = min(1f, land.plants.shrub[p] / 2f)
+        f[Feature.GRASS] = min(1f, land.plants.herb[p] / 0.5f)
         f[Feature.MARSH] = min(1f, land.waterlogged[p])
-        f[Feature.WATER_AGAINST_USUAL] = (land.water[p] - min(1f, land.nearRiver[p] + land.nearLake[p] + land.nearSpring[p])).coerceIn(-1f, 1f)
+        f[Feature.WATER_AGAINST_USUAL] = (land.drink.water[p] - min(1f, land.drink.nearRiver[p] + land.drink.nearLake[p] +
+            land.drink.nearSpring[p])).coerceIn(-1f, 1f)
         f[Feature.PATHS] = wear.at(h)
         f[Feature.HERDS_ABOUT] = ln(1f + monthHerdHeads[p] / land.areaKm2[p]) / 3f
         f[Feature.DUNG] = min(1f, fauna.small.dung[p] * 1e4f)
-        f[Feature.GRAZING_AND_KILLS] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) +
+        f[Feature.GRAZING_AND_KILLS] = min(1f, (land.plants.grazing[p] + land.plants.browsing[p]) / 1000f) +
             min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
         f[Feature.KNOWN_GROUND] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
         f[Feature.BEYOND_OWN_GROUND] = beyond; f[Feature.OTHERS_MARKS] = foreign
@@ -944,7 +951,7 @@ class HexGroups(
         val weak = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * shiftDays * (if (s.carnivore) 1f else bandsIn(g).pow(-BIG_HERD_SLOW)) *
             (1f - WEAK_SLOW * weak) *
-            (if (s.human) 1f / (1f + COVER_GOING * land.cover(g.place)) else 1f)
+            (if (s.human) 1f / (1f + COVER_GOING * land.plants.cover(g.place)) else 1f)
         val kind = kindIndex[s] ?: 0
         // Least effort to each hex within reach.
         val buf = scratch.get()
@@ -1043,7 +1050,7 @@ class HexGroups(
                 return "score %.2f: food %.2f fresh %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
                     seen.firstOrNull { it.first == p }?.second ?: Float.NaN, placeValue[kind][p], freshness(s, p),
                     crowdOf(s, p, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0)), hunters,
-                    if (s.human) land.peopleWaterKm(p) else land.waterKm[p], dist[h], hexKm(h, goalHex))
+                    if (s.human) land.drink.peopleWaterKm(p) else land.drink.waterKm[p], dist[h], hexKm(h, goalHex))
             }
             val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
                 hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: hex.heart[h] }?.takeIf { it >= 0 }
@@ -1095,11 +1102,11 @@ class HexGroups(
         val tAhead = weather.forecastTemp(p)
         score -= 0.5f * s.foresight * s.discomfortC(tAhead, date.month) / 10f
         if (tAhead < 0f && weather.snowpack[p] + weather.forecastRain(p) > s.snowLimitMm) score -= 0.5f * s.foresight
-        if (land.soil[p] < DRY_SOIL_MM) score += 0.3f * s.foresight * min(1f, weather.forecastRain(p) / RAIN_AHEAD_MM)
+        if (land.hydro.soil[p] < DRY_SOIL_MM) score += 0.3f * s.foresight * min(1f, weather.forecastRain(p) / RAIN_AHEAD_MM)
         // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
         // (People can dig for water in a dry bed where it lies near.)
-        score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.peopleWaterKm(p) else land.waterKm[p]) / s.dailyTravelKm
-        if (thirsty && land.water[p] < 0.05f && !(s.human && land.dug[p] >= 0.05f)) score -= 1f
+        score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.drink.peopleWaterKm(p) else land.drink.waterKm[p]) / s.dailyTravelKm
+        if (thirsty && land.drink.water[p] < 0.05f && !(s.human && land.drink.dug[p] >= 0.05f)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need (see [walkCost]).
         score -= WALK_COST * d / days
@@ -1220,22 +1227,9 @@ class HexGroups(
     @Transient var meetNs = 0L
 
 
-    internal fun poisson(mean: Float, r: Random = rnd): Int {
-        if (mean <= 0f) return 0
-        if (mean > 30f) return (mean + sqrt(mean) * gaussian(r)).toInt().coerceAtLeast(0)
-        val l = exp(-mean.toDouble()); var k = 0; var pr = 1.0
-        do { k++; pr *= r.nextDouble() } while (pr > l)
-        return k - 1
-    }
-
-    internal fun binomial(n: Int, p: Float, r: Random = rnd): Int {
-        if (n <= 0 || p <= 0f) return 0
-        if (p >= 1f) return n
-        if (n > 50) return (n * p + sqrt(n * p * (1 - p)) * gaussian(r)).toInt().coerceIn(0, n)
-        var k = 0; repeat(n) { if (r.nextFloat() < p) k++ }; return k
-    }
-
-    internal fun gaussian(r: Random = rnd): Float = inflation.gaussian(r).toFloat()
+    internal fun poisson(mean: Float, r: Random): Int = inflation.poisson(mean, r)
+    internal fun binomial(n: Int, p: Float, r: Random): Int = inflation.binomial(n, p, r)
+    internal fun gaussian(r: Random): Float = inflation.gaussian(r).toFloat()
 
     /** A random stream of group [id]'s own for the week starting on [day]: the same whatever the cores do. */
     internal fun groupRandom(id: Int, day: Long) = Random(seedBase * 1_000_003L + id * 7_919L + day)
@@ -1243,7 +1237,7 @@ class HexGroups(
     internal fun policyRandom(id: Int, day: Long) = Random((seedBase * 1_000_003L + id * 7_919L + day) * 0x9E3779B97F4A7C15uL.toLong() + 0x2545F4914F6CDD1DL)
 
     internal fun hashNoise(id: Int, p: Int): Float {
-        return unitOf(mix64Once(id * HASH_A + p * HASH_B))
+        return unitOf(mix64Once(id * HASH_A + p * HASH_B + seedBase * HASH_C))
     }
 }
 

@@ -1,5 +1,6 @@
 package inflation.ui
 
+import inflation.learning.LearnedModel
 import inflation.Args
 import inflation.Config
 
@@ -48,12 +49,6 @@ import inflation.ecology.Skill
 import inflation.ecology.Species
 import inflation.ecology.Tool
 import inflation.ecology.Tradition
-import inflation.learning.MoverPolicy
-import inflation.learning.NetAnimalWays
-import inflation.learning.NetWays
-import inflation.learning.Role
-import inflation.learning.Schema
-import inflation.learning.SharedMover
 import inflation.world.Biome
 import inflation.world.WorldCache
 import kotlin.math.abs
@@ -77,7 +72,6 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 import java.awt.Point
 import java.awt.BasicStroke
-import inflation.tools.baselineDir
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,
@@ -86,10 +80,8 @@ import inflation.tools.baselineDir
  *
  * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
  * (--load carries on a saved world: the seed and size must be the ones it was saved with.) The
- * config keys choose the learned networks, as for hex-fauna: nets=DIR moves every kind by the
- * networks in DIR (herds.mlp, hunters.mlp, people.mlp, as hex-ppo writes them, and herd-ways.mlp,
- * hunter-ways.mlp where present), ways=FILE sets the bands' ways by a learned network, and herdWays
- * and hunterWays the herds' and packs'. Without them the hand-written choices are the model.
+ * config keys choose the learned networks as for hex-fauna (see [LearnedModel]). Without them the
+ * hand-written choices are the model.
  */
 fun main(args: Array<String>) {
     val a = Args(args, "hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]")
@@ -333,27 +325,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         control.weekDone()
     }
 
-    /** The model: learned networks where given ([nets], [waysFile]), else the hand-written choices. */
+    /** The model: learned networks where given ([nets], [waysFile], see [LearnedModel]), else the hand-written choices. */
     private fun useNetworks() {
-        nets?.let { name ->
-            val dir = baselineDir(name)
-            for (role in Role.entries) {
-                val f = role.file(dir).takeIf { it.exists() } ?: continue
-                val p = MoverPolicy(SharedMover.load(f), null, { 0f }, { 0 })
-                for (s in groups.kinds) if (Role.of(s) == role) groups.policies[s] = p
-            }
-            File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let {
-                groups.herdWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT))
-            }
-            File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let {
-                groups.hunterWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT))
-            }
-        }
-        (waysFile ?: nets?.let { File(baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
-            groups.ways = NetWays(Schema.load(File(it), Schema.WAYS_IN, Schema.WAYS_OUT))
-        }
-        Config.string("herdWays")?.let { groups.herdWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT)) }
-        Config.string("hunterWays")?.let { groups.hunterWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
+        LearnedModel.apply(groups, nets, waysFile, Config.string("herdWays"), Config.string("hunterWays")) { println(it) }
     }
 
     private fun snapshot() {
@@ -818,11 +792,12 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             val p = hw.placeOf[b][h]
             if (p < 0) continue
             sb.appendLine("band %d (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(
-                b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.soil[p]))
+                b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.hydro.soil[p]))
             sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², green %.0f%%, rugged %.2f, refuge %.2f, lookout %.0f km".format(
-                land.herb[p], land.shrub[p], land.tree[p], 100 * land.green[p], land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
+                land.plants.herb[p], land.plants.shrub[p], land.plants.tree[p], 100 * land.plants.green[p],
+                land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
             sb.appendLine("   rain %.0f mm this week, wind %.1f m/s; drinking water within reach of %.0f%% (walk %.1f km)".format(
-                weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p)), 100 * land.water[p], land.waterKm[p]))
+                weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p)), 100 * land.drink.water[p], land.drink.waterKm[p]))
             val sl = fauna.small
             sb.appendLine("   insects %.0f, biting %.0f, rodents %.0f, reptiles %.0f, pollinators %.0f kg/km²; litter %.2f, organic %.1f kg/m²".format(
                 sl.insects[p], sl.biting[p], sl.rodents[p], sl.herps[p], sl.pollinators[p], sl.litter[p], sl.organicMatter[p]))
@@ -839,7 +814,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             if (p < 0) continue
             val a = land.areaKm2[p]; totalArea += a
             for (k in fauna.kinds.indices) residents[k] += ((fauna.adults[k][p] + fauna.young[k][p]) * a).toDouble()
-            food += ((land.herb[p] + land.shrub[p]) * a).toDouble() // kg/m² × km² = 1e6 kg
+            food += ((land.plants.herb[p] + land.plants.shrub[p]) * a).toDouble() // kg/m² × km² = 1e6 kg
             small += ((fauna.small.rodents[p] + fauna.small.herps[p]) * a).toDouble(); carrion += (fauna.small.carrion[p] * 1e6f * a).toDouble()
         }
         val gs = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
@@ -850,7 +825,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         sb.appendLine("   herds and packs: " + gs.groupBy { it.species }.entries
             .joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
         sb.appendLine("   forage (grass and browse) %.0f t, rodents and reptiles %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
-        sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.meanFlow[h], land.flow[h]))
+        sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.hydro.meanFlow[h], land.hydro.flow[h]))
         // The tinted measure here: this week, and month by month over the last year.
         val tint = Measure.entries[tintChoice.selectedIndex]
         if (tint != Measure.NONE) {
@@ -939,8 +914,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         for (b in 0 until HexWorld.BANDS_M.size) {
             val p = hw.placeOf[b][h]; if (p < 0) continue
             val w = land.areaKm2[p].toDouble(); a += w
-            herb += land.herb[p] * w; shrub += land.shrub[p] * w; tree += land.tree[p] * w; green += land.green[p] * w
-            fruit += fauna.food.fruit[p] * w; straw += fauna.food.straw[p] * w; snow += weather.snowpack[p] * w; burnt += land.burnt[p] * w
+            herb += land.plants.herb[p] * w; shrub += land.plants.shrub[p] * w; tree += land.plants.tree[p] * w; green += land.plants.green[p] * w
+            fruit += fauna.food.fruit[p] * w; straw += fauna.food.straw[p] * w; snow += weather.snowpack[p] * w; burnt += land.fire.burnt[p] * w
         }
         if (a <= 0.0) return parts.joinToString("; ").ifEmpty { "water" }
         herb /= a; shrub /= a; tree /= a; green /= a; fruit /= a; straw /= a; snow /= a; burnt /= a

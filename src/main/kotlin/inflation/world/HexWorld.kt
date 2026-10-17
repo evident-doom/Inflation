@@ -18,24 +18,17 @@ class HexWorld(val world: World, val hex: HexMap) {
 
     /** Shares of each hex's fine cells that are sea, lake, and land. */
     val sea = FloatArray(size); val lake = FloatArray(size); val land = FloatArray(size)
-    /** Share of each hex's land in each height band ([BANDS_M] lower bounds). */
-    val band = Array(BANDS_M.size) { FloatArray(size) }
     /** Mean land elevation of each hex, m. */
     val elevationM = FloatArray(size)
-    /** [month][hex]: mean temperature of the land, °C, and of its lowest and highest tenth of ground (valley floor, high pasture); rain and snow, mm; potential evaporation, mm. */
+    /** [month][hex]: mean temperature of the land, °C; rain and snow, mm; potential evaporation, mm. */
     val temp = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
-    val tempLow = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
-    val tempHigh = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
     val precip = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
     val pet = Array(Date.MONTHS_PER_YEAR) { FloatArray(size) }
-    /** Mean soil fertility of the land, 0..1. */
-    val fertility = FloatArray(size)
     /** [biome][hex]: share of the land in each kind of country. */
     val biome = Array(Biome.entries.size) { FloatArray(size) }
-    /** Biggest river through the hex, m³/s; length of streams and rivers in it, km; whether any reach is navigable. */
+    /** Biggest river through the hex, m³/s; length of streams and rivers in it, km. */
     val riverM3s = FloatArray(size)
     val riverKm = FloatArray(size)
-    val navigable = BooleanArray(size)
     /** Share of the land within 2 km of drinking water (river, lake, spring). */
     val watered = FloatArray(size)
     /** Whether the hex touches the open sea. */
@@ -45,7 +38,6 @@ class HexWorld(val world: World, val hex: HexMap) {
         val cells = IntArray(size)
         val landN = IntArray(size)
         val elev = DoubleArray(size)
-        val byHex = Array(size) { ArrayList<Int>() }
         val water = BooleanArray(grid.size) { world.isSea[it] || world.water.isLake(it) || world.riverClass(it) >= RiverClass.STREAM }
         val nearWater = Climate.distanceTransformKm(grid, water)
         for (i in 0 until grid.size) {
@@ -55,12 +47,9 @@ class HexWorld(val world: World, val hex: HexMap) {
                 world.isSea[i] -> sea[h] += 1f
                 world.water.isLake(i) -> lake[h] += 1f
                 else -> {
-                    landN[h]++; byHex[h] += i
+                    landN[h]++
                     elev[h] += world.elevation[i]
-                    fertility[h] += world.soilFertility[i]
                     biome[world.biome[i].ordinal][h] += 1f
-                    val b = BANDS_M.indexOfLast { world.elevation[i] >= it }.coerceAtLeast(0)
-                    band[b][h] += 1f
                     if (nearWater[i] <= 2f) watered[h] += 1f
                     for (m in 0 until Date.MONTHS_PER_YEAR) {
                         temp[m][h] += world.climate.monthlyTemp[m][i]
@@ -70,7 +59,6 @@ class HexWorld(val world: World, val hex: HexMap) {
                 }
             }
             if (world.riverClass(i) >= RiverClass.STREAM) { riverKm[h] += grid.cellKm.toFloat(); riverM3s[h] = max(riverM3s[h], world.water.discharge[i]) }
-            if (world.isNavigable(i)) navigable[h] = true
             if (world.isSea[i]) {
                 grid.forNeighbours(i) { j, _ -> if (!world.isSea[j]) coast[hex.owner[j]] = true }
             }
@@ -82,19 +70,9 @@ class HexWorld(val world: World, val hex: HexMap) {
             land[h] = l / n
             if (l == 0) continue
             elevationM[h] = (elev[h] / l).toFloat()
-            fertility[h] /= l
             watered[h] /= l
-            for (b in band) b[h] /= l
             for (bi in biome) bi[h] /= l
             for (m in 0 until Date.MONTHS_PER_YEAR) { temp[m][h] /= l; precip[m][h] /= l; pet[m][h] /= l }
-            // The coldest and warmest tenth of the land: the high pastures and the valley floor.
-            val cs = byHex[h]
-            val tenth = max(1, cs.size / 10)
-            val byHeight = cs.sortedBy { world.elevation[it] }
-            for (m in 0 until Date.MONTHS_PER_YEAR) {
-                tempLow[m][h] = byHeight.take(tenth).map { world.climate.monthlyTemp[m][it] }.average().toFloat()
-                tempHigh[m][h] = byHeight.takeLast(tenth).map { world.climate.monthlyTemp[m][it] }.average().toFloat()
-            }
         }
     }
 
