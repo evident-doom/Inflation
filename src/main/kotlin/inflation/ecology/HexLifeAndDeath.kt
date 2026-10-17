@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Books
+
 import inflation.KgM2
 import inflation.Tuning
 import inflation.wrapMonth
@@ -62,6 +64,12 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     }
     // What the forebears knew is trusted until the herd learns better (see [remember]).
     if (top > 0f) for (m in 0 until 12) g.seasonQ[m] = 1f
+}
+
+/** Books [kgM2] of food eaten at place [p], and the dung dropped of it (see [Books]). */
+internal fun HexGroups.bookEaten(b: Books, p: Int, kgM2: Float) {
+    val m2 = land.areaM2[p].toDouble()
+    b.flow(Books.Stuff.MATTER, "eaten", -kgM2 * m2); b.flow(Books.Stuff.MATTER, "dung and frass", HexSmallLife.DUNG * kgM2 * m2)
 }
 
 /**
@@ -169,6 +177,7 @@ internal fun HexGroups.graze(weather: Weather) {
                 surplusKg += (grass3 + browse3) * q * land.areaKm2[p] * 1e6f
                 small.dung[p] += HexSmallLife.DUNG * (grass3 + browse3)
             }
+            land.books?.let { b -> bookEaten(b, p, grass + browse + fruit + roots + straw + grass2 + browse2 + fruit2 + roots2 + grass3 + browse3) }
             land.plants.grazing[p] += (grass + grass2 + grass3) * 1e6f / days
             land.plants.browsing[p] += (browse + browse2 + browse3) * 1e6f / days
             land.plants.rooting[p] += (roots + roots2) * 1e6f / days
@@ -351,7 +360,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.
     val share = (adults + young).toFloat() / (g.size + adults + young).coerceAtLeast(1)
-    n.larder = g.larder * share; g.larder -= n.larder
+    if (CONSERVE_STORES) moveFood(g, n, g.larder * share) else { n.larder = g.larder * share; g.larder -= n.larder }
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
     g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) } } }
@@ -502,7 +511,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
     val causes = shareDeaths(hazards, da, dy, r)
     if (oldAge > 0) causes += Died(DeathCause.OLD_AGE.label, oldAge)
-    growUp(g, r)
+    val up = growUp(g, r)
+    land.books?.adder(Books.Stuff.MATTER, "groups born and grew up")?.add(((HexFauna.YOUNG_WEIGHT * bornNow + (1f - HexFauna.YOUNG_WEIGHT) * up) * s.massKg).toDouble())
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
         val orphans = g.young
@@ -660,8 +670,8 @@ private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int
     return died.entries.mapTo(ArrayList()) { Died(it.key, it.value) }
 }
 
-/** [g]'s young grow up, and in a band the adults age through three spans of adult life, then become elders (drawn from [r]). */
-private fun HexGroups.growUp(g: HexGroup, r: Random) {
+/** [g]'s young grow up, and in a band the adults age through three spans of adult life, then become elders (drawn from [r]); returns how many young grew up. */
+private fun HexGroups.growUp(g: HexGroup, r: Random): Int {
     val s = g.species
     val band = g.band
     val up = binomial(g.young, years / s.yearsToMaturity, r)
@@ -674,6 +684,7 @@ private fun HexGroups.growUp(g: HexGroup, r: Random) {
         val toSecond = binomial(first, rate, r)
         b.elders += toElder; b.ageStage[1] += toThird - toElder; b.ageStage[0] += toSecond - toThird
     }
+    return up
 }
 
 /**
@@ -766,8 +777,10 @@ private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
-    for (i in Store.entries) into.stores[i] += from.stores[i]
+    for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
+    // (Its cache is left: no one goes back for it.)
+    dropCache(from.band!!)
     from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f

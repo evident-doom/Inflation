@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Books
+
 import inflation.monthsFrom
 import inflation.world.Channel
 import inflation.world.Date
@@ -367,7 +369,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     val ate = min(want, 0.5f * litterKg.toFloat())
                     if (ate > 0f) for (b in 0 until HexWorld.BANDS_M.size) {
                         val p = hw.placeOf[b][h]
-                        if (p >= 0) small.litter[p] *= 1f - ate / litterKg.toFloat()
+                        if (p >= 0) { val l0 = small.litter[p]; small.litter[p] *= 1f - ate / litterKg.toFloat()
+                            land.books?.flow(Books.Stuff.MATTER, "to and from the water life", (small.litter[p] - l0) * land.areaM2[p].toDouble()) }
                     }
                     grew = FISH_EFFICIENCY * ate / landKm2h
                 } else died = -change
@@ -590,6 +593,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) area += land.areaKm2[p] }
         if (area <= 0f) return
         for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) small.carrion[p] += kg / area / 1e6f }
+        land.books?.flow(Books.Stuff.MATTER, "to and from the water life", kg.toDouble())
     }
     fun fishTonnes() = fish.indices.sumOf { (fish[it] * waterKm2[it]).toDouble() }.toFloat() / 1000f
     fun riverFishTonnes() = riverFish.indices.sumOf { (riverFish[it] * landKm2[it]).toDouble() }.toFloat() / 1000f
