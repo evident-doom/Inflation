@@ -10,7 +10,6 @@ import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.LifeForm
-import inflation.world.LiveWater
 import inflation.world.Weather
 import kotlin.math.exp
 import kotlin.math.max
@@ -292,7 +291,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * weather away.
      */
     private fun stepSoil(p: Int, t: Float, soilWater: Float, carcassKg: FloatArray) {
-        val wet = (soilWater / 75f).coerceIn(0f, 1f)
+        // (Full rate once the soil is half full of what it holds there.)
+        val wet = (soilWater / (0.5f * land.hydro.soilCap[p])).coerceIn(0f, 1f)
         val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
         // What fell, what the animals dropped, and the small animals that died.
         litter[p] += land.plants.litterfall[p] + dung[p] + smallDead[p] / 1e6f
@@ -352,7 +352,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * eggs wait in the mud.
      */
     private fun stepBiting(p: Int, active: Float, soilWater: Float, weather: Weather) {
-        val standing = land.hydro.flood[p] > 0f || wetland[p] > 0.1f || soilWater / LiveWater.SOIL_CAPACITY > 0.9f
+        val standing = land.hydro.flood[p] > 0f || wetland[p] > 0.1f || soilWater / land.hydro.soilCap[p] > 0.9f
         smallDead[p] += insectSeason(p, biting, dormantBiting, active, if (standing) 500f else 0f, least = 0f)
         harass[p] = harassmentNow(p, weather)
     }
