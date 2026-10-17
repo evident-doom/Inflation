@@ -131,7 +131,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     @Volatile private var stepsPerSecond = 2
 
     /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...; from where it was drawn last), its size. */
-    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float)
+    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean)
 
     /** What the hexes are tinted by, worked out each week and kept month by month (see [ViewLayers]). */
     private val layers = ViewLayers(sim)
@@ -357,7 +357,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             pts += end.first; pts += end.second
             // How well it is doing: fed last week and its reserves.
             val health = (0.5f * g.fed + 0.5f * g.fat / g.species.maxFatDays.coerceAtLeast(1f)).coerceIn(0f, 1f)
-            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size, health)
+            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size, health, g.band?.atHome == true)
             lastDrawn[g.id] = end
         }
         shown = list
@@ -594,11 +594,21 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 val w = s.way
                 val (x, y) = along(w, t)
                 if (sp.human) {
-                    // A band: a white-ringed blue diamond, fading as it goes hungry.
+                    // A band: a white-ringed blue diamond, or a hut while it is at home in its houses,
+                    // fading as it goes hungry.
                     val a = 0.35f + 0.65f * s.health
                     val px = sx(x); val py = sy(y)
-                    g.color = Color(1f, 1f, 1f, a); g.fillPolygon(intArrayOf(px, px + 5, px, px - 5), intArrayOf(py - 5, py, py + 5, py), 4)
-                    g.color = Color(0.1f, 0.3f, 0.95f, a); g.fillPolygon(intArrayOf(px, px + 3, px, px - 3), intArrayOf(py - 3, py, py + 3, py), 4)
+                    if (s.atHome) {
+                        // A pitched roof over a walled square.
+                        g.color = Color(1f, 1f, 1f, a)
+                        g.fillPolygon(intArrayOf(px, px + 7, px + 5, px + 5, px - 5, px - 5, px - 7), intArrayOf(py - 7, py, py, py + 5, py + 5, py, py), 7)
+                        g.color = Color(0.1f, 0.3f, 0.95f, a)
+                        g.fillPolygon(intArrayOf(px, px + 5, px - 5), intArrayOf(py - 5, py, py), 3)
+                        g.fillRect(px - 3, py, 7, 4)
+                    } else {
+                        g.color = Color(1f, 1f, 1f, a); g.fillPolygon(intArrayOf(px, px + 5, px, px - 5), intArrayOf(py - 5, py, py + 5, py), 4)
+                        g.color = Color(0.1f, 0.3f, 0.95f, a); g.fillPolygon(intArrayOf(px, px + 3, px, px - 3), intArrayOf(py - 3, py, py + 3, py), 4)
+                    }
                 } else if (s.carnivore) {
                     // Hunters fade as they starve.
                     val a = 0.25f + 0.75f * s.health
