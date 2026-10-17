@@ -409,11 +409,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // The young are made of what their mothers ate: their weight comes off the mothers' reserves.
         if (births > 0) g.fat = max(0f, g.fat - births * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / max(1, g.adults / 2))
     }
-    val hunger = if (g.fed < HexFauna.HUNGER_FROM) (HexFauna.HUNGER_FROM - g.fed) * HexFauna.HUNGER_RATE else 0f
+    val hunger = Hazards.hunger(g.fed)
     // People feel the cold as their clothes allow.
     // Exposure: the unprotected die of the cold within days.
     val exposure = g.band?.let { min(0.9f, EXPOSURE * it.exposure(weather.temperature[g.place]) * days / 7f) } ?: 0f
-    val cold = (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: discomfort(s, g.place, weather)) * 0.02f
+    val cold = Hazards.cold(s, g.band?.feels(weather.temperature[g.place]) ?: weather.temperature[g.place], weather.date.month)
     val fouled = campFouling(g) * years
     // Wounds: mishaps of the work (the further the gatherers range, the more), and those hurt in
     // fights, hunts and by beasts last week; tended wounds heal faster, fester less and lame fewer.
@@ -555,16 +555,16 @@ private fun HexGroups.thirstWeek(g: HexGroup): Float {
     // People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round
     // will do. Animals go to water and back as often as they must: a kind that can go days without
     // drinking can live as many half-days' going from it.
-    val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
+    val fetch = if (s.human) s.dailyTravelKm else Hazards.fetchKm(s)
     // (People also dig for it in a dry bed where the water lies near: see [HexDrinkingWater.dug].)
     if (land.drink.water[p0] >= Thresholds.WET || (s.maxWaterKm.isInfinite() && land.drink.waterKm[p0] <= fetch) ||
         (s.human && land.drink.mustDig(p0, fetch))) g.dry = 0f
     // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
-    else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.plants.green[p0]))
+    else g.dry += Hazards.dryDays(s, days, g.fed, land.plants.green[p0])
     // (People carry water in skins and know every spring: they suffer far less from it than animals.)
     // (Strangers to the country do not know its springs.)
     val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
-    return (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) *
+    return Hazards.thirst(s, g.dry) *
         (if (s.human) HUMAN_THIRST * Tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
 }
 

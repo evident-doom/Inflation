@@ -5,7 +5,7 @@ package inflation.ecology
  * print these labels and parse them back, and a band reacts to [TAKEN_BY], so each is written here once.
  */
 enum class DeathCause(val label: String, val shown: PlaceRecord.Cause) {
-    OTHER("other", PlaceRecord.Cause.OTHER), HUNGER("hunger", PlaceRecord.Cause.HUNGER), COLD("cold", PlaceRecord.Cause.COLD),
+    OTHER("other", PlaceRecord.Cause.OTHER), AGE("age", PlaceRecord.Cause.OTHER), HUNGER("hunger", PlaceRecord.Cause.HUNGER), COLD("cold", PlaceRecord.Cause.COLD),
     EXPOSURE("exposure", PlaceRecord.Cause.COLD), THIRST("thirst", PlaceRecord.Cause.THIRST), DISEASE("disease", PlaceRecord.Cause.ILLNESS),
     OUTBREAK("outbreak", PlaceRecord.Cause.ILLNESS), FIRE("fire", PlaceRecord.Cause.OTHER), FLOOD("flood", PlaceRecord.Cause.OTHER),
     SNOW("snow", PlaceRecord.Cause.COLD), CROCODILES("crocodiles", PlaceRecord.Cause.KILLED), EAGLES("eagles", PlaceRecord.Cause.KILLED),
