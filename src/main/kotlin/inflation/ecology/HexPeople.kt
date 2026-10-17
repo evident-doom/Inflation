@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Kg
+import inflation.KgM2
 import inflation.Tuning
 import inflation.binomial
 import inflation.world.HexLand
@@ -755,7 +757,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
 }
 
 /** What the country gives [g]'s band in a week, kg per adult, into its goods. */
-private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, area: Float) {
+private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float) {
     val gd = b.goods
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
     // along the way (poorer stone anywhere), wood and resin where there are trees, fibre from grass,
@@ -776,8 +778,8 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, pe
     gd[Material.FIBRE] += fibre
     // Shells on the shore, for beads.
     if (hw.coast[h]) gd[Material.SHELL] += SHELL_A_WEEK * people
-    land.plants.consume(p.i, LifeForm.TREE, wood * land.plants.tree[p] / max(1e-6f, woody) / area)
-    land.plants.consume(p.i, LifeForm.HERB, fibre / area)
+    land.plants.consume(p.i, LifeForm.TREE, Kg(wood * land.plants.tree[p] / max(1e-6f, woody)).perM2(m2))
+    land.plants.consume(p.i, LifeForm.HERB, Kg(fibre).perM2(m2))
 }
 
 /**
@@ -794,9 +796,9 @@ internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
     val spent = min(want / rate, FUEL_MOST * days)
     val got = spent * rate
     b.hearthWood = got / want
-    val area = land.m2(p)
-    land.plants.consume(p.i, LifeForm.TREE, got * tree / (tree + shrub) / area)
-    land.plants.consume(p.i, LifeForm.SHRUB, got * shrub / (tree + shrub) / area)
+    val m2 = land.m2(p)
+    land.plants.consume(p.i, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2))
+    land.plants.consume(p.i, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2))
     return spent
 }
 
@@ -1535,8 +1537,8 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         // Grazing round the camp.
         val need = n * s.dailyIntakeKg * days / m2
         val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
-        val got = land.plants.consume(p.i, LifeForm.HERB, min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f)) +
-            land.plants.eatBrowse(p.i, need * d.browse / total)
+        val got = (land.plants.consume(p.i, LifeForm.HERB, KgM2(min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f))) +
+            land.plants.eatBrowse(p.i, KgM2(need * d.browse / total))).v
         val fed = if (need > 0f) min(1f, got / need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
