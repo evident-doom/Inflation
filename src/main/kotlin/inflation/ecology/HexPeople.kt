@@ -204,6 +204,8 @@ class Band {
     val nightGuard get() = fire * min(1f, nightFire) * nightWood
     /** Share of the night's firewood it had this week. */
     var nightWood = 1f
+    /** Share of the hearth's firewood (warmth and cooking) it fetched this week: its fire burns only as far as that goes. */
+    var hearthWood = 1f
     /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
     var raidWill = 1f
     var fortifyWill = 1f
@@ -491,6 +493,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     var time = b.spareDays
+    time = fetchFuel(b, p, people, area, time)
     time = trainHolders(g, b, time)
     time = makeTools(b, people, time)
     b.renown *= 1f - RENOWN_FADE * years
@@ -509,6 +512,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
         b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
     }
     keepFire(g, b)
+    b.fire *= b.hearthWood
     // A fire through the night burns wood: where there is little, the night goes dark.
     run {
         val want = NIGHT_WOOD * people * min(1f, b.nightFire)
@@ -654,6 +658,24 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Int, h: Int, peop
     if (hw.coast[h]) gd[Material.SHELL.ordinal] += SHELL_A_WEEK * people
     land.consume(p, LifeForm.TREE, wood * land.tree[p] / max(1e-6f, woody) / area)
     land.consume(p, LifeForm.HERB, fibre / area)
+}
+
+/**
+ * The hearth's firewood for the week, fetched before other work as far as [time] (person-days) goes: dead wood
+ * from the trees and scrub, quick to gather where they are thick and slow where they are few. Returns the time left.
+ */
+private fun HexGroups.fetchFuel(b: Band, p: Int, people: Float, area: Float, time: Float): Float {
+    val want = HEARTH_WOOD * days * people
+    if (want <= 0f) { b.hearthWood = 1f; return time }
+    val tree = land.tree[p]; val shrub = land.shrub[p]
+    val rate = FUEL_A_DAY * min(1f, (tree + shrub) / 3f)
+    val got = if (rate > 0f) min(want, time * rate) else 0f
+    b.hearthWood = got / want
+    if (got > 0f) {
+        land.consume(p, LifeForm.TREE, got * tree / (tree + shrub) / area)
+        land.consume(p, LifeForm.SHRUB, got * shrub / (tree + shrub) / area)
+    }
+    return if (rate > 0f) time - got / rate else time
 }
 
 /** [b]'s tools wear out in use (slowly lying idle); a band with a use for a tool or practised at a kind of work now and then hits on a new one. */
@@ -1562,6 +1584,13 @@ const val GATHER_WALK_KM = 6f
 const val SICK_SHOWS = 0.05f
 /** Firewood a fire through the night burns in a week, kg a person. */
 const val NIGHT_WOOD = 3f
+/**
+ * Firewood the hearth burns for warmth and cooking, kg a person a day (about 1-2 in household fuel surveys of
+ * people cooking on open fires, from memory); dead wood one person gathers in a day where trees or scrub are
+ * thick, kg (head-loads of 20-30 kg, from memory).
+ */
+const val HEARTH_WOOD = 1f
+const val FUEL_A_DAY = 25f
 
 /** A band takes [n] wounded among its [adults]: from a fight, a hunt gone wrong, a beast, a fall. */
 internal fun Band.wounded(n: Float, adults: Int) { if (adults > 0) hurt = min(1f, hurt + n / adults) }
