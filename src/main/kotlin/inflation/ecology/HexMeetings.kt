@@ -711,10 +711,14 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     val close = (rich.band?.tie(poor.id) ?: 0f).coerceAtLeast(0f)
     if (poor.fed < (if (sharing) 0.9f else 0.8f) && rich.larder > 0f) {
         // (As much as the giver chooses to give.)
-        val gift = min(0.9f, BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close) * (rich.band?.giveWill ?: 1f)) * rich.larder
+        val chosen = min(0.9f, BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close) * (rich.band?.giveWill ?: 1f)) * rich.larder
+        // (And no less than the favours it owes the poor band, as fully as it returns them.)
+        val week = poor.dailyNeedKg * days
+        val gift = given(rich, poor, chosen, (1f - poor.fed) * week + week)
         if (gift > 0f) {
         rich.larder -= gift; poor.larder += gift
         poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
+        helped(rich, poor, gift)
         stats.meetings.merge("food given", 1, Int::plus)
         note(rich) { "gave %.0f kg of food to hungry band #%d".format(gift, poor.id) }
         note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }

@@ -384,7 +384,8 @@ private fun HexGroups.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ban
  * A band that went hungry this week and has nothing laid by goes to a band within a day or two's
  * walk that has, and is fed there: foragers rarely starve while their neighbours eat, because food
  * is shared on demand and kin are visited in lean times (and the debt is remembered). The hungry
- * band eats what makes up its week, and takes some home; a band that holds to sharing gives more.
+ * band goes where it can hope for most, a band that owes it favours before one that merely has food;
+ * it eats what makes up its week, and takes some home; a band that holds to sharing gives more.
  */
 internal fun HexGroups.visitKin(weather: Weather) {
     // (The hungry come in a drawn order, not by age in the list: the first take the most from the best-stocked.)
@@ -400,7 +401,9 @@ internal fun HexGroups.visitKin(weather: Weather) {
         var ring = listOf(h0); val seen = hashSetOf(h0)
         for (r in 0..VISIT_RINGS) {
             for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) {
-                val score = o.larder / (1f + r)
+                // (What it can hope for there: an ordinary share of the larder, or what the band owes it.)
+                val owed = min(0.9f * o.larder, o.band!!.owesTo(g.id) * FAVOUR_DAYS * g.dailyNeedKg)
+                val score = max(BAND_GIFT * o.larder, owed) / (1f + r)
                 if (score > bestScore) {
                     bestScore = score
                     best = o
@@ -410,16 +413,18 @@ internal fun HexGroups.visitKin(weather: Weather) {
             ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
-        // (How much the band visited gives is its choice.)
+        // (How much the band visited gives is its choice; and it owes the favours it owes.)
         val share = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f) * o.band!!.giveWill)
         val week = g.dailyNeedKg * days
-        val gift = min(share * o.larder, (1f - g.fed) * week + week)
+        val need = (1f - g.fed) * week + week
+        val gift = given(o, g, min(share * o.larder, need), need)
         if (gift <= 0f) continue
         o.larder -= gift
         val eat = min(gift, (1f - g.fed) * week)
         g.fed += eat / week; g.larder += gift - eat
-        // Who was helped remembers: grudges against the helpers' people fade.
+        // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
         g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
+        helped(o, g, gift)
         stats.meetings.merge("hungry bands fed by kin", 1, Int::plus)
     }
 }
@@ -578,3 +583,34 @@ internal fun HexGroups.riteMeet(lo: Band, hi: Band, u: Float) {
 
 /** Share of a band's rites let go a year (a fifth of them; half that where songs and stories keep them). Not measured. */
 const val RITE_FORGET = 0.2f
+
+/** Days of a band's food that make one favour ([Band.favours]): a week. */
+const val FAVOUR_DAYS = 7f
+
+/**
+ * [giver] helped [taker] with [kg] of food: [taker] owes it favours, the more the more of its needs the
+ * help met; help to a band that is owed favours settles them first.
+ */
+internal fun helped(giver: HexGroup, taker: HexGroup, kg: Float) {
+    val gb = giver.band ?: return; val tb = taker.band ?: return
+    if (kg <= 0f) return
+    val f = kg / max(1e-3f, FAVOUR_DAYS * taker.dailyNeedKg)
+    fun add(b: Band, other: Int, by: Float) { val v = (b.favours[other] ?: 0f) + by; if (abs(v) < 0.01f) b.favours.remove(other) else b.favours[other] = v }
+    add(gb, taker.id, f); add(tb, giver.id, -f)
+}
+
+/**
+ * What [giver] gives hungry [taker], short of [need] kg, when of its own accord it would give [chosen]
+ * kg: no less than the favours it owes [taker], as fully as it chooses to return them ([Band.repayWill]),
+ * up to the need and nine tenths of its larder. A return it could have made and held back costs it
+ * [taker]'s regard, as far as it fell short (as much as a gift of that size would have won).
+ */
+internal fun HexGroups.given(giver: HexGroup, taker: HexGroup, chosen: Float, need: Float): Float {
+    val gb = giver.band ?: return chosen
+    val due = min(gb.owesTo(taker.id) * FAVOUR_DAYS * taker.dailyNeedKg, min(0.9f * giver.larder, need))
+    if (due <= 0f) return chosen
+    val gift = max(chosen, due * gb.repayWill.coerceIn(0f, 1f))
+    if (gift < due) taker.band?.befriend(giver.id, -TIE_GIFT * (due - gift) / due)
+    stats.meetings.merge(if (gift < due) "favours held back" else "favours returned", 1, Int::plus)
+    return gift
+}
