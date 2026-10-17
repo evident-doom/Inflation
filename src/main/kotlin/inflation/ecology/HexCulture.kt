@@ -299,7 +299,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         adultsDied(who, lost, rnd)
         // (And as many again are wounded, some to be lamed for life.)
         who.band?.wounded(WOUNDED_PER_DEAD * lost, who.adults)
-        stats.deaths.merge("${who.species.name}:raids", lost, Int::plus)
+        stats.deaths.merge("${who.species.name}:${DeathCause.RAIDS}", lost, Int::plus)
         small.carrion[who.place] += lost * who.species.massKg / (land.areaKm2[who.place] * 1e6f)
     }
     // The stronger side carries off food; the raided remember.

@@ -237,7 +237,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (o == null) {
             // Young whose last grown animal was killed this week (by hunters or rivals) die too.
             if (!g.alive && g.young > 0) {
-                stats.deaths.merge("${s.name}:orphaned", g.young, Int::plus)
+                stats.deaths.merge("${s.name}:${DeathCause.ORPHANED}", g.young, Int::plus)
                 small.carrion[g.place] += 0.3f * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)
                 g.young = 0
             }
@@ -252,16 +252,16 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
         if (ROUNDS && !s.carnivore && g.route[0] != -1) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) stats.deaths.merge("${s.name} $way:born", o.births, Int::plus) }
         if (s.human) { val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' '); for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands in $c:died of $cause", k, Int::plus); if (o.births > 0) stats.hunting.merge("bands in $c:born", o.births, Int::plus) }
-        if (o.orphans > 0) stats.deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
+        if (o.orphans > 0) stats.deaths.merge("${s.name}:${DeathCause.ORPHANED}", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
-        if (s.human && o.youngDied > 0) stats.hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
+        if (s.human && o.youngDied > 0) stats.hunting.merge("${s.name}:${WeekStats.CHILDREN_DIED}", o.youngDied, Int::plus)
         // A band that keeps the old way leaves a camp where someone died.
         if (s.human && o.deaths > 0) g.band?.let { b -> if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) { b.unluckyHex = hw.placeHex[g.place]; b.unluckyWeeks = UNLUCKY_WEEKS; note(g) { "left the camp where its dead lie" } } }
         // A band that buries its dead buries them where it is: its ancestors' place.
         // For each taken by a beast, others got away hurt.
-        g.band?.let { b -> val taken = o.causes.filter { it.first.startsWith("taken by") }.sumOf { it.second }; if (taken > 0) { b.wounded(WOUNDED_PER_DEAD * taken, g.adults); b.beastLoss += taken / g.size.coerceAtLeast(1).toFloat() } }
+        g.band?.let { b -> val taken = o.causes.filter { it.first.startsWith(DeathCause.TAKEN_BY) }.sumOf { it.second }; if (taken > 0) { b.wounded(WOUNDED_PER_DEAD * taken, g.adults); b.beastLoss += taken / g.size.coerceAtLeast(1).toFloat() } }
         // Where a beast took one of them, the band remembers the place as dangerous.
-        if (s.human && o.causes.any { it.first.startsWith("taken by") && it.second > 0 })
+        if (s.human && o.causes.any { it.first.startsWith(DeathCause.TAKEN_BY) && it.second > 0 })
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.danger, 1f)
         if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.dead, o.deaths.toFloat())
@@ -389,13 +389,13 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val starved = if (s.carnivore) 0f else HexFauna.YOUNG_PROTEIN_DEATHS * (1f - g.protein) * years
     // Every hazard of the week, once: its cause and the odds it adds for a grown one and for a young one.
     val hazards = arrayListOf(
-        Hazard("other", healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years),
-        Hazard("hunger", hunger, 1.5f * hunger), Hazard("cold", cold, 1.5f * cold), Hazard("exposure", exposure, 1.5f * exposure), Hazard("thirst", thirst, 1.5f * thirst),
-        Hazard("disease", sick, sick), Hazard("outbreak", plague, plague),
-        Hazard("fire", fireA, fireY), Hazard("flood", floodA, floodY), Hazard("snow", snowA, snowY),
-        Hazard("crocodiles", 0f, croc), Hazard("eagles", 0f, eagle), Hazard("short of protein", 0f, starved), Hazard("homeless", homeless, homeless),
-        Hazard("camp fouling", 0f, fouled), Hazard("snakes and scorpions", venom, venom), Hazard("inbreeding", 0f, inbred),
-        Hazard("taken by $stalker", stalked, YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked), Hazard("wounds", festered, 0f))
+        Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years, healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years),
+        Hazard(DeathCause.HUNGER.label, hunger, 1.5f * hunger), Hazard(DeathCause.COLD.label, cold, 1.5f * cold), Hazard(DeathCause.EXPOSURE.label, exposure, 1.5f * exposure), Hazard(DeathCause.THIRST.label, thirst, 1.5f * thirst),
+        Hazard(DeathCause.DISEASE.label, sick, sick), Hazard(DeathCause.OUTBREAK.label, plague, plague),
+        Hazard(DeathCause.FIRE.label, fireA, fireY), Hazard(DeathCause.FLOOD.label, floodA, floodY), Hazard(DeathCause.SNOW.label, snowA, snowY),
+        Hazard(DeathCause.CROCODILES.label, 0f, croc), Hazard(DeathCause.EAGLES.label, 0f, eagle), Hazard(DeathCause.SHORT_OF_PROTEIN.label, 0f, starved), Hazard(DeathCause.HOMELESS.label, homeless, homeless),
+        Hazard(DeathCause.CAMP_FOULING.label, 0f, fouled), Hazard(DeathCause.SNAKES.label, venom, venom), Hazard(DeathCause.INBREEDING.label, 0f, inbred),
+        Hazard(DeathCause.takenBy(stalker), stalked, YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked), Hazard(DeathCause.WOUNDS.label, festered, 0f))
     ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it.label, a[it.ordinal], a[it.ordinal] * it.young) }
     // The elders' care spares some of the young.
     val spared = 1f - ELDER_CARE * help
@@ -422,7 +422,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     var carrion = (da + oldAge + 0.3f * dy) * s.massKg
     // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
     val causes = shareDeaths(hazards, da, dy, r)
-    if (oldAge > 0) causes += "old age" to oldAge
+    if (oldAge > 0) causes += DeathCause.OLD_AGE.label to oldAge
     growUp(g, r)
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
@@ -554,7 +554,7 @@ private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int
             if (k > 0) died.merge(h.cause, k, Int::plus)
             left -= k; weight -= w
         }
-        if (left > 0) died.merge("other", left, Int::plus)
+        if (left > 0) died.merge(DeathCause.OTHER.label, left, Int::plus)
     }
     return died.entries.mapTo(ArrayList()) { it.key to it.value }
 }
