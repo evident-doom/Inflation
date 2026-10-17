@@ -11,6 +11,11 @@ import kotlin.math.roundToInt
  * protein and the birth month go with them.
  */
 
+/** EXPERIMENT switch: the residents' hunters' kills taken from their prey in the units the numbers are kept in (off: as on main, a millionth of them). */
+internal val RESIDENT_KILL_FIX = inflation.Config.flag("t.residentKillFix", true)
+/** EXPERIMENT switch: herds and residents hunted by one rule (see [seenFirst], [killChance], [worthChasing], [HerdAt]); off: as on main. */
+internal val SHARED_HUNT = inflation.Config.flag("t.sharedHunt", true)
+
 /** Swaps the form of each kind in [Catalogue.formSwap] (after a settled state is loaded); [log] says what it did. */
 fun HexSim.swapForms(log: (String) -> Unit) {
     for (s in Catalogue.formSwap) {

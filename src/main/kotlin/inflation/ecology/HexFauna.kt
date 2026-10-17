@@ -163,16 +163,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * Resident hunter [k] at place [p] kills game among the residents there, for up to [kgPerM2] of
-     * meat: prey from a quarter of its weight to [PREY_UP_TO] times it (the young of bigger kinds
-     * too), each kind as it is common there and by its weight, at most [RESIDENT_KILL_MOST] of a
-     * kind's numbers in a week; what it cannot eat of a kill is left as carrion. Returns kg eaten per m2.
+     * Resident hunter [k] at place [p] kills game among the residents there, and among the herds about it this week
+     * ([herdsAt]), for up to [kgPerM2] of meat: prey from a quarter of its weight to [PREY_UP_TO] times it (the young
+     * of bigger kinds too), each kind as it is common there and by its weight, herd or resident alike, at most
+     * [RESIDENT_KILL_MOST] of a kind's numbers in a week; what it cannot eat of a kill is left as carrion. Returns kg
+     * eaten per m2.
      */
     private fun huntResidents(k: Int, p: Int, kgPerM2: Float): Float {
         if (kgPerM2 <= 0f) return 0f
         val hunter = kinds[k]
         val lo = 0.25f * hunter.massKg; val hi = PREY_UP_TO * hunter.massKg
+        val area = land.areaKm2[p]
         var total = 0f
+        // (Weights in kg per km2, as the numbers are kept.)
         val wA = FloatArray(kinds.size); val wY = FloatArray(kinds.size)
         for ((j, s) in kinds.withIndex()) {
             if (j == k || s.carnivore) continue
@@ -181,9 +184,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (ym in lo..hi) wY[j] = young[j][p] * ym
             total += wA[j] + wY[j]
         }
+        val herds = herdsAt[p]
+        val hA = FloatArray(herds?.size ?: 0); val hY = FloatArray(hA.size)
+        if (herds != null) for ((i, at) in herds.withIndex()) {
+            val s = at.g.species
+            val ym = YOUNG_WEIGHT * s.massKg
+            if (s.massKg in lo..hi) hA[i] = at.g.adults * at.share / area * s.massKg
+            if (ym in lo..hi) hY[i] = at.g.young * at.share / area * ym
+            total += hA[i] + hY[i]
+        }
         if (total <= 0f) return 0f
         // (Meat is about half of a kill's weight.)
-        val want = min(kgPerM2 / MEAT_OF_KILL, RESIDENT_KILL_MOST * total)
+        val u = if (RESIDENT_KILL_FIX) 1e6f else 1f
+        val want = min(kgPerM2 * u / MEAT_OF_KILL, RESIDENT_KILL_MOST * total)
         var ate = 0f
         for ((j, s) in kinds.withIndex()) {
             if (wA[j] + wY[j] <= 0f) continue
@@ -191,13 +204,25 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val fromA = kg * wA[j] / (wA[j] + wY[j]); val fromY = kg - fromA
             adults[j][p] = max(0f, adults[j][p] - fromA / s.massKg)
             young[j][p] = max(0f, young[j][p] - fromY / (YOUNG_WEIGHT * s.massKg))
-            huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * land.areaKm2[p] * 1e6f
-            small.carrion[p] += kg * (1f - MEAT_OF_KILL)
-            ate += kg * MEAT_OF_KILL
+            huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * area * (1e6f / u)
+            small.carrion[p] += kg * (1f - MEAT_OF_KILL) / u
+            ate += kg * MEAT_OF_KILL / u
         }
-        killed(p, ate * land.areaKm2[p] * 1e6f)
+        // The herds' losses are counted out to them when the week's hunting is done (see [HerdAt]).
+        if (herds != null) for ((i, at) in herds.withIndex()) {
+            if (hA[i] + hY[i] <= 0f) continue
+            val s = at.g.species
+            val kg = want * (hA[i] + hY[i]) / total
+            val fromA = kg * hA[i] / (hA[i] + hY[i]); val fromY = kg - fromA
+            at.adults.add((fromA / s.massKg * area * (1e6f / u)).toDouble()); at.young.add((fromY / (YOUNG_WEIGHT * s.massKg) * area * (1e6f / u)).toDouble())
+            small.carrion[p] += kg * (1f - MEAT_OF_KILL) / u
+            ate += kg * MEAT_OF_KILL / u
+        }
+        killed(p, ate * area * 1e6f)
         return ate
     }
+    /** The herds about each place this week, for the residents' hunters (see [huntResidents]); set by the groups before the residents' week. */
+    @Transient var herdsAt: Map<Int, List<HerdAt>> = emptyMap()
     /** How much fear puts game off a place, 0..1. */
     fun afraid(p: Int) = fear[p] / (fear[p] + FEAR_HALF)
     /** The soil life and small animals the herds live among. */
