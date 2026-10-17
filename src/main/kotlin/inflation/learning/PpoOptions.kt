@@ -9,9 +9,17 @@ import inflation.world.WorldConfig
 
 /**
  * How many choices are recorded: [perKindYear] a year of each kind in each world, and [peopleChoices]
- * times as many of people (one kind against fourteen).
+ * times as many of people (one kind against fourteen), but never more than [MAX_SHARE] of a kind's.
  */
-class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 8f)
+class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 8f) {
+    companion object {
+        /**
+         * The most of a kind's choices that are recorded, and so drawn by chance instead of the best: herds
+         * live in a few hundred groups, and with every move drawn they wander off their country and dwindle.
+         */
+        const val MAX_SHARE = 0.1f
+    }
+}
 
 /**
  * Hand-picked maps (seed and centre latitude) to play and check on, in turn (e.g. those hex-pick-world
