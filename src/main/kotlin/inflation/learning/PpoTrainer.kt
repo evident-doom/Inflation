@@ -121,11 +121,12 @@ class PpoTrainer(private val o: PpoOptions) {
             if (mine.isEmpty()) continue
             val critic = critics[mi]
             // (Judged with the critic as it stood before this round, then it learns from the round.)
+            val t0 = System.nanoTime()
             val explained = critic.explained(model, mine)
             for (c in mine) { expected[c] = critic.value(model, c); judged[c] = critic.target(model, c) }
             critic.learn(model, mine, round)
             val worst = explained.entries.sortedBy { it.value }.take(3).joinToString(", ") { "%s %.2f".format(it.key.name, it.value) }
-            stats.append("%s critic explains %.2f (least: %s), %.0f%% seen again; ".format(Role.entries[mi], explained.values.average(), worst, 100.0 * mine.count { it.probe != null } / mine.size))
+            stats.append("%s critic explains %.2f (least: %s), %.0f%% seen again (%.0f s); ".format(Role.entries[mi], explained.values.average(), worst, 100.0 * mine.count { it.probe != null } / mine.size, (System.nanoTime() - t0) / 1e9))
         }
         for ((_, cs) in byKind) {
             val mean = cs.map { judged.getValue(it).toDouble() }.average().toFloat()
@@ -143,6 +144,7 @@ class PpoTrainer(private val o: PpoOptions) {
         if (mine.isEmpty()) return
         // (A role held fixed plays with its network as it is and does not learn, while the others catch up.)
         if (Role.entries[mi] in o.fixed && sinceStart < o.fixedRounds) { stats.append(Role.entries[mi]).append(" held; "); return }
+        val t0 = System.nanoTime()
         val kindsHere = mine.map { it.kind }.distinct()
         val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
         repeat(4) { epoch ->
@@ -157,7 +159,7 @@ class PpoTrainer(private val o: PpoOptions) {
             }
         }
         model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)
-        stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices; ")
+        stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices (%.0f s); ".format((System.nanoTime() - t0) / 1e9))
     }
 
     /**
