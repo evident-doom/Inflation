@@ -41,7 +41,7 @@ class WorldTest {
     fun `rivers end in the sea, at the map edge or in a lake`() {
         val g = world.grid
         val d = world.water.drainage
-        for (i in 0 until g.size) if (d.receiver[i] == i) assertTrue(world.isSea[i] || g.isEdge(i))
+        for (i in 0 until g.size) if (d.receiver[i] == i) assertTrue(world.isSea[i] || g.isEdge(i) || world.water.lakeClosed[i])
         // A river cell's flow never vanishes before reaching a lake, the sea or the edge.
         for (i in 0 until g.size) {
             if (!world.isRiver(i)) continue

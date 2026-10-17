@@ -29,7 +29,7 @@ class SurfaceWater(
             val outlet = { i: Int -> isSea[i] || grid.isEdge(i) }
             val spill = priorityFlood(grid, elevation, outlet)
             val routing = priorityFlood(grid, elevation, outlet, routable = true)
-            val drainage = Drainage.build(grid, routing, outlet)
+            var drainage = Drainage.build(grid, routing, outlet)
             val area = grid.cellAreaM2.toFloat()
 
             val landInflow = FloatArray(n) { if (isSea[it]) 0f else climate.runoff[it] / 1000f * area } // m^3/yr
@@ -76,6 +76,15 @@ class SurfaceWater(
                     closed[c] = !full
                     netWeight[c] = (climate.annualPrecip[c] / 1000f - lakeEvaporationM(climate, c).toFloat()) * area
                 }
+            }
+
+            // A closed lake stands below its spill point, so the floor of its basin above the water is dry
+            // ground and its streams run down that ground to the lake, not along the level surface of the
+            // basin filled to the brim (which sends them in straight lines and puts the whole floor at the
+            // height of their banks). The lake is where they end.
+            if (closed.any { it }) {
+                val toLake = { i: Int -> outlet(i) || closed[i] }
+                drainage = Drainage.build(grid, priorityFlood(grid, elevation, toLake, routable = true), toLake)
             }
 
             // Discharge, with evaporation from lakes taken out and flows floored at zero.
