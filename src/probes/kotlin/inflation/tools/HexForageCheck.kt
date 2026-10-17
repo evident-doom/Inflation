@@ -33,7 +33,7 @@ fun main(args: Array<String>) {
         var grazed = 0.0; var browsed = 0.0; var burned = 0.0
         repeat(perYear) {
             run.step()
-            burned += land.fire.fires.sumOf { it.second.toDouble() } / total
+            burned += land.fire.fires.sumOf { it.km2.toDouble() } / total
             grazed += mean { land.plants.grazing[it] } * cfg.daysPerStep / 1e6
             browsed += mean { land.plants.browsing[it] } * cfg.daysPerStep / 1e6
         }

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Kg
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -39,7 +40,7 @@ internal fun HexGroups.noteHerdMet(hunter: HexGroup, herd: HexGroup, p: Int, met
 }
 
 /** [forage]'s offers of the herds [g] came on: a kill of each at its rate a day of searching, kg and days. */
-internal fun HexGroups.offerHerds(g: HexGroup, packKg: Float, offer: (Int, Int, Int, Float, Float, Float) -> Unit) {
+internal fun HexGroups.offerHerds(g: HexGroup, packKg: Float, offer: (Food, Int, Int, Float, Float, Float) -> Unit) {
     val list = g.herdsMetWeek ?: return
     for ((i, hm) in list.withIndex()) {
         if (hm.bands <= 0 || !hm.herd.alive || hm.herd.adults <= 0) continue
@@ -95,7 +96,7 @@ internal fun HexGroups.huntHerdMet(g: HexGroup, i: Int, expected: Float, kgEach:
                     g.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER); it.skin(ps, 1) }
                     small.carrion[hm.p] += (ps.massKg - kgEach) / (land.areaKm2[hm.p] * 1e6f)
                 }
-                fauna.killed(hm.p, ps.massKg)
+                fauna.killed(hm.p, Kg(ps.massKg))
             }
             // Big, armed prey fight back: a horn or a kick now and then kills one of the hunters.
             if (g.adults > 0 && rnd.nextFloat() < fightBack(ps, g.adults * g.species.massKg)) {
@@ -116,8 +117,8 @@ internal fun HexGroups.huntHerdMet(g: HexGroup, i: Int, expected: Float, kgEach:
 }
 
 /** [forage]'s name for food [t] (of kind or herd met [k]), for notes. */
-internal fun HexGroups.foodName(g: HexGroup, t: Int, k: Int) = when (t) {
+internal fun HexGroups.foodName(g: HexGroup, t: Food, k: Int) = when (t) {
     Food.BIG_GAME -> fauna.kinds[k].name
     Food.HERD -> "herd of " + g.herdsMetWeek!![k].herd.species.name
-    else -> Food.NAMES[t]
+    else -> t.label
 }

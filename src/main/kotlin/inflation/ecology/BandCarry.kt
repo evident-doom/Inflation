@@ -49,18 +49,20 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods", "kept")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "lineage", "inbred")
     // Camp, home and raids.
-    rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "campHex", "campPlace", "appointHex", "appointMonth", "houseHex", "house", "palisade", "fire")
-    rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cachePlace", "raidHex", "raidOn", "raidWeeks", "unluckyHex", "unluckyWeeks",
+    rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "campPlace", "appointment", "houseHex", "house", "palisade", "fire")
+    rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cachePlace", "raid", "unlucky",
         "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dogShare")
     // Ties.
     rule(OnSplit.COPIED, OnJoin.MAX, "ties")
+    // (Favours stay with the band that was helped or helped: the new band owes and is owed nothing.)
+    rule(OnSplit.FRESH, OnJoin.SUM, "favours")
     // Wealth and animals.
     rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "herd")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "herdTame", "seedDomestic")
     rule(OnSplit.COPIED, OnJoin.LOST, "sinceRaided")
     // Its ways' choices.
     rule(OnSplit.CHOSEN, OnJoin.CHOSEN, "storeAim", "sowWill", "gatherRange", "childWatch", "nightFire", "shunSick", "explore", "raidWill",
-        "fortifyWill", "giveWill", "robWill", "cacheWill", "dryWill", "keepWill", "shelterWill", "feastWill", "appointWill", "burnWill",
+        "fortifyWill", "giveWill", "robWill", "cacheWill", "dryWill", "keepWill", "shelterWill", "feastWill", "appointWill", "burnWill", "repayWill",
         "houseWill", "scoutShare", "makeFirst", "effort")
     return r
 }

@@ -57,7 +57,7 @@ fun main(args: Array<String>) {
         t0 = System.nanoTime()
         hexWeather.step(); land.step(hexWeather)
         nsC += System.nanoTime() - t0
-        burnedF += fineVeg.fires.sumOf { it.second.toDouble() }; burnedC += land.fire.fires.sumOf { it.second.toDouble() }
+        burnedF += fineVeg.fires.sumOf { it.km2.toDouble() }; burnedC += land.fire.fires.sumOf { it.km2.toDouble() }
         for ((j, h) in hexes.withIndex()) { flowF[j] += fineWater.discharge[main[h]] / steps.toDouble(); flowC[j] += land.hydro.flow[h] / steps.toDouble() }
     }
     fun agg(f: (Int) -> Float) = DoubleArray(n) { p -> val cs = hw.placeCells[p]; cs.sumOf { f(it).toDouble() } / cs.size }

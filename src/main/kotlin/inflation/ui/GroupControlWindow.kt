@@ -2,6 +2,7 @@ package inflation.ui
 
 import inflation.ecology.ANIMAL_WAYS_OUT
 import inflation.ecology.FOOD_TYPES
+import inflation.ecology.Food
 import inflation.ecology.GroupControl
 import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
@@ -334,15 +335,15 @@ class GroupControlWindow(
                 .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.sick[it]) }
             sb.appendLine("health: wounded %.0f%%, lamed %.0f%%%s".format(100 * b.hurt, 100 * b.lame, if (sick.isNotEmpty()) "; sick: $sick" else ""))
             sb.appendLine("camp kept %d weeks%s".format(b.campWeeks,
-                if (!b.houseHex.none) "; houses at hex %d (%.0f%%)".format(b.houseHex, 100 * b.house) else ""))
+                if (!b.houseHex.none) "; houses at hex %d (%.0f%%)".format(b.houseHex.i, 100 * b.house) else ""))
             sb.appendLine("tools: " + Tool.entries.filter { b.knows[it] }
                 .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it]) })
             sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
                 .ifEmpty { "none" })
             sb.appendLine("knows %d hexes; knows the homes of %d bands".format((0 until hex.size).count { b.knows(it) }, b.knownHomes.size))
-            if (!b.raidHex.none) sb.appendLine("set on a raid at hex %d".format(b.raidHex))
-            if (!b.appointHex.none) sb.appendLine("meets others at hex %d in month %d".format(b.appointHex, b.appointMonth + 1))
-        } else if (s.carnivore) sb.appendLine(if (!g.home.none) "holds ground about hex %d".format(g.home) else "holds no ground")
+            b.raid?.let { sb.appendLine("set on a raid at hex %d".format(it.hex.i)) }
+            b.appointment?.let { sb.appendLine("meets others at hex %d in month %d".format(it.hex.i, it.month + 1)) }
+        } else if (s.carnivore) sb.appendLine(if (!g.home.none) "holds ground about hex %d".format(g.home.i) else "holds no ground")
         val here = hw.placeHex[g.place]
         val with = groups.groups.filter { it.alive && it !== g && hw.placeHex[it.place] == here }
         sb.appendLine("in its hex: " + with.joinToString(", ") { "%s #%d (%d)".format(it.species.name, it.id, it.size) }.ifEmpty { "no other group" })
@@ -461,9 +462,8 @@ class GroupControlWindow(
     }
 
     private fun wayNames(): List<String> {
-        val food = listOf("big game", "small game", "carrion", "bones", "fruit", "roots", "grass seed", "small finds", "fish")
         return Schema.WAYS_OUT.mapIndexed { k, n ->
-            if (k < FOOD_TYPES) "effort: " + food.getOrElse(k) { n } else n.replace("make first:", "make first: ")
+            if (k < FOOD_TYPES) "effort: " + Food.entries[k].label else n.replace("make first:", "make first: ")
         }
     }
 

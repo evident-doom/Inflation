@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.KgM2
 import inflation.Tuning
 import inflation.store.MovedInto
 import inflation.wrapMonth
@@ -67,7 +68,7 @@ class HexGroups(
             if (s.carnivore) {
                 // The game it can catch there, resident herds and migratory ones alike, by weight.
                 val prey = huntable[kindSlot[s.index]][p] +
-                    if (s.human) (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT else 0f
+                    if (s.human) KgM2(fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]).perKm2.v * PLANT_FOOD_WEIGHT else 0f
                 // Hunters that live on the water in their prey (cheetahs, leopards) care less how far it is.
                 val w = land.drink.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
                 prey / (prey + PREY_HALF) * fit / (1f + w * w)
@@ -143,7 +144,7 @@ class HexGroups(
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
                     val (x, y) = hex.centreKm(hw.placeHex[p])
-                    g.band = Band.start(land.drink.waterKm[p] < 3f, x, y, tuning).also { b ->
+                    g.band = Band.start(fauna.kinds.size, land.drink.waterKm[p] < 3f, x, y, tuning).also { b ->
                         b.elders = g.adults / 6
                         // The rest of the adults spread over the three spans of adult life.
                         b.ageStage[0] = (g.adults - b.elders) / 3; b.ageStage[1] = (g.adults - b.elders) / 3
@@ -321,7 +322,7 @@ class HexGroups(
                 val risk = DROWN * gapKm / Catalogue.swimKm(g.species).coerceAtLeast(1f)
                 val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
                 adultsDied(g, lostA, rnd); g.young -= lostY
-                if (lostA + lostY > 0) stats.deaths.merge("${g.species.name}:${DeathCause.DROWNED_CROSSING}", lostA + lostY, Int::plus)
+                if (lostA + lostY > 0) stats.deaths.merge(Tally.of(g.species, DeathCause.DROWNED_CROSSING), lostA + lostY, Int::plus)
                 stats.meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
             }
         }
@@ -473,11 +474,12 @@ class HexGroups(
      * sea) and the open water between, km. Swimmers that can cover it may cross, at a great effort
      * and a risk of drowning; for the rest the sea is a wall.
      */
-    val seaLinks: Array<IntArray> by lazy { links().first }
-    val seaGaps: Array<FloatArray> by lazy { links().second }
-    // (A Pair, not a class of its own: it is in the saves, so its shape is part of the save format.)
-    private var linksMade: Pair<Array<IntArray>, Array<FloatArray>>? = null
-    private fun links(): Pair<Array<IntArray>, Array<FloatArray>> = linksMade ?: run {
+    val seaLinks: Array<IntArray> by lazy { links().to }
+    val seaGaps: Array<FloatArray> by lazy { links().gapKm }
+    /** For each hex, the hexes across the sea from it ([to]) and the open water to each ([gapKm]). */
+    class SeaCrossings(val to: Array<IntArray>, val gapKm: Array<FloatArray>)
+    private var linksMade: SeaCrossings? = null
+    private fun links(): SeaCrossings = linksMade ?: run {
         val to = Array(hex.size) { IntArray(0) }; val gap = Array(hex.size) { FloatArray(0) }
         for (a in 0 until hex.size) {
             if (hex.heart[a] < 0 || (0 until 6).none { d -> val b = hex.neighbour(a, d); b >= 0 && hex.heart[b] < 0 }) continue
@@ -494,7 +496,7 @@ class HexGroups(
             }
             to[a] = found.keys.toIntArray(); gap[a] = found.values.toFloatArray()
         }
-        (to to gap).also { linksMade = it }
+        SeaCrossings(to, gap).also { linksMade = it }
     }
     /** The open water between hexes [a] and [b], km, if a swimmer can cross from one to the other; else infinite. */
     fun seaGap(a: Int, b: Int): Float { val l = seaLinks[a]; for (i in l.indices) if (l[i] == b) return seaGaps[a][i]; return Float.POSITIVE_INFINITY }
@@ -670,7 +672,7 @@ class HexGroups(
         val fuel = min(1f, HEARTH_WOOD / (FUEL_A_DAY * min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)).coerceAtLeast(1e-6f))
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
-    internal fun campPlants(p: Int) = (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT * campFactor(p)
+    internal fun campPlants(p: Int) = KgM2(fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]).perKm2.v * PLANT_FOOD_WEIGHT * campFactor(p)
 
     /**
      * Bands burn off the dry grass around their camps in the dry season: the burn greens up and draws
@@ -719,15 +721,15 @@ class HexGroups(
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
     internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
-        if (b.appointHex.none) return 0f
-        val off = minOf(monthsFrom(b.appointMonth, month), monthsFrom(month, b.appointMonth))
+        val ap = b.appointment ?: return 0f
+        val off = minOf(monthsFrom(ap.month, month), monthsFrom(month, ap.month))
         // The month before, it is on its way; without sky lore it also lingers a month after, the count being loose.
-        val before = monthsFrom(month, b.appointMonth) == 1
+        val before = monthsFrom(month, ap.month) == 1
         val weight = when { off == 0 -> 1f; before -> 0.7f; off == 1 && !b.holds(Tradition.SKY_LORE) -> 0.5f; else -> return 0f }
         val here = hw.hexOf(g.place)
-        val fromHere = hexKm(here, b.appointHex)
+        val fromHere = hexKm(here, ap.hex)
         if (fromHere <= hex.hexKm) return if (h == here) weight else 0f
-        return weight * ((fromHere - hexKm(h, b.appointHex)) / fromHere).toFloat().coerceIn(-1f, 1f)
+        return weight * ((fromHere - hexKm(h, ap.hex)) / fromHere).toFloat().coerceIn(-1f, 1f)
     }
 
     /** A herd's size as small (0: under its kind's unit), middling (1: up to three units) or large (2), for comparing them. */
@@ -912,7 +914,7 @@ class HexGroups(
         f[Feature.HERDS_ABOUT] = ln(1f + monthHerdHeads[p] / land.areaKm2[p]) / 3f
         f[Feature.DUNG] = min(1f, fauna.small.dung[p] * 1e4f)
         f[Feature.GRAZING_AND_KILLS] = min(1f, (land.plants.grazing[p] + land.plants.browsing[p]) / 1000f) +
-            min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
+            min(1f, KgM2(fauna.small.carrion[p] + fauna.small.bones[p]).perKm2.v / 20f)
         f[Feature.KNOWN_GROUND] = g.band?.let { if (it.knows(h.i)) 1f else 0f } ?: 1f
         f[Feature.BEYOND_OWN_GROUND] = beyond; f[Feature.OTHERS_MARKS] = foreign
         f[Feature.KEEPS_HEADING] = keepOn
@@ -960,8 +962,8 @@ class HexGroups(
         // looks about, but does not trek for it: its usual week's going reaches the next place.)
         val relief = drain(g, g.place.i, weather) - leastDrainNear(g, here.i, weather) > WALK_COST * hex.hexKm.toFloat() / days
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
-        val dueSoon = g.band?.let { b -> (!b.appointHex.none && b.appointHex != here && monthsFrom(month, b.appointMonth) <= 1) ||
-            b.unluckyHex == here || !b.raidHex.none } ?: false
+        val dueSoon = g.band?.let { b -> b.appointment.let { ap -> ap != null && ap.hex != here && monthsFrom(month, ap.month) <= 1 } ||
+            b.unluckyHex == here || b.raid != null } ?: false
         val restless = restless(g, weather, thirsty, astray, dueSoon, onRound, goalFar)
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
@@ -1208,7 +1210,7 @@ class HexGroups(
     internal fun dietValue(s: Species, p: Int, game: Float): Float {
         // Small game is searched for over a narrower strip than big game, and carrion only by those that eat it.
         val smallWorth = smallCatch(s) * SMALL_SENSE_KM / (s.senseKm * SEARCHING * CATCH)
-        return game + smallWorth * small.smallPreyKg(p) + (if (s.diet.carrion > 0f) small.carrion[p] * 1e6f else 0f)
+        return game + smallWorth * small.smallPreyKg(p) + (if (s.diet.carrion > 0f) KgM2(small.carrion[p]).perKm2.v else 0f)
     }
 
     internal fun preyHere(s: Species, p: Int): Float {
