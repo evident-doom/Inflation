@@ -66,7 +66,7 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     var larder: Float
         get() = stores.sum()
         set(v) { val s = stores.sum(); if (s > 0f) { val k = max(0f, v) / s; for (i in stores.indices) stores[i] *= k } else { stores.fill(0f); stores[Store.DRIED.ordinal] = max(0f, v) } }
-    /** For a band: its skills, tools and camp. */
+    /** A band's skills, tools and camp: set for every group of people ([Species.human]) and only for them. */
     var band: Band? = null
     /** For kinds that follow people's camps: the share of it bold enough to come close, 0..1 (-1 until first needed: its kind's share). */
     var bold = -1f

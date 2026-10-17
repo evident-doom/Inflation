@@ -359,9 +359,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val fouled = campFouling(g) * years
     // Wounds: mishaps of the work (the further the gatherers range, the more), and those hurt in
     // fights, hunts and by beasts last week; tended wounds heal faster, fester less and lame fewer.
-    val festered = if (s.human && band != null) woundsWeek(band) else 0f
+    val festered = if (band != null) woundsWeek(band) else 0f
     // Beasts of prey about: now and then one takes a gatherer, a child or an old one alone.
-    val (stalked, stalker) = if (s.human && band != null) stalkedBy(g, band, kinNow) else Stalking.NONE
+    val (stalked, stalker) = if (band != null) stalkedBy(g, band, kinNow) else Stalking.NONE
     // Vipers and scorpions, out in the warm months.
     val venom = if (s.human && weather.temperature[g.place] > 18f) VENOM * years else 0f
     // Children of a closed band are inbred; medicine saves some of the sick and wounded.
@@ -371,7 +371,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // (And practised midwives and carers lose fewer infants.)
     val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
     // Sicknesses of their own: the flux, marsh fever, the cough (see [Illness]); healers save some.
-    val ill = if (s.human && band != null) illnessWeek(g, band, weather, r).also { for (i in it.indices) it[i] *= healed } else null
+    val ill = if (band != null) illnessWeek(g, band, weather, r).also { for (i in it.indices) it[i] *= healed } else null
     val thirst = thirstWeek(g)
     // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
     val plague = fauna.outbreakDeaths(s, g.place)
