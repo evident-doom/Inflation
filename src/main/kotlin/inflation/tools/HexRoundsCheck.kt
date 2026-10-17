@@ -87,7 +87,7 @@ fun main(args: Array<String>) {
         for ((i, s) in herds.withIndex()) for (g in run.groups.groups) {
             if (!g.alive || g.species != s) continue
             total[i][m]++
-            val r = run.groups.roundOf(g, m)?.first ?: continue
+            val r = run.groups.roundOf(g, m)?.place ?: continue
             dists[i][m] += run.hex.distanceKm(run.hw.placeHex[g.place], run.hw.placeHex[r])
         }
     }

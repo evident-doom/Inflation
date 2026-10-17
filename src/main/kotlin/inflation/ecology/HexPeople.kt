@@ -296,12 +296,12 @@ class Band {
      * (see [inflation.ecology.roundOf]): the site of its rite that month ([rite]) at the strength its
      * people hold to their rites ([riteStrength]); none in a month without a site, or with no hold.
      */
-    fun riteFor(month: Int): Pair<Int, Float>? {
+    fun riteFor(month: Int): RoundPull? {
         if (riteStrength <= 0f) return null
         // (A rite's month is spent at its site: the band is drawn there from the month before, as a
         // herd is to next month's place, and kept there until the month after, unless that has its own.)
         val site = if (rite[month] >= 0) rite[month] else rite[wrapMonth(month - 1)]
-        return if (site >= 0) site to riteStrength else null
+        return if (site >= 0) RoundPull(site, riteStrength) else null
     }
     /**
      * Its rites: for each month, the place its round of observance takes it to then (-1: none) — the

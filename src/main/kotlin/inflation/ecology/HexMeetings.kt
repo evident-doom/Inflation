@@ -219,7 +219,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 if (dens <= 0f || chance <= 0f) continue
                 // A kill is worth what the party can eat of it, gorging included (a band also what it can
                 // dry); the rest is left to others.
-                val meat1 = min(ps.massKg * meatShare(band), (1f + FATTEN) * wantAll)
+                val meat1 = min(ps.massKg * meatShare(band), (1f + SURPLUS_EAT) * wantAll)
                 offer(Food.BIG_GAME, k, p, dens * swept * chance / days, meat1, HANDLING_DAYS + meat1 * eats)
             }
             val small = this.small
@@ -420,7 +420,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     }
     // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
     if (spare > 0f && g.fat < s.maxFatDays && band == null) {
-        val gorge = min(spare, FATTEN * wantAll)
+        val gorge = min(spare, SURPLUS_EAT * wantAll)
         g.surplus = gorge / g.dailyNeedKg.coerceAtLeast(1e-3f)
         spare -= gorge
         small.dung[g.place] += HexSmallLife.DUNG * gorge / (land.areaKm2[g.place] * 1e6f)
@@ -586,7 +586,7 @@ internal fun HexGroups.meet(weather: Weather) {
     val hunted = BitSet(hex.size)
     for (g in groups) if (g.alive && g.species.carnivore) for (h in g.path) hunted.set(h)
     // (With rounds on, for hex-rounds-check: each herd's week as it set out, by heads and by herds.)
-    if (ROUNDS) for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] != -1) {
+    if (ROUNDS) for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] != ROUND_OPEN) {
         val c = roundsWhere(g, weather); stats.hunting.merge(c + "heads", g.size, Int::plus); stats.hunting.merge(c + "herds", 1, Int::plus)
     }
     // (With rounds on, for hex-rounds-check: hunters about where each herd set out, its own hex and the six round it.)
@@ -839,7 +839,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     weather: Weather, met: Int = 1) {
     stats.meetings.merge("hunter-herd", 1, Int::plus)
     // (With rounds on, for hex-rounds-check: where herds meet hunters, by how the herd lives and where it was.)
-    val roundsKey = if (ROUNDS && herd.route[0] != -1) roundsWhere(herd, weather) + (if (hunter.band != null) "people|" else "animals|") else null
+    val roundsKey = if (ROUNDS && herd.route[0] != ROUND_OPEN) roundsWhere(herd, weather) + (if (hunter.band != null) "people|" else "animals|") else null
     roundsKey?.let { stats.hunting.merge(it + "met", 1, Int::plus); stats.hunting.merge(it + "heads met", herd.size, Int::plus) }
     note(hunter) { "came on a herd of %d %s".format(herd.size, herd.species.name) }; note(herd) { "met %d %s".format(hunter.size, hunter.species.name) }
     val open = openness(h, hw.placeBand[herd.place])
@@ -893,7 +893,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         }
         stats.kills.merge(herd.species.name, 1, Int::plus)
         roundsKey?.let { stats.hunting.merge(it + "killed", 1, Int::plus) }
-        if (ROUNDS && herd.route[0] != -1) stats.deaths.merge(
+        if (ROUNDS && herd.route[0] != ROUND_OPEN) stats.deaths.merge(
             "${herd.species.name} ${if (herd.route[0] >= 0) "on round" else "own country"}:hunted by ${if (hunter.band != null) "people" else hunter.species.name}",
             1, Int::plus)
         fauna.killed(herd.place, herd.species.massKg)
@@ -921,7 +921,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
 internal fun HexGroups.roundsWhere(g: HexGroup, weather: Weather): String {
     val onRound = g.route[0] >= 0
     val going = if (g.path.size > 1) "moving" else "still"
-    val where = if (!onRound) "-" else roundOf(g, weather.date.month)?.first
+    val where = if (!onRound) "-" else roundOf(g, weather.date.month)?.place
         ?.let { r -> if (hex.distanceKm(g.path[0], hw.placeHex[r]) <= ROUND_NEAR_KM) "near" else "far" } ?: "far"
     return "rounds|${g.species.name}|${if (onRound) "on round" else "own country"}|$going|$where|"
 }
@@ -953,7 +953,7 @@ private fun HexGroups.roundsStart(weather: Weather) {
     val hunterKg = HashMap<Int, Float>()
     for (g in groups) if (g.alive && g.species.carnivore && g.path.isNotEmpty()) hunterKg.merge(g.path[0], g.size * g.species.massKg, Float::plus)
     for (g in groups) {
-        if (!g.alive || g.species.carnivore || g.route[0] == -1 || g.path.isEmpty()) continue
+        if (!g.alive || g.species.carnivore || g.route[0] == ROUND_OPEN || g.path.isEmpty()) continue
         val c = roundsWhere(g, weather)
         val h0 = g.path[0]
         val hexKm2 = (sqrt(3.0) / 2 * hex.hexKm * hex.hexKm).toFloat()
@@ -969,7 +969,7 @@ private fun HexGroups.roundsStart(weather: Weather) {
  * it grazes, or in the hexes round that; and whether on a well-worn path (where hunters wait, see [encounters]).
  */
 private fun HexGroups.roundsMeeting(g: HexGroup, ri: Int, h: Int, weather: Weather) {
-    if (g.route[0] == -1) return
+    if (g.route[0] == ROUND_OPEN) return
     val c = roundsWhere(g, weather)
     stats.hunting.merge(c + (if (ri < g.path.size - 1) "met on the way" else if (h == g.path[ri]) "met where it grazes" else "met round it"), 1, Int::plus)
     if (wear.at(h) >= 0.5f) stats.hunting.merge(c + "met on worn ways", 1, Int::plus)

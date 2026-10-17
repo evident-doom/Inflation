@@ -44,12 +44,15 @@ internal fun HexGroups.growRounds(month: Int) {
  * rite, a round its culture holds to (see [Band.riteFor]). The pull is added to the hand-written score
  * and, outside the network, to a learned mover's (see the "on round" feature and SharedMover.pull).
  */
-internal fun HexGroups.roundOf(g: HexGroup, month: Int): Pair<Int, Float>? {
+internal fun HexGroups.roundOf(g: HexGroup, month: Int): RoundPull? {
     if (!ROUNDS) return null
     g.band?.let { return it.riteFor(month) }
     val r = g.route[month]; if (r < 0) return null
-    return r to ROUND_STRENGTH
+    return RoundPull(r, ROUND_STRENGTH)
 }
+
+/** The place a round draws a group to this month, and how strongly (see [roundOf]). */
+data class RoundPull(val place: Int, val strength: Float)
 
 /**
  * An offshoot keeps its parent's round, but not always exactly: now and then it changes one month's

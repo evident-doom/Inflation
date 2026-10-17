@@ -274,7 +274,7 @@ class HexGroups(
             for ((k, g) in groups.withIndex()) {
                 if (!g.alive || g.species.carnivore || g.id == watched) continue
                 if ((date.absoluteDay / days + g.id) % OWN_PLAN_WEEKS == 0L) continue
-                val goal = roundOf(g, month)?.first ?: g.seasonPlace[month]
+                val goal = roundOf(g, month)?.place ?: g.seasonPlace[month]
                 val state = (if (g.fed < Thresholds.HERD_HUNGRY) 1 else 0) + (if (g.dry > 0.5f * g.species.daysWithoutWater) 2 else 0)
                 val key = ((g.species.index.toLong() * n + g.place) * (n + 1L) + (goal + 1)) * 4 + state
                 val l = first.putIfAbsent(key, k); if (l != null) leaderOf[k] = l
@@ -301,7 +301,7 @@ class HexGroups(
                 val round = roundOf(g, date.month)
                 var bE = bearings.east[kind][to]; var bS = bearings.south[kind][to]
                 if (round != null) {
-                    val (rx, ry) = hex.centreKm(hw.placeHex[round.first]); val rk = hypot(rx - x1, ry - y1)
+                    val (rx, ry) = hex.centreKm(hw.placeHex[round.place]); val rk = hypot(rx - x1, ry - y1)
                     if (rk > hex.hexKm) { bE = ((rx - x1) / rk).toFloat(); bS = ((ry - y1) / rk).toFloat() } else { bE = 0f; bS = 0f }
                 }
                 var e = HEADING_KEEP * g.headE + (1f - HEADING_KEEP) * (HEADING_MOVED * mE + bE)
@@ -903,11 +903,11 @@ class HexGroups(
         // (Its round, if its elders taught it one, else the place it remembers doing best at this time of year.)
         // (Within a range's reach of the round's place it has arrived: it grazes the range as it likes, and
         // the herds on one round spread over it instead of crowding onto one spot.)
-        val round = roundOf(g, month)?.takeIf { hexKm(here, hw.placeHex[it.first]) > ROUND_ARRIVED_KM }
+        val round = roundOf(g, month)?.takeIf { hexKm(here, hw.placeHex[it.place]) > ROUND_ARRIVED_KM }
         val onRound = round != null
-        val goal = round?.first ?: g.seasonPlace[month]
-        val goalQ = if (round != null) max(g.seasonQ[month], round.second) else g.seasonQ[month]
-        val roundStrength = round?.second ?: 0f
+        val goal = round?.place ?: g.seasonPlace[month]
+        val goalQ = if (round != null) max(g.seasonQ[month], round.strength) else g.seasonQ[month]
+        val roundStrength = round?.strength ?: 0f
         val goalFar = goal >= 0 && (!s.carnivore || s.human) && hexKm(here, hw.placeHex[goal]) > 2 * hex.hexKm
         // Far out of its country, it treks.
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY

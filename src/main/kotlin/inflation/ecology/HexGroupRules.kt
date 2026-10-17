@@ -12,7 +12,7 @@ const val SHIFT_DAYS = 2f
 /** Snow depth that doubles the effort of going, mm. */
 const val SNOW_EFFORT_MM = 150f
 /** How much more than its needs an animal eats, at most, when food is plentiful and its reserves are short; share of that surplus laid on as reserves. */
-const val FATTEN = 0.3f
+const val SURPLUS_EAT = 0.3f
 const val FAT_EFFICIENCY = 0.6f
 /** A newborn's weight against its mother's, paid from her reserves. */
 const val NEWBORN_SHARE = 0.08f
