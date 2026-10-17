@@ -19,6 +19,14 @@ internal val SHARED_HUNT = inflation.Config.flag("t.sharedHunt", true)
 /** EXPERIMENT switch: herds reach their food as residents do (a share of the place's food out of reach, not of their need), and residents pay for the km they move as herds do; off: as on main. */
 internal val SHARED_FEED = inflation.Config.flag("t.sharedFeed", true)
 
+/** EXPERIMENT switch: counts each step of the hunt, herds and residents alike, by prey kind, into the history ("hunt diag/KIND/STEP"). */
+internal val HUNT_DIAG = inflation.Config.flag("t.huntDiag", false)
+
+/** Adds [n] to the hunt-step count [what] for prey [s] (kept in hundredths, see [HexHistory]). */
+internal fun HexGroups.diag(s: Species, what: String, n: Float) {
+    if (HUNT_DIAG && n > 0f) stats.hunting.merge("diag:${s.name}:$what", (n * 100f).roundToInt(), Int::plus)
+}
+
 /** Swaps the form of each kind in [Catalogue.formSwap] (after a settled state is loaded); [log] says what it did. */
 fun HexSim.swapForms(log: (String) -> Unit) {
     for (s in Catalogue.formSwap) {

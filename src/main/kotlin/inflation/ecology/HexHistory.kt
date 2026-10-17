@@ -106,6 +106,7 @@ class HexHistory {
         for ((key, v) in fauna.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
         for ((key, v) in groups.stats.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
         for ((key, v) in groups.stats.kills) put("deaths/$key/hunted", v.toFloat())
+        for ((key, v) in groups.stats.hunting) if (key.startsWith("diag:")) put("hunt diag/" + key.removePrefix("diag:").replace(':', '/'), v / 100f)
         val births = HashMap<String, Double>()
         for ((key, v) in groups.stats.births) births.merge(key, v.toDouble(), Double::plus)
         for ((k, s) in fauna.kinds.withIndex()) if (fauna.bornThisWeek[k] > 0.0) births.merge(s.name, fauna.bornThisWeek[k], Double::plus)
