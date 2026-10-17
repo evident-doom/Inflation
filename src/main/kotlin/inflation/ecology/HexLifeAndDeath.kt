@@ -270,6 +270,12 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands in $c:died of $cause", k, Int::plus)
             if (o.births > 0) stats.hunting.merge("bands in $c:born", o.births, Int::plus)
+            // And by how well clad the band was: what clothes are worth in lives.
+            g.band?.let { b ->
+                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) "clad" else "poorly clad"
+                stats.hunting.merge("bands $clad:people-weeks", g.size, Int::plus)
+                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands $clad:died of $cause", k, Int::plus)
+            }
             // And, in the weeks it was cold through all the cover the band had, what each cover gave.
             val b = g.band
             if (b != null) {

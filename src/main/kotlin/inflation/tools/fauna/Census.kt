@@ -292,6 +292,12 @@ class Census(private val sim: HexSim) {
             println("bands' time, last year (share of their hands' days): " + listOf("firewood", "food", "drying", "skins", "customs", "training", "tools", "left")
                 .joinToString(", ") { "%s %.0f%%".format(it, 100 * v(it) / all) })
         }
+        println("bands by clothing, last year (clad: a kit of at least half; share of people-weeks; deaths per person a year, of them of exposure): " + listOf("clad", "poorly clad").joinToString(", ") { c ->
+            val years = (lastYear["bands $c:people-weeks"] ?: 0).toDouble() / stepsPerYear
+            val all = (lastYear["bands clad:people-weeks"] ?: 0) + (lastYear["bands poorly clad:people-weeks"] ?: 0)
+            val died = lastYear.filterKeys { it.startsWith("bands $c:died of ") }
+            "%s %.0f%%: %.3f, %.3f".format(c, 100.0 * (lastYear["bands $c:people-weeks"] ?: 0) / all.coerceAtLeast(1),
+                died.values.sum() / years.coerceAtLeast(1e-9), (died["bands $c:died of exposure"] ?: 0) / years.coerceAtLeast(1e-9)) })
         println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
             val w = weeks(c).toDouble().coerceAtLeast(1.0)
             "%s %.0f%% / %.0f%%".format(c, (lastYear["bands in $c:hearth, %"] ?: 0) / w, (lastYear["bands in $c:fuel days, %"] ?: 0) / w) })
