@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Tuning
 import inflation.HASH_A
 import inflation.HASH_B
 import inflation.HASH_C
@@ -7,9 +8,7 @@ import inflation.mix64
 import inflation.unitOf
 import inflation.Config
 import inflation.world.HexFires.Companion.GRAZE_SCALE
-import inflation.world.HexFires.Companion.IGNITIONS_PER_KM2_YEAR
 import inflation.world.HexFires.Companion.SPREAD_KM_PER_DAY
-import inflation.world.HexPlants.Companion.BROWSE_SCALE
 import inflation.world.HexPlants.Companion.EROSION
 import inflation.world.HexPlants.Companion.LAWN_SCALE
 import inflation.world.HexPlants.Companion.ROOT_SCALE
@@ -56,7 +55,7 @@ enum class LifeForm(
  * - Animals and people act through [consume] and [trample]: grazing and browsing remove biomass,
  *   and repeated passage beats down vegetation and wears [trails].
  */
-class Vegetation(private val world: World, private val seed: Long) {
+class Vegetation(private val world: World, private val seed: Long, private val tuning: Tuning = Tuning.config) {
     private val grid = world.grid
     private val n = grid.size
     private val rnd = Random(seed * 13 + 1)
@@ -177,7 +176,7 @@ class Vegetation(private val world: World, private val seed: Long) {
             val shade = canopy(i)
             // Browsers eat seedlings and saplings first: young stands and seed establishment suffer
             // most, so heavily browsed land stays open and lightly browsed land grows over.
-            val browsed = 1f - exp(-browsing[i] / BROWSE_SCALE)
+            val browsed = 1f - exp(-browsing[i] / tuning.browseScale)
             val young = 1f - min(1f, tree[i] / (0.3f * ceiling(LifeForm.TREE, i).coerceAtLeast(1e-3f)))
             // Rooted, churned soil makes a seedbed; fruit-eaters drop seed far from any parent tree.
             val rooted = 1f - exp(-rooting[i] / ROOT_SCALE)
@@ -277,7 +276,7 @@ class Vegetation(private val world: World, private val seed: Long) {
         for (i in 0 until n) {
             if (burning[i] || !canBurn(i, weather, water)) continue
             val heat = ((weather.temperature[i] - 15f) / 20f).coerceIn(0f, 1f)
-            val p = IGNITIONS_PER_KM2_YEAR * (grid.cellKm * grid.cellKm).toFloat() * years * min(1f, fuel(i) / 1.5f) * heat
+            val p = tuning.ignitionsPerKm2Year * (grid.cellKm * grid.cellKm).toFloat() * years * min(1f, fuel(i) / 1.5f) * heat
             if (i !in set && cellRandom(i) >= p) continue
             // A fire: spread breadth-first, each front cell lighting its neighbours by chance.
             var cells = 0

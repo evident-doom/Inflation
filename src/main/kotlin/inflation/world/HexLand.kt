@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Tuning
 import inflation.Config
 import inflation.store.MovedInto
 
@@ -11,7 +12,7 @@ import kotlin.math.exp
  * the plants ([HexPlants]) and fires ([HexFires]). The same rules as the fine [LiveWater] and [Vegetation], on
  * the averages of each band's cells.
  */
-class HexLand(internal val hw: HexWorld, internal val seed: Long) {
+class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's settings ([Tuning]). */ @Transient val tuning: Tuning = Tuning.config) {
     private val world = hw.world
     private val grid = world.grid
     private val hex = hw.hex
@@ -54,7 +55,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long) {
         val v = if (w > 0f) s / w else 0.5f
         // (Half of even the poorest country's plants is eaten by something; the rest of it by the
         // share for its kind. A balancing run may change that floor: t.palatableFloor.)
-        val floor = Config.float("t.palatableFloor", PALATABLE_FLOOR)
+        val floor = tuning.palatableFloor
         floor + (1f - floor) * v
     }
 
@@ -142,7 +143,6 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long) {
     }
 
     companion object {
-        const val PALATABLE_FLOOR = 0.5f
         /** Steps through each place's ground at which its ruggedness is kept (see [ruggedSpread]). */
         const val RUGGED_SHARES = 8
         /** Share of the plants of each kind of country that are edible (see [palatable]). */
@@ -162,6 +162,7 @@ abstract class HexLandPart(@Transient protected val land: HexLand) {
     protected val grid get() = land.hw.world.grid
     protected val hex get() = land.hw.hex
     protected val n get() = land.n
+    protected val tuning get() = land.tuning
     protected val days get() = land.days
     protected val drink get() = land.drink
     protected val hydro get() = land.hydro
