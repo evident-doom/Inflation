@@ -901,12 +901,12 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
  * unless renewed, and a stale mark of another pack is marked over.
  */
 internal fun HexGroups.mark() {
-    for (m in marks.values) for (i in m.indices) m[i] *= MARK_KEEP
+    for (m in scent.marks.values) for (i in m.indices) m[i] *= MARK_KEEP
     for (g in groups) {
         val s = g.species
         if (!g.alive || !s.carnivore || s.human || g.home < 0) continue
-        val m = marks.getOrPut(s.index) { FloatArray(hex.size) }
-        val who = markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
+        val m = scent.marks.getOrPut(s.index) { FloatArray(hex.size) }
+        val who = scent.markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
         for (h in g.path + g.home) {
             if (hex.distanceKm(h, g.home) > territoryKm(s)) continue
             if (who[h] == g.id || m[h] < MARK_FRESH) { m[h] = 1f; who[h] = g.id }
@@ -957,7 +957,7 @@ internal fun HexGroups.settle() {
         // (Whether it takes it is its choice: always at the hand-written way.)
         val w = g.will[AnimalWay.SETTLE]
         if (w < 1f && rnd.nextFloat() >= w) continue
-        if (foreignMark(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) g.home = h
+        if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) g.home = h
     }
 }
 
