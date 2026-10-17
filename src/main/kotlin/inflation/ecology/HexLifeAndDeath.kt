@@ -818,13 +818,13 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
     val hexKm2 = hex.areaKm2.toFloat()
     var pressure = 0f; var worst = ""; var worstP = 0f
     for (k in kinds) {
-        val w = MAN_EATERS[k] ?: continue
+        val w = k.takesPeople; if (w <= 0f) continue
         val heads = kinNow[k.index.toLong() * hex.size + h] ?: continue
         val v = w * heads * k.massKg / hexKm2
         pressure += v; if (v > worstP) { worstP = v; worst = k.name }
     }
     for ((ki, k) in fauna.kinds.withIndex()) {
-        val w = MAN_EATERS[k] ?: continue
+        val w = k.takesPeople; if (w <= 0f) continue
         val v = w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg
         pressure += v; if (v > worstP) { worstP = v; worst = k.name }
     }
@@ -847,13 +847,11 @@ data class Stalking(val rate: Float, val by: String) {
 }
 
 /**
- * Beasts that take people, by how readily (leopards most, then lions; bears, wolves and hyenas
- * rarely); yearly share of people they take at most where they are thick, from the unwary in thick
- * cover with no fire, dogs or lookouts; density of beast flesh, kg/km² weighted, at which they take
+ * Of the beasts that take people ([Species.takesPeople]): the yearly share of people they take at most
+ * where they are thick, from the unwary in thick cover with no fire, dogs or lookouts; density of beast flesh, kg/km² weighted, at which they take
  * half that; a band size the company factor is set for; how much a fire at night, dogs and lookouts
  * each keep off; how much more often children are taken.
  */
-val MAN_EATERS by lazy { mapOf(Catalogue.LEOPARD to 1.2f, Catalogue.LION to 1f, Catalogue.BEAR to 0.4f, Catalogue.WOLF to 0.3f, Catalogue.HYENA to 0.3f) }
 const val STALKED = 0.02f
 const val STALKED_HALF = 3f
 const val STALKED_BAND = 25f
