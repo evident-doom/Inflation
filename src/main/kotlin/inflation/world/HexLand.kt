@@ -104,10 +104,21 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             for (k in 0 until RUGGED_SHARES) q[k][p] = if (r.isEmpty()) 0f else r[((k + 0.5f) / RUGGED_SHARES * r.size).toInt().coerceIn(0, r.size - 1)]
         }
     }
+    /**
+     * For each place, the mean over its ground of [f] of the ruggedness: how a rule that reads ruggedness
+     * through a threshold or a curve sees a place, so a gentle place with a band of cliffs keeps its cliffs
+     * (worked out once from the fine cells).
+     */
+    fun overGround(f: (Float) -> Float): FloatArray = FloatArray(n).also { out ->
+        java.util.stream.IntStream.range(0, n).parallel().forEach { p -> out[p] = mean(p) { f(world.terrain.ruggedness[it]) } }
+    }
+    /** How well each place's crags and its burrows in broken ground shelter a kind, 0..1 (see [inflation.ecology.Niches.shelter]). */
+    @Transient val cragShelter = overGround { ((it - 0.3f) / 0.4f).coerceIn(0f, 1f) }
+    @Transient val denShelter = overGround { 0.6f * (it / 0.5f).coerceIn(0f, 1f) }
     /** Share of a place that is crag, slopes over 45% (see [inflation.ecology.HexFood.access]). */
     val crag = FloatArray(n) { p -> mean(p) { if (world.terrain.slope[it] > 0.45f) 1f else 0f } }
     /** Share of a place with caves and rock shelters: karst limestone in broken ground. */
-    val caves = FloatArray(n) { p -> mean(p) { if (world.geology.rock[it] == Rock.LIMESTONE) 1f else 0.2f } * (ruggedness[p] / 0.5f).coerceIn(0f, 1f) }
+    @Transient val caves = FloatArray(n) { p -> mean(p) { (if (world.geology.rock[it] == Rock.LIMESTONE) 1f else 0.2f) * (world.terrain.ruggedness[it] / 0.5f).coerceIn(0f, 1f) } }
     val bestDefence = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.defensibility[it] } }
     val bestViewKm = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.viewKm[it] } }
     /** Neighbouring places: the bands above and below in the hex and the bands at about the same height around it. */

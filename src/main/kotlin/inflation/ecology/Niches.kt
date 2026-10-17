@@ -80,9 +80,9 @@ object Niches {
     fun shelter(s: Species, p: Int, land: HexLand): Float {
         var best = 0f
         for (u in shelters(s)) best = maxOf(best, when (u) {
-            Shelter.CRAG -> ((land.ruggedness[p] - 0.3f) / 0.4f).coerceIn(0f, 1f)
+            Shelter.CRAG -> land.cragShelter[p]
             // Dens: burrows in broken ground, and best of all caves.
-            Shelter.DEN -> maxOf(0.6f * (land.ruggedness[p] / 0.5f).coerceIn(0f, 1f), land.caves[p])
+            Shelter.DEN -> maxOf(land.denShelter[p], land.caves[p])
             Shelter.THICKET -> land.cover(p)
             Shelter.TREE -> land.canopy(p)
             // Reed beds, marsh and deep water: those that swim or wade take to it.
