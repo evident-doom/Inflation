@@ -353,7 +353,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     /** Ground water under each place, mm over the place (starts settled: see the init below). */
     val groundwater = FloatArray(n)
     /** The lowest place of each hex, where its stream runs and ground water from above comes out; -1 for sea. */
-    private val valley = IntArray(hex.size) { h -> (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: -1 }
+    private val valley = IntArray(hex.size) { hw.firstPlaceIn(it) }
     /** Whether a hex has a stream its ground water seeps into; if not, the ground water goes on underground to the hex below. */
     private val stream = BooleanArray(hex.size) { meanFlow[it] >= CREEK }
 
@@ -363,8 +363,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days
         val inflow = DoubleArray(hex.size)
         for (h in order) {
-            for (band in 0 until HexWorld.BANDS_M.size) {
-                val p = hw.placeOf[band][h]; if (p < 0) continue
+            for (p in hw.placesOf(h)) {
                 var input = intake[p] * mean(p) { world.climate.runoff[it] } / stepsPerYear
                 if (p == valley[h]) input += (inflow[h] / areaM2[p] * 1000.0).toFloat()
                 groundwater[p] = if (drain[p] > 0f) min(aquiferCap[p], input / drain[p]) else aquiferCap[p]
@@ -589,8 +588,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
                 volume[h] += over
             }
             val d = down[h]
-            for (band in 0 until HexWorld.BANDS_M.size) {
-                val p = hw.placeOf[band][h]; if (p < 0) continue
+            for (p in hw.placesOf(h)) {
                 val out = groundwater[p] * drain[p]
                 groundwater[p] -= out
                 val m3 = out / 1000.0 * areaM2[p]
@@ -599,8 +597,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val raw = (volume[h] / stepSeconds).toFloat()
             rawMean[h] += (raw - rawMean[h]) * FLOW_MEMORY
             flow[h] = if (rawMean[h] > 0.01f && meanFlow[h] > 0f) raw * (meanFlow[h] / rawMean[h]).coerceIn(0.3f, 3f) else raw
-            for (band in 0 until HexWorld.BANDS_M.size) {
-                val p = hw.placeOf[band][h]; if (p < 0) continue
+            for (p in hw.placesOf(h)) {
                 flood[p] = if (floodShare[p] <= 0f || meanFlow[h] < RiverClass.STREAM.minDischarge) 0f else Channel.floodStageM(flow[h], meanFlow[h])
             }
             // Where the aquifer lies below the river, the river loses water through its bed, and a flood
@@ -608,16 +605,14 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             if (v >= 0 && volume[h] > 0.0) {
                 val wetM2 = Channel.widthM(raw).toDouble() * hw.hex.hexKm * 1000.0
                 var lose = 0.0
-                for (band in 0 until HexWorld.BANDS_M.size) {
-                    val p = hw.placeOf[band][h]; if (p < 0) continue
+                for (p in hw.placesOf(h)) {
                     val bed = (if (p == v) wetM2 else 0.0) + (if (flood[p] > 0f) floodShare[p] * areaM2[p].toDouble() else 0.0)
                     if (bed <= 0.0) continue
                     soak[p] = (BED_CONDUCTIVITY * days * bed * (1f - groundwater[p] / aquiferCap[p]).coerceIn(0f, 1f)).toFloat()
                     lose += soak[p]
                 }
                 val share = if (lose > 0.0) min(1.0, volume[h] / lose) else 0.0
-                if (lose > 0.0) for (band in 0 until HexWorld.BANDS_M.size) {
-                    val p = hw.placeOf[band][h]; if (p < 0) continue
+                if (lose > 0.0) for (p in hw.placesOf(h)) {
                     val bed = (if (p == v) wetM2 else 0.0) + (if (flood[p] > 0f) floodShare[p] * areaM2[p].toDouble() else 0.0)
                     if (bed <= 0.0) continue
                     val m3 = soak[p] * share
@@ -628,8 +623,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             // lakes and springs) the ground stays moist: the water is drawn from the ground water under
             // the place, then from what flows through the hex.
             var want = 0.0
-            for (band in 0 until HexWorld.BANDS_M.size) {
-                val p = hw.placeOf[band][h]; if (p < 0) continue
+            for (p in hw.placesOf(h)) {
                 var need = soakTo(p, h) - soil[p]
                 soak[p] = need.coerceAtLeast(0f)
                 if (need <= 0f) continue
@@ -640,15 +634,15 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             }
             if (want > 0.0) {
                 val share = min(1.0, volume[h] / want).toFloat()
-                for (band in 0 until HexWorld.BANDS_M.size) {
-                    val p = hw.placeOf[band][h]; if (p < 0 || soak[p] <= 0f) continue
+                for (p in hw.placesOf(h)) {
+                    if (soak[p] <= 0f) continue
                     val mm = soak[p] * share
                     soil[p] += mm; volume[h] -= mm / 1000.0 * areaM2[p]
                 }
             }
             // Where the beds ran this week (the place shed water, or a flood came down), the water fills the sands under them.
-            for (band in 0 until HexWorld.BANDS_M.size) {
-                val p = hw.placeOf[band][h]; if (p < 0 || bedM2[p] <= 0f || sand[p] >= 1f) continue
+            for (p in hw.placesOf(h)) {
+                if (bedM2[p] <= 0f || sand[p] >= 1f) continue
                 if (!ranOff[p] && flood[p] <= 0f) continue
                 val m3 = min(volume[h], ((1f - sand[p]) * SAND_M * SAND_YIELD * bedM2[p]).toDouble())
                 if (m3 <= 0.0) continue
@@ -700,11 +694,11 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         for (h in order) {
             if (load[h] <= 0.0) continue
             var flooded = 0.0
-            for (band in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[band][h]; if (p >= 0 && flood[p] > 0f) flooded += floodShare[p] * areaM2[p] }
+            for (p in hw.placesOf(h)) if (flood[p] > 0f) flooded += floodShare[p] * areaM2[p]
             if (flooded > 0.0) {
                 val laid = load[h] * FLOOD_TRAP
-                for (band in 0 until HexWorld.BANDS_M.size) {
-                    val p = hw.placeOf[band][h]; if (p < 0 || flood[p] <= 0f) continue
+                for (p in hw.placesOf(h)) {
+                    if (flood[p] <= 0f) continue
                     laidKgM2[p] += (laid * floodShare[p] * areaM2[p] / flooded / areaM2[p]).toFloat()
                 }
                 load[h] -= laid
@@ -905,7 +899,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         /** Springs: least groundwater flow for a spring, m³/yr; dry country per spring, km². */
         const val MIN_SPRING_FLOW = 3e4f
         const val SPRING_KM2 = 150f
-        /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory); weekly share by which greenness follows growth. */
+        /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory). */
         val DRY_VALUE = Config.float("t.dryValue", 0.65f)
         /** Experiment knobs: the warmth at which plants start to grow, °C, and the span over which they reach full growth, °C. */
         val GROW_FROM_C = Config.float("t.growFrom", 2f)
@@ -996,6 +990,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             Biome.SEMI_DESERT to 0.35f, Biome.SHRUBLAND to 0.3f, Biome.CONIFER_FOREST to 0.3f, Biome.SWAMP_FOREST to 0.3f,
             Biome.DESERT to 0.3f, Biome.BOG to 0.2f, Biome.MANGROVE to 0.2f, Biome.ICE_AND_ROCK to 0.2f,
         )
+        /** Weekly share by which greenness follows growth. */
         const val GREEN_RATE = 0.3f
         /** How green a fresh burn turns in growing weather, per share burnt. */
         const val FLUSH = 1.5f
