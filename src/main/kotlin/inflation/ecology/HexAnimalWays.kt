@@ -53,6 +53,16 @@ object AnimalWay {
     const val SETTLE = 5
     /** The births lean beyond which a herd moves its births itself. */
     const val BIRTHS_LEAN = 0.5f
+
+    /** Each way's name, by its slot, as a learned network's `.names` file records it (the strings must not change). */
+    val HERD_NAMES: List<String> = arrayOfNulls<String>(ANIMAL_WAYS_OUT).also {
+        it[HERD_SIZE] = "herd size"; it[GRASS] = "grass"; it[BROWSE] = "browse"; it[FRUIT] = "fruit and roots"; it[FATTEN] = "fattening"
+        it[BIRTHS] = "births earlier or later"
+    }.mapIndexed { k, n -> requireNotNull(n) { "herd way $k has no name" } }
+    val HUNTER_NAMES: List<String> = arrayOfNulls<String>(ANIMAL_WAYS_OUT).also {
+        it[CHASE] = "chasing"; it[STEAL] = "stealing kills"; it[KILL] = "killing other hunters"; it[FIGHT] = "fighting rivals"; it[MATE] = "seeking a mate"
+        it[SETTLE] = "settling"
+    }.mapIndexed { k, n -> requireNotNull(n) { "hunter way $k has no name" } }
 }
 
 /** What a herd or pack knows of itself this week: the season, how fed and watered it is, its reserves, size and young, its fear, its
@@ -79,6 +89,11 @@ internal fun HexGroups.animalInputs(g: HexGroup, weather: Weather, into: FloatAr
     // Its temperament.
     for (k in 0 until Temperament.AXES) into[i++] = g.temper.getOrElse(k) { 0f }
 }
+
+/** The name of each of [animalInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */
+val ANIMAL_INPUT_NAMES: List<String> get() = (listOf("year sin", "year cos", "fed", "fat", "days dry", "own size", "young per adult", "wary", "holds ground",
+    "weeks hungry", "temperature", "mass", "diet:grass", "diet:browse", "diet:fruit and roots", "diet:meat", "diet:small prey", "diet:carrion") +
+    Temperament.NAMES.map { "temper:$it" }).also { require(it.size == ANIMAL_WAYS_IN) }
 
 /** Sets a herd's or pack's ways from [ways]' outputs. */
 internal fun HexGroups.setAnimalWays(g: HexGroup, weather: Weather, ways: AnimalWays, inputs: FloatArray, out: FloatArray) {
