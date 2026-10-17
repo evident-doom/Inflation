@@ -127,6 +127,14 @@ class HuntTally(private val sim: HexSim) {
         })
     }
 
+    /** Where people's hides came from this year: kg a person from herds, resident game and small pelts. */
+    fun printPeoplesHides() {
+        val heads = sim.groups.groups.filter { it.alive && it.species.human }.sumOf { it.size }.coerceAtLeast(1)
+        fun kg(source: String) = (year[Tally.hide(source)] ?: 0) / 1000.0 / heads
+        println("     people's hides (kg a person this year: herds / resident game / small pelts): %.2f / %.2f / %.2f"
+            .format(kg("herds"), kg("residents"), kg("small pelts")))
+    }
+
     /**
      * What each hunting kind's diet asked for and what each part brought, as shares of what it asked (what each eats
      * comes from what pays best; meat includes fish).
@@ -146,14 +154,22 @@ class MovementTally(private val sim: HexSim) {
     val movedKm = HashMap<Species, Double>()
     private val janHex = HashMap<Int, Int>()
     private val julyKm = HashMap<String, ArrayList<Double>>()
+    /** Head-weeks of each herd kind (and of people, under "people") by month and [CELL_KM] cell, this year and last. */
+    private var cells = HashMap<String, Array<HashMap<Long, Double>>>()
+    private var cellsLastYear = HashMap<String, Array<HashMap<Long, Double>>>()
 
-    fun startYear() { julyKm.clear() }
+    fun startYear() { julyKm.clear(); cellsLastYear = cells; cells = HashMap() }
 
     fun week(w: Int) {
         val groups = sim.groups; val hw = sim.hw; val hex = sim.hex
         if (w == 0) movedKm.clear()
         for (gr in groups.groups) if (gr.alive && gr.path.size > 1) movedKm.merge(gr.species, (gr.path.size - 1) * hex.hexKm, Double::plus)
         val date = sim.weather.date
+        for (g in groups.groups) if (g.alive && (!g.species.carnivore || g.species.human)) {
+            val (x, y) = hex.centreKm(hw.placeHex[g.place])
+            val cell = (x / CELL_KM).toLong() * 100_000 + (y / CELL_KM).toLong()
+            cells.getOrPut(g.species.name) { Array(12) { HashMap() } }[date.month].merge(cell, g.size.toDouble(), Double::plus)
+        }
         if (date.dayOfMonth <= sim.cfg.daysPerStep) {
             if (date.month == 0) for (g in groups.groups) if (g.alive && !g.species.carnivore) janHex[g.id] = hw.placeHex[g.place]
             if (date.month == 6) for (g in groups.groups) if (g.alive && !g.species.carnivore) janHex[g.id]?.let {
@@ -172,6 +188,45 @@ class MovementTally(private val sim: HexSim) {
                 .map { sim.hex.distanceKm(hw.placeHex[it.seasonPlace[0]], hw.placeHex[it.seasonPlace[6]]) }
             "%s %.0f".format(s.name, if (d.isEmpty()) 0.0 else d.average())
         })
+        printPredictable()
+    }
+
+    /**
+     * How well last year foretells where each herd kind is this year, by [CELL_KM] cells: the correlation of its
+     * head-weeks over the cells in the same month of the two years (the mean over months), against the same for
+     * the month six months off (what knowing only where the kind lives would give); and the share of people's
+     * head-weeks in cells where a herd stood that month.
+     */
+    private fun printPredictable() {
+        if (cellsLastYear.isEmpty()) return
+        val kinds = cells.keys.filter { it != "people" && it in cellsLastYear }.sorted()
+        println("     herds foretold by last year (r same month / r six months off, by ${CELL_KM.toInt()} km cells): " + kinds.joinToString(", ") { k ->
+            val now = cells.getValue(k); val before = cellsLastYear.getValue(k)
+            "%s %.2f / %.2f".format(k, (0 until 12).map { correlation(now[it], before[it]) }.average(),
+                (0 until 12).map { correlation(now[it], before[(it + 6) % 12]) }.average())
+        })
+        val people = cells["people"] ?: return
+        val herded = (0 until 12).sumOf { m -> people[m].entries.sumOf { (c, v) -> if (kinds.any { (cells.getValue(it)[m][c] ?: 0.0) > 0.0 }) v else 0.0 } }
+        val all = (0 until 12).sumOf { m -> people[m].values.sum() }.coerceAtLeast(1.0)
+        val cellsWithHerds = (0 until 12).sumOf { m -> kinds.flatMap { cells.getValue(it)[m].keys }.toSet().size }
+        val cellsWithAny = (0 until 12).sumOf { m -> (kinds.flatMap { cells.getValue(it)[m].keys } + people[m].keys).toSet().size }.coerceAtLeast(1)
+        println("     people where herds were that month: %.0f%% of their head-weeks (herds in %.0f%% of the cells either used)"
+            .format(100 * herded / all, 100.0 * cellsWithHerds / cellsWithAny))
+    }
+
+    private fun correlation(a: Map<Long, Double>, b: Map<Long, Double>): Double {
+        val keys = (a.keys + b.keys).toList()
+        if (keys.size < 3) return 0.0
+        val x = keys.map { a[it] ?: 0.0 }; val y = keys.map { b[it] ?: 0.0 }
+        val mx = x.average(); val my = y.average()
+        val sxy = x.indices.sumOf { (x[it] - mx) * (y[it] - my) }
+        val sx = x.sumOf { (it - mx) * (it - mx) }; val sy = y.sumOf { (it - my) * (it - my) }
+        return if (sx > 0 && sy > 0) sxy / kotlin.math.sqrt(sx * sy) else 0.0
+    }
+
+    companion object {
+        /** Cell size for where herds are, km: about a band's reach in a few days. */
+        const val CELL_KM = 50.0
     }
 }
 

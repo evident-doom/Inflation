@@ -83,6 +83,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         deaths.printHuntersBornAndDied()
         hunting.printHunting()
         hunting.printHuntersFood()
+        hunting.printPeoplesHides()
         movement.printSeasons()
         census.printChoices()
         census.printHuntersFamilies()

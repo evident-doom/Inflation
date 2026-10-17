@@ -5,6 +5,7 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.roundToInt
 
 /*
  * EXPERIMENT (branch only, not for main): the herds a hunter came on this week are foods in its one diet pass
@@ -93,7 +94,8 @@ internal fun HexGroups.huntHerdMet(g: HexGroup, i: Int, expected: Float, kgEach:
                 } else {
                     herd.adults--
                     out[0] += kgEach
-                    g.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER); it.skin(ps, 1) }
+                    g.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER); it.skin(ps, 1)
+                        stats.hunting.merge(Tally.hide("herds"), (1000f * ps.products.hide).roundToInt(), Int::plus) }
                     small.carrion[hm.p] += leftOver(ps, kgEach, g.band) / (land.areaKm2[hm.p] * 1e6f)
                 }
                 fauna.killed(hm.p, Kg(ps.massKg))

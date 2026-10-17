@@ -405,6 +405,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // pelts sewn together (hare, fox, marmot) clothe as well as a few big hides.
         val skinDays = min(band.spareDays, SMALL_SKIN * smallGot * SKIN_DAYS)
         band.goods[Material.HIDE] += skinDays / SKIN_DAYS
+        stats.hunting.merge(Tally.hide("small pelts"), (1000f * skinDays / SKIN_DAYS).roundToInt(), Int::plus)
         band.spareDays = max(0f, band.spareDays - skinDays)
         stats.hunting.merge(Tally.bandTime("skins"), (skinDays * 10f).roundToInt(), Int::plus)
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
@@ -467,6 +468,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     val young = min(0.3f * ps.massKg, kgEach)
     out.kg = na * kgEach + ny * young
     small.carrion[p] += (na * leftOver(ps, kgEach, band) + ny * (0.3f * ps.massKg - young)) / (area * 1e6f)
+    if (band != null && na > 0) stats.hunting.merge(Tally.hide("residents"), (1000f * na * ps.products.hide).roundToInt(), Int::plus)
     band?.let { it.skin(ps, na); it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps.name, kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
@@ -1049,7 +1051,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
             herd.adults--
             hunter.meatMet += herd.species.massKg * creditShare(hunter.band)
             hunter.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
-            hunter.band?.skin(herd.species, 1)
+            hunter.band?.let { it.skin(herd.species, 1); stats.hunting.merge(Tally.hide("herds"), (1000f * herd.species.products.hide).roundToInt(), Int::plus) }
             small.carrion[herd.place] += herd.species.massKg * (1f - meatShare(hunter.band)) / (land.areaKm2[herd.place] * 1e6f)
         }
         stats.kills.merge(herd.species.name, 1, Int::plus)
