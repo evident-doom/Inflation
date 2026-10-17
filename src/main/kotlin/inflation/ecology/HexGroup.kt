@@ -86,7 +86,7 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** For kinds that follow people's camps: the share of it bold enough to come close, 0..1 (-1 until first needed: its kind's share). */
     var bold = -1f
     /** Its temperament ([Temperament]): a founder's by chance, an offshoot's from its parent. */
-    var temper = Temperament.founder(id)
+    var temper = Temperament.founder(id, 0L)
     /** When it was last chased, in days from the start (with the hour): it is alarmed for a while after (see [wary]). */
     var chasedOn = Double.NEGATIVE_INFINITY
     /** How alarmed it still is at [day] (days from the start) from its last chase, 0..1: it keeps a sharper watch, fading over [ALARM_DAYS]. */

@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.HASH_A
 import inflation.HASH_B
+import inflation.HASH_C
 import inflation.mix64Once
 import kotlin.math.cos
 import kotlin.math.ln
@@ -33,11 +34,11 @@ object Temperament {
     /** The change at each split: a fifth of the founders' spread, so lineages stay recognisable over a few splits. Not measured. */
     const val DRIFT_SD = FOUNDER_SD / 5f
 
-    /** A founder's temperament, from its id (so a seed gives the same run). */
-    fun founder(id: Int) = FloatArray(AXES) { FOUNDER_SD * normal(id, it, 1) }
+    /** A founder's temperament, from its id and the world's [seed] (so a seed gives the same run, and another seed other founders). */
+    fun founder(id: Int, seed: Long) = FloatArray(AXES) { FOUNDER_SD * normal(id, it, 1, seed) }
 
     /** An offshoot's: its parent's, a little changed. */
-    fun inherit(parent: FloatArray, id: Int) = FloatArray(AXES) { (parent.getOrElse(it) { 0f }) + DRIFT_SD * normal(id, it, 2) }
+    fun inherit(parent: FloatArray, id: Int, seed: Long) = FloatArray(AXES) { (parent.getOrElse(it) { 0f }) + DRIFT_SD * normal(id, it, 2, seed) }
 
     /**
      * The pull of temperament [t] toward a place with this much of hunters about ([danger], 0..1),
@@ -47,10 +48,10 @@ object Temperament {
     fun pull(t: FloatArray, danger: Float, remembered: Float, stays: Float, crowd: Float): Float =
         t[0] * danger + t[1] * (1f - remembered) + t[2] * (1f - stays) + t[3] * crowd
 
-    /** A standard normal number from [id], [axis] and [salt]. */
-    private fun normal(id: Int, axis: Int, salt: Int): Float {
+    /** A standard normal number from [id], [axis], [salt] and the world's [seed]. */
+    private fun normal(id: Int, axis: Int, salt: Int, seed: Long): Float {
         fun u(k: Int): Double {
-            val h = mix64Once(id.toLong() * HASH_A + (axis * 31 + salt * 1009 + k).toLong() * HASH_B)
+            val h = mix64Once(id.toLong() * HASH_A + (axis * 31 + salt * 1009 + k).toLong() * HASH_B + seed * HASH_C)
             return ((h ushr 11).toDouble() + 0.5) / (1L shl 53).toDouble()
         }
         return (sqrt(-2.0 * ln(u(0))) * cos(2.0 * Math.PI * u(1))).toFloat()
