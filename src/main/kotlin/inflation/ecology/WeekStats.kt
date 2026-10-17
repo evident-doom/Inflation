@@ -75,6 +75,11 @@ object Tally {
     const val POORLY_CLAD = "poorly clad"
     /** How bands spent their hands' days, tenths of a day. */
     fun bandTime(what: String) = "band time:$what"
+    /** Tries a hunting kind made on a herd kind, and its hunters killed by one ("wolf:tries on ostrich"). */
+    const val TRIES_ON = "tries on "
+    const val HURT_BY = "killed by prey "
+    /** Hide people got from [source] (herds, residents, small pelts), grams. */
+    fun hide(source: String) = "people hide:$source"
     /** Deaths of [cause], within a band tally. */
     fun diedOf(cause: String) = "$DIED_OF$cause"
     const val DIED_OF = "died of "

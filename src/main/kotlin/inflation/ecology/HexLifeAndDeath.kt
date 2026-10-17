@@ -340,6 +340,10 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
                 b.ornaments -= goods; b.exotic -= goods * ex; land.graveGoods[g.place] += goods }
         }
         o.split?.let { c -> born += splitOff(g, c.adults, c.young) } // a young pack has no ground yet
+        if (o.leavers > 0) {
+            repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
+            stats.meetings.merge("young hunters left their pack", o.leavers, Int::plus)
+        }
     }
     groups += born
     Profile.part("groups: merging and pairing") { mergeAndPair(date) }
@@ -361,7 +365,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.parent = g.id
     n.dry = g.dry
     n.chasedOn = g.chasedOn
-    n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn; n.dietRate = g.dietRate
+    n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn; n.dietRate = g.dietRate; n.deathOdds = g.deathOdds
     n.birthMonth = g.birthMonth
     n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.
@@ -396,9 +400,12 @@ internal fun adultsDied(g: HexGroup, n: Int, r: Random) {
     }
 }
 
-/** What a group's week left for others: carcasses (kg), births, deaths by cause, orphans, a split-off part (adults, young). */
+/**
+ * What a group's week left for others: carcasses (kg), births, deaths by cause, orphans, a split-off part (adults, young),
+ * and the young grown up this week that leave a pack on their own ([leavers]).
+ */
 internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val causes: List<Died>, val orphans: Int,
-    val split: Split?, val youngDied: Int = 0)
+    val split: Split?, val youngDied: Int = 0, val leavers: Int = 0)
 
 /** [n] of a group died of [cause] this week. */
 internal data class Died(val cause: String, val n: Int)
@@ -494,6 +501,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     var adultSum = 0f; var youngSum = 0f
     for (h in hazards) { adultSum += h.adult; youngSum += h.young }
     val adultOdds = adultSum.coerceIn(0f, 0.9f)
+    g.deathOdds = adultOdds
     val youngOdds = (youngSum * spared).coerceIn(0f, 0.95f)
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
         stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
@@ -517,8 +525,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
     val causes = shareDeaths(hazards, da, dy, r)
     if (oldAge > 0) causes += Died(DeathCause.OLD_AGE.label, oldAge)
-    val up = growUp(g, r)
-    land.books?.adder(Books.Stuff.MATTER, "groups born and grew up")?.add(((HexFauna.YOUNG_WEIGHT * bornNow + (1f - HexFauna.YOUNG_WEIGHT) * up) * s.massKg).toDouble())
+    val grown = growUp(g, r)
+    land.books?.adder(Books.Stuff.MATTER, "groups born and grew up")?.add(((HexFauna.YOUNG_WEIGHT * bornNow + (1f - HexFauna.YOUNG_WEIGHT) * grown) * s.massKg).toDouble())
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
         val orphans = g.young
@@ -526,13 +534,17 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         g.young = 0
         return Outcome(carrion, bornNow, da + oldAge + dy, causes, orphans, null, dy + orphans)
     }
+    // Young hunters grown up leave a pack already as big as its kind's usual one, each alone, to find a mate
+    // and ground of their own: how packs are founded (a pack that only grows until it splits seldom gets there).
+    val leavers = if (s.pack && band == null) min(grown, max(0, g.adults - s.groupSize)) else 0
+    g.adults -= leavers
     var split: Split? = null
     // Bands that feast together hold together longer.
     if (g.size > maxSize(g, date)) {
         split = Split(g.adults / 2, g.young / 2)
         g.adults -= split.adults; g.young -= split.young
     }
-    return Outcome(carrion, bornNow, da + oldAge + dy, causes, 0, split, dy)
+    return Outcome(carrion, bornNow, da + oldAge + dy, causes, 0, split, dy, leavers)
 }
 
 /** Reserves carry [g] through lean weeks; a group that ate (nearly) its fill lays them on, most in late summer and autumn. */
