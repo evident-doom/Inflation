@@ -93,7 +93,7 @@ fun main(args: Array<String>) {
             km2W[c] += ar; waterW[c] += ar * land.drink.water[p]; walkW[c] += ar * land.drink.waterKm[p]
             val pl = land.plants
             herbW[c] += ar * pl.herb[p]; shrubW[c] += ar * pl.shrub[p]; greenW[c] += ar * pl.green[p]; palW[c] += ar * land.palatable[p]
-            val reach = HexFauna.REACH_DORMANT + (HexFauna.REACH - HexFauna.REACH_DORMANT) * pl.green[p]
+            val reach = HexFauna.REACH
             canW[c] += ar * (reach * land.palatable[p] * pl.herb[p] + pl.browse(p))
             // (What was taken: what could be, less what was left.)
             tookW[c] += ar * (reach * land.palatable[p] * pl.herb[p] + pl.browse(p) - fauna.grazeLeft[p] - fauna.browseLeft[p])
