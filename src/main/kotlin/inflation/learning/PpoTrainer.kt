@@ -19,7 +19,7 @@ import kotlin.random.Random
 /**
  * A training run of [HexPpo]: the networks and their optimisers, critics and the bands' ways, kept in
  * [PpoOptions.out] (and carried on from there if a run left them); the training worlds; and the rounds,
- * each of them play, judge, learn and, every few rounds, a check against the hand-written behaviour.
+ * each of them play, judge, learn and, every few rounds, the ecosystem check ([EcoCheck]) and a reference check against the hand-written behaviour.
  */
 class PpoTrainer(private val o: PpoOptions) {
     private val out = o.out.also { it.mkdirs() }
@@ -27,15 +27,14 @@ class PpoTrainer(private val o: PpoOptions) {
     private val files = Role.entries.map { it.file(out) }
     private val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(o.hidden, Random(7L + i), if (Role.entries[i] == Role.PEOPLE) WAYS_IN else 0) }
         .also { ms -> for ((i, r) in Role.entries.withIndex()) o.residual[r]?.let { ms[i].residual = it } }
-    private fun modelOf(s: Species) = models[Role.of(s).ordinal]
     private val adams = models.map { Adam(it.net.w.size, o.rate) to Adam(it.identity.size, o.rate) }
     /** One critic for each role: what a group's return can be expected to be where it stands. */
-    private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.valueFile(out), o.hidden, models[i]) }
+    private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.criticFile(out), models[i]) }
     /** Bands' ways, learned beside their moves (see [WaysPpo]). */
     private val waysState = if (o.learnWays) WaysPpo.State(out, o.hidden, o.rate) else null
-    /** The versions each kind plays with outside training: its last good one, and the score it had. */
-    private val deployedDir = File(out, "deployed")
-    private val best = HashMap<Species, Double>()
+    /** The check of each round's networks against the kept ones (see [EcoCheck]), running beside the training. */
+    private val eco = EcoCheck(out)
+    private var checking: Pair<CompletableFuture<EcoCheck.Verdict>, File>? = null
     /** The training worlds, living on from round to round (for [PpoOptions.worldRounds] rounds, if set, then a fresh one takes its place). */
     private val players = arrayOfNulls<HexPpo.Player>(o.worlds)
     private val steps = o.years * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
@@ -47,12 +46,12 @@ class PpoTrainer(private val o: PpoOptions) {
             HexPpo.imitate(kinds, models, o.worlds, o.size, o.sampling, o.teachers, o.maps)
             for (i in models.indices) models[i].save(files[i])
         }
-        deployedDir.mkdirs()
-        File(deployedDir, "scores.txt").takeIf { it.exists() }?.readLines()?.forEach { l -> val (n, v) = l.split("\t"); kinds.firstOrNull { it.name == n }?.let { best[it] = v.toDouble() } }
+        eco.init()
         var ahead: CompletableFuture<List<List<Choice>>>? = null
         val firstRound = log.done()
         for (round in firstRound until firstRound + o.rounds) {
             val t0 = System.nanoTime()
+            takeCheck(false)
             val choices = ahead?.join() ?: playRound(round, models, waysState?.ways)
             val tPlay = System.nanoTime()
             // The next round's play goes on beside this round's learning and check, with the networks as
@@ -66,19 +65,36 @@ class PpoTrainer(private val o: PpoOptions) {
             val everything = choices.flatten()
             val waysChoices = everything.filterIsInstance<WaysChoice>()
             val all = everything.filter { it !is WaysChoice }
-            val byKind = judge(all, round)
             val stats = StringBuilder()
+            val byKind = judge(all, round, stats)
             for (mi in models.indices) learn(mi, all, byKind, round - firstRound, round, stats)
             waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round)).append("; "); it.save() }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
             val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns)
             log.write(line)
             if (round % o.checkEvery == o.checkEvery - 1) {
+                // The ecosystem check runs beside the training (one at a time: a round whose check would start while the
+                // last is still running goes unchecked); the reference check against the hand-written behaviour follows.
+                if (checking == null) {
+                    val candidate = File(out, "checks/round-${round + 1}/candidate").also { EcoCheck.copyRoles(out, it, Role.entries) }
+                    checking = eco.start(round, candidate) to candidate
+                } else log.write("round ${round + 1} not checked: the last check is still running")
                 // (The next round's play finishes first: its worlds and the check's would not all fit in memory at once.)
                 ahead?.join()
                 check(round)
             }
         }
+        takeCheck(true)
+    }
+
+    /** The last ecosystem check's verdict, if it is in (or, [wait]ing for it, when it is): logged, and each role that passed kept. */
+    private fun takeCheck(wait: Boolean) {
+        val (f, candidate) = checking ?: return
+        if (!wait && !f.isDone) return
+        checking = null
+        val v = try { f.join() } catch (e: Exception) { log.check("check failed: ${e.cause?.message ?: e.message}"); return }
+        for (l in v.lines) log.check(l)
+        eco.apply(v, candidate)
     }
 
     /** One round's play in every training world, with [ms] choosing and the bands' ways drawn from [ways]; fresh worlds where one is done. */
@@ -86,7 +102,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val fresh = (0 until o.worlds).filter { w -> players[w]?.done != false }
         for (w in fresh) players[w]?.derailed?.let { why -> log.write("world $w replaced after round ${r - 1}: $why") }
         // (New worlds are made side by side, as each round's fresh worlds were before they lived on.)
-        fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.size, w), kinds, steps * o.worldRounds, o.burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep, o.sampling) }
+        fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.width, o.height, w), kinds, steps * o.worldRounds, o.burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep, o.sampling) { line -> log.write("world $w $line") } }
             .toList().forEach { (w, p) -> players[w] = p }
         return (0 until o.worlds).toList().parallelStream().map { w -> players[w]!!.play(steps, ms, ways) }.toList()
     }
@@ -96,19 +112,25 @@ class PpoTrainer(private val o: PpoOptions) {
      * not only against its kind's average: much of what befalls a group is its situation and its luck,
      * not the move; then scales it within its kind. Teaches the critics this round's returns. The choices by kind.
      */
-    private fun judge(all: List<Choice>, round: Int): Map<Species, List<Choice>> {
+    private fun judge(all: List<Choice>, round: Int, stats: StringBuilder): Map<Species, List<Choice>> {
         val byKind = all.groupBy { it.kind }
         val expected = HashMap<Choice, Float>()
+        val judged = HashMap<Choice, Float>()
         for ((mi, model) in models.withIndex()) {
             val mine = all.filter { Role.of(it.kind).ordinal == mi }
             if (mine.isEmpty()) continue
             val critic = critics[mi]
-            for (c in mine) expected[c] = critic.value(model, c)
+            // (Judged with the critic as it stood before this round, then it learns from the round.)
+            val t0 = System.nanoTime()
+            val explained = critic.explained(model, mine)
+            for (c in mine) { expected[c] = critic.value(model, c); judged[c] = critic.target(model, c) }
             critic.learn(model, mine, round)
+            val worst = explained.entries.sortedBy { it.value }.take(3).joinToString(", ") { "%s %.2f".format(it.key.name, it.value) }
+            stats.append("%s critic explains %.2f (least: %s), %.0f%% seen again (%.0f s); ".format(Role.entries[mi], explained.values.average(), worst, 100.0 * mine.count { it.probe != null } / mine.size, (System.nanoTime() - t0) / 1e9))
         }
         for ((_, cs) in byKind) {
-            val mean = cs.map { it.ret.toDouble() }.average().toFloat()
-            val gap = cs.associateWith { c -> c.ret - (expected[c] ?: mean) }
+            val mean = cs.map { judged.getValue(it).toDouble() }.average().toFloat()
+            val gap = cs.associateWith { c -> judged.getValue(c) - (expected[c] ?: mean) }
             val sd = sqrt(gap.values.map { (it * it).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
             for (c in cs) c.advantage = gap.getValue(c) / sd
         }
@@ -122,6 +144,7 @@ class PpoTrainer(private val o: PpoOptions) {
         if (mine.isEmpty()) return
         // (A role held fixed plays with its network as it is and does not learn, while the others catch up.)
         if (Role.entries[mi] in o.fixed && sinceStart < o.fixedRounds) { stats.append(Role.entries[mi]).append(" held; "); return }
+        val t0 = System.nanoTime()
         val kindsHere = mine.map { it.kind }.distinct()
         val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
         repeat(4) { epoch ->
@@ -135,14 +158,15 @@ class PpoTrainer(private val o: PpoOptions) {
                 adams[mi].first.step(model.net.w, gw); adams[mi].second.step(model.identity, gi)
             }
         }
-        model.save(files[mi]); critics[mi].save(Role.entries[mi].valueFile(out))
-        stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices; ")
+        model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)
+        stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices (%.0f s); ".format((System.nanoTime() - t0) / 1e9))
     }
 
     /**
-     * Checks against the hand-written behaviour, one role at a time (the others hand-written, so a role's
-     * gain is its own and not the others'), on worlds it has not trained on; and keeps each kind's last
-     * good version. Then the bands' learned ways (their middles) against the scaffold's.
+     * The reference check, reported only: against the hand-written behaviour, one role at a time (the others
+     * hand-written, so a role's gain is its own and not the others'), on worlds it has not trained on; then the
+     * bands' learned ways (their middles) against the scaffold's. It shows how far the networks have moved
+     * from the hand-written rules, not whether they are better: that is [EcoCheck]'s.
      */
     private fun check(round: Int) {
         val seeds = (91L until 91L + o.checkSeeds).toList()
@@ -151,12 +175,8 @@ class PpoTrainer(private val o: PpoOptions) {
         for (s in kinds) {
             val learnedEach = scores.map { it.first[s] ?: 0.0 }
             val handEach = scores.map { it.second[s] ?: 0.0 }
-            val learned = learnedEach.average()
-            val keep = learned >= (best[s] ?: Double.NEGATIVE_INFINITY)
-            if (keep) { best[s] = learned; modelOf(s).save(File(deployedDir, s.name.replace(' ', '-') + ".mlp")) }
-            parts += s.name + " " + HexPpo.compare(learnedEach, handEach) + if (keep) "" else " (kept older)"
+            parts += s.name + " " + HexPpo.compare(learnedEach, handEach)
         }
-        File(deployedDir, "scores.txt").writeText(best.entries.joinToString("\n") { "${it.key.name}\t${it.value}" } + "\n")
         val c = "check round %d (each role learned alone vs all hand-written, animal-weeks per animal, %d %s worlds: mean change +- its standard error, worlds better): %s".format(round + 1, seeds.size, if (o.checkOnMaps && !o.maps.isEmpty()) "training" else "fresh", parts.joinToString(", "))
         log.check(c)
         waysState?.let { st ->
