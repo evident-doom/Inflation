@@ -601,7 +601,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         if (other != null && other.size + g.size <= maxSize(other, date)) {
             val share = g.size.toFloat() / (other.size + g.size)
             other.fed += (g.fed - other.fed) * share; other.fat += (g.fat - other.fat) * share
-            g.mergedSize = g.size
+            g.mergedSize = g.size; g.mergedInto = other.id
             other.adults += g.adults; other.young += g.young
             g.adults = 0; g.young = 0
         } else byPlace[key] = g
@@ -642,7 +642,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f
             if (a.home < 0) a.home = b.home
-            b.mergedSize = b.size
+            b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
         }
     }
@@ -675,7 +675,7 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
     into.larder += from.larder
     into.memory.hear(from.memory, 0, 1f)
-    from.mergedSize = from.size
+    from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f
 }

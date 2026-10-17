@@ -120,11 +120,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         val n = features.size
         val state = g.band?.state; val temper = g.temper
         val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], state, b.a[0], temper); mover.net.forward(b) + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
-        if (record == null) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
+        // Only the choices recorded to learn from are drawn by chance; every other group takes its best, so the
+        // training worlds live as they would with the networks choosing (a world of chance moves goes under).
+        if (record == null || rnd.nextFloat() >= rate(g.species)) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
         val p = softmax(scores)
         var u = rnd.nextFloat(); var taken = n - 1
         for (k in 0 until n) { u -= p[k]; if (u <= 0f) { taken = k; break } }
-        if (rnd.nextFloat() < rate(g.species)) record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf() }
+        record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf() }
         return taken
     }
     override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
@@ -311,34 +313,8 @@ object HexPpo {
         // The same number of choices a year of each kind, however many groups it has.
         private val rates = HashMap<Species, Float>()
         private var waysRate = 0f
-        /**
-         * A group's numbers week by week from week [base] (and for bands, their luck in their own
-         * births and deaths, see [HexGroup.luck]); the weeks no choice still waiting needs are let go,
-         * so a world can live on for ever.
-         */
-        private class Track(var base: Int) {
-            var size = IntArray(64); var luck = FloatArray(64) { Float.NaN }; var n = 0
-            fun set(w: Int, s: Int, l: Float) {
-                val i = w - base
-                if (i >= size.size) { val m = max(2 * size.size, i + 1); size = size.copyOf(m); val old = luck.size; luck = luck.copyOf(m); for (k in old until m) luck[k] = Float.NaN }
-                size[i] = s; luck[i] = l; n = max(n, i + 1)
-            }
-            fun size(w: Int) = (w - base).let { if (it in 0 until n) size[it] else 0 }
-            // (As last seen, once it is gone.)
-            fun luck(w: Int): Float { var k = min(w - base, n - 1); while (k > 0 && luck[k].isNaN()) k--; return if (k < 0 || luck[k].isNaN()) 0f else luck[k] }
-            /** Lets go of the weeks before [w]. */
-            fun cut(w: Int) {
-                val d = w - base; if (d <= 0) return
-                val keep = luck(w - 1)
-                if (d >= n) { n = 0 } else { size = size.copyOfRange(d, size.size); luck = luck.copyOfRange(d, luck.size); n -= d; if (luck[0].isNaN()) luck[0] = keep }
-                base = w
-            }
-        }
-        // Each group's numbers, and where its offshoots came from, to follow each choice's outcome.
-        private val tracks = HashMap<Int, Track>()
-        private val parent = HashMap<Int, Int>()
-        private val merged = HashMap<Int, Int>()
-        private val born = HashMap<Int, Int>()
+        /** What became of each group's members, to judge each choice by. */
+        private val outcomes = Outcomes()
         /** Whether it has lived its time (if it has one), or gone badly off the rails: then a fresh world takes its place. */
         val done get() = (lifeSteps > 0 && week >= lifeSteps) || derailed != null
         /**
@@ -383,27 +359,7 @@ object HexPpo {
                 run.step()
                 week++
                 if (week % stepsPerYear == 0) setRates()
-                for (g in run.groups.groups) {
-                    if (g.parent >= 0 && g.id !in parent) { parent[g.id] = g.parent; born[g.id] = week }
-                    if (g.mergedSize >= 0) merged.putIfAbsent(g.id, g.mergedSize)
-                    tracks.getOrPut(g.id) { Track(week) }.set(week, if (g.alive) g.size else 0, if (g.species.human) g.luck else 0f)
-                }
-                // Groups that merged into another this week are gone from the list by now: their numbers carry on as at the merge.
-                for (g in run.groups.merged) merged.putIfAbsent(g.id, g.mergedSize)
-            }
-            // Offshoots of each group, for adding their numbers to its own.
-            val children = HashMap<Int, MutableList<Int>>()
-            for ((c, p) in parent) children.getOrPut(p) { ArrayList() } += c
-            // A group's numbers (and its offshoots') at week [w]; for bands, less their luck in births and
-            // deaths since week [from], so that a choice is judged by what it made likely, not by chance.
-            fun numbers(id: Int, w: Int, from: Int, depth: Int = 0): Float {
-                val tr = tracks[id]
-                val own = tr?.size(w) ?: 0
-                val m = merged[id]
-                var n = (if (own == 0 && m != null) m else own).toFloat()
-                if (tr != null) n = max(0f, n - (tr.luck(w) - tr.luck(max(from, born[id] ?: 0))))
-                if (depth < 3) for (c in children[id].orEmpty()) if ((born[c] ?: 0) <= w) n += numbers(c, w, from, depth + 1)
-                return n
+                outcomes.record(week, run.groups.groups, run.groups.merged)
             }
             val out = ArrayList<Choice>()
             val waiting = ArrayList<Choice>()
@@ -415,7 +371,9 @@ object HexPpo {
                 if (c.week + horizon > week) { if (!done) waiting += c; continue }
                 var sum = 0f; var norm = 0f; var d = 1f
                 val discount = if (c.kind.human) PEOPLE_DISCOUNT else DISCOUNT
-                for (k in 1..horizon) { sum += d * numbers(c.groupId, c.week + k, c.week) / c.size.coerceAtLeast(1).toFloat(); norm += d; d *= discount }
+                // (Judged by the fate of the group's own members, so that taking others in is no gain.)
+                val own = outcomes.own(c.groupId, c.week, horizon)
+                for (k in 1..horizon) { sum += d * own[k - 1] / c.size.coerceAtLeast(1).toFloat(); norm += d; d *= discount }
                 c.ret = sum / norm
                 out += c
             }
@@ -423,9 +381,7 @@ object HexPpo {
             checkRails()
             // Let go of what no waiting choice needs: the weeks before the oldest of them, and the groups gone before it.
             val oldest = pending.minOfOrNull { it.week } ?: week
-            val here = run.groups.groups.mapTo(HashSet()) { it.id }
-            val it = tracks.entries.iterator()
-            while (it.hasNext()) { val (id, tr) = it.next(); if (id !in here && tr.base + tr.n <= oldest) it.remove() else tr.cut(oldest) }
+            outcomes.cut(oldest, run.groups.groups.mapTo(HashSet()) { it.id })
             return out
         }
     }
