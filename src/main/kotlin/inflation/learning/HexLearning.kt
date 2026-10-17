@@ -83,7 +83,7 @@ object HexLearning {
             if (rnd.nextFloat() < 0.3f && data.size < 400_000) {
                 // The chosen one, staying put, and a random sample of the rest.
                 val pick = LinkedHashSet<Int>(); pick += best
-                features.indices.firstOrNull { features[it][10] > 0.5f }?.let { pick += it }
+                features.indices.firstOrNull { features[it][HexFeatures.STAYS] > 0.5f }?.let { pick += it }
                 val rest = features.indices.shuffled(rnd).iterator()
                 while (pick.size < minOf(SLOTS, features.size) && rest.hasNext()) pick += rest.next()
                 val rec = FloatArray(SLOTS * STRIDE)
