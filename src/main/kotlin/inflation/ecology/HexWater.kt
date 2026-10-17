@@ -41,7 +41,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private val hex = hw.hex
     private val world = hw.world
     private val size = hex.size
-    private val hexKm2 = (hex.hexKm * hex.hexKm * sqrt(3.0) / 2).toFloat()
+    private val hexKm2 = hex.areaKm2.toFloat()
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
 
     /** Open water in each hex, km²: sea, and lake (fresh or closed). */

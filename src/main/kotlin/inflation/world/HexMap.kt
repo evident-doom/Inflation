@@ -29,6 +29,8 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     private val grid = world.grid
     private val terrain = world.terrain
     private val rowKm = hexKm * sqrt(3.0) / 2
+    /** Area of one hex, km² (√3/2 of [hexKm] squared, [hexKm] being the distance between centres). */
+    val areaKm2 = hexKm * hexKm * sqrt(3.0) / 2
     val cols = (grid.width * grid.cellKm / hexKm).toInt() + 1
     val rows = (grid.height * grid.cellKm / rowKm).toInt() + 1
     val size = cols * rows
