@@ -274,7 +274,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     val feud = b.grudge[ob.mainLineage()] > FEUD
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
-    val trespass = if (b.claims(hw.hexOf(Place(g.place)), g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
+    val trespass = if (b.claims(hw.hexOf(g.place), g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
     val pressure = if (feud) 1f else maxOf(hunger, min(1f, peopleCrowding(g)), trespass)
     // Strangers (never met before) and those of other customs are easier to fight.
     val stranger = if (o.id !in b.ties) STRANGER_HOSTILITY else 0f
@@ -306,7 +306,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     }
     val p = o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
-    val seen = (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
+    val seen = (sight(p.i, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
     val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]

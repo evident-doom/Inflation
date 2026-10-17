@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 
 class OutcomesTest {
     private val gazelle = Catalogue.all.first { it.name == "gazelle" }
-    private fun herd(id: Int, adults: Int) = HexGroup(id, gazelle, 0, adults, 0)
+    private fun herd(id: Int, adults: Int) = HexGroup(id, gazelle, inflation.ecology.Place(0), adults, 0)
 
     @Test
     fun `a herd that takes another in is not credited with its animals, and the one that joined fares as the herd it joined`() {
@@ -48,7 +48,7 @@ class OutcomesTest {
     @Test
     fun `a band's luck in its own births and deaths is taken out`() {
         val o = Outcomes()
-        val band = HexGroup(1, Catalogue.HUMAN, 0, 20, 0)
+        val band = HexGroup(1, Catalogue.HUMAN, inflation.ecology.Place(0), 20, 0)
         o.record(0, listOf(band), emptyList())
         // Week 1: two more by luck alone.
         band.adults += 2; band.luck += 2f

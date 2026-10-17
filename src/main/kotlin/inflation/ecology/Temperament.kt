@@ -62,5 +62,5 @@ object Temperament {
 internal fun HexGroups.temperPull(g: HexGroup, p: Int, h: Int, hunters: Float, crowded: Float): Float {
     var remembered = 0f
     for (i in g.memory.hex.indices) if (g.memory.hex[i] == h) { remembered = 1f; break }
-    return Temperament.pull(g.temper, hunters / (hunters + 3f), remembered, if (p == g.place) 1f else 0f, crowded)
+    return Temperament.pull(g.temper, hunters / (hunters + 3f), remembered, if (p == g.place.i) 1f else 0f, crowded)
 }

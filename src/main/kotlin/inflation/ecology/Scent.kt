@@ -11,7 +11,7 @@ class Scent {
     internal val markers = HashMap<Int, IntArray>()
 
     /** Freshness of marks other than [id]'s of kind [s] on hex [h]. */
-    fun foreign(s: Species, h: Int, id: Int): Float {
+    fun foreign(s: Species, h: Hex, id: Int): Float {
         val m = marks[s.index] ?: return 0f
         return if (markers.getValue(s.index)[h] == id) 0f else m[h]
     }

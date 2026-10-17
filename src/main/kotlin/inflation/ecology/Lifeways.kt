@@ -21,8 +21,8 @@ internal fun HexGroups.restless(g: HexGroup, weather: Weather, thirsty: Boolean,
     return when (s.lifeway) {
         Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon || (onRound && goalFar) ||
             (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: 0f) > 0.5f
-        Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home < 0 || thirsty || astray
-        Lifeway.HERD -> g.fed < Thresholds.HERD_HUNGRY || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm ||
+        Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home.none || thirsty || astray
+        Lifeway.HERD -> g.fed < Thresholds.HERD_HUNGRY || discomfort(s, g.place.i, weather) > 0.5f || weather.snowpack[g.place.i] > s.snowLimitMm ||
             thirsty || astray || goalFar
     }
 }

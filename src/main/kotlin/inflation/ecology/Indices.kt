@@ -39,3 +39,13 @@ package inflation.ecology
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeIn(band: Int, h: Hex) = Place(placeOf[band][h.i])
 /** Area of place [p], m². */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.m2(p: Place) = m2(p.i)
+/** Shrub and tree cover of place [p], 0..1. */
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexPlants.cover(p: Place) = cover(p.i)
+/** Tree canopy of place [p], 0..1. */
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexPlants.canopy(p: Place) = canopy(p.i)
+/** Whether water at place [p] must be dug for, fetching up to [fetchKm]. */
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexDrinkingWater.mustDig(p: Place, fetchKm: Float) = mustDig(p.i, fetchKm)
+/** The place in hex [h] at the height band of place [p] ([Place.NONE] if the hex has no land there). */
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.sameBandPlace(p: Place, h: Hex) = Place(sameBandPlace(p.i, h.i))
+/** As above, for a hex index kept as a plain int. */
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.sameBandPlace(p: Place, h: Int) = Place(sameBandPlace(p.i, h))

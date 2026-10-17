@@ -78,7 +78,7 @@ internal fun HexGroups.animalInputs(g: HexGroup, weather: Weather, into: FloatAr
     into[i++] = ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
     into[i++] = g.young.toFloat() / max(1, g.adults)
     into[i++] = g.wary(weather.date.absoluteDay.toDouble())
-    into[i++] = if (g.home >= 0) 1f else 0f
+    into[i++] = if (!g.home.none) 1f else 0f
     into[i++] = min(1f, g.lean.toFloat() / GIVE_UP_WEEKS)
     into[i++] = weather.temperature[g.place] / 30f
     // What it is: its weight, and what it eats.

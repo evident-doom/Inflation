@@ -7,6 +7,12 @@ import inflation.world.Date
 import inflation.world.WorldConfig
 import inflation.Tuning
 import inflation.world.WorldCache
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * Where the migratory herds are by height through the year, how well fed they are
@@ -50,7 +56,7 @@ fun main(args: Array<String>) {
             if (!g.alive) continue
             val i = grazers.indexOf(g.species)
             if (i < 0) continue
-            val b = band(g.place)
+            val b = band(g.place.i)
             heads[i][b][m] += g.size.toDouble()
             fed[i][b][m] += g.size * g.fed.toDouble()
         }

@@ -116,7 +116,7 @@ class HexHistory {
             val a = heads.getOrPut(s.name) { DoubleArray(Biome.entries.size) }
             for (p in 0 until n) a[biomeOf(sim, p)] += ((fauna.adults[k][p] + fauna.young[k][p]) * area[p]).toDouble()
         }
-        for (g in groups.groups) if (g.alive) heads.getOrPut(g.species.name) { DoubleArray(Biome.entries.size) }[biomeOf(sim, g.place)] += g.size.toDouble()
+        for (g in groups.groups) if (g.alive) heads.getOrPut(g.species.name) { DoubleArray(Biome.entries.size) }[biomeOf(sim, g.place.i)] += g.size.toDouble()
         for (b in Biome.entries) {
             if (biomeArea[b.ordinal] <= 0.0) continue
             val name = b.name.lowercase().replace('_', ' ')
@@ -148,7 +148,7 @@ class HexHistory {
             val ring = pastPlaces.getOrPut(g.id) { IntArray(HALF_YEAR_WEEKS) { -1 } }
             val then = ring[slot]
             if (full && then >= 0) { a[3] += n; a[4] += n * hex.distanceKm(hw.placeHex[then], hw.placeHex[g.place]) }
-            ring[slot] = g.place
+            ring[slot] = g.place.i
         }
         pastPlaces.keys.retainAll(alive)
         migrationWeek++

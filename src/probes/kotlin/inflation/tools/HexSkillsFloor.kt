@@ -8,6 +8,12 @@ import inflation.world.Biome
 import inflation.world.Date
 import inflation.world.WorldConfig
 import inflation.ecology.Skill
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * The skills floor: how long people last who start with nothing. Every band is stripped of its

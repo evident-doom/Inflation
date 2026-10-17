@@ -8,6 +8,12 @@ import inflation.world.RiverClass
 import inflation.world.WorldConfig
 import kotlin.math.abs
 import kotlin.math.sqrt
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * How much hexes differ from their neighbours: whether the map's fields (warmth, rain, soil,
@@ -183,7 +189,7 @@ fun main(args: Array<String>) {
     for (k in byHeads.take(8)) line("${fauna.kinds[k].name}/km²", placeMean { p -> fauna.adults[k][p].toDouble() })
     // Groups (herds, packs, bands) standing in each hex, by body mass.
     val groupKg = DoubleArray(H)
-    for (g in sim.groups.groups) { val p = g.place; if (p >= 0) groupKg[hw.placeHex[p]] += (g.adults + g.young).toDouble() * g.species.massKg }
+    for (g in sim.groups.groups) { val p = g.place.i; if (p >= 0) groupKg[hw.placeHex[p]] += (g.adults + g.young).toDouble() * g.species.massKg }
     line("group kg in hex", groupKg)
     // A check that streams are not counted by the grid's directions: river cells per hex along straight and diagonal runs.
     var straight = 0L; var diagonal = 0L
