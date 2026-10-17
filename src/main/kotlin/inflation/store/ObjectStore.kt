@@ -16,6 +16,14 @@ import java.util.concurrent.ConcurrentMap
  * the world caches keep generated worlds with. See HexSnapshot for what a restore keeps and drops.
  */
 
+/**
+ * On a field holding a part split out of its owner: the owner's saved fields [names] now live in that
+ * part, under the same names. A save from before the split fills the part from them.
+ */
+@Target(AnnotationTarget.FIELD)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class MovedInto(vararg val names: String)
+
 /** Values of [type] written by name only (e.g. a kind of animal, which the code defines), and found again by [find]. */
 class Named<T : Any>(val type: Class<T>, private val name: (T) -> String, val find: (String) -> T?) {
     @Suppress("UNCHECKED_CAST")
@@ -178,7 +186,18 @@ internal class Restorer {
 
     private fun fill(target: Any, node: Obj) {
         val fs = fields(target.javaClass)
-        if (node.fields.size > fs.size || fs.any { it.name !in node.fields }) { val names = fs.mapTo(HashSet()) { it.name }; for (k in node.fields.keys) if (k !in names) dropped += "${target.javaClass.simpleName}.$k" }
+        // Fields since moved into a part ([MovedInto]): a save from before fills the part from them.
+        val moved = HashSet<String>()
+        for (f in fs) {
+            val into = f.getAnnotation(MovedInto::class.java) ?: continue
+            if (f.name in node.fields) continue
+            val parts = into.names.filter { it in node.fields }
+            val part = f.get(target)
+            if (parts.isEmpty() || part == null) continue
+            moved += parts
+            fill(part, Obj(-1, part.javaClass.name, parts.associateWith { node.fields.getValue(it) }))
+        }
+        if (node.fields.size > fs.size || fs.any { it.name !in node.fields }) { val names = fs.mapTo(HashSet()) { it.name }; for (k in node.fields.keys) if (k !in names && k !in moved) dropped += "${target.javaClass.simpleName}.$k" }
         for (f in fs) {
             val saved = node.fields[f.name] ?: continue
             val cur = f.get(target)

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.store.MovedInto
 import inflation.wrapMonth
 import inflation.saturate
 import inflation.monthsFrom
@@ -106,18 +107,8 @@ class HexGroups(
     @Transient private var herdHeadsMonth = -1
     internal val monthHunterKg by lazy { FloatArray(n) }
     internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
-    /**
-     * Scent marks of each hunting kind on each hex: how fresh (0..1, fading week by week unless
-     * renewed) and whose. A pack marks the ground it works; others of its kind keep off fresh marks.
-     */
-    internal val marks = HashMap<Int, FloatArray>()
-    internal val markers = HashMap<Int, IntArray>()
-
-    /** Freshness of marks other than [id]'s of kind [s] on hex [h]. */
-    internal fun foreignMark(s: Species, h: Int, id: Int): Float {
-        val m = marks[s.index] ?: return 0f
-        return if (markers.getValue(s.index)[h] == id) 0f else m[h]
-    }
+    /** Scent marks of the hunting kinds (saves from before it was split out kept them here as marks and markers). */
+    @field:MovedInto("marks", "markers") internal val scent = Scent()
     /** Learned choosers by kind; kinds without one use the hand-written score. */
     val policies = HashMap<Species, HexPolicy>()
     /** How bands set their ways each week; null for the scaffold's. Not saved: what drives a run is set by the config (ways=), not carried in a save. */
@@ -981,7 +972,7 @@ class HexGroups(
             val d = dist[h]
             // How far beyond its ground the hex lies (0 within it), and how fresh another pack's mark on it is.
             val beyond = if (s.carnivore && !s.human && g.home >= 0) (hexKm(h, g.home) / territory - 1.0).toFloat().coerceIn(0f, 2f) else 0f
-            val foreign = if (s.carnivore && !s.human && h != g.home) foreignMark(s, h, g.id) else 0f
+            val foreign = if (s.carnivore && !s.human && h != g.home) scent.foreign(s, h, g.id) else 0f
             // A pack on its own ground stays on it while fed, and keeps off ground another pack of its kind holds
             // (its choice: the hand-written score weighs these heavily; a learned one sees both, see [HexFeatures]).
             val offGround = (if (beyond > 0f && (denning || (g.fed >= Thresholds.HUNGRY && !astray))) KEEP_TO_GROUND else 0f) + (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
