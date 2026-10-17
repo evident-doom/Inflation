@@ -261,6 +261,14 @@ const val VIGILANCE = 0.86f
 const val SURPRISE = 1.03f
 /** Days over which a herd's alarm after a chase fades (to 1/e): hours to about a day in field studies of elk near wolves and zebra after lions. */
 const val ALARM_DAYS = 1f
+/**
+ * Prey switching (a search image): a hungry hunter chases a herd of a kind with a chance that grows with how often
+ * it has come on that kind lately, m / (m + [SEARCH_HALF]), m counting meetings that fade over [SEARCH_DAYS] (to 1/e).
+ * Hunters keep to the game they meet often and pass up what has grown rare, as predators with other prey do in the
+ * field (the sigmoid, type III, response that lets scarce prey recover); a new hunter starts at [SEARCH_HALF] of every kind.
+ */
+const val SEARCH_HALF = 3f
+const val SEARCH_DAYS = 180.0
 /** Body mass below which an animal can hide in thick cover, kg, and how much of a hunter's chance cover takes away. */
 const val HIDING_KG = 70f
 const val HIDING = 0.8f

@@ -321,6 +321,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.parent = g.id
     n.dry = g.dry
     n.chasedOn = g.chasedOn
+    n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn
     n.birthMonth = g.birthMonth
     n.temper = Temperament.inherit(g.temper, n.id)
     // A band that splits shares out its larder by heads.

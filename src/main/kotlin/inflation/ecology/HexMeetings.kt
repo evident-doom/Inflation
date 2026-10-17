@@ -861,6 +861,14 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // aims to keep, as it does at its own foraging.
     val need = hunter.dailyNeedKg * days * (if (hunter.band == null) hunter.will[AnimalWay.CHASE] else 1f) + (hunter.band?.let { storeWant(hunter, it) } ?: 0f)
     if (hunter.meatMet >= need) { roundsKey?.let { stats.hunting.merge(it + "hunters fed", 1, Int::plus) }; return }
+    // Game it seldom comes on it does not look for, and lets pass (prey switching, see [SEARCH_HALF]).
+    val image = hunter.metLately(herd.species.index, day)
+    hunter.metHerd(herd.species.index, day)
+    if (rnd.nextFloat() >= image / (image + SEARCH_HALF)) {
+        stats.hunting.merge("${hunter.species.name}:herds let pass", 1, Int::plus)
+        note(hunter) { "let the %s pass: it seldom comes on them".format(herd.species.name) }
+        return
+    }
     val p = hw.sameBandPlace(herd.place, h).takeIf { it >= 0 } ?: herd.place
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
     val catchable = catchable(hunter.species, herd.species, p, max(1, hunter.adults) * hunter.species.massKg)
