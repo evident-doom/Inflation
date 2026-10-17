@@ -308,7 +308,8 @@ class HexGroups(
         IntStream.range(0, groups.size).parallel().forEach { k ->
             val g = groups[k]
             if (!g.alive || leaderOf[k] >= 0) return@forEach
-            val (p, path) = plan(g, weather, date, predatorKg)
+            // (With profile=fine, the choosing is timed by herds, packs and bands apart.)
+            val (p, path) = Profile.part(if (g.band != null) "choosing: bands" else if (g.species.carnivore) "choosing: packs" else "choosing: herds") { plan(g, weather, date, predatorKg) }
             choice[k] = p.i; paths[k] = path; times[k] = Profile.part("choosing: timetable") { timetable(g.species, path) }
         }
         for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { choice[k] = choice[l]; paths[k] = paths[l]; times[k] = times[l] } }

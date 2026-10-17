@@ -42,7 +42,7 @@ class HexSim(
 
     init { if (Books.ON) books = Books() }
 
-    /** Names every stock of water and matter in [b], and starts them from the world as it is. */
+    /** Names every stock of water and matter in [b]; they start from the world as the first step finds it (after a save is loaded). */
     private fun keepBooks(b: Books) {
         val n = land.n
         b.stock(Books.Stuff.WATER, "snow") { var s = 0.0; for (p in 0 until n) s += weather.snowpack[p] / 1000.0 * land.areaM2[p]; s }
@@ -50,11 +50,12 @@ class HexSim(
         land.plants.keepBooks(b)
         fauna.keepBooks(b)
         groups.keepBooks(b)
-        b.check("start")
     }
 
     /** One week: the weather, then water and plants, then the residents and small life, then the groups. */
     fun step() {
+        // (What changed between steps, as a save loaded into the world or the viewer's hand, is charged to that.)
+        books?.check("between steps")
         Profile.time("weather") { weather.step() }
         books?.let { b ->
             // (Snow falls in the cold; the melt goes to the soil, booked again there as it comes in.)
