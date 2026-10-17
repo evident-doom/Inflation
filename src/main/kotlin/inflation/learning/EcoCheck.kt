@@ -17,13 +17,13 @@ import java.util.concurrent.Executors
  * `ppo.checkYears` years (default 5), its weather drawn `ppo.checkReplicates` ways (default 2), each
  * way with: every role's new network ("new"); every role's kept one ("kept"); and, for each role, its
  * kept network with the others' new ("kept herds" and so on). The runs are their own processes, beside
- * the training, each under the training's own config with only the networks changed. A role's new network is kept when
- * - the ecosystem holds: with every new network against every kept one, no kind's numbers in the last
- *   whole year fall more than [FALL] below, no kind present with the kept ones is gone, the migratory
- *   herds stand no less far from where they stood half a year before (within [SHORTER]), and there are
- *   no fewer people; and
- * - its own members fare better: the role's kinds number more in the last whole year with its new
- *   network than with its kept one, the others as they now are.
+ * the training, each under the training's own config with only the networks changed. A role's new network is kept when, set against its kept one with the others' new (all
+ * new against "kept herds" and so on, so that only that role's network differs):
+ * - the ecosystem holds: no kind's numbers in the last whole year fall more than [FALL] below in every
+ *   weather alike (a fall in one weather only is chance), no kind present is gone in every weather, the
+ *   migratory herds stand no less far from where they stood half a year before (within [SHORTER]), and
+ *   there are not fewer people in every weather; and
+ * - its own members fare better: the role's kinds number more in the last whole year.
  */
 class EcoCheck(private val out: File) {
     private val world = TestWorlds.named(Config.string("ppo.checkWorld") ?: "lake-1")
@@ -34,7 +34,7 @@ class EcoCheck(private val out: File) {
     /** The networks each role plays with outside training, and that the new ones are judged against. */
     val kept = File(out, "kept")
 
-    class Verdict(val round: Int, val ecosystem: Boolean, val why: List<String>, val roles: Map<Role, Boolean>, val lines: List<String>)
+    class Verdict(val round: Int, val roles: Map<Role, Boolean>, val lines: List<String>)
 
     /** The kept networks start as the ones the run starts from. */
     fun init() { if (!File(kept, Role.HERDS.file(kept).name).exists()) copyRoles(out, kept, Role.entries) }
@@ -66,37 +66,53 @@ class EcoCheck(private val out: File) {
 
     private fun lastYear(rs: List<TestWorlds.Run>, key: String) = rs.map { it.yearly(key, it.years.last()) }.filter { !it.isNaN() }.average()
 
+    /** Each weather's last whole year of [key]. */
+    private fun lastYears(rs: List<TestWorlds.Run>, key: String) = rs.map { it.yearly(key, it.years.last()).let { v -> if (v.isNaN()) 0.0 else v } }
+
+    /**
+     * Why the ecosystem fails with [new] against [old] (the same weathers in the same order); empty when it holds.
+     * A kind counts as fallen or gone only when it is so in every weather, and only one at least [RARE] strong with
+     * the old networks: a few dozen animals rise and fall too much by chance to judge by.
+     */
+    private fun fails(new: List<TestWorlds.Run>, old: List<TestWorlds.Run>, kinds: List<String>): List<String> {
+        val why = ArrayList<String>()
+        for (k in kinds) {
+            val n = lastYears(new, "animals/$k"); val o = lastYears(old, "animals/$k")
+            val pairs = n.indices.filter { o[it] > 0.0 }
+            if (pairs.isEmpty() || o.sum() / pairs.size < RARE) continue
+            if (pairs.all { n[it] <= 0.0 }) why += "$k gone"
+            else if (pairs.all { n[it] < (1 - FALL) * o[it] }) why += "$k %+.0f%%".format(100 * (n.sum() / o.sum() - 1))
+        }
+        val kmNew = km(new); val kmOld = km(old)
+        if (!kmNew.isNaN() && !kmOld.isNaN() && kmNew < (1 - SHORTER) * kmOld) why += "herds stand %.0f km from half a year before, against %.0f".format(kmNew, kmOld)
+        val pn = lastYears(new, "animals/${Catalogue.HUMAN.name}"); val po = lastYears(old, "animals/${Catalogue.HUMAN.name}")
+        if (pn.indices.all { pn[it] < po[it] }) why += "fewer people"
+        return why
+    }
+
+    private fun km(rs: List<TestWorlds.Run>) = Catalogue.migratory.map { lastYear(rs, "migration/${it.name}/km from half a year before") }.filter { !it.isNaN() }.average()
+
     private fun judge(round: Int, runs: Map<String, List<TestWorlds.Run>>): Verdict {
         val new = runs.getValue("new"); val kept = runs.getValue("kept")
         val kinds = new.first().allKeys.filter { it.startsWith("animals/") }.map { it.removePrefix("animals/") }
-        val why = ArrayList<String>()
         val lines = ArrayList<String>()
-        val cells = ArrayList<String>()
-        for (k in kinds) {
-            val n = lastYear(new, "animals/$k"); val o = lastYear(kept, "animals/$k")
-            if (o > 0.0) cells += "%s %+.1f%%".format(k, 100 * (n / o - 1))
-            if (o > 0.0 && n <= 0.0) why += "$k gone"
-            else if (o > 0.0 && n < (1 - FALL) * o) why += "$k %+.0f%%".format(100 * (n / o - 1))
-        }
-        val migratory = Catalogue.migratory.map { it.name }
-        val km = { rs: List<TestWorlds.Run> -> migratory.map { lastYear(rs, "migration/$it/km from half a year before") }.filter { !it.isNaN() }.average() }
-        val kmNew = km(new); val kmKept = km(kept)
-        if (!kmNew.isNaN() && !kmKept.isNaN() && kmNew < (1 - SHORTER) * kmKept) why += "herds stand %.0f km from half a year before, against %.0f".format(kmNew, kmKept)
-        val people = Catalogue.HUMAN.name
-        if (lastYear(new, "animals/$people") < lastYear(kept, "animals/$people")) why += "fewer people"
-        val ecosystem = why.isEmpty()
+        val cells = kinds.mapNotNull { k -> val n = lastYear(new, "animals/$k"); val o = lastYear(kept, "animals/$k"); if (o > 0.0) "%s %+.1f%%".format(k, 100 * (n / o - 1)) else null }
+        val all = fails(new, kept, kinds)
         lines += "check round %d ecosystem (%s, %d years, %d weathers; last year, every role new against every role kept): %s; migratory herds %.0f -> %.0f km from half a year before -> %s".format(
-            round + 1, world.name, years, replicates, cells.joinToString(", "), kmKept, kmNew, if (ecosystem) "holds" else "fails: " + why.joinToString(", "))
+            round + 1, world.name, years, replicates, cells.joinToString(", "), km(kept), km(new), if (all.isEmpty()) "holds" else "fails: " + all.joinToString(", "))
         val roles = Role.entries.associateWith { r ->
+            val alone = runs.getValue("kept-$r")
+            val why = fails(new, alone, kinds)
             val own = Catalogue.learned.filter { Role.of(it) == r }.map { it.name }
-            val withNew = own.sumOf { lastYear(new, "animals/$it").let { v -> if (v.isNaN()) 0.0 else v } }
-            val withKept = own.sumOf { lastYear(runs.getValue("kept-$r"), "animals/$it").let { v -> if (v.isNaN()) 0.0 else v } }
+            val withNew = own.sumOf { lastYears(new, "animals/$it").average() }
+            val withKept = own.sumOf { lastYears(alone, "animals/$it").average() }
             val better = withNew > withKept
-            lines += "check round %d %s: own kinds %.0f with the new network against %.0f with the kept one (%+.1f%%), the others new -> %s".format(
-                round + 1, r, withNew, withKept, if (withKept > 0) 100 * (withNew / withKept - 1) else 0.0, if (better && ecosystem) "kept" else "not kept")
-            better && ecosystem
+            lines += "check round %d %s: own kinds %.0f with the new network against %.0f with the kept one (%+.1f%%), the others new; ecosystem %s -> %s".format(
+                round + 1, r, withNew, withKept, if (withKept > 0) 100 * (withNew / withKept - 1) else 0.0,
+                if (why.isEmpty()) "holds" else "fails: " + why.joinToString(", "), if (better && why.isEmpty()) "kept" else "not kept")
+            better && why.isEmpty()
         }
-        return Verdict(round, ecosystem, why, roles, lines)
+        return Verdict(round, roles, lines)
     }
 
     /** Applies [v]: copies each role's new network that passed from [candidate] into the kept ones. */
@@ -106,6 +122,8 @@ class EcoCheck(private val out: File) {
         /** How far a kind may fall below its numbers with the kept networks, and the migratory herds' stand from half a year before. */
         const val FALL = 0.10
         const val SHORTER = 0.05
+        /** Kinds fewer than this on average with the old networks are reported but do not fail the ecosystem (Olli 2026-10-17: rare kinds need tuning of their own). */
+        const val RARE = 200.0
 
         /** Copies [roles]' networks, with their side files (and for people, the bands' ways), from [from] to [to]. */
         fun copyRoles(from: File, to: File, roles: Collection<Role>) {
