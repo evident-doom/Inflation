@@ -11,6 +11,13 @@ import inflation.ecology.roundsWhere
 import inflation.world.Date
 import inflation.world.WorldConfig
 import java.util.TreeMap
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.Hex
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * Whether herds keep to their yearly rounds: for each herd kind, month by

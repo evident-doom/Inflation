@@ -3,6 +3,13 @@ package inflation.tools
 import inflation.tools.fauna.FaunaCheckOptions
 import inflation.world.Date
 import kotlin.math.hypot
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.Hex
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * Whether the groups follow their kind's sense of better country (the pull the viewer draws as yellow

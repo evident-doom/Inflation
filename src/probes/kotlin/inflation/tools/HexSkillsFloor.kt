@@ -2,11 +2,18 @@ package inflation.tools
 
 import inflation.run.freshSim
 import inflation.Args
+import inflation.ecology.Hex
 import inflation.ecology.Catalogue
 import inflation.world.Biome
 import inflation.world.Date
 import inflation.world.WorldConfig
 import inflation.ecology.Skill
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * The skills floor: how long people last who start with nothing. Every band is stripped of its
@@ -44,9 +51,9 @@ fun main(args: Array<String>) {
             g.tag = biomeOf[g.place]; start[g.tag] += g.size.toDouble()
             if (naked) g.band?.let { b ->
                 b.skills.fill(0f)
-                for (s in Skill.entries) b.knowsSkill[s.ordinal] = s.known
+                for (s in Skill.entries) b.knowsSkill[s] = s.known
                 b.plants.fill(0f); b.fire = 0f; b.shelter = 0f; b.known = LongArray(0); b.kit.fill(0f); b.knows.fill(false); b.goods.fill(0f); b.cache.fill(0f)
-                b.house = 0f; b.houseHex = -1; b.palisade = 0f; b.ornaments = 0f; b.exotic = 0f
+                b.house = 0f; b.houseHex = Hex.NONE; b.palisade = 0f; b.ornaments = 0f; b.exotic = 0f
                 g.stores.fill(0f)
                 g.memory.hex.fill(-1); g.seasonPlace.fill(-1)
             }

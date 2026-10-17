@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.Tuning
 import inflation.Config
 
+import inflation.world.Biome
 import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
@@ -160,9 +161,9 @@ fun wordsAt(x: Double, y: Double): IntArray {
  * caring for the sick and handing down knowledge are near universal among foragers, so every band
  * holds them; the others come about a quarter each, the same for neighbours.
  */
-fun traditionsAt(lineage: Int) = BooleanArray(Tradition.entries.size) { t ->
+fun traditionsAt(lineage: Int) = EnumBools<Tradition>(BooleanArray(Tradition.entries.size) { t ->
     Tradition.entries[t] in UNIVERSAL || Math.floorMod((lineage + 1) * 2_654_435_761L.toInt() xor (t * 40_503), 100) < 25
-}.also { it[Tradition.LEAVE_DEAD.ordinal] = !it[Tradition.BURIAL.ordinal] } // (the old way, where the dead are not kept)
+}.also { it[Tradition.LEAVE_DEAD.ordinal] = !it[Tradition.BURIAL.ordinal] }) // (the old way, where the dead are not kept)
 
 private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.MEDICINE, Tradition.ORAL_TRADITION)
 
@@ -201,7 +202,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + RENOWN * (g.band?.renown ?: 0f)
     val (lo, hi) = if (doing(a) < doing(b)) bandA to bandB else bandB to bandA
     for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {
-        lo.traditions[t.ordinal] = hi.holds(t)
+        lo.traditions[t] = hi.holds(t)
         stats.meetings.merge("band took ${if (hi.holds(t)) "up" else "leave of"} ${t.name.lowercase()}", 1, Int::plus)
     }
     riteMeet(lo, hi, u)
@@ -226,12 +227,12 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         val hMeet = hw.placeHex[a.place]; val wk = stepOf(weather.date); val sMeet = PlaceMemory.seasonOf(weather.date.month)
         a.memory.mark(hMeet, sMeet, wk, stepsPerYear, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, stepsPerYear, b.memory.met, 1f)
         // And where each has its houses, and the homes of others they know of: settled bands can be found.
-        if (bandB.houseHex >= 0 && bandB.house >= Thresholds.HOUSE_STANDING) {
-            bandA.knownHomes[b.id] = bandB.houseHex
+        if (!bandB.houseHex.none && bandB.house >= Thresholds.HOUSE_STANDING) {
+            bandA.knownHomes[b.id] = bandB.houseHex.i
             bandA.knownLineage[b.id] = bandB.mainLineage()
         }
-        if (bandA.houseHex >= 0 && bandA.house >= Thresholds.HOUSE_STANDING) {
-            bandB.knownHomes[a.id] = bandA.houseHex
+        if (!bandA.houseHex.none && bandA.house >= Thresholds.HOUSE_STANDING) {
+            bandB.knownHomes[a.id] = bandA.houseHex.i
             bandB.knownLineage[a.id] = bandA.mainLineage()
         }
         for ((id, hh) in bandB.knownHomes) if (id != a.id && rnd.nextFloat() < u) {
@@ -243,11 +244,11 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
             bandA.knownLineage[id]?.let { bandB.knownLineage.putIfAbsent(id, it) }
         }
         fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {
-            if (by.appointHex < 0 || by.appointHex == bx.appointHex) return
+            if (by.appointHex.none || by.appointHex == bx.appointHex) return
             val theirs = y.memory.deadAt(by.appointHex) + y.memory.metAt(by.appointHex)
-            val ours = if (bx.appointHex >= 0) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
+            val ours = if (!bx.appointHex.none) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
             if (theirs > ours && rnd.nextFloat() < u * (0.3f + 0.7f * max(0f, bx.tie(y.id)))) {
-                bx.appointHex = by.appointHex; bx.appointMonth = by.appointMonth
+                bx.appointment = by.appointment
                 stats.meetings.merge("bands took up another's appointment", 1, Int::plus)
             }
         }
@@ -274,7 +275,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     val feud = b.grudge[ob.mainLineage()] > FEUD
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
-    val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
+    val trespass = if (b.claims(hw.hexOf(g.place), g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
     val pressure = if (feud) 1f else maxOf(hunger, min(1f, peopleCrowding(g)), trespass)
     // Strangers (never met before) and those of other customs are easier to fight.
     val stranger = if (o.id !in b.ties) STRANGER_HOSTILITY else 0f
@@ -306,7 +307,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     }
     val p = o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
-    val seen = (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
+    val seen = (sight(p.i, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
     val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]
@@ -341,7 +342,7 @@ private fun HexGroups.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ban
     val la = bandA.lineage.copyOf()
     for (i in la.indices) { bandA.lineage[i] += sa * (bandB.lineage[i] - la[i]); bandB.lineage[i] += sb * (la[i] - bandB.lineage[i]) }
     // Partners bring what they know how to do.
-    for (i in bandA.plants.indices) {
+    for (i in Biome.entries) {
         val x = bandA.plants[i]
         bandA.plants[i] = max(x, x + sa * (bandB.plants[i] - x))
         bandB.plants[i] = max(bandB.plants[i], bandB.plants[i] + sb * (x - bandB.plants[i]))
@@ -349,9 +350,9 @@ private fun HexGroups.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ban
     // (Each partner holds the skills its band's people do, as many as hold them; it brings them along,
     // a little short of the best it learned from, and its old band loses them.)
     val na = sa * a.adults; val nb = sb * b.adults
-    val fromA = FloatArray(bandA.holders.size) { i -> if (bandA.holders[i] > 0f) min(na, na * bandA.holders[i] / a.adults) else 0f }
-    val fromB = FloatArray(bandB.holders.size) { i -> if (bandB.holders[i] > 0f) min(nb, nb * bandB.holders[i] / b.adults) else 0f }
-    for (i in bandA.skills.indices) {
+    val fromA = enumFloats<Skill> { i -> if (bandA.holders[i] > 0f) min(na, na * bandA.holders[i] / a.adults) else 0f }
+    val fromB = enumFloats<Skill> { i -> if (bandB.holders[i] > 0f) min(nb, nb * bandB.holders[i] / b.adults) else 0f }
+    for (i in Skill.entries) {
         val la = bandA.skills[i]; val lb = bandB.skills[i]
         if (fromB[i] > 0f) {
             if (!bandA.knowsSkill[i]) {
@@ -433,7 +434,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.
-    if (b.appointHex < 0 &&
+    if (b.appointHex.none &&
         rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat() * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill)) {
         val mem = g.memory
         var best = -1; var bestScore = 0f
@@ -443,8 +444,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
             if (mem.dead[i] + mem.met[i] >= APPOINT_MIN && score > bestScore) { bestScore = score; best = i }
         }
         if (best >= 0) {
-            b.appointHex = mem.hex[best]
-            b.appointMonth = mem.season[best] * 3 + 1
+            b.appointment = Appointment(Hex(mem.hex[best]), mem.season[best] * 3 + 1)
             stats.meetings.merge("bands made an appointment", 1, Int::plus)
         }
     }
@@ -468,7 +468,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     for (t in Tradition.entries) {
         val held = b.holds(t)
         if (rnd.nextFloat() < (if (held) DROP else TAKE_UP) * years) {
-            b.traditions[t.ordinal] = !held
+            b.traditions[t] = !held
             stats.meetings.merge("band ${if (held) "dropped" else "took up"} ${t.name.lowercase()}", 1, Int::plus)
         }
     }
@@ -526,7 +526,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     }
     // (Where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
     for (m in TRADED) {
-        val want = 1f - b.goods[m.ordinal] / (KEEP_YEARS * YEAR_NEED[m.ordinal] * max(1, g.adults))
+        val want = 1f - b.goods[m] / (KEEP_YEARS * YEAR_NEED[m] * max(1, g.adults))
         if (want <= 0f) continue
         for (h in materialSources.getValue(m)) if (b.knows(h)) {
             val km = hex.distanceKm(here, h)

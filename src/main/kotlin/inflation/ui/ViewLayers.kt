@@ -1,6 +1,7 @@
 package inflation.ui
 
 import inflation.ecology.HexFauna
+import inflation.ecology.get
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
 import inflation.ecology.Lifeway

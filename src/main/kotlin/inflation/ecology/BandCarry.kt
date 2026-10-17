@@ -49,8 +49,8 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods", "kept")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "lineage", "inbred")
     // Camp, home and raids.
-    rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "campHex", "campPlace", "appointHex", "appointMonth", "houseHex", "house", "palisade", "fire")
-    rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cachePlace", "raidHex", "raidOn", "raidWeeks", "unluckyHex", "unluckyWeeks",
+    rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "campPlace", "appointment", "houseHex", "house", "palisade", "fire")
+    rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cachePlace", "raid", "unlucky",
         "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dogShare")
     // Ties.
     rule(OnSplit.COPIED, OnJoin.MAX, "ties")

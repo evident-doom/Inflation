@@ -106,7 +106,7 @@ internal fun HexGroups.hunt(weather: Weather) {
                     // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
                     // over more of it, as the square root of its numbers against its kind's usual party.
                     // And it searches less of it when the rain, haze or cover hide game (see [sight]).
-                    val sweep = sweptKm2(s) * sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place, weather)
+                    val sweep = sweptKm2(s) * sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place.i, weather)
                     Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
                 }
             }
@@ -159,8 +159,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val seedDays = SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling / gatherers / carry /
         (1f + SICKLE_GAIN * (band?.has(Tool.SICKLE) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
-    val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> hw.sameBandPlace(g.place, h).takeIf { it >= 0 } }
-        .ifEmpty { listOf(g.place) } else listOf(g.place)
+    val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } }
+        .ifEmpty { listOf(g.place.i) } else listOf(g.place.i)
     // A band's gatherers also work the country round its camp, the further the more: a camp where
     // woodland, valley and plain meet has more kinds of food within a day's walk than one in the
     // middle of any one of them. (Each hex round gives a share of what the camp's own does.)
@@ -172,7 +172,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // The foods on offer: type (0 big game of [kinds] index k, 1 small game, 2 carrion, 3 bones,
     // 4 fruit, 5 roots, 6 grass seed, 7 small finds, 8 fish), place, rate a day, kg each, days each ([Food] numbers the types).
     val n = g.path.size * (fauna.kinds.size + 4) + (gatherAt.size + roundCamp.size) * 5 + 1
-    val type = IntArray(n); val kind = IntArray(n); val place = IntArray(n)
+    val type = Array(n) { Food.BIG_GAME }; val kind = IntArray(n); val place = IntArray(n)
     val rate = FloatArray(n); val kg = FloatArray(n); val time = FloatArray(n)
     var m = 0
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
@@ -191,7 +191,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // (And the stalks a kill takes, on average: one over the share of them that end in one.)
     val stalks = FloatArray(g.path.size * nk)
     for ((j, h) in g.path.withIndex()) {
-        val p = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue
+        val p = hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: continue
         for (k in 0 until nk) {
             if (fauna.adults[k][p] + fauna.young[k][p] <= 0f) continue
             val ps = fauna.kinds[k]
@@ -210,17 +210,17 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val left = aim - (meat + smallGot + scraps + plants + fish)
         if (left <= 0.01f * wantAll) break
         m = 0
-        fun offer(t: Int, k: Int, p: Int, r: Float, e: Float, h: Float) {
+        fun offer(t: Food, k: Int, p: Int, r: Float, e: Float, h: Float) {
             // A band meets each kind of food the more, the more of its effort it puts into it.
-            val rr = if (band != null) r * band.effort[if (t == Food.GRAIN) Food.SEED else t] else r
+            val rr = if (band != null) r * band.effort[(if (t == Food.GRAIN) Food.SEED else t).ordinal] else r
             if (rr <= 0f || e <= 0f) return
             // (Biting insects slow people at whatever they do out there; fish are offered by hex, so the
             // camp's place stands for the water they fish.)
-            val hh = if (band != null) h * (1f + HexSmallLife.HARASS_TIME * small.harassment(if (t == Food.FISH) g.place else p)) else h
+            val hh = if (band != null) h * (1f + HexSmallLife.HARASS_TIME * small.harassment(if (t == Food.FISH) g.place.i else p)) else h
             type[m] = t; kind[m] = k; place[m] = p; rate[m] = rr; kg[m] = e; time[m] = hh; m++
         }
         for ((j, h) in g.path.withIndex()) {
-            val p = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue
+            val p = hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: continue
             val area = land.areaKm2[p]
             val swept = min(area, sweep)
             for (k in 0 until nk) {
@@ -252,7 +252,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             val part = if (qi < gatherAt.size) 1f else roundShare
             // A band can strip so much of a place in a week, as its skill allows; an animal finds what lies along its way.
             // (On strange ground people find little of it.)
-            val knowHere = band?.let { plantKnow(it, hw.placeHex[q]) } ?: 1f
+            val knowHere = band?.let { plantKnow(it, Hex(hw.placeHex[q])) } ?: 1f
             // (Gatherers who go further from camp cover more of the ground.)
             val reach = band?.let { min(0.9f, it.gatherShare(false, tuning) * knowHere * it.gatherRange) * part } ?: min(1f, smallSweep * g.path.size / land.areaKm2[q])
             // (The unskilled, and strangers to its plants, are slow at it.)
@@ -283,13 +283,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         note(g) {
             "pass %d: took up %d of %d foods, best first: ".format(pass + 1, used, m) + (0 until min(used, 6)).joinToString(", ") { r -> val i = order[r]
-                (if (type[i] == Food.BIG_GAME) fauna.kinds[kind[i]].name else Food.NAMES[type[i]]) + " %.1f kg/day of work".format(profit[i]) }
+                (if (type[i] == Food.BIG_GAME) fauna.kinds[kind[i]].name else type[i].label) + " %.1f kg/day of work".format(profit[i]) }
         }
         // What the week brings at that rate, as far as the party wants: it stops when fed.
         val f = if (gain > 0f) min(1f, left / (workDays * gain / spent)) else 0f
         if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
             "forage ${s.name} adults ${g.adults} want ${wantAll} left $left offers $m used $used gain $gain spent $spent f $f: " +
-            order.take(min(6, m)).joinToString("; ") { "t${type[it]} k${kind[it]} r=${rate[it]} e=${kg[it]} h=${time[it]}" })
+            order.take(min(6, m)).joinToString("; ") { "t${type[it].ordinal} k${kind[it]} r=${rate[it]} e=${kg[it]} h=${time[it]}" })
         for (r in 0 until used) {
             val i = order[r]
             val expected = workDays * rate[i] / spent * f
@@ -324,19 +324,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                     plantKind[when (type[i]) { Food.ROOTS -> Store.ROOTS; Food.SEED -> Store.SEED; else -> Store.FRUIT }.ordinal] += haul.kg
                 }
                 Food.FISH -> fish += fauna.water.fishFor(p, expected, band?.fishing() ?: 1f)
-                Food.GRAIN -> {
-                    val m2 = land.m2(p)
-                    val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2 * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
-                    plants += took; plantKind[Store.SEED.ordinal] += took
-                    // A sickle takes the ears that hold their grain more than those that shatter at a touch.
-                    if (band != null && took > 0f) {
-                        val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
-                        val harvested = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
-                        val have = g.stores[Store.SEED.ordinal]
-                        band.seedDomestic = (band.seedDomestic * have + harvested * took) / (have + took).coerceAtLeast(1e-6f)
-                        stats.hunting.merge("${s.name}:${WeekStats.GRAIN_REAPED}", took.toInt(), Int::plus)
-                    }
-                }
+                Food.GRAIN -> { val took = reap(g, p, expected); plants += took; plantKind[Store.SEED.ordinal] += took }
             }
         }
     }
@@ -351,7 +339,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
     note(g) {
         "foraged for %.0f kg wanted: meat %.0f (%.0f from herds met), small game %.0f, carrion %.0f, plants %.0f, fish %.0f; busy %.1f of %d days; sight %.2f of a clear day in the open%s".format(
-            wantAll, meat, g.meatMet, smallGot, scraps, plants, fish, busy, days, sight(g.place, weather),
+            wantAll, meat, g.meatMet, smallGot, scraps, plants, fish, busy, days, sight(g.place.i, weather),
             if (band != null) "; %.0f%% of adults scouting".format(100 * band.scoutShare) else "")
     }
     if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.003f, 2)) System.err.println(
@@ -380,7 +368,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // Eaten in the order it spoils, this week's first, then from the stores.
         var need = wantAll; var ateMeat = 0f
         for (st in EAT_ORDER) { val e = min(need, got[st.ordinal]); got[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
-        for (st in EAT_ORDER) { val e = min(need, g.stores[st.ordinal]); g.stores[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
+        for (st in EAT_ORDER) { val e = min(need, g.stores[st]); g.stores[st] -= e; need -= e; if (st.meat) ateMeat += e }
         eaten = wantAll - need
         // (People living mostly on plant food need salt, which meat and fish carry; short of it,
         // they are listless and weak, and the food does them the less good.)
@@ -388,29 +376,29 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             val plantShare = ((eaten - ateMeat) / eaten).coerceIn(0f, 1f)
             val want = SALT_A_PERSON_WEEK * plantShare * g.size * days / 7f
             if (want > 0f) {
-                val had = min(want, band.goods[Material.SALT.ordinal]); band.goods[Material.SALT.ordinal] -= had
+                val had = min(want, band.goods[Material.SALT]); band.goods[Material.SALT] -= had
                 eaten *= 1f - tuning.saltLack * plantShare * (1f - had / want)
             }
         }
         stats.hunting.merge("${s.name}:${WeekStats.MEAT_EATEN}", ateMeat.toInt(), Int::plus)
         stats.hunting.merge("${s.name}:${WeekStats.PLANTS_EATEN}", (eaten - ateMeat).toInt(), Int::plus)
         // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
-        for (i in got.indices) g.stores[i] += got[i]
+        for (i in got.indices) g.stores.a[i] += got[i]
         // Digging soaks and drawing their water takes time where that is the only water (see [HexDrinkingWater.mustDig]).
         val spareDays = max(0f, workDays - busy - (if (land.drink.mustDig(g.place, s.dailyTravelKm)) HexDrinkingWater.DIG_SHARE * days else 0f))
         // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
         val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
-        val smoke = if (band.knowsSkill[Skill.SMOKING.ordinal] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
+        val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
         // (A band with salt salts what it cures: salt cures in any weather.)
-        val salt = band.goods[Material.SALT.ordinal]
+        val salt = band.goods[Material.SALT]
         val salting = if (salt > 0f) band.skill(Skill.STORE) else 0f
         val dryRate = max(max(sun, smoke), salting)
         // (As much of it as the band chooses to.)
-        val dried = min(g.stores[Store.FRESH.ordinal] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
+        val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
         if (dried > 0f) {
-            val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT.ordinal] -= saltedNow * SALT_PER_KG
-            val before = g.stores[Store.DRIED.ordinal]; band.salted = (before * band.salted + saltedNow) / (before + dried)
-            g.stores[Store.FRESH.ordinal] -= dried; g.stores[Store.DRIED.ordinal] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
+            val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
+            val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
+            g.stores[Store.FRESH] -= dried; g.stores[Store.DRIED] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
         }
         // What time is left is for making and mending (see [bandWeek]).
         band.spareDays = max(0f, spareDays * hands - if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
@@ -421,23 +409,23 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // The small game's skins are kept too, as far as there is time to scrape and dry them: many small
         // pelts sewn together (hare, fox, marmot) clothe as well as a few big hides.
         val skinDays = min(band.spareDays, SMALL_SKIN * smallGot * SKIN_DAYS)
-        band.goods[Material.HIDE.ordinal] += skinDays / SKIN_DAYS
+        band.goods[Material.HIDE] += skinDays / SKIN_DAYS
         band.spareDays = max(0f, band.spareDays - skinDays)
         stats.hunting.merge(Tally.bandTime("skins"), (skinDays * 10f).roundToInt(), Int::plus)
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
         // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
         val home = if (band.atHome) band.house else 0f
         // (Smoked meat keeps longer than sun-dried; pits sealed with clay and plaster keep the mice out.)
-        val smoked = if (band.knowsSkill[Skill.SMOKING.ordinal]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
+        val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
         var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (1f - tuning.saltKeep * band.salted))
-        val sealed = if (band.knowsSkill[Skill.SEALING.ordinal]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
+        val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
         if (home > 0f) {
             for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) {
-                val x = g.stores[st.ordinal] * MICE * sealed * home * days / 7f
-                g.stores[st.ordinal] -= x
+                val x = g.stores[st] * MICE * sealed * home * days / 7f
+                g.stores[st] -= x
                 rotten += x
             }
-            if (band.knowsSkill[Skill.SEALING.ordinal] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
+            if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
         }
         small.carrion[g.place] += rotten / (land.areaKm2[g.place] * 1e6f)
         spare = 0f; meatEaten = ateMeat
@@ -475,7 +463,6 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     if (band != null && band.atHome && ny > 0) {
         val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
         if (kept > 0) {
-            if (band.herd.size < fauna.kinds.size) { band.herd = band.herd.copyOf(fauna.kinds.size); band.herdTame = band.herdTame.copyOf(fauna.kinds.size) }
             band.herd[k] += kept; ny -= kept
             fauna.young[k][p] = max(0f, fauna.young[k][p] - kept / area)
             stats.meetings.merge("young animals kept", kept, Int::plus)
@@ -493,12 +480,28 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     return kills1
 }
 
+/** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: the kilos it is worth. */
+private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float): Float {
+    val band = g.band
+    val m2 = land.m2(p)
+    val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2 * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
+    // A sickle takes the ears that hold their grain more than those that shatter at a touch.
+    if (band != null && took > 0f) {
+        val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
+        val harvested = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
+        val have = g.stores[Store.SEED]
+        band.seedDomestic = (band.seedDomestic * have + harvested * took) / (have + took).coerceAtLeast(1e-6f)
+        stats.hunting.merge("${g.species.name}:${WeekStats.GRAIN_REAPED}", took.toInt(), Int::plus)
+    }
+    return took
+}
+
 /**
  * [forage]'s gathering of plant food [t] (fruit, roots, grass seed or small finds) at place [p], [expected] kg a
  * party could take: [out] gets the kilos it is worth once seed is ground and food cooked or leached, and the
  * party-days the leaching took ([hands] at it).
  */
-private fun HexGroups.gather(g: HexGroup, t: Int, p: Int, expected: Float, hands: Int, out: Haul) {
+private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hands: Int, out: Haul) {
     val s = g.species; val band = g.band
     out.busy = 0f
     val stock = when (t) { Food.FRUIT -> fauna.food.fruit; Food.ROOTS -> fauna.food.roots; Food.SEED -> fauna.food.seeds; else -> fauna.food.finds }
@@ -523,19 +526,10 @@ private fun HexGroups.gather(g: HexGroup, t: Int, p: Int, expected: Float, hands
     out.kg = took
 }
 
-/** The kinds of food [forage] offers a party, by number; the first [FOOD_TYPES] are also a band's effort slots (grain goes by grass seed's). */
-object Food {
-    const val BIG_GAME = 0
-    const val SMALL_GAME = 1
-    const val CARRION = 2
-    const val BONES = 3
-    const val FRUIT = 4
-    const val ROOTS = 5
-    const val SEED = 6
-    const val FINDS = 7
-    const val FISH = 8
-    const val GRAIN = 9
-    val NAMES = arrayOf("big game", "small game", "carrion", "bones", "fruit", "roots", "grass seed", "small finds", "fish", "grain")
+/** The kinds of food [forage] offers a party; all but [GRAIN] are also a band's effort slots ([FOOD_TYPES]: grain goes by grass seed's). */
+enum class Food(val label: String) {
+    BIG_GAME("big game"), SMALL_GAME("small game"), CARRION("carrion"), BONES("bones"), FRUIT("fruit"), ROOTS("roots"),
+    SEED("grass seed"), FINDS("small finds"), FISH("fish"), GRAIN("grain")
 }
 
 private val FORAGE_DIAG = Config.string("forageDiag")
@@ -548,14 +542,14 @@ private fun diagSampled(g: HexGroup, weather: Weather, share: Float, salt: Int) 
     unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + salt * HASH_C)) < share
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost. */
-internal fun HexGroups.spoil(stores: FloatArray, t: Float, keep: Float = 1f, driedKeep: Float = 1f): Float {
+internal fun HexGroups.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f): Float {
     var lost = 0f
     val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
     for (st in Store.entries) {
         val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f,
             st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f) * days / 7f)
-        val x = stores[st.ordinal] * share
-        stores[st.ordinal] -= x; lost += x
+        val x = stores[st] * share
+        stores[st] -= x; lost += x
     }
     return lost
 }
@@ -675,7 +669,7 @@ internal fun HexGroups.meet(weather: Weather) {
         // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
         // hours, and neither slip away first. (How often they run into each other while both are there,
         // for the share of the time each is in it.)
-        val p = hw.sameBandPlace(a.place, h).takeIf { it >= 0 } ?: a.place
+        val p = hw.sameBandPlace(a.place, h).takeIf { !it.none } ?: a.place
         val met = poisson(encounters(a, b, p, e.span * e.share), rnd)
         if (met == 0) continue
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meetings.merge("slipped away", 1, Int::plus); continue }
@@ -697,7 +691,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val h = g.path[i]
         g.path = g.path.copyOf(i + 1); g.days = g.days.copyOf(i + 1)
         val band = hw.placeBand[g.place]
-        g.place = hw.placeOf[band][h].takeIf { it >= 0 } ?: (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: g.place
+        g.place = Place(hw.placeOf[band][h].takeIf { it >= 0 } ?: (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: g.place.i)
     }
     Profile.lap("meetings: settling them", mt)
 }
@@ -747,12 +741,12 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         if (gb.tie(taker.id) < FEUD_GIFT) continue
         var useful = 0f
         for (m in TRADED) {
-            val need = YEAR_NEED[m.ordinal]
-            val spare = gb.goods[m.ordinal] - KEEP_YEARS * need * giver.adults
-            val lack = KEEP_YEARS * need * taker.adults - tb.goods[m.ordinal]
+            val need = YEAR_NEED[m]
+            val spare = gb.goods[m] - KEEP_YEARS * need * giver.adults
+            val lack = KEEP_YEARS * need * taker.adults - tb.goods[m]
             if (spare <= 0f || lack <= 0f) continue
             val gift = min(spare, lack) * min(1f, gb.giveWill)
-            gb.goods[m.ordinal] -= gift; tb.goods[m.ordinal] += gift
+            gb.goods[m] -= gift; tb.goods[m] += gift
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
             stats.meetings.merge("${m.name.lowercase()} given", 1, Int::plus)
         }
@@ -774,9 +768,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         val meal = min(spare, FEAST_KG * guest.size * keen)
         host.larder -= meal; guest.larder += meal
         // With grain to spare and vessels to brew in, the host pours beer: the feast is remembered better.
-        val grain = host.stores[Store.SEED.ordinal]
+        val grain = host.stores[Store.SEED]
         val beer = if (hb.has(Tool.BASKET) > 0.5f && hb.has(Tool.GRINDER) > 0.2f) min(0.2f * grain, BEER_KG * guest.size) else 0f
-        if (beer > 0f) { host.stores[Store.SEED.ordinal] -= beer; stats.meetings.merge("feasts with beer", 1, Int::plus) }
+        if (beer > 0f) { host.stores[Store.SEED] -= beer; stats.meetings.merge("feasts with beer", 1, Int::plus) }
         val warmth = 1f + BEER_TIES * min(1f, beer / (BEER_KG * guest.size).coerceAtLeast(1e-3f))
         guest.band?.befriend(host.id, TIE_FEAST * warmth); hb.befriend(guest.id, 0.5f * TIE_FEAST * warmth)
         stats.meetings.merge("feasts", 1, Int::plus)
@@ -802,7 +796,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
  * (searching, at the same hours) and A the place's size. A herd stands for several of its kind's
  * usual bands spread over the ground: each can be run into.
  */
-internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Int, span: Float): Float {
+internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Place, span: Float): Float {
     val hunting = a.species.carnivore != b.species.carnivore
     // A hunter finds a herd by its own senses (a band as well as its trackers read sign); two hunters, by the keener.
     val r = if (hunting) { val hunter = if (a.species.carnivore) a else b; hunter.species.senseKm * (hunter.band?.edge(Skill.TRACK) ?: 1f) }
@@ -819,7 +813,7 @@ internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Int, span: Float)
     val herd = if (a.species.carnivore) b else a
     val bands = bandsIn(herd)
     // A small herd can lie hidden in cover; a big one cannot.
-    val hidden = if (bands < SMALL_HERD_BANDS) HIDE_IN_COVER * Niches.shelter(herd.species, p, land) * (1f - bands / SMALL_HERD_BANDS) else 0f
+    val hidden = if (bands < SMALL_HERD_BANDS) HIDE_IN_COVER * Niches.shelter(herd.species, p.i, land) * (1f - bands / SMALL_HERD_BANDS) else 0f
     return one * bands * (1f - hidden)
 }
 
@@ -828,7 +822,7 @@ internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Int, span: Float)
  * of another kind; the keener its senses and the better its shelter, the likelier. (Herds watch for
  * hunters when they meet: see [hunterMeetsHerd].)
  */
-internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Int): Boolean {
+internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Place): Boolean {
     val s = g.species; val o = other.species
     val wants = when {
         s.carnivore && o.carnivore && s != o -> strength(other) > 2f * strength(g)
@@ -836,7 +830,7 @@ internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Int): Boolean 
     }
     if (!wants) return false
     val first = s.senseKm / (s.senseKm + o.senseKm)
-    val chance = AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p, land)
+    val chance = AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p.i, land)
     return rnd.nextFloat() < min(0.9f, chance)
 }
 
@@ -878,7 +872,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // Game bred to fear people over the millennia keeps a sharper watch for them.
     val fear = if (hunter.band != null) 0.5f + herd.species.fearOfPeople else 1f
     val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + wary) * fear *
-        (0.5f + 0.5f * sight(herd.place, weather) / (1f - SIGHT_COVER * land.plants.cover(herd.place)).coerceAtLeast(0.1f)))
+        (0.5f + 0.5f * sight(herd.place.i, weather) / (1f - SIGHT_COVER * land.plants.cover(herd.place.i)).coerceAtLeast(0.1f)))
     if (seen) {
         stats.meetings.merge("herd turned aside", 1, Int::plus)
         note(herd) { "saw the hunters first and turned aside" }; note(hunter) { "was seen first; the herd turned aside" }
@@ -899,9 +893,9 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         note(hunter) { "let the %s pass: it seldom comes on them".format(herd.species.name) }
         return
     }
-    val p = hw.sameBandPlace(herd.place, h).takeIf { it >= 0 } ?: herd.place
+    val p = hw.sameBandPlace(herd.place, h).takeIf { !it.none } ?: herd.place
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
-    val catchable = catchable(hunter.species, herd.species, p, max(1, hunter.adults) * hunter.species.massKg)
+    val catchable = catchable(hunter.species, herd.species, p.i, max(1, hunter.adults) * hunter.species.massKg)
     if (catchable < NOT_WORTH_TRYING) return
     // (Many eyes see the hunters sooner, and one animal is hard to single out of a milling crowd.)
     val chance = CATCH * SURPRISE * catchable * (1f - 0.5f * wary) * (hunter.band?.huntEdge(herd.species, tuning) ?: 1f) * bandsIn(herd).pow(-BIG_HERD_EYES)
@@ -935,7 +929,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         if (ROUNDS && herd.route[0] != ROUND_OPEN) stats.deaths.merge(
             "${herd.species.name} ${if (herd.route[0] >= 0) "on round" else "own country"}:hunted by ${if (hunter.band != null) "people" else hunter.species.name}",
             1, Int::plus)
-        fauna.killed(herd.place, herd.species.massKg)
+        fauna.killed(herd.place.i, herd.species.massKg)
         stats.hunting.merge(Tally.of(hunter.species, Tally.KILLS_FROM_HERDS), 1, Int::plus)
         stats.hunting.merge(Tally.herdSize(sizeClass(herd), "killed"), 1, Int::plus)
         note(hunter) { "made a kill from the herd" }; note(herd) { "lost one to the hunters" }
@@ -1027,8 +1021,8 @@ internal fun fightBack(prey: Species, packKg: Float) = FIGHT_BACK * prey.defence
  */
 internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Int, stop: IntArray) {
     stats.meetings.merge("hunters of other kinds", 1, Int::plus)
-    val sa = strength(a) * (if (a.home == h) HOME_ADVANTAGE else 1f)
-    val sb = strength(b) * (if (b.home == h) HOME_ADVANTAGE else 1f)
+    val sa = strength(a) * (if (a.home.i == h) HOME_ADVANTAGE else 1f)
+    val sb = strength(b) * (if (b.home.i == h) HOME_ADVANTAGE else 1f)
     val aStrong = sa >= sb
     val strong = if (aStrong) a else b; val weak = if (aStrong) b else a
     val wk = if (aStrong) bk else ak; val wi = if (aStrong) bi else ai
@@ -1044,7 +1038,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
-    val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land)) * strong.will[AnimalWay.KILL]
+    val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place.i, land)) * strong.will[AnimalWay.KILL]
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
         weak.young--
@@ -1069,14 +1063,14 @@ internal fun HexGroups.mark() {
     for (m in scent.marks.values) for (i in m.indices) m[i] *= MARK_KEEP
     for (g in groups) {
         val s = g.species
-        if (!g.alive || !s.carnivore || s.human || g.home < 0) continue
+        if (!g.alive || !s.carnivore || s.human || g.home.none) continue
         val m = scent.marks.getOrPut(s.index) { FloatArray(hex.size) }
         val who = scent.markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
         for (h in g.path) {
-            if (hex.distanceKm(h, g.home) > territoryKm(s)) continue
+            if (hex.distanceKm(h, g.home.i) > territoryKm(s)) continue
             if (who[h] == g.id || m[h] < MARK_FRESH) { m[h] = 1f; who[h] = g.id }
         }
-        if (who[g.home] != g.id || m[g.home] < MARK_FRESH) g.home = -1
+        if (who[g.home] != g.id || m[g.home] < MARK_FRESH) g.home = Hex.NONE
     }
 }
 
@@ -1087,7 +1081,7 @@ internal fun HexGroups.mark() {
  */
 internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Int, stop: IntArray) {
     stats.meetings.merge("rival packs", 1, Int::plus)
-    val sa = a.adults * (if (a.home == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home == h) HOME_ADVANTAGE else 1f)
+    val sa = a.adults * (if (a.home.i == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home.i == h) HOME_ADVANTAGE else 1f)
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
     // (How much stronger the other has to be before the weaker gives way is the weaker's choice.)
     if (ratio > FIGHT_RATIO * (if (sa < sb) a else b).will[AnimalWay.FIGHT]) {
@@ -1102,8 +1096,8 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
         adultsDied(loser, 1, rnd)
         stats.deaths.merge("${loser.species.name}:${DeathCause.RIVALS}", 1, Int::plus)
     }
-    if (loser.home == h) {
-        loser.home = -1
+    if (loser.home.i == h) {
+        loser.home = Hex.NONE
         // The winners take over the ground and kill the young they find there (as lions and wolves do).
         // (Prides and packs that take over ground do this; solitary hunters seldom.)
         if (loser.young > 0 && loser.species.groupSize >= 3) {
@@ -1116,9 +1110,9 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
 }
 
 /** [g] takes hex [h] as its ground and marks it there and then. */
-internal fun HexGroups.claimGround(g: HexGroup, h: Int) {
+internal fun HexGroups.claimGround(g: HexGroup, h: Hex) {
     g.home = h
-    if (h < 0) return
+    if (h.none) return
     scent.marks.getOrPut(g.species.index) { FloatArray(hex.size) }[h] = 1f
     scent.markers.getOrPut(g.species.index) { IntArray(hex.size) { -1 } }[h] = g.id
 }
@@ -1128,9 +1122,9 @@ internal fun HexGroups.settle(weather: Weather) {
     val claimed = HashSet<Long>()
     // (Packs come in a drawn order: the first to come on empty ground takes it.)
     val today = weather.date.absoluteDay
-    for (g in groups.filter { it.alive && it.species.pack && it.home < 0 }.sortedBy { tieBreak(it.id, 0, today) }) {
-        val h = hw.placeHex[g.place]
-        val key = g.species.index.toLong() * hex.size + h
+    for (g in groups.filter { it.alive && it.species.pack && it.home.none }.sortedBy { tieBreak(it.id, 0, today) }) {
+        val h = hw.hexOf(g.place)
+        val key = g.species.index.toLong() * hex.size + h.i
         // (Whether it takes it is its choice: always at the hand-written way.)
         val w = g.will[AnimalWay.SETTLE]
         if (w < 1f && rnd.nextFloat() >= w) continue

@@ -13,6 +13,12 @@ import inflation.ecology.Tool
 import inflation.ecology.Tradition
 import inflation.ecology.boldness
 import java.util.TreeMap
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /** Deaths and births by "kind:cause" over the run, from the model's weekly ledgers; and herds' head-weeks by size. */
 class DeathTally(private val sim: HexSim) {
@@ -199,9 +205,10 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         }
         for (g in groups.groups) {
             val b = g.band ?: continue
-            if (!g.alive || b.appointHex < 0 || b.appointMonth != sim.weather.date.month) continue
+            val ap = b.appointment
+            if (!g.alive || ap == null || ap.month != sim.weather.date.month) continue
             apptDue++
-            if (hw.placeHex[g.place] == b.appointHex) apptKept++
+            if (hw.placeHex[g.place] == ap.hex.i) apptKept++
         }
         for (g in groups.groups) if (g.alive && g.band != null) {
             bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2
@@ -232,13 +239,13 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     private fun skillsAndKit(bands: List<HexGroup>, bs: List<Band>): String {
         val groups = sim.groups; val hex = sim.hex
-        return "skills " + Skill.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.skills[f.ordinal] }.average()) } +
+        return "skills " + Skill.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.skills[f] }.average()) } +
             " | tools known (kit) " + Tool.entries.joinToString(", ") { t -> "%s %.0f%% (%.2f)".format(t.name.lowercase(),
-                100.0 * bs.count { it.knows[t.ordinal] } / bs.size, bs.map { it.kit[t.ordinal] }.average()) } +
+                100.0 * bs.count { it.knows[t] } / bs.size, bs.map { it.kit[t] }.average()) } +
             " | customs " + Tradition.entries.joinToString(", ") { t -> "%s %.0f%%".format(t.name.lowercase(), 100.0 * bs.count { it.holds(t) } / bs.size) } +
             " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1),
                 bs.map { it.inbred.toDouble() }.average()) +
-            " | caches %d".format(bs.count { it.cachePlace >= 0 }) +
+            " | caches %d".format(bs.count { !it.cachePlace.none }) +
             " | dogs %.0f in %d bands, wolf packs' boldness %.2f".format(bs.sumOf { it.kept.sum().toDouble() }, bs.count { it.kept.sum() >= 1f },
                 groups.groups.filter { it.alive && it.species.followsPeople && !it.species.human }.map { boldness(it).toDouble() }.average()) +
             " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * hex.areaKm2) +
@@ -288,7 +295,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return " | raids on homes, palisades %.0f%% of bands, homes known %.1f a band".format(
                 100.0 * bs.count { it.palisade >= 0.2f } / bs.size.coerceAtLeast(1), bs.map { it.knownHomes.size }.average()) +
             " | appointments %.0f%% of bands, kept %.0f%% of band-weeks due this year; burial places %d; largest gathering %d bands".format(
-                100.0 * bs.count { it.appointHex >= 0 } / bs.size.coerceAtLeast(1),
+                100.0 * bs.count { it.appointment != null } / bs.size.coerceAtLeast(1),
                 keptShare(),
                 land.burials.count { it >= 1f }, bands.groupBy { hw.placeHex[it.place] }.values.maxOfOrNull { it.size } ?: 0) +
             " | ties %.1f a band (close %.1f), gathered %.0f%%".format(bs.map { it.ties.size }.average(),

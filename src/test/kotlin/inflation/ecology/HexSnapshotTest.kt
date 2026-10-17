@@ -35,7 +35,7 @@ class HexSnapshotTest {
             repeat(30) { a.step() }
             val b = HexSim(World.generate(cfg))
             HexSnapshot.load(b, f)
-            assertEquals(emptyList(), b.groups.groups.filter { it.alive }.flatMap { it.violations(b.hw.placeHex) })
+            assertEquals(emptyList(), b.groups.groups.filter { it.alive }.flatMap { it.violations() })
             repeat(30) { b.step() }
             val x = bytes(a); val y = bytes(b)
             val diff = (0 until minOf(x.size, y.size)).firstOrNull { x[it] != y[it] } ?: if (x.size == y.size) -1 else minOf(x.size, y.size)

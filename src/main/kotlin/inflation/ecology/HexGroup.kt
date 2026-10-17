@@ -4,7 +4,7 @@ import kotlin.math.exp
 import kotlin.math.max
 
 /** A herd, pack or pride on the hexes: where it stands (a place: a height band of a hex) and who it is. */
-class HexGroup(val id: Int, val species: Species, var place: Int, var adults: Int, var young: Int) {
+class HexGroup(val id: Int, val species: Species, var place: Place, var adults: Int, var young: Int) {
     val size get() = adults + young
     /**
      * For a herd: how large it likes to grow against its kind's usual, its own leaning (a third to
@@ -23,7 +23,7 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** Meat it got this week from herds it met on the way, kg. */
     var meatMet = 0f
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
-    var home = -1
+    var home = Hex.NONE
     /** For a herd: the place it remembers doing best in each month, and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
@@ -67,7 +67,7 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** For a herd or pack: its ways this week, 1 the hand-written way (see [AnimalWay]). */
     val will = FloatArray(ANIMAL_WAYS_OUT) { 1f }
     /** For a band: food on hand, kg, by kind ([Store]). */
-    val stores = FloatArray(Store.entries.size)
+    val stores = enumFloats<Store>()
     /** All food on hand, kg; setting it scales every kind alike (gifts, raids, splits), or stores it dried. */
     var larder: Float
         get() = stores.sum()
@@ -75,10 +75,10 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
             val s = stores.sum()
             if (s > 0f) {
                 val k = max(0f, v) / s
-                for (i in stores.indices) stores[i] *= k
+                for (i in Store.entries) stores[i] *= k
             } else {
                 stores.fill(0f)
-                stores[Store.DRIED.ordinal] = max(0f, v)
+                stores[Store.DRIED] = max(0f, v)
             }
         }
     /** A band's skills, tools and camp: set for every group of people ([Species.human]) and only for them. */

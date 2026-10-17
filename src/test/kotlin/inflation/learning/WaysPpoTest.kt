@@ -57,7 +57,7 @@ class WaysPpoTest {
         val record = java.util.concurrent.ConcurrentLinkedQueue<Choice>()
         var week = 0
         val sampler = WaysSampler(w, record, { 1f }, { week }, 5L)
-        val g = inflation.ecology.HexGroup(3, Catalogue.HUMAN, 0, 10, 4)
+        val g = inflation.ecology.HexGroup(3, Catalogue.HUMAN, inflation.ecology.Place(0), 10, 4)
         val x = FloatArray(WAYS_IN)
         val draws = (0 until 2 * WaysPpo.SEASON).map { week = it; FloatArray(WAYS_OUT).also { o -> sampler.choose(g, x, o) }.toList() }
         val start = (WaysPpo.SEASON - g.id % WaysPpo.SEASON) % WaysPpo.SEASON

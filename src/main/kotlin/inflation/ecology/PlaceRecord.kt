@@ -29,7 +29,7 @@ class PlaceRecord(val n: Int, kinds: Int) {
     }
 
     /** A death of a group's member, under the cause the week's outcome named it by ([DeathCause], or a beast's or a killer's name). */
-    internal fun group(s: Species, p: Int, cause: String, k: Int) {
+    internal fun group(s: Species, p: Place, cause: String, k: Int) {
         val c = DeathCause.byLabel(cause)?.shown ?: if (cause.startsWith(DeathCause.TAKEN_BY) || cause.contains(DeathCause.KILLED_BY)) Cause.KILLED else cause(cause)
         if (s.human) people[c.ordinal][p] += k.toFloat() else animalKg[c.ordinal][p] += k * s.massKg
     }

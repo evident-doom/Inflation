@@ -10,6 +10,12 @@ import inflation.world.Biome
 import inflation.world.HexWorld
 import kotlin.math.abs
 import java.util.Random
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's
@@ -40,7 +46,7 @@ class Census(private val sim: HexSim) {
     fun fit() = groups.kinds.joinToString(", ") { s ->
         val gs = groups.groups.filter { it.alive && it.species == s }
         val heads = gs.sumOf { it.size }.coerceAtLeast(1)
-        "%s %.2f".format(s.name, gs.sumOf { it.size * fauna.monthFit(s, it.place, weather.date.month).toDouble() } / heads)
+        "%s %.2f".format(s.name, gs.sumOf { it.size * fauna.monthFit(s, it.place.i, weather.date.month).toDouble() } / heads)
     }
 
     /** How much of the land each kind's climate suits at all, and how strongly its groups feel drawn elsewhere. */
@@ -166,7 +172,7 @@ class Census(private val sim: HexSim) {
         println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " +
             groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gs = groups.groups.filter { it.alive && it.species == s }
-            "%s %d / %d / %d / %d / %d / %d".format(s.name, gs.size, gs.count { it.home >= 0 }, gs.count { it.home >= 0 && it.adults >= 2 },
+            "%s %d / %d / %d / %d / %d / %d".format(s.name, gs.size, gs.count { !it.home.none }, gs.count { !it.home.none && it.adults >= 2 },
                 gs.count { it.adults == 1 }, gs.sumOf { it.adults }, gs.sumOf { it.young })
         })
     }
@@ -180,10 +186,10 @@ class Census(private val sim: HexSim) {
         val bs = gs.map { it.band!! }
         // (Skills a band holds are part of its customs; neighbours share them, distant bands differ.)
         if (bs.isNotEmpty()) println("ways of working (bands knowing, their mean level/holders): " + Skill.entries.joinToString(", ") { s ->
-            val k = bs.filter { it.knowsSkill[s.ordinal] }
+            val k = bs.filter { it.knowsSkill[s] }
             "%s %.0f%% %.2f/%.1f".format(s.name.lowercase().replace('_', ' '), 100.0 * k.size / bs.size,
-                if (k.isEmpty()) 0.0 else k.map { it.skills[s.ordinal].toDouble() }.average(),
-                if (k.isEmpty()) 0.0 else k.map { it.holders[s.ordinal].toDouble() }.average()) })
+                if (k.isEmpty()) 0.0 else k.map { it.skills[s].toDouble() }.average(),
+                if (k.isEmpty()) 0.0 else k.map { it.holders[s].toDouble() }.average()) })
         // How different neighbours' toolkits are against distant bands' (levels of every way, 0 where unknown).
         if (gs.size > 2) {
             val r = Random(7); var nearD = 0.0; var nearN = 0; var farD = 0.0; var farN = 0
@@ -193,7 +199,7 @@ class Census(private val sim: HexSim) {
                     val km = hex.distanceKm(hw.placeHex[x.place], hw.placeHex[y.place])
                     val bx = x.band!!; val by = y.band!!
                     val d = Skill.entries.sumOf { s ->
-                        val i = s.ordinal
+                        val i = s
                         abs((if (bx.knowsSkill[i]) bx.skills[i] else 0f) - (if (by.knowsSkill[i]) by.skills[i] else 0f)).toDouble()
                     } / Skill.entries.size
                     if (km < 100.0) { nearD += d; nearN++ } else if (km > 300.0) { farD += d; farN++ }
@@ -209,8 +215,8 @@ class Census(private val sim: HexSim) {
         println("cereals: wild stands in %d places; places with ears that hold their grain %d, most %.2f, mean there %.2f; grain reaped by people %.0f t in the last year; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
             stands, fields.size, fields.maxOfOrNull { f.domestic[it] } ?: 0f,
             if (fields.isEmpty()) 0.0 else fields.map { f.domestic[it].toDouble() }.average(), grainReaped,
-            gs.sumOf { it.stores[Store.SEED.ordinal].toDouble() } / 1000,
-            atHome.sumOf { it.stores[Store.SEED.ordinal].toDouble() } / 1000,
+            gs.sumOf { it.stores[Store.SEED].toDouble() } / 1000,
+            atHome.sumOf { it.stores[Store.SEED].toDouble() } / 1000,
             (0 until land.n).sumOf { f.grain[it] * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
             atHome.count { f.cereal[it.place] > 0f }, atHome.size))
     }

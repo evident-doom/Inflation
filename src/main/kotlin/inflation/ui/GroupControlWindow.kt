@@ -2,6 +2,7 @@ package inflation.ui
 
 import inflation.ecology.ANIMAL_WAYS_OUT
 import inflation.ecology.FOOD_TYPES
+import inflation.ecology.Food
 import inflation.ecology.GroupControl
 import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
@@ -54,6 +55,12 @@ import inflation.ecology.Tradition
 import java.util.ArrayDeque
 import kotlin.math.atan2
 import kotlin.math.hypot
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * The group controls of follow mode: a window beside the overview map that shows the followed group
@@ -320,23 +327,23 @@ class GroupControlWindow(
         sb.appendLine("%d adults, %d young%s".format(g.adults, g.young, b?.let { ", %d of them elders".format(it.elders) } ?: ""))
         sb.appendLine("fed %.0f%% last week; reserves %.0f of %.0f days".format(100 * g.fed, g.fat, s.maxFatDays))
         sb.appendLine("last drank %.1f days ago (it can go %d)".format(g.dry, s.daysWithoutWater))
-        sb.appendLine("stands at %s, %.1f °C".format(where(g.place), sim.weather.temperature[g.place]))
+        sb.appendLine("stands at %s, %.1f °C".format(where(g.place.i), sim.weather.temperature[g.place.i]))
         if (b != null) {
             sb.appendLine("larder %.0f kg (%.0f days): ".format(g.larder, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)) +
-                Store.entries.filter { g.stores[it.ordinal] >= 1f }.joinToString(", ") { "%s %.0f".format(it.name.lowercase(), g.stores[it.ordinal]) })
-            val sick = Illness.entries.filter { b.sick[it.ordinal] > 0.005f }
-                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.sick[it.ordinal]) }
+                Store.entries.filter { g.stores[it] >= 1f }.joinToString(", ") { "%s %.0f".format(it.name.lowercase(), g.stores[it]) })
+            val sick = Illness.entries.filter { b.sick[it] > 0.005f }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.sick[it]) }
             sb.appendLine("health: wounded %.0f%%, lamed %.0f%%%s".format(100 * b.hurt, 100 * b.lame, if (sick.isNotEmpty()) "; sick: $sick" else ""))
             sb.appendLine("camp kept %d weeks%s".format(b.campWeeks,
-                if (b.houseHex >= 0) "; houses at hex %d (%.0f%%)".format(b.houseHex, 100 * b.house) else ""))
-            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it.ordinal] }
-                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
+                if (!b.houseHex.none) "; houses at hex %d (%.0f%%)".format(b.houseHex.i, 100 * b.house) else ""))
+            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it] }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it]) })
             sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
                 .ifEmpty { "none" })
             sb.appendLine("knows %d hexes; knows the homes of %d bands".format((0 until hex.size).count { b.knows(it) }, b.knownHomes.size))
-            if (b.raidHex >= 0) sb.appendLine("set on a raid at hex %d".format(b.raidHex))
-            if (b.appointHex >= 0) sb.appendLine("meets others at hex %d in month %d".format(b.appointHex, b.appointMonth + 1))
-        } else if (s.carnivore) sb.appendLine(if (g.home >= 0) "holds ground about hex %d".format(g.home) else "holds no ground")
+            b.raid?.let { sb.appendLine("set on a raid at hex %d".format(it.hex.i)) }
+            b.appointment?.let { sb.appendLine("meets others at hex %d in month %d".format(it.hex.i, it.month + 1)) }
+        } else if (s.carnivore) sb.appendLine(if (!g.home.none) "holds ground about hex %d".format(g.home.i) else "holds no ground")
         val here = hw.placeHex[g.place]
         val with = groups.groups.filter { it.alive && it !== g && hw.placeHex[it.place] == here }
         sb.appendLine("in its hex: " + with.joinToString(", ") { "%s #%d (%d)".format(it.species.name, it.id, it.size) }.ifEmpty { "no other group" })
@@ -350,7 +357,7 @@ class GroupControlWindow(
             sb.appendLine("where to go is chosen by " + if (d.learned) "the learned network" else "the hand-written score")
             sb.appendLine("its ways are set by " + if (d.waysLearned) "the learned network" else "the hand-written ways")
             sb.appendLine()
-            sb.appendLine("the model goes to %s%s".format(where(d.places[d.model]), if (d.places[d.model] == g.place) " (stays)" else ""))
+            sb.appendLine("the model goes to %s%s".format(where(d.places[d.model]), if (d.places[d.model] == g.place.i) " (stays)" else ""))
             if (pick != d.model && pick in d.places.indices) sb.appendLine("you go to %s".format(where(d.places[pick])))
             val pinned = pins.count { !it.isNaN() }
             if (pinned > 0) sb.appendLine("you set %d of its ways".format(pinned))
@@ -388,7 +395,7 @@ class GroupControlWindow(
             val i = order[r]; val f = d.features[i]; val s = d.group.species
             return when (c) {
                 0 -> (if (i == d.model) "model" else "") + (if (i == pick && i != d.model) "you" else "")
-                1 -> where(d.places[i]) + if (d.places[i] == d.group.place) " (stay)" else ""
+                1 -> where(d.places[i]) + if (d.places[i] == d.group.place.i) " (stay)" else ""
                 2 -> d.netScores?.let { "%.3f".format(it[i]) } ?: "-"
                 3 -> "%.3f".format(d.handScores[i])
                 4 -> "%.2f".format(f[HexFeatures.FOOD])
@@ -455,9 +462,8 @@ class GroupControlWindow(
     }
 
     private fun wayNames(): List<String> {
-        val food = listOf("big game", "small game", "carrion", "bones", "fruit", "roots", "grass seed", "small finds", "fish")
         return Schema.WAYS_OUT.mapIndexed { k, n ->
-            if (k < FOOD_TYPES) "effort: " + food.getOrElse(k) { n } else n.replace("make first:", "make first: ")
+            if (k < FOOD_TYPES) "effort: " + Food.entries[k].label else n.replace("make first:", "make first: ")
         }
     }
 

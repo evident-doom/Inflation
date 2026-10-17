@@ -21,8 +21,8 @@ internal fun HexGroups.restless(g: HexGroup, weather: Weather, thirsty: Boolean,
     return when (s.lifeway) {
         Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon || (onRound && goalFar) ||
             (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: 0f) > 0.5f
-        Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home < 0 || thirsty || astray
-        Lifeway.HERD -> g.fed < Thresholds.HERD_HUNGRY || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm ||
+        Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home.none || thirsty || astray
+        Lifeway.HERD -> g.fed < Thresholds.HERD_HUNGRY || discomfort(s, g.place.i, weather) > 0.5f || weather.snowpack[g.place.i] > s.snowLimitMm ||
             thirsty || astray || goalFar
     }
 }
@@ -59,7 +59,7 @@ internal fun HexGroups.lifewayValue(k: Int, s: Species, p: Int): Float = when (s
  * hunters and the fear of ground where game was killed lately. (At this scale every hex has its hunters: a herd does not
  * shift its ground to get away from them, it watches and hides where it is; it moves for food, water, weather and the season.)
  */
-internal fun HexGroups.foodTerm(g: HexGroup, kind: Int, fresh: Float, p: Int, h: Int, sensed: IntArray, prey: Float, crowded: Float, hunters: Float): Float {
+internal fun HexGroups.foodTerm(g: HexGroup, kind: Int, fresh: Float, p: Place, h: Hex, sensed: IntArray, prey: Float, crowded: Float, hunters: Float): Float {
     val s = g.species
     return when (s.lifeway) {
         Lifeway.PACK, Lifeway.BAND -> {
@@ -69,6 +69,6 @@ internal fun HexGroups.foodTerm(g: HexGroup, kind: Int, fresh: Float, p: Int, h:
         // (How much there is levels off, how good it is does not: fresh, protein-rich growth is worth
         // more however much of the dry stuff stands, as it is to a mother and her young.)
         Lifeway.HERD -> saturate(placeValue[kind][p], Thresholds.FOOD_HALF) * fresh - 0.5f * crowded -
-            SHUN_HUNTERS * hunters / (hunters + tuning.huntersHalfKg) - HexFauna.FEAR_WEIGHT * fauna.afraid(p)
+            SHUN_HUNTERS * hunters / (hunters + tuning.huntersHalfKg) - HexFauna.FEAR_WEIGHT * fauna.afraid(p.i)
     }
 }
