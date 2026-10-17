@@ -450,6 +450,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
      * (the river meadows and marshes that stay green when the hills have cured).
      */
     fun wetFloor(p: Int) = min(1f - SEEP_SHARE, floodShare[p] * (1f - floorTableM(p) / ROOT_REACH_M).coerceIn(0f, 1f))
+    /** Share of place [p] that is valley floor with the water table so near the surface ([SATURATED_M]) that its soil is sodden. */
+    fun saturatedFloor(p: Int) = min(wetFloor(p), floodShare[p] * (1f - floorTableM(p) / SATURATED_M).coerceIn(0f, 1f))
+    /** Share of place [p] whose soil is sodden this week, without air in it: marsh and bog, a flooded floodplain, or a valley floor over a high water table. */
+    fun saturated(p: Int) = min(1f, waterlogged[p] + if (flood[p] > 0f) floodShare[p] else saturatedFloor(p))
     /**
      * Depth of the water table under the valley floor of place [p], m: where the hex's river runs, the
      * alluvium under its floodplain stands at the river's level, as far below the floodplain as the river
@@ -493,11 +497,15 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         val soilF = 0.3f + 0.7f * min(1f, fertility[p] + organicFertility[p])
         val wetFactor = when (form) { LifeForm.HERB -> 1f; LifeForm.SHRUB -> 1f - 0.6f * waterlogged[p]; LifeForm.TREE -> 1f - 0.95f * waterlogged[p] }
         val open = form.maxBiomass * m * t * soilF * wetFactor
-        if (form != LifeForm.HERB) return open
-        // The turf of the wet valley floor grows on its own soil: moist from the water table and as fertile as its alluvium.
+        // The wet valley floor grows on its own soil: moist from the water table and as fertile as its alluvium.
         val wf = wetFloor(p); if (wf <= 0f) return open
         val floor = form.maxBiomass * t * (0.3f + 0.7f * min(1f, floorFertility[p] + organicFertility[p]))
-        return (1f - wf) * open + wf * floor
+        if (form == LifeForm.HERB) return (1f - wf) * open + wf * floor
+        // Woody plants root down to the water table there (the poplar, willow and tamarisk of the gallery
+        // forests along rivers in dry country), except where it stands so near the surface that the soil is
+        // sodden: there they drown and the floor is wet meadow and reed.
+        val rooted = max(0f, wf - saturatedFloor(p))
+        return (1f - wf) * open + rooted * floor * wetFactor
     }
 
     fun consume(p: Int, form: LifeForm, kgPerM2: Float): Float {
@@ -557,6 +565,7 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             groundwater[p] += taken
             volume[hw.placeHex[p]] += (excess - taken) / 1000.0 * areaM2[p]
             ranOff[p] = excess - taken > 0f
+            runoffMm[p] = excess - taken
             // The water in the bed sands sinks into the rock below.
             if (bedM2[p] > 0f && sand[p] > 0f) {
                 val sink = min(sand[p], SAND_DROP_M * days / SAND_M)
@@ -675,6 +684,34 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
     private val soak = FloatArray(n)
     /** Scratch per place: whether it shed water this step (so its beds ran). */
     private val ranOff = BooleanArray(n)
+    /** Water each place shed over the ground this step, mm (it washes litter off, see [carrySilt]). */
+    @Transient val runoffMm = FloatArray(n)
+
+    /**
+     * Carries what the runoff washed off each place ([washedKg], kg of organic matter) down the rivers with the
+     * water, and lays the share [FLOOD_TRAP] of what passes a hex in spate on its flooded floodplains, with the
+     * silt it travels with. Fills [laidKgM2] with what was laid on each place, kg/m²; the rest reaches the sea
+     * or a closed lake, where it settles out of the model.
+     */
+    fun carrySilt(washedKg: FloatArray, laidKgM2: FloatArray) {
+        laidKgM2.fill(0f)
+        val load = DoubleArray(hex.size)
+        for (p in 0 until n) load[hw.placeHex[p]] += washedKg[p].toDouble()
+        for (h in order) {
+            if (load[h] <= 0.0) continue
+            var flooded = 0.0
+            for (band in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[band][h]; if (p >= 0 && flood[p] > 0f) flooded += floodShare[p] * areaM2[p] }
+            if (flooded > 0.0) {
+                val laid = load[h] * FLOOD_TRAP
+                for (band in 0 until HexWorld.BANDS_M.size) {
+                    val p = hw.placeOf[band][h]; if (p < 0 || flood[p] <= 0f) continue
+                    laidKgM2[p] += (laid * floodShare[p] * areaM2[p] / flooded / areaM2[p]).toFloat()
+                }
+                load[h] -= laid
+            }
+            val d = down[h]; if (d >= 0) load[d] += load[h]
+        }
+    }
 
     private fun stepPlants(weather: Weather) {
         val years = days / Date.DAYS_PER_YEAR.toFloat()
@@ -725,8 +762,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val treeSeedHere = max(treeSeed[p], 0.5f * animalSeed[p]) * (1f + 1.5f * rooted)
             val shrubSeedHere = max(shrubSeed[p], animalSeed[p]) * (1f + 1.5f * rooted)
             val tree0 = tree[p]; val shrub0 = shrub[p]
-            grow(LifeForm.TREE, tree, p, season * water0 * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed))
-            grow(LifeForm.SHRUB, shrub, p, season * water0 * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed))
+            // (Woody plants on the wet valley floor draw on the water table whatever the weather.)
+            val woodyWater = water0 + wetShare * (1f - water0)
+            grow(LifeForm.TREE, tree, p, season * woodyWater * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed))
+            grow(LifeForm.SHRUB, shrub, p, season * woodyWater * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed))
             // New shoots: what the woody plants grew, and the leaves and twigs they renew, in growing weather.
             val renew = season * water0 * years
             shrubShoots[p] = shrubShoots[p] * shootsKept + palatable[p] * (max(0f, shrub[p] - shrub0) + SHRUB_RENEWAL * renew * shrub[p])
@@ -939,6 +978,17 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         const val DIG_SHARE = 0.1f
         /** Depth to which phreatophytes (tamarisk, poplar, acacia, date palm) reach the water table, m (often 5-10 m, from memory). */
         const val ROOT_REACH_M = 5f
+        /**
+         * Depth of the water table within which the soil above it is sodden: the capillary fringe of silty
+         * alluvium rises some 0.5-1 m (from memory), so woody plants drown and dead matter rots without air.
+         */
+        const val SATURATED_M = 0.5f
+        /**
+         * Share of the organic matter a river carries that a hex in spate lays on its floodplain. A river's
+         * floodplains keep some 20-50% of the load that passes in floods (from memory), over a flooding stretch
+         * of some 10-30 hexes, so about 3% in each.
+         */
+        const val FLOOD_TRAP = 0.03
         /** Share of the plants of each kind of country that are edible (see [palatable]). */
         val PALATABLE = mapOf(
             Biome.ALPINE_MEADOW to 0.7f, Biome.STEPPE to 0.7f, Biome.OPEN_WOODLAND to 0.6f, Biome.FLOODPLAIN_FOREST to 0.5f,
