@@ -77,6 +77,9 @@ object Tally {
     fun bandTime(what: String) = "band time:$what"
     /** Tries a hunting kind made on a herd kind, and its hunters killed by one ("wolf:tries on ostrich"). */
     const val TRIES_ON = "tries on "
+    /** Herds of a kind that also lives spread out, gathered and scattered, and the heads that went (see [gather], [scatter]). */
+    const val GATHERED = "herds gathered"; const val HEADS_GATHERED = "heads gathered"
+    const val SCATTERED = "herds scattered"; const val HEADS_SCATTERED = "heads scattered"
     const val HURT_BY = "killed by prey "
     /** Hide people got from [source] (herds, residents, small pelts), grams. */
     fun hide(source: String) = "people hide:$source"

@@ -176,7 +176,8 @@ class HexGroups(
         for (s in kinds) {
             if (s.human) continue
             val now = groups.count { it.alive && it.species == s }
-            if (now >= NEWCOMER_BELOW) continue
+            // (A kind that also lives spread out has its newcomers only if it is gone from the land too.)
+            if (now >= NEWCOMER_BELOW || (s in Catalogue.gathering && fauna.slot(s) >= 0 && fauna.count(fauna.slot(s)) >= herdOf(s))) continue
             val weights = startWeights(s)
             val total = weights.sum(); if (total <= 0f) continue
             val unit = unitSize(s)
@@ -379,6 +380,11 @@ class HexGroups(
         for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g)
         groups.removeIf { !it.alive }
         newcomers(date)
+        // Herds of the kinds that also live spread out scatter where their round stays a while, and gather where it leaves.
+        Profile.part("herds: gathering and scattering") {
+            scatter(date.month)
+            if (date.dayOfMonth <= days) gather(date.month)
+        }
         Profile.part("herds: remembering places") {
             if (date.dayOfMonth <= days) {
                 noteSeasons(date.month)

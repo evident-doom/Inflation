@@ -62,8 +62,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Array(12) { m -> FloatArray(n) { p -> byPlace[p][m] } }
     }
 
-    /** The resident kinds, and for each, adults and young per km² of each place. (Herd kinds run as residents in the form-swap experiment at the end.) */
-    @Transient val kinds = Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.formSwap.filter { !Catalogue.resident(it) }
+    /**
+     * The resident kinds, and for each, adults and young per km² of each place: those that live only so, then the herd kinds that
+     * also live spread out between their gatherings ([Catalogue.gathering]), and those run as residents in the form-swap experiment.
+     */
+    @Transient val kinds = (Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.gathering.sortedBy { it.index } +
+        Catalogue.formSwap.filter { !Catalogue.resident(it) }).distinct()
     /** Each kind's place in [kinds] (and in every table here kept by kind), by its [Species.index]; -1 for a kind kept in groups. */
     @Transient private val slots = IntArray(Catalogue.all.size) { -1 }.also { for ((k, s) in kinds.withIndex()) it[s.index] = k }
     /** [s]'s place in [kinds], or -1 if it is not a resident. */
@@ -486,7 +490,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (!newcomersOn) return
         val r = kotlin.random.Random((date.absoluteDay * 7919L + 13) xor seedSalt)
         for (k in kinds.indices) {
-            if (count(k) >= NEWCOMER_ANIMALS) continue
+            // (A kind that also gathers into herds gets its newcomers as herds.)
+            if (count(k) >= NEWCOMER_ANIMALS || kinds[k] in Catalogue.gathering) continue
             val s = kinds[k]
             val w = FloatArray(n) { p -> land.areaKm2[p] * suits(s, p) * climateSuits(s, p) }
             val total = w.sum(); if (total <= 0f) continue
