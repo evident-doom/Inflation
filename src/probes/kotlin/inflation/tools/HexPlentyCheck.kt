@@ -17,9 +17,9 @@ import inflation.world.WorldCache
 import inflation.world.WorldConfig
 
 /**
- * Where the viewer's "Hungry next to plenty" layer is high, and why: the layer (plant-eaters'
- * head-weighted hunger in a hex, times the most grass and browse left uneaten in any hex within two)
- * worked out each week exactly as the viewer does, and split by the kind of hex: small islands,
+ * Where the viewer's "Hungry next to plenty" layer is high, and why: the layer (grazers and browsers
+ * going short per km², times the most grass and browse their kind could eat within two hexes) worked
+ * out each week exactly as the viewer does, and split by the kind of hex: small islands,
  * coasts, peaks (higher than every land neighbour), high ground (1500 m and up) and the rest.
  *
  * For each class: its share of the map's top 5% of the layer, the means of hunger and plenty, how
@@ -84,7 +84,7 @@ fun main(args: Array<String>) {
     val byKind = Array(nc) { HashMap<String, Double>() }
     // The same layer's top 5% if it were weighted by how many go hungry (hunger mass per km² x plenty), or
     // took its plenty only from hexes reached over land; and each class's own forage left and plant-eaters.
-    val inTopMass = DoubleArray(nc); val inTopOverLand = DoubleArray(nc); val ownLeft = DoubleArray(nc); val eaterSum = DoubleArray(nc)
+    val inTopOverLand = DoubleArray(nc); val ownLeft = DoubleArray(nc); val eaterSum = DoubleArray(nc)
 
     fun weigh(c: Int, p: Int, s: inflation.ecology.Species, hm: Double) {
         val w = sim.weather
@@ -120,7 +120,6 @@ fun main(args: Array<String>) {
         }
         val vals = (0 until nh).filter { cls[it] >= 0 && !v[it].isNaN() }.map { v[it] }.sorted()
         val top = if (vals.isEmpty()) Float.MAX_VALUE else vals[(0.95 * (vals.size - 1)).toInt()]
-        val byMass = FloatArray(nh) { h -> if (cls[h] < 0 || v[h].isNaN()) Float.NaN else (hunger[h] * heads[h] / area[h] * plenty[h]).toFloat() }
         val overLand = FloatArray(nh) { h ->
             if (cls[h] < 0 || v[h].isNaN()) return@FloatArray Float.NaN
             var best = 0f
@@ -128,10 +127,9 @@ fun main(args: Array<String>) {
             hunger[h] * best
         }
         fun topOf(x: FloatArray): Float { val s = x.filter { !it.isNaN() }.sorted(); return if (s.isEmpty()) Float.MAX_VALUE else s[(0.95 * (s.size - 1)).toInt()] }
-        val topMass = topOf(byMass); val topLand = topOf(overLand)
+        val topLand = topOf(overLand)
         for (h in 0 until nh) {
             val c = cls[h]; if (c < 0 || v[h].isNaN()) continue
-            if (byMass[h] >= topMass && byMass[h] > 0f) inTopMass[c]++
             if (overLand[h] >= topLand && overLand[h] > 0f) inTopOverLand[c]++
             if (!left[h].isNaN()) ownLeft[c] += left[h]
             eaterSum[c] += eaterKg[h] / area[h]
@@ -179,16 +177,16 @@ fun main(args: Array<String>) {
     fun pct(x: Double, y: Double) = if (y > 0) 100.0 * x / y else Double.NaN
     val allTop = inTop.sum(); val allHex = hexWeeks.sum()
     println("\nover $weeks weeks, the layer's top 5% of land hexes each week:")
-    println("%-13s %6s %6s %8s %7s %8s %8s %8s".format("class", "hexes", "top", "layer", "hunger", "plenty", "heads/km2", "w/heads"))
+    println("%-13s %6s %6s %8s %7s %8s %8s %8s".format("class", "hexes", "top", "layer", "short/km2", "plenty", "heads/km2", "w/heads"))
     for (c in 0 until nc) println("%-13s %5.1f%% %5.1f%% %8.4f %7.3f %8.4f %8.2f %7.0f%%".format(classes[c],
         pct(hexWeeks[c], allHex), pct(inTop[c], allTop), layerSum[c] / hexWeeks[c], hungerSum[c] / hexWeeks[c], plentySum[c] / hexWeeks[c],
         headsKm2[c] / hexWeeks[c], pct(withHeads[c], hexWeeks[c])))
-    println("\nthe top 5% by other measures: weighted by hunger mass per km², and with plenty only from hexes reached over land; own forage left, g/m², and plant-eaters, kg/km²")
-    for (c in 0 until nc) if (hexWeeks[c] > 0) println("%-13s by mass %5.1f%%  over land %5.1f%%  own left %6.1f  eaters %7.1f".format(classes[c],
-        pct(inTopMass[c], inTopMass.sum()), pct(inTopOverLand[c], inTopOverLand.sum()), 1000 * ownLeft[c] / hexWeeks[c], eaterSum[c] / hexWeeks[c]))
+    println("\nthe top 5% if plenty were any grass and browse left (whoever could eat it); own forage left, g/m², and plant-eaters, kg/km²")
+    for (c in 0 until nc) if (hexWeeks[c] > 0) println("%-13s any forage %5.1f%%  own left %6.1f  eaters %7.1f".format(classes[c],
+        pct(inTopOverLand[c], inTopOverLand.sum()), 1000 * ownLeft[c] / hexWeeks[c], eaterSum[c] / hexWeeks[c]))
     println("\nin the top hexes: plant-eaters standing there, hunger, plenty; plant-eater kg/km² there and at the hex giving the plenty;")
     println("share with under $FEW plant-eaters in the hex; and share of all hexes whose own forage left is the plenty")
-    for (c in 0 until nc) if (inTop[c] > 0) println("%-13s heads %8.1f  hunger %.2f  plenty %.4f  eaters here %7.1f  at plenty %7.1f  few %3.0f%%  self-max (all) %3.0f%%".format(classes[c],
+    for (c in 0 until nc) if (inTop[c] > 0) println("%-13s heads %8.1f  short/km2 %.2f  plenty %.4f  eaters here %7.1f  at plenty %7.1f  few %3.0f%%  self-max (all) %3.0f%%".format(classes[c],
         topHeads[c] / inTop[c], topHunger[c] / inTop[c], topPlenty[c] / inTop[c], topEaterHere[c] / inTop[c], topEaterThere[c] / inTop[c],
         pct(topFew[c], inTop[c]), pct(selfMax[c], hexWeeks[c])))
     println("\nplant-eaters' hunger (heads x (1 - fed)) by class, and weighted by it, what stands between them and the food:")
