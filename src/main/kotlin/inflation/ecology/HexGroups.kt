@@ -231,7 +231,7 @@ class HexGroups(
         for (s in kinds) books.stock(Books.Stuff.MATTER, "group ${s.name}") {
             var sum = 0.0; for (g in groups) if (g.alive && g.species == s) sum += (g.adults + HexFauna.YOUNG_WEIGHT * g.young) * s.massKg.toDouble(); sum }
         books.stock(Books.Stuff.MATTER, "hunters' meat in hand") {
-            var sum = 0.0; for (g in groups) if (g.meatMet > 0f) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble(); sum }
+            var sum = 0.0; for (g in groups) if (g.meatMet > 0f && !g.meatSpent) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble(); sum }
         fun bands(f: (Band) -> Double) = run { var sum = 0.0; for (g in groups) if (g.alive) g.band?.let { sum += f(it) }; sum }
         books.stock(Books.Stuff.MATTER, "bands' food") { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += g.stores.sum(); sum }
         books.stock(Books.Stuff.MATTER, "bands' caches") { bands { it.cacheKg.toDouble() } }
@@ -334,7 +334,7 @@ class HexGroups(
                 val len = hypot(e, so); if (len > 1f) { e /= len; so /= len }
                 g.headE = e; g.headS = so
             }
-            g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f
+            g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             // A crossing of open water drowns some, the more the nearer the strait is to all they can swim.
             for (i in 0 until g.path.size - 1) {
                 val gapKm = seaGap(g.path[i], g.path[i + 1]); if (!gapKm.isFinite()) continue

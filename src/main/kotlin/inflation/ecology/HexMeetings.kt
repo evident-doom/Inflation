@@ -402,7 +402,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     small.dung[g.place] += land.spread(g.place, Kg(HexSmallLife.DUNG * animalEaten)).v
     land.books?.let { bookForage(it, band, meatEaten, smallGot + scraps + plants + fish, fish, spare, HexSmallLife.DUNG * animalEaten) }
     // (The meat it held from the herds it met is eaten, stored or left by now.)
-    g.meatMet = 0f
+    g.meatSpent = true
 }
 
 /** Books [kg] eaten by a beast and the [dung] it dropped of it (see [Books]). */
