@@ -96,8 +96,6 @@ class HexGroups(
 
     /** Game each hunting kind can catch in each place, kg/km² weighed by catchability, worked out once a month for the bearings. */
     internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
-    /** Resident game in each place, kg/km², worked out once a month for the bearings. */
-    internal val residentKg = FloatArray(n)
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
     /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
     @Transient private var monthHerdHeads = FloatArray(0)
@@ -213,9 +211,6 @@ class HexGroups(
             monthHunterKg.fill(0f)
             for (g in groups) if (g.alive && g.species.carnivore) monthHunterKg[g.place] += g.size * g.species.massKg
             IntStream.range(0, n).parallel().forEach { p ->
-                var v = 0f
-                for ((k, ps) in fauna.kinds.withIndex()) v += (fauna.adults[k][p] + 0.5f * fauna.young[k][p]) * ps.massKg
-                residentKg[p] = v
                 for ((k, s) in kinds.withIndex()) {
                     if (!s.carnivore) continue
                     var h = preyHere(s, p)
