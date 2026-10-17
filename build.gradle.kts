@@ -14,8 +14,18 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+/**
+ * Probes: programs that answered one question about the model (src/probes), kept runnable with runTool and
+ * their own tasks but apart from the model and the maintained tools. They see the model's internals.
+ */
+val probes: SourceSet = sourceSets.create("probes") {
+    compileClasspath += sourceSets["main"].output + sourceSets["main"].compileClasspath
+    runtimeClasspath += sourceSets["main"].output + sourceSets["main"].runtimeClasspath
+}
+
 kotlin {
     jvmToolchain(21)
+    target.compilations.getByName("probes").associateWith(target.compilations.getByName("main"))
     // The code compiles clean; keep it so.
     compilerOptions { allWarningsAsErrors.set(true) }
 }
@@ -33,7 +43,7 @@ fun tool(name: String, main: String, argsProperty: String, heap: String? = "12g"
     tasks.register<JavaExec>(name) {
         this.description = description
         group = "application"
-        classpath = sourceSets["main"].runtimeClasspath
+        classpath = probes.runtimeClasspath
         mainClass.set(main)
         heap?.let { maxHeapSize = it }
         args = (project.findProperty(argsProperty) as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
@@ -68,6 +78,9 @@ tool("runTool", "", "toolArgs", description = "Runs any tool by its main class: 
 tasks.withType<JavaExec>().configureEach {
     System.getProperty("hex.config")?.let { systemProperty("hex.config", file(it).absolutePath) }
 }
+
+// (build compiles the probes too, so a change to the model cannot leave them broken.)
+tasks.named("check") { dependsOn(probes.classesTaskName) }
 
 tasks.test {
     useJUnitPlatform()
