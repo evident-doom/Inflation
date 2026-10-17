@@ -42,7 +42,7 @@ class SavedStateTest {
 
     private val stillOnThisWorld = setOf(
         "weather.meltwater", "weather.meltSun", "weather.meltShade", "land.hydro.flood", "land.hydro.soak", "land.plants.cured",
-        "land.plants.curedShade", "land.plants.ash", "land.fire.burning", "fauna.huntedByResidents", "fauna.small.locusts",
+        "land.plants.curedShade", "land.plants.ash", "land.fire.burning", "land.fire.burnt", "fauna.huntedByResidents", "fauna.small.locusts",
         "fauna.small.returning", "fauna.small.waiting", "fauna.small.leaving", "fauna.small.newborn", "fauna.water.run",
         "fauna.water.runStock", "fauna.water.runWaiting", "fauna.food.cereal", "fauna.food.domestic", "fauna.food.field",
         "fauna.food.ripenedNow",
