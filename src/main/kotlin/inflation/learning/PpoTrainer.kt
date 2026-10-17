@@ -77,7 +77,7 @@ class PpoTrainer(private val o: PpoOptions) {
                 // last is still running goes unchecked); the reference check against the hand-written behaviour follows.
                 if (checking == null) {
                     val candidate = File(out, "checks/round-${round + 1}/candidate").also { EcoCheck.copyRoles(out, it, Role.entries) }
-                    checking = eco.start(round + 1, candidate) to candidate
+                    checking = eco.start(round, candidate) to candidate
                 } else log.write("round ${round + 1} not checked: the last check is still running")
                 // (The next round's play finishes first: its worlds and the check's would not all fit in memory at once.)
                 ahead?.join()

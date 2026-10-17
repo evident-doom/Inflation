@@ -27,7 +27,8 @@ class EcoCheck(private val out: File) {
     private val world = TestWorlds.named(Config.string("ppo.checkWorld") ?: "rain-1")
     private val years = Config.int("ppo.checkYears", 5)
     private val replicates = Config.int("ppo.checkReplicates", 2)
-    private val pool = Executors.newFixedThreadPool(Config.int("ppo.checkParallel", 10))
+    // (Daemon threads: a run that ends is not kept alive by its check's pool.)
+    private val pool = Executors.newFixedThreadPool(Config.int("ppo.checkParallel", 10)) { r -> Thread(r, "eco-check").also { it.isDaemon = true } }
     /** The networks each role plays with outside training, and that the new ones are judged against. */
     val kept = File(out, "kept")
 
@@ -36,9 +37,9 @@ class EcoCheck(private val out: File) {
     /** The kept networks start as the ones the run starts from. */
     fun init() { if (!File(kept, Role.HERDS.file(kept).name).exists()) copyRoles(out, kept, Role.entries) }
 
-    /** Checks the networks in [candidate] (a copy of this round's) against the kept ones, beside the training. */
+    /** Checks the networks in [candidate] (a copy of round [round]'s, counted from 0) against the kept ones, beside the training. */
     fun start(round: Int, candidate: File): CompletableFuture<Verdict> = CompletableFuture.supplyAsync {
-        val dir = File(out, "checks/round-$round").also { it.mkdirs() }
+        val dir = File(out, "checks/round-${round + 1}").also { it.mkdirs() }
         val arms = linkedMapOf("new" to Role.entries.associateWith { candidate }, "kept" to Role.entries.associateWith { kept })
         for (r in Role.entries) arms["kept-$r"] = Role.entries.associateWith { if (it == r) kept else candidate }
         val runs = arms.mapValues { (name, from) ->
