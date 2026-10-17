@@ -521,7 +521,7 @@ class HexGroups(
      * What each place offers each kind this week, worked out once for all its groups: for hunters the
      * prey they can catch there (resident and in herds), for herds the food as worth to them.
      */
-    private val placeValue by lazy { Array(kinds.size) { FloatArray(n) } }
+    internal val placeValue by lazy { Array(kinds.size) { FloatArray(n) } }
 
     /** Head count of each kind in each place this week, and each species' slot in [kinds]. */
     internal val headsHere by lazy { Array(kinds.size) { IntArray(n) } }
@@ -538,13 +538,7 @@ class HexGroups(
         for (g in groups) if (g.alive) headsHere[kindSlot[g.species.index]][g.place] += g.size
         // (What may be expected changes slowly: it is reckoned once a month.)
         if (month != expectMonth) { expect(predatorKg); expectMonth = month }
-        // (Hunters and bands value a place by the herds they expect there; where they see or read sign, by what they find: see [knownGame].)
-        IntStream.range(0, n).parallel().forEach { p ->
-            for ((k, s) in kinds.withIndex()) placeValue[k][p] =
-                if (s.human) (preyHere(s, p) + expectPrey[k][p]) * campFactor(p) + campPlants(p)
-                else if (s.carnivore) dietValue(s, p, preyHere(s, p) + expectPrey[k][p])
-                else foodFor(s, p) * fauna.suits(s, p) * (1f - land.fire.burning[p]) * fauna.tether(s, p)
-        }
+        IntStream.range(0, n).parallel().forEach { p -> for ((k, s) in kinds.withIndex()) placeValue[k][p] = lifewayValue(k, s, p) }
     }
 
     /**
@@ -665,13 +659,13 @@ class HexGroups(
      * What a camp's game is worth to a band, times: the more where the camp is safe, the less the further water is,
      * and the less the more of its days the hearth's firewood takes there (none left where there is nothing to burn).
      */
-    private fun campFactor(p: Int): Float {
+    internal fun campFactor(p: Int): Float {
         // Water close to camp: women and children fetch it every day.
         val w = land.drink.waterKm[p] / 3f
         val fuel = min(1f, HEARTH_WOOD / (FUEL_A_DAY * min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)).coerceAtLeast(1e-6f))
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
-    private fun campPlants(p: Int) = (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT * campFactor(p)
+    internal fun campPlants(p: Int) = (fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]) * 1e6f * PLANT_FOOD_WEIGHT * campFactor(p)
 
     /**
      * Bands burn off the dry grass around their camps in the dry season: the burn greens up and draws
@@ -746,8 +740,8 @@ class HexGroups(
 
 
     /** Strongest hunting party in each place last week, and its kind's index (-1 for none). */
-    private val topStrength = FloatArray(n)
-    private val topKind = IntArray(n) { -1 }
+    internal val topStrength = FloatArray(n)
+    internal val topKind = IntArray(n) { -1 }
 
     /**
      * Sign herds leave in each place, by kind: heads × days they spent there, fading by half each week
@@ -762,7 +756,7 @@ class HexGroups(
     /** Heads of each kind a place may be expected to hold, by how well it suits the kind: what a group goes by where it has not looked. */
     private val expectHeads by lazy { Array(kinds.size) { FloatArray(n) } }
     /** The herd game each hunting kind may expect in each place ([herdPrey] of [expectHeads]); the month both were reckoned for. */
-    private val expectPrey by lazy { Array(kinds.size) { FloatArray(n) } }
+    internal val expectPrey by lazy { Array(kinds.size) { FloatArray(n) } }
     private var expectMonth = -1
 
     /** A hunting party's fighting strength: weight, ferocity. */
@@ -949,8 +943,6 @@ class HexGroups(
         val goalFar = goal >= 0 && (!s.carnivore || s.human) && hexKm(here, hw.placeHex[goal]) > 2 * hex.hexKm
         // Far out of its country, it treks.
         val astray = bearings.strength(kindIndex[s] ?: 0, here) > ASTRAY
-        // (Bands hold no hunting ground of the packs' kind: a band is restless when hungry, thirsty, astray,
-        // or ill at ease where it is: the cold or heat as its clothes, fire and shelter leave it.)
         // Any group weighs its places where what the place drains from it (the cold, the flies) is worse,
         // by more than a step's going costs, than at the next place over: relief lies a step away. (It
         // looks about, but does not trek for it: its usual week's going reaches the next place.)
@@ -958,17 +950,11 @@ class HexGroups(
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
         val dueSoon = g.band?.let { b -> (b.appointHex >= 0 && b.appointHex != here && monthsFrom(month, b.appointMonth) <= 1) ||
             b.unluckyHex == here || b.raidHex >= 0 } ?: false
-        val restless = if (s.human) g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon || (onRound && goalFar) ||
-                (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: 0f) > 0.5f
-            else if (s.carnivore) g.fed < Thresholds.HUNGRY || g.home < 0 || thirsty || astray
-            else g.fed < Thresholds.HERD_HUNGRY || discomfort(s, g.place, weather) > 0.5f || weather.snowpack[g.place] > s.snowLimitMm ||
-                thirsty || astray || goalFar
+        val restless = restless(g, weather, thirsty, astray, dueSoon, onRound, goalFar)
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
-        // (Herds content where they are weigh their places only one week in [CONTENT_WEEKS]: they stay while the grazing holds;
-        // bands choosing by a network weigh theirs every week, [BAND_CONTENT_WEEKS]; the hand-written bands keep every other
-        // week, so that they stay the baseline learned bands are judged against.)
-        val every = if (s.human && policies[s] != null) BAND_CONTENT_WEEKS else if (s.carnivore) 2 else tuning.contentWeeks
+        // (How often depends on its way of life: see [contentEvery].)
+        val every = contentEvery(s)
         // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
         val capture = control != null && g.id == watched
         val content = !restless && !relief && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
@@ -1107,22 +1093,8 @@ class HexGroups(
         val g = c.g; val s = g.species; val kind = c.kind; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
         val goalQ = c.goalQ; val onRound = c.onRound; val roundStrength = c.roundStrength; val fromHere = c.fromHere; val reach = c.reach
         val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather; val date = c.date
-        var score = if (s.carnivore) {
-            // Smaller hunters keep out of the way of much stronger ones of other kinds (they hear
-            // the roars and smell the marks): cheetahs and hyenas of lions, jackals of wolves.
-            val danger = if (h in sensed && topKind[p] >= 0 && topKind[p] != s.index && topStrength[p] > 2f * strength(g)) AVOID_STRONGER else 0f
-            prey / (prey + PREY_HALF) - 0.5f * crowded - danger
-        } else {
-            // At this scale every hex has its hunters: a herd does not shift its ground to get away
-            // from them (it watches and hides where it is), only for food, water, weather and the season.
-            val food = placeValue[kind][p]
-            // Ground thick with hunters is shunned, as far as the food elsewhere allows (where it sees them).
-            // And ground where game was killed lately is shunned (the landscape of fear).
-            // (How much there is levels off, how good it is does not: fresh, protein-rich growth is worth
-            // more however much of the dry stuff stands, as it is to a mother and her young.)
-            saturate(food, Thresholds.FOOD_HALF) * t.fresh - 0.5f * crowded - SHUN_HUNTERS * hunters / (hunters + tuning.huntersHalfKg) -
-                HexFauna.FEAR_WEIGHT * fauna.afraid(p)
-        }
+        // Its food or game there, against crowding and the hunters it fears (see [foodTerm]).
+        var score = foodTerm(g, kind, t.fresh, p, h, sensed, prey, crowded, hunters)
         // The cold or heat it bears there, and what the place drains from it (the extra food the
         // cold burns, the feeding or working time the flies take), weighed as the going is: in
         // shares of the week's need.
