@@ -4,6 +4,7 @@ import inflation.world.HexPlants
 import inflation.wrapMonth
 import inflation.HASH_A
 import inflation.HASH_B
+import inflation.HASH_C
 import inflation.mix64Once
 import inflation.unitOf
 import inflation.world.Date
@@ -463,7 +464,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     private var locustSalt = 0L
     private fun locustHash(p: Int): Float {
-        return unitOf(mix64Once((p.toLong() * HASH_A) xor (++locustSalt * HASH_B)))
+        return unitOf(mix64Once((p.toLong() * HASH_A) xor (++locustSalt * HASH_B) xor land.seed * HASH_C))
     }
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
