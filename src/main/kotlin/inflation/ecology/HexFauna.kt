@@ -83,9 +83,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * For the check: where each kind's food came from, summed over its animals since last read (fresh
      * grass, browse, fruit and roots; standing straw; small prey and carrion; its reserves), and the
      * animals counted, so that each over the last is the share of a full need met that way: indexed by
-     * [FED_PLANTS], [FED_STRAW], [FED_ANIMAL], [FED_RESERVES] and [FED_HEADS].
+     * [Fed.PLANTS], [Fed.STRAW], [Fed.ANIMAL], [Fed.RESERVES] and [Fed.HEADS].
      */
-    val fedFrom = Array(kinds.size) { Array(FED_HEADS + 1) { DoubleAdder() } }
+    val fedFrom = Array(kinds.size) { Array(Fed.entries.size) { DoubleAdder() } }
     /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
      * away from ground where its kind has been killed (the landscape of fear).
@@ -164,7 +164,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (want.v <= 0f) return KgM2.ZERO
         val roots = kinds[k].diet.roots > 0f
         val dug = if (roots) small.digGrubs(p, want.perKm2).perM2 else KgM2.ZERO
-        return dug + small.catchSmall(p, (want - dug).perKm2, weather, who = k, style = if (roots) HexSmallLife.ROOT else HexSmallLife.STALK).perM2
+        return dug + small.catchSmall(p, (want - dug).perKm2, weather, who = k, style = if (roots) SmallHunt.ROOT else SmallHunt.STALK).perM2
     }
 
     /**
@@ -647,8 +647,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val heads = adults[k][p] + 0.5f * young[k][p]
                     if (heads > 0f) {
                         val ff = fedFrom[k]
-                        ff[FED_PLANTS].add((min(1f, got[k]) * ps * heads).toDouble()); ff[FED_STRAW].add((strawPart * ps * heads).toDouble())
-                        ff[FED_ANIMAL].add((min(1f, animal) * (1f - ps) * heads).toDouble()); ff[FED_HEADS].add(heads.toDouble())
+                        ff[Fed.PLANTS].add((min(1f, got[k]) * ps * heads).toDouble()); ff[Fed.STRAW].add((strawPart * ps * heads).toDouble())
+                        ff[Fed.ANIMAL].add((min(1f, animal) * (1f - ps) * heads).toDouble()); ff[Fed.HEADS].add(heads.toDouble())
                     }
                     // (Animal food beyond its share makes up for plants that fell short.)
                     ((got[k] + strawPart) * ps + animal * (1f - ps)).coerceIn(0f, 1f)
@@ -657,7 +657,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val r = reserve[k]
                 if (!sleeping) {
                     if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days)
-                        val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) fedFrom[k][FED_RESERVES].add((draw / days * heads).toDouble()) }
+                        val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) fedFrom[k][Fed.RESERVES].add((draw / days * heads).toDouble()) }
                     else r[p] = min(s.maxFatDays, r[p] + FAT_EFFICIENCY * surplus[k] * days)
                 }
                 fed[k][p] = f
@@ -689,7 +689,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
-        val dead = Array(kinds.size) { DoubleArray(ResidentDeath.CAUSES.size) }
+        val dead = Array(kinds.size) { DoubleArray(ResidentDeath.entries.size) }
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
         kinds.indices.toList().parallelStream().forEach { k ->
@@ -785,7 +785,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 sum
             }
-            for ((c, cause) in ResidentDeath.CAUSES.withIndex()) deaths[Tally.of(s, cause)] = dead[k][c]
+            for (c in ResidentDeath.entries) deaths[Tally.of(s, c.cause)] = dead[k][c]
         }
     }
 
@@ -928,12 +928,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     companion object {
-        /** Where residents' food came from ([fedFrom]): fresh plants, straw, prey and carrion, reserves; and the animals counted. */
-        const val FED_PLANTS = 0
-        const val FED_STRAW = 1
-        const val FED_ANIMAL = 2
-        const val FED_RESERVES = 3
-        const val FED_HEADS = 4
         /** Share of the standing plants a week's grazing can take without eating the place bare. */
         const val REACH = 0.01f
         /** How strongly a kind is drawn to the ground it prefers. */
@@ -1061,21 +1055,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 }
 
-/** Slots of the residents' deaths in a week, by cause; [CAUSES] names them in the deaths ledger. */
-object ResidentDeath {
-    const val AGE = 0
-    const val HUNGER = 1
-    const val COLD = 2
-    const val DISEASE = 3
-    const val EAGLES = 4
-    const val FIRE = 5
-    const val FLOOD = 6
-    const val SNOW = 7
-    const val CROCODILES = 8
-    const val THIRST = 9
-    val CAUSES = arrayOf(DeathCause.AGE, DeathCause.HUNGER, DeathCause.COLD, DeathCause.DISEASE, DeathCause.EAGLES, DeathCause.FIRE,
-        DeathCause.FLOOD, DeathCause.SNOW, DeathCause.CROCODILES, DeathCause.THIRST)
+/** The residents' deaths in a week, by [cause] as the deaths ledger names it. */
+enum class ResidentDeath(val cause: DeathCause) {
+    AGE(DeathCause.AGE), HUNGER(DeathCause.HUNGER), COLD(DeathCause.COLD), DISEASE(DeathCause.DISEASE), EAGLES(DeathCause.EAGLES),
+    FIRE(DeathCause.FIRE), FLOOD(DeathCause.FLOOD), SNOW(DeathCause.SNOW), CROCODILES(DeathCause.CROCODILES), THIRST(DeathCause.THIRST)
 }
+@Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.get(d: ResidentDeath) = this[d.ordinal]
+@Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.set(d: ResidentDeath, v: Double) { this[d.ordinal] = v }
+
+/** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, straw, prey and carrion, reserves; and the animals counted. */
+enum class Fed { PLANTS, STRAW, ANIMAL, RESERVES, HEADS }
+@Suppress("NOTHING_TO_INLINE") inline operator fun Array<DoubleAdder>.get(f: Fed) = this[f.ordinal]
 
 /** Shares of a kind's animals that die this week of fire, flood, and deep snow or ash (see [HexFauna.calamities]). */
 data class Calamities(val fire: Float, val flood: Float, val snow: Float)

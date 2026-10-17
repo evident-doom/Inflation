@@ -383,7 +383,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         r += bornR - r * death - starved
         smallDead[p] += rodents[p] * death + starved
         rodents[p] = capped(p, r, 3000f)
-        nest(p, NEST_RODENTS, rodents[p], max(0f, bornR))
+        nest(p, Nest.RODENTS, rodents[p], max(0f, bornR))
     }
 
     /**
@@ -409,7 +409,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             herpLedger[HerpLedger.ATE][p] += ate; herpLedger[HerpLedger.NEEDED][p] += need
         } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died; herpLedger[HerpLedger.LYING_UP][p] += died }
         herps[p] = capped(p, h, HERP_MOST)
-        nest(p, NEST_HERPS, herps[p], herpBorn)
+        nest(p, Nest.HERPS, herps[p], herpBorn)
     }
 
     /**
@@ -477,12 +477,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         if (land.plants.biomass(p) <= 0f) { hares[p] = 0f; hyrax[p] = 0f; birds[p] = 0f; for (b in bird) b[p] = 0f; tortoises[p] = 0f; foxes[p] = 0f; return }
         val mild = t > 5f
         // Young raised a year per head, all born in the breeding months (so the rate in them is higher).
-        hares[p] = logistic(p, hares[p], if (month in 3..9 && mild) inSeason(4f, 7) else 0f, 0.9f, hareCapacity(p), grazes = true, born = NEST_HARES)
-        hyrax[p] = logistic(p, hyrax[p], if (month in 4..6) inSeason(1.2f, 3) else 0f, 0.4f, hyraxCapacity(p), grazes = true, born = NEST_HYRAX)
+        hares[p] = logistic(p, hares[p], if (month in 3..9 && mild) inSeason(4f, 7) else 0f, 0.9f, hareCapacity(p), grazes = true, born = Nest.HARES)
+        hyrax[p] = logistic(p, hyrax[p], if (month in 4..6) inSeason(1.2f, 3) else 0f, 0.4f, hyraxCapacity(p), grazes = true, born = Nest.HYRAX)
         var all = 0f
         for (k in bird.indices) { stepBird(k, p, month, mild); all += bird[k][p] }
         birds[p] = all
-        nest(p, NEST_HARES, hares[p], 0f); nest(p, NEST_HYRAX, hyrax[p], 0f); nest(p, NEST_BIRDS, all, 0f)
+        nest(p, Nest.HARES, hares[p], 0f); nest(p, Nest.HYRAX, hyrax[p], 0f); nest(p, Nest.BIRDS, all, 0f)
         val active = stepTortoises(p, t, month)
         smallGrazing(p, all, active)
         stepFoxesAndOwls(p, month)
@@ -532,7 +532,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                     birdLedger[k][BirdLedger.INSECT_DAYS][p] += days
                 }
                 var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f,
-                    b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, ledger = birdLedger[k], born = NEST_BIRDS)
+                    b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, ledger = birdLedger[k], born = Nest.BIRDS)
                 // Insect-eating migrants leave a place where the insects have failed, for one where they boom.
                 if (b.followsInsects && fed < 0.5f && x > 0f) {
                     val go = x * (1f - 2f * fed)
@@ -549,8 +549,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     private fun stepTortoises(p: Int, t: Float, month: Int): Boolean {
         val active = t in 14f..33f && land.hydro.soil[p] > 8f
         tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f,
-            tortoiseCapacity(p), grazes = true, ledger = tortLedger, born = NEST_TORTOISES)
-        nest(p, NEST_TORTOISES, tortoises[p], 0f)
+            tortoiseCapacity(p), grazes = true, ledger = tortLedger, born = Nest.TORTOISES)
+        nest(p, Nest.TORTOISES, tortoises[p], 0f)
         if (active) tortLedger[TortLedger.DAYS_OUT][p] += days; if (active && month in 4..8) tortLedger[TortLedger.BREEDING_DAYS][p] += days
         return active
     }
@@ -571,7 +571,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // Foxes and wildcats eat about a fourteenth of their weight a day: carrion where they find it, then
         // rodents, hares and birds; they breed in spring as the food allows, and die back when it fails.
         // (They stalk: what they reach of each, as [reach]; the young in the nest they take as found.)
-        val eB = reachable(birds[p], young[NEST_BIRDS][p], FLIGHT_REACH)
+        val eB = reachable(birds[p], young[Nest.BIRDS][p], FLIGHT_REACH)
         val prey = rodents[p] + hares[p] + eB * birds[p] + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
         val need = foxes[p] * FOX_INTAKE * days
         // Carrion first: a carcass they smell out costs no chase, and in winter, when the rodents keep
@@ -583,8 +583,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
         val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + FOX_HALF)), 0.5f, foxPrey,
             floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { eB })
-        if (b0 > 0f && eB > 0f) young[NEST_BIRDS][p] = max(0f, young[NEST_BIRDS][p] - (b0 - birdSum(p)) * min(1f, young[NEST_BIRDS][p] / (eB * b0)))
-        if (r0 > 0f) young[NEST_RODENTS][p] *= rodents[p] / r0; if (ha0 > 0f) young[NEST_HARES][p] *= hares[p] / ha0
+        if (b0 > 0f && eB > 0f) young[Nest.BIRDS][p] = max(0f, young[Nest.BIRDS][p] - (b0 - birdSum(p)) * min(1f, young[Nest.BIRDS][p] / (eB * b0)))
+        if (r0 > 0f) young[Nest.RODENTS][p] *= rodents[p] / r0; if (ha0 > 0f) young[Nest.HARES][p] *= hares[p] / ha0
         noteTaken(p, TAKER_FOXES, r0, ha0, hy0, b0)
         val fed = if (need > 0f) got / need else 1f
         // A litter of four to six a year, born in spring: over the three months, six times the stock a year.
@@ -647,7 +647,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * [k], in place [p]. An empty place stays empty until animals spread in from around it.
      */
     private fun logistic(p: Int, x: Float, r: Float, d: Float, k: Float, grazes: Boolean = false, counted: Boolean = true,
-        ledger: Array<FloatArray>? = null, born: Int = -1): Float {
+        ledger: Array<FloatArray>? = null, born: Nest? = null): Float {
         val kk = max(k, 0.01f)
         val dead = min(x, x * d * years * if (x > kk) 2f else 1f)
         var change = x * r * years * (1f - x / kk)
@@ -655,7 +655,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val crowded = if (change < 0f) min(x - dead, -change) else 0f
         if (counted) smallDead[p] += dead + crowded
         if (ledger != null) { ledger[Ledger.GROWN][p] += max(0f, change); ledger[Ledger.DIED][p] += dead; ledger[Ledger.CROWDED][p] += crowded }
-        if (born >= 0) newborn[born][p] += max(0f, change)
+        if (born != null) newborn[born][p] += max(0f, change)
         return max(0f, x - dead + max(0f, change) - crowded)
     }
 
@@ -733,40 +733,40 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     /**
      * The young of the small vertebrates still in the nest or hiding where they were born, kg/km², of
-     * rodents, hares, hyrax, birds, and reptiles and amphibians ([NEST_RODENTS]..): what this week's
-     * births add, held [NEST_DAYS] days, never more than the kind's stock. They cannot run, fly or
+     * rodents, hares, hyrax, birds, and reptiles and amphibians ([Nest]): what this week's
+     * births add, held [Nest.days] days, never more than the kind's stock. They cannot run, fly or
      * hide, so any hunter that finds them can take them; see [reach].
      */
-    val young = Array(NEST_KINDS) { FloatArray(n) }
+    val young = Array(Nest.entries.size) { FloatArray(n) }
     /** Births of the kinds bred by [logistic] this week, for [nest]. */
-    private val newborn = Array(NEST_KINDS) { FloatArray(n) }
+    private val newborn = Array(Nest.entries.size) { FloatArray(n) }
 
     /** Ages the young of nest kind [i] at [p] a week, adds [born] (and what [logistic] recorded), and holds them to the [stock]. */
-    private fun nest(p: Int, i: Int, stock: Float, born: Float) {
+    private fun nest(p: Int, i: Nest, stock: Float, born: Float) {
         val y = young[i]
-        y[p] = min(stock, y[p] * max(0f, 1f - days / NEST_DAYS[i]) + born + newborn[i][p])
+        y[p] = min(stock, y[p] * max(0f, 1f - days / i.days) + born + newborn[i][p])
         newborn[i][p] = 0f
     }
 
     /**
      * Share of small prey [prey] (an index of [huntedAll]; birds all as one) that a hunter of [style]
      * can reach at place [p] among the grown ones: how the prey escapes against how the hunter hunts.
-     * Stalking and pouncing beasts ([STALK]: foxes, jackals, lynx) catch rodents and hares out
+     * Stalking and pouncing beasts ([SmallHunt.STALK]: foxes, jackals, lynx) catch rodents and hares out
      * foraging, hyrax only away from their rocks, reptiles only out of cover ([herpExposed]), grown
      * tortoises not at all (the shell: only the young of the year, whose shells are still soft), and
      * flying birds only as far as they are caught on the ground ([FLIGHT_REACH]). Rooting beasts
-     * ([ROOT]: boar, bears) catch none of the grown, only what is in the nest. People ([PEOPLE], and
+     * ([SmallHunt.ROOT]: boar, bears) catch none of the grown, only what is in the nest. People ([SmallHunt.PEOPLE], and
      * the hunting groups of herds and packs) reach all, with snares, nets and digging sticks.
      */
-    fun reach(style: Int, prey: Int, p: Int): Float = when (style) {
-        PEOPLE -> 1f
-        ROOT -> when (prey) { PREY_LOCUSTS -> 1f; PREY_INSECTS, PREY_POLLINATORS -> INSECT_CATCH; else -> 0f }
-        else -> when (prey) {
-            PREY_HYRAX -> rockHides[p]
-            PREY_HERPS -> herpExposed(p)
-            PREY_TORTOISES -> 0f
-            PREY_INSECTS, PREY_POLLINATORS -> INSECT_CATCH
-            PREY_BIRDS -> FLIGHT_REACH
+    fun reach(style: SmallHunt, prey: SmallPrey, p: Int): Float = when (style) {
+        SmallHunt.PEOPLE -> 1f
+        SmallHunt.ROOT -> when (prey) { SmallPrey.LOCUSTS -> 1f; SmallPrey.INSECTS, SmallPrey.POLLINATORS -> INSECT_CATCH; else -> 0f }
+        SmallHunt.STALK -> when (prey) {
+            SmallPrey.HYRAX -> rockHides[p]
+            SmallPrey.HERPS -> herpExposed(p)
+            SmallPrey.TORTOISES -> 0f
+            SmallPrey.INSECTS, SmallPrey.POLLINATORS -> INSECT_CATCH
+            SmallPrey.BIRDS -> FLIGHT_REACH
             else -> 1f
         }
     }
@@ -781,25 +781,25 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * of all; and the scattered insects that are out (plant-eaters and pollinators) as far as a
      * vertebrate hunting by sight can pick them up ([INSECT_CATCH]). Returns what was caught.
      */
-    fun catchSmall(p: Int, want: KgKm2, weather: Weather, most: Float = 0.5f, who: Int = TAKER_GROUPS, style: Int = PEOPLE): KgKm2 {
+    fun catchSmall(p: Int, want: KgKm2, weather: Weather, most: Float = 0.5f, who: Int = TAKER_GROUPS, style: SmallHunt = SmallHunt.PEOPLE): KgKm2 {
         val t = weather.temperature[p]
         val herpsOut = herpsActive(t, land.hydro.soil[p])
         val tortOut = t in 14f..33f
         // Desert rodents sleep through the summer heat in their burrows.
         val rodentsOut = !(t > 30f && land.hydro.soil[p] < 10f && annualRain[p] < DORMANT_RAIN_MM)
         // (Prey that is not out is not met: in the same order as [huntedAll].)
-        val yr = young[NEST_RODENTS][p]
-        val yha = young[NEST_HARES][p]
-        val yhy = young[NEST_HYRAX][p]
-        val yb = young[NEST_BIRDS][p]
-        val yh = young[NEST_HERPS][p]
-        val yt = young[NEST_TORTOISES][p]
-        val eR = if (rodentsOut) reachable(rodents[p], yr, reach(style, PREY_RODENTS, p)) else 0f
-        val eHa = reachable(hares[p], yha, reach(style, PREY_HARES, p)); val eHy = reachable(hyrax[p], yhy, reach(style, PREY_HYRAX, p))
-        val eH = if (herpsOut) reachable(herps[p], yh, reach(style, PREY_HERPS, p)) else 0f
-        val eB = reachable(birds[p], yb, reach(style, PREY_BIRDS, p))
-        val eT = if (tortOut) reachable(tortoises[p], yt, reach(style, PREY_TORTOISES, p)) else 0f
-        val eI = reach(style, PREY_INSECTS, p)
+        val yr = young[Nest.RODENTS][p]
+        val yha = young[Nest.HARES][p]
+        val yhy = young[Nest.HYRAX][p]
+        val yb = young[Nest.BIRDS][p]
+        val yh = young[Nest.HERPS][p]
+        val yt = young[Nest.TORTOISES][p]
+        val eR = if (rodentsOut) reachable(rodents[p], yr, reach(style, SmallPrey.RODENTS, p)) else 0f
+        val eHa = reachable(hares[p], yha, reach(style, SmallPrey.HARES, p)); val eHy = reachable(hyrax[p], yhy, reach(style, SmallPrey.HYRAX, p))
+        val eH = if (herpsOut) reachable(herps[p], yh, reach(style, SmallPrey.HERPS, p)) else 0f
+        val eB = reachable(birds[p], yb, reach(style, SmallPrey.BIRDS, p))
+        val eT = if (tortOut) reachable(tortoises[p], yt, reach(style, SmallPrey.TORTOISES, p)) else 0f
+        val eI = reach(style, SmallPrey.INSECTS, p)
         val ease = floatArrayOf(eR, eHa, eHy, 1f, eH, eT, eI, eI) + FloatArray(bird.size) { eB }
         val total = eR * rodents[p] + eHa * hares[p] + eHy * hyrax[p] + eB * birds[p] + eH * herps[p] + eT * tortoises[p] + locusts[p] +
             eI * (insects[p] + pollinators[p])
@@ -808,11 +808,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
         val took = takeSwitching(p, min(want.v, most * total), most, huntedAll, ease)
         // (Of what was taken of each kind, the young's share came out of the nest.)
-        fun tookYoung(i: Int, before: Float, now: Float, e: Float) {
+        fun tookYoung(i: Nest, before: Float, now: Float, e: Float) {
             if (before > 0f && e > 0f) young[i][p] = max(0f, young[i][p] - (before - now) * min(1f, young[i][p] / (e * before)))
         }
-        tookYoung(NEST_RODENTS, r0, rodents[p], eR); tookYoung(NEST_HARES, ha0, hares[p], eHa); tookYoung(NEST_HYRAX, hy0, hyrax[p], eHy)
-        tookYoung(NEST_BIRDS, b0, birdSum(p), eB); tookYoung(NEST_HERPS, h0, herps[p], eH); tookYoung(NEST_TORTOISES, t0, tortoises[p], eT)
+        tookYoung(Nest.RODENTS, r0, rodents[p], eR); tookYoung(Nest.HARES, ha0, hares[p], eHa); tookYoung(Nest.HYRAX, hy0, hyrax[p], eHy)
+        tookYoung(Nest.BIRDS, b0, birdSum(p), eB); tookYoung(Nest.HERPS, h0, herps[p], eH); tookYoung(Nest.TORTOISES, t0, tortoises[p], eT)
         herpLedger[HerpLedger.HUNTED][p] += h0 - herps[p]
         herpTakenBy[min(who, TAKER_GROUPS)][p] += h0 - herps[p]
         tortLedger[TortLedger.HUNTED][p] += t0 - tortoises[p]; tortTakenBy[min(who, TAKER_GROUPS)][p] += t0 - tortoises[p]
@@ -1095,36 +1095,6 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
          * on the nest; the rest fly. An estimate.
          */
         const val FLIGHT_REACH = 0.2f
-        /** Ways of hunting small prey, for [reach]: stalking and pouncing beasts, rooting beasts, people. */
-        const val STALK = 0
-        const val ROOT = 1
-        const val PEOPLE = 2
-        /** The small prey a hunter meets, as [reach] and [catchSmall] number them (the order of [huntedAll]; birds all as one). */
-        const val PREY_RODENTS = 0
-        const val PREY_HARES = 1
-        const val PREY_HYRAX = 2
-        const val PREY_LOCUSTS = 3
-        const val PREY_HERPS = 4
-        const val PREY_TORTOISES = 5
-        const val PREY_INSECTS = 6
-        const val PREY_POLLINATORS = 7
-        const val PREY_BIRDS = 8
-        /** The kinds whose [young] are kept: rodents, hares, hyrax, birds, reptiles and amphibians, tortoises. */
-        const val NEST_RODENTS = 0
-        const val NEST_HARES = 1
-        const val NEST_HYRAX = 2
-        const val NEST_BIRDS = 3
-        const val NEST_HERPS = 4
-        const val NEST_TORTOISES = 5
-        const val NEST_KINDS = 6
-        /**
-         * Days the young stay where they were born, unable to flee: mouse and vole pups some three weeks in
-         * the nest, leverets four lying up in their forms, hyrax young a month by the rocks, chicks a month
-         * from laying to fledging, the eggs and hatchlings of reptiles and amphibians some two months, and
-         * young tortoises their first year, while the shell is soft (grown ones beasts rarely kill: Sci.
-         * Rep. 2022, doi:10.1038/s41598-022-22288-9).
-         */
-        val NEST_DAYS = floatArrayOf(21f, 28f, 30f, 30f, 60f, 360f)
         /** The [herpTakenBy] slot of hunting groups and people (resident kinds take the slots below it). */
         const val TAKER_GROUPS = 40
         const val TAKER_FOXES = 41
@@ -1297,3 +1267,21 @@ object Prey {
     const val BIRDS = 3
     const val SIZE = 4
 }
+
+/** Ways of hunting small prey, for [HexSmallLife.reach]: stalking and pouncing beasts, rooting beasts, people. */
+enum class SmallHunt { STALK, ROOT, PEOPLE }
+
+/** The small prey a hunter meets, as [HexSmallLife.reach] and [HexSmallLife.catchSmall] take them (in the order of their huntedAll; birds all as one). */
+enum class SmallPrey { RODENTS, HARES, HYRAX, LOCUSTS, HERPS, TORTOISES, INSECTS, POLLINATORS, BIRDS }
+
+/**
+ * The kinds whose [HexSmallLife.young] are kept: rodents, hares, hyrax, birds, reptiles and amphibians, tortoises;
+ * each with the [days] its young stay where they were born, unable to flee: mouse and vole pups some three weeks in
+ * the nest, leverets four lying up in their forms, hyrax young a month by the rocks, chicks a month from laying to
+ * fledging, the eggs and hatchlings of reptiles and amphibians some two months, and young tortoises their first
+ * year, while the shell is soft (grown ones beasts rarely kill: Sci. Rep. 2022, doi:10.1038/s41598-022-22288-9).
+ */
+enum class Nest(val days: Float) { RODENTS(21f), HARES(28f), HYRAX(30f), BIRDS(30f), HERPS(60f), TORTOISES(360f) }
+
+/** Nest kind [n]'s row of a table kept per [Nest]. */
+@Suppress("NOTHING_TO_INLINE") inline operator fun Array<FloatArray>.get(n: Nest) = this[n.ordinal]

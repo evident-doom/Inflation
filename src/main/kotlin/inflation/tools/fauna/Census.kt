@@ -1,7 +1,9 @@
 package inflation.tools.fauna
 
 import inflation.ecology.Tally
+import inflation.ecology.Fed
 import inflation.ecology.HexFauna
+import inflation.ecology.get
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
 import inflation.ecology.Species
@@ -111,9 +113,9 @@ class Census(private val sim: HexSim) {
                 inN[k] / inA.coerceAtLeast(1.0)) })
         println("     residents fed from (fresh plants / straw / prey and carrion / reserves, shares of need per animal this year): " +
             fauna.kinds.indices.joinToString(", ") { k ->
-            val ff = fauna.fedFrom[k]; val h = ff[HexFauna.FED_HEADS].sumThenReset().coerceAtLeast(1e-9)
-            "%s %.2f/%.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[HexFauna.FED_PLANTS].sumThenReset() / h, ff[HexFauna.FED_STRAW].sumThenReset() / h,
-                ff[HexFauna.FED_ANIMAL].sumThenReset() / h, ff[HexFauna.FED_RESERVES].sumThenReset() / h)
+            val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sumThenReset().coerceAtLeast(1e-9)
+            "%s %.2f/%.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sumThenReset() / h, ff[Fed.STRAW].sumThenReset() / h,
+                ff[Fed.ANIMAL].sumThenReset() / h, ff[Fed.RESERVES].sumThenReset() / h)
         })
         // What they find there: edible forage, how green, how well the roe deer fed, how far water is.
         fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps ->
