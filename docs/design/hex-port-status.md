@@ -157,7 +157,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 - A sense of direction for every kind (`HexBearings`): each month, the way to better country it
   knows of within 60 km, peaks it can see out to 200 km (standing for their massifs), and a pull
   toward cooler or warmer country when the month is wrong for its coat. Groups trek when far out of
-  their country (packs leave their ground); resident kinds spill that way. The check's `--uniform`
+  their country (packs leave their ground); resident kinds spill that way. The check's `uniformStart=true`
   starts every kind spread evenly. (The switch that turned the sense off for comparison is gone.)
 
 ## Still missing

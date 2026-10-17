@@ -113,7 +113,7 @@ without them it is the hand-written choices.
 `hexFauna` runs the hex world for some years and prints each kind's numbers, the small life, the
 causes of death and the cost of a step, and for people a line against the ethnographic record (band
 size, density, camp moves, ground walked, plant share of food, birth spacing, children reaching 15,
-years left at 15, violent deaths). `--uniform` starts every kind spread evenly over the land;
+years left at 15, violent deaths). `uniformStart=true` in the config file starts every kind spread evenly over the land;
 `people=false` in the config file leaves people out, for comparison; `huntDiag=KIND` traces hungry
 and thirsty groups of a kind.
 

@@ -1,6 +1,7 @@
 package inflation.tools
 
 import inflation.Args
+import inflation.Config
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
@@ -21,12 +22,15 @@ import kotlin.math.abs
  * score moves by the world's own knock-on effects alone. If no choice moves the score much beyond
  * that, no learner can gain much by it.
  *
- * Usage: hex-people-leverage [--seeds A,B] [--size KM] [--years N] [--ways-only] [--moves-only]
+ * Usage: hex-people-leverage [--seeds A,B] [--size KM] [--years N]
+ * Config key leverageTests: all (default), moves (only the moves) or ways (only the ways).
  */
 fun main(args: Array<String>) {
-    val a = Args(args, "hex-people-leverage [--seeds A,B] [--size KM] [--years N] [--ways-only] [--moves-only]")
+    val a = Args(args, "hex-people-leverage [--seeds A,B] [--size KM] [--years N]")
     val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(91L); val size = a.int("--size", 600); val years = a.int("--years", 3)
-    val moves = !a.flag("--ways-only"); val ways = !a.flag("--moves-only")
+    val tests = Config.string("leverageTests") ?: "all"
+    require(tests in setOf("all", "moves", "ways")) { "leverageTests=$tests: all, moves or ways" }
+    val moves = tests != "ways"; val ways = tests != "moves"
     a.done()
     val kinds = Catalogue.learned
     val names = Schema.WAYS_OUT
