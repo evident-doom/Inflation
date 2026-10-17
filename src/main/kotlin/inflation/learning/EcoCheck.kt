@@ -11,7 +11,7 @@ import java.util.concurrent.Executors
  * The training's check of a round's networks: is the ecosystem as a whole no worse with them, and does
  * each role do better with its new network than with its kept one, the other roles as they now are?
  *
- * The current test world ([Config] key `ppo.checkWorld`, default rain-1) runs from its settled state for
+ * The current test world ([Config] key `ppo.checkWorld`, default lake-1) runs from its settled state for
  * `ppo.checkYears` years (default 5), its weather drawn `ppo.checkReplicates` ways (default 2), each
  * way with: every role's new network ("new"); every role's kept one ("kept"); and, for each role, its
  * kept network with the others' new ("kept herds" and so on). The runs are their own processes, beside
@@ -24,7 +24,7 @@ import java.util.concurrent.Executors
  *   network than with its kept one, the others as they now are.
  */
 class EcoCheck(private val out: File) {
-    private val world = TestWorlds.named(Config.string("ppo.checkWorld") ?: "rain-1")
+    private val world = TestWorlds.named(Config.string("ppo.checkWorld") ?: "lake-1")
     private val years = Config.int("ppo.checkYears", 5)
     private val replicates = Config.int("ppo.checkReplicates", 2)
     // (Daemon threads: a run that ends is not kept alive by its check's pool.)

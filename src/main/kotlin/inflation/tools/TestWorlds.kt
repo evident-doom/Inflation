@@ -65,6 +65,11 @@ object TestWorlds {
         Entry("rain-1", 1, 1000, 2000, "the full map, new rain"),
         Entry("rain-2", 2, 1000, 2000, "the full map, new rain"),
         Entry("rain-3", 3, 1000, 2000, "the full map, new rain"),
+        // The full map's seeds settled again once lake basins drained to their lakes and cliffs stood only where the
+        // slope breaks (#118): the current test worlds.
+        Entry("lake-1", 1, 1000, 2000, "the full map, lake basins drained"),
+        Entry("lake-2", 2, 1000, 2000, "the full map, lake basins drained"),
+        Entry("lake-3", 3, 1000, 2000, "the full map, lake basins drained"),
     )
 
     /** The worlds a change is tested on. */
