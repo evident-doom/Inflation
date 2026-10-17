@@ -74,6 +74,13 @@ const val BOW_GAIN = 0.5f
 const val SICKLE_GAIN = 0.3f
 const val GRINDER_GAIN = 0.4f
 const val BASKET_GAIN = 0.3f
+/**
+ * What a child (any under adulthood, infants included) adds to its band's gathering, against a grown hand: children
+ * of five and up gather fruit, small tubers and finds near camp, and Hadza children get some half of their own food
+ * in a good season (from memory, Blurton Jones, Hawkes and O'Connell), about a sixth of an adult's take for the
+ * children as a whole.
+ */
+const val CHILD_GATHER = 0.15f
 /** Extra small game and fish with nets and snares. */
 const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */

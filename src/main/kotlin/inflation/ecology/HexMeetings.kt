@@ -153,8 +153,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
     val eatsPlants = d.fruit + d.roots > 0f
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
-    val pickDays = PLANT_HANDLING_DAYS_PER_KG * Tuning.plantHandling / hands / carry + eats
-    val seedDays = SEED_HANDLING_DAYS_PER_KG * Tuning.plantHandling / hands / carry /
+    // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed.)
+    val gatherers = hands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    val pickDays = PLANT_HANDLING_DAYS_PER_KG * Tuning.plantHandling / gatherers / carry + eats
+    val seedDays = SEED_HANDLING_DAYS_PER_KG * Tuning.plantHandling / gatherers / carry /
         (1f + SICKLE_GAIN * (band?.has(Tool.SICKLE) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
     val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> hw.sameBandPlace(g.place, h).takeIf { it >= 0 } }
