@@ -37,12 +37,6 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     val finds = FloatArray(n)
     val roots = FloatArray(n) { p -> rootsCap(p) * 0.7f }
     /**
-     * Lichen on cold, open ground, kg/m²: it grows a few hundredths of its stand a year, so grazed-out
-     * heath takes decades to come back; reindeer dig it out from under the snow in winter.
-     */
-    val lichen = FloatArray(n) { p -> 0.8f * lichenCap(p) }
-    private fun lichenCap(p: Int) = LICHEN_MAX * (1f - land.annualGdd[p] / LICHEN_GDD).coerceIn(0f, 1f) * (1f - land.canopy(p))
-    /**
      * Wild cereals: large-seeded annual grasses (wild wheat and barley here), as a share of a place's
      * grass, where winters are wet, summers dry and the ground broken (the hilly flanks). Their ripe
      * grain, kg/m², is shed within weeks by ears that shatter; [domestic] is the share of the stand
@@ -140,14 +134,6 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                     domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT)
                 }
             }
-            // Lichen creeps back.
-            val lc = lichenCap(p)
-            if (lc > 0f) {
-                // (Lichen is its own plant, growing by the light; what dies of crowding goes to the litter.)
-                val change = LICHEN_GROWTH * days / Date.DAYS_PER_YEAR * max(lichen[p], 0.01f * lc) * (1f - lichen[p] / lc)
-                if (change < 0f) small.litter[p] += min(lichen[p], -change)
-                lichen[p] = max(0f, lichen[p] + change)
-            }
             // Small finds in season.
             val month = weather.date.month
             val honey = if (month in 3..5) HONEY * small.pollination[p] * (land.shrub[p] + 0.1f * land.tree[p]) else 0f
@@ -202,12 +188,6 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         /** Roots and mast to be dug, per kg/m² of herbs (and trees × 0.05); days to replace them. */
         const val ROOTS_SHARE = 0.0003f
         const val ROOTS_DAYS = 180f
-        /** Lichen: a full heath, kg/m²; warmth over a year (degree-days above 5 °C) beyond which none grows; share of the stand it adds a
-         * year; what a kilo is worth to a reindeer against green forage. */
-        const val LICHEN_MAX = 0.5f
-        const val LICHEN_GDD = 1200f
-        const val LICHEN_GROWTH = 0.05f
-        const val LICHEN_VALUE = 0.8f
         /** Small finds a day in season: honey per kg/m² of shrubs (and trees) at full pollination, truffles and snails per kg/m² of herbs,
          * eggs per kg of birds; days they keep. */
         const val HONEY = 7e-8f

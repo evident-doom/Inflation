@@ -257,7 +257,7 @@ class Census(private val sim: HexSim) {
             val gs = groups.groups.filter { it.alive && it.species == s }
             val byB = DoubleArray(landB.size); for (gr in gs) byB[biomeOf[gr.place]] += gr.size.toDouble()
             val heads = gs.sumOf { it.size }.toDouble()
-            val diet = if (s.carnivore) "" else listOf("grass", "browse", "fruit and roots", "straw and lichen").let { ks ->
+            val diet = if (s.carnivore) "" else listOf("grass", "browse", "fruit and roots", "straw").let { ks ->
                 val v = ks.map { (lastYear["${s.name}:ate $it, kg"] ?: 0).toDouble() }
                 val tot = v.sum().coerceAtLeast(1.0)
                 " | ate: " + ks.indices.joinToString(", ") { "%s %.0f%%".format(ks[it], 100 * v[it] / tot) }
