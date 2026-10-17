@@ -707,9 +707,10 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
             val openGrowth = (1 - shaded) * sunnyGrowth + shaded * shadyGrowth
             // The seeps grow as long as the ground water flows, whatever the weather brings.
             val seepGrowth = season * seeping(p)
-            // So does the wet valley floor, on the water table under it.
+            // So does the turf of the wet valley floor, as far as the water table under it lies within its roots' reach:
+            // when the river falls in a drought, the table under the floodplain falls with it and the meadows brown.
             val wetShare = wetFloor(p); val openShare = 1f - SEEP_SHARE - wetShare
-            val wetGrowth = season
+            val wetGrowth = season * (1f - floorTableM(p) / TURF_REACH_M).coerceIn(0f, 1f)
             val grassGrowth = openShare * openGrowth + SEEP_SHARE * seepGrowth + wetShare * wetGrowth
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, when the soil is moist enough to sprout
@@ -943,6 +944,8 @@ class HexLand(internal val hw: HexWorld, private val seed: Long) {
         const val DIG_SHARE = 0.1f
         /** Depth to which phreatophytes (tamarisk, poplar, acacia, date palm) reach the water table, m (often 5-10 m, from memory). */
         const val ROOT_REACH_M = 5f
+        /** Depth of water table the turf of a valley floor still draws on, m: grass roots and the capillary rise above the table (about 1-1.5 m, from memory). */
+        const val TURF_REACH_M = 1.5f
         /** Share of the plants of each kind of country that are edible (see [palatable]). */
         val PALATABLE = mapOf(
             Biome.ALPINE_MEADOW to 0.7f, Biome.STEPPE to 0.7f, Biome.OPEN_WOODLAND to 0.6f, Biome.FLOODPLAIN_FOREST to 0.5f,
