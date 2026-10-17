@@ -127,6 +127,17 @@ class HuntTally(private val sim: HexSim) {
         })
     }
 
+    /** Each hunting kind's tries on herds this year, by herd kind, and how many hunters the prey killed. */
+    fun printTriesOnHerds() {
+        println("     hunters' tries on herds (kind: herd tries / hunters killed): " + sim.groups.kinds.filter { it.carnivore }.joinToString("; ") { s ->
+            val prefix = Tally.of(s, Tally.TRIES_ON)
+            s.name + ": " + year.entries.filter { it.key.startsWith(prefix) }.sortedByDescending { it.value }.joinToString(", ") { (k, n) ->
+                val prey = k.removePrefix(prefix)
+                "%s %d / %d".format(prey, n, year[Tally.of(s, Tally.HURT_BY + prey)] ?: 0)
+            }
+        })
+    }
+
     /** Where people's hides came from this year: kg a person from herds, resident game and small pelts. */
     fun printPeoplesHides() {
         val heads = sim.groups.groups.filter { it.alive && it.species.human }.sumOf { it.size }.coerceAtLeast(1)

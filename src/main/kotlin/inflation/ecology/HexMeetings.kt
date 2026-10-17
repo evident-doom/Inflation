@@ -1041,6 +1041,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         stats.hunting.merge(it + "wary", (100 * wary).toInt(), Int::plus) }
     for (attempt in 0 until tries) {
     if (attempt > 0 && hunter.meatMet >= need) break
+    stats.hunting.merge(Tally.of(hunter.species, "${Tally.TRIES_ON}${herd.species.name}"), 1, Int::plus)
     if (rnd.nextFloat() < chance && herd.adults > 0) {
         // (The young keep to the middle of a big herd, out of reach.)
         if (herd.young > 0 && hunter.band?.holds(Tradition.TABOO_YOUNG) != true && rnd.nextFloat() < 0.5f * bandsIn(herd).pow(-BIG_HERD_SHELTERS)) {
@@ -1070,6 +1071,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     if (hunter.adults > 0 && rnd.nextFloat() < fightBack(herd.species, hunter.adults * hunter.species.massKg)) {
         adultsDied(hunter, 1, rnd)
         stats.deaths.merge(Tally.of(hunter.species, DeathCause.PREY_FOUGHT_BACK), 1, Int::plus)
+        stats.hunting.merge(Tally.of(hunter.species, "${Tally.HURT_BY}${herd.species.name}"), 1, Int::plus)
         hunter.band?.wounded(WOUNDED_PER_DEAD, hunter.adults)
         small.carrion[hunter.place] += hunter.species.massKg / (land.areaKm2[hunter.place] * 1e6f)
     }
