@@ -583,7 +583,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val b = g.band ?: return
     b.weeks++
     learnCountry(g, b, weather)
-    val p = Place(g.place)
+    val p = g.place
     val h = hw.hexOf(p)
     val area = land.m2(p)
     campAndCache(g, b, p, h, date)
@@ -664,7 +664,7 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
     // its scouts range further still.
     var lookKm = 0f
     for (h in g.path) {
-        val q = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue
+        val q = hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: continue
         lookKm = max(lookKm, land.bestViewKm[q] * sight(q, weather) / (1f - SIGHT_COVER * land.plants.cover(q)).coerceAtLeast(0.1f))
     }
     val scouts = b.scoutShare * g.adults
@@ -787,8 +787,8 @@ internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
     val got = spent * rate
     b.hearthWood = got / want
     val area = land.m2(p)
-    land.plants.consume(p, LifeForm.TREE, got * tree / (tree + shrub) / area)
-    land.plants.consume(p, LifeForm.SHRUB, got * shrub / (tree + shrub) / area)
+    land.plants.consume(p.i, LifeForm.TREE, got * tree / (tree + shrub) / area)
+    land.plants.consume(p.i, LifeForm.SHRUB, got * shrub / (tree + shrub) / area)
     return spent
 }
 
@@ -1373,10 +1373,10 @@ internal fun HexGroups.robCaches(weather: Weather) {
  * it gives up.
  */
 internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
-    val here = hw.hexOf(Place(g.place))
+    val here = hw.hexOf(g.place)
     if (!b.raidHex.none) {
         if (here == b.raidHex) {
-            val target = groups.firstOrNull { it.id == b.raidOn && it.alive && hw.hexOf(Place(it.place)) == here }
+            val target = groups.firstOrNull { it.id == b.raidOn && it.alive && hw.hexOf(it.place) == here }
             if (target?.band != null) raidsDue += g to target
             b.raidHex = Hex.NONE; b.raidOn = -1
         } else if (--b.raidWeeks <= 0) { b.raidHex = Hex.NONE; b.raidOn = -1 }
@@ -1529,8 +1529,8 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         // Grazing round the camp.
         val need = n * s.dailyIntakeKg * days / m2
         val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
-        val got = land.plants.consume(p, LifeForm.HERB, min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f)) +
-            land.plants.eatBrowse(p, need * d.browse / total)
+        val got = land.plants.consume(p.i, LifeForm.HERB, min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f)) +
+            land.plants.eatBrowse(p.i, need * d.browse / total)
         val fed = if (need > 0f) min(1f, got / need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /

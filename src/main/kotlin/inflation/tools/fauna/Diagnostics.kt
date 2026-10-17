@@ -5,6 +5,12 @@ import inflation.Config
 import inflation.ecology.HexFood
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * The extra lines a fauna check prints when the config asks for them:
@@ -53,8 +59,8 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         fun mean(f: (HexGroup) -> Double) = l.map(f).average()
         return "resident game %.0f kg/km², young per pack %.1f, holding ground %.0f%%, cover %.2f, water %.1f km, band %.1f".format(
             mean { g -> fauna.kinds.indices.sumOf { k -> ((fauna.adults[k][g.place] + fauna.young[k][g.place]) * fauna.kinds[k].massKg).toDouble() } },
-            mean { it.young.toDouble() }, 100.0 * l.count { it.home >= 0 } / l.size,
-            mean { land.plants.cover(it.place).toDouble() }, mean { land.drink.waterKm[it.place].toDouble() }, mean { hw.placeBand[it.place].toDouble() }) +
+            mean { it.young.toDouble() }, 100.0 * l.count { !it.home.none } / l.size,
+            mean { land.plants.cover(it.place.i).toDouble() }, mean { land.drink.waterKm[it.place.i].toDouble() }, mean { hw.placeBand[it.place.i].toDouble() }) +
             ", %.0f m, %.1f °C, fed %.2f, larder %.0f days, size %.0f, path %.1f hexes, days without water %.1f".format(
                 mean { hw.placeElevationM[it.place].toDouble() }, mean { weather.temperature[it.place].toDouble() },
                 mean { it.fed.toDouble() }, mean { (it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f)).toDouble() }, mean { it.size.toDouble() },

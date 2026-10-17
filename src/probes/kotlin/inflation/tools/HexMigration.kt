@@ -8,6 +8,12 @@ import inflation.world.WorldConfig
 import kotlin.math.sqrt
 import inflation.ecology.HexFood
 import inflation.ecology.HexGroups
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * Whether the land gives the herds a reason to migrate, and whether they take it. For each herd

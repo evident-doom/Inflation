@@ -14,6 +14,12 @@ import inflation.world.WorldConfig
 import inflation.ecology.HexGroup
 import inflation.ecology.Store
 import java.util.TreeMap
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * What trade does (with rounds on for the rites at the sources): where good stone, salt

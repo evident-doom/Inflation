@@ -72,6 +72,11 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 import java.awt.Point
 import java.awt.BasicStroke
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,
@@ -890,7 +895,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             sb.appendLine("goods: " + Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it.ordinal]) })
         }
         if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat from herds met this week %.0f kg".format(
-            if (g.home >= 0) g.home.toString() else "none", g.meatMet))
+            if (!g.home.none) g.home.toString() else "none", g.meatMet))
         else {
             val months = (0 until Date.MONTHS_PER_YEAR).filter { g.seasonPlace[it] >= 0 }
             sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })

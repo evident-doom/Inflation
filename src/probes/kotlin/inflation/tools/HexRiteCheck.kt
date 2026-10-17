@@ -7,6 +7,13 @@ import inflation.ecology.Catalogue
 import inflation.ecology.ROUNDS
 import inflation.world.Date
 import inflation.world.WorldConfig
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.Hex
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * What bands' rites do (run once as is, once with rounds=false, same seeds): each year, how far a

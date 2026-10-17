@@ -61,7 +61,7 @@ internal fun HexGroups.askControl(
     val features = Array(n) { feats[it].copyOf() }
     val scores = hand.copyOf(n)
     val net = policy?.scores(g, features, scores)
-    val model = places.indexOf(modelPlace).takeIf { it >= 0 } ?: places.indexOf(g.place).coerceAtLeast(0)
+    val model = places.indexOf(modelPlace).takeIf { it >= 0 } ?: places.indexOf(g.place.i).coerceAtLeast(0)
     // Its ways, as the model would set them now: a band's from what it knew of itself as the week began, a herd's or pack's from the same as set them.
     val knows: FloatArray; val out: FloatArray; val learnedWays: Boolean
     val band = g.band

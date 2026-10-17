@@ -5,6 +5,13 @@ import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.world.Date
 import inflation.world.WorldConfig
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.Hex
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * What the land offers people by how far it lies from the sea: land hexes in rings by their

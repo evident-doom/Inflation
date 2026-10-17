@@ -9,6 +9,13 @@ import inflation.ecology.Catalogue
 import inflation.world.Biome
 import inflation.world.Date
 import inflation.world.WorldConfig
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.Hex
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * When and where herds go hungry: for each herd kind, month by month over the run (after the first

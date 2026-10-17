@@ -10,6 +10,12 @@ import inflation.world.Biome
 import inflation.world.HexWorld
 import kotlin.math.abs
 import java.util.Random
+import inflation.ecology.get
+import inflation.ecology.set
+import inflation.ecology.contains
+import inflation.ecology.Place
+import inflation.ecology.hexOf
+import inflation.ecology.m2
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's
@@ -40,7 +46,7 @@ class Census(private val sim: HexSim) {
     fun fit() = groups.kinds.joinToString(", ") { s ->
         val gs = groups.groups.filter { it.alive && it.species == s }
         val heads = gs.sumOf { it.size }.coerceAtLeast(1)
-        "%s %.2f".format(s.name, gs.sumOf { it.size * fauna.monthFit(s, it.place, weather.date.month).toDouble() } / heads)
+        "%s %.2f".format(s.name, gs.sumOf { it.size * fauna.monthFit(s, it.place.i, weather.date.month).toDouble() } / heads)
     }
 
     /** How much of the land each kind's climate suits at all, and how strongly its groups feel drawn elsewhere. */
@@ -166,7 +172,7 @@ class Census(private val sim: HexSim) {
         println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " +
             groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gs = groups.groups.filter { it.alive && it.species == s }
-            "%s %d / %d / %d / %d / %d / %d".format(s.name, gs.size, gs.count { it.home >= 0 }, gs.count { it.home >= 0 && it.adults >= 2 },
+            "%s %d / %d / %d / %d / %d / %d".format(s.name, gs.size, gs.count { !it.home.none }, gs.count { !it.home.none && it.adults >= 2 },
                 gs.count { it.adults == 1 }, gs.sumOf { it.adults }, gs.sumOf { it.young })
         })
     }
