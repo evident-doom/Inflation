@@ -364,6 +364,35 @@ class HexGroups(
         val reached = IntList(); val queue = LongHeap()
         /** The candidates weighed for a policy: places, their features (arrays reused from week to week), hand-written scores. */
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
+        /** The place being weighed: what the hand-written score and the features both read of it. */
+        val terms = PlaceTerms()
+    }
+
+    /**
+     * The raw quantities of a place that the hand-written score ([scorePlace]) and a learned policy's features
+     * ([fillFeatures]) both weigh, worked out once for each place weighed; each scales them its own way.
+     */
+    private class PlaceTerms {
+        /** The cold or heat felt there now ([discomfort]), and what the place drains from the group ([drain]). */
+        var discomfort = 0f; var drain = 0f
+        /** The cold or heat coming there, in degrees beyond the kind's comfort (unscaled). */
+        var aheadC = 0f
+        /** How far drinking water lies, km (for people, including what they can dig for). */
+        var waterKm = 0f
+        /** How well the place's country suits the kind, as a log. */
+        var suitsLn = 0f
+        /** For plant-eaters, how nourishing the forage is ([freshness]); 0 for hunters and bands. */
+        var fresh = 0f
+    }
+
+    private fun fillTerms(t: PlaceTerms, g: HexGroup, p: Int, weather: Weather, date: Date) {
+        val s = g.species
+        t.discomfort = discomfort(s, p, weather)
+        t.drain = drain(g, p, weather)
+        t.aheadC = s.discomfortC(weather.forecastTemp(p), date.month)
+        t.waterKm = if (s.human) land.drink.peopleWaterKm(p) else land.drink.waterKm[p]
+        t.suitsLn = ln(fauna.suits(s, p).coerceAtLeast(1e-3f))
+        t.fresh = if (s.carnivore) 0f else freshness(s, p)
     }
     /** A growable list of ints, in the order added. */
     internal class IntList {
@@ -812,20 +841,20 @@ class HexGroups(
      * The features of place [p] (in hex [h]) for [g]'s choice this week, into [f] (cleared): what a learned
      * policy sees of it ([Feature]). The rest are worked out in [planInner] as the hand-written score weighs them.
      */
-    private fun fillFeatures(f: FloatArray, g: HexGroup, p: Int, h: Int, here: Int, month: Int, prey: Float, crowded: Float, hunters: Float, d: Float,
+    private fun fillFeatures(f: FloatArray, t: PlaceTerms, g: HexGroup, p: Int, h: Int, here: Int, month: Int, prey: Float, crowded: Float, hunters: Float, d: Float,
                              reach: Float, goal: Int, fromHere: Double, toGoal: Double, goalQ: Float, onRound: Boolean, roundStrength: Float, season: Double,
                              restless: Boolean, pull: Float, beyond: Float, foreign: Float, keepOn: Float, weather: Weather, date: Date) {
         val s = g.species
         // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
         if (s.carnivore) f[Feature.FOOD] = prey / (prey + PREY_HALF) else { val food = foodFor(s, p); f[Feature.FOOD] = saturate(food, Thresholds.FOOD_HALF) }
         // (And for herds how good it is, nourishment and protein, as the hand-written score weighs it: high ground's draw in summer.)
-        if (s.lifeway == Lifeway.HERD) f[Feature.FORAGE_QUALITY] = freshness(s, p)
-        f[Feature.CLIMATE] = ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
+        if (s.lifeway == Lifeway.HERD) f[Feature.FORAGE_QUALITY] = t.fresh
+        f[Feature.CLIMATE] = t.suitsLn / 2f
         f[Feature.CROWDING] = crowded
         f[Feature.HUNTERS] = hunters / (hunters + 3f)
-        f[Feature.DISCOMFORT] = min(2f, discomfort(s, p, weather) + drain(g, p, weather))
+        f[Feature.DISCOMFORT] = min(2f, t.discomfort + t.drain)
         // (The flies are felt now; only the weather is foreseen.)
-        f[Feature.DISCOMFORT_FORECAST] = min(2f, s.discomfortC(weather.forecastTemp(p), date.month) / 10f + drain(g, p, weather))
+        f[Feature.DISCOMFORT_FORECAST] = min(2f, t.aheadC / 10f + t.drain)
         // People see only what they can read: the weather coming as their lore and sky-watching
         // allow (else they expect this week's again), the beasts about as their tracking does,
         // and the food of country they do not know only dimly.
@@ -851,7 +880,7 @@ class HexGroups(
         f[Feature.FAT] = g.fat / s.maxFatDays.coerceAtLeast(1f)
         f[Feature.SEASON_SIN] = sin(season).toFloat(); f[Feature.SEASON_COS] = cos(season).toFloat()
         f[Feature.RESTLESS] = if (restless) 1f else 0f
-        f[Feature.WATER_DISTANCE] = min(3f, (if (s.human) land.drink.peopleWaterKm(p) else land.drink.waterKm[p]) / s.dailyTravelKm)
+        f[Feature.WATER_DISTANCE] = min(3f, t.waterKm / s.dailyTravelKm)
         f[Feature.DAYS_DRY] = min(2f, g.dry / s.daysWithoutWater)
         f[Feature.PULL] = pull
         // The moon (night hunters see and are seen by it) and how far off its young are due.
@@ -1005,13 +1034,14 @@ class HexGroups(
                 val crowded = crowdOf(s, p, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0))
                 val prey = if (s.carnivore) knownGame(g, kind, p, h, sensed) else 0f
                 val hunters = huntersKm2(p, h)
-                var score = scorePlace(c, p, h, d, toGoal, offGround, pull, keepOn, prey, crowded, hunters)
+                val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
+                var score = scorePlace(c, t, p, h, d, toGoal, offGround, pull, keepOn, prey, crowded, hunters)
                 seen?.add(p to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
                     if (nc == candFeats.size) candFeats += FloatArray(Feature.SIZE)
                     val f = candFeats[nc].also { it.fill(0f) }
-                    fillFeatures(f, g, p, h, here, month, prey, crowded, hunters, d, reach, goal, fromHere, toGoal, goalQ, onRound, roundStrength, season,
+                    fillFeatures(f, t, g, p, h, here, month, prey, crowded, hunters, d, reach, goal, fromHere, toGoal, goalQ, onRound, roundStrength, season,
                         restless, pull, beyond, foreign, keepOn, weather, date)
                     if (nc == buf.candScores.size) buf.candScores = buf.candScores.copyOf(2 * nc)
                     candPlaces += p; buf.candScores[nc] = score
@@ -1070,7 +1100,7 @@ class HexGroups(
      * its food or game, crowding and hunters, the cold, heat and flies, its own kind of country, what it senses coming,
      * water, the going, the season's place or round, its bearing and heading, staying, and a band's own pulls.
      */
-    private fun scorePlace(c: PlanContext, p: Int, h: Int, d: Float, toGoal: Double, offGround: Float, pull: Float, keepOn: Float,
+    private fun scorePlace(c: PlanContext, t: PlaceTerms, p: Int, h: Int, d: Float, toGoal: Double, offGround: Float, pull: Float, keepOn: Float,
         prey: Float, crowded: Float, hunters: Float): Float {
         val g = c.g; val s = g.species; val kind = c.kind; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
         val goalQ = c.goalQ; val onRound = c.onRound; val roundStrength = c.roundStrength; val fromHere = c.fromHere; val reach = c.reach
@@ -1088,24 +1118,24 @@ class HexGroups(
             // And ground where game was killed lately is shunned (the landscape of fear).
             // (How much there is levels off, how good it is does not: fresh, protein-rich growth is worth
             // more however much of the dry stuff stands, as it is to a mother and her young.)
-            saturate(food, Thresholds.FOOD_HALF) * freshness(s, p) - 0.5f * crowded - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) -
+            saturate(food, Thresholds.FOOD_HALF) * t.fresh - 0.5f * crowded - SHUN_HUNTERS * hunters / (hunters + HUNTERS_HALF_KG) -
                 HexFauna.FEAR_WEIGHT * fauna.afraid(p)
         }
         // The cold or heat it bears there, and what the place drains from it (the extra food the
         // cold burns, the feeding or working time the flies take), weighed as the going is: in
         // shares of the week's need.
-        score -= 0.5f * discomfort(s, p, weather) + drain(g, p, weather) + offGround
+        score -= 0.5f * t.discomfort + t.drain + offGround
         // Its own kind of country: open plains for a cheetah, crags for a wild goat, whatever the food.
-        if (!s.human) score += GROUP_HABITAT * ln(fauna.suits(s, p).coerceAtLeast(1e-3f))
+        if (!s.human) score += GROUP_HABITAT * t.suitsLn
         // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
         // too deep to dig through, and in a dry spell the rain on its way.
         val tAhead = weather.forecastTemp(p)
-        score -= 0.5f * s.foresight * s.discomfortC(tAhead, date.month) / 10f
+        score -= 0.5f * s.foresight * t.aheadC / 10f
         if (tAhead < 0f && weather.snowpack[p] + weather.forecastRain(p) > s.snowLimitMm) score -= 0.5f * s.foresight
         if (land.hydro.soil[p] < DRY_SOIL_MM) score += 0.3f * s.foresight * min(1f, weather.forecastRain(p) / RAIN_AHEAD_MM)
         // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
         // (People can dig for water in a dry bed where it lies near.)
-        score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * (if (s.human) land.drink.peopleWaterKm(p) else land.drink.waterKm[p]) / s.dailyTravelKm
+        score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
         if (thirsty && land.drink.water[p] < 0.05f && !(s.human && land.drink.dug[p] >= 0.05f)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need (see [walkCost]).
