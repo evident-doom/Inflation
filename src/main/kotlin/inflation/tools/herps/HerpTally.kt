@@ -52,7 +52,7 @@ class HerpTally(private val run: HexLearning.Run, private val regions: HerpRegio
         for (k in 0 until nb) for (p in 0 until n) if (regions.classOf[p] >= 0) it[k] += (sl.birdCapacityAt(k, p) * land.areaKm2[p]).toDouble()
     }
     private val boar = run.fauna.kinds.indexOfFirst { it.name == "wild boar" }
-    val song = HexSmallLife.BIRDS.indexOfFirst { it.name == "songbirds" }
+    val song = HexSmallLife.BIRDS.indexOf(HexSmallLife.SONGBIRDS)
 
     /** Before step [w]: at the start of the shown years, clears the model's ledgers and notes the herps. */
     fun beforeStep(w: Int) {

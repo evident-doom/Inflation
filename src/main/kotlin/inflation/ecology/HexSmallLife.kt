@@ -186,19 +186,19 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val grass = land.herb[p] / (land.herb[p] + 0.2f)
         val shrubby = min(1f, land.shrub[p])
         val dry = (1f - annualRain[p] / 500f).coerceIn(0f, 1f)
-        return when (BIRDS[k].name) {
-            "chukar" -> 6f * rockChukar[p] * (0.3f + 0.7f * open(p)) * (0.3f + 0.7f * shrubby) * grass
-            "quail" -> 5f * open(p) * grass
-            "sandgrouse" -> 3f * open(p) * dry
-            "rock dove" -> 4f * rockKopje[p] * (0.3f + 0.7f * grass)
-            "mallard" -> 6f * waterfowl[p] * (0.5f + 0.5f * grass)
-            "greylag goose" -> 10f * waterfowl[p] * grass
-            "crane" -> 8f * waterfowl[p] * (0.5f + 0.5f * grass) + 1f * open(p) * grass
-            "white stork" -> 3f * waterfowl[p] + 2f * open(p) * grass
+        return when (BIRDS[k]) {
+            CHUKAR -> 6f * rockChukar[p] * (0.3f + 0.7f * open(p)) * (0.3f + 0.7f * shrubby) * grass
+            QUAIL -> 5f * open(p) * grass
+            SANDGROUSE -> 3f * open(p) * dry
+            ROCK_DOVE -> 4f * rockKopje[p] * (0.3f + 0.7f * grass)
+            MALLARD -> 6f * waterfowl[p] * (0.5f + 0.5f * grass)
+            GREYLAG_GOOSE -> 10f * waterfowl[p] * grass
+            CRANE -> 8f * waterfowl[p] * (0.5f + 0.5f * grass) + 1f * open(p) * grass
+            WHITE_STORK -> 3f * waterfowl[p] + 2f * open(p) * grass
             // Rich woodland and scrub hold some 40-120 breeding pairs per 10 ha (Bialowieza, Tomialojc &
             // Wesolowski, J. Ornithol. 2004, doi:10.1007/s10336-003-0017-2); at some 20-25 g a bird, up to
             // about 40 kg/km2. Open grass holds a tenth of that (larks, pipits).
-            "songbirds" -> 40f * (0.1f + 0.9f * (1f - open(p)))
+            SONGBIRDS -> 40f * (0.1f + 0.9f * (1f - open(p)))
             else -> 0f
         }
     }
@@ -583,7 +583,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Eagles at place [p] (where there are crags): a pair needs about a kilo a day; they take what is out in the open among the rocks. */
     private fun stepEagles(p: Int, month: Int) {
         val open = open(p)
-        val prey = (hyrax[p] + hares[p] + bird[CHUKAR][p] + bird[ROCK_DOVE][p]) * (0.3f + 0.7f * open)
+        val prey = (hyrax[p] + hares[p] + bird[CHUKAR_AT][p] + bird[ROCK_DOVE_AT][p]) * (0.3f + 0.7f * open)
         val need = eagles[p] * EAGLE_NEED * days
         // Carrion first, as the foxes: a carcass seen from the air costs no chase, and in winter it is
         // much of what they live on. They see it as they see prey, best in the open.
@@ -739,13 +739,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      */
     fun reach(style: Int, prey: Int, p: Int): Float = when (style) {
         PEOPLE -> 1f
-        ROOT -> when (prey) { 3 -> 1f; 6, 7 -> INSECT_CATCH; else -> 0f }
+        ROOT -> when (prey) { PREY_LOCUSTS -> 1f; PREY_INSECTS, PREY_POLLINATORS -> INSECT_CATCH; else -> 0f }
         else -> when (prey) {
-            2 -> rockHides[p]
-            4 -> herpExposed(p)
-            5 -> 0f
-            6, 7 -> INSECT_CATCH
-            8 -> FLIGHT_REACH
+            PREY_HYRAX -> rockHides[p]
+            PREY_HERPS -> herpExposed(p)
+            PREY_TORTOISES -> 0f
+            PREY_INSECTS, PREY_POLLINATORS -> INSECT_CATCH
+            PREY_BIRDS -> FLIGHT_REACH
             else -> 1f
         }
     }
@@ -773,12 +773,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val yb = young[NEST_BIRDS][p]
         val yh = young[NEST_HERPS][p]
         val yt = young[NEST_TORTOISES][p]
-        val eR = if (rodentsOut) reachable(rodents[p], yr, reach(style, 0, p)) else 0f
-        val eHa = reachable(hares[p], yha, reach(style, 1, p)); val eHy = reachable(hyrax[p], yhy, reach(style, 2, p))
-        val eH = if (herpsOut) reachable(herps[p], yh, reach(style, 4, p)) else 0f
-        val eB = reachable(birds[p], yb, reach(style, 8, p))
-        val eT = if (tortOut) reachable(tortoises[p], yt, reach(style, 5, p)) else 0f
-        val eI = reach(style, 6, p)
+        val eR = if (rodentsOut) reachable(rodents[p], yr, reach(style, PREY_RODENTS, p)) else 0f
+        val eHa = reachable(hares[p], yha, reach(style, PREY_HARES, p)); val eHy = reachable(hyrax[p], yhy, reach(style, PREY_HYRAX, p))
+        val eH = if (herpsOut) reachable(herps[p], yh, reach(style, PREY_HERPS, p)) else 0f
+        val eB = reachable(birds[p], yb, reach(style, PREY_BIRDS, p))
+        val eT = if (tortOut) reachable(tortoises[p], yt, reach(style, PREY_TORTOISES, p)) else 0f
+        val eI = reach(style, PREY_INSECTS, p)
         val ease = floatArrayOf(eR, eHa, eHy, 1f, eH, eT, eI, eI) + FloatArray(bird.size) { eB }
         val total = eR * rodents[p] + eHa * hares[p] + eHy * hyrax[p] + eB * birds[p] + eH * herps[p] + eT * tortoises[p] + locusts[p] +
             eI * (insects[p] + pollinators[p])
@@ -881,7 +881,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     /** How far the insects that are out at [p] are booming, 0..1: what draws the insect-eating migrants. */
     private fun boom(p: Int): Float { val x = insects[p] + pollinators[p] + locusts[p] + biting[p]; return x / (x + BOOM_HALF) }
-    private val eaglePrey by lazy { arrayOf(hyrax, hares, bird[CHUKAR], bird[ROCK_DOVE]) }
+    private val eaglePrey by lazy { arrayOf(hyrax, hares, bird[CHUKAR_AT], bird[ROCK_DOVE_AT]) }
 
     /**
      * Takes up to [want] kg/km² at place [p] from [stocks], at most [most] of each. Hunters switch
@@ -1003,26 +1003,34 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val WETLANDS = setOf("MARSH", "SWAMP_FOREST", "BOG", "SALT_MARSH", "MANGROVE")
         /** Share of what small plant-eaters eat that becomes their own growth (about a tenth for warm-blooded animals, Lindeman's rule). */
         const val SMALL_EFFICIENCY = 0.1f
+        val CHUKAR = BirdKind("chukar", 4..6, 4f, 0.9f, null,
+            floatArrayOf(0.7f, 0.7f, 0.5f, 0.5f, 0.6f, 0.6f), insectShare = 0.3f)
+        val QUAIL = BirdKind("quail", 4..7, 6f, 1.2f, (4..9).toSet(),
+            floatArrayOf(0.7f, 0.9f, 0.7f, 0.5f, 0.5f, 0.4f), insectShare = 0.4f)
+        val SANDGROUSE = BirdKind("sandgrouse", 4..7, 1.5f, 0.7f, null,
+            floatArrayOf(0.5f, 0.6f, 0.2f, 0.3f, 0.3f, 0.4f), insectShare = 0.05f)
+        val ROCK_DOVE = BirdKind("rock dove", 3..10, 5f, 0.8f, null,
+            floatArrayOf(0.9f, 0.9f, 0.9f, 0.8f, 0.7f, 0.6f)) // became the pigeon
+        val MALLARD = BirdKind("mallard", 4..6, 4f, 0.8f, null,
+            floatArrayOf(0.9f, 0.8f, 0.8f, 0.7f, 0.6f, 0.6f), insectShare = 0.3f) // became the duck
+        val GREYLAG_GOOSE = BirdKind("greylag goose", 5..6, 1.5f, 0.5f, (setOf(10, 11, 0, 1, 2, 3)),
+            floatArrayOf(0.8f, 0.8f, 0.8f, 0.6f, 0.6f, 0.8f)) // became the goose
+        // Common cranes winter by the thousand in the rift's marshes and fields; white storks pass
+        // through on the way to and from Africa in spring and late summer. Both breed far away.
+        val CRANE = BirdKind("crane", 5..6, 0.5f, 0.3f, setOf(10, 11, 0, 1, 2),
+            floatArrayOf(0.5f, 0.3f, 0.3f, 0.4f, 0.3f, 0.5f), insectShare = 0.1f)
+        val WHITE_STORK = BirdKind("white stork", 5..6, 1.2f, 0.3f, setOf(2, 3, 7, 8),
+            floatArrayOf(0.5f, 0.3f, 0.3f, 0.5f, 0.4f, 0.4f), insectShare = 0.6f)
+        // Songbirds (larks, warblers, tits, finches, thrushes) as one guild: small, many, short-lived,
+        // raising their broods on insects. About half the adults die each year; the hunters here take
+        // some 10-15% of them, so the rest (cold, hunger, sickness, old age) is about 0.45.
+        val SONGBIRDS = BirdKind("songbirds", 4..7, 3f, 0.45f, null,
+            floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f), insectShare = 0.7f)
         /**
          * The wild birds. Months count from the winter solstice (0 about January): quail are here
          * from spring to early autumn, greylag geese from autumn to early spring.
          */
-        val BIRDS = listOf(
-            BirdKind("chukar", 4..6, 4f, 0.9f, null, floatArrayOf(0.7f, 0.7f, 0.5f, 0.5f, 0.6f, 0.6f), insectShare = 0.3f),
-            BirdKind("quail", 4..7, 6f, 1.2f, (4..9).toSet(), floatArrayOf(0.7f, 0.9f, 0.7f, 0.5f, 0.5f, 0.4f), insectShare = 0.4f),
-            BirdKind("sandgrouse", 4..7, 1.5f, 0.7f, null, floatArrayOf(0.5f, 0.6f, 0.2f, 0.3f, 0.3f, 0.4f), insectShare = 0.05f),
-            BirdKind("rock dove", 3..10, 5f, 0.8f, null, floatArrayOf(0.9f, 0.9f, 0.9f, 0.8f, 0.7f, 0.6f)), // became the pigeon
-            BirdKind("mallard", 4..6, 4f, 0.8f, null, floatArrayOf(0.9f, 0.8f, 0.8f, 0.7f, 0.6f, 0.6f), insectShare = 0.3f), // became the duck
-            BirdKind("greylag goose", 5..6, 1.5f, 0.5f, (setOf(10, 11, 0, 1, 2, 3)), floatArrayOf(0.8f, 0.8f, 0.8f, 0.6f, 0.6f, 0.8f)), // became the goose
-            // Common cranes winter by the thousand in the rift's marshes and fields; white storks pass
-            // through on the way to and from Africa in spring and late summer. Both breed far away.
-            BirdKind("crane", 5..6, 0.5f, 0.3f, setOf(10, 11, 0, 1, 2), floatArrayOf(0.5f, 0.3f, 0.3f, 0.4f, 0.3f, 0.5f), insectShare = 0.1f),
-            BirdKind("white stork", 5..6, 1.2f, 0.3f, setOf(2, 3, 7, 8), floatArrayOf(0.5f, 0.3f, 0.3f, 0.5f, 0.4f, 0.4f), insectShare = 0.6f),
-            // Songbirds (larks, warblers, tits, finches, thrushes) as one guild: small, many, short-lived,
-            // raising their broods on insects. About half the adults die each year; the hunters here take
-            // some 10-15% of them, so the rest (cold, hunger, sickness, old age) is about 0.45.
-            BirdKind("songbirds", 4..7, 3f, 0.45f, null, floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f), insectShare = 0.7f),
-        )
+        val BIRDS = listOf(CHUKAR, QUAIL, SANDGROUSE, ROCK_DOVE, MALLARD, GREYLAG_GOOSE, CRANE, WHITE_STORK, SONGBIRDS)
         /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
         const val VULTURE_RANGE_KM = 80.0
         const val VULTURE_SPACING_KM = 80.0
@@ -1068,6 +1076,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val STALK = 0
         const val ROOT = 1
         const val PEOPLE = 2
+        /** The small prey a hunter meets, as [reach] and [catchSmall] number them (the order of [huntedAll]; birds all as one). */
+        const val PREY_RODENTS = 0
+        const val PREY_HARES = 1
+        const val PREY_HYRAX = 2
+        const val PREY_LOCUSTS = 3
+        const val PREY_HERPS = 4
+        const val PREY_TORTOISES = 5
+        const val PREY_INSECTS = 6
+        const val PREY_POLLINATORS = 7
+        const val PREY_BIRDS = 8
         /** The kinds whose [young] are kept: rodents, hares, hyrax, birds, reptiles and amphibians, tortoises. */
         const val NEST_RODENTS = 0
         const val NEST_HARES = 1
@@ -1189,8 +1207,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val RODENT_DEATH = inflation.Config.float("t.rodentDeath", 1.2f)
         /** Share of what herds and packs eat that comes back as dung. */
         const val DUNG = 0.5f
-        private val CHUKAR = BIRDS.indexOfFirst { it.name == "chukar" }
-        private val ROCK_DOVE = BIRDS.indexOfFirst { it.name == "rock dove" }
+        private val CHUKAR_AT = BIRDS.indexOf(CHUKAR)
+        private val ROCK_DOVE_AT = BIRDS.indexOf(ROCK_DOVE)
     }
 }
 
