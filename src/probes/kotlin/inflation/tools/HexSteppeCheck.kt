@@ -9,6 +9,9 @@ import inflation.ecology.get
 import inflation.tools.fauna.FaunaCheckOptions
 import inflation.world.Biome
 import inflation.world.Date
+import inflation.world.HexPlants
+import inflation.world.LifeForm
+import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.min
 
@@ -59,6 +62,11 @@ fun main(args: Array<String>) {
     val fStraw = Array(4) { DoubleArray(nb) }; val fGrazed = Array(4) { DoubleArray(nb) }; val fCured = Array(4) { DoubleArray(nb) }
     // What a week's grazing can take without eating the place bare (as the feeding reckons it), kg/km²/day.
     val fSupply = Array(4) { DoubleArray(nb) }
+    // What holds the grass: the stand against its ceiling, the ceiling after grazing to lawn and rooting, the year's
+    // soil moisture the ceiling is set by (and its moisture term), the soil's water now, and while the sward grows.
+    val gHerb = Array(4) { DoubleArray(nb) }; val gCap = Array(4) { DoubleArray(nb) }; val gCapGrazed = Array(4) { DoubleArray(nb) }
+    val gMoist = Array(4) { DoubleArray(nb) }; val gMTerm = Array(4) { DoubleArray(nb) }; val gWet = Array(4) { DoubleArray(nb) }
+    val gGrowWet = Array(4) { DoubleArray(nb) }; val gGrowA = Array(4) { DoubleArray(nb) }; val gPerennial = Array(4) { DoubleArray(nb) }
     // Per herd kind: quality and its parts by kind of country and season (area-weighted, once a month).
     class Judge { val a = Array(4) { DoubleArray(nb) }; val q = Array(4) { DoubleArray(nb) }; val food = Array(4) { DoubleArray(nb) }
         val ground = Array(4) { DoubleArray(nb) }; val fresh = Array(4) { DoubleArray(nb) }; val tether = Array(4) { DoubleArray(nb) }
@@ -105,6 +113,14 @@ fun main(args: Array<String>) {
             val reach = HexFauna.REACH
             fSupply[se][bi] += a * reach * land.palatable[p] * land.plants.herb[p] * 1e6 / 7
             fCured[se][bi] += a * (if (land.plants.cured[p]) 1.0 else 0.0)
+            val pl = land.plants; val cap = pl.ceiling(LifeForm.HERB, p)
+            val lawn = 1f - exp(-pl.grazing[p] / HexPlants.LAWN_SCALE); val rooted = 1f - exp(-pl.rooting[p] / HexPlants.ROOT_SCALE)
+            gHerb[se][bi] += a * pl.herb[p]; gCap[se][bi] += a * cap; gCapGrazed[se][bi] += a * cap * (1f - 0.5f * lawn - 0.2f * rooted)
+            gMoist[se][bi] += a * pl.moisture[p]
+            gMTerm[se][bi] += a * ((pl.moisture[p] - LifeForm.HERB.moistureMin) / (LifeForm.HERB.moistureFull - LifeForm.HERB.moistureMin)).coerceIn(0f, 1f)
+            val wet = sim.land.hydro.soil[p] / sim.land.hydro.soilCap[p]
+            gWet[se][bi] += a * wet; gPerennial[se][bi] += a * pl.perennialShare[p]
+            if (pl.growthWarmth(p, sim.weather.temperature[p]) > 0f && !pl.cured[p]) { gGrowWet[se][bi] += a * wet; gGrowA[se][bi] += a }
         }
         // How each kind judges the land, once a month.
         if (m != lastMonth) {
@@ -167,6 +183,22 @@ fun main(args: Array<String>) {
             val a = fArea[se][bi].coerceAtLeast(1e-9)
             "%s grass %.3f green %.2f nour %.2f cured %.2f straw %.1f grazed %.1f of %.0f".format(seasonNames[se].take(3), fGrass[se][bi] / a, fGreen[se][bi] / a,
                 fNour[se][bi] / a, fCured[se][bi] / a, 1000 * fStraw[se][bi] / a, fGrazed[se][bi] / a, fSupply[se][bi] / a)
+        })
+    }
+    println()
+    println("months, normal (°C, area mean): " + shown.joinToString(", ") { bi ->
+        var a = 0.0; var c = 0.0; var w = 0.0
+        for (p in 0 until n) if (biomeOf[p] == bi) { val x = land.areaKm2[p].toDouble(); a += x
+            c += x * (0 until 12).minOf { hw.placeTemp(p, it) }; w += x * (0 until 12).maxOf { hw.placeTemp(p, it) } }
+        "%s coldest %.1f warmest %.1f".format(bname(bi), c / a, w / a)
+    })
+    println("== what holds the grass, by kind of country and season: herbs g/m² against their ceiling, and the ceiling after grazing to lawn and rooting; the year's soil moisture the ceiling is set by and its moisture term; the soil's water now (of what it holds), and in the weeks the sward is growing (share of the area-weeks); perennial share")
+    for (bi in shown) {
+        println("  %-24s".format(bname(bi)) + (0 until 4).joinToString("  |  ") { se ->
+            val a = fArea[se][bi].coerceAtLeast(1e-9); val ga = gGrowA[se][bi]
+            "%s herb %.0f cap %.0f grazed cap %.0f moist %.2f m %.2f wet %.2f growing %s (%.0f%%) per %.2f".format(seasonNames[se].take(3),
+                1000 * gHerb[se][bi] / a, 1000 * gCap[se][bi] / a, 1000 * gCapGrazed[se][bi] / a, gMoist[se][bi] / a, gMTerm[se][bi] / a, gWet[se][bi] / a,
+                if (ga > 0) "%.2f".format(gGrowWet[se][bi] / ga) else "-", 100 * ga / a, gPerennial[se][bi] / a)
         })
     }
     for (s in herds) {
