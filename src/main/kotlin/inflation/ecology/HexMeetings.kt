@@ -59,6 +59,13 @@ internal fun tieBreak(id: Int, other: Int, day: Long): Long {
 internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = s.groupSize * s.massKg): Float {
     val size = min(1f, pack / (1.5f * ps.massKg))
     val small = if (ps.massKg < s.massKg * 0.05f) 0.3f else 1f // too small to be worth a pack's while
+    return (size * small * (1f - ps.defence) * reachRaw(s, ps, p)).coerceIn(0f, 1f)
+}
+
+/** How often hunter [s] gets to grips with prey [ps] in place [p], 0..1: the part of [catchable] that is closing in, not overpowering it. */
+internal fun HexGroups.reach(s: Species, ps: Species, p: Int) = reachRaw(s, ps, p).coerceIn(1e-3f, 1f)
+
+private fun HexGroups.reachRaw(s: Species, ps: Species, p: Int): Float {
     // Shelter: crags, dens, thickets and trees, as the prey uses them; small prey hide in any cover.
     // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
     // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
@@ -71,7 +78,7 @@ internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = 
     val speed = s.stalking + (1f - s.stalking) * min(1f, s.speedKmh / ps.speedKmh)
     // And it needs room to run: in thick woods and scrub a chase ends at the first tangle.
     val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(p)
-    return (size * small * (1f - ps.defence) * refuge * hide * dark * speed * room).coerceIn(0f, 1f)
+    return refuge * hide * dark * speed * room
 }
 
 /**
@@ -959,11 +966,17 @@ internal fun killDays(chance: Float, kg: Float, packKg: Float) =
 
 /**
  * Whether game of [ps], killed at [chance] a try, is worth [hunter]'s chase: a kill must yield at least what the
- * rest of its diet brings for the time (Charnov's rule against [HexGroup.dietRate]).
+ * rest of its diet brings for the time (Charnov's rule against [HexGroup.dietRate]), less what the hunters it may
+ * cost are worth. Armed prey kill a hunter now and then ([fightBack]) when the hunters get to grips with them
+ * (at [reach] a try); a hunter lost is all it would
+ * yet have eaten, its share of the food for the life still before it, by the odds it now lives under (the hungry,
+ * the cold and the sick risk more, having less to lose).
  */
-internal fun HexGroups.worthChasing(hunter: HexGroup, ps: Species, chance: Float, packKg: Float): Boolean {
+internal fun HexGroups.worthChasing(hunter: HexGroup, ps: Species, chance: Float, packKg: Float, reach: Float): Boolean {
     val kg = killKg(hunter, ps)
-    return kg / killDays(chance, kg, packKg) >= hunter.dietRate
+    val lost = fightBack(ps, packKg) * reach / chance.coerceAtLeast(1e-3f)
+    val life = hunter.species.dailyIntakeKg * days / max(hunter.deathOdds, hunter.species.backgroundMortality * years)
+    return (kg - lost * life) / killDays(chance, kg, packKg) >= hunter.dietRate
 }
 
 /**
@@ -1022,7 +1035,8 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     val chance = killChance(hunter, herd.species, catchable, wary, bandsIn(herd))
     // Game worth less for the time a kill takes than the rest of its diet brings is let pass, herd or resident
     // alike (Charnov's rule; see [HexGroup.dietRate]).
-    if (SHARED_HUNT && !worthChasing(hunter, herd.species, chance, packKg)) {
+    val reach = reach(hunter.species, herd.species, p.i)
+    if (SHARED_HUNT && !worthChasing(hunter, herd.species, chance, packKg, reach)) {
         diag(herd.species, "herd not worth it", met.toFloat())
         stats.hunting.merge("${hunter.species.name}:herds not worth it", 1, Int::plus)
         note(hunter) { "let the %s pass: not worth the chase".format(herd.species.name) }
@@ -1042,7 +1056,9 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     for (attempt in 0 until tries) {
     if (attempt > 0 && hunter.meatMet >= need) break
     stats.hunting.merge(Tally.of(hunter.species, "${Tally.TRIES_ON}${herd.species.name}"), 1, Int::plus)
-    if (rnd.nextFloat() < chance && herd.adults > 0) {
+    // The hunters close in on an animal (at [reach]), and then it falls or it fights them off.
+    val closed = rnd.nextFloat() < reach
+    if (closed && rnd.nextFloat() < chance / reach && herd.adults > 0) {
         // (The young keep to the middle of a big herd, out of reach.)
         if (herd.young > 0 && hunter.band?.holds(Tradition.TABOO_YOUNG) != true && rnd.nextFloat() < 0.5f * bandsIn(herd).pow(-BIG_HERD_SHELTERS)) {
             herd.young--
@@ -1067,8 +1083,8 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         note(hunter) { "made a kill from the herd" }; note(herd) { "lost one to the hunters" }
         stop[hk] = min(stop[hk], hi) // stays to eat
     }
-    // Big, armed prey fight back: a horn or a kick now and then kills one of the hunters.
-    if (hunter.adults > 0 && rnd.nextFloat() < fightBack(herd.species, hunter.adults * hunter.species.massKg)) {
+    // Big, armed prey fight back when the hunters close in: a horn or a kick now and then kills one of them.
+    if (closed && hunter.adults > 0 && rnd.nextFloat() < fightBack(herd.species, hunter.adults * hunter.species.massKg)) {
         adultsDied(hunter, 1, rnd)
         stats.deaths.merge(Tally.of(hunter.species, DeathCause.PREY_FOUGHT_BACK), 1, Int::plus)
         stats.hunting.merge(Tally.of(hunter.species, "${Tally.HURT_BY}${herd.species.name}"), 1, Int::plus)

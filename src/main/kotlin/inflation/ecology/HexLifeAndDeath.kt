@@ -350,7 +350,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.parent = g.id
     n.dry = g.dry
     n.chasedOn = g.chasedOn
-    n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn; n.dietRate = g.dietRate
+    n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn; n.dietRate = g.dietRate; n.deathOdds = g.deathOdds
     n.birthMonth = g.birthMonth
     n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.
@@ -486,6 +486,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     var adultSum = 0f; var youngSum = 0f
     for (h in hazards) { adultSum += h.adult; youngSum += h.young }
     val adultOdds = adultSum.coerceIn(0f, 0.9f)
+    g.deathOdds = adultOdds
     val youngOdds = (youngSum * spared).coerceIn(0f, 0.95f)
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
         stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())

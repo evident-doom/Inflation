@@ -99,6 +99,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      * Game it meets is worth chasing only if a kill of it yields more for the time it takes (Charnov's rule).
      */
     var dietRate = 0f
+    /** Its grown ones' odds of dying in a step, as its last week's hazards had them (0 before its first week): what a life risked is set against. */
+    var deathOdds = 0f
     /** For hunters, with [HERDS_IN_DIET]: the herds it came on unseen this week, for its diet pass. Not saved. */
     @Transient var herdsMetWeek: ArrayList<HerdMet>? = null
     /** How often it has come on herds of [k] lately, at [day]. */
