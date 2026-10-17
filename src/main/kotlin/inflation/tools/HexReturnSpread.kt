@@ -25,7 +25,7 @@ fun main(args: Array<String>) {
     val kinds = Catalogue.learned
     val models = Role.entries.map { SharedMover.load(it.file(dir)) }
     val all = (0 until worlds).toList().parallelStream().map { w ->
-        HexPpo.play(WorldConfig(seed = 50_000L + w, widthKm = size, heightKm = size), years, kinds, models).first }.toList().flatten()
+        HexPpo.play(WorldConfig(seed = 50_000L + w, widthKm = size, heightKm = size), years, kinds, models) }.toList().flatten()
     for (r in Role.entries) {
         val rs = all.filter { Role.of(it.kind) == r }.map { it.ret.toDouble() }.sorted()
         if (rs.isEmpty()) continue

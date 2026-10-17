@@ -61,6 +61,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 import java.io.File
@@ -466,13 +467,15 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             }
             // The chosen measure as a tint over the hexes (see [ViewLayers]), shown as the mode says.
             val tint = Measure.entries[tintChoice.selectedIndex]
+            val legends = ArrayList<MapLegend>()
             if (tint != Measure.NONE) {
                 val rad = hex.hexKm / sqrt(3.0)
                 val mode = ViewLayers.Mode.entries[modeChoice.selectedIndex]
                 val key = layers.key(tint, causeChoice.selectedIndex)
                 val colours = arrayOfNulls<Color>(hex.size)
                 val legend = paintTint(tint, mode, key, colours)
-                if (legendText.text != legend) SwingUtilities.invokeLater { legendText.text = legend }
+                legends += legend
+                if (legendText.text != legend.text) SwingUtilities.invokeLater { legendText.text = legend.text }
                 for (h in 0 until hex.size) {
                     val colour = colours[h] ?: continue
                     if (!onScreen(h)) continue
@@ -543,6 +546,11 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 // Shaded against the densest twentieth of hexes, so that thin spreads show too.
                 val values = (0 until hex.size).filter { area[it] > 0 && dens[it] > 0 }.map { dens[it] / area[it] }.sorted()
                 val top = (if (values.isEmpty()) 0.0 else values[(values.size * 0.95).toInt().coerceAtMost(values.size - 1)]).coerceAtLeast(1e-6)
+                val water = r >= fauna.kinds.size + groups.kinds.size
+                val name = residentChoice.selectedItem.toString()
+                legends += MapLegend(name, name, { x -> Color(1f, 0.1f, 0.6f, 0.6f * sqrt(x).coerceIn(0.15f, 1f)) },
+                    listOf(0f to "few", 0.25f to MapLegend.num((top / 4).toFloat()), 1f to MapLegend.num(top.toFloat()) + "+"),
+                    (if (water) "as kept per hex" else "head per km²") + "; full at the densest twentieth of hexes; clear where none")
                 for (h in 0 until hex.size) {
                     if (area[h] <= 0) continue
                     if (dens[h] <= 0 || !onScreen(h)) continue
@@ -622,6 +630,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     g.color = Color(KIND_COLOURS[sp.index % KIND_COLOURS.size]); g.fillOval(sx(x) - 2, sy(y) - 2, 5, 5)
                 }
             }
+            // What the tints' colours mean, in the top right corner.
+            MapLegend.draw(g, legends, width)
         }
 
         private fun along(w: FloatArray, t: Float): Pair<Float, Float> {
@@ -647,29 +657,35 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
      * 5th to 95th percentile of the hexes with any over the full range; the seasonal modes read the
      * months kept by [layers].
      */
-    private fun paintTint(tint: Measure, mode: ViewLayers.Mode, key: String, out: Array<Color?>): String {
-        val v = layers.now[key] ?: return "${tint.label}: waiting for the first week"
+    private fun paintTint(tint: Measure, mode: ViewLayers.Mode, key: String, out: Array<Color?>): MapLegend {
+        val title = "${tint.label}${causeNote(tint)}"
+        fun waiting(why: String) = MapLegend(title, "${tint.label}: $why", note = why)
+        val v = layers.now[key] ?: return waiting("waiting for the first week")
         val unit = tint.unit
         fun pct(vals: FloatArray, keep: (Float) -> Boolean): Pair<Float, Float> {
             val l = vals.filter { !it.isNaN() && keep(it) }.sorted()
             if (l.isEmpty()) return 0f to 1f
             return l[(l.size * 0.05).toInt()] to l[(l.size * 0.95).toInt().coerceAtMost(l.size - 1)]
         }
-        fun f(x: Float) = when { abs(x) >= 100 -> "%.0f".format(x); abs(x) >= 1 -> "%.1f".format(x); else -> "%.3g".format(x) }
+        fun f(x: Float) = MapLegend.num(x)
         fun shade(h: Int, a: Float) { out[h] = rgba(tint.r, tint.g, tint.b, a) }
         val kept = layers.monthsKept(key)
         when (mode) {
             ViewLayers.Mode.WEEK -> {
                 if (tint.weeks) {
-                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) shade(h, 0.05f + 0.75f * min(1f, ln(1f + v[h]) / ln(1f + 104f)))
-                    return "${tint.label}: what lies there over what went in a week. Pale: gone within days; full: two years or more (accumulating)."
+                    val full = ln(1f + 104f)
+                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) shade(h, 0.05f + 0.75f * min(1f, ln(1f + v[h]) / full))
+                    return MapLegend(title, "${tint.label}: what lies there over what went in a week. Pale: gone within days; full: two years or more (accumulating).",
+                        { x -> if (x <= 0f) null else rgba(tint.r, tint.g, tint.b, 0.05f + 0.75f * x) },
+                        listOf(0f to "0", ln(1f + 4f) / full to "4", ln(1f + 20f) / full to "20", 1f to "104+"),
+                        "weeks to clear (log scale); full: accumulating")
                 }
                 if (tint == Measure.HUNTERS_PER_PREY) {
-                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) {
-                        val l = (log10(v[h]) / 1.5f).coerceIn(-1f, 1f)
-                        out[h] = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l)
-                    }
-                    return "Hunters per prey, kg per 100 kg over a hex and its ring (people not counted). Clear at 1, about what prey carries of one carnivore kind in nature (Carbone & Gittleman 2002); red above (full at 30), blue below (full at 0.03)."
+                    fun colour(l: Float) = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l)
+                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) out[h] = colour((log10(v[h]) / 1.5f).coerceIn(-1f, 1f))
+                    return MapLegend(title, "Hunters per prey, kg per 100 kg over a hex and its ring (people not counted). Clear at 1, about what prey carries of one carnivore kind in nature (Carbone & Gittleman 2002); red above (full at 30), blue below (full at 0.03).",
+                        { x -> colour(2f * x - 1f) }, listOf(0f to "0.03", 0.5f to "1", 1f to "30+"),
+                        "kg hunters per 100 kg prey, log scale; people not counted")
                 }
                 fixedColour(tint, v, out)?.let { return it }
                 return paintTint(tint, ViewLayers.Mode.SCALED, key, out)
@@ -677,45 +693,59 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             ViewLayers.Mode.SCALED -> {
                 val (lo, hi) = pct(v) { tint.signed || it > 0f }
                 val span = (hi - lo).coerceAtLeast(1e-9f)
+                fun colour(x: Float) = if (tint.signed) heat(x, 0.55f) else rgba(tint.r, tint.g, tint.b, 0.08f + 0.72f * x)
                 for (h in v.indices) {
                     if (v[h].isNaN() || (!tint.signed && v[h] <= 0f)) continue
-                    val x = ((v[h] - lo) / span).coerceIn(0f, 1f)
-                    out[h] = if (tint.signed) heat(x, 0.55f) else rgba(tint.r, tint.g, tint.b, 0.08f + 0.72f * x)
+                    out[h] = colour(((v[h] - lo) / span).coerceIn(0f, 1f))
                 }
                 val zero = if (tint.signed) "" else "; hexes with none left clear (${v.count { !it.isNaN() && it <= 0f }} of ${v.count { !it.isNaN() }})"
-                return "${tint.label}${causeNote(tint)}: ${f(lo)} to ${f(hi)} $unit (the map's 5th to 95th percentile)$zero"
+                return MapLegend(title, "$title: ${f(lo)} to ${f(hi)} $unit (the map's 5th to 95th percentile)$zero",
+                    ::colour, listOf(0f to f(lo), 1f to f(hi)),
+                    "$unit; the map's 5th to 95th percentile" + if (tint.signed) "" else "; none: clear")
             }
             ViewLayers.Mode.SWING -> {
-                val sw = layers.swing(key, tint.signed) ?: return "${tint.label}: the swing needs two months kept ($kept so far)"
+                val sw = layers.swing(key, tint.signed) ?: return waiting("the swing needs two months kept ($kept so far)")
                 val (_, hi) = pct(sw) { true }
                 val top = if (tint.signed) hi.coerceAtLeast(1e-6f) else 2f
                 for (h in sw.indices) if (!sw[h].isNaN()) out[h] = heat((sw[h] / top).coerceIn(0f, 1f), 0.6f)
-                return if (tint.signed) "${tint.label}${causeNote(tint)}: highest month less lowest over the $kept months kept; blue none, red ${f(top)} $unit or more"
-                else "${tint.label}${causeNote(tint)}: (highest month - lowest) / mean over the $kept months kept; blue flat all year, green 1, red 2 or more"
+                val ramp = { x: Float -> heat(x, 0.6f) }
+                return if (tint.signed) MapLegend(title, "$title: highest month less lowest over the $kept months kept; blue none, red ${f(top)} $unit or more",
+                    ramp, listOf(0f to "0", 1f to "${f(top)}+"), "$unit, highest month less lowest ($kept months kept)")
+                else MapLegend(title, "$title: (highest month - lowest) / mean over the $kept months kept; blue flat all year, green 1, red 2 or more",
+                    ramp, listOf(0f to "flat", 0.5f to "1", 1f to "2+"), "(highest month - lowest) / mean ($kept months kept)")
             }
             ViewLayers.Mode.PEAK -> {
-                val pk = layers.peak(key) ?: return "${tint.label}: the peak month needs two months kept ($kept so far)"
+                val pk = layers.peak(key) ?: return waiting("the peak month needs two months kept ($kept so far)")
                 val sw = layers.swing(key, tint.signed)
                 val (_, top) = if (sw != null) pct(sw) { true } else 0f to 1f
+                fun colour(m: Int, strength: Float): Color {
+                    val c = Color.getHSBColor(m / 12f, 0.85f, 0.95f)
+                    return Color(c.red, c.green, c.blue, (255 * (0.1f + 0.6f * strength.coerceIn(0f, 1f))).toInt())
+                }
                 for (h in pk.indices) {
                     if (pk[h] < 0) continue
                     val strength = sw?.get(h)?.takeIf { !it.isNaN() }?.let { if (tint.signed) it / top.coerceAtLeast(1e-6f) else it } ?: 1f
-                    val c = Color.getHSBColor(pk[h] / 12f, 0.85f, 0.95f)
-                    out[h] = Color(c.red, c.green, c.blue, (255 * (0.1f + 0.6f * strength.coerceIn(0f, 1f))).toInt())
+                    out[h] = colour(pk[h], strength)
                 }
-                return "${tint.label}${causeNote(tint)}: month of the highest monthly mean, Jan red, Mar yellow, May green, Jul cyan, Sep blue, Nov purple; faint where it hardly swings ($kept months kept)"
+                val months = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+                return MapLegend(title, "$title: month of the highest monthly mean, Jan red, Mar yellow, May green, Jul cyan, Sep blue, Nov purple; faint where it hardly swings ($kept months kept)",
+                    { x -> colour(min(11, (x * 12).toInt()), 1f) }, (0 until 12 step 2).map { (it + 0.5f) / 12f to months[it] },
+                    "month of the highest monthly mean; faint where it hardly swings ($kept months kept)")
             }
             ViewLayers.Mode.YEAR_AGO -> {
-                val r = layers.yearAgo(key, tint.signed) ?: return "${tint.label}: needs the same month twice (a year and a month of record)"
+                val r = layers.yearAgo(key, tint.signed) ?: return waiting("needs the same month twice (a year and a month of record)")
+                fun colour(x: Float) = if (abs(x) < 0.05f) null
+                    else if (x > 0) rgba(0.9f, 0.15f, 0.1f, 0.1f + 0.65f * x) else rgba(0.1f, 0.35f, 0.95f, 0.1f - 0.65f * x)
                 for (h in r.indices) {
                     if (r[h].isNaN()) continue
-                    val x = if (tint.signed) (r[h] / 5f).coerceIn(-1f, 1f) else (ln(r[h]) / ln(4f)).coerceIn(-1f, 1f)
-                    if (abs(x) < 0.05f) continue
-                    out[h] = if (x > 0) rgba(0.9f, 0.15f, 0.1f, 0.1f + 0.65f * x) else rgba(0.1f, 0.35f, 0.95f, 0.1f - 0.65f * x)
+                    out[h] = colour(if (tint.signed) (r[h] / 5f).coerceIn(-1f, 1f) else (ln(r[h]) / ln(4f)).coerceIn(-1f, 1f))
                 }
                 val month = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")[layers.lastMonth]
-                return if (tint.signed) "${tint.label}: $month against $month a year before; red warmer, blue colder, full at 5 $unit"
-                else "${tint.label}${causeNote(tint)}: $month against $month a year before; red more, blue less, full at 4 times or a quarter"
+                val ramp = { x: Float -> colour(2f * x - 1f) }
+                return if (tint.signed) MapLegend(title, "${tint.label}: $month against $month a year before; red warmer, blue colder, full at 5 $unit",
+                    ramp, listOf(0f to "-5", 0.5f to "same", 1f to "+5"), "$unit, $month against $month a year before")
+                else MapLegend(title, "$title: $month against $month a year before; red more, blue less, full at 4 times or a quarter",
+                    ramp, listOf(0f to "¼×", 0.5f to "same", 1f to "4×"), "$month against $month a year before (log scale)")
             }
         }
     }
@@ -723,49 +753,58 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private fun causeNote(tint: Measure) = if (tint.byCause) " (" + causeChoice.selectedItem + ")" else ""
 
     /** The measures' own fixed colour scales, as the viewer has always drawn them; null for a measure without one. */
-    private fun fixedColour(tint: Measure, values: FloatArray, out: Array<Color?>): String? {
-        val legend = when (tint) {
-            Measure.TEMPERATURE -> "blue -15 °C to red 35 °C"
-            Measure.SNOW -> "white from 5 mm, full at 300 mm"
-            Measure.RAIN -> "blue from 2 mm, full at 80 mm"
-            Measure.GREEN -> "yellow dry to green"
-            Measure.FORAGE -> "full at 2 kg/m²"
-            Measure.SOIL -> "brown dry to blue 150 mm"
-            Measure.WATER -> "full where all the ground is within reach of water"
-            Measure.INSECTS -> "full at 1500 kg/km²"
-            Measure.BITING -> "full at 400 kg/km²"
-            Measure.POLLINATORS -> "full at 50 kg/km²"
-            Measure.ORGANIC -> "full at 8 kg/m²"
-            Measure.SMALL_GAME -> "log scale, 1 to 600 kg/km²"
-            Measure.FOXES -> "full at 2 kg/km²"
-            Measure.OWLS -> "full at 1 kg/km²"
-            Measure.EAGLES -> "full where every range is held"
-            Measure.CARRION -> "full at 20 kg/km²"; Measure.RESIDENTS -> "full at 20 head/km²"
+    private fun fixedColour(tint: Measure, values: FloatArray, out: Array<Color?>): MapLegend? {
+        // What the scale says, and the values it runs over: its ends, with any marked between them.
+        val (legend, marks) = when (tint) {
+            Measure.TEMPERATURE -> "blue -15 °C to red 35 °C" to floatArrayOf(-15f, 0f, 15f, 35f)
+            Measure.SNOW -> "white from 5 mm, full at 300 mm" to floatArrayOf(0f, 150f, 300f)
+            Measure.RAIN -> "blue from 2 mm, full at 80 mm" to floatArrayOf(0f, 40f, 80f)
+            Measure.GREEN -> "yellow dry to green" to floatArrayOf(0f, 0.5f, 1f)
+            Measure.FORAGE -> "full at 2 kg/m²" to floatArrayOf(0f, 1f, 2f)
+            Measure.SOIL -> "brown dry to blue 150 mm" to floatArrayOf(0f, 75f, 150f)
+            Measure.WATER -> "full where all the ground is within reach of water" to floatArrayOf(0f, 0.5f, 1f)
+            Measure.INSECTS -> "full at 1500 kg/km²" to floatArrayOf(0f, 750f, 1500f)
+            Measure.BITING -> "full at 400 kg/km²" to floatArrayOf(0f, 200f, 400f)
+            Measure.POLLINATORS -> "full at 50 kg/km²" to floatArrayOf(0f, 25f, 50f)
+            Measure.ORGANIC -> "full at 8 kg/m²" to floatArrayOf(0f, 4f, 8f)
+            Measure.SMALL_GAME -> "log scale, 1 to 600 kg/km²" to floatArrayOf(0f, 1f, 10f, 100f, 600f)
+            Measure.FOXES -> "full at 2 kg/km²" to floatArrayOf(0f, 1f, 2f)
+            Measure.OWLS -> "full at 1 kg/km²" to floatArrayOf(0f, 0.5f, 1f)
+            Measure.EAGLES -> "full where every range is held" to floatArrayOf(0f, 0.5f, 1f)
+            Measure.CARRION -> "full at 20 kg/km²" to floatArrayOf(0f, 10f, 20f)
+            Measure.RESIDENTS -> "full at 20 head/km²" to floatArrayOf(0f, 10f, 20f)
             else -> return null
         }
-        for (h in values.indices) {
-            val v = values[h]; if (v.isNaN()) continue
-            out[h] = when (tint) {
-                Measure.TEMPERATURE -> heat(((v + 15f) / 50f).coerceIn(0f, 1f), 0.55f)
-                Measure.SNOW -> if (v < 5f) null else rgba(1f, 1f, 1f, (0.25f + 0.6f * min(1f, v / 300f)))
-                Measure.RAIN -> if (v < 2f) null else rgba(0.1f, 0.3f, 1f, (0.2f + 0.6f * min(1f, v / 80f)))
-                Measure.GREEN -> rgba(1f - v, 0.9f, 0.1f, 0.5f)
-                Measure.FORAGE -> rgba(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
-                Measure.SOIL -> rgba(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
-                Measure.WATER -> rgba(0.1f, 0.4f, 1f, 0.1f + 0.6f * v)
-                Measure.INSECTS -> rgba(0.6f, 0.8f, 0.1f, (0.1f + 0.7f * min(1f, v / 1500f)))
-                Measure.BITING -> rgba(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
-                Measure.POLLINATORS -> rgba(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
-                Measure.ORGANIC -> rgba(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
-                Measure.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.05f + 0.75f * min(1f, ln(1f + v) / ln(1f + 600f)))) // log scale: 1 to 600 kg/km²
-                Measure.FOXES -> rgba(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
-                Measure.OWLS -> rgba(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
-                Measure.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
-                Measure.CARRION -> rgba(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
-                Measure.RESIDENTS -> rgba(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
-            }
-        }
-        return "${tint.label}: $legend (the viewer's fixed scale; \"scaled to the map\" stretches it)"
+        for (h in values.indices) { val v = values[h]; if (!v.isNaN()) out[h] = fixedColourOf(tint, v) }
+        // Along the legend's ramp: the value at x (0..1), and where a value falls.
+        val lo = marks.first(); val hi = marks.last(); val log = tint == Measure.SMALL_GAME
+        fun at(x: Float) = if (log) (1f + hi).pow(x) - 1f else lo + x * (hi - lo)
+        fun where(v: Float) = if (log) ln(1f + v) / ln(1f + hi) else (v - lo) / (hi - lo)
+        return MapLegend(tint.label, "${tint.label}: $legend (the viewer's fixed scale; \"scaled to the map\" stretches it)",
+            { x -> fixedColourOf(tint, at(x)) }, marks.map { where(it) to MapLegend.num(it) + if (it == hi && tint != Measure.TEMPERATURE) "+" else "" },
+            "${tint.unit}; $legend")
+    }
+
+    /** A value's colour on [tint]'s fixed scale (see [fixedColour]); null for clear. */
+    private fun fixedColourOf(tint: Measure, v: Float): Color? = when (tint) {
+        Measure.TEMPERATURE -> heat(((v + 15f) / 50f).coerceIn(0f, 1f), 0.55f)
+        Measure.SNOW -> if (v < 5f) null else rgba(1f, 1f, 1f, (0.25f + 0.6f * min(1f, v / 300f)))
+        Measure.RAIN -> if (v < 2f) null else rgba(0.1f, 0.3f, 1f, (0.2f + 0.6f * min(1f, v / 80f)))
+        Measure.GREEN -> rgba(1f - v, 0.9f, 0.1f, 0.5f)
+        Measure.FORAGE -> rgba(0.1f, 0.7f, 0.1f, (0.1f + 0.7f * min(1f, v / 2f)))
+        Measure.SOIL -> rgba(0.5f * (1f - v / 150f), 0.3f, min(1f, v / 150f), 0.55f)
+        Measure.WATER -> rgba(0.1f, 0.4f, 1f, 0.1f + 0.6f * v)
+        Measure.INSECTS -> rgba(0.6f, 0.8f, 0.1f, (0.1f + 0.7f * min(1f, v / 1500f)))
+        Measure.BITING -> rgba(0.8f, 0.1f, 0.1f, (0.05f + 0.7f * min(1f, v / 400f)))
+        Measure.POLLINATORS -> rgba(1f, 0.85f, 0.1f, (0.05f + 0.7f * min(1f, v / 50f)))
+        Measure.ORGANIC -> rgba(0.35f, 0.2f, 0.05f, (0.05f + 0.7f * min(1f, v / 8f)))
+        Measure.SMALL_GAME -> rgba(0.9f, 0.5f, 0.1f, (0.05f + 0.75f * min(1f, ln(1f + v) / ln(1f + 600f)))) // log scale: 1 to 600 kg/km²
+        Measure.FOXES -> rgba(0.9f, 0.35f, 0.05f, (0.05f + 0.7f * min(1f, v / 2f)))
+        Measure.OWLS -> rgba(0.5f, 0.4f, 0.3f, (0.05f + 0.7f * min(1f, v / 1f)))
+        Measure.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
+        Measure.CARRION -> rgba(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
+        Measure.RESIDENTS -> rgba(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
+        else -> null
     }
 
     /** Fills the side panel with what is in hex [h]: its ground, weather, plants, resident herds and borders, and the groups standing in it. */

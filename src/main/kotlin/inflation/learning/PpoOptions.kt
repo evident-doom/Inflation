@@ -1,6 +1,7 @@
 package inflation.learning
 
 import inflation.Args
+import inflation.Config
 import inflation.ecology.Catalogue
 import inflation.ecology.Species
 import java.io.File
@@ -18,16 +19,24 @@ class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 8f)
  */
 class Maps(val maps: List<Pair<Long, Double>> = emptyList()) {
     fun isEmpty() = maps.isEmpty()
-    fun world(seed: Long, size: Int, i: Int = 0): WorldConfig =
-        if (maps.isEmpty()) WorldConfig(seed = seed, widthKm = size, heightKm = size)
-        else maps[((i % maps.size) + maps.size) % maps.size].let { (s, lat) -> WorldConfig(seed = s, widthKm = size, heightKm = size, centreLatitude = lat) }
+    fun world(seed: Long, size: Int, i: Int = 0): WorldConfig = world(seed, size, size, i)
+    fun world(seed: Long, width: Int, height: Int, i: Int): WorldConfig =
+        if (maps.isEmpty()) WorldConfig(seed = seed, widthKm = width, heightKm = height)
+        else maps[((i % maps.size) + maps.size) % maps.size].let { (s, lat) -> WorldConfig(seed = s, widthKm = width, heightKm = height, centreLatitude = lat) }
 }
 
-/** HexPpo's command line (see [HexPpo] for the usage). */
+/**
+ * HexPpo's command line (see [HexPpo] for the usage), and its learning settings from the config file:
+ * `ppo.hidden` (default 48), `ppo.rate` (3e-4), `ppo.residual` (ROLE:X,...; none), `ppo.perKind` (1500)
+ * and `ppo.peopleChoices` (8).
+ */
 class PpoOptions(
     val out: File,
     val worlds: Int,
+    /** The checks' worlds' side (km); the training worlds are [width] by [height] (`--size W` or `--size WxH`). */
     val size: Int,
+    val width: Int,
+    val height: Int,
     val years: Int,
     val rounds: Int,
     val hidden: Int,
@@ -60,21 +69,25 @@ class PpoOptions(
     val maps: Maps,
 ) {
     companion object {
-        const val USAGE = "hex-ppo [--out DIR] [--worlds N] [--size KM] [--years N] [--rounds N] [--hidden N] [--rate R] [--residual ROLE:X,...] [--check N] [--check-seeds N] [--per-kind N] [--people-choices X] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--hold ROLE[,ROLE]:ROUNDS] [--teacher DIR] [--teacher-check] [--no-ways] [--maps SEED:LAT,...] [--check-on-maps]"
+        const val USAGE = "hex-ppo [--out DIR] [--worlds N] [--size KM|WxH] [--years N] [--rounds N] [--check N] [--check-seeds N] [--world-rounds N] [--no-overlap] [--burn-in YEARS] [--hold ROLE[,ROLE]:ROUNDS] [--teacher DIR] [--teacher-check] [--no-ways] [--maps SEED:LAT,...] [--check-on-maps]"
 
         fun parse(args: Array<String>): PpoOptions {
             val a = Args(args, USAGE)
             val default = Sampling()
+            // (One large world is better than many small ones: a training world can be wider than it is tall, as long as every place stays at a latitude the model holds for.)
+            val size = (a.string("--size") ?: "600").lowercase().split("x").map { it.toInt() }.let { l -> l[0] to l.getOrElse(1) { l[0] } }
             val hold = a.string("--hold")?.split(":")?.let { it[0].split(",").map(Role::named).toSet() to (it.getOrNull(1)?.toInt() ?: Int.MAX_VALUE) }
             val o = PpoOptions(
                 out = a.file("--out") ?: File("hex-ppo"),
                 worlds = a.int("--worlds", 8),
-                size = a.int("--size", 600),
+                size = size.second,
+                width = size.first,
+                height = size.second,
                 years = a.int("--years", 2),
                 rounds = a.int("--rounds", 1000),
-                hidden = a.int("--hidden", 48),
-                rate = a.float("--rate", 3e-4f),
-                residual = a.string("--residual")?.split(",")?.associate { r -> val (n, v) = r.split(":"); Role.named(n) to v.toFloat() } ?: emptyMap(),
+                hidden = Config.int("ppo.hidden", 48),
+                rate = Config.float("ppo.rate", 3e-4f),
+                residual = Config.string("ppo.residual")?.split(",")?.associate { r -> val (n, v) = r.split(":"); Role.named(n) to v.toFloat() } ?: emptyMap(),
                 checkEvery = a.int("--check", 5),
                 checkSeeds = a.int("--check-seeds", 12),
                 checkOnMaps = a.flag("--check-on-maps"),
@@ -85,7 +98,7 @@ class PpoOptions(
                 fixedRounds = hold?.second ?: 0,
                 burnYears = a.int("--burn-in", 1),
                 learnWays = !a.flag("--no-ways"),
-                sampling = Sampling(a.int("--per-kind", default.perKindYear), a.float("--people-choices", default.peopleChoices)),
+                sampling = Sampling(Config.int("ppo.perKind", default.perKindYear), Config.float("ppo.peopleChoices", default.peopleChoices)),
                 teachers = a.file("--teacher")?.let { dir -> Catalogue.all.mapNotNull { s -> HexLearning.file(dir, s).takeIf { it.exists() }?.let { s to Schema.load(it, Schema.TEACHER_IN, Schema.MOVER_OUT) } }.toMap() } ?: emptyMap(),
                 maps = Maps(a.string("--maps")?.split(",")?.map { m -> val (s, l) = m.split(":"); s.toLong() to l.toDouble() } ?: emptyList()),
             )

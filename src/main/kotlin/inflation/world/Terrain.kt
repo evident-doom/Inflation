@@ -84,6 +84,13 @@ class Terrain(private val world: World) {
         for (i in 0 until n) if (!isWater(i)) defensibility[i] = defence(i)
     }
 
+    /** The fall from cell ([x], [y]) to [i] (or from [i] to it, [reverse]), m; 0 off the map. */
+    private fun along(x: Int, y: Int, i: Int, reverse: Boolean = false): Float {
+        if (!grid.inBounds(x, y)) return 0f
+        val d = elev[grid.index(x, y)] - elev[i]
+        return if (reverse) -d else d
+    }
+
     private fun findCliffs() {
         // Escarpments: the top of each fault block, where the ground drops to the foot of the next
         // block, along the whole line of the scarp; streams cut gaps through it.
@@ -101,8 +108,12 @@ class Terrain(private val world: World) {
                 val x = x0 + dx; val y = y0 + dy
                 if (!grid.inBounds(x, y)) continue
                 val j = grid.index(x, y)
-                // Across the line: the neighbour lies at the foot of the next block, well below.
-                if (field[j] < 0.3f && elev[i] - elev[j] > CLIFF_M * grid.cellKm.toFloat()) { cliff[i] = true; break }
+                // Across the line: the neighbour lies at the foot of the next block, well below, and the
+                // drop is a break in the slope, not just the fall of a steep hillside going on through
+                // the line (the flanks of a volcano or a mountain front, where no scarp was raised).
+                if (field[j] >= 0.3f) continue
+                val slope = max(0f, max(along(x0 - dx, y0 - dy, i), along(x + dx, y + dy, j, reverse = true)))
+                if (elev[i] - elev[j] - slope > CLIFF_M * grid.cellKm.toFloat()) { cliff[i] = true; break }
             }
         }
         // Gorges: a river cut well below the plain on both banks; its walls are cliffs.

@@ -17,8 +17,8 @@ enum class Role {
     /** Its network in [dir]. */
     fun file(dir: File) = File(dir, "$label.mlp")
 
-    /** Its critic in [dir]. */
-    fun valueFile(dir: File) = File(dir, "$label.value.mlp")
+    /** Its critic in [dir] (see [Critic]). */
+    fun criticFile(dir: File) = File(dir, "$label.critic.mlp")
 
     override fun toString() = label
 

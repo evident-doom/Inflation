@@ -11,6 +11,7 @@ import inflation.world.Date
 import inflation.world.World
 import inflation.world.WorldConfig
 import java.io.File
+import java.util.Arrays
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.random.Random
 import inflation.ecology.AnimalWay
@@ -74,9 +75,19 @@ object HexLearning {
         }
     }
 
+    /** One kept decision: the group's kind and id, and the candidates' inputs and hand-written scores. */
+    class Recorded(val species: Species, val groupId: Int, val rec: FloatArray)
+
     /** Chooses by the hand-written score, keeping a sample of decisions to copy. */
     class Recorder : HexPolicy {
-        val data = ConcurrentLinkedQueue<Pair<Species, FloatArray>>()
+        val data = ConcurrentLinkedQueue<Recorded>()
+
+        /**
+         * The kept decisions in an order that does not depend on which core recorded them first: by group,
+         * then by content (so that the same run always trains the same network).
+         */
+        fun inOrder(): List<Recorded> = data.sortedWith { a, b -> if (a.groupId != b.groupId) a.groupId.compareTo(b.groupId) else Arrays.compare(a.rec, b.rec) }
+
         override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
             var best = 0
             for (k in baseline.indices) if (baseline[k] > baseline[best]) best = k
@@ -93,7 +104,7 @@ object HexLearning {
                     features[k].copyInto(rec, at + 1)
                     rec[at + 1 + HexFeatures.SIZE] = baseline[k]
                 }
-                data += g.species to rec
+                data += Recorded(g.species, g.id, rec)
             }
             return best
         }
@@ -186,7 +197,7 @@ object HexImitate {
         for (s in kinds) run.groups.policies[s] = recorder
         repeat(years * Date.DAYS_PER_YEAR / cfg.daysPerStep) { run.step() }
         out.mkdirs()
-        val bySpecies = recorder.data.groupBy({ it.first }, { it.second })
+        val bySpecies = recorder.inOrder().groupBy({ it.species }, { it.rec })
         println("recorded " + kinds.joinToString { "${it.name} ${bySpecies[it]?.size ?: 0}" })
         for (s in kinds) {
             val (net, report) = HexLearning.train(bySpecies[s] ?: emptyList(), Random(cfg.seed + s.index)) ?: continue
