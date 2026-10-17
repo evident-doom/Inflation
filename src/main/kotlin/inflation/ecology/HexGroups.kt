@@ -839,7 +839,7 @@ class HexGroups(
         f[Feature.PATHS] = wear.at(h)
         f[Feature.HERDS_ABOUT] = ln(1f + monthHerdHeads[p] / land.areaKm2[p]) / 3f
         f[Feature.DUNG] = min(1f, fauna.small.dung[p] * 1e4f)
-        f[Feature.GRAZING_AND_KILLS] = min(1f, (land.grazing[p] + land.browsing[p]) / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
+        f[Feature.GRAZING_AND_KILLS] = min(1f, fauna.residentGrazing[p] / 1000f) + min(1f, (fauna.small.carrion[p] + fauna.small.bones[p]) * 1e6f / 20f)
         f[Feature.KNOWN_GROUND] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
         f[Feature.BEYOND_OWN_GROUND] = beyond; f[Feature.OTHERS_MARKS] = foreign
         f[Feature.KEEPS_HEADING] = keepOn

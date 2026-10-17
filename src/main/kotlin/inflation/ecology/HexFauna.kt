@@ -433,6 +433,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val browseLeft = FloatArray(n)
     /** The herds' first wants of each place's food this week, set by the groups once they have moved; null without groups. */
     @Transient internal var claims: HerdClaims? = null
+    /**
+     * What the residents grazed and browsed at each place this week, kg/km² a day: the sign of the game that
+     * lives there, as the groups read it when they choose where to go (the herds' own grazing is not in it).
+     */
+    val residentGrazing = FloatArray(n)
 
     /**
      * Every kind, and every herd grazing there this week, takes its share of the place's grass, browse,
@@ -631,6 +636,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             land.trample(p, RESIDENT_TRAMPLE * tonnes * land.areaKm2[p])
             small.dung[p] += HexSmallLife.DUNG * eaten
             land.grazing[p] = eatG * 1e6f / days; land.browsing[p] = eatB * 1e6f / days
+            residentGrazing[p] = (eatG + eatB) * 1e6f / days
             // Rooting churns the ground: kg of roots dug per km2 a day.
             land.rooting[p] = dug * 1e6f / days
         }
