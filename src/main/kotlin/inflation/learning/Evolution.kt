@@ -1,6 +1,7 @@
 package inflation.learning
 
 import inflation.Args
+import inflation.Config
 import inflation.ecology.AnimalWays
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
@@ -59,7 +60,9 @@ class EvolutionStrategy(val pairs: Int, val sigma: Float) {
  * start. Herds caught on the high ground when the snow comes die; those that learn the seasons
  * live.
  *
- * Usage: hex-evolve [--start DIR] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--hunters]
+ * Usage: hex-evolve [--start DIR] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--hunters]
+ *
+ * Config keys: `evolve.sigma` (default 0.02), the spread of the variants; `evolve.rate` (0.01), the step.
  *
  * Worlds are cool and mountainous; with --hunters the hunters live there too (hand-written), so the
  * herds also learn where they are safe.
@@ -67,15 +70,15 @@ class EvolutionStrategy(val pairs: Int, val sigma: Float) {
 object HexEvolve {
     @JvmStatic
     fun main(args: Array<String>) {
-        val a = Args(args, "hex-evolve [--start DIR] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--hunters]")
+        val a = Args(args, "hex-evolve [--start DIR] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--hunters]")
         val start = a.file("--start") ?: File("hex-policies")
         val out = a.file("--out") ?: File("hex-evolve")
         val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(71L, 72L, 73L, 74L, 75L, 76L, 77L, 78L)
         val size = a.int("--size", 600)
         val years = a.int("--years", 3)
         val gens = a.int("--gens", 1000)
-        val es = EvolutionStrategy(a.int("--pairs", 8), a.float("--sigma", 0.02f))
-        val rate = a.float("--rate", 0.01f)
+        val es = EvolutionStrategy(a.int("--pairs", 8), Config.float("evolve.sigma", 0.02f))
+        val rate = Config.float("evolve.rate", 0.01f)
         val hunters = if (a.flag("--hunters")) Catalogue.predators.filter { !it.human && it !in Catalogue.residentHunters } else emptyList()
         a.done()
         out.mkdirs()
@@ -136,7 +139,9 @@ object HexEvolve {
  * in herd-ways.mlp or hunter-ways.mlp), each variant scored by the head-weeks its groups live per head
  * at the start, averaged over the kinds of the role (so the many jackals do not outweigh the few lions).
  *
- * Usage: hex-evolve-ways [--role bands|herds|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--hidden N] [--nets DIR]
+ * Usage: hex-evolve-ways [--role bands|herds|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--nets DIR]
+ *
+ * Config keys: `evolveWays.sigma` (default 0.05), `evolveWays.rate` (0.02) and `evolveWays.hidden` (16).
  *
  * With --nets, every kind moves by the learned role networks in DIR (herds.mlp, hunters.mlp,
  * people.mlp, each with its .identity, as [HexPpo] writes them) instead of the hand-written choices.
@@ -144,7 +149,7 @@ object HexEvolve {
 object HexEvolveWays {
     @JvmStatic
     fun main(args: Array<String>) {
-        val a = Args(args, "hex-evolve-ways [--role bands|herds|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--sigma S] [--rate R] [--hidden N] [--nets DIR]")
+        val a = Args(args, "hex-evolve-ways [--role bands|herds|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--nets DIR]")
         val out = a.file("--out") ?: File("hex-ways")
         val role = a.string("--role") ?: "bands"
         require(role in listOf("bands", "herds", "hunters")) { "--role is bands, herds or hunters" }
@@ -152,9 +157,9 @@ object HexEvolveWays {
         val size = a.int("--size", 600)
         val years = a.int("--years", 5)
         val gens = a.int("--gens", 1000)
-        val es = EvolutionStrategy(a.int("--pairs", 8), a.float("--sigma", 0.05f))
-        val rate = a.float("--rate", 0.02f)
-        val hidden = a.int("--hidden", 16)
+        val es = EvolutionStrategy(a.int("--pairs", 8), Config.float("evolveWays.sigma", 0.05f))
+        val rate = Config.float("evolveWays.rate", 0.02f)
+        val hidden = Config.int("evolveWays.hidden", 16)
         val movers = a.file("--nets")?.let { dir -> Role.entries.map { SharedMover.load(it.file(dir).also { f -> require(f.exists()) { "no $f" } }) } }
         a.done()
         WaysEvolution(role, movers).run(out, seeds, size, years, gens, es, rate, hidden)
