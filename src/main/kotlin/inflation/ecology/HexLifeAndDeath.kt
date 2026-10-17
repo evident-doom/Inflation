@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.KgM2
 import inflation.Tuning
 import inflation.wrapMonth
 import inflation.monthsFrom
@@ -105,13 +106,13 @@ internal fun HexGroups.graze(weather: Weather) {
             val wantGrass = if (snowed) 0f else want * fill * access * d.grass / total
             // (The week's grazing and browsing at a place is shared by all that eat there: what the residents
             // and the herds before it left, see [HexFauna.grazeLeft].)
-            fun eatGrass(kg: Float): Float { val t = land.plants.consume(p, LifeForm.HERB, min(kg, fauna.grazeLeft[p])); fauna.grazeLeft[p] -= t; return t }
-            fun eatBrowse(kg: Float): Float { val t = land.plants.eatBrowse(p, min(kg, fauna.browseLeft[p])); fauna.browseLeft[p] -= t; return t }
+            fun eatGrass(kg: Float): Float { val t = land.plants.consume(p, LifeForm.HERB, KgM2(min(kg, fauna.grazeLeft[p]))).v; fauna.grazeLeft[p] -= t; return t }
+            fun eatBrowse(kg: Float): Float { val t = land.plants.eatBrowse(p, KgM2(min(kg, fauna.browseLeft[p]))).v; fauna.browseLeft[p] -= t; return t }
             val grass = eatGrass(wantGrass)
             val wantBrowse = want * fill * access * d.browse / total
             val browse = eatBrowse(wantBrowse)
-            val fruit = food.take(food.fruit, p, want * access * d.fruit / total)
-            val roots = food.take(food.roots, p, want * access * d.roots / total)
+            val fruit = food.take(food.fruit, p, KgM2(want * access * d.fruit / total)).v
+            val roots = food.take(food.roots, p, KgM2(want * access * d.roots / total)).v
             // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
             // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
             // usual share (an ostrich out of fruit season picks more shoots and leaves).
@@ -126,11 +127,11 @@ internal fun HexGroups.graze(weather: Weather) {
             val qf = q * s.fibreDigestion
             if (gap > 0f && d.browse > 0f) { browse2 = eatBrowse(min(gap / qf, room)); gap -= browse2 * qf; room -= browse2 }
             if (gap > 0f && d.grass > 0f && !snowed) { grass2 = eatGrass(min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
-            if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, min(gap, SWITCH * want * access * d.fruit / total)); gap -= fruit2 }
-            if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, min(gap, SWITCH * want * access * d.roots / total)); gap -= roots2 }
+            if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, KgM2(min(gap, SWITCH * want * access * d.fruit / total))).v; gap -= fruit2 }
+            if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, KgM2(min(gap, SWITCH * want * access * d.roots / total))).v; gap -= roots2 }
             // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
             val short = max(0f, gap)
-            val straw = food.take(food.straw, p, min(short * HexFauna.GUT_FILL * access, max(0f, room)))
+            val straw = food.take(food.straw, p, KgM2(min(short * HexFauna.GUT_FILL * access, max(0f, room)))).v
             small.dung[p] += HexSmallLife.DUNG * (grass + browse + fruit + roots + straw + grass2 + browse2 + fruit2 + roots2)
             // On the way it beat down the plants and dropped the seed of the fruit it ate.
             val band = hw.placeBand[p]

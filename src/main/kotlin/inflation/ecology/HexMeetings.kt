@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Kg
 import inflation.Config
 import inflation.HASH_A
 import inflation.HASH_B
@@ -302,9 +303,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                     busy += kills1 * time[i]
                     meat += haul.kg
                 }
-                Food.SMALL_GAME -> smallGot += small.catchSmallIn(p, expected, min(land.areaKm2[p], smallSweep), weather)
+                Food.SMALL_GAME -> smallGot += small.catchSmallIn(p, Kg(expected), min(land.areaKm2[p], smallSweep), weather).v
                 Food.CARRION -> {
-                    val got = small.scavengeIn(p, expected, min(land.areaKm2[p], sweep))
+                    val got = small.scavengeIn(p, Kg(expected), min(land.areaKm2[p], sweep)).v
                     scraps += got
                     // A band at a carcass may meet its owner: lions or hyenas back at their kill. Driving
                     // them off is done with a crowd and a din, but now and then someone is mauled.
@@ -316,7 +317,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                         }
                     }
                 }
-                Food.BONES -> scraps += small.crackBonesIn(p, expected, min(land.areaKm2[p], sweep))
+                Food.BONES -> scraps += small.crackBonesIn(p, Kg(expected), min(land.areaKm2[p], sweep)).v
                 Food.FRUIT, Food.ROOTS, Food.SEED, Food.FINDS -> {
                     gather(g, type[i], p, expected, hands, haul)
                     if (haul.busy > 0f) busy += haul.busy
@@ -475,7 +476,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     band?.let { it.skin(ps, na); it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps.name, kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
-    fauna.killed(p, kills1 * ps.massKg)
+    fauna.killed(p, Kg(kills1 * ps.massKg))
     stats.hunting.merge(Tally.of(s, Tally.KILLS_OF_RESIDENTS), kills1, Int::plus)
     return kills1
 }
@@ -484,7 +485,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
 private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float): Float {
     val band = g.band
     val m2 = land.m2(p)
-    val took = fauna.food.take(fauna.food.grain, p, expected / m2) * m2 * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
+    val took = fauna.food.take(fauna.food.grain, p, Kg(expected).perM2(m2)).over(m2).v * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
     // A sickle takes the ears that hold their grain more than those that shatter at a touch.
     if (band != null && took > 0f) {
         val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
@@ -506,7 +507,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
     out.busy = 0f
     val stock = when (t) { Food.FRUIT -> fauna.food.fruit; Food.ROOTS -> fauna.food.roots; Food.SEED -> fauna.food.seeds; else -> fauna.food.finds }
     val m2 = land.m2(p)
-    var took = fauna.food.take(stock, p, expected / m2) * m2
+    var took = fauna.food.take(stock, p, Kg(expected).perM2(m2)).over(m2).v
     // Raw seed is poorly digested; ground and baked into bread it feeds fully.
     if (t == Food.SEED) took *= seedValue(band)
     if (band != null && took > 0f) {
@@ -921,7 +922,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         if (ROUNDS && herd.route[0] != ROUND_OPEN) stats.deaths.merge(
             "${herd.species.name} ${if (herd.route[0] >= 0) "on round" else "own country"}:hunted by ${if (hunter.band != null) "people" else hunter.species.name}",
             1, Int::plus)
-        fauna.killed(herd.place.i, herd.species.massKg)
+        fauna.killed(herd.place.i, Kg(herd.species.massKg))
         stats.hunting.merge(Tally.of(hunter.species, Tally.KILLS_FROM_HERDS), 1, Int::plus)
         stats.hunting.merge(Tally.herdSize(sizeClass(herd), "killed"), 1, Int::plus)
         note(hunter) { "made a kill from the herd" }; note(herd) { "lost one to the hunters" }

@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.KgM2
 import inflation.Tuning
 import inflation.Config
 
@@ -131,9 +132,10 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         return (1f - wf) * open + rooted * floor * wetFactor
     }
 
-    fun consume(p: Int, form: LifeForm, kgPerM2: Float): Float {
+    /** Takes up to [want] of the plants of [form] at [p]; returns what was taken. */
+    fun consume(p: Int, form: LifeForm, want: KgM2): KgM2 {
         val b = when (form) { LifeForm.HERB -> herb; LifeForm.SHRUB -> shrub; LifeForm.TREE -> tree }
-        val taken = min(b[p], max(0f, kgPerM2)); b[p] -= taken; return taken
+        val taken = min(b[p], max(0f, want.v)); b[p] -= taken; return KgM2(taken)
     }
 
     fun trample(p: Int, intensity: Float) { trampling[p] += intensity }
@@ -141,15 +143,15 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     /** Browse at [p], kg/m². (Never below nothing: worlds saved before [eatBrowse] kept its floor may hold shoots a rounding below it.) */
     fun browse(p: Int) = max(0f, shrubShoots[p]) + max(0f, treeShoots[p])
 
-    /** Eats up to [kgPerM2] of the browse at [p], shrubs and trees alike; what was eaten comes off the plants too. */
-    fun eatBrowse(p: Int, kgPerM2: Float): Float {
+    /** Eats up to [want] of the browse at [p], shrubs and trees alike; what was eaten comes off the plants too. */
+    fun eatBrowse(p: Int, want: KgM2): KgM2 {
         val all = browse(p)
-        if (all <= 0f || kgPerM2 <= 0f) return 0f
-        val x = min(kgPerM2, all)
+        if (all <= 0f || want.v <= 0f) return KgM2.ZERO
+        val x = min(want.v, all)
         val s = x * max(0f, shrubShoots[p]) / all; val t = x - s
         // (Eaten bare, the shares' rounding can take a hair more than is there: bare is nothing.)
         shrubShoots[p] = max(0f, shrubShoots[p] - s); treeShoots[p] = max(0f, treeShoots[p] - t)
-        return consume(p, LifeForm.SHRUB, s) + consume(p, LifeForm.TREE, t)
+        return consume(p, LifeForm.SHRUB, KgM2(s)) + consume(p, LifeForm.TREE, KgM2(t))
     }
 
     internal fun step(weather: Weather) {
