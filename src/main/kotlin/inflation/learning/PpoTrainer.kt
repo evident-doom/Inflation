@@ -30,7 +30,7 @@ class PpoTrainer(private val o: PpoOptions) {
     private fun modelOf(s: Species) = models[Role.of(s).ordinal]
     private val adams = models.map { Adam(it.net.w.size, o.rate) to Adam(it.identity.size, o.rate) }
     /** One critic for each role: what a group's return can be expected to be where it stands. */
-    private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.valueFile(out), o.hidden, models[i]) }
+    private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.criticFile(out), models[i]) }
     /** Bands' ways, learned beside their moves (see [WaysPpo]). */
     private val waysState = if (o.learnWays) WaysPpo.State(out, o.hidden, o.rate) else null
     /** The versions each kind plays with outside training: its last good one, and the score it had. */
@@ -66,8 +66,8 @@ class PpoTrainer(private val o: PpoOptions) {
             val everything = choices.flatten()
             val waysChoices = everything.filterIsInstance<WaysChoice>()
             val all = everything.filter { it !is WaysChoice }
-            val byKind = judge(all, round)
             val stats = StringBuilder()
+            val byKind = judge(all, round, stats)
             for (mi in models.indices) learn(mi, all, byKind, round - firstRound, round, stats)
             waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round)).append("; "); it.save() }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
@@ -96,19 +96,24 @@ class PpoTrainer(private val o: PpoOptions) {
      * not only against its kind's average: much of what befalls a group is its situation and its luck,
      * not the move; then scales it within its kind. Teaches the critics this round's returns. The choices by kind.
      */
-    private fun judge(all: List<Choice>, round: Int): Map<Species, List<Choice>> {
+    private fun judge(all: List<Choice>, round: Int, stats: StringBuilder): Map<Species, List<Choice>> {
         val byKind = all.groupBy { it.kind }
         val expected = HashMap<Choice, Float>()
+        val judged = HashMap<Choice, Float>()
         for ((mi, model) in models.withIndex()) {
             val mine = all.filter { Role.of(it.kind).ordinal == mi }
             if (mine.isEmpty()) continue
             val critic = critics[mi]
-            for (c in mine) expected[c] = critic.value(model, c)
+            // (Judged with the critic as it stood before this round, then it learns from the round.)
+            val explained = critic.explained(model, mine)
+            for (c in mine) { expected[c] = critic.value(model, c); judged[c] = critic.target(model, c) }
             critic.learn(model, mine, round)
+            val worst = explained.entries.sortedBy { it.value }.take(3).joinToString(", ") { "%s %.2f".format(it.key.name, it.value) }
+            stats.append("%s critic explains %.2f (least: %s), %.0f%% seen again; ".format(Role.entries[mi], explained.values.average(), worst, 100.0 * mine.count { it.probe != null } / mine.size))
         }
         for ((_, cs) in byKind) {
-            val mean = cs.map { it.ret.toDouble() }.average().toFloat()
-            val gap = cs.associateWith { c -> c.ret - (expected[c] ?: mean) }
+            val mean = cs.map { judged.getValue(it).toDouble() }.average().toFloat()
+            val gap = cs.associateWith { c -> judged.getValue(c) - (expected[c] ?: mean) }
             val sd = sqrt(gap.values.map { (it * it).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
             for (c in cs) c.advantage = gap.getValue(c) / sd
         }
@@ -135,7 +140,7 @@ class PpoTrainer(private val o: PpoOptions) {
                 adams[mi].first.step(model.net.w, gw); adams[mi].second.step(model.identity, gi)
             }
         }
-        model.save(files[mi]); critics[mi].save(Role.entries[mi].valueFile(out))
+        model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)
         stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices; ")
     }
 

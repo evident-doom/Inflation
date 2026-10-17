@@ -107,18 +107,36 @@ open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: 
     var band: FloatArray? = null
     /** The group's temperament when it chose ([HexGroup.temper]). */
     var temper: FloatArray? = null
-    /** What followed: the group's (and its offshoots') numbers over the next weeks against its numbers now, discounted. */
+    /** The group's own state when it chose ([Critic.groupState]). */
+    var group: FloatArray? = null
+    /** What followed: what became of the group's members over the next weeks against their number now, discounted. */
     var ret = 0f
+    /** The same over the first [Critic.boot] weeks alone, and the weight of the critic's estimate from there ([Critic.target]). */
+    var part = 0f
+    var boot = 0f
+    /** Where the group stood, and how it was, [Critic.boot] weeks on (null if it was not seen choosing then). */
+    var probe: Probe? = null
     var advantage = 0f
 }
 
 /** Chooses with a [SharedMover], recording a share of its choices in [record] (null: the best, not sampled). */
-class MoverPolicy(private val mover: SharedMover, private val record: ConcurrentLinkedQueue<Choice>?, private val rate: (Species) -> Float, private val week: () -> Int) : HexPolicy {
+class MoverPolicy(private val mover: SharedMover, private val record: ConcurrentLinkedQueue<Choice>?, private val rate: (Species) -> Float, private val week: () -> Int,
+                  /** Recorded choices waiting to see their group again some weeks on, by group (see [Choice.probe]); null: none wanted. */
+                  private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null, private val season: () -> Float = { 0f }) : HexPolicy {
     private val buffers = ThreadLocal.withInitial { mover.net.buffers() }
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
         val b = buffers.get()
         val n = features.size
         val state = g.band?.state; val temper = g.temper
+        if (probes != null) probes[g.id]?.let { waiting -> synchronized(waiting) {
+            val w = week()
+            val due = waiting.filter { it.week + Critic.boot(it.kind) == w }
+            if (due.isNotEmpty()) {
+                val p = Probe(features[Critic.here(features)].copyOf(HexFeatures.SIZE), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season()))
+                for (c in due) c.probe = p
+                waiting.removeAll(due)
+            }
+        } }
         val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], state, b.a[0], temper); mover.net.forward(b) + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
         // Only the choices recorded to learn from are drawn by chance; every other group takes its best, so the
         // training worlds live as they would with the networks choosing (a world of chance moves goes under).
@@ -126,7 +144,9 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         val p = softmax(scores)
         var u = rnd.nextFloat(); var taken = n - 1
         for (k in 0 until n) { u -= p[k]; if (u <= 0f) { taken = k; break } }
-        record += Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf() }
+        val c = Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf(); it.group = Critic.groupState(g, season()) }
+        record += c
+        probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
         return taken
     }
     override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
@@ -315,6 +335,8 @@ object HexPpo {
         private var waysRate = 0f
         /** What became of each group's members, to judge each choice by. */
         private val outcomes = Outcomes()
+        /** Recorded choices waiting to see their group again [Critic.boot] weeks on. */
+        private val probes = ConcurrentHashMap<Int, MutableList<Choice>>()
         /** Whether it has lived its time (if it has one), or gone badly off the rails: then a fresh world takes its place. */
         val done get() = (lifeSteps > 0 && week >= lifeSteps) || derailed != null
         /**
@@ -352,7 +374,7 @@ object HexPpo {
             if (week == 0) { setRates(); checkRails() }
             // A fresh world first settles for [burnSteps] weeks, its choices unrecorded (they come on top of this round's).
             val total = steps + if (week == 0) burnSteps else 0
-            val policies = models.map { MoverPolicy(it, record, { s -> rates[s] ?: 0f }, { week }) }
+            val policies = models.map { MoverPolicy(it, record, { s -> rates[s] ?: 0f }, { week }, probes, { (week % stepsPerYear).toFloat() / stepsPerYear }) }
             for (s in kinds) run.groups.policies[s] = policies[role(s)]
             ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed) }
             repeat(if (lifeSteps > 0) min(total, lifeSteps - week) else total) {
@@ -373,8 +395,17 @@ object HexPpo {
                 val discount = if (c.kind.human) PEOPLE_DISCOUNT else DISCOUNT
                 // (Judged by the fate of the group's own members, so that taking others in is no gain.)
                 val own = outcomes.own(c.groupId, c.week, horizon)
-                for (k in 1..horizon) { sum += d * own[k - 1] / c.size.coerceAtLeast(1).toFloat(); norm += d; d *= discount }
+                val boot = Critic.boot(c.kind)
+                var part = 0f; var tail = 0f
+                for (k in 1..horizon) {
+                    val m = own[k - 1] / c.size.coerceAtLeast(1).toFloat()
+                    sum += d * m; norm += d
+                    if (k <= boot) part += d * m else tail += d
+                    d *= discount
+                }
                 c.ret = sum / norm
+                c.part = part / norm
+                c.boot = own[boot - 1] / c.size.coerceAtLeast(1).toFloat() * tail / norm
                 out += c
             }
             pending.clear(); pending += waiting
@@ -382,6 +413,9 @@ object HexPpo {
             // Let go of what no waiting choice needs: the weeks before the oldest of them, and the groups gone before it.
             val oldest = pending.minOfOrNull { it.week } ?: week
             outcomes.cut(oldest, run.groups.groups.mapTo(HashSet()) { it.id })
+            // (A choice whose group was not seen choosing when it was due keeps the whole horizon as seen.)
+            for (waiting in probes.values) synchronized(waiting) { waiting.removeIf { it.week + Critic.boot(it.kind) < week } }
+            probes.values.removeIf { it.isEmpty() }
             return out
         }
     }
@@ -443,51 +477,3 @@ object HexPpo {
     }
 }
 
-/**
- * A critic: from where a group stands (its own place's features and its kind), the return it can be
- * expected to make whatever it does, learned by least squares on the returns seen. Choices are then
- * judged by how much better than that they turned out.
- */
-class Critic(val net: Mlp, rate: Float = 1e-3f) {
-    private val adam = Adam(net.w.size, rate)
-    private val buffers = ThreadLocal.withInitial { net.buffers() }
-
-    /** Where [c]'s group stood: the candidate that is staying put (else the first). */
-    private fun here(c: Choice) = c.inputs.indices.firstOrNull { c.inputs[it].getOrElse(HexFeatures.STAYS) { 0f } > 0.5f } ?: 0
-
-    fun value(model: SharedMover, c: Choice): Float {
-        val b = buffers.get()
-        model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0], c.temper)
-        return net.forward(b)
-    }
-
-    /** A few passes of least squares toward the returns seen this round. */
-    fun learn(model: SharedMover, cs: List<Choice>, round: Int) {
-        repeat(3) { epoch ->
-            for (batch in cs.shuffled(kotlin.random.Random(round * 17L + epoch)).chunked(1024)) {
-                val parts = inParts(batch) { part ->
-                    val g = FloatArray(net.w.size); val b = net.buffers()
-                    for (c in part) {
-                        model.fill(c.kind, c.inputs[here(c)], c.band, b.a[0], c.temper)
-                        val v = net.forward(b)
-                        net.backward(b, 2f * (v - c.ret) / batch.size, g, null)
-                    }
-                    g
-                }
-                val g = FloatArray(net.w.size); for (p in parts) g.add(p)
-                adam.step(net.w, g)
-            }
-        }
-    }
-
-    fun save(f: File) = Schema.save(net, f, if (net.sizes[0] > SharedMover.INPUTS) Schema.PEOPLE_IN else Schema.MOVER_IN, listOf("value"))
-
-    companion object {
-        /** The critic in [f], or a new one, reading what [model] reads (for people, the band's view of itself too). */
-        fun loadOrNew(f: File, hidden: Int, model: SharedMover): Critic {
-            val names = if (model.band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN
-            return Critic(if (f.exists()) Schema.load(f, names, listOf("value")) else
-                Mlp.random(intArrayOf(model.inputs, hidden, 1), kotlin.random.Random(91)).also { m -> m.w[m.w.size - 1] = 1f })
-        }
-    }
-}
