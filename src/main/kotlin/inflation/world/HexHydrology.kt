@@ -204,6 +204,33 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 100 * carried { intoLake(it) && down[down[it]] < 0 }, 100 * carried { intoLake(it) && down[down[it]] < 0 && lakeM3[down[it]] < 0.99 * lakeFull[down[it]] },
                 lakes.count { lakeM3[it] < 0.99 * lakeFull[it] && down[it] < 0 })
     }
+    /** This year's rain and snow on each place, and what its soil could not hold (run off or into the rock), mm (see [lakeSummary]). */
+    @Transient private val rainYear = FloatArray(n)
+    @Transient private val shedYear = FloatArray(n)
+
+    /**
+     * For the catchments of lakes with no outlet, sinking (below 99%) or not: this year's rain and what the soil shed
+     * against the fine world's long-term rain and runoff (from which it sized those lakes). Starts the next year's count.
+     */
+    fun catchmentSummary(): String {
+        // (Each hex's last hex down its rivers: a lake with no outlet, or the sea.)
+        val end = IntArray(hex.size) { -1 }
+        for (h in order.reversed()) end[h] = if (down[h] < 0) h else end[down[h]]
+        val sums = Array(2) { DoubleArray(5) }
+        for (p in 0 until n) {
+            val e = end[hw.placeHex[p]]
+            if (e < 0 || down[e] >= 0 || lakeFull[e] <= 0.0) continue
+            val a = land.areaM2[p].toDouble()
+            val s = sums[if (lakeM3[e] < 0.99 * lakeFull[e]) 0 else 1]
+            s[0] += rainYear[p] * a; s[1] += shedYear[p] * a
+            s[2] += mean(p) { world.climate.annualPrecip[it] } * a; s[3] += mean(p) { world.climate.runoff[it] } * a; s[4] += a
+        }
+        rainYear.fill(0f); shedYear.fill(0f)
+        return listOf("sinking", "not sinking").mapIndexed { k, name -> val s = sums[k]
+            "%s %.0f km², rain %.0f%% of the fine world's (%.0f mm), shed %.0f%% of its runoff (%.0f against %.0f mm)".format(
+                name, s[4] / 1e6, 100 * s[0] / max(s[2], 1.0), s[2] / max(s[4], 1.0), 100 * s[1] / max(s[3], 1.0), s[1] / max(s[4], 1.0), s[3] / max(s[4], 1.0))
+        }.joinToString("; ")
+    }
     private fun intoLake(h: Int) = down[h] >= 0 && lakeFull[down[h]] > 0.0
     private inline fun carried(which: (Int) -> Boolean): Double {
         var raw = 0.0; var fine = 0.0
@@ -278,6 +305,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             val taken = min(excess * intake[p], aquiferCap[p] - groundwater[p]).coerceAtLeast(0f)
             groundwater[p] += taken
             volume[hw.placeHex[p]] += (excess - taken) / 1000.0 * land.areaM2[p]
+            if (CONSERVE_WATER) { rainYear[p] += weather.precipitation[p]; shedYear[p] += excess }
             ranOff[p] = excess - taken > 0f
             runoffMm[p] = excess - taken
             // The water in the bed sands sinks into the rock below.

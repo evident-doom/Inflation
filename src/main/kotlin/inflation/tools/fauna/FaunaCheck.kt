@@ -73,7 +73,10 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
             fauna.water.fishFlows.entries.sortedBy { it.key }.joinToString(", ") { "%s %.1f".format(it.key, it.value) })
         println("     eruptions so far: " + sim.eruptions.history.joinToString(", ") { "VEI ${it.vei} in year ${it.date.year}" }.ifEmpty { "none" })
         println("     matter: " + census.budget())
-        if (inflation.world.HexHydrology.CONSERVE_WATER) println("     lakes: " + sim.land.hydro.lakeSummary())
+        if (inflation.world.HexHydrology.CONSERVE_WATER) {
+            println("     lakes: " + sim.land.hydro.lakeSummary())
+            println("     catchments of lakes with no outlet: " + sim.land.hydro.catchmentSummary())
+        }
         println("     climate fit: " + census.fit())
         println("     land that suits / pull felt: " + census.drawn())
         println("     groups: " + groups.kinds.joinToString(", ") { "${it.name} ${groups.count(it)}" })
