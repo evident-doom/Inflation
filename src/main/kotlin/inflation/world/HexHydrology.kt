@@ -196,7 +196,17 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         val share = lakes.map { lakeM3[it] / lakeFull[it] }
         return "hold %.0f of %.0f million m³ (%.1f%%); of %d hexes' lakes %d dry (<1%%), %d below half, %d full (>99%%)".format(
             lakes.sumOf { lakeM3[it] } / 1e6, lakes.sumOf { lakeFull[it] } / 1e6, 100 * lakes.sumOf { lakeM3[it] } / lakes.sumOf { lakeFull[it] }.coerceAtLeast(1.0),
-            lakes.size, share.count { it < 0.01 }, share.count { it < 0.5 }, share.count { it > 0.99 })
+            lakes.size, share.count { it < 0.01 }, share.count { it < 0.5 }, share.count { it > 0.99 }) +
+            // (Against the fine rivers' long-term flow, the hex rivers' own flow over the last two years or so: the
+            // lakes were filled by the fine world's water, and fall where the hexes bring them less.)
+            "; rivers carry %.0f%% of the fine rivers' flow, into lakes %.0f%%; of the lakes below 99%% %d have no outlet".format(
+                100 * carried { meanFlow[it] >= CREEK }, 100 * carried { meanFlow[it] >= CREEK && down[it] >= 0 && lakeFull[down[it]] > 0.0 },
+                lakes.count { lakeM3[it] < 0.99 * lakeFull[it] && down[it] < 0 })
+    }
+    private inline fun carried(which: (Int) -> Boolean): Double {
+        var raw = 0.0; var fine = 0.0
+        for (h in 0 until hex.size) if (which(h)) { raw += rawMean[h]; fine += meanFlow[h] }
+        return raw / max(fine, 1e-9)
     }
 
     /** Each aquifer's settled level, mm, against which springs weaken (at least a millimetre). */
