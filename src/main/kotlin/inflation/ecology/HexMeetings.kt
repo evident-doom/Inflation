@@ -25,10 +25,16 @@ import kotlin.math.sqrt
 
 // Hunting along the way, and the meetings of a week settled one by one in the order they happen.
 
-/** Group [k] is in hex at its path's [index] from day [from] to day [to]. */
-private class Stay(val k: Int, val index: Int, val from: Float, val to: Float)
-/** Groups [a] and [b] are in the same hex from [day], for [span] days, at their paths' [ai] and [bi]. */
-private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int) { var tie = 0L }
+/**
+ * Group [k] is in hex [hex] (its path's [index], or one round the hex it grazes) from day [from] to day [to],
+ * for [share] of that time (see [rangeShares]).
+ */
+private class Stay(val k: Int, val index: Int, val hex: Int, val from: Float, val to: Float, val share: Float = 1f)
+/**
+ * Groups [a] and [b] are in hex [hex] together from [day], for [span] days, at their paths' [ai] and [bi], each
+ * there for its share of that time (the product is [share]).
+ */
+private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int, val hex: Int, val share: Float) { var tie = 0L }
 
 /**
  * A draw of order for groups [id] and [other] on day [day]: who comes first when two things happen at
@@ -583,13 +589,16 @@ internal fun HexGroups.meet(weather: Weather) {
     if (ROUNDS) for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] != -1) {
         val c = roundsWhere(g, weather); stats.hunting.merge(c + "heads", g.size, Int::plus); stats.hunting.merge(c + "herds", 1, Int::plus)
     }
+    // (With rounds on, for hex-rounds-check: hunters about where each herd set out, its own hex and the six round it.)
+    if (ROUNDS) roundsStart(weather)
     val byHex = HashMap<Int, ArrayList<Stay>>()
     for ((k, g) in groups.withIndex()) {
         if (!g.alive) continue
+        val last = g.path.size - 1
         for (i in g.path.indices) {
+            val to = if (i < last) g.days[i + 1] else days.toFloat()
             if (!hunted.get(g.path[i])) continue
-            val to = if (i + 1 < g.path.size) g.days[i + 1] else days.toFloat()
-            byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.days[i], to)
+            byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.path[i], g.days[i], to)
         }
     }
     mt = Profile.lap("meetings: who is in each hex", mt)
@@ -602,7 +611,7 @@ internal fun HexGroups.meet(weather: Weather) {
             val sa = stays[i]; val sb = stays[j]
             val from = max(sa.from, sb.from); val to = min(sa.to, sb.to)
             if (from > to) continue
-            out += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index)
+            out += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index, sa.hex, sa.share * sb.share)
         } }
         out.stream()
     }.collect(Collectors.toCollection { ArrayList<Meeting>() })
@@ -631,7 +640,7 @@ internal fun HexGroups.meet(weather: Weather) {
         if (e.ai > stop[e.a] || e.bi > stop[e.b]) continue
         val a = groups[e.a]; val b = groups[e.b]
         if (!a.alive || !b.alive) continue
-        val h = a.path[e.ai]
+        val h = e.hex
         // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
         // hours, and neither slip away first. (How often they run into each other while both are there.)
         val p = hw.sameBandPlace(a.place, h).takeIf { it >= 0 } ?: a.place
@@ -645,6 +654,7 @@ internal fun HexGroups.meet(weather: Weather) {
         }
         else {
             val (hunter, hi, herd, ri) = if (a.species.carnivore) listOf(e.a, e.ai, e.b, e.bi) else listOf(e.b, e.bi, e.a, e.ai)
+            if (ROUNDS) roundsMeeting(groups[herd], ri, h, weather)
             Profile.part("meetings: hunters and herds") { hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop, weather, met) }
         }
     }
@@ -903,6 +913,37 @@ internal fun HexGroups.roundsWhere(g: HexGroup, weather: Weather): String {
     val where = if (!onRound) "-" else roundOf(g, weather.date.month)?.first
         ?.let { r -> if (hex.distanceKm(g.path[0], hw.placeHex[r]) <= ROUND_NEAR_KM) "near" else "far" } ?: "far"
     return "rounds|${g.species.name}|${if (onRound) "on round" else "own country"}|$going|$where|"
+}
+
+/**
+ * For hex-rounds-check: for each herd this week, by "rounds|KIND|WAY|GOING|WHERE|" (see [roundsWhere]), the hexes
+ * its way crossed ("crossed") and the hunters about where it set out, its own hex and the six round it, in
+ * hundredths of a kg per km² ("hunters at start").
+ */
+private fun HexGroups.roundsStart(weather: Weather) {
+    val hunterKg = HashMap<Int, Float>()
+    for (g in groups) if (g.alive && g.species.carnivore && g.path.isNotEmpty()) hunterKg.merge(g.path[0], g.size * g.species.massKg, Float::plus)
+    for (g in groups) {
+        if (!g.alive || g.species.carnivore || g.route[0] == -1 || g.path.isEmpty()) continue
+        val c = roundsWhere(g, weather)
+        val h0 = g.path[0]
+        val hexKm2 = (sqrt(3.0) / 2 * hex.hexKm * hex.hexKm).toFloat()
+        var kg = hunterKg[h0] ?: 0f; var km2 = hexKm2
+        for (d in 0 until 6) { val n = hex.neighbour(h0, d); if (n >= 0 && hex.heart[n] >= 0) { kg += hunterKg[n] ?: 0f; km2 += hexKm2 } }
+        stats.hunting.merge(c + "crossed", g.path.size - 1, Int::plus)
+        stats.hunting.merge(c + "hunters at start", (100f * kg / km2).toInt(), Int::plus)
+    }
+}
+
+/**
+ * For hex-rounds-check: where on its week herd [g] met hunters, at its path's [ri] in hex [h]: on its way, where
+ * it grazes, or in the hexes round that; and whether on a well-worn path (where hunters wait, see [encounters]).
+ */
+private fun HexGroups.roundsMeeting(g: HexGroup, ri: Int, h: Int, weather: Weather) {
+    if (g.route[0] == -1) return
+    val c = roundsWhere(g, weather)
+    stats.hunting.merge(c + (if (ri < g.path.size - 1) "met on the way" else if (h == g.path[ri]) "met where it grazes" else "met round it"), 1, Int::plus)
+    if (wear.at(h) >= 0.5f) stats.hunting.merge(c + "met on worn ways", 1, Int::plus)
 }
 
 /** How close to its round's place a herd counts as there, km (as hex-rounds-check's "within 50 km"). */

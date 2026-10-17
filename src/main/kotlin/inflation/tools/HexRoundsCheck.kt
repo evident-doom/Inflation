@@ -122,6 +122,11 @@ fun main(args: Array<String>) {
             fun n(who: String, what: String) = (where[i]["$c|$who|$what"] ?: 0).toDouble()
             println("     %-28s %4.0f%%  met %.3f / %.3f  killed %5.1f / %5.1f".format(c.replace('|', ' '), 100 * h / wayHeads,
                 n("people", "met") / hw, n("animals", "met") / hw, 100 * n("people", "killed") / yrs, 100 * n("animals", "killed") / yrs))
+            // And why: the hexes its way crossed, the hunters about where it set out, and where on its week it met them.
+            fun x(what: String) = (where[i]["$c|$what"] ?: 0).toDouble()
+            val met = (x("met on the way") + x("met where it grazes") + x("met round it")).coerceAtLeast(1.0)
+            println("     %-28s        crossed %.2f hexes; hunters at start %.2f kg/km²; met on the way %3.0f%%, where it grazes %3.0f%%, round it %3.0f%%; on worn ways %3.0f%%".format("",
+                x("crossed") / hw, x("hunters at start") / 100 / hw, 100 * x("met on the way") / met, 100 * x("met where it grazes") / met, 100 * x("met round it") / met, 100 * x("met on worn ways") / met))
         }
     }
 }
