@@ -27,7 +27,10 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** For a herd: the place it remembers doing best in each month, and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
-    /** Its yearly round, as its elders taught it: the place it makes for each month ([ROUND_OPEN]: none yet; [NO_ROUND]: keeps to its own country; see [growRounds]). */
+    /**
+     * Its yearly round, as its elders taught it: the place it makes for each month ([ROUND_OPEN]: none yet; [NO_ROUND]:
+     * keeps to its own country; see [growRounds]).
+     */
     val route = IntArray(12) { ROUND_OPEN }
     /** Days since it last drank. */
     var dry = 0f
