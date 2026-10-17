@@ -325,6 +325,10 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
                 b.ornaments -= goods; b.exotic -= goods * ex; land.graveGoods[g.place] += goods }
         }
         o.split?.let { c -> born += splitOff(g, c.adults, c.young) } // a young pack has no ground yet
+        if (o.leavers > 0) {
+            repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
+            stats.meetings.merge("young hunters left their pack", o.leavers, Int::plus)
+        }
     }
     groups += born
     Profile.part("groups: merging and pairing") { mergeAndPair(date) }
@@ -381,9 +385,12 @@ internal fun adultsDied(g: HexGroup, n: Int, r: Random) {
     }
 }
 
-/** What a group's week left for others: carcasses (kg), births, deaths by cause, orphans, a split-off part (adults, young). */
+/**
+ * What a group's week left for others: carcasses (kg), births, deaths by cause, orphans, a split-off part (adults, young),
+ * and the young grown up this week that leave a pack on their own ([leavers]).
+ */
 internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val causes: List<Died>, val orphans: Int,
-    val split: Split?, val youngDied: Int = 0)
+    val split: Split?, val youngDied: Int = 0, val leavers: Int = 0)
 
 /** [n] of a group died of [cause] this week. */
 internal data class Died(val cause: String, val n: Int)
@@ -502,7 +509,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
     val causes = shareDeaths(hazards, da, dy, r)
     if (oldAge > 0) causes += Died(DeathCause.OLD_AGE.label, oldAge)
-    growUp(g, r)
+    val grown = growUp(g, r)
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
         val orphans = g.young
@@ -510,13 +517,17 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         g.young = 0
         return Outcome(carrion, bornNow, da + oldAge + dy, causes, orphans, null, dy + orphans)
     }
+    // Young hunters grown up leave a pack already as big as its kind's usual one, each alone, to find a mate
+    // and ground of their own: how packs are founded (a pack that only grows until it splits seldom gets there).
+    val leavers = if (s.pack && band == null) min(grown, max(0, g.adults - s.groupSize)) else 0
+    g.adults -= leavers
     var split: Split? = null
     // Bands that feast together hold together longer.
     if (g.size > maxSize(g, date)) {
         split = Split(g.adults / 2, g.young / 2)
         g.adults -= split.adults; g.young -= split.young
     }
-    return Outcome(carrion, bornNow, da + oldAge + dy, causes, 0, split, dy)
+    return Outcome(carrion, bornNow, da + oldAge + dy, causes, 0, split, dy, leavers)
 }
 
 /** Reserves carry [g] through lean weeks; a group that ate (nearly) its fill lays them on, most in late summer and autumn. */
@@ -660,8 +671,8 @@ private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int
     return died.entries.mapTo(ArrayList()) { Died(it.key, it.value) }
 }
 
-/** [g]'s young grow up, and in a band the adults age through three spans of adult life, then become elders (drawn from [r]). */
-private fun HexGroups.growUp(g: HexGroup, r: Random) {
+/** [g]'s young grow up, and in a band the adults age through three spans of adult life, then become elders (drawn from [r]); returns how many grew up. */
+private fun HexGroups.growUp(g: HexGroup, r: Random): Int {
     val s = g.species
     val band = g.band
     val up = binomial(g.young, years / s.yearsToMaturity, r)
@@ -674,6 +685,7 @@ private fun HexGroups.growUp(g: HexGroup, r: Random) {
         val toSecond = binomial(first, rate, r)
         b.elders += toElder; b.ageStage[1] += toThird - toElder; b.ageStage[0] += toSecond - toThird
     }
+    return up
 }
 
 /**
