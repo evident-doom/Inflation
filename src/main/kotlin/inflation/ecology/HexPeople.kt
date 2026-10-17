@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.Kg
 import inflation.KgM2
+import inflation.min
 import inflation.Tuning
 import inflation.binomial
 import inflation.world.HexLand
@@ -716,7 +717,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
                     abandoned += x * (1f - cached)
                 }
                 if (cached > 0f) b.cachePlace = b.campPlace
-                if (abandoned > 0f) small.litter[b.campPlace] += abandoned / (land.areaKm2[b.campPlace] * 1e6f)
+                if (abandoned > 0f) small.litter[b.campPlace] += land.spread(b.campPlace, Kg(abandoned)).v
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
         }
@@ -739,12 +740,12 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
                     b.cache[i] -= x
                     lost += x
                 }
-                small.carrion[cp] += 0.3f * lost / land.m2(cp)
+                small.carrion[cp] += land.spread(cp, Kg(0.3f * lost)).v
             }
         }
         val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]]) + CACHE_SPOIL * b.cacheKg
         for (i in Store.entries) b.cache[i] *= 1f - CACHE_SPOIL
-        small.litter[b.cachePlace] += spoilt / (land.areaKm2[b.cachePlace] * 1e6f)
+        small.litter[b.cachePlace] += land.spread(b.cachePlace, Kg(spoilt)).v
         if (hw.hexOf(b.cachePlace) == h) {
             val room = max(0f, carryKg(g, b) - g.larder)
             val take = min(b.cacheKg, room)
@@ -948,9 +949,9 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time0
         val sow = minOf(stock * SOW_SHARE * b.sowWill, time * hands(g) / SOW_DAYS_PER_KG)
         if (sow > 0.1f) {
             g.stores[Store.SEED] -= sow; time -= sow * SOW_DAYS_PER_KG / hands(g)
-            val food = fauna.food; val m2 = land.m2(p)
+            val food = fauna.food
             val standing = food.cereal[p] * land.plants.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
-            val add = sow / m2
+            val add = land.spread(p, Kg(sow)).v
             food.domestic[p] = (food.domestic[p] * standing + b.seedDomestic * add) / (standing + add).coerceAtLeast(1e-9f)
             food.field[p] += add
             stats.meetings.merge("bands sowed", 1, Int::plus)
@@ -1037,7 +1038,7 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
 
 /** Gives up a band's cache: what is in it goes back to the ground. */
 private fun HexGroups.dropCache(b: Band) {
-    if (!b.cachePlace.none) small.litter[b.cachePlace] += b.cacheKg / (land.areaKm2[b.cachePlace] * 1e6f)
+    if (!b.cachePlace.none) small.litter[b.cachePlace] += land.spread(b.cachePlace, Kg(b.cacheKg)).v
     b.cache.fill(0f); b.cachePlace = Place.NONE
 }
 
@@ -1527,7 +1528,7 @@ fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(
  */
 private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
     val years = days / Date.DAYS_PER_YEAR.toFloat()
-    val p = g.place; val m2 = land.m2(p)
+    val p = g.place
     val moved = max(0, g.path.size - 1)
     for (k in b.herd.indices) {
         var n = b.herd[k]
@@ -1535,11 +1536,11 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         val s = fauna.kinds[k]
         val tame = b.herdTame[k]
         // Grazing round the camp.
-        val need = n * s.dailyIntakeKg * days / m2
+        val need = land.spread(p, Kg(n * s.dailyIntakeKg * days))
         val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
-        val got = (land.plants.consume(p.i, LifeForm.HERB, KgM2(min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f))) +
-            land.plants.eatBrowse(p.i, KgM2(need * d.browse / total))).v
-        val fed = if (need > 0f) min(1f, got / need) else 1f
+        val got = land.plants.consume(p.i, LifeForm.HERB, min(need * d.grass / total, KgM2(land.palatable[p] * land.plants.herb[p] * 0.1f))) +
+            land.plants.eatBrowse(p.i, need * d.browse / total)
+        val fed = if (need.v > 0f) min(1f, got / need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f

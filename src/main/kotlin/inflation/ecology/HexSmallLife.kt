@@ -324,7 +324,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             record?.let { it.carrionGone[p] += gone }
             if (carrion[p] < 1e-9f) carrion[p] = 0f
         }
-        carrion[p] += carcassKg[p] / land.m2(p)
+        carrion[p] += land.spread(p, Kg(carcassKg[p])).v
         // Bones weather away over a couple of years into the soil.
         if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b; record?.let { it.bonesGone[p] += b } }
     }

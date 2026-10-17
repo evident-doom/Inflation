@@ -39,6 +39,10 @@ package inflation.ecology
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeIn(band: Int, h: Hex) = Place(placeOf[band][h.i])
 /** Area of place [p], m². */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.m2(p: Place) = m2(p.i)
+/** [kg] spread over place [p]. */
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.spread(p: Place, kg: inflation.Kg) = spread(p.i, kg)
+/** All of [x] over place [p]. */
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.total(p: Place, x: inflation.KgM2) = total(p.i, x)
 /** Shrub and tree cover of place [p], 0..1. */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexPlants.cover(p: Place) = cover(p.i)
 /** Tree canopy of place [p], 0..1. */
