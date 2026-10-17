@@ -152,7 +152,7 @@ class Species(
     /** Mostly eats animals. */
     val carnivore: Boolean get() = diet.meat + diet.smallPrey + diet.carrion > 0.5f
     /** What kind of group it lives in: a band of people, a pack of hunters or a herd of plant-eaters. */
-    val role: Role get() = if (human) Role.BAND else if (carnivore) Role.PACK else Role.HERD
+    val lifeway: Lifeway get() = if (human) Lifeway.BAND else if (carnivore) Lifeway.PACK else Lifeway.HERD
     /** Hunts in packs: a meat-eater that is not people. */
     val pack: Boolean get() = carnivore && !human
     /**
@@ -204,5 +204,5 @@ object Allometry {
     fun herbivoreDensityPerKm2(massKg: Float): Float = 10f.pow(4.23f) * (massKg * 1000f).pow(-0.75f)
 }
 
-/** The kinds of group a species lives in (see [Species.role]). */
-enum class Role { HERD, PACK, BAND }
+/** The kinds of group a species lives in (see [Species.lifeway]); not the learning [inflation.learning.Role]. */
+enum class Lifeway { HERD, PACK, BAND }

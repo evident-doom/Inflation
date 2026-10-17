@@ -323,7 +323,7 @@ class HexGroups(
                 // herds without one (newcomers) take the nearest.
                 if (ROUNDS) {
                     if (herdRounds.isEmpty() || (date.month == 0 && date.year % ROUND_YEARS == 0L)) growRounds(date.month)
-                    for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] == -1) herdRounds[g.species.index]?.let { takeRound(g, it, date.month) }
+                    for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] == ROUND_OPEN) herdRounds[g.species.index]?.let { takeRound(g, it, date.month) }
                 }
             }
             remember(date)
@@ -410,10 +410,11 @@ class HexGroups(
      * sea) and the open water between, km. Swimmers that can cover it may cross, at a great effort
      * and a risk of drowning; for the rest the sea is a wall.
      */
-    val seaLinks: Array<IntArray> by lazy { links().first }
-    val seaGaps: Array<FloatArray> by lazy { links().second }
-    private var linksMade: Pair<Array<IntArray>, Array<FloatArray>>? = null
-    private fun links(): Pair<Array<IntArray>, Array<FloatArray>> = linksMade ?: run {
+    val seaLinks: Array<IntArray> by lazy { links().to }
+    val seaGaps: Array<FloatArray> by lazy { links().gap }
+    private class SeaLinks(val to: Array<IntArray>, val gap: Array<FloatArray>)
+    @Transient private var linksMade: SeaLinks? = null
+    private fun links(): SeaLinks = linksMade ?: run {
         val to = Array(hex.size) { IntArray(0) }; val gap = Array(hex.size) { FloatArray(0) }
         for (a in 0 until hex.size) {
             if (hex.heart[a] < 0 || (0 until 6).none { d -> val b = hex.neighbour(a, d); b >= 0 && hex.heart[b] < 0 }) continue
@@ -430,7 +431,7 @@ class HexGroups(
             }
             to[a] = found.keys.toIntArray(); gap[a] = found.values.toFloatArray()
         }
-        (to to gap).also { linksMade = it }
+        SeaLinks(to, gap).also { linksMade = it }
     }
     /** The open water between hexes [a] and [b], km, if a swimmer can cross from one to the other; else infinite. */
     fun seaGap(a: Int, b: Int): Float { val l = seaLinks[a]; for (i in l.indices) if (l[i] == b) return seaGaps[a][i]; return Float.POSITIVE_INFINITY }
@@ -768,7 +769,7 @@ class HexGroups(
         // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
         if (s.carnivore) f[Feature.FOOD] = prey / (prey + PREY_HALF) else { val food = foodFor(s, p); f[Feature.FOOD] = saturate(food, Thresholds.FOOD_HALF) }
         // (And for herds how good it is, nourishment and protein, as the hand-written score weighs it: high ground's draw in summer.)
-        if (s.role == Role.HERD) f[Feature.FORAGE_QUALITY] = freshness(s, p)
+        if (s.lifeway == Lifeway.HERD) f[Feature.FORAGE_QUALITY] = freshness(s, p)
         f[Feature.CLIMATE] = ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
         f[Feature.CROWDING] = crowded
         f[Feature.HUNTERS] = hunters / (hunters + 3f)
