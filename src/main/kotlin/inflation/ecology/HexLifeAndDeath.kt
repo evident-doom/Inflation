@@ -418,7 +418,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // Children of a closed band are inbred; medicine saves some of the sick and wounded.
     val inbred = if (band != null) INBREEDING_DEATHS * band.inbred * years else 0f
     // (Healers save some of the sick and wounded, the more the more they know.)
-    val healed = (if (band?.holds(Tradition.MEDICINE) == true) 0.85f else 1f) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
+    val healed = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
     // (And practised midwives and carers lose fewer infants.)
     val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
     // Sicknesses of their own: the flux, marsh fever, the cough (see [Illness]); healers save some.
@@ -530,7 +530,7 @@ private fun HexGroups.moveBirthMonth(g: HexGroup, date: Date) {
  * Returns the deaths from festering, a year's rate.
  */
 private fun HexGroups.woundsWeek(band: Band): Float {
-    val care = (if (band.holds(Tradition.MEDICINE)) 0.5f else 0f) + 0.5f * band.skill(Skill.HERBS)
+    val care = 0.5f * band.medicine + 0.5f * band.skill(Skill.HERBS)
     band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * years)
     val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
     val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f

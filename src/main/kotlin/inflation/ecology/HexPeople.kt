@@ -112,6 +112,13 @@ class Band {
      */
     var hurt = 0f
     var lame = 0f
+    /** Share of the work its customs ask that it got done last week: a clean camp ([Tradition.HYGIENE]), the sick and hurt nursed ([Tradition.MEDICINE]). */
+    var cleaned = 1f
+    var nursed = 1f
+    /** How much a band keeping its camp clean spares itself of what fouling spreads, as far as it did the work (1: not at all). */
+    val hygiene get() = if (holds(Tradition.HYGIENE)) 1f - (1f - HYGIENE_GUARD) * cleaned else 1f
+    /** How far its medicine reaches this week, 0..1: none without the custom, and only as far as the sick and hurt were nursed. */
+    val medicine get() = if (holds(Tradition.MEDICINE)) nursed else 0f
     /** People taken by beasts of prey lately, per head (fading by a tenth a week). */
     var beastLoss = 0f
     /** What it knows of itself and of the bands about it, as of the start of the week ([bandInputs]): the people networks' view of the band. */
@@ -494,6 +501,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     var time = b.spareDays
     time = fetchFuel(b, p, people, area, time)
+    time = keepCustoms(b, people, time)
     time = trainHolders(g, b, time)
     time = makeTools(b, people, time)
     b.renown *= 1f - RENOWN_FADE * years
@@ -676,6 +684,23 @@ private fun HexGroups.fetchFuel(b: Band, p: Int, people: Float, area: Float, tim
         land.consume(p, LifeForm.SHRUB, got * shrub / (tree + shrub) / area)
     }
     return if (rate > 0f) time - got / rate else time
+}
+
+/**
+ * The work [b]'s customs ask of it this week, from [time] (person-days) after the firewood: keeping the camp clean
+ * (middens carried off, water fetched apart from them) and nursing its sick and hurt. Each is done as far as the time
+ * goes, and helps only as far as it was done. Returns the time left.
+ */
+private fun HexGroups.keepCustoms(b: Band, people: Float, time: Float): Float {
+    var t = time
+    val clean = if (b.holds(Tradition.HYGIENE)) HYGIENE_DAYS * people * days else 0f
+    b.cleaned = if (clean > 0f) min(1f, t / clean) else 1f
+    t -= b.cleaned * clean
+    val patients = people * (b.hurt + b.sick.sum()).coerceAtMost(1f)
+    val nurse = if (b.holds(Tradition.MEDICINE)) NURSE_DAYS * patients * days else 0f
+    b.nursed = if (nurse > 0f) min(1f, t / nurse) else 1f
+    t -= b.nursed * nurse
+    return max(0f, t)
 }
 
 /** [b]'s tools wear out in use (slowly lying idle); a band with a use for a tool or practised at a kind of work now and then hits on a new one. */
@@ -995,7 +1020,7 @@ internal fun settledFertility(g: HexGroup): Float {
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
 internal fun campFouling(g: HexGroup): Float {
     val b = g.band ?: return 0f
-    return CAMP_FOULING * Tuning.campFouling * fouled(b) * (if (b.holds(Tradition.HYGIENE)) 0.4f else 1f) * (if (b.holds(Tradition.MEDICINE)) 0.7f else 1f)
+    return CAMP_FOULING * Tuning.campFouling * fouled(b) * b.hygiene * (1f - 0.3f * b.medicine)
 }
 
 /** How fouled a band's camp is, 0..1: not at all for its first two months, fully after a year more. */
@@ -1003,7 +1028,7 @@ internal fun fouled(b: Band) = min(1f, max(0, b.campWeeks - 8) / 52f)
 
 /** How much a band would rather leave its camp than stay: the camp fouled (less where it keeps it clean), against the graves of its dead. */
 internal fun stayCost(b: Band): Float {
-    var c = FOUL_AVOID * fouled(b) * (if (b.holds(Tradition.HYGIENE)) 0.4f else 1f)
+    var c = FOUL_AVOID * fouled(b) * b.hygiene
     if (b.holds(Tradition.BURIAL) && b.campWeeks > 4) c -= BURIAL_STAY
     return c
 }
@@ -1591,6 +1616,12 @@ const val NIGHT_WOOD = 3f
  */
 const val HEARTH_WOOD = 1f
 const val FUEL_A_DAY = 25f
+/**
+ * Days of work a clean camp takes a person each day (about a quarter of an hour of a twelve-hour day), and days a
+ * carer gives each sick or hurt person each day (half a day). Estimates: no time-use figures found (2026-10-17).
+ */
+const val HYGIENE_DAYS = 0.02f
+const val NURSE_DAYS = 0.5f
 
 /** A band takes [n] wounded among its [adults]: from a fight, a hunt gone wrong, a beast, a fall. */
 internal fun Band.wounded(n: Float, adults: Int) { if (adults > 0) hurt = min(1f, hurt + n / adults) }
