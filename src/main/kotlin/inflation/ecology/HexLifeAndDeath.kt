@@ -572,7 +572,7 @@ private fun HexGroups.growUp(g: HexGroup, r: Random) {
 private fun HexGroups.peopleSickness(g: HexGroup, weather: Weather): Float {
     val dens = peopleCrowding(g)
     // Fevers by the marshes in the warm months, where the mosquitoes breed.
-    val marsh = land.logged[g.place] * if (weather.temperature[g.place] > 20f) 1f else 0f
+    val marsh = land.waterlogged[g.place] * if (weather.temperature[g.place] > 20f) 1f else 0f
     // (Marsh fever is now its own sickness: see [Illness].)
     return PEOPLE_SICK * Tuning.peopleSick * dens * dens
 }

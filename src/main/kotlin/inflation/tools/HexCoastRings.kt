@@ -58,7 +58,7 @@ fun main(args: Array<String>) {
             mean { _, p -> ((run.fauna.food.fruit[p] + run.fauna.food.roots[p] + run.fauna.food.seeds[p]) * 1e6f * inflation.ecology.PLANT_FOOD_WEIGHT).toDouble() },
             mean { _, p -> land.peopleWaterKm(p).toDouble() },
             mean { h, _ -> run.fauna.water.fishWithin(h, 1f).toDouble() },
-            mean { _, p -> land.logged[p].toDouble() },
+            mean { _, p -> land.waterlogged[p].toDouble() },
             mean { _, p -> land.bestDefence[p].toDouble() }, mean { _, p -> flood[p] }, mean { _, p -> fire[p] }))
     }
 }

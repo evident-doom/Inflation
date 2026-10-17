@@ -589,7 +589,7 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Int, h: Int, peop
     gd[Material.WOOD.ordinal] += wood
     gd[Material.RESIN.ordinal] += 0.05f * people * min(1f, land.tree[p] / 3f)
     // (Reeds and rushes in a marsh give the best fibre of all.)
-    val fibre = people * min(1f, (land.herb[p] + land.shrub[p]) / 0.5f + 2f * land.logged[p])
+    val fibre = people * min(1f, (land.herb[p] + land.shrub[p]) / 0.5f + 2f * land.waterlogged[p])
     gd[Material.FIBRE.ordinal] += fibre
     // Shells on the shore, for beads.
     if (hw.coast[h]) gd[Material.SHELL.ordinal] += SHELL_A_WEEK * people

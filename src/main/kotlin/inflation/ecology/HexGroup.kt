@@ -179,7 +179,7 @@ object HexFeatures {
     const val SHRUBS = 38
     /** Grass cover. */
     const val GRASS = 39
-    /** Waterlogged ground ([HexLand.logged]). */
+    /** Waterlogged ground ([HexLand.waterlogged]). */
     const val MARSH = 40
     /** Water now against its usual. */
     const val WATER_AGAINST_USUAL = 41
