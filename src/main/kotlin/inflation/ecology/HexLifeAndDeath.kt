@@ -240,7 +240,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
         if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
-        if (ROUNDS && !s.carnivore && g.route[0] != -1) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) stats.deaths.merge("${s.name} $way:born", o.births, Int::plus) }
+        if (ROUNDS && !s.carnivore && g.route[0] != ROUND_OPEN) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) stats.deaths.merge("${s.name} $way:born", o.births, Int::plus) }
         if (s.human) { val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' '); for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands in $c:died of $cause", k, Int::plus); if (o.births > 0) stats.hunting.merge("bands in $c:born", o.births, Int::plus) }
         if (o.orphans > 0) stats.deaths.merge("${s.name}:${DeathCause.ORPHANED}", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.

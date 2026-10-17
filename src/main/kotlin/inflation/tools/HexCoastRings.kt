@@ -30,8 +30,8 @@ fun main(args: Array<String>) {
         run.step()
         if (w >= steps - perYear) for (p in 0 until run.land.n) {
             val c = run.fauna.calamities(human, p, run.weather, true)
-            fire[p] += c.first.toDouble()
-            flood[p] += c.second.toDouble()
+            fire[p] += c.fire.toDouble()
+            flood[p] += c.flood.toDouble()
         }
     }
     val hex = run.hex; val hw = run.hw; val land = run.land; val groups = run.groups

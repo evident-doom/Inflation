@@ -323,7 +323,7 @@ class HexGroups(
                 // herds without one (newcomers) take the nearest.
                 if (ROUNDS) {
                     if (herdRounds.isEmpty() || (date.month == 0 && date.year % ROUND_YEARS == 0L)) growRounds(date.month)
-                    for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] == -1) herdRounds[g.species.index]?.let { takeRound(g, it, date.month) }
+                    for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] == ROUND_OPEN) herdRounds[g.species.index]?.let { takeRound(g, it, date.month) }
                 }
             }
             remember(date)
@@ -412,6 +412,7 @@ class HexGroups(
      */
     val seaLinks: Array<IntArray> by lazy { links().first }
     val seaGaps: Array<FloatArray> by lazy { links().second }
+    // (A Pair, not a class of its own: it is in the saves, so its shape is part of the save format.)
     private var linksMade: Pair<Array<IntArray>, Array<FloatArray>>? = null
     private fun links(): Pair<Array<IntArray>, Array<FloatArray>> = linksMade ?: run {
         val to = Array(hex.size) { IntArray(0) }; val gap = Array(hex.size) { FloatArray(0) }
@@ -768,7 +769,7 @@ class HexGroups(
         // What the place offers it: plants for herds; for hunters and bands, what the baseline weighs (game, and for bands plant food and a safe camp).
         if (s.carnivore) f[Feature.FOOD] = prey / (prey + PREY_HALF) else { val food = foodFor(s, p); f[Feature.FOOD] = saturate(food, Thresholds.FOOD_HALF) }
         // (And for herds how good it is, nourishment and protein, as the hand-written score weighs it: high ground's draw in summer.)
-        if (s.role == Role.HERD) f[Feature.FORAGE_QUALITY] = freshness(s, p)
+        if (s.lifeway == Lifeway.HERD) f[Feature.FORAGE_QUALITY] = freshness(s, p)
         f[Feature.CLIMATE] = ln(fauna.suits(s, p).coerceAtLeast(1e-3f)) / 2f
         f[Feature.CROWDING] = crowded
         f[Feature.HUNTERS] = hunters / (hunters + 3f)

@@ -71,9 +71,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * For the check: where each kind's food came from, summed over its animals since last read (fresh
      * grass, browse, fruit and roots; standing straw; small prey and carrion; its reserves), and the
-     * animals counted, so that each over the last is the share of a full need met that way.
+     * animals counted, so that each over the last is the share of a full need met that way: indexed by
+     * [FED_PLANTS], [FED_STRAW], [FED_ANIMAL], [FED_RESERVES] and [FED_HEADS].
      */
-    val fedFrom = Array(kinds.size) { Array(5) { DoubleAdder() } }
+    val fedFrom = Array(kinds.size) { Array(FED_HEADS + 1) { DoubleAdder() } }
     /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
      * away from ground where its kind has been killed (the landscape of fear).
@@ -314,9 +315,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * Shares of [s]'s adults and young ([young]) that die this week in place [p] of fire, flood and
      * deep snow: fire catches the slow and the young on the share of the place that burns; a high
      * flood drowns some on the floodplain (not the kinds that live in the water); snow far deeper
-     * than a kind can dig through starves and exhausts it. Returned as fire, flood and snow.
+     * than a kind can dig through starves and exhausts it.
      */
-    fun calamities(s: Species, p: Int, weather: Weather, young: Boolean): Triple<Float, Float, Float> {
+    fun calamities(s: Species, p: Int, weather: Weather, young: Boolean): Calamities {
         val fire = land.burning[p] * (if (young) FIRE_YOUNG else FIRE_ADULT)
         val flood = if (s.maxWaterKm.isFinite() || land.flood[p] <= FLOOD_DROWN_M) 0f
             else land.floodShare[p] * (if (young) FLOOD_YOUNG else FLOOD_ADULT)
@@ -324,7 +325,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val snow = if (over <= 2f) 0f else min(0.1f, SNOW_DEATHS * (over - 2f)) * (if (young) 3f else 1f)
         // Grazing in fresh ash wears teeth and poisons with fluorine: counted with the snow, as a smothered winter.
         val ash = if (land.ash[p] < ASH_HARM_MM) 0f else min(0.1f, ASH_DEATHS * land.ash[p] / 50f) * (if (young) 2f else 1f)
-        return Triple(fire, flood, snow + ash)
+        return Calamities(fire, flood, snow + ash)
     }
 
     /**
@@ -576,7 +577,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         small.dung[p] += HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)
                     }
                     val heads = adults[k][p] + 0.5f * young[k][p]
-                    if (heads > 0f) { val ff = fedFrom[k]; ff[0].add((min(1f, got[k]) * ps * heads).toDouble()); ff[1].add((strawPart * ps * heads).toDouble()); ff[2].add((min(1f, animal) * (1f - ps) * heads).toDouble()); ff[4].add(heads.toDouble()) }
+                    if (heads > 0f) {
+                        val ff = fedFrom[k]
+                        ff[FED_PLANTS].add((min(1f, got[k]) * ps * heads).toDouble()); ff[FED_STRAW].add((strawPart * ps * heads).toDouble())
+                        ff[FED_ANIMAL].add((min(1f, animal) * (1f - ps) * heads).toDouble()); ff[FED_HEADS].add(heads.toDouble())
+                    }
                     // (Animal food beyond its share makes up for plants that fell short.)
                     ((got[k] + strawPart) * ps + animal * (1f - ps)).coerceIn(0f, 1f)
                 }
@@ -584,7 +589,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val r = reserve[k]
                 if (!sleeping) {
                     if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days)
-                        val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) fedFrom[k][3].add((draw / days * heads).toDouble()) }
+                        val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) fedFrom[k][FED_RESERVES].add((draw / days * heads).toDouble()) }
                     else r[p] = min(s.maxFatDays, r[p] + FAT_EFFICIENCY * surplus[k] * days)
                 }
                 fed[k][p] = f
@@ -839,6 +844,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     companion object {
+        /** Where residents' food came from ([fedFrom]): fresh plants, straw, prey and carrion, reserves; and the animals counted. */
+        const val FED_PLANTS = 0
+        const val FED_STRAW = 1
+        const val FED_ANIMAL = 2
+        const val FED_RESERVES = 3
+        const val FED_HEADS = 4
         /** Share of the standing plants a week's grazing can take without eating the place bare. */
         const val REACH = 0.01f
         /** How strongly a kind is drawn to the ground it prefers. */
@@ -979,3 +990,6 @@ object ResidentDeath {
     const val THIRST = 9
     val LABELS = arrayOf("age", "hunger", "cold", "disease", "eagles", "fire", "flood", "snow", "crocodiles", "thirst")
 }
+
+/** Shares of a kind's animals that die this week of fire, flood, and deep snow or ash (see [HexFauna.calamities]). */
+data class Calamities(val fire: Float, val flood: Float, val snow: Float)

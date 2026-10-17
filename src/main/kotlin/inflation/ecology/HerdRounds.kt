@@ -28,7 +28,7 @@ internal fun HexGroups.growRounds(month: Int) {
         val rounds = roundsFor(s, q)
         if (rounds.isEmpty()) continue
         herdRounds[s.index] = rounds
-        for (g in groups) if (g.alive && g.species == s && g.route[0] == -1) {
+        for (g in groups) if (g.alive && g.species == s && g.route[0] == ROUND_OPEN) {
             if (firstGrowth && hashNoise(g.id, 77) >= ROUND_START_SHARE) Arrays.fill(g.route, NO_ROUND) else takeRound(g, rounds, month)
         }
         stats.meetings.merge("${s.name}: yearly rounds grown", rounds.size, Int::plus)
@@ -67,7 +67,7 @@ internal fun HexGroups.driftRound(g: HexGroup) {
             val p = placeNear(g.route[m], RANGE_KM)
             if (p >= 0) g.route[m] = p
         }
-    } else if (g.route[0] == NO_ROUND && r < ROUND_SWITCH) Arrays.fill(g.route, -1) // (to take the nearest round at the month's turn)
+    } else if (g.route[0] == NO_ROUND && r < ROUND_SWITCH) Arrays.fill(g.route, ROUND_OPEN) // (to take the nearest round at the month's turn)
 }
 
 /** A herd takes the round that passes nearest to where it stands this month. */
@@ -169,6 +169,8 @@ const val ROUND_YEARS = 10
 val ROUND_DRIFT = Config.float("t.roundDrift", 0.3f)
 val ROUND_SWITCH = Config.float("t.roundSwitch", 0.05f)
 const val NO_ROUND = -2
+/** The mark of a herd with no round yet and none given up: it takes the nearest at the month's turn. */
+const val ROUND_OPEN = -1
 /** Share of herds that start with a round when the rounds are first grown (the rest keep to their country, and the two ways compete). */
 val ROUND_START_SHARE = Config.float("t.roundStart", 0.5f)
 const val RANGE_KM = 100.0
