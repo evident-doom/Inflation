@@ -199,10 +199,12 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             lakes.size, share.count { it < 0.01 }, share.count { it < 0.5 }, share.count { it > 0.99 }) +
             // (Against the fine rivers' long-term flow, the hex rivers' own flow over the last two years or so: the
             // lakes were filled by the fine world's water, and fall where the hexes bring them less.)
-            "; rivers carry %.0f%% of the fine rivers' flow, into lakes %.0f%%; of the lakes below 99%% %d have no outlet".format(
-                100 * carried { meanFlow[it] >= CREEK }, 100 * carried { meanFlow[it] >= CREEK && down[it] >= 0 && lakeFull[down[it]] > 0.0 },
+            "; rivers carry %.0f%% of the fine rivers' flow, into lakes %.0f%%, into lakes with no outlet %.0f%%, into those of them below 99%% %.0f%%; of the lakes below 99%% %d have no outlet".format(
+                100 * carried { meanFlow[it] >= CREEK }, 100 * carried { meanFlow[it] >= CREEK && intoLake(it) },
+                100 * carried { intoLake(it) && down[down[it]] < 0 }, 100 * carried { intoLake(it) && down[down[it]] < 0 && lakeM3[down[it]] < 0.99 * lakeFull[down[it]] },
                 lakes.count { lakeM3[it] < 0.99 * lakeFull[it] && down[it] < 0 })
     }
+    private fun intoLake(h: Int) = down[h] >= 0 && lakeFull[down[h]] > 0.0
     private inline fun carried(which: (Int) -> Boolean): Double {
         var raw = 0.0; var fine = 0.0
         for (h in 0 until hex.size) if (which(h)) { raw += rawMean[h]; fine += meanFlow[h] }
