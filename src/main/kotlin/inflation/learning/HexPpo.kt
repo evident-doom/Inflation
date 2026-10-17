@@ -449,19 +449,33 @@ object HexPpo {
     internal fun score(cfg: WorldConfig, years: Int, kinds: List<Species>, setUp: (HexSim) -> Unit): Map<Species, Double> {
         val run = freshSim(cfg, kinds)
         setUp(run)
-        val start = kinds.associateWith { run.groups.count(it).toDouble() }
-        val weeks = HashMap<Species, Double>()
-        val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
-        val lastLuck = HashMap<Int, Float>(); val luck = HashMap<Species, Double>()
-        repeat(steps) {
-            run.step()
-            for (g in run.groups.groups) {
-                if (g.species.human) { luck.merge(g.species, (g.luck - (lastLuck[g.id] ?: 0f)).toDouble(), Double::plus); lastLuck[g.id] = g.luck }
-                if (g.alive) weeks.merge(g.species, g.size.toDouble(), Double::plus)
-            }
-            for ((s, l) in luck) weeks.merge(s, -l, Double::plus)
-        }
-        return kinds.associateWith { s -> val st = start.getValue(s); if (st <= 0.0) 0.0 else (weeks[s] ?: 0.0) / st / steps }
+        val score = RunScore(run, kinds)
+        repeat(years * Date.DAYS_PER_YEAR / cfg.daysPerStep) { run.step(); score.afterStep(run) }
+        return score.value()
     }
 }
 
+/**
+ * The training's score of a run, kept step by step: animal-weeks per animal at the start, by kind; for
+ * people, less their luck in their own births and deaths (see [inflation.ecology.HexGroup.luck]), so
+ * that a small gain shows through the chance of who was born and who died. Made before the first step;
+ * [afterStep] after each.
+ */
+class RunScore(run: HexSim, private val kinds: List<Species>) {
+    private val start = kinds.associateWith { run.groups.count(it).toDouble() }
+    private val weeks = HashMap<Species, Double>()
+    private val lastLuck = HashMap<Int, Float>()
+    private val luck = HashMap<Species, Double>()
+    private var steps = 0
+
+    fun afterStep(run: HexSim) {
+        for (g in run.groups.groups) {
+            if (g.species.human) { luck.merge(g.species, (g.luck - (lastLuck[g.id] ?: 0f)).toDouble(), Double::plus); lastLuck[g.id] = g.luck }
+            if (g.alive) weeks.merge(g.species, g.size.toDouble(), Double::plus)
+        }
+        for ((s, l) in luck) weeks.merge(s, -l, Double::plus)
+        steps++
+    }
+
+    fun value(): Map<Species, Double> = kinds.associateWith { s -> val st = start.getValue(s); if (st <= 0.0 || steps == 0) 0.0 else (weeks[s] ?: 0.0) / st / steps }
+}

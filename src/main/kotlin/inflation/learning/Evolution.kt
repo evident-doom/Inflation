@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.ecology.Species
 import inflation.run.freshSim
 import inflation.ecology.HexSim
 import inflation.Args
@@ -128,50 +129,46 @@ class WaysEvolution(private val role: String, private val movers: List<SharedMov
         }
     }
 
-    /** One small world with all the animals for [years], each band on one of [variants]; person-weeks per person at the start. */
+    /** One small world with all the animals for [years], each band (or herd, or pack, by the role) on one of [variants]; see [dealt]. */
     fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
         val run = freshSim(cfg, Catalogue.learned.distinct())
         movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[Role.of(s).ordinal] }
-        if (role != "bands") return evaluateAnimals(run, cfg, years, variants)
-        val rnd = Random(cfg.seed)
-        val people = Catalogue.HUMAN
-        val started = DoubleArray(variants.size)
-        run.groups.groups.filter { it.species == people }.shuffled(rnd).forEachIndexed { i, g -> g.tag = i % variants.size; started[g.tag] += g.size.toDouble() }
-        val nets = variants.map { NetWays(it) }
-        run.groups.ways = BandWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
-        val weeks = DoubleArray(variants.size)
-        val start = run.groups.count(people)
         val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
-        repeat(steps) {
-            run.step()
-            for (g in run.groups.groups) if (g.alive && g.tag >= 0 && g.species == people && g.tag < weeks.size) weeks[g.tag] += g.size.toDouble()
+        if (role == "bands") {
+            val people = Catalogue.HUMAN
+            val nets = variants.map { NetWays(it) }
+            run.groups.ways = BandWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
+            val start = run.groups.count(people)
+            val (fitness, _) = dealt(run, Random(cfg.seed), variants.size, steps) { it.species == people }
+            return fitness to "seed ${cfg.seed}: people $start->${run.groups.count(people)}"
         }
-        val fitness = DoubleArray(variants.size) { v -> if (started[v] == 0.0) 0.0 else weeks[v] / started[v] / steps }
-        return fitness to "seed ${cfg.seed}: people $start->${run.groups.count(people)}"
-    }
-
-    /** As [evaluate], for the herds' or packs' ways: each group of the role on one of [variants]; head-weeks per head at the start, the mean over the role's kinds. */
-    private fun evaluateAnimals(run: HexSim, cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
-        val rnd = Random(cfg.seed)
         val hunters = role == "hunters"
-        fun mine(g: HexGroup) = !g.species.human && g.species.carnivore == hunters
-        val kinds = run.groups.groups.filter { mine(it) }.map { it.species }.distinct().sortedBy { it.index }
-        val started = kinds.associateWith { DoubleArray(variants.size) }
-        val weeks = kinds.associateWith { DoubleArray(variants.size) }
-        // Variants are dealt round-robin within each kind, so each kind is weighed on every variant.
-        for (s in kinds) run.groups.groups.filter { it.species == s }.shuffled(rnd).forEachIndexed { i, g -> g.tag = i % variants.size; started.getValue(s)[g.tag] += g.size.toDouble() }
         val nets = variants.map { NetAnimalWays(it) }
         val ways = AnimalWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
         if (hunters) run.groups.hunterWays = ways else run.groups.herdWays = ways
-        val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
-        repeat(steps) {
-            run.step()
-            for (g in run.groups.groups) if (g.alive && g.tag >= 0 && g.tag < variants.size && mine(g)) weeks[g.species]?.let { it[g.tag] += g.size.toDouble() }
-        }
-        val fitness = DoubleArray(variants.size) { v ->
-            val per = kinds.filter { started.getValue(it)[v] > 0.0 }.map { weeks.getValue(it)[v] / started.getValue(it)[v] / steps }
-            if (per.isEmpty()) 0.0 else per.average()
-        }
-        return fitness to "seed ${cfg.seed}: " + kinds.joinToString(", ") { s -> "${s.name} ${started.getValue(s).sum().toInt()}->${run.groups.count(s)}" }
+        val (fitness, started) = dealt(run, Random(cfg.seed), variants.size, steps) { !it.species.human && it.species.carnivore == hunters }
+        return fitness to "seed ${cfg.seed}: " + started.entries.joinToString(", ") { (s, st) -> "${s.name} ${st.sum().toInt()}->${run.groups.count(s)}" }
     }
+}
+
+/**
+ * Deals [variants] round-robin among the groups [mine] picks, within each kind (so each kind is weighed
+ * on every variant), shuffled by [rnd], through each group's tag; runs [steps] steps; and scores each
+ * variant by the head-weeks its groups live per head at the start, the mean over the kinds. Also the
+ * heads each kind started with on each variant.
+ */
+internal fun dealt(run: HexSim, rnd: Random, variants: Int, steps: Int, mine: (HexGroup) -> Boolean): Pair<DoubleArray, Map<Species, DoubleArray>> {
+    val kinds = run.groups.groups.filter { mine(it) }.map { it.species }.distinct().sortedBy { it.index }
+    val started = kinds.associateWith { DoubleArray(variants) }
+    val weeks = kinds.associateWith { DoubleArray(variants) }
+    for (s in kinds) run.groups.groups.filter { it.species == s }.shuffled(rnd).forEachIndexed { i, g -> g.tag = i % variants; started.getValue(s)[g.tag] += g.size.toDouble() }
+    repeat(steps) {
+        run.step()
+        for (g in run.groups.groups) if (g.alive && g.tag >= 0 && g.tag < variants && mine(g)) weeks[g.species]?.let { it[g.tag] += g.size.toDouble() }
+    }
+    val fitness = DoubleArray(variants) { v ->
+        val per = kinds.filter { started.getValue(it)[v] > 0.0 }.map { weeks.getValue(it)[v] / started.getValue(it)[v] / steps }
+        if (per.isEmpty()) 0.0 else per.average()
+    }
+    return fitness to started
 }
