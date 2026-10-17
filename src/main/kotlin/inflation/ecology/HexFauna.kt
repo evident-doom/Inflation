@@ -61,8 +61,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Array(12) { m -> FloatArray(n) { p -> byPlace[p][m] } }
     }
 
-    /** The resident kinds, and for each, adults and young per km² of each place. */
-    val kinds = Catalogue.all.filter { Catalogue.resident(it) }
+    /** The resident kinds, and for each, adults and young per km² of each place. (Herd kinds run as residents in the form-swap experiment at the end.) */
+    @Transient val kinds = Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.formSwap.filter { !Catalogue.resident(it) }
     /** Each kind's place in [kinds] (and in every table here kept by kind), by its [Species.index]; -1 for a kind kept in groups. */
     @Transient private val slots = IntArray(Catalogue.all.size) { -1 }.also { for ((k, s) in kinds.withIndex()) it[s.index] = k }
     /** [s]'s place in [kinds], or -1 if it is not a resident. */
@@ -168,16 +168,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * Resident hunter [k] at place [p] kills game among the residents there, for up to [meat] of
-     * meat: prey from a quarter of its weight to [PREY_UP_TO] times it (the young of bigger kinds
-     * too), each kind as it is common there and by its weight, at most [RESIDENT_KILL_MOST] of a
-     * kind's numbers in a week; what it cannot eat of a kill is left as carrion. Returns what it ate.
+     * Resident hunter [k] at place [p] kills game among the residents there, and among the herds about it this week
+     * ([herdsAt]), for up to [meat] of meat: prey from a quarter of its weight to [PREY_UP_TO] times it (the young
+     * of bigger kinds too), each kind as it is common there and by its weight, herd or resident alike, at most
+     * [RESIDENT_KILL_MOST] of a kind's numbers in a week; what it cannot eat of a kill is left as carrion. Returns
+     * what it ate.
      */
     private fun huntResidents(k: Int, p: Int, meat: KgM2): KgM2 {
         if (meat.v <= 0f) return KgM2.ZERO
         val hunter = kinds[k]
         val lo = 0.25f * hunter.massKg; val hi = PREY_UP_TO * hunter.massKg
+        val area = land.areaKm2[p]
         var total = 0f
+        // (Weights in kg per km2, as the numbers are kept.)
         val wA = FloatArray(kinds.size); val wY = FloatArray(kinds.size)
         for ((j, s) in kinds.withIndex()) {
             if (j == k || s.carnivore) continue
@@ -185,6 +188,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (s.massKg in lo..hi) wA[j] = adults[j][p] * s.massKg
             if (ym in lo..hi) wY[j] = young[j][p] * ym
             total += wA[j] + wY[j]
+        }
+        val herds = herdsAt[p]
+        val hA = FloatArray(herds?.size ?: 0); val hY = FloatArray(hA.size)
+        if (herds != null) for ((i, at) in herds.withIndex()) {
+            val s = at.g.species
+            val ym = YOUNG_WEIGHT * s.massKg
+            if (s.massKg in lo..hi) hA[i] = at.g.adults * at.share / area * s.massKg
+            if (ym in lo..hi) hY[i] = at.g.young * at.share / area * ym
+            total += hA[i] + hY[i]
         }
         if (total <= 0f) return KgM2.ZERO
         // (Meat is about half of a kill's weight. The game, [total] and the kills are kept per km²; the carrion per m².)
@@ -200,9 +212,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             small.carrion[p] += KgKm2(kg * (1f - MEAT_OF_KILL)).perM2.v
             ate += KgKm2(kg * MEAT_OF_KILL).perM2
         }
+        // The herds' losses are counted out to them when the week's hunting is done (see [HerdAt]).
+        if (herds != null) for ((i, at) in herds.withIndex()) {
+            if (hA[i] + hY[i] <= 0f) continue
+            val s = at.g.species
+            val kg = want.v * (hA[i] + hY[i]) / total
+            val fromA = kg * hA[i] / (hA[i] + hY[i]); val fromY = kg - fromA
+            at.adults.add((fromA / s.massKg * area).toDouble()); at.young.add((fromY / (YOUNG_WEIGHT * s.massKg) * area).toDouble())
+            small.carrion[p] += KgKm2(kg * (1f - MEAT_OF_KILL)).perM2.v
+            ate += KgKm2(kg * MEAT_OF_KILL).perM2
+        }
         killed(p, Kg(ate.v * land.areaKm2[p] * 1e6f))
         return ate
     }
+    /** The herds about each place this week, for the residents' hunters (see [huntResidents]); set by the groups before the residents' week. */
+    @Transient var herdsAt: Map<Int, List<HerdAt>> = emptyMap()
     /** How much fear puts game off a place, 0..1. */
     fun afraid(p: Int) = fear[p] / (fear[p] + FEAR_HALF)
     /** The soil life and small animals the herds live among. */
@@ -236,7 +260,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
     /** How each kind travels between places. */
-    private val travel = kinds.map { Catalogue.travel(it) }
+    @Transient private val travel = kinds.map { Catalogue.travel(it) }
+    /** Young born this week, by kind (for the history). */
+    @Transient val bornThisWeek = DoubleArray(kinds.size)
 
     init {
         // Start below what the land can carry, so that each kind grows into its country rather than
@@ -690,6 +716,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
         val dead = Array(kinds.size) { DoubleArray(ResidentDeath.entries.size) }
+        bornThisWeek.fill(0.0)
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
         kinds.indices.toList().parallelStream().forEach { k ->
@@ -711,6 +738,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val ranges = min(1f, tuning.breedSpacing * usual[k] / (a[p] + y[p]))
                     val born = 0.5f * a[p] * ranges * s.youngPerFemale * f[p] * protein[k][p] / stepsInSeason
                     y[p] += born
+                    bornThisWeek[k] += (born * area).toDouble()
                     // The young are made of what their mothers ate: their weight comes off the mothers' reserves (as in groups).
                     if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - born * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / (0.5f * a[p]))
                 }
@@ -855,7 +883,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val s = kinds[k]
             val a = adults[k]; val y = young[k]; val f = fed[k]
             val cross = hex.crossings[travel[k].ordinal]
-            val moveA = FloatArray(n); val moveY = FloatArray(n)
+            val moveA = FloatArray(n); val moveY = FloatArray(n); val arrived = FloatArray(n)
             // What each place is worth to the kind this week: food, how fresh and rich in protein, its
             // ground, water within reach, fear, crowding (worked out once a place, for every neighbour that weighs it).
             val worthOf = FloatArray(n)
@@ -921,9 +949,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     if (ws[i] <= 0f) continue
                     val q = wq[i]
                     moveA[q] += goA * ws[i] / total; moveY[q] += goY * ws[i] / total
+                    arrived[q] += (goA + goY) * ws[i] / total
                 }
             }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
+            // (With [SHARED_FEED]: those that came over from the next hex walked it, at a herd's cost a km out of their fat, see [walkCost].)
+            if (SHARED_FEED) for (p in 0 until n) if (arrived[p] > 0f) {
+                val heads = (a[p] + y[p]) * land.areaKm2[p]
+                if (heads > 0f) reserve[k][p] = max(0f, reserve[k][p] - WALK_COST * hex.hexKm.toFloat() * min(1f, arrived[p] / heads))
+            }
         }
     }
 

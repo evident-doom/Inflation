@@ -91,9 +91,16 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var chasedOn = Double.NEGATIVE_INFINITY
     /** How alarmed it still is at [day] (days from the start) from its last chase, 0..1: it keeps a sharper watch, fading over [ALARM_DAYS]. */
     fun wary(day: Double) = exp(-(day - chasedOn) / ALARM_DAYS).toFloat()
-    /** For hunters: meetings with herds of each kind ([Species.index]) as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */
+    /** For hunters: meetings with game of each kind ([Species.index]), herds and residents alike, as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */
     var herdsMet: FloatArray? = null
     var herdsMetOn = 0.0
+    /**
+     * For hunters: the rate of intake its last week's diet promised, kg a day of searching and handling (see [forage]).
+     * Game it meets is worth chasing only if a kill of it yields more for the time it takes (Charnov's rule).
+     */
+    var dietRate = 0f
+    /** For hunters, with [HERDS_IN_DIET]: the herds it came on unseen this week, for its diet pass. Not saved. */
+    @Transient var herdsMetWeek: ArrayList<HerdMet>? = null
     /** How often it has come on herds of [k] lately, at [day]. */
     fun metLately(k: Int, day: Double): Float = herdsMet?.let { it[k] * exp(-(day - herdsMetOn) / SEARCH_DAYS).toFloat() } ?: SEARCH_HALF
     /** Counts a meeting with a herd of [k] at [day]. */
@@ -102,6 +109,13 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
         val fade = exp(-(day - herdsMetOn) / SEARCH_DAYS).toFloat()
         for (i in m.indices) m[i] *= fade
         m[k] += 1f
+        herdsMetOn = day
+    }
+    /** Counts the meetings in [counts] (by [Species.index]) at [day]. */
+    fun metGame(counts: FloatArray, day: Double) {
+        val m = herdsMet ?: FloatArray(Catalogue.all.size) { SEARCH_HALF }.also { herdsMet = it; herdsMetOn = day }
+        val fade = exp(-(day - herdsMetOn) / SEARCH_DAYS).toFloat()
+        for (i in m.indices) m[i] = m[i] * fade + counts[i]
         herdsMetOn = day
     }
     /** How much more food it needs this week to keep warm, 1 when comfortable (see [coldNeed]). */

@@ -103,16 +103,20 @@ internal fun HexGroups.graze(weather: Weather) {
             val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
             // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
             val fill = gutFill(s, land.plants.nourishment(p))
-            val wantGrass = if (snowed) 0f else want * fill * access * d.grass / total
+            // (With [SHARED_FEED], as the residents: what it cannot get at is a share of the place's food it cannot
+            // reach, not a share of its need it goes without; where food is plenty it still eats its fill.)
+            val reach = if (SHARED_FEED) access else 1f; val cut = if (SHARED_FEED) 1f else access
+            val wantGrass = if (snowed) 0f else want * fill * cut * d.grass / total
             // (The week's grazing and browsing at a place is shared by all that eat there: what the residents
             // and the herds before it left, see [HexFauna.grazeLeft].)
-            fun eatGrass(kg: Float): Float { val t = land.plants.consume(p, LifeForm.HERB, KgM2(min(kg, fauna.grazeLeft[p]))).v; fauna.grazeLeft[p] -= t; return t }
-            fun eatBrowse(kg: Float): Float { val t = land.plants.eatBrowse(p, KgM2(min(kg, fauna.browseLeft[p]))).v; fauna.browseLeft[p] -= t; return t }
+            fun eatGrass(kg: Float): Float { val t = land.plants.consume(p, LifeForm.HERB, KgM2(min(kg, reach * fauna.grazeLeft[p]))).v; fauna.grazeLeft[p] -= t; return t }
+            fun eatBrowse(kg: Float): Float { val t = land.plants.eatBrowse(p, KgM2(min(kg, reach * fauna.browseLeft[p]))).v; fauna.browseLeft[p] -= t; return t }
+            fun take(stock: FloatArray, kg: Float) = food.take(stock, p, KgM2(min(kg, reach * stock[p]))).v
             val grass = eatGrass(wantGrass)
-            val wantBrowse = want * fill * access * d.browse / total
+            val wantBrowse = want * fill * cut * d.browse / total
             val browse = eatBrowse(wantBrowse)
-            val fruit = food.take(food.fruit, p, KgM2(want * access * d.fruit / total)).v
-            val roots = food.take(food.roots, p, KgM2(want * access * d.roots / total)).v
+            val fruit = take(food.fruit, want * cut * d.fruit / total)
+            val roots = take(food.roots, want * cut * d.roots / total)
             // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
             // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
             // usual share (an ostrich out of fruit season picks more shoots and leaves).
@@ -122,13 +126,13 @@ internal fun HexGroups.graze(weather: Weather) {
             // But the gut holds only so much bulk a day: on poor forage a ruminant cannot make up by eating
             // more of it (switching shifts what it eats, not how much its gut takes).
             // (Its need is reckoned in forage of middling quality, [HexFauna.GUT_QREF]: on that it fills its need exactly.)
-            var room = max(0f, want * fill * access / HexFauna.GUT_QREF - (grass + browse))
+            var room = max(0f, want * fill * cut / HexFauna.GUT_QREF - (grass + browse))
             // (What it switches to nourishes it as well as its gut digests fibre, [Species.fibreDigestion].)
             val qf = q * s.fibreDigestion
             if (gap > 0f && d.browse > 0f) { browse2 = eatBrowse(min(gap / qf, room)); gap -= browse2 * qf; room -= browse2 }
             if (gap > 0f && d.grass > 0f && !snowed) { grass2 = eatGrass(min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
-            if (gap > 0f && d.fruit > 0f) { fruit2 = food.take(food.fruit, p, KgM2(min(gap, SWITCH * want * access * d.fruit / total))).v; gap -= fruit2 }
-            if (gap > 0f && d.roots > 0f) { roots2 = food.take(food.roots, p, KgM2(min(gap, SWITCH * want * access * d.roots / total))).v; gap -= roots2 }
+            if (gap > 0f && d.fruit > 0f) { fruit2 = take(food.fruit, min(gap, SWITCH * want * cut * d.fruit / total)); gap -= fruit2 }
+            if (gap > 0f && d.roots > 0f) { roots2 = take(food.roots, min(gap, SWITCH * want * cut * d.roots / total)); gap -= roots2 }
             // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
             val short = max(0f, gap)
             val straw = food.take(food.straw, p, KgM2(min(short * HexFauna.GUT_FILL * access, max(0f, room)))).v
@@ -342,7 +346,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.parent = g.id
     n.dry = g.dry
     n.chasedOn = g.chasedOn
-    n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn
+    n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn; n.dietRate = g.dietRate
     n.birthMonth = g.birthMonth
     n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.

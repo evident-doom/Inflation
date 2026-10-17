@@ -106,10 +106,10 @@ class SchemaTest {
         assertEquals("repaying", Schema.WAYS_OUT.last())
     }
 
-    /** A band's effort slots are every kind of food but grain, which is the last (it goes by grass seed's). */
+    /** A band's effort slots are every kind of food before grain (it goes by grass seed's; after it only the experiment's herds met, by big game's). */
     @Test
     fun theEffortSlotsAreTheFoodsBeforeGrain() {
-        assertEquals(Food.GRAIN, Food.entries.last())
+        assertEquals(listOf(Food.GRAIN, Food.HERD), Food.entries.drop(FOOD_TYPES))
         assertEquals(Food.GRAIN.ordinal, FOOD_TYPES)
     }
 }

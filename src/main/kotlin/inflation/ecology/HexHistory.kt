@@ -58,8 +58,19 @@ class HexHistory {
         val n = land.n
         val area = land.areaKm2
         // Animals.
-        for ((k, s) in fauna.kinds.withIndex()) put("animals/${s.name}", fauna.count(k).toFloat())
-        for (s in groups.kinds) put("animals/${s.name}", groups.count(s).toFloat())
+        // (A kind in both forms, in the form-swap experiment, counts in both.)
+        val animals = LinkedHashMap<String, Double>()
+        for ((k, s) in fauna.kinds.withIndex()) animals.merge(s.name, fauna.count(k), Double::plus)
+        for (s in groups.kinds) animals.merge(s.name, groups.count(s).toDouble(), Double::plus)
+        for ((name, v) in animals) put("animals/$name", v.toFloat())
+        // How well fed each plant-eating kind was this week, by heads (residents by place, herds by group), and the young born to residents.
+        val fedSum = HashMap<String, DoubleArray>()
+        for ((k, s) in fauna.kinds.withIndex()) if (!s.carnivore) {
+            val a = fedSum.getOrPut(s.name) { DoubleArray(2) }
+            for (p in 0 until land.n) { val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble(); a[0] += h * fauna.fed[k][p]; a[1] += h }
+        }
+        for (g in groups.groups) if (g.alive && !g.species.carnivore) fedSum.getOrPut(g.species.name) { DoubleArray(2) }.let { it[0] += g.size * g.fed.toDouble(); it[1] += g.size.toDouble() }
+        for ((name, a) in fedSum) if (a[1] > 0.0) put("fed/$name", (a[0] / a[1]).toFloat())
         // Migration: for each migratory kind, the share of its heads above 1000 m, their mean height, and how far
         // its herds stand from where each stood half a year before (km, by heads; herds younger than that left out).
         recordMigration(sim)
@@ -95,7 +106,11 @@ class HexHistory {
         for ((key, v) in fauna.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
         for ((key, v) in groups.stats.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
         for ((key, v) in groups.stats.kills) put("deaths/$key/hunted", v.toFloat())
-        for ((key, v) in groups.stats.births) put("births/$key", v.toFloat())
+        for ((key, v) in groups.stats.hunting) if (key.startsWith("diag:")) put("hunt diag/" + key.removePrefix("diag:").replace(':', '/'), v / 100f)
+        val births = HashMap<String, Double>()
+        for ((key, v) in groups.stats.births) births.merge(key, v.toDouble(), Double::plus)
+        for ((k, s) in fauna.kinds.withIndex()) if (fauna.bornThisWeek[k] > 0.0) births.merge(s.name, fauna.bornThisWeek[k], Double::plus)
+        for ((key, v) in births) put("births/$key", v.toFloat())
         for ((key, v) in groups.stats.kills) put("kills/$key", v.toFloat())
         // Weather, means over the land.
         val total = area.sum()
@@ -139,7 +154,7 @@ class HexHistory {
         val heads = HashMap<Species, DoubleArray>()
         val alive = HashSet<Int>()
         for (g in sim.groups.groups) {
-            if (!g.alive || g.species !in Catalogue.migratory) continue
+            if (!g.alive || g.species.carnivore) continue
             alive += g.id
             // heads, heads above 1000 m, heads x height, heads with a place half a year back, heads x km from it
             val a = heads.getOrPut(g.species) { DoubleArray(5) }
@@ -153,7 +168,7 @@ class HexHistory {
         pastPlaces.keys.retainAll(alive)
         migrationWeek++
         for (s in sim.groups.kinds) {
-            if (s !in Catalogue.migratory) continue
+            if (s.carnivore) continue
             val a = heads[s] ?: DoubleArray(5)
             put("migration/${s.name}/share above 1000 m", if (a[0] > 0) (a[1] / a[0]).toFloat() else Float.NaN)
             put("migration/${s.name}/mean height m", if (a[0] > 0) (a[2] / a[0]).toFloat() else Float.NaN)

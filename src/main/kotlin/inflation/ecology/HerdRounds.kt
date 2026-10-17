@@ -40,6 +40,20 @@ internal fun HexGroups.growRounds(month: Int) {
 }
 
 /**
+ * EXPERIMENT (form swap, see [toHerds]): kind [s]'s rounds grown now, alone, its herds taking them as at the
+ * first growth (a [inflation.Tuning.roundStartShare] of them; the rest keep to their own country).
+ */
+internal fun HexGroups.growRoundsFor(s: Species, month: Int) {
+    val q = seasonQuality(s) ?: return
+    val rounds = roundsFor(s, q)
+    if (rounds.isEmpty()) return
+    herdRounds[s.index] = rounds
+    for (g in groups) if (g.alive && g.species == s && g.route[0] == ROUND_OPEN) {
+        if (hashNoise(g.id, 77) >= tuning.roundStartShare) Arrays.fill(g.route, NO_ROUND) else takeRound(g, rounds, month)
+    }
+}
+
+/**
  * The round group [g] keeps to in [month], if any: the place it makes for and how strongly (0..). A herd's
  * is its yearly round as its elders taught it ([HexGroup.route], at [inflation.Tuning.roundStrength]); a band's is its
  * rite, a round its culture holds to (see [Band.riteFor]). The pull is added to the hand-written score
