@@ -7,6 +7,7 @@ import inflation.Config
 import inflation.world.Date
 import inflation.world.LifeForm
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.min
 import inflation.learning.Schema
 import inflation.world.Biome
@@ -500,9 +501,16 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     var time = b.spareDays
+    val t0 = time
     time = keepCustoms(b, people, time)
+    val t1 = time
     time = trainHolders(g, b, time)
+    val t2 = time
     time = makeTools(b, people, time)
+    stats.hunting.merge("band time:customs", ((t0 - t1) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge("band time:training", ((t1 - t2) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge("band time:tools", ((t2 - time) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge("band time:left", (time * 10f).roundToInt(), Int::plus)
     b.renown *= 1f - RENOWN_FADE * years
     if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
     b.sinceRaided++

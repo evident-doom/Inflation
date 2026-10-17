@@ -12,6 +12,7 @@ import inflation.world.HexWorld
 import inflation.world.Weather
 import kotlin.math.exp
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.pow
 import kotlin.math.min
 import kotlin.random.Random
@@ -410,11 +411,16 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         // What time is left is for making and mending (see [bandWeek]).
         band.spareDays = max(0f, spareDays * hands - if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
+        stats.hunting.merge("band time:all", (days * hands * 10f).roundToInt(), Int::plus)
+        stats.hunting.merge("band time:firewood", (fuelDays * hands * 10f).roundToInt(), Int::plus)
+        stats.hunting.merge("band time:food", ((workDays - spareDays) * hands * 10f).roundToInt(), Int::plus)
+        stats.hunting.merge("band time:drying", ((spareDays * hands - band.spareDays) * 10f).roundToInt(), Int::plus)
         // The small game's skins are kept too, as far as there is time to scrape and dry them: many small
         // pelts sewn together (hare, fox, marmot) clothe as well as a few big hides.
         val skinDays = min(band.spareDays, SMALL_SKIN * smallGot * SKIN_DAYS)
         band.goods[Material.HIDE.ordinal] += skinDays / SKIN_DAYS
         band.spareDays -= skinDays
+        stats.hunting.merge("band time:skins", (skinDays * 10f).roundToInt(), Int::plus)
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
         // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
         val home = if (band.atHome) band.house else 0f

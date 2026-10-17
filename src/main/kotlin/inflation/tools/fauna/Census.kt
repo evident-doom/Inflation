@@ -286,6 +286,12 @@ class Census(private val sim: HexSim) {
             val died = lastYear.filterKeys { it.startsWith("bands in $c:died of ") }.mapKeys { it.key.substringAfter("died of ") }
             "%s %.3f / %.3f (%s)".format(c, (lastYear["bands in $c:born"] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9),
                 died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
+        run {
+            fun v(k: String) = (lastYear["band time:$k"] ?: 0).toDouble()
+            val all = v("all").coerceAtLeast(1.0)
+            println("bands' time, last year (share of their hands' days): " + listOf("firewood", "food", "drying", "skins", "customs", "training", "tools", "left")
+                .joinToString(", ") { "%s %.0f%%".format(it, 100 * v(it) / all) })
+        }
         println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
             val w = weeks(c).toDouble().coerceAtLeast(1.0)
             "%s %.0f%% / %.0f%%".format(c, (lastYear["bands in $c:hearth, %"] ?: 0) / w, (lastYear["bands in $c:fuel days, %"] ?: 0) / w) })
