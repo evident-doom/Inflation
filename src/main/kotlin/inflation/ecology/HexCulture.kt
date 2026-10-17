@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.Config
 
 import inflation.world.Date
+import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.abs
@@ -174,10 +175,10 @@ fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indic
  * they show each other tools, and bands that marry out exchange partners, who bring their skills.
  * Returns true if it came to a raid.
  */
-internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup): Boolean {
+internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     val u = Language.understanding(bandA.words, bandB.words)
-    if (raid(a, bandA, b, bandB, u) || raid(b, bandB, a, bandA, u)) return true
+    if (raid(a, bandA, b, bandB, u, weather) || raid(b, bandB, a, bandA, u, weather)) return true
     // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
     fun showsSickness(x: Band) = x.sick.sum() > SICK_SHOWS
     if ((showsSickness(bandB) && rnd.nextFloat() < bandA.shunSick) || (showsSickness(bandA) && rnd.nextFloat() < bandB.shunSick)) { stats.meetings.merge("bands kept away from the sick", 1, Int::plus); return false }
@@ -215,7 +216,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup): Boolean {
         if (toldWays > 0) stats.meetings.merge("bands told of routes", 1, Int::plus)
         // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
         // takes up the other's (the more they are close, the likelier).
-        val hMeet = hw.placeHex[a.place]; val wk = (weatherNow.date.absoluteDay / days).toInt(); val sMeet = PlaceMemory.seasonOf(weatherNow.date.month)
+        val hMeet = hw.placeHex[a.place]; val wk = (weather.date.absoluteDay / days).toInt(); val sMeet = PlaceMemory.seasonOf(weather.date.month)
         a.memory.mark(hMeet, sMeet, wk, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, b.memory.met, 1f)
         // And where each has its houses, and the homes of others they know of: settled bands can be found.
         if (bandB.houseHex >= 0 && bandB.house >= Thresholds.HOUSE_STANDING) { bandA.knownHomes[b.id] = bandB.houseHex; bandA.knownLineage[b.id] = bandB.mainLineage() }
@@ -233,7 +234,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup): Boolean {
         }
         adopt(a, bandA, b, bandB); adopt(b, bandB, a, bandA)
         // And of the places they remember, as far as they trust each other.
-        val week = (weatherNow.date.absoluteDay / days).toInt()
+        val week = (weather.date.absoluteDay / days).toInt()
         val trust = (0.5f + 0.5f * max(0f, bandA.tie(b.id))) * u
         a.memory.hear(b.memory, week, trust); b.memory.hear(a.memory, week, trust)
     }
@@ -248,7 +249,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup): Boolean {
 }
 
 /** [g] raids [o] if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
-private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understood: Float): Boolean {
+private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understood: Float, weather: Weather): Boolean {
     // What drives a raid: an old feud, or competition (hunger with food in the other's larder, or too
     // many people on the same country); kin and those who understand each other fight less.
     val feud = b.grudge[ob.mainLineage()] > FEUD
@@ -263,7 +264,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     val chance = RAID * b.raidWill * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage)) * (1f - TIE_PEACE * max(0f, b.tie(o.id))) *
         (1f + stranger + CUSTOMS_HOSTILITY * otherWays)
     if (rnd.nextFloat() >= chance) return false
-    fight(g, b, o, ob, planned = false)
+    fight(g, b, o, ob, planned = false, weather)
     return true
 }
 
@@ -272,7 +273,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
  * it sees (scouts, open ground, moonlight); the defenders gain from high, broken ground, their
  * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry.
  */
-internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean) {
+internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather) {
     stats.meetings.merge(if (planned) "raids on homes" else "raids", 1, Int::plus)
     note(g) { "raided band #%d%s".format(o.id, if (planned) " at its home" else "") }; note(o) { "was raided by band #%d".format(g.id) }
     ob.sinceRaided = 0
@@ -285,7 +286,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     }
     val p = o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
-    val seen = (sight(p) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
+    val seen = (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
     val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]
@@ -343,9 +344,9 @@ private fun HexGroups.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ban
  * is shared on demand and kin are visited in lean times (and the debt is remembered). The hungry
  * band eats what makes up its week, and takes some home; a band that holds to sharing gives more.
  */
-internal fun HexGroups.visitKin() {
+internal fun HexGroups.visitKin(weather: Weather) {
     // (The hungry come in a drawn order, not by age in the list: the first take the most from the best-stocked.)
-    val today = weatherNow.date.absoluteDay
+    val today = weather.date.absoluteDay
     val hungry = groups.filter { it.alive && it.band != null && it.fed < VISIT_FED && it.larder < it.dailyNeedKg * days }.sortedBy { tieBreak(it.id, 0, today) }
     if (hungry.isEmpty()) return
     val byHex = HashMap<Int, ArrayList<HexGroup>>()
@@ -444,7 +445,7 @@ fun riteStrengthAt(lineage: Int) = RITE_FOUNDER_MAX * Math.floorMod((lineage + 7
  * a path's end: the further, the more it stands for); and now and then it lets one go, less often
  * where songs and stories keep them. Nothing here weighs what a rite brings.
  */
-internal fun HexGroups.riteWeek(g: HexGroup) {
+internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (!ROUNDS) return
     val b = g.band ?: return
     val yearShare = days / Date.DAYS_PER_YEAR.toFloat()
@@ -461,7 +462,7 @@ internal fun HexGroups.riteWeek(g: HexGroup) {
         if (mem.dead[i] >= APPOINT_MIN) consider(hw.firstPlaceIn(mem.hex[i]), month, mem.dead[i])
         if (mem.met[i] >= APPOINT_MIN) consider(hw.firstPlaceIn(mem.hex[i]), month, 0.5f * mem.met[i])
     }
-    val here = hw.placeHex[g.place]; val month = weatherNow.date.month
+    val here = hw.placeHex[g.place]; val month = weather.date.month
     for (h in routes.landmarks) {
         val k = routes.kind(h)
         if ((k != HexRoutes.Kind.PASS && k != HexRoutes.Kind.WATER && k != HexRoutes.Kind.END) || !b.knows(h)) continue

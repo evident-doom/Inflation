@@ -97,7 +97,7 @@ internal fun HexGroups.hunt(weather: Weather) {
                     // The ground it searches this week, shared over the hexes it passed: a bigger party fans out
                     // over more of it, as the square root of its numbers against its kind's usual party.
                     // And it searches less of it when the rain, haze or cover hide game (see [sight]).
-                    val sweep = sweptKm2(s) * sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place)
+                    val sweep = sweptKm2(s) * sqrt(max(1, g.adults).toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * sight(g.place, weather)
                     Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
                 }
             }
@@ -128,7 +128,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val d = s.diet
     val band = g.band
     // (Its own stream of chance, so that regions can be worked at once.)
-    val rnd = kotlin.random.Random(g.id * 1_000_003L + weatherNow.date.absoluteDay)
+    val rnd = kotlin.random.Random(g.id * 1_000_003L + weather.date.absoluteDay)
     // (A band's scouts range ahead instead of foraging.)
     // (Lookouts, and adults kept back with the children beyond the usual, do not gather or hunt.)
     val hands = max(1, (g.adults * (band?.ableShare ?: 1f) * (1f - (band?.scoutShare ?: 0f)) * (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
@@ -321,7 +321,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         stats.hunting.merge("${s.name}:fish, kg", fish.toInt(), Int::plus)
     }
     var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
-    note(g) { "foraged for %.0f kg wanted: meat %.0f (%.0f from herds met), small game %.0f, carrion %.0f, plants %.0f, fish %.0f; busy %.1f of %d days; sight %.2f of a clear day in the open%s".format(wantAll, meat, g.meatMet, smallGot, scraps, plants, fish, busy, days, sight(g.place), if (band != null) "; %.0f%% of adults scouting".format(100 * band.scoutShare) else "") }
+    note(g) { "foraged for %.0f kg wanted: meat %.0f (%.0f from herds met), small game %.0f, carrion %.0f, plants %.0f, fish %.0f; busy %.1f of %d days; sight %.2f of a clear day in the open%s".format(wantAll, meat, g.meatMet, smallGot, scraps, plants, fish, busy, days, sight(g.place, weather), if (band != null) "; %.0f%% of adults scouting".format(100 * band.scoutShare) else "") }
     if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.003f, 2)) System.err.println("ate ${s.name} want $wantAll meat $meat small $smallGot scraps $scraps plants $plants fish $fish path ${g.path.size}")
     var eaten = meatEaten + smallGot + scraps + plants + fish
     stats.hunting.merge("${s.name}:diet asked, kg", wantAll.toInt(), Int::plus)
@@ -554,7 +554,7 @@ internal fun HexGroups.meet(weather: Weather) {
     for (g in groups) if (g.alive && g.species.carnivore) for (h in g.path) hunted.set(h)
     // (With rounds on, for hex-rounds-check: each herd's week as it set out, by heads and by herds.)
     if (ROUNDS) for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] != -1) {
-        val c = roundsWhere(g); stats.hunting.merge(c + "heads", g.size, Int::plus); stats.hunting.merge(c + "herds", 1, Int::plus)
+        val c = roundsWhere(g, weather); stats.hunting.merge(c + "heads", g.size, Int::plus); stats.hunting.merge(c + "herds", 1, Int::plus)
     }
     val byHex = HashMap<Int, ArrayList<Stay>>()
     for ((k, g) in groups.withIndex()) {
@@ -606,12 +606,12 @@ internal fun HexGroups.meet(weather: Weather) {
         if (met == 0) continue
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meetings.merge("slipped away", 1, Int::plus); continue }
         if (a.species.carnivore && b.species.carnivore) {
-            if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { bandsMeet(a, b) }
+            if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { bandsMeet(a, b, weather) }
             else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) } else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
         }
         else {
             val (hunter, hi, herd, ri) = if (a.species.carnivore) listOf(e.a, e.ai, e.b, e.bi) else listOf(e.b, e.bi, e.a, e.ai)
-            Profile.part("meetings: hunters and herds") { hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop, met) }
+            Profile.part("meetings: hunters and herds") { hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop, weather, met) }
         }
     }
     // Each group ends its week where it stopped: the same height band in that hex if it has one.
@@ -630,11 +630,11 @@ internal fun HexGroups.meet(weather: Weather) {
  * Two bands meet: they share news of good ground (each learns where the other did best this month),
  * and a band that is going hungry is given a share of the other's larder.
  */
-internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup) {
+internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     stats.meetings.merge("bands met", 1, Int::plus)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
-    if (meetingEndsInRaid(a, b)) return
+    if (meetingEndsInRaid(a, b, weather)) return
     val (poor, rich) = if (a.fed + a.larder / (a.dailyNeedKg * 30f) < b.fed + b.larder / (b.dailyNeedKg * 30f)) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
@@ -774,17 +774,17 @@ internal fun storeWant(g: HexGroup, band: Band) = max(0f, band.storeAim * (if (b
  * likelier to end in a kill if the hunters came on it unseen; a herd that was chased scatters and
  * stops where it is; hunters that killed stop there to eat.
  */
-internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd: HexGroup, rk: Int, ri: Int, h: Int, stop: IntArray, met: Int = 1) {
+internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd: HexGroup, rk: Int, ri: Int, h: Int, stop: IntArray, weather: Weather, met: Int = 1) {
     stats.meetings.merge("hunter-herd", 1, Int::plus)
     // (With rounds on, for hex-rounds-check: where herds meet hunters, by how the herd lives and where it was.)
-    val roundsKey = if (ROUNDS && herd.route[0] != -1) roundsWhere(herd) + (if (hunter.band != null) "people|" else "animals|") else null
+    val roundsKey = if (ROUNDS && herd.route[0] != -1) roundsWhere(herd, weather) + (if (hunter.band != null) "people|" else "animals|") else null
     roundsKey?.let { stats.hunting.merge(it + "met", 1, Int::plus) }
     note(hunter) { "came on a herd of %d %s".format(herd.size, herd.species.name) }; note(herd) { "met %d %s".format(hunter.size, hunter.species.name) }
     val open = openness(h, hw.placeBand[herd.place])
     // A herd hunted lately keeps a sharper watch.
     // Game bred to fear people over the millennia keeps a sharper watch for them.
     val fear = if (hunter.band != null) 0.5f + herd.species.fearOfPeople else 1f
-    val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + herd.wary) * fear * (0.5f + 0.5f * sight(herd.place) / (1f - SIGHT_COVER * land.cover(herd.place)).coerceAtLeast(0.1f)))
+    val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + herd.wary) * fear * (0.5f + 0.5f * sight(herd.place, weather) / (1f - SIGHT_COVER * land.cover(herd.place)).coerceAtLeast(0.1f)))
     if (seen) {
         stats.meetings.merge("herd turned aside", 1, Int::plus)
         note(herd) { "saw the hunters first and turned aside" }; note(hunter) { "was seen first; the herd turned aside" }
@@ -845,10 +845,10 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
  * for a herd on a round, is near (it set out within [ROUND_NEAR_KM] of its round's place this month) or far, and "-"
  * for the others.
  */
-internal fun HexGroups.roundsWhere(g: HexGroup): String {
+internal fun HexGroups.roundsWhere(g: HexGroup, weather: Weather): String {
     val onRound = g.route[0] >= 0
     val going = if (g.path.size > 1) "moving" else "still"
-    val where = if (!onRound) "-" else roundOf(g, weatherNow.date.month)?.first?.let { r -> if (hex.distanceKm(g.path[0], hw.placeHex[r]) <= ROUND_NEAR_KM) "near" else "far" } ?: "far"
+    val where = if (!onRound) "-" else roundOf(g, weather.date.month)?.first?.let { r -> if (hex.distanceKm(g.path[0], hw.placeHex[r]) <= ROUND_NEAR_KM) "near" else "far" } ?: "far"
     return "rounds|${g.species.name}|${if (onRound) "on round" else "own country"}|$going|$where|"
 }
 
@@ -947,10 +947,10 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
 }
 
 /** A pack without ground settles where no other pack of its kind has fresh marks. */
-internal fun HexGroups.settle() {
+internal fun HexGroups.settle(weather: Weather) {
     val claimed = HashSet<Long>()
     // (Packs come in a drawn order: the first to come on empty ground takes it.)
-    val today = weatherNow.date.absoluteDay
+    val today = weather.date.absoluteDay
     for (g in groups.filter { it.alive && it.species.carnivore && !it.species.human && it.home < 0 }.sortedBy { tieBreak(it.id, 0, today) }) {
         val h = hw.placeHex[g.place]
         val key = g.species.index.toLong() * hex.size + h

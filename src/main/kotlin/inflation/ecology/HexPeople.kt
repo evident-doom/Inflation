@@ -440,9 +440,9 @@ class Band {
  * materials from the country, makes and mends its tools, now and then hits on a new one, and its
  * skills fade a little where unused.
  */
-internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
+internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val b = g.band ?: return
-    learnCountry(g, b)
+    learnCountry(g, b, weather)
     val p = g.place
     val h = hw.placeHex[p]
     val area = land.m2(p)
@@ -462,7 +462,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
     b.renown *= 1f - RENOWN_FADE * years
     if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
     b.sinceRaided++
-    plotRaid(g, b)
+    plotRaid(g, b, weather)
     // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
     if (b.campWeeks == 0) b.shelter = 0f
     // (A debris hut takes a novice an afternoon, the practised an hour.)
@@ -503,12 +503,12 @@ internal fun HexGroups.bandWeek(g: HexGroup, date: Date) {
 }
 
 /** The country [g]'s band comes to know this week: what it walks, and what it sees round about from the high points on its way, its scouts further still. */
-private fun HexGroups.learnCountry(g: HexGroup, b: Band) {
+private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
     // It comes to know the country it walks, and what it sees round about.
     // From the high points on its way it sees as far as the line of sight and the weather allow;
     // its scouts range further still.
     var lookKm = 0f
-    for (h in g.path) { val q = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue; lookKm = max(lookKm, land.bestViewKm[q] * sight(q) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f)) }
+    for (h in g.path) { val q = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue; lookKm = max(lookKm, land.bestViewKm[q] * sight(q, weather) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f)) }
     val scouts = b.scoutShare * g.adults
     val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
     for (h in g.path) {
@@ -1084,7 +1084,7 @@ const val HOME_PULL = 0.15f
  * are close to its owners: the more it lies in the open and the more they see, the likelier. The
  * owners hold it against the takers when they learn of it.
  */
-internal fun HexGroups.robCaches() {
+internal fun HexGroups.robCaches(weather: Weather) {
     val caches = HashMap<Int, ArrayList<HexGroup>>()
     for (g in groups) { val b = g.band ?: continue; if (g.alive && b.cachePlace >= 0 && b.cacheKg > 1f) caches.getOrPut(hw.placeHex[b.cachePlace]) { ArrayList() } += g }
     if (caches.isEmpty()) return
@@ -1096,7 +1096,7 @@ internal fun HexGroups.robCaches() {
             for (o in owners) {
                 val ob = o.band ?: continue
                 if (o === g || b.tie(o.id) > 0.3f || ob.cacheKg <= 1f) continue
-                if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace) * (1f + b.scoutShare * 5f)) continue
+                if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace, weather) * (1f + b.scoutShare * 5f)) continue
                 // (Found, it is the band's choice whether to take from it.)
                 if (rnd.nextFloat() >= min(1f, b.robWill)) continue
                 val takeShare = CACHE_TAKE * max(1f, b.robWill)
@@ -1118,12 +1118,12 @@ internal fun HexGroups.robCaches() {
  * reach, sets out to fall on it there: settled bands can be found. Once there, if the others are at
  * home, it attacks (see [fight]); otherwise it gives up.
  */
-internal fun HexGroups.plotRaid(g: HexGroup, b: Band) {
+internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val here = hw.placeHex[g.place]
     if (b.raidHex >= 0) {
         if (here == b.raidHex) {
             val target = groups.firstOrNull { it.id == b.raidOn && it.alive && hw.placeHex[it.place] == here }
-            if (target != null) target.band?.let { tb -> fight(g, b, target, tb, planned = true) }
+            if (target != null) target.band?.let { tb -> fight(g, b, target, tb, planned = true, weather) }
             b.raidHex = -1; b.raidOn = -1
         } else if (--b.raidWeeks <= 0) { b.raidHex = -1; b.raidOn = -1 }
         return

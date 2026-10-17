@@ -192,9 +192,6 @@ class HexGroups(
 
     fun count(s: Species) = groups.filter { it.species == s && it.alive }.sumOf { it.size }
 
-    /** This week's weather (for sight). */
-    internal lateinit var weatherNow: Weather
-
     /** The group being followed (in the viewer), -1 for none; what happened to it this week, in words. */
     @Volatile var watched = -1
     val watchLog = ConcurrentLinkedQueue<String>()
@@ -204,7 +201,6 @@ class HexGroups(
 
     fun step(weather: Weather, date: Date) {
         stats.clear(); watchLog.clear()
-        weatherNow = weather
         moon = date.meanMoonlight(days).toFloat()
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
         // through their clothes and, at home, their houses).
@@ -248,7 +244,7 @@ class HexGroups(
             monthHerdHeads = FloatArray(n) { p -> kinds.indices.sumOf { k -> if (kinds[k].carnivore) 0.0 else monthHeads[k][p].toDouble() }.toFloat() }
             herdHeadsMonth = bearings.month
         }
-        Profile.part("choosing: valuing places for hunters") { valuePlaces(predatorKg) }
+        Profile.part("choosing: valuing places for hunters") { valuePlaces(predatorKg, date.month) }
         reachCache.clear(); stepEffort.clear()
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
         // Herds of a kind in one place making for the same place this month, and alike in hunger and thirst,
@@ -318,9 +314,9 @@ class HexGroups(
         Profile.time("groups: grazing") { graze(weather) }
         Profile.time("groups: hunting") { hunt(weather) }
         Profile.part("people: burning off") { burnOff(weather) }
-        Profile.part("people: robbing caches") { robCaches() }
-        Profile.part("people: visiting kin") { visitKin() }
-        Profile.time("groups: ground, births, deaths") { Profile.part("hunters: marking ground") { mark() }; Profile.part("hunters: settling ground") { settle() }; demography(weather, date) }
+        Profile.part("people: robbing caches") { robCaches(weather) }
+        Profile.part("people: visiting kin") { visitKin(weather) }
+        Profile.time("groups: ground, births, deaths") { Profile.part("hunters: marking ground") { mark() }; Profile.part("hunters: settling ground") { settle(weather) }; demography(weather, date) }
         // (Groups that merged into another this week, kept for following what became of their choices.)
         merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
         groups.removeIf { !it.alive }
@@ -479,11 +475,11 @@ class HexGroups(
     internal val cacheDiggers by lazy { fauna.kinds.indices.filter { fauna.kinds[it].massKg >= 50f && fauna.kinds[it].diet.roots >= 0.2f } }
     internal val kindSlot by lazy { IntArray(Catalogue.all.size) { i -> kinds.indexOfFirst { it.index == i }.coerceAtLeast(0) } }
 
-    private fun valuePlaces(predatorKg: FloatArray) {
+    private fun valuePlaces(predatorKg: FloatArray, month: Int) {
         for (a in headsHere) a.fill(0)
         for (g in groups) if (g.alive) headsHere[kindSlot[g.species.index]][g.place] += g.size
         // (What may be expected changes slowly: it is reckoned once a month.)
-        if (weatherNow.date.month != expectMonth) { expect(predatorKg); expectMonth = weatherNow.date.month }
+        if (month != expectMonth) { expect(predatorKg); expectMonth = month }
         // (Hunters and bands value a place by the herds they expect there; where they see or read sign, by what they find: see [knownGame].)
         IntStream.range(0, n).parallel().forEach { p ->
             for ((k, s) in kinds.withIndex()) placeValue[k][p] =
