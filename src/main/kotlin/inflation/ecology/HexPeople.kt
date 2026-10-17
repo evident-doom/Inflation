@@ -265,7 +265,7 @@ class Band {
     var unluckyWeeks = 0
     /** Brush shelters at its present camp, 0..1 (left behind when it moves on). */
     var shelter = 0f
-    /** Its choices: how ready it is to build (1 the scaffold's: after [HOUSE_AFTER_WEEKS] weeks at a camp that feeds it well). */
+    /** Its choices: how ready it is to build (1 the scaffold's: after [HOUSE_AFTER_YEARS] of a year at a camp that feeds it well). */
     var houseWill = 1f
     var atHome = false
     /** Its choices: the share of its adults out scouting rather than foraging. */
@@ -887,7 +887,7 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Int, h: Int, people: F
     var time = time0
     if (b.houseHex >= 0 && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
     // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
-    if (b.campWeeks >= HOUSE_AFTER_WEEKS / b.houseWill.coerceAtLeast(0.1f) && time > 0f && people > 0f && g.fed >= 0.9f &&
+    if (b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f) && time > 0f && people > 0f && g.fed >= 0.9f &&
         g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
         if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
         if (b.houseHex == h && b.house < 1f) {
@@ -954,7 +954,7 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Int, date: Date, time0: 
 private fun HexGroups.buildPalisade(b: Band, people: Float, time0: Float): Float {
     val gd = b.goods
     var time = time0
-    if (b.atHome && b.sinceRaided < 52 * b.fortifyWill && b.palisade < 1f && time > 0f && people > 0f) {
+    if (b.atHome && b.sinceRaided < stepsPerYear * b.fortifyWill && b.palisade < 1f && time > 0f && people > 0f) {
         val built = minOf(1f - b.palisade, time / (PALISADE_DAYS * people), gd[Material.WOOD.ordinal] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
         gd[Material.WOOD.ordinal] -= built * PALISADE_WOOD * people; b.palisade += built; time -= built * PALISADE_DAYS * people
         if (built > 0f) stats.meetings.merge("bands built palisades", 1, Int::plus)
@@ -983,7 +983,7 @@ private fun HexGroups.forget(b: Band) {
         val unused = b.weeks - b.lastUsed[i] > 4
         b.skills[i] *= 1f - (if (!unused) FORGET_HANDS else if (s.knowledge) forgetKnowledge else FORGET_HANDS * 2f)
         // A way no one holds and no one has used for years is lost altogether; so is one whose groundwork is lost.
-        if (b.knowsSkill[i] && s.losable && b.holders[i] < 0.5f && b.weeks - b.lastUsed[i] > (if (s.knowledge) LOST_KNOWLEDGE_WEEKS else LOST_HANDS_WEEKS)) {
+        if (b.knowsSkill[i] && s.losable && b.holders[i] < 0.5f && b.weeks - b.lastUsed[i] > (if (s.knowledge) LOST_KNOWLEDGE_YEARS else LOST_HANDS_YEARS) * stepsPerYear) {
             b.knowsSkill[i] = false; b.skills[i] = 0f; b.holders[i] = 0f
             stats.meetings.merge("band lost ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
         }
@@ -1105,7 +1105,7 @@ const val MARSH_FEVER = 0.05f
 /** Settled life with stores shortens the spacing of births. */
 internal fun HexGroups.settledFertility(g: HexGroup): Float {
     val b = g.band ?: return 1f
-    return 1f + SETTLED_FERTILITY * tuning.settledFertility * min(1f, b.campWeeks / 26f) * min(1f, g.larder / max(1e-3f, 30f * g.dailyNeedKg))
+    return 1f + SETTLED_FERTILITY * tuning.settledFertility * min(1f, b.campWeeks / (stepsPerYear / 2f)) * min(1f, g.larder / max(1e-3f, 30f * g.dailyNeedKg))
 }
 
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
@@ -1115,10 +1115,10 @@ internal fun HexGroups.campFouling(g: HexGroup): Float {
 }
 
 /** How fouled a band's camp is, 0..1: not at all for its first two months, fully after a year more. */
-internal fun fouled(b: Band) = min(1f, max(0, b.campWeeks - 8) / 52f)
+internal fun HexGroups.fouled(b: Band) = min(1f, max(0f, b.campWeeks - stepsPerYear / 6f) / stepsPerYear)
 
 /** How much a band would rather leave its camp than stay: the camp fouled (less where it keeps it clean), against the graves of its dead. */
-internal fun stayCost(b: Band): Float {
+internal fun HexGroups.stayCost(b: Band): Float {
     var c = FOUL_AVOID * fouled(b) * b.hygiene
     if (b.holds(Tradition.BURIAL) && b.campWeeks > 4) c -= BURIAL_STAY
     return c
@@ -1204,7 +1204,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for (f in Skill.FORAGING) into[i++] = b.skill(f)
     for (t in Tool.entries) into[i++] = b.has(t)
     into[i++] = weather.temperature[g.place] / 30f
-    into[i++] = min(1f, b.campWeeks / 26f)
+    into[i++] = min(1f, b.campWeeks / (stepsPerYear / 2f))
     into[i++] = b.spareDays / max(1f, g.adults * days.toFloat())
     // Its health: the sick with each illness, the wounded and lamed, its old; and those beasts took lately.
     for (k in Illness.entries.indices) into[i++] = b.sick[k]
@@ -1231,7 +1231,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     }
     into[i++] = min(1f, friends / 3f); into[i++] = min(1f, strangers / 3f); into[i++] = min(1f, foes / 3f)
     into[i++] = if (near > 0) min(1f, theirSick / near) else 0f
-    into[i++] = 1f - min(1f, b.sinceRaided / 52f)
+    into[i++] = 1f - min(1f, b.sinceRaided / stepsPerYear)
     into[i++] = if (b.raidHex >= 0) 1f else 0f
     into[i++] = min(1f, b.inbred * 4f)
     // Its customs, and its temperament.
@@ -1321,7 +1321,7 @@ const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
 const val SHELTER_DAYS = 0.1f
 const val SHELTER_C = 3f
-const val HOUSE_AFTER_WEEKS = 26
+const val HOUSE_AFTER_YEARS = 0.5f
 const val HOUSE_DECAY = 0.3f
 const val HOUSE_C = 8f
 const val PIT_KEEP = 0.5f
@@ -1653,7 +1653,7 @@ internal fun HexGroups.trainHolders(g: HexGroup, b: Band, spare: Float): Float {
     for (s in Skill.entries) {
         val i = s.ordinal
         if (!b.knowsSkill[i]) { b.holders[i] = 0f; continue }
-        val used = b.weeks - b.lastUsed[i] <= DISUSE_WEEKS
+        val used = b.weeks - b.lastUsed[i] <= DISUSE_YEARS * stepsPerYear
         val want = if (used) adults * s.share else 0f
         if (b.holders[i] < want && time > 0f) {
             // Learning from a holder is quick; working it out alone is slow.
@@ -1678,12 +1678,12 @@ internal fun HexGroups.trainHolders(g: HexGroup, b: Band, spare: Float): Float {
 }
 
 /**
- * Holders: weeks unused before people drop a way; weekly share of its holders that drop it then;
+ * Holders: the share of a year unused before people drop a way; weekly share of its holders that drop it then;
  * pace of working a way out with no one to learn from; most of the adults taught a way in a week;
  * person-days to bring one learner on (times the way's intricacy); how many ways a person keeps
  * up; weekly share of the gap a way held by too few loses.
  */
-const val DISUSE_WEEKS = 26
+const val DISUSE_YEARS = 0.5f
 const val SKILL_DROP = 0.02f
 const val SELF_TAUGHT = 0.1f
 const val TRAINED_A_WEEK = 0.05f
@@ -1691,15 +1691,15 @@ const val APPRENTICE_DAYS = 10f
 const val SLOTS = 14f
 /**
  * Forgetting (Arthur and colleagues 1998): weekly share a hand skill loses in use and unused, and
- * knowledge unused (about a third a year); weeks unheld and unused before a way is lost altogether;
+ * knowledge unused (about a third a year); years unheld and unused before a way is lost altogether;
  * the level a way's groundwork must reach before it can be taken up; how much a difference in
  * customs puts bands off each other's ways (all of them differing: this share less), and how much
  * a band doing better is copied more readily.
  */
 const val FORGET_HANDS = 0.001f
 const val FORGET_KNOWLEDGE = 0.008f
-const val LOST_KNOWLEDGE_WEEKS = 5 * 52
-const val LOST_HANDS_WEEKS = 25 * 52
+const val LOST_KNOWLEDGE_YEARS = 5f
+const val LOST_HANDS_YEARS = 25f
 const val NEEDS_LEVEL = 0.3f
 const val CONFORMITY = 0.8f
 const val PRESTIGE = 0.5f

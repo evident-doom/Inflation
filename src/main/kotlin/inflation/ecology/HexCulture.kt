@@ -223,8 +223,8 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         if (toldWays > 0) stats.meetings.merge("bands told of routes", 1, Int::plus)
         // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
         // takes up the other's (the more they are close, the likelier).
-        val hMeet = hw.placeHex[a.place]; val wk = (weather.date.absoluteDay / days).toInt(); val sMeet = PlaceMemory.seasonOf(weather.date.month)
-        a.memory.mark(hMeet, sMeet, wk, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, b.memory.met, 1f)
+        val hMeet = hw.placeHex[a.place]; val wk = stepOf(weather.date); val sMeet = PlaceMemory.seasonOf(weather.date.month)
+        a.memory.mark(hMeet, sMeet, wk, stepsPerYear, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, stepsPerYear, b.memory.met, 1f)
         // And where each has its houses, and the homes of others they know of: settled bands can be found.
         if (bandB.houseHex >= 0 && bandB.house >= Thresholds.HOUSE_STANDING) {
             bandA.knownHomes[b.id] = bandB.houseHex
@@ -253,9 +253,9 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         }
         adopt(a, bandA, b, bandB); adopt(b, bandB, a, bandA)
         // And of the places they remember, as far as they trust each other.
-        val week = (weather.date.absoluteDay / days).toInt()
+        val week = stepOf(weather.date)
         val trust = (0.5f + 0.5f * max(0f, bandA.tie(b.id))) * u
-        a.memory.hear(b.memory, week, trust); b.memory.hear(a.memory, week, trust)
+        a.memory.hear(b.memory, week, stepsPerYear, trust); b.memory.hear(a.memory, week, stepsPerYear, trust)
     }
     // Partners: where either holds to marrying out, young adults change bands, both ways.
     val marry = (if (bandA.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bandB.holds(Tradition.EXOGAMY)) 0.5f else 0f)

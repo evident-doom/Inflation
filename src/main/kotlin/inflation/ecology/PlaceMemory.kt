@@ -25,16 +25,19 @@ class PlaceMemory {
     fun metAt(h: Int): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h) s += met[i]; return s }
 
     /** Adds [n] to slot of hex [h] in season [s]'s count in [what] (making the slot if need be). */
-    fun mark(h: Int, s: Int, week: Int, what: FloatArray, n: Float) {
+    fun mark(h: Int, s: Int, week: Int, perYear: Float, what: FloatArray, n: Float) {
         var i = find(h, s)
-        if (i < 0) { record(h, s, 0.5f, 0.5f, 0f, week); i = find(h, s) }
+        if (i < 0) { record(h, s, 0.5f, 0.5f, 0f, week, perYear); i = find(h, s) }
         if (i >= 0) what[i] += n
     }
 
     fun find(h: Int, s: Int): Int { for (i in 0 until MEMORY_SLOTS) if (hex[i] == h && season[i] == s) return i; return -1 }
 
-    /** Records this week at hex [h] in season [s]: blended into what it remembered there, or into a new slot. */
-    fun record(h: Int, s: Int, fedNow: Float, waterNow: Float, dangerNow: Float, week: Int, ownVisit: Boolean = true, trust: Float = 1f) {
+    /**
+     * Records this week ([week], a step, [perYear] of them to a year) at hex [h] in season [s]: blended into what it
+     * remembered there, or into a new slot.
+     */
+    fun record(h: Int, s: Int, fedNow: Float, waterNow: Float, dangerNow: Float, week: Int, perYear: Float, ownVisit: Boolean = true, trust: Float = 1f) {
         var i = find(h, s)
         if (i >= 0) {
             val w = if (ownVisit) 0.5f else 0.2f * trust
@@ -48,11 +51,11 @@ class PlaceMemory {
         for (k in 0 until MEMORY_SLOTS) {
             if (hex[k] < 0) { i = k; break }
             // (Graves and meeting places are not forgotten.)
-            val keep = fed[k] - danger[k] - (week - lastWeek[k]) / 52f + dead[k] + 0.2f * met[k]
+            val keep = fed[k] - danger[k] - (week - lastWeek[k]) / perYear + dead[k] + 0.2f * met[k]
             if (keep < worst) { worst = keep; i = k }
         }
         hex[i] = h; season[i] = s; fed[i] = fedNow * (if (ownVisit) 1f else trust); water[i] = waterNow; danger[i] = dangerNow; dead[i] = 0f; met[i] = 0f
-        lastWeek[i] = if (ownVisit) week else week - 26; own[i] = ownVisit
+        lastWeek[i] = if (ownVisit) week else week - (perYear / 2f).toInt(); own[i] = ownVisit
     }
 
     fun copyInto(o: PlaceMemory) {
@@ -61,9 +64,9 @@ class PlaceMemory {
     }
 
     /** Takes in what [o] remembers that it does not, as hearsay worth [trust]. */
-    fun hear(o: PlaceMemory, week: Int, trust: Float) {
+    fun hear(o: PlaceMemory, week: Int, perYear: Float, trust: Float) {
         for (k in 0 until MEMORY_SLOTS) if (o.hex[k] >= 0 && o.own[k]) record(o.hex[k], o.season[k], o.fed[k], o.water[k], o.danger[k], week,
-            ownVisit = false, trust = trust)
+            perYear, ownVisit = false, trust = trust)
     }
 
     companion object {
