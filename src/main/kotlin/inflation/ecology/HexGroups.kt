@@ -128,14 +128,11 @@ class HexGroups(
             val settled = Catalogue.settledPer1000Km2(s)
             val unit = unitSize(s)
             val count = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()
-            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
+            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s)
             val total = weights.sum()
             repeat(count) {
-                var u = rnd.nextFloat() * total; var p = 0
-                while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
-                val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
-                if (!s.carnivore) g.sizePref = exp((rnd.nextFloat() * 2f - 1f) * ln(SIZE_PREF_RANGE))
-                g.fat = 0.5f * s.maxFatDays
+                val p = drawPlace(weights, total)
+                val g = spawn(s, p, unit)
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
                     val (x, y) = hex.centreKm(hw.placeHex[p])
@@ -170,15 +167,13 @@ class HexGroups(
             if (s.human) continue
             val now = groups.count { it.alive && it.species == s }
             if (now >= NEWCOMER_BELOW) continue
-            val weights = FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
+            val weights = startWeights(s)
             val total = weights.sum(); if (total <= 0f) continue
             val unit = unitSize(s)
             repeat(NEWCOMERS) {
-                var u = rnd.nextFloat() * total; var p = 0
-                while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
-                val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
-                if (!s.carnivore) g.sizePref = exp((rnd.nextFloat() * 2f - 1f) * ln(SIZE_PREF_RANGE))
-                g.fat = 0.5f * s.maxFatDays
+                val p = drawPlace(weights, total)
+                val g = spawn(s, p, unit)
+                // (Unlike at the start, any newcomer hunter, not only a pack, comes with ground of its own.)
                 if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
                 groups += g
             }
@@ -187,6 +182,25 @@ class HexGroups(
     }
 
     internal fun foodFor(s: Species, p: Int) = fauna.foodFor(s, p)
+
+    /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and (for grazers and browsers) its food. */
+    private fun startWeights(s: Species) =
+        FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
+
+    /** A place drawn at random by [weights] (summing to [total]). */
+    private fun drawPlace(weights: FloatArray, total: Float): Int {
+        var u = rnd.nextFloat() * total; var p = 0
+        while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
+        return p
+    }
+
+    /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat; a herd with its own taste in herd size. */
+    private fun spawn(s: Species, p: Int, unit: Int): HexGroup {
+        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
+        if (!s.carnivore) g.sizePref = exp((rnd.nextFloat() * 2f - 1f) * ln(SIZE_PREF_RANGE))
+        g.fat = 0.5f * s.maxFatDays
+        return g
+    }
 
     fun count(s: Species) = groups.filter { it.species == s && it.alive }.sumOf { it.size }
 
