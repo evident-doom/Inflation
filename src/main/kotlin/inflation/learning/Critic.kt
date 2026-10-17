@@ -22,13 +22,15 @@ import kotlin.math.sqrt
  * chance of a few weeks rather than of half a year. Each kind's returns are fitted on their own scale.
  * It learns from the last [ROUNDS] rounds' choices.
  */
-class Critic(val net: Mlp, private val scale: HashMap<String, Pair<Float, Float>> = HashMap(), rate: Float = 1e-3f) {
+class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap(), rate: Float = 1e-3f) {
+    /** A kind's returns' [mean] and [spread]. */
+    data class Scale(val mean: Float, val spread: Float)
     private val adam = Adam(net.w.size, rate)
     private val buffers = ThreadLocal.withInitial { net.buffers() }
     private class Sample(val kind: Species, val x: FloatArray, val probe: FloatArray?, val part: Float, val boot: Float, val whole: Float)
     private val replay = ArrayDeque<List<Sample>>()
 
-    private fun scaleOf(s: Species) = scale[s.name] ?: (1f to 0.1f)
+    private fun scaleOf(s: Species) = scale[s.name] ?: Scale(1f, 0.1f)
     private fun input(model: SharedMover, kind: Species, features: FloatArray, band: FloatArray?, temper: FloatArray?, group: FloatArray?, into: FloatArray) {
         model.fill(kind, features, band, into, temper)
         val at = model.inputs
@@ -57,7 +59,7 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Pair<Float, Float>
             val ts = ss.map { target(it) }
             val m = ts.average().toFloat()
             val sd = sqrt(ts.map { ((it - m) * (it - m)).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
-            scale[k.name] = m to sd
+            scale[k.name] = Scale(m, sd)
         }
         repeat(EPOCHS) { epoch ->
             for (batch in all.shuffled(kotlin.random.Random(round * 17L + epoch)).chunked(1024)) {
@@ -89,7 +91,7 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Pair<Float, Float>
 
     fun save(f: File, model: SharedMover) {
         Schema.save(net, f, names(model), listOf("value"))
-        File(f.path + ".scale").writeText(scale.entries.sortedBy { it.key }.joinToString("") { "${it.key}\t${it.value.first}\t${it.value.second}\n" })
+        File(f.path + ".scale").writeText(scale.entries.sortedBy { it.key }.joinToString("") { "${it.key}\t${it.value.mean}\t${it.value.spread}\n" })
     }
 
     companion object {
@@ -119,8 +121,8 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Pair<Float, Float>
         fun loadOrNew(f: File, model: SharedMover): Critic {
             if (f.exists()) {
                 val net = Schema.load(f, names(model), listOf("value"))
-                val scale = HashMap<String, Pair<Float, Float>>()
-                File(f.path + ".scale").takeIf { it.exists() }?.readLines()?.filter { it.isNotBlank() }?.forEach { l -> val (k, m, s) = l.split("\t"); scale[k] = m.toFloat() to s.toFloat() }
+                val scale = HashMap<String, Scale>()
+                File(f.path + ".scale").takeIf { it.exists() }?.readLines()?.filter { it.isNotBlank() }?.forEach { l -> val (k, m, s) = l.split("\t"); scale[k] = Scale(m.toFloat(), s.toFloat()) }
                 return Critic(net, scale)
             }
             return Critic(Mlp.random(intArrayOf(model.inputs + GROUP, HIDDEN, HIDDEN, 1), kotlin.random.Random(91)))

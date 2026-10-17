@@ -27,7 +27,9 @@ class PpoTrainer(private val o: PpoOptions) {
     private val files = Role.entries.map { it.file(out) }
     private val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(o.hidden, Random(7L + i), if (Role.entries[i] == Role.PEOPLE) WAYS_IN else 0) }
         .also { ms -> for ((i, r) in Role.entries.withIndex()) o.residual[r]?.let { ms[i].residual = it } }
-    private val adams = models.map { Adam(it.net.w.size, o.rate) to Adam(it.identity.size, o.rate) }
+    /** A model's two optimisers: for its network's weights and for its kinds' identity vectors. */
+    private class Adams(val net: Adam, val identity: Adam)
+    private val adams = models.map { Adams(Adam(it.net.w.size, o.rate), Adam(it.identity.size, o.rate)) }
     /** One critic for each role: what a group's return can be expected to be where it stands. */
     private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.criticFile(out), models[i]) }
     /** Bands' ways, learned beside their moves (see [WaysPpo]). */
@@ -155,7 +157,7 @@ class PpoTrainer(private val o: PpoOptions) {
                 // (Each batch is a share of the whole, so its weights are scaled up to stand for it.)
                 val scale = mine.size.toFloat() / batch.size
                 for (i in gradW.indices) gradW[i] *= scale; for (i in gradId.indices) gradId[i] *= scale
-                adams[mi].first.step(model.net.w, gradW); adams[mi].second.step(model.identity, gradId)
+                adams[mi].net.step(model.net.w, gradW); adams[mi].identity.step(model.identity, gradId)
             }
         }
         model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)

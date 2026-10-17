@@ -621,15 +621,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         // (The shortfall is made up first from the food it mostly lives on, then from the others,
                         // each to at most (1 + SWITCH) times its usual share, as with the plants.)
                         val most = (1f + SWITCH) * needAll / all
-                        val order = listOf(0 to d.meat, 1 to d.smallPrey, 2 to d.carrion).filter { it.second > 0f }.sortedByDescending { it.second }
-                        for ((food, _) in order) {
+                        fun share(food: AnimalFood) = when (food) { AnimalFood.MEAT -> d.meat; AnimalFood.SMALL_PREY -> d.smallPrey; AnimalFood.CARRION -> d.carrion }
+                        val order = AnimalFood.entries.filter { share(it) > 0f }.sortedByDescending { share(it) }
+                        for (food in order) {
                             if (gap <= 0f) break
                             val x = when (food) {
-                                0 -> min(gap, most * d.meat - gotMeat).let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k])).v else 0f }
-                                1 -> min(gap, most * d.smallPrey - gotSmall).let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
-                                else -> min(gap, most * d.carrion - gotCarrion).let { if (it > 0f) small.scavenge(p, KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
+                                AnimalFood.MEAT -> min(gap, most * d.meat - gotMeat).let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k])).v else 0f }
+                                AnimalFood.SMALL_PREY -> min(gap, most * d.smallPrey - gotSmall).let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
+                                AnimalFood.CARRION -> min(gap, most * d.carrion - gotCarrion).let { if (it > 0f) small.scavenge(p, KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
                             }
-                            when (food) { 0 -> gotMeat += x; 1 -> gotSmall += x; else -> gotCarrion += x }
+                            when (food) { AnimalFood.MEAT -> gotMeat += x; AnimalFood.SMALL_PREY -> gotSmall += x; AnimalFood.CARRION -> gotCarrion += x }
                             gap -= x
                         }
                         // With its need met and reserves short, it eats more and lays the surplus on (as from plants).
@@ -1078,3 +1079,6 @@ object ResidentDeath {
 
 /** Shares of a kind's animals that die this week of fire, flood, and deep snow or ash (see [HexFauna.calamities]). */
 data class Calamities(val fire: Float, val flood: Float, val snow: Float)
+
+/** The animal foods a resident hunter lives on, in the order its shortfall is made up when their shares tie. */
+private enum class AnimalFood { MEAT, SMALL_PREY, CARRION }

@@ -473,11 +473,12 @@ class HexGroups(
      * sea) and the open water between, km. Swimmers that can cover it may cross, at a great effort
      * and a risk of drowning; for the rest the sea is a wall.
      */
-    val seaLinks: Array<IntArray> by lazy { links().first }
-    val seaGaps: Array<FloatArray> by lazy { links().second }
-    // (A Pair, not a class of its own: it is in the saves, so its shape is part of the save format.)
-    private var linksMade: Pair<Array<IntArray>, Array<FloatArray>>? = null
-    private fun links(): Pair<Array<IntArray>, Array<FloatArray>> = linksMade ?: run {
+    val seaLinks: Array<IntArray> by lazy { links().to }
+    val seaGaps: Array<FloatArray> by lazy { links().gapKm }
+    /** For each hex, the hexes across the sea from it ([to]) and the open water to each ([gapKm]). */
+    class SeaCrossings(val to: Array<IntArray>, val gapKm: Array<FloatArray>)
+    private var linksMade: SeaCrossings? = null
+    private fun links(): SeaCrossings = linksMade ?: run {
         val to = Array(hex.size) { IntArray(0) }; val gap = Array(hex.size) { FloatArray(0) }
         for (a in 0 until hex.size) {
             if (hex.heart[a] < 0 || (0 until 6).none { d -> val b = hex.neighbour(a, d); b >= 0 && hex.heart[b] < 0 }) continue
@@ -494,7 +495,7 @@ class HexGroups(
             }
             to[a] = found.keys.toIntArray(); gap[a] = found.values.toFloatArray()
         }
-        (to to gap).also { linksMade = it }
+        SeaCrossings(to, gap).also { linksMade = it }
     }
     /** The open water between hexes [a] and [b], km, if a swimmer can cross from one to the other; else infinite. */
     fun seaGap(a: Int, b: Int): Float { val l = seaLinks[a]; for (i in l.indices) if (l[i] == b) return seaGaps[a][i]; return Float.POSITIVE_INFINITY }

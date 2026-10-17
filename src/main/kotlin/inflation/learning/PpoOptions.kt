@@ -70,14 +70,16 @@ class PpoOptions(
             val a = Args(args, USAGE)
             val default = Sampling()
             // (One large world is better than many small ones: a training world can be wider than it is tall, as long as every place stays at a latitude the model holds for.)
-            val size = (a.string("--size") ?: "600").lowercase().split("x").map { it.toInt() }.let { l -> l[0] to l.getOrElse(1) { l[0] } }
-            val hold = a.string("--hold")?.split(":")?.let { it[0].split(",").map(Role::named).toSet() to (it.getOrNull(1)?.toInt() ?: Int.MAX_VALUE) }
+            val (width, height) = (a.string("--size") ?: "600").lowercase().split("x").map { it.toInt() }.let { l -> l[0] to l.getOrElse(1) { l[0] } }
+            val hold = a.string("--hold")?.split(":")
+            val fixed = hold?.let { it[0].split(",").map(Role::named).toSet() } ?: emptySet()
+            val fixedRounds = hold?.let { it.getOrNull(1)?.toInt() ?: Int.MAX_VALUE } ?: 0
             val o = PpoOptions(
                 out = a.file("--out") ?: File("hex-ppo"),
                 worlds = a.int("--worlds", 8),
-                size = size.second,
-                width = size.first,
-                height = size.second,
+                size = height,
+                width = width,
+                height = height,
                 years = a.int("--years", 2),
                 rounds = a.int("--rounds", 1000),
                 hidden = Config.int("ppo.hidden", 48),
@@ -88,8 +90,8 @@ class PpoOptions(
                 checkOnMaps = a.flag("--check-on-maps"),
                 worldRounds = a.int("--world-rounds", 0),
                 overlap = !a.flag("--no-overlap"),
-                fixed = hold?.first ?: emptySet(),
-                fixedRounds = hold?.second ?: 0,
+                fixed = fixed,
+                fixedRounds = fixedRounds,
                 burnYears = a.int("--burn-in", 1),
                 learnWays = !a.flag("--no-ways"),
                 sampling = Sampling(Config.int("ppo.perKind", default.perKindYear), Config.float("ppo.peopleChoices", default.peopleChoices)),

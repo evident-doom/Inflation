@@ -125,13 +125,14 @@ object Erosion {
         val dx: IntArray; val dy: IntArray; val km: FloatArray
         init {
             val r = (MAX_SPREAD_KM / grid.cellKm).toInt() + 1
-            val all = ArrayList<Triple<Int, Int, Float>>()
+            class Cell(val dx: Int, val dy: Int, val km: Float)
+            val all = ArrayList<Cell>()
             for (y in -r..r) for (x in -r..r) {
                 val d = (kotlin.math.sqrt((x * x + y * y).toDouble()) * grid.cellKm).toFloat()
-                if (d < MAX_SPREAD_KM) all += Triple(x, y, d)
+                if (d < MAX_SPREAD_KM) all += Cell(x, y, d)
             }
-            all.sortWith(compareBy<Triple<Int, Int, Float>>({ it.third }, { it.second }, { it.first }))
-            dx = IntArray(all.size) { all[it].first }; dy = IntArray(all.size) { all[it].second }; km = FloatArray(all.size) { all[it].third }
+            all.sortWith(compareBy<Cell>({ it.km }, { it.dy }, { it.dx }))
+            dx = IntArray(all.size) { all[it].dx }; dy = IntArray(all.size) { all[it].dy }; km = FloatArray(all.size) { all[it].km }
         }
     }
 

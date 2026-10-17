@@ -17,7 +17,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     val burnt = FloatArray(n)
     val burning = FloatArray(n)
     /** Fires this step: the place each started in and the km² it burned. */
-    val fires = ArrayList<Pair<Int, Float>>()
+    val fires = ArrayList<Fire>()
 
     private fun fuel(p: Int) = plants.straw[p] + (plants.herb[p] + 0.5f * plants.shrub[p]) * (1f - 0.8f * (1f - exp(-plants.grazing[p] / GRAZE_SCALE)))
 
@@ -64,7 +64,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
                     burning[nb] = burnShare(nb); km2 += burning[nb] * land.areaKm2[nb]; queue += nb
                 }
             }
-            fires += Pair(p, km2)
+            fires += Fire(p, km2)
         }
     }
 
@@ -91,3 +91,6 @@ class HexFires(land: HexLand) : HexLandPart(land) {
         const val SPREAD_KM_PER_DAY = 5f
     }
 }
+
+/** A fire of one step: the place or cell it started in ([start]) and the km² it burned. */
+class Fire(val start: Int, val km2: Float)
