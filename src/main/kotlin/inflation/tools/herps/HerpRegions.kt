@@ -3,8 +3,13 @@ package inflation.tools.herps
 import inflation.learning.HexLearning
 
 /** The kinds of climate a herp check sorts places into, by yearly mean temperature (°C) and rain (mm). */
-enum class ClimateClass(val label: String) {
-    COLD("boreal/cold"), COOL("cool temperate"), WARM("warm temperate"), MEDITERRANEAN("mediterranean"), HOT_DESERT("hot desert"), HOT_WET("hot wet");
+enum class ClimateClass(val label: String, val bounds: String) {
+    COLD("boreal/cold", "<6C"),
+    COOL("cool temperate", "6-11C"),
+    WARM("warm temperate", "11-16C, rain>500"),
+    MEDITERRANEAN("mediterranean", ">=11C, 250-500mm"),
+    HOT_DESERT("hot desert", "<250mm"),
+    HOT_WET("hot wet", ">16C, >500mm");
 
     companion object {
         fun of(meanT: Float, rain: Float): ClimateClass = when {

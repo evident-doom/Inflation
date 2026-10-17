@@ -63,6 +63,20 @@ import kotlin.math.ln
 import kotlin.math.log10
 import kotlin.math.sin
 import kotlin.math.sqrt
+import java.io.File
+import javax.swing.JCheckBox
+import javax.swing.JToggleButton
+import javax.swing.text.DefaultCaret
+import java.awt.Font
+import javax.swing.JOptionPane
+import java.awt.FlowLayout
+import java.awt.Insets
+import javax.swing.BorderFactory
+import javax.swing.JFileChooser
+import javax.swing.filechooser.FileNameExtensionFilter
+import java.awt.Point
+import java.awt.BasicStroke
+import inflation.tools.baselineDir
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,
@@ -99,7 +113,7 @@ fun main(args: Array<String>) {
     }.start()
 }
 
-class HexViewer(world: World, load: java.io.File? = null, private val nets: String? = null, private val waysFile: String? = null) : JPanel(BorderLayout()) {
+class HexViewer(world: World, load: File? = null, private val nets: String? = null, private val waysFile: String? = null) : JPanel(BorderLayout()) {
     private val sim = HexSim(world)
     private val cfg = sim.cfg
     private val hex = sim.hex
@@ -133,14 +147,14 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     }
     /** What the tint's colours mean. */
     private val legendText = JLabel("")
-    private val windBox = javax.swing.JCheckBox("Wind", false)
+    private val windBox = JCheckBox("Wind", false)
     /** Rivers by this week's flow (see [RiverOverlay]); unticked, no rivers are drawn. */
-    private val riversBox = javax.swing.JCheckBox("River flows", true)
-    private val herdsBox = javax.swing.JCheckBox("Herds", true)
-    private val huntersBox = javax.swing.JCheckBox("Hunters", true)
-    private val peopleBox = javax.swing.JCheckBox("People", true)
+    private val riversBox = JCheckBox("River flows", true)
+    private val herdsBox = JCheckBox("Herds", true)
+    private val huntersBox = JCheckBox("Hunters", true)
+    private val peopleBox = JCheckBox("People", true)
     /** Paths worn by herds, packs and bands, drawn hex to hex, darker and wider the more worn. */
-    private val pathsBox = javax.swing.JCheckBox("Paths", true)
+    private val pathsBox = JCheckBox("Paths", true)
     /** Follow mode: the group followed (-1 none), kept in view week by week, with what happened to it. */
     @Volatile private var followLog = ""
 
@@ -174,7 +188,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
      * The kinds and their numbers along the bottom, as buttons: pressing one shows where that kind is
      * (its density over the hexes, and only its herds or packs drawn); pressing it again shows all.
      */
-    private val kindButtons = ArrayList<javax.swing.JToggleButton>()
+    private val kindButtons = ArrayList<JToggleButton>()
     /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
     @Volatile private var onlyKind: Species? = null
     /**
@@ -190,14 +204,14 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     /** The hex being inspected, -1 for none, and its groups. */
     @Volatile private var picked = -1
     private val info = JTextArea(14, 40).apply {
-        isEditable = false; (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE
-        font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12)
+        isEditable = false; (caret as DefaultCaret).updatePolicy = DefaultCaret.NEVER_UPDATE
+        font = Font(Font.MONOSPACED, Font.PLAIN, 12)
     }
     private val groupList = DefaultListModel<String>()
     private val groupView = JList(groupList)
     private val groupInfo = JTextArea(12, 40).apply {
-        isEditable = false; (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE
-        font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12)
+        isEditable = false; (caret as DefaultCaret).updatePolicy = DefaultCaret.NEVER_UPDATE
+        font = Font(Font.MONOSPACED, Font.PLAIN, 12)
     }
     private var groupIds = IntArray(0)
 
@@ -249,17 +263,17 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         follow.toolTipText = "Follow the group picked in the list in its own window: its local map and state, what it knows, its choices each week (the model's highlighted), yours, and Next step"
         follow.addActionListener {
             val i = groupView.selectedIndex
-            if (i in groupIds.indices) control.follow(groupIds[i]) else javax.swing.JOptionPane.showMessageDialog(this,
+            if (i in groupIds.indices) control.follow(groupIds[i]) else JOptionPane.showMessageDialog(this,
                 "Click a hex on the map and pick a group in the list first.")
         }
         bar.add(follow)
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
         useNetworks()
         load?.let { f -> commands += { loadWorld(f) } }
-        val bottom = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 2))
+        val bottom = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
         val all = fauna.kinds + groups.kinds
         for ((i, s) in all.withIndex()) {
-            val b = javax.swing.JToggleButton(s.name); b.margin = java.awt.Insets(1, 4, 1, 4)
+            val b = JToggleButton(s.name); b.margin = Insets(1, 4, 1, 4)
             b.toolTipText = if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)"
                 else "${s.name}: lives in herds or packs (shown as its density, and only its groups drawn)"
             b.addActionListener {
@@ -278,7 +292,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
         val south = JPanel(BorderLayout())
-        south.add(legendText.apply { border = javax.swing.BorderFactory.createEmptyBorder(2, 6, 2, 6) }, BorderLayout.NORTH)
+        south.add(legendText.apply { border = BorderFactory.createEmptyBorder(2, 6, 2, 6) }, BorderLayout.NORTH)
         south.add(bottom, BorderLayout.CENTER)
         add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(south, BorderLayout.SOUTH)
         snapshot()
@@ -286,16 +300,16 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         Timer(33) { if (frame < frames) { frame++; map.repaint() } }.start()
     }
 
-    private fun chooseFile(save: Boolean): java.io.File? {
-        val fc = javax.swing.JFileChooser(java.io.File(".")).apply { fileFilter = javax.swing.filechooser.FileNameExtensionFilter("saved hex worlds", "hexw") }
+    private fun chooseFile(save: Boolean): File? {
+        val fc = JFileChooser(File(".")).apply { fileFilter = FileNameExtensionFilter("saved hex worlds", "hexw") }
         val ok = if (save) fc.showSaveDialog(this) else fc.showOpenDialog(this)
-        if (ok != javax.swing.JFileChooser.APPROVE_OPTION) return null
+        if (ok != JFileChooser.APPROVE_OPTION) return null
         val f = fc.selectedFile
-        return if (save && !f.name.endsWith(".hexw")) java.io.File(f.path + ".hexw") else f
+        return if (save && !f.name.endsWith(".hexw")) File(f.path + ".hexw") else f
     }
 
     /** Carries on the world saved in [f] (on the simulation's thread). */
-    private fun loadWorld(f: java.io.File) {
+    private fun loadWorld(f: File) {
         try {
             HexSnapshot.load(sim, f)
             layers.reset()
@@ -303,7 +317,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             lastDrawn.clear()
             snapshot()
         } catch (e: Exception) {
-            SwingUtilities.invokeLater { javax.swing.JOptionPane.showMessageDialog(this, "Could not load ${f.name}: ${e.message}") }
+            SwingUtilities.invokeLater { JOptionPane.showMessageDialog(this, "Could not load ${f.name}: ${e.message}") }
         }
     }
 
@@ -321,24 +335,24 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     /** The model: learned networks where given ([nets], [waysFile]), else the hand-written choices. */
     private fun useNetworks() {
         nets?.let { name ->
-            val dir = inflation.tools.baselineDir(name)
+            val dir = baselineDir(name)
             for (role in Role.entries) {
                 val f = role.file(dir).takeIf { it.exists() } ?: continue
                 val p = MoverPolicy(SharedMover.load(f), null, { 0f }, { 0 })
                 for (s in groups.kinds) if (Role.of(s) == role) groups.policies[s] = p
             }
-            java.io.File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let {
+            File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let {
                 groups.herdWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT))
             }
-            java.io.File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let {
+            File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let {
                 groups.hunterWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT))
             }
         }
-        (waysFile ?: nets?.let { java.io.File(inflation.tools.baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
-            groups.ways = NetWays(Schema.load(java.io.File(it), Schema.WAYS_IN, Schema.WAYS_OUT))
+        (waysFile ?: nets?.let { File(baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
+            groups.ways = NetWays(Schema.load(File(it), Schema.WAYS_IN, Schema.WAYS_OUT))
         }
-        Config.string("herdWays")?.let { groups.herdWays = NetAnimalWays(Schema.load(java.io.File(it), Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT)) }
-        Config.string("hunterWays")?.let { groups.hunterWays = NetAnimalWays(Schema.load(java.io.File(it), Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
+        Config.string("herdWays")?.let { groups.herdWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT)) }
+        Config.string("hunterWays")?.let { groups.hunterWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
     }
 
     private fun snapshot() {
@@ -405,7 +419,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private inner class MapPanel : JPanel() {
         private var scale = 0.5
         private var ox = 0.0; private var oy = 0.0
-        private var drag: java.awt.Point? = null
+        private var drag: Point? = null
 
         /** Puts the point ([x], [y]) km in the middle of the view. */
         fun centreOn(x: Double, y: Double) { val kmPx = px * scale; ox = width / 2.0 - x * kmPx; oy = height / 2.0 - y * kmPx; repaint() }
@@ -443,6 +457,13 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             rivers.draw(g, ox, oy, kmPx, width, height)
             fun sx(km: Float) = (ox + km * kmPx).toInt()
             fun sy(km: Float) = (oy + km * kmPx).toInt()
+            // Hexes whose centre lies more than [hexes] hexes off the screen are skipped: at a close zoom most of the map is.
+            fun onScreen(h: Int, hexes: Int = 1): Boolean {
+                val (cx, cy) = hex.centreKm(h)
+                val margin = hexes * hex.hexKm * kmPx
+                val x = ox + cx * kmPx; val y = oy + cy * kmPx
+                return x > -margin && y > -margin && x < width + margin && y < height + margin
+            }
             // The chosen measure as a tint over the hexes (see [ViewLayers]), shown as the mode says.
             val tint = Measure.entries[tintChoice.selectedIndex]
             if (tint != Measure.NONE) {
@@ -454,6 +475,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 if (legendText.text != legend) SwingUtilities.invokeLater { legendText.text = legend }
                 for (h in 0 until hex.size) {
                     val colour = colours[h] ?: continue
+                    if (!onScreen(h)) continue
                     val (cx, cy) = hex.centreKm(h)
                     val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                     val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
@@ -465,7 +487,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 val every = max(1, (2.0 / scale).toInt())
                 for (h in 0 until hex.size) {
                     val col = h % hex.cols; val row = h / hex.cols
-                    if (col % every != 0 || row % every != 0) continue
+                    if (col % every != 0 || row % every != 0 || !onScreen(h, every + 1)) continue
                     val p = windPlace(h).takeIf { it >= 0 } ?: continue
                     val u = weather.windEast(p); val v = weather.windSouth(p)
                     val speed = hypot(u, v)
@@ -487,7 +509,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 val every = max(1, (2.0 / scale).toInt())
                 for (h in 0 until hex.size) {
                     val col = h % hex.cols; val row = h / hex.cols
-                    if (col % every != 0 || row % every != 0 || hex.heart[h] < 0) continue
+                    if (col % every != 0 || row % every != 0 || hex.heart[h] < 0 || !onScreen(h, every + 1)) continue
                     val u = b.east[k][h]; val v = b.south[k][h]
                     val st = hypot(u, v)
                     if (st < 0.02f) continue
@@ -523,7 +545,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 val top = (if (values.isEmpty()) 0.0 else values[(values.size * 0.95).toInt().coerceAtMost(values.size - 1)]).coerceAtLeast(1e-6)
                 for (h in 0 until hex.size) {
                     if (area[h] <= 0) continue
-                    if (dens[h] <= 0) continue
+                    if (dens[h] <= 0 || !onScreen(h)) continue
                     val v = sqrt(dens[h] / area[h] / top).toFloat().coerceIn(0.15f, 1f)
                     val (cx, cy) = hex.centreKm(h)
                     val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
@@ -535,13 +557,14 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             if (pathsBox.isSelected) {
                 val stroke = g.stroke
                 for (h in 0 until hex.size) for (d in 0 until 3) {
+                    if (!onScreen(h, 2)) break
                     val nh = hex.neighbour(h, d); if (nh < 0) continue
                     val back = (0 until 6).firstOrNull { hex.neighbour(nh, it) == h } ?: continue
                     val s = max(groups.wear.paths[h * 6 + d], groups.wear.paths[nh * 6 + back])
                     if (s < 0.05f) continue
                     val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(nh)
                     g.color = Color(0.45f, 0.3f, 0.12f, (0.25f + 0.65f * s).coerceAtMost(1f))
-                    g.stroke = java.awt.BasicStroke((0.5f + 3f * s) * max(0.5f, scale.toFloat()))
+                    g.stroke = BasicStroke((0.5f + 3f * s) * max(0.5f, scale.toFloat()))
                     g.drawLine(sx(x0.toFloat()), sy(y0.toFloat()), sx(x1.toFloat()), sy(y1.toFloat()))
                 }
                 g.stroke = stroke
@@ -564,7 +587,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 val rad = hex.hexKm / sqrt(3.0)
                 val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                 val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                g.stroke = java.awt.BasicStroke(2.5f); g.color = Color.WHITE; g.drawPolygon(xs, ys, 6); g.stroke = java.awt.BasicStroke(1f)
+                g.stroke = BasicStroke(2.5f); g.color = Color.WHITE; g.drawPolygon(xs, ys, 6); g.stroke = BasicStroke(1f)
             }
             // The groups, each part of the way along the hexes it walked this week; at the end of the
             // week those sharing a hex stand side by side in a small ring around its centre.
@@ -575,9 +598,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 if (s.id == groups.watched) {
                     val (fx, fy) = along(s.way, t)
                     g.color = Color(1f, 0.85f, 0.1f)
-                    g.stroke = java.awt.BasicStroke(2.5f)
+                    g.stroke = BasicStroke(2.5f)
                     g.drawOval(sx(fx) - 9, sy(fy) - 9, 18, 18)
-                    g.stroke = java.awt.BasicStroke(1f)
+                    g.stroke = BasicStroke(1f)
                 }
                 if (if (sp.human) !peopleBox.isSelected else if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
                 if (onlyKind != null && sp != onlyKind) continue

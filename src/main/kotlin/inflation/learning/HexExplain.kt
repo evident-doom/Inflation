@@ -5,7 +5,6 @@ import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
 import inflation.world.Date
 import inflation.world.WorldConfig
-import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.abs
 

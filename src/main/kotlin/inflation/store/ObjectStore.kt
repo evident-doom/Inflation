@@ -208,7 +208,7 @@ internal class Restorer {
             if (v === cur || v === Skip) continue
             if (v == null && f.type.isPrimitive) continue
             if (v != null && !box(f.type).isInstance(v)) { dropped += "${target.javaClass.simpleName}.${f.name} (now another type)"; continue }
-            runCatching { f.set(target, v) }
+            runCatching { f.set(target, v) }.onFailure { dropped += "${target.javaClass.simpleName}.${f.name} (could not be set: ${it.javaClass.simpleName})" }
         }
     }
 

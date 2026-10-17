@@ -14,7 +14,6 @@ import kotlin.math.min
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.DoubleAdder
 import java.util.stream.IntStream
-import kotlin.math.sqrt
 
 /**
  * Life in the water of each hex, as in the 1 km model's plankton, fish and sea, on the hexes:
@@ -717,6 +716,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
          * full strength, m/s; weeks to answer a change of wind.
          */
         const val UPWELL_MIX = 0.1f
+        const val UPWELL_WIND = 8f
+        const val UPWELL_WEEKS = 3f
         /**
          * The deep water: nutrients it holds when renewed, as a share of a full supply; its volume as a
          * multiple of the surface water's; yearly share renewed by the ocean beyond.
@@ -730,13 +731,13 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val NESTING = 5..7
         const val NEST_TEMP = 22f
         val TURTLE = SEA.indexOfFirst { it.nestsAshore }
-        const val UPWELL_WIND = 8f
-        const val UPWELL_WEEKS = 3f
         /**
          * Sea animals: a full sea as a multiple of the starting density; disease beyond it; shark weight per
-         * km² for full danger; share of prey sharks take.
+         * km² for full danger (the share of prey sharks take is [SHARK_ATTACK]).
          */
         const val SEA_FULL = 8f
+        const val SEA_DISEASE = 0.5f
+        const val SHARK_KG_KM2 = 0.5f
         /**
          * How hard each kind of fish is for a band to come by: the stock, as a multiple of what it wants,
          * that gives it half of that (a spawning run crowds a river; sea fish are scattered).
@@ -751,8 +752,6 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val FISH_FIND_HALF = 100f
         /** Zooplankton (kg/km²) at which a filter-feeding whale gets half of what it needs. */
         const val ZOO_HALF = 100f
-        const val SEA_DISEASE = 0.5f
-        const val SHARK_KG_KM2 = 0.5f
         /** Yearly share of seals, porpoises and dolphins sharks take where sharks are at full strength. */
         const val SHARK_ATTACK = 0.1f
         /**

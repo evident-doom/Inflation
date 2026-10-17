@@ -185,7 +185,7 @@ class Band {
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
     var sowWill = 1f
     /**
-     * Its choices against the dangers (each 1 for the scaffold's way, as before):
+     * Its choices against the dangers (1 for each gives the scaffold's way):
      * - how far from camp its gatherers go, against today's reach: further brings more food and
      *   more ground to watch (beasts take more where the gatherers are spread thin);
      * - how closely it watches its children: adults kept by them cost hands, children left alone are
