@@ -17,13 +17,17 @@ internal class HerdClaims(private val n: Int) {
     /** The claims at each place, biggest kind first: [byPlace] from [first][p] until [first][p + 1]. */
     val first = IntArray(n + 1); var byPlace = IntArray(256)
     private val at = IntArray(n)
-    /** The claims of the group with index i run from [groupFirst][i] until [groupFirst][i + 1]; its week's need, kg. */
-    var groupFirst = IntArray(257); var groupWantKg = FloatArray(256)
+    /** The claims of the group with index i run from [groupFirst][i] until [groupFirst][i + 1]; its week's need, kg; the place it claimed from. */
+    var groupFirst = IntArray(257); var groupWantKg = FloatArray(256); var groupPlace = IntArray(256)
+
+    /** How many groups there were when the claims were made (any added since have none). */
+    var groups = 0
+        private set
 
     /** No claims, for a week with [groups] groups. */
     fun clear(groups: Int) {
-        size = 0; first.fill(0)
-        if (groupFirst.size < groups + 1) { groupFirst = IntArray(groups + 1); groupWantKg = FloatArray(groups) } else groupFirst.fill(0, 0, groups + 1)
+        size = 0; first.fill(0); this.groups = groups
+        if (groupFirst.size < groups + 1) { groupFirst = IntArray(groups + 1); groupWantKg = FloatArray(groups); groupPlace = IntArray(groups) } else groupFirst.fill(0, 0, groups + 1)
     }
 
     fun add(g: Int, p: Int, sh: Float, massKg: Float, grass: Float, browse: Float, fruit: Float, roots: Float) {

@@ -77,7 +77,7 @@ internal fun HexGroups.claim(weather: Weather) {
         // many weeks' food, each giving its share by what it has (a herd of hundreds spreads thin over
         // poor steppe, and keeps close on rich pasture).
         // (Walking costs food: a share of a day's need for each km of the week's going, see [walkCost].)
-        val wantKg = g.dailyNeedKg * days * (1f + walkCost(g)); c.groupWantKg[i] = wantKg
+        val wantKg = g.dailyNeedKg * days * (1f + walkCost(g)); c.groupWantKg[i] = wantKg; c.groupPlace[i] = g.place
         for ((p, share) in grazingRange(g)) {
             val want = wantKg * share / 1e6f / land.areaKm2[p] // kg per m² of the place
             val access = herdAccess(s, p)
@@ -124,13 +124,24 @@ internal fun HexGroups.graze(weather: Weather) {
     for (i in ordered) {
         val g = groups[i]
         val s = g.species
-        if (!g.alive || s.carnivore) continue
-        val wantKg = c.groupWantKg[i]
-        val places = c.groupFirst[i + 1] - c.groupFirst[i]
+        if (s.carnivore) continue
+        // A herd that lost some of its number in the week's meetings, or all of it, leaves the rest of its claim to the
+        // others; one stopped short of where it was going grazes where it stopped, on what is left there.
+        val wantKg = if (g.alive) g.dailyNeedKg * days * (1f + walkCost(g)) else 0f
+        val claimed = i < c.groups
+        val fresh = if (g.alive && (!claimed || g.place != c.groupPlace[i])) grazingRange(g) else null
+        val keep = if (fresh == null && c.groupWantKg[i] > 0f) min(1f, wantKg / c.groupWantKg[i]) else 0f
+        if (claimed && keep < 1f) for (j in c.groupFirst[i] until c.groupFirst[i + 1]) {
+            val w = 4 * j; val p = c.place[j]
+            fauna.grazeLeft[p] += c.want[w] * c.grant[w] * (1f - keep); fauna.browseLeft[p] += c.want[w + 1] * c.grant[w + 1] * (1f - keep)
+        }
+        if (!g.alive) continue
+        val places = fresh?.size ?: (c.groupFirst[i + 1] - c.groupFirst[i])
         var gotKg = 0f; var surplusKg = 0f; var eatenKg = 0f; var proteinKg = 0f
         g.surplus = 0f
-        for (j in c.groupFirst[i] until c.groupFirst[i + 1]) {
-            val p = c.place[j]; val share = c.share[j]
+        for (q in 0 until places) {
+            val j = if (claimed) c.groupFirst[i] + q else -1
+            val p = fresh?.get(q)?.first ?: c.place[j]; val share = fresh?.get(q)?.second ?: c.share[j]
             val want = wantKg * share / 1e6f / land.areaKm2[p] // kg per m² of the place
             val access = herdAccess(s, p)
             val snowed = weather.snowpack[p] > s.snowLimitMm
@@ -145,13 +156,19 @@ internal fun HexGroups.graze(weather: Weather) {
             // What is left of its need for the rest of its food.
             val rest = (1f - lichen * HexFood.LICHEN_VALUE / want.coerceAtLeast(1e-12f)).coerceIn(0f, 1f)
             // What it was granted of its usual shares, in turn with the residents by body mass (see [HexFauna.graze]).
-            val w = 4 * j
-            val grass = land.consume(p, LifeForm.HERB, c.want[w] * c.grant[w]); val browse = land.eatBrowse(p, c.want[w + 1] * c.grant[w + 1])
-            val fruit = food.take(food.fruit, p, c.want[w + 2] * c.grant[w + 2]); val roots = food.take(food.roots, p, c.want[w + 3] * c.grant[w + 3])
             // (The rest of the week's grazing and browsing at a place is shared by all that eat there: what the
             // residents' and herds' usual shares, and the herds before it, left; see [HexFauna.grazeLeft].)
             fun eatGrass(kg: Float): Float { val t = land.consume(p, LifeForm.HERB, min(kg, fauna.grazeLeft[p])); fauna.grazeLeft[p] -= t; return t }
             fun eatBrowse(kg: Float): Float { val t = land.eatBrowse(p, min(kg, fauna.browseLeft[p])); fauna.browseLeft[p] -= t; return t }
+            val grass: Float; val browse: Float; val fruit: Float; val roots: Float
+            if (fresh == null) {
+                val w = 4 * j
+                grass = land.consume(p, LifeForm.HERB, c.want[w] * c.grant[w] * keep); browse = land.eatBrowse(p, c.want[w + 1] * c.grant[w + 1] * keep)
+                fruit = food.take(food.fruit, p, c.want[w + 2] * c.grant[w + 2] * keep); roots = food.take(food.roots, p, c.want[w + 3] * c.grant[w + 3] * keep)
+            } else {
+                grass = if (snowed) 0f else eatGrass(want * rest * fill * access * d.grass / total); browse = eatBrowse(want * rest * fill * access * d.browse / total)
+                fruit = food.take(food.fruit, p, want * rest * access * d.fruit / total); roots = food.take(food.roots, p, want * rest * access * d.roots / total)
+            }
             // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
             // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
             // usual share (an ostrich out of fruit season picks more shoots and leaves).
@@ -210,7 +227,7 @@ internal fun HexGroups.graze(weather: Weather) {
         if (surplusKg > 0f) g.surplus = surplusKg / (wantKg / days)
         stats.hunting.merge("${s.name}:ranged over places", places, Int::plus)
     }
-    c.clear(groups.size)
+    c.clear(0)
 }
 
 /**

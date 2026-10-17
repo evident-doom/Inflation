@@ -203,9 +203,9 @@ class HexGroups(
     @Transient internal val claims = HerdClaims(n).also { fauna.claims = it }
 
     /**
-     * The first part of the week: groups choose where to go, go there and meet on the way, and the herds
-     * claim their usual shares of the food where they graze ([claim]). The residents then eat with them
-     * ([HexFauna.step]), and the rest of the week follows ([live]).
+     * The first part of the week: groups choose where to go and go there, and the herds claim their usual
+     * shares of the food where they graze ([claim]). The residents then eat with them ([HexFauna.step]), and
+     * the rest of the week follows ([live]).
      */
     fun move(weather: Weather, date: Date) {
         stats.clear(); watchLog.clear()
@@ -312,6 +312,15 @@ class HexGroups(
             }
         }
         Profile.add("groups: choosing where to go", System.nanoTime() - tPlan, Profile.cpuNow() - cPlan)
+        Profile.part("groups: claiming their grazing") { claim(weather) }
+    }
+
+    /**
+     * The rest of the week, once the residents have eaten ([move] comes first): meetings on the way,
+     * grazing, hunting, births and deaths. (The meetings come after the residents' week, as before the
+     * reorder, so that the carcasses they leave lie fresh for the hunters and scavengers among the groups.)
+     */
+    fun live(weather: Weather, date: Date) {
         // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
         // same days, the earlier meetings are settled first, by each side's standing orders.
         val t0 = System.nanoTime()
@@ -319,11 +328,6 @@ class HexGroups(
         meetNs += System.nanoTime() - t0
         Profile.part("groups: leaving sign") { leaveSign() }
         Profile.part("groups: wearing paths") { wear.week(groups, hw, land, days); routes.week() }
-        Profile.part("groups: claiming their grazing") { claim(weather) }
-    }
-
-    /** The rest of the week, once the residents have eaten ([move] comes first): grazing, hunting, births and deaths. */
-    fun live(weather: Weather, date: Date) {
         Profile.time("groups: grazing") { graze(weather) }
         Profile.time("groups: hunting") { hunt(weather) }
         Profile.part("people: burning off") { burnOff(weather) }
