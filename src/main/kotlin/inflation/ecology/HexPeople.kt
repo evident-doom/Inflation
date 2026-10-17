@@ -565,7 +565,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: D
             val take = min(b.cacheKg, room)
             val share = if (b.cacheKg > 0f) take / b.cacheKg else 0f
             for (i in b.cache.indices) { val x = b.cache[i] * share; b.cache[i] -= x; g.stores[i] += x }
-            if (take > 0f) meetings.merge("bands back at a cache", 1, Int::plus)
+            if (take > 0f) stats.meetings.merge("bands back at a cache", 1, Int::plus)
         }
         if (b.cacheKg < 1f) dropCache(b)
     }
@@ -607,13 +607,13 @@ private fun HexGroups.wearAndInvent(b: Band, years: Float) {
         if (!b.knows[k]) {
             // A band that has a use for a tool now and then hits on it: bows where game is shy and
             // fast, sickles and grinding stones where it reaps seed, and so on.
-            if (rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[useOf(t).ordinal])) { b.knows[k] = true; meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus) }
+            if (rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[useOf(t).ordinal])) { b.knows[k] = true; stats.meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus) }
             continue
         }
     }
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
     for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) && s.needs.let { it == null || (b.knowsSkill[it.ordinal] && b.skills[it.ordinal] >= NEEDS_LEVEL) } && rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
-        b.knowsSkill[s.ordinal] = true; b.lastUsed[s.ordinal] = b.weeks; meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
+        b.knowsSkill[s.ordinal] = true; b.lastUsed[s.ordinal] = b.weeks; stats.meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
 }
 
@@ -675,7 +675,7 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Int, h: Int, people: F
             gd[Material.STONE.ordinal] -= built * stoneEach * people; gd[Material.WOOD.ordinal] -= built * woodEach * people
             b.house += built; time -= built * daysNow
             if (built > 0f) b.practise(way)
-            if (built > 0f) meetings.merge("bands built houses", 1, Int::plus)
+            if (built > 0f) stats.meetings.merge("bands built houses", 1, Int::plus)
         }
     }
     return time
@@ -710,7 +710,7 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Int, date: Date, time0: 
             val add = sow / m2
             food.domestic[p] = (food.domestic[p] * standing + b.seedDomestic * add) / (standing + add).coerceAtLeast(1e-9f)
             food.field[p] += add
-            meetings.merge("bands sowed", 1, Int::plus)
+            stats.meetings.merge("bands sowed", 1, Int::plus)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
     }
@@ -724,7 +724,7 @@ private fun HexGroups.buildPalisade(b: Band, people: Float, time0: Float): Float
     if (b.atHome && b.sinceRaided < 52 * b.fortifyWill && b.palisade < 1f && time > 0f && people > 0f) {
         val built = minOf(1f - b.palisade, time / (PALISADE_DAYS * people), gd[Material.WOOD.ordinal] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
         gd[Material.WOOD.ordinal] -= built * PALISADE_WOOD * people; b.palisade += built; time -= built * PALISADE_DAYS * people
-        if (built > 0f) meetings.merge("bands built palisades", 1, Int::plus)
+        if (built > 0f) stats.meetings.merge("bands built palisades", 1, Int::plus)
     }
     return time
 }
@@ -749,7 +749,7 @@ private fun HexGroups.forget(b: Band) {
         // A way no one holds and no one has used for years is lost altogether; so is one whose groundwork is lost.
         if (b.knowsSkill[i] && s.losable && b.holders[i] < 0.5f && b.weeks - b.lastUsed[i] > (if (s.knowledge) LOST_KNOWLEDGE_WEEKS else LOST_HANDS_WEEKS)) {
             b.knowsSkill[i] = false; b.skills[i] = 0f; b.holders[i] = 0f
-            meetings.merge("band lost ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
+            stats.meetings.merge("band lost ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
         }
         s.needs?.let { n -> if (b.knowsSkill[i] && !b.knowsSkill[n.ordinal]) { b.knowsSkill[i] = false; b.skills[i] = 0f; b.holders[i] = 0f } }
     }
@@ -773,7 +773,7 @@ private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
             o.young--
             if (b.kept.size < Catalogue.all.size) b.kept = b.kept.copyOf(Catalogue.all.size)
             b.kept[s.index] += 1f
-            meetings.merge("bands took a ${s.name} pup", 1, Int::plus)
+            stats.meetings.merge("bands took a ${s.name} pup", 1, Int::plus)
         }
     }
     if (b.kept.isEmpty()) return
@@ -821,7 +821,7 @@ private fun useOf(t: Tool) = when (t) {
 internal fun HexGroups.teach(a: Band, b: Band, understood: Float, aDoesBetter: Float = 0f) {
     for (k in a.knows.indices) if (a.knows[k] != b.knows[k] && rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood)) {
         a.knows[k] = true; b.knows[k] = true
-        meetings.merge("band learned ${Tool.entries[k].name.lowercase()}", 1, Int::plus)
+        stats.meetings.merge("band learned ${Tool.entries[k].name.lowercase()}", 1, Int::plus)
     }
     // And ways of working: the one that knows a way shows it; the other starts on it as a beginner.
     // (Bands take up a stranger's way the less readily the more their customs differ, and the more
@@ -836,7 +836,7 @@ internal fun HexGroups.teach(a: Band, b: Band, understood: Float, aDoesBetter: F
         // (A meeting shows that a way exists; the skill itself comes only with people who stay to teach it.)
         // (Newly learned, it counts as fresh: it is lost only if it then goes unused for years.)
         to.knowsSkill[k] = true; to.lastUsed[k] = to.weeks
-        meetings.merge("band learned ${Skill.entries[k].name.lowercase().replace('_', ' ')}", 1, Int::plus)
+        stats.meetings.merge("band learned ${Skill.entries[k].name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
 }
 
@@ -1106,7 +1106,7 @@ internal fun HexGroups.robCaches() {
                 val share = take / ob.cacheKg
                 for (i in ob.cache.indices) { val x = ob.cache[i] * share; ob.cache[i] -= x; g.stores[i] += x }
                 ob.befriend(g.id, -TIE_RAID * 0.5f); ob.grudge[b.mainLineage()] += 0.5f * GRUDGE
-                meetings.merge("caches robbed", 1, Int::plus)
+                stats.meetings.merge("caches robbed", 1, Int::plus)
                 note(g) { "found and took %.0f kg from band #%d's cache".format(take, o.id) }; note(o) { "its cache was robbed by band #%d".format(g.id) }
             }
         }
@@ -1139,7 +1139,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band) {
     }
     if (best >= 0 && rnd.nextFloat() < RAID_PLOT * b.raidWill * days / 7f) {
         b.raidOn = best; b.raidHex = b.knownHomes.getValue(best); b.raidWeeks = RAID_WEEKS
-        meetings.merge("raids set out", 1, Int::plus)
+        stats.meetings.merge("raids set out", 1, Int::plus)
         note(g) { "set out to raid band #%d at hex %d".format(best, b.raidHex) }
     }
 }
@@ -1267,7 +1267,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         n = max(0f, n + born - died)
         // What it cannot keep it culls for meat.
         val most = HERD_PER_PERSON * g.size * b.edge(Skill.TENDING)
-        if (n > most) { val cull = n - most; n = most; g.stores[Store.FRESH.ordinal] += cull * s.massKg * MEAT_SHARE; meetings.merge("kept animals culled", 1, Int::plus) }
+        if (n > most) { val cull = n - most; n = most; g.stores[Store.FRESH.ordinal] += cull * s.massKg * MEAT_SHARE; stats.meetings.merge("kept animals culled", 1, Int::plus) }
         b.herd[k] = if (n < 0.5f) 0f else n
         b.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)
         if (b.knowsSkill[Skill.TENDING.ordinal]) b.practise(Skill.TENDING, 0.5f * PRACTICE)

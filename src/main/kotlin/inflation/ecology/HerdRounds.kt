@@ -31,9 +31,9 @@ internal fun HexGroups.growRounds(month: Int) {
         for (g in groups) if (g.alive && g.species == s && g.route[0] == -1) {
             if (firstGrowth && hashNoise(g.id, 77) >= ROUND_START_SHARE) Arrays.fill(g.route, NO_ROUND) else takeRound(g, rounds, month)
         }
-        meetings.merge("${s.name}: yearly rounds grown", rounds.size, Int::plus)
+        stats.meetings.merge("${s.name}: yearly rounds grown", rounds.size, Int::plus)
         // (And how far apart their January and July places lie, km, on average: for the check.)
-        meetings.merge("${s.name}: rounds' January-July km", rounds.map { hex.distanceKm(hw.placeHex[it[0]], hw.placeHex[it[6]]) }.average().toInt(), Int::plus)
+        stats.meetings.merge("${s.name}: rounds' January-July km", rounds.map { hex.distanceKm(hw.placeHex[it[0]], hw.placeHex[it[6]]) }.average().toInt(), Int::plus)
     }
 }
 

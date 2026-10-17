@@ -88,10 +88,10 @@ class HexHistory {
         for ((key, v) in wl.fishFlows) if (!key.startsWith("hungry")) put("fish flows/$key, t", v.toFloat())
         // Deaths, births and kills this week.
         for ((key, v) in fauna.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
-        for ((key, v) in groups.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
-        for ((key, v) in groups.kills) put("deaths/$key/hunted", v.toFloat())
-        for ((key, v) in groups.births) put("births/$key", v.toFloat())
-        for ((key, v) in groups.kills) put("kills/$key", v.toFloat())
+        for ((key, v) in groups.stats.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
+        for ((key, v) in groups.stats.kills) put("deaths/$key/hunted", v.toFloat())
+        for ((key, v) in groups.stats.births) put("births/$key", v.toFloat())
+        for ((key, v) in groups.stats.kills) put("kills/$key", v.toFloat())
         // Weather, means over the land.
         val total = area.sum()
         fun mean(f: (Int) -> Float) = (0 until n).sumOf { (f(it) * area[it]).toDouble() }.toFloat() / total

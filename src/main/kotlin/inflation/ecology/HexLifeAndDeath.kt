@@ -165,14 +165,14 @@ internal fun HexGroups.graze(weather: Weather) {
             }
             land.grazing[p] += (grass + grass2 + grass3) * 1e6f / days; land.browsing[p] += (browse + browse2 + browse3) * 1e6f / days; land.rooting[p] += (roots + roots2) * 1e6f / days
         val m2 = land.m2(p)
-        hunting.merge("${s.name}:ate grass, kg", ((grass + grass2 + grass3) * m2).toInt(), Int::plus); hunting.merge("${s.name}:ate browse, kg", ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
-        hunting.merge("${s.name}:ate fruit and roots, kg", ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus); hunting.merge("${s.name}:ate straw and lichen, kg", ((straw + lichen) * m2).toInt(), Int::plus)
+        stats.hunting.merge("${s.name}:ate grass, kg", ((grass + grass2 + grass3) * m2).toInt(), Int::plus); stats.hunting.merge("${s.name}:ate browse, kg", ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
+        stats.hunting.merge("${s.name}:ate fruit and roots, kg", ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus); stats.hunting.merge("${s.name}:ate straw and lichen, kg", ((straw + lichen) * m2).toInt(), Int::plus)
         }
         g.fed = (gotKg / wantKg.coerceAtLeast(1e-6f)).coerceIn(0f, 1f)
         if (eatenKg > 0f) g.protein += (fauna.proteinMet(proteinKg / eatenKg) - g.protein) * HexFauna.PROTEIN_MEMORY
         val pm = weather.date.month; g.proteinByMonth[pm] += (g.protein - g.proteinByMonth[pm]) * HexFauna.PROTEIN_MEMORY
         if (surplusKg > 0f) g.surplus = surplusKg / (wantKg / days)
-        hunting.merge("${s.name}:ranged over places", range.size, Int::plus)
+        stats.hunting.merge("${s.name}:ranged over places", range.size, Int::plus)
     }
 }
 
@@ -237,24 +237,24 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (o == null) {
             // Young whose last grown animal was killed this week (by hunters or rivals) die too.
             if (!g.alive && g.young > 0) {
-                deaths.merge("${s.name}:orphaned", g.young, Int::plus)
+                stats.deaths.merge("${s.name}:orphaned", g.young, Int::plus)
                 small.carrion[g.place] += 0.3f * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)
                 g.young = 0
             }
             continue
         }
         if (o.carrionKg > 0f) small.carrion[g.place] += o.carrionKg / (land.areaKm2[g.place] * 1e6f)
-        if (o.births > 0) births.merge(s.name, o.births, Int::plus)
+        if (o.births > 0) stats.births.merge(s.name, o.births, Int::plus)
         note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.second > 0 }.joinToString(", ") { "${it.second} ${it.first}" }.ifEmpty { "none" }) }
-        for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name}:$cause", k, Int::plus)
+        for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("${s.name}:$cause", k, Int::plus)
         fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
-        if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
+        if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
-        if (ROUNDS && !s.carnivore && g.route[0] != -1) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) deaths.merge("${s.name} $way:born", o.births, Int::plus) }
-        if (s.human) { val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' '); for ((cause, k) in o.causes) if (k > 0) hunting.merge("bands in $c:died of $cause", k, Int::plus); if (o.births > 0) hunting.merge("bands in $c:born", o.births, Int::plus) }
-        if (o.orphans > 0) deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
+        if (ROUNDS && !s.carnivore && g.route[0] != -1) { val way = if (g.route[0] >= 0) "on round" else "own country"; for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("${s.name} $way:$cause", k, Int::plus); if (o.births > 0) stats.deaths.merge("${s.name} $way:born", o.births, Int::plus) }
+        if (s.human) { val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' '); for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands in $c:died of $cause", k, Int::plus); if (o.births > 0) stats.hunting.merge("bands in $c:born", o.births, Int::plus) }
+        if (o.orphans > 0) stats.deaths.merge("${s.name}:orphaned", o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
-        if (s.human && o.youngDied > 0) hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
+        if (s.human && o.youngDied > 0) stats.hunting.merge("${s.name}:children died", o.youngDied, Int::plus)
         // A band that keeps the old way leaves a camp where someone died.
         if (s.human && o.deaths > 0) g.band?.let { b -> if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) { b.unluckyHex = hw.placeHex[g.place]; b.unluckyWeeks = UNLUCKY_WEEKS; note(g) { "left the camp where its dead lie" } } }
         // A band that buries its dead buries them where it is: its ancestors' place.
@@ -389,7 +389,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val croc = if (s.human) 0f else fauna.water.crocodileRisk(g.place, weather) * years
     if (s.human && g.young > 0) {
         val care = g.young * (1f - ELDER_CARE * help)
-        fun add(name: String, v: Float) { if (v > 0f) childDeaths.computeIfAbsent(name) { DoubleAdder() }.add((care * v).toDouble()) }
+        fun add(name: String, v: Float) { if (v > 0f) stats.childDeaths.computeIfAbsent(name) { DoubleAdder() }.add((care * v).toDouble()) }
         add("infancy and ordinary illness", healed * cared * s.youngMortality * Tuning.humanYoung * years)
         add("hunger", 1.5f * hunger); add("cold and exposure", 1.5f * (cold + exposure)); add("thirst", 1.5f * thirst)
         add("crowd sickness and outbreaks", disease); add("fire, flood and snow", fireY + floodY + snowY); add("camp fouling", fouled)
@@ -626,7 +626,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         }
         val o = best ?: continue
         joinBand(o, g)
-        meetings.merge("small bands joined kin", 1, Int::plus)
+        stats.meetings.merge("small bands joined kin", 1, Int::plus)
     }
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
     // the pair holds the ground of the one that had any.
