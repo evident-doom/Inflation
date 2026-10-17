@@ -2,6 +2,7 @@ package inflation.ui
 
 import inflation.ecology.ANIMAL_WAYS_OUT
 import inflation.ecology.FOOD_TYPES
+import inflation.ecology.Food
 import inflation.ecology.GroupControl
 import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
@@ -461,9 +462,8 @@ class GroupControlWindow(
     }
 
     private fun wayNames(): List<String> {
-        val food = listOf("big game", "small game", "carrion", "bones", "fruit", "roots", "grass seed", "small finds", "fish")
         return Schema.WAYS_OUT.mapIndexed { k, n ->
-            if (k < FOOD_TYPES) "effort: " + food.getOrElse(k) { n } else n.replace("make first:", "make first: ")
+            if (k < FOOD_TYPES) "effort: " + Food.entries[k].label else n.replace("make first:", "make first: ")
         }
     }
 

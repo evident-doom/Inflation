@@ -467,7 +467,7 @@ class Band(kinds: Int) {
      * How much more of a kilo of plant food of food type [t] its cooking makes good (1 roasting): earth
      * ovens for roots, gruel boiled with hot stones for seed and grain. Nothing cooks without fire.
      */
-    fun cookValue(t: Int): Float {
+    fun cookValue(t: Food): Float {
         if (fire <= 0f) return 1f
         val v = when (t) {
             Food.ROOTS -> if (knowsSkill[Skill.EARTH_OVEN]) EARTH_OVEN_GAIN * skill(Skill.EARTH_OVEN) else 0f
@@ -1146,8 +1146,8 @@ const val STORE_FILL = 0.25f
 /** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
 const val DRY_DAYS_PER_KG = 0.1f
 
-/** Kinds of food a band sets its effort on (see [forage]): the [Food] kinds before grain, which goes by grass seed's. */
-const val FOOD_TYPES = Food.GRAIN
+/** Kinds of food a band sets its effort on (see [forage]): the [Food] kinds before grain (the last), which goes by grass seed's. */
+const val FOOD_TYPES = 9
 /** [setWays]' outputs after the efforts: the store aim, then one for each [Tool] (which to make first), then the [BandWay]s. */
 const val STORE_AIM_SLOT = FOOD_TYPES
 const val MAKE_FIRST_SLOT = STORE_AIM_SLOT + 1
