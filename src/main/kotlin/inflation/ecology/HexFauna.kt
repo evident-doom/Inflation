@@ -182,7 +182,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * Resident hunter [k] at place [p] kills game among the residents there, and among the herds about it this week
-     * ([herdsAt]), for up to [meat] of meat: prey from a quarter of its weight to [PREY_UP_TO] times it (the young
+     * ([herdsAt]), for up to [meat] of meat: prey from a quarter of its weight to [Species.preyUpTo] times it (the young
      * of bigger kinds too), each kind as it is common there and by its weight, herd or resident alike, at most
      * [RESIDENT_KILL_MOST] of a kind's numbers in a week; what it cannot eat of a kill is left as carrion. Returns
      * what it ate.
@@ -190,7 +190,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun huntResidents(k: Int, p: Int, meat: KgM2, killedSoFar: FloatArray): KgM2 {
         if (meat.v <= 0f) return KgM2.ZERO
         val hunter = kinds[k]
-        val lo = 0.25f * hunter.massKg; val hi = PREY_UP_TO * hunter.massKg
+        val lo = 0.25f * hunter.massKg; val hi = hunter.preyUpTo * hunter.massKg
         val area = land.areaKm2[p]
         var total = 0f
         // (Weights in kg per km2, as the numbers are kept.)
@@ -452,7 +452,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Game a resident hunter [s] takes at place [p], kg per km²: residents and herds of its prey's size ([huntResidents]). */
     private fun preyFor(s: Species, p: Int): Float {
-        val lo = 0.25f * s.massKg; val hi = PREY_UP_TO * s.massKg
+        val lo = 0.25f * s.massKg; val hi = s.preyUpTo * s.massKg
         var v = 0f
         for ((j, ps) in kinds.withIndex()) {
             if (ps.carnivore) continue
@@ -1079,7 +1079,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
          * Resident hunters: heaviest prey against their own weight; share of a prey kind's numbers in a place they can
          * kill in a week; weight of the young against grown. (They eat [MEAT_SHARE] of a kill, as packs do.)
          */
-        const val PREY_UP_TO = 3f
         const val RESIDENT_KILL_MOST = 0.02f
         const val YOUNG_WEIGHT = 0.3f
         /** How strongly a strait draws spilling residents against a neighbouring hex on land (a trickle). */
