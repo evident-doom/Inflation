@@ -358,7 +358,7 @@ object HexPpo {
         private fun setRates() {
             // (Nothing is recorded while a fresh world settles.)
             if (week < burnSteps) { for (s in kinds) rates[s] = 0f; waysRate = 0f; return }
-            for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(1f, sampling.perKindYear * (if (s.human) sampling.peopleChoices else 1f) / (n * stepsPerYear)) }
+            for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(Sampling.MAX_SHARE, sampling.perKindYear * (if (s.human) sampling.peopleChoices else 1f) / (n * stepsPerYear)) }
             waysRate = WaysPpo.rate(run.groups.groups.count { it.alive && it.band != null }, stepsPerYear)
         }
 
