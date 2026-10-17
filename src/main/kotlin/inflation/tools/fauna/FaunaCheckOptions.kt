@@ -77,12 +77,13 @@ class FaunaCheckOptions(
             if (stands("--width")) cfg = cfg.copy(widthKm = widthKm)
             if (stands("--height")) cfg = cfg.copy(heightKm = heightKm)
             val years = a.int("--years", 10)
-            val uniform = a.flag("--uniform")
             val historyFile = a.file("--history")
             val saveFile = a.file("--save")
             val loadFile = a.file("--load").takeIf { stands("--load") } ?: testWorld?.state
             val replicate = a.long("--replicate", 0L)
             a.done()
+            // Every kind spread evenly over the land at the start (uniformStart=true), instead of by its country.
+            val uniform = Config.flag("uniformStart", false)
             // The world's centre latitude (latitude=DEGREES), as the training maps set it; a test world keeps its own.
             if (testWorld == null) Config.string("latitude")?.let { cfg = cfg.copy(centreLatitude = it.toDouble()) }
             return FaunaCheckOptions(cfg, years, uniform, historyFile, saveFile, loadFile, replicate, testWorld)

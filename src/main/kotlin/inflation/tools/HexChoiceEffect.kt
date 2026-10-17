@@ -1,6 +1,7 @@
 package inflation.tools
 
 import inflation.Args
+import inflation.Config
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
@@ -25,13 +26,15 @@ import kotlin.math.abs
  * discounted 0.98, less its luck in births and deaths). The other half, not made to choose otherwise,
  * shows how far the runs drift apart by the world's own knock-on effects.
  *
- * Usage: hex-choice-effect [--seed N] [--size KM] [--warm WEEKS] [--noise P]
- *   --noise P: from the week after the forced one, every band takes a random place other than the best
- *   with chance P, and draws its ways as in training, each week (the noise training plays under).
+ * Usage: hex-choice-effect [--seed N] [--size KM] [--variants A,B]
+ * Config keys: choiceWarmWeeks (default 60), the week the choice is forced; choiceNoise (default 0): from the
+ * week after the forced one, every band takes a random place other than the best with that chance, and draws
+ * its ways as in training, each week (the noise training plays under).
  */
 fun main(args: Array<String>) {
-    val a = Args(args, "hex-choice-effect [--seed N] [--size KM] [--warm WEEKS] [--noise P]")
-    val seed = a.long("--seed", 91L); val size = a.int("--size", 600); val warm = a.int("--warm", 60); val noise = a.float("--noise", 0f)
+    val a = Args(args, "hex-choice-effect [--seed N] [--size KM] [--variants A,B]")
+    val seed = a.long("--seed", 91L); val size = a.int("--size", 600)
+    val warm = Config.int("choiceWarmWeeks", 60); val noise = Config.float("choiceNoise", 0f)
     val variants = a.string("--variants")?.let { listOf("base") + it.split(",") }
         ?: listOf("base", "base-again", "move-1wk", "move-52wk", "ways-1wk", "ways-52wk")
     a.done()
