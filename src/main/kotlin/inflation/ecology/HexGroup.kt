@@ -41,6 +41,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** The places it remembers (see [PlaceMemory]). */
     val memory = PlaceMemory()
     var mergedSize = -1
+    /** The group it merged into, the step it did (else -1): for following what became of its members. Not saved: read in the same step. */
+    @Transient var mergedInto = -1
     /** How well its diet met its need for protein over the last weeks, 0..1 (see [HexFauna.proteinMet]). */
     var protein = 1f
     /** How well its diet met its need for protein in each month, as it remembers (births move toward the months rich in it). */

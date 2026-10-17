@@ -76,13 +76,15 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
         val t = w + g.id % WaysPpo.SEASON
         val season = t / WaysPpo.SEASON
         val rnd = Random(seed * 1_000_003L + g.id * 7_919L + season * 104_729L)
+        // Only the bands whose season is recorded to learn from draw their ways by chance; the rest keep to the middle.
+        if (rnd.nextFloat() >= rate()) { mean.copyInto(out); return }
         var logp = 0f
         for (i in 0 until WAYS_OUT) {
             val z = gaussian(rnd)
             out[i] = mean[i] + exp(ways.logStd[i]) * z
             logp += -0.5f * z * z - ways.logStd[i]
         }
-        if (t % WaysPpo.SEASON == 0 && rnd.nextFloat() < rate()) record += WaysChoice(g.species, g.id, g.size, w, inputs.copyOf(), out.copyOf(WAYS_OUT), logp)
+        if (t % WaysPpo.SEASON == 0) record += WaysChoice(g.species, g.id, g.size, w, inputs.copyOf(), out.copyOf(WAYS_OUT), logp)
     }
 }
 
