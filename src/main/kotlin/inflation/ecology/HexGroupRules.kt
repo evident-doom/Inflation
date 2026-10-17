@@ -254,11 +254,11 @@ const val INFANTICIDE = 0.25f
  * How watchful a herd is for coursing hunters in fully open country (times the other odds, at most 0.95 in all), and how a
  * chase goes when they come on it unseen, against [CATCH]. Set (2026-10-17) so that herds see hunters first and lose
  * animals to chases as often as they did when every herd stayed near-fully wary for months (a long memory that sat
- * near its ceiling, 0.89 at a chase); being chased now alarms a herd only for [ALARM_DAYS], 0.26 at a chase, since
- * hunters come on a herd in clusters.
+ * near its ceiling, 0.89 at a chase); being chased now alarms a herd only for [ALARM_DAYS], 0.28 at a chase, since
+ * hunters come on a herd in clusters. (Fitted on the seed-1 hunting probe: seen first and kills per meeting as before.)
  */
-const val VIGILANCE = 0.9f
-const val SURPRISE = 0.95f
+const val VIGILANCE = 0.86f
+const val SURPRISE = 1.03f
 /** Days over which a herd's alarm after a chase fades (to 1/e): hours to about a day in field studies of elk near wolves and zebra after lions. */
 const val ALARM_DAYS = 1f
 /** Body mass below which an animal can hide in thick cover, kg, and how much of a hunter's chance cover takes away. */
