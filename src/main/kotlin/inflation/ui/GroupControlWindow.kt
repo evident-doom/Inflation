@@ -340,8 +340,8 @@ class GroupControlWindow(
             sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
                 .ifEmpty { "none" })
             sb.appendLine("knows %d hexes; knows the homes of %d bands".format((0 until hex.size).count { b.knows(it) }, b.knownHomes.size))
-            if (!b.raidHex.none) sb.appendLine("set on a raid at hex %d".format(b.raidHex.i))
-            if (!b.appointHex.none) sb.appendLine("meets others at hex %d in month %d".format(b.appointHex.i, b.appointMonth + 1))
+            b.raid?.let { sb.appendLine("set on a raid at hex %d".format(it.hex.i)) }
+            b.appointment?.let { sb.appendLine("meets others at hex %d in month %d".format(it.hex.i, it.month + 1)) }
         } else if (s.carnivore) sb.appendLine(if (!g.home.none) "holds ground about hex %d".format(g.home.i) else "holds no ground")
         val here = hw.placeHex[g.place]
         val with = groups.groups.filter { it.alive && it !== g && hw.placeHex[it.place] == here }

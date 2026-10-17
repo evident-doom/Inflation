@@ -112,6 +112,13 @@ const val STRANGER_THIRST = 2f
 /** People's births against the catalogue's rate: long nursing spaces births three and a half to four years apart. */
 const val HUMAN_BIRTHS = 0.8f
 
+/** A band's appointment: the hex where it means to be in [month] of the year. */
+class Appointment(val hex: Hex, val month: Int)
+/** A raid a band is set on: the home [hex] of band [on] it means to fall on, given up after [weeks] more weeks. */
+class Raid(val hex: Hex, val on: Int, val weeks: Int)
+/** A hex a band shuns for [weeks] more weeks after a death there ([Tradition.LEAVE_DEAD]). */
+class Unlucky(val hex: Hex, val weeks: Int)
+
 /**
  * What a band is: its skills, making skills, tools (0..1 of a full kit each), the tools it knows, its goods, and how long it has kept its camp.
  * [kinds] is the number of resident kinds ([HexFauna.kinds]), for the animals it keeps.
@@ -163,7 +170,6 @@ class Band(kinds: Int) {
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0
-    var campHex = Hex.NONE
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()
@@ -176,8 +182,8 @@ class Band(kinds: Int) {
      * (with sky lore, to the month; without, a month either way), -1 for none; taken up from its
      * graves and meeting places, or from bands it meets.
      */
-    var appointHex = Hex.NONE
-    var appointMonth = -1
+    var appointment: Appointment? = null
+    val appointHex get() = appointment?.hex ?: Hex.NONE
     /**
      * Its houses: round, half-sunken huts of stone and brush at hex [houseHex], built 0..1 (enough
      * for all its people at 1), with storage pits; they weather away while it is elsewhere. At home
@@ -189,10 +195,9 @@ class Band(kinds: Int) {
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Int>()
     val knownLineage = HashMap<Int, Int>()
-    /** A raid it is set on: the hex of the band's home it means to fall on, the band, and weeks left before it gives up. */
-    var raidHex = Hex.NONE
-    var raidOn = -1
-    var raidWeeks = 0
+    /** A raid it is set on, if any. */
+    var raid: Raid? = null
+    val raidHex get() = raid?.hex ?: Hex.NONE
     /** A palisade of posts and brush round its houses, 0..1; weeks since it was last raided. */
     var palisade = 0f
     var sinceRaided = 1000
@@ -265,9 +270,9 @@ class Band(kinds: Int) {
 
     /** Whether it holds hex [h] as its own: its houses, its dead, its appointment place. */
     fun claims(h: Hex, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
-    /** A hex it shuns after a death there, and for how many more weeks ([Tradition.LEAVE_DEAD]). */
-    var unluckyHex = Hex.NONE
-    var unluckyWeeks = 0
+    /** A hex it shuns after a death there, if any ([Tradition.LEAVE_DEAD]). */
+    var unlucky: Unlucky? = null
+    val unluckyHex get() = unlucky?.hex ?: Hex.NONE
     /** Brush shelters at its present camp, 0..1 (left behind when it moves on). */
     var shelter = 0f
     /** Its choices: how ready it is to build (1 the scaffold's: after [HOUSE_AFTER_YEARS] of a year at a camp that feeds it well). */
@@ -356,7 +361,7 @@ class Band(kinds: Int) {
      * rule is in [CARRY].
      */
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
-        o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
+        o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
         o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
@@ -378,7 +383,7 @@ class Band(kinds: Int) {
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
-        o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
+        o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
         copied(o)
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
         for (i in o.herd.indices) { o.herd[i] *= share; herd[i] -= o.herd[i] }
@@ -623,7 +628,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     stats.hunting.merge(Tally.bandTime("tools"), ((t2 - time) * 10f).roundToInt(), Int::plus)
     stats.hunting.merge(Tally.bandTime("left"), (time * 10f).roundToInt(), Int::plus)
     b.renown *= 1f - RENOWN_FADE * years
-    if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = Hex.NONE
+    b.unlucky?.let { u -> b.unlucky = if (u.weeks > 1) Unlucky(u.hex, u.weeks - 1) else null }
     b.sinceRaided++
     plotRaid(g, b, weather)
     keepFire(g, b)
@@ -690,13 +695,13 @@ private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + 
  * has room for.
  */
 private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date: Date) {
-    if (h != b.campHex) {
+    if (b.campPlace.none || h != hw.hexOf(b.campPlace)) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
-        if (!b.campHex.none) {
+        if (!b.campPlace.none) {
             val carry = carryKg(g, b)
             val total = g.larder
-            if (total > carry && !b.campPlace.none) {
+            if (total > carry) {
                 // (It chooses how much of what it cannot carry to cache; the rest is left where it lies.)
                 val left = 1f - carry / total
                 val cached = min(1f, b.cacheWill)
@@ -713,7 +718,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
         }
-        b.campHex = h; b.campWeeks = 0
+        b.campWeeks = 0
     } else b.campWeeks++
     b.campPlace = p
     // A cache keeps, but not perfectly; back at it, the band takes up what it has room for.
@@ -1375,12 +1380,12 @@ internal fun HexGroups.robCaches(weather: Weather) {
  */
 internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val here = hw.hexOf(g.place)
-    if (!b.raidHex.none) {
-        if (here == b.raidHex) {
-            val target = groups.firstOrNull { it.id == b.raidOn && it.alive && hw.hexOf(it.place) == here }
+    b.raid?.let { raid ->
+        if (here == raid.hex) {
+            val target = groups.firstOrNull { it.id == raid.on && it.alive && hw.hexOf(it.place) == here }
             if (target?.band != null) raidsDue += g to target
-            b.raidHex = Hex.NONE; b.raidOn = -1
-        } else if (--b.raidWeeks <= 0) { b.raidHex = Hex.NONE; b.raidOn = -1 }
+            b.raid = null
+        } else b.raid = if (raid.weeks > 1) Raid(raid.hex, raid.on, raid.weeks - 1) else null
         return
     }
     val hungry = g.fed < RAID_HUNGER * b.raidWill.coerceAtMost(1.6f)
@@ -1393,9 +1398,10 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         if (km <= RAID_RANGE_KM && km < bestKm) { bestKm = km; best = id }
     }
     if (best >= 0 && rnd.nextFloat() < RAID_PLOT * b.raidWill * days / 7f) {
-        b.raidOn = best; b.raidHex = Hex(b.knownHomes.getValue(best)); b.raidWeeks = RAID_WEEKS
+        val at = b.knownHomes.getValue(best)
+        b.raid = Raid(Hex(at), best, RAID_WEEKS)
         stats.meetings.merge("raids set out", 1, Int::plus)
-        note(g) { "set out to raid band #%d at hex %d".format(best, b.raidHex.i) }
+        note(g) { "set out to raid band #%d at hex %d".format(best, at) }
     }
 }
 

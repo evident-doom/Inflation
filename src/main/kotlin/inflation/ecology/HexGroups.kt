@@ -718,15 +718,15 @@ class HexGroups(
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
     internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
-        if (b.appointHex.none) return 0f
-        val off = minOf(monthsFrom(b.appointMonth, month), monthsFrom(month, b.appointMonth))
+        val ap = b.appointment ?: return 0f
+        val off = minOf(monthsFrom(ap.month, month), monthsFrom(month, ap.month))
         // The month before, it is on its way; without sky lore it also lingers a month after, the count being loose.
-        val before = monthsFrom(month, b.appointMonth) == 1
+        val before = monthsFrom(month, ap.month) == 1
         val weight = when { off == 0 -> 1f; before -> 0.7f; off == 1 && !b.holds(Tradition.SKY_LORE) -> 0.5f; else -> return 0f }
         val here = hw.hexOf(g.place)
-        val fromHere = hexKm(here, b.appointHex)
+        val fromHere = hexKm(here, ap.hex)
         if (fromHere <= hex.hexKm) return if (h == here) weight else 0f
-        return weight * ((fromHere - hexKm(h, b.appointHex)) / fromHere).toFloat().coerceIn(-1f, 1f)
+        return weight * ((fromHere - hexKm(h, ap.hex)) / fromHere).toFloat().coerceIn(-1f, 1f)
     }
 
     /** A herd's size as small (0: under its kind's unit), middling (1: up to three units) or large (2), for comparing them. */
@@ -959,8 +959,8 @@ class HexGroups(
         // looks about, but does not trek for it: its usual week's going reaches the next place.)
         val relief = drain(g, g.place.i, weather) - leastDrainNear(g, here.i, weather) > WALK_COST * hex.hexKm.toFloat() / days
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
-        val dueSoon = g.band?.let { b -> (!b.appointHex.none && b.appointHex != here && monthsFrom(month, b.appointMonth) <= 1) ||
-            b.unluckyHex == here || !b.raidHex.none } ?: false
+        val dueSoon = g.band?.let { b -> b.appointment.let { ap -> ap != null && ap.hex != here && monthsFrom(month, ap.month) <= 1 } ||
+            b.unluckyHex == here || b.raid != null } ?: false
         val restless = restless(g, weather, thirsty, astray, dueSoon, onRound, goalFar)
         // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
         // this week without weighing the alternatives: every other week, by turns.
