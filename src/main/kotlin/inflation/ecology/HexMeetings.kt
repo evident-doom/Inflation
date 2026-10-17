@@ -177,10 +177,14 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val aim = wantAll + (band?.let { storeWant(g, it) } ?: 0f)
     val plantKind = FloatArray(Store.entries.size)
     var busy = 0f
+    // A band fetches the hearth's firewood first; it forages in the days left.
+    val workDays = if (band != null) days - fetchFuel(g, band, hands) else days.toFloat()
     val spareYoung = band?.holds(Tradition.TABOO_YOUNG) == true
     // The odds a meeting with each kind ends in a kill, in each place on the way (they do not change within the week).
     val nk = fauna.kinds.size
     val odds = FloatArray(g.path.size * nk)
+    // (And the stalks a kill takes, on average: one over the share of them that end in one.)
+    val stalks = FloatArray(g.path.size * nk)
     for ((j, h) in g.path.withIndex()) {
         val p = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue
         for (k in 0 until nk) {
@@ -188,7 +192,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             val ps = fauna.kinds[k]
             // Prey resting while the hunter is about lie up in cover and are found less; a band's
             // weapons, dogs and hunting skill change the odds that a stalk ends in a kill.
-            odds[j * nk + k] = CATCH * catchable(s, ps, p, packKg) * (0.5f + 0.5f * Niches.overlap(s, ps)) * (band?.huntEdge(ps) ?: 1f)
+            val success = CATCH * catchable(s, ps, p, packKg) * (band?.huntEdge(ps) ?: 1f)
+            odds[j * nk + k] = success * (0.5f + 0.5f * Niches.overlap(s, ps))
+            stalks[j * nk + k] = 1f / success.coerceIn(1e-3f, 1f)
         }
     }
     val order = IntArray(n); val profit = FloatArray(n)
@@ -220,8 +226,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 // A kill is worth what the party can eat of it, gorging included (a band also what it can
                 // dry); the rest is left to others.
                 val meat1 = min(ps.massKg * meatShare(band), (1f + SURPLUS_EAT) * wantAll)
-                // (Each kill costs the stalks and chases that failed before it: 1/chance of them on average.)
-                offer(Food.BIG_GAME, k, p, dens * swept * chance / days, meat1, HANDLING_DAYS / min(1f, chance) + meat1 * eats)
+                // (Each kill also costs the stalks and chases that failed before it.)
+                offer(Food.BIG_GAME, k, p, dens * swept * chance / days, meat1, HANDLING_DAYS + STALK_DAYS * stalks[j * nk + k] + meat1 * eats)
             }
             val small = this.small
             offer(Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area, smallSweep) * smallCatch / days, 1f, smallDays)
@@ -275,13 +281,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 (if (type[i] == Food.BIG_GAME) fauna.kinds[kind[i]].name else Food.NAMES[type[i]]) + " %.1f kg/day of work".format(profit[i]) }
         }
         // What the week brings at that rate, as far as the party wants: it stops when fed.
-        val f = if (gain > 0f) min(1f, left / (days * gain / spent)) else 0f
+        val f = if (gain > 0f) min(1f, left / (workDays * gain / spent)) else 0f
         if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
             "forage ${s.name} adults ${g.adults} want ${wantAll} left $left offers $m used $used gain $gain spent $spent f $f: " +
             order.take(min(6, m)).joinToString("; ") { "t${type[it]} k${kind[it]} r=${rate[it]} e=${kg[it]} h=${time[it]}" })
         for (r in 0 until used) {
             val i = order[r]
-            val expected = days * rate[i] / spent * f
+            val expected = workDays * rate[i] / spent * f
             val p = place[i]
             if (type[i] != Food.BIG_GAME) busy += expected * time[i]
             when (type[i]) {
@@ -384,7 +390,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
         for (i in got.indices) g.stores[i] += got[i]
         // Digging soaks and drawing their water takes time where that is the only water (see [HexLand.mustDig]).
-        val spareDays = max(0f, days - busy - (if (land.mustDig(g.place, s.dailyTravelKm)) HexLand.DIG_SHARE * days else 0f))
+        val spareDays = max(0f, workDays - busy - (if (land.mustDig(g.place, s.dailyTravelKm)) HexLand.DIG_SHARE * days else 0f))
         // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
         val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
         val smoke = if (band.knowsSkill[Skill.SMOKING.ordinal] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f

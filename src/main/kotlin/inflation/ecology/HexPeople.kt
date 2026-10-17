@@ -500,7 +500,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     var time = b.spareDays
-    time = fetchFuel(b, p, people, area, time)
     time = keepCustoms(b, people, time)
     time = trainHolders(g, b, time)
     time = makeTools(b, people, time)
@@ -669,21 +668,23 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Int, h: Int, peop
 }
 
 /**
- * The hearth's firewood for the week, fetched before other work as far as [time] (person-days) goes: dead wood
- * from the trees and scrub, quick to gather where they are thick and slow where they are few. Returns the time left.
+ * The hearth's firewood for the week, fetched by [hands] before they forage: dead wood from the trees and scrub
+ * round the camp, quick to gather where they are thick and slow where they are few, for everyone in the band.
+ * A band goes without rather than give more than [FUEL_MOST] of its days to it. Returns the days it took.
  */
-private fun HexGroups.fetchFuel(b: Band, p: Int, people: Float, area: Float, time: Float): Float {
-    val want = HEARTH_WOOD * days * people
-    if (want <= 0f) { b.hearthWood = 1f; return time }
+internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
+    val p = g.place
+    val want = HEARTH_WOOD * days * g.size
     val tree = land.tree[p]; val shrub = land.shrub[p]
-    val rate = FUEL_A_DAY * min(1f, (tree + shrub) / 3f)
-    val got = if (rate > 0f) min(want, time * rate) else 0f
+    val rate = FUEL_A_DAY * hands * min(1f, (tree + shrub) / 3f)
+    if (want <= 0f || rate <= 0f) { b.hearthWood = if (want <= 0f) 1f else 0f; return 0f }
+    val spent = min(want / rate, FUEL_MOST * days)
+    val got = spent * rate
     b.hearthWood = got / want
-    if (got > 0f) {
-        land.consume(p, LifeForm.TREE, got * tree / (tree + shrub) / area)
-        land.consume(p, LifeForm.SHRUB, got * shrub / (tree + shrub) / area)
-    }
-    return if (rate > 0f) time - got / rate else time
+    val area = land.m2(p)
+    land.consume(p, LifeForm.TREE, got * tree / (tree + shrub) / area)
+    land.consume(p, LifeForm.SHRUB, got * shrub / (tree + shrub) / area)
+    return spent
 }
 
 /**
@@ -1616,6 +1617,8 @@ const val NIGHT_WOOD = 3f
  */
 const val HEARTH_WOOD = 1f
 const val FUEL_A_DAY = 25f
+/** Most of its days a band gives to firewood before it goes without (an estimate). */
+const val FUEL_MOST = 0.5f
 /**
  * Days of work a clean camp takes a person each day (about a quarter of an hour of a twelve-hour day), and days a
  * carer gives each sick or hurt person each day (half a day). Estimates: no time-use figures found (2026-10-17).
