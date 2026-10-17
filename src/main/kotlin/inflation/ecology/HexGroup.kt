@@ -22,6 +22,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var days = FloatArray(0)
     /** Meat it got this week from herds it met on the way, kg. */
     var meatMet = 0f
+    /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then). */
+    @Transient var meatSpent = false
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
     /** For a herd: the place it remembers doing best in each month, and how well (0..1). */
@@ -68,6 +70,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     val will = FloatArray(ANIMAL_WAYS_OUT) { 1f }
     /** For a band: food on hand, kg, by kind ([Store]). */
     val stores = enumFloats<Store>()
+    /** The kg each kind of its food weighs for each kg of its worth (1 but with [CONSERVE_STORES]; see [addFood]). */
+    val storeKgPer = enumFloats<Store> { 1f }
     /** All food on hand, kg; setting it scales every kind alike (gifts, raids, splits), or stores it dried. */
     var larder: Float
         get() = stores.sum()

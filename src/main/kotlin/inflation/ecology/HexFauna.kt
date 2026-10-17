@@ -9,6 +9,7 @@ import inflation.HASH_B
 import inflation.HASH_C
 import inflation.mix64Once
 import inflation.unitOf
+import inflation.Books
 import inflation.Config
 import inflation.Kg
 import inflation.KgKm2
@@ -153,6 +154,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
+    /**
+     * For the books (see [Books]), this step, kg; null when they are not kept: what the residents ate and dropped as
+     * dung, the herds' animals their hunters killed (taken from the herds after, see [HexGroups.takeResidentsKills]),
+     * the young born and grown, and the carcasses handed to the soil.
+     */
+    @Transient private var ateBook: DoubleAdder? = null
+    @Transient private var droppedBook: DoubleAdder? = null
+    @Transient private var herdKillBook: DoubleAdder? = null
 
     /**
      * Small animal food for resident kind [k] at place [p], up to [want]; returns what was eaten. A kind that
@@ -216,6 +225,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * land.areaKm2[p]
             small.carrion[p] += KgKm2(kg * (1f - MEAT_SHARE)).perM2.v
             ate += KgKm2(kg).perM2
+            ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
         }
         // The herds' losses are counted out to them when the week's hunting is done (see [HerdAt]).
         if (herds != null) for ((i, at) in herds.withIndex()) {
@@ -226,6 +236,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             at.adults.add((fromA / s.massKg * area).toDouble()); at.young.add((fromY / (YOUNG_WEIGHT * s.massKg) * area).toDouble())
             small.carrion[p] += KgKm2(kg * (1f - MEAT_SHARE)).perM2.v
             ate += KgKm2(kg).perM2
+            ateBook?.add(-(kg * MEAT_SHARE * area).toDouble()); herdKillBook?.add((kg * area).toDouble())
         }
         // (Game takes fright at the kills, by their weight.)
         killed(p, Kg(want.v * area))
@@ -483,12 +494,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 var u = r.nextFloat() * total; var p = 0
                 while (p < n - 1 && u > w[p]) { u -= w[p]; p++ }
                 adults[k][p] += NEWCOMER_HEADS / land.areaKm2[p]
+                land.books?.flow(Books.Stuff.MATTER, "newcomers from beyond the map", (NEWCOMER_HEADS * s.massKg).toDouble())
             }
         }
     }
 
     /** One week, with the weather on the same places. */
     fun step(weather: Weather, date: Date) {
+        val books = land.books
+        ateBook = books?.adder(Books.Stuff.MATTER, "eaten"); droppedBook = books?.adder(Books.Stuff.MATTER, "dung and frass")
+        herdKillBook = books?.adder(Books.Stuff.MATTER, "herds killed by residents (from the groups)")
         for (p in 0 until n) fear[p] *= FEAR_KEEP
         Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
         deaths.clear()
@@ -499,10 +514,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (date.month == 3) shiftBreeding()
         }
         stepWater(weather)
+        books?.check("residents: new month")
         Profile.time("food stocks") { food.step(weather) }
+        books?.check("food stocks")
         Profile.time("water life") { water.step(weather) }
+        books?.check("water life")
         Profile.time("residents: grazing") { graze(weather) }
+        books?.check("residents: grazing")
         Profile.time("residents: births, deaths") { breedAndDie(weather, date) }
+        books?.check("residents: births, deaths")
         Profile.time("residents: moving") {
             // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
             preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n) { p -> preyFor(kinds[k], p) } else null }
@@ -510,7 +530,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             Profile.part("residents: spreading to neighbouring hexes") { spill() }
             preyNow = null
         }
+        books?.check("residents: moving")
         Profile.time("soil and small life") { small.step(weather, carcassKg) }
+        books?.check("soil and small life")
+    }
+
+    /** Names the residents' stocks in [books] (the young at [YOUNG_WEIGHT] of a grown animal), with the food stocks and the small life. */
+    internal fun keepBooks(books: Books) {
+        for ((k, s) in kinds.withIndex())
+            books.stock(Books.Stuff.MATTER, "resident ${s.name}") { var sum = 0.0; for (p in 0 until n) sum += (adults[k][p] + YOUNG_WEIGHT * young[k][p]) * land.areaKm2[p] * s.massKg.toDouble(); sum }
+        food.keepBooks(books)
+        small.keepBooks(books)
     }
 
     /**
@@ -710,10 +740,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                             val moreMeat = min(more, most * d.meat - gotMeat)
                             if (moreMeat > 0f) { val x = huntResidents(k, p, KgM2(moreMeat * avail[k]), killedSoFar).v; surplus[k] += x / needAll; more -= x }
                             val moreSmall = min(more, most * d.smallPrey - gotSmall)
-                            if (moreSmall > 0f) { val x = smallFood(k, p, KgM2(moreSmall * avail[k]), weather).v; surplus[k] += x / needAll; more -= x }
+                            if (moreSmall > 0f) { val x = smallFood(k, p, KgM2(moreSmall * avail[k]), weather).v; surplus[k] += x / needAll; more -= x
+                                ateBook?.add(-x * land.areaM2[p].toDouble()) }
                         }
                         animal = (gotMeat + gotSmall + gotCarrion) / animalNeed
                         small.dung[p] += HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)
+                        if (ateBook != null) { val m2 = land.areaM2[p].toDouble()
+                            ateBook!!.add(-(gotSmall + gotCarrion) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion) * m2) }
                     }
                     val heads = adults[k][p] + 0.5f * young[k][p]
                     if (heads > 0f) {
@@ -752,6 +785,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             for ((k, s) in kinds.withIndex()) tonnes += (adults[k][p] + young[k][p]) * s.massKg / 1000f
             land.plants.trample(p, RESIDENT_TRAMPLE * tonnes * land.areaKm2[p])
             small.dung[p] += HexSmallLife.DUNG * eaten
+            if (ateBook != null) { val m2 = land.areaM2[p].toDouble(); ateBook!!.add(-eaten * m2); droppedBook!!.add(HexSmallLife.DUNG * eaten * m2) }
             land.plants.grazing[p] = eatG * 1e6f / days; land.plants.browsing[p] = eatB * 1e6f / days
             // Rooting churns the ground: kg of roots dug per km2 a day.
             land.plants.rooting[p] = dug * 1e6f / days
@@ -764,6 +798,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         bornThisWeek.fill(0.0)
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
+        val bornBook = land.books?.adder(Books.Stuff.MATTER, "residents born and grew up")
         kinds.indices.toList().parallelStream().forEach { k ->
             val s = kinds[k]
             val carcassKg = carcasses[k]
@@ -784,6 +819,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val born = 0.5f * a[p] * ranges * s.youngPerFemale * f[p] * protein[k][p] / stepsInSeason
                     y[p] += born
                     bornThisWeek[k] += (born * area).toDouble()
+                    bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
                     // The young are made of what their mothers ate: their weight comes off the mothers' reserves (as in groups).
                     if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - born * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / (0.5f * a[p]))
                 }
@@ -842,10 +878,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Growing up.
                 val up = y[p] * grow
                 y[p] -= up; a[p] += up
-                if (a[p] + y[p] < EXTINCT) { a[p] = 0f; y[p] = 0f }
+                bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
+                if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }
         }
         for (c in carcasses) for (p in 0 until n) carcassKg[p] += c[p]
+        land.books?.let { b -> var sum = 0.0; for (p in 0 until n) sum += carcassKg[p]; b.flow(Books.Stuff.MATTER, "carcasses (to the soil)", -sum) }
         record?.foldResidents()
         for ((k, s) in kinds.withIndex()) {
             // (Summed place by place in order, so that a run is the same on any number of cores.)

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Books
 import java.util.concurrent.atomic.DoubleAdder
 import kotlin.math.min
 
@@ -35,6 +36,7 @@ internal fun HexGroups.takeResidentsKills(at: Map<Int, List<HerdAt>>) {
         val da = min(g.adults, poisson(a.adults.sum().toFloat(), rnd))
         if (da + dy == 0) continue
         g.young -= dy; g.adults -= da
+        land.books?.flow(Books.Stuff.MATTER, "herds killed by residents (from the groups)", -(da + HexFauna.YOUNG_WEIGHT * dy) * g.species.massKg.toDouble())
         // (Into the residents' week's deaths, as the groups' own tally is cleared when their week begins.)
         fauna.deaths.merge("${g.species.name}:resident hunters", (da + dy).toDouble(), Double::plus)
         note(g) { "lost %d to jackals or lynx".format(da + dy) }

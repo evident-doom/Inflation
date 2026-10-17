@@ -852,7 +852,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     .joinToString(" ") { "%d:%.3g".format(it.index + 1, it.value) })
             }
             if (tint == Measure.HUNGRY_BY_PLENTY && h < layers.hunger.size) sb.appendLine(
-                "   plant-eaters short of their wants %.0f%%; most forage left uneaten within 2 hexes %.2f kg/m²".format(100 * layers.hunger[h],
+                "   grazers and browsers going short %.2f a km² (head-equivalents); most they could eat within 2 hexes %.3f kg/m²".format(layers.hunger[h],
                     layers.plenty[h]))
             if (tint.byCause) sb.appendLine("   by cause: " + PlaceRecord.Cause.entries.joinToString(", ") { c ->
                 "%s %.3g".format(c.label, layers.now[layers.key(tint, c.ordinal)]?.get(h) ?: 0f) })

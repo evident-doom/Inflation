@@ -8,7 +8,7 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
     /**
      * Springs and oases: groundwater from the hills comes up in dry country at the foot of slopes,
      * along faults and from limestone (as in the 1 km model), about one per [SPRING_KM2] where
-     * groundwater is ample. Fine cells.
+     * groundwater is ample; in humid country only beyond an easy walk of a stream (seeps). Fine cells.
      */
     @Transient val spring = BooleanArray(grid.size)
     @Transient val oasis = BooleanArray(grid.size)
@@ -59,10 +59,15 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
         })
         val reach = max(1, (4 / grid.cellKm).toInt())
         val cellKm2 = (grid.cellKm * grid.cellKm).toFloat()
+        val far = 1e6f
+        fun near(source: (Int) -> Boolean): FloatArray { val d = FloatArray(grid.size); distanceKm(grid, d, far, source); return d }
+        val dRiver = near { !world.isSea[it] && !world.water.isLake(it) && world.water.discharge[it] >= 0.1f }
         for (i in 0 until grid.size) {
             if (world.isSea[i] || world.water.isLake(i)) continue
             val aridity = c.annualPrecip[i] / max(1f, c.annualPet[i])
-            if (aridity > 0.65f || world.water.discharge[i] >= 0.1f || recharge[i] < MIN_SPRING_FLOW) continue
+            // (In humid country the streams carry the ground water off, and springs matter only where no stream
+            // is within an easy walk: on ridges, hilltops and islets too small to gather a stream, the seeps.)
+            if ((aridity > 0.65f && dRiver[i] <= DRINK_KM) || world.water.discharge[i] >= 0.1f || recharge[i] < MIN_SPRING_FLOW) continue
             var high = world.elevation[i]
             val x = grid.x(i); val y = grid.y(i)
             for (dy in -reach..reach) for (dx in -reach..reach) if (grid.inBounds(x + dx, y + dy)) high = max(high, world.elevation[grid.index(x + dx, y + dy)])
@@ -75,9 +80,6 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
                 oasis[i] = aridity < 0.3f && recharge[i] > 10f * MIN_SPRING_FLOW
             }
         }
-        val far = 1e6f
-        fun near(source: (Int) -> Boolean): FloatArray { val d = FloatArray(grid.size); distanceKm(grid, d, far, source); return d }
-        val dRiver = near { !world.isSea[it] && !world.water.isLake(it) && world.water.discharge[it] >= 0.1f }
         val dLake = near { world.water.isLake(it) && !world.water.lakeClosed[it] }
         val dSpring = near { spring[it] }
         // Salt: on the dry beds and shores of salt lakes and pans, and on the flats of a desert shore (sabkha).
