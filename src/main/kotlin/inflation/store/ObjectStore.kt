@@ -7,12 +7,11 @@ import java.lang.reflect.Modifier
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.IdentityHashMap
-import inflation.ecology.HexSnapshot
 import java.util.concurrent.ConcurrentMap
 
 /*
  * Objects written to a stream field by field and read back into live objects (or new ones), by field
- * names rather than layout: what [HexSnapshot] saves a running model with, and what
+ * names rather than layout: what [inflation.ecology.HexSnapshot] saves a running model with, and what
  * the world caches keep generated worlds with. See HexSnapshot for what a restore keeps and drops.
  */
 
@@ -39,6 +38,17 @@ internal fun fields(c: Class<*>): List<Field> = fieldCache.getOrPut(c) {
         k = k.superclass
     }
     out
+}
+
+/** The names of [c]'s @Transient fields, its own and inherited (for a property by lazy, its `name$delegate` field). */
+private fun transientNames(c: Class<*>): Set<String> {
+    val out = HashSet<String>()
+    var k: Class<*>? = c
+    while (k != null && k != Any::class.java) {
+        for (f in k.declaredFields) if (Modifier.isTransient(f.modifiers)) out += f.name
+        k = k.superclass
+    }
+    return out
 }
 
 internal object T {
@@ -199,7 +209,9 @@ internal class Restorer {
         }
         if (node.fields.size > fs.size || fs.any { it.name !in node.fields }) {
             val names = fs.mapTo(HashSet()) { it.name }
-            for (k in node.fields.keys) if (k !in names && k !in moved) dropped += "${target.javaClass.simpleName}.$k"
+            // (A field the code now works out afresh, @Transient, is not lost: older saves hold it.)
+            val fresh = transientNames(target.javaClass)
+            for (k in node.fields.keys) if (k !in names && k !in moved && k !in fresh) dropped += "${target.javaClass.simpleName}.$k"
         }
         for (f in fs) {
             val saved = node.fields[f.name] ?: continue

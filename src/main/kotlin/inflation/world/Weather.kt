@@ -47,7 +47,7 @@ class ClimateEvent(
  *
  * [elevation] gives the terrain the wind meets; without it, rain does not depend on the wind.
  */
-class Weather(private val places: Places, private val cfg: WorldConfig) {
+class Weather(@Transient private val places: Places, private val cfg: WorldConfig) {
     /** Weather on every cell of [grid]; with [elevation] the wind's rain follows the terrain. */
     constructor(grid: Grid, climate: Climate, cfg: WorldConfig, elevation: FloatArray? = null) :
         this(Places.of(grid, climate, cfg, elevation), cfg)
@@ -89,7 +89,7 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     }
 
     private val n = places.size
-    private val climate = places
+    @Transient private val climate = places
     private val coarseKm = 50.0
     private val cw = (places.widthKm / coarseKm).toInt() + 2
     private val ch = (places.heightKm / coarseKm).toInt() + 2
@@ -99,7 +99,7 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     fun reseed(replicate: Long) { rnd = Random(cfg.seed * 31 + 7 + replicate * 0x9E3779B97F4A7C15uL.toLong()) }
 
     /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
-    private val yearSwing = FloatArray(n) { i ->
+    @Transient private val yearSwing = FloatArray(n) { i ->
         val annual = (0 until Date.MONTHS_PER_YEAR).sumOf { places.monthlyPrecip[it][i].toDouble() }.toFloat()
         0.7f + 1.3f * (1f - annual / 600f).coerceIn(0f, 1f)
     }
@@ -111,9 +111,9 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     /** Eddies in the wind, m/s east and south, on the coarse grid. */
     private val eddyU = FloatArray(cw * ch)
     private val eddyV = FloatArray(cw * ch)
-    private val oscPatternT = smoothPattern()
-    private val oscPatternP = smoothPattern()
-    private val decPattern = smoothPattern()
+    @Transient private val oscPatternT = smoothPattern()
+    @Transient private val oscPatternP = smoothPattern()
+    @Transient private val decPattern = smoothPattern()
     private var anomalyYear = -1L
 
     /** Interannual oscillation index (quasi-periodic, about 5 years) and its previous value. */
@@ -145,7 +145,7 @@ class Weather(private val places: Places, private val cfg: WorldConfig) {
     val snowSun = FloatArray(n); val snowShade = FloatArray(n)
     val meltSun = FloatArray(n); val meltShade = FloatArray(n)
 
-    val winds = Winds(places.sector)
+    @Transient val winds = Winds(places.sector)
     /** The weather pattern of the last step, and of the coming one (already drawn, see [prepare]). */
     var regime = Regime.WESTERLY; private set
     var upcomingRegime = Regime.WESTERLY; private set

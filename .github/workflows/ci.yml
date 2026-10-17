@@ -78,3 +78,32 @@ jobs:
           echo "head / base = $r"
           # A warning, not a failure, until a few runs show how noisy the hosted runners are.
           if awk -v r=$r 'BEGIN { exit !(r > 1.5) }'; then echo "::warning::step time $h ms on head vs $b ms on base (x$r)"; fi
+
+  # Whether the PR changes the model's output: scripts/faunacmp.sh on the PR's base and head (a 300x400 km world
+  # for a year with the diagnostics on, then a year on from the base's save). A refactor must say "identical";
+  # a behaviour change will differ, so this reports and does not fail. The full check stays on Olli's PC.
+  model-identity:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: repo
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compare base and head
+        run: |
+          set +e
+          bash repo/scripts/faunacmp.sh repo ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} cmp > result.txt 2>&1
+          status=$?
+          cat result.txt
+          {
+            echo "### Model output, base vs head (faunacmp, 300x400 km, 1 year)"
+            echo '```'; cat result.txt; echo '```'
+            for d in cmp/*.diff; do [ -s "$d" ] && { echo "$(basename $d), first lines:"; echo '```'; head -20 "$d"; echo '```'; }; done
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ $status -eq 0 ]; then echo "::notice::model output identical to base"; else echo "::notice::model output differs from base (expected only for behaviour changes)"; fi

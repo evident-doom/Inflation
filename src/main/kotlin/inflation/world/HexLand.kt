@@ -22,13 +22,13 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long) {
     // ---------------------------------------------------------------- what each place is
 
     /** Area of each place, km², and m². */
-    val areaKm2 = FloatArray(n) { (hw.placeCells[it].size * grid.cellKm * grid.cellKm).toFloat() }
+    @Transient val areaKm2 = FloatArray(n) { (hw.placeCells[it].size * grid.cellKm * grid.cellKm).toFloat() }
     /** Place [p]'s area, m². */
     fun m2(p: Int) = areaKm2[p] * 1e6f
-    internal val areaM2 = FloatArray(n) { (areaKm2[it] * 1e6).toFloat() }
+    @Transient internal val areaM2 = FloatArray(n) { (areaKm2[it] * 1e6).toFloat() }
     internal fun mean(p: Int, f: (Int) -> Float): Float { val cs = hw.placeCells[p]; var s = 0.0; for (i in cs) s += f(i); return (s / cs.size).toFloat() }
-    internal val soilFertility = FloatArray(n) { p -> mean(p) { world.soilFertility[it] } }
-    internal val slope = FloatArray(n) { p -> mean(p) { world.terrain.slope[it] } }
+    @Transient internal val soilFertility = FloatArray(n) { p -> mean(p) { world.soilFertility[it] } }
+    @Transient internal val slope = FloatArray(n) { p -> mean(p) { world.terrain.slope[it] } }
     /**
      * Soil fertility of each place's floodplain, 0..1: what its rock (alluvium) gives on its slope, as [Biomes.soilFertility]
      * but without the cut for a dry climate, since its water comes from the river. (Fixed by the world, so not taken from a
@@ -62,15 +62,15 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long) {
     val burials = FloatArray(n)
     val graveGoods = FloatArray(n)
     /** Share of the ground where good knapping stone (flint, obsidian) crops out. */
-    val stone = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and (Mineral.FLINT or Mineral.OBSIDIAN) != 0) 1f else 0f } }
+    @Transient val stone = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and (Mineral.FLINT or Mineral.OBSIDIAN) != 0) 1f else 0f } }
     /** Share of the ground where salt can be got (crusts on dry lake beds and salt pans), and where red and yellow ochre crops out. */
-    val salt = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.SALT != 0) 1f else 0f } }
-    val ochre = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.OCHRE != 0) 1f else 0f } }
+    @Transient val salt = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.SALT != 0) 1f else 0f } }
+    @Transient val ochre = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.OCHRE != 0) 1f else 0f } }
     /** Share of floodplain, which a river in spate covers. */
-    val floodShare = FloatArray(n) { p -> mean(p) { if (world.floodplain.isFloodplain[it]) 1f else 0f } }
-    internal val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }
+    @Transient val floodShare = FloatArray(n) { p -> mean(p) { if (world.floodplain.isFloodplain[it]) 1f else 0f } }
+    @Transient internal val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }
     /** Mean ruggedness, cover from broken ground and the best refuge and lookout of each place. */
-    val ruggedness = FloatArray(n) { p -> mean(p) { world.terrain.ruggedness[it] } }
+    @Transient val ruggedness = FloatArray(n) { p -> mean(p) { world.terrain.ruggedness[it] } }
     /**
      * How the ruggedness is spread over each place: the ruggedness at [RUGGED_SHARES] even steps through its
      * ground, from its smoothest to its roughest (a rough hex still has its valley floors and meadows).
@@ -93,13 +93,13 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long) {
     @Transient val cragShelter = overGround { ((it - 0.3f) / 0.4f).coerceIn(0f, 1f) }
     @Transient val denShelter = overGround { 0.6f * (it / 0.5f).coerceIn(0f, 1f) }
     /** Share of a place that is crag, slopes over 45% (see [inflation.ecology.HexFood.access]). */
-    val crag = FloatArray(n) { p -> mean(p) { if (world.terrain.slope[it] > 0.45f) 1f else 0f } }
+    @Transient val crag = FloatArray(n) { p -> mean(p) { if (world.terrain.slope[it] > 0.45f) 1f else 0f } }
     /** Share of a place with caves and rock shelters: karst limestone in broken ground. */
     @Transient val caves = FloatArray(n) { p -> mean(p) { (if (world.geology.rock[it] == Rock.LIMESTONE) 1f else 0.2f) * (world.terrain.ruggedness[it] / 0.5f).coerceIn(0f, 1f) } }
-    val bestDefence = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.defensibility[it] } }
-    val bestViewKm = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.viewKm[it] } }
+    @Transient val bestDefence = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.defensibility[it] } }
+    @Transient val bestViewKm = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.viewKm[it] } }
     /** Neighbouring places: the bands above and below in the hex and the bands at about the same height around it. */
-    val neighbours: Array<IntArray> = Array(n) { p ->
+    @Transient val neighbours: Array<IntArray> = Array(n) { p ->
         val h = hw.placeHex[p]; val b = hw.placeBand[p]
         val out = ArrayList<Int>()
         for (db in -1..1) { val bb = b + db; if (db != 0 && bb in 0 until HexWorld.BANDS_M.size) hw.placeOf[bb][h].let { if (it >= 0) out += it } }
@@ -110,7 +110,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long) {
         }
         out.toIntArray()
     }
-    internal val slopeShade = hw.sunlight.shade
+    @Transient internal val slopeShade = hw.sunlight.shade
 
     // ---------------------------------------------------------------- the parts (saved before they were split out as the land's own fields)
 

@@ -10,15 +10,15 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
      * along faults and from limestone (as in the 1 km model), about one per [SPRING_KM2] where
      * groundwater is ample. Fine cells.
      */
-    val spring = BooleanArray(grid.size)
-    val oasis = BooleanArray(grid.size)
+    @Transient val spring = BooleanArray(grid.size)
+    @Transient val oasis = BooleanArray(grid.size)
     /** Share of each place's ground within an easy walk ([DRINK_KM]) of a river or stream, a fresh lake, or a spring. */
-    val nearRiver = FloatArray(n); val nearLake = FloatArray(n); val nearSpring = FloatArray(n)
+    @Transient val nearRiver = FloatArray(n); @Transient val nearLake = FloatArray(n); @Transient val nearSpring = FloatArray(n)
     /** Mean distance from each place's ground to the nearest lasting water, km. */
-    val waterKmMean = FloatArray(n)
+    @Transient val waterKmMean = FloatArray(n)
     /** Share of each place's ground within an easy walk of a stream or dry bed (a valley draining [WADI_KM2] or more); area of those beds, m². */
-    val nearBed = FloatArray(n)
-    internal val bedM2 = FloatArray(n)
+    @Transient val nearBed = FloatArray(n)
+    @Transient internal val bedM2 = FloatArray(n)
     /**
      * How full the sand and gravel under each place's beds is, 0..1: a flood fills it, and then the
      * water in it sinks away into the rock below at [SAND_DROP_M] a day, so it lies deeper the longer
@@ -26,7 +26,7 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
      */
     val sand = FloatArray(n) { 1f }
     /** Mean distance from each place's ground to the nearest stream, km: how far its ground water has to go. */
-    internal val streamKm = FloatArray(n)
+    @Transient internal val streamKm = FloatArray(n)
     /** This week: share of each place within an easy walk of drinkable water (0..1), and the mean walk to it, km. */
     val water = FloatArray(n)
     val waterKm = FloatArray(n)

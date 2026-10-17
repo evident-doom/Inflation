@@ -143,17 +143,17 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     private var lastMonth = -1
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
     /** Share of each place that is wetland, where biting insects breed. */
-    val wetland = FloatArray(n) { p -> hw.placeCells[p].count { val b = hw.world.biome[it]; b.name in WETLANDS }.toFloat() / hw.placeCells[p].size }
+    @Transient val wetland = FloatArray(n) { p -> hw.placeCells[p].count { val b = hw.world.biome[it]; b.name in WETLANDS }.toFloat() / hw.placeCells[p].size }
     /** Marsh, bog and floodplain, where ducks and geese feed. */
-    private val waterfowl = FloatArray(n) { p -> min(1f, wetland[p] + land.floodShare[p]) }
+    @Transient private val waterfowl = FloatArray(n) { p -> min(1f, wetland[p] + land.floodShare[p]) }
     /** The year's mean temperature and rain at each place. */
-    private val meanTemp = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(p, it) }.average().toFloat() }
-    private val annualRain = FloatArray(n) { p -> (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat() }
+    @Transient private val meanTemp = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(p, it) }.average().toFloat() }
+    @Transient private val annualRain = FloatArray(n) { p -> (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat() }
     /**
      * The warmth, °C, at which the plant-eating insects of each place start to grow: about 10 °C,
      * lower where summers are cool and the insects are adapted to them.
      */
-    private val insectFrom = FloatArray(n) { p -> ((0 until 12).maxOf { hw.placeTemp(p, it) } - 12f).coerceIn(INSECT_FROM_MIN_C, INSECT_FROM_C) }
+    @Transient private val insectFrom = FloatArray(n) { p -> ((0 until 12).maxOf { hw.placeTemp(p, it) } - 12f).coerceIn(INSECT_FROM_MIN_C, INSECT_FROM_C) }
 
     init {
         for (p in 0 until n) {
@@ -869,10 +869,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         t[Prey.BIRDS][who][p] += b0 - birdSum(p)
     }
 
-    private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
-    private val foxPrey by lazy { (listOf(rodents, hares, locusts, insects, pollinators) + bird).toTypedArray() }
+    @delegate:Transient private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
+    @delegate:Transient private val foxPrey by lazy { (listOf(rodents, hares, locusts, insects, pollinators) + bird).toTypedArray() }
     /** What reptiles, amphibians and insect-eating birds eat: the insects that are out. */
-    private val insectFood by lazy { arrayOf(insects, pollinators, locusts, biting, soilAnimals) }
+    @delegate:Transient private val insectFood by lazy { arrayOf(insects, pollinators, locusts, biting, soilAnimals) }
     /** How much of the soil animals ground feeders reach this week, by place (see [soilAnimals]). */
     private val soilReach = FloatArray(n)
     private val insectEase = ThreadLocal.withInitial { floatArrayOf(1f, 1f, 1f, 1f, 0f) }
@@ -896,7 +896,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     /** How far the insects that are out at [p] are booming, 0..1: what draws the insect-eating migrants. */
     private fun boom(p: Int): Float { val x = insects[p] + pollinators[p] + locusts[p] + biting[p]; return x / (x + BOOM_HALF) }
-    private val eaglePrey by lazy { arrayOf(hyrax, hares, bird[CHUKAR_AT], bird[ROCK_DOVE_AT]) }
+    @delegate:Transient private val eaglePrey by lazy { arrayOf(hyrax, hares, bird[CHUKAR_AT], bird[ROCK_DOVE_AT]) }
 
     /**
      * Takes up to [want] kg/km² at place [p] from [stocks], at most [most] of each. Hunters switch
@@ -1002,13 +1002,15 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
     }
 
-    private val spreaders by lazy { (listOf(insects, rodents, herps, pollinators, biting, hares, hyrax, tortoises, foxes) + bird).toTypedArray() }
+    @delegate:Transient private val spreaders by lazy {
+        (listOf(insects, rodents, herps, pollinators, biting, hares, hyrax, tortoises, foxes) + bird).toTypedArray()
+    }
     /**
      * The share of the difference with each neighbour that crosses in a step: [SPREAD] a month, over
      * the larger place's count of neighbours and scaled to the smaller place's area. (The same flow
      * both ways between two places, so what one gains the other loses.)
      */
-    private val spreadWeight = Array(n) { p ->
+    @Transient private val spreadWeight = Array(n) { p ->
         val nb = land.neighbours[p]
         val rate = SPREAD * days / Date.DAYS_PER_MONTH
         FloatArray(nb.size) { i -> val q = nb[i]; rate / max(nb.size, land.neighbours[q].size) * min(land.areaKm2[p], land.areaKm2[q]) / land.areaKm2[p] }
