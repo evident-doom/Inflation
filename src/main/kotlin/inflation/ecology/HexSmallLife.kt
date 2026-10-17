@@ -381,7 +381,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val ceil = 600f * food / (food + 0.3f)
         val bornR = r * birth * (1 - r / ceil.coerceAtLeast(1f))
         r += bornR - r * death - starved
-        smallDead[p] += rodents[p] * death + starved
+        // (Starving below none: those dead are all there were.)
+        smallDead[p] += rodents[p] * death + starved + min(0f, r)
         rodents[p] = capped(p, r, 3000f)
         nest(p, Nest.RODENTS, rodents[p], max(0f, bornR))
     }
@@ -474,7 +475,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
     private fun stepGame(p: Int, t: Float, month: Int, burnt: Float) {
-        if (land.plants.biomass(p) <= 0f) { hares[p] = 0f; hyrax[p] = 0f; birds[p] = 0f; for (b in bird) b[p] = 0f; tortoises[p] = 0f; foxes[p] = 0f; return }
+        if (land.plants.biomass(p) <= 0f) { smallDead[p] += hares[p] + hyrax[p] + birdSum(p) + tortoises[p] + foxes[p]; hares[p] = 0f; hyrax[p] = 0f; birds[p] = 0f; for (b in bird) b[p] = 0f; tortoises[p] = 0f; foxes[p] = 0f; return }
         val mild = t > 5f
         // Young raised a year per head, all born in the breeding months (so the rate in them is higher).
         hares[p] = logistic(p, hares[p], if (month in 3..9 && mild) inSeason(4f, 7) else 0f, 0.9f, hareCapacity(p), grazes = true, born = Nest.HARES)

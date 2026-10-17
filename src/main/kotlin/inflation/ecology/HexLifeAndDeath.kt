@@ -758,6 +758,8 @@ private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
     for (i in Store.entries) into.stores[i] += from.stores[i]
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
+    // (Its cache is left: no one goes back for it.)
+    dropCache(from.band!!)
     from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f

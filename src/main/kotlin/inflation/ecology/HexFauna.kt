@@ -797,7 +797,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Growing up.
                 val up = y[p] * grow
                 y[p] -= up; a[p] += up
-                if (a[p] + y[p] < EXTINCT) { a[p] = 0f; y[p] = 0f }
+                if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }
         }
         for (c in carcasses) for (p in 0 until n) carcassKg[p] += c[p]

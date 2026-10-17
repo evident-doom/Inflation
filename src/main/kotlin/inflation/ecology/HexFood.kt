@@ -144,7 +144,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val snails = if (month in 0..4) SNAILS * land.plants.herb[p] * land.plants.moisture[p] else 0f
             val made = (honey + truffles + snails) * days
             val grown = land.plants.consume(p, LifeForm.HERB, KgM2(made)).v + eggs * days
-            finds[p] = max(0f, finds[p] + grown - finds[p] * min(1f, days / FINDS_DAYS))
+            val spoilt = finds[p] * min(1f, days / FINDS_DAYS)
+            small.litter[p] += spoilt
+            finds[p] = max(0f, finds[p] + grown - spoilt)
             // Standing dead grass and twigs build up as a small share of the herbs and shrubs and are eaten down.
             // (The straw is the herbs and shrubs dying back where they stand; it falls into the litter as it weathers.)
             val toward = days * (strawCap(p) - straw[p]) / STRAW_DAYS

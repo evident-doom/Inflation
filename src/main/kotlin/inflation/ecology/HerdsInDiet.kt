@@ -93,8 +93,9 @@ internal fun HexGroups.huntHerdMet(g: HexGroup, i: Int, expected: Float, kgEach:
                 } else {
                     herd.adults--
                     out[0] += kgEach
-                    g.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER); it.skin(ps, 1) }
-                    small.carrion[hm.p] += (ps.massKg - kgEach) / (land.areaKm2[hm.p] * 1e6f)
+                    g.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
+                    val left = ps.massKg - kgEach
+                    small.carrion[hm.p] += (left - (g.band?.skin(ps, 1, left) ?: 0f)) / (land.areaKm2[hm.p] * 1e6f)
                 }
                 fauna.killed(hm.p, Kg(ps.massKg))
             }

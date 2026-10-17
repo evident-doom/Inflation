@@ -311,11 +311,18 @@ class Band(kinds: Int) {
      * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's.
      */
     val effort = FloatArray(FOOD_TYPES) { 1f }
-    /** Hides, bone and sinew from the game it killed, what each kind yields (see [Species.products]). */
-    fun skin(s: Species, n: Int) {
-        goods[Material.HIDE] += n * s.products.hide
-        goods[Material.BONE] += n * s.products.bone
-        goods[Material.SINEW] += n * s.products.sinew
+    /**
+     * Hides, bone and sinew from [n] of the game it killed, what each kind yields (see [Species.products]), out of the
+     * [left] kg of the carcasses not eaten; returns the kg taken.
+     */
+    fun skin(s: Species, n: Int, left: Float): Float {
+        val p = s.products; val each = p.hide + p.bone + p.sinew
+        if (n <= 0 || each <= 0f || left <= 0f) return 0f
+        val share = min(1f, left / (n * each))
+        goods[Material.HIDE] += n * p.hide * share
+        goods[Material.BONE] += n * p.bone * share
+        goods[Material.SINEW] += n * p.sinew * share
+        return n * each * share
     }
     /**
      * Its customs ([Tradition]), its words for things ([Language]), its descent (a share for each
@@ -754,7 +761,8 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
                     b.cache[i] -= x
                     lost += x
                 }
-                small.carrion[cp] += land.spread(cp, Kg(0.3f * lost)).v
+                // (What they dig up and scatter is food for them and the scavengers after them.)
+                small.carrion[cp] += land.spread(cp, Kg(lost)).v
             }
         }
         val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]]) + CACHE_SPOIL * b.cacheKg
@@ -784,17 +792,20 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, pe
     // Salt scraped from a dry lake bed or pan along the way, and a little from the shore; ochre dug where it crops out.
     gd[Material.SALT] += people * (SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)) + if (hw.coast[h]) SEA_SALT_A_WEEK else 0f)
     gd[Material.OCHRE] += people * OCHRE_A_WEEK * min(1f, 5f * alongTheWay(land.ochre))
-    val woody = land.plants.tree[p] + land.plants.shrub[p]
+    // (Wood and fibre are what the plants give up: from the trees and the scrub, and the grass and scrub, each by its share.)
+    val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]; val herb = land.plants.herb[p]
+    val woody = tree + shrub
     val wood = 2f * people * min(1f, woody / 3f)
-    gd[Material.WOOD] += wood
-    gd[Material.RESIN] += 0.05f * people * min(1f, land.plants.tree[p] / 3f)
+    if (woody > 0f) gd[Material.WOOD] += land.plants.consume(p.i, LifeForm.TREE, Kg(wood * tree / woody).perM2(m2)).over(m2).v +
+        land.plants.consume(p.i, LifeForm.SHRUB, Kg(wood * shrub / woody).perM2(m2)).over(m2).v
+    gd[Material.RESIN] += 0.05f * people * min(1f, tree / 3f)
     // (Reeds and rushes in a marsh give the best fibre of all.)
-    val fibre = people * min(1f, (land.plants.herb[p] + land.plants.shrub[p]) / 0.5f + 2f * land.waterlogged[p])
-    gd[Material.FIBRE] += fibre
+    val fibre = people * min(1f, (herb + shrub) / 0.5f + 2f * land.waterlogged[p])
+    val green = herb + shrub
+    if (green > 0f) gd[Material.FIBRE] += land.plants.consume(p.i, LifeForm.HERB, Kg(fibre * herb / green).perM2(m2)).over(m2).v +
+        land.plants.consume(p.i, LifeForm.SHRUB, Kg(fibre * shrub / green).perM2(m2)).over(m2).v
     // Shells on the shore, for beads.
     if (hw.coast[h]) gd[Material.SHELL] += SHELL_A_WEEK * people
-    land.plants.consume(p.i, LifeForm.TREE, Kg(wood * land.plants.tree[p] / max(1e-6f, woody)).perM2(m2))
-    land.plants.consume(p.i, LifeForm.HERB, Kg(fibre).perM2(m2))
 }
 
 /**
@@ -995,7 +1006,7 @@ private fun HexGroups.leaveExcess(b: Band, p: Place, people: Float, area: Float)
         val over = gd[m] - (GOODS_PER_PERSON + stack) * people
         if (over > 0f) {
             gd[m] -= over
-            if (m == Material.WOOD || m == Material.FIBRE || m == Material.HIDE) small.litter[p] += over / area
+            if (m in ROTS) small.litter[p] += over / area
         }
     }
 }
@@ -1051,9 +1062,28 @@ private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
 internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g.bold
 
 /** Gives up a band's cache: what is in it goes back to the ground. */
-private fun HexGroups.dropCache(b: Band) {
+internal fun HexGroups.dropCache(b: Band) {
     if (!b.cachePlace.none) small.litter[b.cachePlace] += land.spread(b.cachePlace, Kg(b.cacheKg)).v
     b.cache.fill(0f); b.cachePlace = Place.NONE
+}
+
+/** The materials that rot back into the ground when left (stone, salt, ochre and shell stay as they are). */
+private val ROTS = setOf(Material.WOOD, Material.HIDE, Material.BONE, Material.SINEW, Material.FIBRE, Material.RESIN)
+
+/**
+ * What a band that has died out leaves where it was: its food and the materials that rot go back to the ground,
+ * its cache with them, and its herd goes wild among the animals of its kind there.
+ */
+internal fun HexGroups.leaveDead(g: HexGroup) {
+    val b = g.band ?: return
+    val p = g.place
+    val rots = ROTS.sumOf { b.goods[it].toDouble() }.toFloat()
+    small.litter[p] += land.spread(p, Kg(g.larder + rots)).v
+    for (i in Store.entries) g.stores[i] = 0f
+    for (m in ROTS) b.goods[m] = 0f
+    dropCache(b)
+    val area = land.areaKm2[p]
+    for (k in b.herd.indices) if (b.herd[k] > 0f) { fauna.adults[k][p] += b.herd[k] / area; b.herd[k] = 0f; b.herdTame[k] = 0f }
 }
 
 /** How much more slowly a tool wears lying idle than in use; how much of a craft a band learns making do without its tools. */
@@ -1564,18 +1594,26 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
-        val died = n * min(0.9f, (s.backgroundMortality + 0.5f * (1f - fed) + HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)) * years +
-            HERD_MOVE_LOSS * (1f - tame) * moved * b.lapse(Skill.TENDING))
-        n = max(0f, n + born - died)
-        // What it cannot keep it culls for meat.
+        val dying = (s.backgroundMortality + 0.5f * (1f - fed)) * years
+        val running = HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING) * years + HERD_MOVE_LOSS * (1f - tame) * moved * b.lapse(Skill.TENDING)
+        val lost = n * min(0.9f, dying + running)
+        // (The dead lie by the camp; those that run off or stray go wild among their kind.)
+        val died = if (dying + running > 0f) lost * dying / (dying + running) else 0f
+        val area = land.areaKm2[p]
+        small.carrion[p] += land.spread(p, Kg(died * s.massKg)).v
+        fauna.adults[k][p] += (lost - died) / area
+        n = max(0f, n + born - lost)
+        // What it cannot keep it culls for meat (the rest of the carcass for the scavengers).
         val most = HERD_PER_PERSON * g.size * b.edge(Skill.TENDING)
         if (n > most) {
             val cull = n - most
             n = most
             g.stores[Store.FRESH] += cull * s.massKg * MEAT_SHARE
+            small.carrion[p] += land.spread(p, Kg(cull * s.massKg * (1f - MEAT_SHARE))).v
             stats.meetings.merge("kept animals culled", 1, Int::plus)
         }
-        b.herd[k] = if (n < 0.5f) 0f else n
+        if (n < 0.5f) { fauna.adults[k][p] += n / area; n = 0f }
+        b.herd[k] = n
         b.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)
         if (b.knowsSkill[Skill.TENDING]) b.practise(Skill.TENDING, 0.5f * PRACTICE)
     }

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Kg
 import inflation.KgM2
 import inflation.Tuning
 import inflation.store.MovedInto
@@ -322,6 +323,8 @@ class HexGroups(
                 val risk = DROWN * gapKm / Catalogue.swimKm(g.species).coerceAtLeast(1f)
                 val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
                 adultsDied(g, lostA, rnd); g.young -= lostY
+                // (The drowned wash up on the far shore.)
+                small.carrion[g.place] += land.spread(g.place, Kg((lostA + 0.3f * lostY) * g.species.massKg)).v
                 if (lostA + lostY > 0) stats.deaths.merge(Tally.of(g.species, DeathCause.DROWNED_CROSSING), lostA + lostY, Int::plus)
                 stats.meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
             }
@@ -346,6 +349,8 @@ class HexGroups(
         }
         // (Groups that merged into another this week, kept for following what became of their choices.)
         merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
+        // (A band that died out leaves what it had; one that joined another took it along.)
+        for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g)
         groups.removeIf { !it.alive }
         newcomers(date)
         Profile.part("herds: remembering places") {

@@ -251,13 +251,15 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             // Floods soak the floodplains, and where the water table is within reach of roots (and round
             // lakes and springs) the ground stays moist: the water is drawn from the ground water under
             // the place, then from what flows through the hex.
+            // (The sunny and the shaded slopes are wetted each to the same depth; what the place gives is their mean over it.)
             var want = 0.0
             for (p in hw.placesOf(h)) {
-                var need = soakTo(p, h) - soil[p]
-                soak[p] = need.coerceAtLeast(0f)
+                val to = soakTo(p, h); soakTarget[p] = to
+                var need = (1 - land.slopeShade[p]) * max(0f, to - soil[p]) + land.slopeShade[p] * max(0f, to - soilShade[p])
+                soak[p] = 0f
                 if (need <= 0f) continue
                 val fromGround = min(need, groundwater[p])
-                groundwater[p] -= fromGround; soil[p] += fromGround; need -= fromGround
+                groundwater[p] -= fromGround; wet(p, to, fromGround / need); need -= fromGround
                 soak[p] = need
                 if (need > 0f) want += need / 1000.0 * land.areaM2[p]
             }
@@ -265,8 +267,10 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 val share = min(1.0, volume[h] / want).toFloat()
                 for (p in hw.placesOf(h)) {
                     if (soak[p] <= 0f) continue
+                    val to = soakTarget[p]
+                    val gap = (1 - land.slopeShade[p]) * max(0f, to - soil[p]) + land.slopeShade[p] * max(0f, to - soilShade[p])
                     val mm = soak[p] * share
-                    soil[p] += mm; volume[h] -= mm / 1000.0 * land.areaM2[p]
+                    wet(p, to, min(1f, mm / gap)); volume[h] -= mm / 1000.0 * land.areaM2[p]
                 }
             }
             // Where the beds ran this week (the place shed water, or a flood came down), the water fills the sands under them.
@@ -285,6 +289,12 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     fun waterTableM(p: Int) = aquiferM[p] * (1f - groundwater[p] / aquiferCap[p]).coerceIn(0f, 1f)
 
     /** How wet the soil of [p] in hex [h] is kept this week by a flood over its floodplain and by the water table, mm. */
+    /** Wets place [p]'s sunny and shaded soil each [part] of the way up to [to] mm. */
+    private fun wet(p: Int, to: Float, part: Float) {
+        if (soil[p] < to) soil[p] += part * (to - soil[p])
+        if (soilShade[p] < to) soilShade[p] += part * (to - soilShade[p])
+    }
+
     private fun soakTo(p: Int, h: Int): Float {
         var to = 0f
         // A flood soaks the floodplain's share of the place.
@@ -305,6 +315,8 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     fun springFlow(p: Int) = min(1f, groundwater[p] / usualGround[p])
     /** Scratch per place: water lost into it through a river bed or a flood, m³; then what its soil still needs, mm. */
     private val soak = FloatArray(n)
+    /** What each place's soil is wetted up to this week, mm (see [wet]). */
+    @Transient private val soakTarget = FloatArray(n)
     /** Scratch per place: whether it shed water this step (so its beds ran). */
     private val ranOff = BooleanArray(n)
     /** Water each place shed over the ground this step, mm (it washes litter off, see [carrySilt]). */
