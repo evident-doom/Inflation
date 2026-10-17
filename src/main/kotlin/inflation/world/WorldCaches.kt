@@ -16,11 +16,14 @@ import java.util.zip.GZIPOutputStream
 /**
  * The world-package classes that play no part in making a world, left out of the caches' keys so that
  * changing them does not make every world again: the caches themselves, the hex model run on the
- * world (Hex*, Weather*, Eruption*), and the fine reference models only hex-land-check runs
- * (LiveWater with its works, Vegetation).
+ * world (Hex*, Weather* and its ClimateEvent, Sunlight, Eruption*), and the fine reference models only
+ * hex-land-check runs (LiveWater with its works, Vegetation and its LifeForm). WorldCacheTest checks that
+ * making a world and keeping it touches none of them.
  */
-private fun makesNoWorld(simpleClassName: String) =
-    listOf("WorldCache", "LandformCache", "Hex", "Weather", "Eruption", "LiveWater", "Dam", "Diversion", "Irrigation", "Vegetation").any { simpleClassName.startsWith(it) }
+private fun makesNoWorld(simpleClassName: String) = listOf(
+    "WorldCache", "LandformCache", "Hex", "Weather", "ClimateEvent", "Sunlight", "Eruption", "LiveWater", "Dam", "Diversion", "Irrigation", "Vegetation",
+    "LifeForm",
+).any { simpleClassName.startsWith(it) }
 
 /**
  * A key for [cfg] and the compiled world-package classes [counts] picks (by simple name): any change to
@@ -88,7 +91,10 @@ object WorldCache {
     }
 
     /** The settings, and the compiled world-generating code: any change to either makes a new world. */
-    fun key(cfg: WorldConfig): Long = codeKey(cfg) { !makesNoWorld(it) }
+    fun key(cfg: WorldConfig): Long = codeKey(cfg, ::counts)
+
+    /** Whether the world-package class [simpleClassName] counts in the key. */
+    internal fun counts(simpleClassName: String) = !makesNoWorld(simpleClassName)
 }
 
 /**
@@ -108,5 +114,8 @@ object LandformCache {
         return kept(File(dir, "landform-%016x.bin".format(key(cfg))), MAGIC, "land and its rocks", log) { World.landform(cfg, log) }
     }
 
-    private fun key(cfg: WorldConfig): Long = codeKey(cfg) { simple -> !makesNoWorld(simple) && PARTS.any { simple.startsWith(it) } }
+    private fun key(cfg: WorldConfig): Long = codeKey(cfg, ::counts)
+
+    /** Whether the world-package class [simpleClassName] counts in the key. */
+    internal fun counts(simpleClassName: String) = !makesNoWorld(simpleClassName) && PARTS.any { simpleClassName.startsWith(it) }
 }
