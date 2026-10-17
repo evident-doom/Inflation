@@ -1,11 +1,11 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.ecology.Thresholds
 import inflation.Args
 import inflation.Config
 
 import inflation.ecology.Catalogue
-import inflation.learning.HexLearning
 import inflation.world.Biome
 import inflation.world.Date
 import inflation.world.WorldConfig
@@ -23,7 +23,7 @@ fun main(args: Array<String>) {
     val cfg = WorldConfig().let { it.copy(seed = a.long("--seed", it.seed)) }
     val years = a.int("--years", 4); val only = a.string("--kinds")?.split(",")?.toSet()
     a.done()
-    val run = HexLearning.Run(cfg, Catalogue.learned.filter { !it.human || Config.flag("people", true) })
+    val run = freshSim(cfg, Catalogue.learned.filter { !it.human || Config.flag("people", true) })
     val herds = Catalogue.learned.filter { it in Catalogue.migratory && (only == null || it.name in only) }
     val perYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     val heads = Array(herds.size) { DoubleArray(12) }; val hungry = Array(herds.size) { DoubleArray(12) }; val fed = Array(herds.size) { DoubleArray(12) }

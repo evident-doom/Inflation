@@ -1,6 +1,6 @@
 package inflation.tools.herps
 
-import inflation.learning.HexLearning
+import inflation.ecology.HexSim
 
 /** The kinds of climate a herp check sorts places into, by yearly mean temperature (°C) and rain (mm). */
 enum class ClimateClass(val label: String, val bounds: String) {
@@ -24,7 +24,7 @@ enum class ClimateClass(val label: String, val bounds: String) {
 }
 
 /** Each place's climate class (-1 where nothing grows) and whether it is under forest, with the land in each, km². */
-class HerpRegions(run: HexLearning.Run) {
+class HerpRegions(run: HexSim) {
     private val land = run.land
     val n = land.n
     /** Each place's [ClimateClass] ordinal, or -1 where nothing grows. */

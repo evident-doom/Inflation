@@ -10,15 +10,12 @@ LIB=$(find "${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2" -name 'kotlin-s
 [ -n "$LIB" ] || { echo "kotlin-stdlib-2.4.10.jar not found in the gradle cache; build the repo once first"; exit 1; }
 SEP=":"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) SEP=";"; LIB=$(cygpath -w "$LIB");; esac
 
-# name | main class | arguments ({OUT}: the run's own output folder; {W}: WORKDIR) | config keys (;-separated, written to the run's own config file; none: every key at its default). evolve starts from the herd networks base's imitate wrote;
-# imitate fits a kind only from 200 recorded choices (HexLearning.train), hence its larger world; if it wrote none, the evolve case tests nothing.
+# name | main class | arguments ({OUT}: the run's own output folder; {W}: WORKDIR) | config keys (;-separated, written to the run's own config file; none: every key at its default).
 # ppo runs its ecosystem check (EcoCheck) on the current test world at round 2: one year, one weather draw, two runs at a time.
 CMDS=(
   "ppo|inflation.learning.HexPpo|--out {OUT} --worlds 2 --size 300 --years 1 --rounds 2 --check 2 --check-seeds 2 --hold herds:1|ppo.hidden=8;ppo.residual=people:0.5;ppo.checkYears=1;ppo.checkReplicates=1;ppo.checkParallel=2"
   "evolve-ways-bands|inflation.learning.HexEvolveWays|--role bands --out {OUT} --seeds 1,2 --size 300 --years 1 --gens 2 --pairs 2|evolveWays.hidden=8"
   "evolve-ways-herds|inflation.learning.HexEvolveWays|--role herds --out {OUT} --seeds 1,2 --size 300 --years 1 --gens 2 --pairs 2|evolveWays.hidden=8"
-  "imitate|inflation.learning.HexImitate|--seed 3 --size 500 --years 2 --out {OUT}"
-  "evolve|inflation.learning.HexEvolve|--start {W}/imitate/base/files --out {OUT} --seeds 1,2 --size 300 --years 1 --gens 2 --pairs 2"
   "pick-world|inflation.learning.HexPickWorld|--seeds 1-2 --size 300 --lats 36"
 )
 

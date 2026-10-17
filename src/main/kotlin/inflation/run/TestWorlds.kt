@@ -118,14 +118,12 @@ object TestWorlds {
     fun ab(variant: File, base: File?, worlds: List<Entry>, years: Int, replicates: Int, parallel: Int, out: File) {
         out.mkdirs()
         for (w in worlds) require(w.state.isFile) { "test world ${w.name} is not built yet (testWorld build ${w.name})" }
-        val baseProps = Properties()
-        (base ?: Config.source)?.let { f -> f.reader().use { baseProps.load(it) } }
+        val baseProps = configWith(emptyMap(), base ?: Config.source)
         val varProps = Properties().also { it.putAll(baseProps) }
         variant.reader().use { varProps.load(it) }
         val baseFile = File(out, "base.properties"); val varFile = File(out, "variant.properties")
         baseFile.writer().use { baseProps.store(it, "base, written by testWorld ab") }
         varFile.writer().use { varProps.store(it, "variant (${variant.path} over the base), written by testWorld ab") }
-        val javaBin = ProcessHandle.current().info().command().orElse("java")
         val heap = "-Xmx${Runtime.getRuntime().maxMemory() / (1 shl 20)}m"
         data class Job(val label: String, val cfg: File, val args: List<String>)
         val jobs = worlds.flatMap { w -> (0 until replicates).flatMap { r -> listOf("base" to baseFile, "variant" to varFile).map { (side, cfg) ->
@@ -136,8 +134,7 @@ object TestWorlds {
         val failed = ConcurrentLinkedQueue<String>()
         for (j in jobs) pool.submit {
             val t0 = System.nanoTime()
-            val p = ProcessBuilder(listOf(javaBin, heap, "-Dhex.config=${j.cfg.absolutePath}", "-Duser.home=${System.getProperty("user.home")}", "-cp", System.getProperty("java.class.path"), "inflation.tools.HexFaunaCheckKt") + j.args)
-                .redirectErrorStream(true).redirectOutput(File(out, "${j.label}.txt")).start()
+            val p = startFaunaCheck(j.cfg, heap, j.args, File(out, "${j.label}.txt"))
             val code = p.waitFor()
             if (code != 0) failed += j.label
             println("  ${j.label}: ${if (code == 0) "done" else "FAILED (exit $code, see ${j.label}.txt)"} in %.0f s".format((System.nanoTime() - t0) / 1e9))

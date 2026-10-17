@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.monthsFrom
 import inflation.Args
 import inflation.Config
@@ -7,7 +8,6 @@ import inflation.Config
 import inflation.ecology.Catalogue
 import inflation.ecology.roundOf
 import inflation.ecology.roundsWhere
-import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
 import java.util.TreeMap
@@ -28,7 +28,7 @@ fun main(args: Array<String>) {
     cfg = cfg.copy(seed = a.long("--seed", cfg.seed), widthKm = a.int("--width", cfg.widthKm), heightKm = a.int("--height", cfg.heightKm))
     val years = a.int("--years", 4)
     a.done()
-    val run = HexLearning.Run(cfg, Catalogue.learned.filter { !it.human || Config.flag("people", true) })
+    val run = freshSim(cfg, Catalogue.learned.filter { !it.human || Config.flag("people", true) })
     val herds = Catalogue.learned.filter { it in Catalogue.migratory }
     val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep; val perYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
     // [kind][month]: distances of herds on a round to its place, and how many herds there were.

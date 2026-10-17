@@ -1,8 +1,8 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
-import inflation.learning.HexLearning
 import inflation.tools.herps.ClimateClass
 import inflation.world.Date
 import inflation.world.WorldConfig
@@ -14,7 +14,7 @@ fun main(args: Array<String>) {
     val years = a.int("--years", 3); val show = a.int("--show", 2)
     a.done()
     val t0 = System.nanoTime()
-    val run = HexLearning.Run(cfg, Catalogue.learned)
+    val run = freshSim(cfg, Catalogue.learned)
     System.err.println("world built in %.0f s".format((System.nanoTime() - t0) / 1e9))
     val land = run.land; val hw = run.hw; val n = land.n; val sl = run.fauna.small
     val meanT = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(p, it) }.average().toFloat() }

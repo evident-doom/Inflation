@@ -44,8 +44,6 @@ object Schema {
     val MOVER_OUT = listOf("score")
     /** People's mover: the mover's inputs, then the band's view of itself and of the bands about it ([WAYS_IN], from [Band.state]). */
     val PEOPLE_IN: List<String> get() = MOVER_IN + WAYS_IN.map { "band:$it" }
-    /** Per-kind networks (teachers): the place features only. */
-    val TEACHER_IN: List<String> get() = PLACE.map { "place:$it" }
 
     /** A band's view of itself ([inflation.ecology.bandInputs], in order). */
     val WAYS_IN: List<String> get() = (listOf("year sin", "year cos", "fed", "larder") + Store.entries.map { "store:${it.name.lowercase()}" } +

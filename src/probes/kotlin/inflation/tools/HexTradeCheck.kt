@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.ecology.ROUNDS
@@ -7,7 +8,6 @@ import inflation.ecology.TRADED
 import inflation.ecology.Tool
 import inflation.ecology.YEAR_NEED
 import inflation.ecology.KEEP_YEARS
-import inflation.learning.HexLearning
 import inflation.world.Date
 import inflation.world.WorldConfig
 import inflation.ecology.HexGroup
@@ -29,7 +29,7 @@ fun main(args: Array<String>) {
     a.done()
     println("rounds ${if (ROUNDS) "on" else "off"}, $size km, $years years")
     val lines = seeds.parallelStream().map { seed ->
-        val run = HexLearning.Run(WorldConfig(seed = seed, widthKm = size, heightKm = size), Catalogue.learned)
+        val run = freshSim(WorldConfig(seed = seed, widthKm = size, heightKm = size), Catalogue.learned)
         val hw = run.hw; val land = run.groups.land
         fun chief(h: Int): Int { var best = 0; for (b in hw.biome.indices) if (hw.biome[b][h] > hw.biome[best][h]) best = b; return best }
         val stepsPerYear = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep

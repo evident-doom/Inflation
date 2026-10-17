@@ -1,7 +1,7 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.Args
-import inflation.learning.HexLearning
 import inflation.ecology.Catalogue
 import inflation.world.Biome
 import inflation.world.Date
@@ -32,7 +32,7 @@ fun main(args: Array<String>) {
     val people = Catalogue.HUMAN
     val marks = listOf(1, 2, 4, 8, 13, 26, 52).filter { it <= weeks }
     val results = listOf(true, false).parallelStream().map { naked ->
-        val run = HexLearning.Run(cfg, kinds)
+        val run = freshSim(cfg, kinds)
         val land = run.land
         val biomeOf = IntArray(land.n) { p ->
             val counts = IntArray(Biome.entries.size)

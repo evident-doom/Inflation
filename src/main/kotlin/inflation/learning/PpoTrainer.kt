@@ -43,7 +43,7 @@ class PpoTrainer(private val o: PpoOptions) {
     fun run() {
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
         if (!files[0].exists()) {
-            HexPpo.imitate(kinds, models, o.worlds, o.size, o.sampling, o.teachers, o.maps)
+            HexPpo.imitate(kinds, models, o.worlds, o.size, o.sampling, o.maps)
             for (i in models.indices) models[i].save(files[i])
         }
         eco.init()

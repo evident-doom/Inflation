@@ -1,8 +1,8 @@
 package inflation.tools
 
+import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
-import inflation.learning.HexLearning
 import inflation.tools.herps.HerpRegions
 import inflation.tools.herps.HerpReport
 import inflation.tools.herps.HerpTally
@@ -23,7 +23,7 @@ fun main(args: Array<String>) {
     val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
     val years = a.int("--years", 5); val show = a.int("--show", 2)
     a.done()
-    val run = HexLearning.Run(cfg, Catalogue.learned)
+    val run = freshSim(cfg, Catalogue.learned)
     val regions = HerpRegions(run)
     val tally = HerpTally(run, regions, years, show, Date.DAYS_PER_YEAR / cfg.daysPerStep)
     repeat(years * tally.perYear) { w ->

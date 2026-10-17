@@ -1,5 +1,7 @@
 package inflation.learning
 
+import inflation.run.freshSim
+import inflation.ecology.HexSim
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFeatures
 import inflation.ecology.Temperament
@@ -208,14 +210,6 @@ object HexPpo {
     fun main(args: Array<String>) {
         val o = PpoOptions.parse(args)
         o.out.mkdirs()
-        // Only how the teachers do against the hand-written behaviour, in today's world.
-        if (o.teacherCheck) {
-            val kinds = Catalogue.learned
-            val seeds = (91L until 91L + o.checkSeeds).toList()
-            val scores = seeds.parallelStream().map { seed -> teacherCheck(checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, o.teachers) }.toList()
-            println("teachers vs hand-written over ${seeds.size} worlds: " + kinds.filter { it in o.teachers }.joinToString(", ") { s -> s.name + " " + compare(scores.map { it.learned[s] ?: 0.0 }, scores.map { it.hand[s] ?: 0.0 }) })
-            return
-        }
         PpoTrainer(o).run()
     }
 
@@ -241,19 +235,15 @@ object HexPpo {
     /**
      * Fits the networks to the hand-written behaviour: worlds run on it, a share of its choices of
      * every kind is kept, and the networks learn to give the same candidates the same preference
-     * (the softmax of their scores matching that of the hand-written scores, sharpened). Where a kind
-     * has one of [teachers], it is copied instead of the hand-written behaviour.
+     * (the softmax of their scores matching that of the hand-written scores, sharpened).
      */
-    fun imitate(kinds: List<Species>, models: List<SharedMover>, worlds: Int, size: Int, sampling: Sampling, teachers: Map<Species, Mlp>, maps: Maps) {
+    fun imitate(kinds: List<Species>, models: List<SharedMover>, worlds: Int, size: Int, sampling: Sampling, maps: Maps) {
         val shown = (0 until worlds).toList().parallelStream().map { w ->
-            val run = HexLearning.Run(maps.world(40_000L + w, size, w), kinds)
+            val run = freshSim(maps.world(40_000L + w, size, w), kinds)
             val kept = ConcurrentLinkedQueue<Shown>()
             val stepsPerYear = Date.DAYS_PER_YEAR / (WorldConfig().daysPerStep)
             val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, sampling.perKindYear.toFloat() / (n * stepsPerYear)) }
-            val teachersHere = teachers.mapValues { (_, net) -> ThreadLocal.withInitial { net.buffers() } to net }
-            for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b0, rnd ->
-                // A teacher network, where there is one for the kind, in place of the hand-written scores.
-                val b = teachersHere[g.species]?.let { (bufs, net) -> val buf = bufs.get(); FloatArray(f.size) { k -> f[k].copyInto(buf.a[0], 0, 0, min(f[k].size, buf.a[0].size)); net.forward(buf) } } ?: b0
+            for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b, rnd ->
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
                 if (rnd.nextFloat() < (rates[g.species] ?: 0f)) {
                     kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf(), run.weather.date.absoluteDay, g.id, g.band?.state?.copyOf(), g.temper.copyOf())
@@ -326,7 +316,7 @@ object HexPpo {
     class Player(val cfg: WorldConfig, private val kinds: List<Species>, private val lifeSteps: Int, private val burnSteps: Int = 0, private val sampling: Sampling = Sampling(),
                  /** Where each year's census of the world goes (its kinds' numbers), settling years included. */
                  private val census: (String) -> Unit = {}) {
-        private val run = HexLearning.Run(cfg, kinds).also {
+        private val run = freshSim(cfg, kinds).also {
             // (Kinds that dwindle get newcomers, so every kind stays in the data; checks run without them.)
             it.groups.newcomersOn = true; it.fauna.newcomersOn = true
         }
@@ -443,14 +433,6 @@ object HexPpo {
         return Versus(kinds.associateWith { s -> runs.getValue(role(s))[s] ?: 0.0 }, hand)
     }
 
-    /** The [teachers] (every kind that has one) against the hand-written behaviour in [cfg]. */
-    fun teacherCheck(cfg: WorldConfig, years: Int, kinds: List<Species>, teachers: Map<Species, Mlp>): Versus<Map<Species, Double>> {
-        val both = listOf(true, false).parallelStream().map { t ->
-            score(cfg, years, kinds) { run -> if (t) for ((s, net) in teachers) if (s in kinds) run.groups.policies[s] = HexLearning.NetPolicy(net) }
-        }.toList()
-        return Versus(both[0], both[1])
-    }
-
     /**
      * [score] with everything hand-written, worked out once for each world and kept: it is the same
      * every check (the runs are reproducible), and it was a quarter of each check's work.
@@ -464,8 +446,8 @@ object HexPpo {
      * installs; for people, less their luck in their own births and deaths (see [HexGroup.luck]), so
      * that a small gain shows through the chance of who was born and who died.
      */
-    internal fun score(cfg: WorldConfig, years: Int, kinds: List<Species>, setUp: (HexLearning.Run) -> Unit): Map<Species, Double> {
-        val run = HexLearning.Run(cfg, kinds)
+    internal fun score(cfg: WorldConfig, years: Int, kinds: List<Species>, setUp: (HexSim) -> Unit): Map<Species, Double> {
+        val run = freshSim(cfg, kinds)
         setUp(run)
         val start = kinds.associateWith { run.groups.count(it).toDouble() }
         val weeks = HashMap<Species, Double>()

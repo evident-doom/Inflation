@@ -1,13 +1,13 @@
 package inflation.learning
 
+import inflation.run.freshSim
+import inflation.ecology.HexSim
 import inflation.Args
 import inflation.Config
 import inflation.ecology.AnimalWays
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
 import inflation.ecology.HexGroup
-import inflation.ecology.HexPolicy
-import inflation.ecology.Species
 import inflation.world.Date
 import inflation.world.WorldConfig
 import java.io.File
@@ -50,82 +50,6 @@ class EvolutionStrategy(val pairs: Int, val sigma: Float) {
         val grad = FloatArray(centre.w.size)
         for (i in 0 until pairs) { val d = ranks[2 * i] - ranks[2 * i + 1]; val e = eps[i]; for (j in grad.indices) grad[j] -= (d * e[j] / (2 * pairs * sigma)).toFloat() }
         adam.step(centre.w, grad)
-    }
-}
-
-/**
- * Evolves the migratory herds' networks on lean hex worlds (no hunters, no people): each
- * generation, every kind's groups in fresh small worlds are dealt variants of its network
- * round-robin, and each variant is scored by the animal-weeks its lineages live, per animal at the
- * start. Herds caught on the high ground when the snow comes die; those that learn the seasons
- * live.
- *
- * Usage: hex-evolve [--start DIR] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--hunters]
- *
- * Config keys: `evolve.sigma` (default 0.02), the spread of the variants; `evolve.rate` (0.01), the step.
- *
- * Worlds are cool and mountainous; with --hunters the hunters live there too (hand-written), so the
- * herds also learn where they are safe.
- */
-object HexEvolve {
-    @JvmStatic
-    fun main(args: Array<String>) {
-        val a = Args(args, "hex-evolve [--start DIR] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--hunters]")
-        val start = a.file("--start") ?: File("hex-policies")
-        val out = a.file("--out") ?: File("hex-evolve")
-        val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(71L, 72L, 73L, 74L, 75L, 76L, 77L, 78L)
-        val size = a.int("--size", 600)
-        val years = a.int("--years", 3)
-        val gens = a.int("--gens", 1000)
-        val es = EvolutionStrategy(a.int("--pairs", 8), Config.float("evolve.sigma", 0.02f))
-        val rate = Config.float("evolve.rate", 0.01f)
-        val hunters = if (a.flag("--hunters")) Catalogue.predators.filter { !it.human && it !in Catalogue.residentHunters } else emptyList()
-        a.done()
-        out.mkdirs()
-        // Every kind with a network in the start directory evolves: the migratory herds, and people.
-        val kinds = (Catalogue.herbivores.filter { it in Catalogue.migratory } + Catalogue.HUMAN).filter { HexLearning.file(start, it).exists() }
-        val centres = kinds.associateWith { s -> Mlp.load((HexLearning.file(out, s).takeIf { it.exists() } ?: HexLearning.file(start, s)).readText()) }
-        val adams = kinds.associateWith { Adam(centres.getValue(it).w.size, rate) }
-        val log = RunLog(out, "gen")
-        val firstGen = log.done()
-        for (gen in firstGen until firstGen + gens) {
-            val t0 = System.nanoTime()
-            val rnd = Random(gen * 7919L + 9)
-            val eps = kinds.associateWith { s -> es.noise(rnd, centres.getValue(s).w.size) }
-            val variants = kinds.associateWith { s -> es.variants(centres.getValue(s), eps.getValue(s)) }
-            val results = seeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed + 1000L * gen, widthKm = size, heightKm = size), years, variants, hunters) }.toList()
-            val parts = ArrayList<String>()
-            for (s in kinds) {
-                val fitness = DoubleArray(es.count)
-                for (r in results) { val f = r.first.getValue(s); for (v in 0 until es.count) fitness[v] += f[v] / results.size }
-                val centre = centres.getValue(s)
-                es.step(centre, eps.getValue(s), fitness, adams.getValue(s))
-                Schema.save(centre, HexLearning.file(out, s), Schema.TEACHER_IN, Schema.MOVER_OUT)
-                if (gen % 10 == 9) Schema.save(centre, HexLearning.file(File(out, "gen${gen + 1}").also { it.mkdirs() }, s), Schema.TEACHER_IN, Schema.MOVER_OUT)
-                parts += "%s %.2f/%.2f".format(s.name, fitness.take(2 * es.pairs).average(), fitness.last())
-            }
-            val line = "gen %d  %.0f s  fitness mean/centre: %s  | %s".format(gen, (System.nanoTime() - t0) / 1e9, parts.joinToString(", "), results.joinToString("  ") { it.second })
-            log.write(line)
-        }
-    }
-
-    /** One lean world for [years], each group of an evolving kind on one of its [variants]; animal-weeks per animal at the start. */
-    fun evaluate(cfg: WorldConfig, years: Int, variants: Map<Species, Array<Mlp>>, hunters: List<Species> = emptyList()): Pair<Map<Species, DoubleArray>, String> {
-        val run = HexLearning.Run(cfg, (Catalogue.herbivores.filter { it in Catalogue.migratory } + variants.keys + hunters).distinct(), mountains = true)
-        val rnd = Random(cfg.seed)
-        val started = variants.mapValues { DoubleArray(it.value.size) }
-        for ((s, vs) in variants) run.groups.groups.filter { it.species == s }.shuffled(rnd).forEachIndexed { i, g -> g.tag = i % vs.size; started.getValue(s)[g.tag] += g.size.toDouble() }
-        val nets = variants.mapValues { (_, vs) -> vs.map { HexLearning.NetPolicy(it) } }
-        for (s in variants.keys) run.groups.policies[s] = HexPolicy { g, f, b, rnd -> nets.getValue(g.species)[g.tag.coerceIn(0, variants.getValue(g.species).size - 1)].choose(g, f, b, rnd) }
-        val weeks = variants.mapValues { DoubleArray(it.value.size) }
-        val start = variants.keys.associateWith { run.groups.count(it) }
-        val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
-        repeat(steps) {
-            run.step()
-            for (g in run.groups.groups) if (g.alive && g.tag >= 0) weeks[g.species]?.let { w -> if (g.tag < w.size) w[g.tag] += g.size.toDouble() }
-        }
-        val fitness = variants.mapValues { (s, vs) -> DoubleArray(vs.size) { v -> val st = started.getValue(s)[v]; if (st == 0.0) 0.0 else weeks.getValue(s)[v] / st / steps } }
-        return fitness to "seed ${cfg.seed}: " + variants.keys.joinToString(" ") { "${it.name.split(' ').last()} ${start.getValue(it)}->${run.groups.count(it)}" }
     }
 }
 
@@ -206,7 +130,7 @@ class WaysEvolution(private val role: String, private val movers: List<SharedMov
 
     /** One small world with all the animals for [years], each band on one of [variants]; person-weeks per person at the start. */
     fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
-        val run = HexLearning.Run(cfg, Catalogue.learned.distinct())
+        val run = freshSim(cfg, Catalogue.learned.distinct())
         movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[Role.of(s).ordinal] }
         if (role != "bands") return evaluateAnimals(run, cfg, years, variants)
         val rnd = Random(cfg.seed)
@@ -227,7 +151,7 @@ class WaysEvolution(private val role: String, private val movers: List<SharedMov
     }
 
     /** As [evaluate], for the herds' or packs' ways: each group of the role on one of [variants]; head-weeks per head at the start, the mean over the role's kinds. */
-    private fun evaluateAnimals(run: HexLearning.Run, cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
+    private fun evaluateAnimals(run: HexSim, cfg: WorldConfig, years: Int, variants: Array<Mlp>): Pair<DoubleArray, String> {
         val rnd = Random(cfg.seed)
         val hunters = role == "hunters"
         fun mine(g: HexGroup) = !g.species.human && g.species.carnivore == hunters
