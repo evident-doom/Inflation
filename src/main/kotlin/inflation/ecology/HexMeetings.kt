@@ -832,7 +832,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     stats.meetings.merge("hunter-herd", 1, Int::plus)
     // (With rounds on, for hex-rounds-check: where herds meet hunters, by how the herd lives and where it was.)
     val roundsKey = if (ROUNDS && herd.route[0] != -1) roundsWhere(herd, weather) + (if (hunter.band != null) "people|" else "animals|") else null
-    roundsKey?.let { stats.hunting.merge(it + "met", 1, Int::plus) }
+    roundsKey?.let { stats.hunting.merge(it + "met", 1, Int::plus); stats.hunting.merge(it + "heads met", herd.size, Int::plus) }
     note(hunter) { "came on a herd of %d %s".format(herd.size, herd.species.name) }; note(herd) { "met %d %s".format(hunter.size, hunter.species.name) }
     val open = openness(h, hw.placeBand[herd.place])
     // A herd hunted lately keeps a sharper watch.
@@ -844,13 +844,14 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         stats.meetings.merge("herd turned aside", 1, Int::plus)
         note(herd) { "saw the hunters first and turned aside" }; note(hunter) { "was seen first; the herd turned aside" }
         stats.hunting.merge("${hunter.species.name}:herds that saw it first", 1, Int::plus)
+        roundsKey?.let { stats.hunting.merge(it + "saw them first", 1, Int::plus) }
         stop[rk] = min(stop[rk], max(0, ri - 1))
         return
     }
     // A hunter that has eaten its fill this week lets the herd pass; a band hunts on for the stores it
     // aims to keep, as it does at its own foraging.
     val need = hunter.dailyNeedKg * days * (if (hunter.band == null) hunter.will[AnimalWay.CHASE] else 1f) + (hunter.band?.let { storeWant(hunter, it) } ?: 0f)
-    if (hunter.meatMet >= need) return
+    if (hunter.meatMet >= need) { roundsKey?.let { stats.hunting.merge(it + "hunters fed", 1, Int::plus) }; return }
     val p = hw.sameBandPlace(herd.place, h).takeIf { it >= 0 } ?: herd.place
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
     val catchable = catchable(hunter.species, herd.species, p, max(1, hunter.adults) * hunter.species.massKg)
@@ -865,6 +866,8 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // A big herd stands for several of its kind's usual bands: the hunters try each one they ran into while hungry
     // (once each: a band that was chased has scattered).
     val tries = max(1, min(met, ceil(bandsIn(herd)).toInt()))
+    roundsKey?.let { stats.hunting.merge(it + "chased", 1, Int::plus); stats.hunting.merge(it + "tries", tries, Int::plus)
+        stats.hunting.merge(it + "wary", (100 * herd.wary).toInt(), Int::plus) }
     for (attempt in 0 until tries) {
     if (attempt > 0 && hunter.meatMet >= need) break
     if (rnd.nextFloat() < chance && herd.adults > 0) {
