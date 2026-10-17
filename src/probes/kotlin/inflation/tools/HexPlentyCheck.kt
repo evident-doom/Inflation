@@ -43,30 +43,8 @@ fun main(args: Array<String>) {
     val layers = ViewLayers(sim)
     val tuning = Tuning.config
 
-    // Land masses by hexes, for the small islands.
-    val mass = IntArray(nh) { -1 }; val massSize = ArrayList<Int>()
-    for (h0 in 0 until nh) {
-        if (hw.land[h0] <= 0f || mass[h0] >= 0) continue
-        val id = massSize.size; var size = 0
-        val stack = ArrayDeque<Int>().apply { add(h0) }; mass[h0] = id
-        while (stack.isNotEmpty()) {
-            val h = stack.removeLast(); size++
-            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && hw.land[q] > 0f && mass[q] < 0) { mass[q] = id; stack.add(q) } }
-        }
-        massSize += size
-    }
-    val classes = listOf("small island", "coast", "peak", "high ground", "the rest")
-    val cls = IntArray(nh) { h ->
-        if (hw.land[h] <= 0f) -1
-        else if (massSize[mass[h]] <= SMALL_ISLAND) 0
-        else if (hw.coast[h]) 1
-        else if ((0 until 6).all { d -> val q = hex.neighbour(h, d); q < 0 || hw.land[q] <= 0f || hw.elevationM[q] < hw.elevationM[h] } && hw.elevationM[h] >= PEAK_M) 2
-        else if (hw.elevationM[h] >= HIGH_M) 3
-        else 4
-    }
-    val nc = classes.size
-    println("land masses: ${massSize.size}, of them small islands (<= $SMALL_ISLAND hexes): ${massSize.count { it <= SMALL_ISLAND }}")
-    println("hexes by class: " + classes.indices.joinToString(", ") { c -> "${classes[c]} ${cls.count { it == c }}" })
+    val hc = HexClasses(sim); val classes = HexClasses.NAMES; val cls = hc.cls; val nc = classes.size
+    hc.print()
 
     // Accumulated over the weeks, by class.
     val hexWeeks = DoubleArray(nc); val inTop = DoubleArray(nc); val layerSum = DoubleArray(nc)
@@ -205,9 +183,47 @@ fun main(args: Array<String>) {
     }
 }
 
-private const val SMALL_ISLAND = 100
-private const val PEAK_M = 800f
-private const val HIGH_M = 1500f
+/**
+ * Each land hex's class for the plenty and anomaly checks: on a small island (a land mass of at most
+ * [SMALL_ISLAND] hexes), on the coast, a peak (higher than every land neighbour, [PEAK_M] and up),
+ * high ground ([HIGH_M] and up), or the rest; -1 for no land.
+ */
+internal class HexClasses(sim: HexSim) {
+    private val hex = sim.hex; private val hw = sim.hw; private val nh = hex.size
+    private val mass = IntArray(nh) { -1 }; private val massSize = ArrayList<Int>()
+    init {
+        for (h0 in 0 until nh) {
+            if (hw.land[h0] <= 0f || mass[h0] >= 0) continue
+            val id = massSize.size; var size = 0
+            val stack = ArrayDeque<Int>().apply { add(h0) }; mass[h0] = id
+            while (stack.isNotEmpty()) {
+                val h = stack.removeLast(); size++
+                for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && hw.land[q] > 0f && mass[q] < 0) { mass[q] = id; stack.add(q) } }
+            }
+            massSize += size
+        }
+    }
+    val cls = IntArray(nh) { h ->
+        if (hw.land[h] <= 0f) -1
+        else if (massSize[mass[h]] <= SMALL_ISLAND) 0
+        else if (hw.coast[h]) 1
+        else if ((0 until 6).all { d -> val q = hex.neighbour(h, d); q < 0 || hw.land[q] <= 0f || hw.elevationM[q] < hw.elevationM[h] } && hw.elevationM[h] >= PEAK_M) 2
+        else if (hw.elevationM[h] >= HIGH_M) 3
+        else 4
+    }
+    fun print() {
+        println("land masses: ${massSize.size}, of them small islands (<= $SMALL_ISLAND hexes): ${massSize.count { it <= SMALL_ISLAND }}" +
+            " (sizes ${massSize.filter { it <= SMALL_ISLAND }.sorted().joinToString(",")})")
+        println("hexes by class: " + NAMES.indices.joinToString(", ") { c -> "${NAMES[c]} ${cls.count { it == c }}" })
+    }
+    companion object {
+        val NAMES = listOf("small island", "coast", "peak", "high ground", "the rest")
+        const val SMALL_ISLAND = 100
+        const val PEAK_M = 800f
+        const val HIGH_M = 1500f
+    }
+}
+
 /** Plant-eaters in a hex under which its hunger is a handful's. */
 private const val FEW = 20.0
 
