@@ -162,6 +162,15 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     /** The water each hex's lakes hold, m³: full to begin with (and on loading a save, while this is a trial). */
     @Transient val lakeM3 = lakeFull.copyOf()
 
+    /** What the lakes hold against their fill, and how many hexes' lakes are dry, low or full (see [CONSERVE_WATER]). */
+    fun lakeSummary(): String {
+        val lakes = lakeM2.indices.filter { lakeFull[it] > 0.0 }
+        val share = lakes.map { lakeM3[it] / lakeFull[it] }
+        return "hold %.0f of %.0f million m³ (%.1f%%); of %d hexes' lakes %d dry (<1%%), %d below half, %d full (>99%%)".format(
+            lakes.sumOf { lakeM3[it] } / 1e6, lakes.sumOf { lakeFull[it] } / 1e6, 100 * lakes.sumOf { lakeM3[it] } / lakes.sumOf { lakeFull[it] }.coerceAtLeast(1.0),
+            lakes.size, share.count { it < 0.01 }, share.count { it < 0.5 }, share.count { it > 0.99 })
+    }
+
     /** Each aquifer's settled level, mm, against which springs weaken (at least a millimetre). */
     @Transient private val usualGround = FloatArray(n) { max(1f, groundwater[it]) }
     /** Flow of each hex's river over the last step, m³/s. */

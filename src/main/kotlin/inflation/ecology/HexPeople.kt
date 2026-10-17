@@ -1197,15 +1197,12 @@ internal fun HexGroups.stayCost(b: Band): Float {
 }
 
 /**
- * Trial (t.conserveStores): stores keep the kg their food weighs beside its worth as food (grinding, cooking and leaching
- * change its worth, not its weight; leached food is taken from the plants as well), so what spoils, is cached, given or
- * eaten moves its true weight, each kind keeping its own worth. Off: the worth is kept as if it were the weight.
+ * Adds [value] (its worth as food) of kind [st], weighing [kg], to [stores], whose kg for each unit of worth are [kgPer].
+ * (Stores keep the kg their food weighs beside its worth as food: grinding, cooking and leaching change its worth, not
+ * its weight, so what spoils, is cached, given or eaten moves its true weight, each kind keeping its own worth.)
  */
-@JvmField val CONSERVE_STORES: Boolean = Config.flag("t.conserveStores", false)
-
-/** Adds [value] (its worth as food) of kind [st], weighing [kg], to [stores], whose kg for each unit of worth are [kgPer]. */
 internal fun addFood(stores: EnumFloats<Store>, kgPer: EnumFloats<Store>, st: Store, value: Float, kg: Float) {
-    if (CONSERVE_STORES && value > 0f) kgPer[st] = (stores[st] * kgPer[st] + kg) / (stores[st] + value)
+    if (value > 0f) kgPer[st] = (stores[st] * kgPer[st] + kg) / (stores[st] + value)
     stores[st] += value
 }
 
@@ -1215,11 +1212,8 @@ internal fun massOf(stores: EnumFloats<Store>, kgPer: EnumFloats<Store>): Float 
 }
 
 /**
- * Moves [value] of [from]'s food to [to] (a gift, a raid, a split): each kind by its share, with its weight. (Without
- * [CONSERVE_STORES], through [HexGroup.larder]: it lands in the receiver's mix of kinds.)
- */
+ * Moves [value] of [from]'s food to [to] (a gift, a raid, a split): each kind by its share, with its weight. */
 internal fun moveFood(from: HexGroup, to: HexGroup, value: Float) {
-    if (!CONSERVE_STORES) { from.larder -= value; to.larder += value; return }
     val total = from.larder
     if (total <= 0f || value <= 0f) return
     val share = min(1f, value / total)

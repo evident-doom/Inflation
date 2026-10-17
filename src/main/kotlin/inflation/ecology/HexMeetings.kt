@@ -194,7 +194,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
     val aim = wantAll + (band?.let { storeWork(g, it) } ?: 0f)
     val plantKind = FloatArray(Store.entries.size)
-    // (And what it weighs, which grinding, cooking and leaching do not change: see [CONSERVE_STORES].)
+    // (And what it weighs, which grinding, cooking and leaching do not change: see [addFood].)
     val plantKg = FloatArray(Store.entries.size)
     var busy = 0f
     // A band fetches the hearth's firewood first; it forages in the days left.
@@ -563,8 +563,7 @@ private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float, out: Haul) {
     val band = g.band
     val taken = land.total(p, fauna.food.take(fauna.food.grain, p, land.spread(p, Kg(expected)))).v
     val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
-    out.kg = took; out.mass = if (CONSERVE_STORES) taken else took
-    if (!CONSERVE_STORES) land.books?.leak(Books.Stuff.MATTER, FOOD_VALUE, (took - taken).toDouble())
+    out.kg = took; out.mass = taken
     // A sickle takes the ears that hold their grain more than those that shatter at a touch.
     if (band != null && took > 0f) {
         val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
@@ -635,7 +634,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
         if (t != Food.FINDS) {
             var extra = took * band.detoxExtra(land.palatable[p], land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f)
             // (What is leached is more of the plants, bitter before: taken from them, as far as there is any.)
-            if (CONSERVE_STORES && extra > 0f) {
+            if (extra > 0f) {
                 val more = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(extra * taken / took)))).v
                 extra = more * took / taken; mass += more
             }
@@ -647,12 +646,8 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
             }
         }
     }
-    out.kg = took; out.mass = if (CONSERVE_STORES) mass else took
-    if (!CONSERVE_STORES) land.books?.leak(Books.Stuff.MATTER, FOOD_VALUE, (took - taken).toDouble())
+    out.kg = took; out.mass = mass
 }
-
-/** The known leak of bands' food reckoned in what it feeds rather than its mass (see [Books]). */
-private const val FOOD_VALUE = "food counted by what it feeds, not its mass (raw seed, cooking, leaching)"
 
 /** The kinds of food [forage] offers a party; all but [GRAIN] and [HERD] are also a band's effort slots ([FOOD_TYPES]: grain goes by grass seed's, a herd met by big game's). */
 enum class Food(val label: String) {
