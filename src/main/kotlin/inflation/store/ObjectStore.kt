@@ -40,6 +40,17 @@ internal fun fields(c: Class<*>): List<Field> = fieldCache.getOrPut(c) {
     out
 }
 
+/** The names of [c]'s @Transient fields, its own and inherited (for a property by lazy, its `name$delegate` field). */
+private fun transientNames(c: Class<*>): Set<String> {
+    val out = HashSet<String>()
+    var k: Class<*>? = c
+    while (k != null && k != Any::class.java) {
+        for (f in k.declaredFields) if (Modifier.isTransient(f.modifiers)) out += f.name
+        k = k.superclass
+    }
+    return out
+}
+
 internal object T {
     const val NULL = 0; const val SKIP = 1; const val BOOL = 2; const val BYTE = 3; const val SHORT = 4; const val CHAR = 5
     const val INT = 6; const val LONG = 7; const val FLOAT = 8; const val DOUBLE = 9; const val STRING = 10; const val ENUM = 11
@@ -198,7 +209,9 @@ internal class Restorer {
         }
         if (node.fields.size > fs.size || fs.any { it.name !in node.fields }) {
             val names = fs.mapTo(HashSet()) { it.name }
-            for (k in node.fields.keys) if (k !in names && k !in moved) dropped += "${target.javaClass.simpleName}.$k"
+            // (A field the code now works out afresh, @Transient, is not lost: older saves hold it.)
+            val fresh = transientNames(target.javaClass)
+            for (k in node.fields.keys) if (k !in names && k !in moved && k !in fresh) dropped += "${target.javaClass.simpleName}.$k"
         }
         for (f in fs) {
             val saved = node.fields[f.name] ?: continue
