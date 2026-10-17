@@ -1617,6 +1617,13 @@ const val NIGHT_WOOD = 3f
  */
 const val HEARTH_WOOD = 1f
 const val FUEL_A_DAY = 25f
+/**
+ * Skin a kilo of small game yields, kg (a hare's or rabbit's pelt is about a tenth of its weight, from memory),
+ * and the person-days scraping, stretching and drying a kilo of small pelts takes (an hour or two a pelt of
+ * a few hundred grams, from memory): more work for the hide than a big beast's, and more seams to sew.
+ */
+const val SMALL_SKIN = 0.1f
+const val SKIN_DAYS = 0.5f
 /** Most of its days a band gives to firewood before it goes without (an estimate). */
 const val FUEL_MOST = 0.5f
 /**

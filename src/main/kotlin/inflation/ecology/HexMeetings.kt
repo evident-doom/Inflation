@@ -410,6 +410,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         // What time is left is for making and mending (see [bandWeek]).
         band.spareDays = max(0f, spareDays * hands - if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
+        // The small game's skins are kept too, as far as there is time to scrape and dry them: many small
+        // pelts sewn together (hare, fox, marmot) clothe as well as a few big hides.
+        val skinDays = min(band.spareDays, SMALL_SKIN * smallGot * SKIN_DAYS)
+        band.goods[Material.HIDE.ordinal] += skinDays / SKIN_DAYS
+        band.spareDays -= skinDays
         // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
         // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
         val home = if (band.atHome) band.house else 0f
