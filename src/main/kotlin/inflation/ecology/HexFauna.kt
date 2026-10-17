@@ -573,9 +573,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // (Biting insects harassing them cost them feeding time.)
                 avail[k] = HexFood.access(s, land.crag[p]) * tether(s, p) * (1f - HexSmallLife.HARASS_FEED * small.harassment(p))
             }
-            // What can be eaten this week without eating the place bare, kg per m2: new growth in the
-            // growing season, far less of the dry standing stuff in the cold. Supply against demand:
-            val reach = REACH_DORMANT + (REACH - REACH_DORMANT) * land.plants.green[p]
+            // What can be eaten this week without eating the place bare, kg per m2: green or cured, standing grass is
+            // grazed alike (the steppe's herds live through the dry season on its standing hay). What makes the dry
+            // season lean is the hay itself: poor in nourishment and protein, weathering away and not growing back
+            // until the rains. Supply against demand:
+            val reach = REACH
             // (Only the edible share of the plants, see [HexLand.palatable].)
             val grass = reach * land.palatable[p] * land.plants.herb[p]; val browse = land.plants.browse(p)
             // (Browse is the shoots the shrubs and trees put out within reach, see [HexPlants.shrubShoots].)
@@ -1049,8 +1051,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val REACH = 0.01f
         /** How strongly a kind is drawn to the ground it prefers. */
         const val HABITAT = 3f
-        /** The same share where nothing is green: the dry standing stuff in the cold ([REACH] is for full green). */
-        const val REACH_DORMANT = 0.002f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 4f
         /**
