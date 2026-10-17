@@ -4,6 +4,7 @@ import inflation.store.Named
 import inflation.store.Reader
 import inflation.store.Restorer
 import inflation.store.Writer
+import inflation.world.Biome
 import inflation.world.Climate
 import inflation.world.Geology
 import inflation.world.Grid
@@ -40,8 +41,18 @@ import java.util.zip.GZIPOutputStream
  */
 object HexSnapshot {
     private const val MAGIC = 0x48455853 // "HEXS"
-    /** 2: what lazy fields hold is saved. Version 1 saves still load; code from before version 2 refuses version 2 saves. */
-    private const val VERSION = 2
+    /**
+     * 2: what lazy fields hold is saved. 3: the order of [ORDERED]'s entries is saved. Older saves still load; older code
+     * refuses newer saves.
+     */
+    private const val VERSION = 3
+    /**
+     * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
+     * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
+     * numbers would land on the wrong entries; entries added at the end keep the fresh model's values.
+     */
+    internal val ORDERED: List<Class<out Enum<*>>> = listOf(Skill::class.java, Tool::class.java, Material::class.java, Store::class.java,
+        Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java)
 
     /** Writes the state of [sim] to [file]. */
     fun save(sim: HexSim, file: File) {
@@ -51,6 +62,8 @@ object HexSnapshot {
             1 shl 16)).use { out ->
             out.writeInt(MAGIC); out.writeInt(VERSION)
             out.writeLong(sim.cfg.seed); out.writeInt(sim.land.n); out.writeLong(sim.weather.date.absoluteDay)
+            out.writeInt(ORDERED.size)
+            for (e in ORDERED) { out.writeUTF(e.name); out.writeInt(e.enumConstants.size); for (c in e.enumConstants) out.writeUTF(c.name) }
             val w = Writer(out, ::saved, lazies = false, SPECIES)
             for ((name, root) in roots(sim)) { out.writeUTF(name); w.value(root) }
         }
@@ -67,6 +80,10 @@ object HexSnapshot {
             val seed = inp.readLong(); val n = inp.readInt(); val day = inp.readLong()
             require(seed == sim.cfg.seed && n == sim.land.n) {
                 "$file is of another world (seed $seed, $n places; this one seed ${sim.cfg.seed}, ${sim.land.n} places)"
+            }
+            if (version >= 3) repeat(inp.readInt()) {
+                val name = inp.readUTF(); val saved = List(inp.readInt()) { inp.readUTF() }
+                orderProblem(name, saved)?.let { throw IllegalArgumentException("$file: $it") }
             }
             val r = Reader(inp, SPECIES)
             val byName = roots(sim).toMap()
@@ -85,6 +102,16 @@ object HexSnapshot {
             if (restore.dropped.isNotEmpty()) System.err.println("$file: the code no longer has, and so dropped: ${restore.dropped.joinToString(", ")}")
             return day
         }
+    }
+
+    /**
+     * Why entries [saved] in this order for the enum class [name] would load wrongly (null if they load right): the code
+     * must have them in the same order, perhaps with more after.
+     */
+    internal fun orderProblem(name: String, saved: List<String>): String? {
+        val code = ORDERED.firstOrNull { it.name == name }?.enumConstants?.map { it.name } ?: return null
+        if (code.size >= saved.size && code.subList(0, saved.size) == saved) return null
+        return "${name.substringAfterLast('.')} is saved in another order than the code has, so its values would land on the wrong entries: saved $saved, code $code"
     }
 
     /** Kinds are saved by name: the code defines them. */

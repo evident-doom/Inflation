@@ -10,6 +10,7 @@ import java.util.IdentityHashMap
 import java.util.zip.GZIPInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.fail
 
 class HexSnapshotTest {
@@ -40,6 +41,15 @@ class HexSnapshotTest {
             if (diff >= 0) fail("the loaded world's state differs from the one that ran on, from byte $diff of ${x.size}, in:\n" +
                 StateDiff().of(a, b).joinToString("\n"))
         } finally { f.delete() }
+    }
+
+    @Test
+    fun `a save with enum entries in another order is refused, one with fewer at the end is not`() {
+        val skills = Skill.entries.map { it.name }
+        assertEquals(null, HexSnapshot.orderProblem(Skill::class.java.name, skills))
+        assertEquals(null, HexSnapshot.orderProblem(Skill::class.java.name, skills.dropLast(1)))
+        assertNotNull(HexSnapshot.orderProblem(Skill::class.java.name, skills.reversed()))
+        assertNotNull(HexSnapshot.orderProblem(Skill::class.java.name, skills + "GONE"))
     }
 
     @Test
