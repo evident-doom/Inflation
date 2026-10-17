@@ -12,13 +12,14 @@ import kotlin.test.assertTrue
 class TemperamentTest {
     @Test
     fun `founders differ by chance but the same id gives the same temperament, and offshoots stay near their parent`() {
-        val a = Temperament.founder(7); val b = Temperament.founder(8)
-        assertEquals(a.toList(), Temperament.founder(7).toList())
+        val a = Temperament.founder(7, 1L); val b = Temperament.founder(8, 1L)
+        assertEquals(a.toList(), Temperament.founder(7, 1L).toList())
         assertNotEquals(a.toList(), b.toList())
-        val all = (0 until 4000).map { Temperament.founder(it)[0].toDouble() }
+        val all = (0 until 4000).map { Temperament.founder(it, 1L)[0].toDouble() }
         val sd = kotlin.math.sqrt(all.sumOf { it * it } / all.size)
         assertEquals(Temperament.FOUNDER_SD.toDouble(), sd, 0.01)
-        val child = Temperament.inherit(a, 9001)
+        assertNotEquals(a.toList(), Temperament.founder(7, 2L).toList(), "another world's seed gives other founders")
+        val child = Temperament.inherit(a, 9001, 1L)
         for (k in 0 until Temperament.AXES) assertTrue(kotlin.math.abs(child[k] - a[k]) < 6 * Temperament.DRIFT_SD)
     }
 

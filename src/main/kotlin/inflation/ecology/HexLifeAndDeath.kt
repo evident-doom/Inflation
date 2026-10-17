@@ -342,7 +342,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.dry = g.dry
     n.chasedOn = g.chasedOn
     n.birthMonth = g.birthMonth
-    n.temper = Temperament.inherit(g.temper, n.id)
+    n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.
     val share = (adults + young).toFloat() / (g.size + adults + young).coerceAtLeast(1)
     n.larder = g.larder * share; g.larder -= n.larder

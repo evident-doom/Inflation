@@ -203,6 +203,7 @@ class HexGroups(
     /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat; a herd with its own taste in herd size. */
     private fun spawn(s: Species, p: Int, unit: Int): HexGroup {
         val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
+        g.temper = Temperament.founder(g.id, seedBase)
         if (!s.carnivore) g.sizePref = exp((rnd.nextFloat() * 2f - 1f) * ln(SIZE_PREF_RANGE))
         g.fat = 0.5f * s.maxFatDays
         return g
