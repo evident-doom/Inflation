@@ -146,10 +146,12 @@ internal fun HexGroups.graze(weather: Weather) {
             val rest = (1f - lichen * HexFood.LICHEN_VALUE / want.coerceAtLeast(1e-12f)).coerceIn(0f, 1f)
             // What it was granted of its usual shares, in turn with the residents by body mass (see [HexFauna.graze]).
             val w = 4 * j
+            val grass = land.consume(p, LifeForm.HERB, c.want[w] * c.grant[w]); val browse = land.eatBrowse(p, c.want[w + 1] * c.grant[w + 1])
+            val fruit = food.take(food.fruit, p, c.want[w + 2] * c.grant[w + 2]); val roots = food.take(food.roots, p, c.want[w + 3] * c.grant[w + 3])
+            // (The rest of the week's grazing and browsing at a place is shared by all that eat there: what the
+            // residents' and herds' usual shares, and the herds before it, left; see [HexFauna.grazeLeft].)
             fun eatGrass(kg: Float): Float { val t = land.consume(p, LifeForm.HERB, min(kg, fauna.grazeLeft[p])); fauna.grazeLeft[p] -= t; return t }
             fun eatBrowse(kg: Float): Float { val t = land.eatBrowse(p, min(kg, fauna.browseLeft[p])); fauna.browseLeft[p] -= t; return t }
-            val grass = eatGrass(c.want[w]); val browse = eatBrowse(c.want[w + 1])
-            val fruit = food.take(food.fruit, p, c.want[w + 2]); val roots = food.take(food.roots, p, c.want[w + 3])
             // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
             // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
             // usual share (an ostrich out of fruit season picks more shoots and leaves).

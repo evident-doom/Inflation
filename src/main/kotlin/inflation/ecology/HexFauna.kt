@@ -473,7 +473,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // in the same turn by body mass (see [HerdClaims]); they make up a shortfall later, from what is left.
             var spareG = grass; var spareB = browse; var spareF = food.fruit[p]; var spareR = food.roots[p]
             val gs = FloatArray(kinds.size); val bs = FloatArray(kinds.size)
-            val cl: HerdClaims? = null; var ci = cl?.first?.get(p) ?: 0; val ce = cl?.first?.get(p + 1) ?: 0
+            val cl = claims; var ci = cl?.first?.get(p) ?: 0; val ce = cl?.first?.get(p + 1) ?: 0
             var herdG = 0f; var herdB = 0f
             var ri = 0
             while (ri < byMass.size || ci < ce) {
