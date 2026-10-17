@@ -1,7 +1,6 @@
 package inflation.world
 
 import kotlin.math.max
-import kotlin.math.min
 
 /**
  * What the simulation knows of each hex of a [HexMap], summarised from the fine world once:
