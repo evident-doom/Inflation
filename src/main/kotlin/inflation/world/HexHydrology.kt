@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.Books
+
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -171,6 +173,9 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         val share = days.toFloat() / Date.DAYS_PER_MONTH
         val volume = DoubleArray(hex.size)
         val underground = DoubleArray(hex.size)
+        // (For the books: rain and snowmelt in, and the water the soil and the seeps give to the air, m³.)
+        val books = land.books
+        var rainIn = 0.0; var toAir = 0.0
         for (p in 0 until n) {
             val t = weather.temperature[p]
             val rain = if (t >= 0f) weather.precipitation[p] else 0f
@@ -182,12 +187,19 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 val et = min(water, land.pet[m][p] * sun * share * heat * min(1f, water / (UNSTRESSED * soilCap[p])))
                 return water - et
             }
-            val sunny = bucket(soil[p] + rain + weather.meltSun[p], hw.sunlight.ratio[0][m][p])
-            val shady = bucket(soilShade[p] + rain + weather.meltShade[p], hw.sunlight.ratio[1][m][p])
+            val sunnyIn = soil[p] + rain + weather.meltSun[p]; val shadyIn = soilShade[p] + rain + weather.meltShade[p]
+            val sunny = bucket(sunnyIn, hw.sunlight.ratio[0][m][p])
+            val shady = bucket(shadyIn, hw.sunlight.ratio[1][m][p])
             soil[p] = min(sunny, soilCap[p]); soilShade[p] = min(shady, soilCap[p])
             val excess = (1 - land.slopeShade[p]) * max(0f, sunny - soilCap[p]) + land.slopeShade[p] * max(0f, shady - soilCap[p])
             // The turf of the seeps draws what it evaporates from the ground water seeping out under it.
+            val ground0 = groundwater[p]
             if (t > 0f) groundwater[p] = max(0f, groundwater[p] - SEEP_SHARE * land.pet[m][p] * share * heat * seeping(p))
+            if (books != null) {
+                val f = land.slopeShade[p]
+                rainIn += (rain + (1 - f) * weather.meltSun[p] + f * weather.meltShade[p]) / 1000.0 * land.areaM2[p]
+                toAir += ((1 - f) * (sunnyIn - sunny) + f * (shadyIn - shady) + ground0 - groundwater[p]) / 1000.0 * land.areaM2[p]
+            }
             // The rock takes in its share of what the soil cannot hold, as far as the aquifer has room; the rest runs off.
             val taken = min(excess * intake[p], aquiferCap[p] - groundwater[p]).coerceAtLeast(0f)
             groundwater[p] += taken
@@ -205,6 +217,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 volume[hw.placeHex[p]] += (mm - into) / 1000.0 * land.areaM2[p]
             }
         }
+        var outflow = 0.0
         for (h in order) {
             // Ground water drains into the hex's stream, or on underground to the valley of the hex below.
             val v = valley[h]
@@ -281,8 +294,20 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 if (m3 <= 0.0) continue
                 drink.sand[p] += (m3 / (HexDrinkingWater.SAND_M * HexDrinkingWater.SAND_YIELD * drink.bedM2[p])).toFloat(); volume[h] -= m3
             }
-            if (d >= 0) volume[d] += volume[h]
+            if (d >= 0) volume[d] += volume[h] else outflow += volume[h]
         }
+        if (books != null) {
+            books.flow(Books.Stuff.WATER, "rain and snowmelt", rainIn)
+            books.flow(Books.Stuff.WATER, "evaporation", -toAir)
+            books.flow(Books.Stuff.WATER, "rivers to the sea and closed lakes", -outflow)
+        }
+    }
+
+    /** Names the water's stocks in [books]: the soil, the ground water and the water in the bed sands. */
+    internal fun keepBooks(books: Books) {
+        books.stock(Books.Stuff.WATER, "soil water") { var s = 0.0; for (p in 0 until n) s += ((1 - land.slopeShade[p]) * soil[p] + land.slopeShade[p] * soilShade[p]) / 1000.0 * land.areaM2[p]; s }
+        books.stock(Books.Stuff.WATER, "ground water") { var s = 0.0; for (p in 0 until n) s += groundwater[p] / 1000.0 * land.areaM2[p]; s }
+        books.stock(Books.Stuff.WATER, "bed sands") { var s = 0.0; for (p in 0 until n) s += drink.sand[p] * HexDrinkingWater.SAND_M * HexDrinkingWater.SAND_YIELD * drink.bedM2[p].toDouble(); s }
     }
 
     /** Depth of the water table under the valley floor of place [p], m: at the surface when its aquifer is full. */

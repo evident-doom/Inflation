@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Books
 import inflation.Kg
 import inflation.KgM2
 import inflation.Tuning
@@ -221,6 +222,23 @@ class HexGroups(
     /** The player's hand on the followed group (the viewer's group controls), null for none: see [GroupControl]. */
     @Transient @Volatile var control: GroupControl? = null
 
+    /**
+     * Names the groups' stocks in [books]: the animals of each kind in herds, packs and bands (the young at a
+     * resident's [HexFauna.YOUNG_WEIGHT]), the meat hunters hold from the week's kills, and bands' food, caches, kept
+     * animals and the goods that come from living things (wood, fibre, resin, hide, bone, sinew).
+     */
+    internal fun keepBooks(books: Books) {
+        for (s in kinds) books.stock(Books.Stuff.MATTER, "group ${s.name}") {
+            var sum = 0.0; for (g in groups) if (g.alive && g.species == s) sum += (g.adults + HexFauna.YOUNG_WEIGHT * g.young) * s.massKg.toDouble(); sum }
+        books.stock(Books.Stuff.MATTER, "hunters' meat in hand") {
+            var sum = 0.0; for (g in groups) if (g.meatMet > 0f) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble(); sum }
+        fun bands(f: (Band) -> Double) = run { var sum = 0.0; for (g in groups) if (g.alive) g.band?.let { sum += f(it) }; sum }
+        books.stock(Books.Stuff.MATTER, "bands' food") { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += g.stores.sum(); sum }
+        books.stock(Books.Stuff.MATTER, "bands' caches") { bands { it.cacheKg.toDouble() } }
+        books.stock(Books.Stuff.MATTER, "bands' kept animals") { bands { b -> var sum = 0.0; for (k in b.herd.indices) sum += b.herd[k] * fauna.kinds[k].massKg; sum } }
+        books.stock(Books.Stuff.MATTER, "bands' goods of living things") { bands { it.livingGoods().toDouble() } }
+    }
+
     fun step(weather: Weather, date: Date) {
         stats.clear(); watchLog.clear()
         moon = date.meanMoonlight(days).toFloat()
@@ -333,20 +351,27 @@ class HexGroups(
         // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
         // same days, the earlier meetings are settled first, by each side's standing orders.
         val t0 = System.nanoTime()
+        val books = land.books
+        books?.check("groups: choosing and moving")
         Profile.time("groups: meetings") { meet(weather) }
         meetNs += System.nanoTime() - t0
+        books?.check("groups: meetings")
         Profile.part("groups: leaving sign") { leaveSign() }
         Profile.part("groups: wearing paths") { wear.week(groups, hw, land, days); routes.week() }
         Profile.time("groups: grazing") { graze(weather) }
+        books?.check("groups: grazing")
         Profile.time("groups: hunting") { hunt(weather) }
+        books?.check("groups: hunting and foraging")
         Profile.part("people: burning off") { burnOff(weather) }
         Profile.part("people: robbing caches") { robCaches(weather) }
         Profile.part("people: visiting kin") { visitKin(weather) }
+        books?.check("people: robbing caches, visiting kin")
         Profile.time("groups: ground, births, deaths") {
             Profile.part("hunters: marking ground") { mark() }
             Profile.part("hunters: settling ground") { settle(weather) }
             demography(weather, date)
         }
+        books?.check("groups: births, deaths")
         // (Groups that merged into another this week, kept for following what became of their choices.)
         merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
         // (A band that died out leaves what it had; one that joined another took it along.)

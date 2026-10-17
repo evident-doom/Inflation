@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Books
 import inflation.Tuning
 import inflation.Config
 import inflation.Kg
@@ -118,6 +119,8 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
         out.toIntArray()
     }
     @Transient internal val slopeShade = hw.sunlight.shade
+    /** The books of the run's water and matter, when kept (see [Books]); the parts and the ecology book their flows in them. */
+    @Transient var books: Books? = null
 
     // ---------------------------------------------------------------- the parts (saved before they were split out as the land's own fields)
 
@@ -145,7 +148,9 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     fun step(weather: Weather) {
         hydro.step(weather)
         drink.step(weather)
+        books?.check("water")
         plants.step(weather)
+        books?.check("plants")
     }
 
     companion object {

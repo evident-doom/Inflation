@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Books
+
 import inflation.Kg
 import inflation.KgM2
 import inflation.min
@@ -625,6 +627,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val people = g.adults.toFloat()
     val gd = b.goods
     gatherMaterials(g, b, p, h, people, area)
+    val living0 = b.livingGoods()
     val years = days / Date.DAYS_PER_YEAR.toFloat()
     wearAndInvent(b, years)
     // Making and mending takes the time the band has to spare, the tools it ranks first first (the
@@ -659,11 +662,12 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     keepFire(g, b)
     b.fire *= b.hearthWood
     // A fire through the night burns wood: where there is little, the night goes dark.
-    run {
+    val nightBurnt = run {
         val want = NIGHT_WOOD * people * min(1f, b.nightFire)
         val got = min(want, gd[Material.WOOD])
         gd[Material.WOOD] -= got
         b.nightWood = if (want > 0f) got / want else 1f
+        got
     }
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
@@ -680,6 +684,12 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time = buildPalisade(b, people, time)
     if (!b.houseHex.none && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
     b.spareDays = max(0f, time)
+    // (The wood burnt through the night goes to the air; what went into tools, houses, palisades and ornaments
+    // is not kept as matter, and they do not go back to the ground as they wear: a known leak.)
+    land.books?.let { bk ->
+        bk.flow(Books.Stuff.MATTER, "burnt", -nightBurnt.toDouble())
+        bk.leak(Books.Stuff.MATTER, "goods made into tools, houses and ornaments, not kept", (b.livingGoods() - living0 + nightBurnt).toDouble())
+    }
     // A band carries only so much: the rest is left behind (and goes back to the ground); at a camp it
     // keeps, it stacks building stone and timber beyond that.
     leaveExcess(b, p, people, area)
@@ -800,6 +810,7 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, pe
     if (woody > 0f) gd[Material.WOOD] += land.plants.consume(p.i, LifeForm.TREE, Kg(wood * tree / woody).perM2(m2)).over(m2).v +
         land.plants.consume(p.i, LifeForm.SHRUB, Kg(wood * shrub / woody).perM2(m2)).over(m2).v
     gd[Material.RESIN] += 0.05f * people * min(1f, tree / 3f)
+    land.books?.leak(Books.Stuff.MATTER, "resin, not taken from the trees", (0.05f * people * min(1f, tree / 3f)).toDouble())
     // (Reeds and rushes in a marsh give the best fibre of all.)
     val fibre = people * min(1f, (herb + shrub) / 0.5f + 2f * land.waterlogged[p])
     val green = herb + shrub
@@ -824,8 +835,9 @@ internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
     val got = spent * rate
     b.hearthWood = got / want
     val m2 = land.m2(p)
-    land.plants.consume(p.i, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2))
-    land.plants.consume(p.i, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2))
+    val burnt = land.plants.consume(p.i, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2)).v +
+        land.plants.consume(p.i, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2)).v
+    land.books?.flow(Books.Stuff.MATTER, "burnt", -burnt * m2.toDouble())
     return spent
 }
 
@@ -1070,6 +1082,8 @@ internal fun HexGroups.dropCache(b: Band) {
 
 /** The materials that rot back into the ground when left (stone, salt, ochre and shell stay as they are). */
 private val ROTS = setOf(Material.WOOD, Material.HIDE, Material.BONE, Material.SINEW, Material.FIBRE, Material.RESIN)
+/** The kg of [b]'s goods that came from living things (those that rot), for the books. */
+internal fun Band.livingGoods(): Float { var sum = 0f; for (m in ROTS) sum += goods[m]; return sum }
 
 /**
  * What a band that has died out leaves where it was: its food and the materials that rot go back to the ground,

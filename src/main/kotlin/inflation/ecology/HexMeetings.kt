@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Books
+
 import inflation.Kg
 import inflation.KgM2
 import inflation.Config
@@ -368,6 +370,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         for (st in EAT_ORDER) { val e = min(need, got[st.ordinal]); got[st.ordinal] -= e; need -= e; if (st.meat) ateMeat += e }
         for (st in EAT_ORDER) { val e = min(need, g.stores[st]); g.stores[st] -= e; need -= e; if (st.meat) ateMeat += e }
         eaten = wantAll - need
+        land.books?.flow(Books.Stuff.MATTER, "eaten", -eaten.toDouble())
         // (People living mostly on plant food need salt, which meat and fish carry; short of it,
         // they are listless and weak, and the food does them the less good.)
         if (eaten > 0f) {
@@ -380,47 +383,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         stats.hunting.merge(Tally.of(s, WeekStats.MEAT_EATEN), ateMeat.toInt(), Int::plus)
         stats.hunting.merge(Tally.of(s, WeekStats.PLANTS_EATEN), (eaten - ateMeat).toInt(), Int::plus)
-        // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
-        for (i in got.indices) g.stores.a[i] += got[i]
-        // Digging soaks and drawing their water takes time where that is the only water (see [HexDrinkingWater.mustDig]).
-        val spareDays = max(0f, workDays - busy - (if (land.drink.mustDig(g.place, s.dailyTravelKm)) HexDrinkingWater.DIG_SHARE * days else 0f))
-        // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
-        val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
-        val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
-        // (A band with salt salts what it cures: salt cures in any weather.)
-        val salt = band.goods[Material.SALT]
-        val salting = if (salt > 0f) band.skill(Skill.STORE) else 0f
-        val dryRate = max(max(sun, smoke), salting)
-        // (As much of it as the band chooses to.)
-        val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
-        if (dried > 0f) {
-            val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
-            val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
-            g.stores[Store.FRESH] -= dried; g.stores[Store.DRIED] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
-        }
-        // What time is left is for making and mending (see [bandWeek]).
-        band.spareDays = max(0f, spareDays * hands - if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
-        stats.hunting.merge(Tally.bandTime("all"), (days * hands * 10f).roundToInt(), Int::plus)
-        stats.hunting.merge(Tally.bandTime("firewood"), (fuelDays * hands * 10f).roundToInt(), Int::plus)
-        stats.hunting.merge(Tally.bandTime("food"), ((workDays - spareDays) * hands * 10f).roundToInt(), Int::plus)
-        stats.hunting.merge(Tally.bandTime("drying"), ((spareDays * hands - band.spareDays) * 10f).roundToInt(), Int::plus)
-        skinSmallGame(g, band, smallGot)
-        // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
-        // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
-        val home = if (band.atHome) band.house else 0f
-        // (Smoked meat keeps longer than sun-dried; pits sealed with clay and plaster keep the mice out.)
-        val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
-        var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (1f - tuning.saltKeep * band.salted))
-        val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
-        if (home > 0f) {
-            for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) {
-                val x = g.stores[st] * MICE * sealed * home * days / 7f
-                g.stores[st] -= x
-                rotten += x
-            }
-            if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
-        }
-        small.carrion[g.place] += land.spread(g.place, Kg(rotten)).v
+        keepAndSpoil(g, band, got, workDays, busy, hands, fuelDays, smallGot, weather)
         spare = 0f; meatEaten = ateMeat
     }
     // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
@@ -429,6 +392,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         g.surplus = gorge / g.dailyNeedKg.coerceAtLeast(1e-3f)
         spare -= gorge
         small.dung[g.place] += land.spread(g.place, Kg(HexSmallLife.DUNG * gorge)).v
+        land.books?.let { bookEaten(it, gorge * meatShare(null), HexSmallLife.DUNG * gorge) }
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
     // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
@@ -436,6 +400,80 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // (A band's meat eaten already holds the small game, scraps and fish it ate; what it stored is not yet eaten.)
     val animalEaten = if (band != null) meatEaten else meatEaten + smallGot + scraps + fish
     small.dung[g.place] += land.spread(g.place, Kg(HexSmallLife.DUNG * animalEaten)).v
+    land.books?.let { bookForage(it, band, meatEaten, smallGot + scraps + plants + fish, fish, spare, HexSmallLife.DUNG * animalEaten) }
+    // (The meat it held from the herds it met is eaten, stored or left by now.)
+    g.meatMet = 0f
+}
+
+/** Books [kg] eaten by a beast and the [dung] it dropped of it (see [Books]). */
+private fun bookEaten(b: Books, kg: Float, dung: Float) {
+    b.flow(Books.Stuff.MATTER, "eaten", -kg.toDouble()); b.flow(Books.Stuff.MATTER, "dung and frass", dung.toDouble())
+}
+
+/**
+ * Books [forage]'s week (see [Books]): the [fish] it caught come from the water life; a beast ate the meat of its [meatEaten]
+ * (its need counted in the whole weight of its kills, see [creditShare]) and [rest], kg, and dropped [dung]; and the [spare]
+ * it left lies as carrion at the whole weight credited, more than the meat it is (a known leak). A band's meal is booked as it eats.
+ */
+private fun HexGroups.bookForage(b: Books, band: Band?, meatEaten: Float, rest: Float, fish: Float, spare: Float, dung: Float) {
+    b.flow(Books.Stuff.MATTER, "to and from the water life", fish.toDouble())
+    if (band == null) {
+        bookEaten(b, meatEaten * meatShare(null) + rest, 0f)
+        if (spare > 0f) b.leak(Books.Stuff.MATTER, "beasts' leftovers left at their whole credited weight", (spare * (1f - meatShare(null))).toDouble())
+    }
+    b.flow(Books.Stuff.MATTER, "dung and frass", dung.toDouble())
+}
+
+
+/**
+ * [forage]'s end of a band's week with its food: what is left of the week's [got] (kg by [Store]) is kept, spare hands
+ * ([hands] of them, [workDays] less the [busy] days foraging) dry fresh meat and fish, the small game's skins are kept,
+ * and the stores spoil, what rots going to carrion where the band is.
+ */
+private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, workDays: Float, busy: Float, hands: Int, fuelDays: Float, smallGot: Float,
+    weather: Weather) {
+    val s = g.species
+    // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
+    for (i in got.indices) g.stores.a[i] += got[i]
+    // Digging soaks and drawing their water takes time where that is the only water (see [HexDrinkingWater.mustDig]).
+    val spareDays = max(0f, workDays - busy - (if (land.drink.mustDig(g.place, s.dailyTravelKm)) HexDrinkingWater.DIG_SHARE * days else 0f))
+    // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
+    val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
+    val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
+    // (A band with salt salts what it cures: salt cures in any weather.)
+    val salt = band.goods[Material.SALT]
+    val salting = if (salt > 0f) band.skill(Skill.STORE) else 0f
+    val dryRate = max(max(sun, smoke), salting)
+    // (As much of it as the band chooses to.)
+    val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
+    if (dried > 0f) {
+        val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
+        val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
+        g.stores[Store.FRESH] -= dried; g.stores[Store.DRIED] += dried; band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
+    }
+    // What time is left is for making and mending (see [bandWeek]).
+    band.spareDays = max(0f, spareDays * hands - if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
+    stats.hunting.merge(Tally.bandTime("all"), (days * hands * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandTime("firewood"), (fuelDays * hands * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandTime("food"), ((workDays - spareDays) * hands * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandTime("drying"), ((spareDays * hands - band.spareDays) * 10f).roundToInt(), Int::plus)
+    skinSmallGame(g, band, smallGot)
+    // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
+    // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
+    val home = if (band.atHome) band.house else 0f
+    // (Smoked meat keeps longer than sun-dried; pits sealed with clay and plaster keep the mice out.)
+    val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
+    var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (1f - tuning.saltKeep * band.salted))
+    val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
+    if (home > 0f) {
+        for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) {
+            val x = g.stores[st] * MICE * sealed * home * days / 7f
+            g.stores[st] -= x
+            rotten += x
+        }
+        if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
+    }
+    small.carrion[g.place] += land.spread(g.place, Kg(rotten)).v
 }
 
 /**
@@ -497,7 +535,9 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: the kilos it is worth. */
 private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float): Float {
     val band = g.band
-    val took = land.total(p, fauna.food.take(fauna.food.grain, p, land.spread(p, Kg(expected)))).v * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
+    val taken = land.total(p, fauna.food.take(fauna.food.grain, p, land.spread(p, Kg(expected)))).v
+    val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
+    land.books?.leak(Books.Stuff.MATTER, FOOD_VALUE, (took - taken).toDouble())
     // A sickle takes the ears that hold their grain more than those that shatter at a touch.
     if (band != null && took > 0f) {
         val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
@@ -558,7 +598,8 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
     val s = g.species; val band = g.band
     out.busy = 0f
     val stock = when (t) { Food.FRUIT -> fauna.food.fruit; Food.ROOTS -> fauna.food.roots; Food.SEED -> fauna.food.seeds; else -> fauna.food.finds }
-    var took = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(expected)))).v
+    val taken = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(expected)))).v
+    var took = taken
     // Raw seed is poorly digested; ground and baked into bread it feeds fully.
     if (t == Food.SEED) took *= seedValue(band)
     if (band != null && took > 0f) {
@@ -576,7 +617,11 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
         }
     }
     out.kg = took
+    land.books?.leak(Books.Stuff.MATTER, FOOD_VALUE, (took - taken).toDouble())
 }
+
+/** The known leak of bands' food reckoned in what it feeds rather than its mass (see [Books]). */
+private const val FOOD_VALUE = "food counted by what it feeds, not its mass (raw seed, cooking, leaching)"
 
 /** The kinds of food [forage] offers a party; all but [GRAIN] and [HERD] are also a band's effort slots ([FOOD_TYPES]: grain goes by grass seed's, a herd met by big game's). */
 enum class Food(val label: String) {
@@ -644,6 +689,14 @@ internal fun meatShare(band: Band?) = if (band == null) MEAT_SHARE else min(MEAT
  * of the prey it kills, the parts it leaves included ([Allometry.dailyIntakeKg]); for a band, what its butchers make of it.
  */
 internal fun creditShare(band: Band?) = if (band == null) 1f else meatShare(band)
+/**
+ * For the books: [credit] kg added to [hunter]'s meat in hand (taken off when below zero) from a kill of [kg] that left
+ * [carrion] kg; a beast holds only [meatShare] of what it is credited, so the rest of a kill credited whole goes nowhere.
+ */
+private fun HexGroups.bookKill(hunter: HexGroup, credit: Float, kg: Float, carrion: Float) {
+    land.books?.leak(Books.Stuff.MATTER, "hunters' kills credited at more or less than they weigh (young, rivals, theft)",
+        (credit * meatShare(hunter.band) / creditShare(hunter.band) + carrion - kg).toDouble())
+}
 /** What is left of a kill of [ps] as carrion when the hunter took [kgEach] of it towards its need. */
 internal fun leftOver(ps: Species, kgEach: Float, band: Band?) = max(0f, ps.massKg - kgEach * meatShare(band) / creditShare(band))
 const val MEAT_MOST = 0.7f
@@ -1062,6 +1115,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         if (herd.young > 0 && hunter.band?.holds(Tradition.TABOO_YOUNG) != true && rnd.nextFloat() < 0.5f * bandsIn(herd).pow(-BIG_HERD_SHELTERS)) {
             herd.young--
             hunter.meatMet += 0.3f * herd.species.massKg
+            bookKill(hunter, 0.3f * herd.species.massKg, 0.3f * herd.species.massKg, 0f)
         }
         else {
             herd.adults--
@@ -1180,6 +1234,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     if (weak.meatMet > 0f && rnd.nextFloat() < THEFT * strong.will[AnimalWay.STEAL] * (1f - cached)) {
         val taken = 0.7f * weak.meatMet
         weak.meatMet -= taken; strong.meatMet += taken
+        bookKill(strong, taken, 0f, 0f); bookKill(weak, -taken, 0f, 0f)
         stats.meetings.merge("kill stolen", 1, Int::plus)
     }
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
@@ -1191,11 +1246,13 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         weak.young--
         strong.meatMet += 0.3f * 0.5f * weak.species.massKg
         small.carrion[weak.place] += land.spread(weak.place, Kg(0.3f * 0.5f * weak.species.massKg)).v // (what the killers leave)
+        bookKill(strong, 0.3f * 0.5f * weak.species.massKg, 0.3f * weak.species.massKg, 0.3f * 0.5f * weak.species.massKg)
         stats.deaths.merge(Tally.of(weak.species, DeathCause.youngKilledBy(strong.species.name)), 1, Int::plus)
     } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
         adultsDied(weak, 1, rnd)
         strong.meatMet += 0.5f * weak.species.massKg
         small.carrion[weak.place] += land.spread(weak.place, Kg(0.5f * weak.species.massKg)).v
+        bookKill(strong, 0.5f * weak.species.massKg, weak.species.massKg, 0.5f * weak.species.massKg)
         stats.deaths.merge(Tally.of(weak.species, DeathCause.killedBy(strong.species.name)), 1, Int::plus)
     }
     stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back

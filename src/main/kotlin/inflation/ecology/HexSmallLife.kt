@@ -21,6 +21,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import java.util.stream.IntStream
+import java.util.concurrent.atomic.DoubleAdder
+import inflation.Books
 import kotlin.math.hypot
 
 /**
@@ -148,6 +150,24 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     private val leaving = Array(BIRDS.size) { FloatArray(n) }
     private var lastMonth = -1
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
+    /**
+     * For the books (see [Books]), this step, kg; null when they are not kept: what the small animals grew (born and
+     * grown, from what they ate or from their rates), ate, and dropped as dung and frass.
+     */
+    @Transient private var grewBook: DoubleAdder? = null
+    @Transient private var ateBook: DoubleAdder? = null
+    @Transient private var droppedBook: DoubleAdder? = null
+    /** And in the soil: what rotted away to the air, what came in from the plants and the residents' carcasses, and the soil animals' leaks. */
+    @Transient private var rotBook: DoubleAdder? = null
+    @Transient private var litterfallBook: DoubleAdder? = null
+    @Transient private var carcassBook: DoubleAdder? = null
+    @Transient private var soilGrewLeak: DoubleAdder? = null
+    @Transient private var soilDiedLeak: DoubleAdder? = null
+    private fun grew(p: Int, kgKm2: Float) { grewBook?.add(kgKm2 * land.areaKm2[p].toDouble()) }
+    private fun ate(p: Int, kgKm2: Float) { ateBook?.add(-kgKm2 * land.areaKm2[p].toDouble()) }
+    private fun dropped(p: Int, kgM2: Float) { droppedBook?.add(kgM2 * land.areaM2[p].toDouble()) }
+    private fun ateM2(p: Int, kgM2: Float) { ateBook?.add(-kgM2 * land.areaM2[p].toDouble()) }
+    @Transient private var crowdLeak: DoubleAdder? = null
     /** Share of each place that is wetland, where biting insects breed. */
     @Transient val wetland = FloatArray(n) { p -> hw.placeCells[p].count { val b = hw.world.biome[it]; b.name in WETLANDS }.toFloat() / hw.placeCells[p].size }
     /** Marsh, bog and floodplain, where ducks and geese feed. */
@@ -218,6 +238,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     fun step(weather: Weather, carcassKg: FloatArray) {
         val month = weather.date.month
+        val books = land.books
+        grewBook = books?.adder(Books.Stuff.MATTER, "small animals grew"); ateBook = books?.adder(Books.Stuff.MATTER, "eaten")
+        droppedBook = books?.adder(Books.Stuff.MATTER, "dung and frass")
+        rotBook = books?.adder(Books.Stuff.MATTER, "rot, to the air"); litterfallBook = books?.adder(Books.Stuff.MATTER, "litterfall (from the plants)")
+        carcassBook = books?.adder(Books.Stuff.MATTER, "carcasses (from the residents)")
+        soilGrewLeak = books?.leakAdder(Books.Stuff.MATTER, "soil animals grow from rot already gone to humus and air")
+        soilDiedLeak = books?.leakAdder(Books.Stuff.MATTER, "soil animals die without a body")
+        crowdLeak = books?.leakAdder(Books.Stuff.MATTER, "rodents crowded out without a body")
         // Migrant birds: those leaving this week go beyond the map; those coming back spread over the
         // ground that draws them, as many as survived the winter away.
         for (k in BIRDS.indices) {
@@ -233,6 +261,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 val awayMonths = generateSequence(wrapMonth(month - 1)) { wrapMonth(it - 1) }.takeWhile { it !in pr }.toSet()
                 val bredAway = b.breedMonths.any { it in awayMonths }
                 val back = if (bredAway) cap else away[k] * MIGRANT_SURVIVAL
+                books?.flow(Books.Stuff.MATTER, "migrant birds beyond the map", back - away[k])
                 // (Those that live on insects wait to settle where the insects boom, below.)
                 if (b.followsInsects) waiting[k] += back else returning[k] = if (cap > 0.0) back / cap else 0.0
                 away[k] = 0.0
@@ -245,6 +274,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                     var draw = 0.0
                     for (p in 0 until n) draw += (birdCapacity(k, p) * boom(p) * land.areaKm2[p]).toDouble()
                     if (draw > 0.0) { returning[k] = SETTLE * waiting[k] / draw; waiting[k] *= 1.0 - SETTLE }
+                    books?.flow(Books.Stuff.MATTER, "migrant birds beyond the map", -waiting[k] * b.deaths * years)
                     waiting[k] *= 1.0 - b.deaths * years
                 }
             }
@@ -275,6 +305,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // What the runoff washed off goes down the rivers; floods lay part of it on the floodplains with their silt.
         land.hydro.carrySilt(washedKg, laidKgM2)
         for (p in 0 until n) if (laidKgM2[p] > 0f) organicMatter[p] += laidKgM2[p]
+        if (books != null) {
+            var off = 0.0; for (p in 0 until n) off += washedKg[p] - laidKgM2[p] * land.areaM2[p].toDouble()
+            books.flow(Books.Stuff.MATTER, "litter washed to the sea and closed lakes", -off)
+        }
         Profile.part("small life: locusts") { stepLocusts(weather) }
         for (k in BIRDS.indices) {
             val l = leaving[k]; var sum = 0.0; for (p in l.indices) if (l[p] != 0f) { sum += l[p]; l[p] = 0f }
@@ -302,6 +336,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
         // What fell, what the animals dropped, and the small animals that died.
         litter[p] += land.plants.litterfall[p] + dung[p] + smallDead[p] / 1e6f
+        val m2 = land.areaM2[p].toDouble()
+        litterfallBook?.add(land.plants.litterfall[p] * m2)
         dung[p] = 0f; smallDead[p] = 0f
         // In sodden soil the rot runs short of air and slows (see [ANAEROBIC]): marsh, flooded and waterlogged valley floors build up peat and muck.
         val airless = 1f - (1f - ANAEROBIC) * land.hydro.saturated(p)
@@ -310,21 +346,26 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val humusGone = 0.05f * airless * years * organicMatter[p]
         record?.let { it.litterGone[p] += decomposed; it.organicGone[p] += humusGone }
         organicMatter[p] += 0.3f * decomposed - humusGone
+        rotBook?.add(-(0.7f * decomposed + humusGone) * m2)
         // Water running off over the ground washes some of the litter away into the streams (see [WASH_PER_MM]).
         val washed = litter[p] * min(0.5f, WASH_PER_MM * land.hydro.runoffMm[p])
         litter[p] -= washed; washedKg[p] = washed * land.m2(p)
         land.plants.organicFertility[p] = 0.3f * organicMatter[p] / (organicMatter[p] + 4f)
-        soilAnimals[p] += SOIL_YIELD * decomposed * 1e6f - soilAnimals[p] * min(1f, SOIL_DEATHS * years)
+        val soilDied = soilAnimals[p] * min(1f, SOIL_DEATHS * years)
+        soilGrewLeak?.add(SOIL_YIELD * decomposed * m2); soilDiedLeak?.add(-soilDied / 1e6 * m2)
+        soilAnimals[p] += SOIL_YIELD * decomposed * 1e6f - soilDied
         soilReach[p] = if (t > 0f) SOIL_REACH * wet else 0f
         // What lay from earlier weeks rots (half in three or four days at 15 °C, faster in the heat);
         // then the week's carcasses are added, fresh for the vultures and scavengers this week.
         if (carrion[p] > 0f) {
             val gone = carrion[p] * (1f - exp(-CARRION_ROT * max(0.1f, warm) * days))
             carrion[p] -= gone; litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
+            rotBook?.add(-0.7f * gone * m2)
             record?.let { it.carrionGone[p] += gone }
             if (carrion[p] < 1e-9f) carrion[p] = 0f
         }
         carrion[p] += land.spread(p, Kg(carcassKg[p])).v
+        carcassBook?.add(carcassKg[p].toDouble())
         // Bones weather away over a couple of years into the soil.
         if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b; record?.let { it.bonesGone[p] += b } }
     }
@@ -348,6 +389,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 land.plants.consume(p, LifeForm.SHRUB, KgKm2((1f - up) * insects[p] * 0.05f * days).perM2) +
                 land.plants.consume(p, LifeForm.TREE, KgKm2(up * insects[p] * INSECT_INTAKE * days).perM2)
             litter[p] += FRASS * eaten.v
+            ateM2(p, eaten.v); dropped(p, FRASS * eaten.v)
         }
         insects[p] = capped(p, insects[p], 3000f)
         return active
@@ -373,6 +415,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val need = KgKm2(r * 0.1f * days).perM2
         val eaten = land.plants.consume(p, LifeForm.HERB, need)
         litter[p] += FRASS * eaten.v
+        ateM2(p, eaten.v); dropped(p, FRASS * eaten.v)
         val fed = if (need.v > 0f) eaten / need else 1f
         val fresh = food * land.plants.green[p]
         val birth = if (t > 5f) 10f * years * fed * fresh / (fresh + 0.05f) else 0f // (half the most at 0.05 kg/m² of green forage)
@@ -380,6 +423,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val starved = r * (1f - fed)
         val ceil = 600f * food / (food + 0.3f)
         val bornR = r * birth * (1 - r / ceil.coerceAtLeast(1f))
+        if (bornR > 0f) grew(p, bornR) else crowdLeak?.add(bornR * land.areaKm2[p].toDouble())
         r += bornR - r * death - starved
         // (Starving below none: those dead are all there were.)
         smallDead[p] += rodents[p] * death + starved + min(0f, r)
@@ -399,6 +443,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         if (herpsActive(t, soilWater)) {
             val need = h * HERP_INTAKE * days
             val ate = if (need > 0f) takeSwitching(p, need, 0.5f, insectFood, insectEaseAt(p)) else 0f
+            ate(p, ate)
             val fed = if (need > 0f) ate / need else 1f
             val old = h * HERP_DEATHS * years; val hungry = h * HERP_HUNGER * (1f - fed) * years
             val died = old + hungry
@@ -406,6 +451,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             // (Young crowd the place's breeding sites: tadpoles the pools, eggs the warm sheltered ground.)
             val born = h * HERP_YOUNG * fed * max(0f, 1f - h / herpSites(p).coerceAtLeast(1e-3f)) * years
             h += born - died; herpBorn = born
+            grew(p, born)
             herpLedger[HerpLedger.BORN][p] += born; herpLedger[HerpLedger.DIED_OUT][p] += old; herpLedger[HerpLedger.HUNGER][p] += hungry
             herpLedger[HerpLedger.ATE][p] += ate; herpLedger[HerpLedger.NEEDED][p] += need
         } else { val died = h * HERP_DORMANT_DEATHS * years; smallDead[p] += died; h -= died; herpLedger[HerpLedger.LYING_UP][p] += died }
@@ -449,14 +495,18 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var l = old[p]
             // (A swarm is the hoppers that grew up on the green plants there: its weight comes off them.)
             if (season && l <= 0f && annualRain[p] < LOCUST_RAIN_MM && land.plants.green[p] > 0.6f &&
-                locustHash(p) < LOCUST_START * years) l = (land.plants.consume(p, LifeForm.HERB, KgKm2(LOCUST_SWARM / SMALL_EFFICIENCY).perM2) *
-                    SMALL_EFFICIENCY).perKm2.v
+                locustHash(p) < LOCUST_START * years) {
+                val taken = land.plants.consume(p, LifeForm.HERB, KgKm2(LOCUST_SWARM / SMALL_EFFICIENCY).perM2)
+                l = (taken * SMALL_EFFICIENCY).perKm2.v
+                ateM2(p, taken.v); grew(p, l)
+            }
             if (l <= 0f) continue
             // A swarm eats about its weight in green plants a day.
             val m2 = 1e6f
             val ate = land.plants.consume(p, LifeForm.HERB, KgM2(min(0.5f * land.plants.herb[p], 0.8f * l * days / m2))) +
                 land.plants.consume(p, LifeForm.SHRUB, KgM2(min(0.3f * land.plants.shrub[p], 0.2f * l * days / m2)))
             dung[p] += DUNG * ate.v
+            ateM2(p, ate.v); dropped(p, DUNG * ate.v)
             val dying = l * (if (season) LOCUST_DEATHS else 0.6f)
             smallDead[p] += dying * 1f
             l -= dying
@@ -511,6 +561,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             // (A few birds' need can round to nothing.)
             if (need > 0f) {
                 val ate = takeSwitching(p, need, 0.5f, insectFood, insectEaseAt(p))
+                ate(p, ate)
                 herpLedger[HerpLedger.EATEN_BY_BIRDS][p] += ate
                 fed = ate / need
             }
@@ -564,6 +615,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val eaten = land.plants.consume(p, LifeForm.HERB, KgKm2(0.7f * SMALL_INTAKE * eaters * days).perM2) +
                 land.plants.consume(p, LifeForm.SHRUB, KgKm2(0.3f * SMALL_INTAKE * eaters * days).perM2)
             dung[p] += DUNG * eaten.v
+            ateM2(p, eaten.v); dropped(p, DUNG * eaten.v)
         }
     }
 
@@ -584,6 +636,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
         val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + FOX_HALF)), 0.5f, foxPrey,
             floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { eB })
+        ate(p, got)
         if (b0 > 0f && eB > 0f) young[Nest.BIRDS][p] = max(0f, young[Nest.BIRDS][p] - (b0 - birdSum(p)) * min(1f, young[Nest.BIRDS][p] / (eB * b0)))
         if (r0 > 0f) young[Nest.RODENTS][p] *= rodents[p] / r0; if (ha0 > 0f) young[Nest.HARES][p] *= hares[p] / ha0
         noteTaken(p, TAKER_FOXES, r0, ha0, hy0, b0)
@@ -595,7 +648,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (owls[p] <= 0f && r > 0f) owls[p] = OWL_SEED * r
             val needO = owls[p] * OWL_INTAKE * days
             val gotO = min(0.5f * r, needO * r / (r + OWL_HALF))
-            if (gotO > 0f) { rodents[p] -= gotO; preyTakenBy[Prey.RODENTS][TAKER_OWLS][p] += gotO }
+            if (gotO > 0f) { rodents[p] -= gotO; preyTakenBy[Prey.RODENTS][TAKER_OWLS][p] += gotO; ate(p, gotO) }
             val fedO = if (needO > 0f) gotO / needO else 1f
             owls[p] = logistic(p, owls[p], if (month in 3..5) 3f * fedO else 0f, 0.3f + 0.8f * (1f - fedO), 0.02f * r)
         }
@@ -614,6 +667,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val left = need - scavenged
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
         val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + EAGLE_HALF)), 0.5f, eaglePrey)
+        ate(p, got)
         noteTaken(p, TAKER_EAGLES, r0, ha0, hy0, b0)
         // Fawns and kids make up much of what the small game does not.
         val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
@@ -652,7 +706,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val kk = max(k, 0.01f)
         val dead = min(x, x * d * years * if (x > kk) 2f else 1f)
         var change = x * r * years * (1f - x / kk)
-        if (change > 0f && grazes) change = (land.plants.consume(p, LifeForm.HERB, KgKm2(change / SMALL_EFFICIENCY).perM2) * SMALL_EFFICIENCY).perKm2.v
+        if (change > 0f && grazes) {
+            val taken = land.plants.consume(p, LifeForm.HERB, KgKm2(change / SMALL_EFFICIENCY).perM2)
+            change = (taken * SMALL_EFFICIENCY).perKm2.v
+            ateM2(p, taken.v)
+        }
+        if (counted && change > 0f) grew(p, change)
         val crowded = if (change < 0f) min(x - dead, -change) else 0f
         if (counted) smallDead[p] += dead + crowded
         if (ledger != null) { ledger[Ledger.GROWN][p] += max(0f, change); ledger[Ledger.DIED][p] += dead; ledger[Ledger.CROWDED][p] += crowded }
@@ -679,6 +738,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 if (got >= need) break
                 if (carrion[q] > 0f) { val m2 = land.m2(q); got += scavenge(q, Kg(need - got).perM2(m2)).over(m2).v }
             }
+            ateBook?.add(-got.toDouble())
             val fed = if (need > 0f) min(1f, got / need) else 1f
             var b = vultures[k]
             if (month in 1..2) b += b * 0.5f * fed * years * 6f // one chick a pair, hatched in late winter
@@ -703,7 +763,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         if (warm > 0f) {
             val out = dor * 0.5f * warm; dor -= out; ins += out
             val k = max(least, ceiling)
-            if (ins > 0f && ins < k) ins = k / (1f + (k / ins - 1f) * exp(-INSECT_GROWTH * warm * days))
+            if (ins > 0f && ins < k) { val was = ins; ins = k / (1f + (k / ins - 1f) * exp(-INSECT_GROWTH * warm * days)); grew(p, ins - was) }
             val died = ins * 2f * years; dead += died; ins -= died
             if (ins > k) { val spent = 0.5f * (ins - k); ins -= spent; dor += EGG_SHARE * spent; dead += (1f - EGG_SHARE) * spent }
         } else {
@@ -966,6 +1026,19 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         return "rodents %.0f t, hares %.0f t, hyrax %.0f t, birds %.0f t (%s), tortoises %.0f t, foxes %.0f t, owls %.0f t, eagles %.0f pairs, %d vulture colonies %.0f birds".format(
             t(rodents), t(hares), t(hyrax), t(birds), bird.indices.joinToString(", ") { "%s %.0f".format(BIRDS[it].name, t(bird[it])) },
             t(tortoises), t(foxes), t(owls), eagles.indices.sumOf { (eagles[it] * land.areaKm2[it]).toDouble() } / EAGLE_KM2, vultures.size, vultures.sum())
+    }
+
+    /** Names the soil's and the small animals' stocks in [books]. */
+    internal fun keepBooks(books: Books) {
+        fun perM2(name: String, a: FloatArray) = books.stock(Books.Stuff.MATTER, name) { var s = 0.0; for (p in 0 until n) s += a[p] * land.areaM2[p].toDouble(); s }
+        fun perKm2(name: String, a: FloatArray) = books.stock(Books.Stuff.MATTER, name) { var s = 0.0; for (p in 0 until n) s += a[p] * land.areaKm2[p].toDouble(); s }
+        perM2("litter", litter); perM2("soil organic matter", organicMatter); perM2("carrion", carrion); perM2("bones", bones); perM2("dung", dung)
+        perKm2("small dead", smallDead); perKm2("soil animals", soilAnimals); perKm2("insects", insects); perKm2("insects waiting", dormantInsects)
+        perKm2("biting insects", biting); perKm2("biting insects waiting", dormantBiting); perKm2("rodents", rodents); perKm2("reptiles and amphibians", herps)
+        perKm2("pollinators", pollinators); perKm2("pollinators waiting", dormantPollinators); perKm2("hares", hares); perKm2("hyrax", hyrax)
+        perKm2("tortoises", tortoises); perKm2("foxes", foxes); perKm2("owls", owls); perKm2("locusts", locusts)
+        for (k in BIRDS.indices) perKm2(BIRDS[k].name, bird[k])
+        books.stock(Books.Stuff.MATTER, "migrant birds away") { away.sum() + waiting.sum() }
     }
 
     /** Takes up to [want] of carrion in place [p]; returns what was taken. */
