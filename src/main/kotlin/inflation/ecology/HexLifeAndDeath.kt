@@ -347,19 +347,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.larder = g.larder * share; g.larder -= n.larder
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
-    g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); riteInherit(nb)
-        for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }
-        for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
-        nb.ornaments = b.ornaments * share; b.ornaments -= nb.ornaments; nb.exotic = b.exotic * share; b.exotic -= nb.exotic
-        nb.elders = b.elders * adults / (g.adults + adults).coerceAtLeast(1); b.elders -= nb.elders
-        // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
-        val go = adults.toFloat() / (g.adults + adults).coerceAtLeast(1)
-        for (i in b.holders.indices) if (b.holders[i] > 0f) {
-            val held = b.holders[i].toInt() + (if (rnd.nextFloat() < b.holders[i] - b.holders[i].toInt()) 1 else 0)
-            val took = binomial(held, go, rnd).toFloat(); nb.holders[i] = took; b.holders[i] = max(0f, b.holders[i] - took)
-        }
-        nb.lastAdults = adults; b.lastAdults = g.adults
-        for (i in b.ageStage.indices) { nb.ageStage[i] = b.ageStage[i] * adults / (g.adults + adults).coerceAtLeast(1); b.ageStage[i] -= nb.ageStage[i] } } }
+    g.band?.let { b -> n.band = Band().also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) } } }
     g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ); g.route.copyInto(n.route); g.proteinByMonth.copyInto(n.proteinByMonth)
     if (ROUNDS && !s.carnivore) driftRound(n)
     return n
@@ -751,34 +739,8 @@ internal fun HexGroups.mergeAndPair(date: Date) {
 
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
 private fun joinBand(into: HexGroup, from: HexGroup) {
-    val a = into.band!!; val b = from.band!!
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
-    for (i in a.skills.indices) a.skills[i] = max(a.skills[i], b.skills[i])
-    for (i in a.holders.indices) a.holders[i] = max(0f, a.holders[i]) + max(0f, b.holders[i])
-    a.lastAdults += from.adults
-    for (i in a.knowsSkill.indices) a.knowsSkill[i] = a.knowsSkill[i] || b.knowsSkill[i]
-    for (i in a.plants.indices) a.plants[i] = max(a.plants[i], b.plants[i])
-    for (i in a.kit.indices) {
-        val ka = a.kit[i] * (1f - w)
-        val kb = b.kit[i] * w
-        if (ka + kb > 0f) a.fine[i] = (ka * a.fine[i] + kb * b.fine[i]) / (ka + kb)
-        a.kit[i] += w * (b.kit[i] - a.kit[i])
-    }
-    val dried = into.stores[Store.DRIED.ordinal] + from.stores[Store.DRIED.ordinal]
-    if (dried > 0f) a.salted = (into.stores[Store.DRIED.ordinal] * a.salted + from.stores[Store.DRIED.ordinal] * b.salted) / dried
-    a.renown = max(a.renown, b.renown)
-    for (i in a.knows.indices) a.knows[i] = a.knows[i] || b.knows[i]
-    for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
-    for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
-    for ((k, v) in b.ties) if (k != into.id) a.ties[k] = max(a.tie(k), v)
-    a.ties.remove(from.id)
-    for (i in a.goods.indices) a.goods[i] += b.goods[i]
-    if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
-    for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
-    if (a.kept.size < b.kept.size) a.kept = a.kept.copyOf(b.kept.size)
-    for (i in b.kept.indices) a.kept[i] += b.kept[i]
-    a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
-    for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
+    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED.ordinal], from.stores[Store.DRIED.ordinal], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
     into.larder += from.larder
     into.memory.hear(from.memory, 0, 1f)

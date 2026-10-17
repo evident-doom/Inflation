@@ -1,6 +1,8 @@
 package inflation.ecology
 
+import inflation.binomial
 import inflation.world.HexLand
+import kotlin.random.Random
 import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.Config
@@ -339,8 +341,15 @@ class Band {
     fun holds(t: Tradition) = traditions[t.ordinal]
     fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
 
-    /** What a band splitting off takes along: everything it knew and believed, its descent and its grudges. */
-    fun copyInto(o: Band) {
+    /**
+     * A band splitting off it, [o] (made fresh), with [adults] of its adults; [stay] adults remain with it,
+     * and the two share out by heads at [share] (the new band's): the new band takes along everything
+     * it knew and believed, its descent and its grudges, a share of its goods, ornaments, kept animals,
+     * elders and ages, and its practised people go one way or the other (drawn from [r]); [copied] has the
+     * new band before anything is shared out (its customs drift as they are handed down). Each field's
+     * rule is in [CARRY].
+     */
+    fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
@@ -363,6 +372,54 @@ class Band {
         rite.copyInto(o.rite); o.riteStrength = riteStrength
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
+        copied(o)
+        for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
+        for (m in goods.indices) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
+        o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
+        o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
+        // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
+        val go = adults.toFloat() / (stay + adults).coerceAtLeast(1)
+        for (i in holders.indices) if (holders[i] > 0f) {
+            val held = holders[i].toInt() + (if (r.nextFloat() < holders[i] - holders[i].toInt()) 1 else 0)
+            val took = binomial(held, go, r).toFloat(); o.holders[i] = took; holders[i] = max(0f, holders[i] - took)
+        }
+        o.lastAdults = adults; lastAdults = stay
+        for (i in ageStage.indices) { o.ageStage[i] = ageStage[i] * adults / (stay + adults).coerceAtLeast(1); ageStage[i] -= o.ageStage[i] }
+    }
+
+    /**
+     * Band [b] (of [bAdults] adults, [w] of the adults of the two) joins this one: the best of what either
+     * knew, its goods and kept animals added, kit, descent and inbreeding blended by adults, its dried food's
+     * salting by the dried food each held ([dried] and [bDried], kg). [id] and [bId] are the two bands' ids.
+     * Each field's rule is in [CARRY].
+     */
+    fun absorb(b: Band, bAdults: Int, w: Float, dried: Float, bDried: Float, id: Int, bId: Int) {
+        val a = this
+        for (i in a.skills.indices) a.skills[i] = max(a.skills[i], b.skills[i])
+        for (i in a.holders.indices) a.holders[i] = max(0f, a.holders[i]) + max(0f, b.holders[i])
+        a.lastAdults += bAdults
+        for (i in a.knowsSkill.indices) a.knowsSkill[i] = a.knowsSkill[i] || b.knowsSkill[i]
+        for (i in a.plants.indices) a.plants[i] = max(a.plants[i], b.plants[i])
+        for (i in a.kit.indices) {
+            val ka = a.kit[i] * (1f - w)
+            val kb = b.kit[i] * w
+            if (ka + kb > 0f) a.fine[i] = (ka * a.fine[i] + kb * b.fine[i]) / (ka + kb)
+            a.kit[i] += w * (b.kit[i] - a.kit[i])
+        }
+        if (dried + bDried > 0f) a.salted = (dried * a.salted + bDried * b.salted) / (dried + bDried)
+        a.renown = max(a.renown, b.renown)
+        for (i in a.knows.indices) a.knows[i] = a.knows[i] || b.knows[i]
+        for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
+        for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
+        for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
+        a.ties.remove(bId)
+        for (i in a.goods.indices) a.goods[i] += b.goods[i]
+        if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
+        for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
+        if (a.kept.size < b.kept.size) a.kept = a.kept.copyOf(b.kept.size)
+        for (i in b.kept.indices) a.kept[i] += b.kept[i]
+        a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
+        for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
     }
 
     /** How well the band does at [s], against a master: from the skill's floor untrained to 1 (see [Skill]). */
@@ -475,6 +532,13 @@ class Band {
 
     companion object {
         /**
+         * How each of a band's fields goes when it splits ([splitInto]) and when another band joins it
+         * ([absorb]), as the code does it; BandCarryTest fails when a field is missing here, so that every
+         * new field's rule is chosen, not fallen into.
+         */
+        val CARRY: Map<String, Pair<OnSplit, OnJoin>> by lazy { carryRules() }
+
+        /**
          * A band starting out in country it knows, founded at ([x], [y]) km: practised at what the
          * country offers, with a basic kit, and the descent, words and customs of its country.
          */
@@ -492,6 +556,7 @@ class Band {
             plants.fill(0.5f)
         }
     }
+
 }
 
 /**
