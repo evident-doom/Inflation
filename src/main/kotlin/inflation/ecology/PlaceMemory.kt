@@ -62,7 +62,8 @@ class PlaceMemory {
 
     /** Takes in what [o] remembers that it does not, as hearsay worth [trust]. */
     fun hear(o: PlaceMemory, week: Int, trust: Float) {
-        for (k in 0 until MEMORY_SLOTS) if (o.hex[k] >= 0 && o.own[k]) record(o.hex[k], o.season[k], o.fed[k], o.water[k], o.danger[k], week, ownVisit = false, trust = trust)
+        for (k in 0 until MEMORY_SLOTS) if (o.hex[k] >= 0 && o.own[k]) record(o.hex[k], o.season[k], o.fed[k], o.water[k], o.danger[k], week,
+            ownVisit = false, trust = trust)
     }
 
     companion object {

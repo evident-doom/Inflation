@@ -56,7 +56,8 @@ fun main(args: Array<String>) {
     }
     val yrs = years.toDouble()
     println("mean temperature: correlation %.4f, mean difference %.2f °C".format(corr(tF, tC), (0 until n).map { abs(tF[it] - tC[it]) / steps }.average()))
-    println("rain and snow per year: correlation %.4f, mean difference %.0f mm (of %.0f mm)".format(corr(pF, pC), (0 until n).map { abs(pF[it] - pC[it]) / yrs }.average(), pF.average() / yrs))
+    println("rain and snow per year: correlation %.4f, mean difference %.0f mm (of %.0f mm)".format(corr(pF, pC),
+        (0 until n).map { abs(pF[it] - pC[it]) / yrs }.average(), pF.average() / yrs))
     println("weeks with snow lying per year: correlation %.4f, mean difference %.1f weeks (fine %.1f, bands %.1f)".format(
         corr(sF, sC), (0 until n).map { abs(sF[it] - sC[it]) / yrs }.average(), sF.average() / yrs, sC.average() / yrs))
     println("a weather step: %.1f ms on %d fine cells, %.2f ms on %d places".format(nsF / 1e6 / steps, world.grid.size, nsC / 1e6 / steps, n))

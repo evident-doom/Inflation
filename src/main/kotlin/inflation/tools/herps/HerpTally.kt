@@ -38,14 +38,19 @@ class HerpTally(private val run: HexLearning.Run, private val regions: HerpRegio
     val smallYearly = Array(SMALL.size) { DoubleArray(years) }
     /** Weeks of March [0] and September [1] each year. */
     val monthWeeks = Array(2) { IntArray(years) }
-    /** Month by month over the shown years, the map's songbirds, insects, pollinators and herps (summed over the month's weeks), the weeks, and [MonthFlow]s summed. */
+    /** Month by month over the shown years, the map's songbirds, insects, pollinators and herps (summed over the month's weeks), the
+     * weeks, and [MonthFlow]s summed. */
     val monthWeeksShown = IntArray(12)
     val monthStock = Array(12) { DoubleArray(4) }
     val monthFlow = Array(12) { DoubleArray(MonthFlow.SIZE) }
     private val flowsBefore = DoubleArray(MonthFlow.SIZE)
     /** Capacities as at the start: tortoises by class, each kind of bird over the map (kg). */
-    val tortCapacity = DoubleArray(classes).also { for (p in 0 until n) if (regions.classOf[p] >= 0) it[regions.classOf[p]] += (sl.tortoiseCapacity(p) * land.areaKm2[p]).toDouble() }
-    val birdCapacity = DoubleArray(nb).also { for (k in 0 until nb) for (p in 0 until n) if (regions.classOf[p] >= 0) it[k] += (sl.birdCapacityAt(k, p) * land.areaKm2[p]).toDouble() }
+    val tortCapacity = DoubleArray(classes).also {
+        for (p in 0 until n) if (regions.classOf[p] >= 0) it[regions.classOf[p]] += (sl.tortoiseCapacity(p) * land.areaKm2[p]).toDouble()
+    }
+    val birdCapacity = DoubleArray(nb).also {
+        for (k in 0 until nb) for (p in 0 until n) if (regions.classOf[p] >= 0) it[k] += (sl.birdCapacityAt(k, p) * land.areaKm2[p]).toDouble()
+    }
     private val boar = run.fauna.kinds.indexOfFirst { it.name == "wild boar" }
     val song = HexSmallLife.BIRDS.indexOfFirst { it.name == "songbirds" }
 
@@ -75,7 +80,13 @@ class HerpTally(private val run: HexLearning.Run, private val regions: HerpRegio
             if (shown) herpMean[cc] += sl.herps[p] * a / (show * perYear)
             tortYearly[cc][y] += sl.tortoises[p] * a / perYear; if (shown) tortMean[cc] += sl.tortoises[p] * a / (show * perYear)
             for (k in 0 until nb) { birdYearly[k][y] += sl.bird[k][p] * a / perYear; if (shown) birdMean[k] += sl.bird[k][p] * a / (show * perYear) }
-            if (shown) { val f = a / (show * perYear); preyMean[0][cc] += sl.rodents[p] * f; preyMean[1][cc] += sl.hares[p] * f; preyMean[2][cc] += sl.hyrax[p] * f; preyMean[3][cc] += sl.birds[p] * f }
+            if (shown) {
+                val f = a / (show * perYear)
+                preyMean[0][cc] += sl.rodents[p] * f
+                preyMean[1][cc] += sl.hares[p] * f
+                preyMean[2][cc] += sl.hyrax[p] * f
+                preyMean[3][cc] += sl.birds[p] * f
+            }
         }
     }
 
@@ -102,17 +113,21 @@ class HerpTally(private val run: HexLearning.Run, private val regions: HerpRegio
     private fun smallGame(y: Int, mi: Int) {
         for (p in 0 until n) {
             if (regions.classOf[p] < 0) continue; val a = land.areaKm2[p].toDouble() / perYear
-            val v = doubleArrayOf(sl.rodents[p].toDouble(), sl.hares[p].toDouble(), sl.hyrax[p].toDouble(), sl.birds[p].toDouble(), sl.tortoises[p].toDouble(), sl.foxes[p].toDouble(), sl.owls[p].toDouble(),
+            val v = doubleArrayOf(sl.rodents[p].toDouble(), sl.hares[p].toDouble(), sl.hyrax[p].toDouble(), sl.birds[p].toDouble(),
+                sl.tortoises[p].toDouble(), sl.foxes[p].toDouble(), sl.owls[p].toDouble(),
                 if (boar >= 0) (run.fauna.adults[boar][p] + run.fauna.young[boar][p]).toDouble() else 0.0)
             for (i in v.indices) smallYearly[i][y] += v[i] * a
-            smallYearly[10][y] += sl.insects[p] * a; smallYearly[11][y] += (sl.dormantInsects[p] + sl.dormantPollinators[p]) * a; smallYearly[12][y] += sl.pollinators[p] * a
+            smallYearly[10][y] += sl.insects[p] * a
+            smallYearly[11][y] += (sl.dormantInsects[p] + sl.dormantPollinators[p]) * a
+            smallYearly[12][y] += sl.pollinators[p] * a
             if (mi >= 0) smallYearly[8 + mi][y] += sl.rodents[p] * land.areaKm2[p].toDouble()
         }
     }
 
     companion object {
         /** The rows of [smallYearly]. */
-        val SMALL = listOf("rodents", "hares", "hyrax", "birds", "tortoises", "foxes", "owls", "boar/km2", "rod. Mar", "rod. Sep", "insects", "dormant ins.", "pollinators")
+        val SMALL = listOf("rodents", "hares", "hyrax", "birds", "tortoises", "foxes", "owls", "boar/km2", "rod. Mar", "rod. Sep",
+            "insects", "dormant ins.", "pollinators")
     }
 }
 

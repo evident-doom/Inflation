@@ -25,7 +25,8 @@ class TemperamentTest {
     @Test
     fun `a mover saved before temperament reads it with zero weight, and a bold group leans toward hunters`() {
         val rnd = Random(3)
-        val old = SharedMover(Mlp.random(intArrayOf(SharedMover.INPUTS - Temperament.AXES, 8, 8, 1), rnd), FloatArray(Catalogue.all.size * SharedMover.IDENTITY))
+        val old = SharedMover(Mlp.random(intArrayOf(SharedMover.INPUTS - Temperament.AXES, 8, 8, 1), rnd),
+            FloatArray(Catalogue.all.size * SharedMover.IDENTITY))
         val oldNames = Schema.MOVER_IN.dropLast(Temperament.AXES)
         val now = SharedMover(Schema.fit(old.net, oldNames, Schema.MOVER_OUT, Schema.MOVER_IN, Schema.MOVER_OUT), old.identity)
         val f = FloatArray(HexFeatures.SIZE) { rnd.nextFloat() }

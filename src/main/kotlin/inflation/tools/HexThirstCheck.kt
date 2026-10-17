@@ -23,18 +23,27 @@ fun main(args: Array<String>) {
     val sim = HexSim(WorldCache.load(cfg) { })
     val land = sim.land; val herds = sim.groups
     val stepsY = Date.DAYS_PER_YEAR / cfg.daysPerStep
-    val area = DoubleArray(12); val dry = DoubleArray(12); val far15 = DoubleArray(12); val far40 = DoubleArray(12); val far100 = DoubleArray(12); val pools = DoubleArray(12); val tint = DoubleArray(12)
+    val area = DoubleArray(12); val dry = DoubleArray(12); val far15 = DoubleArray(12); val far40 = DoubleArray(12); val far100 = DoubleArray(12)
+    val pools = DoubleArray(12); val tint = DoubleArray(12)
     val grazers = herds.kinds.filter { !it.carnivore }
-    val heads = Array(grazers.size) { DoubleArray(12) }; val drying = Array(grazers.size) { DoubleArray(12) }; val thirsty = Array(grazers.size) { DoubleArray(12) }
+    val heads = Array(grazers.size) { DoubleArray(12) }; val drying = Array(grazers.size) { DoubleArray(12) }
+    val thirsty = Array(grazers.size) { DoubleArray(12) }
     for (y in 0 until years) repeat(stepsY) {
         sim.step()
         if (y < years - 1) return@repeat
         val m = sim.weather.lastMonth
         for (p in 0 until land.n) { val a = land.areaKm2[p].toDouble(); area[m] += a; tint[m] += a * land.water[p]
             if (land.water[p] >= 0.999f && land.waterKm[p] == 0f) pools[m] += a
-            if (land.water[p] < 0.05f) { dry[m] += a; if (land.waterKm[p] > 15f) far15[m] += a; if (land.waterKm[p] > 40f) far40[m] += a; if (land.waterKm[p] > 100f) far100[m] += a } }
+            if (land.water[p] < 0.05f) {
+                dry[m] += a
+                if (land.waterKm[p] > 15f) far15[m] += a
+                if (land.waterKm[p] > 40f) far40[m] += a
+                if (land.waterKm[p] > 100f) far100[m] += a
+            } }
         for (g in herds.groups) { if (!g.alive) continue; val i = grazers.indexOf(g.species); if (i < 0) continue
-            heads[i][m] += g.size.toDouble(); if (g.dry > 0f) drying[i][m] += g.size.toDouble(); if (g.dry > 0.5f * g.species.daysWithoutWater) thirsty[i][m] += g.size.toDouble() }
+            heads[i][m] += g.size.toDouble()
+            if (g.dry > 0f) drying[i][m] += g.size.toDouble()
+            if (g.dry > 0.5f * g.species.daysWithoutWater) thirsty[i][m] += g.size.toDouble() }
     }
     fun row(label: String, f: (Int) -> Double) = println("%-36s".format(label) + (0 until 12).joinToString(" ") { "%5.2f".format(f(it)) })
     println("%-36s".format("month") + (0 until 12).joinToString(" ") { "%5d".format(it) })

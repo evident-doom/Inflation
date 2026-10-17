@@ -197,7 +197,10 @@ internal class Restorer {
             moved += parts
             fill(part, Obj(-1, part.javaClass.name, parts.associateWith { node.fields.getValue(it) }))
         }
-        if (node.fields.size > fs.size || fs.any { it.name !in node.fields }) { val names = fs.mapTo(HashSet()) { it.name }; for (k in node.fields.keys) if (k !in names && k !in moved) dropped += "${target.javaClass.simpleName}.$k" }
+        if (node.fields.size > fs.size || fs.any { it.name !in node.fields }) {
+            val names = fs.mapTo(HashSet()) { it.name }
+            for (k in node.fields.keys) if (k !in names && k !in moved) dropped += "${target.javaClass.simpleName}.$k"
+        }
         for (f in fs) {
             val saved = node.fields[f.name] ?: continue
             val cur = f.get(target)

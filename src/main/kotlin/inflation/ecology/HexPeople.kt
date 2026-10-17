@@ -41,7 +41,8 @@ enum class Material {
  * the camp moves, and whether bands know it from the start (the others are hit on now and then and
  * passed on when bands meet).
  */
-enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerYear: Float, val makeDays: Float, val heavy: Boolean = false, val known: Boolean = false) {
+enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerYear: Float, val makeDays: Float,
+    val heavy: Boolean = false, val known: Boolean = false) {
     /** Stone-tipped spears: the basic hunting weapon. */
     SPEAR(mapOf(Material.STONE to 0.3f, Material.WOOD to 2f, Material.SINEW to 0.05f), Skill.KNAPPING, 1f, 1f, known = true),
     /** Bow and arrows tipped with microliths set in resin: reach and silence against fast, shy game. */
@@ -254,13 +255,21 @@ class Band {
     fun befriend(other: Int, by: Float) { ties[other] = (tie(other) + by * (if (by > 0f) 1f - tie(other) else 1f + tie(other))).coerceIn(-1f, 1f) }
     /** Person-days its people had to spare this week, after getting and keeping food. */
     var spareDays = 0f
-    /** Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's. */
+    /**
+     * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small
+     * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's.
+     */
     val effort = FloatArray(FOOD_TYPES) { 1f }
     /** Hides, bone and sinew from the game it killed, what each kind yields (see [Species.products]). */
     fun skin(s: Species, n: Int) {
-        goods[Material.HIDE.ordinal] += n * s.products.hide; goods[Material.BONE.ordinal] += n * s.products.bone; goods[Material.SINEW.ordinal] += n * s.products.sinew
+        goods[Material.HIDE.ordinal] += n * s.products.hide
+        goods[Material.BONE.ordinal] += n * s.products.bone
+        goods[Material.SINEW.ordinal] += n * s.products.sinew
     }
-    /** Its customs ([Tradition]), its words for things ([Language]), its descent (a share for each founding lineage), how inbred its children are, its grudges against each lineage's people. */
+    /**
+     * Its customs ([Tradition]), its words for things ([Language]), its descent (a share for each
+     * founding lineage), how inbred its children are, its grudges against each lineage's people.
+     */
     val traditions = BooleanArray(Tradition.entries.size)
     val words = IntArray(Language.CONCEPTS)
     val lineage = FloatArray(LINEAGES)
@@ -312,7 +321,22 @@ class Band {
         o.ties.clear(); o.ties.putAll(ties); o.appointHex = appointHex; o.appointMonth = appointMonth
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; o.herdTame = herdTame.copyOf()
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
-        skills.copyInto(o.skills); knowsSkill.copyInto(o.knowsSkill); sick.copyInto(o.sick); immune.copyInto(o.immune); o.hurt = hurt; o.lame = lame; holders.copyInto(o.holders); lastUsed.copyInto(o.lastUsed); o.weeks = weeks; plants.copyInto(o.plants); o.fire = fire; kit.copyInto(o.kit); knows.copyInto(o.knows); fine.copyInto(o.fine); o.salted = salted; o.renown = renown
+        skills.copyInto(o.skills)
+        knowsSkill.copyInto(o.knowsSkill)
+        sick.copyInto(o.sick)
+        immune.copyInto(o.immune)
+        o.hurt = hurt
+        o.lame = lame
+        holders.copyInto(o.holders)
+        lastUsed.copyInto(o.lastUsed)
+        o.weeks = weeks
+        plants.copyInto(o.plants)
+        o.fire = fire
+        kit.copyInto(o.kit)
+        knows.copyInto(o.knows)
+        fine.copyInto(o.fine)
+        o.salted = salted
+        o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campHex = campHex; o.campPlace = campPlace; o.known = known.copyOf(); o.kept = kept.copyOf()
@@ -357,7 +381,10 @@ class Band {
     fun detoxExtra(palatable: Float, water: Boolean): Float =
         if (!knowsSkill[Skill.LEACHING.ordinal] || !water) 0f
         else min(1f, LEACH_SHARE * skill(Skill.LEACHING) * has(Tool.BASKET) * (1f - palatable) / palatable.coerceAtLeast(0.1f))
-    fun practise(s: Skill, rate: Float = s.practice) { skills[s.ordinal] += rate * learning / s.complexity * toolsFor(s) * (1f - skills[s.ordinal]); lastUsed[s.ordinal] = weeks }
+    fun practise(s: Skill, rate: Float = s.practice) {
+        skills[s.ordinal] += rate * learning / s.complexity * toolsFor(s) * (1f - skills[s.ordinal])
+        lastUsed[s.ordinal] = weeks
+    }
     /**
      * How far a band can practise [s] with the tools it has: a hunter without spear or bow, a fisher
      * without lines and nets, a cook without tight baskets learns little of the craft (a little, at
@@ -379,7 +406,8 @@ class Band {
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species) =
-        skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR.ordinal]) + BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW.ordinal]) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
+        skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR.ordinal]) +
+            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW.ordinal]) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
 
     /** Its dogs against its hunters (one to three a full pack): they track, bay and hold game, and bark at night. */
     var dogShare = 0f
@@ -389,7 +417,9 @@ class Band {
 
     /** Gathering: the most of a plant food's stock in a place it can take in a week; [seed] for grass seed. */
     fun gatherShare(seed: Boolean): Float {
-        val kit = 1f + BASKET_GAIN * has(Tool.BASKET) + if (seed) SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE.ordinal]) + GRINDER_GAIN * has(Tool.GRINDER) else GRINDER_GAIN * 0.5f * has(Tool.GRINDER)
+        val kit = 1f + BASKET_GAIN * has(Tool.BASKET) +
+            if (seed) SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE.ordinal]) +
+                GRINDER_GAIN * has(Tool.GRINDER) else GRINDER_GAIN * 0.5f * has(Tool.GRINDER)
         return min(0.9f, GATHER_SHARE * skill(Skill.GATHER) * kit)
     }
 
@@ -405,14 +435,18 @@ class Band {
     /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
     fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    fun feels(t: Float) = if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire + max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
+    fun feels(t: Float) =
+        if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire +
+            max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
 
     /**
      * How far below what people can bear the cold at [t] °C (the week's mean) takes the band, °C: full
      * fur clothes, a fire and a shelter or house keep people alive in deep cold; the naked die of
      * exposure in a night of a few degrees above freezing, wet and windy.
      */
-    fun exposure(t: Float) = (EXPOSURE_C - t - PROTECT_CLOTHES * has(Tool.CLOTHES) * clothesFit() - PROTECT_FIRE * fire - max(PROTECT_SHELTER * shelter, if (atHome) PROTECT_HOUSE * house else 0f)).coerceAtLeast(0f)
+    fun exposure(t: Float) =
+        (EXPOSURE_C - t - PROTECT_CLOTHES * has(Tool.CLOTHES) * clothesFit() - PROTECT_FIRE * fire -
+            max(PROTECT_SHELTER * shelter, if (atHome) PROTECT_HOUSE * house else 0f)).coerceAtLeast(0f)
 
     companion object {
         /**
@@ -468,7 +502,12 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // (A debris hut takes a novice an afternoon, the practised an hour.)
     val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
     val shelterAim = min(1f, b.shelterWill)
-    if (b.shelter < shelterAim && time > 0f && people > 0f) { val built = min(shelterAim - b.shelter, time / shelterDays); b.shelter += built; time -= built * shelterDays; b.practise(Skill.WOODWORK, 0.2f * PRACTICE) }
+    if (b.shelter < shelterAim && time > 0f && people > 0f) {
+        val built = min(shelterAim - b.shelter, time / shelterDays)
+        b.shelter += built
+        time -= built * shelterDays
+        b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
+    }
     keepFire(g, b)
     // A fire through the night burns wood: where there is little, the night goes dark.
     run {
@@ -508,7 +547,10 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
     // From the high points on its way it sees as far as the line of sight and the weather allow;
     // its scouts range further still.
     var lookKm = 0f
-    for (h in g.path) { val q = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue; lookKm = max(lookKm, land.bestViewKm[q] * sight(q, weather) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f)) }
+    for (h in g.path) {
+        val q = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue
+        lookKm = max(lookKm, land.bestViewKm[q] * sight(q, weather) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f))
+    }
     val scouts = b.scoutShare * g.adults
     val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
     for (h in g.path) {
@@ -523,7 +565,11 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
 /** What [g]'s band can carry, kg: its adults' loads, more with baskets and bags. */
 private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
 
-/** [g]'s band at its camp in place [p] (hex [h]): moving camp caches what it cannot carry and leaves the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it has room for. */
+/**
+ * [g]'s band at its camp in place [p] (hex [h]): moving camp caches what it cannot carry and leaves
+ * the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it
+ * has room for.
+ */
 private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: Date) {
     if (h != b.campHex) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
@@ -537,7 +583,12 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: D
                 val cached = min(1f, b.cacheWill)
                 if (cached > 0f) dropCache(b)
                 var abandoned = 0f
-                for (i in g.stores.indices) { val x = g.stores[i] * left; g.stores[i] -= x; if (cached > 0f) b.cache[i] = x * cached; abandoned += x * (1f - cached) }
+                for (i in g.stores.indices) {
+                    val x = g.stores[i] * left
+                    g.stores[i] -= x
+                    if (cached > 0f) b.cache[i] = x * cached
+                    abandoned += x * (1f - cached)
+                }
                 if (cached > 0f) b.cachePlace = b.campPlace
                 if (abandoned > 0f) small.litter[b.campPlace] += abandoned / (land.areaKm2[b.campPlace] * 1e6f)
             }
@@ -555,7 +606,15 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Int, h: Int, date: D
             val diggers = small.rodents[cp] / CACHE_RODENTS_HALF + small.foxes[cp] / CACHE_FOXES_HALF +
                 cacheDiggers.sumOf { (fauna.adults[it][cp] / 0.5f).toDouble() }.toFloat()
             val dug = min(0.5f, CACHE_DUG * min(1f, diggers) * years)
-            if (dug > 0f) { var lost = 0f; for (i in b.cache.indices) { val x = b.cache[i] * dug; b.cache[i] -= x; lost += x }; small.carrion[cp] += 0.3f * lost / land.m2(cp) }
+            if (dug > 0f) {
+                var lost = 0f
+                for (i in b.cache.indices) {
+                    val x = b.cache[i] * dug
+                    b.cache[i] -= x
+                    lost += x
+                }
+                small.carrion[cp] += 0.3f * lost / land.m2(cp)
+            }
         }
         val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]]) + CACHE_SPOIL * b.cacheKg
         for (i in b.cache.indices) b.cache[i] *= 1f - CACHE_SPOIL
@@ -603,21 +662,33 @@ private fun HexGroups.wearAndInvent(b: Band, years: Float) {
         val k = t.ordinal
         // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
         val inUse = t == Tool.CLOTHES || usesOf(t).any { b.weeks - b.lastUsed[it.ordinal] <= 1 }
-        b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years * (if (inUse) 1f else IDLE_WEAR) * (if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[k]))
+        b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years * (if (inUse) 1f else IDLE_WEAR) *
+            (if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[k]))
         if (!b.knows[k]) {
             // A band that has a use for a tool now and then hits on it: bows where game is shy and
             // fast, sickles and grinding stones where it reaps seed, and so on.
-            if (rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[useOf(t).ordinal])) { b.knows[k] = true; stats.meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus) }
+            if (rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[useOf(t).ordinal])) {
+                b.knows[k] = true
+                stats.meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus)
+            }
             continue
         }
     }
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
-    for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) && s.needs.let { it == null || (b.knowsSkill[it.ordinal] && b.skills[it.ordinal] >= NEEDS_LEVEL) } && rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
-        b.knowsSkill[s.ordinal] = true; b.lastUsed[s.ordinal] = b.weeks; stats.meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
+    for (s in Skill.entries) if (!b.knowsSkill[s.ordinal] && (!s.settled || b.atHome) &&
+        s.needs.let { it == null || (b.knowsSkill[it.ordinal] && b.skills[it.ordinal] >= NEEDS_LEVEL) } &&
+        rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
+        b.knowsSkill[s.ordinal] = true
+        b.lastUsed[s.ordinal] = b.weeks
+        stats.meetings.merge("band hit on ${s.name.lowercase().replace('_', ' ')}", 1, Int::plus)
     }
 }
 
-/** Making and mending in the [time0] days [b] has to spare: the tools it ranks first first (the scaffold: the most worn), each as far as the time, the scarcest material and the skill allow. Returns the days left. */
+/**
+ * Making and mending in the [time0] days [b] has to spare: the tools it ranks first first (the
+ * scaffold: the most worn), each as far as the time, the scarcest material and the skill allow.
+ * Returns the days left.
+ */
 private fun HexGroups.makeTools(b: Band, people: Float, time0: Float): Float {
     val gd = b.goods
     var time = time0
@@ -653,19 +724,27 @@ private fun HexGroups.makeTools(b: Band, people: Float, time0: Float): Float {
     return time
 }
 
-/** Houses: [g]'s band, having kept its camp a while, builds stone-footed houses there with the [time0] days to spare, as far as its stone and timber go; houses it has left weather away. Returns the days left. */
+/**
+ * Houses: [g]'s band, having kept its camp a while, builds stone-footed houses there with the
+ * [time0] days to spare, as far as its stone and timber go; houses it has left weather away.
+ * Returns the days left.
+ */
 private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Int, h: Int, people: Float, years: Float, time0: Float): Float {
     val gd = b.goods
     var time = time0
     if (b.houseHex >= 0 && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
     // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
-    if (b.campWeeks >= HOUSE_AFTER_WEEKS / b.houseWill.coerceAtLeast(0.1f) && time > 0f && people > 0f && g.fed >= 0.9f && g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
+    if (b.campWeeks >= HOUSE_AFTER_WEEKS / b.houseWill.coerceAtLeast(0.1f) && time > 0f && people > 0f && g.fed >= 0.9f &&
+        g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
         if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
         if (b.houseHex == h && b.house < 1f) {
             // It builds the way it knows that its stone, timber and clay go furthest with.
             val clay = land.water[p] >= Thresholds.WET || land.waterKm[p] < 3f
             val way = listOf(Skill.STONE_FOOTING, Skill.PIT_HOUSE, Skill.MUDBRICK).filter { b.knowsSkill[it.ordinal] && (it != Skill.MUDBRICK || clay) }
-                .maxByOrNull { w -> val (st, wd, dd) = houseNeeds(w); minOf(time / (dd * people), gd[Material.STONE.ordinal] / max(1e-3f, st * people), gd[Material.WOOD.ordinal] / (wd * people)) }
+                .maxByOrNull { w ->
+                    val (st, wd, dd) = houseNeeds(w)
+                    minOf(time / (dd * people), gd[Material.STONE.ordinal] / max(1e-3f, st * people), gd[Material.WOOD.ordinal] / (wd * people))
+                }
                 ?: Skill.STONE_FOOTING
             val (stoneEach, woodEach, daysEach) = houseNeeds(way)
             val daysNow = daysEach * people / b.skill(way) * b.skill(Skill.STONE_FOOTING)
@@ -690,7 +769,8 @@ private fun HexGroups.makeOrnaments(b: Band, people: Float, time0: Float): Float
         val made = minOf(time / ORNAMENT_DAYS, stuff, ORNAMENTS_PER_PERSON * people - b.ornaments).coerceAtLeast(0f)
         if (made > 0f) {
             val fromShell = min(made, gd[Material.SHELL.ordinal] / SHELL_EACH)
-            gd[Material.SHELL.ordinal] -= fromShell * SHELL_EACH; gd[Material.BONE.ordinal] = max(0f, gd[Material.BONE.ordinal] - (made - fromShell) * BONE_EACH)
+            gd[Material.SHELL.ordinal] -= fromShell * SHELL_EACH
+            gd[Material.BONE.ordinal] = max(0f, gd[Material.BONE.ordinal] - (made - fromShell) * BONE_EACH)
             b.ornaments += made; b.exotic += fromShell; time -= made * ORNAMENT_DAYS
         }
     }
@@ -735,7 +815,10 @@ private fun HexGroups.leaveExcess(b: Band, p: Int, people: Float, area: Float) {
     for (m in gd.indices) {
         val stack = if (m == Material.STONE.ordinal || m == Material.WOOD.ordinal) (if (b.campWeeks >= 4) HOUSE_STONE + HOUSE_WOOD else 0f) else 0f
         val over = gd[m] - (GOODS_PER_PERSON + stack) * people
-        if (over > 0f) { gd[m] -= over; if (m == Material.WOOD.ordinal || m == Material.FIBRE.ordinal || m == Material.HIDE.ordinal) small.litter[p] += over / area }
+        if (over > 0f) {
+            gd[m] -= over
+            if (m == Material.WOOD.ordinal || m == Material.FIBRE.ordinal || m == Material.HIDE.ordinal) small.litter[p] += over / area
+        }
     }
 }
 
@@ -847,10 +930,16 @@ const val SHOWN = 0.2f
 const val UNKNOWN_COUNTRY = 0.2f
 const val KNOWN_AT_START = 3
 
-/** Taming: weekly drift towards boldness of a pack that lives by people's camps (centuries, not years); yearly chance a band takes a pup from such a pack, at full boldness and tameability. */
+/**
+ * Taming: weekly drift towards boldness of a pack that lives by people's camps (centuries, not
+ * years); yearly chance a band takes a pup from such a pack, at full boldness and tameability.
+ */
 const val BOLD_DRIFT = 0.0003f
 const val TAME = 0.5f
-/** Dogs: yearly growth of a band's dogs when fed, their yearly deaths, most a band keeps per adult; how much a full pack of dogs adds to the hunt and keeps off night attacks. */
+/**
+ * Dogs: yearly growth of a band's dogs when fed, their yearly deaths, most a band keeps per adult;
+ * how much a full pack of dogs adds to the hunt and keeps off night attacks.
+ */
 const val DOG_GROWTH = 0.4f
 const val DOG_DEATHS = 0.1f
 const val DOGS_PER_ADULT = 0.3f
@@ -954,7 +1043,10 @@ enum class BandWay(val label: String) {
 }
 val WAYS_OUT = FOOD_TYPES + 1 + Tool.entries.size + BandWay.entries.size
 
-/** What a band knows of itself this week, for its ways: the season, how fed it is and what it has on hand, its people, skills and tools, the warmth, its camp and its spare time. */
+/**
+ * What a band knows of itself this week, for its ways: the season, how fed it is and what it has on
+ * hand, its people, skills and tools, the warmth, its camp and its spare time.
+ */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArray) {
     val b = g.band ?: return
     var i = 0
@@ -1060,7 +1152,10 @@ internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, in
  * how strongly its houses draw a band back.
  */
 const val HOUSE_DAYS = 20f
-/** Caches: yearly share dug up where diggers are thick; rodents and foxes (kg/km²) at which they count fully; chance a band passing a hex finds another's cache there; share it takes. */
+/**
+ * Caches: yearly share dug up where diggers are thick; rodents and foxes (kg/km²) at which they
+ * count fully; chance a band passing a hex finds another's cache there; share it takes.
+ */
 const val CACHE_DUG = 2f
 const val CACHE_RODENTS_HALF = 200f
 const val CACHE_FOXES_HALF = 20f
@@ -1086,7 +1181,10 @@ const val HOME_PULL = 0.15f
  */
 internal fun HexGroups.robCaches(weather: Weather) {
     val caches = HashMap<Int, ArrayList<HexGroup>>()
-    for (g in groups) { val b = g.band ?: continue; if (g.alive && b.cachePlace >= 0 && b.cacheKg > 1f) caches.getOrPut(hw.placeHex[b.cachePlace]) { ArrayList() } += g }
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (g.alive && b.cachePlace >= 0 && b.cacheKg > 1f) caches.getOrPut(hw.placeHex[b.cachePlace]) { ArrayList() } += g
+    }
     if (caches.isEmpty()) return
     for (g in groups) {
         val b = g.band ?: continue
@@ -1144,7 +1242,11 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     }
 }
 
-/** Raids: hunger under which a band will go raiding; how far, km; weekly chance a driven band sets out; weeks it keeps at it. Palisades: person-days and timber (kg) for one person's share. Fighting: surprise and the lie of the land. */
+/**
+ * Raids: hunger under which a band will go raiding; how far, km; weekly chance a driven band sets
+ * out; weeks it keeps at it. Palisades: person-days and timber (kg) for one person's share.
+ * Fighting: surprise and the lie of the land.
+ */
 const val RAID_HUNGER = 0.6f
 const val RAID_RANGE_KM = 60.0
 const val RAID_PLOT = 0.3f
@@ -1157,7 +1259,10 @@ const val HIGH_GROUND = 0.5f
 /** Chance a band with no home to hold slips away from a raid, losing only what it cannot carry. */
 const val FLEE = 0.5f
 
-/** Sowing: months (0 the one after midwinter) for sowing in autumn; share of its stored grain a band sows; person-days to clear, sow and weed for each kg sown. */
+/**
+ * Sowing: months (0 the one after midwinter) for sowing in autumn; share of its stored grain a band
+ * sows; person-days to clear, sow and weed for each kg sown.
+ */
 val SOW_MONTHS = 9..10
 const val SOW_SHARE = 0.3f
 const val SOW_DAYS_PER_KG = 0.5f
@@ -1217,11 +1322,18 @@ val SALT_LACK = Config.float("t.saltLack", 0.15f)
 const val SALT_PER_KG = 0.1f
 val SALT_KEEP = Config.float("t.saltKeep", 0.7f)
 
-/** The materials bands give each other for their use (trade on); what a person uses of each in a year, kg (not measured: a full kit's wear, a year's curing, a year's tanning); how many years' worth a band keeps before it gives of it. */
+/**
+ * The materials bands give each other for their use (trade on); what a person uses of each in a
+ * year, kg (not measured: a full kit's wear, a year's curing, a year's tanning); how many years'
+ * worth a band keeps before it gives of it.
+ */
 val TRADED = listOf(Material.STONE, Material.SALT, Material.OCHRE)
 val YEAR_NEED = FloatArray(Material.entries.size).also { it[Material.STONE.ordinal] = 1f; it[Material.SALT.ordinal] = 4f; it[Material.OCHRE.ordinal] = 0.2f }
 const val KEEP_YEARS = 1f
-/** How much a gift that meets a band's whole want binds it to the giver (the giver half as much); ties below which no gift is given. Not measured: as a feast. */
+/**
+ * How much a gift that meets a band's whole want binds it to the giver (the giver half as much);
+ * ties below which no gift is given. Not measured: as a feast.
+ */
 const val TIE_USEFUL = 0.3f
 const val FEUD_GIFT = -0.2f
 /** How a band's name for its gifts counts against food in hand when other bands weigh whose ways to take up; share of it that fades a year. */
@@ -1262,12 +1374,19 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
             land.eatBrowse(p, need * d.browse / total)
         val fed = if (need > 0f) min(1f, got / need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
-        val born = if (inSeason) n * 0.5f * s.youngPerFemale * s.littersPerYear * fed * (0.3f + 0.7f * tame) / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
-        val died = n * min(0.9f, (s.backgroundMortality + 0.5f * (1f - fed) + HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)) * years + HERD_MOVE_LOSS * (1f - tame) * moved * b.lapse(Skill.TENDING))
+        val born = if (inSeason) n * 0.5f * s.youngPerFemale * s.littersPerYear * fed * (0.3f + 0.7f * tame) /
+            (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
+        val died = n * min(0.9f, (s.backgroundMortality + 0.5f * (1f - fed) + HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)) * years +
+            HERD_MOVE_LOSS * (1f - tame) * moved * b.lapse(Skill.TENDING))
         n = max(0f, n + born - died)
         // What it cannot keep it culls for meat.
         val most = HERD_PER_PERSON * g.size * b.edge(Skill.TENDING)
-        if (n > most) { val cull = n - most; n = most; g.stores[Store.FRESH.ordinal] += cull * s.massKg * MEAT_SHARE; stats.meetings.merge("kept animals culled", 1, Int::plus) }
+        if (n > most) {
+            val cull = n - most
+            n = most
+            g.stores[Store.FRESH.ordinal] += cull * s.massKg * MEAT_SHARE
+            stats.meetings.merge("kept animals culled", 1, Int::plus)
+        }
         b.herd[k] = if (n < 0.5f) 0f else n
         b.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)
         if (b.knowsSkill[Skill.TENDING.ordinal]) b.practise(Skill.TENDING, 0.5f * PRACTICE)
@@ -1366,7 +1485,10 @@ internal fun HexGroups.trainHolders(g: HexGroup, b: Band, spare: Float): Float {
     var time = spare
     val adults = g.adults.toFloat()
     b.weeks++
-    if (b.holders[0] < 0f) for (s in Skill.entries) { b.holders[s.ordinal] = if (b.knowsSkill[s.ordinal]) adults * s.share else 0f; b.lastUsed[s.ordinal] = b.weeks }
+    if (b.holders[0] < 0f) for (s in Skill.entries) {
+        b.holders[s.ordinal] = if (b.knowsSkill[s.ordinal]) adults * s.share else 0f
+        b.lastUsed[s.ordinal] = b.weeks
+    }
     // The dead take their skills with them.
     if (b.lastAdults > 0 && g.adults < b.lastAdults) { val k = adults / b.lastAdults; for (i in b.holders.indices) b.holders[i] *= k }
     b.lastAdults = g.adults

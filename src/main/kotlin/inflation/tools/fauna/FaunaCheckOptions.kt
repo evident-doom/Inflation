@@ -51,7 +51,8 @@ class FaunaCheckOptions(
         // Herds' and packs' ways from learned networks (herdWays=FILE, hunterWays=FILE), else the hand-written ways.
         Config.string("herdWays")?.let { groups.herdWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT)) }
         Config.string("hunterWays")?.let { groups.hunterWays = NetAnimalWays(Schema.load(File(it), Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
-        // Every kind moving by learned role networks (nets=DIR with herds.mlp, hunters.mlp, people.mlp, as HexPpo writes them), else by the hand-written choices.
+        // Every kind moving by learned role networks (nets=DIR with herds.mlp, hunters.mlp, people.mlp, as HexPpo writes them), else by
+        // the hand-written choices.
         Config.string("nets")?.let { dir ->
             val ps = Role.entries.map { r -> MoverPolicy(SharedMover.load(r.file(baselineDir(dir))), null, { 0f }, { 0 }) }
             for (s in groups.kinds) groups.policies[s] = ps[Role.of(s).ordinal]

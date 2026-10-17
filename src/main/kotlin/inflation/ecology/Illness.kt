@@ -64,8 +64,10 @@ internal fun passIllness(a: Band, b: Band) {
         if (d.contagion <= 0f) continue
         val i = d.ordinal
         val sa = a.sick[i]; val sb = b.sick[i]
-        if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + d.contagion * sa * max(0f, 1f - b.sick[i] - b.immune[i]) * (if (b.holds(Tradition.HYGIENE)) HYGIENE_GUARD else 1f))
-        if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + d.contagion * sb * max(0f, 1f - a.sick[i] - a.immune[i]) * (if (a.holds(Tradition.HYGIENE)) HYGIENE_GUARD else 1f))
+        if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + d.contagion * sa * max(0f, 1f - b.sick[i] - b.immune[i]) *
+            (if (b.holds(Tradition.HYGIENE)) HYGIENE_GUARD else 1f))
+        if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + d.contagion * sb * max(0f, 1f - a.sick[i] - a.immune[i]) *
+            (if (a.holds(Tradition.HYGIENE)) HYGIENE_GUARD else 1f))
     }
 }
 

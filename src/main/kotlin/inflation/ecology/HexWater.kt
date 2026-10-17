@@ -100,10 +100,17 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         placeColonies()
     }
 
-    /** The open water of each hex from the fine grid: the sea's mean depth and its shallows near land (shellfish beds), the share of lake that is closed, and the water's temperature by month. */
+    /**
+     * The open water of each hex from the fine grid: the sea's mean depth and its shallows near land
+     * (shellfish beds), the share of lake that is closed, and the water's temperature by month.
+     */
     private fun measureWater() {
         val grid = world.grid
-        val depthSum = DoubleArray(size); val seaCells = IntArray(size); val shallowCells = IntArray(size); val closedCells = IntArray(size); val lakeCells = IntArray(size)
+        val depthSum = DoubleArray(size)
+        val seaCells = IntArray(size)
+        val shallowCells = IntArray(size)
+        val closedCells = IntArray(size)
+        val lakeCells = IntArray(size)
         val tSum = Array(12) { DoubleArray(size) }; val wCells = IntArray(size)
         val r3 = max(1, (3 / grid.cellKm).toInt())
         for (i in 0 until grid.size) {
@@ -117,12 +124,18 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             if (world.elevation[i] > -10f) {
                 val x0 = grid.x(i); val y0 = grid.y(i)
                 var near = false
-                search@ for (dy in -r3..r3) for (dx in -r3..r3) if (grid.inBounds(x0 + dx, y0 + dy) && !world.isSea[grid.index(x0 + dx, y0 + dy)]) { near = true; break@search }
+                search@ for (dy in -r3..r3) for (dx in -r3..r3) if (grid.inBounds(x0 + dx, y0 + dy) && !world.isSea[grid.index(x0 + dx, y0 + dy)]) {
+                    near = true
+                    break@search
+                }
                 if (near) shallowCells[h]++
             }
         }
         for (h in 0 until size) {
-            if (seaCells[h] > 0) { depthM[h] = (depthSum[h] / seaCells[h]).toFloat(); shallow[h] = shallowCells[h].toFloat() / seaCells[h] }
+            if (seaCells[h] > 0) {
+                depthM[h] = (depthSum[h] / seaCells[h]).toFloat()
+                shallow[h] = shallowCells[h].toFloat() / seaCells[h]
+            }
             if (lakeCells[h] > 0) closedLake[h] = closedCells[h].toFloat() / lakeCells[h]
             for (m in 0 until 12) waterTemp[m][h] = if (wCells[h] > 0) (tSum[m][h] / wCells[h]).toFloat() else hw.temp[m][h]
         }
@@ -135,7 +148,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         for (h in 0 until size) if (hw.land[h] > 0f) { dist[h] = 0f; queue += h }
         while (queue.isNotEmpty()) {
             val h = queue.removeFirst()
-            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && dist[q] > dist[h] + hex.hexKm) { dist[q] = (dist[h] + hex.hexKm).toFloat(); queue += q } }
+            for (d in 0 until 6) {
+                val q = hex.neighbour(h, d)
+                if (q >= 0 && dist[q] > dist[h] + hex.hexKm) { dist[q] = (dist[h] + hex.hexKm).toFloat(); queue += q }
+            }
         }
         for (h in 0 until size) shoreKm[h] = dist[h]
     }
@@ -151,7 +167,11 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         return mouthFlow
     }
 
-    /** The water's nutrient supply and its first plankton, fish, shellfish and sea animals; for each coastal sea hex the way out to sea and the land whose wind blows over it ([mouthFlow]: what the rivers bring, m³/s). */
+    /**
+     * The water's nutrient supply and its first plankton, fish, shellfish and sea animals; for each coastal
+     * sea hex the way out to sea and the land whose wind blows over it ([mouthFlow]: what the rivers bring,
+     * m³/s).
+     */
     private fun startWater(mouthFlow: FloatArray) {
         for (h in 0 until size) {
             if (waterKm2[h] <= 0f) continue
@@ -252,7 +272,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient val fishFlows = ConcurrentHashMap<String, Double>()
     // (Summed in adders during the parallel loop, without contention, and written to [fishFlows] after it.)
     @Transient private val flowAdders = ConcurrentHashMap<String, DoubleAdder>()
-    private fun flow(key: String, kgPerKm2: Float, h: Int) { if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble()) }
+    private fun flow(key: String, kgPerKm2: Float, h: Int) {
+        if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble())
+    }
     private val eatenBy = SEA.map { "eaten by ${it.name}" }
 
     fun step(weather: Weather) {
@@ -344,7 +366,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     var litterKg = 0.0
                     for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) litterKg += small.litter[p] * land.areaKm2[p] * 1e6 }
                     val ate = min(want, 0.5f * litterKg.toFloat())
-                    if (ate > 0f) for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) small.litter[p] *= 1f - ate / litterKg.toFloat() }
+                    if (ate > 0f) for (b in 0 until HexWorld.BANDS_M.size) {
+                        val p = hw.placeOf[b][h]
+                        if (p >= 0) small.litter[p] *= 1f - ate / litterKg.toFloat()
+                    }
                     grew = FISH_EFFICIENCY * ate / landKm2h
                 } else died = -change
                 if (land.flow[h] / max(land.meanFlow[h], 1e-3f) < 0.05f) died += 0.7f * (f + grew - died).coerceAtLeast(0f)
@@ -384,7 +409,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** For each sea hex the sea hexes next to it nearer the shore; and how many lie seaward of each. */
     private val shoreward = Array(size) { h ->
-        if (seaKm2[h] <= 0f) IntArray(0) else (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 && seaKm2[it] > 0f && shoreKm[it] < shoreKm[h] }.toIntArray()
+        if (seaKm2[h] <= 0f) IntArray(0) else (0 until 6).map { hex.neighbour(h, it) }
+            .filter { it >= 0 && seaKm2[it] > 0f && shoreKm[it] < shoreKm[h] }.toIntArray()
     }
     private val seaward = IntArray(size).also { c -> for (h in 0 until size) for (q in shoreward[h]) c[q]++ }
 
@@ -443,7 +469,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val fed = if (need > 0f) got / need else 1f
             // Turtles lay on warm beaches only.
             val beach = !a.nestsAshore || (shoreKm[h] <= 0f && waterTemp[month][h] >= NEST_TEMP)
-            val born = if (beach && monthsFrom(a.birthMonth, month) < a.birthMonths) m * a.youngPerFemale * 0.5f * fed / (a.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
+            val born = if (beach && monthsFrom(a.birthMonth, month) < a.birthMonths) m * a.youngPerFemale * 0.5f * fed /
+                (a.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
             val crowd = m / (SEA_FULL * a.massKg / a.startKm2)
             val died = m * min(0.9f, a.backgroundMortality * years + 0.6f * years * (1f - fed) + SEA_DISEASE * years * crowd * crowd)
             sea[k][h] = max(0f, m + born - died)
@@ -548,7 +575,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         // Young birds from thriving colonies settle empty cliffs nearby, once a year.
         if (stepsDone++ % (Date.DAYS_PER_YEAR / days) == 0) for (c in colonyHex.indices) {
             if (colonyBirds[c] > 0f) continue
-            val src = colonyHex.indices.filter { colonyBirds[it] > 500f && hex.distanceKm(colonyHex[it], colonyHex[c]) <= RESETTLE_KM }.maxByOrNull { colonyBirds[it] } ?: continue
+            val src = colonyHex.indices.filter { colonyBirds[it] > 500f && hex.distanceKm(colonyHex[it], colonyHex[c]) <= RESETTLE_KM }
+                .maxByOrNull { colonyBirds[it] } ?: continue
             val go = 0.05f * colonyBirds[src]
             colonyBirds[src] -= go; colonyBirds[c] += go
         }
@@ -608,7 +636,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /** What a band fishing from hex [h] with [skill] could catch in a week at most, kg (see [fishFor]). */
     fun fishWithin(h: Int, skill: Float = 1f): Float {
         val landKm2 = max(1f, hw.land[h] * hexKm2)
-        fun most(stock: FloatArray, q: Int, areaKm2: Float, search: Float): Float { val s = stock[q] * areaKm2; return if (s > 0f) min(0.5f * s, s * skill / search) else 0f }
+        fun most(stock: FloatArray, q: Int, areaKm2: Float, search: Float): Float {
+            val s = stock[q] * areaKm2
+            return if (s > 0f) min(0.5f * s, s * skill / search) else 0f
+        }
         var kg = most(run, h, landKm2, RUN_SEARCH) + most(riverFish, h, landKm2, RIVER_SEARCH)
         if (nesting && shoreKm[h] <= 0f) kg += most(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH)
         // (The hex and the six round it, in that order, without making a list each time: it is asked often.)
@@ -629,7 +660,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val sea0 = (0 until size).filter { seaKm2[it] > 0f }
         val zooMean = sea0.sumOf { (zoo[it] * seaKm2[it]).toDouble() } / sea0.sumOf { seaKm2[it].toDouble() }.coerceAtLeast(1.0)
         val phytoMean = sea0.sumOf { (phyto[it] * seaKm2[it]).toDouble() } / sea0.sumOf { seaKm2[it].toDouble() }.coerceAtLeast(1.0)
-        return "plankton at sea %.2f / %.3f g/m², ".format(phytoMean, zooMean) + "sea and lake fish %.0f t, river fish %.0f t, shellfish %.0f t, %s, sea birds %.0f in %d colonies".format(
+        return "plankton at sea %.2f / %.3f g/m², ".format(phytoMean, zooMean) +
+            "sea and lake fish %.0f t, river fish %.0f t, shellfish %.0f t, %s, sea birds %.0f in %d colonies".format(
             t(fish, waterKm2), t(riverFish, landKm2), t(shellfish, seaKm2),
             SEA.indices.joinToString(", ") { "%s %.0f".format(SEA[it].name, t(sea[it], seaKm2) * 1000 / SEA[it].massKg) },
             colonyBirds.sum(), colonyBirds.count { it > 0f })
@@ -680,9 +712,15 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         /** Share of the fish off a river mouth that run up it in spring; share of the run that lives to go back. */
         const val RUN_SHARE = 0.05f
         const val RUN_SURVIVAL = 0.7f
-        /** Upwelling: daily share of the gap to the deep water's nutrients mixed up at full strength; wind for full strength, m/s; weeks to answer a change of wind. */
+        /**
+         * Upwelling: daily share of the gap to the deep water's nutrients mixed up at full strength; wind for
+         * full strength, m/s; weeks to answer a change of wind.
+         */
         const val UPWELL_MIX = 0.1f
-        /** The deep water: nutrients it holds when renewed, as a share of a full supply; its volume as a multiple of the surface water's; yearly share renewed by the ocean beyond. */
+        /**
+         * The deep water: nutrients it holds when renewed, as a share of a full supply; its volume as a
+         * multiple of the surface water's; yearly share renewed by the ocean beyond.
+         */
         const val DEEP_BASE = 1f
         const val DEEP_VOLUME = 5f
         const val DEEP_RENEW = 0.5f
@@ -694,9 +732,15 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val TURTLE = SEA.indexOfFirst { it.nestsAshore }
         const val UPWELL_WIND = 8f
         const val UPWELL_WEEKS = 3f
-        /** Sea animals: a full sea as a multiple of the starting density; disease beyond it; shark weight per km² for full danger; share of prey sharks take. */
+        /**
+         * Sea animals: a full sea as a multiple of the starting density; disease beyond it; shark weight per
+         * km² for full danger; share of prey sharks take.
+         */
         const val SEA_FULL = 8f
-        /** How hard each kind of fish is for a band to come by: the stock, as a multiple of what it wants, that gives it half of that (a spawning run crowds a river; sea fish are scattered). */
+        /**
+         * How hard each kind of fish is for a band to come by: the stock, as a multiple of what it wants,
+         * that gives it half of that (a spawning run crowds a river; sea fish are scattered).
+         */
         const val RUN_SEARCH = 2f
         const val RIVER_SEARCH = 20f
         const val FISH_SEARCH = 100f
@@ -711,7 +755,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val SHARK_KG_KM2 = 0.5f
         /** Yearly share of seals, porpoises and dolphins sharks take where sharks are at full strength. */
         const val SHARK_ATTACK = 0.1f
-        /** Sea birds: reach from the colony, km; food a day, kg; share of the fish within reach a colony takes in a year at most; coast per colony, km; young a year. */
+        /**
+         * Sea birds: reach from the colony, km; food a day, kg; share of the fish within reach a colony takes
+         * in a year at most; coast per colony, km; young a year.
+         */
         const val BIRD_FORAGE_KM = 40.0
         const val BIRD_KG_DAY = 0.25f
         /** Share of the fish within reach a colony can catch in a week; how far young birds go to settle an empty cliff, km. */

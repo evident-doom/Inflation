@@ -114,7 +114,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Eagles hunting over each place, 0..1, and as many as the crags allow. */
     @Transient private val eagleCrags = land.overGround { min(1f, 2f * it) }
     val eagles = eagleCrags.copyOf()
-    /** Rock for the small life of broken ground, the mean over each place's ground (see [HexLand.overGround]): hyrax and rock doves, chukar, and the cracks and screes reptiles and small mammals hide in. */
+    /**
+     * Rock for the small life of broken ground, the mean over each place's ground (see
+     * [HexLand.overGround]): hyrax and rock doves, chukar, and the cracks and screes reptiles and
+     * small mammals hide in.
+     */
     @Transient private val rockKopje = land.overGround { it.pow(1.5f) }
     @Transient private val rockChukar = land.overGround { min(1f, it / 0.5f) }
     @Transient private val rockHides = land.overGround { 1f / (1f + min(1f, it)) }
@@ -142,7 +146,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** The year's mean temperature and rain at each place. */
     private val meanTemp = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(p, it) }.average().toFloat() }
     private val annualRain = FloatArray(n) { p -> (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat() }
-    /** The warmth, °C, at which the plant-eating insects of each place start to grow: about 10 °C, lower where summers are cool and the insects are adapted to them. */
+    /**
+     * The warmth, °C, at which the plant-eating insects of each place start to grow: about 10 °C,
+     * lower where summers are cool and the insects are adapted to them.
+     */
     private val insectFrom = FloatArray(n) { p -> ((0 until 12).maxOf { hw.placeTemp(p, it) } - 12f).coerceIn(INSECT_FROM_MIN_C, INSECT_FROM_C) }
 
     init {
@@ -318,7 +325,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         if (active > 0f) {
             // They eat about a quarter of their weight a day, and half of it comes back as frass.
             val up = if (canopy > 0f) canopy / (low + canopy) else 0f
-            val eaten = land.consume(p, LifeForm.HERB, (1f - up) * insects[p] * 0.2f * days / 1e6f) + land.consume(p, LifeForm.SHRUB, (1f - up) * insects[p] * 0.05f * days / 1e6f) +
+            val eaten = land.consume(p, LifeForm.HERB, (1f - up) * insects[p] * 0.2f * days / 1e6f) +
+                land.consume(p, LifeForm.SHRUB, (1f - up) * insects[p] * 0.05f * days / 1e6f) +
                 land.consume(p, LifeForm.TREE, up * insects[p] * INSECT_INTAKE * days / 1e6f)
             litter[p] += FRASS * eaten
         }
@@ -419,11 +427,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         for (p in 0 until n) {
             var l = old[p]
             // (A swarm is the hoppers that grew up on the green plants there: its weight comes off them.)
-            if (season && l <= 0f && annualRain[p] < LOCUST_RAIN_MM && land.green[p] > 0.6f && locustHash(p) < LOCUST_START * years) l = land.consume(p, LifeForm.HERB, LOCUST_SWARM / SMALL_EFFICIENCY / 1e6f) * SMALL_EFFICIENCY * 1e6f
+            if (season && l <= 0f && annualRain[p] < LOCUST_RAIN_MM && land.green[p] > 0.6f &&
+                locustHash(p) < LOCUST_START * years) l = land.consume(p, LifeForm.HERB, LOCUST_SWARM / SMALL_EFFICIENCY / 1e6f) * SMALL_EFFICIENCY * 1e6f
             if (l <= 0f) continue
             // A swarm eats about its weight in green plants a day.
             val m2 = 1e6f
-            val ate = land.consume(p, LifeForm.HERB, min(0.5f * land.herb[p], 0.8f * l * days / m2)) + land.consume(p, LifeForm.SHRUB, min(0.3f * land.shrub[p], 0.2f * l * days / m2))
+            val ate = land.consume(p, LifeForm.HERB, min(0.5f * land.herb[p], 0.8f * l * days / m2)) +
+                land.consume(p, LifeForm.SHRUB, min(0.3f * land.shrub[p], 0.2f * l * days / m2))
             dung[p] += DUNG * ate
             val dying = l * (if (season) LOCUST_DEATHS else 0.6f)
             smallDead[p] += dying * 1f
@@ -464,7 +474,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
     }
 
-    /** Bird kind [k] at place [p] this week: migrants leave and come back, the rest feed on insects as their kind does, breed in their months as fed ([mild] weather), and die more when short. */
+    /**
+     * Bird kind [k] at place [p] this week: migrants leave and come back, the rest feed on insects
+     * as their kind does, breed in their months as fed ([mild] weather), and die more when short.
+     */
     private fun stepBird(k: Int, p: Int, month: Int, mild: Boolean) {
         val b = BIRDS[k]; val f = bird[k]
         val here = b.present?.contains(month) ?: true
@@ -483,15 +496,29 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         f[p] = when {
             // Migrants leave for beyond the map at the end of their months here, and come back.
             !here -> { if (f[p] > 0f) { leaving[k][p] = f[p] * land.areaKm2[p]; birdLedger[k][BirdLedger.LEFT][p] += f[p] }; 0f }
-            returning[k] > 0.0 && !b.followsInsects -> { val back = (returning[k] * birdCapacity(k, p)).toFloat(); birdLedger[k][BirdLedger.BACK][p] += back; f[p] + back }
+            returning[k] > 0.0 && !b.followsInsects -> {
+                val back = (returning[k] * birdCapacity(k, p)).toFloat()
+                birdLedger[k][BirdLedger.BACK][p] += back
+                f[p] + back
+            }
             else -> {
                 val hunger = b.insectShare * (1f - fed)
                 // (Insect-eating migrants settling this week arrive where the insects boom, and live on as the rest.)
                 val arrived = if (b.followsInsects && returning[k] > 0.0) (returning[k] * birdCapacity(k, p) * boom(p)).toFloat() else 0f
-                birdLedger[k][BirdLedger.BACK][p] += arrived; if (here && b.insectShare > 0f) { birdLedger[k][BirdLedger.FED_DAYS][p] += fed * days; birdLedger[k][BirdLedger.INSECT_DAYS][p] += days }
-                var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f, b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, ledger = birdLedger[k], born = NEST_BIRDS)
+                birdLedger[k][BirdLedger.BACK][p] += arrived
+                if (here && b.insectShare > 0f) {
+                    birdLedger[k][BirdLedger.FED_DAYS][p] += fed * days
+                    birdLedger[k][BirdLedger.INSECT_DAYS][p] += days
+                }
+                var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f,
+                    b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, ledger = birdLedger[k], born = NEST_BIRDS)
                 // Insect-eating migrants leave a place where the insects have failed, for one where they boom.
-                if (b.followsInsects && fed < 0.5f && x > 0f) { val go = x * (1f - 2f * fed); leaving[k][p] = go * land.areaKm2[p]; birdLedger[k][BirdLedger.LEFT][p] += go; x -= go }
+                if (b.followsInsects && fed < 0.5f && x > 0f) {
+                    val go = x * (1f - 2f * fed)
+                    leaving[k][p] = go * land.areaKm2[p]
+                    birdLedger[k][BirdLedger.LEFT][p] += go
+                    x -= go
+                }
                 x
             }
         }
@@ -500,7 +527,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Tortoises at place [p]: out in the warm (when the soil is not dry), breeding in summer. Returns whether they are out. */
     private fun stepTortoises(p: Int, t: Float, month: Int): Boolean {
         val active = t in 14f..33f && land.soil[p] > 8f
-        tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f, tortoiseCapacity(p), grazes = true, ledger = tortLedger, born = NEST_TORTOISES)
+        tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f,
+            tortoiseCapacity(p), grazes = true, ledger = tortLedger, born = NEST_TORTOISES)
         nest(p, NEST_TORTOISES, tortoises[p], 0f)
         if (active) tortLedger[TortLedger.DAYS_OUT][p] += days; if (active && month in 4..8) tortLedger[TortLedger.BREEDING_DAYS][p] += days
         return active
@@ -511,7 +539,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // (A small share of their weight a day; tortoises only when out.)
         val eaters = hares[p] + hyrax[p] + birdsHere + (if (tortoisesOut) tortoises[p] else 0f) // kg/km²
         if (eaters > 0f) {
-            val eaten = land.consume(p, LifeForm.HERB, 0.7f * SMALL_INTAKE * eaters * days / 1e6f) + land.consume(p, LifeForm.SHRUB, 0.3f * SMALL_INTAKE * eaters * days / 1e6f)
+            val eaten = land.consume(p, LifeForm.HERB, 0.7f * SMALL_INTAKE * eaters * days / 1e6f) +
+                land.consume(p, LifeForm.SHRUB, 0.3f * SMALL_INTAKE * eaters * days / 1e6f)
             dung[p] += DUNG * eaten
         }
     }
@@ -531,7 +560,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val scavenged = scavengeFirst(p, dead, need, FOX_HALF)
         val left = need - scavenged
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
-        val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + FOX_HALF)), 0.5f, foxPrey, floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { eB })
+        val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + FOX_HALF)), 0.5f, foxPrey,
+            floatArrayOf(1f, 1f, 1f, INSECT_CATCH, INSECT_CATCH) + FloatArray(bird.size) { eB })
         if (b0 > 0f && eB > 0f) young[NEST_BIRDS][p] = max(0f, young[NEST_BIRDS][p] - (b0 - birdSum(p)) * min(1f, young[NEST_BIRDS][p] / (eB * b0)))
         if (r0 > 0f) young[NEST_RODENTS][p] *= rodents[p] / r0; if (ha0 > 0f) young[NEST_HARES][p] *= hares[p] / ha0
         noteTaken(p, TAKER_FOXES, r0, ha0, hy0, b0)
@@ -565,11 +595,17 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         noteTaken(p, TAKER_EAGLES, r0, ha0, hy0, b0)
         // Fawns and kids make up much of what the small game does not.
         val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
-        eagles[p] = logistic(p, eagles[p], if (month in 4..6) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p], counted = false) // (an index, not kg: their dead are not counted)
+        eagles[p] = logistic(p, eagles[p], if (month in 4..6) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p],
+            counted = false) // (an index, not kg: their dead are not counted)
     }
 
-    /** Carrion a hunter of small game at place [p] eats before it hunts, kg/km²: of [dead] kg/km² lying there, as readily as prey ([half]: where it finds half its [need]), at most half in a week. */
-    private fun scavengeFirst(p: Int, dead: Float, need: Float, half: Float) = if (dead > 0f && need > 0f) scavenge(p, min(0.5f * dead, need * dead / (dead + half)) / 1e6f) * 1e6f else 0f
+    /**
+     * Carrion a hunter of small game at place [p] eats before it hunts, kg/km²: of [dead] kg/km²
+     * lying there, as readily as prey ([half]: where it finds half its [need]), at most half in a
+     * week.
+     */
+    private fun scavengeFirst(p: Int, dead: Float, need: Float, half: Float) =
+        if (dead > 0f && need > 0f) scavenge(p, min(0.5f * dead, need * dead / (dead + half)) / 1e6f) * 1e6f else 0f
 
     /** Yearly share of the young of small hoofed animals eagles take in place [p]. */
     fun eagleRisk(p: Int) = EAGLE_RATE * eagles[p] * open(p)
@@ -589,7 +625,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * false for an index that is not kg. Growth is at [r] a year in season, deaths at [d] a year, toward
      * [k], in place [p]. An empty place stays empty until animals spread in from around it.
      */
-    private fun logistic(p: Int, x: Float, r: Float, d: Float, k: Float, grazes: Boolean = false, counted: Boolean = true, ledger: Array<FloatArray>? = null, born: Int = -1): Float {
+    private fun logistic(p: Int, x: Float, r: Float, d: Float, k: Float, grazes: Boolean = false, counted: Boolean = true,
+        ledger: Array<FloatArray>? = null, born: Int = -1): Float {
         val kk = max(k, 0.01f)
         val dead = min(x, x * d * years * if (x > kk) 2f else 1f)
         var change = x * r * years * (1f - x / kk)
@@ -730,7 +767,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // Desert rodents sleep through the summer heat in their burrows.
         val rodentsOut = !(t > 30f && land.soil[p] < 10f && annualRain[p] < DORMANT_RAIN_MM)
         // (Prey that is not out is not met: in the same order as [huntedAll].)
-        val yr = young[NEST_RODENTS][p]; val yha = young[NEST_HARES][p]; val yhy = young[NEST_HYRAX][p]; val yb = young[NEST_BIRDS][p]; val yh = young[NEST_HERPS][p]; val yt = young[NEST_TORTOISES][p]
+        val yr = young[NEST_RODENTS][p]
+        val yha = young[NEST_HARES][p]
+        val yhy = young[NEST_HYRAX][p]
+        val yb = young[NEST_BIRDS][p]
+        val yh = young[NEST_HERPS][p]
+        val yt = young[NEST_TORTOISES][p]
         val eR = if (rodentsOut) reachable(rodents[p], yr, reach(style, 0, p)) else 0f
         val eHa = reachable(hares[p], yha, reach(style, 1, p)); val eHy = reachable(hyrax[p], yhy, reach(style, 2, p))
         val eH = if (herpsOut) reachable(herps[p], yh, reach(style, 4, p)) else 0f
@@ -738,13 +780,16 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val eT = if (tortOut) reachable(tortoises[p], yt, reach(style, 5, p)) else 0f
         val eI = reach(style, 6, p)
         val ease = floatArrayOf(eR, eHa, eHy, 1f, eH, eT, eI, eI) + FloatArray(bird.size) { eB }
-        val total = eR * rodents[p] + eHa * hares[p] + eHy * hyrax[p] + eB * birds[p] + eH * herps[p] + eT * tortoises[p] + locusts[p] + eI * (insects[p] + pollinators[p])
+        val total = eR * rodents[p] + eHa * hares[p] + eHy * hyrax[p] + eB * birds[p] + eH * herps[p] + eT * tortoises[p] + locusts[p] +
+            eI * (insects[p] + pollinators[p])
         if (total <= 0f) return 0f
         val h0 = herps[p]; val t0 = tortoises[p]
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
         val took = takeSwitching(p, min(kgPerKm2, most * total), most, huntedAll, ease)
         // (Of what was taken of each kind, the young's share came out of the nest.)
-        fun tookYoung(i: Int, before: Float, now: Float, e: Float) { if (before > 0f && e > 0f) young[i][p] = max(0f, young[i][p] - (before - now) * min(1f, young[i][p] / (e * before))) }
+        fun tookYoung(i: Int, before: Float, now: Float, e: Float) {
+            if (before > 0f && e > 0f) young[i][p] = max(0f, young[i][p] - (before - now) * min(1f, young[i][p] / (e * before)))
+        }
         tookYoung(NEST_RODENTS, r0, rodents[p], eR); tookYoung(NEST_HARES, ha0, hares[p], eHa); tookYoung(NEST_HYRAX, hy0, hyrax[p], eHy)
         tookYoung(NEST_BIRDS, b0, birdSum(p), eB); tookYoung(NEST_HERPS, h0, herps[p], eH); tookYoung(NEST_TORTOISES, t0, tortoises[p], eT)
         herpLedger[HerpLedger.HUNTED][p] += h0 - herps[p]
@@ -783,7 +828,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * in parallel may undercount 4 a little.)
      */
     val herpLedger = Array(HerpLedger.SIZE) { FloatArray(n) }
-    /** Reptiles and amphibians taken by hunters since the ledger was cleared, kg/km², by who took them: the resident kind of that index, or (at [TAKER_GROUPS]) herds' and packs' hunters and people. */
+    /**
+     * Reptiles and amphibians taken by hunters since the ledger was cleared, kg/km², by who took
+     * them: the resident kind of that index, or (at [TAKER_GROUPS]) herds' and packs' hunters and
+     * people.
+     */
     val herpTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
     /**
      * The same for tortoises (for checks), kg/km² unless said: 0 grown, 1 died, 2 died of crowding, 3 taken by
@@ -799,7 +848,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     private fun birdSum(p: Int): Float { var all = 0f; for (b in bird) all += b[p]; return all }
     private fun noteTaken(p: Int, who: Int, r0: Float, ha0: Float, hy0: Float, b0: Float) {
         val t = preyTakenBy
-        t[Prey.RODENTS][who][p] += r0 - rodents[p]; t[Prey.HARES][who][p] += ha0 - hares[p]; t[Prey.HYRAX][who][p] += hy0 - hyrax[p]; t[Prey.BIRDS][who][p] += b0 - birdSum(p)
+        t[Prey.RODENTS][who][p] += r0 - rodents[p]
+        t[Prey.HARES][who][p] += ha0 - hares[p]
+        t[Prey.HYRAX][who][p] += hy0 - hyrax[p]
+        t[Prey.BIRDS][who][p] += b0 - birdSum(p)
     }
 
     private val huntedAll by lazy { (listOf(rodents, hares, hyrax, locusts, herps, tortoises, insects, pollinators) + bird).toTypedArray() }
@@ -880,7 +932,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         return crackBones(p, min(kg, 0.5f * bones[p] * searched * 1e6f) / m2) * m2
     }
 
-    /** Small prey on the ground at [p], kg/km²: rodents, hares, hyrax, game birds, reptiles and tortoises, locust swarms, and the insects a hunter can pick up (as [catchSmall]). */
+    /**
+     * Small prey on the ground at [p], kg/km²: rodents, hares, hyrax, game birds, reptiles and
+     * tortoises, locust swarms, and the insects a hunter can pick up (as [catchSmall]).
+     */
     fun smallPreyKg(p: Int) = rodents[p] + hares[p] + hyrax[p] + birds[p] + herps[p] + tortoises[p] + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
 
     /** Totals over the land, tonnes, and vultures in all colonies. */
@@ -971,7 +1026,10 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
         const val VULTURE_RANGE_KM = 80.0
         const val VULTURE_SPACING_KM = 80.0
-        /** Eagles: what the eagles over a place eat at full strength (a pair to [EAGLE_KM2]), kg/km² a day; yearly share of young taken in open crag country. */
+        /**
+         * Eagles: what the eagles over a place eat at full strength (a pair to [EAGLE_KM2]), kg/km²
+         * a day; yearly share of young taken in open crag country.
+         */
         const val EAGLE_NEED = 0.01f
         /** Ground a pair hunts over where the eagles are at full strength, km². */
         const val EAGLE_KM2 = 100.0
@@ -1080,17 +1138,27 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Foxes and wildcats eat about a fourteenth of their weight a day; prey on the ground (kg/km²) at which they get half of it. */
         const val FOX_INTAKE = 0.07f
         const val FOX_HALF = 3f
-        /** Locusts: where they swarm (rain under this, mm a year); yearly chance a greened place raises a swarm; a swarm, kg/km²; share dying a week in season. */
+        /**
+         * Locusts: where they swarm (rain under this, mm a year); yearly chance a greened place
+         * raises a swarm; a swarm, kg/km²; share dying a week in season.
+         */
         const val LOCUST_RAIN_MM = 250f
         const val LOCUST_START = 0.0005f
         const val LOCUST_SWARM = 5000f
         const val LOCUST_DEATHS = 0.15f
         /** Desert rodents (where rain is under this, mm a year) sleep through hot, dry weeks. */
         const val DORMANT_RAIN_MM = 300f
-        /** Owls and small hawks: food a day per kg of them; rodents (kg/km²) at which they get half of it; their share of the rodents where they first appear. */
+        /**
+         * Owls and small hawks: food a day per kg of them; rodents (kg/km²) at which they get half
+         * of it; their share of the rodents where they first appear.
+         */
         const val OWL_INTAKE = 0.2f
         const val OWL_HALF = 3f
-        /** Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the crows and ravens not counted here; foxes, wildcats and eagles are counted, below): half in three or four days. */
+        /**
+         * Share of a carcass gone a day at 15 °C (maggots, beetles, bacteria, and the crows and
+         * ravens not counted here; foxes, wildcats and eagles are counted, below): half in three or
+         * four days.
+         */
         const val CARRION_ROT = 0.2f
         /** Small prey of one kind, kg/km², at which hunters find it half as readily as a common kind. */
         const val SMALL_FIND_HALF = 2f

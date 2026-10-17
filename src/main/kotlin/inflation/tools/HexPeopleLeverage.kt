@@ -65,5 +65,6 @@ fun main(args: Array<String>) {
         val rel = seeds.map { s -> 100 * (of(s, c) / of(s, "hand") - 1) }
         Triple(c, rel, rel.average())
     }
-    for ((c, rel, m) in rows.sortedByDescending { abs(it.third) }) println("%-28s %+6.2f%%   (%s)".format(label(c), m, rel.joinToString(" ") { "%+.2f".format(it) }))
+    for ((c, rel, m) in rows.sortedByDescending { abs(it.third) }) println("%-28s %+6.2f%%   (%s)".format(label(c), m,
+        rel.joinToString(" ") { "%+.2f".format(it) }))
 }

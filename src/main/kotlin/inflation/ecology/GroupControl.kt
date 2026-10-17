@@ -21,13 +21,15 @@ interface GroupControl {
 class MoveDecision(
     val group: HexGroup,
     val date: Date,
-    /** The places it can reach, each with what it sees of it ([HexFeatures]), its hand-written score, the network's (null without one), and the hexes it would pass. */
+    /** The places it can reach, each with what it sees of it ([HexFeatures]), its hand-written score, the network's (null without one),
+     * and the hexes it would pass. */
     val places: IntArray,
     val features: Array<FloatArray>,
     val handScores: FloatArray,
     val netScores: FloatArray?,
     val paths: Array<IntArray>,
-    /** The model's pick (an index into [places]); whether a learned network chose it; whether the group was content (the model keeps it where it is without weighing). */
+    /** The model's pick (an index into [places]); whether a learned network chose it; whether the group was content (the model keeps it
+     * where it is without weighing). */
     val model: Int,
     val learned: Boolean,
     val content: Boolean,
@@ -71,10 +73,12 @@ internal fun HexGroups.askControl(
         val w = if (g.species.carnivore) hunterWays else herdWays
         out = FloatArray(ANIMAL_WAYS_OUT); (w ?: HAND_WRITTEN_ANIMAL_WAYS).choose(g, knows.copyOf(), out); learnedWays = w != null
     }
-    val d = MoveDecision(g, date, places, features, scores, net, Array(n) { pathTo(places[it]) }, model, policy != null, content, restless, reach, goal, onRound, knows, out, learnedWays)
+    val d = MoveDecision(g, date, places, features, scores, net, Array(n) { pathTo(places[it]) }, model, policy != null, content, restless, reach, goal,
+        onRound, knows, out, learnedWays)
     val pick = ctl.move(d).takeIf { it in 0 until n } ?: model
     // A herd's or pack's ways were set before it chose (bands set theirs as they forage): the player's pins take hold now.
-    if (band == null) setAnimalWays(g, weather, (if (g.species.carnivore) hunterWays else herdWays) ?: HAND_WRITTEN_ANIMAL_WAYS, FloatArray(ANIMAL_WAYS_IN), FloatArray(ANIMAL_WAYS_OUT))
+    if (band == null) setAnimalWays(g, weather, (if (g.species.carnivore) hunterWays else herdWays) ?: HAND_WRITTEN_ANIMAL_WAYS, FloatArray(ANIMAL_WAYS_IN),
+        FloatArray(ANIMAL_WAYS_OUT))
     return places[pick]
 }
 

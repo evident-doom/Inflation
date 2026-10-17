@@ -42,7 +42,13 @@ class HugeMethodTest {
                 inp.readUnsignedShort(); val name = utf[inp.readUnsignedShort()]!!; inp.readUnsignedShort()
                 repeat(inp.readUnsignedShort()) {
                     val attr = utf[inp.readUnsignedShort()]; val len = inp.readInt()
-                    if (attr == "Code") { inp.readUnsignedShort(); inp.readUnsignedShort(); val code = inp.readInt(); out[name] = maxOf(out[name] ?: 0, code); inp.skipBytes(len - 8) }
+                    if (attr == "Code") {
+                        inp.readUnsignedShort()
+                        inp.readUnsignedShort()
+                        val code = inp.readInt()
+                        out[name] = maxOf(out[name] ?: 0, code)
+                        inp.skipBytes(len - 8)
+                    }
                     else inp.skipBytes(len)
                 }
             }
@@ -66,7 +72,8 @@ class HugeMethodTest {
         val classes = mainClasses()
         val huge = classes.flatMap { c -> codeLengths(c).filter { it.value > limit && it.key != "<clinit>" }.map { "${c.name}.${it.key}: ${it.value}" } }
         assertTrue(huge.isEmpty(), "methods over $limit bytes run interpreted: $huge")
-        val near = classes.flatMap { c -> codeLengths(c).filter { it.value > limit * 3 / 4 && it.key != "<clinit>" }.map { "${c.simpleName}.${it.key} ${it.value}" } }
+        val near = classes.flatMap { c -> codeLengths(c).filter { it.value > limit * 3 / 4 && it.key != "<clinit>" }
+            .map { "${c.simpleName}.${it.key} ${it.value}" } }
         println("methods over 3/4 of $limit bytes: $near")
     }
 }

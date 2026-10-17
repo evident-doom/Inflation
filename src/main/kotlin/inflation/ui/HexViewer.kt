@@ -127,7 +127,10 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     /** How the tint is shown: this week (as drawn so far), scaled to the map, or over the last year. */
     private val modeChoice = JComboBox(ViewLayers.Mode.entries.map { it.label }.toTypedArray())
     /** For the deaths: which cause, or all. */
-    private val causeChoice = JComboBox((PlaceRecord.Cause.entries.map { "died of " + it.label } + "all causes").toTypedArray()).apply { selectedIndex = PlaceRecord.Cause.entries.size; isEnabled = false }
+    private val causeChoice = JComboBox((PlaceRecord.Cause.entries.map { "died of " + it.label } + "all causes").toTypedArray()).apply {
+        selectedIndex = PlaceRecord.Cause.entries.size
+        isEnabled = false
+    }
     /** What the tint's colours mean. */
     private val legendText = JLabel("")
     private val windBox = javax.swing.JCheckBox("Wind", false)
@@ -174,43 +177,80 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     private val kindButtons = ArrayList<javax.swing.JToggleButton>()
     /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
     @Volatile private var onlyKind: Species? = null
-    /** Life in the water to show as a tint: fish of the sea and lakes, river fish, shellfish, and each kind of sea animal (densities per hex). */
-    private val waterLayers by lazy { listOf<Pair<String, FloatArray>>("sea and lake fish" to fauna.water.fish, "river fish" to fauna.water.riverFish, "shellfish" to fauna.water.shellfish) +
+    /**
+     * Life in the water to show as a tint: fish of the sea and lakes, river fish, shellfish, and each kind of sea
+     * animal (densities per hex).
+     */
+    private val waterLayers by lazy { listOf<Pair<String, FloatArray>>("sea and lake fish" to fauna.water.fish, "river fish" to fauna.water.riverFish,
+        "shellfish" to fauna.water.shellfish) +
         HexWater.SEA.mapIndexed { i, k -> k.name to fauna.water.sea[i] } }
-    private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray() + waterLayers.map { "water: " + it.first }.toTypedArray()) }
+    private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray() +
+        waterLayers.map { "water: " + it.first }.toTypedArray()) }
     private val map = MapPanel()
     /** The hex being inspected, -1 for none, and its groups. */
     @Volatile private var picked = -1
-    private val info = JTextArea(14, 40).apply { isEditable = false; (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE; font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12) }
+    private val info = JTextArea(14, 40).apply {
+        isEditable = false; (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE
+        font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12)
+    }
     private val groupList = DefaultListModel<String>()
     private val groupView = JList(groupList)
-    private val groupInfo = JTextArea(12, 40).apply { isEditable = false; (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE; font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12) }
+    private val groupInfo = JTextArea(12, 40).apply {
+        isEditable = false; (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE
+        font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12)
+    }
     private var groupIds = IntArray(0)
 
     init {
         val bar = JPanel()
         // (The time controls here take over from the follow window: a week waiting there for the player goes on with the picks shown.)
-        val run = JButton("Run"); run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver() }
+        val run = JButton("Run")
+        run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver() }
         val step = JButton("Step"); step.addActionListener { control.overviewTakesOver(); commands += { advance() } }
         val speed = JSlider(1, 10, stepsPerSecond); speed.addChangeListener { stepsPerSecond = speed.value }
         residentChoice.addActionListener { map.repaint() }
-        tintChoice.addActionListener { causeChoice.isEnabled = Measure.entries[tintChoice.selectedIndex].byCause; map.repaint(); if (picked >= 0) inspect(picked) }
+        tintChoice.addActionListener {
+            causeChoice.isEnabled = Measure.entries[tintChoice.selectedIndex].byCause
+            map.repaint()
+            if (picked >= 0) inspect(picked)
+        }
         modeChoice.addActionListener { map.repaint() }; causeChoice.addActionListener { map.repaint(); if (picked >= 0) inspect(picked) }
         windBox.addActionListener { map.repaint() }
         riversBox.addActionListener { rivers.visible = riversBox.isSelected; map.repaint() }
-        herdsBox.addActionListener { map.repaint() }; huntersBox.addActionListener { map.repaint() }; peopleBox.addActionListener { map.repaint() }; pathsBox.addActionListener { map.repaint() }
+        herdsBox.addActionListener { map.repaint() }
+        huntersBox.addActionListener { map.repaint() }
+        peopleBox.addActionListener { map.repaint() }
+        pathsBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
-        bar.add(run); bar.add(step); bar.add(JLabel("weeks/s")); bar.add(speed); bar.add(tintChoice); bar.add(modeChoice); bar.add(causeChoice); bar.add(residentChoice); bar.add(herdsBox); bar.add(huntersBox); bar.add(peopleBox); bar.add(pathsBox); bar.add(windBox); bar.add(riversBox); bar.add(pullChoice)
+        bar.add(run)
+        bar.add(step)
+        bar.add(JLabel("weeks/s"))
+        bar.add(speed)
+        bar.add(tintChoice)
+        bar.add(modeChoice)
+        bar.add(causeChoice)
+        bar.add(residentChoice)
+        bar.add(herdsBox)
+        bar.add(huntersBox)
+        bar.add(peopleBox)
+        bar.add(pathsBox)
+        bar.add(windBox)
+        bar.add(riversBox)
+        bar.add(pullChoice)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
-        val save = JButton("Save…"); save.addActionListener { chooseFile(true)?.let { f -> commands += { HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } } }
+        val save = JButton("Save…")
+        save.addActionListener {
+            chooseFile(true)?.let { f -> commands += { HexSnapshot.save(sim, f); SwingUtilities.invokeLater { date.text = "   saved to ${f.name}" } } }
+        }
         val open = JButton("Load…"); open.addActionListener { chooseFile(false)?.let { f -> commands += { loadWorld(f) } } }
         // Following a group is the follow window: open it on the group picked in the list.
         val follow = JButton("Follow…")
         follow.toolTipText = "Follow the group picked in the list in its own window: its local map and state, what it knows, its choices each week (the model's highlighted), yours, and Next step"
         follow.addActionListener {
             val i = groupView.selectedIndex
-            if (i in groupIds.indices) control.follow(groupIds[i]) else javax.swing.JOptionPane.showMessageDialog(this, "Click a hex on the map and pick a group in the list first.")
+            if (i in groupIds.indices) control.follow(groupIds[i]) else javax.swing.JOptionPane.showMessageDialog(this,
+                "Click a hex on the map and pick a group in the list first.")
         }
         bar.add(follow)
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
@@ -220,7 +260,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         val all = fauna.kinds + groups.kinds
         for ((i, s) in all.withIndex()) {
             val b = javax.swing.JToggleButton(s.name); b.margin = java.awt.Insets(1, 4, 1, 4)
-            b.toolTipText = if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)" else "${s.name}: lives in herds or packs (shown as its density, and only its groups drawn)"
+            b.toolTipText = if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)"
+                else "${s.name}: lives in herds or packs (shown as its density, and only its groups drawn)"
             b.addActionListener {
                 for (o in kindButtons) if (o !== b) o.isSelected = false
                 onlyKind = if (b.isSelected && i >= fauna.kinds.size) s else null
@@ -236,7 +277,9 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) showGroup() }
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
-        val south = JPanel(BorderLayout()); south.add(legendText.apply { border = javax.swing.BorderFactory.createEmptyBorder(2, 6, 2, 6) }, BorderLayout.NORTH); south.add(bottom, BorderLayout.CENTER)
+        val south = JPanel(BorderLayout())
+        south.add(legendText.apply { border = javax.swing.BorderFactory.createEmptyBorder(2, 6, 2, 6) }, BorderLayout.NORTH)
+        south.add(bottom, BorderLayout.CENTER)
         add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(south, BorderLayout.SOUTH)
         snapshot()
         Thread(::loop, "hex simulation").apply { isDaemon = true }.start()
@@ -284,8 +327,12 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 val p = MoverPolicy(SharedMover.load(f), null, { 0f }, { 0 })
                 for (s in groups.kinds) if (Role.of(s) == role) groups.policies[s] = p
             }
-            java.io.File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let { groups.herdWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT)) }
-            java.io.File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let { groups.hunterWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT)) }
+            java.io.File(dir, "herd-ways.mlp").takeIf { it.exists() }?.let {
+                groups.herdWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HERD_WAYS_OUT))
+            }
+            java.io.File(dir, "hunter-ways.mlp").takeIf { it.exists() }?.let {
+                groups.hunterWays = NetAnimalWays(Schema.load(it, Schema.ANIMAL_WAYS_IN, Schema.HUNTER_WAYS_OUT))
+            }
         }
         (waysFile ?: nets?.let { java.io.File(inflation.tools.baselineDir(it), "ways.mlp").takeIf { f -> f.exists() }?.path })?.let {
             groups.ways = NetWays(Schema.load(java.io.File(it), Schema.WAYS_IN, Schema.WAYS_OUT))
@@ -327,7 +374,10 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         // (The texts are made here, on the simulation's thread, from the world as the week left it.)
         val dateText = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
         val all = fauna.kinds + groups.kinds
-        val kindTexts = all.mapIndexed { i, s -> "${s.name} " + (if (i < fauna.kinds.size) "%.0f".format(fauna.count(i)) else "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}") }
+        val kindTexts = all.mapIndexed { i, s ->
+            "${s.name} " +
+                (if (i < fauna.kinds.size) "%.0f".format(fauna.count(i)) else "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}")
+        }
         SwingUtilities.invokeLater {
             date.text = dateText
             for ((i, b) in kindButtons.withIndex()) b.text = kindTexts[i]
@@ -338,12 +388,18 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         var last = 0L
         while (true) {
             while (true) { val c = commands.poll() ?: break; worldLock.changing(c) }
-            if (running && frame >= frames && System.nanoTime() - last > 1_000_000_000L / stepsPerSecond) { last = System.nanoTime(); worldLock.changing { advance() } }
+            if (running && frame >= frames && System.nanoTime() - last > 1_000_000_000L / stepsPerSecond) {
+                last = System.nanoTime()
+                worldLock.changing { advance() }
+            }
             else Thread.sleep(5)
         }
     }
 
-    /** A colour from components that may stray outside 0..1 (a measure beyond its scale): clamped, as Color would otherwise throw and leave the map unpainted. */
+    /**
+     * A colour from components that may stray outside 0..1 (a measure beyond its scale): clamped, as Color would
+     * otherwise throw and leave the map unpainted.
+     */
     private fun rgba(r: Float, g: Float, b: Float, a: Float) = Color(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f), a.coerceIn(0f, 1f))
 
     private inner class MapPanel : JPanel() {
@@ -451,8 +507,12 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                 val rad = hex.hexKm / sqrt(3.0)
                 val dens = DoubleArray(hex.size); val area = DoubleArray(hex.size)
                 for (p in 0 until fauna.n) { val h = hw.placeHex[p]; area[h] += land.areaKm2[p].toDouble() }
-                if (r < fauna.kinds.size) for (p in 0 until fauna.n) dens[hw.placeHex[p]] += ((fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p]).toDouble()
-                else if (r < fauna.kinds.size + groups.kinds.size) { val s = groups.kinds[r - fauna.kinds.size]; for (gr in groups.groups) if (gr.alive && gr.species == s) dens[hw.placeHex[gr.place]] += gr.size.toDouble() }
+                if (r < fauna.kinds.size) for (p in 0 until fauna.n) dens[hw.placeHex[p]] += ((fauna.adults[r][p] + fauna.young[r][p]) *
+                    land.areaKm2[p]).toDouble()
+                else if (r < fauna.kinds.size + groups.kinds.size) {
+                    val s = groups.kinds[r - fauna.kinds.size]
+                    for (gr in groups.groups) if (gr.alive && gr.species == s) dens[hw.placeHex[gr.place]] += gr.size.toDouble()
+                }
                 else {
                     // Life in the water: its density per hex as it is kept (sea hexes too).
                     val stock = waterLayers[r - fauna.kinds.size - groups.kinds.size].second
@@ -512,7 +572,13 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             for (s in shown) {
                 val sp = Catalogue.all[s.kind]
                 // The group followed in the follow window: a yellow ring.
-                if (s.id == groups.watched) { val (fx, fy) = along(s.way, t); g.color = Color(1f, 0.85f, 0.1f); g.stroke = java.awt.BasicStroke(2.5f); g.drawOval(sx(fx) - 9, sy(fy) - 9, 18, 18); g.stroke = java.awt.BasicStroke(1f) }
+                if (s.id == groups.watched) {
+                    val (fx, fy) = along(s.way, t)
+                    g.color = Color(1f, 0.85f, 0.1f)
+                    g.stroke = java.awt.BasicStroke(2.5f)
+                    g.drawOval(sx(fx) - 9, sy(fy) - 9, 18, 18)
+                    g.stroke = java.awt.BasicStroke(1f)
+                }
                 if (if (sp.human) !peopleBox.isSelected else if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
                 if (onlyKind != null && sp != onlyKind) continue
                 val w = s.way
@@ -542,7 +608,10 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             var left = t * total
             for (j in 0 until w.size / 2 - 1) {
                 val len = hypot(w[2 * j + 2] - w[2 * j], w[2 * j + 3] - w[2 * j + 1])
-                if (left <= len && len > 0f) { val f = left / len; return w[2 * j] + (w[2 * j + 2] - w[2 * j]) * f to w[2 * j + 1] + (w[2 * j + 3] - w[2 * j + 1]) * f }
+                if (left <= len && len > 0f) {
+                    val f = left / len
+                    return w[2 * j] + (w[2 * j + 2] - w[2 * j]) * f to w[2 * j + 1] + (w[2 * j + 3] - w[2 * j + 1]) * f
+                }
                 left -= len
             }
             return w[w.size - 2] to w[w.size - 1]
@@ -573,7 +642,10 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
                     return "${tint.label}: what lies there over what went in a week. Pale: gone within days; full: two years or more (accumulating)."
                 }
                 if (tint == Measure.HUNTERS_PER_PREY) {
-                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) { val l = (log10(v[h]) / 1.5f).coerceIn(-1f, 1f); out[h] = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l) }
+                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) {
+                        val l = (log10(v[h]) / 1.5f).coerceIn(-1f, 1f)
+                        out[h] = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l)
+                    }
                     return "Hunters per prey, kg per 100 kg over a hex and its ring (people not counted). Clear at 1, about what prey carries of one carnivore kind in nature (Carbone & Gittleman 2002); red above (full at 30), blue below (full at 0.03)."
                 }
                 fixedColour(tint, v, out)?.let { return it }
@@ -630,10 +702,21 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     /** The measures' own fixed colour scales, as the viewer has always drawn them; null for a measure without one. */
     private fun fixedColour(tint: Measure, values: FloatArray, out: Array<Color?>): String? {
         val legend = when (tint) {
-            Measure.TEMPERATURE -> "blue -15 °C to red 35 °C"; Measure.SNOW -> "white from 5 mm, full at 300 mm"; Measure.RAIN -> "blue from 2 mm, full at 80 mm"
-            Measure.GREEN -> "yellow dry to green"; Measure.FORAGE -> "full at 2 kg/m²"; Measure.SOIL -> "brown dry to blue 150 mm"; Measure.WATER -> "full where all the ground is within reach of water"
-            Measure.INSECTS -> "full at 1500 kg/km²"; Measure.BITING -> "full at 400 kg/km²"; Measure.POLLINATORS -> "full at 50 kg/km²"; Measure.ORGANIC -> "full at 8 kg/m²"
-            Measure.SMALL_GAME -> "log scale, 1 to 600 kg/km²"; Measure.FOXES -> "full at 2 kg/km²"; Measure.OWLS -> "full at 1 kg/km²"; Measure.EAGLES -> "full where every range is held"
+            Measure.TEMPERATURE -> "blue -15 °C to red 35 °C"
+            Measure.SNOW -> "white from 5 mm, full at 300 mm"
+            Measure.RAIN -> "blue from 2 mm, full at 80 mm"
+            Measure.GREEN -> "yellow dry to green"
+            Measure.FORAGE -> "full at 2 kg/m²"
+            Measure.SOIL -> "brown dry to blue 150 mm"
+            Measure.WATER -> "full where all the ground is within reach of water"
+            Measure.INSECTS -> "full at 1500 kg/km²"
+            Measure.BITING -> "full at 400 kg/km²"
+            Measure.POLLINATORS -> "full at 50 kg/km²"
+            Measure.ORGANIC -> "full at 8 kg/m²"
+            Measure.SMALL_GAME -> "log scale, 1 to 600 kg/km²"
+            Measure.FOXES -> "full at 2 kg/km²"
+            Measure.OWLS -> "full at 1 kg/km²"
+            Measure.EAGLES -> "full where every range is held"
             Measure.CARRION -> "full at 20 kg/km²"; Measure.RESIDENTS -> "full at 20 head/km²"
             else -> return null
         }
@@ -672,11 +755,15 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         for (b in 0 until HexWorld.BANDS_M.size) {
             val p = hw.placeOf[b][h]
             if (p < 0) continue
-            sb.appendLine("band %d (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.soil[p]))
-            sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², green %.0f%%, rugged %.2f, refuge %.2f, lookout %.0f km".format(land.herb[p], land.shrub[p], land.tree[p], 100 * land.green[p], land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
-            sb.appendLine("   rain %.0f mm this week, wind %.1f m/s; drinking water within reach of %.0f%% (walk %.1f km)".format(weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p)), 100 * land.water[p], land.waterKm[p]))
+            sb.appendLine("band %d (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(
+                b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.soil[p]))
+            sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², green %.0f%%, rugged %.2f, refuge %.2f, lookout %.0f km".format(
+                land.herb[p], land.shrub[p], land.tree[p], 100 * land.green[p], land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
+            sb.appendLine("   rain %.0f mm this week, wind %.1f m/s; drinking water within reach of %.0f%% (walk %.1f km)".format(
+                weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p)), 100 * land.water[p], land.waterKm[p]))
             val sl = fauna.small
-            sb.appendLine("   insects %.0f, biting %.0f, rodents %.0f, reptiles %.0f, pollinators %.0f kg/km²; litter %.2f, organic %.1f kg/m²".format(sl.insects[p], sl.biting[p], sl.rodents[p], sl.herps[p], sl.pollinators[p], sl.litter[p], sl.organicMatter[p]))
+            sb.appendLine("   insects %.0f, biting %.0f, rodents %.0f, reptiles %.0f, pollinators %.0f kg/km²; litter %.2f, organic %.1f kg/m²".format(
+                sl.insects[p], sl.biting[p], sl.rodents[p], sl.herps[p], sl.pollinators[p], sl.litter[p], sl.organicMatter[p]))
             val res = fauna.kinds.indices.filter { fauna.adults[it][p] + fauna.young[it][p] > 0.01f }
                 .joinToString(", ") { "%s %.1f".format(fauna.kinds[it].name, fauna.adults[it][p] + fauna.young[it][p]) }
             if (res.isNotEmpty()) sb.appendLine("   resident herds per km²: $res")
@@ -696,8 +783,10 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         val gs = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
         sb.appendLine("country: " + describe(h))
         sb.appendLine("in the hex (%.0f km²):".format(totalArea))
-        sb.appendLine("   resident herds: " + fauna.kinds.indices.filter { residents[it] >= 0.5 }.joinToString(", ") { "%s %.0f".format(fauna.kinds[it].name, residents[it]) }.ifEmpty { "none" })
-        sb.appendLine("   herds and packs: " + gs.groupBy { it.species }.entries.joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
+        sb.appendLine("   resident herds: " + fauna.kinds.indices.filter { residents[it] >= 0.5 }
+            .joinToString(", ") { "%s %.0f".format(fauna.kinds[it].name, residents[it]) }.ifEmpty { "none" })
+        sb.appendLine("   herds and packs: " + gs.groupBy { it.species }.entries
+            .joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
         sb.appendLine("   forage (grass and browse) %.0f t, rodents and reptiles %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
         sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.meanFlow[h], land.flow[h]))
         // The tinted measure here: this week, and month by month over the last year.
@@ -707,10 +796,14 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
             layers.now[key]?.get(h)?.takeIf { !it.isNaN() }?.let { v ->
                 sb.appendLine("%s%s: %.3g %s".format(tint.label, causeNote(tint), v, tint.unit))
                 val m = layers.byMonth(key, h)
-                if (m.any { !it.isNaN() }) sb.appendLine("   by month: " + m.withIndex().filter { !it.value.isNaN() }.joinToString(" ") { "%d:%.3g".format(it.index + 1, it.value) })
+                if (m.any { !it.isNaN() }) sb.appendLine("   by month: " + m.withIndex().filter { !it.value.isNaN() }
+                    .joinToString(" ") { "%d:%.3g".format(it.index + 1, it.value) })
             }
-            if (tint == Measure.HUNGRY_BY_PLENTY && h < layers.hunger.size) sb.appendLine("   plant-eaters short of their wants %.0f%%; most forage left uneaten within 2 hexes %.2f kg/m²".format(100 * layers.hunger[h], layers.plenty[h]))
-            if (tint.byCause) sb.appendLine("   by cause: " + PlaceRecord.Cause.entries.joinToString(", ") { c -> "%s %.3g".format(c.label, layers.now[layers.key(tint, c.ordinal)]?.get(h) ?: 0f) })
+            if (tint == Measure.HUNGRY_BY_PLENTY && h < layers.hunger.size) sb.appendLine(
+                "   plant-eaters short of their wants %.0f%%; most forage left uneaten within 2 hexes %.2f kg/m²".format(100 * layers.hunger[h],
+                    layers.plenty[h]))
+            if (tint.byCause) sb.appendLine("   by cause: " + PlaceRecord.Cause.entries.joinToString(", ") { c ->
+                "%s %.3g".format(c.label, layers.now[layers.key(tint, c.ordinal)]?.get(h) ?: 0f) })
         }
         sb.append("borders (on foot, ground + water):")
         val dirs = arrayOf("E", "SE", "SW", "W", "NW", "NE")
@@ -724,7 +817,8 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         // Refill the list in place, keeping the picked group and where the list is scrolled to.
         val picked = groupView.selectedIndex.let { if (it in groupIds.indices) groupIds[it] else -1 }
         groupIds = here.map { it.id }.toIntArray()
-        val rows = here.map { g -> "%s #%d: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed, g.fat) }
+        val rows = here.map { g ->
+            "%s #%d: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed, g.fat) }
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
         while (groupList.size() > rows.size) groupList.removeElementAt(groupList.size() - 1)
         val again = groupIds.indexOf(picked)
@@ -747,14 +841,19 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
         if (g.days.isNotEmpty()) sb.appendLine("entering them on days: " + g.days.joinToString(" ") { "%.1f".format(it) })
         g.band?.let { b ->
             sb.appendLine("larder %.0f kg (%.0f days); camp kept %d weeks".format(g.larder, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f), b.campWeeks))
-            sb.appendLine("skills: " + Skill.entries.filter { b.knowsSkill[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.skills[it.ordinal]) })
-            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
+            sb.appendLine("skills: " + Skill.entries.filter { b.knowsSkill[it.ordinal] }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.skills[it.ordinal]) })
+            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it.ordinal] }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
             sb.appendLine("elders %d; children inbred %.3f; descent mostly lineage %d".format(b.elders, b.inbred, b.mainLineage()))
-            if (b.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") { "%.0f %s".format(it.value, if (Catalogue.all[it.index].name == "wolf") "dogs" else "tame " + Catalogue.all[it.index].name) })
-            sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }.ifEmpty { "none" })
+            if (b.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") {
+                "%.0f %s".format(it.value, if (Catalogue.all[it.index].name == "wolf") "dogs" else "tame " + Catalogue.all[it.index].name) })
+            sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
+                .ifEmpty { "none" })
             sb.appendLine("goods: " + Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it.ordinal]) })
         }
-        if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat from herds met this week %.0f kg".format(if (g.home >= 0) g.home.toString() else "none", g.meatMet))
+        if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat from herds met this week %.0f kg".format(
+            if (g.home >= 0) g.home.toString() else "none", g.meatMet))
         else {
             val months = (0 until Date.MONTHS_PER_YEAR).filter { g.seasonPlace[it] >= 0 }
             sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
@@ -805,6 +904,7 @@ class HexViewer(world: World, load: java.io.File? = null, private val nets: Stri
     }
 
     companion object {
-        private val KIND_COLOURS = intArrayOf(0xf0e060, 0xa0e070, 0x70d0f0, 0xf0a050, 0xe070e0, 0x90f0c0, 0xffffff, 0xc0a0ff, 0xffc0c0, 0x80ffff, 0xffd080, 0xb0ff80, 0xff8080, 0x80b0ff, 0xd0d0d0, 0xa0ffa0, 0xffa0ff, 0xc0c060)
+        private val KIND_COLOURS = intArrayOf(0xf0e060, 0xa0e070, 0x70d0f0, 0xf0a050, 0xe070e0, 0x90f0c0, 0xffffff, 0xc0a0ff, 0xffc0c0,
+            0x80ffff, 0xffd080, 0xb0ff80, 0xff8080, 0x80b0ff, 0xd0d0d0, 0xa0ffa0, 0xffa0ff, 0xc0c060)
     }
 }

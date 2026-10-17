@@ -6,7 +6,8 @@ package inflation.ecology
  * ([HexFauna.record] is null otherwise, at no cost to a run); whoever reads it [clear]s it after.
  */
 class PlaceRecord(val n: Int, kinds: Int) {
-    enum class Cause(val label: String) { HUNGER("hunger"), THIRST("thirst"), COLD("cold and snow"), ILLNESS("illness"), KILLED("killed"), OTHER("age and other") }
+    enum class Cause(val label: String) { HUNGER("hunger"), THIRST("thirst"), COLD("cold and snow"), ILLNESS("illness"), KILLED("killed"),
+        OTHER("age and other") }
 
     /** Animals' deaths by cause, kg (heads x their kind's weight) per place. */
     val animalKg = Array(Cause.entries.size) { FloatArray(n) }
@@ -47,8 +48,10 @@ class PlaceRecord(val n: Int, kinds: Int) {
                 "hunger" in s || "starv" in s || "orphan" in s -> Cause.HUNGER
                 "thirst" in s -> Cause.THIRST
                 "cold" in s || "snow" in s || "freez" in s || "exposure" in s -> Cause.COLD
-                "taken by" in s || "killed" in s || "hunted" in s || "raid" in s || "rival" in s || "fought" in s || "eagle" in s || "crocodile" in s || "hunters" in s -> Cause.KILLED
-                "illness" in s || "disease" in s || "fever" in s || "plague" in s || "sick" in s || "worm" in s || "outbreak" in s || "crowd" in s || "foul" in s || "flux" in s || "cough" in s -> Cause.ILLNESS
+                "taken by" in s || "killed" in s || "hunted" in s || "raid" in s || "rival" in s || "fought" in s || "eagle" in s ||
+                    "crocodile" in s || "hunters" in s -> Cause.KILLED
+                "illness" in s || "disease" in s || "fever" in s || "plague" in s || "sick" in s || "worm" in s || "outbreak" in s ||
+                    "crowd" in s || "foul" in s || "flux" in s || "cough" in s -> Cause.ILLNESS
                 else -> Cause.OTHER
             }
         }

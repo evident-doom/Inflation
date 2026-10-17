@@ -23,7 +23,13 @@ class Census(private val sim: HexSim) {
     private val weather get() = sim.weather
 
     /** Each place's main kind of country, as the most of its cells. */
-    private val biomeOf: IntArray by lazy { IntArray(land.n) { pl -> val c = IntArray(Biome.entries.size); for (cell in hw.placeCells[pl]) c[sim.world.biome[cell].ordinal]++; c.indices.maxBy { c[it] } } }
+    private val biomeOf: IntArray by lazy {
+        IntArray(land.n) { pl ->
+            val c = IntArray(Biome.entries.size)
+            for (cell in hw.placeCells[pl]) c[sim.world.biome[cell].ordinal]++
+            c.indices.maxBy { c[it] }
+        }
+    }
 
     /** Animals of resident kind [k] at place [pl] (adults and young). */
     private fun residents(k: Int, pl: Int) = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble()
@@ -49,7 +55,8 @@ class Census(private val sim: HexSim) {
         fun perM2(a: FloatArray) = a.indices.sumOf { (a[it] * land.areaKm2[it]).toDouble() } // kg/m² × km² = 1e6 kg = 1000 t
         fun perKm2(a: FloatArray) = perM2(a) / 1e6
         val plants = (0 until fauna.n).sumOf { (land.biomass(it) * land.areaKm2[it]).toDouble() }
-        val smallAnimals = listOf(sl.insects, sl.dormantInsects, sl.rodents, sl.herps, sl.pollinators, sl.dormantPollinators, sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it) }
+        val smallAnimals = listOf(sl.insects, sl.dormantInsects, sl.rodents, sl.herps, sl.pollinators, sl.dormantPollinators,
+            sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it) }
         val residents = fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg } / 1e6
         val inGroups = groups.groups.filter { it.alive }.sumOf { (it.adults + 0.3 * it.young) * it.species.massKg } / 1e6
         return "plants %.0f, litter %.0f, soil organic %.0f, carrion %.2f, small animals %.2f, resident herds %.2f, herds and packs %.2f (thousand t)".format(
@@ -65,14 +72,24 @@ class Census(private val sim: HexSim) {
             bArea[b] += a; forage[b] += (land.palatable[pl] * (land.herb[pl] + land.shrub[pl])) * a
             for (k in fauna.kinds.indices) res[b] += residents(k, pl)
         }
-        for (gr in groups.groups) if (gr.alive) { val b = biomeOf[gr.place]; if (gr.species.human) peopleB[b] += gr.size.toDouble() else if (gr.species.carnivore) huntersB[b] += gr.size.toDouble() else herdsB[b] += gr.size.toDouble() }
+        for (gr in groups.groups) if (gr.alive) {
+            val b = biomeOf[gr.place]
+            if (gr.species.human) peopleB[b] += gr.size.toDouble()
+            else if (gr.species.carnivore) huntersB[b] += gr.size.toDouble()
+            else herdsB[b] += gr.size.toDouble()
+        }
         val total = bArea.sum()
-        println("     by country (share of land: edible forage kg/m², residents / herds / hunters / people per 1000 km²): " + Biome.entries.indices.filter { bArea[it] > 0.01 * total }.sortedByDescending { bArea[it] }.joinToString(", ") { b ->
+        println("     by country (share of land: edible forage kg/m², residents / herds / hunters / people per 1000 km²): " +
+            Biome.entries.indices.filter { bArea[it] > 0.01 * total }.sortedByDescending { bArea[it] }.joinToString(", ") { b ->
             val k = 1000.0 / bArea[b]
-            "%s %.0f%%: %.2f, %.0f / %.0f / %.1f / %.1f".format(Biome.entries[b].name.lowercase().replace('_', ' '), 100 * bArea[b] / total, forage[b] / bArea[b], res[b] * k, herdsB[b] * k, huntersB[b] * k, peopleB[b] * k) })
+            "%s %.0f%%: %.2f, %.0f / %.0f / %.1f / %.1f".format(Biome.entries[b].name.lowercase().replace('_', ' '), 100 * bArea[b] / total,
+                forage[b] / bArea[b], res[b] * k, herdsB[b] * k, huntersB[b] * k, peopleB[b] * k) })
     }
 
-    /** Residents by the sea against inland (a kind crowding the coast shows here), where their food came from this year (clearing that ledger), and what they find there. */
+    /**
+     * Residents by the sea against inland (a kind crowding the coast shows here), where their food came from this
+     * year (clearing that ledger), and what they find there.
+     */
     fun printCoastAndInland() {
         var coastA = 0.0; var inA = 0.0
         val coastN = DoubleArray(fauna.kinds.size); val inN = DoubleArray(fauna.kinds.size)
@@ -81,13 +98,18 @@ class Census(private val sim: HexSim) {
             if (c) coastA += a else inA += a
             for (k in fauna.kinds.indices) { val v = residents(k, pl); if (c) coastN[k] += v else inN[k] += v }
         }
-        println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) + fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0), inN[k] / inA.coerceAtLeast(1.0)) })
-        println("     residents fed from (fresh plants / straw / prey and carrion / reserves, shares of need per animal this year): " + fauna.kinds.indices.joinToString(", ") { k ->
+        println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) +
+            fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0),
+                inN[k] / inA.coerceAtLeast(1.0)) })
+        println("     residents fed from (fresh plants / straw / prey and carrion / reserves, shares of need per animal this year): " +
+            fauna.kinds.indices.joinToString(", ") { k ->
             val ff = fauna.fedFrom[k]; val h = ff[4].sumThenReset().coerceAtLeast(1e-9)
-            "%s %.2f/%.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[0].sumThenReset() / h, ff[1].sumThenReset() / h, ff[2].sumThenReset() / h, ff[3].sumThenReset() / h)
+            "%s %.2f/%.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[0].sumThenReset() / h, ff[1].sumThenReset() / h,
+                ff[2].sumThenReset() / h, ff[3].sumThenReset() / h)
         })
         // What they find there: edible forage, how green, how well the roe deer fed, how far water is.
-        fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps -> ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
+        fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps ->
+            ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
         fun both(f: (Int) -> Double) = arrayOf(mean(f, true), mean(f, false))
         val roe = fauna.kinds.indexOfFirst { it.name == "roe deer" }
         val forage = both { (land.palatable[it] * (land.herb[it] + land.shrub[it])).toDouble() }
@@ -116,10 +138,15 @@ class Census(private val sim: HexSim) {
         val live = groups.groups.filter { it.alive }
         val hunterHexes = live.filter { it.species.pack }.map { hw.placeHex[it.place] }.distinct()
         val landHexes = (0 until hex.size).count { hw.land[it] > 0.5f }
-        println("     herds and packs (groups, mean size, hexes held of land hexes, herds' median km to the nearest pack): " + groups.kinds.joinToString(", ") { s ->
+        println("     herds and packs (groups, mean size, hexes held of land hexes, herds' median km to the nearest pack): " +
+            groups.kinds.joinToString(", ") { s ->
             val gs = live.filter { it.species == s }
-            val km = if (s.carnivore || hunterHexes.isEmpty()) "" else gs.map { g -> val h = hw.placeHex[g.place]; hunterHexes.minOf { hex.distanceKm(h, it) } }.sorted().let { if (it.isEmpty()) "" else ", %.0f km".format(it[it.size / 2]) }
-            "%s %d / %.0f / %.1f%%%s".format(s.name, gs.size, if (gs.isEmpty()) 0.0 else gs.sumOf { it.size }.toDouble() / gs.size, 100.0 * gs.map { hw.placeHex[it.place] }.distinct().size / landHexes, km)
+            val km = if (s.carnivore || hunterHexes.isEmpty()) "" else gs.map { g ->
+                val h = hw.placeHex[g.place]
+                hunterHexes.minOf { hex.distanceKm(h, it) }
+            }.sorted().let { if (it.isEmpty()) "" else ", %.0f km".format(it[it.size / 2]) }
+            "%s %d / %.0f / %.1f%%%s".format(s.name, gs.size, if (gs.isEmpty()) 0.0 else gs.sumOf { it.size }.toDouble() / gs.size,
+                100.0 * gs.map { hw.placeHex[it.place] }.distinct().size / landHexes, km)
         })
     }
 
@@ -134,20 +161,27 @@ class Census(private val sim: HexSim) {
 
     /** The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young. */
     fun printHuntersFamilies() {
-        println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " + groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
+        println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " +
+            groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gs = groups.groups.filter { it.alive && it.species == s }
-            "%s %d / %d / %d / %d / %d / %d".format(s.name, gs.size, gs.count { it.home >= 0 }, gs.count { it.home >= 0 && it.adults >= 2 }, gs.count { it.adults == 1 }, gs.sumOf { it.adults }, gs.sumOf { it.young })
+            "%s %d / %d / %d / %d / %d / %d".format(s.name, gs.size, gs.count { it.home >= 0 }, gs.count { it.home >= 0 && it.adults >= 2 },
+                gs.count { it.adults == 1 }, gs.sumOf { it.adults }, gs.sumOf { it.young })
         })
     }
 
-    /** Ways of working (how many bands know each, how well, how neighbours' toolkits differ from distant bands'), and cereals; [grainReaped] t in the last year. */
+    /**
+     * Ways of working (how many bands know each, how well, how neighbours' toolkits differ from distant bands'), and
+     * cereals; [grainReaped] t in the last year.
+     */
     fun printSkillsAndCereals(grainReaped: Double) {
         val gs = groups.groups.filter { it.alive && it.band != null }
         val bs = gs.map { it.band!! }
         // (Skills a band holds are part of its customs; neighbours share them, distant bands differ.)
         if (bs.isNotEmpty()) println("ways of working (bands knowing, their mean level/holders): " + Skill.entries.joinToString(", ") { s ->
             val k = bs.filter { it.knowsSkill[s.ordinal] }
-            "%s %.0f%% %.2f/%.1f".format(s.name.lowercase().replace('_', ' '), 100.0 * k.size / bs.size, if (k.isEmpty()) 0.0 else k.map { it.skills[s.ordinal].toDouble() }.average(), if (k.isEmpty()) 0.0 else k.map { it.holders[s.ordinal].toDouble() }.average()) })
+            "%s %.0f%% %.2f/%.1f".format(s.name.lowercase().replace('_', ' '), 100.0 * k.size / bs.size,
+                if (k.isEmpty()) 0.0 else k.map { it.skills[s.ordinal].toDouble() }.average(),
+                if (k.isEmpty()) 0.0 else k.map { it.holders[s.ordinal].toDouble() }.average()) })
         // How different neighbours' toolkits are against distant bands' (levels of every way, 0 where unknown).
         if (gs.size > 2) {
             val r = Random(7); var nearD = 0.0; var nearN = 0; var farD = 0.0; var farN = 0
@@ -156,18 +190,23 @@ class Census(private val sim: HexSim) {
                 if (x !== y) {
                     val km = hex.distanceKm(hw.placeHex[x.place], hw.placeHex[y.place])
                     val bx = x.band!!; val by = y.band!!
-                    val d = Skill.entries.sumOf { s -> val i = s.ordinal; abs((if (bx.knowsSkill[i]) bx.skills[i] else 0f) - (if (by.knowsSkill[i]) by.skills[i] else 0f)).toDouble() } / Skill.entries.size
+                    val d = Skill.entries.sumOf { s ->
+                        val i = s.ordinal
+                        abs((if (bx.knowsSkill[i]) bx.skills[i] else 0f) - (if (by.knowsSkill[i]) by.skills[i] else 0f)).toDouble()
+                    } / Skill.entries.size
                     if (km < 100.0) { nearD += d; nearN++ } else if (km > 300.0) { farD += d; farN++ }
                 }
             }
-            println("     toolkits: mean difference between bands within 100 km %.3f, beyond 300 km %.3f".format(nearD / nearN.coerceAtLeast(1), farD / farN.coerceAtLeast(1)))
+            println("     toolkits: mean difference between bands within 100 km %.3f, beyond 300 km %.3f".format(nearD / nearN.coerceAtLeast(1),
+                farD / farN.coerceAtLeast(1)))
         }
         val f = fauna.food
         val stands = (0 until land.n).count { f.cereal[it] > 0.01f }
         val fields = (0 until land.n).filter { f.domestic[it] > 0.01f }
         val atHome = groups.groups.filter { it.alive && it.band?.atHome == true }
         println("cereals: wild stands in %d places; places with ears that hold their grain %d, most %.2f, mean there %.2f; grain reaped by people %.0f t in the last year; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
-            stands, fields.size, fields.maxOfOrNull { f.domestic[it] } ?: 0f, if (fields.isEmpty()) 0.0 else fields.map { f.domestic[it].toDouble() }.average(), grainReaped,
+            stands, fields.size, fields.maxOfOrNull { f.domestic[it] } ?: 0f,
+            if (fields.isEmpty()) 0.0 else fields.map { f.domestic[it].toDouble() }.average(), grainReaped,
             gs.sumOf { it.stores[Store.SEED.ordinal].toDouble() } / 1000,
             atHome.sumOf { it.stores[Store.SEED.ordinal].toDouble() } / 1000,
             (0 until land.n).sumOf { f.grain[it] * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
@@ -191,7 +230,8 @@ class Census(private val sim: HexSim) {
         for (x in v) { cum += x; area += cum }
         val gini = 1.0 - 2.0 * (area / (v.size * total)) + 1.0 / v.size
         val top = v.takeLast((v.size / 20).coerceAtLeast(1)).sum() / total
-        println("food for people across the land: unevenness (Gini) %.2f, richest 5%% of hexes hold %.0f%% of it, median hex %.0f t".format(gini, 100 * top, v[v.size / 2] / 1000))
+        println("food for people across the land: unevenness (Gini) %.2f, richest 5%% of hexes hold %.0f%% of it, median hex %.0f t".format(gini,
+            100 * top, v[v.size / 2] / 1000))
     }
 
     /**
@@ -200,27 +240,40 @@ class Census(private val sim: HexSim) {
      */
     fun printKindByKind(lastYear: Map<String, Int>, movedKm: Map<Species, Double>, stepsPerYear: Int) {
         val landB = DoubleArray(Biome.entries.size); for (pl in 0 until land.n) landB[biomeOf[pl]] += land.areaKm2[pl].toDouble()
-        fun top(byB: DoubleArray): String { val tot = byB.sum().coerceAtLeast(1e-9); return byB.indices.sortedByDescending { byB[it] }.take(3).filter { byB[it] > 0 }.joinToString(", ") { "%s %.0f%% (land %.0f%%)".format(Biome.entries[it].name.lowercase().replace('_', ' '), 100 * byB[it] / tot, 100 * landB[it] / landB.sum()) } }
+        fun top(byB: DoubleArray): String {
+            val tot = byB.sum().coerceAtLeast(1e-9)
+            return byB.indices.sortedByDescending { byB[it] }.take(3).filter { byB[it] > 0 }.joinToString(", ") {
+                "%s %.0f%% (land %.0f%%)".format(Biome.entries[it].name.lowercase().replace('_', ' '), 100 * byB[it] / tot, 100 * landB[it] / landB.sum())
+            }
+        }
         println("kind by kind, at the end:")
         for (k in fauna.kinds.indices) {
             val s = fauna.kinds[k]; val byB = DoubleArray(landB.size); var fedW = 0.0; var n = 0.0
             for (pl in 0 until land.n) { val c = residents(k, pl); byB[biomeOf[pl]] += c; fedW += c * fauna.fed[k][pl]; n += c }
-            println("  %-14s %8.0f | lives in: %s | fed %.2f | habitat wanted: cover %+.1f, rugged %+.1f, wet %+.1f".format(s.name, n, top(byB), fedW / n.coerceAtLeast(1.0), s.habitat.cover, s.habitat.rugged, s.habitat.wet))
+            println("  %-14s %8.0f | lives in: %s | fed %.2f | habitat wanted: cover %+.1f, rugged %+.1f, wet %+.1f".format(s.name, n, top(byB),
+                fedW / n.coerceAtLeast(1.0), s.habitat.cover, s.habitat.rugged, s.habitat.wet))
         }
         for (s in groups.kinds) {
             val gs = groups.groups.filter { it.alive && it.species == s }
             val byB = DoubleArray(landB.size); for (gr in gs) byB[biomeOf[gr.place]] += gr.size.toDouble()
             val heads = gs.sumOf { it.size }.toDouble()
-            val diet = if (s.carnivore) "" else listOf("grass", "browse", "fruit and roots", "straw and lichen").let { ks -> val v = ks.map { (lastYear["${s.name}:ate $it, kg"] ?: 0).toDouble() }; val tot = v.sum().coerceAtLeast(1.0); " | ate: " + ks.indices.joinToString(", ") { "%s %.0f%%".format(ks[it], 100 * v[it] / tot) } }
-            val ranged = if (s.carnivore) "" else " | grazed over %.1f places a week".format((lastYear["${s.name}:ranged over places"] ?: 0).toDouble() / (gs.size * stepsPerYear).coerceAtLeast(1))
-            println("  %-14s %8.0f in %d groups | lives in: %s | fed %.2f | moved %.0f km a year%s%s".format(s.name, heads, gs.size, top(byB), gs.sumOf { it.fed.toDouble() * it.size } / heads.coerceAtLeast(1.0), (movedKm[s] ?: 0.0) / gs.size.coerceAtLeast(1), diet, ranged))
+            val diet = if (s.carnivore) "" else listOf("grass", "browse", "fruit and roots", "straw and lichen").let { ks ->
+                val v = ks.map { (lastYear["${s.name}:ate $it, kg"] ?: 0).toDouble() }
+                val tot = v.sum().coerceAtLeast(1.0)
+                " | ate: " + ks.indices.joinToString(", ") { "%s %.0f%%".format(ks[it], 100 * v[it] / tot) }
+            }
+            val ranged = if (s.carnivore) "" else " | grazed over %.1f places a week".format((lastYear["${s.name}:ranged over places"] ?: 0).toDouble() /
+                (gs.size * stepsPerYear).coerceAtLeast(1))
+            println("  %-14s %8.0f in %d groups | lives in: %s | fed %.2f | moved %.0f km a year%s%s".format(s.name, heads, gs.size, top(byB),
+                gs.sumOf { it.fed.toDouble() * it.size } / heads.coerceAtLeast(1.0), (movedKm[s] ?: 0.0) / gs.size.coerceAtLeast(1), diet, ranged))
         }
     }
 
     /** Bands by kind of country over the last year ([lastYear]'s tallies): how many, how they fed and on what, how they lived and died. */
     fun printBandsByCountry(lastYear: Map<String, Int>, stepsPerYear: Int) {
         fun weeks(c: String) = lastYear["bands in $c:band-weeks"] ?: 0
-        val cs = lastYear.keys.filter { it.startsWith("bands in ") && it.endsWith(":band-weeks") }.map { it.removePrefix("bands in ").removeSuffix(":band-weeks") }.sortedByDescending { weeks(it) }
+        val cs = lastYear.keys.filter { it.startsWith("bands in ") && it.endsWith(":band-weeks") }
+            .map { it.removePrefix("bands in ").removeSuffix(":band-weeks") }.sortedByDescending { weeks(it) }
         val allWeeks = cs.sumOf { weeks(it).toDouble() }.coerceAtLeast(1.0)
         println("bands by kind of country, last year (share of band-weeks; food got of food wanted; meat / plants / fish): " + cs.joinToString(", ") { c ->
             fun v(k: String) = (lastYear["bands in $c:$k"] ?: 0).toDouble()
@@ -240,15 +293,34 @@ class Census(private val sim: HexSim) {
         for (h0 in 0 until hex.size) {
             if (hex.heart[h0] < 0 || comp[h0] >= 0) continue
             val stack = ArrayDeque(listOf(h0)); comp[h0] = nc; var c = 0
-            while (stack.isNotEmpty()) { val h = stack.removeLast(); c++; for (d in 0 until 6) { val b = hex.neighbour(h, d); if (b >= 0 && hex.heart[b] >= 0 && comp[b] < 0) { comp[b] = nc; stack.addLast(b) } } }
+            while (stack.isNotEmpty()) {
+                val h = stack.removeLast()
+                c++
+                for (d in 0 until 6) {
+                    val b = hex.neighbour(h, d)
+                    if (b >= 0 && hex.heart[b] >= 0 && comp[b] < 0) {
+                        comp[b] = nc
+                        stack.addLast(b)
+                    }
+                }
+            }
             sizes += c; nc++
         }
         val main = sizes.indices.maxByOrNull { sizes[it] } ?: -1
         val islands = sizes.indices.filter { it != main && sizes[it] >= 3 }
         if (islands.isEmpty()) return
-        println("islands (%d of 3 hexes or more; hexes / herds and packs / resident kinds above 0.01 a km²): ".format(islands.size) + islands.sortedByDescending { sizes[it] }.take(8).joinToString("; ") { c ->
+        println("islands (%d of 3 hexes or more; hexes / herds and packs / resident kinds above 0.01 a km²): ".format(islands.size) +
+            islands.sortedByDescending { sizes[it] }.take(8).joinToString("; ") { c ->
             val gs = groups.groups.filter { it.alive && comp[hw.placeHex[it.place]] == c }.map { it.species.name }.distinct()
-            val res = fauna.kinds.indices.filter { k -> var a = 0.0; var n = 0.0; for (pl in 0 until land.n) if (comp[hw.placeHex[pl]] == c) { a += land.areaKm2[pl]; n += (fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl] }; a > 0 && n / a > 0.01 }.map { fauna.kinds[it].name }
+            val res = fauna.kinds.indices.filter { k ->
+                var a = 0.0
+                var n = 0.0
+                for (pl in 0 until land.n) if (comp[hw.placeHex[pl]] == c) {
+                    a += land.areaKm2[pl]
+                    n += (fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]
+                }
+                a > 0 && n / a > 0.01
+            }.map { fauna.kinds[it].name }
             "%d / %s / %s".format(sizes[c], gs.joinToString(",").ifEmpty { "-" }, res.joinToString(",").ifEmpty { "-" }) })
     }
 

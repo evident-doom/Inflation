@@ -36,9 +36,12 @@ fun main(args: Array<String>) {
     }
     val ks = kinds.mapNotNull { name -> fauna.kinds.indexOfFirst { it.name == name }.takeIf { it >= 0 } }
     // By month: heads, fed (heads-weighted), heads and hunger deaths with tether < 0.2, green < 0.2, and at the edge (under 1% of the kind's usual density).
-    class Acc { val heads = DoubleArray(12); val fed = DoubleArray(12); val tether = DoubleArray(12); val dry = DoubleArray(12); val brown = DoubleArray(12); val edge = DoubleArray(12)
-        val wetFloor = DoubleArray(12); val flood = DoubleArray(12); val table = DoubleArray(12); val green = DoubleArray(12); val hunger = DoubleArray(12); val hungerDry = DoubleArray(12); val hungerBrown = DoubleArray(12); val hungerEdge = DoubleArray(12); val weeks = IntArray(12)
-        val byTether = DoubleArray(5); val byGreen = DoubleArray(5); val byDensity = DoubleArray(5); val headsByTether = DoubleArray(5); val headsByGreen = DoubleArray(5); val headsByDensity = DoubleArray(5)
+    class Acc { val heads = DoubleArray(12); val fed = DoubleArray(12); val tether = DoubleArray(12); val dry = DoubleArray(12)
+        val brown = DoubleArray(12); val edge = DoubleArray(12)
+        val wetFloor = DoubleArray(12); val flood = DoubleArray(12); val table = DoubleArray(12); val green = DoubleArray(12); val hunger = DoubleArray(12)
+        val hungerDry = DoubleArray(12); val hungerBrown = DoubleArray(12); val hungerEdge = DoubleArray(12); val weeks = IntArray(12)
+        val byTether = DoubleArray(5); val byGreen = DoubleArray(5); val byDensity = DoubleArray(5); val headsByTether = DoubleArray(5)
+        val headsByGreen = DoubleArray(5); val headsByDensity = DoubleArray(5)
         var hungerReported = 0.0 }
     val acc = ks.associateWith { Acc() }
     fun bucket(x: Float) = (x * 5f).toInt().coerceIn(0, 4)
@@ -60,7 +63,14 @@ fun main(args: Array<String>) {
                 val died = ((ad + 1.5f * yd) * hunger * area).toDouble()
                 val t = fauna.tether(s, p); val g = land.green[p]
                 val edge = (ad + yd) < 0.01f * usual
-                a.heads[m] += heads; a.fed[m] += heads * f; a.wetFloor[m] += heads * land.wetFloor(p); a.flood[m] += heads * land.floodShare[p]; a.table[m] += heads * land.waterTableM(p); a.green[m] += heads * land.green[p]; a.tether[m] += heads * t; a.hunger[m] += died
+                a.heads[m] += heads
+                a.fed[m] += heads * f
+                a.wetFloor[m] += heads * land.wetFloor(p)
+                a.flood[m] += heads * land.floodShare[p]
+                a.table[m] += heads * land.waterTableM(p)
+                a.green[m] += heads * land.green[p]
+                a.tether[m] += heads * t
+                a.hunger[m] += died
                 if (t < 0.2f) { a.dry[m] += heads; a.hungerDry[m] += died }
                 if (g < 0.2f) { a.brown[m] += heads; a.hungerBrown[m] += died }
                 if (edge) { a.edge[m] += heads; a.hungerEdge[m] += died }
@@ -92,7 +102,8 @@ fun main(args: Array<String>) {
         row("  of them at the edge") { a.hungerEdge[it] / a.hunger[it].coerceAtLeast(1e-9) }
         val tot = a.hunger.sum().coerceAtLeast(1e-9); val heads = a.heads.sum().coerceAtLeast(1e-9)
         fun split(label: String, names: List<String>, d: DoubleArray, h: DoubleArray) =
-            println("$label: " + names.indices.joinToString(", ") { names[it] + " %.0f%% of deaths / %.0f%% of head-weeks".format(100 * d[it] / tot, 100 * h[it] / heads) })
+            println("$label: " + names.indices.joinToString(", ") { names[it] +
+                " %.0f%% of deaths / %.0f%% of head-weeks".format(100 * d[it] / tot, 100 * h[it] / heads) })
         split("by water within reach", listOf("0-0.2", "0.2-0.4", "0.4-0.6", "0.6-0.8", "0.8-1"), a.byTether, a.headsByTether)
         split("by green", listOf("0-0.2", "0.2-0.4", "0.4-0.6", "0.6-0.8", "0.8-1"), a.byGreen, a.headsByGreen)
         split("by density against usual", listOf("<1%", "1-10%", "10-100%", "1-4x", ">4x"), a.byDensity, a.headsByDensity)

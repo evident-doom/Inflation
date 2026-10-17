@@ -45,7 +45,8 @@ object Summary {
         }
         val bands = listOf(0f to 300f, 300f to 1000f, 1000f to 2000f, 2000f to 9000f)
         appendLine("Snow cover, days per year with snow lying (mean over $years years; '-' = no land):")
-        appendLine("  latitude   " + bands.joinToString("") { (lo, hi) -> "%14s".format(if (hi > 8000f) "> ${lo.toInt()} m" else "${lo.toInt()}–${hi.toInt()} m") })
+        appendLine("  latitude   " +
+            bands.joinToString("") { (lo, hi) -> "%14s".format(if (hi > 8000f) "> ${lo.toInt()} m" else "${lo.toInt()}–${hi.toInt()} m") })
         val rows = 5
         for (b in 0 until rows) {
             val y0 = g.height * b / rows; val y1 = g.height * (b + 1) / rows

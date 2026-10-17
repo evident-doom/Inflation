@@ -20,12 +20,18 @@ const val NEWBORN_SHARE = 0.08f
 const val WELL_FED = 0.9f
 /** How many times its usual most a herd may grow to on a full green flush, well fed (herds gather where the grass is new). */
 const val AGGREGATION = 4f
-/** How far fruit, roots or prey stretch to make up for a food that fell short: to (1 + this) times their usual share (grass and browse go as far as the gut holds). */
+/**
+ * How far fruit, roots or prey stretch to make up for a food that fell short: to (1 + this) times their usual
+ * share (grass and browse go as far as the gut holds).
+ */
 const val SWITCH = 1f
 /** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */
 const val MARK_KEEP = 0.85f
 const val MARK_FRESH = 0.3f
-/** Hunters of other kinds: strength ratio from which the stronger robs a kill (with this chance), and the chance a much stronger party kills an adult of the other, or one of its young. */
+/**
+ * Hunters of other kinds: strength ratio from which the stronger robs a kill (with this chance), and the
+ * chance a much stronger party kills an adult of the other, or one of its young.
+ */
 const val THEFT_RATIO = 1.3f
 const val THEFT = 0.5f
 const val INTRAGUILD_KILL = 0.01f
@@ -60,7 +66,11 @@ const val PATH_FADE = 0.03f
 const val PATH_MASS_KG = 3000f
 const val PATH_EASE = 0.5f
 const val AMBUSH = 1f
-/** Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum against a km walked; share of a swimming herd that drowns on a strait as wide as all it can swim (young twice that). */
+/**
+ * Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum
+ * against a km walked; share of a swimming herd that drowns on a strait as wide as all it can swim (young
+ * twice that).
+ */
 const val SEA_HEXES = 2
 const val SWIM_EFFORT = 10f
 const val DROWN = 0.05f
@@ -69,7 +79,10 @@ const val NEWCOMER_BELOW = 5
 const val NEWCOMERS = 3
 /** What a band takes a sign it cannot read to be: a middling value, neither good nor bad. */
 const val SIGN_GUESS = 0.3f
-/** How much harder thick cover makes people's going; share of what the camp's own hex gives that each hex round it gives a band's gatherers at the usual range. */
+/**
+ * How much harder thick cover makes people's going; share of what the camp's own hex gives that each hex
+ * round it gives a band's gatherers at the usual range.
+ */
 const val COVER_GOING = 0.5f
 const val RING_REACH = 0.15f
 /** How much the old, the sick and the lamed slow a band's going (all of it so: this share slower). */
@@ -87,7 +100,10 @@ const val SMALL_HERD_BANDS = 3f
 const val HIDE_IN_COVER = 0.6f
 /** A content herd weighs its places one week in this many (others keep to their ground unweighed). */
 const val CONTENT_WEEKS = 2
-/** A content band choosing by a network weighs its places one week in this many: every week, as everything a band does is its choice (hand-written bands: every other week). */
+/**
+ * A content band choosing by a network weighs its places one week in this many: every week, as everything a
+ * band does is its choice (hand-written bands: every other week).
+ */
 const val BAND_CONTENT_WEEKS = 1
 /** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
 const val HUNT_BLOCK_KM = 300f
@@ -133,7 +149,10 @@ val BEARING_PULL = Config.float("t.bearingPull", 0.5f)
 const val ASTRAY = 0.5f
 /** How far a herd's inherited seasonal places may lie from where it starts, km. */
 const val SEASON_RANGE_KM = 200.0
-/** How much farther ground counts against nearer when a herd's forebears chose its seasonal places: a place at the edge of the range is worth 1/(1 + this) of one at home. */
+/**
+ * How much farther ground counts against nearer when a herd's forebears chose its seasonal places: a place at
+ * the edge of the range is worth 1/(1 + this) of one at home.
+ */
 const val SEASON_DISTANCE = 0.25f
 const val STAY = 0.05f
 /** Share of a remembered season's place's worth kept each week the herd is elsewhere (about a tenth lost a year). */
@@ -141,7 +160,11 @@ const val MEMORY_FADE = 0.998f
 /** How much a hungry pack is put off ground it has hunted out lately; weeks of hunger over which it widens its range to three times its usual ground. */
 const val HUNGRY_LEAVE = 0.5f
 const val GIVE_UP_WEEKS = 4
-/** How much a fed pack's hand-written score is put off ground beyond its territory, and ground another pack of its kind has freshly marked: enough that it keeps to its own as it did when those places were not weighed at all, while a learned policy sees both and may weigh them otherwise. */
+/**
+ * How much a fed pack's hand-written score is put off ground beyond its territory, and ground another pack of
+ * its kind has freshly marked: enough that it keeps to its own as it did when those places were not weighed
+ * at all, while a learned policy sees both and may weigh them otherwise.
+ */
 const val KEEP_TO_GROUND = 2f
 const val KEEP_OFF_MARKS = 2f
 /** Chance a chase at a fully catchable quarry succeeds. */
@@ -209,7 +232,10 @@ const val SMALL_HUNTER_KG = 15f
 const val SMALL_HANDLING_DAYS_PER_KG = 0.3f
 const val PLANT_HANDLING_DAYS_PER_KG = 0.15f
 const val BONE_DAYS = 3f
-/** Digging roots and searching out small finds take this many times as long a kilo as picking fruit; days of all hands to reap, thresh and grind a kilo of grass seed by hand; to catch and clean a kilo of fish. */
+/**
+ * Digging roots and searching out small finds take this many times as long a kilo as picking fruit; days of
+ * all hands to reap, thresh and grind a kilo of grass seed by hand; to catch and clean a kilo of fish.
+ */
 const val ROOT_DIGGING = 2f
 const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 const val FISH_HANDLING_DAYS_PER_KG = 0.3f
@@ -262,7 +288,10 @@ val HEADING_KEEP = Config.float("t.headingKeep", 0.95f)
 val HEADING_MOVED = Config.float("t.headingMoved", 0.5f)
 val HEADING_PULL = Config.float("t.headingPull", 2f)
 
-/** Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on unless rounds=false; how strongly a herd's round draws, as a season's place of that quality would. */
+/**
+ * Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on unless rounds=false; how strongly
+ * a herd's round draws, as a season's place of that quality would.
+ */
 val ROUNDS = Config.flag("rounds", true)
 val ROUND_STRENGTH = Config.float("t.roundStrength", 1f)
 /** How strongly a herd's round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
@@ -271,7 +300,10 @@ val ROUND_NET_PULL = Config.float("t.roundNetPull", 1.5f)
 val ROUND_PULL = Config.float("t.roundPull", 1.5f)
 /** Within this of its round's place this month, km, a herd has arrived and grazes as it likes (half a range across). */
 val ROUND_ARRIVED_KM = Config.double("t.roundArrived", 50.0)
-/** Packs tied to their dens: months from the births a pack with young hunts near its den; how near, km. Not measured: wolves and hyenas keep to dens for two to three months, lions to their cubs' lairs about as long. */
+/**
+ * Packs tied to their dens: months from the births a pack with young hunts near its den; how near, km. Not
+ * measured: wolves and hyenas keep to dens for two to three months, lions to their cubs' lairs about as long.
+ */
 val DEN_MONTHS = Config.int("t.denMonths", 3)
 val DEN_KM = Config.float("t.denKm", 15f)
 /** Days of a week a herd far behind its round spends trekking on (the rest grazing). */

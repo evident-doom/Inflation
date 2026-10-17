@@ -37,7 +37,8 @@ class HexSnapshotTest {
             repeat(30) { b.step() }
             val x = bytes(a); val y = bytes(b)
             val diff = (0 until minOf(x.size, y.size)).firstOrNull { x[it] != y[it] } ?: if (x.size == y.size) -1 else minOf(x.size, y.size)
-            if (diff >= 0) fail("the loaded world's state differs from the one that ran on, from byte $diff of ${x.size}, in:\n" + StateDiff().of(a, b).joinToString("\n"))
+            if (diff >= 0) fail("the loaded world's state differs from the one that ran on, from byte $diff of ${x.size}, in:\n" +
+                StateDiff().of(a, b).joinToString("\n"))
         } finally { f.delete() }
     }
 
@@ -72,10 +73,15 @@ class HexSnapshotTest {
                 c = c.superclass
             }
         }
-        val stocks = mapOf("herb" to sim.land.herb, "shrub" to sim.land.shrub, "tree" to sim.land.tree, "soil" to sim.land.soil, "groundwater" to sim.land.groundwater,
-            "rodents" to sim.fauna.small.rodents, "fish" to sim.fauna.water.fish) + sim.fauna.kinds.indices.flatMap { k -> listOf("${sim.fauna.kinds[k].name} adults" to sim.fauna.adults[k], "${sim.fauna.kinds[k].name} young" to sim.fauna.young[k]) }
+        val stocks = mapOf("herb" to sim.land.herb, "shrub" to sim.land.shrub, "tree" to sim.land.tree, "soil" to sim.land.soil,
+            "groundwater" to sim.land.groundwater,
+            "rodents" to sim.fauna.small.rodents, "fish" to sim.fauna.water.fish) +
+            sim.fauna.kinds.indices.flatMap { k ->
+                listOf("${sim.fauna.kinds[k].name} adults" to sim.fauna.adults[k], "${sim.fauna.kinds[k].name} young" to sim.fauna.young[k])
+            }
         for ((name, arr) in stocks) if (arr.any { it < 0f }) bad += "$name below nothing"
-        for (g in sim.groups.groups) if (g.alive && (g.adults < 0 || g.young < 0 || g.fed.isNaN())) bad += "group ${g.id} (${g.species.name}): ${g.adults} adults, ${g.young} young, fed ${g.fed}"
+        for (g in sim.groups.groups) if (g.alive && (g.adults < 0 || g.young < 0 || g.fed.isNaN())) bad +=
+            "group ${g.id} (${g.species.name}): ${g.adults} adults, ${g.young} young, fed ${g.fed}"
         assertEquals(emptyList(), bad)
     }
 }
@@ -104,7 +110,8 @@ private class StateDiff {
             is Array<*> -> if (x.size != (y as Array<*>).size) out += path else x.indices.forEach { walk("$path[$it]", x[it], y[it]) }
             is List<*> -> if (x.size != (y as List<*>).size) out += path else x.indices.forEach { walk("$path[$it]", x[it], y[it]) }
             is Set<*> -> if (x.size != (y as Set<*>).size) out += path else walk(path, x.toList(), y.toList())
-            is Map<*, *> -> if (x.size != (y as Map<*, *>).size) out += path else walk(path, x.entries.map { listOf(it.key, it.value) }, y.entries.map { listOf(it.key, it.value) })
+            is Map<*, *> -> if (x.size != (y as Map<*, *>).size) out += path else walk(path, x.entries.map { listOf(it.key, it.value) },
+                y.entries.map { listOf(it.key, it.value) })
             is Int, is Long, is Float, is Double, is Short, is Byte, is String, is Boolean, is Char, is Enum<*> -> if (x != y) out += path
             is Lazy<*> -> if (x.isInitialized() || (y as Lazy<*>).isInitialized()) walk(path, x.value, (y as Lazy<*>).value)
             else -> {
@@ -112,7 +119,10 @@ private class StateDiff {
                 if (c.isSynthetic || c.name.contains("Lambda") || !c.name.startsWith("inflation.")) return
                 var k: Class<*>? = c
                 while (k != null && k != Any::class.java) {
-                    for (f in k.declaredFields) if (!Modifier.isStatic(f.modifiers) && !Modifier.isTransient(f.modifiers)) { f.isAccessible = true; walk("$path.${f.name}", f.get(x), f.get(y)) }
+                    for (f in k.declaredFields) if (!Modifier.isStatic(f.modifiers) && !Modifier.isTransient(f.modifiers)) {
+                        f.isAccessible = true
+                        walk("$path.${f.name}", f.get(x), f.get(y))
+                    }
                     k = k.superclass
                 }
             }

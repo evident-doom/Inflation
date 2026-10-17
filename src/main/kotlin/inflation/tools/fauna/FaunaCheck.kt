@@ -46,7 +46,8 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
             println("sense of direction: setting up %.0f ms, a month's update for all kinds %.0f ms".format((t1 - t0) / 1e6, (System.nanoTime() - t1) / 1e6))
         }
         println("     matter: " + census.budget())
-        println("     land %.0f km²; groups at the start: ".format(sim.land.areaKm2.sum()) + groups.kinds.joinToString(", ") { "${it.name} ${groups.groups.count { g -> g.species == it }} (${groups.count(it)})" })
+        println("     land %.0f km²; groups at the start: ".format(sim.land.areaKm2.sum()) +
+            groups.kinds.joinToString(", ") { "${it.name} ${groups.groups.count { g -> g.species == it }} (${groups.count(it)})" })
     }
 
     private fun week(y: Int, w: Int) {
@@ -66,7 +67,8 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
         println("     small life: " + fauna.small.summary())
         println("     water life: " + fauna.water.summary())
-        println("     sea and lake fish this week, t: " + fauna.water.fishFlows.entries.sortedBy { it.key }.joinToString(", ") { "%s %.1f".format(it.key, it.value) })
+        println("     sea and lake fish this week, t: " +
+            fauna.water.fishFlows.entries.sortedBy { it.key }.joinToString(", ") { "%s %.1f".format(it.key, it.value) })
         println("     eruptions so far: " + sim.eruptions.history.joinToString(", ") { "VEI ${it.vei} in year ${it.date.year}" }.ifEmpty { "none" })
         println("     matter: " + census.budget())
         println("     climate fit: " + census.fit())
@@ -92,8 +94,15 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         // The history so far, for the graphs, and the saved world (every five years and at the end).
         val last = y == options.years
         options.historyFile?.let { if (y % 5 == 0 || last) history.writeCsv(it) }
-        options.saveFile?.let { if (y % 5 == 0 || last) { val t0 = System.nanoTime(); HexSnapshot.save(sim, it); println("     saved the world to $it (%.1f s, %.0f MB)".format((System.nanoTime() - t0) / 1e9, it.length() / 1e6)) } }
-        println("     this week: kills " + groups.stats.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + groups.stats.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
+        options.saveFile?.let {
+            if (y % 5 == 0 || last) {
+                val t0 = System.nanoTime()
+                HexSnapshot.save(sim, it)
+                println("     saved the world to $it (%.1f s, %.0f MB)".format((System.nanoTime() - t0) / 1e9, it.length() / 1e6))
+            }
+        }
+        println("     this week: kills " + groups.stats.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " +
+            groups.stats.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
 
     private fun printEnd() {
@@ -111,6 +120,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         println(Profile.report(steps))
         if (Profile.FINE) { println("finer parts (thread time, summed over cores):"); println(Profile.fineReport(steps)) }
         val groups = sim.groups
-        println("a step of weather, water, plants and all animals: %.1f ms, of it settling meetings %.1f ms, the sense of direction %.1f ms".format(stepNs / 1e6 / steps, groups.meetNs / 1e6 / steps, (groups.bearings.updateNs + sim.fauna.bearings.updateNs) / 1e6 / steps))
+        println("a step of weather, water, plants and all animals: %.1f ms, of it settling meetings %.1f ms, the sense of direction %.1f ms"
+            .format(stepNs / 1e6 / steps, groups.meetNs / 1e6 / steps, (groups.bearings.updateNs + sim.fauna.bearings.updateNs) / 1e6 / steps))
     }
 }

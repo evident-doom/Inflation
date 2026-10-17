@@ -103,6 +103,8 @@ fun main(args: Array<String>) {
         println("%-11s green at its January ground by month: %s".format(s.name, gm.joinToString(" ") { "%.2f".format(it) }))
         val elev = (0 until 12).map { m -> at[i][m].values.map { hex.midM[it[0]].toDouble() }.average() }
         println("%-11s mean height of its herds by month, m: %s".format(s.name, elev.joinToString(" ") { "%.0f".format(it) }))
-        println("%-11s | %4.0f | %.3f / %.3f / %.3f | %.0f (%d herds) | swing over the year at their January ground %.0f%%, worst month quality %.2f".format(s.name, shift, gains[0] / count, gains[1] / count, gains[2] / count, walked / count, count, 100 * swing / c2.coerceAtLeast(1), low / c2.coerceAtLeast(1)))
+        println("%-11s | %4.0f | %.3f / %.3f / %.3f | %.0f (%d herds) | swing over the year at their January ground %.0f%%, worst month quality %.2f"
+            .format(s.name, shift, gains[0] / count, gains[1] / count, gains[2] / count, walked / count, count, 100 * swing / c2.coerceAtLeast(1),
+                low / c2.coerceAtLeast(1)))
     }
 }

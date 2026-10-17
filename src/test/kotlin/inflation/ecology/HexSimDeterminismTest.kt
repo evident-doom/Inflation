@@ -32,7 +32,8 @@ class HexSimDeterminismTest {
         val a = stateAfter(world, steps, 0)
         val b = stateAfter(world, steps, 0)
         val c = stateAfter(world, steps, 1)
-        fun firstDiff(x: ByteArray, y: ByteArray) = (0 until minOf(x.size, y.size)).firstOrNull { x[it] != y[it] } ?: if (x.size == y.size) -1 else minOf(x.size, y.size)
+        fun firstDiff(x: ByteArray, y: ByteArray) = (0 until minOf(x.size, y.size)).firstOrNull { x[it] != y[it] }
+            ?: if (x.size == y.size) -1 else minOf(x.size, y.size)
         assertTrue(firstDiff(a, b) < 0, "two runs on all cores differ from byte ${firstDiff(a, b)} of ${a.size}")
         assertTrue(firstDiff(a, c) < 0, "a run on one core differs from one on all cores from byte ${firstDiff(a, c)} of ${a.size}")
     }

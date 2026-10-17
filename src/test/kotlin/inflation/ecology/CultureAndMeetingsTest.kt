@@ -31,7 +31,8 @@ class CultureAndMeetingsTest {
     fun `every lineage holds the universal traditions, and leaves its dead exactly when it does not bury them`() {
         for (l in 0 until LINEAGES) {
             val t = traditionsAt(l)
-            for (u in listOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.MEDICINE, Tradition.ORAL_TRADITION)) assertTrue(t[u.ordinal], "lineage $l lacks $u")
+            for (u in listOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.MEDICINE, Tradition.ORAL_TRADITION)) assertTrue(t[u.ordinal],
+                "lineage $l lacks $u")
             assertEquals(!t[Tradition.BURIAL.ordinal], t[Tradition.LEAVE_DEAD.ordinal], "lineage $l")
             val s = riteStrengthAt(l)
             assertTrue(s >= 0f && s < RITE_FOUNDER_MAX, "lineage $l rite strength $s")

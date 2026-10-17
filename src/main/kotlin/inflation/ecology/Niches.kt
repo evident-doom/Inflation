@@ -59,7 +59,8 @@ object Niches {
     enum class Shelter { CRAG, DEN, THICKET, TREE, WATER }
 
     private val SHELTERS by lazy { mapOf(
-        Catalogue.IBEX to setOf(Shelter.CRAG), Catalogue.MOUFLON to setOf(Shelter.CRAG), Catalogue.ARGALI to setOf(Shelter.CRAG), Catalogue.WILD_GOAT to setOf(Shelter.CRAG),
+        Catalogue.IBEX to setOf(Shelter.CRAG), Catalogue.MOUFLON to setOf(Shelter.CRAG), Catalogue.ARGALI to setOf(Shelter.CRAG),
+        Catalogue.WILD_GOAT to setOf(Shelter.CRAG),
         Catalogue.LEOPARD to setOf(Shelter.CRAG, Shelter.DEN, Shelter.THICKET, Shelter.TREE),
         Catalogue.HYENA to setOf(Shelter.DEN), Catalogue.JACKAL to setOf(Shelter.DEN, Shelter.THICKET),
         Catalogue.WOLF to setOf(Shelter.DEN), Catalogue.BEAR to setOf(Shelter.DEN, Shelter.THICKET),

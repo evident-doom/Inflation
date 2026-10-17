@@ -51,7 +51,10 @@ fun main(args: Array<String>) {
         var agree = 0; var pHand = 0.0; var stay = 0; var handStay = 0; var tv = 0.0
         val ps = ArrayList<FloatArray>()
         for (c in seen) {
-            val sc = FloatArray(c.f.size) { i -> m.fill(c.kind, c.f[i], c.band, b.a[0], c.temper); m.net.forward(b) + m.residual * c.hand[i] + m.pull(c.temper, c.f[i]) }
+            val sc = FloatArray(c.f.size) { i ->
+                m.fill(c.kind, c.f[i], c.band, b.a[0], c.temper)
+                m.net.forward(b) + m.residual * c.hand[i] + m.pull(c.temper, c.f[i])
+            }
             val p = softmax(sc); ps += p
             var best = 0; for (i in sc.indices) if (sc[i] > sc[best]) best = i
             var hb = 0; for (i in c.hand.indices) if (c.hand[i] > c.hand[hb]) hb = i

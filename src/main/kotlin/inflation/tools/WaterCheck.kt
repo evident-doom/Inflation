@@ -29,13 +29,16 @@ fun main(args: Array<String>) {
     val weather = Weather(hw.weatherPlaces(cfg), cfg)
     fun mean(p: Int, f: (Int) -> Float): Float { val cs = hw.placeCells[p]; var s = 0.0; for (i in cs) s += f(i); return (s / cs.size).toFloat() }
     val arid = FloatArray(n) { p -> mean(p) { world.climate.aridity(it) } }
-    val classes = listOf("hyperarid <0.2" to 0f..0.2f, "arid 0.2-0.5" to 0.2f..0.5f, "semiarid 0.5-0.65" to 0.5f..0.65f, "dry-subhumid 0.65-1" to 0.65f..1f, "humid >1" to 1f..1e9f)
+    val classes = listOf("hyperarid <0.2" to 0f..0.2f, "arid 0.2-0.5" to 0.2f..0.5f, "semiarid 0.5-0.65" to 0.5f..0.65f,
+        "dry-subhumid 0.65-1" to 0.65f..1f, "humid >1" to 1f..1e9f)
     val cls = IntArray(n) { p -> classes.indexOfFirst { arid[p] in it.second } }
-    val rivers = listOf("streams 3-30 m³/s" to RiverClass.STREAM, "rivers 30-300 m³/s" to RiverClass.RIVER, "great rivers 300+ m³/s" to RiverClass.GREAT_RIVER)
+    val rivers = listOf("streams 3-30 m³/s" to RiverClass.STREAM, "rivers 30-300 m³/s" to RiverClass.RIVER,
+        "great rivers 300+ m³/s" to RiverClass.GREAT_RIVER)
     val rcls = IntArray(hw.hex.size) { h -> if (hw.land[h] <= 0f) -1 else rivers.indexOfLast { land.meanFlow[h] >= it.second.minDischarge } }
     for ((c, cl) in classes.withIndex()) println("%-20s area %.0f km², near a spring %.1f%%".format(cl.first,
         (0 until n).filter { cls[it] == c }.sumOf { land.areaKm2[it].toDouble() },
-        100 * (0 until n).filter { cls[it] == c }.sumOf { (land.nearSpring[it] * land.areaKm2[it]).toDouble() } / (0 until n).filter { cls[it] == c }.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0)))
+        100 * (0 until n).filter { cls[it] == c }.sumOf { (land.nearSpring[it] * land.areaKm2[it]).toDouble() } /
+            (0 until n).filter { cls[it] == c }.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0)))
     for ((c, r) in rivers.withIndex()) println("%-22s hexes %d".format(r.first, rcls.count { it == c }))
     val stepsY = Date.DAYS_PER_YEAR / cfg.daysPerStep
     fun stock() = (0 until n).sumOf { (land.groundwater[it] * land.areaKm2[it]).toDouble() }
@@ -64,7 +67,8 @@ fun main(args: Array<String>) {
             }
             val s = stock(); lo = minOf(lo, s); hi = maxOf(hi, s)
         }
-        println("== year %d  ground water: dry-season low / wet-season high %.2f, mean against the start %.2f; water and plants %.1f ms a step".format(y, lo / hi, (lo + hi) / 2 / stock0, landNs / 1e6 / stepsY))
+        println("== year %d  ground water: dry-season low / wet-season high %.2f, mean against the start %.2f; water and plants %.1f ms a step"
+            .format(y, lo / hi, (lo + hi) / 2 / stock0, landNs / 1e6 / stepsY))
         landNs = 0L
         if (y == years - 1) for (h in 0 until hw.hex.size) if (rcls[h] >= 1 && dryWeeks[h] > 0)
             println("    below a trickle: hex %d, usual %.0f m³/s, %d weeks, lowest %.4f of usual, %d places, land share %.2f, drains to %d".format(
@@ -81,12 +85,15 @@ fun main(args: Array<String>) {
                 if (spP.isEmpty()) Double.NaN else spP.map { sMin[hw.placeHex[it]].toDouble() }.average(),
                 if (spP.isEmpty()) Double.NaN else spP.count { sMin[hw.placeHex[it]] < 0.1f }.toDouble() / spP.size))
             val dry = ps.filter { minPeople[it] < 0.05f }
-            if (dry.isNotEmpty()) println("  %-20s   where people find none: by a stream bed %.0f%% of places (mean share %.2f); water table %.0f m down (median)".format(
-                "", 100.0 * dry.count { land.nearRiver[it] > 0f } / dry.size, dry.map { land.nearRiver[it].toDouble() }.average(), dry.map { land.waterTableM(it) }.sorted()[dry.size / 2]))
+            if (dry.isNotEmpty()) println(
+                "  %-20s   where people find none: by a stream bed %.0f%% of places (mean share %.2f); water table %.0f m down (median)".format(
+                "", 100.0 * dry.count { land.nearRiver[it] > 0f } / dry.size, dry.map { land.nearRiver[it].toDouble() }.average(),
+                dry.map { land.waterTableM(it) }.sorted()[dry.size / 2]))
         }
         for ((c, r) in rivers.withIndex()) {
             val hs = (0 until hw.hex.size).filter { rcls[it] == c }; if (hs.isEmpty()) continue
-            println("  %-22s lowest week %.3f of mean flow (median hex); hexes ever under 2%%: %.3f; ever below a trickle: %.3f; weeks below a trickle %.2f%%".format(
+            println("  %-22s lowest week %.3f of mean flow (median hex); hexes ever under 2%%: %.3f; ever below a trickle: %.3f; weeks below a trickle %.2f%%"
+                .format(
                 r.first, hs.map { rMin[it] }.sorted()[hs.size / 2], hs.count { rMin[it] < 0.02f }.toDouble() / hs.size,
                 hs.count { dryWeeks[it] > 0 }.toDouble() / hs.size, 100.0 * hs.sumOf { dryWeeks[it] } / (hs.size * stepsY)))
         }

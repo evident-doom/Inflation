@@ -54,7 +54,8 @@ fun main(args: Array<String>) {
     }
     // Journeys: the easiest way between two points [km] apart, against the straight line.
     val rnd = Random(cfg.seed)
-    for ((name, test) in listOf<Pair<String, (Int) -> Boolean>>("across mountains" to { world.elevation[it] > 1500f }, "across lowland" to { world.elevation[it] < 500f })) {
+    for ((name, test) in listOf<Pair<String, (Int) -> Boolean>>("across mountains" to { world.elevation[it] > 1500f },
+        "across lowland" to { world.elevation[it] < 500f })) {
         val starts = land.filter(test)
         if (starts.size < 100) continue
         val longer = ArrayList<Float>(); val harder = ArrayList<Float>()
@@ -71,8 +72,8 @@ fun main(args: Array<String>) {
             val (cost, lengthKm) = easiest(world, a, b, km) ?: continue
             longer += lengthKm / straightKm; harder += cost / straightKm
         }
-        println("%-20s %d journeys of %d km: easiest way median %.2f× the straight distance (90%% %.2f×), effort median %.1f× flat ground (90%% %.1f×)".format(
-            name, longer.size, km, pct(longer, .5), pct(longer, .9), pct(harder, .5), pct(harder, .9)))
+        println("%-20s %d journeys of %d km: easiest way median %.2f× the straight distance (90%% %.2f×), effort median %.1f× flat ground (90%% %.1f×)"
+            .format(name, longer.size, km, pct(longer, .5), pct(longer, .9), pct(harder, .5), pct(harder, .9)))
     }
 }
 

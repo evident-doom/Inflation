@@ -33,10 +33,12 @@ class BandStateTest {
             check(g, "kit ${b.kit.toList()}", b.kit.allIn(0f, 1.0001f))
             check(g, "make of its tools ${b.fine.toList()}", b.fine.allIn(0f, 1.0001f))
             check(g, "skills ${b.skills.toList()}", b.skills.allIn(0f, Float.MAX_VALUE))
-            for ((name, v) in listOf("house" to b.house, "palisade" to b.palisade, "shelter" to b.shelter, "hurt" to b.hurt, "lame" to b.lame, "night wood" to b.nightWood))
+            for ((name, v) in listOf("house" to b.house, "palisade" to b.palisade, "shelter" to b.shelter, "hurt" to b.hurt, "lame" to b.lame,
+                "night wood" to b.nightWood))
                 check(g, "$name $v", v.isFinite() && v in 0f..1.0001f)
             check(g, "spare days ${b.spareDays}", b.spareDays.isFinite() && b.spareDays >= 0f)
-            check(g, "elders ${b.elders} and age spans ${b.ageStage.toList()} of ${g.adults} adults", b.elders >= 0 && b.ageStage.all { it >= 0 } && b.elders + b.ageStage.sum() <= g.adults)
+            check(g, "elders ${b.elders} and age spans ${b.ageStage.toList()} of ${g.adults} adults",
+                b.elders >= 0 && b.ageStage.all { it >= 0 } && b.elders + b.ageStage.sum() <= g.adults)
             check(g, "rite places ${b.rite.toList()}", b.rite.all { it >= -1 })
             check(g, "ties ${b.ties}", b.ties.values.all { it.isFinite() })
             // (Their culture: grudges and descent are amounts, inbreeding a share.)

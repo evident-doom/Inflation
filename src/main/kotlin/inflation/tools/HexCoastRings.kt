@@ -28,7 +28,11 @@ fun main(args: Array<String>) {
     val flood = DoubleArray(run.land.n); val fire = DoubleArray(run.land.n)
     repeat(steps) { w ->
         run.step()
-        if (w >= steps - perYear) for (p in 0 until run.land.n) { val c = run.fauna.calamities(human, p, run.weather, true); fire[p] += c.first.toDouble(); flood[p] += c.second.toDouble() }
+        if (w >= steps - perYear) for (p in 0 until run.land.n) {
+            val c = run.fauna.calamities(human, p, run.weather, true)
+            fire[p] += c.first.toDouble()
+            flood[p] += c.second.toDouble()
+        }
     }
     val hex = run.hex; val hw = run.hw; val land = run.land; val groups = run.groups
     // Rings from the sea.
@@ -52,10 +56,12 @@ fun main(args: Array<String>) {
         val km2 = ps.sumOf { land.areaKm2[it].toDouble() }
         fun mean(f: (Int, Int) -> Double) = hs.indices.sumOf { i -> f(hs[i], ps[i]) * land.areaKm2[ps[i]] } / km2
         val heads = hs.sumOf { people[it] ?: 0 }
-        println("%2d%s | %8.0f | %6.1f | %8.0f | %8.0f | %8.0f | %5.1f | %7.0f | %.3f | %.2f | %.3f / %.3f".format(rr, if (rr == 12) "+" else " ", km2, 1000.0 * heads / km2,
+        println("%2d%s | %8.0f | %6.1f | %8.0f | %8.0f | %8.0f | %5.1f | %7.0f | %.3f | %.2f | %.3f / %.3f".format(rr, if (rr == 12) "+" else " ", km2,
+            1000.0 * heads / km2,
             mean { _, p -> groups.campValue(human, p).toDouble() },
             mean { _, p -> (groups.preyHere(human, p) + groups.herdPrey(human, p)).toDouble() },
-            mean { _, p -> ((run.fauna.food.fruit[p] + run.fauna.food.roots[p] + run.fauna.food.seeds[p]) * 1e6f * inflation.ecology.PLANT_FOOD_WEIGHT).toDouble() },
+            mean { _, p -> ((run.fauna.food.fruit[p] + run.fauna.food.roots[p] + run.fauna.food.seeds[p]) * 1e6f *
+                inflation.ecology.PLANT_FOOD_WEIGHT).toDouble() },
             mean { _, p -> land.peopleWaterKm(p).toDouble() },
             mean { h, _ -> run.fauna.water.fishWithin(h, 1f).toDouble() },
             mean { _, p -> land.waterlogged[p].toDouble() },

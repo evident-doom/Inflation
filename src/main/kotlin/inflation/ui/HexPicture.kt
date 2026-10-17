@@ -46,7 +46,8 @@ object HexPicture {
         javax.imageio.ImageIO.write(render(world, hex, x0, y0, sizeKm, sizeKm, px), "png", file)
     }
 
-    /** The picture of the [w] × [h] km from (x0, y0), at [px] pixels per km; without [rivers], the river courses are left for the viewer to draw by their flow. */
+    /** The picture of the [w] × [h] km from (x0, y0), at [px] pixels per km; without [rivers], the river courses are left for the
+     * viewer to draw by their flow. */
     fun render(world: World, hex: HexMap, x0: Double, y0: Double, wKm: Double, hKm: Double, px: Int, rivers: Boolean = true): BufferedImage {
         val g = world.grid
         val ck = g.cellKm

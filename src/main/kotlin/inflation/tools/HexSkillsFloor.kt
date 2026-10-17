@@ -43,7 +43,9 @@ fun main(args: Array<String>) {
         for (g in run.groups.groups) if (g.alive && g.species == people) {
             g.tag = biomeOf[g.place]; start[g.tag] += g.size.toDouble()
             if (naked) g.band?.let { b ->
-                b.skills.fill(0f); for (s in Skill.entries) b.knowsSkill[s.ordinal] = s.known; b.plants.fill(0f); b.fire = 0f; b.shelter = 0f; b.known = LongArray(0); b.kit.fill(0f); b.knows.fill(false); b.goods.fill(0f); b.cache.fill(0f)
+                b.skills.fill(0f)
+                for (s in Skill.entries) b.knowsSkill[s.ordinal] = s.known
+                b.plants.fill(0f); b.fire = 0f; b.shelter = 0f; b.known = LongArray(0); b.kit.fill(0f); b.knows.fill(false); b.goods.fill(0f); b.cache.fill(0f)
                 b.house = 0f; b.houseHex = -1; b.palisade = 0f; b.ornaments = 0f; b.exotic = 0f
                 g.stores.fill(0f)
                 g.memory.hex.fill(-1); g.seasonPlace.fill(-1)
@@ -71,10 +73,13 @@ fun main(args: Array<String>) {
     println("%-24s %7s  ".format("country", "people") + marks.joinToString("  ") { "%9s".format("wk $it") })
     for (b in Biome.entries.indices.sortedByDescending { naked.second[it] }) {
         if (naked.second[b] < 1.0) continue
-        val cells = marks.joinToString("  ") { w -> "%3.0f%%|%3.0f%%".format(100.0 * (naked.third[w]?.get(b) ?: 0.0) / naked.second[b], 100.0 * (usual.third[w]?.get(b) ?: 0.0) / usual.second[b].coerceAtLeast(1.0)) }
+        val cells = marks.joinToString("  ") { w -> "%3.0f%%|%3.0f%%".format(100.0 * (naked.third[w]?.get(b) ?: 0.0) / naked.second[b],
+            100.0 * (usual.third[w]?.get(b) ?: 0.0) / usual.second[b].coerceAtLeast(1.0)) }
         println("%-24s %7.0f  %s".format(Biome.entries[b].name.lowercase().replace('_', ' '), naked.second[b], cells))
     }
-    val all = marks.joinToString("  ") { w -> "%3.0f%%|%3.0f%%".format(100.0 * (naked.third[w]?.sum() ?: 0.0) / naked.second.sum(), 100.0 * (usual.third[w]?.sum() ?: 0.0) / usual.second.sum().coerceAtLeast(1.0)) }
+    val all = marks.joinToString("  ") { w -> "%3.0f%%|%3.0f%%".format(100.0 * (naked.third[w]?.sum() ?: 0.0) / naked.second.sum(),
+        100.0 * (usual.third[w]?.sum() ?: 0.0) / usual.second.sum().coerceAtLeast(1.0)) }
     println("%-24s %7.0f  %s".format("all", naked.second.sum(), all))
-    println("%-24s %7s  %s".format("how well fed", "", marks.joinToString("  ") { w -> "%3.0f%%|%3.0f%%".format(100.0 * (nakedFed[w] ?: 0.0), 100.0 * (usualFed[w] ?: 0.0)) }))
+    println("%-24s %7s  %s".format("how well fed", "",
+        marks.joinToString("  ") { w -> "%3.0f%%|%3.0f%%".format(100.0 * (nakedFed[w] ?: 0.0), 100.0 * (usualFed[w] ?: 0.0)) }))
 }

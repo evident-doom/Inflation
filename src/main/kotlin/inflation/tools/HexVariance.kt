@@ -101,7 +101,13 @@ fun main(args: Array<String>) {
             val rg = regionOf[h]; var rm = 0.0; for (o in rg) rm += v[o]; rm /= rg.size
             var rv = 0.0; for (o in rg) rv += (v[o] - rm) * (v[o] - rm); rv /= rg.size
             regionVar += rv
-            if (h % 7 == 0 && rg.size >= 60) { val sorted = rg.map { v[it] }.sorted(); best += sorted.last(); typical += sorted[sorted.size / 2]; worst += sorted.first(); regions++ }
+            if (h % 7 == 0 && rg.size >= 60) {
+                val sorted = rg.map { v[it] }.sorted()
+                best += sorted.last()
+                typical += sorted[sorted.size / 2]
+                worst += sorted.first()
+                regions++
+            }
             var s = 0.0; var hi = true; var lo = true
             for (d in 0 until 6) { val o = hex.neighbour(h, d); s += v[o]; if (v[o] >= v[h]) hi = false; if (v[o] <= v[h]) lo = false }
             val r = v[h] - s / 6
@@ -113,11 +119,18 @@ fun main(args: Array<String>) {
         }
         val within = fine?.let { f ->
             var w = 0.0; var c = 0L
-            for (h in inland) { val cs = cellsOf[h]; if (cs.size < 2) continue; val m = cs.sumOf { f(it) } / cs.size; for (i in cs) { val d = f(i) - m; w += d * d }; c += cs.size }
+            for (h in inland) {
+                val cs = cellsOf[h]
+                if (cs.size < 2) continue
+                val m = cs.sumOf { f(it) } / cs.size
+                for (i in cs) { val d = f(i) - m; w += d * d }
+                c += cs.size
+            }
             sqrt(w / c) / sd
         }
         println("%-22s mean %9.3f sd %8.3f | neighbours differ by %8.3f (%3.0f%% of mean) | regional sd %8.3f, anomaly %.2f of it, peaks +%.2f of it | in 50 km: best %.3f, median %.3f, worst %.3f".format(
-            name, mean, sd, absDiff / n, 100 * absDiff / n / abs(mean), sqrt(regionVar / n), sqrt(anomRel / maxOf(relN, 1)), if (peaks > 0) peakRel / peaks else 0.0,
+            name, mean, sd, absDiff / n, 100 * absDiff / n / abs(mean), sqrt(regionVar / n),
+            sqrt(anomRel / maxOf(relN, 1)), if (peaks > 0) peakRel / peaks else 0.0,
             best / regions, typical / regions, worst / regions))
         println("%-22s lag %s | E-W %.2f SE %.2f SW %.2f | anomaly %.2f sd | peaks %4.1f%% (+%.2f sd) pits %4.1f%% (-%.2f sd)%s".format(
             "", gam.joinToString(" ") { "%.2f".format(it) }, axis[0], axis[1], axis[2], sqrt(anom / n) / sd,
@@ -138,14 +151,16 @@ fun main(args: Array<String>) {
     line("January temp °C", hexMean { clim.monthlyTemp[0][it].toDouble() }) { clim.monthlyTemp[0][it].toDouble() }
     line("rain mm/yr", hexMean { clim.annualPrecip[it].toDouble() }) { clim.annualPrecip[it].toDouble() }
     line("aridity P/PET", hexMean { clim.aridity(it).toDouble() }) { clim.aridity(it).toDouble() }
-    line("ln aridity", hexMean { kotlin.math.ln(clim.aridity(it).toDouble().coerceAtLeast(1e-3)) }) { kotlin.math.ln(clim.aridity(it).toDouble().coerceAtLeast(1e-3)) }
+    line("ln aridity",
+        hexMean { kotlin.math.ln(clim.aridity(it).toDouble().coerceAtLeast(1e-3)) }) { kotlin.math.ln(clim.aridity(it).toDouble().coerceAtLeast(1e-3)) }
     line("soil fertility", hexMean { world.soilFertility[it].toDouble() }) { world.soilFertility[it].toDouble() }
     line("rock fertility", hexMean { world.geology.rock[it].fertility.toDouble() }) { world.geology.rock[it].fertility.toDouble() }
     line("floodplain share", hexMean { if (world.floodplain.isFloodplain[it]) 1.0 else 0.0 })
     line("watered (2 km) share", DoubleArray(H) { hw.watered[it].toDouble() })
     line("stream km", DoubleArray(H) { hw.riverKm[it].toDouble() })
     line("forest share", DoubleArray(H) { h -> Biome.entries.filter { it.name.contains("FOREST") }.sumOf { hw.biome[it.ordinal][h].toDouble() } })
-    line("stone (flint) share", hexMean { if (world.geology.minerals[it] and (inflation.world.Mineral.FLINT or inflation.world.Mineral.OBSIDIAN) != 0) 1.0 else 0.0 })
+    line("stone (flint) share",
+        hexMean { if (world.geology.minerals[it] and (inflation.world.Mineral.FLINT or inflation.world.Mineral.OBSIDIAN) != 0) 1.0 else 0.0 })
 
     // Place values, as area-weighted means over each hex's places.
     fun placeMean(f: (Int) -> Double): DoubleArray {
@@ -158,7 +173,8 @@ fun main(args: Array<String>) {
     line("shrubs kg/m²", placeMean { land.shrub[it].toDouble() })
     line("trees kg/m²", placeMean { land.tree[it].toDouble() })
     line("soil water mm", placeMean { land.soil[it].toDouble() })
-    line("drink near share", placeMean { land.nearRiver[it].toDouble().coerceAtLeast(land.nearLake[it].toDouble()).coerceAtLeast(land.nearSpring[it].toDouble()) })
+    line("drink near share", placeMean { land.nearRiver[it].toDouble().coerceAtLeast(land.nearLake[it].toDouble())
+        .coerceAtLeast(land.nearSpring[it].toDouble()) })
     line("palatable share", placeMean { land.palatable[it].toDouble() })
     val ks = fauna.kinds.indices
     line("resident kg/km²", placeMean { p -> ks.sumOf { k -> (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * fauna.kinds[k].massKg } })
@@ -175,5 +191,6 @@ fun main(args: Array<String>) {
         val j = world.water.drainage.receiver[i]; if (j < 0 || j == i) continue
         if (grid.x(i) == grid.x(j) || grid.y(i) == grid.y(j)) straight++ else diagonal++
     }
-    println("\nstream cells flowing straight %d, diagonal %d (stream km counts each cell as %.1f km: a diagonal step is %.2f km)".format(straight, diagonal, grid.cellKm, grid.cellKm * sqrt(2.0)))
+    println("\nstream cells flowing straight %d, diagonal %d (stream km counts each cell as %.1f km: a diagonal step is %.2f km)"
+        .format(straight, diagonal, grid.cellKm, grid.cellKm * sqrt(2.0)))
 }
