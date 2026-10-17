@@ -251,7 +251,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (o == null) {
             // Young whose last grown animal was killed this week (by hunters or rivals) die too.
             if (!g.alive && g.young > 0) {
-                stats.deaths.merge("${s.name}:${DeathCause.ORPHANED}", g.young, Int::plus)
+                stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), g.young, Int::plus)
                 small.carrion[g.place] += 0.3f * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)
                 g.young = 0
             }
@@ -260,14 +260,14 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         if (o.carrionKg > 0f) small.carrion[g.place] += o.carrionKg / (land.areaKm2[g.place] * 1e6f)
         if (o.births > 0) stats.births.merge(s.name, o.births, Int::plus)
         note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.second > 0 }.joinToString(", ") { "${it.second} ${it.first}" }.ifEmpty { "none" }) }
-        for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("${s.name}:$cause", k, Int::plus)
+        for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
         fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
         if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.herdSize(sizeClass(g), cause), k, Int::plus)
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
         if (ROUNDS && !s.carnivore && g.route[0] != ROUND_OPEN) {
             val way = if (g.route[0] >= 0) "on round" else "own country"
-            for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("${s.name} $way:$cause", k, Int::plus)
-            if (o.births > 0) stats.deaths.merge("${s.name} $way:born", o.births, Int::plus)
+            for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, way, cause), k, Int::plus)
+            if (o.births > 0) stats.deaths.merge(Tally.of(s, way, "born"), o.births, Int::plus)
         }
         if (s.human) {
             val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
@@ -291,9 +291,9 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
                 }
             }
         }
-        if (o.orphans > 0) stats.deaths.merge("${s.name}:${DeathCause.ORPHANED}", o.orphans, Int::plus)
+        if (o.orphans > 0) stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
-        if (s.human && o.youngDied > 0) stats.hunting.merge("${s.name}:${WeekStats.CHILDREN_DIED}", o.youngDied, Int::plus)
+        if (s.human && o.youngDied > 0) stats.hunting.merge(Tally.of(s, WeekStats.CHILDREN_DIED), o.youngDied, Int::plus)
         // A band that keeps the old way leaves a camp where someone died.
         if (s.human && o.deaths > 0) g.band?.let { b ->
             if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) {

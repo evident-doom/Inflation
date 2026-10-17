@@ -335,7 +335,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.placeHex[g.place]) }
         if (fish > 0f) band.practise(Skill.FISH)
         if (band.fire > 0f) band.practise(Skill.ROASTING)
-        stats.hunting.merge("${s.name}:fish, kg", fish.toInt(), Int::plus)
+        stats.hunting.merge(Tally.of(s, "fish, kg"), fish.toInt(), Int::plus)
     }
     var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
     note(g) {
@@ -381,8 +381,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 eaten *= 1f - tuning.saltLack * plantShare * (1f - had / want)
             }
         }
-        stats.hunting.merge("${s.name}:${WeekStats.MEAT_EATEN}", ateMeat.toInt(), Int::plus)
-        stats.hunting.merge("${s.name}:${WeekStats.PLANTS_EATEN}", (eaten - ateMeat).toInt(), Int::plus)
+        stats.hunting.merge(Tally.of(s, WeekStats.MEAT_EATEN), ateMeat.toInt(), Int::plus)
+        stats.hunting.merge(Tally.of(s, WeekStats.PLANTS_EATEN), (eaten - ateMeat).toInt(), Int::plus)
         // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
         for (i in got.indices) g.stores.a[i] += got[i]
         // Digging soaks and drawing their water takes time where that is the only water (see [HexDrinkingWater.mustDig]).
@@ -491,7 +491,7 @@ private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float): Float {
         val harvested = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
         val have = g.stores[Store.SEED]
         band.seedDomestic = (band.seedDomestic * have + harvested * took) / (have + took).coerceAtLeast(1e-6f)
-        stats.hunting.merge("${g.species.name}:${WeekStats.GRAIN_REAPED}", took.toInt(), Int::plus)
+        stats.hunting.merge(Tally.of(g.species, WeekStats.GRAIN_REAPED), took.toInt(), Int::plus)
     }
     return took
 }
@@ -518,7 +518,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
                 took += extra
                 out.busy = extra * LEACH_DAYS_PER_KG / hands
                 band.practise(Skill.LEACHING)
-                stats.hunting.merge("${s.name}:plants leached, kg", extra.toInt(), Int::plus)
+                stats.hunting.merge(Tally.of(s, "plants leached, kg"), extra.toInt(), Int::plus)
             }
         }
     }
@@ -929,7 +929,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // Big, armed prey fight back: a horn or a kick now and then kills one of the hunters.
     if (hunter.adults > 0 && rnd.nextFloat() < fightBack(herd.species, hunter.adults * hunter.species.massKg)) {
         adultsDied(hunter, 1, rnd)
-        stats.deaths.merge("${hunter.species.name}:${DeathCause.PREY_FOUGHT_BACK}", 1, Int::plus)
+        stats.deaths.merge(Tally.of(hunter.species, DeathCause.PREY_FOUGHT_BACK), 1, Int::plus)
         hunter.band?.wounded(WOUNDED_PER_DEAD, hunter.adults)
         small.carrion[hunter.place] += hunter.species.massKg / (land.areaKm2[hunter.place] * 1e6f)
     }
@@ -1034,11 +1034,11 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
         weak.young--
         strong.meatMet += 0.3f * 0.5f * weak.species.massKg
-        stats.deaths.merge("${weak.species.name}:${DeathCause.youngKilledBy(strong.species.name)}", 1, Int::plus)
+        stats.deaths.merge(Tally.of(weak.species, DeathCause.youngKilledBy(strong.species.name)), 1, Int::plus)
     } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
         adultsDied(weak, 1, rnd)
         strong.meatMet += 0.5f * weak.species.massKg
-        stats.deaths.merge("${weak.species.name}:${DeathCause.killedBy(strong.species.name)}", 1, Int::plus)
+        stats.deaths.merge(Tally.of(weak.species, DeathCause.killedBy(strong.species.name)), 1, Int::plus)
     }
     stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back
     if (weak.band != null) stats.meetings.merge("bands turned back by ${strong.species.name}", 1, Int::plus)
@@ -1085,7 +1085,7 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
     val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
     if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) {
         adultsDied(loser, 1, rnd)
-        stats.deaths.merge("${loser.species.name}:${DeathCause.RIVALS}", 1, Int::plus)
+        stats.deaths.merge(Tally.of(loser.species, DeathCause.RIVALS), 1, Int::plus)
     }
     if (loser.home.i == h) {
         loser.home = Hex.NONE
@@ -1094,7 +1094,7 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
         if (loser.young > 0 && loser.species.groupSize >= 3) {
             val killed = binomial(loser.young, INFANTICIDE, rnd)
             loser.young -= killed
-            if (killed > 0) stats.deaths.merge("${loser.species.name}:${DeathCause.YOUNG_KILLED_BY_RIVALS}", killed, Int::plus)
+            if (killed > 0) stats.deaths.merge(Tally.of(loser.species, DeathCause.YOUNG_KILLED_BY_RIVALS), killed, Int::plus)
         }
     }
     if (loser === a) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))

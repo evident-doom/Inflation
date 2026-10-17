@@ -40,8 +40,20 @@ class WeekStats {
  * one changes both and cannot silently zero a report. Keys only ever listed whole stay free text.
  */
 object Tally {
-    /** A [WeekStats.hunting] tally of kind [s]: [what] (as [CHASES]). */
-    fun of(s: Species, what: String) = "${s.name}:$what"
+    /** A tally of kind [s]: [what] (as [CHASES], or a death's cause). */
+    fun of(s: Species, what: String) = of(s.name, what)
+    /** A death of kind [s] of [cause]. */
+    fun of(s: Species, cause: DeathCause) = of(s.name, cause.label)
+    /** A tally of the kind named [kind]: [what] (the kills, kept by prey name). */
+    fun of(kind: String, what: String) = "$kind:$what"
+    /** A tally of herds of kind [s] going [way] (on a round, in their own country): [what]. */
+    fun of(s: Species, way: String, what: String) = "${s.name} $way:$what"
+    /** The kind a tally is of, and what it counts. */
+    fun kindOf(key: String) = key.substringBefore(':')
+    fun whatOf(key: String) = key.substringAfter(':')
+    /** Births and kills among the run's deaths ([inflation.tools.fauna.DeathTally]). */
+    const val BORN = "+born"
+    const val HUNTED = "hunted"
     const val CHASES = "chases"
     const val SAW_FIRST = "herds that saw it first"
     const val KILLS_FROM_HERDS = "kills from herds"
