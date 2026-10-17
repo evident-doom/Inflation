@@ -41,6 +41,11 @@ data class Products(
  * they are to be checked against sources before being treated as calibrated.
  */
 class Species(
+    /**
+     * Fixed number of the kind, 0 until [Catalogue.all]'s size, never reused or changed: per-kind
+     * tables, saves and learned networks are laid out by it. A new kind takes the next number.
+     */
+    val id: Int,
     val name: String,
     /** Adult body mass, kg. */
     val massKg: Float,
@@ -145,7 +150,7 @@ class Species(
      */
     val boldShare: Float = 0.03f,
 ) {
-    /** Position in [Catalogue.all], for array lookups. */
+    /** Position in [Catalogue.all] (its [id]), for array lookups. */
     var index = -1
         internal set
     /** Mostly eats animals. */

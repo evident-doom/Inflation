@@ -18,7 +18,7 @@ object Catalogue {
 
     /** Mountain gazelle: the staple prey of Natufian hunters. Mixed grazer and browser of open land. */
     val GAZELLE = Species(
-        name = "gazelle", massKg = 20f,
+        id = 0, name = "gazelle", massKg = 20f,
         fearOfPeople = 0.8f, boldShare = 0.03f,
         diet = Diet(grass = 0.6f, browse = 0.4f),
         groupSize = 12, maxGroupSize = 40,
@@ -36,7 +36,7 @@ object Catalogue {
 
     /** Roe deer: small, solitary or in families, browsing woodland edges and thickets. */
     val ROE_DEER = Species(
-        name = "roe deer", massKg = 25f,
+        id = 1, name = "roe deer", massKg = 25f,
         diet = Diet(grass = 0.2f, browse = 0.7f, fruit = 0.1f),
         groupSize = 3, maxGroupSize = 6,
         dailyTravelKm = 3f, maxDailyTravelKm = 20f, senseKm = 1f,
@@ -53,7 +53,7 @@ object Catalogue {
 
     /** Persian fallow deer: herds in open woodland and parkland; common in Levantine Epipalaeolithic sites. */
     val FALLOW_DEER = Species(
-        name = "fallow deer", massKg = 65f,
+        id = 2, name = "fallow deer", massKg = 65f,
         diet = Diet(grass = 0.5f, browse = 0.4f, fruit = 0.1f),
         groupSize = 6, maxGroupSize = 25,
         dailyTravelKm = 4f, maxDailyTravelKm = 25f, senseKm = 2f,
@@ -70,7 +70,7 @@ object Catalogue {
 
     /** Red deer: woodland and hills, grazing and browsing, herds split by sex outside the rut. */
     val RED_DEER = Species(
-        name = "red deer", massKg = 150f,
+        id = 3, name = "red deer", massKg = 150f,
         diet = Diet(grass = 0.5f, browse = 0.5f),
         groupSize = 8, maxGroupSize = 30,
         dailyTravelKm = 6f, maxDailyTravelKm = 40f, senseKm = 3f,
@@ -87,7 +87,7 @@ object Catalogue {
 
     /** Nubian ibex: cliffs and steep rock of the hot dry hills and gorges, where nothing can follow it. */
     val IBEX = Species(
-        name = "ibex", massKg = 45f,
+        id = 4, name = "ibex", massKg = 45f,
         fearOfPeople = 0.75f, boldShare = 0.04f,
         diet = Diet(grass = 0.6f, browse = 0.4f),
         groupSize = 8, maxGroupSize = 25,
@@ -106,7 +106,7 @@ object Catalogue {
 
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
-        name = "wild boar", massKg = 90f,
+        id = 5, name = "wild boar", massKg = 90f,
         fearOfPeople = 0.6f, boldShare = 0.1f,
         diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.45f, fruit = 0.2f, smallPrey = 0.05f, carrion = 0.05f),
         groupSize = 6, maxGroupSize = 20,
@@ -127,7 +127,7 @@ object Catalogue {
 
     /** Aurochs: huge wild cattle of wet lowlands, floodplains and open woodland; formidable when cornered. */
     val AUROCHS = Species(
-        name = "aurochs", massKg = 750f,
+        id = 6, name = "aurochs", massKg = 750f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 15, maxGroupSize = 40,
@@ -146,7 +146,7 @@ object Catalogue {
 
     /** Onager (Asiatic wild ass): fast grazer of steppe and semi-desert, needs to drink often. */
     val ONAGER = Species(
-        name = "onager", massKg = 230f,
+        id = 7, name = "onager", massKg = 230f,
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 8, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 4f,
@@ -169,7 +169,7 @@ object Catalogue {
      * water and grazes the banks at night; adults fear nothing, calves fall to lions and crocodiles.
      */
     val HIPPO = Species(
-        name = "hippo", massKg = 1400f,
+        id = 8, name = "hippo", massKg = 1400f,
         fearOfPeople = 0.3f, boldShare = 0.05f,
         diet = Diet(grass = 0.95f, browse = 0.05f),
         groupSize = 10, maxGroupSize = 30,
@@ -192,7 +192,7 @@ object Catalogue {
      * plants, with insects, carrion and the odd fawn. Fattens in autumn and sleeps out the winter.
      */
     val BEAR = Species(
-        name = "brown bear", massKg = 150f,
+        id = 9, name = "brown bear", massKg = 150f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.25f, fruit = 0.3f, smallPrey = 0.1f, carrion = 0.1f),
         fibreDigestion = 0.5f, // a bear digests cellulose poorly (captive grizzlies on high-fibre feed); set as the boar
@@ -217,7 +217,7 @@ object Catalogue {
      * small packs. Eats much small prey and carrion.
      */
     val WOLF = Species(
-        name = "wolf", massKg = 22f,
+        id = 18, name = "wolf", massKg = 22f,
         fearOfPeople = 0.5f, boldShare = 0.15f,
         diet = Diet(meat = 0.6f, smallPrey = 0.25f, carrion = 0.15f),
         groupSize = 3, maxGroupSize = 8,
@@ -241,7 +241,7 @@ object Catalogue {
      * included, and drive other predators off their kills.
      */
     val LION = Species(
-        name = "lion", massKg = 150f,
+        id = 19, name = "lion", massKg = 150f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(meat = 0.9f, carrion = 0.1f),
         groupSize = 5, maxGroupSize = 12,
@@ -261,7 +261,7 @@ object Catalogue {
 
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
     val LEOPARD = Species(
-        name = "leopard", massKg = 45f,
+        id = 20, name = "leopard", massKg = 45f,
         fearOfPeople = 0.7f, boldShare = 0.03f,
         diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
         groupSize = 2, maxGroupSize = 4,
@@ -285,7 +285,7 @@ object Catalogue {
      * her through their first winter.
      */
     val LYNX = Species(
-        name = "lynx", massKg = 20f,
+        id = 25, name = "lynx", massKg = 20f,
         fearOfPeople = 0.9f, boldShare = 0.01f,
         diet = Diet(meat = 0.75f, smallPrey = 0.22f, carrion = 0.03f),
         groupSize = 1, maxGroupSize = 4,
@@ -306,7 +306,7 @@ object Catalogue {
 
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
     val HYENA = Species(
-        name = "striped hyena", massKg = 35f,
+        id = 21, name = "striped hyena", massKg = 35f,
         fearOfPeople = 0.5f, boldShare = 0.1f,
         diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.55f, fruit = 0.1f),
         groupSize = 2, maxGroupSize = 5,
@@ -326,7 +326,7 @@ object Catalogue {
 
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
     val JACKAL = Species(
-        name = "jackal", massKg = 10f,
+        id = 22, name = "jackal", massKg = 10f,
         fearOfPeople = 0.4f, boldShare = 0.15f,
         diet = Diet(meat = 0.1f, smallPrey = 0.5f, carrion = 0.25f, fruit = 0.15f),
         groupSize = 2, maxGroupSize = 6,
@@ -354,7 +354,7 @@ object Catalogue {
      * 15–20 °C. Adults kick hard enough to keep wolves at bay.
      */
     val ELK = Species(
-        name = "elk", massKg = 400f,
+        id = 10, name = "elk", massKg = 400f,
         diet = Diet(grass = 0.1f, browse = 0.75f, roots = 0.15f),
         groupSize = 2, maxGroupSize = 5,
         dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 1.5f,
@@ -376,7 +376,7 @@ object Catalogue {
      * (It took the place of the reindeer, which this latitude did not suit, and keeps its index.)
      */
     val WILD_GOAT = Species(
-        name = "wild goat", massKg = 40f,
+        id = 11, name = "wild goat", massKg = 40f,
         fearOfPeople = 0.75f, boldShare = 0.05f,
         diet = Diet(grass = 0.5f, browse = 0.5f),
         groupSize = 10, maxGroupSize = 50,
@@ -398,7 +398,7 @@ object Catalogue {
      * future mount. A family band of a stallion and his mares, roaming far between grazing and water.
      */
     val HORSE = Species(
-        name = "wild horse", massKg = 300f,
+        id = 12, name = "wild horse", massKg = 300f,
         fearOfPeople = 0.7f, boldShare = 0.05f,
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 10, maxGroupSize = 25,
@@ -422,7 +422,7 @@ object Catalogue {
      * the ancestor of the sheep.
      */
     val MOUFLON = Species(
-        name = "mouflon", massKg = 40f,
+        id = 13, name = "mouflon", massKg = 40f,
         fearOfPeople = 0.7f, boldShare = 0.06f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 10, maxGroupSize = 40,
@@ -445,7 +445,7 @@ object Catalogue {
      * lies deep, to the windswept slopes and valleys (figures from memory).
      */
     val ARGALI = Species(
-        name = "argali", massKg = 100f,
+        id = 26, name = "argali", massKg = 100f,
         fearOfPeople = 0.8f, boldShare = 0.04f,
         diet = Diet(grass = 0.85f, browse = 0.15f),
         groupSize = 15, maxGroupSize = 80,
@@ -469,7 +469,7 @@ object Catalogue {
      * plants, and tracks distant rain. Its long horns make adults dangerous to tackle.
      */
     val ORYX = Species(
-        name = "oryx", massKg = 70f,
+        id = 14, name = "oryx", massKg = 70f,
         diet = Diet(grass = 0.7f, browse = 0.3f),
         groupSize = 10, maxGroupSize = 30,
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 4f,
@@ -490,7 +490,7 @@ object Catalogue {
      * seeds and fruit; outruns almost everything and kicks hard. Large clutches, but a pair rears about one chick a year.
      */
     val OSTRICH = Species(
-        name = "ostrich", massKg = 110f,
+        id = 15, name = "ostrich", massKg = 110f,
         // A picky feeder on green shoots, flowers, seeds and fruit, not a bulk grazer.
         diet = Diet(grass = 0.2f, browse = 0.4f, roots = 0.1f, fruit = 0.3f),
         groupSize = 5, maxGroupSize = 30,
@@ -513,7 +513,7 @@ object Catalogue {
 
     /** Bubal hartebeest: a grazer of dry grassland and semi-desert edges, in herds; kept by the Egyptians. */
     val HARTEBEEST = Species(
-        name = "hartebeest", massKg = 150f,
+        id = 16, name = "hartebeest", massKg = 150f,
         diet = Diet(grass = 0.95f, browse = 0.05f),
         groupSize = 12, maxGroupSize = 40,
         dailyTravelKm = 8f, maxDailyTravelKm = 40f, senseKm = 3f,
@@ -533,7 +533,7 @@ object Catalogue {
      * then drinks a hundred litres; the future beast of burden of the desert routes.
      */
     val DROMEDARY = Species(
-        name = "dromedary", massKg = 450f,
+        id = 17, name = "dromedary", massKg = 450f,
         diet = Diet(grass = 0.3f, browse = 0.7f),
         groupSize = 8, maxGroupSize = 20,
         dailyTravelKm = 15f, maxDailyTravelKm = 60f, senseKm = 4f,
@@ -555,7 +555,7 @@ object Catalogue {
      * open; it loses its kills to anything bigger and cannot hunt in cover or broken ground.
      */
     val CHEETAH = Species(
-        name = "cheetah", massKg = 45f,
+        id = 23, name = "cheetah", massKg = 45f,
         fearOfPeople = 0.7f, boldShare = 0.08f,
         diet = Diet(meat = 0.8f, smallPrey = 0.2f),
         groupSize = 2, maxGroupSize = 4,
@@ -584,7 +584,7 @@ object Catalogue {
      * what they know of next week they must learn.
      */
     val HUMAN = Species(
-        name = "people", massKg = 55f,
+        id = 24, name = "people", massKg = 55f,
         fearOfPeople = 0.0f, boldShare = 0.0f,
         // Natufian middens and plant remains suggest plant food (nuts, acorns, seeds, pulses, roots)
         // made up as much of the diet as game; hunting is a little over a third.
@@ -617,9 +617,9 @@ object Catalogue {
         GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR,
         ELK, WILD_GOAT, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
     )
-    // (New kinds go at the end, so that every kind keeps its index, and saved networks their identities.)
+    // (A new kind takes the next free [Species.id], so every kind keeps its index, and saved networks their identities.)
     val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN, LYNX)
-    /** Kinds added after the predators (at the end of [all], so the others keep their indices). */
+    /** Kinds added after the predators (with later ids, so the others keep their indices). */
     private val laterHerbivores = listOf(ARGALI)
     val herbivores = firstHerbivores + laterHerbivores
 
@@ -653,7 +653,8 @@ object Catalogue {
     /** How a kind crosses hex borders: climbers over crags, big plant-eaters swim rivers, the rest walk. */
     fun travel(s: Species) = if (s in climbers) HexMap.Travel.CLIMB
         else if (!s.carnivore && s.massKg > 60f) HexMap.Travel.SWIM else HexMap.Travel.FOOT
-    val all = firstHerbivores + predators + laterHerbivores
+    /** Every kind, in [Species.id] order (so `all[s.index] === s`). */
+    val all = (firstHerbivores + predators + laterHerbivores).sortedBy { it.id }
     /**
      * The kinds that move as groups with a learned mover: the migratory herds, the beasts of prey and
      * people. Named, not read from the diet: people eat about half meat, and a small retune of their
@@ -662,6 +663,7 @@ object Catalogue {
     val learned = all.filter { (it in migratory || it in predators) && it !in residentHunters }
 
     init {
-        all.forEachIndexed { i, s -> s.index = i }
+        require(all.withIndex().all { (i, s) -> s.id == i }) { "species ids must run 0 until ${all.size} without gaps or repeats" }
+        for (s in all) s.index = s.id
     }
 }

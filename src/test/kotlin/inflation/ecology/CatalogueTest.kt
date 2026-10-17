@@ -11,4 +11,11 @@ class CatalogueTest {
         assertTrue(Catalogue.residentHunters.none { it in Catalogue.learned })
         assertTrue(Catalogue.migratory.all { it in Catalogue.learned })
     }
+
+    @Test
+    fun `every kind sits at its fixed id`() {
+        for ((i, s) in Catalogue.all.withIndex()) assertTrue(s.id == i && s.index == i, "${s.name}: id ${s.id}, index ${s.index}, at $i")
+        // (The ids the saved worlds and networks were made with.)
+        assertTrue(Catalogue.GAZELLE.id == 0 && Catalogue.WOLF.id == 18 && Catalogue.HUMAN.id == 24 && Catalogue.ARGALI.id == 26)
+    }
 }
