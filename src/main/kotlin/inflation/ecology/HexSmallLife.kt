@@ -10,7 +10,6 @@ import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.LifeForm
-import inflation.world.LiveWater
 import inflation.world.Weather
 import kotlin.math.exp
 import kotlin.math.max
@@ -352,7 +351,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * eggs wait in the mud.
      */
     private fun stepBiting(p: Int, active: Float, soilWater: Float, weather: Weather) {
-        val standing = land.hydro.flood[p] > 0f || wetland[p] > 0.1f || soilWater / LiveWater.SOIL_CAPACITY > 0.9f
+        val standing = land.hydro.flood[p] > 0f || wetland[p] > 0.1f || soilWater / land.hydro.soilCap[p] > 0.9f
         smallDead[p] += insectSeason(p, biting, dormantBiting, active, if (standing) 500f else 0f, least = 0f)
         harass[p] = harassmentNow(p, weather)
     }
