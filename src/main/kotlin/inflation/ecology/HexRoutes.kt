@@ -4,6 +4,7 @@ import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.RiverClass
 import java.util.Arrays
+import kotlin.math.max
 
 /**
  * Routes and landmarks: the worn paths read as a graph. Where the ways meet, cross a river, go over
@@ -124,7 +125,20 @@ class HexRoutes(private val g: HexGroups) {
             for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && hex.heart[q] >= 0) { round += rug(q); k++ } }
             return rug(h) >= PASS_RUGGED && k > 0 && round / k >= rug(h)
         }
-        for (h in 0 until hex.size) for (d in 0 until 6) way[h * 6 + d] = hex.heart[h] >= 0 && wornRaw(h, d)
+        // A way is a line of wear, not a worn patch: a border counts where it is worn, and at least as worn as
+        // the borders beside it running the same way (from the two hexes flanking it), so of side-by-side
+        // strands across country walked all over, the most trodden is the way. (Wear either way across.)
+        fun wear(h: Int, d: Int): Float {
+            val q = hex.neighbour(h, d); if (q < 0 || hex.heart[h] < 0 || hex.heart[q] < 0) return 0f
+            return max(g.wear.paths[h * 6 + d], g.wear.paths[q * 6 + (d + 3) % 6])
+        }
+        for (h in 0 until hex.size) for (d in 0 until 6) {
+            val w = wear(h, d)
+            way[h * 6 + d] = w >= ROUTE_WORN && hex.neighbour(h, (d + 1) % 6).let { a -> a < 0 || wear(a, d) <= w } &&
+                hex.neighbour(h, (d + 5) % 6).let { b -> b < 0 || wear(b, d) <= w }
+        }
+        // (Both ways across a border agree: a border is a way if it is one from either side.)
+        for (h in 0 until hex.size) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && way[h * 6 + d]) way[q * 6 + (d + 3) % 6] = true }
         // A worn way that goes off a route into the next hex and stops there, with nothing there to go for
         // (water, a pass, a river crossed), is a group leaving the route to range, not a way of its own: a
         // way passes through at least one hex, as only going through country wears one (see [PathWear]).

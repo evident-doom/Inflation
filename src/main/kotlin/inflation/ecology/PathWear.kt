@@ -12,8 +12,7 @@ import kotlin.math.min
  * wears it, the heavier and more numerous the more; plants grow back over it, the faster the
  * greener the ground. Worn paths make the going easier, the more so in broken country, so herds
  * and people keep to them: they gather at the easy crossings, passes and fords, and there hunters
- * wait. Groups making for a far place reckon the way by the worn paths too (see [HexGroups]), so
- * those bound the same way keep to the same paths and a few long ways form.
+ * wait.
  */
 class PathWear(private val hex: HexMap) {
     val paths = FloatArray(hex.size * 6)
