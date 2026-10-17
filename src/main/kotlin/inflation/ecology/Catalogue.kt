@@ -645,10 +645,10 @@ object Catalogue {
      * ten or more; most others a few; people none (until boats). From memory of the record, mild.
      */
     fun swimKm(s: Species): Float = swimByIndex[s.index]
-    private val swimByIndex by lazy { FloatArray(all.size) { i -> val s = all[i]; SWIM_KM[s.name] ?: if (s.human) 0f else when (travel(s)) {
+    private val swimByIndex by lazy { FloatArray(all.size) { i -> val s = all[i]; SWIM_KM[s] ?: if (s.human) 0f else when (travel(s)) {
         HexMap.Travel.SWIM -> 8f; HexMap.Travel.CLIMB -> 2f; else -> 3f } } }
-    private val SWIM_KM = mapOf("elk" to 15f, "hippo" to 15f, "red deer" to 10f, "wild boar" to 10f, "brown bear" to 10f,
-        "aurochs" to 8f, "fallow deer" to 6f, "roe deer" to 4f, "wolf" to 4f, "gazelle" to 1f, "cheetah" to 1f)
+    private val SWIM_KM = mapOf(ELK to 15f, HIPPO to 15f, RED_DEER to 10f, BOAR to 10f, BEAR to 10f,
+        AUROCHS to 8f, FALLOW_DEER to 6f, ROE_DEER to 4f, WOLF to 4f, GAZELLE to 1f, CHEETAH to 1f)
 
     /** How a kind crosses hex borders: climbers over crags, big plant-eaters swim rivers, the rest walk. */
     fun travel(s: Species) = if (s in climbers) HexMap.Travel.CLIMB

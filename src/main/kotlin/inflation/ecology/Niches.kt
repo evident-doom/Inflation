@@ -16,36 +16,36 @@ object Niches {
      * Share of its active hours a kind spends in each part of the day: dawn, day, dusk, night. A kind
      * not listed is about at all hours alike.
      */
-    private val ACTIVITY = mapOf(
-        "lion" to floatArrayOf(0.25f, 0.05f, 0.3f, 0.4f),
-        "leopard" to floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
-        "cheetah" to floatArrayOf(0.25f, 0.55f, 0.15f, 0.05f),
-        "wolf" to floatArrayOf(0.3f, 0.1f, 0.3f, 0.3f),
-        "striped hyena" to floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
-        "jackal" to floatArrayOf(0.25f, 0.1f, 0.25f, 0.4f),
-        "gazelle" to floatArrayOf(0.25f, 0.4f, 0.25f, 0.1f),
-        "roe deer" to floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
-        "fallow deer" to floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
-        "red deer" to floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
-        "elk" to floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
-        "ibex" to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
-        "mouflon" to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
-        "wild boar" to floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
-        "aurochs" to floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
-        "hippo" to floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
-        "brown bear" to floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
-        "onager" to floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
-        "wild horse" to floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
-        "wild goat" to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
-        "oryx" to floatArrayOf(0.3f, 0.3f, 0.3f, 0.1f),
-        "ostrich" to floatArrayOf(0.2f, 0.6f, 0.2f, 0f),
-        "hartebeest" to floatArrayOf(0.25f, 0.45f, 0.25f, 0.05f),
-        "dromedary" to floatArrayOf(0.2f, 0.5f, 0.2f, 0.1f),
-        "argali" to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
-    )
+    private val ACTIVITY by lazy { mapOf(
+        Catalogue.LION to floatArrayOf(0.25f, 0.05f, 0.3f, 0.4f),
+        Catalogue.LEOPARD to floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
+        Catalogue.CHEETAH to floatArrayOf(0.25f, 0.55f, 0.15f, 0.05f),
+        Catalogue.WOLF to floatArrayOf(0.3f, 0.1f, 0.3f, 0.3f),
+        Catalogue.HYENA to floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
+        Catalogue.JACKAL to floatArrayOf(0.25f, 0.1f, 0.25f, 0.4f),
+        Catalogue.GAZELLE to floatArrayOf(0.25f, 0.4f, 0.25f, 0.1f),
+        Catalogue.ROE_DEER to floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
+        Catalogue.FALLOW_DEER to floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
+        Catalogue.RED_DEER to floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
+        Catalogue.ELK to floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
+        Catalogue.IBEX to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
+        Catalogue.MOUFLON to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
+        Catalogue.BOAR to floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
+        Catalogue.AUROCHS to floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
+        Catalogue.HIPPO to floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
+        Catalogue.BEAR to floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
+        Catalogue.ONAGER to floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
+        Catalogue.HORSE to floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
+        Catalogue.WILD_GOAT to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
+        Catalogue.ORYX to floatArrayOf(0.3f, 0.3f, 0.3f, 0.1f),
+        Catalogue.OSTRICH to floatArrayOf(0.2f, 0.6f, 0.2f, 0f),
+        Catalogue.HARTEBEEST to floatArrayOf(0.25f, 0.45f, 0.25f, 0.05f),
+        Catalogue.DROMEDARY to floatArrayOf(0.2f, 0.5f, 0.2f, 0.1f),
+        Catalogue.ARGALI to floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
+    ) }
     private val ALL_HOURS = floatArrayOf(0.25f, 0.25f, 0.25f, 0.25f)
 
-    fun activity(s: Species): FloatArray = ACTIVITY[s.name] ?: ALL_HOURS
+    fun activity(s: Species): FloatArray = ACTIVITY[s] ?: ALL_HOURS
 
     /** How much two kinds are about at the same hours, 0..1 (1 for two kinds about at all hours alike). */
     fun overlap(a: Species, b: Species): Float {
@@ -58,19 +58,19 @@ object Niches {
     /** Kinds of shelter: crags and screes, caves and burrows, thickets and forest, trees to climb. */
     enum class Shelter { CRAG, DEN, THICKET, TREE, WATER }
 
-    private val SHELTERS = mapOf(
-        "ibex" to setOf(Shelter.CRAG), "mouflon" to setOf(Shelter.CRAG), "argali" to setOf(Shelter.CRAG), "wild goat" to setOf(Shelter.CRAG),
-        "leopard" to setOf(Shelter.CRAG, Shelter.DEN, Shelter.THICKET, Shelter.TREE),
-        "striped hyena" to setOf(Shelter.DEN), "jackal" to setOf(Shelter.DEN, Shelter.THICKET),
-        "wolf" to setOf(Shelter.DEN), "brown bear" to setOf(Shelter.DEN, Shelter.THICKET),
-        "roe deer" to setOf(Shelter.THICKET), "fallow deer" to setOf(Shelter.THICKET),
-        "wild boar" to setOf(Shelter.THICKET, Shelter.WATER), "elk" to setOf(Shelter.THICKET, Shelter.WATER),
-        "hippo" to setOf(Shelter.WATER), "red deer" to setOf(Shelter.THICKET, Shelter.WATER),
-    )
+    private val SHELTERS by lazy { mapOf(
+        Catalogue.IBEX to setOf(Shelter.CRAG), Catalogue.MOUFLON to setOf(Shelter.CRAG), Catalogue.ARGALI to setOf(Shelter.CRAG), Catalogue.WILD_GOAT to setOf(Shelter.CRAG),
+        Catalogue.LEOPARD to setOf(Shelter.CRAG, Shelter.DEN, Shelter.THICKET, Shelter.TREE),
+        Catalogue.HYENA to setOf(Shelter.DEN), Catalogue.JACKAL to setOf(Shelter.DEN, Shelter.THICKET),
+        Catalogue.WOLF to setOf(Shelter.DEN), Catalogue.BEAR to setOf(Shelter.DEN, Shelter.THICKET),
+        Catalogue.ROE_DEER to setOf(Shelter.THICKET), Catalogue.FALLOW_DEER to setOf(Shelter.THICKET),
+        Catalogue.BOAR to setOf(Shelter.THICKET, Shelter.WATER), Catalogue.ELK to setOf(Shelter.THICKET, Shelter.WATER),
+        Catalogue.HIPPO to setOf(Shelter.WATER), Catalogue.RED_DEER to setOf(Shelter.THICKET, Shelter.WATER),
+    ) }
 
     /** The shelters kind [s] uses. */
     fun shelters(s: Species): Set<Shelter> = sheltersByIndex[s.index]
-    private val sheltersByIndex by lazy { Array(Catalogue.all.size) { SHELTERS[Catalogue.all[it].name] ?: emptySet() } }
+    private val sheltersByIndex by lazy { Array(Catalogue.all.size) { SHELTERS[Catalogue.all[it]] ?: emptySet() } }
 
     /**
      * How well kind [s] can shelter in place [p], 0..1: from the crags (ruggedness), the caves and
@@ -92,5 +92,5 @@ object Niches {
     }
 
     /** Kinds that crack bones and live on what others leave long after the meat is gone. */
-    fun cracksBones(s: Species) = s.name == "striped hyena"
+    fun cracksBones(s: Species) = s === Catalogue.HYENA
 }
