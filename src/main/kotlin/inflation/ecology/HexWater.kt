@@ -44,20 +44,20 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
 
     /** Open water in each hex, km²: sea, and lake (fresh or closed). */
-    val seaKm2 = FloatArray(size) { hw.sea[it] * hexKm2 }
-    val lakeKm2 = FloatArray(size) { hw.lake[it] * hexKm2 }
-    private val waterKm2 = FloatArray(size) { seaKm2[it] + lakeKm2[it] }
+    @Transient val seaKm2 = FloatArray(size) { hw.sea[it] * hexKm2 }
+    @Transient val lakeKm2 = FloatArray(size) { hw.lake[it] * hexKm2 }
+    @Transient private val waterKm2 = FloatArray(size) { seaKm2[it] + lakeKm2[it] }
     /** Mean depth of the sea in each hex, m; share of the sea within 3 km of land and under 10 m (shellfish beds). */
-    private val depthM = FloatArray(size)
-    private val shallow = FloatArray(size)
+    @Transient private val depthM = FloatArray(size)
+    @Transient private val shallow = FloatArray(size)
     /** Distance from each hex to land, km (0 for coast). */
-    private val shoreKm = FloatArray(size)
-    private val closedLake = FloatArray(size)
+    @Transient private val shoreKm = FloatArray(size)
+    @Transient private val closedLake = FloatArray(size)
     /** Water temperature by month, °C (the climate's normals over the water). */
-    private val waterTemp = Array(12) { FloatArray(size) }
+    @Transient private val waterTemp = Array(12) { FloatArray(size) }
 
     /** Nutrient supply the water is mixed towards (0..1), and nutrients, phytoplankton and zooplankton now, g/m². */
-    val supply = FloatArray(size)
+    @Transient val supply = FloatArray(size)
     private val nutrients = FloatArray(size)
     /**
      * Nutrients in the deep water under the sea, g/m² of surface water's worth: what sinks from the
@@ -69,8 +69,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     val zoo = FloatArray(size)
     /** Upwelling now, 0..1; for each coastal sea hex the way out to sea (unit east, south) and the land place that gives its wind. */
     val upwelling = FloatArray(size)
-    private val offE = FloatArray(size); private val offS = FloatArray(size)
-    private val windPlace = IntArray(size) { -1 }
+    @Transient private val offE = FloatArray(size); @Transient private val offS = FloatArray(size)
+    @Transient private val windPlace = IntArray(size) { -1 }
 
     /** Fish in sea and lake water, and in rivers (per km² of the hex's land), kg/km²; shellfish; spawning run now. */
     val fish = FloatArray(size)
@@ -78,9 +78,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     val shellfish = FloatArray(size)
     val run = FloatArray(size)
     /** River distance up from the sea, km; the mouth hex (-1 if none); cascades fish cannot pass. */
-    private val upKm = FloatArray(size)
-    private val mouth = IntArray(size) { -1 }
-    private val cascade = BooleanArray(size)
+    @Transient private val upKm = FloatArray(size)
+    @Transient private val mouth = IntArray(size) { -1 }
+    @Transient private val cascade = BooleanArray(size)
 
     /** Sea animals, kg/km² of sea, per kind of [SEA]. */
     val sea = Array(SEA.size) { FloatArray(size) }
@@ -254,7 +254,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** How far danger from crocodiles reaches in hex [h], 0..1: warm rivers and lakes where the coldest month stays above 12 °C. */
-    val crocodiles = FloatArray(size) { h ->
+    @Transient val crocodiles = FloatArray(size) { h ->
         val coldest = (0 until 12).minOf { hw.temp[it][h] }
         val water = land.hydro.meanFlow[h] >= RiverClass.RIVER.minDischarge || hw.lake[h] > 0.02f
         if (coldest > CROC_COLDEST && water) 1f else 0f
@@ -274,7 +274,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private fun flow(key: String, kgPerKm2: Float, h: Int) {
         if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble())
     }
-    private val eatenBy = SEA.map { "eaten by ${it.name}" }
+    @Transient private val eatenBy = SEA.map { "eaten by ${it.name}" }
 
     fun step(weather: Weather) {
         fishFlows.clear()
@@ -407,11 +407,11 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** For each sea hex the sea hexes next to it nearer the shore; and how many lie seaward of each. */
-    private val shoreward = Array(size) { h ->
+    @Transient private val shoreward = Array(size) { h ->
         if (seaKm2[h] <= 0f) IntArray(0) else (0 until 6).map { hex.neighbour(h, it) }
             .filter { it >= 0 && seaKm2[it] > 0f && shoreKm[it] < shoreKm[h] }.toIntArray()
     }
-    private val seaward = IntArray(size).also { c -> for (h in 0 until size) for (q in shoreward[h]) c[q]++ }
+    @Transient private val seaward = IntArray(size).also { c -> for (h in 0 until size) for (q in shoreward[h]) c[q]++ }
 
     /** Moves a share of the fish a step towards the shore ([inshore]) or back out to sea. */
     private fun shoal(inshore: Boolean) {
@@ -582,7 +582,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
     private var stepsDone = 0
 
-    private val landKm2 = FloatArray(size) { hw.land[it] * hexKm2 }
+    @Transient private val landKm2 = FloatArray(size) { hw.land[it] * hexKm2 }
 
     /** Leaves [kg] of dead fish on the banks of hex [h]: carrion on its places, by their area. */
     private fun bankCarrion(h: Int, kg: Float) {

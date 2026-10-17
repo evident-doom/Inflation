@@ -50,7 +50,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     val waterC = FloatArray(n) { Float.NaN }
     /** [waterC]'s normal for each month and place, from the month's normal air temperatures. */
-    private val waterNormalC by lazy {
+    @delegate:Transient private val waterNormalC by lazy {
         val byPlace = Array(n) { p -> laggedNormals { m -> hw.placeTemp(p, m) } }
         Array(12) { m -> FloatArray(n) { p -> byPlace[p][m] } }
     }
@@ -60,7 +60,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val adults = Array(kinds.size) { FloatArray(n) }
     val young = Array(kinds.size) { FloatArray(n) }
     /** The resident kinds by body mass, the biggest first: the order they get at food that is short. */
-    private val byMass = kinds.indices.sortedByDescending { kinds[it].massKg }.toIntArray()
+    @Transient private val byMass = kinds.indices.sortedByDescending { kinds[it].massKg }.toIntArray()
     /** Last week's share of its wants each kind found in each place, 0..1. */
     val fed = Array(kinds.size) { FloatArray(n) { 1f } }
     /**
@@ -85,7 +85,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * body mass (8/km² for roe deer, 0.4 for hippos), so that crowding is reckoned against what is
      * crowded for its size, not one density for every kind.
      */
-    private val usual = FloatArray(kinds.size) { k -> usualDensity(kinds[k]) }
+    @Transient private val usual = FloatArray(kinds.size) { k -> usualDensity(kinds[k]) }
     /**
      * Outbreaks (rinderpest-like plagues among grazers, distemper and rabies among hunters, fevers
      * among people), by kind ([Species.index]) and hex: how strongly one is raging, 0..1. One starts
