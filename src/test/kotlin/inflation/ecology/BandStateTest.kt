@@ -18,6 +18,8 @@ class BandStateTest {
     fun `a year leaves every band's state within its bounds`() {
         val sim = HexSim(World.generate(cfg))
         repeat(52) { sim.step() }
+        // (People live in bands and only people do, so "is a band" can be read either way.)
+        for (g in sim.groups.groups) if (g.alive) assertEquals(g.species.human, g.band != null, "group ${g.id} (${g.species.name})")
         val bands = sim.groups.groups.filter { it.alive && it.band != null }
         assertTrue(bands.isNotEmpty(), "no bands lived through the year, so nothing was checked")
         val bad = ArrayList<String>()
