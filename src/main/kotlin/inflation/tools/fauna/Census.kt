@@ -114,7 +114,7 @@ class Census(private val sim: HexSim) {
     /** How many groups, how big, how much of the land they cover, and how far each herd is from the nearest hunting pack. */
     fun printGroupSpread() {
         val live = groups.groups.filter { it.alive }
-        val hunterHexes = live.filter { it.species.carnivore && !it.species.human }.map { hw.placeHex[it.place] }.distinct()
+        val hunterHexes = live.filter { it.species.pack }.map { hw.placeHex[it.place] }.distinct()
         val landHexes = (0 until hex.size).count { hw.land[it] > 0.5f }
         println("     herds and packs (groups, mean size, hexes held of land hexes, herds' median km to the nearest pack): " + groups.kinds.joinToString(", ") { s ->
             val gs = live.filter { it.species == s }

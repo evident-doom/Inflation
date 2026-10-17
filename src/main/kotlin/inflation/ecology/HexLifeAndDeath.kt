@@ -336,7 +336,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // (Births follow one rule for every kind, groups and residents alike: each mother bears her
     // litter as she is fed, through the birth season; only where just the leading pair of a pack
     // breeds ([Species.packLitter]: wolves) is there one litter a pack. A pack bears only on ground of its own.)
-    if (inSeason && g.adults >= 2 && !(s.carnivore && !s.human && g.home < 0)) {
+    if (inSeason && g.adults >= 2 && !(s.pack && g.home < 0)) {
         val births = if (s.packLitter > 0) {
             if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
         } else {
@@ -379,7 +379,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val disease = plague + sick
     g.wary *= WARY_KEEP
     // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
-    val homeless = if (s.carnivore && !s.human && g.home < 0) DISPERSAL_DEATHS * years else 0f
+    val homeless = if (s.pack && g.home < 0) DISPERSAL_DEATHS * years else 0f
     // Eagles take the young of the smaller hoofed animals in the open.
     val eagle = if (!s.human && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(g.place) * years else 0f
     val (fireA, floodA, snowA) = fauna.calamities(s, g.place, weather, false)
@@ -641,7 +641,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
     // the pair holds the ground of the one that had any.
     val lone = HashMap<Int, ArrayList<HexGroup>>()
-    for (g in groups) if (g.alive && g.species.carnivore && !g.species.human && g.adults == 1) lone.getOrPut(g.species.index) { ArrayList() } += g
+    for (g in groups) if (g.alive && g.species.pack && g.adults == 1) lone.getOrPut(g.species.index) { ArrayList() } += g
     for ((_, list) in lone) {
         val used = HashSet<Int>()
         for (a in list) {
@@ -697,7 +697,7 @@ internal fun HexGroups.remember(date: Date) {
     val week = (date.absoluteDay / days).toInt()
     for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.water[g.place], fauna.afraid(g.place), week)
     for (g in groups) {
-        if (g.species.carnivore && !g.species.human) continue
+        if (g.species.pack) continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,
         // and a clearly better place takes its place.
         if (g.seasonPlace[m] < 0) { g.seasonPlace[m] = g.place; g.seasonQ[m] = g.fed }

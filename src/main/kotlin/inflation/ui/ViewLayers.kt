@@ -3,6 +3,7 @@ package inflation.ui
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
+import inflation.ecology.Role
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
@@ -158,7 +159,7 @@ internal class ViewLayers(private val sim: HexSim) {
             if (s.carnivore) continue
             for (p in 0 until n) { val hd = (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]; if (hd > 0f) { hungerSum[hw.placeHex[p]] += hd * (1.0 - fauna.fed[k][p]); heads[hw.placeHex[p]] += hd.toDouble() } }
         }
-        for (g in groups.groups) if (g.alive && !g.species.carnivore && !g.species.human) { hungerSum[hw.placeHex[g.place]] += g.size * (1.0 - g.fed); heads[hw.placeHex[g.place]] += g.size.toDouble() }
+        for (g in groups.groups) if (g.alive && g.species.role == Role.HERD) { hungerSum[hw.placeHex[g.place]] += g.size * (1.0 - g.fed); heads[hw.placeHex[g.place]] += g.size.toDouble() }
         val left = hexMean { fauna.grazeLeft[it] + fauna.browseLeft[it] }
         hunger = FloatArray(nh) { if (heads[it] > 0) (hungerSum[it] / heads[it]).toFloat() else 0f }
         plenty = FloatArray(nh) { h ->
