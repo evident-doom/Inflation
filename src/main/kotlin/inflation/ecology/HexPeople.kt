@@ -291,6 +291,18 @@ class Band(kinds: Int) {
     val ties = HashMap<Int, Float>()
     fun tie(other: Int) = ties[other] ?: 0f
     fun befriend(other: Int, by: Float) { ties[other] = (tie(other) + by * (if (by > 0f) 1f - tie(other) else 1f + tie(other))).coerceIn(-1f, 1f) }
+    /**
+     * Favours: what each band it has dealt with owes it (above 0) or it is owed by it (below 0), in
+     * favours, an abstract unit of help: food that met a week of the helped band's needs is one favour
+     * to it. Help given raises the balance, help received lowers it; it is settled only by help in
+     * return, and lapses only when the other band is gone (see [helped]).
+     */
+    val favours = HashMap<Int, Float>()
+    /** Favours band [other] owes it (0 if none), and that it owes [other]. */
+    fun owedBy(other: Int) = max(0f, favours[other] ?: 0f)
+    fun owesTo(other: Int) = max(0f, -(favours[other] ?: 0f))
+    /** Its choices: how fully it returns the favours it owes when a band it owes is hungry (1 the scaffold's: as far as the other's need goes; 0 not at all). */
+    var repayWill = 1f
     /** Person-days its people had to spare this week, after getting and keeping food. */
     var spareDays = 0f
     /**
@@ -439,6 +451,8 @@ class Band(kinds: Int) {
         for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
+        for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
+        a.favours.remove(bId)
         for (i in Material.entries) a.goods[i] += b.goods[i]
         if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
         for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
@@ -1161,7 +1175,7 @@ const val MAKE_FIRST_SLOT = STORE_AIM_SLOT + 1
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 /** The part of [bandInputs] about its health and the dangers and bands about it. */
-val BAND_SITUATION = Illness.entries.size + 12 + Tradition.entries.size + Temperament.AXES
+val BAND_SITUATION = Illness.entries.size + 14 + Tradition.entries.size + Temperament.AXES
 val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3 + BAND_SITUATION
 /**
  * A band's ways after its effort on each food, its store aim and its ranking of the tools, in the order of
@@ -1186,7 +1200,8 @@ enum class BandWay(val label: String) {
     SHELTERS("shelters"),
     FEASTING("feasting"),
     APPOINTMENTS("appointments"),
-    BURNING_OFF("burning off");
+    BURNING_OFF("burning off"),
+    REPAYING("repaying");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
 }
@@ -1242,6 +1257,10 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[i++] = 1f - min(1f, b.sinceRaided / stepsPerYear)
     into[i++] = if (!b.raidHex.none) 1f else 0f
     into[i++] = min(1f, b.inbred * 4f)
+    // The favours owed to it and that it owes, all told (in weeks of food: a few weeks' worth is a lot).
+    var owed = 0f; var owes = 0f
+    for (v in b.favours.values) if (v > 0f) owed += v else owes -= v
+    into[i++] = owed / (1f + owed); into[i++] = owes / (1f + owes)
     // Its customs, and its temperament.
     for (t in Tradition.entries) into[i++] = if (b.holds(t)) 1f else 0f
     for (k in 0 until Temperament.AXES) into[i++] = g.temper.getOrElse(k) { 0f }
@@ -1252,7 +1271,7 @@ val BAND_INPUT_NAMES: List<String> get() = (listOf("year sin", "year cos", "fed"
     listOf("adults", "young per adult") + Skill.FORAGING.map { "skill:${it.name.lowercase()}" } + Tool.entries.map { "tool:${it.name.lowercase()}" } +
     listOf("temperature", "camp weeks", "spare days") + Illness.entries.map { "sick:${it.name.lowercase()}" } +
     listOf("wounded", "lamed", "elders", "taken by beasts", "beasts about", "friendly bands about", "strange bands about", "hostile bands about",
-        "sickness of bands about", "raided lately", "set on a raid", "inbreeding") +
+        "sickness of bands about", "raided lately", "set on a raid", "inbreeding", "favours owed to it", "favours it owes") +
     Tradition.entries.map { "custom:${it.name.lowercase()}" } + Temperament.NAMES.map { "temper:$it" }).also { require(it.size == WAYS_IN) }
 
 /**
@@ -1302,6 +1321,7 @@ internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, in
     b.feastWill = way(BandWay.FEASTING)
     b.appointWill = way(BandWay.APPOINTMENTS)
     b.burnWill = way(BandWay.BURNING_OFF)
+    b.repayWill = way(BandWay.REPAYING)
 }
 
 /**

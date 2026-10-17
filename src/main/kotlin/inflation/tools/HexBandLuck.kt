@@ -32,12 +32,13 @@ fun main(args: Array<String>) {
     val reach = doubleArrayOf(20.0, 50.0, 100.0, 200.0)
     var bandWeeks = 0L; var shortWeeks = 0L; var hungryWeeks = 0L
     val helpWithin = LongArray(reach.size)
-    var fedByKin = 0L
+    var fedByKin = 0L; var returned = 0L; var heldBack = 0L
     val deaths = TreeMap<String, Long>()
     val people = Catalogue.HUMAN.name
     for (w in 0 until weeks) {
         sim.step()
         fedByKin += gs.stats.meetings["hungry bands fed by kin"] ?: 0
+        returned += gs.stats.meetings["favours returned"] ?: 0; heldBack += gs.stats.meetings["favours held back"] ?: 0
         for ((k, n) in gs.stats.deaths) if (k.startsWith("$people:")) deaths.merge(k.removePrefix("$people:"), n.toLong(), Long::plus)
         val bands = gs.groups.filter { it.alive && it.band != null }
         val hexOf = IntArray(bands.size) { sim.hw.placeHex[bands[it].place.i] }
@@ -62,6 +63,7 @@ fun main(args: Array<String>) {
     }
     println("band-weeks %d; short (fed < 1) %.1f%%; hungry after sharing %.1f%%; hungry bands fed by kin %d".format(
         bandWeeks, 100.0 * shortWeeks / bandWeeks, 100.0 * hungryWeeks / bandWeeks, fedByKin))
+    println("favours owed and returned to a hungry band %d; held back %d".format(returned, heldBack))
     for (r in reach.indices) println("hungry band-weeks with a band able to help within %.0f km: %.1f%%".format(reach[r], 100.0 * helpWithin[r] / hungryWeeks.coerceAtLeast(1)))
     // Correlation of shortfalls by distance between the bands' mean positions.
     val ids = short.keys.filter { seen.getValue(it) >= 26 }
