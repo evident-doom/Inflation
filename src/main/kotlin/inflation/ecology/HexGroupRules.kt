@@ -58,14 +58,18 @@ const val COURSING_COVER = 0.7f
 const val GROUP_HABITAT = 0.15f
 /**
  * Paths: share of the way to fully worn one passage of a group of [PATH_MASS_KG] or more wears;
- * weekly share plants take back at the greenest (less on bare ground); weight of a group that wears
- * a path at the full rate, kg; how much a fully worn path eases the going on middling ground (more
- * on broken); how much likelier hunters meet game, or people, on a busy path (they wait there).
+ * weekly share plants take back, times (0.3 + greenness): a trodden way left alone grows over in one
+ * to five years, quicker on green ground (grassland trails close in a few years, dry-country ones last
+ * longer); weight of a group that wears a path at the full rate, kg; how much a fully worn path eases
+ * the going on middling ground, more on broken: half the effort on the flat, as untrodden ground
+ * through brush and grass, wandering round what is not known to be passable, costs about twice a
+ * trodden way (Soule & Goldman 1972 terrain factors 1.2-1.8 against a dirt track, with the detours);
+ * how much likelier hunters meet game, or people, on a busy path (they wait there).
  */
 const val PATH_WEAR = 0.05f
-const val PATH_FADE = 0.03f
+const val PATH_FADE = 0.01f
 const val PATH_MASS_KG = 3000f
-const val PATH_EASE = 0.5f
+const val PATH_EASE = 1f
 const val AMBUSH = 1f
 /**
  * Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum

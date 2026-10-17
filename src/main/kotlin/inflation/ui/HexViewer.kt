@@ -5,7 +5,6 @@ import inflation.Args
 import inflation.Config
 
 import inflation.ecology.HexRoutes
-import inflation.ecology.FORD_M3S
 import inflation.ecology.WATER_LANDMARK_KM
 import inflation.ecology.Catalogue
 import inflation.ecology.HexSim
@@ -566,7 +565,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     else g.fillOval(x - r, y - r, 2 * r, 2 * r)
                 }
                 legends += MapLegend("Paths and landmarks", "Paths: brown lines between hex centres, darker and wider the more worn. Landmarks on the routes: " +
-                    "junction (three or more worn ways meet), ford (a worn way crosses a river of ${FORD_M3S.toInt()} m³/s or more), pass (a worn way through rugged country, " +
+                    "junction (three or more worn ways meet), ford (a worn way crosses a river deeper than the knee), pass (a worn way through rugged country, " +
                     "its ring at least as rough), water (within ${WATER_LANDMARK_KM.toInt()} km of drinking water), end (a single worn way).",
                     note = groups.routes.summary(),
                     swatches = HexRoutes.Kind.entries.drop(1).map { MapLegend.Swatch(landmarkColour(it), it.label, it == HexRoutes.Kind.PASS) })
