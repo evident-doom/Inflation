@@ -413,6 +413,8 @@ class Band {
     /** The way of its craft it uses for [t]. */
     fun makeWay(t: Tool) = Skill.of(t.skill.domain).filter { knowsSkill[it.ordinal] }.maxByOrNull { skill(it) * it.gain } ?: t.skill
     fun has(t: Tool) = kit[t.ordinal]
+    /** Whether any tool it knows is worn below [MEND_BELOW] of a full kit. */
+    fun worn() = Tool.entries.any { knows[it.ordinal] && kit[it.ordinal] < MEND_BELOW }
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species) =
@@ -1625,6 +1627,8 @@ const val NIGHT_WOOD = 3f
  */
 const val HEARTH_WOOD = 1f
 const val FUEL_A_DAY = 25f
+/** Share of a full kit below which a band under the hand-written rules mends before it lays food by (Olli's choice, 2026-10-17). */
+const val MEND_BELOW = 0.5f
 /**
  * Skin a kilo of small game yields, kg (a hare's or rabbit's pelt is about a tenth of its weight, from memory),
  * and the person-days scraping, stretching and drying a kilo of small pelts takes (an hour or two a pelt of

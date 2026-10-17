@@ -175,7 +175,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
-    val aim = wantAll + (band?.let { storeWant(g, it) } ?: 0f)
+    val aim = wantAll + (band?.let { storeWork(g, it) } ?: 0f)
     val plantKind = FloatArray(Store.entries.size)
     var busy = 0f
     // A band fetches the hearth's firewood first; it forages in the days left.
@@ -847,6 +847,12 @@ internal fun HexGroups.openness(h: Int, band: Int): Float {
  * What band [g] works this week to lay by towards the stores it aims to keep (its choice), kg: a share
  * of what it lacks. (A band holding to demand sharing stores less: what it lays by is asked of it.)
  */
+/**
+ * The food [band] works to lay by this week: under the hand-written rules, none while its kit is worn (it mends
+ * first, from the time the stores would have taken); a learned band keeps to its own aim.
+ */
+internal fun HexGroups.storeWork(g: HexGroup, band: Band) = if (ways == null && band.worn()) 0f else storeWant(g, band)
+
 internal fun storeWant(g: HexGroup, band: Band) =
     max(0f, band.storeAim * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg - g.larder) * STORE_FILL
 
@@ -880,7 +886,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     }
     // A hunter that has eaten its fill this week lets the herd pass; a band hunts on for the stores it
     // aims to keep, as it does at its own foraging.
-    val need = hunter.dailyNeedKg * days * (if (hunter.band == null) hunter.will[AnimalWay.CHASE] else 1f) + (hunter.band?.let { storeWant(hunter, it) } ?: 0f)
+    val need = hunter.dailyNeedKg * days * (if (hunter.band == null) hunter.will[AnimalWay.CHASE] else 1f) + (hunter.band?.let { storeWork(hunter, it) } ?: 0f)
     if (hunter.meatMet >= need) { roundsKey?.let { stats.hunting.merge(it + "hunters fed", 1, Int::plus) }; return }
     val p = hw.sameBandPlace(herd.place, h).takeIf { it >= 0 } ?: herd.place
     // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
