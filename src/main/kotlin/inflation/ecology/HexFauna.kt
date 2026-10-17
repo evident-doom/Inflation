@@ -57,6 +57,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** The resident kinds, and for each, adults and young per km² of each place. */
     val kinds = Catalogue.all.filter { Catalogue.resident(it) }
+    /** Each kind's place in [kinds] (and in every table here kept by kind), by its [Species.index]; -1 for a kind kept in groups. */
+    @Transient private val slots = IntArray(Catalogue.all.size) { -1 }.also { for ((k, s) in kinds.withIndex()) it[s.index] = k }
+    /** [s]'s place in [kinds], or -1 if it is not a resident. */
+    fun slot(s: Species) = slots[s.index]
+
     val adults = Array(kinds.size) { FloatArray(n) }
     val young = Array(kinds.size) { FloatArray(n) }
     /** The resident kinds by body mass, the biggest first: the order they get at food that is short. */
@@ -113,7 +118,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for ((si, s) in Catalogue.all.withIndex()) {
             val o = outbreak[si]
             if (o.all { it < 0.01f }) continue
-            val k = kinds.indexOf(s)
+            val k = slot(s)
             val old = o.copyOf()
             for (h in 0 until hex.size) {
                 if (old[h] < 0.05f) continue
@@ -199,7 +204,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val bearings = HexBearings(hw, kinds, { s, p, m ->
         val food = foodFor(s, p) * min(1.5f, suits(s, p)) / 1.5f
         saturate(food, Thresholds.FOOD_HALF) * tether(s, p) * monthFit(s, p, m)
-    }, { s -> val k = kinds.indexOf(s); (0 until n).any { adults[k][it] > 0f } })
+    }, { s -> val k = slot(s); (0 until n).any { adults[k][it] > 0f } })
     /**
      * Each kind's month births begin in each place, which drifts year by year towards the months
      * that feed mothers and young best; how well fed it was in each month lately (place × 12 + month).
@@ -676,7 +681,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
-        val dead = Array(kinds.size) { DoubleArray(ResidentDeath.LABELS.size) }
+        val dead = Array(kinds.size) { DoubleArray(ResidentDeath.CAUSES.size) }
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
         kinds.indices.toList().parallelStream().forEach { k ->
@@ -703,21 +708,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 // Deaths.
                 // (Hunger, cold and heat, and thirst kill residents by the same rules as herds and packs.)
-                val hunger = if (f[p] < HUNGER_FROM) (HUNGER_FROM - f[p]) * HUNGER_RATE else 0f
+                val hunger = Hazards.hunger(f[p])
                 val t = feltC(s, p, weather.temperature[p])
                 val sleeping = asleep(s, p, weather)
-                val cold = if (sleeping) 0f else s.discomfortC(t, date.month) / 10f * COLD_DEATHS
+                val cold = if (sleeping) 0f else Hazards.cold(s, t, date.month)
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
                 // water's going (or gets enough from green food and prey); beyond that, a week dry beyond what
                 // it can bear kills as it does a herd.
-                val thirst = run {
-                    val fetch = 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
-                    if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= fetch) 0f
-                    else {
-                        val dryDays = days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) f[p] else 0.5f + 0.5f * land.plants.green[p]))
-                        if (dryDays > s.daysWithoutWater) min(0.5f, 0.05f * (dryDays - s.daysWithoutWater)) else 0f
-                    }
-                }
+                val thirst = if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
+                    else Hazards.thirst(s, Hazards.dryDays(s, days, f[p], land.plants.green[p]))
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
                 // lean season binds, and then hunger and sickness together hold them.
                 val crowd = (a[p] + y[p]) / (CROWDED * usual[k])
@@ -778,7 +777,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 sum
             }
-            for ((c, label) in ResidentDeath.LABELS.withIndex()) deaths["${s.name}:$label"] = dead[k][c]
+            for ((c, cause) in ResidentDeath.CAUSES.withIndex()) deaths["${s.name}:$cause"] = dead[k][c]
         }
     }
 
@@ -1061,7 +1060,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 }
 
-/** Slots of the residents' deaths in a week, by cause; [LABELS] names them in the deaths ledger. */
+/** Slots of the residents' deaths in a week, by cause; [CAUSES] names them in the deaths ledger. */
 object ResidentDeath {
     const val AGE = 0
     const val HUNGER = 1
@@ -1073,7 +1072,8 @@ object ResidentDeath {
     const val SNOW = 7
     const val CROCODILES = 8
     const val THIRST = 9
-    val LABELS = arrayOf("age", "hunger", "cold", "disease", "eagles", "fire", "flood", "snow", "crocodiles", "thirst")
+    val CAUSES = arrayOf(DeathCause.AGE, DeathCause.HUNGER, DeathCause.COLD, DeathCause.DISEASE, DeathCause.EAGLES, DeathCause.FIRE,
+        DeathCause.FLOOD, DeathCause.SNOW, DeathCause.CROCODILES, DeathCause.THIRST)
 }
 
 /** Shares of a kind's animals that die this week of fire, flood, and deep snow or ash (see [HexFauna.calamities]). */

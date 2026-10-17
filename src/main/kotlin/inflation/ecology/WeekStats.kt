@@ -34,3 +34,36 @@ class WeekStats {
         const val GRAIN_REAPED = "grain reaped, kg"
     }
 }
+
+/**
+ * The tally keys the reports read back by name, built here by writer and reader alike, so that renaming
+ * one changes both and cannot silently zero a report. Keys only ever listed whole stay free text.
+ */
+object Tally {
+    /** A [WeekStats.hunting] tally of kind [s]: [what] (as [CHASES]). */
+    fun of(s: Species, what: String) = "${s.name}:$what"
+    const val CHASES = "chases"
+    const val SAW_FIRST = "herds that saw it first"
+    const val KILLS_FROM_HERDS = "kills from herds"
+    const val KILLS_OF_RESIDENTS = "kills of residents"
+    const val RANGED = "ranged over places"
+    /** What a herd kind ate of [food] (grass, browse, fruit and roots, straw), kg. */
+    fun ate(s: Species, food: String) = of(s, "ate $food, kg")
+    /** What a hunting kind's diet asked for ([part] "asked") and got of each part (meat, small prey, carrion, plants), kg. */
+    fun diet(s: Species, part: String) = of(s, "diet $part, kg")
+    /** Herd deaths by size class ([HexGroups.sizeClass]) and [what] befell them. */
+    fun herdSize(sizeClass: Int, what: String) = "$HERD_SIZE$sizeClass:$what"
+    const val HERD_SIZE = "herd size "
+    /** Bands' tallies by the kind of country they are in. */
+    fun bandsIn(country: String, what: String) = "$BANDS_IN$country:$what"
+    const val BANDS_IN = "bands in "
+    /** Bands' tallies by how they are clad ([CLAD] or [POORLY_CLAD]). */
+    fun bandsClad(clad: String, what: String) = "bands $clad:$what"
+    const val CLAD = "clad"
+    const val POORLY_CLAD = "poorly clad"
+    /** How bands spent their hands' days, tenths of a day. */
+    fun bandTime(what: String) = "band time:$what"
+    /** Deaths of [cause], within a band tally. */
+    fun diedOf(cause: String) = "$DIED_OF$cause"
+    const val DIED_OF = "died of "
+}
