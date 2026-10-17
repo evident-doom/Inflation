@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Kg
 import inflation.Tuning
 import inflation.Config
 
@@ -321,7 +322,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         // (And as many again are wounded, some to be lamed for life.)
         who.band?.wounded(WOUNDED_PER_DEAD * lost, who.adults)
         stats.deaths.merge("${who.species.name}:${DeathCause.RAIDS}", lost, Int::plus)
-        small.carrion[who.place] += lost * who.species.massKg / (land.areaKm2[who.place] * 1e6f)
+        small.carrion[who.place] += land.spread(who.place, Kg(lost * who.species.massKg)).v
     }
     // The stronger side carries off food; the raided remember.
     if (sg > so) { val t = RAID_TAKE * o.larder; o.larder -= t; g.larder += t; stats.meetings.merge("larders raided", 1, Int::plus) }

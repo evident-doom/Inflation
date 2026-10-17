@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.Kg
+import inflation.KgM2
 import inflation.Config
 import inflation.HASH_A
 import inflation.HASH_B
@@ -242,14 +243,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
                 // that much: a wolf or a band comes on a carcass now and then, not every week.)
                 val found = CARRION_FOUND * min(1f, d.carrion / SCAVENGER_CARRION)
-                offer(Food.CARRION, 0, p, found * small.carrion[p] * 1e6f * swept / days, 1f, eats)
-                if (Niches.cracksBones(s)) offer(Food.BONES, 0, p, found * small.bones[p] * 1e6f * swept / days, 1f, eats * BONE_DAYS)
+                offer(Food.CARRION, 0, p, KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, eats)
+                if (Niches.cracksBones(s)) offer(Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, eats * BONE_DAYS)
             }
         }
         // (The ground it walked, then the country round its camp, which holds none of it.)
         if (eatsPlants) for (qi in 0 until gatherAt.size + roundCamp.size) {
             val q = if (qi < gatherAt.size) gatherAt[qi] else roundCamp[qi - gatherAt.size]
-            val m2 = land.m2(q)
             val part = if (qi < gatherAt.size) 1f else roundShare
             // A band can strip so much of a place in a week, as its skill allows; an animal finds what lies along its way.
             // (On strange ground people find little of it.)
@@ -259,13 +259,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             // (The unskilled, and strangers to its plants, are slow at it.)
             val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
             val pickQ = (pickDays - eats) * slow + eats; val seedQ = (seedDays - eats) * slow + eats
-            offer(Food.FRUIT, 0, q, reach * fauna.food.fruit[q] * m2 / days, 1f, pickQ)
-            offer(Food.ROOTS, 0, q, reach * fauna.food.roots[q] * m2 / days, 1f, ROOT_DIGGING * pickQ)
-            offer(Food.FINDS, 0, q, reach * fauna.food.finds[q] * m2 / days, 1f, ROOT_DIGGING * pickQ)
+            offer(Food.FRUIT, 0, q, land.total(q, KgM2(reach * fauna.food.fruit[q])).v / days, 1f, pickQ)
+            offer(Food.ROOTS, 0, q, land.total(q, KgM2(reach * fauna.food.roots[q])).v / days, 1f, ROOT_DIGGING * pickQ)
+            offer(Food.FINDS, 0, q, land.total(q, KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ)
             // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
-            offer(Food.SEED, 0, q, (band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.seeds[q] * m2 / days, 1f, seedQ)
+            offer(Food.SEED, 0, q, land.total(q, KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.seeds[q])).v / days, 1f, seedQ)
             // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-            offer(Food.GRAIN, 0, q, (band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.grain[q] * m2 / days, 1f, seedQ)
+            offer(Food.GRAIN, 0, q, land.total(q, KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.grain[q])).v / days, 1f, seedQ)
         }
         // Bands fish the river, the lake or the sea shore by their camp.
         if (band != null) {
@@ -428,7 +428,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             }
             if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
         }
-        small.carrion[g.place] += rotten / (land.areaKm2[g.place] * 1e6f)
+        small.carrion[g.place] += land.spread(g.place, Kg(rotten)).v
         spare = 0f; meatEaten = ateMeat
     }
     // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
@@ -436,12 +436,12 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val gorge = min(spare, SURPLUS_EAT * wantAll)
         g.surplus = gorge / g.dailyNeedKg.coerceAtLeast(1e-3f)
         spare -= gorge
-        small.dung[g.place] += HexSmallLife.DUNG * gorge / (land.areaKm2[g.place] * 1e6f)
+        small.dung[g.place] += land.spread(g.place, Kg(HexSmallLife.DUNG * gorge)).v
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
     // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
-    small.carrion[g.place] += spare / (land.areaKm2[g.place] * 1e6f)
-    small.dung[g.place] += HexSmallLife.DUNG * (meatEaten + smallGot + scraps + fish) / (land.areaKm2[g.place] * 1e6f)
+    small.carrion[g.place] += land.spread(g.place, Kg(spare)).v
+    small.dung[g.place] += land.spread(g.place, Kg(HexSmallLife.DUNG * (meatEaten + smallGot + scraps + fish))).v
 }
 
 /** What one of [forage]'s takes brought: kilos of food, and party-days spent on it beyond the take itself. */
@@ -484,8 +484,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: the kilos it is worth. */
 private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float): Float {
     val band = g.band
-    val m2 = land.m2(p)
-    val took = fauna.food.take(fauna.food.grain, p, Kg(expected).perM2(m2)).over(m2).v * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
+    val took = land.total(p, fauna.food.take(fauna.food.grain, p, land.spread(p, Kg(expected)))).v * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
     // A sickle takes the ears that hold their grain more than those that shatter at a touch.
     if (band != null && took > 0f) {
         val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
@@ -506,8 +505,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
     val s = g.species; val band = g.band
     out.busy = 0f
     val stock = when (t) { Food.FRUIT -> fauna.food.fruit; Food.ROOTS -> fauna.food.roots; Food.SEED -> fauna.food.seeds; else -> fauna.food.finds }
-    val m2 = land.m2(p)
-    var took = fauna.food.take(stock, p, Kg(expected).perM2(m2)).over(m2).v
+    var took = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(expected)))).v
     // Raw seed is poorly digested; ground and baked into bread it feeds fully.
     if (t == Food.SEED) took *= seedValue(band)
     if (band != null && took > 0f) {
