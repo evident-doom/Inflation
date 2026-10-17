@@ -199,7 +199,15 @@ class HexGroups(
     /** The player's hand on the followed group (the viewer's group controls), null for none: see [GroupControl]. */
     @Transient @Volatile var control: GroupControl? = null
 
-    fun step(weather: Weather, date: Date) {
+    /** The herds' first wants of each place's food this week ([claim]), shared with the residents' feeding. */
+    @Transient internal val claims = HerdClaims(n).also { fauna.claims = it }
+
+    /**
+     * The first part of the week: groups choose where to go, go there and meet on the way, and the herds
+     * claim their usual shares of the food where they graze ([claim]). The residents then eat with them
+     * ([HexFauna.step]), and the rest of the week follows ([live]).
+     */
+    fun move(weather: Weather, date: Date) {
         stats.clear(); watchLog.clear()
         moon = date.meanMoonlight(days).toFloat()
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
@@ -311,6 +319,11 @@ class HexGroups(
         meetNs += System.nanoTime() - t0
         Profile.part("groups: leaving sign") { leaveSign() }
         Profile.part("groups: wearing paths") { wear.week(groups, hw, land, days); routes.week() }
+        Profile.part("groups: claiming their grazing") { claim(weather) }
+    }
+
+    /** The rest of the week, once the residents have eaten ([move] comes first): grazing, hunting, births and deaths. */
+    fun live(weather: Weather, date: Date) {
         Profile.time("groups: grazing") { graze(weather) }
         Profile.time("groups: hunting") { hunt(weather) }
         Profile.part("people: burning off") { burnOff(weather) }

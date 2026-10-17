@@ -426,15 +426,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * The grass and browse, kg/m², that can still be eaten at each place this week without eating it
-     * bare, once the residents have had theirs: the herds passing through share it (see [HexGroups.graze]).
+     * bare, once the residents and the herds have had their usual shares: the herds make up a shortfall from
+     * it (see [HexGroups.graze]).
      */
     val grazeLeft = FloatArray(n)
     val browseLeft = FloatArray(n)
+    /** The herds' first wants of each place's food this week, set by the groups once they have moved; null without groups. */
+    @Transient internal var claims: HerdClaims? = null
 
     /**
-     * Every kind takes its share of the place's grass, browse, fruit and roots, in proportion to
-     * what each wants and can get at (cliffs keep all but climbers off part of it); a shortfall of
-     * grass and browse is made up from the standing straw, at what each kind's gut gets out of it.
+     * Every kind, and every herd grazing there this week, takes its share of the place's grass, browse,
+     * fruit and roots, the bigger kinds first, as far as each can get at it (cliffs keep all but climbers
+     * off part of it); a shortfall of grass and browse is made up from the standing straw, at what each
+     * kind's gut gets out of it.
      */
     private fun graze(weather: Weather) {
         IntStream.range(0, n).parallel().forEach { p ->
@@ -465,10 +469,25 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // Where food is short the bigger kinds drive the smaller off it (a hippo or an aurochs gives way to
             // nothing smaller): each kind in turn by body mass takes its usual share, as far as it can get at
             // what the bigger ones left; then, in the same order, they make up a shortfall from what is still
-            // left (diet switching) and fatten on it.
+            // left (diet switching) and fatten on it. The herds grazing here this week take their usual shares
+            // in the same turn by body mass (see [HerdClaims]); they make up a shortfall later, from what is left.
             var spareG = grass; var spareB = browse; var spareF = food.fruit[p]; var spareR = food.roots[p]
             val gs = FloatArray(kinds.size); val bs = FloatArray(kinds.size)
-            for (k in byMass) {
+            val cl = claims; var ci = cl?.first?.get(p) ?: 0; val ce = cl?.first?.get(p + 1) ?: 0
+            var herdG = 0f; var herdB = 0f
+            var ri = 0
+            while (ri < byMass.size || ci < ce) {
+                if (cl != null && ci < ce && (ri >= byMass.size || cl.mass[cl.byPlace[ci]] >= kinds[byMass[ri]].massKg)) {
+                    // A herd's turn: its usual share, as far as the bigger ones left any (its access is in its want).
+                    val w = 4 * cl.byPlace[ci++]
+                    val g = if (cl.want[w] > 0f) min(1f, spareG / cl.want[w]) else 0f; val b = if (cl.want[w + 1] > 0f) min(1f, spareB / cl.want[w + 1]) else 0f
+                    val f = if (cl.want[w + 2] > 0f) min(1f, spareF / cl.want[w + 2]) else 0f; val r = if (cl.want[w + 3] > 0f) min(1f, spareR / cl.want[w + 3]) else 0f
+                    cl.grant[w] = g; cl.grant[w + 1] = b; cl.grant[w + 2] = f; cl.grant[w + 3] = r
+                    spareG -= cl.want[w] * g; spareB -= cl.want[w + 1] * b; spareF -= cl.want[w + 2] * f; spareR -= cl.want[w + 3] * r
+                    herdG += cl.want[w] * g; herdB += cl.want[w + 1] * b
+                    continue
+                }
+                val k = byMass[ri++]
                 val s = kinds[k]
                 if (need[k] <= 0f) continue
                 val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
@@ -597,7 +616,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (s.hibernates && weather.date.month in 7..11 && !asleep(s, p, weather)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
             }
             // What is left of the week's grazing and browsing for the herds that come through after.
-            grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB)
+            // (Less what the herds were granted of their usual shares: they eat it when they graze.)
+            grazeLeft[p] = max(0f, grass - eatG - herdG); browseLeft[p] = max(0f, browse - eatB - herdB)
             val dug = food.take(food.roots, p, eatR)
             val ate = food.take(food.fruit, p, eatF)
             val eaten = land.consume(p, LifeForm.HERB, eatG) +

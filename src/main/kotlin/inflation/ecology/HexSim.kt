@@ -46,7 +46,10 @@ class HexSim(
         // A great eruption's veil cools the whole region for a couple of years.
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
         Profile.time("water and plants") { land.step(weather) }
+        // The groups move first and the herds claim their grazing, so that residents and herds eat together,
+        // the bigger kinds first, wherever they meet (see [HexFauna.graze]); then the rest of the groups' week.
+        groups.move(weather, weather.date)
         fauna.step(weather, weather.date)
-        groups.step(weather, weather.date)
+        groups.live(weather, weather.date)
     }
 }
