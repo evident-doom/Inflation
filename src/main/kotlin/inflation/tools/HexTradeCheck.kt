@@ -44,7 +44,7 @@ fun main(args: Array<String>) {
             for (g in run.groups.groups) if (g.alive && g.band != null) home[g.id] = chief(hw.placeHex[g.place])
             repeat(stepsPerYear) {
                 run.step()
-                for ((key, n) in run.groups.meetings) if (key.endsWith(" given") || key.contains("rite")) given.merge(key, n, Int::plus)
+                for ((key, n) in run.groups.stats.meetings) if (key.endsWith(" given") || key.contains("rite")) given.merge(key, n, Int::plus)
                 for (g in run.groups.groups) if (g.species.human) {
                     luckSum += g.luck - (luck[g.id] ?: 0f); luck[g.id] = g.luck
                     if (!g.alive) continue

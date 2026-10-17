@@ -55,7 +55,7 @@ object HexExplain {
             repeat(years * Date.DAYS_PER_YEAR / cfg.daysPerStep) {
                 run.step()
                 for (g in run.groups.groups) if (g.alive && g.species == kind) { fedSum += g.fed; kmSum += (g.path.size - 1) * run.hex.hexKm; weeks++; if (g.fed < 0.5f) hungry++ }
-                for ((key, v) in run.groups.deaths) if (key.startsWith("${kind.name}:")) deaths.merge(key.substringAfter(':'), v, Int::plus)
+                for ((key, v) in run.groups.stats.deaths) if (key.startsWith("${kind.name}:")) deaths.merge(key.substringAfter(':'), v, Int::plus)
             }
             deaths["(alive at the end)"] = run.groups.count(kind)
             println("%s, %s: fed %.2f on average, hungry (fed under half) %.1f%% of group-weeks, %.1f km shifted a week".format(kind.name, if (learned) "network" else "hand-written", fedSum / weeks.coerceAtLeast(1), 100.0 * hungry / weeks.coerceAtLeast(1), kmSum / weeks.coerceAtLeast(1)))

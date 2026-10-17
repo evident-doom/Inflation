@@ -58,13 +58,13 @@ fun main(args: Array<String>) {
                 heads[i][k] += g.size.toDouble(); fedSum[i][k] += g.fed * g.size.toDouble(); protSum[i][k] += g.protein * g.size.toDouble()
                 if (monthsFrom(g.birthMonth, run.weather.date.month) < s.birthMonths) { sHeads[i][k] += g.size.toDouble(); sFed[i][k] += g.fed * g.size.toDouble(); sProt[i][k] += g.protein * g.size.toDouble(); sMothers[i][k] += g.adults / 2.0 }
             }
-            for ((key, n) in run.groups.hunting.subMap("rounds|${s.name}|", "rounds|${s.name}}")) {
+            for ((key, n) in run.groups.stats.hunting.subMap("rounds|${s.name}|", "rounds|${s.name}}")) {
                 val c = key.substringAfter("rounds|${s.name}|")
                 if (c.endsWith("|heads")) whereHeads[i].merge(c.removeSuffix("|heads"), n.toDouble(), Double::plus)
                 else if (c.endsWith("|herds")) whereHerdWeeks[i].merge(c.removeSuffix("|herds"), n, Int::plus)
                 else where[i].merge(c, n, Int::plus)
             }
-            for ((k, way) in ways.withIndex()) for ((key, n) in run.groups.deaths.subMap("${s.name} $way:", "${s.name} $way;")) events[i][k].merge(key.substringAfter(':'), n, Int::plus)
+            for ((k, way) in ways.withIndex()) for ((key, n) in run.groups.stats.deaths.subMap("${s.name} $way:", "${s.name} $way;")) events[i][k].merge(key.substringAfter(':'), n, Int::plus)
             if ((w + 1) % perYear == 0) { val on = run.groups.groups.filter { it.alive && it.species == s }; shareByYear[i] += (100.0 * on.filter { it.route[0] >= 0 }.sumOf { it.size } / on.sumOf { it.size }.coerceAtLeast(1)).toInt() }
         }
         if (w < steps - perYear) return@repeat

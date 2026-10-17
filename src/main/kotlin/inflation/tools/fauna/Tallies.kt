@@ -26,10 +26,10 @@ class DeathTally(private val sim: HexSim) {
     fun week() {
         val fauna = sim.fauna; val groups = sim.groups
         for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
-        for ((key, v) in groups.deaths) causes.merge(key, v.toDouble(), Double::plus)
-        for ((key, v) in groups.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
-        for ((key, v) in groups.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
-        for ((key, v) in groups.hunting) if (key.startsWith("herd size ")) causes.merge(key, v.toDouble(), Double::plus)
+        for ((key, v) in groups.stats.deaths) causes.merge(key, v.toDouble(), Double::plus)
+        for ((key, v) in groups.stats.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
+        for ((key, v) in groups.stats.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
+        for ((key, v) in groups.stats.hunting) if (key.startsWith("herd size ")) causes.merge(key, v.toDouble(), Double::plus)
         for (gr in groups.groups) if (gr.alive && !gr.species.carnivore) herdHeadWeeks[groups.sizeClass(gr)] += gr.size.toDouble()
     }
 
@@ -72,7 +72,7 @@ class DeathTally(private val sim: HexSim) {
     }
 }
 
-/** The hunting and feeding tallies the groups keep ([HexGroups.hunting]), by year; and the grain people reaped. */
+/** The hunting and feeding tallies the groups keep ([WeekStats.hunting]), by year; and the grain people reaped. */
 class HuntTally(private val sim: HexSim) {
     /** This year's tallies, and the hunters' fed sums and group-weeks, by kind. */
     val year = TreeMap<String, Int>()
@@ -89,9 +89,9 @@ class HuntTally(private val sim: HexSim) {
 
     fun week() {
         val groups = sim.groups
-        grainReapedNow += (groups.hunting["people:grain reaped, kg"] ?: 0) / 1000.0
-        for ((key, v) in groups.hunting) year.merge(key, v, Int::plus)
-        for ((key, v) in groups.hunting) now.merge(key, v, Int::plus)
+        grainReapedNow += (groups.stats.hunting["people:grain reaped, kg"] ?: 0) / 1000.0
+        for ((key, v) in groups.stats.hunting) year.merge(key, v, Int::plus)
+        for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
         for (g in groups.groups) if (g.alive && g.species.carnivore) { fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus); groupWeeks.merge(g.species.name, 1, Int::plus) }
     }
 
@@ -252,7 +252,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         val violent = yearly("raids") + causes.keys.filter { it.startsWith("people:killed by") }.sumOf { yearly(it.substringAfter(':')) }
         val bandsSeen = walked.size.coerceAtLeast(1)
         run {
-            val all = sim.groups.childDeaths.mapValues { it.value.sumThenReset() }.filter { it.value > 0.0 }
+            val all = sim.groups.stats.childDeaths.mapValues { it.value.sumThenReset() }.filter { it.value > 0.0 }
             val total = all.values.sum().coerceAtLeast(1e-9)
             println("     children's deaths by cause this year (expected from the odds, share): " + all.entries.sortedByDescending { it.value }.joinToString(", ") { "%s %.0f%%".format(it.key, 100 * it.value / total) })
         }

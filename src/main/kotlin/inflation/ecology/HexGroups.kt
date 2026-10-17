@@ -22,12 +22,9 @@ import kotlin.math.min
 import kotlin.random.Random
 import inflation.ecology.HexFeatures as Feature
 import inflation.world.Biome
-import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.atomic.AtomicIntegerArray
-import java.util.concurrent.atomic.DoubleAdder
 import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.ln
@@ -116,17 +113,8 @@ class HexGroups(
     /** How herds and packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var herdWays: AnimalWays? = null
     @Transient var hunterWays: AnimalWays? = null
-    /** Kills this week by prey kind; meetings this week by kind of meeting. */
-    // (Concurrent and sorted: hunting runs region by region on all cores.)
-    val kills = ConcurrentSkipListMap<String, Int>()
-    val meetings = ConcurrentSkipListMap<String, Int>()
-    val deaths = ConcurrentSkipListMap<String, Int>()
-    /** This week's hunting by kind of hunter: chases, kills from herds and of residents, herds that saw it first. */
-    val hunting = ConcurrentSkipListMap<String, Int>()
-    /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
-    @Transient val childDeaths = ConcurrentHashMap<String, DoubleAdder>()
-    /** Young born this week by kind. */
-    val births = TreeMap<String, Int>()
+    /** This week's tallies ([WeekStats]; saves from before it was split out kept them here). */
+    @field:MovedInto("kills", "meetings", "deaths", "hunting", "births") val stats = WeekStats()
     internal val years = days / Date.DAYS_PER_YEAR.toFloat()
     internal val small get() = fauna.small
 
@@ -196,7 +184,7 @@ class HexGroups(
                 if (s.carnivore) g.home = hw.placeHex[p] else inheritSeasons(g)
                 groups += g
             }
-            meetings.merge("newcomers: ${s.name}", NEWCOMERS, Int::plus)
+            stats.meetings.merge("newcomers: ${s.name}", NEWCOMERS, Int::plus)
         }
     }
 
@@ -215,7 +203,7 @@ class HexGroups(
     @Transient @Volatile var control: GroupControl? = null
 
     fun step(weather: Weather, date: Date) {
-        kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); watchLog.clear()
+        stats.clear(); watchLog.clear()
         weatherNow = weather
         moon = date.meanMoonlight(days).toFloat()
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
@@ -288,7 +276,7 @@ class HexGroups(
         }
         for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { choice[k] = choice[l]; paths[k] = paths[l]; times[k] = times[l] } }
         for ((k, g) in groups.withIndex()) if (g.alive) {
-            if (g.band != null && g.fed < Thresholds.HUNGRY) meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
+            if (g.band != null && g.fed < Thresholds.HUNGRY) stats.meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
             // A herd's heading: what it kept of last week's, bent toward the way it went and the way its sense of better country points.
             if (!g.species.carnivore) {
                 val from = hw.placeHex[g.place]; val to = hw.placeHex[choice[k]]
@@ -315,8 +303,8 @@ class HexGroups(
                 val risk = DROWN * gapKm / Catalogue.swimKm(g.species).coerceAtLeast(1f)
                 val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
                 adultsDied(g, lostA, rnd); g.young -= lostY
-                if (lostA + lostY > 0) deaths.merge("${g.species.name}:drowned crossing", lostA + lostY, Int::plus)
-                meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
+                if (lostA + lostY > 0) stats.deaths.merge("${g.species.name}:drowned crossing", lostA + lostY, Int::plus)
+                stats.meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
             }
         }
         Profile.add("groups: choosing where to go", System.nanoTime() - tPlan, Profile.cpuNow() - cPlan)
@@ -630,7 +618,7 @@ class HexGroups(
             if (!g.alive || !g.species.human) continue
             val p = g.place
             val dry = land.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.green[p] < 0.4f
-            if (dry && land.herb[p] > 0.3f && land.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) { land.ignite(p); meetings.merge("bands burned off grass", 1, Int::plus) }
+            if (dry && land.herb[p] > 0.3f && land.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) { land.ignite(p); stats.meetings.merge("bands burned off grass", 1, Int::plus) }
         }
     }
 

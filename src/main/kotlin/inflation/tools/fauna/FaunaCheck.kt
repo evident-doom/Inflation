@@ -93,7 +93,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         val last = y == options.years
         options.historyFile?.let { if (y % 5 == 0 || last) history.writeCsv(it) }
         options.saveFile?.let { if (y % 5 == 0 || last) { val t0 = System.nanoTime(); HexSnapshot.save(sim, it); println("     saved the world to $it (%.1f s, %.0f MB)".format((System.nanoTime() - t0) / 1e9, it.length() / 1e6)) } }
-        println("     this week: kills " + groups.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + groups.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
+        println("     this week: kills " + groups.stats.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " + groups.stats.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
 
     private fun printEnd() {
