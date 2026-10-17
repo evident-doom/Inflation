@@ -71,14 +71,15 @@ class EcoCheck(private val out: File) {
 
     /**
      * Why the ecosystem fails with [new] against [old] (the same weathers in the same order); empty when it holds.
-     * A kind counts as fallen or gone only when it is so in every weather.
+     * A kind counts as fallen or gone only when it is so in every weather, and only one at least [RARE] strong with
+     * the old networks: a few dozen animals rise and fall too much by chance to judge by.
      */
     private fun fails(new: List<TestWorlds.Run>, old: List<TestWorlds.Run>, kinds: List<String>): List<String> {
         val why = ArrayList<String>()
         for (k in kinds) {
             val n = lastYears(new, "animals/$k"); val o = lastYears(old, "animals/$k")
             val pairs = n.indices.filter { o[it] > 0.0 }
-            if (pairs.isEmpty()) continue
+            if (pairs.isEmpty() || o.sum() / pairs.size < RARE) continue
             if (pairs.all { n[it] <= 0.0 }) why += "$k gone"
             else if (pairs.all { n[it] < (1 - FALL) * o[it] }) why += "$k %+.0f%%".format(100 * (n.sum() / o.sum() - 1))
         }
@@ -121,6 +122,8 @@ class EcoCheck(private val out: File) {
         /** How far a kind may fall below its numbers with the kept networks, and the migratory herds' stand from half a year before. */
         const val FALL = 0.10
         const val SHORTER = 0.05
+        /** Kinds fewer than this on average with the old networks are reported but do not fail the ecosystem (Olli 2026-10-17: rare kinds need tuning of their own). */
+        const val RARE = 200.0
 
         /** Copies [roles]' networks, with their side files (and for people, the bands' ways), from [from] to [to]. */
         fun copyRoles(from: File, to: File, roles: Collection<Role>) {
