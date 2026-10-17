@@ -59,8 +59,8 @@ class PpoTrainer(private val o: PpoOptions) {
             // was made with, and the clipped update allows for it).
             ahead = if (o.overlap && round + 1 < firstRound + o.rounds) {
                 val ms = models.map { m -> SharedMover(m.net.copy(), m.identity.copyOf()).also { it.residual = m.residual } }
-                val wy = waysState?.ways?.copy()
-                CompletableFuture.supplyAsync { playRound(round + 1, ms, wy) }
+                val waysNow = waysState?.ways?.copy()
+                CompletableFuture.supplyAsync { playRound(round + 1, ms, waysNow) }
             } else null
             val everything = choices.flatten()
             val waysChoices = everything.filterIsInstance<WaysChoice>()
@@ -150,12 +150,12 @@ class PpoTrainer(private val o: PpoOptions) {
         repeat(4) { epoch ->
             for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
                 val parts = inParts(batch) { part -> gradient(model, part, weight) }
-                val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
-                for ((a, bb) in parts) { gw.add(a); gi.add(bb) }
+                val gradW = FloatArray(model.net.w.size); val gradId = FloatArray(model.identity.size)
+                for ((w, id) in parts) { gradW.add(w); gradId.add(id) }
                 // (Each batch is a share of the whole, so its weights are scaled up to stand for it.)
                 val scale = mine.size.toFloat() / batch.size
-                for (i in gw.indices) gw[i] *= scale; for (i in gi.indices) gi[i] *= scale
-                adams[mi].first.step(model.net.w, gw); adams[mi].second.step(model.identity, gi)
+                for (i in gradW.indices) gradW[i] *= scale; for (i in gradId.indices) gradId[i] *= scale
+                adams[mi].first.step(model.net.w, gradW); adams[mi].second.step(model.identity, gradId)
             }
         }
         model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)
@@ -173,22 +173,22 @@ class PpoTrainer(private val o: PpoOptions) {
         val scores = seeds.parallelStream().map { seed -> HexPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, models) }.toList()
         val parts = ArrayList<String>()
         for (s in kinds) {
-            val learnedEach = scores.map { it.first[s] ?: 0.0 }
-            val handEach = scores.map { it.second[s] ?: 0.0 }
+            val learnedEach = scores.map { it.learned[s] ?: 0.0 }
+            val handEach = scores.map { it.hand[s] ?: 0.0 }
             parts += s.name + " " + HexPpo.compare(learnedEach, handEach)
         }
         val c = "check round %d (each role learned alone vs all hand-written, animal-weeks per animal, %d %s worlds: mean change +- its standard error, worlds better): %s".format(round + 1, seeds.size, if (o.checkOnMaps && !o.maps.isEmpty()) "training" else "fresh", parts.joinToString(", "))
         log.check(c)
         waysState?.let { st ->
             val w = seeds.parallelStream().map { seed -> WaysPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, st.ways) }.toList()
-            val cw = "check round %d ways (learned vs scaffold, people-weeks per person): %s".format(round + 1, HexPpo.compare(w.map { it.first }, w.map { it.second }))
-            log.check(cw)
+            val waysLine = "check round %d ways (learned vs scaffold, people-weeks per person): %s".format(round + 1, HexPpo.compare(w.map { it.learned }, w.map { it.hand }))
+            log.check(waysLine)
         }
     }
 
     /** The clipped surrogate's gradient over [part] (to be minimised), for the network's weights and the identities. */
     private fun gradient(model: SharedMover, part: List<Choice>, weight: Map<Choice, Float>): Pair<FloatArray, FloatArray> {
-        val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
+        val gradW = FloatArray(model.net.w.size); val gradId = FloatArray(model.identity.size)
         val dIn = FloatArray(model.inputs)
         val bufs = ArrayList<Mlp.Buffers>()
         for (c in part) {
@@ -210,11 +210,11 @@ class PpoTrainer(private val o: PpoOptions) {
                 val dEntropy = -p[k] * (ln(max(p[k], 1e-8f)) + entropy)
                 val dOut = -w * (dPolicy + ENTROPY * dEntropy)
                 if (dOut == 0f) continue
-                model.net.backward(bufs[k], dOut, gw, dIn)
+                model.net.backward(bufs[k], dOut, gradW, dIn)
                 val s = c.kind
-                for (e in 0 until SharedMover.IDENTITY) gi[s.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.SIZE + SharedMover.KIND + e]
+                for (e in 0 until SharedMover.IDENTITY) gradId[s.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.SIZE + SharedMover.KIND + e]
             }
         }
-        return gw to gi
+        return gradW to gradId
     }
 }

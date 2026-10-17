@@ -52,9 +52,9 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
 
     /** What the group's temperament [temper] pulls it toward a candidate place with [features] (see [Temperament.pull]): added to the network's score, as to the hand-written one. */
     fun pull(temper: FloatArray?, features: FloatArray): Float =
-        (if (temper == null) 0f else Temperament.pull(temper, features[3], features[25], features[10], features[2])) +
+        (if (temper == null) 0f else Temperament.pull(temper, features[HexFeatures.HUNTERS], features[HexFeatures.REMEMBERED], features[HexFeatures.STAYS], features[HexFeatures.CROWDING])) +
             // A herd's yearly round draws it on outside the network, as tradition does, so that learning does not unlearn it.
-            inflation.ecology.ROUND_NET_PULL * features.getOrElse(51) { 0f }
+            inflation.ecology.ROUND_NET_PULL * features.getOrElse(HexFeatures.ON_ROUND) { 0f }
 
     /** How many numbers of the band's own view ([Band.state]) it reads after the kind's part: [WAYS_IN] for people, 0 for animals. */
     val band get() = inputs - INPUTS
@@ -164,6 +164,9 @@ internal fun softmax(x: FloatArray): FloatArray {
     return e
 }
 
+/** A score with the learned networks against the same with the hand-written behaviour (or the scaffold's ways), in one world. */
+class Versus<T>(val learned: T, val hand: T)
+
 /**
  * Learns where to go by proximal policy optimisation, from every recorded choice: one network for
  * the herds, one for the hunters (kinds within each told apart by their traits and a learned
@@ -210,7 +213,7 @@ object HexPpo {
             val kinds = Catalogue.learned
             val seeds = (91L until 91L + o.checkSeeds).toList()
             val scores = seeds.parallelStream().map { seed -> teacherCheck(checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, o.teachers) }.toList()
-            println("teachers vs hand-written over ${seeds.size} worlds: " + kinds.filter { it in o.teachers }.joinToString(", ") { s -> s.name + " " + compare(scores.map { it.first[s] ?: 0.0 }, scores.map { it.second[s] ?: 0.0 }) })
+            println("teachers vs hand-written over ${seeds.size} worlds: " + kinds.filter { it in o.teachers }.joinToString(", ") { s -> s.name + " " + compare(scores.map { it.learned[s] ?: 0.0 }, scores.map { it.hand[s] ?: 0.0 }) })
             return
         }
         PpoTrainer(o).run()
@@ -250,7 +253,7 @@ object HexPpo {
             val teachersHere = teachers.mapValues { (_, net) -> ThreadLocal.withInitial { net.buffers() } to net }
             for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b0, rnd ->
                 // A teacher network, where there is one for the kind, in place of the hand-written scores.
-                val b = teachersHere[g.species]?.let { (bufs, net) -> val bb = bufs.get(); FloatArray(f.size) { k -> f[k].copyInto(bb.a[0], 0, 0, min(f[k].size, bb.a[0].size)); net.forward(bb) } } ?: b0
+                val b = teachersHere[g.species]?.let { (bufs, net) -> val buf = bufs.get(); FloatArray(f.size) { k -> f[k].copyInto(buf.a[0], 0, 0, min(f[k].size, buf.a[0].size)); net.forward(buf) } } ?: b0
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
                 if (rnd.nextFloat() < (rates[g.species] ?: 0f)) {
                     kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf(), run.weather.date.absoluteDay, g.id, g.band?.state?.copyOf(), g.temper.copyOf())
@@ -276,7 +279,7 @@ object HexPpo {
                 var loss = 0.0
                 for (batch in mine.shuffled(Random(epoch.toLong())).chunked(256)) {
                     val parts = inParts(batch) { part ->
-                        val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size); val dIn = FloatArray(model.inputs)
+                        val gradW = FloatArray(model.net.w.size); val gradId = FloatArray(model.identity.size); val dIn = FloatArray(model.inputs)
                         val bufs = ArrayList<Mlp.Buffers>(); var l = 0.0
                         for (c in part) {
                             val n = c.inputs.size
@@ -288,17 +291,17 @@ object HexPpo {
                                 l -= w * q[k] * ln(max(p[k], 1e-8f))
                                 val dOut = w * (p[k] - q[k])
                                 if (dOut == 0f) continue
-                                model.net.backward(bufs[k], dOut, gw, dIn)
-                                for (e in 0 until SharedMover.IDENTITY) gi[c.kind.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.SIZE + SharedMover.KIND + e]
+                                model.net.backward(bufs[k], dOut, gradW, dIn)
+                                for (e in 0 until SharedMover.IDENTITY) gradId[c.kind.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.SIZE + SharedMover.KIND + e]
                             }
                         }
-                        Triple(gw, gi, l)
+                        Triple(gradW, gradId, l)
                     }
-                    val gw = FloatArray(model.net.w.size); val gi = FloatArray(model.identity.size)
-                    for ((a, b, l) in parts) { gw.add(a); gi.add(b); loss += l }
+                    val gradW = FloatArray(model.net.w.size); val gradId = FloatArray(model.identity.size)
+                    for ((a, b, l) in parts) { gradW.add(a); gradId.add(b); loss += l }
                     val scale = mine.size.toFloat() / batch.size
-                    for (i in gw.indices) gw[i] *= scale; for (i in gi.indices) gi[i] *= scale
-                    adam.step(model.net.w, gw); adamId.step(model.identity, gi)
+                    for (i in gradW.indices) gradW[i] *= scale; for (i in gradId.indices) gradId[i] *= scale
+                    adam.step(model.net.w, gradW); adamId.step(model.identity, gradId)
                 }
                 println("imitating, %s, epoch %d: loss %.4f on %d choices".format(Role.entries[mi], epoch, loss, mine.size))
             }
@@ -309,9 +312,9 @@ object HexPpo {
     const val IMITATE_SHARPNESS = 10f
 
     /** One world for [years] with the networks choosing by chance; the recorded choices with their returns. */
-    fun play(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Pair<List<Choice>, String> {
+    fun play(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): List<Choice> {
         val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
-        return Player(cfg, kinds, steps).play(steps, models, null) to "seed ${cfg.seed}"
+        return Player(cfg, kinds, steps).play(steps, models, null)
     }
 
     /**
@@ -354,8 +357,8 @@ object HexPpo {
             if (startNumbers.isEmpty()) { startNumbers.putAll(now); return }
             val gone = kinds.count { s -> run.groups.groups.none { it.alive && it.species == s } }
             derailed = when {
-                (startNumbers[2] ?: 0) > 0 && (now[2] ?: 0) == 0 -> "no bands left"
-                (0..2).any { r -> (now[r] ?: 0) > 10.0 * (startNumbers[r] ?: Int.MAX_VALUE / 20) } -> "a role grown tenfold"
+                (startNumbers[Role.PEOPLE.ordinal] ?: 0) > 0 && (now[Role.PEOPLE.ordinal] ?: 0) == 0 -> "no bands left"
+                Role.entries.indices.any { r -> (now[r] ?: 0) > 10.0 * (startNumbers[r] ?: Int.MAX_VALUE / 20) } -> "a role grown tenfold"
                 gone * 2 > kinds.size -> "$gone of ${kinds.size} kinds gone"
                 else -> null
             }
@@ -428,7 +431,7 @@ object HexPpo {
      * network choosing alone, the other roles hand-written, against all hand-written: for each kind,
      * its score in the run where its own role was learned, and in the hand-written run.
      */
-    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Pair<Map<Species, Double>, Map<Species, Double>> {
+    fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Versus<Map<Species, Double>> {
         val roles = kinds.map { role(it) }.distinct()
         // (The runs go side by side: the hand-written one, and one for each role learned.)
         val runs = (listOf(-1) + roles).parallelStream().map { r ->
@@ -437,15 +440,15 @@ object HexPpo {
             }
         }.toList().toMap()
         val hand = runs.getValue(-1)
-        return kinds.associateWith { s -> runs.getValue(role(s))[s] ?: 0.0 } to hand
+        return Versus(kinds.associateWith { s -> runs.getValue(role(s))[s] ?: 0.0 }, hand)
     }
 
     /** The [teachers] (every kind that has one) against the hand-written behaviour in [cfg]. */
-    fun teacherCheck(cfg: WorldConfig, years: Int, kinds: List<Species>, teachers: Map<Species, Mlp>): Pair<Map<Species, Double>, Map<Species, Double>> {
+    fun teacherCheck(cfg: WorldConfig, years: Int, kinds: List<Species>, teachers: Map<Species, Mlp>): Versus<Map<Species, Double>> {
         val both = listOf(true, false).parallelStream().map { t ->
             score(cfg, years, kinds) { run -> if (t) for ((s, net) in teachers) if (s in kinds) run.groups.policies[s] = HexLearning.NetPolicy(net) }
         }.toList()
-        return both[0] to both[1]
+        return Versus(both[0], both[1])
     }
 
     /**

@@ -41,8 +41,8 @@ object HexExplain {
             if (learned) {
                 val buffers = ThreadLocal.withInitial { net.buffers() }
                 run.groups.policies[kind] = HexPolicy { _, f, b, _ ->
-                    val bb = buffers.get()
-                    val scores = FloatArray(f.size) { i -> f[i].copyInto(bb.a[0], 0, 0, minOf(f[i].size, bb.a[0].size)); net.forward(bb) }
+                    val buf = buffers.get()
+                    val scores = FloatArray(f.size) { i -> f[i].copyInto(buf.a[0], 0, 0, minOf(f[i].size, buf.a[0].size)); net.forward(buf) }
                     var n = 0; var h = 0
                     for (i in f.indices) { if (scores[i] > scores[n]) n = i; if (b[i] > b[h]) h = i }
                     synchronized(picks) { asked++; if (n == h) agree++ else if (picks.size < 200_000) picks += Pick(f[n].copyOf(), f[h].copyOf()) }
