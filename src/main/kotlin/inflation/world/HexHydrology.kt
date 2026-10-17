@@ -146,21 +146,49 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     @Transient private val lakeFull = DoubleArray(hex.size)
     @Transient private val lakeRain = Array(Date.MONTHS_PER_YEAR) { DoubleArray(hex.size) }
     @Transient private val lakeEvap = Array(Date.MONTHS_PER_YEAR) { DoubleArray(hex.size) }
+    /**
+     * The shape of each hex's lake beds, from the fine cells' depths below the full surface: hex h's cells are
+     * [lakeAt] (h) until [lakeAt] (h + 1), deepest first, and [lakeHold] at each is what the lakes hold, m³, when the
+     * water has sunk to that cell's depth below its surface, so that it and the cells deeper than it are all that is wet.
+     */
+    @Transient private val lakeAt = IntArray(hex.size + 1)
+    @Transient private val lakeHold: DoubleArray
     init {
         val area = grid.cellAreaM2
+        val depths = Array(hex.size) { ArrayList<Float>() }
         for (i in 0 until grid.size) {
             if (!world.water.isLake(i)) continue
             val h = hex.owner[i]
+            val depth = max(0f, world.water.lakeLevel[i] - world.elevation[i])
             lakeM2[h] += area
-            lakeFull[h] += max(0f, world.water.lakeLevel[i] - world.elevation[i]) * area
+            lakeFull[h] += depth * area
+            depths[h].add(depth)
             for (m in 0 until Date.MONTHS_PER_YEAR) {
                 lakeRain[m][h] += world.climate.monthlyPrecip[m][i] / 1000.0 * area
                 lakeEvap[m][h] += world.climate.monthlyPet[m][i] / 1000.0 * area
             }
         }
+        for (h in 0 until hex.size) lakeAt[h + 1] = lakeAt[h] + depths[h].size
+        lakeHold = DoubleArray(lakeAt[hex.size])
+        for (h in 0 until hex.size) {
+            val d = depths[h].sortedDescending()
+            // With the k deepest cells wet and the surface down at the k-th's depth, each holds its depth less that.
+            var deeper = 0.0
+            for (k in d.indices) { lakeHold[lakeAt[h] + k] = (deeper - k * d[k].toDouble()) * area; deeper += d[k] }
+        }
     }
     /** The water each hex's lakes hold, m³: full to begin with (and on loading a save, while this is a trial). */
     @Transient val lakeM3 = lakeFull.copyOf()
+
+    /** The share of hex [h]'s lake beds under water when its lakes hold [m3]: a low lake covers only its deeper cells. */
+    private fun wetShare(h: Int, m3: Double): Double {
+        val from = lakeAt[h]; val n = lakeAt[h + 1] - from
+        if (n == 0) return 0.0
+        // (The fewest deepest cells that hold it, all of them when it is more than the shallowest's mark.)
+        var lo = 1; var hi = n
+        while (lo < hi) { val mid = (lo + hi) / 2; if (lakeHold[from + mid] >= m3) hi = mid else lo = mid + 1 }
+        return lo.toDouble() / n
+    }
 
     /** What the lakes hold against their fill, and how many hexes' lakes are dry, low or full (see [CONSERVE_WATER]). */
     fun lakeSummary(): String {
@@ -272,12 +300,12 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 val m3 = out / 1000.0 * land.areaM2[p]
                 if (!stream[h] && d >= 0) underground[d] += m3 else volume[h] += m3
             }
-            // The lakes take what runs in, with the rain on them, and give up what the sun takes from their open water;
-            // full, they pass on what comes in beyond it.
+            // The lakes take what runs in, with the rain on their beds, and give up what the sun takes from their open
+            // water, which shrinks as they sink; full, they pass on what comes in beyond it.
             if (CONSERVE_WATER && lakeM2[h] > 0.0) {
                 val rainOn = lakeRain[m][h] * share
                 val water = lakeM3[h] + volume[h] + rainOn
-                val evap = min(water, lakeEvap[m][h] * share)
+                val evap = min(water, lakeEvap[m][h] * share * wetShare(h, lakeM3[h]))
                 lakeM3[h] = water - evap
                 volume[h] = max(0.0, lakeM3[h] - lakeFull[h]); lakeM3[h] -= volume[h]
                 rainIn += rainOn; toAir += evap
