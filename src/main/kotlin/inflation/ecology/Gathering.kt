@@ -67,8 +67,9 @@ internal fun HexGroups.gather(month: Int) {
 }
 
 /**
- * Each week: a herd of a gathering kind that has come within reach of the place it makes for this month,
- * where it stays on next month (within [GATHER_KM]), scatters into the land about it as residents.
+ * Each week: a herd of a gathering kind whose place this month and next lie within [GATHER_KM] of each other scatters
+ * into the land about it as residents once it has come within reach of that place, or has stopped short of it (kept
+ * all week to one hex): nothing is left for it to travel for.
  */
 internal fun HexGroups.scatter(month: Int) {
     var any = false
@@ -80,7 +81,9 @@ internal fun HexGroups.scatter(month: Int) {
         val next = roundOf(g, wrapMonth(month + 1))?.place ?: g.seasonPlace[wrapMonth(month + 1)]
         if (goal < 0 || next < 0) continue
         if (hex.distanceKm(hw.placeHex[goal], hw.placeHex[next]) > GATHER_KM) continue
-        if (hex.distanceKm(hw.placeHex[g.place], hw.placeHex[goal]) > GATHER_KM) continue
+        // (Or that has stopped short of it: stayed where it was all week, as residents do.)
+        val still = g.path.size <= 1
+        if (!still && hex.distanceKm(hw.placeHex[g.place], hw.placeHex[goal]) > GATHER_KM) continue
         spread(g, k)
         stats.hunting.merge(Tally.of(s, Tally.SCATTERED), 1, Int::plus); stats.hunting.merge(Tally.of(s, Tally.HEADS_SCATTERED), g.size, Int::plus)
         g.adults = 0; g.young = 0; any = true

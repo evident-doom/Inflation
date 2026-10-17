@@ -86,7 +86,8 @@ class HexGroups(
     internal fun noteSeasons(month: Int) {
         if (!ROUNDS) return
         for (s in kinds) {
-            if (s.carnivore || groups.none { it.alive && it.species == s }) continue
+            // (A kind that also lives spread out keeps noting them while none of it is gathered: its rounds are its gatherings' routes.)
+            if (s.carnivore || (s !in Catalogue.gathering && groups.none { it.alive && it.species == s })) continue
             val q = FloatArray(n) { p -> herdQuality(s, p, month) }
             qualityByMonth.getOrPut(s.index) { arrayOfNulls(12) }[month] = q
         }
