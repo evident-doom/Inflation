@@ -719,6 +719,5 @@ object Catalogue {
 
     init {
         require(all.withIndex().all { (i, s) -> s.id == i }) { "species ids must run 0 until ${all.size} without gaps or repeats" }
-        for (s in all) s.index = s.id
     }
 }

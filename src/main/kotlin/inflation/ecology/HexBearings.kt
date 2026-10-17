@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Tuning
 import inflation.Config
 
 import inflation.world.HexWorld
@@ -14,7 +15,7 @@ import java.util.stream.IntStream
  * this month (climate for its coat, its ground, its food, water).
  *
  * What an animal knows of the land around it:
- * - Its own country within [NEAR_KM]: the ground it and its kind range over.
+ * - Its own country within [inflation.Tuning.nearKm]: the ground it and its kind range over.
  * - High ground in sight: peaks show above the horizon from afar, out to about 3.6 km × √(height
  *   above the watcher, m), at most [FAR_KM]; a peak stands for the massif around it, so a kind that
  *   wants the cool of the mountains in summer heads for the mountains it can see.
@@ -32,7 +33,9 @@ class HexBearings(
     /** How well place p suits kind s in month m, 0..1. */
     private val quality: (Species, Int, Int) -> Float,
     /** Whether any of a kind are left (the bearings of a kind gone are not worked out). */
-    private val present: (Species) -> Boolean = { true },
+    private val present: (Species) -> Boolean,
+    /** The run's settings: how far an animal knows the country around it. */
+    @Transient private val tuning: Tuning,
 ) {
     private val hex = hw.hex
     private val size = hex.size
@@ -43,11 +46,11 @@ class HexBearings(
     var month = -1; private set
 
     @Transient private val cx = DoubleArray(size); @Transient private val cy = DoubleArray(size)
-    /** Hexes within [NEAR_KM] of each land hex. */
+    /** Hexes within [inflation.Tuning.nearKm] of each land hex. */
     @Transient private val near: Array<IntArray>
     /** For each of those, the way to it (unit vector) times how much a place there weighs, and the weight. */
     @Transient private val nearE: Array<FloatArray>; @Transient private val nearS: Array<FloatArray>; @Transient private val nearW: Array<FloatArray>
-    /** Peaks in sight of each land hex, beyond [NEAR_KM]; and the hexes of each peak's massif. */
+    /** Peaks in sight of each land hex, beyond [inflation.Tuning.nearKm]; and the hexes of each peak's massif. */
     @Transient private val inSight: Array<IntArray>
     @Transient private val massif: Array<IntArray>
     /** Which way it gets warmer over the year, unit vector per hex. */
@@ -67,12 +70,12 @@ class HexBearings(
         }
         val land = (0 until size).filter { hex.heart[it] >= 0 }
         near = Array(size) { IntArray(0) }
-        land.parallelStream().forEach { h -> near[h] = within(h, NEAR_KM).filter { it != h }.toIntArray() }
+        land.parallelStream().forEach { h -> near[h] = within(h, tuning.nearKm).filter { it != h }.toIntArray() }
         nearE = Array(size) { FloatArray(near[it].size) }; nearS = Array(size) { FloatArray(near[it].size) }; nearW = Array(size) { FloatArray(near[it].size) }
         land.parallelStream().forEach { h ->
             for ((i, q) in near[h].withIndex()) {
                 val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]; val d = len(dx, dy)
-                val wt = 1.0 / (1.0 + d / FADE_KM)
+                val wt = 1.0 / (1.0 + d / tuning.fadeKm)
                 nearE[h][i] = (wt * dx / d).toFloat(); nearS[h][i] = (wt * dy / d).toFloat(); nearW[h][i] = wt.toFloat()
             }
         }
@@ -87,7 +90,7 @@ class HexBearings(
             val eye = hw.elevationM[h]
             inSight[h] = peaks.filter { pk ->
                 val d = len(cx[pk] - cx[h], cy[pk] - cy[h])
-                d > NEAR_KM && d <= min(FAR_KM, 3.57 * sqrt(max(0f, top[pk] - eye).toDouble()))
+                d > tuning.nearKm && d <= min(FAR_KM, 3.57 * sqrt(max(0f, top[pk] - eye).toDouble()))
             }.toIntArray()
         }
         // The lie of the climate: a plane fitted to the year's mean temperature over [CLIMATE_KM] around.
@@ -151,7 +154,7 @@ class HexBearings(
                     if (gain <= 0f) continue
                     best = max(best, top)
                     val dx = cx[pk] - cx[h]; val dy = cy[pk] - cy[h]; val d = len(dx, dy)
-                    val wt = 1.0 / (1.0 + d / FADE_KM)
+                    val wt = 1.0 / (1.0 + d / tuning.fadeKm)
                     ve += (gain * wt * dx / d).toFloat(); vs += (gain * wt * dy / d).toFloat(); w += wt.toFloat()
                 }
                 // The way: the weighed mean way to better places. How strongly: how far short of the best
@@ -187,9 +190,6 @@ class HexBearings(
     fun strength(k: Int, h: Int): Float = len(east[k][h], south[k][h])
 
     companion object {
-        /** Country an animal knows around it, km; how fast the draw of a place fades with distance, km. */
-        val NEAR_KM = Config.double("t.nearKm", 60.0)
-        val FADE_KM = Config.double("t.fadeKm", 50.0)
         /** Peaks: lowest standing out, m; one per this spacing at most, km; the massif a peak stands for, km; furthest seen, km. */
         const val PEAK_M = 600f
         const val PEAK_SPACING_KM = 30.0

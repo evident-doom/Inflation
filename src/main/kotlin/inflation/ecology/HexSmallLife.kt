@@ -69,6 +69,7 @@ class BirdKind(
  * - Fire kills what cannot flee. Every month each kind spreads a little to the places around.
  */
 class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private val days: Int) {
+    private val tuning get() = land.tuning
     val n = land.n
     /** Soil: litter and organic matter, kg/m²; carrion, kg/m²; soil animals, g/m². */
     val litter = FloatArray(n) { p -> 0.5f * (land.plants.herb[p] + 0.2f * land.plants.shrub[p] + 0.04f * land.plants.tree[p]) + 0.3f }
@@ -371,7 +372,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val fed = if (need > 0f) eaten / need else 1f
         val fresh = food * land.plants.green[p]
         val birth = if (t > 5f) 10f * years * fed * fresh / (fresh + 0.05f) else 0f // (half the most at 0.05 kg/m² of green forage)
-        val death = RODENT_DEATH * years + (if (snow > 30f || t < -5f) 3f * years else 0f)
+        val death = tuning.rodentDeath * years + (if (snow > 30f || t < -5f) 3f * years else 0f)
         val starved = r * (1f - fed)
         val ceil = 600f * food / (food + 0.3f)
         val bornR = r * birth * (1 - r / ceil.coerceAtLeast(1f))
@@ -1232,8 +1233,6 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val EAGLE_HALF = 1f
         /** Share of the difference with its neighbours a small animal population evens out in a month. */
         const val SPREAD = 0.2f
-        /** Rodents' deaths a year from all causes but predators, cold, snow and hunger. */
-        val RODENT_DEATH = inflation.Config.float("t.rodentDeath", 1.2f)
         /** Share of what herds and packs eat that comes back as dung. */
         const val DUNG = 0.5f
         private val CHUKAR_AT = BIRDS.indexOf(CHUKAR)

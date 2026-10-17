@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Tuning
 import inflation.world.Eruptions
 import inflation.world.HexLand
 import inflation.world.HexMap
@@ -19,12 +20,14 @@ class HexSim(
     kinds: List<Species>? = null,
     /** Start the groups spread evenly over the land, wherever it suits them or not. */
     uniformStart: Boolean = false,
+    /** The run's settings (by default as the config file gives them). */
+    tuning: Tuning = Tuning.config,
 ) {
     val cfg = world.config
     val hex = HexMap(world)
     val hw = HexWorld(world, hex)
     val weather = Weather(hw.weatherPlaces(cfg), cfg)
-    val land = HexLand(hw, cfg.seed)
+    val land = HexLand(hw, cfg.seed, tuning)
     val fauna = HexFauna(hw, land, cfg.daysPerStep)
     val groups = HexGroups(hw, land, fauna, cfg.daysPerStep, cfg.seed, kinds, uniformStart)
     /** Volcanoes erupting at their own rates; the ash falls downwind on the places. */

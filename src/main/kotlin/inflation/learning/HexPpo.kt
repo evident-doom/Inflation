@@ -56,7 +56,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
     fun pull(temper: FloatArray?, features: FloatArray): Float =
         (if (temper == null) 0f else Temperament.pull(temper, features[HexFeatures.HUNTERS], features[HexFeatures.REMEMBERED], features[HexFeatures.STAYS], features[HexFeatures.CROWDING])) +
             // A herd's yearly round draws it on outside the network, as tradition does, so that learning does not unlearn it.
-            inflation.ecology.ROUND_NET_PULL * features.getOrElse(HexFeatures.ON_ROUND) { 0f }
+            inflation.Tuning.config.roundNetPull * features.getOrElse(HexFeatures.ON_ROUND) { 0f }
 
     /** How many numbers of the band's own view ([Band.state]) it reads after the kind's part: [WAYS_IN] for people, 0 for animals. */
     val band get() = inputs - INPUTS

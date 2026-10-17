@@ -28,9 +28,9 @@ class PlaceRecord(val n: Int, kinds: Int) {
         for (r in residents) for (p in 0 until n) for (c in 0 until m) { val v = r[p * m + c]; if (v != 0f) { animalKg[c][p] += v; r[p * m + c] = 0f } }
     }
 
-    /** A death of a group's member, under the cause the week's outcome named it by. */
+    /** A death of a group's member, under the cause the week's outcome named it by ([DeathCause], or a beast's or a killer's name). */
     internal fun group(s: Species, p: Int, cause: String, k: Int) {
-        val c = cause(cause)
+        val c = DeathCause.byLabel(cause)?.shown ?: if (cause.startsWith(DeathCause.TAKEN_BY) || cause.contains(DeathCause.KILLED_BY)) Cause.KILLED else cause(cause)
         if (s.human) people[c.ordinal][p] += k.toFloat() else animalKg[c.ordinal][p] += k * s.massKg
     }
 
@@ -41,7 +41,7 @@ class PlaceRecord(val n: Int, kinds: Int) {
     }
 
     companion object {
-        /** The cause a death named [name] falls under. */
+        /** The cause a death named [name] falls under, by the words in it (the residents' deaths are named in free text). */
         fun cause(name: String): Cause {
             val s = name.lowercase()
             return when {

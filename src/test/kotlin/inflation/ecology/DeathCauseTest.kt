@@ -25,4 +25,9 @@ class DeathCauseTest {
         assertEquals(PlaceRecord.Cause.KILLED, PlaceRecord.cause(DeathCause.RAIDS.label))
         assertEquals(PlaceRecord.Cause.COLD, PlaceRecord.cause(DeathCause.EXPOSURE.label))
     }
+
+    @Test
+    fun `each cause's heading is the one its words gave before it was typed`() {
+        for (c in DeathCause.entries) assertEquals(PlaceRecord.cause(c.label), c.shown, c.label)
+    }
 }

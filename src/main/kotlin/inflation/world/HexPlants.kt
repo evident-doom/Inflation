@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Tuning
 import inflation.Config
 
 import kotlin.math.exp
@@ -47,7 +48,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     /**
      * The cured grass weathering where it stands: how much of the stand has fallen into the litter since
      * it last grew, kg/m² (the crowns that grew it are still there, so it grows back as fast as it would
-     * have), and how fresh the cured part still is, 0..1: 1 just cured, 0 leached to straw (see [HAY_WEATHERING]).
+     * have), and how fresh the cured part still is, 0..1: 1 just cured, 0 leached to straw (see [inflation.Tuning.hayWeathering]).
      */
     val hayFallen = FloatArray(n); val hayFresh = FloatArray(n) { 1f }
     /**
@@ -55,8 +56,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * and over which they reach full growth, °C, and the share of the sward that is perennial.
      */
     @Transient private val warmest = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
-    @Transient private val growFrom = FloatArray(n) { p -> (warmest[p] - 20f).coerceIn(-2f, GROW_FROM_C) }
-    @Transient private val growSpan = FloatArray(n) { p -> (warmest[p] - 6f).coerceIn(6f, GROW_SPAN_C) }
+    @Transient private val growFrom = FloatArray(n) { p -> (warmest[p] - 20f).coerceIn(-2f, tuning.growFromC) }
+    @Transient private val growSpan = FloatArray(n) { p -> (warmest[p] - 6f).coerceIn(6f, tuning.growSpanC) }
     @Transient val perennialShare = FloatArray(n) { p -> ((PERENNIAL_FULL_C + 4f - warmest[p]) / 4f).coerceIn(0f, 1f) }
     /** How far the warmth [t], °C, lets the plants of place [p] grow, 0..1, as they are adapted to it. */
     fun growthWarmth(p: Int, t: Float) = ((t - growFrom[p]) / growSpan[p]).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
@@ -85,7 +86,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     val greenShade = FloatArray(n); private val curedShade = BooleanArray(n)
 
     /** Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when dry or dormant. */
-    fun nourishment(p: Int) = DRY_VALUE + (1f - DRY_VALUE) * green[p]
+    fun nourishment(p: Int) = tuning.dryValue + (1f - tuning.dryValue) * green[p]
 
     /** Volcanic ash lying on each place, mm (set from the eruptions each week). */
     val ash = FloatArray(n)
@@ -208,7 +209,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             greenWet[p] += (wetGrowth - greenWet[p]) * GREEN_RATE
             green[p] = openShare * ((1 - shaded) * greenOpen[p] + shaded * greenShade[p]) + HexHydrology.SEEP_SHARE * greenSeep[p] + wetShare * greenWet[p]
             val shade = canopy(p)
-            val browsed = 1f - exp(-browsing[p] / BROWSE_SCALE)
+            val browsed = 1f - exp(-browsing[p] / tuning.browseScale)
             val young = 1f - min(1f, tree[p] / (0.3f * ceiling(LifeForm.TREE, p).coerceAtLeast(1e-3f)))
             val rooted = 1f - exp(-rooting[p] / ROOT_SCALE)
             val treeSeedHere = max(treeSeed[p], 0.5f * animalSeed[p]) * (1f + 1.5f * rooted)
@@ -224,7 +225,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             treeShoots[p] = treeShoots[p] * shootsKept + land.palatable[p] * TREE_IN_REACH * (max(0f, tree[p] - tree0) + TREE_RENEWAL * renew * tree[p])
             // In the cold the deciduous leaves fall: through the winter only twigs and buds are left to browse.
             // (Where winters are mild enough to grow on, the leaves stay, as on the evergreen scrub of the south.)
-            if (LEAF_FALL > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-LEAF_FALL * years); shrubShoots[p] *= k; treeShoots[p] *= k }
+            if (tuning.leafFall > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-tuning.leafFall * years); shrubShoots[p] *= k; treeShoots[p] *= k }
             val lawn = 1f - exp(-grazing[p] / LAWN_SCALE)
             val herb0 = herb[p]
             grow(LifeForm.HERB, herb, p, grassGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted, hayFallen[p])
@@ -233,8 +234,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // good what fell, and freshens the stand by its share of it.
             val grown = max(0f, herb[p] - herb0)
             hayFallen[p] = max(0f, hayFallen[p] - grown)
-            if (HAY_WEATHERING > 0f) {
-                val kept = exp(-HAY_WEATHERING * years)
+            if (tuning.hayWeathering > 0f) {
+                val kept = exp(-tuning.hayWeathering * years)
                 val fell = herb[p] * (1f - green[p]) * (1f - kept)
                 herb[p] -= fell; hayFallen[p] += fell
                 hayFresh[p] = if (herb[p] > 1e-6f) ((herb[p] - grown).coerceAtLeast(0f) * hayFresh[p] * kept + grown) / herb[p] else 1f
@@ -260,7 +261,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // Trampling, spread over the place: a herd beats down a share of it.
             val tr = trampling[p] / land.areaKm2[p]
             if (tr > 0f) {
-                herb[p] *= exp(-TRAMPLE_HERB * tr); shrub[p] *= exp(-TRAMPLE_SHRUB * tr)
+                herb[p] *= exp(-tuning.trampleHerb * tr); shrub[p] *= exp(-tuning.trampleShrub * tr)
                 trails[p] = min(1f, trails[p] + TRAIL_WEAR * tr * (1f - trails[p]))
                 trampling[p] = 0f
             } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - TRAIL_FADE * years)
@@ -286,11 +287,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     companion object {
-        /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory). */
-        val DRY_VALUE = Config.float("t.dryValue", 0.65f)
-        /** Experiment knobs: the warmth at which plants start to grow, °C, and the span over which they reach full growth, °C. */
-        val GROW_FROM_C = Config.float("t.growFrom", 2f)
-        val GROW_SPAN_C = Config.float("t.growSpan", 13f)
         /**
          * Perennial swards: wholly so where the warmest month is at most this, °C (annuals wholly where it is
          * 4 °C warmer); the share of what the soil holds down to which their deep roots keep them growing.
@@ -300,13 +296,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
-        /**
-         * How fast cured grass weathers where it stands, a year: the share of the standing dead that falls
-         * into the litter (about 0.12-0.2 a month for grasses in the CENTURY model's fall rate, from memory),
-         * and the rate at which what stands loses its protein toward straw's (crude protein of cured grass
-         * falling from about 6% to 3% over a dry season of four to five months, from memory). 0: no weathering.
-         */
-        val HAY_WEATHERING = Config.float("t.hayWeathering", 1.8f)
         /** Share of trees' new growth within a browser's reach (saplings and low boughs). */
         const val TREE_IN_REACH = 0.03f
         /** Weekly share by which greenness follows growth. */
@@ -321,8 +310,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         /** Ash depth that smothers most of the herb layer within weeks, mm; fertility added per mm of ash a year as it weathers. */
         const val ASH_SMOTHER_MM = 50f
         const val ASH_FERTILITY = 0.002f
-        /** Browsing, kg/km²/day, at which seedlings and saplings are mostly eaten (a few deer per km²). */
-        val BROWSE_SCALE = Config.float("t.browseScale", 3f)
         /** Grazing, kg/km²/day, that over years turns grassland into short lawn. */
         const val LAWN_SCALE = 8f
         /** Rooting, kg/km²/day, at which most of the ground is churned. */
@@ -339,18 +326,3 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         const val EROSION = 0.05f
     }
 }
-
-/**
- * Share of the herbs and shrubs a place loses a step for each unit of trampling over it (see
- * [HexPlants.trample]; t.trampleHerb, t.trampleShrub): about 5% of the shrubs a year where a
- * tonne of animals a km² goes about (it was ten times that, more than shrubs regrow: the shrub layer
- * fell by half in four years and the browsers starved).
- */
-val TRAMPLE_HERB = Config.float("t.trampleHerb", 0.005f)
-val TRAMPLE_SHRUB = Config.float("t.trampleShrub", 0.01f)
-
-/**
- * How fast the leaves of the shoots fall in the cold, a year: about two-thirds gone over a four-month winter, the twigs and buds
- * left (t.leafFall; 0: they last as twigs do).
- */
-val LEAF_FALL = Config.float("t.leafFall", 4f)

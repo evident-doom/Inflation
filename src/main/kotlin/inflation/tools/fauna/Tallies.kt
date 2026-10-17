@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Tally
 import inflation.ecology.Thresholds
 import inflation.ecology.DeathCause
 import inflation.ecology.WeekStats
@@ -30,7 +31,7 @@ class DeathTally(private val sim: HexSim) {
         for ((key, v) in groups.stats.deaths) causes.merge(key, v.toDouble(), Double::plus)
         for ((key, v) in groups.stats.kills) causes.merge("$key:hunted", v.toDouble(), Double::plus)
         for ((key, v) in groups.stats.births) causes.merge("$key:+born", v.toDouble(), Double::plus)
-        for ((key, v) in groups.stats.hunting) if (key.startsWith("herd size ")) causes.merge(key, v.toDouble(), Double::plus)
+        for ((key, v) in groups.stats.hunting) if (key.startsWith(Tally.HERD_SIZE)) causes.merge(key, v.toDouble(), Double::plus)
         for (gr in groups.groups) if (gr.alive && !gr.species.carnivore) herdHeadWeeks[groups.sizeClass(gr)] += gr.size.toDouble()
     }
 
@@ -59,7 +60,7 @@ class DeathTally(private val sim: HexSim) {
         val names = listOf("small (under a unit)", "middling (1-3 units)", "large (over 3 units)")
         println("herds' yearly deaths per animal by size (share of head-weeks): " + (0..2).joinToString("; ") { c ->
             val years = herdHeadWeeks[c] / stepsPerYear
-            val keys = causes.keys.filter { it.startsWith("herd size $c:") }
+            val keys = causes.keys.filter { it.startsWith(Tally.herdSize(c, "")) }
             "%s %.0f%%: ".format(names[c], 100 * herdHeadWeeks[c] / herdHeadWeeks.sum().coerceAtLeast(1.0)) +
                 keys.sortedByDescending { causes[it] }.joinToString(", ") { k -> "%s %.3f".format(k.substringAfter(':'),
                     causes.getValue(k) / years.coerceAtLeast(1e-9)) }
@@ -113,9 +114,9 @@ class HuntTally(private val sim: HexSim) {
         println("     hunting, per party a week (chases / herds that saw it first / kills from herds / kills of residents / fed): " +
             sim.groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gw = (groupWeeks[s.name] ?: 0).coerceAtLeast(1).toDouble()
-            fun v(k: String) = (year["${s.name}:$k"] ?: 0) / gw
-            "%s %.2f / %.2f / %.2f / %.2f / %.2f".format(s.name, v("chases"), v("herds that saw it first"), v("kills from herds"),
-                v("kills of residents"), (fedSum[s.name] ?: 0.0) / gw)
+            fun v(k: String) = (year[Tally.of(s, k)] ?: 0) / gw
+            "%s %.2f / %.2f / %.2f / %.2f / %.2f".format(s.name, v(Tally.CHASES), v(Tally.SAW_FIRST), v(Tally.KILLS_FROM_HERDS),
+                v(Tally.KILLS_OF_RESIDENTS), (fedSum[s.name] ?: 0.0) / gw)
         })
     }
 
@@ -126,8 +127,8 @@ class HuntTally(private val sim: HexSim) {
     fun printHuntersFood() {
         println("     hunters' food (meat / small prey / carrion / plants, as shares of what they need): " +
             sim.groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
-            val asked = (year["${s.name}:diet asked, kg"] ?: 0).toDouble().coerceAtLeast(1.0)
-            fun part(k: String) = 100 * (year["${s.name}:diet $k, kg"] ?: 0) / asked
+            val asked = (year[Tally.diet(s, "asked")] ?: 0).toDouble().coerceAtLeast(1.0)
+            fun part(k: String) = 100 * (year[Tally.diet(s, k)] ?: 0) / asked
             "%s %.0f/%.0f/%.0f/%.0f%%".format(s.name, part("meat"), part("small prey"), part("carrion"), part("plants"))
         })
     }

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Tuning
 import inflation.Config
 
 import inflation.world.Date
@@ -29,7 +30,7 @@ internal fun HexGroups.growRounds(month: Int) {
         if (rounds.isEmpty()) continue
         herdRounds[s.index] = rounds
         for (g in groups) if (g.alive && g.species == s && g.route[0] == ROUND_OPEN) {
-            if (firstGrowth && hashNoise(g.id, 77) >= ROUND_START_SHARE) Arrays.fill(g.route, NO_ROUND) else takeRound(g, rounds, month)
+            if (firstGrowth && hashNoise(g.id, 77) >= tuning.roundStartShare) Arrays.fill(g.route, NO_ROUND) else takeRound(g, rounds, month)
         }
         stats.meetings.merge("${s.name}: yearly rounds grown", rounds.size, Int::plus)
         // (And how far apart their January and July places lie, km, on average: for the check.)
@@ -40,7 +41,7 @@ internal fun HexGroups.growRounds(month: Int) {
 
 /**
  * The round group [g] keeps to in [month], if any: the place it makes for and how strongly (0..). A herd's
- * is its yearly round as its elders taught it ([HexGroup.route], at [ROUND_STRENGTH]); a band's is its
+ * is its yearly round as its elders taught it ([HexGroup.route], at [inflation.Tuning.roundStrength]); a band's is its
  * rite, a round its culture holds to (see [Band.riteFor]). The pull is added to the hand-written score
  * and, outside the network, to a learned mover's (see the "on round" feature and SharedMover.pull).
  */
@@ -48,7 +49,7 @@ internal fun HexGroups.roundOf(g: HexGroup, month: Int): RoundPull? {
     if (!ROUNDS) return null
     g.band?.let { return it.riteFor(month) }
     val r = g.route[month]; if (r < 0) return null
-    return RoundPull(r, ROUND_STRENGTH)
+    return RoundPull(r, tuning.roundStrength)
 }
 
 /** The place a round draws a group to this month, and how strongly (see [roundOf]). */
@@ -56,21 +57,21 @@ data class RoundPull(val place: Int, val strength: Float)
 
 /**
  * An offshoot keeps its parent's round, but not always exactly: now and then it changes one month's
- * place for one nearby ([ROUND_DRIFT]); a herd with a round now and then gives it up and keeps to
- * its own country, and one without now and then takes up the nearest round ([ROUND_SWITCH]).
+ * place for one nearby ([inflation.Tuning.roundDrift]); a herd with a round now and then gives it up and keeps to
+ * its own country, and one without now and then takes up the nearest round ([inflation.Tuning.roundSwitch]).
  * Herds whose rounds feed them better grow and split more, so better rounds spread and poorer ones
  * die out: rounds are kept where they pay, as tradition is.
  */
 internal fun HexGroups.driftRound(g: HexGroup) {
     val r = rnd.nextFloat()
     if (g.route[0] >= 0) {
-        if (r < ROUND_SWITCH) { Arrays.fill(g.route, NO_ROUND); return }
-        if (r < ROUND_SWITCH + ROUND_DRIFT) {
+        if (r < tuning.roundSwitch) { Arrays.fill(g.route, NO_ROUND); return }
+        if (r < tuning.roundSwitch + tuning.roundDrift) {
             val m = rnd.nextInt(12)
             val p = placeNear(g.route[m], RANGE_KM)
             if (p >= 0) g.route[m] = p
         }
-    } else if (g.route[0] == NO_ROUND && r < ROUND_SWITCH) Arrays.fill(g.route, ROUND_OPEN) // (to take the nearest round at the month's turn)
+    } else if (g.route[0] == NO_ROUND && r < tuning.roundSwitch) Arrays.fill(g.route, ROUND_OPEN) // (to take the nearest round at the month's turn)
 }
 
 /** A herd takes the round that passes nearest to where it stands this month. */
@@ -124,7 +125,7 @@ private fun HexGroups.roundsFor(s: Species, q: Array<FloatArray>): List<IntArray
     for (r0 in ranges[0]) {
         var value = DoubleArray(ranges[1].size) { j ->
             val d = km(r0, ranges[1][j])
-            if (d > legMax) Double.NEGATIVE_INFINITY else r0.worth + ranges[1][j].worth - ROUND_KM_COST * d
+            if (d > legMax) Double.NEGATIVE_INFINITY else r0.worth + ranges[1][j].worth - tuning.roundKmCost * d
         }
         val from = Array(12) { IntArray(0) }
         for (m in 2 until 12) {
@@ -133,7 +134,7 @@ private fun HexGroups.roundsFor(s: Species, q: Array<FloatArray>): List<IntArray
             for (j in cur.indices) for (k in prev.indices) {
                 if (value[k] == Double.NEGATIVE_INFINITY) continue
                 val d = km(prev[k], cur[j]); if (d > legMax) continue
-                val v = value[k] + cur[j].worth - ROUND_KM_COST * d
+                val v = value[k] + cur[j].worth - tuning.roundKmCost * d
                 if (v > next[j]) { next[j] = v; back[j] = k }
             }
             value = next; from[m] = back
@@ -143,7 +144,7 @@ private fun HexGroups.roundsFor(s: Species, q: Array<FloatArray>): List<IntArray
         for (j in ranges[11].indices) {
             if (value[j] == Double.NEGATIVE_INFINITY) continue
             val d = km(ranges[11][j], r0); if (d > legMax) continue
-            val v = value[j] - ROUND_KM_COST * d
+            val v = value[j] - tuning.roundKmCost * d
             if (v > bestV) { bestV = v; bestJ = j }
         }
         if (bestJ < 0) continue
@@ -164,21 +165,15 @@ private fun HexGroups.seasonQuality(s: Species): Array<FloatArray>? {
 
 /**
  * Rounds: how often they are grown again, years; the size of a range, km; how many ranges of a month are
- * kept; what a km of the round costs against the quality of a month's grazing (0..1).
+ * kept (what a km of the round costs against the quality of a month's grazing: [inflation.Tuning.roundKmCost]).
  */
 const val ROUND_YEARS = 10
-/** Rounds kept by inheritance: chance an offshoot changes one month's place of its round; chance it gives its round up, or takes one
- * up; the mark of a herd keeping to its own country. */
-val ROUND_DRIFT = Config.float("t.roundDrift", 0.3f)
-val ROUND_SWITCH = Config.float("t.roundSwitch", 0.05f)
+/** The mark of a herd keeping to its own country (rounds kept by inheritance drift and switch by [inflation.Tuning.roundDrift] and [inflation.Tuning.roundSwitch]). */
 const val NO_ROUND = -2
 /** The mark of a herd with no round yet and none given up: it takes the nearest at the month's turn. */
 const val ROUND_OPEN = -1
-/** Share of herds that start with a round when the rounds are first grown (the rest keep to their country, and the two ways compete). */
-val ROUND_START_SHARE = Config.float("t.roundStart", 0.5f)
 const val RANGE_KM = 100.0
 const val RANGES_KEPT = 300
 /** A range is kept for a month if it is at least this good against the month's best (so rounds cover the kind's whole country, not
  * only its few best spots, where every herd would crowd). */
 const val RANGE_FLOOR = 0.3f
-val ROUND_KM_COST = Config.double("t.roundKmCost", 0.002)

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Tuning
 import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.world.Date
@@ -147,7 +148,7 @@ internal fun HexGroups.graze(weather: Weather) {
             eatenKg += (grass + grass2 + browse + browse2 + fruit + fruit2 + roots + roots2 + straw) * m2p
             proteinKg += ((grass + grass2) * fauna.grassProtein(p) + (browse + browse2) * fauna.browseProtein(p) +
                 (fruit + fruit2 + roots + roots2) * HexFauna.PROTEIN_FRUIT +
-                straw * HexFauna.PROTEIN_STRAW) * m2p
+                straw * tuning.proteinStraw) * m2p
             if (p == g.place) note(g) {
                 "grazed at %.0f m: fed %.2f (green %.2f, grass %.3f browse %.3f kg/m² there; ate grass %.2g browse %.2g straw %.2g; gut room left %.2g; snowed %s; grazing over %d places)".format(
                     hw.placeElevationM[p], got / want.coerceAtLeast(1e-9f), land.plants.green[p], land.plants.herb[p], land.plants.shrub[p],
@@ -167,16 +168,16 @@ internal fun HexGroups.graze(weather: Weather) {
             land.plants.browsing[p] += (browse + browse2 + browse3) * 1e6f / days
             land.plants.rooting[p] += (roots + roots2) * 1e6f / days
         val m2 = land.m2(p)
-        stats.hunting.merge("${s.name}:ate grass, kg", ((grass + grass2 + grass3) * m2).toInt(), Int::plus)
-        stats.hunting.merge("${s.name}:ate browse, kg", ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
-        stats.hunting.merge("${s.name}:ate fruit and roots, kg", ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus)
-        stats.hunting.merge("${s.name}:ate straw, kg", (straw * m2).toInt(), Int::plus)
+        stats.hunting.merge(Tally.ate(s, "grass"), ((grass + grass2 + grass3) * m2).toInt(), Int::plus)
+        stats.hunting.merge(Tally.ate(s, "browse"), ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
+        stats.hunting.merge(Tally.ate(s, "fruit and roots"), ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus)
+        stats.hunting.merge(Tally.ate(s, "straw"), (straw * m2).toInt(), Int::plus)
         }
         g.fed = (gotKg / wantKg.coerceAtLeast(1e-6f)).coerceIn(0f, 1f)
         if (eatenKg > 0f) g.protein += (fauna.proteinMet(proteinKg / eatenKg) - g.protein) * HexFauna.PROTEIN_MEMORY
         val pm = weather.date.month; g.proteinByMonth[pm] += (g.protein - g.proteinByMonth[pm]) * HexFauna.PROTEIN_MEMORY
         if (surplusKg > 0f) g.surplus = surplusKg / (wantKg / days)
-        stats.hunting.merge("${s.name}:ranged over places", range.size, Int::plus)
+        stats.hunting.merge(Tally.of(s, Tally.RANGED), range.size, Int::plus)
     }
 }
 
@@ -216,6 +217,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             cultureWeek(g)
             riteWeek(g, weather)
         }
+        fightRaids(weather)
     }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
@@ -259,7 +261,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.second > 0 }.joinToString(", ") { "${it.second} ${it.first}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("${s.name}:$cause", k, Int::plus)
         fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
-        if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
+        if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.herdSize(sizeClass(g), cause), k, Int::plus)
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
         if (ROUNDS && !s.carnivore && g.route[0] != ROUND_OPEN) {
             val way = if (g.route[0] >= 0) "on round" else "own country"
@@ -268,20 +270,20 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         if (s.human) {
             val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands in $c:died of $cause", k, Int::plus)
-            if (o.births > 0) stats.hunting.merge("bands in $c:born", o.births, Int::plus)
+            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsIn(c, Tally.diedOf(cause)), k, Int::plus)
+            if (o.births > 0) stats.hunting.merge(Tally.bandsIn(c, "born"), o.births, Int::plus)
             // And by how well clad the band was: what clothes are worth in lives.
             g.band?.let { b ->
-                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) "clad" else "poorly clad"
-                stats.hunting.merge("bands $clad:people-weeks", g.size, Int::plus)
-                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands $clad:died of $cause", k, Int::plus)
+                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) Tally.CLAD else Tally.POORLY_CLAD
+                stats.hunting.merge(Tally.bandsClad(clad, "people-weeks"), g.size, Int::plus)
+                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsClad(clad, Tally.diedOf(cause)), k, Int::plus)
             }
             // And, in the weeks it was cold through all the cover the band had, what each cover gave.
             val b = g.band
             if (b != null) {
                 val t = weather.temperature[g.place]
                 if (b.exposure(t) > 0f) {
-                    fun add(k: String, v: Float) = stats.hunting.merge("bands in $c:cold $k", (10f * v).roundToInt(), Int::plus)
+                    fun add(k: String, v: Float) = stats.hunting.merge(Tally.bandsIn(c, "cold $k"), (10f * v).roundToInt(), Int::plus)
                     add("weeks", 1f); add("short", b.exposure(t)); add("air", EXPOSURE_C - t)
                     add("clothes", PROTECT_CLOTHES * b.has(Tool.CLOTHES) * b.clothesFit()); add("fire", PROTECT_FIRE * b.fire)
                     add("shelter", max(PROTECT_SHELTER * b.shelter, if (b.atHome) PROTECT_HOUSE * b.house else 0f))
@@ -310,9 +312,9 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         // Where a beast took one of them, the band remembers the place as dangerous.
         if (s.human && o.causes.any { it.first.startsWith(DeathCause.TAKEN_BY) && it.second > 0 })
-            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.danger, 1f)
+            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.danger, 1f)
         if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
-            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), (date.absoluteDay / days).toInt(), g.memory.dead, o.deaths.toFloat())
+            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
             land.burials[g.place] += o.deaths.toFloat()
             // Ornaments go into the grave with them: the more a band has, the richer its graves.
             g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths); val ex = if (b.ornaments > 0f) b.exotic / b.ornaments else 0f
@@ -342,7 +344,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.chasedOn = g.chasedOn
     n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn
     n.birthMonth = g.birthMonth
-    n.temper = Temperament.inherit(g.temper, n.id)
+    n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.
     val share = (adults + young).toFloat() / (g.size + adults + young).coerceAtLeast(1)
     n.larder = g.larder * share; g.larder -= n.larder
@@ -399,7 +401,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
         } else {
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-            val rate = s.youngPerFemale * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * Tuning.humanBirths else 1f) *
+            val rate = s.youngPerFemale * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * tuning.humanBirths else 1f) *
                 (1f + GRANDMOTHERS * help) / stepsInSeason
             bornExpected = mothers * min(1f, rate)
             // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
@@ -410,11 +412,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         // The young are made of what their mothers ate: their weight comes off the mothers' reserves.
         if (births > 0) g.fat = max(0f, g.fat - births * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / max(1, g.adults / 2))
     }
-    val hunger = if (g.fed < HexFauna.HUNGER_FROM) (HexFauna.HUNGER_FROM - g.fed) * HexFauna.HUNGER_RATE else 0f
+    val hunger = Hazards.hunger(g.fed)
     // People feel the cold as their clothes allow.
     // Exposure: the unprotected die of the cold within days.
     val exposure = g.band?.let { min(0.9f, EXPOSURE * it.exposure(weather.temperature[g.place]) * days / 7f) } ?: 0f
-    val cold = (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: discomfort(s, g.place, weather)) * 0.02f
+    val cold = Hazards.cold(s, g.band?.feels(weather.temperature[g.place]) ?: weather.temperature[g.place], weather.date.month)
     val fouled = campFouling(g) * years
     // Wounds: mishaps of the work (the further the gatherers range, the more), and those hurt in
     // fights, hunts and by beasts last week; tended wounds heal faster, fester less and lame fewer.
@@ -444,11 +446,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
     val croc = if (s.human) 0f else fauna.water.crocodileRisk(g.place, weather) * years
     // (Young plant-eaters short of protein grow slowly and die more.)
-    val starved = if (s.carnivore) 0f else HexFauna.YOUNG_PROTEIN_DEATHS * (1f - g.protein) * years
+    val starved = if (s.carnivore) 0f else tuning.youngProteinDeaths * (1f - g.protein) * years
     // Every hazard of the week, once: its cause and the odds it adds for a grown one and for a young one.
     val hazards = arrayListOf(
-        Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years,
-            healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years),
+        Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
+            healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years),
         Hazard(DeathCause.HUNGER.label, hunger, 1.5f * hunger), Hazard(DeathCause.COLD.label, cold, 1.5f * cold),
         Hazard(DeathCause.EXPOSURE.label, exposure, 1.5f * exposure), Hazard(DeathCause.THIRST.label, thirst, 1.5f * thirst),
         Hazard(DeathCause.DISEASE.label, sick, sick), Hazard(DeathCause.OUTBREAK.label, plague, plague),
@@ -556,17 +558,17 @@ private fun HexGroups.thirstWeek(g: HexGroup): Float {
     // People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round
     // will do. Animals go to water and back as often as they must: a kind that can go days without
     // drinking can live as many half-days' going from it.
-    val fetch = if (s.human) s.dailyTravelKm else 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
+    val fetch = if (s.human) s.dailyTravelKm else Hazards.fetchKm(s)
     // (People also dig for it in a dry bed where the water lies near: see [HexDrinkingWater.dug].)
     if (land.drink.water[p0] >= Thresholds.WET || (s.maxWaterKm.isInfinite() && land.drink.waterKm[p0] <= fetch) ||
         (s.human && land.drink.mustDig(p0, fetch))) g.dry = 0f
     // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
-    else g.dry += days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) g.fed else 0.5f + 0.5f * land.plants.green[p0]))
+    else g.dry += Hazards.dryDays(s, days, g.fed, land.plants.green[p0])
     // (People carry water in skins and know every spring: they suffer far less from it than animals.)
     // (Strangers to the country do not know its springs.)
     val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
-    return (if (g.dry > s.daysWithoutWater) min(0.5f, 0.05f * (g.dry - s.daysWithoutWater)) else 0f) *
-        (if (s.human) HUMAN_THIRST * Tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
+    return Hazards.thirst(s, g.dry) *
+        (if (s.human) HUMAN_THIRST * tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
 }
 
 /**
@@ -594,7 +596,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
     // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
     val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / hex.areaKm2.toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
     val crowdNow = if (s.human) peopleCrowding(g) else crowd
-    if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * Tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years)
+    if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years)
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
     return if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         else if (s.carnivore) {
@@ -663,7 +665,7 @@ private fun HexGroups.peopleSickness(g: HexGroup, weather: Weather): Float {
     // Fevers by the marshes in the warm months, where the mosquitoes breed.
     val marsh = land.waterlogged[g.place] * if (weather.temperature[g.place] > 20f) 1f else 0f
     // (Marsh fever is now its own sickness: see [Illness].)
-    return PEOPLE_SICK * Tuning.peopleSick * dens * dens
+    return PEOPLE_SICK * tuning.peopleSick * dens * dens
 }
 
 /** People round a band's camp (its hex and the six round it), per km², against [PEOPLE_FULL_KM2]. */
@@ -714,7 +716,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
-        joinBand(o, g)
+        joinBand(o, g, stepOf(date))
         stats.meetings.merge("small bands joined kin", 1, Int::plus)
     }
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
@@ -739,12 +741,13 @@ internal fun HexGroups.mergeAndPair(date: Date) {
 }
 
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
-private fun joinBand(into: HexGroup, from: HexGroup) {
+private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
-    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED.ordinal], from.stores[Store.DRIED.ordinal], into.id, from.id)
+    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED.ordinal], from.stores[Store.DRIED.ordinal],
+        into.stores[Store.SEED.ordinal], from.stores[Store.SEED.ordinal], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
-    into.larder += from.larder
-    into.memory.hear(from.memory, 0, 1f)
+    for (i in into.stores.indices) into.stores[i] += from.stores[i]
+    into.memory.hear(from.memory, week, stepsPerYear, 1f)
     from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f
@@ -754,8 +757,8 @@ private fun joinBand(into: HexGroup, from: HexGroup) {
 internal fun HexGroups.remember(date: Date) {
     val m = date.month
     // Every group remembers where it was this week and how it fared there.
-    val week = (date.absoluteDay / days).toInt()
-    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place], fauna.afraid(g.place), week)
+    val week = stepOf(date)
+    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place], fauna.afraid(g.place), week, stepsPerYear)
     for (g in groups) {
         if (g.species.pack) continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,
@@ -824,9 +827,9 @@ const val LOOKOUTS_GUARD = 0.3f
 const val YOUNG_STALKED = 2f
 
 /**
- * Herds keep the residents' rule for breeding ranges (see [HexFauna.BREED_SPACING]) over the country
+ * Herds keep the residents' rule for breeding ranges (see [inflation.Tuning.breedSpacing]) over the country
  * they range over, not the hex they gather in: the share of a herd's mothers that breed, as its kind
- * crowds the hex and the two rings of hexes about it beyond [HexFauna.BREED_SPACING] times its usual numbers.
+ * crowds the hex and the two rings of hexes about it beyond [inflation.Tuning.breedSpacing] times its usual numbers.
  */
 internal fun HexGroups.herdRanges(g: HexGroup, kinNow: HashMap<Long, Int>): Float {
     if (g.species.carnivore) return 1f
@@ -841,5 +844,5 @@ internal fun HexGroups.herdRanges(g: HexGroup, kinNow: HashMap<Long, Int>): Floa
     }
     var heads = 0; for (q in ring) heads += kinNow[key + q] ?: 0
     val density = heads / (ring.size * hex.areaKm2).toFloat()
-    return if (density <= 0f) 1f else min(1f, HexFauna.BREED_SPACING * HexFauna.usualDensity(g.species) / density)
+    return if (density <= 0f) 1f else min(1f, tuning.breedSpacing * HexFauna.usualDensity(g.species) / density)
 }

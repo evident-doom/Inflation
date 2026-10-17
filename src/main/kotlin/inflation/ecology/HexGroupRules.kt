@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Tuning
 import inflation.Config
 import inflation.world.Weather
 import kotlin.math.max
@@ -118,9 +119,8 @@ const val SHELTER_EFFECT = 0.7f
 const val AVOID_SKILL = 0.6f
 /** How well fed a group must be to keep to its ground without weighing where else to go (every other week). */
 const val CONTENT = 0.95f
-/** How much herds shun ground thick with hunters; hunters, kg per km², at which the shunning is half. */
+/** How much herds shun ground thick with hunters (half as much at [inflation.Tuning.huntersHalfKg]). */
 const val SHUN_HUNTERS = 0.3f
-val HUNTERS_HALF_KG = Config.float("t.huntersHalf", 1f)
 /** Share of a migratory herd's weight a hunter's sense of good hunting country counts as game (herds watch and move). */
 const val HERD_GAME = 0.3f
 /** People: plant food counted against game by weight (it is easier to come by, but not all is worth gathering); how much a safe camp site adds. */
@@ -143,8 +143,6 @@ const val PREY_HALF = 200f
 const val SEASON_PULL = 1.0f
 /** For tracing: the kind whose herds' reasons the plan prints (planDiag=kind). */
 val PLAN_DIAG: String? = Config.string("planDiag")
-/** How strongly a group follows its sense of better country, per reach moved along it. */
-val BEARING_PULL = Config.float("t.bearingPull", 0.5f)
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
 const val ASTRAY = 0.5f
 /** How far a herd's inherited seasonal places may lie from where it starts, km. */
@@ -185,7 +183,7 @@ const val SEARCHING = 0.3f
  * for each 10 °C of cold it feels beyond what its coat (or clothes and house) keeps off, at most
  * [COLD_MAX] times its need.
  */
-fun coldNeed(s: Species, felt: Float, month: Int): Float = min(COLD_MAX, 1f + COLD_COST * Tuning.coldCost * s.coldC(felt, month) / 10f)
+fun coldNeed(s: Species, felt: Float, month: Int, tuning: Tuning): Float = min(COLD_MAX, 1f + COLD_COST * tuning.coldCost * s.coldC(felt, month) / 10f)
 const val COLD_COST = 0.1f
 const val COLD_MAX = 1.6f
 
@@ -297,35 +295,9 @@ const val SCAVENGER_CARRION = 0.5f
 
 
 
-/**
- * Herds' heading (see [HexGroup.headE]): share of last week's kept; weight of the way it actually went
- * against its sense of better country in bending it; and how strongly it draws the next week's choice
- * (as the bearing's [BEARING_PULL]): small persistent nudges that add up to a migration.
- */
-val HEADING_KEEP = Config.float("t.headingKeep", 0.95f)
-val HEADING_MOVED = Config.float("t.headingMoved", 0.5f)
-val HEADING_PULL = Config.float("t.headingPull", 2f)
 
-/**
- * Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on unless rounds=false; how strongly
- * a herd's round draws, as a season's place of that quality would.
- */
+/** Yearly rounds, herds' and bands' rites (see [growRounds], [roundOf]): on unless rounds=false (their strengths in [inflation.Tuning]). */
 val ROUNDS = Config.flag("rounds", true)
-val ROUND_STRENGTH = Config.float("t.roundStrength", 1f)
-/** How strongly a herd's round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
-val ROUND_NET_PULL = Config.float("t.roundNetPull", 1.5f)
-/** How strongly a round draws the hand-written choice: per unit of progress toward its place this month (a full week's going toward it). */
-val ROUND_PULL = Config.float("t.roundPull", 1.5f)
-/** Within this of its round's place this month, km, a herd has arrived and grazes as it likes (half a range across). */
-val ROUND_ARRIVED_KM = Config.double("t.roundArrived", 50.0)
-/**
- * Packs tied to their dens: months from the births a pack with young hunts near its den; how near, km. Not
- * measured: wolves and hyenas keep to dens for two to three months, lions to their cubs' lairs about as long.
- */
-val DEN_MONTHS = Config.int("t.denMonths", 3)
-val DEN_KM = Config.float("t.denKm", 15f)
-/** Days of a week a herd far behind its round spends trekking on (the rest grazing). */
-val ROUND_TREK_DAYS = Config.float("t.roundTrekDays", 4f)
 
 /** Months over which a group's sense of how thick each kind usually is follows the change (about a year). */
 const val USUAL_MONTHS = 12f
