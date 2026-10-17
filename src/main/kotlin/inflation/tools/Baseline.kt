@@ -46,7 +46,10 @@ fun main(args: Array<String>) {
         "show" -> {
             val dir = File(root, args[1])
             File(dir, "info.txt").takeIf { it.exists() }?.let { println(it.readText().trim()) }
-            for (r in Role.entries) { val f = r.file(dir); if (f.exists()) report(r.label, f, if (r == Role.PEOPLE) Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT) }
+            for (r in Role.entries) {
+                val f = r.file(dir)
+                if (f.exists()) report(r.label, f, if (r == Role.PEOPLE) Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT)
+            }
             File(dir, "ways.mlp").takeIf { it.exists() }?.let { report("ways", it, Schema.WAYS_IN, Schema.WAYS_OUT) }
         }
         else -> println("usage: baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT] | baseline list | baseline show NAME")
@@ -62,7 +65,8 @@ private fun report(what: String, f: File, inputs: List<String>, outputs: List<St
     val newIn = inputs.filter { it !in si }; val goneIn = si.filter { it !in inputs }
     val newOut = outputs.filter { it !in so }; val goneOut = so.filter { it !in outputs }
     println("$what: ${si.size} inputs, ${so.size} outputs saved; new to it (ignored until trained): " +
-        (newIn + newOut).joinToString(", ").ifEmpty { "none" } + "; no longer in the model (dropped): " + (goneIn + goneOut).joinToString(", ").ifEmpty { "none" })
+        (newIn + newOut).joinToString(", ").ifEmpty { "none" } + "; no longer in the model (dropped): " +
+        (goneIn + goneOut).joinToString(", ").ifEmpty { "none" })
 }
 
 internal fun gitCommit(): String = try {

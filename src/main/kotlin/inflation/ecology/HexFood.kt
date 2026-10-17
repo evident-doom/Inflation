@@ -62,7 +62,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         val summer = rainShare * (5..7).sumOf { land.hw.precip[it][h].toDouble() }.toFloat()
         val warmth = dT + (0 until 12).map { land.hw.placeTemp(p, it) }.average().toFloat()
         // Winter rain and summer drought, 250-800 mm, mild; best on broken hill country.
-        val climate = (if (rain in 250f..800f) 1f else 0f) * ((winter - summer) / rain.coerceAtLeast(1f) * 2f).coerceIn(0f, 1f) * (if (warmth in 10f..22f) 1f else 0f)
+        val climate = (if (rain in 250f..800f) 1f else 0f) * ((winter - summer) / rain.coerceAtLeast(1f) * 2f).coerceIn(0f, 1f) *
+            (if (warmth in 10f..22f) 1f else 0f)
         return CEREAL_MAX * climate * cerealGround[p]
     }
 
@@ -103,7 +104,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val shrubBears = 0.5f * land.shrub[p]; val treeBears = 0.05f * land.tree[p]
             val fromShrub = if (shrubBears + treeBears > 0f) shrubBears / (shrubBears + treeBears) else 1f
             val newFruit = days * ripe
-            val bore = if (newFruit > 0f) land.consume(p, LifeForm.SHRUB, newFruit * fromShrub) + land.consume(p, LifeForm.TREE, newFruit * (1f - fromShrub)) else 0f
+            val bore = if (newFruit > 0f) land.consume(p, LifeForm.SHRUB, newFruit * fromShrub) +
+                land.consume(p, LifeForm.TREE, newFruit * (1f - fromShrub)) else 0f
             fruit[p] = max(0f, fruit[p] + bore - fallen)
             small.litter[p] += fallen
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
@@ -122,13 +124,21 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                 // (As the season advances: a cold year that never reaches its full warmth ripens only part of its grain.)
                 val advance = max(0f, weather.temperature[p] - 5f) * days / land.annualGdd[p].coerceAtLeast(1f)
                 val inWindow = (min(season, SEED_TO) - max(season - advance, SEED_FROM)).coerceAtLeast(0f)
-                if (inWindow > 0f) { val ripe = land.consume(p, LifeForm.HERB, (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM)); grain[p] += ripe; ripenedNow[p] += ripe }
+                if (inWindow > 0f) {
+                    val ripe = land.consume(p, LifeForm.HERB,
+                        (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM))
+                    grain[p] += ripe
+                    ripenedNow[p] += ripe
+                }
                 val wild = 1f - domestic[p]
                 val lost = grain[p] * (wild * min(1f, days / SEED_DAYS) + (1f - wild) * min(1f, days / GRAIN_HOLD_DAYS))
                 grain[p] = max(0f, grain[p] - lost); small.litter[p] += lost
                 // After the year's ripening, the sown crop is spent, and a stand that seeded itself
                 // drifts back toward the wild (ears that hold their grain cannot sow themselves).
-                if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == 0 && weather.date.dayOfMonth <= days && field[p] > 0f)) { field[p] = 0f; domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT) }
+                if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == 0 && weather.date.dayOfMonth <= days && field[p] > 0f)) {
+                    field[p] = 0f
+                    domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT)
+                }
             }
             // Lichen creeps back.
             val lc = lichenCap(p)
@@ -177,7 +187,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         const val ROOTS_FROM = 0.8f
         /** Ripe grass seed at its peak, per kg/m² of herbs (a rich wild-cereal stand gives far more); days it stays on the stalk. */
         const val SEED_SHARE = 0.01f
-        /** Wild cereals: most of a place's grass they make up; grain per kg of their stand; days ears that hold their grain keep it; yearly drift back to wild where a stand seeds itself; a sown field's yield per kg sown. */
+        /** Wild cereals: most of a place's grass they make up; grain per kg of their stand; days ears that hold their grain keep it;
+         * yearly drift back to wild where a stand seeds itself; a sown field's yield per kg sown. */
         const val CEREAL_MAX = 0.2f
         /** Yearly share of the way wild cereal stands move toward what the climate suits. */
         const val STAND_SHIFT = 0.1f
@@ -191,12 +202,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         /** Roots and mast to be dug, per kg/m² of herbs (and trees × 0.05); days to replace them. */
         const val ROOTS_SHARE = 0.0003f
         const val ROOTS_DAYS = 180f
-        /** Lichen: a full heath, kg/m²; warmth over a year (degree-days above 5 °C) beyond which none grows; share of the stand it adds a year; what a kilo is worth to a reindeer against green forage. */
+        /** Lichen: a full heath, kg/m²; warmth over a year (degree-days above 5 °C) beyond which none grows; share of the stand it adds a
+         * year; what a kilo is worth to a reindeer against green forage. */
         const val LICHEN_MAX = 0.5f
         const val LICHEN_GDD = 1200f
         const val LICHEN_GROWTH = 0.05f
         const val LICHEN_VALUE = 0.8f
-        /** Small finds a day in season: honey per kg/m² of shrubs (and trees) at full pollination, truffles and snails per kg/m² of herbs, eggs per kg of birds; days they keep. */
+        /** Small finds a day in season: honey per kg/m² of shrubs (and trees) at full pollination, truffles and snails per kg/m² of herbs,
+         * eggs per kg of birds; days they keep. */
         const val HONEY = 7e-8f
         const val TRUFFLES = 6e-5f
         const val SNAILS = 1.2e-6f

@@ -9,10 +9,12 @@ import kotlin.math.sqrt
 
 /** A picture of the hex world as the model sees it. */
 object HexWorldPicture {
-    /** Draws the hexes: each filled with the colour of its main kind of country, darker the higher it lies, with the borders that have no way across on foot in black. */
+    /** Draws the hexes: each filled with the colour of its main kind of country, darker the higher it lies, with the borders that have
+     * no way across on foot in black. */
     fun draw(hw: HexWorld, file: java.io.File, pxPerKm: Double = 1.0) { with(hw) {
         val km = world.grid.cellKm
-        val img = java.awt.image.BufferedImage((world.grid.width * km * pxPerKm).toInt(), (world.grid.height * km * pxPerKm).toInt(), java.awt.image.BufferedImage.TYPE_INT_RGB)
+        val img = java.awt.image.BufferedImage((world.grid.width * km * pxPerKm).toInt(), (world.grid.height * km * pxPerKm).toInt(),
+            java.awt.image.BufferedImage.TYPE_INT_RGB)
         val g = img.createGraphics()
         g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON)
         val r = hex.hexKm / sqrt(3.0)
@@ -31,7 +33,10 @@ object HexWorldPicture {
             }
             g.color = java.awt.Color(colour)
             g.fillPolygon(xs, ys, 6)
-            if (riverM3s[h] > 50f && land[h] >= 0.5f) { g.color = java.awt.Color(0x3060d0); g.fillOval(((cx - 1.5) * pxPerKm).toInt(), ((cy - 1.5) * pxPerKm).toInt(), (3 * pxPerKm).toInt(), (3 * pxPerKm).toInt()) }
+            if (riverM3s[h] > 50f && land[h] >= 0.5f) {
+                g.color = java.awt.Color(0x3060d0)
+                g.fillOval(((cx - 1.5) * pxPerKm).toInt(), ((cy - 1.5) * pxPerKm).toInt(), (3 * pxPerKm).toInt(), (3 * pxPerKm).toInt())
+            }
         }
         g.stroke = java.awt.BasicStroke((0.8 * pxPerKm).toFloat())
         g.color = java.awt.Color.BLACK

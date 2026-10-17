@@ -34,7 +34,8 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
     var lean = 0
     val recent = IntArray(4) { -1 }
-    /** Lineage tag for learning, -1 for none; the group it split from (-1 for none); its size when it merged into another (-1 if it did not), for following a choice's outcome. */
+    /** Lineage tag for learning, -1 for none; the group it split from (-1 for none); its size when it merged into another (-1 if it did
+     * not), for following a choice's outcome. */
     var tag = -1
     var parent = -1
     /** The places it remembers (see [PlaceMemory]). */
@@ -65,7 +66,16 @@ class HexGroup(val id: Int, val species: Species, var place: Int, var adults: In
     /** All food on hand, kg; setting it scales every kind alike (gifts, raids, splits), or stores it dried. */
     var larder: Float
         get() = stores.sum()
-        set(v) { val s = stores.sum(); if (s > 0f) { val k = max(0f, v) / s; for (i in stores.indices) stores[i] *= k } else { stores.fill(0f); stores[Store.DRIED.ordinal] = max(0f, v) } }
+        set(v) {
+            val s = stores.sum()
+            if (s > 0f) {
+                val k = max(0f, v) / s
+                for (i in stores.indices) stores[i] *= k
+            } else {
+                stores.fill(0f)
+                stores[Store.DRIED.ordinal] = max(0f, v)
+            }
+        }
     /** A band's skills, tools and camp: set for every group of people ([Species.human]) and only for them. */
     var band: Band? = null
     /** For kinds that follow people's camps: the share of it bold enough to come close, 0..1 (-1 until first needed: its kind's share). */

@@ -158,7 +158,9 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      * newborn, teaching). Fishing, trapping and the finer crafts can be lost, as the Tasmanians lost
      * fishing and bone tools.
      */
-    val losable: Boolean get() = domain !in setOf(Domain.GATHERING, Domain.FIRE, Domain.HEALING, Domain.CHILDCARE, Domain.TEACHING, Domain.REMEMBERING, Domain.TINKERING) && this !in setOf(ROASTING, STONE_FOOTING, KNAPPING, WOODWORK, HIDEWORK, CORDAGE, STORE, HUNT)
+    val losable: Boolean get() = domain !in setOf(Domain.GATHERING, Domain.FIRE, Domain.HEALING, Domain.CHILDCARE, Domain.TEACHING,
+        Domain.REMEMBERING, Domain.TINKERING) &&
+        this !in setOf(ROASTING, STONE_FOOTING, KNAPPING, WOODWORK, HIDEWORK, CORDAGE, STORE, HUNT)
     /** A way that must be held first: microliths are snapped from bladelets; boiling with hot stones and leaching need tight baskets. */
     val needs: Skill? get() = when (this) {
         MICROLITHS -> BLADES

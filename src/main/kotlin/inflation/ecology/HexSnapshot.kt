@@ -25,7 +25,8 @@ import java.util.zip.GZIPOutputStream
  *
  * It goes by field names, not by layout: a field the code no longer has is dropped, a field the
  * saved state lacks keeps what the fresh model gave it, an array that has grown (a kind added at its
- * end) keeps the fresh model's values past the saved ones, and an array that has shrunk is taken as saved. So small changes to the code still load; large ones (a different map) are refused.
+ * end) keeps the fresh model's values past the saved ones, and an array that has shrunk is taken as saved. So small changes to
+ * the code still load; large ones (a different map) are refused.
  */
 object HexSnapshot {
     private const val MAGIC = 0x48455853 // "HEXS"
@@ -36,7 +37,8 @@ object HexSnapshot {
     fun save(sim: HexSim, file: File) {
         file.absoluteFile.parentFile?.mkdirs()
         val tmp = File(file.path + ".tmp")
-        DataOutputStream(BufferedOutputStream(object : GZIPOutputStream(tmp.outputStream(), 1 shl 16) { init { def.setLevel(Deflater.BEST_SPEED) } }, 1 shl 16)).use { out ->
+        DataOutputStream(BufferedOutputStream(object : GZIPOutputStream(tmp.outputStream(), 1 shl 16) { init { def.setLevel(Deflater.BEST_SPEED) } },
+            1 shl 16)).use { out ->
             out.writeInt(MAGIC); out.writeInt(VERSION)
             out.writeLong(sim.cfg.seed); out.writeInt(sim.land.n); out.writeLong(sim.weather.date.absoluteDay)
             val w = Writer(out, ::saved, lazies = false, SPECIES)
@@ -53,7 +55,9 @@ object HexSnapshot {
             val version = inp.readInt()
             require(version in 1..VERSION) { "$file was saved by another version ($version)" }
             val seed = inp.readLong(); val n = inp.readInt(); val day = inp.readLong()
-            require(seed == sim.cfg.seed && n == sim.land.n) { "$file is of another world (seed $seed, $n places; this one seed ${sim.cfg.seed}, ${sim.land.n} places)" }
+            require(seed == sim.cfg.seed && n == sim.land.n) {
+                "$file is of another world (seed $seed, $n places; this one seed ${sim.cfg.seed}, ${sim.land.n} places)"
+            }
             val r = Reader(inp, SPECIES)
             val byName = roots(sim).toMap()
             val restore = Restorer()
@@ -70,7 +74,8 @@ object HexSnapshot {
     /** Kinds are saved by name: the code defines them. */
     private val SPECIES = Named(Species::class.java, { it.name }, { n -> Catalogue.all.firstOrNull { it.name == n } })
 
-    private fun roots(sim: HexSim) = listOf("weather" to sim.weather, "land" to sim.land, "fauna" to sim.fauna, "groups" to sim.groups, "eruptions" to sim.eruptions)
+    private fun roots(sim: HexSim) = listOf("weather" to sim.weather, "land" to sim.land, "fauna" to sim.fauna, "groups" to sim.groups,
+        "eruptions" to sim.eruptions)
 
     // ---- what is saved
 

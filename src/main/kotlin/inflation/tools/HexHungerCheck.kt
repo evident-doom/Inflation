@@ -50,6 +50,7 @@ fun main(args: Array<String>) {
         println("   mean fed:           " + (0 until 12).joinToString(" ") { m -> "%5.2f".format(fed[i][m] / heads[i][m].coerceAtLeast(1.0)) })
         println("   snow over them, mm: " + (0 until 12).joinToString(" ") { m -> "%5.0f".format(snow[i][m] / heads[i][m].coerceAtLeast(1.0)) })
         val all = hungryIn[i].values.sum()
-        println("   the hungry stand in: " + hungryIn[i].entries.sortedByDescending { it.value }.take(6).joinToString(", ") { "%s %.0f%%".format(it.key, 100.0 * it.value / all) })
+        println("   the hungry stand in: " +
+            hungryIn[i].entries.sortedByDescending { it.value }.take(6).joinToString(", ") { "%s %.0f%%".format(it.key, 100.0 * it.value / all) })
     }
 }

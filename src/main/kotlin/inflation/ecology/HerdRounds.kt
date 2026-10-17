@@ -33,7 +33,8 @@ internal fun HexGroups.growRounds(month: Int) {
         }
         stats.meetings.merge("${s.name}: yearly rounds grown", rounds.size, Int::plus)
         // (And how far apart their January and July places lie, km, on average: for the check.)
-        stats.meetings.merge("${s.name}: rounds' January-July km", rounds.map { hex.distanceKm(hw.placeHex[it[0]], hw.placeHex[it[6]]) }.average().toInt(), Int::plus)
+        stats.meetings.merge("${s.name}: rounds' January-July km", rounds.map { hex.distanceKm(hw.placeHex[it[0]], hw.placeHex[it[6]]) }.average().toInt(),
+            Int::plus)
     }
 }
 
@@ -108,13 +109,20 @@ private fun HexGroups.roundsFor(s: Species, q: Array<FloatArray>): List<IntArray
     val wet = HashMap<Long, Boolean>()
     fun overSea(a: Range, b: Range): Boolean = wet.getOrPut(a.place.toLong() * 1_000_003 + b.place) {
         val d = hypot(a.x - b.x, a.y - b.y); val steps = (d / hex.hexKm).toInt().coerceAtLeast(1)
-        (1 until steps).any { i -> val f = i.toDouble() / steps; val h = hex.hexAt(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f); h in 0 until hex.size && hex.heart[h] < 0 }
+        (1 until steps).any { i ->
+            val f = i.toDouble() / steps
+            val h = hex.hexAt(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f)
+            h in 0 until hex.size && hex.heart[h] < 0
+        }
     }
     fun km(a: Range, b: Range) = if (overSea(a, b)) Double.MAX_VALUE else hypot(a.x - b.x, a.y - b.y)
     // From each month-one range, the best circuit by dynamic programming over the months, closing back on it.
     val out = ArrayList<IntArray>()
     for (r0 in ranges[0]) {
-        var value = DoubleArray(ranges[1].size) { j -> val d = km(r0, ranges[1][j]); if (d > legMax) Double.NEGATIVE_INFINITY else r0.worth + ranges[1][j].worth - ROUND_KM_COST * d }
+        var value = DoubleArray(ranges[1].size) { j ->
+            val d = km(r0, ranges[1][j])
+            if (d > legMax) Double.NEGATIVE_INFINITY else r0.worth + ranges[1][j].worth - ROUND_KM_COST * d
+        }
         val from = Array(12) { IntArray(0) }
         for (m in 2 until 12) {
             val prev = ranges[m - 1]; val cur = ranges[m]
@@ -156,7 +164,8 @@ private fun HexGroups.seasonQuality(s: Species): Array<FloatArray>? {
  * kept; what a km of the round costs against the quality of a month's grazing (0..1).
  */
 const val ROUND_YEARS = 10
-/** Rounds kept by inheritance: chance an offshoot changes one month's place of its round; chance it gives its round up, or takes one up; the mark of a herd keeping to its own country. */
+/** Rounds kept by inheritance: chance an offshoot changes one month's place of its round; chance it gives its round up, or takes one
+ * up; the mark of a herd keeping to its own country. */
 val ROUND_DRIFT = Config.float("t.roundDrift", 0.3f)
 val ROUND_SWITCH = Config.float("t.roundSwitch", 0.05f)
 const val NO_ROUND = -2
@@ -164,6 +173,7 @@ const val NO_ROUND = -2
 val ROUND_START_SHARE = Config.float("t.roundStart", 0.5f)
 const val RANGE_KM = 100.0
 const val RANGES_KEPT = 300
-/** A range is kept for a month if it is at least this good against the month's best (so rounds cover the kind's whole country, not only its few best spots, where every herd would crowd). */
+/** A range is kept for a month if it is at least this good against the month's best (so rounds cover the kind's whole country, not
+ * only its few best spots, where every herd would crowd). */
 const val RANGE_FLOOR = 0.3f
 val ROUND_KM_COST = Config.double("t.roundKmCost", 0.002)

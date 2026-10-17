@@ -58,7 +58,8 @@ fun main(args: Array<String>) {
             saved += r
             val img = Render.image(world) { i ->
                 if (world.isSea[i]) 0x1f3f6f
-                else Render.shade(world, i, Render.ramp((weather.precipitation[i] / (world.climate.monthlyPrecip[month][i] * share).coerceAtLeast(0.01)).toFloat(),
+                else Render.shade(world, i, Render.ramp(
+                    (weather.precipitation[i] / (world.climate.monthlyPrecip[month][i] * share).coerceAtLeast(0.01)).toFloat(),
                     0f, 3f, intArrayOf(0xc8a050, 0xf0e8c0, 0x80c080, 0x2060c0)))
             }
             val gr = img.createGraphics()
@@ -79,7 +80,9 @@ fun main(args: Array<String>) {
     println("Regime frequency by season (weeks): " + Regime.entries.joinToString(" ") { it.name.lowercase() })
     val names = listOf("spring", "summer", "autumn", "winter")
     for (s in 0 until 4) println("  %-7s".format(names[s]) + counts[s].joinToString(" ") { "%5d".format(it) })
-    println("Rain over $years years against the normals, land cells: median %.2f, 5%% %.2f, 95%% %.2f".format(ratio[ratio.size / 2], ratio[ratio.size / 20], ratio[ratio.size * 19 / 20]))
-    println("Week-to-week spread of log rain per cell: median %.2f, 5%% %.2f, 95%% %.2f".format(spread[spread.size / 2], spread[spread.size / 20], spread[spread.size * 19 / 20]))
+    println("Rain over $years years against the normals, land cells: median %.2f, 5%% %.2f, 95%% %.2f".format(ratio[ratio.size / 2], ratio[ratio.size / 20],
+        ratio[ratio.size * 19 / 20]))
+    println("Week-to-week spread of log rain per cell: median %.2f, 5%% %.2f, 95%% %.2f".format(spread[spread.size / 2], spread[spread.size / 20],
+        spread[spread.size * 19 / 20]))
     println("Maps written to ${out.absolutePath}")
 }

@@ -43,7 +43,11 @@ fun main(args: Array<String>) {
     var nsF = 0L; var nsC = 0L
     var burnedF = 0.0; var burnedC = 0.0
     val main = IntArray(hw.hex.size) { -1 }
-    for (i in 0 until world.grid.size) { if (world.isSea[i]) continue; val h = hw.hex.owner[i]; if (main[h] < 0 || world.water.discharge[i] > world.water.discharge[main[h]]) main[h] = i }
+    for (i in 0 until world.grid.size) {
+        if (world.isSea[i]) continue
+        val h = hw.hex.owner[i]
+        if (main[h] < 0 || world.water.discharge[i] > world.water.discharge[main[h]]) main[h] = i
+    }
     val hexes = (0 until hw.hex.size).filter { land.meanFlow[it] >= RiverClass.STREAM.minDischarge }
     val flowF = DoubleArray(hexes.size); val flowC = DoubleArray(hexes.size)
     repeat(steps) {
@@ -64,14 +68,17 @@ fun main(args: Array<String>) {
         return sab / sqrt(saa * sbb)
     }
     fun compare(name: String, a: DoubleArray, b: DoubleArray) =
-        println("%-16s correlation %.3f, mean fine %.3f, bands %.3f, mean difference %.3f".format(name, corr(a, b), a.average(), b.average(), (a.indices).map { abs(a[it] - b[it]) }.average()))
+        println("%-16s correlation %.3f, mean fine %.3f, bands %.3f, mean difference %.3f".format(name, corr(a, b), a.average(), b.average(),
+            (a.indices).map { abs(a[it] - b[it]) }.average()))
     compare("herbs kg/m²", agg { fineVeg.herb[it] }, DoubleArray(n) { land.herb[it].toDouble() })
     compare("shrubs kg/m²", agg { fineVeg.shrub[it] }, DoubleArray(n) { land.shrub[it].toDouble() })
     compare("trees kg/m²", agg { fineVeg.tree[it] }, DoubleArray(n) { land.tree[it].toDouble() })
     compare("soil water mm", agg { fineWater.soil[it] }, DoubleArray(n) { land.soil[it].toDouble() })
     // Rivers: each hex's main river, where it is a stream or more, averaged over the run.
     compare("river flow m³/s", flowF, flowC)
-    println("long-term flow of the same rivers from the climate (what fords and river classes are set by): mean %.3f m³/s".format(hexes.map { land.meanFlow[it].toDouble() }.average()))
+    println("long-term flow of the same rivers from the climate (what fords and river classes are set by): mean %.3f m³/s"
+        .format(hexes.map { land.meanFlow[it].toDouble() }.average()))
     println("burned per year: fine %.0f km², bands %.0f km²".format(burnedF / years, burnedC / years))
-    println("a step of weather, water and plants: %.0f ms on %d fine cells, %.1f ms on %d places".format(nsF / 1e6 / steps, world.grid.size, nsC / 1e6 / steps, n))
+    println("a step of weather, water and plants: %.0f ms on %d fine cells, %.1f ms on %d places".format(nsF / 1e6 / steps, world.grid.size,
+        nsC / 1e6 / steps, n))
 }

@@ -17,7 +17,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object Config {
     /** Old switches and the key that now sets them, where it is not the bare name (keys say what is on, not what is off). */
-    private val RENAMED = mapOf("rounds" to "rounds=true", "taming" to "taming=true", "noPeople" to "people=false", "noWorldCache" to "worldCache=false", "noLandformCache" to "landformCache=false")
+    private val RENAMED = mapOf("rounds" to "rounds=true", "taming" to "taming=true", "noPeople" to "people=false", "noWorldCache" to "worldCache=false",
+        "noLandformCache" to "landformCache=false")
     /** Old switches that are gone: their setting is now the code's. */
     private val GONE = setOf("trade", "t.noGifts", "t.noSourceRites", "noHerding", "t.noDenning", "t.herdRanges", "t.noProtein",
         "t.noGreenBearing", "noBearings", "t.bandContentWeeks", "t.spanFloor", "t.ambush", "migrantUnit", "migrantStart", "sizeByLeaning",
@@ -40,13 +41,15 @@ object Config {
         require(stray.isEmpty()) {
             val (gone, moved) = stray.partition { it in GONE }
             "the -Dhex.* switches are no longer read." +
-                (if (moved.isEmpty()) "" else " Set these in the config file instead (see config.example.properties): " + moved.joinToString(", ") { RENAMED[it] ?: it } + ".") +
+                (if (moved.isEmpty()) "" else " Set these in the config file instead (see config.example.properties): " +
+                    moved.joinToString(", ") { RENAMED[it] ?: it } + ".") +
                 (if (gone.isEmpty()) "" else " These are gone, their default now being the code: " + gone.joinToString(", ") + ".")
         }
         val unknown = props.stringPropertyNames().filter { it in GONE || it.startsWith("no") && it in RENAMED }
         require(unknown.isEmpty()) { "config keys no longer read: ${unknown.joinToString(", ")} (see config.example.properties)" }
         if (props.stringPropertyNames().any { it.startsWith("t.") }) Runtime.getRuntime().addShutdownHook(Thread {
-            unread("t.").takeIf { it.isNotEmpty() }?.let { System.err.println("tuning keys set but never read in this run (misspelt, or of a part that did not run): ${it.joinToString(", ")}") }
+            unread("t.").takeIf { it.isNotEmpty() }?.let { System.err.println(
+                "tuning keys set but never read in this run (misspelt, or of a part that did not run): ${it.joinToString(", ")}") }
         })
     }
 
@@ -60,5 +63,6 @@ object Config {
     fun unread(prefix: String): List<String> = props.stringPropertyNames().filter { it.startsWith(prefix) && it !in read }.sorted()
 
     /** The keys set under a prefix, as "name value" (for a check's header). */
-    fun set(prefix: String): String = props.stringPropertyNames().filter { it.startsWith(prefix) }.sorted().joinToString(", ") { "${it.removePrefix(prefix)} ${string(it)}" }
+    fun set(prefix: String): String = props.stringPropertyNames().filter { it.startsWith(prefix) }.sorted()
+        .joinToString(", ") { "${it.removePrefix(prefix)} ${string(it)}" }
 }

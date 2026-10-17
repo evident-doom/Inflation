@@ -29,7 +29,8 @@ fun main(args: Array<String>) {
     println("land %.0f km², by kind of country:".format(total))
     val byBiome = DoubleArray(Biome.entries.size)
     for (p in 0 until n) byBiome[biomeOf[p]] += land.areaKm2[p].toDouble()
-    for (b in Biome.entries.sortedByDescending { byBiome[it.ordinal] }) if (byBiome[b.ordinal] > 0) println("  %-24s %6.1f%%".format(b.name.lowercase(), 100 * byBiome[b.ordinal] / total))
+    for (b in Biome.entries.sortedByDescending { byBiome[it.ordinal] }) if (byBiome[b.ordinal] > 0) println("  %-24s %6.1f%%".format(b.name.lowercase(),
+        100 * byBiome[b.ordinal] / total))
     println("land that suits each kind (climate fit over 0.8, ground it likes, water in reach, food), and where it lies:")
     for (s in fauna.kinds + sim.groups.kinds) {
         val good = DoubleArray(Biome.entries.size)

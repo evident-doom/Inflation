@@ -15,7 +15,8 @@ class ConfigTest {
     /** Runs [ConfigProbe] in a fresh JVM with [props] (-D switches) and the config [file]; its exit code and what it printed. */
     private fun probe(props: List<String>, file: File? = null): Pair<Int, String> {
         val java = File(System.getProperty("java.home"), "bin/java").path
-        val cmd = listOf(java, "-cp", System.getProperty("java.class.path")) + props + listOfNotNull(file?.let { "-Dhex.config=$it" } ?: "-Dhex.config=none") + ConfigProbe::class.java.name
+        val cmd = listOf(java, "-cp", System.getProperty("java.class.path")) + props +
+            listOfNotNull(file?.let { "-Dhex.config=$it" } ?: "-Dhex.config=none") + ConfigProbe::class.java.name
         val p = ProcessBuilder(cmd).redirectErrorStream(true).start()
         val out = p.inputStream.bufferedReader().readText()
         return p.waitFor() to out

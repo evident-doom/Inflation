@@ -59,31 +59,37 @@ fun main(args: Array<String>) {
         }
     }
     val all = open + hard + dear + none
-    val ringed = land.count { h -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n < 0 || hex.heart[n] < 0 || !hex.crossing[h * 6 + d].isFinite() } && (0 until 6).any { d -> val n = hex.neighbour(h, d); n >= 0 && hex.heart[n] >= 0 } }
+    val ringed = land.count { h -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n < 0 || hex.heart[n] < 0 || !hex.crossing[h * 6 + d].isFinite() } &&
+        (0 until 6).any { d -> val n = hex.neighbour(h, d); n >= 0 && hex.heart[n] >= 0 } }
     println("land hexes with no way out on foot to any land neighbour: %d".format(ringed))
-    val isRinged = { h: Int -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n < 0 || hex.heart[n] < 0 || !hex.crossing[h * 6 + d].isFinite() } && (0 until 6).any { d -> val n = hex.neighbour(h, d); n >= 0 && hex.heart[n] >= 0 } }
+    val isRinged = { h: Int -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n < 0 || hex.heart[n] < 0 || !hex.crossing[h * 6 + d].isFinite() } &&
+        (0 until 6).any { d -> val n = hex.neighbour(h, d); n >= 0 && hex.heart[n] >= 0 } }
     println("  of them mostly land: %d".format(land.count { isRinged(it) && hex.landCells[it] > hex.cells[it] / 2 }))
     for (h in land.filter { isRinged(it) && hex.landCells[it] > hex.cells[it] / 2 }.take(12)) {
         val cs = (0 until world.grid.size).filter { hex.owner[it] == h }
         val (cx, cy) = hex.centreKm(h)
         println("  ringed hex at (%.0f, %.0f) km: land %d of %d cells, lake %d, deep river cells %d, cliff cells %d, heart walk cost %.1f, biggest river %.0f m³/s".format(
             cx, cy, cs.count { !world.isSea[it] && !world.water.isLake(it) }, cs.size, cs.count { world.water.isLake(it) },
-            cs.count { world.terrain.crossingDepthM(it) > 1.5f }, cs.count { world.terrain.cliff[it] }, hex.walk[hex.heart[h]], cs.maxOf { world.water.discharge[it] }))
+            cs.count { world.terrain.crossingDepthM(it) > 1.5f }, cs.count { world.terrain.cliff[it] }, hex.walk[hex.heart[h]],
+            cs.maxOf { world.water.discharge[it] }))
     }
     println("borders between land hexes: %d | open %.0f%%, hard %.0f%%, very hard %.0f%%, no way %.0f%% | over a pass (300 m+ climb) %.0f%%, across a river (10+ m³/s) %.0f%%, across a big river (200+ m³/s) %.1f%%".format(
         all, 100.0 * open / all, 100.0 * hard / all, 100.0 * dear / all, 100.0 * none / all, 100.0 * pass / all, 100.0 * river / all, 100.0 * bigRiver / all))
     val lands = land.filter { hex.landCells[it] > hex.cells[it] / 2 }
     val landCells = (0 until world.grid.size).count { !world.isSea[it] }
     val rivers = (0 until world.grid.size).filter { world.riverClass(it) >= RiverClass.STREAM }
-    println("rivers: %d km of streams and rivers, %d km with 50+ m³/s, %d km with 200+ m³/s; deepest crossing on them: %d km over 1 m, %d km over 1.5 m".format(
+    println("rivers: %d km of streams and rivers, %d km with 50+ m³/s, %d km with 200+ m³/s; deepest crossing on them: %d km over 1 m, %d km over 1.5 m"
+        .format(
         rivers.size, rivers.count { world.water.discharge[it] > 50f }, rivers.count { world.water.discharge[it] > 200f },
         rivers.count { world.terrain.crossingDepthM(it) > 1f }, rivers.count { world.terrain.crossingDepthM(it) > 1.5f }))
     val cliffs = (0 until world.grid.size).count { world.terrain.cliff[it] }
     val lowCliffs = (0 until world.grid.size).count { world.terrain.cliff[it] && world.elevation[it] < 1500f }
     println("cliffs (escarpments, gorge walls): %.2f%% of land, %d km² of them below 1500 m; hexes with a cliff: %.0f%%".format(
-        100.0 * cliffs / landCells, lowCliffs, 100.0 * (0 until world.grid.size).filter { world.terrain.cliff[it] }.map { hex.owner[it] }.toSet().count { it in lands.toSet() } / lands.size))
+        100.0 * cliffs / landCells, lowCliffs,
+        100.0 * (0 until world.grid.size).filter { world.terrain.cliff[it] }.map { hex.owner[it] }.toSet().count { it in lands.toSet() } / lands.size))
     println("land hexes: median relief (highest - lowest) %.0f m, 90%% %.0f m; median share of crag (> 24° over a km) %.0f%%".format(
-        pct(lands.map { hex.highM[it] - hex.lowM[it] }, .5), pct(lands.map { hex.highM[it] - hex.lowM[it] }, .9), 100 * pct(lands.map { hex.crag[it] }, .5)))
+        pct(lands.map { hex.highM[it] - hex.lowM[it] }, .5), pct(lands.map { hex.highM[it] - hex.lowM[it] }, .9),
+        100 * pct(lands.map { hex.crag[it] }, .5)))
     // Journeys: by the hex borders against the fine terrain.
     // Per way of travelling: how many land borders have no way across, and the median effort of the rest.
     for (tr in HexMap.Travel.entries) {
@@ -94,7 +100,8 @@ fun main(args: Array<String>) {
             if (b < 0 || hex.heart[b] < 0) continue
             if (c[a * 6 + d].isFinite()) es += c[a * 6 + d] / hexKm.toFloat() else shut++
         }
-        println("  %-6s borders with no way %.1f%%; effort to cross median %.1f× flat, 90%% %.1f×".format(tr.name.lowercase(), 100.0 * shut / (shut + es.size), pct(es, .5), pct(es, .9)))
+        println("  %-6s borders with no way %.1f%%; effort to cross median %.1f× flat, 90%% %.1f×"
+            .format(tr.name.lowercase(), 100.0 * shut / (shut + es.size), pct(es, .5), pct(es, .9)))
     }
     val rnd = Random(cfg.seed)
     val g = world.grid
@@ -204,7 +211,8 @@ private fun draw(world: World, hex: HexMap, file: java.io.File) {
             val nx = -(by - ay); val ny = bx - ax
             val len = hypot(nx, ny); val half = hex.hexKm / sqrt(3.0) / 2
             gr.stroke = java.awt.BasicStroke(if (!e.isFinite() || e >= 4 * hex.hexKm) 2.5f else 1.2f)
-            gr.drawLine(((mx + nx / len * half) * px).toInt(), ((my + ny / len * half) * px).toInt(), ((mx - nx / len * half) * px).toInt(), ((my - ny / len * half) * px).toInt())
+            gr.drawLine(((mx + nx / len * half) * px).toInt(), ((my + ny / len * half) * px).toInt(),
+                ((mx - nx / len * half) * px).toInt(), ((my - ny / len * half) * px).toInt())
         }
     }
     javax.imageio.ImageIO.write(img, "png", file)

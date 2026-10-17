@@ -161,7 +161,10 @@ class GroupControlWindow(
         frame.setSize(1250, 760)
     }
 
-    private fun text() = JTextArea().apply { isEditable = false; font = Font(Font.MONOSPACED, Font.PLAIN, 12); (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE }
+    private fun text() = JTextArea().apply {
+        isEditable = false
+        font = Font(Font.MONOSPACED, Font.PLAIN, 12); (caret as javax.swing.text.DefaultCaret).updatePolicy = javax.swing.text.DefaultCaret.NEVER_UPDATE
+    }
 
     /** Follows group [id] in the window (opening it). */
     fun follow(id: Int) = world.whileStill {
@@ -321,11 +324,15 @@ class GroupControlWindow(
         if (b != null) {
             sb.appendLine("larder %.0f kg (%.0f days): ".format(g.larder, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)) +
                 Store.entries.filter { g.stores[it.ordinal] >= 1f }.joinToString(", ") { "%s %.0f".format(it.name.lowercase(), g.stores[it.ordinal]) })
-            val sick = Illness.entries.filter { b.sick[it.ordinal] > 0.005f }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.sick[it.ordinal]) }
+            val sick = Illness.entries.filter { b.sick[it.ordinal] > 0.005f }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase().replace('_', ' '), 100 * b.sick[it.ordinal]) }
             sb.appendLine("health: wounded %.0f%%, lamed %.0f%%%s".format(100 * b.hurt, 100 * b.lame, if (sick.isNotEmpty()) "; sick: $sick" else ""))
-            sb.appendLine("camp kept %d weeks%s".format(b.campWeeks, if (b.houseHex >= 0) "; houses at hex %d (%.0f%%)".format(b.houseHex, 100 * b.house) else ""))
-            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it.ordinal] }.joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
-            sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }.ifEmpty { "none" })
+            sb.appendLine("camp kept %d weeks%s".format(b.campWeeks,
+                if (b.houseHex >= 0) "; houses at hex %d (%.0f%%)".format(b.houseHex, 100 * b.house) else ""))
+            sb.appendLine("tools: " + Tool.entries.filter { b.knows[it.ordinal] }
+                .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it.ordinal]) })
+            sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
+                .ifEmpty { "none" })
             sb.appendLine("knows %d hexes; knows the homes of %d bands".format((0 until hex.size).count { b.knows(it) }, b.knownHomes.size))
             if (b.raidHex >= 0) sb.appendLine("set on a raid at hex %d".format(b.raidHex))
             if (b.appointHex >= 0) sb.appendLine("meets others at hex %d in month %d".format(b.appointHex, b.appointMonth + 1))
@@ -335,9 +342,11 @@ class GroupControlWindow(
         sb.appendLine("in its hex: " + with.joinToString(", ") { "%s #%d (%d)".format(it.species.name, it.id, it.size) }.ifEmpty { "no other group" })
         if (d != null && d.group.id == g.id) {
             sb.appendLine()
-            sb.appendLine(if (d.content) "content where it is: the model keeps it here this week" else if (d.restless) "restless (hungry, thirsty, astray, or due somewhere): it will go far" else "weighing where to graze or camp")
+            sb.appendLine(if (d.content) "content where it is: the model keeps it here this week"
+                else if (d.restless) "restless (hungry, thirsty, astray, or due somewhere): it will go far" else "weighing where to graze or camp")
             sb.appendLine("it can reach %d places, within %.0f km of effort".format(d.places.size, d.reachKm))
-            if (d.goal >= 0) sb.appendLine("%s draws it to %s, %.0f km off".format(if (d.onRound) "its round" else "its memory of the season", where(d.goal), hex.distanceKm(hw.placeHex[g.place], hw.placeHex[d.goal])))
+            if (d.goal >= 0) sb.appendLine("%s draws it to %s, %.0f km off".format(if (d.onRound) "its round" else "its memory of the season", where(d.goal),
+                hex.distanceKm(hw.placeHex[g.place], hw.placeHex[d.goal])))
             sb.appendLine("where to go is chosen by " + if (d.learned) "the learned network" else "the hand-written score")
             sb.appendLine("its ways are set by " + if (d.waysLearned) "the learned network" else "the hand-written ways")
             sb.appendLine()
@@ -353,7 +362,8 @@ class GroupControlWindow(
         if (d == null || d.group.id != g.id) return "(shown once it weighs its week)"
         val names = if (g.band != null) Schema.WAYS_IN else Schema.ANIMAL_WAYS_IN
         val sb = StringBuilder()
-        sb.appendLine(if (g.band != null) "What the band knows of itself and the bands about it, as its networks read it:" else "What it knows of itself, as its ways network reads it:")
+        sb.appendLine(if (g.band != null) "What the band knows of itself and the bands about it, as its networks read it:"
+            else "What it knows of itself, as its ways network reads it:")
         for ((i, n) in names.withIndex()) if (i < d.knows.size) sb.appendLine("  %-28s %7.2f".format(n, d.knows[i]))
         return sb.toString()
     }
@@ -397,7 +407,13 @@ class GroupControlWindow(
         val value = JLabel()
         val pin = JCheckBox("yours")
         init {
-            slider.addChangeListener { if (!updating) { pins = pins.copyOf().also { it[k] = slider.value / 100f }; pin.isSelected = true; value.text = "×%.2f".format(slider.value / 100f) } }
+            slider.addChangeListener {
+                if (!updating) {
+                    pins = pins.copyOf().also { it[k] = slider.value / 100f }
+                    pin.isSelected = true
+                    value.text = "×%.2f".format(slider.value / 100f)
+                }
+            }
             pin.addActionListener { if (!updating) { pins = pins.copyOf().also { it[k] = if (pin.isSelected) slider.value / 100f else Float.NaN }; refresh() } }
         }
     }
@@ -412,7 +428,10 @@ class GroupControlWindow(
             waysPanel.removeAll()
             val c = GridBagConstraints().apply { insets = Insets(1, 4, 1, 4); anchor = GridBagConstraints.WEST }
             c.gridy = 0
-            for ((x, h) in listOf("way", "model", "yours", "", "").withIndex()) { c.gridx = x; waysPanel.add(JLabel(h).apply { font = font.deriveFont(Font.BOLD) }, c) }
+            for ((x, h) in listOf("way", "model", "yours", "", "").withIndex()) {
+                c.gridx = x
+                waysPanel.add(JLabel(h).apply { font = font.deriveFont(Font.BOLD) }, c)
+            }
             wayRows = names.mapIndexed { k, n -> WayRow(k, n) }
             for (r in wayRows) {
                 c.gridy++
@@ -421,7 +440,8 @@ class GroupControlWindow(
             }
             c.gridy++; c.gridx = 0; c.gridwidth = 5
             waysPanel.add(JLabel("<html>Each way as a strength: 1 is the hand-written way, 0 never, 2 twice as readily.<br>" +
-                (if (band) "A band sets its ways as it forages, after it moves: the model's shown here are from the start of the week." else "Set before it chose where to go; yours take hold at Next step.") + "</html>"), c)
+                (if (band) "A band sets its ways as it forages, after it moves: the model's shown here are from the start of the week."
+                    else "Set before it chose where to go; yours take hold at Next step.") + "</html>"), c)
             waysPanel.revalidate()
         }
         val p = pins
@@ -485,7 +505,8 @@ class GroupControlWindow(
             fun sy(km: Double) = (height / 2.0 + (km - cy) * kmPx).toInt()
             // The ground.
             val halfW = width / 2.0 / kmPx; val halfH = height / 2.0 / kmPx
-            g.drawImage(ground, 0, 0, width, height, ((cx - halfW) * px).toInt(), ((cy - halfH) * px).toInt(), ((cx + halfW) * px).toInt(), ((cy + halfH) * px).toInt(), null)
+            g.drawImage(ground, 0, 0, width, height, ((cx - halfW) * px).toInt(), ((cy - halfH) * px).toInt(), ((cx + halfW) * px).toInt(),
+                ((cy + halfH) * px).toInt(), null)
             rivers.draw(g, width / 2.0 - cx * kmPx, height / 2.0 - cy * kmPx, kmPx, width, height)
             val rad = hex.hexKm / sqrt(3.0)
             fun outline(h: Int): Pair<IntArray, IntArray> {
@@ -501,7 +522,11 @@ class GroupControlWindow(
                 val r0 = (if (h0 >= 0) h0 / hex.cols else 0) - 1; val r1 = (if (h1 >= 0) h1 / hex.cols else hex.rows - 1) + 1
                 for (r in max(0, r0)..min(hex.rows - 1, r1)) for (c in max(0, c0)..min(hex.cols - 1, c1)) inView += r * hex.cols + c
             }
-            if (b != null) for (h in inView) if (h < hex.size && !b.knows(h)) { val (xs, ys) = outline(h); g.color = Color(0f, 0f, 0f, 0.45f); g.fillPolygon(xs, ys, 6) }
+            if (b != null) for (h in inView) if (h < hex.size && !b.knows(h)) {
+                val (xs, ys) = outline(h)
+                g.color = Color(0f, 0f, 0f, 0.45f)
+                g.fillPolygon(xs, ys, 6)
+            }
             // The places it can reach, coloured by how the model scores them (the best green, the worst red).
             if (d != null) {
                 val sc = d.netScores ?: d.handScores
@@ -522,27 +547,41 @@ class GroupControlWindow(
                     val pink = Color(1f, 0.55f, 1f)
                     val gxp = sx(gx); val gyp = sy(gy)
                     val inside = gxp in 0..width && gyp in 0..height
-                    if (inside) { val (xs, ys) = outline(gh); g.color = Color(1f, 0.55f, 1f, 0.3f); g.fillPolygon(xs, ys, 6); g.color = pink; g.drawPolygon(xs, ys, 6) }
+                    if (inside) {
+                        val (xs, ys) = outline(gh)
+                        g.color = Color(1f, 0.55f, 1f, 0.3f)
+                        g.fillPolygon(xs, ys, 6)
+                        g.color = pink
+                        g.drawPolygon(xs, ys, 6)
+                    }
                     val ang = atan2(gy - cy, gx - cx)
                     val dist = hypot((gxp - width / 2).toDouble(), (gyp - height / 2).toDouble())
                     val len = min(dist - (if (inside) 10.0 else 0.0), min(width, height) / 2.0 - 14)
-                    if (len > 15) arrow(g, width / 2 + (12 * cos(ang)).toInt(), height / 2 + (12 * sin(ang)).toInt(), width / 2 + (len * cos(ang)).toInt(), height / 2 + (len * sin(ang)).toInt(), pink, 3f)
-                    val lx = (width / 2 + (len * cos(ang)).toInt() + 8).coerceIn(4, width - 130); val ly = (height / 2 + (len * sin(ang)).toInt() - 6).coerceIn(14, height - 4)
-                    g.color = pink; g.drawString((if (d.onRound) "its round" else "its season's place") + ", %.0f km".format(hex.distanceKm(centre, gh)), lx, ly)
+                    if (len > 15) arrow(g, width / 2 + (12 * cos(ang)).toInt(), height / 2 + (12 * sin(ang)).toInt(), width / 2 + (len * cos(ang)).toInt(),
+                        height / 2 + (len * sin(ang)).toInt(), pink, 3f)
+                    val lx = (width / 2 + (len * cos(ang)).toInt() + 8).coerceIn(4, width - 130)
+                    val ly = (height / 2 + (len * sin(ang)).toInt() - 6).coerceIn(14, height - 4)
+                    g.color = pink
+                    g.drawString((if (d.onRound) "its round" else "its season's place") + ", %.0f km".format(hex.distanceKm(centre, gh)), lx, ly)
                 }
                 groups.kindIndex[grp.species]?.let { ki ->
                     val e = groups.bearings.east[ki][centre]; val so = groups.bearings.south[ki][centre]
                     val st = hypot(e, so)
                     if (st > 0.02f) {
                         val len = (st.coerceAtMost(1f) * 2.5 * hex.hexKm * kmPx)
-                        arrow(g, width / 2, height / 2, width / 2 + (len * e / st).toInt(), height / 2 + (len * so / st).toInt(), Color(1f, 0.95f, 0.6f, 0.8f), 1.5f)
+                        arrow(g, width / 2, height / 2, width / 2 + (len * e / st).toInt(), height / 2 + (len * so / st).toInt(),
+                            Color(1f, 0.95f, 0.6f, 0.8f), 1.5f)
                     }
                 }
                 // The model's way and pick (yellow), and the player's (cyan).
                 fun way(i: Int, c: Color, w: Float) {
                     val path = d.paths[i]
                     g.color = c; g.stroke = BasicStroke(w, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-                    for (k in 0 until path.size - 1) { val (ax, ay) = hex.centreKm(path[k]); val (bx, by) = hex.centreKm(path[k + 1]); g.drawLine(sx(ax), sy(ay), sx(bx), sy(by)) }
+                    for (k in 0 until path.size - 1) {
+                        val (ax, ay) = hex.centreKm(path[k])
+                        val (bx, by) = hex.centreKm(path[k + 1])
+                        g.drawLine(sx(ax), sy(ay), sx(bx), sy(by))
+                    }
                     val (xs, ys) = outline(hw.placeHex[d.places[i]]); g.drawPolygon(xs, ys, 6)
                     g.stroke = BasicStroke(1f)
                 }
@@ -553,8 +592,13 @@ class GroupControlWindow(
             val past = synchronized(trail) { trail.toList() }
             for ((age, path) in past.reversed().withIndex()) {
                 val a = (0.9f * (1f - age.toFloat() / TRAIL_WEEKS)).coerceAtLeast(0.25f)
-                g.color = Color(1f, 1f, 1f, a); g.stroke = BasicStroke(3f - age * 0.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1f, floatArrayOf(6f, 4f), 0f)
-                for (k in 0 until path.size - 1) { val (ax, ay) = hex.centreKm(path[k]); val (bx, by) = hex.centreKm(path[k + 1]); g.drawLine(sx(ax), sy(ay), sx(bx), sy(by)) }
+                g.color = Color(1f, 1f, 1f, a)
+                g.stroke = BasicStroke(3f - age * 0.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1f, floatArrayOf(6f, 4f), 0f)
+                for (k in 0 until path.size - 1) {
+                    val (ax, ay) = hex.centreKm(path[k])
+                    val (bx, by) = hex.centreKm(path[k + 1])
+                    g.drawLine(sx(ax), sy(ay), sx(bx), sy(by))
+                }
                 path.lastOrNull()?.let { h -> val (hx, hy) = hex.centreKm(h); g.fillOval(sx(hx) - 3, sy(hy) - 3, 6, 6) }
             }
             g.stroke = BasicStroke(1f)
@@ -580,21 +624,44 @@ class GroupControlWindow(
                 val alpha = if (left) 0.45f else 1f
                 if (o !== grp && o.path.size > 1) {
                     g.color = Color(1f, 1f, 1f, 0.5f * alpha); g.stroke = BasicStroke(1.2f)
-                    for (k in 0 until o.path.size - 1) { val (ax, ay) = hex.centreKm(o.path[k]); val (bx, by) = hex.centreKm(o.path[k + 1]); g.drawLine(sx(ax), sy(ay), if (k == o.path.size - 2) ox else sx(bx), if (k == o.path.size - 2) oy else sy(by)) }
+                    for (k in 0 until o.path.size - 1) {
+                        val (ax, ay) = hex.centreKm(o.path[k])
+                        val (bx, by) = hex.centreKm(o.path[k + 1])
+                        g.drawLine(sx(ax), sy(ay), if (k == o.path.size - 2) ox else sx(bx), if (k == o.path.size - 2) oy else sy(by))
+                    }
                     g.stroke = BasicStroke(1f)
                 }
                 val big = if (o === grp) 9 else 6
                 val ring = if (o === grp) Color(1f, 0.85f, 0.1f) else Color(1f, 1f, 1f, alpha)
                 when {
-                    o.species.human -> { g.color = ring; g.fillPolygon(intArrayOf(ox, ox + big, ox, ox - big), intArrayOf(oy - big, oy, oy + big, oy), 4); g.color = Color(0.1f, 0.3f, 0.95f, alpha); g.fillPolygon(intArrayOf(ox, ox + big / 2, ox, ox - big / 2), intArrayOf(oy - big / 2, oy, oy + big / 2, oy), 4) }
-                    o.species.carnivore -> { g.color = ring; g.fillRect(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2); g.color = Color(0.82f, 0.06f, 0.06f, alpha); g.fillRect(ox - big / 2, oy - big / 2, big, big) }
-                    else -> { g.color = if (o === grp) ring else Color(0f, 0f, 0f, alpha); g.fillOval(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2); g.color = Color(0.9f, 0.9f, 0.6f, alpha); g.fillOval(ox - big / 2, oy - big / 2, big, big) }
+                    o.species.human -> {
+                        g.color = ring
+                        g.fillPolygon(intArrayOf(ox, ox + big, ox, ox - big), intArrayOf(oy - big, oy, oy + big, oy), 4)
+                        g.color = Color(0.1f, 0.3f, 0.95f, alpha)
+                        g.fillPolygon(intArrayOf(ox, ox + big / 2, ox, ox - big / 2), intArrayOf(oy - big / 2, oy, oy + big / 2, oy), 4)
+                    }
+                    o.species.carnivore -> {
+                        g.color = ring
+                        g.fillRect(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2)
+                        g.color = Color(0.82f, 0.06f, 0.06f, alpha)
+                        g.fillRect(ox - big / 2, oy - big / 2, big, big)
+                    }
+                    else -> {
+                        g.color = if (o === grp) ring else Color(0f, 0f, 0f, alpha)
+                        g.fillOval(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2)
+                        g.color = Color(0.9f, 0.9f, 0.6f, alpha)
+                        g.fillOval(ox - big / 2, oy - big / 2, big, big)
+                    }
                 }
-                if (o !== grp) { g.color = Color(1f, 1f, 1f, alpha); g.drawString("%s %d%s".format(o.species.name, o.size, if (left) " (gone)" else ""), ox + big, oy - big) }
+                if (o !== grp) {
+                    g.color = Color(1f, 1f, 1f, alpha)
+                    g.drawString("%s %d%s".format(o.species.name, o.size, if (left) " (gone)" else ""), ox + big, oy - big)
+                }
             }
             // The legend.
             g.font = g.font.deriveFont(11f)
-            val lines = listOfNotNull("yellow: the model's pick", if (d != null && pick != d.model) "cyan: yours" else null, "green to red: best to worst by the model",
+            val lines = listOfNotNull("yellow: the model's pick", if (d != null && pick != d.model) "cyan: yours" else null,
+                "green to red: best to worst by the model",
                 "pink arrow: its round or season's place", "pale arrow: its kind's sense of better country", "dashed: where it went, last $TRAIL_WEEKS weeks",
                 if (b != null) "dark: country it does not know" else null, "click a hex to go there")
             g.color = Color(0f, 0f, 0f, 0.55f); g.fillRect(6, 6, 290, 16 * lines.size + 6)

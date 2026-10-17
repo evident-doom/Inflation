@@ -35,7 +35,8 @@ object AnimalWay {
     const val FRUIT = 3
     /** How much more it eats to lay on reserves when there is food to spare. */
     const val FATTEN = 4
-    /** Its births: under 1 a month earlier this year, over 1 a month later, when far enough from 1; near 1 they drift towards the months it fed best in, as they always did. */
+    /** Its births: under 1 a month earlier this year, over 1 a month later, when far enough from 1; near 1 they drift towards the
+     * months it fed best in, as they always did. */
     const val BIRTHS = 5
     // Hunters.
     /** How long it keeps on chasing herds it meets: until it has this many times its week's need. */
@@ -54,7 +55,8 @@ object AnimalWay {
     const val BIRTHS_LEAN = 0.5f
 }
 
-/** What a herd or pack knows of itself this week: the season, how fed and watered it is, its reserves, size and young, its fear, its ground, the warmth, and what kind of animal it is. */
+/** What a herd or pack knows of itself this week: the season, how fed and watered it is, its reserves, size and young, its fear, its
+ * ground, the warmth, and what kind of animal it is. */
 internal fun HexGroups.animalInputs(g: HexGroup, weather: Weather, into: FloatArray) {
     val s = g.species
     var i = 0

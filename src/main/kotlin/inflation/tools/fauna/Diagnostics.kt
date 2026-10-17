@@ -23,7 +23,8 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
     fun beforeStep(y: Int, w: Int) {
         Config.string("huntDiag")?.let { kinds -> if (w % 13 == 6) for (kind in kinds.split(',')) hunters(w, kind) }
         if (Config.flag("fedDiag", false) && y == 1 && w % 13 == 6) fed(w)
-        Config.string("follow")?.let { kind -> if (groups.groups.none { it.id == groups.watched && it.alive }) groups.watched = groups.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
+        Config.string("follow")?.let { kind -> if (groups.groups.none { it.id == groups.watched && it.alive }) groups.watched =
+            groups.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
     }
 
     fun afterStep() {
@@ -41,7 +42,9 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         val (hungry, fed) = gs.partition { it.fed < Thresholds.HUNGRY }
         println("     week $w $kind: ${hungry.size} of ${gs.size} packs hungry: ${ground(hungry)} | fed: ${ground(fed)}")
         val thirsty = gs.filter { it.dry > it.species.daysWithoutWater }
-        if (thirsty.isNotEmpty()) println("     week $w $kind: ${thirsty.size} thirsty: " + ground(thirsty) + "; water within reach %.0f%%, sea %.0f%%".format(100.0 * thirsty.count { land.water[it.place] >= 0.05f } / thirsty.size, 100.0 * thirsty.count { hw.sea[hw.placeHex[it.place]] > 0.3f } / thirsty.size))
+        if (thirsty.isNotEmpty()) println("     week $w $kind: ${thirsty.size} thirsty: " + ground(thirsty) + "; water within reach %.0f%%, sea %.0f%%"
+            .format(100.0 * thirsty.count { land.water[it.place] >= 0.05f } / thirsty.size,
+                100.0 * thirsty.count { hw.sea[hw.placeHex[it.place]] > 0.3f } / thirsty.size))
     }
 
     /** What the groups [l] have about them and how they fare, on average. */
@@ -52,8 +55,10 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
             mean { g -> fauna.kinds.indices.sumOf { k -> ((fauna.adults[k][g.place] + fauna.young[k][g.place]) * fauna.kinds[k].massKg).toDouble() } },
             mean { it.young.toDouble() }, 100.0 * l.count { it.home >= 0 } / l.size,
             mean { land.cover(it.place).toDouble() }, mean { land.waterKm[it.place].toDouble() }, mean { hw.placeBand[it.place].toDouble() }) +
-            ", %.0f m, %.1f °C, fed %.2f, larder %.0f days, size %.0f, path %.1f hexes, days without water %.1f".format(mean { hw.placeElevationM[it.place].toDouble() }, mean { weather.temperature[it.place].toDouble() },
-                mean { it.fed.toDouble() }, mean { (it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f)).toDouble() }, mean { it.size.toDouble() }, mean { it.path.size.toDouble() }, mean { it.dry.toDouble() })
+            ", %.0f m, %.1f °C, fed %.2f, larder %.0f days, size %.0f, path %.1f hexes, days without water %.1f".format(
+                mean { hw.placeElevationM[it.place].toDouble() }, mean { weather.temperature[it.place].toDouble() },
+                mean { it.fed.toDouble() }, mean { (it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f)).toDouble() }, mean { it.size.toDouble() },
+                mean { it.path.size.toDouble() }, mean { it.dry.toDouble() })
     }
 
     /** How well each resident kind is fed where it lives, and why, weighted by head count; and the herds and packs. */
@@ -67,13 +72,15 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
                 heads += h; fed += h * fauna.fed[k][p]; if (fauna.fed[k][p] < 0.6f) hungry += h
                 teth += h * fauna.tether(s, p); acc += h * HexFood.access(s, land.crag[p]); gr += h * land.green[p]; res += h * fauna.reserve[k][p]
             }
-            if (heads > 0) println("       %-12s %.2f / %.0f%% / %.2f / %.2f / %.2f / %.0f".format(s.name, fed / heads, 100 * hungry / heads, teth / heads, acc / heads, gr / heads, res / heads))
+            if (heads > 0) println("       %-12s %.2f / %.0f%% / %.2f / %.2f / %.2f / %.0f".format(s.name, fed / heads, 100 * hungry / heads,
+                teth / heads, acc / heads, gr / heads, res / heads))
         }
         println("     herds and packs: fed / reserve days / young per adult / days without water / cold degrees")
         for (s in groups.kinds) {
             val gs = groups.groups.filter { it.alive && it.species == s }
             val heads = gs.sumOf { it.size }.toDouble().coerceAtLeast(1.0)
-            println("       %-12s %.2f / %.0f / %.2f / %.1f / %.1f".format(s.name, gs.sumOf { it.fed.toDouble() * it.size } / heads, gs.sumOf { it.fat.toDouble() * it.size } / heads,
+            println("       %-12s %.2f / %.0f / %.2f / %.1f / %.1f".format(s.name, gs.sumOf { it.fed.toDouble() * it.size } / heads,
+                gs.sumOf { it.fat.toDouble() * it.size } / heads,
                 gs.sumOf { it.young }.toDouble() / gs.sumOf { it.adults }.coerceAtLeast(1), gs.sumOf { it.dry.toDouble() * it.size } / heads,
                 gs.sumOf { s.coldC(weather.temperature[it.place], weather.date.month).toDouble() * it.size } / heads))
         }
@@ -83,6 +90,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         val m = weather.date.month
         val gs = groups.groups.filter { it.alive && it.species.name == kind && it.seasonPlace[m] >= 0 }
         if (gs.isNotEmpty()) println("     month ${m + 1} $kind: %.0f km from this month's place, fed %.2f, remembered worth %.2f".format(
-            gs.map { sim.hex.distanceKm(hw.placeHex[it.place], hw.placeHex[it.seasonPlace[m]]) }.average(), gs.map { it.fed.toDouble() }.average(), gs.map { it.seasonQ[m].toDouble() }.average()))
+            gs.map { sim.hex.distanceKm(hw.placeHex[it.place], hw.placeHex[it.seasonPlace[m]]) }.average(), gs.map { it.fed.toDouble() }.average(),
+            gs.map { it.seasonQ[m].toDouble() }.average()))
     }
 }

@@ -46,10 +46,14 @@ class ViewLayersTest {
         // Things died somewhere, and carrion went.
         val all = l.key(ViewLayers.Measure.DEATHS, PlaceRecord.Cause.entries.size)
         assertTrue(l.now.getValue(all).any { !it.isNaN() && it > 0f }, "some animals died")
-        assertTrue(l.now.getValue(ViewLayers.Measure.CARRION_WEEKS.name).any { !it.isNaN() && it > 0f && it < ViewLayers.MAX_WEEKS }, "carrion clears somewhere")
+        assertTrue(l.now.getValue(ViewLayers.Measure.CARRION_WEEKS.name).any { !it.isNaN() && it > 0f && it < ViewLayers.MAX_WEEKS },
+            "carrion clears somewhere")
         for (m in ViewLayers.Measure.entries) if (m != ViewLayers.Measure.NONE) assertNotNull(l.now[l.key(m, 0)], "${m.name} worked out")
-        println("weeks to clear carrion (median of hexes with any): " + l.now.getValue(ViewLayers.Measure.CARRION_WEEKS.name).filter { !it.isNaN() && it > 0f }.sorted().let { it[it.size / 2] })
-        println("hunters per 100 kg prey (median): " + l.now.getValue(ViewLayers.Measure.HUNTERS_PER_PREY.name).filter { !it.isNaN() && it > 0f }.sorted().let { if (it.isEmpty()) 0f else it[it.size / 2] })
+        println("weeks to clear carrion (median of hexes with any): " +
+            l.now.getValue(ViewLayers.Measure.CARRION_WEEKS.name).filter { !it.isNaN() && it > 0f }.sorted().let { it[it.size / 2] })
+        println("hunters per 100 kg prey (median): " +
+            l.now.getValue(ViewLayers.Measure.HUNTERS_PER_PREY.name).filter { !it.isNaN() && it > 0f }.sorted()
+                .let { if (it.isEmpty()) 0f else it[it.size / 2] })
         println("kills kg/km2/wk (max): " + l.now.getValue(ViewLayers.Measure.KILLS.name).filter { !it.isNaN() }.maxOrNull())
         println("forage swing (median): " + l.swing(ViewLayers.Measure.FORAGE.name, false)!!.filter { !it.isNaN() }.sorted().let { it[it.size / 2] })
         println("herbs swing (median): " + l.swing(ViewLayers.Measure.HERBS.name, false)!!.filter { !it.isNaN() }.sorted().let { it[it.size / 2] })

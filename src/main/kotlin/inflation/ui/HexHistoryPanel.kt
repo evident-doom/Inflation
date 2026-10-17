@@ -74,7 +74,8 @@ class HexHistoryPanel(private var history: HexHistory, live: Boolean) : JPanel(B
         val open = JButton("Open…"); open.addActionListener { openFile() }
         val save = JButton("Save…"); save.addActionListener { saveFile() }
         bar.add(open); bar.add(save)
-        for (c in listOf(period, logScale, stacked)) (c as? JComboBox<*>)?.addActionListener { chart.repaint() } ?: (c as JCheckBox).addActionListener { chart.repaint() }
+        for (c in listOf(period, logScale, stacked)) (c as? JComboBox<*>)?.addActionListener { chart.repaint() }
+            ?: (c as JCheckBox).addActionListener { chart.repaint() }
         filter.addActionListener { rebuildTree() }
         tree.addTreeSelectionListener { chart.repaint() }
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, JScrollPane(tree).apply { preferredSize = Dimension(280, 560) }, chart)
@@ -208,7 +209,8 @@ class HexHistoryPanel(private var history: HexHistory, live: Boolean) : JPanel(B
             val xv = x0 + (hoverX - left).toFloat() / (right - left) * (x1 - x0)
             val j = xs.indices.minBy { abs(xs[it] - xv) }
             g.color = Color(0, 0, 0, 80); g.drawLine(sx(xs[j]), top, sx(xs[j]), bottom)
-            readout.text = "year %.2f: ".format(xs[j] + 1) + keys.indices.joinToString("   ") { i -> "${keys[i].substringAfterLast('/')} ${label(data[i].second.getOrElse(j) { Float.NaN })}" }
+            readout.text = "year %.2f: ".format(xs[j] + 1) +
+                keys.indices.joinToString("   ") { i -> "${keys[i].substringAfterLast('/')} ${label(data[i].second.getOrElse(j) { Float.NaN })}" }
         }
     }
 
