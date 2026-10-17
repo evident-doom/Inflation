@@ -663,7 +663,7 @@ internal fun HexGroups.meet(weather: Weather) {
         else {
             val (hunter, hi, herd, ri) = if (a.species.carnivore) listOf(e.a, e.ai, e.b, e.bi) else listOf(e.b, e.bi, e.a, e.ai)
             if (ROUNDS) roundsMeeting(groups[herd], ri, h, weather)
-            Profile.part("meetings: hunters and herds") { hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop, weather, met) }
+            Profile.part("meetings: hunters and herds") { hunterMeetsHerd(groups[hunter], hunter, hi, groups[herd], herd, ri, h, stop, weather, met, today + e.day.toDouble()) }
         }
     }
     // Each group ends its week where it stopped: the same height band in that hex if it has one.
@@ -836,17 +836,18 @@ internal fun storeWant(g: HexGroup, band: Band) =
  * stops where it is; hunters that killed stop there to eat.
  */
 internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd: HexGroup, rk: Int, ri: Int, h: Int, stop: IntArray,
-    weather: Weather, met: Int = 1) {
+    weather: Weather, met: Int = 1, day: Double = weather.date.absoluteDay.toDouble()) {
     stats.meetings.merge("hunter-herd", 1, Int::plus)
     // (With rounds on, for hex-rounds-check: where herds meet hunters, by how the herd lives and where it was.)
     val roundsKey = if (ROUNDS && herd.route[0] != ROUND_OPEN) roundsWhere(herd, weather) + (if (hunter.band != null) "people|" else "animals|") else null
     roundsKey?.let { stats.hunting.merge(it + "met", 1, Int::plus); stats.hunting.merge(it + "heads met", herd.size, Int::plus) }
     note(hunter) { "came on a herd of %d %s".format(herd.size, herd.species.name) }; note(herd) { "met %d %s".format(hunter.size, hunter.species.name) }
     val open = openness(h, hw.placeBand[herd.place])
-    // A herd hunted lately keeps a sharper watch.
+    // A herd chased lately keeps a sharper watch.
+    val wary = herd.wary(day)
     // Game bred to fear people over the millennia keeps a sharper watch for them.
     val fear = if (hunter.band != null) 0.5f + herd.species.fearOfPeople else 1f
-    val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + herd.wary) * fear *
+    val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + wary) * fear *
         (0.5f + 0.5f * sight(herd.place, weather) / (1f - SIGHT_COVER * land.cover(herd.place)).coerceAtLeast(0.1f)))
     if (seen) {
         stats.meetings.merge("herd turned aside", 1, Int::plus)
@@ -865,17 +866,17 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     val catchable = catchable(hunter.species, herd.species, p, max(1, hunter.adults) * hunter.species.massKg)
     if (catchable < NOT_WORTH_TRYING) return
     // (Many eyes see the hunters sooner, and one animal is hard to single out of a milling crowd.)
-    val chance = CATCH * SURPRISE * catchable * (1f - 0.5f * herd.wary) * (hunter.band?.huntEdge(herd.species) ?: 1f) * bandsIn(herd).pow(-BIG_HERD_EYES)
+    val chance = CATCH * SURPRISE * catchable * (1f - 0.5f * wary) * (hunter.band?.huntEdge(herd.species) ?: 1f) * bandsIn(herd).pow(-BIG_HERD_EYES)
     hunter.band?.practise(Skill.HUNT)
     stop[rk] = min(stop[rk], ri) // scattered
-    // Caught or not, the herd is wary for weeks after.
-    herd.wary += WARY_GAIN * (1f - herd.wary)
+    // Caught or not, the herd is alarmed for a while after.
+    herd.chasedOn = day
     stats.hunting.merge("${hunter.species.name}:chases", 1, Int::plus)
     // A big herd stands for several of its kind's usual bands: the hunters try each one they ran into while hungry
     // (once each: a band that was chased has scattered).
     val tries = max(1, min(met, ceil(bandsIn(herd)).toInt()))
     roundsKey?.let { stats.hunting.merge(it + "chased", 1, Int::plus); stats.hunting.merge(it + "tries", tries, Int::plus)
-        stats.hunting.merge(it + "wary", (100 * herd.wary).toInt(), Int::plus) }
+        stats.hunting.merge(it + "wary", (100 * wary).toInt(), Int::plus) }
     for (attempt in 0 until tries) {
     if (attempt > 0 && hunter.meatMet >= need) break
     if (rnd.nextFloat() < chance && herd.adults > 0) {

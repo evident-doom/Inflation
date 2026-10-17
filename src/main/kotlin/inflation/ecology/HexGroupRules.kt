@@ -250,11 +250,16 @@ const val HOME_ADVANTAGE = 1.5f
 const val RIVAL_KILL = 0.02f
 /** Share of a beaten pack's young the winners kill when they take its ground. */
 const val INFANTICIDE = 0.25f
-/** Chance a herd in fully open country sees coursing hunters first; how much likelier a kill when hunters come unseen. */
-const val VIGILANCE = 0.6f
-/** Wariness gained in a chase, and kept from week to week. */
-const val WARY_GAIN = 0.3f
-const val WARY_KEEP = 0.97f
+/**
+ * How watchful a herd is for coursing hunters in fully open country (times the other odds, at most 0.95 in all), and how a
+ * chase goes when they come on it unseen, against [CATCH]. Set (2026-10-17) so that herds see hunters first and lose
+ * animals to chases as often as they did when every herd stayed near-fully wary for months (a long memory that sat
+ * near its ceiling); being chased now alarms a herd only for [ALARM_DAYS].
+ */
+const val VIGILANCE = 1.13f
+const val SURPRISE = 0.84f
+/** Days over which a herd's alarm after a chase fades (to 1/e): hours to about a day in field studies of elk near wolves and zebra after lions. */
+const val ALARM_DAYS = 1f
 /** Body mass below which an animal can hide in thick cover, kg, and how much of a hunter's chance cover takes away. */
 const val HIDING_KG = 70f
 const val HIDING = 0.8f
@@ -264,7 +269,6 @@ const val MOON_DARK = 0.3f
 const val DISPERSAL_DEATHS = 0.4f
 /** Hoofed animals up to this mass, kg, lose young to eagles. */
 const val EAGLE_PREY_KG = 80f
-const val SURPRISE = 1.5f
 /** Strength ratio beyond which the weaker pack gives way without a fight. */
 const val FIGHT_RATIO = 1.5f
 
