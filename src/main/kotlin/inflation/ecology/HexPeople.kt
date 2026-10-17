@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.HexLand
 import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.Config
@@ -20,9 +21,12 @@ import kotlin.math.sin
 // country gives, and camps they stay in.
 
 /** Raw materials a band gathers and carries, kg. */
-enum class Material {
+enum class Material(
+    /** Where it is dug or gathered, as a share of each place (for the materials bands trade, [TRADED]). */
+    val deposit: ((HexLand) -> FloatArray)? = null,
+) {
     /** Good knapping stone (flint, chert, obsidian); poorer stone is found almost anywhere. */
-    STONE, WOOD, HIDE, BONE, SINEW,
+    STONE({ it.stone }), WOOD, HIDE, BONE, SINEW,
     /** Plant fibre for cord, nets and baskets: bark, reeds, grasses. */
     FIBRE,
     /** Tree resin for glue. */
@@ -30,33 +34,36 @@ enum class Material {
     /** Sea shells (dentalium, cowrie) gathered on the shore, for beads. */
     SHELL,
     /** Salt scraped from dry lake beds and salt pans (and a little from the shore): meat and fish salted keep, and cure in any weather (see [TRADED]). */
-    SALT,
+    SALT({ it.salt }),
     /** Ochre, the red and yellow earth: hides tanned with it last (with trade on). */
-    OCHRE,
+    OCHRE({ it.ochre }),
 }
 
 /**
  * A kind of tool, with what one person's share takes to make ([recipe], kg per person), the skill
  * that makes it, how fast it wears out (share a year), whether it is too heavy to take along when
  * the camp moves, and whether bands know it from the start (the others are hit on now and then and
- * passed on when bands meet).
+ * passed on when bands meet); the work it is used in ([uses]: it wears when that work is done), the
+ * skill it serves ([serves], for how likely a band is to hit on it), and whether it is [hafted] (set
+ * with resin and sinew, so wearing the slower the better the band glues).
  */
 enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerYear: Float, val makeDays: Float,
-    val heavy: Boolean = false, val known: Boolean = false) {
+    val uses: List<Skill>, val serves: Skill, val hafted: Boolean = false, val heavy: Boolean = false, val known: Boolean = false) {
     /** Stone-tipped spears: the basic hunting weapon. */
-    SPEAR(mapOf(Material.STONE to 0.3f, Material.WOOD to 2f, Material.SINEW to 0.05f), Skill.KNAPPING, 1f, 1f, known = true),
+    SPEAR(mapOf(Material.STONE to 0.3f, Material.WOOD to 2f, Material.SINEW to 0.05f), Skill.KNAPPING, 1f, 1f, listOf(Skill.HUNT), Skill.HUNT, hafted = true, known = true),
     /** Bow and arrows tipped with microliths set in resin: reach and silence against fast, shy game. */
-    BOW(mapOf(Material.WOOD to 1f, Material.SINEW to 0.2f, Material.STONE to 0.2f, Material.RESIN to 0.1f), Skill.WOODWORK, 1.5f, 4f),
+    BOW(mapOf(Material.WOOD to 1f, Material.SINEW to 0.2f, Material.STONE to 0.2f, Material.RESIN to 0.1f), Skill.WOODWORK, 1.5f, 4f, listOf(Skill.HUNT), Skill.HUNT, hafted = true),
     /** Nets and snares: hares, birds and fish in quantity. */
-    NET(mapOf(Material.FIBRE to 2f), Skill.CORDAGE, 1f, 3f, known = true),
+    NET(mapOf(Material.FIBRE to 2f), Skill.CORDAGE, 1f, 3f, listOf(Skill.SMALL_GAME, Skill.FISH), Skill.SMALL_GAME, known = true),
     /** Sickles of flint bladelets set in bone or wood: wild cereals cut before the ears shatter. */
-    SICKLE(mapOf(Material.STONE to 0.2f, Material.BONE to 0.3f, Material.RESIN to 0.05f), Skill.KNAPPING, 0.7f, 1f),
+    SICKLE(mapOf(Material.STONE to 0.2f, Material.BONE to 0.3f, Material.RESIN to 0.05f), Skill.KNAPPING, 0.7f, 1f, listOf(Skill.GATHER), Skill.GATHER, hafted = true),
     /** Mortars, pestles and querns: nuts, acorns and seeds made into meal. Too heavy to move. */
-    GRINDER(mapOf(Material.STONE to 15f), Skill.PECKING, 0.05f, 3f, heavy = true),
+    GRINDER(mapOf(Material.STONE to 15f), Skill.PECKING, 0.05f, 3f, listOf(Skill.GATHER), Skill.GATHER, heavy = true),
     /** Baskets and bags: carrying the harvest home and keeping it. */
-    BASKET(mapOf(Material.FIBRE to 3f), Skill.CORDAGE, 0.7f, 2f, known = true),
+    BASKET(mapOf(Material.FIBRE to 3f), Skill.CORDAGE, 0.7f, 2f, listOf(Skill.GATHER, Skill.STONE_BOILING, Skill.LEACHING), Skill.GATHER,
+        known = true),
     /** Sewn, fitted clothes and footwear of hide and fur: winter becomes bearable. */
-    CLOTHES(mapOf(Material.HIDE to 4f, Material.SINEW to 0.3f, Material.BONE to 0.05f), Skill.HIDEWORK, 0.5f, 4f, known = true),
+    CLOTHES(mapOf(Material.HIDE to 4f, Material.SINEW to 0.3f, Material.BONE to 0.05f), Skill.HIDEWORK, 0.5f, 4f, emptyList(), Skill.STORE, known = true),
 }
 
 /** Share of the success an untrained band still has at a hunt or a harvest. */
@@ -726,13 +733,13 @@ private fun HexGroups.wearAndInvent(b: Band, years: Float) {
     for (t in Tool.entries) {
         val k = t.ordinal
         // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
-        val inUse = t == Tool.CLOTHES || usesOf(t).any { b.weeks - b.lastUsed[it.ordinal] <= 1 }
+        val inUse = t == Tool.CLOTHES || t.uses.any { b.weeks - b.lastUsed[it.ordinal] <= 1 }
         b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years * (if (inUse) 1f else IDLE_WEAR) *
-            (if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[k]))
+            (if (t.hafted) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[k]))
         if (!b.knows[k]) {
             // A band that has a use for a tool now and then hits on it: bows where game is shy and
             // fast, sickles and grinding stones where it reaps seed, and so on.
-            if (rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[useOf(t).ordinal])) {
+            if (rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves.ordinal])) {
                 b.knows[k] = true
                 stats.meetings.merge("band hit on ${t.name.lowercase()}", 1, Int::plus)
             }
@@ -784,7 +791,7 @@ private fun HexGroups.makeTools(b: Band, people: Float, time0: Float): Float {
         // (And tries the other ways of the craft it knows now and then, so a new way can come to beat the old.)
         for (o in Skill.of(way.domain)) if (o != way && b.knowsSkill[o.ordinal]) b.practise(o, 0.2f * PRACTICE * b.edge(Skill.TINKER))
         if (t == Tool.CLOTHES) { b.practise(Skill.SEWING); b.practise(Skill.BONE_TOOLS) }
-        if (t == Tool.SPEAR || t == Tool.BOW || t == Tool.SICKLE) b.practise(Skill.GLUING)
+        if (t.hafted) b.practise(Skill.GLUING)
     }
     return time
 }
@@ -945,25 +952,10 @@ private fun HexGroups.dropCache(b: Band) {
     b.cache.fill(0f); b.cachePlace = -1
 }
 
-/** The work a tool is used in (it wears when that work is done). */
-private fun usesOf(t: Tool) = when (t) {
-    Tool.SPEAR, Tool.BOW -> listOf(Skill.HUNT)
-    Tool.NET -> listOf(Skill.SMALL_GAME, Skill.FISH)
-    Tool.SICKLE, Tool.GRINDER -> listOf(Skill.GATHER)
-    Tool.BASKET -> listOf(Skill.GATHER, Skill.STONE_BOILING, Skill.LEACHING)
-    Tool.CLOTHES -> emptyList()
-}
 /** How much more slowly a tool wears lying idle than in use; how much of a craft a band learns making do without its tools. */
 const val IDLE_WEAR = 0.3f
 const val TOOLLESS = 0.2f
 
-/** The skill a tool serves, for how likely a band is to hit on it. */
-private fun useOf(t: Tool) = when (t) {
-    Tool.SPEAR, Tool.BOW -> Skill.HUNT
-    Tool.NET -> Skill.SMALL_GAME
-    Tool.SICKLE, Tool.GRINDER, Tool.BASKET -> Skill.GATHER
-    Tool.CLOTHES -> Skill.STORE
-}
 
 /** Two bands that meet show each other tools one of them does not know, the more readily the better they understand each other ([understood]). */
 internal fun HexGroups.teach(a: Band, b: Band, understood: Float, aDoesBetter: Float = 0f) {

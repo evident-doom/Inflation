@@ -472,7 +472,7 @@ class HexGroups(
      */
     internal val materialSources: Map<Material, IntArray> by lazy {
         TRADED.associateWith { m ->
-            val share = when (m) { Material.STONE -> land.stone; Material.SALT -> land.salt; else -> land.ochre }
+            val share = requireNotNull(m.deposit) { "no deposits known for traded $m" }(land)
             val best = HashMap<Long, Int>()
             for (p in 0 until n) {
                 if (share[p] < SOURCE_MIN) continue
@@ -1227,7 +1227,7 @@ class HexGroups(
     @Transient var meetNs = 0L
 
 
-    internal fun poisson(mean: Float, r: Random = rnd): Int {
+    internal fun poisson(mean: Float, r: Random): Int {
         if (mean <= 0f) return 0
         if (mean > 30f) return (mean + sqrt(mean) * gaussian(r)).toInt().coerceAtLeast(0)
         val l = exp(-mean.toDouble()); var k = 0; var pr = 1.0
@@ -1235,14 +1235,14 @@ class HexGroups(
         return k - 1
     }
 
-    internal fun binomial(n: Int, p: Float, r: Random = rnd): Int {
+    internal fun binomial(n: Int, p: Float, r: Random): Int {
         if (n <= 0 || p <= 0f) return 0
         if (p >= 1f) return n
         if (n > 50) return (n * p + sqrt(n * p * (1 - p)) * gaussian(r)).toInt().coerceIn(0, n)
         var k = 0; repeat(n) { if (r.nextFloat() < p) k++ }; return k
     }
 
-    internal fun gaussian(r: Random = rnd): Float = inflation.gaussian(r).toFloat()
+    internal fun gaussian(r: Random): Float = inflation.gaussian(r).toFloat()
 
     /** A random stream of group [id]'s own for the week starting on [day]: the same whatever the cores do. */
     internal fun groupRandom(id: Int, day: Long) = Random(seedBase * 1_000_003L + id * 7_919L + day)

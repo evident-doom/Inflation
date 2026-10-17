@@ -312,8 +312,8 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     val works = if (ob.atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
     val sg = strength(g) * surprise; val so = strength(o) * ground * works
     // Each side loses some of its people, the more so against the stronger side.
-    val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so))
-    val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so))
+    val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so), rnd)
+    val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so), rnd)
     for ((who, lost) in listOf(g to lostG, o to lostO)) if (lost > 0) {
         adultsDied(who, lost, rnd)
         // (And as many again are wounded, some to be lamed for life.)

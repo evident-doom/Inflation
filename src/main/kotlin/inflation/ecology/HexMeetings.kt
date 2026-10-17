@@ -676,7 +676,7 @@ internal fun HexGroups.meet(weather: Weather) {
         // hours, and neither slip away first. (How often they run into each other while both are there,
         // for the share of the time each is in it.)
         val p = hw.sameBandPlace(a.place, h).takeIf { it >= 0 } ?: a.place
-        val met = poisson(encounters(a, b, p, e.span * e.share))
+        val met = poisson(encounters(a, b, p, e.span * e.share), rnd)
         if (met == 0) continue
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meetings.merge("slipped away", 1, Int::plus); continue }
         if (a.species.carnivore && b.species.carnivore) {
@@ -1098,7 +1098,7 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
         // The winners take over the ground and kill the young they find there (as lions and wolves do).
         // (Prides and packs that take over ground do this; solitary hunters seldom.)
         if (loser.young > 0 && loser.species.groupSize >= 3) {
-            val killed = binomial(loser.young, INFANTICIDE)
+            val killed = binomial(loser.young, INFANTICIDE, rnd)
             loser.young -= killed
             if (killed > 0) stats.deaths.merge("${loser.species.name}:${DeathCause.YOUNG_KILLED_BY_RIVALS}", killed, Int::plus)
         }
