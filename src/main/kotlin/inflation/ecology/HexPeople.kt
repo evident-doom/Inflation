@@ -592,17 +592,17 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
         time -= built * shelterDays
         b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
     }
-    stats.hunting.merge("band time:shelter", ((b.spareDays - time) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandTime("shelter"), ((b.spareDays - time) * 10f).roundToInt(), Int::plus)
     val t0 = time
     time = keepCustoms(b, people, time)
     val t1 = time
     time = trainHolders(g, b, time)
     val t2 = time
     time = makeTools(b, people, time)
-    stats.hunting.merge("band time:customs", ((t0 - t1) * 10f).roundToInt(), Int::plus)
-    stats.hunting.merge("band time:training", ((t1 - t2) * 10f).roundToInt(), Int::plus)
-    stats.hunting.merge("band time:tools", ((t2 - time) * 10f).roundToInt(), Int::plus)
-    stats.hunting.merge("band time:left", (time * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandTime("customs"), ((t0 - t1) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandTime("training"), ((t1 - t2) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandTime("tools"), ((t2 - time) * 10f).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandTime("left"), (time * 10f).roundToInt(), Int::plus)
     b.renown *= 1f - RENOWN_FADE * years
     if (b.unluckyWeeks > 0 && --b.unluckyWeeks == 0) b.unluckyHex = -1
     b.sinceRaided++

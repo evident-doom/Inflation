@@ -167,16 +167,16 @@ internal fun HexGroups.graze(weather: Weather) {
             land.plants.browsing[p] += (browse + browse2 + browse3) * 1e6f / days
             land.plants.rooting[p] += (roots + roots2) * 1e6f / days
         val m2 = land.m2(p)
-        stats.hunting.merge("${s.name}:ate grass, kg", ((grass + grass2 + grass3) * m2).toInt(), Int::plus)
-        stats.hunting.merge("${s.name}:ate browse, kg", ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
-        stats.hunting.merge("${s.name}:ate fruit and roots, kg", ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus)
-        stats.hunting.merge("${s.name}:ate straw, kg", (straw * m2).toInt(), Int::plus)
+        stats.hunting.merge(Tally.ate(s, "grass"), ((grass + grass2 + grass3) * m2).toInt(), Int::plus)
+        stats.hunting.merge(Tally.ate(s, "browse"), ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
+        stats.hunting.merge(Tally.ate(s, "fruit and roots"), ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus)
+        stats.hunting.merge(Tally.ate(s, "straw"), (straw * m2).toInt(), Int::plus)
         }
         g.fed = (gotKg / wantKg.coerceAtLeast(1e-6f)).coerceIn(0f, 1f)
         if (eatenKg > 0f) g.protein += (fauna.proteinMet(proteinKg / eatenKg) - g.protein) * HexFauna.PROTEIN_MEMORY
         val pm = weather.date.month; g.proteinByMonth[pm] += (g.protein - g.proteinByMonth[pm]) * HexFauna.PROTEIN_MEMORY
         if (surplusKg > 0f) g.surplus = surplusKg / (wantKg / days)
-        stats.hunting.merge("${s.name}:ranged over places", range.size, Int::plus)
+        stats.hunting.merge(Tally.of(s, Tally.RANGED), range.size, Int::plus)
     }
 }
 
@@ -259,7 +259,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.second > 0 }.joinToString(", ") { "${it.second} ${it.first}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("${s.name}:$cause", k, Int::plus)
         fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
-        if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge("herd size ${sizeClass(g)}:$cause", k, Int::plus)
+        if (!s.carnivore) for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.herdSize(sizeClass(g), cause), k, Int::plus)
         // (With rounds, herds keeping one and herds keeping to their own country apart: for the rounds check.)
         if (ROUNDS && !s.carnivore && g.route[0] != ROUND_OPEN) {
             val way = if (g.route[0] >= 0) "on round" else "own country"
@@ -268,20 +268,20 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         if (s.human) {
             val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands in $c:died of $cause", k, Int::plus)
-            if (o.births > 0) stats.hunting.merge("bands in $c:born", o.births, Int::plus)
+            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsIn(c, Tally.diedOf(cause)), k, Int::plus)
+            if (o.births > 0) stats.hunting.merge(Tally.bandsIn(c, "born"), o.births, Int::plus)
             // And by how well clad the band was: what clothes are worth in lives.
             g.band?.let { b ->
-                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) "clad" else "poorly clad"
-                stats.hunting.merge("bands $clad:people-weeks", g.size, Int::plus)
-                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge("bands $clad:died of $cause", k, Int::plus)
+                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) Tally.CLAD else Tally.POORLY_CLAD
+                stats.hunting.merge(Tally.bandsClad(clad, "people-weeks"), g.size, Int::plus)
+                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsClad(clad, Tally.diedOf(cause)), k, Int::plus)
             }
             // And, in the weeks it was cold through all the cover the band had, what each cover gave.
             val b = g.band
             if (b != null) {
                 val t = weather.temperature[g.place]
                 if (b.exposure(t) > 0f) {
-                    fun add(k: String, v: Float) = stats.hunting.merge("bands in $c:cold $k", (10f * v).roundToInt(), Int::plus)
+                    fun add(k: String, v: Float) = stats.hunting.merge(Tally.bandsIn(c, "cold $k"), (10f * v).roundToInt(), Int::plus)
                     add("weeks", 1f); add("short", b.exposure(t)); add("air", EXPOSURE_C - t)
                     add("clothes", PROTECT_CLOTHES * b.has(Tool.CLOTHES) * b.clothesFit()); add("fire", PROTECT_FIRE * b.fire)
                     add("shelter", max(PROTECT_SHELTER * b.shelter, if (b.atHome) PROTECT_HOUSE * b.house else 0f))
