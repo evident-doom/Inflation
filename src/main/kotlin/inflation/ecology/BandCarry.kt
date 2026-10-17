@@ -24,7 +24,7 @@ enum class OnJoin {
     ANY,
     /** Added together. */
     SUM,
-    /** Blended by the two bands' adults (kit's make by its amount, salting by the dried food). */
+    /** Blended by the two bands' adults (kit's make by its amount, salting by the dried food, grain's by the seed, tameness by the animals). */
     BLENDED,
     /** The joining band's is lost; the band keeps its own. */
     LOST,
@@ -42,7 +42,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.DRAWN, OnJoin.SUM, "holders")
     rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "weeks", "traditions", "words", "rite", "riteStrength", "knownHomes", "knownLineage")
     // Health.
-    rule(OnSplit.COPIED, OnJoin.LOST, "sick", "immune", "hurt", "lame")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "sick", "immune", "hurt", "lame")
     rule(OnSplit.FRESH, OnJoin.LOST, "cleaned", "nursed", "beastLoss")
     // People.
     rule(OnSplit.SET, OnJoin.SUM, "lastAdults")
@@ -50,14 +50,14 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "lineage", "inbred")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "campHex", "campPlace", "appointHex", "appointMonth", "houseHex", "house", "palisade", "fire")
-    rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cachePlace", "raidHex", "raidOn", "raidWeeks", "sinceRaided", "unluckyHex", "unluckyWeeks",
+    rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cachePlace", "raidHex", "raidOn", "raidWeeks", "unluckyHex", "unluckyWeeks",
         "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dogShare")
     // Ties.
     rule(OnSplit.COPIED, OnJoin.MAX, "ties")
     // Wealth and animals.
-    rule(OnSplit.SHARED, OnJoin.LOST, "ornaments", "exotic")
-    rule(OnSplit.FRESH, OnJoin.LOST, "herd", "seedDomestic")
-    rule(OnSplit.COPIED, OnJoin.LOST, "herdTame")
+    rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "herd")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "herdTame", "seedDomestic")
+    rule(OnSplit.COPIED, OnJoin.LOST, "sinceRaided")
     // Its ways' choices.
     rule(OnSplit.CHOSEN, OnJoin.CHOSEN, "storeAim", "sowWill", "gatherRange", "childWatch", "nightFire", "shunSick", "explore", "raidWill",
         "fortifyWill", "giveWill", "robWill", "cacheWill", "dryWill", "keepWill", "shelterWill", "feastWill", "appointWill", "burnWill",
