@@ -581,6 +581,7 @@ class Band {
  */
 internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val b = g.band ?: return
+    b.weeks++
     learnCountry(g, b, weather)
     val p = g.place
     val h = hw.placeHex[p]
@@ -1368,14 +1369,15 @@ internal fun HexGroups.robCaches(weather: Weather) {
 /**
  * A band driven by hunger or a feud, knowing where a band it is not close to has its home within
  * reach, sets out to fall on it there: settled bands can be found. Once there, if the others are at
- * home, it attacks (see [fight]); otherwise it gives up.
+ * home, it attacks (see [fight], fought in [fightRaids] once every band has had its week); otherwise
+ * it gives up.
  */
 internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val here = hw.placeHex[g.place]
     if (b.raidHex >= 0) {
         if (here == b.raidHex) {
             val target = groups.firstOrNull { it.id == b.raidOn && it.alive && hw.placeHex[it.place] == here }
-            if (target != null) target.band?.let { tb -> fight(g, b, target, tb, planned = true, weather) }
+            if (target?.band != null) raidsDue += g to target
             b.raidHex = -1; b.raidOn = -1
         } else if (--b.raidWeeks <= 0) { b.raidHex = -1; b.raidOn = -1 }
         return
@@ -1394,6 +1396,15 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         stats.meetings.merge("raids set out", 1, Int::plus)
         note(g) { "set out to raid band #%d at hex %d".format(best, b.raidHex) }
     }
+}
+
+/** The raids set for this week ([plotRaid]), in the bands' order, each if both bands are still alive and the target still there. */
+internal fun HexGroups.fightRaids(weather: Weather) {
+    for ((g, target) in raidsDue) {
+        val b = g.band ?: continue; val tb = target.band ?: continue
+        if (g.alive && target.alive && hw.placeHex[target.place] == hw.placeHex[g.place]) fight(g, b, target, tb, planned = true, weather)
+    }
+    raidsDue.clear()
 }
 
 /**
@@ -1632,7 +1643,6 @@ val KNOW_AT_HOME = PLANT_FLOOR + (1f - PLANT_FLOOR) * 0.9f
 internal fun HexGroups.trainHolders(g: HexGroup, b: Band, spare: Float): Float {
     var time = spare
     val adults = g.adults.toFloat()
-    b.weeks++
     if (b.holders[0] < 0f) for (s in Skill.entries) {
         b.holders[s.ordinal] = if (b.knowsSkill[s.ordinal]) adults * s.share else 0f
         b.lastUsed[s.ordinal] = b.weeks

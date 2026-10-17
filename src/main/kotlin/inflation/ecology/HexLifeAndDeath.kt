@@ -217,6 +217,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             cultureWeek(g)
             riteWeek(g, weather)
         }
+        fightRaids(weather)
     }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
     for (g in groups) {
