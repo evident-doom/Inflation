@@ -39,7 +39,9 @@ internal fun HexGroups.toHerds(s: Species, month: Int, log: (String) -> Unit) {
     val heads = FloatArray(n) { p -> (a[p] + y[p]) * land.areaKm2[p] }
     var adults = 0.0; var total = 0.0
     for (p in 0 until n) { adults += a[p] * land.areaKm2[p]; total += heads[p] }
-    val herd = s.maxGroupSize * HERD_UNIT
+    // (Hunters in packs of their kind's usual size, a pair at least so that they can breed, each on ground of its own
+    // where it starts, as packs start a run.)
+    val herd = if (s.carnivore) kotlin.math.max(2, unitSize(s)) * 4 / 3 else s.maxGroupSize * HERD_UNIT
     val count = (total / herd).roundToInt()
     val weightSum = heads.sum()
     val made = ArrayList<HexGroup>()
@@ -50,14 +52,14 @@ internal fun HexGroups.toHerds(s: Species, month: Int, log: (String) -> Unit) {
         g.young = herd - ad
         g.fat = fauna.reserve[k][p]; g.fed = fauna.fed[k][p]; g.protein = fauna.protein[k][p]
         g.birthMonth = fauna.birthStart[k][p].toInt()
-        inheritSeasons(g)
+        if (s.pack) claimGround(g, Hex(hw.placeHex[p])) else inheritSeasons(g)
         made += g
     }
     groups += made
     a.fill(0f); y.fill(0f)
     // Its rounds, as the other herds' were first grown: from how good each place is for it each month, here
     // reckoned once from the land as it is now (the others' from a year of notes).
-    if (ROUNDS) {
+    if (ROUNDS && !s.carnivore) {
         val notes = seasonNotes.getOrPut(s.index) { arrayOfNulls(12) }
         for (m in 0 until 12) notes[m] = FloatArray(n) { p -> herdQuality(s, p, m) }
         growRoundsFor(s, month)
@@ -66,7 +68,18 @@ internal fun HexGroups.toHerds(s: Species, month: Int, log: (String) -> Unit) {
         if (ROUNDS) ", %d of them on a round".format(made.count { it.route[0] >= 0 }) else "")
 }
 
-/** Herd kind [s] spread as residents over the ground its herds range over. */
+/**
+ * Where pack [g] ranges, as [into] (hex, share): over its ground, its home hex (or where it is, without one) and the six
+ * round it where its kind's home range reaches beyond one hex, by their area.
+ */
+private fun HexGroups.territoryShares(g: HexGroup, h: Int, into: (Int, Float) -> Unit) {
+    val h0 = if (g.home.none) h else g.home.i
+    val wide = territoryKm(g.species) > 0.6f * hex.hexKm
+    val hexes = (-1 until (if (wide) 6 else 0)).map { d -> if (d < 0) h0 else hex.neighbour(h0, d) }.filter { it >= 0 && hex.heart[it] >= 0 }
+    for (q in hexes) into(q, 1f / hexes.size)
+}
+
+/** Group kind [s] spread as residents over the ground its herds graze or its packs range over. */
 internal fun HexGroups.toResidents(s: Species, log: (String) -> Unit) {
     val k = fauna.kinds.indexOf(s)
     val a = fauna.adults[k]; val y = fauna.young[k]
@@ -77,7 +90,7 @@ internal fun HexGroups.toResidents(s: Species, log: (String) -> Unit) {
     for (g in groups) {
         if (!g.alive || g.species != s) continue
         heads += g.size; herds++
-        rangeShares(g, hw.placeHex[g.place]) { h, share ->
+        (if (s.carnivore) ::territoryShares else ::rangeShares)(g, hw.placeHex[g.place]) { h, share ->
             val p = (hw.sameBandPlace(g.place, h).takeIf { !it.none } ?: g.place).i
             a[p] += g.adults * share / land.areaKm2[p]; y[p] += g.young * share / land.areaKm2[p]
             val m = (g.size * share).toDouble()

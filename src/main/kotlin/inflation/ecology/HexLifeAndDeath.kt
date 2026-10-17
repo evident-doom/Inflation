@@ -413,9 +413,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
             val rate = s.youngPerFemale * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * tuning.humanBirths else 1f) *
                 (1f + GRANDMOTHERS * help) / stepsInSeason
-            bornExpected = mothers * min(1f, rate)
             // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
-            binomial(mothers, rate * (if (s.carnivore) 1f else g.protein * herdRanges(g, kinNow)), r)
+            val each = rate * (if (s.carnivore) 1f else g.protein * herdRanges(g, kinNow))
+            bornExpected = mothers * rate
+            // (A big litter over a short season is more than one a mother a week: the whole ones, and the rest by chance.)
+            val whole = each.toInt()
+            mothers * whole + binomial(mothers, each - whole, r)
         }
         g.young += births
         bornNow = births
@@ -605,28 +608,35 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
     val usual = HexFauna.usualDensity(s)
     // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
     val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / hex.areaKm2.toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
-    val crowdNow = if (s.human) peopleCrowding(g) else crowd
+    // (Hunters by their kind's numbers over the ground they range over, as residents by theirs in their place.)
+    val packs = if (s.carnivore && !s.human) packCrowding(g, kinNow, usual) else 0f
+    val crowdNow = if (s.human) peopleCrowding(g) else if (s.carnivore) packs else crowd
     if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years)
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
     return if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
-        else if (s.carnivore) {
-            // Hunters catch mange, distemper and rabies from other packs of their kind crowding the same ground.
-            // (Counted, as for residents, over the ground it ranges over: its hex, and the six round it
-            // where its kind's home range reaches beyond one hex.)
-            val h0 = hw.placeHex[g.place]
-            var heads = -g.size; var hexes = 0
-            val wide = territoryKm(s) > 0.6f * hex.hexKm
-            for (k in -1 until (if (wide) 6 else 0)) {
-                val q = if (k < 0) h0 else hex.neighbour(h0, k)
-                if (q >= 0) {
-                    heads += kinNow[s.index.toLong() * hex.size + q] ?: 0
-                    hexes++
-                }
-            }
-            val others = max(0, heads) / (hexes * hex.areaKm2.toFloat()) / (HexFauna.CROWDED * usual)
-            HexFauna.DISEASE * others * others * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
-        }
+        // Hunters catch mange, distemper and rabies where their kind crowds the ground.
+        else if (s.carnivore) HexFauna.DISEASE * packs * packs * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         else HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+}
+
+/**
+ * How crowded [g]'s kind is about it, against its usual density ([HexFauna.CROWDED] times [usual] is 1): its kind's
+ * numbers, its own included, over the ground it ranges over (its hex, and the six round it where its kind's home range
+ * reaches beyond one hex), as a resident kind's over its place.
+ */
+private fun HexGroups.packCrowding(g: HexGroup, kinNow: HashMap<Long, Int>, usual: Float): Float {
+    val s = g.species
+    val h0 = hw.placeHex[g.place]
+    var heads = 0; var hexes = 0
+    val wide = territoryKm(s) > 0.6f * hex.hexKm
+    for (k in -1 until (if (wide) 6 else 0)) {
+        val q = if (k < 0) h0 else hex.neighbour(h0, k)
+        if (q >= 0) {
+            heads += kinNow[s.index.toLong() * hex.size + q] ?: 0
+            hexes++
+        }
+    }
+    return heads / (hexes * hex.areaKm2.toFloat()) / (HexFauna.CROWDED * usual)
 }
 
 /** One of the week's hazards: its [cause] and the odds it adds that a grown one ([adult]) or a young one ([young]) dies. */

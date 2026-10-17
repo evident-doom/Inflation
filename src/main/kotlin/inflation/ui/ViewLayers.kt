@@ -35,7 +35,7 @@ internal class ViewLayers(private val sim: HexSim) {
         RESIDENTS("Resident herds (all)", "head/km²", 1f, 0.1f, 0.6f),
         DEATHS("Where animals die", "kg/km² a week", 0.6f, 0f, 0f), PEOPLE_DEATHS("Where people die", "deaths per 1000 km² a week", 0.6f, 0f, 0.3f),
         KILLS("Kills by packs and people", "kg/km² a week", 0.85f, 0.05f, 0.05f),
-        HUNTERS_PER_PREY("Hunters per prey", "kg hunters per 100 kg prey", 0.9f, 0.2f, 0.1f),
+        HUNTERS_PER_PREY("Hunters per prey", "kg hunters per 100 kg big game (blank under 1 kg/km² of game)", 0.9f, 0.2f, 0.1f),
         HUNGRY_BY_PLENTY("Hungry next to plenty", "hunger x forage left within 2 hexes", 1f, 0.2f, 0.8f),
         CARRION_WEEKS("Weeks to clear: carrion", "weeks", 0.4f, 0.1f, 0.4f), LITTER_WEEKS("Weeks to clear: litter", "weeks", 0.45f, 0.3f, 0.1f),
         BONES_WEEKS("Weeks to clear: bones", "weeks", 0.8f, 0.8f, 0.7f), ORGANIC_WEEKS("Weeks to clear: soil organic matter", "weeks", 0.35f, 0.2f, 0.05f);
@@ -64,6 +64,8 @@ internal class ViewLayers(private val sim: HexSim) {
     /** The same month a year before the last one kept (index: month), per hex; null until two of it have been seen. */
     private val yearBefore = HashMap<String, Array<FloatArray?>>()
     private val sums = HashMap<String, DoubleArray>()
+    /** Weeks this month each hex had a value of each measure (a measure can be blank some weeks, see [MIN_GAME_KG_KM2]). */
+    private val counts = HashMap<String, IntArray>()
     private var weeksInMonth = 0
     private var month = -1
     /** The month last completed, -1 before any. */
@@ -78,7 +80,7 @@ internal class ViewLayers(private val sim: HexSim) {
 
     /** Forgets the record (after a load, which moves the date). */
     fun reset() {
-        months.clear(); yearBefore.clear(); sums.clear(); weeksInMonth = 0; month = -1; lastMonth = -1
+        months.clear(); yearBefore.clear(); sums.clear(); counts.clear(); weeksInMonth = 0; month = -1; lastMonth = -1
         for (a in deaths) for (b in a) b.fill(0f)
         killsKg.fill(0f); for (a in gone) a.fill(0f); fearBefore = null; weeksSeen = 0
         record.clear()
@@ -146,6 +148,7 @@ internal class ViewLayers(private val sim: HexSim) {
         now[Measure.KILLS.name] = FloatArray(nh) { if (area[it] > 0) killsKg[it] else Float.NaN }
 
         // Hunters per prey: kg of hunting animals (packs and hunting residents; not people) against kg of game, over a hex and its ring.
+        // Where there is next to no big game the ratio is two near-zero numbers (jackals living on rodents), so it is left blank.
         val hunterKg = DoubleArray(nh); val preyKg = DoubleArray(nh)
         for ((k, s) in fauna.kinds.withIndex()) for (p in 0 until n) {
             val kg = (fauna.adults[k][p] + 0.3f * fauna.young[k][p]) * land.areaKm2[p] * s.massKg
@@ -158,9 +161,9 @@ internal class ViewLayers(private val sim: HexSim) {
         }
         now[Measure.HUNTERS_PER_PREY.name] = FloatArray(nh) { h ->
             if (area[h] <= 0) return@FloatArray Float.NaN
-            var hu = hunterKg[h]; var pr = preyKg[h]
-            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0) { hu += hunterKg[q]; pr += preyKg[q] } }
-            if (pr <= 0.0) (if (hu > 0.0) 100f else 0f) else min(100.0, 100.0 * hu / pr).toFloat()
+            var hu = hunterKg[h]; var pr = preyKg[h]; var km2 = area[h]
+            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0) { hu += hunterKg[q]; pr += preyKg[q]; km2 += area[q] } }
+            if (pr < MIN_GAME_KG_KM2 * km2) Float.NaN else min(100.0, 100.0 * hu / pr).toFloat()
         }
 
         // Hungry next to plenty: how far short of their wants the plant-eaters are here, times the most grass and browse left uneaten within two hexes.
@@ -208,8 +211,8 @@ internal class ViewLayers(private val sim: HexSim) {
         month = m
         for (k in keys) {
             val v = now[k] ?: continue
-            val s = sums.getOrPut(k) { DoubleArray(nh) }
-            for (h in 0 until nh) if (!v[h].isNaN()) s[h] += v[h].toDouble()
+            val s = sums.getOrPut(k) { DoubleArray(nh) }; val c = counts.getOrPut(k) { IntArray(nh) }
+            for (h in 0 until nh) if (!v[h].isNaN()) { s[h] += v[h].toDouble(); c[h]++ }
         }
         weeksInMonth++
     }
@@ -231,11 +234,12 @@ internal class ViewLayers(private val sim: HexSim) {
     private fun closeMonth() {
         if (weeksInMonth == 0) return
         for ((k, s) in sums) {
-            val mean = FloatArray(nh) { (s[it] / weeksInMonth).toFloat() }
+            val c = counts.getValue(k)
+            val mean = FloatArray(nh) { if (c[it] > 0) (s[it] / c[it]).toFloat() else Float.NaN }
             val slots = months.getOrPut(k) { arrayOfNulls(12) }
             slots[month]?.let { yearBefore.getOrPut(k) { arrayOfNulls(12) }[month] = it }
             slots[month] = mean
-            s.fill(0.0)
+            s.fill(0.0); c.fill(0)
         }
         // A hex with no land stays NaN.
         val land = now[Measure.TEMPERATURE.name]
@@ -296,5 +300,7 @@ internal class ViewLayers(private val sim: HexSim) {
         const val KEEP = 0.75f
         /** Weeks to clear are shown up to ten years. */
         const val MAX_WEEKS = 520f
+        /** Hunters per prey is shown only where the hex and its ring hold at least this much big game, kg/km². */
+        const val MIN_GAME_KG_KM2 = 1.0
     }
 }
