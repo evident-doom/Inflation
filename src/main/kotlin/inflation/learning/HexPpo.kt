@@ -320,7 +320,9 @@ object HexPpo {
      * are judged in the next round instead of being dropped. Choices keep the probability they were
      * made with, so being a round old does not mislead the clipped update.
      */
-    class Player(val cfg: WorldConfig, private val kinds: List<Species>, private val lifeSteps: Int, private val burnSteps: Int = 0, private val sampling: Sampling = Sampling()) {
+    class Player(val cfg: WorldConfig, private val kinds: List<Species>, private val lifeSteps: Int, private val burnSteps: Int = 0, private val sampling: Sampling = Sampling(),
+                 /** Where each year's census of the world goes (its kinds' numbers), settling years included. */
+                 private val census: (String) -> Unit = {}) {
         private val run = HexLearning.Run(cfg, kinds).also {
             // (Kinds that dwindle get newcomers, so every kind stays in the data; checks run without them.)
             it.groups.newcomersOn = true; it.fauna.newcomersOn = true
@@ -340,10 +342,9 @@ object HexPpo {
         /** Whether it has lived its time (if it has one), or gone badly off the rails: then a fresh world takes its place. */
         val done get() = (lifeSteps > 0 && week >= lifeSteps) || derailed != null
         /**
-         * Why it has gone off the rails, if it has (else null): no bands left, herds or hunters down
-         * to a tenth of their numbers at the start, herds, hunters or people grown tenfold, or half the
-         * kinds gone. Short of that it lives
-         * on, whatever befalls it: the networks are to learn in worlds that have run long.
+         * Why it has gone off the rails, if it has (else null): no bands left, herds, hunters or people
+         * grown tenfold, or half the kinds gone. Short of that it lives on, whatever befalls it, swings
+         * included: the networks are to learn in worlds that have run long.
          */
         var derailed: String? = null; private set
         private val startNumbers = HashMap<Int, Int>()
@@ -354,7 +355,6 @@ object HexPpo {
             val gone = kinds.count { s -> run.groups.groups.none { it.alive && it.species == s } }
             derailed = when {
                 (startNumbers[2] ?: 0) > 0 && (now[2] ?: 0) == 0 -> "no bands left"
-                (0..1).any { r -> (now[r] ?: 0) < 0.1 * (startNumbers[r] ?: 0) } -> "herds or hunters down to a tenth"
                 (0..2).any { r -> (now[r] ?: 0) > 10.0 * (startNumbers[r] ?: Int.MAX_VALUE / 20) } -> "a role grown tenfold"
                 gone * 2 > kinds.size -> "$gone of ${kinds.size} kinds gone"
                 else -> null
@@ -380,7 +380,10 @@ object HexPpo {
             repeat(if (lifeSteps > 0) min(total, lifeSteps - week) else total) {
                 run.step()
                 week++
-                if (week % stepsPerYear == 0) setRates()
+                if (week % stepsPerYear == 0) {
+                    setRates()
+                    census("year %d%s: %s".format(week / stepsPerYear, if (week <= burnSteps) " (settling)" else "", kinds.joinToString(", ") { s -> "${s.name} ${run.groups.count(s)}" }))
+                }
                 outcomes.record(week, run.groups.groups, run.groups.merged)
             }
             val out = ArrayList<Choice>()
