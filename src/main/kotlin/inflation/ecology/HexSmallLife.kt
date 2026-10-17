@@ -1034,7 +1034,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         /** Ground a pair hunts over where the eagles are at full strength, km². */
         const val EAGLE_KM2 = 100.0
         const val EAGLE_RATE = 0.15f
-        /** Share of what small plant-eaters eat that comes back as frass and droppings; share of migrant birds that come back. */
+        /** Share of what small plant-eaters eat that comes back as frass and droppings. */
         const val FRASS = 0.5f
         /**
          * Reptiles and amphibians: what they eat a day out, as a share of their weight (cold-blooded,

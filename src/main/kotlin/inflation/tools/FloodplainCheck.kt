@@ -4,7 +4,6 @@ import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexMap
 import inflation.world.HexWorld
-import inflation.world.RiverClass
 import inflation.world.Weather
 import inflation.world.World
 import inflation.world.WorldConfig

@@ -8,7 +8,6 @@ import inflation.ecology.WAYS_OUT
 import inflation.learning.HexLearning
 import inflation.learning.HexPpo
 import inflation.world.WorldConfig
-import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.sqrt
 import kotlin.random.Random

@@ -47,7 +47,7 @@ fun main(args: Array<String>) {
     val kinds = history.series.keys.filter { it.startsWith("animals/") }.map { it.removePrefix("animals/") }
     for (kind in kinds) {
         val whole = mean("animals/$kind")
-        if (whole <= 0.5) continue // died out: starts as before
+        if (whole <= 0.5) continue // died out: no line, so it starts from its default seeding
         lines += "${kind.replace(" ", "\\ ")}=%.4f".format(whole / total * 1000)
         for (b in Biome.entries) {
             if (area[b.ordinal] <= 0.0) continue

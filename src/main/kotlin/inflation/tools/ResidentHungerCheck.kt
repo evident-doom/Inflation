@@ -31,8 +31,8 @@ fun main(args: Array<String>) {
     val fauna = sim.fauna; val land = sim.land; val n = land.n
     val stepsY = Date.DAYS_PER_YEAR / cfg.daysPerStep
     for (name in kinds) {
-        val ki = fauna.kinds.indexOfFirst { it.name == name }
-        if (ki < 0) { println("$name is not a resident kind"); continue }
+        val kind = fauna.kinds.indexOfFirst { it.name == name }
+        if (kind < 0) { println("$name is not a resident kind"); continue }
     }
     val ks = kinds.mapNotNull { name -> fauna.kinds.indexOfFirst { it.name == name }.takeIf { it >= 0 } }
     // By month: heads, fed (heads-weighted), heads and hunger deaths with tether < 0.2, green < 0.2, and at the edge (under 1% of the kind's usual density).

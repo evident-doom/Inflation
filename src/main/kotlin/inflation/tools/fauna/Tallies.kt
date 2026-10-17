@@ -12,7 +12,6 @@ import inflation.ecology.Tool
 import inflation.ecology.Tradition
 import inflation.ecology.boldness
 import java.util.TreeMap
-import inflation.ecology.HexGroups
 
 /** Deaths and births by "kind:cause" over the run, from the model's weekly ledgers; and herds' head-weeks by size. */
 class DeathTally(private val sim: HexSim) {

@@ -294,8 +294,8 @@ class GroupControlWindow(
         // The candidates, best by the model first.
         updating = true
         if (d != null && d.group.id == g.id) {
-            val sc = d.netScores ?: d.handScores
-            order = d.places.indices.sortedByDescending { sc[it] }.toIntArray()
+            val scores = d.netScores ?: d.handScores
+            order = d.places.indices.sortedByDescending { scores[it] }.toIntArray()
             tableModel.fireTableDataChanged()
             val r = order.indexOf(pick); if (r >= 0) { table.setRowSelectionInterval(r, r); table.scrollRectToVisible(table.getCellRect(r, 0, true)) }
             place.text = placeText(d, pick)
@@ -476,8 +476,8 @@ class GroupControlWindow(
                     // A hex may hold places at several heights: clicking again goes to the next.
                     val here = d.places.indices.filter { hw.placeHex[d.places[it]] == h }
                     if (here.isEmpty()) return
-                    val sc = d.netScores ?: d.handScores
-                    val sorted = here.sortedByDescending { sc[it] }
+                    val scores = d.netScores ?: d.handScores
+                    val sorted = here.sortedByDescending { scores[it] }
                     val at = sorted.indexOf(pick)
                     choose(if (at >= 0) sorted[(at + 1) % sorted.size] else sorted[0])
                 }
@@ -529,12 +529,12 @@ class GroupControlWindow(
             }
             // The places it can reach, coloured by how the model scores them (the best green, the worst red).
             if (d != null) {
-                val sc = d.netScores ?: d.handScores
+                val scores = d.netScores ?: d.handScores
                 val best = HashMap<Int, Int>()
-                for (i in d.places.indices) { val h = hw.placeHex[d.places[i]]; val o = best[h]; if (o == null || sc[i] > sc[o]) best[h] = i }
-                val sorted = sc.sortedArray(); val n = sorted.size
+                for (i in d.places.indices) { val h = hw.placeHex[d.places[i]]; val o = best[h]; if (o == null || scores[i] > scores[o]) best[h] = i }
+                val sorted = scores.sortedArray(); val n = sorted.size
                 for ((h, i) in best) {
-                    val rank = (sorted.binarySearch(sc[i]).let { if (it < 0) -it - 1 else it }).toFloat() / max(1, n - 1)
+                    val rank = (sorted.binarySearch(scores[i]).let { if (it < 0) -it - 1 else it }).toFloat() / max(1, n - 1)
                     val (xs, ys) = outline(h)
                     g.color = Color((1f - rank).coerceIn(0f, 1f), rank.coerceIn(0f, 1f), 0.15f, 0.38f); g.fillPolygon(xs, ys, 6)
                     g.color = Color(1f, 1f, 1f, 0.35f); g.drawPolygon(xs, ys, 6)
@@ -564,8 +564,8 @@ class GroupControlWindow(
                     g.color = pink
                     g.drawString((if (d.onRound) "its round" else "its season's place") + ", %.0f km".format(hex.distanceKm(centre, gh)), lx, ly)
                 }
-                groups.kindIndex[grp.species]?.let { ki ->
-                    val e = groups.bearings.east[ki][centre]; val so = groups.bearings.south[ki][centre]
+                groups.kindIndex[grp.species]?.let { kind ->
+                    val e = groups.bearings.east[kind][centre]; val so = groups.bearings.south[kind][centre]
                     val st = hypot(e, so)
                     if (st > 0.02f) {
                         val len = (st.coerceAtMost(1f) * 2.5 * hex.hexKm * kmPx)

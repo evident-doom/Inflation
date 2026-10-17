@@ -12,10 +12,6 @@ import inflation.world.World
 import inflation.world.WorldConfig
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.ln
-import kotlin.math.sqrt
 import kotlin.random.Random
 import inflation.ecology.AnimalWay
 import inflation.ecology.AnimalWays
