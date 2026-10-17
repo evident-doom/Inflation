@@ -722,7 +722,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f
-            if (a.home < 0) a.home = b.home
+            if (a.home < 0) claimGround(a, b.home)
             b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
         }
