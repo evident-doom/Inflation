@@ -457,6 +457,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             rivers.draw(g, ox, oy, kmPx, width, height)
             fun sx(km: Float) = (ox + km * kmPx).toInt()
             fun sy(km: Float) = (oy + km * kmPx).toInt()
+            // Hexes whose centre lies more than [hexes] hexes off the screen are skipped: at a close zoom most of the map is.
+            fun onScreen(h: Int, hexes: Int = 1): Boolean {
+                val (cx, cy) = hex.centreKm(h)
+                val margin = hexes * hex.hexKm * kmPx
+                val x = ox + cx * kmPx; val y = oy + cy * kmPx
+                return x > -margin && y > -margin && x < width + margin && y < height + margin
+            }
             // The chosen measure as a tint over the hexes (see [ViewLayers]), shown as the mode says.
             val tint = Measure.entries[tintChoice.selectedIndex]
             if (tint != Measure.NONE) {
@@ -468,6 +475,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 if (legendText.text != legend) SwingUtilities.invokeLater { legendText.text = legend }
                 for (h in 0 until hex.size) {
                     val colour = colours[h] ?: continue
+                    if (!onScreen(h)) continue
                     val (cx, cy) = hex.centreKm(h)
                     val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                     val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
@@ -479,7 +487,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 val every = max(1, (2.0 / scale).toInt())
                 for (h in 0 until hex.size) {
                     val col = h % hex.cols; val row = h / hex.cols
-                    if (col % every != 0 || row % every != 0) continue
+                    if (col % every != 0 || row % every != 0 || !onScreen(h, every + 1)) continue
                     val p = windPlace(h).takeIf { it >= 0 } ?: continue
                     val u = weather.windEast(p); val v = weather.windSouth(p)
                     val speed = hypot(u, v)
@@ -501,7 +509,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 val every = max(1, (2.0 / scale).toInt())
                 for (h in 0 until hex.size) {
                     val col = h % hex.cols; val row = h / hex.cols
-                    if (col % every != 0 || row % every != 0 || hex.heart[h] < 0) continue
+                    if (col % every != 0 || row % every != 0 || hex.heart[h] < 0 || !onScreen(h, every + 1)) continue
                     val u = b.east[k][h]; val v = b.south[k][h]
                     val st = hypot(u, v)
                     if (st < 0.02f) continue
@@ -537,7 +545,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 val top = (if (values.isEmpty()) 0.0 else values[(values.size * 0.95).toInt().coerceAtMost(values.size - 1)]).coerceAtLeast(1e-6)
                 for (h in 0 until hex.size) {
                     if (area[h] <= 0) continue
-                    if (dens[h] <= 0) continue
+                    if (dens[h] <= 0 || !onScreen(h)) continue
                     val v = sqrt(dens[h] / area[h] / top).toFloat().coerceIn(0.15f, 1f)
                     val (cx, cy) = hex.centreKm(h)
                     val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
@@ -549,6 +557,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             if (pathsBox.isSelected) {
                 val stroke = g.stroke
                 for (h in 0 until hex.size) for (d in 0 until 3) {
+                    if (!onScreen(h, 2)) break
                     val nh = hex.neighbour(h, d); if (nh < 0) continue
                     val back = (0 until 6).firstOrNull { hex.neighbour(nh, it) == h } ?: continue
                     val s = max(groups.wear.paths[h * 6 + d], groups.wear.paths[nh * 6 + back])
