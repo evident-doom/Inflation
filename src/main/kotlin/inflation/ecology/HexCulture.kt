@@ -301,7 +301,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     ob.sinceRaided = 0
     // The mobile slip away (and lose some of their stores).
     if (!ob.atHome && rnd.nextFloat() < FLEE) {
-        val t = 0.3f * RAID_TAKE * o.larder; o.larder -= t; g.larder += t
+        val t = 0.3f * RAID_TAKE * o.larder; moveFood(o, g, t)
         stats.meetings.merge("raided bands slipped away", 1, Int::plus)
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
@@ -325,7 +325,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         small.carrion[who.place] += land.spread(who.place, Kg(lost * who.species.massKg)).v
     }
     // The stronger side carries off food; the raided remember.
-    if (sg > so) { val t = RAID_TAKE * o.larder; o.larder -= t; g.larder += t; stats.meetings.merge("larders raided", 1, Int::plus) }
+    if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t); stats.meetings.merge("larders raided", 1, Int::plus) }
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
@@ -419,10 +419,10 @@ internal fun HexGroups.visitKin(weather: Weather) {
         val need = (1f - g.fed) * week + week
         val gift = given(o, g, min(share * o.larder, need), need)
         if (gift <= 0f) continue
-        o.larder -= gift
         val eat = min(gift, (1f - g.fed) * week)
-        g.fed += eat / week; g.larder += gift - eat
-        land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -eat.toDouble())
+        g.fed += eat / week
+        val ateKg = if (CONSERVE_STORES) { moveFood(o, g, gift); eatStores(g, eat) } else { o.larder -= gift; g.larder += gift - eat; eat }
+        land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -ateKg.toDouble())
         // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
         g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
         helped(o, g, gift)

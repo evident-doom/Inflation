@@ -360,7 +360,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.
     val share = (adults + young).toFloat() / (g.size + adults + young).coerceAtLeast(1)
-    n.larder = g.larder * share; g.larder -= n.larder
+    if (CONSERVE_STORES) moveFood(g, n, g.larder * share) else { n.larder = g.larder * share; g.larder -= n.larder }
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
     g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) } } }
@@ -777,7 +777,7 @@ private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
-    for (i in Store.entries) into.stores[i] += from.stores[i]
+    for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
     // (Its cache is left: no one goes back for it.)
     dropCache(from.band!!)

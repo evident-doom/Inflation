@@ -179,6 +179,8 @@ class Band(kinds: Int) {
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()
     val cacheKg get() = cache.sum()
+    /** The kg each kind in the cache weighs for each kg of its worth (see [addFood]). */
+    val cacheKgPer = enumFloats<Store> { 1f }
     var cachePlace = Place.NONE
     /** Its choices: days of food it aims to keep in store (the scaffold's; a learned policy sets its own). */
     var storeAim = STORE_AIM_DAYS
@@ -745,8 +747,8 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
                 for (i in Store.entries) {
                     val x = g.stores[i] * left
                     g.stores[i] -= x
-                    if (cached > 0f) b.cache[i] = x * cached
-                    abandoned += x * (1f - cached)
+                    if (cached > 0f) { b.cache[i] = x * cached; b.cacheKgPer[i] = g.storeKgPer[i] }
+                    abandoned += x * (1f - cached) * g.storeKgPer[i]
                 }
                 if (cached > 0f) b.cachePlace = b.campPlace
                 if (abandoned > 0f) small.litter[b.campPlace] += land.spread(b.campPlace, Kg(abandoned)).v
@@ -770,20 +772,20 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
                 for (i in Store.entries) {
                     val x = b.cache[i] * dug
                     b.cache[i] -= x
-                    lost += x
+                    lost += x * b.cacheKgPer[i]
                 }
                 // (What they dig up and scatter is food for them and the scavengers after them.)
                 small.carrion[cp] += land.spread(cp, Kg(lost)).v
             }
         }
-        val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]]) + CACHE_SPOIL * b.cacheKg
+        val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]], kgPer = b.cacheKgPer) + CACHE_SPOIL * b.cacheMass()
         for (i in Store.entries) b.cache[i] *= 1f - CACHE_SPOIL
         small.litter[b.cachePlace] += land.spread(b.cachePlace, Kg(spoilt)).v
         if (hw.hexOf(b.cachePlace) == h) {
             val room = max(0f, carryKg(g, b) - g.larder)
             val take = min(b.cacheKg, room)
             val share = if (b.cacheKg > 0f) take / b.cacheKg else 0f
-            for (i in Store.entries) { val x = b.cache[i] * share; b.cache[i] -= x; g.stores[i] += x }
+            for (i in Store.entries) { val x = b.cache[i] * share; b.cache[i] -= x; addFood(g.stores, g.storeKgPer, i, x, x * b.cacheKgPer[i]) }
             if (take > 0f) stats.meetings.merge("bands back at a cache", 1, Int::plus)
         }
         if (b.cacheKg < 1f) dropCache(b)
@@ -989,7 +991,7 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time0
             g.stores[Store.SEED] -= sow; time -= sow * SOW_DAYS_PER_KG / hands(g)
             val food = fauna.food
             val standing = food.cereal[p] * land.plants.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
-            val add = land.spread(p, Kg(sow)).v
+            val add = land.spread(p, Kg(sow * g.storeKgPer[Store.SEED])).v
             food.domestic[p] = (food.domestic[p] * standing + b.seedDomestic * add) / (standing + add).coerceAtLeast(1e-9f)
             food.field[p] += add
             stats.meetings.merge("bands sowed", 1, Int::plus)
@@ -1076,7 +1078,7 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
 
 /** Gives up a band's cache: what is in it goes back to the ground. */
 internal fun HexGroups.dropCache(b: Band) {
-    if (!b.cachePlace.none) small.litter[b.cachePlace] += land.spread(b.cachePlace, Kg(b.cacheKg)).v
+    if (!b.cachePlace.none) small.litter[b.cachePlace] += land.spread(b.cachePlace, Kg(b.cacheMass())).v
     b.cache.fill(0f); b.cachePlace = Place.NONE
 }
 
@@ -1084,6 +1086,8 @@ internal fun HexGroups.dropCache(b: Band) {
 private val ROTS = setOf(Material.WOOD, Material.HIDE, Material.BONE, Material.SINEW, Material.FIBRE, Material.RESIN)
 /** The kg of [b]'s goods that came from living things (those that rot), for the books. */
 internal fun Band.livingGoods(): Float { var sum = 0f; for (m in ROTS) sum += goods[m]; return sum }
+/** The kg [Band.cache] weighs (see [addFood]). */
+internal fun Band.cacheMass() = massOf(cache, cacheKgPer)
 
 /**
  * What a band that has died out leaves where it was: its food and the materials that rot go back to the ground,
@@ -1093,7 +1097,7 @@ internal fun HexGroups.leaveDead(g: HexGroup) {
     val b = g.band ?: return
     val p = g.place
     val rots = ROTS.sumOf { b.goods[it].toDouble() }.toFloat()
-    small.litter[p] += land.spread(p, Kg(g.larder + rots)).v
+    small.litter[p] += land.spread(p, Kg(massOf(g.stores, g.storeKgPer) + rots)).v
     for (i in Store.entries) g.stores[i] = 0f
     for (m in ROTS) b.goods[m] = 0f
     dropCache(b)
@@ -1190,6 +1194,46 @@ internal fun HexGroups.stayCost(b: Band): Float {
     var c = FOUL_AVOID * fouled(b) * b.hygiene
     if (b.holds(Tradition.BURIAL) && b.campWeeks > 4) c -= BURIAL_STAY
     return c
+}
+
+/**
+ * Trial (t.conserveStores): stores keep the kg their food weighs beside its worth as food (grinding, cooking and leaching
+ * change its worth, not its weight; leached food is taken from the plants as well), so what spoils, is cached, given or
+ * eaten moves its true weight, each kind keeping its own worth. Off: the worth is kept as if it were the weight.
+ */
+@JvmField val CONSERVE_STORES: Boolean = Config.flag("t.conserveStores", false)
+
+/** Adds [value] (its worth as food) of kind [st], weighing [kg], to [stores], whose kg for each unit of worth are [kgPer]. */
+internal fun addFood(stores: EnumFloats<Store>, kgPer: EnumFloats<Store>, st: Store, value: Float, kg: Float) {
+    if (CONSERVE_STORES && value > 0f) kgPer[st] = (stores[st] * kgPer[st] + kg) / (stores[st] + value)
+    stores[st] += value
+}
+
+/** The kg [stores] weigh, at [kgPer] for each unit of worth. */
+internal fun massOf(stores: EnumFloats<Store>, kgPer: EnumFloats<Store>): Float {
+    var sum = 0f; for (st in Store.entries) sum += stores[st] * kgPer[st]; return sum
+}
+
+/**
+ * Moves [value] of [from]'s food to [to] (a gift, a raid, a split): each kind by its share, with its weight. (Without
+ * [CONSERVE_STORES], through [HexGroup.larder]: it lands in the receiver's mix of kinds.)
+ */
+internal fun moveFood(from: HexGroup, to: HexGroup, value: Float) {
+    if (!CONSERVE_STORES) { from.larder -= value; to.larder += value; return }
+    val total = from.larder
+    if (total <= 0f || value <= 0f) return
+    val share = min(1f, value / total)
+    for (st in Store.entries) {
+        val x = from.stores[st] * share
+        from.stores[st] -= x; addFood(to.stores, to.storeKgPer, st, x, x * from.storeKgPer[st])
+    }
+}
+
+/** [g] eats [value] of its stores, what spoils first first; returns the kg it ate. */
+internal fun eatStores(g: HexGroup, value: Float): Float {
+    var need = value; var kg = 0f
+    for (st in EAT_ORDER) { val e = min(need, g.stores[st]); g.stores[st] -= e; need -= e; kg += e * g.storeKgPer[st] }
+    return kg
 }
 
 /**
@@ -1431,7 +1475,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
                 val take = min(ob.cacheKg * min(1f, takeShare), room)
                 if (take <= 0f) continue
                 val share = take / ob.cacheKg
-                for (i in Store.entries) { val x = ob.cache[i] * share; ob.cache[i] -= x; g.stores[i] += x }
+                for (i in Store.entries) { val x = ob.cache[i] * share; ob.cache[i] -= x; addFood(g.stores, g.storeKgPer, i, x, x * ob.cacheKgPer[i]) }
                 ob.befriend(g.id, -TIE_RAID * 0.5f); ob.grudge[b.mainLineage()] += 0.5f * GRUDGE
                 stats.meetings.merge("caches robbed", 1, Int::plus)
                 note(g) { "found and took %.0f kg from band #%d's cache".format(take, o.id) }; note(o) { "its cache was robbed by band #%d".format(g.id) }
@@ -1623,7 +1667,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         if (n > most) {
             val cull = n - most
             n = most
-            g.stores[Store.FRESH] += cull * s.massKg * MEAT_SHARE
+            addFood(g.stores, g.storeKgPer, Store.FRESH, cull * s.massKg * MEAT_SHARE, cull * s.massKg * MEAT_SHARE)
             small.carrion[p] += land.spread(p, Kg(cull * s.massKg * (1f - MEAT_SHARE))).v
             stats.meetings.merge("kept animals culled", 1, Int::plus)
         }

@@ -233,8 +233,8 @@ class HexGroups(
         books.stock(Books.Stuff.MATTER, "hunters' meat in hand") {
             var sum = 0.0; for (g in groups) if (g.meatMet > 0f && !g.meatSpent) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble(); sum }
         fun bands(f: (Band) -> Double) = run { var sum = 0.0; for (g in groups) if (g.alive) g.band?.let { sum += f(it) }; sum }
-        books.stock(Books.Stuff.MATTER, "bands' food") { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += g.stores.sum(); sum }
-        books.stock(Books.Stuff.MATTER, "bands' caches") { bands { it.cacheKg.toDouble() } }
+        books.stock(Books.Stuff.MATTER, "bands' food") { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += massOf(g.stores, g.storeKgPer); sum }
+        books.stock(Books.Stuff.MATTER, "bands' caches") { bands { it.cacheMass().toDouble() } }
         books.stock(Books.Stuff.MATTER, "bands' kept animals") { bands { b -> var sum = 0.0; for (k in b.herd.indices) sum += b.herd[k] * fauna.kinds[k].massKg; sum } }
         books.stock(Books.Stuff.MATTER, "bands' goods of living things") { bands { it.livingGoods().toDouble() } }
     }
