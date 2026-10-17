@@ -436,6 +436,8 @@ class HexGroups(
     @Transient val merged = ArrayList<HexGroup>()
     /** Bands by the hex they are in at the start of the week (see [fillBandStates]). */
     @Transient internal val bandIndex = HashMap<Int, ArrayList<HexGroup>>()
+    /** Raiders that reached their target's home this week, with the band they came for: fought once every band has had its week. */
+    @Transient internal val raidsDue = ArrayList<Pair<HexGroup, HexGroup>>()
     @Transient private val reachCache = ConcurrentHashMap<Long, Reach>()
     /**
      * This week's effort of each crossing (hex × 6 + direction) for a kind's way of going and the height
