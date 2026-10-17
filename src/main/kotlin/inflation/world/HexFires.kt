@@ -41,7 +41,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
         for (p in 0 until n) {
             if (burning[p] > 0f || !canBurn(p, weather)) continue
             val heat = ((weather.temperature[p] - 15f) / 20f).coerceIn(0f, 1f)
-            val chance = IGNITIONS_PER_KM2_YEAR * land.areaKm2[p] * years * min(1f, fuel(p) / 1.5f) * heat
+            val chance = tuning.ignitionsPerKm2Year * land.areaKm2[p] * years * min(1f, fuel(p) / 1.5f) * heat
             if (p !in set && hash(p, 0) >= chance) continue
             var km2 = 0f
             val queue = ArrayDeque<Int>(); queue += p
@@ -87,8 +87,6 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     companion object {
         /** Grazing, kg/km²/day, at which most dry fuel is gone. */
         const val GRAZE_SCALE = 5f
-        /** Fires started per km² per year in hot, dry, fuel-rich ground. */
-        val IGNITIONS_PER_KM2_YEAR = Config.float("t.ignitions", 0.01f)
         /** How far a fire front can run in a day, km. */
         const val SPREAD_KM_PER_DAY = 5f
     }

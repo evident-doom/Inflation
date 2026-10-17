@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Tuning
 import inflation.wrapMonth
 import inflation.saturate
 import inflation.monthsFrom
@@ -41,6 +42,7 @@ import java.util.stream.IntStream
  * empty ground that suits it, and withdraws from ground that fails it.
  */
 class HexFauna(private val hw: HexWorld, private val land: HexLand, private val days: Int) {
+    internal val tuning get() = land.tuning
     private val hex = hw.hex
     val n = land.n
     /**
@@ -137,7 +139,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Protein of the grass and of the browse at place [p], against fresh growth: full when green, little when cured. */
     fun grassProtein(p: Int): Float {
         // (Cured grass is leached toward straw as it weathers, see [HexPlants.hayFresh].)
-        val dry = PROTEIN_STRAW + (PROTEIN_DRY_GRASS - PROTEIN_STRAW) * land.plants.hayFresh[p]
+        val dry = tuning.proteinStraw + (tuning.proteinDryGrass - tuning.proteinStraw) * land.plants.hayFresh[p]
         return dry + (1f - dry) * land.plants.green[p]
     }
     fun browseProtein(p: Int) = PROTEIN_DRY_BROWSE + (1f - PROTEIN_DRY_BROWSE) * land.plants.green[p]
@@ -204,7 +206,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val bearings = HexBearings(hw, kinds, { s, p, m ->
         val food = foodFor(s, p) * min(1.5f, suits(s, p)) / 1.5f
         saturate(food, Thresholds.FOOD_HALF) * tether(s, p) * monthFit(s, p, m)
-    }, { s -> val k = slot(s); (0 until n).any { adults[k][it] > 0f } })
+    }, { s -> val k = slot(s); (0 until n).any { adults[k][it] > 0f } }, land.tuning)
     /**
      * Each kind's month births begin in each place, which drifts year by year towards the months
      * that feed mothers and young best; how well fed it was in each month lately (place × 12 + month).
@@ -461,7 +463,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Bears asleep through the cold eat nothing.
                 // (Only the plant part of the diet here; omnivores' small prey and carrion below.)
                 // (More in the cold, see [coldNeed].)
-                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month) *
+                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
                     days / 1e6f * plantShare(s) // kg per m2 this week
                 // (Biting insects harassing them cost them feeding time.)
                 avail[k] = HexFood.access(s, land.crag[p]) * tether(s, p) * (1f - HexSmallLife.HARASS_FEED * small.harassment(p))
@@ -597,7 +599,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     // these or of the plants, is made up from whichever of them is to be had (as a pack does).
                     val ps = plantShare(s)
                     var animal = 0f
-                    val needAll = (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month) *
+                    val needAll = (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
                         days / 1e6f // all of the diet, kg per m2
                     if (ps < 1f && needAll > 0f) {
                         val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
@@ -699,8 +701,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (inSeason) {
                     // (Mothers short of protein bear and suckle fewer.)
                     // (A mother needs a range of her own to bear and raise her young in: where they crowd beyond
-                    // [BREED_SPACING] times their usual numbers, only as many as there are ranges breed.)
-                    val ranges = min(1f, BREED_SPACING * usual[k] / (a[p] + y[p]))
+                    // [inflation.Tuning.breedSpacing] times their usual numbers, only as many as there are ranges breed.)
+                    val ranges = min(1f, tuning.breedSpacing * usual[k] / (a[p] + y[p]))
                     val born = 0.5f * a[p] * ranges * s.youngPerFemale * f[p] * protein[k][p] / stepsInSeason
                     y[p] += born
                     // The young are made of what their mothers ate: their weight comes off the mothers' reserves (as in groups).
@@ -732,7 +734,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Crocodiles take the young that come down to warm rivers and lakes to drink.
                 val croc = water.crocodileRisk(p, weather) * years
                 // (Young short of protein grow slowly and die more.)
-                val starved = YOUNG_PROTEIN_DEATHS * (1f - protein[k][p]) * years
+                val starved = tuning.youngProteinDeaths * (1f - protein[k][p]) * years
                 val youngOdds = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + eagle + fireY + floodY + snowY + croc +
                     starved).coerceIn(0f, 0.95f)
                 val da = a[p] * adultOdds; val dy = y[p] * youngOdds
@@ -934,25 +936,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 4f
         /**
-         * Residents: how many times their usual numbers ([usualDensity]) can each hold a breeding range
-         * (t.breedSpacing). At 1.5 roe deer level off at about 20-25 a km² of their forest, the high end of what is seen.
-         */
-        val BREED_SPACING = Config.float("t.breedSpacing", 1.5f)
-        /**
          * Protein in forage, against fresh growth: cured grass and straw keep some of their energy but
          * lose most of their protein (about 4% crude protein against 16% green, though grazers pick the
          * best of it and get about 6%; 3% of straw); browse keeps more
          * (shoots and leaves of shrubs, about 10%); fruit, nuts and roots are middling. A diet at
          * [PROTEIN_NEED] of fresh growth's protein meets a mother's and a growing young's need (7 to 8%
-         * crude protein); below it births fall and the young die more, by [YOUNG_PROTEIN_DEATHS] a year
+         * crude protein); below it births fall and the young die more, by [inflation.Tuning.youngProteinDeaths] a year
          * at none. Worked out as a mean over the last weeks ([PROTEIN_MEMORY] a week).
          */
-        val PROTEIN_DRY_GRASS = Config.float("t.proteinDryGrass", 0.375f)
         const val PROTEIN_DRY_BROWSE = 0.6f
         const val PROTEIN_FRUIT = 0.4f
-        val PROTEIN_STRAW = Config.float("t.proteinStraw", 0.2f)
         const val PROTEIN_NEED = 0.5f
-        val YOUNG_PROTEIN_DEATHS = Config.float("t.youngProteinDeaths", 0.25f)
         const val PROTEIN_MEMORY = 0.3f
         /** Share a week of residents that leave for the best country next door when it is as good again as here (none when it is no better). */
         const val SPILL_BETTER = 0.1f

@@ -5,7 +5,7 @@ import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.Date
 import inflation.world.WorldConfig
-import inflation.ecology.Tuning
+import inflation.Tuning
 import inflation.world.WorldCache
 
 /**

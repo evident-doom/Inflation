@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Tuning
 import inflation.Config
 
 import inflation.world.Date
@@ -475,21 +476,13 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
 
 /** Most months of the year a band's rites take it somewhere ([Band.rite]). */
 const val RITE_SITES = 3
-/**
- * How strongly a lineage's founders hold to their rites: from none to three times as strongly as a herd
- * keeps its round ([ROUND_STRENGTH]), by lineage, as its traditions are (t.riteMax). A well-fed
- * band feels a hold under 1 hardly at all (the round's pull grows with how much better the place
- * promises than it fares now), so the range reaches well above it. Not measured otherwise: wide on
- * purpose, so that some lines are bound by their rites and others hardly, and the world sorts them.
- */
-val RITE_FOUNDER_MAX = Config.float("t.riteMax", 3f)
 /** How much a band's hold on its rites changes when it splits: a fifth of the founders' range, as temperament drifts. Not measured. */
-val RITE_DRIFT get() = RITE_FOUNDER_MAX / 5f
+internal val HexGroups.riteDrift get() = tuning.riteFounderMax / 5f
 /** Chance at a split that one of the offshoot's rites shifts by a month (the telling changes). Not measured. */
 const val RITE_SHIFT = 0.1f
 
 /** The founders' hold on their rites in lineage [lineage] (the same for every band of it, as [traditionsAt]). */
-fun riteStrengthAt(lineage: Int) = RITE_FOUNDER_MAX * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
+fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
 
 /**
  * A band's rites through the year (rounds on, see [ROUNDS]): about once a year a band whose rites
@@ -537,7 +530,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         if (want <= 0f) continue
         for (h in materialSources.getValue(m)) if (b.knows(h)) {
             val km = hex.distanceKm(here, h)
-            if (km > ROUND_ARRIVED_KM) consider(hw.firstPlaceIn(h), month, APPOINT_MIN * SOURCE_RITE * want)
+            if (km > tuning.roundArrivedKm) consider(hw.firstPlaceIn(h), month, APPOINT_MIN * SOURCE_RITE * want)
         }
     }
     if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; stats.meetings.merge("bands took up a rite", 1, Int::plus) }
@@ -555,7 +548,7 @@ const val SOURCE_RITE = 2f
 /** A band split off from another: its hold on the rites drifts, and now and then one shifts by a month (rounds on). */
 internal fun HexGroups.riteInherit(nb: Band) {
     if (!ROUNDS) return
-    nb.riteStrength = (nb.riteStrength + RITE_DRIFT * (2f * rnd.nextFloat() - 1f) * 1.73f).coerceAtLeast(0f)
+    nb.riteStrength = (nb.riteStrength + riteDrift * (2f * rnd.nextFloat() - 1f) * 1.73f).coerceAtLeast(0f)
     if (rnd.nextFloat() < RITE_SHIFT) {
         val ms = (0 until 12).filter { nb.rite[it] >= 0 }
         if (ms.isNotEmpty()) {

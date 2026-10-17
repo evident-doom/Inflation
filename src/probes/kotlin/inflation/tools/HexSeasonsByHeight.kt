@@ -54,7 +54,7 @@ fun main(args: Array<String>) {
             val a = land.areaKm2[p].toDouble()
             val t = run.weather.temperature[p]
             val wet = land.hydro.soil[p] / land.hydro.soilCap[p]
-            val season = ((t - HexPlants.GROW_FROM_C) / HexPlants.GROW_SPAN_C).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
+            val season = ((t - land.tuning.growFromC) / land.tuning.growSpanC).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
             val water0 = (wet / HexHydrology.UNSTRESSED).coerceIn(0f, 1f)
             val v = doubleArrayOf(*watchKinds.map { s ->
                 val kk = run.fauna.slot(s); (run.fauna.adults[kk][p] + run.fauna.young[kk][p]).toDouble() }.toDoubleArray(),

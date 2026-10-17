@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Tuning
 import inflation.binomial
 import inflation.world.HexLand
 import kotlin.random.Random
@@ -335,7 +336,7 @@ class Band {
      * chosen for what they bring, so a rite that costs lives lasts as long as the line that keeps it.
      */
     val rite = IntArray(12) { -1 }
-    /** How strongly its people hold to their rites (0: not at all; [ROUND_STRENGTH] as a herd keeps its round). */
+    /** How strongly its people hold to their rites (0: not at all; [inflation.Tuning.roundStrength] as a herd keeps its round). */
     var riteStrength = 0f
 
     fun holds(t: Tradition) = traditions[t.ordinal]
@@ -487,9 +488,9 @@ class Band {
     fun worn() = Tool.entries.any { knows[it.ordinal] && kit[it.ordinal] < MEND_BELOW }
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
-    fun huntEdge(prey: Species) =
-        skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR.ordinal]) +
-            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW.ordinal]) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
+    fun huntEdge(prey: Species, tuning: Tuning) =
+        skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR.ordinal], tuning) +
+            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW.ordinal], tuning) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
 
     /** Its dogs against its hunters (one to three a full pack): they track, bay and hold game, and bark at night. */
     var dogShare = 0f
@@ -498,9 +499,9 @@ class Band {
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))
 
     /** Gathering: the most of a plant food's stock in a place it can take in a week; [seed] for grass seed. */
-    fun gatherShare(seed: Boolean): Float {
+    fun gatherShare(seed: Boolean, tuning: Tuning): Float {
         val kit = 1f + BASKET_GAIN * has(Tool.BASKET) +
-            if (seed) SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE.ordinal]) +
+            if (seed) SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE.ordinal], tuning) +
                 GRINDER_GAIN * has(Tool.GRINDER) else GRINDER_GAIN * 0.5f * has(Tool.GRINDER)
         return min(0.9f, GATHER_SHARE * skill(Skill.GATHER) * kit)
     }
@@ -542,12 +543,12 @@ class Band {
          * A band starting out in country it knows, founded at ([x], [y]) km: practised at what the
          * country offers, with a basic kit, and the descent, words and customs of its country.
          */
-        fun start(nearWater: Boolean, x: Double, y: Double) = Band().apply {
+        fun start(nearWater: Boolean, x: Double, y: Double, tuning: Tuning) = Band().apply {
             val l = lineageAt(x, y)
             lineage[l] = 1f
             wordsAt(x, y).copyInto(words)
             traditionsAt(l).copyInto(traditions)
-            riteStrength = riteStrengthAt(l)
+            riteStrength = riteStrengthAt(l, tuning)
             skills[Skill.GATHER.ordinal] = START_CRAFT; skills[Skill.SMALL_GAME.ordinal] = START_CRAFT; skills[Skill.HUNT.ordinal] = START_CRAFT
             skills[Skill.FISH.ordinal] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE.ordinal] = 0.4f
             kit[Tool.SPEAR.ordinal] = 1f; kit[Tool.NET.ordinal] = 0.5f; kit[Tool.BASKET.ordinal] = 0.5f; kit[Tool.CLOTHES.ordinal] = 0.5f
@@ -800,7 +801,7 @@ private fun HexGroups.wearAndInvent(b: Band, years: Float) {
         // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
         val inUse = t == Tool.CLOTHES || t.uses.any { b.weeks - b.lastUsed[it.ordinal] <= 1 }
         b.kit[k] = max(0f, b.kit[k] - t.wearPerYear * years * (if (inUse) 1f else IDLE_WEAR) *
-            (if (t.hafted) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[k]))
+            (if (t.hafted) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[k], tuning))
         if (!b.knows[k]) {
             // A band that has a use for a tool now and then hits on it: bows where game is shy and
             // fast, sickles and grinding stones where it reaps seed, and so on.
@@ -1087,15 +1088,15 @@ const val VENOM = 0.002f
 const val MARSH_FEVER = 0.05f
 
 /** Settled life with stores shortens the spacing of births. */
-internal fun settledFertility(g: HexGroup): Float {
+internal fun HexGroups.settledFertility(g: HexGroup): Float {
     val b = g.band ?: return 1f
-    return 1f + SETTLED_FERTILITY * Tuning.settledFertility * min(1f, b.campWeeks / 26f) * min(1f, g.larder / max(1e-3f, 30f * g.dailyNeedKg))
+    return 1f + SETTLED_FERTILITY * tuning.settledFertility * min(1f, b.campWeeks / 26f) * min(1f, g.larder / max(1e-3f, 30f * g.dailyNeedKg))
 }
 
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
-internal fun campFouling(g: HexGroup): Float {
+internal fun HexGroups.campFouling(g: HexGroup): Float {
     val b = g.band ?: return 0f
-    return CAMP_FOULING * Tuning.campFouling * fouled(b) * b.hygiene * (1f - 0.3f * b.medicine)
+    return CAMP_FOULING * tuning.campFouling * fouled(b) * b.hygiene * (1f - 0.3f * b.medicine)
 }
 
 /** How fouled a band's camp is, 0..1: not at all for its first two months, fully after a year more. */
@@ -1433,22 +1434,16 @@ const val GRAVE_GOODS = 0.05f
 const val SALT_A_WEEK = 1f
 const val SEA_SALT_A_WEEK = 0.05f
 const val OCHRE_A_WEEK = 0.3f
-/** A tool of poor stone: how much worse it serves (its edge against one of good stone), and how much faster it wears. Not measured. */
-val POOR_STONE_EDGE = Config.float("t.poorStoneEdge", 0.75f)
-val POOR_STONE_WEAR = Config.float("t.poorStoneWear", 1f)
 /** Ochre to tan a person's share of clothes, kg; how much slower tanned clothes wear. */
 const val TAN_OCHRE = 0.2f
 const val TANNED_WEAR = 0.5f
 /**
- * Salt a person living wholly on plant food needs in a week, kg (a few grams a day, more in the heat),
- * and how much less good their food does them wholly without it. Not measured: salt hunger among
- * farmers and plant gatherers is well known, its toll here a guess.
+ * Salt a person living wholly on plant food needs in a week, kg (a few grams a day, more in the heat); how much
+ * less good their food does them wholly without it is [inflation.Tuning.saltLack].
  */
 const val SALT_A_PERSON_WEEK = 0.05f
-val SALT_LACK = Config.float("t.saltLack", 0.15f)
-/** Salt to cure a kilo of meat or fish, kg; how much less salted meat and fish spoil. */
+/** Salt to cure a kilo of meat or fish, kg (how much less salted meat and fish spoil: [inflation.Tuning.saltKeep]). */
 const val SALT_PER_KG = 0.1f
-val SALT_KEEP = Config.float("t.saltKeep", 0.7f)
 
 /**
  * The materials bands give each other for their use (trade on); what a person uses of each in a
@@ -1471,13 +1466,13 @@ const val RENOWN_FADE = 0.2f
 /** The material that makes tool [t] well (with trade on): good stone for stone tools, ochre for tanned clothes; null for the others. */
 fun fineMaterial(t: Tool): Material? = when { Material.STONE in t.recipe -> Material.STONE; t == Tool.CLOTHES -> Material.OCHRE; else -> null }
 /** How much faster tool [t] wears for being made well only in share [fine] */
-fun wearOfMake(t: Tool, fine: Float): Float = when (fineMaterial(t)) {
-    Material.STONE -> 1f + POOR_STONE_WEAR * (1f - fine)
+fun wearOfMake(t: Tool, fine: Float, tuning: Tuning): Float = when (fineMaterial(t)) {
+    Material.STONE -> 1f + tuning.poorStoneWear * (1f - fine)
     Material.OCHRE -> 1f - TANNED_WEAR * fine
     else -> 1f
 }
 /** How well tool [t] serves for being made well only in share [fine] stone tools of poor stone, less. */
-fun serveOfMake(t: Tool, fine: Float): Float = if (fineMaterial(t) != Material.STONE) 1f else POOR_STONE_EDGE + (1f - POOR_STONE_EDGE) * fine
+fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(t) != Material.STONE) 1f else tuning.poorStoneEdge + (1f - tuning.poorStoneEdge) * fine
 
 /**
  * A band's kept animals' week: they graze round the camp, breed in their season as they are fed

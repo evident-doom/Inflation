@@ -40,7 +40,7 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
             Illness.FLUX -> FLUX_RATE * (min(1f, b.campWeeks / 26f) + 0.3f * crowd) * (if (t > 15f) 1f else 0.3f) * hygiene
             // (As many mosquitoes as breed in the standing water about the camp: marsh, floods, sodden
             // ground after rain; the parasite ripens in them only in warm weeks.)
-            Illness.MARSH_FEVER -> FEVER_RATE * Tuning.marshFever * small.biting[p] / (small.biting[p] + HexSmallLife.HARASS_HALF) * (if (t > 20f) 1f else 0f)
+            Illness.MARSH_FEVER -> FEVER_RATE * tuning.marshFever * small.biting[p] / (small.biting[p] + HexSmallLife.HARASS_HALF) * (if (t > 20f) 1f else 0f)
             Illness.COUGH -> if (r.nextFloat() < COUGH_BREAKS * crowd * crowd * (if (t < 10f) 2f else 1f) * days / 7f) COUGH_FIRST else 0f
         }
         b.sick[i] = min(1f, b.sick[i] + rate * open * days / 7f)

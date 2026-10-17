@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Tuning
 import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.world.Date
@@ -147,7 +148,7 @@ internal fun HexGroups.graze(weather: Weather) {
             eatenKg += (grass + grass2 + browse + browse2 + fruit + fruit2 + roots + roots2 + straw) * m2p
             proteinKg += ((grass + grass2) * fauna.grassProtein(p) + (browse + browse2) * fauna.browseProtein(p) +
                 (fruit + fruit2 + roots + roots2) * HexFauna.PROTEIN_FRUIT +
-                straw * HexFauna.PROTEIN_STRAW) * m2p
+                straw * tuning.proteinStraw) * m2p
             if (p == g.place) note(g) {
                 "grazed at %.0f m: fed %.2f (green %.2f, grass %.3f browse %.3f kg/m² there; ate grass %.2g browse %.2g straw %.2g; gut room left %.2g; snowed %s; grazing over %d places)".format(
                     hw.placeElevationM[p], got / want.coerceAtLeast(1e-9f), land.plants.green[p], land.plants.herb[p], land.plants.shrub[p],
@@ -398,7 +399,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             if (date.dayOfMonth <= days && date.month == g.birthMonth && g.home >= 0) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
         } else {
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-            val rate = s.youngPerFemale * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * Tuning.humanBirths else 1f) *
+            val rate = s.youngPerFemale * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * tuning.humanBirths else 1f) *
                 (1f + GRANDMOTHERS * help) / stepsInSeason
             bornExpected = mothers * min(1f, rate)
             // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
@@ -443,11 +444,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val (fireY, floodY, snowY) = fauna.calamities(s, g.place, weather, true)
     val croc = if (s.human) 0f else fauna.water.crocodileRisk(g.place, weather) * years
     // (Young plant-eaters short of protein grow slowly and die more.)
-    val starved = if (s.carnivore) 0f else HexFauna.YOUNG_PROTEIN_DEATHS * (1f - g.protein) * years
+    val starved = if (s.carnivore) 0f else tuning.youngProteinDeaths * (1f - g.protein) * years
     // Every hazard of the week, once: its cause and the odds it adds for a grown one and for a young one.
     val hazards = arrayListOf(
-        Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) Tuning.humanOther else 1f) * years,
-            healed * cared * s.youngMortality * (if (s.human) Tuning.humanYoung else 1f) * years),
+        Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
+            healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years),
         Hazard(DeathCause.HUNGER.label, hunger, 1.5f * hunger), Hazard(DeathCause.COLD.label, cold, 1.5f * cold),
         Hazard(DeathCause.EXPOSURE.label, exposure, 1.5f * exposure), Hazard(DeathCause.THIRST.label, thirst, 1.5f * thirst),
         Hazard(DeathCause.DISEASE.label, sick, sick), Hazard(DeathCause.OUTBREAK.label, plague, plague),
@@ -565,7 +566,7 @@ private fun HexGroups.thirstWeek(g: HexGroup): Float {
     // (Strangers to the country do not know its springs.)
     val knowsWater = g.band?.knows(hw.placeHex[p0]) ?: true
     return Hazards.thirst(s, g.dry) *
-        (if (s.human) HUMAN_THIRST * Tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
+        (if (s.human) HUMAN_THIRST * tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
 }
 
 /**
@@ -593,7 +594,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
     // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
     val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / hex.areaKm2.toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
     val crowdNow = if (s.human) peopleCrowding(g) else crowd
-    if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * Tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years)
+    if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years)
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
     return if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         else if (s.carnivore) {
@@ -662,7 +663,7 @@ private fun HexGroups.peopleSickness(g: HexGroup, weather: Weather): Float {
     // Fevers by the marshes in the warm months, where the mosquitoes breed.
     val marsh = land.waterlogged[g.place] * if (weather.temperature[g.place] > 20f) 1f else 0f
     // (Marsh fever is now its own sickness: see [Illness].)
-    return PEOPLE_SICK * Tuning.peopleSick * dens * dens
+    return PEOPLE_SICK * tuning.peopleSick * dens * dens
 }
 
 /** People round a band's camp (its hex and the six round it), per km², against [PEOPLE_FULL_KM2]. */
@@ -823,9 +824,9 @@ const val LOOKOUTS_GUARD = 0.3f
 const val YOUNG_STALKED = 2f
 
 /**
- * Herds keep the residents' rule for breeding ranges (see [HexFauna.BREED_SPACING]) over the country
+ * Herds keep the residents' rule for breeding ranges (see [inflation.Tuning.breedSpacing]) over the country
  * they range over, not the hex they gather in: the share of a herd's mothers that breed, as its kind
- * crowds the hex and the two rings of hexes about it beyond [HexFauna.BREED_SPACING] times its usual numbers.
+ * crowds the hex and the two rings of hexes about it beyond [inflation.Tuning.breedSpacing] times its usual numbers.
  */
 internal fun HexGroups.herdRanges(g: HexGroup, kinNow: HashMap<Long, Int>): Float {
     if (g.species.carnivore) return 1f
@@ -840,5 +841,5 @@ internal fun HexGroups.herdRanges(g: HexGroup, kinNow: HashMap<Long, Int>): Floa
     }
     var heads = 0; for (q in ring) heads += kinNow[key + q] ?: 0
     val density = heads / (ring.size * hex.areaKm2).toFloat()
-    return if (density <= 0f) 1f else min(1f, HexFauna.BREED_SPACING * HexFauna.usualDensity(g.species) / density)
+    return if (density <= 0f) 1f else min(1f, tuning.breedSpacing * HexFauna.usualDensity(g.species) / density)
 }
