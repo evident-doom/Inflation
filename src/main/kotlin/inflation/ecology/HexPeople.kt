@@ -401,7 +401,8 @@ class Band(kinds: Int) {
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
         copied(o)
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
-        for (i in o.herd.indices) { o.herd[i] *= share; herd[i] -= o.herd[i] }
+        // (A band from a save made before the form-swap experiment added a resident kind keeps fewer kinds: see [HexFauna.kinds].)
+        for (i in 0 until min(herd.size, o.herd.size)) { o.herd[i] *= share; herd[i] -= o.herd[i] }
         for (m in Material.entries) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
         o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
@@ -441,7 +442,7 @@ class Band(kinds: Int) {
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
         a.ornaments += b.ornaments; a.exotic += b.exotic
-        for (i in b.herd.indices) {
+        for (i in 0 until min(a.herd.size, b.herd.size)) {
             val n = a.herd[i] + b.herd[i]
             if (n > 0f) a.herdTame[i] = (a.herd[i] * a.herdTame[i] + b.herd[i] * b.herdTame[i]) / n
             a.herd[i] = n
