@@ -878,7 +878,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val s = kinds[k]
             val a = adults[k]; val y = young[k]; val f = fed[k]
             val cross = hex.crossings[travel[k].ordinal]
-            val moveA = FloatArray(n); val moveY = FloatArray(n)
+            val moveA = FloatArray(n); val moveY = FloatArray(n); val arrived = FloatArray(n)
             // What each place is worth to the kind this week: food, how fresh and rich in protein, its
             // ground, water within reach, fear, crowding (worked out once a place, for every neighbour that weighs it).
             val worthOf = FloatArray(n)
@@ -944,9 +944,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     if (ws[i] <= 0f) continue
                     val q = wq[i]
                     moveA[q] += goA * ws[i] / total; moveY[q] += goY * ws[i] / total
+                    arrived[q] += (goA + goY) * ws[i] / total
                 }
             }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
+            // (With [SHARED_FEED]: those that came over from the next hex walked it, at a herd's cost a km out of their fat, see [walkCost].)
+            if (SHARED_FEED) for (p in 0 until n) if (arrived[p] > 0f) {
+                val heads = (a[p] + y[p]) * land.areaKm2[p]
+                if (heads > 0f) reserve[k][p] = max(0f, reserve[k][p] - WALK_COST * hex.hexKm.toFloat() * min(1f, arrived[p] / heads))
+            }
         }
     }
 

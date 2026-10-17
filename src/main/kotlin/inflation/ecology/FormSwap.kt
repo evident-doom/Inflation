@@ -16,6 +16,9 @@ internal val RESIDENT_KILL_FIX = inflation.Config.flag("t.residentKillFix", true
 /** EXPERIMENT switch: herds and residents hunted by one rule (see [seenFirst], [killChance], [worthChasing], [HerdAt]); off: as on main. */
 internal val SHARED_HUNT = inflation.Config.flag("t.sharedHunt", true)
 
+/** EXPERIMENT switch: herds reach their food as residents do (a share of the place's food out of reach, not of their need), and residents pay for the km they move as herds do; off: as on main. */
+internal val SHARED_FEED = inflation.Config.flag("t.sharedFeed", true)
+
 /** Swaps the form of each kind in [Catalogue.formSwap] (after a settled state is loaded); [log] says what it did. */
 fun HexSim.swapForms(log: (String) -> Unit) {
     for (s in Catalogue.formSwap) {
