@@ -102,7 +102,7 @@ fun main(args: Array<String>) {
             fGrass[se][bi] += a * land.palatable[p] * land.plants.herb[p]
             fGreen[se][bi] += a * land.plants.green[p]; fNour[se][bi] += a * land.plants.nourishment(p)
             fStraw[se][bi] += a * land.plants.straw[p]; fGrazed[se][bi] += a * land.plants.grazing[p]
-            val reach = HexFauna.REACH_DORMANT + (HexFauna.REACH - HexFauna.REACH_DORMANT) * land.plants.green[p]
+            val reach = HexFauna.REACH
             fSupply[se][bi] += a * reach * land.palatable[p] * land.plants.herb[p] * 1e6 / 7
             fCured[se][bi] += a * (if (land.plants.cured[p]) 1.0 else 0.0)
         }
