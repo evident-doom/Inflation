@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Books
 import inflation.KgM2
 import inflation.world.HexLand
 import inflation.world.LifeForm
@@ -144,7 +145,10 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val snails = if (month in 0..4) SNAILS * land.plants.herb[p] * land.plants.moisture[p] else 0f
             val made = (honey + truffles + snails) * days
             val grown = land.plants.consume(p, LifeForm.HERB, KgM2(made)).v + eggs * days
-            finds[p] = max(0f, finds[p] + grown - finds[p] * min(1f, days / FINDS_DAYS))
+            if (eggs > 0f) land.books?.leak(Books.Stuff.MATTER, "eggs, not taken from the birds", (eggs * days * land.areaM2[p]).toDouble())
+            val spoilt = finds[p] * min(1f, days / FINDS_DAYS)
+            small.litter[p] += spoilt
+            finds[p] = max(0f, finds[p] + grown - spoilt)
             // Standing dead grass and twigs build up as a small share of the herbs and shrubs and are eaten down.
             // (The straw is the herbs and shrubs dying back where they stand; it falls into the litter as it weathers.)
             val toward = days * (strawCap(p) - straw[p]) / STRAW_DAYS
@@ -155,12 +159,20 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         }
     }
 
+    /** Names the food stocks in [books]: fruit, grass seed, small finds, roots, grain and sown seed. */
+    internal fun keepBooks(books: Books) {
+        for ((name, a) in listOf("fruit" to fruit, "grass seed" to seeds, "small finds" to finds, "roots" to roots, "grain" to grain, "sown seed" to field))
+            books.stock(Books.Stuff.MATTER, name) { var s = 0.0; for (p in 0 until n) s += a[p] * land.areaM2[p].toDouble(); s }
+    }
+
     /**
      * Takes up to [want] from [stock] (kg/m² by place) at [p]; returns what was taken.
      */
     fun take(stock: FloatArray, p: Int, want: KgM2): KgM2 {
         val t = min(stock[p], max(0f, want.v))
+        val before = stock[p]
         stock[p] -= t
+        land.books?.leak(Books.Stuff.MATTER, Books.ROUNDING, (t - (before - stock[p]).toDouble()) * land.areaM2[p])
         // (Each stock already came off the plants as it grew.)
         return KgM2(t)
     }

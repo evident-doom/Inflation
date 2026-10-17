@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Books
 import inflation.Tuning
 import inflation.world.Eruptions
 import inflation.world.HexLand
@@ -35,10 +36,36 @@ class HexSim(
     /** The place each fine cell lies in (-1 for none), for where ash falls: made at the first eruption. */
     private val cellPlace by lazy { IntArray(world.grid.size) { -1 }.also { cp -> for (p in hw.placeCells.indices) for (c in hw.placeCells[p]) cp[c] = p } }
     private val ashKeep = exp(-cfg.daysPerStep / 720.0).toFloat()
+    /** The books of water and matter (see [Books]), when kept: set before the first step to keep them. */
+    var books: Books? = null
+        set(b) { field = b; land.books = b; if (b != null) keepBooks(b) }
+
+    init { if (Books.ON) books = Books() }
+
+    /** Names every stock of water and matter in [b], and starts them from the world as it is. */
+    private fun keepBooks(b: Books) {
+        val n = land.n
+        b.stock(Books.Stuff.WATER, "snow") { var s = 0.0; for (p in 0 until n) s += weather.snowpack[p] / 1000.0 * land.areaM2[p]; s }
+        land.hydro.keepBooks(b)
+        land.plants.keepBooks(b)
+        fauna.keepBooks(b)
+        groups.keepBooks(b)
+        b.check("start")
+    }
 
     /** One week: the weather, then water and plants, then the residents and small life, then the groups. */
     fun step() {
         Profile.time("weather") { weather.step() }
+        books?.let { b ->
+            // (Snow falls in the cold; the melt goes to the soil, booked again there as it comes in.)
+            var fell = 0.0; var melt = 0.0
+            for (p in 0 until land.n) {
+                if (weather.temperature[p] < 0f) fell += weather.precipitation[p] / 1000.0 * land.areaM2[p]
+                melt += weather.meltwater[p] / 1000.0 * land.areaM2[p]
+            }
+            b.flow(Books.Stuff.WATER, "snowfall", fell); b.flow(Books.Stuff.WATER, "snowmelt (to the soil)", -melt)
+            b.check("weather")
+        }
         // Ash on the ground weathers into the soil over about two years.
         for (p in 0 until land.n) if (land.plants.ash[p] > 0f) land.plants.ash[p] = if (land.plants.ash[p] < 0.05f) 0f else land.plants.ash[p] * ashKeep
         val now = eruptions.step(weather.date, cfg.daysPerStep, wind = { c ->
@@ -52,7 +79,9 @@ class HexSim(
         if (SHARED_HUNT) fauna.herdsAt = groups.herdsByPlace()
         fauna.step(weather, weather.date)
         groups.takeResidentsKills(fauna.herdsAt)
+        books?.check("herds' losses to resident hunters")
         fauna.herdsAt = emptyMap()
         groups.step(weather, weather.date)
+        books?.check("groups: the rest of the week")
     }
 }

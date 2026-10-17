@@ -5,6 +5,8 @@ import inflation.ecology.get
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
 import inflation.ecology.Lifeway
+import inflation.ecology.HexFood
+import inflation.ecology.Species
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
@@ -36,7 +38,7 @@ internal class ViewLayers(private val sim: HexSim) {
         DEATHS("Where animals die", "kg/km² a week", 0.6f, 0f, 0f), PEOPLE_DEATHS("Where people die", "deaths per 1000 km² a week", 0.6f, 0f, 0.3f),
         KILLS("Kills by packs and people", "kg/km² a week", 0.85f, 0.05f, 0.05f),
         HUNTERS_PER_PREY("Hunters per prey", "kg hunters per 100 kg big game (blank under 1 kg/km² of game)", 0.9f, 0.2f, 0.1f),
-        HUNGRY_BY_PLENTY("Hungry next to plenty", "hunger x forage left within 2 hexes", 1f, 0.2f, 0.8f),
+        HUNGRY_BY_PLENTY("Hungry next to plenty", "grazers short /km² x kg/m² they could eat within 2 hexes", 1f, 0.2f, 0.8f),
         CARRION_WEEKS("Weeks to clear: carrion", "weeks", 0.4f, 0.1f, 0.4f), LITTER_WEEKS("Weeks to clear: litter", "weeks", 0.45f, 0.3f, 0.1f),
         BONES_WEEKS("Weeks to clear: bones", "weeks", 0.8f, 0.8f, 0.7f), ORGANIC_WEEKS("Weeks to clear: soil organic matter", "weeks", 0.35f, 0.2f, 0.05f);
         val byCause get() = this == DEATHS || this == PEOPLE_DEATHS
@@ -166,27 +168,47 @@ internal class ViewLayers(private val sim: HexSim) {
             if (pr < MIN_GAME_KG_KM2 * km2) Float.NaN else min(100.0, 100.0 * hu / pr).toFloat()
         }
 
-        // Hungry next to plenty: how far short of their wants the plant-eaters are here, times the most grass and browse left uneaten within two hexes.
-        val hungerSum = DoubleArray(nh); val heads = DoubleArray(nh)
+        // Hungry next to plenty: grazers and browsers going short (heads x (1 - fed), counted as far as
+        // grass and browse are their diet: a boar short of roots is not short of grass) per km², times the most
+        // grass and browse their kind could eat within two hexes over land: what is left uneaten this week,
+        // less what lies under snow deeper than it digs, behind crags it cannot climb or beyond its reach of water.
+        val usable = HashMap<Species, FloatArray>()
+        fun usableFor(s: Species) = usable.getOrPut(s) {
+            val d = s.diet; val gb = (d.grass + d.browse).coerceAtLeast(1e-6f)
+            hexMean { p ->
+                val grass = if (w.snowpack[p] > s.snowLimitMm) 0f else fauna.grazeLeft[p] * d.grass / gb
+                (grass + fauna.browseLeft[p] * d.browse / gb) * HexFood.access(s, land.crag[p]) * fauna.tether(s, p)
+            }
+        }
+        fun fodderShare(s: Species): Float { val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
+            return if (all > 0f) (d.grass + d.browse) / all else 0f }
+        val shortBy = HashMap<Species, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) {
-            if (s.carnivore) continue
+            val fs = fodderShare(s); if (s.carnivore || fs <= 0f) continue
+            val sh = shortBy.getOrPut(s) { DoubleArray(nh) }
             for (p in 0 until n) {
                 val hd = (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]
-                if (hd > 0f) { hungerSum[hw.placeHex[p]] += hd * (1.0 - fauna.fed[k][p]); heads[hw.placeHex[p]] += hd.toDouble() }
+                if (hd > 0f) sh[hw.placeHex[p]] += hd * (1.0 - fauna.fed[k][p]) * fs
             }
         }
         for (g in groups.groups) if (g.alive && g.species.lifeway == Lifeway.HERD) {
-            hungerSum[hw.placeHex[g.place]] += g.size * (1.0 - g.fed)
-            heads[hw.placeHex[g.place]] += g.size.toDouble()
+            val fs = fodderShare(g.species); if (fs <= 0f) continue
+            shortBy.getOrPut(g.species) { DoubleArray(nh) }[hw.placeHex[g.place]] += g.size * (1.0 - g.fed) * fs
         }
-        val left = hexMean { fauna.grazeLeft[it] + fauna.browseLeft[it] }
-        hunger = FloatArray(nh) { if (heads[it] > 0) (hungerSum[it] / heads[it]).toFloat() else 0f }
-        plenty = FloatArray(nh) { h ->
-            var best = 0f
-            for (q in within2(h)) { val v = left[q]; if (!v.isNaN() && v > best) best = v }
-            best
+        val shortKm2 = DoubleArray(nh); val byPlenty = DoubleArray(nh)
+        for ((s, sh) in shortBy) {
+            val u = usableFor(s)
+            for (h in 0 until nh) {
+                if (sh[h] <= 0.0 || area[h] <= 0) continue
+                var best = 0f
+                for (q in overLand2(h)) { val v = u[q]; if (!v.isNaN() && v > best) best = v }
+                val d = sh[h] / area[h]
+                shortKm2[h] += d; byPlenty[h] += d * best
+            }
         }
-        now[Measure.HUNGRY_BY_PLENTY.name] = FloatArray(nh) { if (area[it] > 0) hunger[it] * plenty[it] else Float.NaN }
+        hunger = FloatArray(nh) { shortKm2[it].toFloat() }
+        plenty = FloatArray(nh) { if (shortKm2[it] > 0) (byPlenty[it] / shortKm2[it]).toFloat() else 0f }
+        now[Measure.HUNGRY_BY_PLENTY.name] = FloatArray(nh) { if (area[it] > 0) byPlenty[it].toFloat() else Float.NaN }
 
         // Weeks to clear: what lies on the ground over what went in a week (a running mean over about a month).
         val stocks = listOf(Measure.CARRION_WEEKS to sl.carrion, Measure.LITTER_WEEKS to sl.litter,
@@ -217,16 +239,19 @@ internal class ViewLayers(private val sim: HexSim) {
         weeksInMonth++
     }
 
-    /** The plant-eaters' hunger (1 - fed) and the most forage left within two hexes, kg/m², from the last week (for the inspector). */
+    /** Grazers and browsers going short, head-equivalents per km², and the most forage they could eat within two hexes, kg/m² (weighted by who goes short), from the last week (for the inspector). */
     var hunger = FloatArray(0); private set
     var plenty = FloatArray(0); private set
 
+    /** The hexes with land within two steps of [h] over land (not across a strait). */
     private val ring2 = HashMap<Int, IntArray>()
-    private fun within2(h: Int): IntArray = ring2.getOrPut(h) {
+    private fun overLand2(h: Int): IntArray = ring2.getOrPut(h) {
         val out = linkedSetOf(h)
         for (d in 0 until 6) {
             val q = hex.neighbour(h, d)
-            if (q >= 0) { out += q; for (e in 0 until 6) { val r = hex.neighbour(q, e); if (r >= 0) out += r } }
+            if (q < 0 || hw.land[q] <= 0f) continue
+            out += q
+            for (e in 0 until 6) { val r = hex.neighbour(q, e); if (r >= 0 && hw.land[r] > 0f) out += r }
         }
         out.toIntArray()
     }
