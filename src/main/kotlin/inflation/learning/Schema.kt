@@ -1,17 +1,10 @@
 package inflation.learning
 
-import inflation.ecology.FOOD_TYPES
 import inflation.ecology.HexFeatures
-import inflation.ecology.Skill
-import inflation.ecology.Store
-import inflation.ecology.Tool
 import java.io.File
 import inflation.ecology.AnimalWay
 import inflation.ecology.Band
-import inflation.ecology.BandWay
-import inflation.ecology.Illness
 import inflation.ecology.Temperament
-import inflation.ecology.Tradition
 
 /**
  * What each input and output of a learned network means, by name, so that networks trained on an
@@ -25,15 +18,8 @@ import inflation.ecology.Tradition
  * a new choice takes its hand-written default at an output of 0 (as the bands' ways do).
  */
 object Schema {
-    /** The place features a group sees of a candidate place ([HexFeatures], in order). */
-    val PLACE = listOf(
-        "food", "climate suits", "crowding", "hunters", "discomfort", "discomfort forecast", "snow over limit", "snow",
-        "climb", "effort", "stays", "same hex", "toward bearing", "season's place", "fed", "fat", "season sin", "season cos",
-        "restless", "water distance", "days dry", "pull", "moon", "to births sin", "to births cos",
-        "remembered", "remembered same season", "remembered fed", "remembered water", "remembered danger", "remembered age",
-        "ancestors", "appointment", "houses", "own size", "lasting water", "sickness",
-        "trees", "shrubs", "grass", "marsh", "water against usual", "paths", "herds about", "dung", "grazing and kills", "known ground", "beyond own ground", "others' marks", "fish and shellfish", "keeps heading", "on round", "forage quality",
-    ).also { require(it.size == HexFeatures.SIZE) { "Schema.PLACE has ${it.size} names, HexFeatures.SIZE is ${HexFeatures.SIZE}" } }
+    /** The place features a group sees of a candidate place ([HexFeatures.NAMES]). */
+    val PLACE get() = HexFeatures.NAMES
     /** A kind's traits, then its learned identity (see [SharedMover.kindInputs]). */
     val KIND = listOf("mass", "speed", "daily travel", "group size", "grass", "browse", "fruit and roots", "meat", "small prey", "carrion", "migratory", "carnivore", "stalking", "foresight")
         .also { require(it.size == SharedMover.KIND) }
@@ -45,26 +31,14 @@ object Schema {
     /** People's mover: the mover's inputs, then the band's view of itself and of the bands about it ([WAYS_IN], from [Band.state]). */
     val PEOPLE_IN: List<String> get() = MOVER_IN + WAYS_IN.map { "band:$it" }
 
-    /** A band's view of itself ([inflation.ecology.bandInputs], in order). */
-    val WAYS_IN: List<String> get() = (listOf("year sin", "year cos", "fed", "larder") + Store.entries.map { "store:${it.name.lowercase()}" } +
-        listOf("adults", "young per adult") + Skill.FORAGING.map { "skill:${it.name.lowercase()}" } + Tool.entries.map { "tool:${it.name.lowercase()}" } +
-        listOf("temperature", "camp weeks", "spare days") + Illness.entries.map { "sick:${it.name.lowercase()}" } +
-        listOf("wounded", "lamed", "elders", "taken by beasts", "beasts about", "friendly bands about", "strange bands about", "hostile bands about",
-            "sickness of bands about", "raided lately", "set on a raid", "inbreeding") +
-        Tradition.entries.map { "custom:${it.name.lowercase()}" } + TEMPER.map { "temper:$it" }).also { require(it.size == inflation.ecology.WAYS_IN) }
-    /** A band's ways ([inflation.ecology.setWays], in order). */
-    val WAYS_OUT: List<String> get() = (0 until FOOD_TYPES).map { "effort:$it" } + listOf("store aim") + Tool.entries.map { "make first:${it.name.lowercase()}" } +
-        BandWay.entries.map { it.label }
+    /** A band's view of itself ([inflation.ecology.BAND_INPUT_NAMES]) and its ways ([inflation.ecology.WAYS_OUT_NAMES]). */
+    val WAYS_IN: List<String> get() = inflation.ecology.BAND_INPUT_NAMES
+    val WAYS_OUT: List<String> get() = inflation.ecology.WAYS_OUT_NAMES
 
-    /** A herd's or pack's view of itself ([inflation.ecology.animalInputs], in order). */
-    val ANIMAL_WAYS_IN: List<String> get() = (listOf("year sin", "year cos", "fed", "fat", "days dry", "own size", "young per adult", "wary", "holds ground", "weeks hungry", "temperature",
-        "mass", "diet:grass", "diet:browse", "diet:fruit and roots", "diet:meat", "diet:small prey", "diet:carrion") + TEMPER.map { "temper:$it" })
-        .also { require(it.size == inflation.ecology.ANIMAL_WAYS_IN) }
-    /** A herd's ways and a pack's ([AnimalWay], in order). */
-    val HERD_WAYS_OUT = listOf("herd size", "grass", "browse", "fruit and roots", "fattening", "births earlier or later")
-        .also { require(it.size == inflation.ecology.ANIMAL_WAYS_OUT) }
-    val HUNTER_WAYS_OUT = listOf("chasing", "stealing kills", "killing other hunters", "fighting rivals", "seeking a mate", "settling")
-        .also { require(it.size == inflation.ecology.ANIMAL_WAYS_OUT) }
+    /** A herd's or pack's view of itself ([inflation.ecology.ANIMAL_INPUT_NAMES]); a herd's ways and a pack's ([AnimalWay]). */
+    val ANIMAL_WAYS_IN: List<String> get() = inflation.ecology.ANIMAL_INPUT_NAMES
+    val HERD_WAYS_OUT get() = AnimalWay.HERD_NAMES
+    val HUNTER_WAYS_OUT get() = AnimalWay.HUNTER_NAMES
 
     fun namesFile(f: File) = File(f.path + ".names")
 

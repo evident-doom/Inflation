@@ -1168,6 +1168,9 @@ enum class BandWay(val label: String) {
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
 }
 val WAYS_OUT = MAKE_FIRST_SLOT + Tool.entries.size + BandWay.entries.size
+/** The name of each of a band's ways, in order ([setWays]), as a learned network's `.names` file records them (the strings must not change). */
+val WAYS_OUT_NAMES: List<String> get() = (0 until FOOD_TYPES).map { "effort:$it" } + listOf("store aim") +
+    Tool.entries.map { "make first:${it.name.lowercase()}" } + BandWay.entries.map { it.label }
 
 /**
  * What a band knows of itself this week, for its ways: the season, how fed it is and what it has on
@@ -1220,6 +1223,14 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for (t in Tradition.entries) into[i++] = if (b.holds(t)) 1f else 0f
     for (k in 0 until Temperament.AXES) into[i++] = g.temper.getOrElse(k) { 0f }
 }
+
+/** The name of each of [bandInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */
+val BAND_INPUT_NAMES: List<String> get() = (listOf("year sin", "year cos", "fed", "larder") + Store.entries.map { "store:${it.name.lowercase()}" } +
+    listOf("adults", "young per adult") + Skill.FORAGING.map { "skill:${it.name.lowercase()}" } + Tool.entries.map { "tool:${it.name.lowercase()}" } +
+    listOf("temperature", "camp weeks", "spare days") + Illness.entries.map { "sick:${it.name.lowercase()}" } +
+    listOf("wounded", "lamed", "elders", "taken by beasts", "beasts about", "friendly bands about", "strange bands about", "hostile bands about",
+        "sickness of bands about", "raided lately", "set on a raid", "inbreeding") +
+    Tradition.entries.map { "custom:${it.name.lowercase()}" } + Temperament.NAMES.map { "temper:$it" }).also { require(it.size == WAYS_IN) }
 
 /**
  * Every band's view of itself and of the bands about it, as the week starts ([Band.state]), for the
