@@ -690,7 +690,7 @@ private fun HexGroups.makeOrnaments(b: Band, people: Float, time0: Float): Float
         val made = minOf(time / ORNAMENT_DAYS, stuff, ORNAMENTS_PER_PERSON * people - b.ornaments).coerceAtLeast(0f)
         if (made > 0f) {
             val fromShell = min(made, gd[Material.SHELL.ordinal] / SHELL_EACH)
-            gd[Material.SHELL.ordinal] -= fromShell * SHELL_EACH; gd[Material.BONE.ordinal] = max(0f, gd[Material.BONE.ordinal] - (made - fromShell) * BONE_EACH)
+            gd[Material.SHELL.ordinal] = max(0f, gd[Material.SHELL.ordinal] - fromShell * SHELL_EACH); gd[Material.BONE.ordinal] = max(0f, gd[Material.BONE.ordinal] - (made - fromShell) * BONE_EACH)
             b.ornaments += made; b.exotic += fromShell; time -= made * ORNAMENT_DAYS
         }
     }

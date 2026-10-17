@@ -404,7 +404,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
-    /** One week, with the weather on the same places. */
+    /**
+     * The residents' week up to their feeding, with the weather on the same places: births and deaths by how
+     * well they fed last week, then moving. They eat once the groups have moved ([eat]), so that residents and
+     * herds feed together where they meet, the bigger kinds first; each resident still feeds, then breeds and
+     * dies by it, then moves, in turn.
+     */
     fun step(weather: Weather, date: Date) {
         for (p in 0 until n) fear[p] *= FEAR_KEEP
         Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
@@ -418,9 +423,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         stepWater(weather)
         Profile.time("food stocks") { food.step(weather) }
         Profile.time("water life") { water.step(weather) }
-        Profile.time("residents: grazing") { graze(weather) }
         Profile.time("residents: births, deaths") { breedAndDie(weather, date) }
         Profile.time("residents: moving") { Profile.part("residents: moving up and down the slopes") { shiftBands(weather) }; Profile.part("residents: spreading to neighbouring hexes") { spill() } }
+    }
+
+    /** The residents eat, with the herds' claims where the herds graze this week ([HerdClaims]); then the soil and small life's week. */
+    fun eat(weather: Weather) {
+        Profile.time("residents: grazing") { graze(weather) }
         Profile.time("soil and small life") { small.step(weather, carcassKg) }
     }
 

@@ -204,7 +204,7 @@ class HexGroups(
 
     /**
      * The first part of the week: groups choose where to go and go there, and the herds claim their usual
-     * shares of the food where they graze ([claim]). The residents then eat with them ([HexFauna.step]), and
+     * shares of the food where they graze ([claim]). The residents then eat with them ([HexFauna.eat]), and
      * the rest of the week follows ([live]).
      */
     fun move(weather: Weather, date: Date) {
