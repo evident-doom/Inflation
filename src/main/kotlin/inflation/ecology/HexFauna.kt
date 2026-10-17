@@ -57,8 +57,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Array(12) { m -> FloatArray(n) { p -> byPlace[p][m] } }
     }
 
-    /** The resident kinds, and for each, adults and young per km² of each place. */
-    val kinds = Catalogue.all.filter { Catalogue.resident(it) }
+    /** The resident kinds, and for each, adults and young per km² of each place. (Herd kinds run as residents in the form-swap experiment at the end.) */
+    @Transient val kinds = Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.formSwap.filter { !Catalogue.resident(it) }
     /** Each kind's place in [kinds] (and in every table here kept by kind), by its [Species.index]; -1 for a kind kept in groups. */
     @Transient private val slots = IntArray(Catalogue.all.size) { -1 }.also { for ((k, s) in kinds.withIndex()) it[s.index] = k }
     /** [s]'s place in [kinds], or -1 if it is not a resident. */
@@ -231,7 +231,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private val years = days / Date.DAYS_PER_YEAR.toFloat()
     /** How each kind travels between places. */
-    private val travel = kinds.map { Catalogue.travel(it) }
+    @Transient private val travel = kinds.map { Catalogue.travel(it) }
+    /** Young born this week, by kind (for the history). */
+    @Transient val bornThisWeek = DoubleArray(kinds.size)
 
     init {
         // Start below what the land can carry, so that each kind grows into its country rather than
@@ -684,6 +686,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun breedAndDie(weather: Weather, date: Date) {
         val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
         val dead = Array(kinds.size) { DoubleArray(ResidentDeath.CAUSES.size) }
+        bornThisWeek.fill(0.0)
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
         kinds.indices.toList().parallelStream().forEach { k ->
@@ -705,6 +708,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val ranges = min(1f, tuning.breedSpacing * usual[k] / (a[p] + y[p]))
                     val born = 0.5f * a[p] * ranges * s.youngPerFemale * f[p] * protein[k][p] / stepsInSeason
                     y[p] += born
+                    bornThisWeek[k] += (born * area).toDouble()
                     // The young are made of what their mothers ate: their weight comes off the mothers' reserves (as in groups).
                     if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - born * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / (0.5f * a[p]))
                 }

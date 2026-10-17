@@ -57,8 +57,9 @@ class HexGroups(
     val groups = ArrayList<HexGroup>()
     internal var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. For comparison runs, people=false leaves people out. */
-    val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } +
-        Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag("people", true)) })
+    @Transient val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } +
+        Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag("people", true)) } +
+        Catalogue.formSwap.filter { Catalogue.resident(it) })
     /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
     val bearings by lazy {
         HexBearings(hw, kinds, { s, p, m ->
@@ -107,7 +108,7 @@ class HexGroups(
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1
     internal val monthHunterKg by lazy { FloatArray(n) }
-    internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
+    @delegate:Transient internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Scent marks of the hunting kinds (saves from before it was split out kept them here as marks and markers). */
     @field:MovedInto("marks", "markers") internal val scent = Scent()
     /** Learned choosers by kind; kinds without one use the hand-written score. */
@@ -194,14 +195,14 @@ class HexGroups(
         FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
 
     /** A place drawn at random by [weights] (summing to [total]). */
-    private fun drawPlace(weights: FloatArray, total: Float): Int {
+    internal fun drawPlace(weights: FloatArray, total: Float): Int {
         var u = rnd.nextFloat() * total; var p = 0
         while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
         return p
     }
 
     /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat; a herd with its own taste in herd size. */
-    private fun spawn(s: Species, p: Int, unit: Int): HexGroup {
+    internal fun spawn(s: Species, p: Int, unit: Int): HexGroup {
         val g = HexGroup(nextId++, s, Place(p), unit, max(0, unit / 3))
         g.temper = Temperament.founder(g.id, seedBase)
         if (!s.carnivore) g.sizePref = exp((rnd.nextFloat() * 2f - 1f) * ln(SIZE_PREF_RANGE))

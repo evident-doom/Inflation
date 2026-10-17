@@ -694,6 +694,14 @@ object Catalogue {
     /** Kinds that keep to small home ranges all year, kept as numbers per place: plant-eaters, and the [residentHunters]. */
     fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
 
+    /**
+     * EXPERIMENT (branch only, not for main): plant-eaters run in the other form than their own after a
+     * settled state is loaded (t.formSwap=NAME,NAME): residents as herds, herds as residents (see [swapForms]).
+     */
+    val formSwap: List<Species> by lazy {
+        inflation.Config.string("t.formSwap")?.split(',')?.map { n -> all.first { it.name == n.trim() } }?.filter { !it.carnivore } ?: emptyList()
+    }
+
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
 

@@ -29,7 +29,7 @@ import java.util.stream.IntStream
  */
 class HexBearings(
     private val hw: HexWorld,
-    private val kinds: List<Species>,
+    @Transient private val kinds: List<Species>,
     /** How well place p suits kind s in month m, 0..1. */
     private val quality: (Species, Int, Int) -> Float,
     /** Whether any of a kind are left (the bearings of a kind gone are not worked out). */
