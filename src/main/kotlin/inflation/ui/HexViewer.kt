@@ -818,11 +818,12 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             val p = hw.placeOf[b][h]
             if (p < 0) continue
             sb.appendLine("band %d (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(
-                b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.soil[p]))
+                b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.hydro.soil[p]))
             sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², green %.0f%%, rugged %.2f, refuge %.2f, lookout %.0f km".format(
-                land.herb[p], land.shrub[p], land.tree[p], 100 * land.green[p], land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
+                land.plants.herb[p], land.plants.shrub[p], land.plants.tree[p], 100 * land.plants.green[p],
+                land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
             sb.appendLine("   rain %.0f mm this week, wind %.1f m/s; drinking water within reach of %.0f%% (walk %.1f km)".format(
-                weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p)), 100 * land.water[p], land.waterKm[p]))
+                weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p)), 100 * land.drink.water[p], land.drink.waterKm[p]))
             val sl = fauna.small
             sb.appendLine("   insects %.0f, biting %.0f, rodents %.0f, reptiles %.0f, pollinators %.0f kg/km²; litter %.2f, organic %.1f kg/m²".format(
                 sl.insects[p], sl.biting[p], sl.rodents[p], sl.herps[p], sl.pollinators[p], sl.litter[p], sl.organicMatter[p]))
@@ -839,7 +840,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             if (p < 0) continue
             val a = land.areaKm2[p]; totalArea += a
             for (k in fauna.kinds.indices) residents[k] += ((fauna.adults[k][p] + fauna.young[k][p]) * a).toDouble()
-            food += ((land.herb[p] + land.shrub[p]) * a).toDouble() // kg/m² × km² = 1e6 kg
+            food += ((land.plants.herb[p] + land.plants.shrub[p]) * a).toDouble() // kg/m² × km² = 1e6 kg
             small += ((fauna.small.rodents[p] + fauna.small.herps[p]) * a).toDouble(); carrion += (fauna.small.carrion[p] * 1e6f * a).toDouble()
         }
         val gs = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
@@ -850,7 +851,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         sb.appendLine("   herds and packs: " + gs.groupBy { it.species }.entries
             .joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
         sb.appendLine("   forage (grass and browse) %.0f t, rodents and reptiles %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
-        sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.meanFlow[h], land.flow[h]))
+        sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.hydro.meanFlow[h], land.hydro.flow[h]))
         // The tinted measure here: this week, and month by month over the last year.
         val tint = Measure.entries[tintChoice.selectedIndex]
         if (tint != Measure.NONE) {
@@ -939,8 +940,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         for (b in 0 until HexWorld.BANDS_M.size) {
             val p = hw.placeOf[b][h]; if (p < 0) continue
             val w = land.areaKm2[p].toDouble(); a += w
-            herb += land.herb[p] * w; shrub += land.shrub[p] * w; tree += land.tree[p] * w; green += land.green[p] * w
-            fruit += fauna.food.fruit[p] * w; straw += fauna.food.straw[p] * w; snow += weather.snowpack[p] * w; burnt += land.burnt[p] * w
+            herb += land.plants.herb[p] * w; shrub += land.plants.shrub[p] * w; tree += land.plants.tree[p] * w; green += land.plants.green[p] * w
+            fruit += fauna.food.fruit[p] * w; straw += fauna.food.straw[p] * w; snow += weather.snowpack[p] * w; burnt += land.fire.burnt[p] * w
         }
         if (a <= 0.0) return parts.joinToString("; ").ifEmpty { "water" }
         herb /= a; shrub /= a; tree /= a; green /= a; fruit /= a; straw /= a; snow /= a; burnt /= a

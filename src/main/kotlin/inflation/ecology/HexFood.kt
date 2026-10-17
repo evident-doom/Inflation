@@ -62,13 +62,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     }
 
     /** Standing straw: the land's (it burns there). */
-    val straw get() = land.straw
+    val straw get() = land.plants.straw
 
     /** Fruit-bearing plants at [p], kg/m²: shrubs and the fruiting share of trees. */
     // (Only the edible kinds bear food people eat, see [HexLand.palatable].)
-    private fun bearing(p: Int) = land.palatable[p] * (0.5f * land.shrub[p] + 0.05f * land.tree[p])
-    private fun strawCap(p: Int) = STRAW_SHARE * (land.herb[p] + 0.3f * land.shrub[p])
-    private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * (land.herb[p] + 0.05f * land.tree[p]) + REED_ROOTS * land.waterlogged[p]
+    private fun bearing(p: Int) = land.palatable[p] * (0.5f * land.plants.shrub[p] + 0.05f * land.plants.tree[p])
+    private fun strawCap(p: Int) = STRAW_SHARE * (land.plants.herb[p] + 0.3f * land.plants.shrub[p])
+    private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * (land.plants.herb[p] + 0.05f * land.plants.tree[p]) + REED_ROOTS * land.waterlogged[p]
 
     private var standYear = -1
     /** Grain ripened at each place so far this year, kg/m², and over all the land in the last whole year, t. */
@@ -89,38 +89,39 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             // The season as the plants feel it: the share of a normal year's warmth they have had since
             // midwinter. Seed ripens early, fruit from midsummer to autumn, roots and bulbs fill as the
             // plants die back; a warm year brings all of it on earlier, high ground later.
-            val season = land.gdd[p] / land.annualGdd[p].coerceAtLeast(1f)
+            val season = land.plants.gdd[p] / land.plants.annualGdd[p].coerceAtLeast(1f)
             // Fruit ripens from midsummer to autumn, as many as the spring's flowers were pollinated
             // for and the spring was wet enough to fill; then it falls and rots.
-            val ripe = if (season in FRUIT_FROM..FRUIT_TO) FRUIT_SHARE * bearing(p) * small.fruitSet(p) * min(1f, land.moisture[p] / 0.5f) / FRUIT_DAYS else 0f
+            val ripe = if (season in FRUIT_FROM..FRUIT_TO) FRUIT_SHARE * bearing(p) * small.fruitSet(p) *
+                min(1f, land.plants.moisture[p] / 0.5f) / FRUIT_DAYS else 0f
             val fallen = fruit[p] * min(1f, days / FRUIT_DAYS)
             // (It grows on the shrubs and trees that bear it, and comes off them.)
-            val shrubBears = 0.5f * land.shrub[p]; val treeBears = 0.05f * land.tree[p]
+            val shrubBears = 0.5f * land.plants.shrub[p]; val treeBears = 0.05f * land.plants.tree[p]
             val fromShrub = if (shrubBears + treeBears > 0f) shrubBears / (shrubBears + treeBears) else 1f
             val newFruit = days * ripe
-            val bore = if (newFruit > 0f) land.consume(p, LifeForm.SHRUB, newFruit * fromShrub) +
-                land.consume(p, LifeForm.TREE, newFruit * (1f - fromShrub)) else 0f
+            val bore = if (newFruit > 0f) land.plants.consume(p, LifeForm.SHRUB, newFruit * fromShrub) +
+                land.plants.consume(p, LifeForm.TREE, newFruit * (1f - fromShrub)) else 0f
             fruit[p] = max(0f, fruit[p] + bore - fallen)
             small.litter[p] += fallen
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
-            val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.herb[p] / SEED_DAYS else 0f
+            val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.plants.herb[p] / SEED_DAYS else 0f
             val shed = seeds[p] * min(1f, days / SEED_DAYS)
-            seeds[p] = max(0f, seeds[p] + land.consume(p, LifeForm.HERB, days * ripeSeed) - shed)
+            seeds[p] = max(0f, seeds[p] + land.plants.consume(p, LifeForm.HERB, days * ripeSeed) - shed)
             small.litter[p] += shed
             // (Roots and bulbs fill from the plants above them; old ones rot into the litter.)
             val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
             val rotted = roots[p] * min(1f, days / ROOTS_DAYS)
-            roots[p] = max(0f, roots[p] + land.consume(p, LifeForm.HERB, days * r) - rotted)
+            roots[p] = max(0f, roots[p] + land.plants.consume(p, LifeForm.HERB, days * r) - rotted)
             small.litter[p] += rotted
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
             if (cereal[p] > 0f || field[p] > 0f) {
                 // (As the season advances: a cold year that never reaches its full warmth ripens only part of its grain.)
-                val advance = max(0f, weather.temperature[p] - 5f) * days / land.annualGdd[p].coerceAtLeast(1f)
+                val advance = max(0f, weather.temperature[p] - 5f) * days / land.plants.annualGdd[p].coerceAtLeast(1f)
                 val inWindow = (min(season, SEED_TO) - max(season - advance, SEED_FROM)).coerceAtLeast(0f)
                 if (inWindow > 0f) {
-                    val ripe = land.consume(p, LifeForm.HERB,
-                        (GRAIN_SHARE * cereal[p] * land.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM))
+                    val ripe = land.plants.consume(p, LifeForm.HERB,
+                        (GRAIN_SHARE * cereal[p] * land.plants.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM))
                     grain[p] += ripe
                     ripenedNow[p] += ripe
                 }
@@ -136,19 +137,19 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             }
             // Small finds in season.
             val month = weather.date.month
-            val honey = if (month in 3..5) HONEY * small.pollination[p] * (land.shrub[p] + 0.1f * land.tree[p]) else 0f
-            val truffles = if (month in 2..4) TRUFFLES * land.herb[p] * (1f - land.moisture[p]).coerceIn(0f, 1f) * land.green[p] else 0f
+            val honey = if (month in 3..5) HONEY * small.pollination[p] * (land.plants.shrub[p] + 0.1f * land.plants.tree[p]) else 0f
+            val truffles = if (month in 2..4) TRUFFLES * land.plants.herb[p] * (1f - land.plants.moisture[p]).coerceIn(0f, 1f) * land.plants.green[p] else 0f
             val eggs = if (month in 3..5) EGGS * small.birds[p] / 1e6f else 0f
-            val snails = if (month in 0..4) SNAILS * land.herb[p] * land.moisture[p] else 0f
+            val snails = if (month in 0..4) SNAILS * land.plants.herb[p] * land.plants.moisture[p] else 0f
             val made = (honey + truffles + snails) * days
-            val grown = land.consume(p, LifeForm.HERB, made) + eggs * days
+            val grown = land.plants.consume(p, LifeForm.HERB, made) + eggs * days
             finds[p] = max(0f, finds[p] + grown - finds[p] * min(1f, days / FINDS_DAYS))
             // Standing dead grass and twigs build up as a small share of the herbs and shrubs and are eaten down.
             // (The straw is the herbs and shrubs dying back where they stand; it falls into the litter as it weathers.)
             val toward = days * (strawCap(p) - straw[p]) / STRAW_DAYS
             if (toward > 0f) {
-                val herbShare = land.herb[p] / (land.herb[p] + 0.3f * land.shrub[p]).coerceAtLeast(1e-9f)
-                straw[p] += land.consume(p, LifeForm.HERB, toward * herbShare) + land.consume(p, LifeForm.SHRUB, toward * (1f - herbShare))
+                val herbShare = land.plants.herb[p] / (land.plants.herb[p] + 0.3f * land.plants.shrub[p]).coerceAtLeast(1e-9f)
+                straw[p] += land.plants.consume(p, LifeForm.HERB, toward * herbShare) + land.plants.consume(p, LifeForm.SHRUB, toward * (1f - herbShare))
             } else { val fell = min(straw[p], -toward); straw[p] -= fell; small.litter[p] += fell }
         }
     }

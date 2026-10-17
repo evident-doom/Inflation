@@ -67,7 +67,7 @@ class HexHistory {
         fun perM2(a: FloatArray) = a.indices.sumOf { (a[it] * area[it]).toDouble() }.toFloat()
         fun perKm2(a: FloatArray) = perM2(a) / 1e6f
         val sl = fauna.small
-        put("biomass/herbs", perM2(land.herb)); put("biomass/shrubs", perM2(land.shrub)); put("biomass/trees", perM2(land.tree))
+        put("biomass/herbs", perM2(land.plants.herb)); put("biomass/shrubs", perM2(land.plants.shrub)); put("biomass/trees", perM2(land.plants.tree))
         put("biomass/litter", perM2(sl.litter)); put("biomass/soil organic matter", perM2(sl.organicMatter))
         put("biomass/carrion", perM2(sl.carrion)); put("biomass/bones", perM2(sl.bones))
         put("biomass/fruit", perM2(fauna.food.fruit)); put("biomass/roots and mast", perM2(fauna.food.roots)); put("biomass/straw", perM2(fauna.food.straw))
@@ -104,13 +104,13 @@ class HexHistory {
         put("weather/rain mm", mean { w.precipitation[it] })
         put("weather/snow lying mm", mean { w.snowpack[it] })
         put("weather/droughts under way", w.droughtCount().toFloat())
-        put("weather/soil water mm", mean { land.soil[it] })
+        put("weather/soil water mm", mean { land.hydro.soil[it] })
         // By kind of country: its area, plants per km² and head counts (and the whole land's area, to set worlds of other sizes beside each other).
         val biomeArea = DoubleArray(Biome.entries.size)
         for (p in 0 until n) biomeArea[biomeOf(sim, p)] += area[p].toDouble()
         put("land/area km²", biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
-        for (p in 0 until n) plants[biomeOf(sim, p)] += (land.biomass(p) * area[p]).toDouble()
+        for (p in 0 until n) plants[biomeOf(sim, p)] += (land.plants.biomass(p) * area[p]).toDouble()
         val heads = HashMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) {
             val a = heads.getOrPut(s.name) { DoubleArray(Biome.entries.size) }

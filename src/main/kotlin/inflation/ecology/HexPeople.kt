@@ -549,7 +549,7 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
     var lookKm = 0f
     for (h in g.path) {
         val q = hw.sameBandPlace(g.place, h).takeIf { it >= 0 } ?: continue
-        lookKm = max(lookKm, land.bestViewKm[q] * sight(q, weather) / (1f - SIGHT_COVER * land.cover(q)).coerceAtLeast(0.1f))
+        lookKm = max(lookKm, land.bestViewKm[q] * sight(q, weather) / (1f - SIGHT_COVER * land.plants.cover(q)).coerceAtLeast(0.1f))
     }
     val scouts = b.scoutShare * g.adults
     val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
@@ -643,17 +643,17 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Int, h: Int, peop
     // Salt scraped from a dry lake bed or pan along the way, and a little from the shore; ochre dug where it crops out.
     gd[Material.SALT.ordinal] += people * (SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)) + if (hw.coast[h]) SEA_SALT_A_WEEK else 0f)
     gd[Material.OCHRE.ordinal] += people * OCHRE_A_WEEK * min(1f, 5f * alongTheWay(land.ochre))
-    val woody = land.tree[p] + land.shrub[p]
+    val woody = land.plants.tree[p] + land.plants.shrub[p]
     val wood = 2f * people * min(1f, woody / 3f)
     gd[Material.WOOD.ordinal] += wood
-    gd[Material.RESIN.ordinal] += 0.05f * people * min(1f, land.tree[p] / 3f)
+    gd[Material.RESIN.ordinal] += 0.05f * people * min(1f, land.plants.tree[p] / 3f)
     // (Reeds and rushes in a marsh give the best fibre of all.)
-    val fibre = people * min(1f, (land.herb[p] + land.shrub[p]) / 0.5f + 2f * land.waterlogged[p])
+    val fibre = people * min(1f, (land.plants.herb[p] + land.plants.shrub[p]) / 0.5f + 2f * land.waterlogged[p])
     gd[Material.FIBRE.ordinal] += fibre
     // Shells on the shore, for beads.
     if (hw.coast[h]) gd[Material.SHELL.ordinal] += SHELL_A_WEEK * people
-    land.consume(p, LifeForm.TREE, wood * land.tree[p] / max(1e-6f, woody) / area)
-    land.consume(p, LifeForm.HERB, fibre / area)
+    land.plants.consume(p, LifeForm.TREE, wood * land.plants.tree[p] / max(1e-6f, woody) / area)
+    land.plants.consume(p, LifeForm.HERB, fibre / area)
 }
 
 /** [b]'s tools wear out in use (slowly lying idle); a band with a use for a tool or practised at a kind of work now and then hits on a new one. */
@@ -739,7 +739,7 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Int, h: Int, people: F
         if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
         if (b.houseHex == h && b.house < 1f) {
             // It builds the way it knows that its stone, timber and clay go furthest with.
-            val clay = land.water[p] >= Thresholds.WET || land.waterKm[p] < 3f
+            val clay = land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f
             val way = listOf(Skill.STONE_FOOTING, Skill.PIT_HOUSE, Skill.MUDBRICK).filter { b.knowsSkill[it.ordinal] && (it != Skill.MUDBRICK || clay) }
                 .maxByOrNull { w ->
                     val (st, wd, dd) = houseNeeds(w)
@@ -786,7 +786,7 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Int, date: Date, time0: 
         if (sow > 0.1f) {
             g.stores[Store.SEED.ordinal] -= sow; time -= sow * SOW_DAYS_PER_KG / hands(g)
             val food = fauna.food; val m2 = land.m2(p)
-            val standing = food.cereal[p] * land.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
+            val standing = food.cereal[p] * land.plants.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
             val add = sow / m2
             food.domestic[p] = (food.domestic[p] * standing + b.seedDomestic * add) / (standing + add).coerceAtLeast(1e-9f)
             food.field[p] += add
@@ -1373,8 +1373,8 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         // Grazing round the camp.
         val need = n * s.dailyIntakeKg * days / m2
         val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
-        val got = land.consume(p, LifeForm.HERB, min(need * d.grass / total, land.palatable[p] * land.herb[p] * 0.1f)) +
-            land.eatBrowse(p, need * d.browse / total)
+        val got = land.plants.consume(p, LifeForm.HERB, min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f)) +
+            land.plants.eatBrowse(p, need * d.browse / total)
         val fed = if (need > 0f) min(1f, got / need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /

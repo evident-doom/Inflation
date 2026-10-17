@@ -48,7 +48,7 @@ fun main(args: Array<String>) {
         val h = hw.hex.owner[i]
         if (main[h] < 0 || world.water.discharge[i] > world.water.discharge[main[h]]) main[h] = i
     }
-    val hexes = (0 until hw.hex.size).filter { land.meanFlow[it] >= RiverClass.STREAM.minDischarge }
+    val hexes = (0 until hw.hex.size).filter { land.hydro.meanFlow[it] >= RiverClass.STREAM.minDischarge }
     val flowF = DoubleArray(hexes.size); val flowC = DoubleArray(hexes.size)
     repeat(steps) {
         var t0 = System.nanoTime()
@@ -57,8 +57,8 @@ fun main(args: Array<String>) {
         t0 = System.nanoTime()
         hexWeather.step(); land.step(hexWeather)
         nsC += System.nanoTime() - t0
-        burnedF += fineVeg.fires.sumOf { it.second.toDouble() }; burnedC += land.fires.sumOf { it.second.toDouble() }
-        for ((j, h) in hexes.withIndex()) { flowF[j] += fineWater.discharge[main[h]] / steps.toDouble(); flowC[j] += land.flow[h] / steps.toDouble() }
+        burnedF += fineVeg.fires.sumOf { it.second.toDouble() }; burnedC += land.fire.fires.sumOf { it.second.toDouble() }
+        for ((j, h) in hexes.withIndex()) { flowF[j] += fineWater.discharge[main[h]] / steps.toDouble(); flowC[j] += land.hydro.flow[h] / steps.toDouble() }
     }
     fun agg(f: (Int) -> Float) = DoubleArray(n) { p -> val cs = hw.placeCells[p]; cs.sumOf { f(it).toDouble() } / cs.size }
     fun corr(a: DoubleArray, b: DoubleArray): Double {
@@ -70,14 +70,14 @@ fun main(args: Array<String>) {
     fun compare(name: String, a: DoubleArray, b: DoubleArray) =
         println("%-16s correlation %.3f, mean fine %.3f, bands %.3f, mean difference %.3f".format(name, corr(a, b), a.average(), b.average(),
             (a.indices).map { abs(a[it] - b[it]) }.average()))
-    compare("herbs kg/m²", agg { fineVeg.herb[it] }, DoubleArray(n) { land.herb[it].toDouble() })
-    compare("shrubs kg/m²", agg { fineVeg.shrub[it] }, DoubleArray(n) { land.shrub[it].toDouble() })
-    compare("trees kg/m²", agg { fineVeg.tree[it] }, DoubleArray(n) { land.tree[it].toDouble() })
-    compare("soil water mm", agg { fineWater.soil[it] }, DoubleArray(n) { land.soil[it].toDouble() })
+    compare("herbs kg/m²", agg { fineVeg.herb[it] }, DoubleArray(n) { land.plants.herb[it].toDouble() })
+    compare("shrubs kg/m²", agg { fineVeg.shrub[it] }, DoubleArray(n) { land.plants.shrub[it].toDouble() })
+    compare("trees kg/m²", agg { fineVeg.tree[it] }, DoubleArray(n) { land.plants.tree[it].toDouble() })
+    compare("soil water mm", agg { fineWater.soil[it] }, DoubleArray(n) { land.hydro.soil[it].toDouble() })
     // Rivers: each hex's main river, where it is a stream or more, averaged over the run.
     compare("river flow m³/s", flowF, flowC)
     println("long-term flow of the same rivers from the climate (what fords and river classes are set by): mean %.3f m³/s"
-        .format(hexes.map { land.meanFlow[it].toDouble() }.average()))
+        .format(hexes.map { land.hydro.meanFlow[it].toDouble() }.average()))
     println("burned per year: fine %.0f km², bands %.0f km²".format(burnedF / years, burnedC / years))
     println("a step of weather, water and plants: %.0f ms on %d fine cells, %.1f ms on %d places".format(nsF / 1e6 / steps, world.grid.size,
         nsC / 1e6 / steps, n))

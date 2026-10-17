@@ -7,6 +7,7 @@ import inflation.HASH_C
 import inflation.mix64
 import inflation.unitOf
 
+import inflation.world.HexDrinkingWater
 import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.Weather
@@ -60,13 +61,13 @@ internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = 
     // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
     val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * Niches.shelter(ps, p, land)
     // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
-    val hide = 1f - HIDING * land.cover(p) * (1f - s.stalking) * max(0f, 1f - ps.massKg / HIDING_KG)
+    val hide = 1f - HIDING * land.plants.cover(p) * (1f - s.stalking) * max(0f, 1f - ps.massKg / HIDING_KG)
     // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
     val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
     // A courser must run its quarry down; a stalker gets close unseen and needs no speed.
     val speed = s.stalking + (1f - s.stalking) * min(1f, s.speedKmh / ps.speedKmh)
     // And it needs room to run: in thick woods and scrub a chase ends at the first tangle.
-    val room = 1f - COURSING_COVER * (1f - s.stalking) * land.cover(p)
+    val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(p)
     return (size * small * (1f - ps.defence) * refuge * hide * dark * speed * room).coerceIn(0f, 1f)
 }
 
@@ -382,8 +383,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         stats.hunting.merge("${s.name}:${WeekStats.PLANTS_EATEN}", (eaten - ateMeat).toInt(), Int::plus)
         // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
         for (i in got.indices) g.stores[i] += got[i]
-        // Digging soaks and drawing their water takes time where that is the only water (see [HexLand.mustDig]).
-        val spareDays = max(0f, days - busy - (if (land.mustDig(g.place, s.dailyTravelKm)) HexLand.DIG_SHARE * days else 0f))
+        // Digging soaks and drawing their water takes time where that is the only water (see [HexDrinkingWater.mustDig]).
+        val spareDays = max(0f, days - busy - (if (land.drink.mustDig(g.place, s.dailyTravelKm)) HexDrinkingWater.DIG_SHARE * days else 0f))
         // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
         val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
         val smoke = if (band.knowsSkill[Skill.SMOKING.ordinal] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
@@ -487,7 +488,7 @@ private fun HexGroups.gather(g: HexGroup, t: Int, p: Int, expected: Float, hands
         val cook = band.cookValue(t)
         if (cook > 1f) { took *= cook; band.practise(if (t == Food.ROOTS) Skill.EARTH_OVEN else Skill.STONE_BOILING) }
         if (t != Food.FINDS) {
-            val extra = took * band.detoxExtra(land.palatable[p], land.water[p] >= Thresholds.WET || land.waterKm[p] < 3f)
+            val extra = took * band.detoxExtra(land.palatable[p], land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f)
             if (extra > 0f) {
                 took += extra
                 out.busy = extra * LEACH_DAYS_PER_KG / hands
@@ -786,7 +787,7 @@ internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Int, span: Float)
     val v = sqrt(a.species.dailyTravelKm * a.species.dailyTravelKm + b.species.dailyTravelKm * b.species.dailyTravelKm)
     val hours = Niches.overlap(a.species, b.species)
     // Bands seek each other out at springs and lake shores, where people come together.
-    val gather = if (a.band != null && b.band != null) 1f + 2f * (land.nearSpring[p] + land.nearLake[p]).coerceAtMost(1f) else 1f
+    val gather = if (a.band != null && b.band != null) 1f + 2f * (land.drink.nearSpring[p] + land.drink.nearLake[p]).coerceAtMost(1f) else 1f
     // (Hunters wait where the paths funnel the game: at fords, passes and water.)
     val waylaid = if (hunting) 1f + AMBUSH * wear.at(hw.placeHex[p]) else 1f
     // (A hunter finds a herd lying up as well as out feeding, if less often.)
@@ -819,7 +820,7 @@ internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Int): Boolean 
 /** How open hex [h] is where a group passes: the share of the ground with no cover to hide in. */
 internal fun HexGroups.openness(h: Int, band: Int): Float {
     val p = hw.placeOf[band][h].takeIf { it >= 0 } ?: return 0.5f
-    return 1f - land.cover(p)
+    return 1f - land.plants.cover(p)
 }
 
 /**
@@ -848,7 +849,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // Game bred to fear people over the millennia keeps a sharper watch for them.
     val fear = if (hunter.band != null) 0.5f + herd.species.fearOfPeople else 1f
     val seen = rnd.nextFloat() < min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + wary) * fear *
-        (0.5f + 0.5f * sight(herd.place, weather) / (1f - SIGHT_COVER * land.cover(herd.place)).coerceAtLeast(0.1f)))
+        (0.5f + 0.5f * sight(herd.place, weather) / (1f - SIGHT_COVER * land.plants.cover(herd.place)).coerceAtLeast(0.1f)))
     if (seen) {
         stats.meetings.merge("herd turned aside", 1, Int::plus)
         note(herd) { "saw the hunters first and turned aside" }; note(hunter) { "was seen first; the herd turned aside" }
@@ -996,7 +997,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
     if (ratio < THEFT_RATIO) return // near equals keep their distance
     // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
-    val cached = if (Niches.Shelter.TREE in Niches.shelters(weak.species)) land.canopy(weak.place) else 0f
+    val cached = if (Niches.Shelter.TREE in Niches.shelters(weak.species)) land.plants.canopy(weak.place) else 0f
     if (weak.meatMet > 0f && rnd.nextFloat() < THEFT * strong.will[AnimalWay.STEAL] * (1f - cached)) {
         val taken = 0.7f * weak.meatMet
         weak.meatMet -= taken; strong.meatMet += taken

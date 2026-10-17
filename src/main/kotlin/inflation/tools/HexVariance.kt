@@ -169,12 +169,12 @@ fun main(args: Array<String>) {
         return DoubleArray(H) { if (w[it] > 0) s[it] / w[it] else 0.0 }
     }
     println("\n-- the places as they stand (${if (named != null) "settled state, ${sim.weather.date}" else "fresh start"}) --")
-    line("herbs kg/m²", placeMean { land.herb[it].toDouble() })
-    line("shrubs kg/m²", placeMean { land.shrub[it].toDouble() })
-    line("trees kg/m²", placeMean { land.tree[it].toDouble() })
-    line("soil water mm", placeMean { land.soil[it].toDouble() })
-    line("drink near share", placeMean { land.nearRiver[it].toDouble().coerceAtLeast(land.nearLake[it].toDouble())
-        .coerceAtLeast(land.nearSpring[it].toDouble()) })
+    line("herbs kg/m²", placeMean { land.plants.herb[it].toDouble() })
+    line("shrubs kg/m²", placeMean { land.plants.shrub[it].toDouble() })
+    line("trees kg/m²", placeMean { land.plants.tree[it].toDouble() })
+    line("soil water mm", placeMean { land.hydro.soil[it].toDouble() })
+    line("drink near share", placeMean { land.drink.nearRiver[it].toDouble().coerceAtLeast(land.drink.nearLake[it].toDouble())
+        .coerceAtLeast(land.drink.nearSpring[it].toDouble()) })
     line("palatable share", placeMean { land.palatable[it].toDouble() })
     val ks = fauna.kinds.indices
     line("resident kg/km²", placeMean { p -> ks.sumOf { k -> (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * fauna.kinds[k].massKg } })

@@ -46,10 +46,10 @@ fun main(args: Array<String>) {
         if (y < years - 1) return@repeat
         val m = sim.weather.lastMonth
         for (p in 0 until land.n) {
-            if (land.herb[p] + land.shrub[p] <= 0f) continue
+            if (land.plants.herb[p] + land.plants.shrub[p] <= 0f) continue
             val b = band(p)
-            herb[b][m] += land.herb[p]
-            nour[b][m] += land.nourishment(p)
+            herb[b][m] += land.plants.herb[p]
+            nour[b][m] += land.plants.nourishment(p)
             prot[b][m] += sim.fauna.grassProtein(p)
             cnt[b][m]++
         }

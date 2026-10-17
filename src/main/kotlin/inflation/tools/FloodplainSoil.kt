@@ -29,23 +29,24 @@ fun main(args: Array<String>) {
     val t0 = System.nanoTime()
     repeat(steps) {
         sim.step()
-        for (p in 0 until n) { laid[p] += small.laidKgM2[p]; sodden[p] += land.saturated(p) }
+        for (p in 0 until n) { laid[p] += small.laidKgM2[p]; sodden[p] += land.hydro.saturated(p) }
     }
     println("stepped %d years at %.0f ms a step; state at %s".format(years, (System.nanoTime() - t0) / 1e6 / steps.coerceAtLeast(1), sim.weather.date))
     // Dry country: where the soil of the open ground is too dry for more than a thin scatter of trees.
-    val dry = BooleanArray(n) { p -> land.moisture[p] < LifeForm.TREE.moistureMin + 0.1f }
+    val dry = BooleanArray(n) { p -> land.plants.moisture[p] < LifeForm.TREE.moistureMin + 0.1f }
     val bins = listOf("no floodplain" to 0f..0f, "floodplain <10%" to 1e-6f..0.1f, "floodplain 10-30%" to 0.1f..0.3f, "floodplain >=30%" to 0.3f..1f)
     println("%-8s %-18s %6s %8s | %6s %6s %6s | %6s %6s %6s %6s | %8s %6s %6s".format("country", "places", "n", "km²",
         "herb", "shrub", "tree", "litter", "OM", "OM p10", "OM p90", "silt/yr", "sodden", "wetFl"))
     for ((country, isDry) in listOf("dry" to true, "wet" to false)) for ((name, r) in bins) {
-        val ps = (0 until n).filter { land.biomass(it) > 0f && dry[it] == isDry && land.floodShare[it] in r && (r.endInclusive > 0f || land.floodShare[it] == 0f) }
+        val ps = (0 until n).filter { land.plants.biomass(it) > 0f && dry[it] == isDry && land.floodShare[it] in r &&
+            (r.endInclusive > 0f || land.floodShare[it] == 0f) }
         if (ps.isEmpty()) continue
         val area = ps.sumOf { land.areaKm2[it].toDouble() }
         fun mean(f: (Int) -> Double) = ps.sumOf { f(it) * land.areaKm2[it] } / area
         val om = ps.map { small.organicMatter[it] }.sorted()
         println("%-8s %-18s %6d %8.0f | %6.3f %6.2f %6.2f | %6.2f %6.2f %6.2f %6.2f | %8.4f %6.3f %6.3f".format(country, name, ps.size, area,
-            mean { land.herb[it].toDouble() }, mean { land.shrub[it].toDouble() }, mean { land.tree[it].toDouble() },
+            mean { land.plants.herb[it].toDouble() }, mean { land.plants.shrub[it].toDouble() }, mean { land.plants.tree[it].toDouble() },
             mean { small.litter[it].toDouble() }, mean { small.organicMatter[it].toDouble() }, om[om.size / 10], om[om.size * 9 / 10],
-            mean { laid[it] / years }, mean { sodden[it] / steps.coerceAtLeast(1) }, mean { land.wetFloor(it).toDouble() }))
+            mean { laid[it] / years }, mean { sodden[it] / steps.coerceAtLeast(1) }, mean { land.hydro.wetFloor(it).toDouble() }))
     }
 }
