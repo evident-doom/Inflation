@@ -3,6 +3,7 @@ import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /*
@@ -37,19 +38,31 @@ fun gaussian(r: kotlin.random.Random): Double {
     return sqrt(-2 * ln(u)) * cos(2 * Math.PI * r.nextDouble())
 }
 
-/** A Poisson draw of [mean] from [r] (normal above a mean of 30). */
+/** A Poisson draw of [mean] from [r] (normal, rounded to the nearest count, above a mean of 30). */
 fun poisson(mean: Float, r: kotlin.random.Random): Int {
     if (mean <= 0f) return 0
-    if (mean > 30f) return (mean + sqrt(mean) * gaussian(r).toFloat()).toInt().coerceAtLeast(0)
+    if (mean > 30f) return (mean + sqrt(mean) * gaussian(r).toFloat()).roundToInt().coerceAtLeast(0)
     val l = exp(-mean.toDouble()); var k = 0; var pr = 1.0
     do { k++; pr *= r.nextDouble() } while (pr > l)
     return k - 1
 }
 
-/** A binomial draw of [n] tries at [p] from [r] (normal above 50 tries). */
+/**
+ * A binomial draw of [n] tries at [p] from [r]. Exact, try by try, up to 50 tries; beyond that, normal (rounded to
+ * the nearest count) where both outcomes are expected at least 10 times, and otherwise exact by the gaps between
+ * successes, which costs one draw per success.
+ */
 fun binomial(n: Int, p: Float, r: kotlin.random.Random): Int {
     if (n <= 0 || p <= 0f) return 0
     if (p >= 1f) return n
-    if (n > 50) return (n * p + sqrt(n * p * (1 - p)) * gaussian(r).toFloat()).toInt().coerceIn(0, n)
-    var k = 0; repeat(n) { if (r.nextFloat() < p) k++ }; return k
+    if (n <= 50) { var k = 0; repeat(n) { if (r.nextFloat() < p) k++ }; return k }
+    if (n * p >= 10f && n * (1 - p) >= 10f) return (n * p + sqrt(n * p * (1 - p)) * gaussian(r).toFloat()).roundToInt().coerceIn(0, n)
+    if (p > 0.5f) return n - binomial(n, 1f - p, r)
+    // (Rare successes: the tries up to each next one are geometric.)
+    val lq = ln(1.0 - p); var k = 0; var at = 0L
+    while (true) {
+        at += (ln(max(r.nextDouble(), 1e-300)) / lq).toLong() + 1
+        if (at > n) return k
+        k++
+    }
 }
