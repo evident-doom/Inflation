@@ -260,31 +260,41 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths); val ex = if (b.ornaments > 0f) b.exotic / b.ornaments else 0f
                 b.ornaments -= goods; b.exotic -= goods * ex; land.graveGoods[g.place] += goods }
         }
-        o.split?.let { c -> born += HexGroup(nextId++, s, g.place, c.first, c.second).also { n ->
-            g.memory.copyInto(n.memory)
-            n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.sizePref = g.sizePref; n.parent = g.id; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth; n.temper = Temperament.inherit(g.temper, n.id)
-            // A band that splits shares out its larder by heads.
-            val share = (c.first + c.second).toFloat() / (g.size + c.first + c.second).coerceAtLeast(1)
-            n.larder = g.larder * share; g.larder -= n.larder
-            // Both halves keep what the band knew and share out its tools and goods.
-            n.bold = g.bold
-            g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); riteInherit(nb); for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }; for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
-                nb.ornaments = b.ornaments * share; b.ornaments -= nb.ornaments; nb.exotic = b.exotic * share; b.exotic -= nb.exotic
-                nb.elders = b.elders * c.first / (g.adults + c.first).coerceAtLeast(1); b.elders -= nb.elders
-                // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
-                val go = c.first.toFloat() / (g.adults + c.first).coerceAtLeast(1)
-                for (i in b.holders.indices) if (b.holders[i] > 0f) {
-                    val n = b.holders[i].toInt() + (if (rnd.nextFloat() < b.holders[i] - b.holders[i].toInt()) 1 else 0)
-                    val took = binomial(n, go, rnd).toFloat(); nb.holders[i] = took; b.holders[i] = max(0f, b.holders[i] - took)
-                }
-                nb.lastAdults = c.first; b.lastAdults = g.adults
-                for (i in b.ageStage.indices) { nb.ageStage[i] = b.ageStage[i] * c.first / (g.adults + c.first).coerceAtLeast(1); b.ageStage[i] -= nb.ageStage[i] } } }
-            g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ); g.route.copyInto(n.route); g.proteinByMonth.copyInto(n.proteinByMonth)
-            if (ROUNDS && !s.carnivore) driftRound(n)
-        } } // a young pack has no ground yet
+        o.split?.let { c -> born += splitOff(g, c.first, c.second) } // a young pack has no ground yet
     }
     groups += born
     Profile.part("groups: merging and pairing") { mergeAndPair(date) }
+}
+
+/**
+ * The group that splits off [g] with [adults] and [young] of its number: it takes its memory, condition, taste
+ * and temper, a share of its larder by heads, and, for a band, a copy of what it knew and its share of its
+ * tools, goods, elders, practised people and ages; a herd keeps its seasons and round, drifted a little.
+ */
+private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
+    val s = g.species
+    val n = HexGroup(nextId++, s, g.place, adults, young)
+    g.memory.copyInto(n.memory)
+    n.fed = g.fed; n.fat = g.fat; n.tag = g.tag; n.sizePref = g.sizePref; n.parent = g.id; n.dry = g.dry; n.wary = g.wary; n.birthMonth = g.birthMonth; n.temper = Temperament.inherit(g.temper, n.id)
+    // A band that splits shares out its larder by heads.
+    val share = (adults + young).toFloat() / (g.size + adults + young).coerceAtLeast(1)
+    n.larder = g.larder * share; g.larder -= n.larder
+    // Both halves keep what the band knew and share out its tools and goods.
+    n.bold = g.bold
+    g.band?.let { b -> n.band = Band().also { nb -> b.copyInto(nb); riteInherit(nb); for (i in nb.kept.indices) { nb.kept[i] *= share; b.kept[i] -= nb.kept[i] }; for (m in b.goods.indices) { nb.goods[m] = b.goods[m] * share; b.goods[m] -= nb.goods[m] }
+        nb.ornaments = b.ornaments * share; b.ornaments -= nb.ornaments; nb.exotic = b.exotic * share; b.exotic -= nb.exotic
+        nb.elders = b.elders * adults / (g.adults + adults).coerceAtLeast(1); b.elders -= nb.elders
+        // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
+        val go = adults.toFloat() / (g.adults + adults).coerceAtLeast(1)
+        for (i in b.holders.indices) if (b.holders[i] > 0f) {
+            val held = b.holders[i].toInt() + (if (rnd.nextFloat() < b.holders[i] - b.holders[i].toInt()) 1 else 0)
+            val took = binomial(held, go, rnd).toFloat(); nb.holders[i] = took; b.holders[i] = max(0f, b.holders[i] - took)
+        }
+        nb.lastAdults = adults; b.lastAdults = g.adults
+        for (i in b.ageStage.indices) { nb.ageStage[i] = b.ageStage[i] * adults / (g.adults + adults).coerceAtLeast(1); b.ageStage[i] -= nb.ageStage[i] } } }
+    g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ); g.route.copyInto(n.route); g.proteinByMonth.copyInto(n.proteinByMonth)
+    if (ROUNDS && !s.carnivore) driftRound(n)
+    return n
 }
 
 /**
