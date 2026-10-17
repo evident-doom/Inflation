@@ -559,7 +559,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // as its time and timber go.
     time = buildPalisade(b, people, time)
     if (b.houseHex >= 0 && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
-    b.spareDays = time
+    b.spareDays = max(0f, time)
     // A band carries only so much: the rest is left behind (and goes back to the ground); at a camp it
     // keeps, it stacks building stone and timber beyond that.
     leaveExcess(b, p, people, area)
