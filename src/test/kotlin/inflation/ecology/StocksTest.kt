@@ -74,7 +74,7 @@ class StocksTest {
             "HexSmallLife.newborn", "HexFauna.bornThisWeek",
             // Shares, states and memories, 0..1 or days or degrees.
             "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexPlants.gdd", "HexPlants.moisture",
-            "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh",
+            "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
             "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning",
             "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.usual", "HexFauna.outbreak",

@@ -87,8 +87,22 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     /** The same for the grass of the shaded slopes: how green it is, and whether it has cured. */
     val greenShade = FloatArray(n); private val curedShade = BooleanArray(n)
 
-    /** Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when dry or dormant. */
-    fun nourishment(p: Int) = tuning.dryValue + (1f - tuning.dryValue) * green[p]
+    /**
+     * How far the grass of each place has grown on from leaf to stem and seed this year: degree-days above 0 °C it has
+     * grown through since the winter solstice, or since it sprouted again after curing. Grasses run up to flower only
+     * once a year, on lengthening days, so a sward that sprouts after midsummer stays leafy; one that has begun to run
+     * up ripens on. Grazing and fire keep a sward leafy: what is eaten or burnt grows back as new leaf.
+     */
+    val grassAge = FloatArray(n) { p ->
+        (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(p, m)) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
+    }
+    /** How ripe the grass of place [p] is, 0..1: leafy at 0, gone to stem and seed at 1 (see [grassAge]). */
+    fun maturity(p: Int) = ((grassAge[p] - LEAFY_DD) / (RIPE_DD - LEAFY_DD)).coerceIn(0f, 1f)
+    /** How much of the forage in place [p] is fresh, leafy growth, 0..1: the green part of it, less as it ripens. */
+    fun leafy(p: Int) = green[p] * (1f - maturity(p))
+
+    /** Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when dry, dormant or ripe. */
+    fun nourishment(p: Int) = tuning.dryValue + (1f - tuning.dryValue) * leafy(p)
 
     /** Volcanic ash lying on each place, mm (set from the eruptions each week). */
     val ash = FloatArray(n)
@@ -160,7 +174,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
 
     internal fun step(weather: Weather) {
         for (p in 0 until n) {
-            if (weather.date.month == 0 && weather.date.dayOfMonth <= days) gdd[p] = 0f
+            if (weather.date.month == 0 && weather.date.dayOfMonth <= days) { gdd[p] = 0f; grassAge[p] = 0f }
             gdd[p] += max(0f, weather.temperature[p] - 5f) * days
         }
         val years = days / Date.DAYS_PER_YEAR.toFloat()
@@ -174,6 +188,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             shootsSet = true
         }
         val shootsKept = exp(-years)
+        val lengthening = weather.date.dayOfYear < Date.DAYS_PER_YEAR / 2
         fire.spread(weather, years)
         // (For the books: what grew, what burnt and what fell into the litter, kg.)
         val books = land.books
@@ -199,7 +214,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // curing for the year.
             val rained = t >= 0f && weather.precipitation[p] > 0f
             val soaked = t >= 0f && weather.precipitation[p] >= GERMINATION_MM
+            val wasCured = cured[p]
             if (season > 0f && water0 < 0.5f) cured[p] = true else if ((rained && water0 >= 0.5f) || soaked) cured[p] = false
+            if (wasCured && !cured[p]) grassAge[p] = 0f
+            else if (!cured[p] && (lengthening || grassAge[p] >= LEAFY_DD)) grassAge[p] += max(0f, t) * days
+            // (Grazing, kg/km² a day, against the grass standing, kg/m².)
+            if (herb[p] > 0f) grassAge[p] *= 1f - (grazing[p] * days * 1e-6f / herb[p]).coerceIn(0f, 1f)
             if (season > 0f && waterShade < 0.5f) curedShade[p] = true else if ((rained && waterShade >= 0.5f) || soaked) curedShade[p] = false
             val shaded = land.slopeShade[p]
             val sunnyGrowth = herbGrowth(p, season, wet, cured[p])
@@ -340,6 +360,16 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         const val TREE_RENEWAL = 0.04f
         /** Share of trees' new growth within a browser's reach (saplings and low boughs). */
         const val TREE_IN_REACH = 0.03f
+        /**
+         * Degree-days above 0 °C of growth over which a grass sward stays leafy, and by which it has gone to stem and seed and
+         * is worth no more than cured grass ([grassAge]). Leafy until the stems start to run up: barley and wheat, both grasses
+         * of the steppe, reach stem elongation at 490-660 °C·d (Montana State University Extension, "Using growing degree
+         * days to predict plant stages", from Saskatchewan crop trials). Then digestibility falls by a third to a half of a
+         * percentage point a day from over 80% to below 50% (Ball et al. 2001, "Understanding forage quality", American
+         * Farm Bureau): some 75 days, at the 15 °C or so of the late spring and early summer it falls in, about 1100 °C·d.
+         */
+        const val LEAFY_DD = 550f
+        const val RIPE_DD = 1650f
         /** Weekly share by which greenness follows growth. */
         const val GREEN_RATE = 0.3f
         /** How green a fresh burn turns in growing weather, per share burnt. */

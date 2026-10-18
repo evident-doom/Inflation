@@ -78,9 +78,10 @@ object HexSnapshot {
      * 2.1: species records follow their sources (#213); a leaving group heads for the place found for it; groups form only
      * where no slope leads to safety; residents walk towards forage within a week's going (#219).
      * 2.2: residents weigh places by the resident hunters' kills too.
+     * 2.3: grass loses nourishment and protein as it goes to stem and seed (HexPlants.grassAge).
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 2
+    const val MODEL_MINOR = 3
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
