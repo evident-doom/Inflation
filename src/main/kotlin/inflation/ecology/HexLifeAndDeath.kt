@@ -38,10 +38,16 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     val reachKm = SEASON_RANGE_KM
     val r = (reachKm / hex.hexKm).toInt() + 1
     val near = ArrayList<Int>()
-    for (p in 0 until n) {
-        val (cx, cy) = hex.centreKm(hw.placeHex[p])
-        if (abs(cx - hx) <= reachKm && abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm) near += p
+    // (The hexes of the square about it, row by row, rather than every place on the map; in the places' order.)
+    val r0 = here / hex.cols; val c0 = here % hex.cols
+    val dr = (reachKm / (hex.hexKm * 0.866)).toInt() + 2; val dc = r + 1
+    for (row in max(0, r0 - dr)..min(hex.rows - 1, r0 + dr)) for (col in max(0, c0 - dc)..min(hex.cols - 1, c0 + dc)) {
+        val h = row * hex.cols + col
+        val (cx, cy) = hex.centreKm(h)
+        if (abs(cx - hx) <= reachKm && abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm)
+            for (b in HexWorld.BANDS_M.indices) { val p = hw.placeOf[b][h]; if (p >= 0) near += p }
     }
+    near.sort()
     if (near.isEmpty()) return
     var top = 0f
     for (m in 0 until 12) {
