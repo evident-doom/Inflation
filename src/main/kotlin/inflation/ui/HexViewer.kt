@@ -600,6 +600,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     g.font = font.deriveFont(if (f.kind == HexGeography.Kind.RIVER) Font.ITALIC else Font.BOLD, px.toFloat())
                     val (cx, cy) = hex.centreKm(f.label)
                     val w = g.fontMetrics.stringWidth(f.name); val x = sx(cx.toFloat()) - w / 2; val y = sy(cy.toFloat())
+                    // (Only where the name fits along the river, or across the stretch of country, at this zoom.)
+                    val across = if (f.kind == HexGeography.Kind.RIVER) f.hexes.size * hex.hexKm else sqrt(f.hexes.size * hex.areaKm2)
+                    if (w > across * kmPx) continue
                     g.color = Color(1f, 1f, 1f, 0.7f)
                     for ((dx, dy) in arrayOf(-1 to 0, 1 to 0, 0 to -1, 0 to 1)) g.drawString(f.name, x + dx, y + dy)
                     g.color = featureColour(f.kind)
@@ -608,7 +611,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 g.font = font
                 legends += MapLegend("Names", "The great features of the country, each named once: rivers (main stems, the greater flow keeping the name), " +
                     "their valleys and floodplains, lakes, and stretches of mountains, hills, forest, woods, steppe, desert and marsh larger than the ground one place draws on; " +
-                    "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on). The larger the feature, the larger its name.", note = features.summary(),
+                    "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on, or than a herd's range). The larger the feature, the larger its name; a name is written only where it fits along its river or across its country.", note = features.summary(),
                     swatches = HexGeography.Kind.entries.map { MapLegend.Swatch(featureColour(it), it.label) })
             }
             // The hex being inspected.

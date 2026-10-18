@@ -191,22 +191,46 @@ class HexGeography(private val hw: HexWorld) {
         // (Land running off the map may be part of more beyond it: not taken for an island.)
         val islands = lands.drop(1).filter { c -> c.all { h -> (0 until 6).all { d -> hex.neighbour(h, d) >= 0 } } }
         val island = BooleanArray(hex.size); for (c in islands) for (h in c) island[h] = true
-        val k = Math.ceil(GATHER_KM / 2 / hex.hexKm).toInt()
+        // The separate land masses (lakes counted with the land), to tell a strait between two of them.
+        val massOf = IntArray(hex.size) { -1 }
+        for ((i, c) in components { !sea(it) }.withIndex()) for (h in c) massOf[h] = i
         // Of the narrow parts, those at least as long as the width they are judged at; one running between two
-        // broad stretches is a neck (an isthmus, a strait), not a peninsula or bay. Lakes count with the land.
-        fun narrowParts(inside: (Int) -> Boolean, end: Kind, neck: Kind) {
-            val core = opened(k, inside)
-            val coreId = IntArray(hex.size) { -1 }
-            for ((i, c) in components { core[it] }.withIndex()) for (h in c) coreId[h] = i
-            for (c in components { inside(it) && !core[it] && !island[it] }) {
-                if (c.size < 2 * k + 1) continue
-                val touches = c.flatMap { h -> (0 until 6).map { hex.neighbour(h, it) } }.filter { it >= 0 && coreId[it] >= 0 }.map { coreId[it] }.toSet()
-                add(if (touches.size >= 2) neck else end, c)
+        // broad stretches, or water between two land masses each with a long shore on it, is a neck (an isthmus, a strait), not a peninsula or
+        // bay. Land is judged at two widths, the ground one place draws on and a herd's range ([RANGE_KM]); a part
+        // found the same at both is one feature.
+        val seen = HashSet<List<Int>>()
+        for (widthKm in doubleArrayOf(GATHER_KM, RANGE_KM)) {
+            val k = Math.ceil(widthKm / 2 / hex.hexKm).toInt()
+            fun narrowParts(inside: (Int) -> Boolean, end: Kind, neck: Kind) {
+                val core = opened(k, inside)
+                val coreId = IntArray(hex.size) { -1 }
+                for ((i, c) in components { core[it] }.withIndex()) for (h in c) coreId[h] = i
+                for (c in components { inside(it) && !core[it] && !island[it] }) {
+                    if (c.size < 2 * k + 1 || !seen.add(c.sorted())) continue
+                    val round = c.flatMap { h -> (0 until 6).map { hex.neighbour(h, it) } }.filter { it >= 0 }
+                    val cores = round.filter { coreId[it] >= 0 }.map { coreId[it] }.toSet()
+                    // (Water between two land masses: most of it lies within the judged half width of both, with the two
+                    // on opposite sides of it.)
+                    val between = end == Kind.BAY && c.count { h -> betweenMasses(h, k, massOf) } * 2 > c.size
+                    add(if (cores.size >= 2 || between) neck else end, c)
+                }
             }
+            narrowParts({ !sea(it) }, Kind.PENINSULA, Kind.ISTHMUS)
+            // (At a range's width the sea's narrow parts run together round the rim of a broad bay; seas only at the narrower.)
+            if (widthKm == GATHER_KM) narrowParts({ sea(it) }, Kind.BAY, Kind.STRAIT)
         }
-        narrowParts({ !sea(it) }, Kind.PENINSULA, Kind.ISTHMUS)
-        narrowParts({ sea(it) }, Kind.BAY, Kind.STRAIT)
         for (c in islands) add(Kind.ISLAND, c)
+    }
+
+    /** Whether two land masses lie within [k] rings of sea hex [h] on opposite sides of it (more than a right angle apart). */
+    private fun betweenMasses(h: Int, k: Int, massOf: IntArray): Boolean {
+        val nearest = HashMap<Int, Int>()
+        val seen = hashSetOf(h); var ring = listOf(h)
+        for (r in 0 until k) { ring = hex.nextRing(ring, seen); for (q in ring) if (massOf[q] >= 0) nearest.putIfAbsent(massOf[q], q) }
+        if (nearest.size < 2) return false
+        val (x, y) = hex.centreKm(h)
+        val dirs = nearest.values.map { q -> hex.centreKm(q).let { (qx, qy) -> qx - x to qy - y } }
+        return dirs.indices.any { a -> (a + 1 until dirs.size).any { b -> dirs[a].first * dirs[b].first + dirs[a].second * dirs[b].second < 0 } }
     }
 
     /** The hexes for which [inside] holds that an opening by [k] rings keeps: all but the parts narrower than 2[k] + 1 hexes. */
@@ -284,9 +308,12 @@ class HexGeography(private val hw: HexWorld) {
     /** A name for each: a made-up word for each river and stretch of country; valleys and floodplains after their river. */
     private fun name() {
         val used = HashSet<String>()
-        for (f in all) {
+        // Each name drawn from where the feature is (a river by its mouth, the rest by their heart), the greatest
+        // first, so a name stays with its feature when others are found or lost.
+        for (f in all.sortedByDescending { it.hexes.size }) {
             if (f.kind == Kind.VALLEY || f.kind == Kind.FLOODPLAIN) continue
-            val rnd = Random(world.config.seed * 1_000_003 + f.id)
+            val at = if (f.kind == Kind.RIVER) f.hexes.last() else f.label
+            val rnd = Random(world.config.seed * 1_000_003 + at.toLong() * 31 + f.kind.ordinal)
             var w: String
             do { w = word(rnd) } while (!used.add(w))
             f.name = when (f.kind) {
