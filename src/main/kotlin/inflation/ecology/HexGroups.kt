@@ -511,7 +511,7 @@ class HexGroups(
         Profile.part("spreading out: herds' grazing map") { fillGrazed(); noteGround(planGround) { g -> grazingRange(g) } }
         var moved = 0
         // (A herd moving on can crowd one that was settled: so they go on spreading, a day's going at a time, till none
-        // moves. A herd moves on only while it has a day of the week left: its way there took the rest.)
+        // moves. After the first look, a herd moves on only while it has a day of the week left: its way there took the rest.)
         for (pass in 0 until days) {
             val herds = groups.indices.filter { groups[it].alive && !groups[it].species.carnivore }
                 .sortedWith(compareByDescending<Int> { groups[it].days.lastOrNull() ?: 0f }.thenBy { it })
@@ -519,7 +519,7 @@ class HexGroups(
             for (k in herds) {
                 val g = groups[k]
                 val before = foreseen[g.id] ?: continue
-                if ((g.days.lastOrNull() ?: 0f) + 1f > days) continue
+                if (pass > 0 && (g.days.lastOrNull() ?: 0f) + 1f > days) continue
                 val crowded = survivalSteps(g, crowdSickness(crowdAt(g), g.fed)) - survivalSteps(g, crowdSickness(before, g.fed)) > 1f
                 // (Or the hunters stopped it short of the place it chose: it weighs again if where it stands is clearly deadlier.)
                 val stopped = chosenPlace[g.id]?.let { it != g.place.i } ?: false
