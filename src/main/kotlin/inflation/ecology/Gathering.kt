@@ -98,6 +98,37 @@ internal fun HexGroups.gather() {
 }
 
 /**
+ * Diagnostic (unfedDiag): for any resident kind [s], as if it lived both ways, what [gather] would condense out of its
+ * unfed residents this week (herds, by the same rule) and its unfed and all heads; nothing moves.
+ */
+internal fun HexGroups.wouldGather(s: Species): DoubleArray {
+    val k = fauna.slot(s); if (k < 0) return DoubleArray(3)
+    val a = fauna.adults[k]; val y = fauna.young[k]
+    val byHex = DoubleArray(hex.size)
+    var unfedHeads = 0.0; var allHeads = 0.0
+    for (p in 0 until n) {
+        val heads = (a[p] + y[p]) * land.areaKm2[p].toDouble()
+        if (heads <= 0.0) continue
+        val e = heads * short(s, k, p)
+        byHex[hw.placeHex[p]] += e; unfedHeads += e; allHeads += heads
+    }
+    var herds = 0
+    if (unfedHeads >= herdOf(s)) {
+        val used = BooleanArray(hex.size)
+        for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
+            if (used[h0]) continue
+            var all = 0.0
+            for (h in ground(h0, gatherKm(s))) if (!used[h]) all += byHex[h]
+            val count = (all / herdOf(s)).toInt()
+            if (count == 0) continue
+            for (h in ground(h0, gatherKm(s))) used[h] = true
+            herds += count
+        }
+    }
+    return doubleArrayOf(herds.toDouble(), unfedHeads, allHeads)
+}
+
+/**
  * For the viewer: by hex, how many herds of kind [s] the unfed excess within [gatherKm] of it came to this week, before
  * any gathered (at 1 or more, a herd forms there unless a place nearer more excess took it first); null before a week.
  */
