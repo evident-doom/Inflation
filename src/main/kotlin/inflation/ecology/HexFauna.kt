@@ -268,6 +268,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val reserve = Array(kinds.size) { k -> FloatArray(n) { 0.5f * kinds[k].maxFatDays } }
     /** For kinds that sleep through the winter: how well fed they went to sleep, 0..1. */
     private val autumnFed = Array(kinds.size) { FloatArray(n) { 0.8f } }
+    /** Days each kind has gone without water in each place, as a herd keeps them (see [HexGroup.dry]): they mount week to week until it drinks. */
+    val dry = Array(kinds.size) { FloatArray(n) }
     /** Life in the sea, lakes and rivers. */
     val water = HexWater(hw, land, days, small)
     /** Fruit, roots and straw as stocks. */
@@ -821,9 +823,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val start = birthStart[k]
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
             val grow = years / s.yearsToMaturity
-            val a = adults[k]; val y = young[k]; val f = fed[k]
+            val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
             for (p in 0 until n) {
-                if (a[p] + y[p] <= 0f) continue
+                if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a hungry mother bears and keeps fewer.
                 val inSeason = monthsFrom(start[p].toInt(), date.month) < s.birthMonths
@@ -846,10 +848,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val sleeping = asleep(s, p, weather)
                 val cold = if (sleeping) 0f else Hazards.cold(s, t, date.month)
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
-                // water's going (or gets enough from green food and prey); beyond that, a week dry beyond what
-                // it can bear kills as it does a herd.
-                val thirst = if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
-                    else Hazards.thirst(s, Hazards.dryDays(s, days, f[p], land.plants.green[p]))
+                // water's going (or gets enough from green food and prey); beyond that, its days without water
+                // mount week to week, and past what it can bear they kill as they do a herd.
+                if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) dk[p] = 0f
+                else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
+                val thirst = Hazards.thirst(s, dk[p])
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
                 // lean season binds, and then hunger and sickness together hold them.
                 val crowd = (a[p] + y[p]) / (CROWDED * usual[k])
