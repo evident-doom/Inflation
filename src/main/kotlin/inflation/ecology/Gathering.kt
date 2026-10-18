@@ -1,7 +1,9 @@
 package inflation.ecology
 
+import inflation.world.Date
 import inflation.world.HexWorld
 import inflation.world.Weather
+import inflation.wrapMonth
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -51,7 +53,7 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float): Boolean {
  * on coming there ([HexFauna.arriveOdds], NaN where it cannot stay), kept in [arriveBy]; and which residents leave
  * ([leaving]): about each place where the most would die staying, the residents of the ground within [gatherKm] whose
  * place is clearly deadlier ([clearlyWorse]) than the safest place within [farKm] beyond that ground, which they head
- * would head for.
+ * for ([leaveTo]).
  */
 internal fun HexGroups.leaveAhead(weather: Weather) {
     val out = FloatArray(HexFauna.HZ_COUNT)
@@ -70,31 +72,31 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
             stay[p] = fauna.stayOdds(k, p, weather, out)
             if (clearlyWorse(stay[p], 0f, band)) byHex[hw.placeHex[p]] += heads * stay[p]
         }
-        val leave = BooleanArray(n)
+        val leave = BooleanArray(n); val to = IntArray(n) { -1 }
         val used = BooleanArray(hex.size)
         val leavingByHex = DoubleArray(hex.size)
         for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
             if (used[h0]) continue
             // The safest place beyond their own ground, within a month's walk.
-            var bestOdds = Float.MAX_VALUE
+            var best = -1; var bestOdds = Float.MAX_VALUE
             for (h in ground(h0, farKm(s) / RING_KM + hex.hexKm)) {
                 val d = hex.distanceKm(h0, h); if (d <= gatherKm(s) || d > farKm(s)) continue
                 for (b in HexWorld.BANDS_M.indices) {
                     val q = hw.placeOf[b][h]; if (q < 0) continue
-                    if (arrive[q] < bestOdds) bestOdds = arrive[q]
+                    if (arrive[q] < bestOdds) { bestOdds = arrive[q]; best = q }
                 }
             }
-            if (bestOdds == Float.MAX_VALUE) continue
+            if (best < 0) continue
             val about = ground(h0, gatherKm(s)).filter { !used[it] }
             for (h in about) {
                 used[h] = true
                 for (b in HexWorld.BANDS_M.indices) {
                     val p = hw.placeOf[b][h]; if (p < 0 || a[p] + y[p] <= 0f) continue
-                    if (clearlyWorse(stay[p], bestOdds, band)) { leave[p] = true; leavingByHex[h] += (a[p] + y[p]) * land.areaKm2[p].toDouble() }
+                    if (clearlyWorse(stay[p], bestOdds, band)) { leave[p] = true; to[p] = best; leavingByHex[h] += (a[p] + y[p]) * land.areaKm2[p].toDouble() }
                 }
             }
         }
-        leaving[s] = leave
+        leaving[s] = leave; leaveTo[s] = to
         unfed[s] = leavingByHex
     }
 }
@@ -103,8 +105,10 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
  * Each week: in each gathering kind, the residents leaving ([leaveAhead]) and not taken in by a herd about them
  * ([scatter]), together from about each place where they are most (within [gatherKm], each hex once a week), as many
  * herds as they make ([herdOf] at most in each); no fewer than its kind goes about in ([Species.groupSize]), else they stay.
+ * Each herd sets off for the place its leavers headed for ([leaveTo], of the place most of them came from): it remembers
+ * it as the place to be this month and next, so it treks there ([HexGroup.seasonPlace]).
  */
-internal fun HexGroups.gather() {
+internal fun HexGroups.gather(date: Date) {
     for (s in Catalogue.gathering) {
         val k = fauna.slot(s); if (k < 0 || s !in kinds) continue
         val leave = leaving[s] ?: continue
@@ -148,6 +152,8 @@ internal fun HexGroups.gather() {
                 g.birthMonth = fauna.birthStart[k][most].toInt()
                 g.formedAt = most
                 inheritSeasons(g)
+                val dest = leaveTo[s]?.get(most) ?: -1
+                if (dest >= 0) for (m in 0..1) { val mm = wrapMonth(date.month + m); g.seasonPlace[mm] = dest; g.seasonQ[mm] = 1f }
                 groups += g
             }
             made += count; heads += takeA + takeY
@@ -170,8 +176,8 @@ internal fun HexGroups.herdsWorth(s: Species): FloatArray? {
 
 /**
  * Each week, a herd of a gathering kind keeps the balance with the residents of its kind about it. Where a band of it
- * would not be clearly worse off staying where it stands than at the safest place within a month's walk beyond it
- * ([settles]), one usual band of its kind ([Species.maxGroupSize]) settles there as residents, about where it stands,
+ * would not be clearly worse off staying where it stands than at the safest place within a month's walk beyond it,
+ * once it is well away from the place it left ([settles]), one usual band of its kind ([Species.maxGroupSize]) settles there as residents, about where it stands,
  * and the last band scatters whole. Elsewhere it takes in, within a day's walk of it, the residents leaving too
  * ([leaveAhead]) and the young males that grew up there this week and leave to find their own ground (half those grown,
  * see [HexFauna.grownUp]); each place gives to one herd a week. So herds form where the land fails its residents and
@@ -206,10 +212,12 @@ internal fun HexGroups.scatter() {
 
 /**
  * Whether a band of herd [g] would stay where it stands: its place, as it would be to a band coming there
- * ([arriveBy]), is not clearly deadlier ([clearlyWorse]) than the safest place within [farKm] beyond [gatherKm] of it.
+ * ([arriveBy]), is not clearly deadlier ([clearlyWorse]) than the safest place within [farKm] beyond [gatherKm] of it;
+ * and it has once gone more than [gatherKm] from where it formed ([HexGroup.formedAt]: the place it left had failed it).
  */
 private fun HexGroups.settles(g: HexGroup): Boolean {
     val s = g.species
+    if (g.formedAt >= 0) { if (hex.distanceKm(hw.placeHex[g.place.i], hw.placeHex[g.formedAt]) <= gatherKm(s)) return false; g.formedAt = -1 }
     val arrive = arriveBy[s] ?: return false
     val here = arrive[g.place.i]
     if (here.isNaN()) return false

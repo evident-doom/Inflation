@@ -116,6 +116,8 @@ class HexGroups(
     /** This week, by gathering kind: the share of a band that would die at each place on coming there, and the places whose residents leave (see [leaveAhead]). */
     @Transient internal val arriveBy = HashMap<Species, FloatArray>()
     @Transient internal val leaving = HashMap<Species, BooleanArray>()
+    /** Each gathering kind's place that each leaving place's residents head for this week, -1 where none leave ([leaveAhead]). */
+    @Transient internal val leaveTo = HashMap<Species, IntArray>()
     /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
     /** The land hexes a herd's animals stand on about each hex, by kind and hex ([groundShares]). */
@@ -294,7 +296,7 @@ class HexGroups(
             if (!Catalogue.formsFixed) {
                 leaveAhead(it)
                 scatter()
-                gather()
+                gather(it.date)
             }
         },
         Phase("herds: remembering places") { val date = it.date

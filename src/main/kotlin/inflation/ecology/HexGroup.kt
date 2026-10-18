@@ -24,7 +24,7 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var meatMet = 0f
     /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then; a loaded group's is spent). */
     @Transient var meatSpent = true
-    /** For a herd of a kind that also lives spread out: the place it condensed at ([gather]), -1 for none. */
+    /** For a herd of a kind that also lives spread out: the place it condensed at ([gather]), until it has gone beyond [gatherKm] of it; -1 for none or after. */
     var formedAt = -1
     /** For such a herd: heads it took in from the residents this week, and gave back to them ([scatter]). Not saved: read in the same step. */
     @Transient var joined = 0
