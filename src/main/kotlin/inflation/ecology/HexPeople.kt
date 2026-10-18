@@ -228,6 +228,8 @@ class Band(kinds: Int) {
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
     val sowWill get() = will[BandWay.SOWING]
+    /** How far a band with worn kit holds back from laying food by, to mend first (0 not at all, 1 wholly). */
+    val mendFirst get() = will[BandWay.MENDING_FIRST].coerceAtMost(1f)
     /**
      * Its choices against the dangers (1 for each gives the scaffold's way):
      * - how far from camp its gatherers go, against today's reach: further brings more food and
@@ -626,13 +628,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val p = g.place
     val h = hw.hexOf(p)
     val area = land.m2(p)
-    campAndCache(g, b, p, h, date)
+    // The time the band has to spare goes first to caching what it leaves at a camp, then to gathering what it lacks of
+    // its materials, then to making and mending.
+    val time = BandTime(b.spareDays)
+    campAndCache(g, b, p, h, date, time)
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
     keepHerds(g, b, date)
     val people = g.adults.toFloat()
     val gd = b.goods
-    // The time the band has to spare goes first to gathering what it lacks of its materials, then to making and mending.
-    val time = BandTime(b.spareDays)
     gatherMaterials(g, b, p, h, people, area, time)
     val living0 = b.livingGoods()
     val years = days / Date.DAYS_PER_YEAR.toFloat()
@@ -653,7 +656,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
     makeTools(b, people, time)
-    time.count(stats.hunting, Activity.MATERIALS, Activity.SHELTER, Activity.CUSTOMS, Activity.TRAINING, Activity.TOOLS)
+    time.count(stats.hunting, Activity.CACHING, Activity.MATERIALS, Activity.SHELTER, Activity.CUSTOMS, Activity.TRAINING, Activity.TOOLS)
     time.count(stats.hunting, "left", time.left)
     b.renown *= 1f - RENOWN_FADE * years
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > 1) Unlucky(u.hex, u.weeks - 1) else null }
@@ -729,7 +732,7 @@ private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + 
  * the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it
  * has room for.
  */
-private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date: Date) {
+private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date: Date, time: BandTime) {
     if (b.campPlace.none || h != hw.hexOf(b.campPlace)) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
@@ -737,9 +740,12 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
             val carry = carryKg(g, b)
             val total = g.larder
             if (total > carry) {
-                // (It chooses how much of what it cannot carry to cache; the rest is left where it lies.)
+                // (It chooses how much of what it cannot carry to cache, as far as its time to dig and cover the pits goes;
+                // the rest is left where it lies.)
                 val left = 1f - carry / total
-                val cached = min(1f, b.cacheWill)
+                val leftKg = Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
+                val cached = min(min(1f, b.cacheWill), if (leftKg > 0f) max(0f, time.left) * CACHE_KG_A_DAY / leftKg else 0f)
+                time.spend(Activity.CACHING, cached * leftKg / CACHE_KG_A_DAY)
                 if (cached > 0f) dropCache(b)
                 var abandoned = 0f
                 for (i in Store.entries) {
@@ -1293,7 +1299,8 @@ enum class BandWay(val label: String) {
     FEASTING("feasting"),
     APPOINTMENTS("appointments"),
     BURNING_OFF("burning off"),
-    REPAYING("repaying");
+    REPAYING("repaying"),
+    MENDING_FIRST("mending first");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
 }
@@ -1830,12 +1837,14 @@ const val FUEL_A_DAY = 25f
  * resin scraped from trees and shells picked over on the shore for beads.
  */
 const val STONE_A_DAY = 50f
+/** Food cached, kg a person-day: pits dug, lined and covered (an estimate, not a field figure). */
+const val CACHE_KG_A_DAY = 100f
 const val SALT_A_DAY = 20f
 const val OCHRE_A_DAY = 5f
 const val FIBRE_A_DAY = 10f
 const val RESIN_A_DAY = 0.5f
 const val SHELL_A_DAY = 0.5f
-/** Share of a full kit below which a band under the hand-written rules mends before it lays food by (Olli's choice). */
+/** Share of a full kit below which a band counts its kit worn, and mends before it lays food by as far as its way goes ([Band.mendFirst]; Olli's choice). */
 const val MEND_BELOW = 0.5f
 /**
  * Skin a kilo of small game yields, kg (a hare's or rabbit's pelt is about a tenth of its weight, from memory),

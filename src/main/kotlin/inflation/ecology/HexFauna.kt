@@ -268,6 +268,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val reserve = Array(kinds.size) { k -> FloatArray(n) { 0.5f * kinds[k].maxFatDays } }
     /** For kinds that sleep through the winter: how well fed they went to sleep, 0..1. */
     private val autumnFed = Array(kinds.size) { FloatArray(n) { 0.8f } }
+    /** Days each kind has gone without water in each place, as a herd keeps them (see [HexGroup.dry]): they mount week to week until it drinks. */
+    val dry = Array(kinds.size) { FloatArray(n) }
     /** Life in the sea, lakes and rivers. */
     val water = HexWater(hw, land, days, small)
     /** Fruit, roots and straw as stocks. */
@@ -595,6 +597,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // left (diet switching) and fatten on it.
             var spareG = grass; var spareB = browse; var spareF = food.fruit[p]; var spareR = food.roots[p]
             val gs = FloatArray(kinds.size); val bs = FloatArray(kinds.size)
+            // (What each kind ate this week, kg per m2, and the protein in it: fresh growth full, cured grass and straw
+            // little, as for the herds; see [proteinMet]. Fattening on a surplus is left out, as for the herds.)
+            val ateKg = FloatArray(kinds.size); val proteinKg = FloatArray(kinds.size)
+            val gp = grassProtein(p); val bp = browseProtein(p)
             for (k in byMass) {
                 val s = kinds[k]
                 if (need[k] <= 0f) continue
@@ -611,14 +617,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 eatG += need[k] * fill * d.grass / total * g; eatB += need[k] * fill * d.browse / total * b
                 eatF += need[k] * d.fruit / total * f; eatR += need[k] * d.roots / total * r
                 got[k] = (d.grass / total * g + d.browse / total * b) * fill * quality + d.fruit / total * f + d.roots / total * r
-                // (And how rich in protein what it ate was: fresh growth full, cured grass little; see [proteinMet].)
-                val eaten = d.grass / total * g + d.browse / total * b + d.fruit / total * f + d.roots / total * r
-                if (eaten > 0f) {
-                    val share = (d.grass / total * g * grassProtein(p) + d.browse / total * b * browseProtein(p) +
-                        (d.fruit / total * f + d.roots / total * r) * PROTEIN_FRUIT) / eaten
-                    val ps = plantShare(s)
-                    protein[k][p] += (proteinMet(ps * share + (1f - ps)) - protein[k][p]) * PROTEIN_MEMORY
-                }
+                ateKg[k] = wG * g + wB * b + wF * f + wR * r
+                proteinKg[k] = wG * g * gp + wB * b * bp + (wF * f + wR * r) * PROTEIN_FRUIT
             }
             for (k in byMass) {
                 val s = kinds[k]
@@ -639,6 +639,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val x = min(min(gap, room * qf), avail[k] * spareB / need[k] * qf)
                     spareB -= x * need[k] / qf
                     eatB += x * need[k] / qf
+                    ateKg[k] += x * need[k] / qf; proteinKg[k] += x * need[k] / qf * bp
                     got[k] += x
                     gap -= x
                     room -= x / qf
@@ -647,6 +648,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val x = min(min(gap, room * qf), avail[k] * spareG / need[k] * qf)
                     spareG -= x * need[k] / qf
                     eatG += x * need[k] / qf
+                    ateKg[k] += x * need[k] / qf; proteinKg[k] += x * need[k] / qf * gp
                     got[k] += x
                     gap -= x
                     room -= x / qf
@@ -655,6 +657,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val x = min(min(gap, SWITCH * d.fruit / total), avail[k] * spareF / need[k])
                     spareF -= x * need[k]
                     eatF += x * need[k]
+                    ateKg[k] += x * need[k]; proteinKg[k] += x * need[k] * PROTEIN_FRUIT
                     got[k] += x
                     gap -= x
                 }
@@ -662,6 +665,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val x = min(min(gap, SWITCH * d.roots / total), avail[k] * spareR / need[k])
                     spareR -= x * need[k]
                     eatR += x * need[k]
+                    ateKg[k] += x * need[k]; proteinKg[k] += x * need[k] * PROTEIN_FRUIT
                     got[k] += x
                     gap -= x
                 }
@@ -698,6 +702,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val rs = if (wantStraw > 0f) min(1f, food.straw[p] / wantStraw) else 1f
             for ((k, s) in kinds.withIndex()) {
                 val strawPart = if (need[k] > 0f) short[k] / need[k] * min(1f, GUT_FILL * HexFood.roughage(s)) * min(1f, avail[k]) * rs else 0f
+                // (And how rich in protein all it ate was, straw included; animal food is rich in it.)
+                val strawKg = short[k] * GUT_FILL * min(1f, avail[k]) * rs
+                val eaten = ateKg[k] + strawKg
+                if (eaten > 0f) {
+                    val ps = plantShare(s)
+                    protein[k][p] += (proteinMet(ps * (proteinKg[k] + strawKg * tuning.proteinStraw) / eaten + (1f - ps)) - protein[k][p]) * PROTEIN_MEMORY
+                }
                 val sleeping = asleep(s, p, weather)
                 var f = if (sleeping) {
                     // Asleep, it lives on its fat at a quarter of its waking need; fed as far as the fat lasts.
@@ -812,9 +823,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val start = birthStart[k]
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
             val grow = years / s.yearsToMaturity
-            val a = adults[k]; val y = young[k]; val f = fed[k]
+            val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
             for (p in 0 until n) {
-                if (a[p] + y[p] <= 0f) continue
+                if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a hungry mother bears and keeps fewer.
                 val inSeason = monthsFrom(start[p].toInt(), date.month) < s.birthMonths
@@ -837,10 +848,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val sleeping = asleep(s, p, weather)
                 val cold = if (sleeping) 0f else Hazards.cold(s, t, date.month)
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
-                // water's going (or gets enough from green food and prey); beyond that, a week dry beyond what
-                // it can bear kills as it does a herd.
-                val thirst = if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
-                    else Hazards.thirst(s, Hazards.dryDays(s, days, f[p], land.plants.green[p]))
+                // water's going (or gets enough from green food and prey); beyond that, its days without water
+                // mount week to week, and past what it can bear they kill as they do a herd.
+                if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) dk[p] = 0f
+                else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
+                val thirst = Hazards.thirst(s, dk[p])
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
                 // lean season binds, and then hunger and sickness together hold them.
                 val crowd = (a[p] + y[p]) / (CROWDED * usual[k])

@@ -60,10 +60,14 @@ object HexSnapshot {
      * 1.0: onager live both ways.
      * 1.1: sowing charged its full person-days.
      * 1.2: gathering materials takes time.
-     * 1.3: fallen mast lies as winter food, the mast and root stocks from records; rooting churns the ground at its recorded rate.
+     * 1.3: caching food takes time.
+     * 1.4: mending first is a band way.
+     * 1.5: residents count the protein in straw and in what they switch to, by weight, as herds do.
+     * 1.6: residents remember days without water.
+     * 1.7: fallen mast lies as winter food, the mast and root stocks from records; rooting churns the ground at its recorded rate.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 3
+    const val MODEL_MINOR = 7
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
