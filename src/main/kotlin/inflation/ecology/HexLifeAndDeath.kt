@@ -449,14 +449,14 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val mothers = mothersIn(g)
     val help = if (band != null) min(1f, band.elders * ELDER_MOTHERS / max(1, mothers)) else 0f
     // (Births follow one rule for every kind, groups and residents alike: each mother bears her
-    // litter as she is fed, through the birth season; only where just the leading pair of a pack
+    // litter as her food and reserves can build it (people as they are fed), through the birth season; only where just the leading pair of a pack
     // breeds ([Species.packLitter]: wolves) is there one litter a pack. A pack bears only on ground of its own.)
     if (inSeason && g.adults >= 2 && !(s.pack && g.home.none)) {
         val births = if (s.packLitter > 0) {
-            if (date.dayOfMonth <= days && date.month == g.birthMonth && !g.home.none) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
+            if (date.dayOfMonth <= days && date.month == g.birthMonth && !g.home.none) (s.packLitter * breeding(s, s.packLitter.toFloat(), g.fat, g.fed, days) + r.nextFloat()).toInt() else 0
         } else {
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-            val rate = s.youngPerFemale * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * tuning.humanBirths else 1f) *
+            val rate = s.youngPerFemale * (if (s.human) g.fed else breeding(s, s.youngPerFemale / stepsInSeason, g.fat, g.fed, days)) * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * tuning.humanBirths else 1f) *
                 (1f + GRANDMOTHERS * help) / stepsInSeason
             // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
             val each = rate * (if (s.carnivore) 1f else g.protein * herdRanges(g, crowdNow))
@@ -468,7 +468,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         g.young += births
         bornNow = births
         // The young are made of what their mothers ate: their weight comes off the mothers' reserves.
-        if (births > 0) g.fat = max(0f, g.fat - births * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / max(1, g.adults / 2))
+        if (births > 0) g.fat = max(0f, g.fat - fromReserves(s, births.toFloat() / max(1, g.adults / 2), g.fed, days))
     }
     val hunger = Hazards.hunger(g.fed)
     // People feel the cold as their clothes allow.

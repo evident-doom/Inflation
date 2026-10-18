@@ -68,6 +68,8 @@ object HexSnapshot {
      * 1.8: thirsty residents spread toward water (#210).
      * 1.9: crowding and breeding room count a kind's animals in both forms (#211).
      * 1.10: herds sicken by crowding as residents do, counted over the ground each herd grazes.
+     * 1.11: fallen mast lies as winter food, the mast and root stocks from records; rooting churns the ground at its
+     * recorded rate; mothers bear as their food and reserves can build their young.
      * 2.0: every plant-eater can live both ways: herds condense where hungry residents have room beyond their reach.
      * 2.1: resident hunters, disease and crowding meet a non-migratory herd as its kind's groups spread over HERD_UNIT times the ground.
      */
