@@ -556,15 +556,29 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     g.drawLine(sx(x0.toFloat()), sy(y0.toFloat()), sx(x1.toFloat()), sy(y1.toFloat()))
                 }
                 g.stroke = stroke
-                // Landmarks on the routes: junctions, fords, passes, water and ends.
-                val r = max(2, (2.5 * max(0.5, scale)).toInt())
-                for (h in groups.routes.landmarks) {
-                    val (cx, cy) = hex.centreKm(h); val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
-                    g.color = landmarkColour(groups.routes.kind(h))
-                    if (groups.routes.kind(h).let { it == HexRoutes.Kind.PASS || it == HexRoutes.Kind.PEAK }) g.fillPolygon(intArrayOf(x - r, x, x + r), intArrayOf(y + r, y - r, y + r), 3)
-                    else g.fillOval(x - r, y - r, 2 * r, 2 * r)
+                // The routes: the legs between places, dark and wider the more used (by their least worn stretch).
+                val routes = groups.routes
+                g.color = Color(0.2f, 0.1f, 0.05f, 0.9f)
+                for ((i, leg) in routes.legs.withIndex()) {
+                    if (!onScreen(leg[0], 2) && !onScreen(leg[leg.size - 1], 2)) continue
+                    g.stroke = BasicStroke((0.5f + 4f * routes.legWear[i]) * max(0.5f, scale.toFloat()), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+                    val xs = IntArray(leg.size) { sx(hex.centreKm(leg[it]).first.toFloat()) }
+                    val ys = IntArray(leg.size) { sy(hex.centreKm(leg[it]).second.toFloat()) }
+                    g.drawPolyline(xs, ys, leg.size)
                 }
-                legends += MapLegend("Paths and landmarks", "Paths: brown lines between hex centres, darker and wider the more worn. Landmarks on the routes: " +
+                g.stroke = stroke
+                // Landmarks: each place by its most telling landmark, a full mark; the others in it small.
+                val r = max(2, (2.5 * max(0.5, scale)).toInt())
+                for (h in routes.landmarks) {
+                    val (cx, cy) = hex.centreKm(h); val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
+                    val k = routes.kind(h)
+                    val rr = if (routes.places.getOrNull(routes.placeOf[h]) == h) r else max(1, r / 2)
+                    g.color = landmarkColour(k)
+                    if (k == HexRoutes.Kind.PASS || k == HexRoutes.Kind.PEAK) g.fillPolygon(intArrayOf(x - rr, x, x + rr), intArrayOf(y + rr, y - rr, y + rr), 3)
+                    else g.fillOval(x - rr, y - rr, 2 * rr, 2 * rr)
+                }
+                legends += MapLegend("Paths and landmarks", "Paths: brown lines between hex centres, darker and wider the more worn. Routes: dark lines from place to place along the most trodden strands, wider the more used. " +
+                    "A place is its most telling landmark (full mark) with the landmarks within a ring of it (small marks). Landmarks on the routes: " +
                     "junction (three or more worn ways meet), ford (a worn way crosses a river deeper than the knee), pass (a worn way through rugged country, " +
                     "its ring at least as rough), water (within ${WATER_LANDMARK_KM.toInt()} km of drinking water), end (a single worn way). " +
                     "Natural landmarks, on a route or not: hilltop (higher than all within two rings), lake, spring, where two rivers meet, river mouth.",
