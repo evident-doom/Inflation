@@ -1302,7 +1302,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             stuck[k].let { it[Stuck.HEADS.ordinal] += weekHeads; it[Stuck.STUCK.ordinal] += weekStuck; it[Stuck.AT_EDGE.ordinal] += weekEdge
                 if (weekHeads > 0.0) it[Stuck.PEAK.ordinal] = max(it[Stuck.PEAK.ordinal], weekStuck / weekHeads) }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
-            if (hops > 1) walkOn(k, weather, hops, walkA, walkY, walkKm, arrived, walkedKm)
+            if (hops > 1) walkOn(k, hops, walkA, walkY, walkKm, arrived, walkedKm)
             // (Those that came walked here, at a herd's cost a km out of their fat, see [walkCost].)
             for (p in 0 until n) if (arrived[p] > 0f) {
                 val heads = (a[p] + y[p]) * land.areaKm2[p]
@@ -1323,24 +1323,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * (Its usual going is how far it ranges in a day; a resident that sets off for better country can make at least
      * that much headway, so this is the lower bound of what it could cover.)
      */
-    private fun hopsFor(s: Species) = max(1, (s.dailyTravelKm * days / hex.hexKm).toInt())
+    internal fun hopsFor(s: Species) = max(1, (s.dailyTravelKm * days / hex.hexKm).toInt())
 
     /**
      * The walkers of kind [k] ([spill]'s, who left their place and have crossed into the next hex) walk on down the slope
-     * of the share that would die at each place on coming there ([arriveOdds], for a band of the kind): from where they
+     * of the share that would die at each place on coming there ([arrive]): from where they
      * stand to the safest neighbour while it is safer ([safestNeighbour], the one rule for which way the land slopes),
      * for up to [hops] hexes in all; at the bottom, or where their week's going is spent, they stay. Only for the kinds
      * whose food left uneaten is reckoned ([room]). Adds the heads that came to each place to [arrived] and the km they
      * walked to [walkedKm].
      */
-    private fun walkOn(k: Int, weather: Weather, hops: Int, walkA: FloatArray, walkY: FloatArray, walkKm: FloatArray,
+    private fun walkOn(k: Int, hops: Int, walkA: FloatArray, walkY: FloatArray, walkKm: FloatArray,
                        arrived: FloatArray, walkedKm: FloatArray) {
         val a = adults[k]; val y = young[k]
         val area = land.areaKm2
-        val band = kinds[k].maxGroupSize.toFloat()
-        val outs = ThreadLocal.withInitial { FloatArray(HZ_COUNT) }
-        val odds = FloatArray(n)
-        IntStream.range(0, n).parallel().forEach { q -> odds[q] = arriveOdds(k, q, band, weather, outs.get()) }
+        val odds = arrive[k]
         // (Where each place's slope leads a step on, worked out once, for the places with walkers on them.)
         val next = IntArray(n) { -2 }
         var wA = walkA; var wY = walkY; var wK = walkKm
