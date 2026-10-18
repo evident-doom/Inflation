@@ -1,63 +1,83 @@
 package inflation.ecology
 
-import inflation.wrapMonth
+import inflation.world.HexWorld
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 /*
- * Kinds that live both ways ([Catalogue.gathering]): one population, spread over the land as residents
- * most of the year, gathered into herds for the months their kind's round takes them far. Residents
- * where a round leaves the ground about its place ([GATHER_KM]) next month gather into herds of the kind's full
- * herd size and go with it; a herd that has come to where its round stays a while scatters back into
- * the land where it stands. Heads, young, fat, feeding and protein go across as they are: being moved
- * from one form to the other changes nothing by itself. Where no round passes, the kind never gathers.
+ * Kinds that live both ways ([Catalogue.gathering]): one population, spread over the land as residents, out of
+ * which herds condense where there are more animals than the land feeds. Each week, the residents a place did not
+ * feed (its heads times what fell short of their need) are its excess; where the excess within [GATHER_KM] of a
+ * place comes to a full herd of the kind, it gathers into herds that go looking for other country, and those the
+ * land fed stay. A herd that has come away from where it formed, and is fed where it stands among residents of its
+ * kind that are fed too, scatters back into the land. Heads, young, fat, feeding and protein go across as they are:
+ * being moved from one form to the other changes nothing by itself. The limit is the land's own: what it fed them
+ * this week, after the other kinds and the hunters.
  */
 
-/** The ground a round's place draws its animals from, and holds them on: half a range across (see [RANGE_KM]). */
+/** The ground a herd condenses from, and keeps away from until it scatters: half a range across (see [RANGE_KM]). */
 const val GATHER_KM = RANGE_KM / 2
 
 /** The heads a gathered herd of [s] holds: as many as its kind's herds gather. */
 internal fun herdOf(s: Species) = s.maxGroupSize * HERD_UNIT
 
 /**
- * At the month's turn: the residents of each gathering kind about a round's place last month, where the
- * round goes on to another range this month, gather into herds that take that round; what is too few for a
- * full herd stays spread.
+ * Each week: in each gathering kind, the excess the land did not feed, gathered from about each place where it is
+ * most (within [GATHER_KM], each hex once a week), into as many full herds as it makes; less than a herd stays spread.
  */
-internal fun HexGroups.gather(month: Int) {
-    val prev = wrapMonth(month - 1)
+internal fun HexGroups.gather() {
     for (s in Catalogue.gathering) {
         val k = fauna.slot(s); if (k < 0 || s !in kinds) continue
-        val rounds = herdRounds[s.index] ?: continue
-        // (Each place a round leaves from, once.)
-        val leaving = LinkedHashMap<Int, IntArray>()
-        for (r in rounds) if (hex.distanceKm(hw.placeHex[r[prev]], hw.placeHex[r[month]]) > GATHER_KM) leaving.putIfAbsent(r[prev], r)
-        val a = fauna.adults[k]; val y = fauna.young[k]
+        val a = fauna.adults[k]; val y = fauna.young[k]; val f = fauna.fed[k]
+        // (The excess at each place, heads; and by hex, to start from where it is most.)
+        val excess = DoubleArray(n)
+        val byHex = DoubleArray(hex.size)
+        for (p in 0 until n) {
+            val heads = (a[p] + y[p]) * land.areaKm2[p].toDouble()
+            if (heads <= 0.0) continue
+            excess[p] = heads * (1f - f[p]).coerceIn(0f, 1f)
+            byHex[hw.placeHex[p]] += excess[p]
+        }
+        val used = BooleanArray(hex.size)
+        val steps = (GATHER_KM / hex.hexKm).roundToInt()
         var made = 0; var heads = 0
-        for ((from, round) in leaving) {
-            val about = placesWithin(from, GATHER_KM)
-            var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var protein = 0.0; var most = -1; var mostHeads = 0.0
-            for (p in about) {
-                val ad = a[p] * land.areaKm2[p].toDouble(); val yo = y[p] * land.areaKm2[p].toDouble(); val h = ad + yo
-                adults += ad; young += yo
-                fat += h * fauna.reserve[k][p]; fed += h * fauna.fed[k][p]; protein += h * fauna.protein[k][p]
-                if (h > mostHeads) { mostHeads = h; most = p }
-            }
-            val all = adults + young
+        for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
+            if (used[h0]) continue
+            val about = hexesWithin(h0, steps).filter { !used[it] }
+            var all = 0.0
+            for (h in about) all += byHex[h]
             val count = (all / herdOf(s)).toInt()
-            if (count == 0 || adults < count) continue
-            // Whole animals go: the herds' adults and young, taken from each place in proportion.
-            val takeA = (count * herdOf(s) * adults / all).roundToInt().coerceIn(count, adults.toInt())
-            val takeY = minOf(count * herdOf(s) - takeA, young.toInt()).coerceAtLeast(0)
-            val fa = (takeA / adults).toFloat(); val fy = if (young > 0.0) (takeY / young).toFloat() else 0f
-            for (p in about) { a[p] *= 1f - fa; y[p] *= 1f - fy }
+            if (count == 0) continue
+            for (h in about) used[h] = true
+            // Whole animals go: each place gives its share of the excess, adults and young as they are there.
+            val t = count * herdOf(s) / all
+            var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var protein = 0.0; var most = -1; var mostHeads = 0.0
+            for (h in about) for (b in HexWorld.BANDS_M.indices) {
+                val p = hw.placeOf[b][h]; if (p < 0 || excess[p] <= 0.0) continue
+                val here = (a[p] + y[p]).toDouble()
+                val go = (t * excess[p] / land.areaKm2[p] / here).toFloat().coerceIn(0f, 1f)
+                val ga = a[p] * go * land.areaKm2[p].toDouble(); val gy = y[p] * go * land.areaKm2[p].toDouble()
+                a[p] -= a[p] * go; y[p] -= y[p] * go
+                adults += ga; young += gy
+                fat += (ga + gy) * fauna.reserve[k][p]; fed += (ga + gy) * f[p]; protein += (ga + gy) * fauna.protein[k][p]
+                if (ga + gy > mostHeads) { mostHeads = ga + gy; most = p }
+            }
+            val took = adults + young
+            val takeA = adults.roundToInt(); val takeY = young.roundToInt()
+            if (most < 0 || takeA < count) {
+                // (Too few grown animals for the herds: they stay spread, put back where the most came from.)
+                if (most >= 0) { a[most] += (adults / land.areaKm2[most]).toFloat(); y[most] += (young / land.areaKm2[most]).toFloat() }
+                continue
+            }
+            // (What rounding leaves over goes back to where the most came from.)
+            a[most] += ((adults - takeA) / land.areaKm2[most]).toFloat(); y[most] += ((young - takeY) / land.areaKm2[most]).toFloat()
             for (i in 0 until count) {
-                val g = spawn(s, from, takeA / count + if (i < takeA % count) 1 else 0)
+                val g = spawn(s, most, takeA / count + if (i < takeA % count) 1 else 0)
                 g.young = takeY / count + if (i < takeY % count) 1 else 0
-                g.fat = (fat / all).toFloat(); g.fed = (fed / all).toFloat(); g.protein = (protein / all).toFloat()
+                g.fat = (fat / took).toFloat(); g.fed = (fed / took).toFloat(); g.protein = (protein / took).toFloat()
                 g.birthMonth = fauna.birthStart[k][most].toInt()
+                g.formedAt = most
                 inheritSeasons(g)
-                round.copyInto(g.route)
                 groups += g
             }
             made += count; heads += takeA + takeY
@@ -67,23 +87,24 @@ internal fun HexGroups.gather(month: Int) {
 }
 
 /**
- * Each week: a herd of a gathering kind whose place this month and next lie within [GATHER_KM] of each other scatters
- * into the land about it as residents once it has come within reach of that place, or has stopped short of it (kept
- * all week to one hex): nothing is left for it to travel for.
+ * Each week: a herd of a gathering kind that has come further than [GATHER_KM] from where it formed, is fed where it
+ * stands ([FED_TO_SCATTER]), and finds the residents of its kind about it fed as well (an excess under that share of
+ * their heads), scatters into the land about it as residents: it has found country with room for it.
  */
-internal fun HexGroups.scatter(month: Int) {
+internal fun HexGroups.scatter() {
     var any = false
     for (g in groups) {
         val s = g.species
         if (!g.alive || s !in Catalogue.gathering) continue
         val k = fauna.slot(s); if (k < 0) continue
-        val goal = roundOf(g, month)?.place ?: g.seasonPlace[month]
-        val next = roundOf(g, wrapMonth(month + 1))?.place ?: g.seasonPlace[wrapMonth(month + 1)]
-        if (goal < 0 || next < 0) continue
-        if (hex.distanceKm(hw.placeHex[goal], hw.placeHex[next]) > GATHER_KM) continue
-        // (Or that has stopped short of it: stayed where it was all week, as residents do.)
-        val still = g.path.size <= 1
-        if (!still && hex.distanceKm(hw.placeHex[g.place], hw.placeHex[goal]) > GATHER_KM) continue
+        if (g.fed < FED_TO_SCATTER) continue
+        if (g.formedAt >= 0 && hex.distanceKm(hw.placeHex[g.place.i], hw.placeHex[g.formedAt]) <= GATHER_KM) continue
+        var heads = 0.0; var short = 0.0
+        for (p in placesWithin(g.place.i, GATHER_KM)) {
+            val h = (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p].toDouble()
+            heads += h; short += h * (1f - fauna.fed[k][p]).coerceIn(0f, 1f)
+        }
+        if (heads > 0.0 && short > (1f - FED_TO_SCATTER) * heads) continue
         spread(g, k)
         stats.hunting.merge(Tally.of(s, Tally.SCATTERED), 1, Int::plus); stats.hunting.merge(Tally.of(s, Tally.HEADS_SCATTERED), g.size, Int::plus)
         // (Its members live on spread out, not dead: so the learning counts them, see [SCATTERED].)
@@ -97,8 +118,14 @@ internal fun HexGroups.scatter(month: Int) {
 const val SCATTERED = -2
 
 /**
- * Herd [g]'s animals spread as residents (slot [k]) over the ground about it ([GATHER_KM], as they gathered from), by how
- * much of it suits them and feeds them ([HexGroups.startWeight]); their condition mixed with those there.
+ * How well fed a herd and the residents about it must be for it to scatter: all but a few percent of their need,
+ * as fed is never quite whole where animals are many.
+ */
+const val FED_TO_SCATTER = 0.95f
+
+/**
+ * Herd [g]'s animals spread as residents (slot [k]) over the ground about it ([GATHER_KM]), by how much of it suits
+ * them and feeds them ([HexGroups.startWeight]); their condition mixed with those there.
  */
 private fun HexGroups.spread(g: HexGroup, k: Int) {
     val about = placesWithin(g.place.i, GATHER_KM)
@@ -119,13 +146,21 @@ private fun HexGroups.spread(g: HexGroup, k: Int) {
     }
 }
 
-/** The places whose hexes' centres lie within [km] of place [p]'s. */
-private fun HexGroups.placesWithin(p: Int, km: Double): List<Int> {
-    val (x0, y0) = hex.centreKm(hw.placeHex[p])
-    val out = ArrayList<Int>()
-    for (q in 0 until n) {
-        val (x, y) = hex.centreKm(hw.placeHex[q])
-        if (kotlin.math.abs(x - x0) <= km && kotlin.math.abs(y - y0) <= km && kotlin.math.hypot(x - x0, y - y0) <= km) out += q
+/** The hexes within [steps] hexes of hex [h0] (itself included). */
+private fun HexGroups.hexesWithin(h0: Int, steps: Int): List<Int> {
+    val out = arrayListOf(h0); val seen = hashSetOf(h0)
+    var ring = listOf(h0)
+    repeat(steps) {
+        val next = ArrayList<Int>()
+        for (h in ring) for (d in 0 until 6) { val nh = hex.neighbour(h, d); if (nh >= 0 && seen.add(nh)) next += nh }
+        out += next; ring = next
     }
+    return out
+}
+
+/** The places in the hexes within [km] of place [p]'s hex. */
+private fun HexGroups.placesWithin(p: Int, km: Double): List<Int> {
+    val out = ArrayList<Int>()
+    for (h in hexesWithin(hw.placeHex[p], (km / hex.hexKm).roundToInt())) for (b in HexWorld.BANDS_M.indices) { val q = hw.placeOf[b][h]; if (q >= 0) out += q }
     return out
 }

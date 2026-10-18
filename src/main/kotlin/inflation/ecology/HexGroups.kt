@@ -269,10 +269,10 @@ class HexGroups(
             groups.removeIf { !it.alive }
             newcomers(it.date)
         },
-        // Herds of the kinds that also live spread out scatter where their round stays a while, and gather where it leaves.
+        // Herds of the kinds that also live spread out scatter where they find room, and condense where the land does not feed them.
         Phase("herds: gathering and scattering") {
-            scatter(it.date.month)
-            if (it.date.dayOfMonth <= days) gather(it.date.month)
+            scatter()
+            gather()
         },
         Phase("herds: remembering places") { val date = it.date
             if (date.dayOfMonth <= days) {

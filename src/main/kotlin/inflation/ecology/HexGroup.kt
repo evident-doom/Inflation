@@ -24,6 +24,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var meatMet = 0f
     /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then; a loaded group's is spent). */
     @Transient var meatSpent = true
+    /** For a herd of a kind that also lives spread out: the place it condensed at ([gather]), -1 for none. */
+    var formedAt = -1
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
     /** For a herd: the place it remembers doing best in each month, and how well (0..1). */

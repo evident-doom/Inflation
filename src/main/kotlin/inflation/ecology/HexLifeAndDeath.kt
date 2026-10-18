@@ -363,6 +363,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.fat = g.fat
     n.tag = g.tag
     n.sizePref = g.sizePref
+    n.formedAt = g.formedAt
     n.parent = g.id
     n.dry = g.dry
     n.chasedOn = g.chasedOn
