@@ -626,13 +626,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val p = g.place
     val h = hw.hexOf(p)
     val area = land.m2(p)
-    campAndCache(g, b, p, h, date)
+    // The time the band has to spare goes first to caching what it leaves at a camp, then to gathering what it lacks of
+    // its materials, then to making and mending.
+    val time = BandTime(b.spareDays)
+    campAndCache(g, b, p, h, date, time)
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
     keepHerds(g, b, date)
     val people = g.adults.toFloat()
     val gd = b.goods
-    // The time the band has to spare goes first to gathering what it lacks of its materials, then to making and mending.
-    val time = BandTime(b.spareDays)
     gatherMaterials(g, b, p, h, people, area, time)
     val living0 = b.livingGoods()
     val years = days / Date.DAYS_PER_YEAR.toFloat()
@@ -653,7 +654,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
     makeTools(b, people, time)
-    time.count(stats.hunting, Activity.MATERIALS, Activity.SHELTER, Activity.CUSTOMS, Activity.TRAINING, Activity.TOOLS)
+    time.count(stats.hunting, Activity.CACHING, Activity.MATERIALS, Activity.SHELTER, Activity.CUSTOMS, Activity.TRAINING, Activity.TOOLS)
     time.count(stats.hunting, "left", time.left)
     b.renown *= 1f - RENOWN_FADE * years
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > 1) Unlucky(u.hex, u.weeks - 1) else null }
@@ -729,7 +730,7 @@ private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + 
  * the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it
  * has room for.
  */
-private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date: Date) {
+private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date: Date, time: BandTime) {
     if (b.campPlace.none || h != hw.hexOf(b.campPlace)) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
@@ -737,9 +738,12 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
             val carry = carryKg(g, b)
             val total = g.larder
             if (total > carry) {
-                // (It chooses how much of what it cannot carry to cache; the rest is left where it lies.)
+                // (It chooses how much of what it cannot carry to cache, as far as its time to dig and cover the pits goes;
+                // the rest is left where it lies.)
                 val left = 1f - carry / total
-                val cached = min(1f, b.cacheWill)
+                val leftKg = Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
+                val cached = min(min(1f, b.cacheWill), if (leftKg > 0f) max(0f, time.left) * CACHE_KG_A_DAY / leftKg else 0f)
+                time.spend(Activity.CACHING, cached * leftKg / CACHE_KG_A_DAY)
                 if (cached > 0f) dropCache(b)
                 var abandoned = 0f
                 for (i in Store.entries) {
@@ -1830,6 +1834,8 @@ const val FUEL_A_DAY = 25f
  * resin scraped from trees and shells picked over on the shore for beads.
  */
 const val STONE_A_DAY = 50f
+/** Food cached, kg a person-day: pits dug, lined and covered (an estimate, not a field figure). */
+const val CACHE_KG_A_DAY = 100f
 const val SALT_A_DAY = 20f
 const val OCHRE_A_DAY = 5f
 const val FIBRE_A_DAY = 10f

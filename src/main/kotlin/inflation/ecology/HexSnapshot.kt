@@ -60,9 +60,10 @@ object HexSnapshot {
      * 1.0: onager live both ways.
      * 1.1: sowing charged its full person-days.
      * 1.2: gathering materials takes time.
+     * 1.3: caching food takes time.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 2
+    const val MODEL_MINOR = 3
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
