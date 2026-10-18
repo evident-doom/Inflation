@@ -867,7 +867,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
                 // water's going (or gets enough from green food and prey); beyond that, its days without water
                 // mount week to week, and past what it can bear they kill as they do a herd.
-                if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) dk[p] = 0f
+                if (drinks(s, p)) dk[p] = 0f
                 else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
                 val thirst = Hazards.thirst(s, dk[p])
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
@@ -961,6 +961,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return proteinMet(ps * share + (1f - ps))
     }
 
+    /** Whether [s] can drink at place [p]: water there, or within half its days without water's going (see [Hazards.fetchKm]). */
+    private fun drinks(s: Species, p: Int) =
+        s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)
+
     /** What a place is worth to a kind for moving there: nothing when below nothing or not a number (see [shiftBands], [spill]). */
     private fun worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w else 0f
 
@@ -1011,11 +1015,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 worthOf[q] = worthOrNothing(fareFor(s, q) * fresh * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * shy(s, q)) /
                     (1f + (a[q] + y[q]) / (CROWD * usual[k])))
             }
+            val dk = dry[k]
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
-                val need = (1f - f[p]).coerceIn(0f, 1f)
+                // (Thirst drives them as hunger does: by how far their days without water have gone towards what they can bear.)
+                val thirst = (dk[p] / s.daysWithoutWater).coerceIn(0f, 1f)
+                val need = max((1f - f[p]).coerceIn(0f, 1f), thirst)
                 val h = hw.placeHex[p]; val b = hw.placeBand[p]
-                // Hungry ones leave, and so do those whose country does not suit them, towards better.
+                // Hungry or thirsty ones leave, and so do those whose country does not suit them, towards better.
                 val leave = SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k, h)
                 // Where they could go: each neighbouring hex at about the same height (its band, or the one above
                 // or below: so they work up a valley to the high pasture and down again), weighed by food, how
@@ -1034,7 +1041,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         val q = hw.placeOf[nextBand][nh]
                         if (q < 0) continue
                         val i = d * 3 + db + 1
-                        val worth = worthOf[q]
+                        // (The thirsty shun country where they could not drink, the more the thirstier: as herds head for water.)
+                        val worth = if (thirst > 0f && !drinks(s, q)) worthOf[q] * (1f - thirst) else worthOf[q]
                         if (worth > best) best = worth
                         ws[i] = ease * (worth + 1e-4f) * toward
                         wq[i] = q
@@ -1052,7 +1060,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 if (total <= 0f) continue
                 // (And the more so the better the country next door is than here: as the seasons turn, they follow the fresh pasture.)
-                val here = worthOf[p]
+                val here = if (thirst > 0f && !drinks(s, p)) worthOf[p] * (1f - thirst) else worthOf[p]
                 val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
                 val go = min(0.5f, leave + SPILL_BETTER * better)
                 val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]
