@@ -271,8 +271,11 @@ class HexGroups(
         },
         // Herds of the kinds that also live spread out scatter where their round stays a while, and gather where it leaves.
         Phase("herds: gathering and scattering") {
-            scatter(it.date.month)
-            if (it.date.dayOfMonth <= days) gather(it.date.month)
+            // (Not in the form-swap test, where each kind keeps the form it has.)
+            if (!Catalogue.formsFixed) {
+                scatter(it.date.month)
+                if (it.date.dayOfMonth <= days) gather(it.date.month)
+            }
         },
         Phase("herds: remembering places") { val date = it.date
             if (date.dayOfMonth <= days) {
