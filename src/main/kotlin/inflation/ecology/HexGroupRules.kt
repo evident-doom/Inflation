@@ -171,6 +171,11 @@ const val SEASON_RANGE_KM = 200.0
  */
 const val SEASON_DISTANCE = 0.25f
 const val STAY = 0.05f
+/**
+ * How near the best a place's score must be for a herd to count it about as good, and choose among them by chance (see
+ * [HexGroups.plan]): the pull of staying put ([STAY]), the least the score holds worth a move. Not measured.
+ */
+const val ABOUT_AS_GOOD = STAY
 /** Share of a remembered season's place's worth kept each week the herd is elsewhere (about a tenth lost a year). */
 const val MEMORY_FADE = 0.998f
 /** How much a hungry pack is put off ground it has hunted out lately; weeks of hunger over which it widens its range to three times its usual ground. */
