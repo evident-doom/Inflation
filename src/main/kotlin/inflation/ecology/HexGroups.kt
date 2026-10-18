@@ -1448,7 +1448,7 @@ class HexGroups(
         /** Its diet as it leans this week ([herdDiet]), for a herd. */
         val diet = if (g.species.carnivore) g.species.diet else herdDiet(g)
         /** Reused for each place it weighs: see [foreseeFed], [deathsAt] and [huntedAhead]. */
-        val pantry = DryPantry(); val odds = Odds(); val hunted = FloatArray(4); val kill = FloatArray(3)
+        val pantry = DryPantry(); val odds = Odds(); val hunted = FloatArray(4); val kill = FloatArray(3); val killOdds = FloatArray(2)
         /** The hex it reaches each hex from, on its cheapest way from [here], and the going to each, km. */
         var via = IntArray(0); var dist = FloatArray(0)
         /**
@@ -1606,9 +1606,11 @@ class HexGroups(
     private fun huntedAhead(c: PlanContext, p: Place, h: Hex, d: Float) {
         val g = c.g; val s = g.species; val weather = c.weather
         var adult = 0f; var young = 0f
+        val ko = c.killOdds; val youngKg = HexFauna.YOUNG_WEIGHT * s.massKg
         rangeShares(g, h.i) { q, share ->
             val pq = hw.sameBandPlace(p.i, q).takeIf { it >= 0 } ?: p.i
-            adult += share * fauna.residentKillOdds(s.massKg, pq); young += share * fauna.residentKillOdds(HexFauna.YOUNG_WEIGHT * s.massKg, pq)
+            fauna.residentKillOdds(s.massKg, youngKg, pq, ko)
+            adult += share * ko[0]; young += share * ko[1]
         }
         c.hunted[2] = adult; c.hunted[3] = young
         c.stops = 0; c.through = 1f
