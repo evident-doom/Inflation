@@ -86,7 +86,8 @@ class HexGroups(
     internal fun noteSeasons(month: Int) {
         if (!ROUNDS) return
         for (s in kinds) {
-            if (s.carnivore || groups.none { it.alive && it.species == s }) continue
+            // (A kind that also lives spread out keeps noting them while none of it is gathered: its rounds are its gatherings' routes.)
+            if (s.carnivore || (s !in Catalogue.gathering && groups.none { it.alive && it.species == s })) continue
             val q = FloatArray(n) { p -> herdQuality(s, p, month) }
             qualityByMonth.getOrPut(s.index) { arrayOfNulls(12) }[month] = q
         }
@@ -176,7 +177,8 @@ class HexGroups(
         for (s in kinds) {
             if (s.human) continue
             val now = groups.count { it.alive && it.species == s }
-            if (now >= NEWCOMER_BELOW) continue
+            // (A kind that also lives spread out has its newcomers only if it is gone from the land too.)
+            if (now >= NEWCOMER_BELOW || (s in Catalogue.gathering && fauna.slot(s) >= 0 && fauna.count(fauna.slot(s)) >= herdOf(s))) continue
             val weights = startWeights(s)
             val total = weights.sum(); if (total <= 0f) continue
             val unit = unitSize(s)
@@ -194,8 +196,9 @@ class HexGroups(
     internal fun foodFor(s: Species, p: Int) = fauna.foodFor(s, p)
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and (for grazers and browsers) its food. */
-    private fun startWeights(s: Species) =
-        FloatArray(n) { p -> land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) }
+    private fun startWeights(s: Species) = FloatArray(n) { p -> startWeight(s, p) }
+    internal fun startWeight(s: Species, p: Int) =
+        land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f))
 
     /** A place drawn at random by [weights] (summing to [total]). */
     internal fun drawPlace(weights: FloatArray, total: Float): Int {
@@ -379,6 +382,11 @@ class HexGroups(
         for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g)
         groups.removeIf { !it.alive }
         newcomers(date)
+        // Herds of the kinds that also live spread out scatter where their round stays a while, and gather where it leaves.
+        Profile.part("herds: gathering and scattering") {
+            scatter(date.month)
+            if (date.dayOfMonth <= days) gather(date.month)
+        }
         Profile.part("herds: remembering places") {
             if (date.dayOfMonth <= days) {
                 noteSeasons(date.month)

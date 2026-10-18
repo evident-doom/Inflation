@@ -105,6 +105,7 @@ class HuntTally(private val sim: HexSim) {
         grainReapedNow += (groups.stats.hunting[Tally.of(Catalogue.HUMAN, WeekStats.GRAIN_REAPED)] ?: 0) / 1000.0
         for ((key, v) in groups.stats.hunting) year.merge(key, v, Int::plus)
         for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
+        for (g in groups.groups) if (g.alive && g.species in Catalogue.gathering) groupWeeks.merge("herds of ${g.species.name}", 1, Int::plus)
         for (g in groups.groups) if (g.alive && g.species.carnivore) {
             fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus)
             groupWeeks.merge(g.species.name, 1, Int::plus)
@@ -136,6 +137,17 @@ class HuntTally(private val sim: HexSim) {
                 "%s %d / %d".format(prey, n, year[Tally.of(s, Tally.HURT_BY + prey)] ?: 0)
             } + " (let pass: %d rare, %d not worth it)".format(year["${s.name}:herds let pass"] ?: 0, year["${s.name}:herds not worth it"] ?: 0)
         })
+    }
+
+    /** For the kinds that live both ways: herds gathered and scattered this year (heads), herd-weeks, and heads now in herds and spread. */
+    fun printGathering() {
+        val fauna = sim.fauna; val groups = sim.groups
+        println("     gathering kinds (this year: herds gathered (heads) / scattered (heads), herd-weeks; now: heads in herds / spread): " +
+            Catalogue.gathering.filter { fauna.slot(it) >= 0 }.joinToString("; ") { s ->
+                fun t(what: String) = year[Tally.of(s, what)] ?: 0
+                "%s %d (%d) / %d (%d), %d; %d / %.0f".format(s.name, t(Tally.GATHERED), t(Tally.HEADS_GATHERED), t(Tally.SCATTERED), t(Tally.HEADS_SCATTERED),
+                    groupWeeks["herds of ${s.name}"] ?: 0, groups.count(s), fauna.count(fauna.slot(s)))
+            })
     }
 
     /** Where people's hides came from this year: kg a person from herds, resident game and small pelts. */

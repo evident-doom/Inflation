@@ -105,6 +105,8 @@ class Species(
      * ground: a hyena clan bites above its weight, a jackal below.
      */
     val ferocity: Float = 1f,
+    /** For a hunter kept as a resident: the biggest game it kills, times its own weight (see [HexFauna.huntResidents]). */
+    val preyUpTo: Float = 3f,
     /** For predators: land per animal at the start, km². */
     val startKm2PerAnimal: Float = 0f,
     /**

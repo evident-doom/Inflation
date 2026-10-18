@@ -62,8 +62,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Array(12) { m -> FloatArray(n) { p -> byPlace[p][m] } }
     }
 
-    /** The resident kinds, and for each, adults and young per km² of each place. (Herd kinds run as residents in the form-swap experiment at the end.) */
-    @Transient val kinds = Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.formSwap.filter { !Catalogue.resident(it) }
+    /**
+     * The resident kinds, and for each, adults and young per km² of each place: those that live only so, then the herd kinds that
+     * also live spread out between their gatherings ([Catalogue.gathering]), and those run as residents in the form-swap experiment.
+     */
+    @Transient val kinds = (Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.gathering.sortedBy { it.index } +
+        Catalogue.formSwap.filter { !Catalogue.resident(it) }).distinct()
     /** Each kind's place in [kinds] (and in every table here kept by kind), by its [Species.index]; -1 for a kind kept in groups. */
     @Transient private val slots = IntArray(Catalogue.all.size) { -1 }.also { for ((k, s) in kinds.withIndex()) it[s.index] = k }
     /** [s]'s place in [kinds], or -1 if it is not a resident. */
@@ -178,7 +182,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * Resident hunter [k] at place [p] kills game among the residents there, and among the herds about it this week
-     * ([herdsAt]), for up to [meat] of meat: prey from a quarter of its weight to [PREY_UP_TO] times it (the young
+     * ([herdsAt]), for up to [meat] of meat: prey from a quarter of its weight to [Species.preyUpTo] times it (the young
      * of bigger kinds too), each kind as it is common there and by its weight, herd or resident alike, at most
      * [RESIDENT_KILL_MOST] of a kind's numbers in a week; what it cannot eat of a kill is left as carrion. Returns
      * what it ate.
@@ -186,7 +190,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun huntResidents(k: Int, p: Int, meat: KgM2, killedSoFar: FloatArray): KgM2 {
         if (meat.v <= 0f) return KgM2.ZERO
         val hunter = kinds[k]
-        val lo = 0.25f * hunter.massKg; val hi = PREY_UP_TO * hunter.massKg
+        val lo = 0.25f * hunter.massKg; val hi = hunter.preyUpTo * hunter.massKg
         val area = land.areaKm2[p]
         var total = 0f
         // (Weights in kg per km2, as the numbers are kept.)
@@ -286,6 +290,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // crashing out of it: half its usual density where its food grows, no denser where the ground
         // suits it best, and thinner where it is far from water or the climate is wrong for it.
         for ((k, s) in kinds.withIndex()) {
+            // (A kind that also gathers into herds starts as its herds, see [HexGroups].)
+            if (s in Catalogue.gathering) continue
             val dens = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
             for (p in 0 until n) {
                 // (Hunters among the residents live on prey found wherever there is life: food is no bar to them here.)
@@ -446,7 +452,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Game a resident hunter [s] takes at place [p], kg per km²: residents and herds of its prey's size ([huntResidents]). */
     private fun preyFor(s: Species, p: Int): Float {
-        val lo = 0.25f * s.massKg; val hi = PREY_UP_TO * s.massKg
+        val lo = 0.25f * s.massKg; val hi = s.preyUpTo * s.massKg
         var v = 0f
         for ((j, ps) in kinds.withIndex()) {
             if (ps.carnivore) continue
@@ -486,7 +492,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (!newcomersOn) return
         val r = kotlin.random.Random((date.absoluteDay * 7919L + 13) xor seedSalt)
         for (k in kinds.indices) {
-            if (count(k) >= NEWCOMER_ANIMALS) continue
+            // (A kind that also gathers into herds gets its newcomers as herds.)
+            if (count(k) >= NEWCOMER_ANIMALS || kinds[k] in Catalogue.gathering) continue
             val s = kinds[k]
             val w = FloatArray(n) { p -> land.areaKm2[p] * suits(s, p) * climateSuits(s, p) }
             val total = w.sum(); if (total <= 0f) continue
@@ -1072,7 +1079,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
          * Resident hunters: heaviest prey against their own weight; share of a prey kind's numbers in a place they can
          * kill in a week; weight of the young against grown. (They eat [MEAT_SHARE] of a kill, as packs do.)
          */
-        const val PREY_UP_TO = 3f
         const val RESIDENT_KILL_MOST = 0.02f
         const val YOUNG_WEIGHT = 0.3f
         /** How strongly a strait draws spilling residents against a neighbouring hex on land (a trickle). */
