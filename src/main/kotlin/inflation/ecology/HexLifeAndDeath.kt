@@ -199,9 +199,9 @@ internal fun HexGroups.graze(weather: Weather) {
  * The places a herd grazes this week and each one's share of its need: its own and the hexes round
  * it at its height, ring by ring, until the grass and browse still to be eaten this week in reach
  * (what the residents and the herds before it left, see [HexFauna.grazeLeft]) is [RANGE_NEED] times
- * its week's need (at most [RANGE_RINGS] rings), shared by what each has left. (It was reckoned from
- * the standing plants, of which a week's grazing can take only a hundredth: a crowd of herds ate its
- * own place bare while the next hex stood untouched.)
+ * its week's need (at most [RANGE_RINGS] rings), shared by what each has left. (Not from the standing
+ * plants, of which a week's grazing can take only a hundredth: reckoned from those, a crowd of herds
+ * would eat its own place bare while the next hex stood untouched.)
  */
 internal fun HexGroups.grazingRange(g: HexGroup): List<Pair<Int, Float>> {
     val p0 = g.place.i; val band = hw.placeBand[p0]; val h0 = hw.placeHex[p0]
@@ -713,7 +713,7 @@ private fun HexGroups.peopleSickness(g: HexGroup, weather: Weather): Float {
     val dens = peopleCrowding(g)
     // Fevers by the marshes in the warm months, where the mosquitoes breed.
     val marsh = land.waterlogged[g.place] * if (weather.temperature[g.place] > 20f) 1f else 0f
-    // (Marsh fever is now its own sickness: see [Illness].)
+    // (Marsh fever is its own sickness, not counted here: see [Illness].)
     return PEOPLE_SICK * tuning.peopleSick * dens * dens
 }
 

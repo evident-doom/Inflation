@@ -2,7 +2,7 @@ package inflation.world
 
 import kotlin.math.exp
 
-/** The physical world: terrain, rock, water and climate. Living things are added in later steps. */
+/** The physical world: terrain, rock, water and climate, without living things. */
 class World(
     val config: WorldConfig,
     val grid: Grid,

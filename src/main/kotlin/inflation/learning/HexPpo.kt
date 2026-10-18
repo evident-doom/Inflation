@@ -195,7 +195,7 @@ object HexPpo {
     /**
      * Weeks over which a band's choice is judged: a season. What a move does to its band shows within
      * about 8 to 13 weeks, while the drift every other band's choices cause grows on through the year
-     * (at 52 weeks it was as large as the spread between bands; see tools/HexChoiceEffect).
+     * (see tools/HexChoiceEffect).
      */
     const val PEOPLE_HORIZON = 13
     const val PEOPLE_DISCOUNT = 0.98f
@@ -210,9 +210,8 @@ object HexPpo {
     const val MIGRATION_KM = GATHER_KM
     const val CLIP = 0.2f
     /**
-     * Parts each batch of learning is split into, to be worked on all cores (with 16 parts, as
-     * before, most of a big machine stood idle while learning); the same on every machine, so that
-     * a run's sums come out the same.
+     * Parts each batch of learning is split into, to be worked on all cores; the same on every machine,
+     * so that a run's sums come out the same.
      */
     const val PARTS = 128
     const val ENTROPY = 0.01f
@@ -458,7 +457,7 @@ object HexPpo {
 
     /**
      * [score] with everything hand-written, worked out once for each world and kept: it is the same
-     * every check (the runs are reproducible), and it was a quarter of each check's work.
+     * every check (the runs are reproducible).
      */
     internal fun handScore(cfg: WorldConfig, years: Int, kinds: List<Species>): Map<Species, Double> =
         handScores.computeIfAbsent(Triple(cfg, years, kinds.map { it.name })) { score(cfg, years, kinds) { } }

@@ -103,7 +103,7 @@ class PpoTrainer(private val o: PpoOptions) {
     private fun playRound(r: Int, ms: List<SharedMover>, ways: LearnedWays?): List<List<Choice>> {
         val fresh = (0 until o.worlds).filter { w -> players[w]?.done != false }
         for (w in fresh) players[w]?.derailed?.let { why -> log.write("world $w replaced after round ${r - 1}: $why") }
-        // (New worlds are made side by side, as each round's fresh worlds were before they lived on.)
+        // (New worlds are made side by side.)
         fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.width, o.height, w), kinds, steps * o.worldRounds, o.burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep, o.sampling) { line -> log.write("world $w $line") } }
             .toList().forEach { (w, p) -> players[w] = p }
         return (0 until o.worlds).toList().parallelStream().map { w -> players[w]!!.play(steps, ms, ways) }.toList()

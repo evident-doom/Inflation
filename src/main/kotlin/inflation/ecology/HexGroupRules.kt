@@ -160,7 +160,7 @@ const val HUNGRY_LEAVE = 0.5f
 const val GIVE_UP_WEEKS = 4
 /**
  * How much a fed pack's hand-written score is put off ground beyond its territory, and ground another pack of
- * its kind has freshly marked: enough that it keeps to its own as it did when those places were not weighed
+ * its kind has freshly marked: enough that it keeps to its own about as if those places were not weighed
  * at all, while a learned policy sees both and may weigh them otherwise.
  */
 const val KEEP_TO_GROUND = 2f
@@ -255,10 +255,9 @@ const val RIVAL_KILL = 0.02f
 const val INFANTICIDE = 0.25f
 /**
  * How watchful a herd is for coursing hunters in fully open country (times the other odds, at most 0.95 in all), and how a
- * chase goes when they come on it unseen, against [CATCH]. Set (2026-10-17) so that herds see hunters first and lose
- * animals to chases as often as they did when every herd stayed near-fully wary for months (a long memory that sat
- * near its ceiling, 0.89 at a chase); being chased now alarms a herd only for [ALARM_DAYS], 0.28 at a chase, since
- * hunters come on a herd in clusters. (Fitted on the seed-1 hunting probe: seen first and kills per meeting as before.)
+ * chase goes when they come on it unseen, against [CATCH]. Being chased alarms a herd only for [ALARM_DAYS], since
+ * hunters come on a herd in clusters; these are set so that herds see hunters first and lose animals to chases about
+ * as often as herds that stayed near-fully wary all the time would.
  */
 const val VIGILANCE = 0.86f
 const val SURPRISE = 1.03f

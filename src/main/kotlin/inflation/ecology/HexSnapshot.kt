@@ -57,7 +57,7 @@ object HexSnapshot {
      * to drift from it (a growth rate retuned, a new cost): such a save loads with a warning, and whoever tests on it
      * judges whether to settle again first. Set the minor version back to 0 with a new major one.
      *
-     * 1.0: onager live both ways (#179).
+     * 1.0: onager live both ways.
      */
     const val MODEL_MAJOR = 1
     const val MODEL_MINOR = 0

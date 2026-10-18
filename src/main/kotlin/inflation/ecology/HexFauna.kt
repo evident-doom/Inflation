@@ -1117,7 +1117,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
         /** Below this density, per km², a kind is gone from a place. */
         const val EXTINCT = 1e-4f
-        /** Density, as a multiple of a kind's usual, at which crowding halves a place's appeal (10/km² against the 0.5/km² all kinds were given before). */
+        /** Density, as a multiple of a kind's usual, at which crowding halves a place's appeal. */
         const val CROWD = 20f
         /**
          * Outbreaks: yearly chance one starts in a place at its kind's crowded density; share of the kind it kills a

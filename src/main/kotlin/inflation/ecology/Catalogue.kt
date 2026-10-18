@@ -417,7 +417,6 @@ object Catalogue {
      * Wild goat (bezoar): herds of the broken hill country, crags and open oak woods of the Taurus
      * and Zagros; they climb to the high pastures in summer and come down to the lower slopes and
      * valleys in winter, ahead of the deep snow. The ancestor of the goat (figures from memory).
-     * (It took the place of the reindeer, which this latitude did not suit, and keeps its index.)
      */
     val WILD_GOAT = Species(
         id = 11, name = "wild goat", massKg = 40f,

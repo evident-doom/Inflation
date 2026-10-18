@@ -22,13 +22,12 @@ import kotlin.math.abs
  * years the change itself takes to show. They live in ~/.inflation/test-worlds/NAME: state.bin (the
  * saved world), about.properties (how and when it was made) and settle.csv (the history of its settling).
  *
- * Smaller worlds were tried and are not kept for questions about the animals: on 298e7e7, 400 x 800 km
- * maps (32-40°N only) had 5-7 of about 28 kinds within the full map's seeds' range, with 4-5 kinds
- * missing, and 500 x 2000 km strips matched 10-16 of 31 trends while saving only a quarter of a step's
- * time. small-1 stays for checking that code runs. [compare] remains for setting any other world
+ * Smaller worlds are not kept for questions about the animals: on a smaller map few kinds stay within
+ * the full map's seeds' range and some go missing, and narrow strips follow the full map's trends poorly
+ * for little time saved. small-1 stays for checking that code runs. [compare] sets any other world
  * beside the full map.
  *
- * A settled world still drifts (after 30 years wild boar and mouflon fell about 5% a year), so a change
+ * A settled world still drifts, so a change
  * is judged only against a base run from the same start: [ab] runs both on each full map, with the
  * weather drawn several ways, and reports each kind's effect, paired by weather.
  *
@@ -60,17 +59,17 @@ object TestWorlds {
         Entry("full-2", 2, 1000, 2000, "the full map"),
         Entry("full-3", 3, 1000, 2000, "the full map"),
         Entry("small-1", 1, 400, 800, "for checking code runs only: 32-40°N, kinds missing"),
-        // The full map's seeds again, settled on the rain with fronts fading over land and sea showers (beside
-        // full-1..3, which other tests still start from): test on them with --worlds rain-1,rain-2,rain-3.
+        // The full map's seeds, settled on the rain with fronts fading over land and sea showers: test on them
+        // with --worlds rain-1,rain-2,rain-3.
         Entry("rain-1", 1, 1000, 2000, "the full map, new rain"),
         Entry("rain-2", 2, 1000, 2000, "the full map, new rain"),
         Entry("rain-3", 3, 1000, 2000, "the full map, new rain"),
-        // The full map's seeds settled again once lake basins drained to their lakes and cliffs stood only where the
-        // slope breaks (#118).
+        // The full map's seeds, settled with lake basins draining to their lakes and cliffs standing only where the
+        // slope breaks.
         Entry("lake-1", 1, 1000, 2000, "the full map, lake basins drained"),
         Entry("lake-2", 2, 1000, 2000, "the full map, lake basins drained"),
         Entry("lake-3", 3, 1000, 2000, "the full map, lake basins drained"),
-        // The same seeds settled again once floods laid organic silt on the valley floors (#122): the current test worlds.
+        // The same seeds, settled with floods laying organic silt on the valley floors.
         Entry("silt-1", 1, 1000, 2000, "the full map, river soils"),
         Entry("silt-2", 2, 1000, 2000, "the full map, river soils"),
         Entry("silt-3", 3, 1000, 2000, "the full map, river soils"),

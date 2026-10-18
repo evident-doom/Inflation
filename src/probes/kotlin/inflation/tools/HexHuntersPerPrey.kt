@@ -6,7 +6,7 @@ import inflation.ecology.get
 
 /**
  * What the viewer's "Hunters per prey" layer is made of: after four weeks from the start (a test world's
- * saved state, or --load), the layer's value per hex worked out as the viewer did before it blanked hexes with under 1 kg/km² of big game (kg of non-human
+ * saved state, or --load), the layer's value per hex worked out as the viewer does but without blanking hexes with under 1 kg/km² of big game (kg of non-human
  * hunters, residents and packs, per 100 kg of the other big animals, over the hex and its ring), and then,
  * for each kind of country and for the hexes reading 10 or more and 20 or more: the share of hexes that
  * high, hunters' kg/km² by kind and how well fed they are, big game kg/km² by kind, and the small life
