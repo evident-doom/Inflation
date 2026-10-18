@@ -30,6 +30,7 @@ import kotlin.random.Random
 import inflation.ecology.HexFeatures as Feature
 import inflation.world.Biome
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.DoubleAdder
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.stream.IntStream
@@ -415,7 +416,8 @@ class HexGroups(
         }
         for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { choice[k] = choice[l]; paths[k] = paths[l]; times[k] = times[l]; crowds[k] = crowds[l] } }
         if (deathDiag != null) for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) {
-            foreseenDeaths[groups[l].id]?.let { foreseenDeaths[groups[k].id] = it }; foreseenFed[groups[l].id]?.let { foreseenFed[groups[k].id] = it } } }
+            foreseenDeaths[groups[l].id]?.let { foreseenDeaths[groups[k].id] = it }; foreseenFed[groups[l].id]?.let { foreseenFed[groups[k].id] = it }
+            chosenDiag[groups[l].id]?.let { chosenDiag[groups[k].id] = it } } }
         // (Herds that did not weigh their places foresee the crowd where they are, as the week begins: see [spreadOut].)
         foreseen.clear()
         for ((k, g) in groups.withIndex()) if (g.alive && !g.species.carnivore) foreseen[g.id] = if (crowds[k] >= 0f) crowds[k] else crowdAt(g)
@@ -504,6 +506,7 @@ class HexGroups(
             onGround(g, 1f)
             crossWater(g, plan.path)
             moved++
+            if (deathDiag == g.species.name) shiftedDiag += g.id
         }
         stats.meetings.merge("herds that spread out on arrival", moved, Int::plus)
     }
@@ -945,6 +948,16 @@ class HexGroups(
     @Transient internal val foreseenDeaths = ConcurrentHashMap<Int, Map<String, FloatArray>>()
     /** For deathDiag=KIND: how fed each herd of that kind foresaw it would be where it chose ([foreseeFed]), by its id. */
     @Transient internal val foreseenFed = ConcurrentHashMap<Int, Float>()
+    /** For deathDiag=KIND: the place each herd of that kind chose this week, and the herds that weighed again on arrival ([spreadOut]), by id. */
+    @Transient internal val chosenDiag = ConcurrentHashMap<Int, Int>()
+    @Transient internal val shiftedDiag: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+    /** For deathDiag=KIND: the deaths the week's odds made likely for that kind's herds ([liveWeek]), by "where|cause" ([diagWhere]). */
+    @Transient internal val metOddsDiag = ConcurrentHashMap<String, DoubleAdder>()
+    /** For deathDiag: where herd [g] ended the week against the place it chose: weighed again on arrival, reached it, stopped short of it, or chose none. */
+    internal fun diagWhere(g: HexGroup): String {
+        val chosen = chosenDiag[g.id] ?: return "chose none"
+        return when { g.id in shiftedDiag -> "moved on arrival"; g.place.i == chosen -> "reached its choice"; else -> "stopped short" }
+    }
     /** For deathDiag: each herd kind's animals ([Species.index]) the residents' hunters killed this week ([takeResidentsKills]). */
     @delegate:Transient internal val herdKilledByResidents by lazy { IntArray(Catalogue.all.size) }
 
@@ -1377,7 +1390,7 @@ class HexGroups(
             deathsAt(c, best, bh, dist[bh], 0f, 0f)
             c.odds.byCause = null
             val drown = crossingDeaths(s, bh.i, here.i, via); if (drown > 0f) m["drowned crossing"] = floatArrayOf(drown, drown)
-            foreseenDeaths[g.id] = m; foreseenFed[g.id] = foreseeFed(c, best.i, bh.i, dist[bh])
+            foreseenDeaths[g.id] = m; foreseenFed[g.id] = foreseeFed(c, best.i, bh.i, dist[bh]); chosenDiag[g.id] = best.i
         }
         return Plan(best, pathTo(best.i), crowd)
     }

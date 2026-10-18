@@ -47,6 +47,8 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
     }
 
     private val foreseenBy = java.util.TreeMap<String, Double>(); private val metBy = java.util.TreeMap<String, Double>()
+    /** By "where|what" ([inflation.ecology.HexGroups.diagWhere]): foreseen deaths by cause and fed (foreseen), and the week's odds' deaths, fed and dry days met ([inflation.ecology.HexGroups.metOddsDiag]). */
+    private val whereF = java.util.TreeMap<String, Double>(); private val whereM = java.util.TreeMap<String, Double>()
     private var deathSums = DoubleArray(6)
     /**
      * The animals each herd of [kind] foresaw would die this week where it chose to go ([inflation.ecology.HexGroups.foreseenDeaths]:
@@ -63,6 +65,9 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
                 val g = byId[id] ?: continue
                 deathSums[5] += g.size.toDouble()
                 for ((cause, v) in m) foreseenBy.merge(cause, (g.adults * v[0] + g.young * v[1]).toDouble(), Double::plus)
+                val w = groups.diagWhere(g)
+                for ((cause, v) in m) whereF.merge("$w|$cause", (g.adults * v[0] + g.young * v[1]).toDouble(), Double::plus)
+                groups.foreseenFed[id]?.let { whereF.merge("$w|fed", g.size * it.toDouble(), Double::plus); whereF.merge("$w|head-weeks", g.size.toDouble(), Double::plus) }
                 groups.foreseenFed[id]?.let { deathSums[0] += 1.0; deathSums[1] += it.toDouble(); deathSums[2] += g.fed.toDouble() }
             }
             for ((key, v) in groups.stats.deaths) if (key.startsWith("$kind:")) metBy.merge(key.substringAfter(':'), v.toDouble(), Double::plus)
@@ -71,7 +76,8 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
             groups.herdKilledByResidents[s.index] = 0
             for (g in groups.groups) if (g.alive && g.species == s) deathSums[3] += g.size.toDouble()
             deathSums[4] += (groups.stats.births[kind] ?: 0).toDouble()
-            groups.foreseenDeaths.clear(); groups.foreseenFed.clear()
+            for ((key, v) in groups.metOddsDiag) whereM.merge(key, v.sum(), Double::plus)
+            groups.foreseenDeaths.clear(); groups.foreseenFed.clear(); groups.chosenDiag.clear(); groups.shiftedDiag.clear(); groups.metOddsDiag.clear()
         }
         if (print && deathSums[0] > 0.0) {
             val headWeeks = deathSums[3].coerceAtLeast(1.0)
@@ -81,7 +87,18 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
                 "; all %.1f / %.1f".format(1000.0 * foreseenBy.values.sum() / headWeeks, 1000.0 * metBy.values.sum() / headWeeks))
             println("     deaths %s %s: fed foreseen %.2f, met %.2f; births %.1f per 1000 head-weeks; %.0f%% of head-weeks weighed their places".format(
                 kind, weather.date, deathSums[1] / deathSums[0], deathSums[2] / deathSums[0], 1000.0 * deathSums[4] / headWeeks, 100.0 * deathSums[5] / headWeeks))
-            foreseenBy.clear(); metBy.clear(); deathSums = DoubleArray(6)
+            // (Split by where each herd ended the week against the place it chose: what it foresaw there, against the deaths the
+            // week's odds made likely where it was, per 1000 head-weeks of the herds in each case; hunting is not in the odds.)
+            val all = (whereM.filterKeys { it.endsWith("|head-weeks") }.values.sum()).coerceAtLeast(1.0)
+            for (w in listOf("reached its choice", "stopped short", "moved on arrival", "chose none")) {
+                val hm = whereM["$w|head-weeks"] ?: continue; val hf = (whereF["$w|head-weeks"] ?: 0.0).coerceAtLeast(1.0)
+                fun f(c: String) = 1000.0 * (whereF["$w|$c"] ?: 0.0) / hf
+                fun m(c: String) = 1000.0 * (whereM["$w|$c"] ?: 0.0) / hm
+                println("     deaths %s %s, %s (%.0f%% of head-weeks): thirst %.1f / %.1f, hunger %.1f / %.1f, disease %.1f / %.1f, cold %.1f / %.1f; fed %.2f / %.2f, days without water %.1f".format(
+                    kind, weather.date, w, 100.0 * hm / all, f("thirst"), m("thirst"), f("hunger"), m("hunger"), f("disease"), m("disease"), f("cold"), m("cold"),
+                    f("fed") / 1000.0, m("fed") / 1000.0, m("dry days") / 1000.0))
+            }
+            foreseenBy.clear(); metBy.clear(); whereF.clear(); whereM.clear(); deathSums = DoubleArray(6)
         }
     }
 

@@ -555,6 +555,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val adultOdds = adultSum.coerceIn(0f, 0.9f)
     g.deathOdds = adultOdds
     val youngOdds = (youngSum * spared).coerceIn(0f, 0.95f)
+    if (deathDiag == s.name) { val w = diagWhere(g)
+        for (h in hazards) metOddsDiag.computeIfAbsent("$w|${h.cause}") { DoubleAdder() }.add((g.adults * h.adult + g.young * h.young * spared).toDouble())
+        metOddsDiag.computeIfAbsent("$w|head-weeks") { DoubleAdder() }.add(g.size.toDouble())
+        metOddsDiag.computeIfAbsent("$w|fed") { DoubleAdder() }.add(g.size * g.fed.toDouble())
+        metOddsDiag.computeIfAbsent("$w|dry days") { DoubleAdder() }.add(g.size * g.dry.toDouble()) }
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
         stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
     val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
