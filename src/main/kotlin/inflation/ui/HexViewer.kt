@@ -133,7 +133,21 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     @Volatile private var stepsPerSecond = 2
 
     /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...; from where it was drawn last), its size. */
-    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean)
+    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean,
+                        val both: BothWays? = null)
+    /**
+     * For a herd of a kind that also lives spread out: what it did with the residents this week ([state]), where it
+     * formed (km, NaN for none) and whether it is past the ground it may not scatter on, and its kind's pull where it
+     * stands (east, south; 0..1).
+     */
+    private class BothWays(val state: HerdState, val fromX: Float, val fromY: Float, val far: Boolean, val pullE: Float, val pullS: Float)
+    private enum class HerdState(val label: String, val colour: Color) {
+        FORMED("condensed this week", Color(1f, 0.9f, 0.1f)), JOINING("taking in residents", Color(0.2f, 0.9f, 0.3f)),
+        SETTLING("leaving a band settled", Color(1f, 0.55f, 0.1f)), MOVING("neither", Color(0.85f, 0.85f, 0.85f))
+    }
+    /** A resident kind's spill last week, by hex (see [inflation.ecology.HexFauna.flowOf]): its slot, the net way east and south, head/km². */
+    private class Flow(val kind: Int, val east: FloatArray, val south: FloatArray)
+    @Volatile private var flowShown: Flow? = null
 
     /** What the hexes are tinted by, worked out each week and kept month by month (see [ViewLayers]). */
     private val layers = ViewLayers(sim)
@@ -148,6 +162,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** What the tint's colours mean. */
     private val legendText = JLabel("")
     private val windBox = JCheckBox("Wind", false)
+    /** The chosen resident kind's movement last week, as arrows (see [Flow]). */
+    private val flowBox = JCheckBox("Resident flow", true)
     /** Rivers by this week's flow (see [RiverOverlay]); unticked, no rivers are drawn. */
     private val riversBox = JCheckBox("River flows", true)
     private val herdsBox = JCheckBox("Herds", true)
@@ -225,7 +241,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver() }
         val step = JButton("Step"); step.addActionListener { control.overviewTakesOver(); commands += { advance() } }
         val speed = JSlider(1, 10, stepsPerSecond); speed.addChangeListener { stepsPerSecond = speed.value }
-        residentChoice.addActionListener { map.repaint() }
+        residentChoice.addActionListener {
+            // (Its spill is recorded from the next week on.)
+            val r = residentChoice.selectedIndex - 1
+            fauna.flowOf = if (r in fauna.kinds.indices) r else -1
+            map.repaint()
+        }
+        flowBox.addActionListener { map.repaint() }
         tintChoice.addActionListener {
             causeChoice.isEnabled = Measure.entries[tintChoice.selectedIndex].byCause
             map.repaint()
@@ -248,6 +270,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         bar.add(modeChoice)
         bar.add(causeChoice)
         bar.add(residentChoice)
+        bar.add(flowBox)
         bar.add(herdsBox)
         bar.add(huntersBox)
         bar.add(peopleBox)
@@ -337,6 +360,23 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         control.weekDone()
     }
 
+    /** What a herd of a kind that lives both ways is doing with the residents, for drawing it; null for any other group. */
+    private fun bothWays(g: inflation.ecology.HexGroup): BothWays? {
+        val s = g.species
+        if (s !in Catalogue.gathering || s.carnivore) return null
+        val state = when {
+            g.id !in lastDrawn && g.formedAt >= 0 -> HerdState.FORMED
+            g.settled > 0 -> HerdState.SETTLING
+            g.joined > 0 -> HerdState.JOINING
+            else -> HerdState.MOVING
+        }
+        val h = hw.placeHex[g.place]
+        val (fx, fy) = if (g.formedAt >= 0) hex.centreKm(hw.placeHex[g.formedAt]).let { it.first.toFloat() to it.second.toFloat() } else Float.NaN to Float.NaN
+        val far = g.formedAt < 0 || hex.distanceKm(h, hw.placeHex[g.formedAt]) > inflation.ecology.gatherKm(s)
+        val k = groups.kinds.indexOf(s)
+        return BothWays(state, fx, fy, far, if (k >= 0) groups.bearings.east[k][h] else 0f, if (k >= 0) groups.bearings.south[k][h] else 0f)
+    }
+
     /** The model: learned networks where given ([nets], [waysFile], see [LearnedModel]), else the hand-written choices. */
     private fun useNetworks() {
         LearnedModel.apply(groups, nets, waysFile, Config.string("herdWays"), Config.string("hunterWays")) { println(it) }
@@ -364,10 +404,18 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             pts += end.first; pts += end.second
             // How well it is doing: fed last week and its reserves.
             val health = (0.5f * g.fed + 0.5f * g.fat / g.species.maxFatDays.coerceAtLeast(1f)).coerceIn(0f, 1f)
-            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size, health, g.band?.atHome == true)
+            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size, health, g.band?.atHome == true, bothWays(g))
             lastDrawn[g.id] = end
         }
         shown = list
+        // The chosen resident kind's spill this week, net, per km² of each hex.
+        val fk = fauna.flowOf
+        flowShown = if (fk < 0) null else {
+            val area = DoubleArray(hex.size)
+            for (p in 0 until fauna.n) area[hw.placeHex[p]] += land.areaKm2[p].toDouble()
+            Flow(fk, FloatArray(hex.size) { if (area[it] > 0) (fauna.flowEast[it] / hex.hexKm / area[it]).toFloat() else 0f },
+                FloatArray(hex.size) { if (area[it] > 0) (fauna.flowSouth[it] / hex.hexKm / area[it]).toFloat() else 0f })
+        }
         // Following a group (in the follow window): the week's log, for the panel when that group is picked.
         followLog = if (groups.watched >= 0) groups.watchLog.joinToString("\n") else ""
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
@@ -547,6 +595,33 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     g.color = Color(1f, 0.1f, 0.6f, 0.6f * v); g.fillPolygon(xs, ys, 6)
                 }
             }
+            // The chosen resident kind's movement last week: an arrow from each hex the way its animals went on balance,
+            // longer and brighter the more went (against the busiest twentieth of hexes).
+            val flow = flowShown
+            if (flowBox.isSelected && flow != null && flow.kind == r) {
+                val every = max(1, (1.5 / scale).toInt())
+                val mags = (0 until hex.size).map { hypot(flow.east[it], flow.south[it]) }.filter { it > 0f }.sorted()
+                val top = (if (mags.isEmpty()) 0f else mags[(mags.size * 0.95).toInt().coerceAtMost(mags.size - 1)]).coerceAtLeast(1e-9f)
+                g.color = Color.WHITE
+                for (h in 0 until hex.size) {
+                    val col = h % hex.cols; val row = h / hex.cols
+                    if (col % every != 0 || row % every != 0 || !onScreen(h, every + 1)) continue
+                    val u = flow.east[h]; val v = flow.south[h]
+                    val m = hypot(u, v); if (m < 0.05f * top) continue
+                    val x = min(1f, m / top)
+                    val (cx, cy) = hex.centreKm(h)
+                    val len = (x * hex.hexKm * every * 0.8).toFloat()
+                    val x0 = sx(cx.toFloat()); val y0 = sy(cy.toFloat())
+                    val x1 = sx(cx.toFloat() + u / m * len); val y1 = sy(cy.toFloat() + v / m * len)
+                    g.color = Color(0.6f, 1f, 1f, 0.35f + 0.65f * x)
+                    g.drawLine(x0, y0, x1, y1)
+                    val ang = atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
+                    for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * sin(ang + sgn * 0.5)).toInt())
+                }
+                legends += MapLegend("Resident flow", "Resident flow: where the chosen resident kind's animals went last week on balance, an arrow from each hex the " +
+                    "net way they spilled to the hexes about it, longer and brighter the more went (full at the busiest twentieth of hexes).",
+                    note = "net head/km² a week; full at " + MapLegend.num(top))
+            }
             // Paths: hex centre to hex centre, each pair once, darker and wider the more worn.
             if (pathsBox.isSelected) {
                 val stroke = g.stroke
@@ -625,6 +700,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             // The groups, each part of the way along the hexes it walked this week; at the end of the
             // week those sharing a hex stand side by side in a small ring around its centre.
             val t = min(1f, frame.toFloat() / frames)
+            var bothShown = false
             for (s in shown) {
                 val sp = Catalogue.all[s.kind]
                 // The group followed in the follow window: a yellow ring.
@@ -661,10 +737,33 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     g.color = Color(1f, 1f, 1f, a); g.fillRect(sx(x) - 3, sy(y) - 3, 7, 7)
                     g.color = Color(0.82f, 0.06f, 0.06f, a); g.fillRect(sx(x) - 2, sy(y) - 2, 5, 5)
                 } else {
+                    // A herd of a kind that also lives spread out: a line back to where it condensed (grey while it is
+                    // too near to settle, white once past), its kind's pull where it stands, and a ring for what it did.
+                    s.both?.let { b ->
+                        if (!b.fromX.isNaN()) {
+                            g.color = if (b.far) Color(1f, 1f, 1f, 0.6f) else Color(0.6f, 0.6f, 0.6f, 0.6f)
+                            g.drawLine(sx(b.fromX), sy(b.fromY), sx(x), sy(y))
+                        }
+                        val st = hypot(b.pullE, b.pullS)
+                        if (st > 0.02f) {
+                            val len = (min(1f, st * 2f) * hex.hexKm * 1.5).toFloat()
+                            val x1 = sx(x + b.pullE / st * len); val y1 = sy(y + b.pullS / st * len)
+                            g.color = Color(1f, 0.85f, 0.1f, 0.9f); g.drawLine(sx(x), sy(y), x1, y1)
+                            val ang = atan2((y1 - sy(y)).toDouble(), (x1 - sx(x)).toDouble())
+                            for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 4 * cos(ang + sgn * 0.5)).toInt(), (y1 - 4 * sin(ang + sgn * 0.5)).toInt())
+                        }
+                        g.color = b.state.colour; g.stroke = BasicStroke(2f); g.drawOval(sx(x) - 6, sy(y) - 6, 12, 12); g.stroke = BasicStroke(1f)
+                        bothShown = true
+                    }
                     g.color = Color(0x101010); g.fillOval(sx(x) - 3, sy(y) - 3, 7, 7)
                     g.color = Color(KIND_COLOURS[sp.index % KIND_COLOURS.size]); g.fillOval(sx(x) - 2, sy(y) - 2, 5, 5)
                 }
             }
+            if (bothShown) legends += MapLegend("Herds that also live spread out", "Herds of the kinds that live both as residents and as herds: " +
+                "a ring for what the herd did this week (condensed out of the unfed residents, took in hungry residents and young males, or left a band settled " +
+                "where the land had room), a line back to where it condensed (grey while within a week's travel of it, where it may not settle; white past it), " +
+                "and a yellow arrow for its kind's pull where it stands.",
+                note = "line: back to where it condensed; arrow: its kind's pull", swatches = HerdState.entries.map { MapLegend.Swatch(it.colour, it.label) })
             // What the tints' colours mean, in the top right corner.
             MapLegend.draw(g, legends, width)
         }
@@ -808,6 +907,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             Measure.EAGLES -> "full where every range is held" to floatArrayOf(0f, 0.5f, 1f)
             Measure.CARRION -> "full at 20 kg/km²" to floatArrayOf(0f, 10f, 20f)
             Measure.RESIDENTS -> "full at 20 head/km²" to floatArrayOf(0f, 10f, 20f)
+            Measure.HERD_PRESSURE -> "full at 1, where a herd forms" to floatArrayOf(0f, 0.5f, 1f)
             else -> return null
         }
         for (h in values.indices) { val v = values[h]; if (!v.isNaN()) out[h] = fixedColourOf(tint, v) }
@@ -839,6 +939,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         Measure.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
         Measure.CARRION -> rgba(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
         Measure.RESIDENTS -> rgba(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
+        Measure.HERD_PRESSURE -> if (v < 0.05f) null else if (v >= 1f) rgba(1f, 0.1f, 0.05f, 0.8f) else rgba(1f, 0.6f, 0.1f, 0.1f + 0.6f * v)
         else -> null
     }
 

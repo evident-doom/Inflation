@@ -46,6 +46,7 @@ internal fun HexGroups.gather() {
             excess[p] = heads * short(s, k, p)
             byHex[hw.placeHex[p]] += excess[p]
         }
+        unfed[s] = byHex
         // (Not one herd's worth in all: nothing to gather.)
         if (byHex.sum() < herdOf(s)) continue
         val used = BooleanArray(hex.size)
@@ -94,6 +95,18 @@ internal fun HexGroups.gather() {
         }
         if (made > 0) { stats.hunting.merge(Tally.of(s, Tally.GATHERED), made, Int::plus); stats.hunting.merge(Tally.of(s, Tally.HEADS_GATHERED), heads, Int::plus) }
     }
+}
+
+/**
+ * For the viewer: by hex, how many herds of kind [s] the unfed excess within [gatherKm] of it came to this week, before
+ * any gathered (at 1 or more, a herd forms there unless a place nearer more excess took it first); null before a week.
+ */
+internal fun HexGroups.herdsWorth(s: Species): FloatArray? {
+    val byHex = unfed[s] ?: return null
+    val out = FloatArray(hex.size)
+    // (The ground is the same both ways: each hex's excess counts towards every hex it lies within reach of.)
+    for (h in byHex.indices) if (byHex[h] > 0.0) { val v = (byHex[h] / herdOf(s)).toFloat(); for (q in ground(h, gatherKm(s))) out[q] += v }
+    return out
 }
 
 /**

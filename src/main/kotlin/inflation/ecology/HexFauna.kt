@@ -986,6 +986,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
+    /**
+     * For the viewer: the kind (slot) whose spill to record, -1 for none; and this week's, by hex, the heads that
+     * left it for each neighbour summed as a way east and south (km times heads), and the heads that left it.
+     */
+    @Volatile @Transient var flowOf = -1
+    @Transient val flowEast = FloatArray(hex.size)
+    @Transient val flowSouth = FloatArray(hex.size)
+    @Transient val flowOut = FloatArray(hex.size)
+
     /** The straits from each hex, as (hex across, km of open water) pairs; set by the groups (see [HexGroups.seaLinks]). */
     var seaLinks: ((Int) -> List<Pair<Int, Float>>)? = null
 
@@ -1008,6 +1017,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     (1f + (a[q] + y[q]) / (CROWD * usual[k])))
             }
             var weekHeads = 0.0; var weekStuck = 0.0; var weekEdge = 0.0
+            val flow = flowOf == k
+            if (flow) { flowEast.fill(0f); flowSouth.fill(0f); flowOut.fill(0f) }
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
                 val need = (1f - f[p]).coerceIn(0f, 1f)
@@ -1069,6 +1080,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val q = wq[i]
                     moveA[q] += goA * ws[i] / total; moveY[q] += goY * ws[i] / total
                     arrived[q] += (goA + goY) * ws[i] / total
+                    if (flow) {
+                        val heads = (goA + goY) * ws[i] / total
+                        val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
+                        flowEast[h] += heads * (x1 - x0).toFloat(); flowSouth[h] += heads * (y1 - y0).toFloat(); flowOut[h] += heads
+                    }
                 }
             }
             stuck[k].let { it[Stuck.HEADS.ordinal] += weekHeads; it[Stuck.STUCK.ordinal] += weekStuck; it[Stuck.AT_EDGE.ordinal] += weekEdge

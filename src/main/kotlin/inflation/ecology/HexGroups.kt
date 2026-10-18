@@ -113,6 +113,8 @@ class HexGroups(
     /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
     /** Each herd kind's losses to the residents' hunters this week (also among the residents' deaths, see [takeResidentsKills]). */
     @Transient val lostToResidents = HashMap<Species, Int>()
+    /** Each gathering kind's unfed excess by hex this week, heads, as [gather] found it (for the viewer, see [herdsWorth]). */
+    @Transient internal val unfed = HashMap<Species, DoubleArray>()
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1
