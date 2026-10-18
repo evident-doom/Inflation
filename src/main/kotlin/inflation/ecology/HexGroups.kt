@@ -1123,7 +1123,13 @@ class HexGroups(
                 val prey = if (s.carnivore) knownGame(g, kind, p, h, sensed) else 0f
                 val hunters = huntersKm2(p, h)
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
-                var score = scorePlace(c, t, p, h, d, toGoal, offGround, pull, keepOn, prey, crowded, hunters, drowning)
+                var score = scorePlace(c, t, p, h, d, toGoal, offGround, pull, keepOn, prey, crowded, hunters)
+                // Above all, it keeps alive: the share of it that would die there this week weighs against all the rest
+                // (see [survivalSteps]). (Its deaths only take away: a place that would not beat the best so far without
+                // them is not reckoned further, unless every place's score is wanted.)
+                val beside = 0.02f * (hashNoise(g.id, p.i) - 0.5f) + temperPull(g, p, h, hunters, crowded)
+                if (seen != null || policy != null || capture || score + beside > bestScore)
+                    score -= survivalSteps(g, deathsAt(c, p, h, d, prey, crowded) + drowning)
                 seen?.add(p.i to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
@@ -1135,7 +1141,7 @@ class HexGroups(
                     candPlaces += p.i; buf.candScores[nc] = score
                     if (policy != null) continue
                 }
-                score += 0.02f * (hashNoise(g.id, p.i) - 0.5f) + temperPull(g, p, h, hunters, crowded)
+                score += beside
                 if (capture) buf.candScores[candPlaces.size - 1] = score
                 if (score > bestScore) { bestScore = score; best = p }
             }
@@ -1196,7 +1202,7 @@ class HexGroups(
      * water, the going, the season's place or round, its bearing and heading, staying, and a band's own pulls.
      */
     private fun scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h: Hex, d: Float, toGoal: Double, offGround: Float, pull: Float, keepOn: Float,
-        prey: Float, crowded: Float, hunters: Float, drowning: Float): Float {
+        prey: Float, crowded: Float, hunters: Float): Float {
         val g = c.g; val s = g.species; val kind = c.kind; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
         val goalQ = c.goalQ; val onRound = c.onRound; val roundStrength = c.roundStrength; val fromHere = c.fromHere; val reach = c.reach
         val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather; val date = c.date
@@ -1221,10 +1227,7 @@ class HexGroups(
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need (see [walkCost]).
         score -= WALK_COST * d / days
-        // Above all, it keeps alive: the share of it that would die there this week weighs against all the rest, in
-        // steps of the chance in a week's deaths for a group its size (see [survivalSteps]). Places alike in that are
-        // told apart by the rest of the score; a place clearly deadlier is not taken for any food or comfort.
-        score -= survivalSteps(g, deathsAt(c, p, h, d, prey, crowded) + drowning)
+        // (Above all, it keeps alive: its deaths there are weighed against all this by the caller, see [planInner].)
         // Herds and bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && (!s.carnivore || s.human)) {
             // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
