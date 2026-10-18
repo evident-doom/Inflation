@@ -196,10 +196,14 @@ class HexGroups(
 
     internal fun foodFor(s: Species, p: Int) = fauna.foodFor(s, p)
 
-    /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and (for grazers and browsers) its food. */
+    /**
+     * Where groups of [s] start or wander in: by area, how the ground and climate suit it, (for grazers and browsers) its
+     * food, and water within its reach: in a usual year, or this week's ([now]: where a herd scatters).
+     */
     private fun startWeights(s: Species) = FloatArray(n) { p -> startWeight(s, p) }
-    internal fun startWeight(s: Species, p: Int) =
-        land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f))
+    internal fun startWeight(s: Species, p: Int, now: Boolean = false) =
+        land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * (if (s.carnivore) 1f else min(1f, foodFor(s, p) / 0.3f)) *
+            (if (now) fauna.tether(s, p) else fauna.usualTether(s, p))
 
     /** A place drawn at random by [weights] (summing to [total]). */
     internal fun drawPlace(weights: FloatArray, total: Float): Int {
@@ -916,6 +920,13 @@ class HexGroups(
         }
         f[Feature.SNOW_OVER_LIMIT] = if (weather.snowpack[p] > s.snowLimitMm) 1f else 0f
         f[Feature.SNOW] = min(2f, weather.snowpack[p] / s.snowLimitMm)
+        // (What the hand-written score weighs besides: snow coming with a freeze, as keenly as its kind foresees it; fire;
+        // the fear of ground where game was killed lately; and a much stronger hunter of another kind holding the place.)
+        if (weather.forecastTemp(p.i) < 0f && weather.snowpack[p] + weather.forecastRain(p.i) > s.snowLimitMm) f[Feature.SNOW_AHEAD] = s.foresight
+        f[Feature.BURNING] = land.fire.burning[p]
+        f[Feature.KILL_FEAR] = fauna.afraid(p.i)
+        if (s.carnivore && hex.distanceKm(h.i, here.i) <= hex.hexKm * 1.01 && topKind[p] >= 0 && topKind[p] != s.index)
+            f[Feature.STRONGER_HUNTER] = min(1f, topStrength[p] / (4f * strength(g)).coerceAtLeast(1e-3f))
         f[Feature.CLIMB] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
         f[Feature.EFFORT] = (d / reach.coerceAtLeast(1f)).coerceIn(0f, 1f)
         f[Feature.STAYS] = if (p == g.place) 1f else 0f
@@ -1164,7 +1175,7 @@ class HexGroups(
         // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
         // (People can dig for water in a dry bed where it lies near.)
         score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
-        if (thirsty && land.drink.water[p] < 0.05f && !(s.human && land.drink.dug[p] >= 0.05f)) score -= 1f
+        if (thirsty && !canDrink(s, p.i)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need (see [walkCost]).
         score -= WALK_COST * d / days
