@@ -62,7 +62,7 @@ class HexGroups(
     val groups = ArrayList<HexGroup>()
     internal var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. For comparison runs, people=false leaves people out. */
-    @Transient val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } +
+    @Transient val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory || it in Catalogue.gathering } +
         Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag("people", true)) })
     /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
     val bearings by lazy {
@@ -115,6 +115,14 @@ class HexGroups(
     @Transient val lostToResidents = HashMap<Species, Int>()
     /** Each gathering kind's unfed excess by hex this week, heads, as [gather] found it (for the viewer, see [herdsWorth]). */
     @Transient internal val unfed = HashMap<Species, DoubleArray>()
+    /**
+     * Each gathering kind's memory, by hex and month (hex × 12 + month), of the share of its residents there the land
+     * left unfed, and of their heads then (see [foresee]); by the kind's index.
+     */
+    internal val leanShort = HashMap<Int, FloatArray>()
+    internal val leanHeads = HashMap<Int, FloatArray>()
+    /** This week: each gathering kind's share of residents, by place, that expect to go short over the coming season (see [foresee]). */
+    @Transient internal val lean = HashMap<Species, FloatArray>()
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1
@@ -141,6 +149,8 @@ class HexGroups(
         // Start each kind at its usual density over the land that suits it, in groups of its usual size.
         val area = land.areaKm2.sum()
         for (s in kinds) {
+            // (A plant-eater that keeps to a home range starts spread out, see [HexFauna]; its herds condense later, if ever.)
+            if (!s.carnivore && s !in Catalogue.migratory) continue
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
             // At the density it settles at over a long run, where one is known.
             val settled = Catalogue.settledPer1000Km2(s)
@@ -182,7 +192,7 @@ class HexGroups(
     internal fun newcomers(date: Date) {
         if (!newcomersOn || date.month != 0 || date.dayOfMonth > days) return
         for (s in kinds) {
-            if (s.human) continue
+            if (s.human || (!s.carnivore && s !in Catalogue.migratory)) continue
             val now = groups.count { it.alive && it.species == s }
             // (A kind that also lives spread out has its newcomers only if it is gone from the land too.)
             if (now >= NEWCOMER_BELOW || (s in Catalogue.gathering && fauna.slot(s) >= 0 && fauna.count(fauna.slot(s)) >= herdOf(s))) continue
@@ -277,6 +287,7 @@ class HexGroups(
         },
         // Herds of the kinds that also live spread out scatter where they find room, and condense where the land does not feed them.
         Phase("herds: gathering and scattering") {
+            foresee(it.date.month)
             scatter()
             gather()
         },
