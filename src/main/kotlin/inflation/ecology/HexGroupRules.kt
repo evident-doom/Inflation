@@ -43,7 +43,7 @@ const val FIGHT_BACK = 0.002f
 const val NOT_WORTH_TRYING = 0.05f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
 const val AVOID_STRONGER = 0.3f
-/** How many times its usual density a migratory herd bears where herds gather before crowding sickens it. */
+/** How many times a resident kind's usual density a herd of a kind with no catalogued density takes as usual where it chooses ground (see [HexGroups.crowdOf]). */
 const val MIGRANTS_GATHER = 20f
 /**
  * A herd agent stands for this many of its kind's usual bands (a gazelle herd of 120 rather than 12):

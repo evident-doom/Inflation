@@ -636,8 +636,8 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
     val s = g.species
     // Crowded herds catch each other's diseases and parasites.
     val usual = HexFauna.usualDensity(s)
-    // Migratory herds live gathered: they bear densities on the move that would sicken a resident kind.
-    val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / hex.areaKm2.toFloat() / (HexFauna.CROWDED * usual * MIGRANTS_GATHER)
+    // (By the resident rule: its kind's heads in its hex against what crowds a resident of its kind.)
+    val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / hex.areaKm2.toFloat() / (HexFauna.CROWDED * usual)
     // (Hunters by their kind's numbers over the ground they range over, as residents by theirs in their place.)
     val packs = if (s.carnivore && !s.human) packCrowding(g, kinNow, usual) else 0f
     val crowdNow = if (s.human) peopleCrowding(g) else if (s.carnivore) packs else crowd

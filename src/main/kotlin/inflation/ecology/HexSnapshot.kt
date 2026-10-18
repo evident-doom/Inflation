@@ -60,9 +60,10 @@ object HexSnapshot {
      * 1.0: onager live both ways.
      * 1.1: sowing charged its full person-days.
      * 2.0: every plant-eater lives both ways; residents remember their lean months.
+     * 2.1: herds sicken by crowding as residents do (no 20x allowance).
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 0
+    const val MODEL_MINOR = 1
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
