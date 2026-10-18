@@ -952,8 +952,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
  * How many times two groups that are in the same place for [span] days run into each other, on
  * average: as gas molecules do (Hutchinson & Waser 2007), 2 r v T / A, with r how far the one that
  * finds the other senses it, v how fast they close on each other, T the time both spend about
- * (searching, at the same hours) and A the place's size. A herd keeps together, and is run into as one: the ground it
- * stands on (some tens of metres across, even for a thousand head) is small against how far a hunter senses it.
+ * (searching, at the same hours) and A the place's size. A herd stands for several of its kind's
+ * usual bands spread over the ground: each can be run into.
  */
 internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Place, span: Float): Float {
     val hunting = a.species.carnivore != b.species.carnivore
@@ -973,7 +973,7 @@ internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Place, span: Floa
     val bands = bandsIn(herd)
     // A small herd can lie hidden in cover; a big one cannot.
     val hidden = if (bands < SMALL_HERD_BANDS) HIDE_IN_COVER * Niches.shelter(herd.species, p.i, land) * (1f - bands / SMALL_HERD_BANDS) else 0f
-    return one * (1f - hidden)
+    return one * bands * (1f - hidden)
 }
 
 /**
@@ -1116,9 +1116,9 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // Caught or not, the herd is alarmed for a while after.
     herd.chasedOn = day
     stats.hunting.merge(Tally.of(hunter.species, Tally.CHASES), 1, Int::plus)
-    // Hunters that came on a herd keep with it while they are hungry, and try as many of its animals as it has
-    // bands of its kind (once each: a band that was chased has scattered); the more there are, the less each risks.
-    val tries = max(1, ceil(bandsIn(herd)).toInt())
+    // A big herd stands for several of its kind's usual bands: the hunters try each one they ran into while hungry
+    // (once each: a band that was chased has scattered).
+    val tries = max(1, min(met, ceil(bandsIn(herd)).toInt()))
     diag(herd.species, "herd tries", tries.toFloat())
     roundsKey?.let { stats.hunting.merge(it + "chased", 1, Int::plus); stats.hunting.merge(it + "tries", tries, Int::plus)
         stats.hunting.merge(it + "wary", (100 * wary).toInt(), Int::plus) }
