@@ -215,7 +215,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             residentOdds(g, ps, p, weather, today, j * nk + k, odds, stalks, met)
         }
     }
-    val order = IntArray(n); val profit = FloatArray(n)
+    val order = IntArray(n); val profit = FloatArray(n); val sortKeys = LongArray(n)
     // (The share of the week it searched before it was fed.)
     var searched = 0f
     val haul = Haul()
@@ -239,10 +239,12 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             val area = land.areaKm2[p]
             val swept = min(area, sweep)
             for (k in 0 until nk) {
-                val ps = fauna.kinds[k]
-                val dens = fauna.adults[k][p] + fauna.young[k][p]
+                // (The odds first: they are none for most kinds, and spare reading the densities.)
                 val chance = odds[j * nk + k]
-                if (dens <= 0f || chance <= 0f) continue
+                if (chance <= 0f) continue
+                val dens = fauna.adults[k][p] + fauna.young[k][p]
+                if (dens <= 0f) continue
+                val ps = fauna.kinds[k]
                 // A kill is worth what the party can eat of it, gorging included (a band also what it can
                 // dry); the rest is left to others.
                 val meat1 = min(ps.massKg * creditShare(band), (1f + SURPLUS_EAT) * wantAll)
@@ -287,8 +289,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         // Rank by kilos a day of handling, best first. (A stable sort: foods worth the same keep the order they were offered in.)
         for (i in 0 until m) profit[i] = kg[i] / time[i]
-        val ranked = (0 until m).sortedWith { x, y -> java.lang.Float.compare(profit[y], profit[x]) }
-        for (r in 0 until m) order[r] = ranked[r]
+        rankDescending(profit, m, order, sortKeys)
         var gain = 0f; var spent = 1f; var used = 0
         for (r in 0 until m) {
             val i = order[r]
@@ -550,6 +551,21 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     stats.hunting.merge(Tally.of(s, Tally.KILLS_OF_RESIDENTS), kills1, Int::plus)
     diag(ps, "resident kills", kills1.toFloat())
     return kills1
+}
+
+/**
+ * The indices 0 until [m] into [order], by [v] largest first, equal values in index order (as a stable sort by
+ * [java.lang.Float.compare] would put them), without boxing: each value's bits made to sort as signed ints, negated
+ * and put above its index in [keys].
+ */
+internal fun rankDescending(v: FloatArray, m: Int, order: IntArray, keys: LongArray) {
+    for (i in 0 until m) {
+        val bits = java.lang.Float.floatToIntBits(v[i])
+        val sortable = bits xor ((bits shr 31) and 0x7fffffff)
+        keys[i] = (-sortable.toLong() shl 32) or i.toLong()
+    }
+    java.util.Arrays.sort(keys, 0, m)
+    for (r in 0 until m) order[r] = (keys[r] and 0xffffffffL).toInt()
 }
 
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
@@ -1249,15 +1265,15 @@ internal fun HexGroups.groundShares(g: HexGroup, h: Int, into: (Int, Float) -> U
  * hex); the rest it spends in the six hexes round, as evenly as it can cross into them. (A disc reaching beyond
  * the first ring is counted in the ring.)
  */
-internal fun HexGroups.rangeShares(g: HexGroup, h: Int, into: (Int, Float) -> Unit) {
+internal inline fun HexGroups.rangeShares(g: HexGroup, h: Int, into: (Int, Float) -> Unit) {
     val r = g.species.dailyTravelKm
     val home = min(1f, land.areaKm2[g.place] / (Math.PI.toFloat() * r * r))
-    val cross = hex.crossings[Catalogue.travel(g.species).ordinal]
-    var open = 0
-    for (d in 0 until 6) { val n = hex.neighbour(h, d); if (n >= 0 && hex.heart[n] >= 0 && cross[h * 6 + d].isFinite()) open++ }
+    // (The hexes round it it can cross into, worked out once: [HexGroups.openAround].)
+    val around = openAround[g.species.index]
+    val open = around[h * 7]
     if (open == 0 || home >= 1f) { into(h, 1f); return }
     into(h, home)
-    for (d in 0 until 6) { val n = hex.neighbour(h, d); if (n >= 0 && hex.heart[n] >= 0 && cross[h * 6 + d].isFinite()) into(n, (1f - home) / open) }
+    for (i in 1..open) into(around[h * 7 + i], (1f - home) / open)
 }
 
 /**

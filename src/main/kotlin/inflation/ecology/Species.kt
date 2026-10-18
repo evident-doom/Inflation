@@ -177,6 +177,8 @@ class Species(
 ) {
     /** Position in [Catalogue.all] (its [id], which the catalogue checks run without gaps), for array lookups. */
     val index get() = id
+    /** [shelters] as an array, for [Niches.shelter]'s loop. */
+    internal val shelterArray: Array<Niches.Shelter> = shelters.toTypedArray()
     /** Mostly eats animals. */
     val carnivore: Boolean get() = diet.meat + diet.smallPrey + diet.carrion > 0.5f
     /** What kind of group it lives in: a band of people, a pack of hunters or a herd of plant-eaters. */

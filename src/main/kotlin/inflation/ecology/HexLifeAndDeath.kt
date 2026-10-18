@@ -38,10 +38,16 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     val reachKm = SEASON_RANGE_KM
     val r = (reachKm / hex.hexKm).toInt() + 1
     val near = ArrayList<Int>()
-    for (p in 0 until n) {
-        val (cx, cy) = hex.centreKm(hw.placeHex[p])
-        if (abs(cx - hx) <= reachKm && abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm) near += p
+    // (The hexes of the square about it, row by row, rather than every place on the map; in the places' order.)
+    val r0 = here / hex.cols; val c0 = here % hex.cols
+    val dr = (reachKm / (hex.hexKm * 0.866)).toInt() + 2; val dc = r + 1
+    for (row in max(0, r0 - dr)..min(hex.rows - 1, r0 + dr)) for (col in max(0, c0 - dc)..min(hex.cols - 1, c0 + dc)) {
+        val h = row * hex.cols + col
+        val (cx, cy) = hex.centreKm(h)
+        if (abs(cx - hx) <= reachKm && abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm)
+            for (b in HexWorld.BANDS_M.indices) { val p = hw.placeOf[b][h]; if (p >= 0) near += p }
     }
+    near.sort()
     if (near.isEmpty()) return
     var top = 0f
     for (m in 0 until 12) {
@@ -186,6 +192,8 @@ internal fun HexGroups.grazingRange(g: HexGroup, p0: Int = g.place.i): List<Pair
     val band = hw.placeBand[p0]; val h0 = hw.placeHex[p0]
     val needKg = g.dailyNeedKg * days * RANGE_NEED
     fun forage(p: Int) = (fauna.grazeLeft[p] + fauna.browseLeft[p]) * land.areaKm2[p] * 1e6f
+    // (Most often its own place holds enough: then nothing more to look for.)
+    if (forage(p0) >= needKg) return listOf(p0 to 1f)
     val places = arrayListOf(p0); var have = forage(p0)
     var ring = listOf(h0); val seen = hashSetOf(h0)
     var r = 0

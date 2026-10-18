@@ -28,6 +28,7 @@ import kotlin.math.max
 import kotlin.math.min
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReferenceArray
 import java.util.concurrent.atomic.DoubleAdder
 import java.util.stream.IntStream
 
@@ -189,9 +190,42 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** The odds that an animal of [kg] about place [p] is killed by the residents' hunters in a week, as they hunted there this week ([killRate]). */
     fun residentKillOdds(kg: Float, p: Int): Float {
+        val rates = killRate
         var v = 0f
-        for (k in kinds.indices) { val r = killRate[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
+        for (k in kinds.indices) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
         return v
+    }
+
+    /**
+     * [residentKillOdds] for an animal of kind [s] (into `out[0]`) and its young (`out[1]`) about place [p], kept for the
+     * week once worked out (the kill rates stand from the residents' grazing to the next week's): herds of a kind weigh
+     * the same places over and over as they choose.
+     */
+    fun residentKillOdds(s: Species, p: Int, out: FloatArray) {
+        val cache = killOdds ?: AtomicReferenceArray<FloatArray>(Catalogue.all.size).also { killOdds = it }
+        val odds = cache.get(s.index) ?: run {
+            cache.compareAndSet(s.index, null, FloatArray(2 * n) { Float.NaN })
+            cache.get(s.index)
+        }
+        val a = odds[2 * p]; val y = odds[2 * p + 1]
+        if (a.isNaN() || y.isNaN()) {
+            residentKillOdds(s.massKg, YOUNG_WEIGHT * s.massKg, p, out)
+            odds[2 * p] = out[0]; odds[2 * p + 1] = out[1]
+        } else { out[0] = a; out[1] = y }
+    }
+    /** The odds [residentKillOdds] gives each kind ([Species.index]) and its young about each place this week (at `2p` and `2p + 1`; NaN: not yet worked out). */
+    @Transient private var killOdds: AtomicReferenceArray<FloatArray>? = null
+
+    /** [residentKillOdds] for an animal of [kg] and one of [youngKg] at once, into [out] (0: the first, 1: the second). */
+    fun residentKillOdds(kg: Float, youngKg: Float, p: Int, out: FloatArray) {
+        val rates = killRate
+        var v = 0f; var w = 0f
+        for (k in kinds.indices) {
+            val r = rates[k] ?: continue
+            val rp = r[p]
+            if (rp > 0f) { val ks = kinds[k]; v += rp * ks.preySize(kg); w += rp * ks.preySize(youngKg) }
+        }
+        out[0] = v; out[1] = w
     }
 
     /**
@@ -482,11 +516,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (h.rugged == 0f) return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f)))
         // (The ground it likes is a share of the place: the valley floors of a rough hex for a plains kind,
         // its crags for a wild goat; it suits as the mean over its ground, see [HexLand.ruggedSpread].)
-        return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f))) * ruggedFit(h.rugged)[p]
+        val fits = ruggedFitOf ?: arrayOfNulls<FloatArray>(Catalogue.all.size).also { ruggedFitOf = it }
+        val fit = fits[s.index] ?: ruggedFit(h.rugged).also { fits[s.index] = it }
+        return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f))) * fit[p]
     }
 
     /** For a kind's liking for rough ground [rugged] (see [Habitat]): how well each place's ground suits it on that alone, the mean over its ground. */
     @Transient private var ruggedFits: ConcurrentHashMap<Float, FloatArray>? = ConcurrentHashMap()
+    /** [ruggedFit] by kind ([Species.index]), as first asked for. */
+    @Transient private var ruggedFitOf: Array<FloatArray?>? = null
     private fun ruggedFit(rugged: Float): FloatArray = (ruggedFits ?: ConcurrentHashMap<Float, FloatArray>().also { ruggedFits = it }).getOrPut(rugged) {
         val q = land.ruggedSpread
         FloatArray(n) { p -> var v = 0f; for (k in q.indices) v += exp(HABITAT * rugged * (q[k][p] - 0.3f)); v / q.size }
@@ -590,83 +628,20 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
-    // PROBE (not for merging): what moves upland residents' mean height, month by month.
-    @Transient private var probeKs: List<Int>? = null
-    @Transient private var probeAcc: Array<DoubleArray>? = null
-    @Transient private var probeAt: DoubleArray? = null
-    private fun probeHeight(k: Int): Double {
-        var h = 0.0; var w = 0.0
-        for (p in 0 until n) { val v = ((adults[k][p] + young[k][p]) * land.areaKm2[p]).toDouble(); w += v; h += v * hw.placeElevationM[p] }
-        return if (w > 0.0) h / w else Double.NaN
-    }
-    /** Stage 0 before births and deaths (the change since last week's end goes to "groups and the rest"), 1 after, 2 after the band shift, 3 after spill. */
-    private fun probeMark(stage: Int) {
-        val ks = probeKs ?: kinds.indices.filter { kinds[it].name in setOf("mouflon", "ibex", "wild goat", "argali", "red deer") }.also {
-            probeKs = it; probeAcc = Array(kinds.size) { DoubleArray(5) }; probeAt = DoubleArray(kinds.size) { Double.NaN } }
-        val acc = probeAcc!!; val at = probeAt!!
-        for (k in ks) {
-            val h = probeHeight(k)
-            val slot = when (stage) { 0 -> 3; 1 -> 0; 2 -> 1; else -> 2 }
-            if (!at[k].isNaN() && !h.isNaN()) acc[k][slot] += h - at[k]
-            at[k] = h
-            if (stage == 3) acc[k][4] += 1.0
-        }
-    }
-    private fun probeReport(weather: Weather, month: Int) {
-        val ks = probeKs ?: return; val acc = probeAcc!!
-        val out = FloatArray(HZ_COUNT)
-        for (k in ks) {
-            val s = kinds[k]
-            val bands = HexWorld.BANDS_M.size
-            val byBand = DoubleArray(bands); var heads = 0.0
-            // Heads-weighted over hexes with two or more bands: ln(top / bottom) of appeal's parts, and top minus bottom of the week's death shares.
-            val parts = DoubleArray(8); val deaths = DoubleArray(7); var wsum = 0.0
-            for (h in 0 until hex.size) {
-                var lo = -1; var hi = -1; var hh = 0.0
-                for (b in 0 until bands) { val p = hw.placeOf[b][h]; if (p < 0) continue
-                    val v = ((adults[k][p] + young[k][p]) * land.areaKm2[p]).toDouble(); byBand[b] += v; heads += v; hh += v
-                    if (lo < 0) lo = p; hi = p }
-                if (lo < 0 || hi == lo || hh <= 0.0) continue
-                fun part(p: Int): FloatArray {
-                    val m = weather.date.month
-                    val disc = ((1f - s.foresight) * s.discomfortC(feltC(s, p, weather.temperature[p]), m) + s.foresight * s.discomfortC(feltC(s, p, weather.forecastTemp(p)), m)) / 10f
-                    return floatArrayOf(appeal(k, p, weather), fareFor(s, p), land.plants.nourishment(p) * forageProtein(s, p), suits(s, p), tether(s, p),
-                        if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f, 1f / (1f + disc), 1f / (1f + (adults[k][p] + young[k][p]) / (CROWDED * usual[k])))
-                }
-                val pl = part(lo); val ph = part(hi)
-                for (i in parts.indices) { val r = kotlin.math.ln(((ph[i] + 1e-9f) / (pl[i] + 1e-9f)).toDouble()); if (r.isFinite()) parts[i] += hh * r }
-                fun dz(p: Int): FloatArray { stayOdds(k, p, weather, out)
-                    return floatArrayOf(out[HZ_HUNGER], out[HZ_COLD], out[HZ_THIRST], out[HZ_DISEASE], out[HZ_SNOW_A], out[HZ_HUNTED], adultShare(out)) }
-                val dl = dz(lo); val du = dz(hi)
-                for (i in deaths.indices) deaths[i] += hh * (du[i] - dl[i])
-                wsum += hh
-            }
-            if (heads <= 0.0) continue
-            val a = acc[k]; val w = wsum.coerceAtLeast(1e-9)
-            println("HPROBE m%02d %-9s height %5.0f | change m: births-deaths %+5.0f bandshift %+5.0f spill %+5.0f groups+rest %+5.0f | bands %s".format(
-                month + 1, s.name, probeHeight(k), a[0], a[1], a[2], a[3], byBand.joinToString(" ") { "%3.0f%%".format(100 * it / heads) }))
-            println("HPROBE m%02d %-9s ln(top/bottom): appeal %+.2f fare %+.2f fresh %+.2f suits %+.2f tether %+.2f snow %+.2f comfort %+.2f crowd %+.2f | week deaths top-bottom x1000: hunger %+.2f cold %+.2f thirst %+.2f disease %+.2f snow %+.2f hunted %+.2f all %+.2f".format(
-                month + 1, s.name, *(parts.map { it / w } + deaths.map { 1000 * it / w }).toTypedArray()))
-            a.fill(0.0)
-        }
-    }
-
     /** The residents' part of the week, in order, with the weather on the same places. */
     @Transient val phases = listOf(
         Phase("residents: new month") { newWeek(it, it.date) },
         Phase("food stocks") { food.step(it) },
         Phase("water life") { water.step(it) },
         Phase("residents: grazing") { graze(it) },
-        Phase("residents: births, deaths") { probeMark(0); breedAndDie(it, it.date); probeMark(1) },
+        Phase("residents: births, deaths") { breedAndDie(it, it.date) },
         Phase("residents: moving") {
             // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
             preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n) { p -> preyFor(kinds[k], p) } else null }
             // (The odds are weighed once, before the bands shift: the shift and the spill both go by them.)
             Profile.part("residents: weighing places") { fillArrive(it) }
             Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
-            probeMark(2)
             Profile.part("residents: spreading to neighbouring hexes") { spill(it) }
-            probeMark(3)
             preyNow = null
         },
         Phase("soil and small life") { small.step(it, carcassKg) },
@@ -681,7 +656,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
-            probeReport(weather, bearings.month)
             if (date.month == 0) newcomers(date)
             Profile.time("sense of direction") { bearings.update(date.month) }
             if (date.month == 3) shiftBreeding()
@@ -711,6 +685,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     private fun graze(weather: Weather) {
         sleepOrWake(weather)
+        // (The week's kill rates are made afresh here: the odds worked out from last week's are forgotten.)
+        killOdds = AtomicReferenceArray(Catalogue.all.size)
         IntStream.range(0, n).parallel().forEach { p ->
             // How much each kind eats of poor forage depends on its gut (see [gutFill]).
             val quality = land.plants.nourishment(p)
