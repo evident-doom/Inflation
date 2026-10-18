@@ -70,6 +70,7 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
         val band = s.maxGroupSize.toFloat()
         val arrive = fauna.arrive[k]
         arriveBy[s] = arrive
+        safestFar[s] = IntArray(hex.size) { UNWEIGHED }
         val leave = BooleanArray(n); val to = IntArray(n) { -1 }
         val leavingByHex = DoubleArray(hex.size)
         leaving[s] = leave; leaveTo[s] = to; unfed[s] = leavingByHex
@@ -102,18 +103,15 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
             byHex[hw.placeHex[p]] += heads * stay[p]
         }
         val used = BooleanArray(hex.size)
-        for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
+        val order = (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }
+        // (The safest place far off from each, on all cores, before they are taken in turn.)
+        order.parallelStream().forEach { farthest(s, it) }
+        for (h0 in order) {
             if (used[h0]) continue
             // The safest place beyond their own ground, within a month's walk.
-            var best = -1; var bestOdds = Float.MAX_VALUE
-            for (h in ground(h0, farKm(s) / RING_KM + hex.hexKm)) {
-                val d = hex.distanceKm(h0, h); if (d <= gatherKm(s) || d > farKm(s)) continue
-                for (b in HexWorld.BANDS_M.indices) {
-                    val q = hw.placeOf[b][h]; if (q < 0) continue
-                    if (arrive[q] < bestOdds) { bestOdds = arrive[q]; best = q }
-                }
-            }
+            val best = farthest(s, h0)
             if (best < 0) continue
+            val bestOdds = arrive[best]
             val about = ground(h0, gatherKm(s)).filter { !used[it] }
             for (h in about) {
                 used[h] = true
@@ -212,11 +210,15 @@ internal fun HexGroups.scatter() {
     var any = false
     for (g in groups) { g.settled = 0; g.joined = 0 }
     val taken = HashMap<Species, BooleanArray>()
-    for (g in groups) {
+    // (Whether each settles, on all cores: it reads only this week's odds.)
+    val settling = BooleanArray(groups.size)
+    IntStream.range(0, groups.size).parallel().forEach { i -> val g = groups[i]
+        if (g.alive && g.species in Catalogue.gathering && fauna.slot(g.species) >= 0) settling[i] = settles(g) }
+    for ((i, g) in groups.withIndex()) {
         val s = g.species
         if (!g.alive || s !in Catalogue.gathering) continue
         val k = fauna.slot(s); if (k < 0) continue
-        if (!settles(g)) { join(g, k, taken.getOrPut(s) { BooleanArray(n) }); continue }
+        if (!settling[i]) { join(g, k, taken.getOrPut(s) { BooleanArray(n) }); continue }
         if (g.size <= s.maxGroupSize) {
             spread(g, k, g.adults, g.young)
             stats.hunting.merge(Tally.of(s, Tally.SCATTERED), 1, Int::plus); stats.hunting.merge(Tally.of(s, Tally.HEADS_SCATTERED), g.size, Int::plus)
@@ -246,15 +248,39 @@ private fun HexGroups.settles(g: HexGroup): Boolean {
     val arrive = arriveBy[s] ?: return false
     val here = arrive[g.place.i]
     if (here.isNaN()) return false
-    val h0 = hw.placeHex[g.place.i]
-    // (Any place safer than this is one it is clearly worse off than ([clearlyWorse]): the first found will do.)
-    val band = s.maxGroupSize.toFloat()
-    val clearlyBelow = here - sqrt(band * here * (1f - here)) / band
-    for (h in ground(h0, farKm(s) / RING_KM + hex.hexKm)) {
-        val d = hex.distanceKm(h0, h); if (d <= gatherKm(s) || d > farKm(s)) continue
-        for (b in HexWorld.BANDS_M.indices) { val q = hw.placeOf[b][h]; if (q >= 0 && arrive[q] < clearlyBelow) return false }
+    val best = farthest(s, hw.placeHex[g.place.i])
+    return best < 0 || !clearlyWorse(here, arrive[best], s.maxGroupSize.toFloat())
+}
+
+/** [HexGroups.safestFar] not yet worked out for a hex. */
+private const val UNWEIGHED = -2
+
+/**
+ * The safest place for kind [s] beyond [gatherKm] of hex [h0] and within [farKm], by this week's [arriveBy] (-1 where
+ * none can be stayed at): worked out once a week for each hex asked about, and kept in [HexGroups.safestFar] (safe to
+ * ask on all cores: a hex worked out twice comes out the same).
+ */
+private fun HexGroups.farthest(s: Species, h0: Int): Int {
+    val memo = safestFar[s] ?: return -1
+    memo[h0].let { if (it != UNWEIGHED) return it }
+    val arrive = arriveBy[s] ?: return -1
+    val inKm = gatherKm(s); val outKm = farKm(s)
+    var best = -1; var bestOdds = Float.MAX_VALUE
+    // (Row by row over the square about it, the hexes whose centres lie in the ring: by the offset rows, without
+    // walking out ring by ring.)
+    val rowKm = hex.hexKm * sqrt(3.0) / 2
+    val r0 = h0 / hex.cols; val dr = ceil(outKm / rowKm).toInt(); val dc = ceil(outKm / hex.hexKm).toInt() + 1
+    val c0 = h0 % hex.cols
+    for (r in max(0, r0 - dr)..min(hex.rows - 1, r0 + dr)) for (c in max(0, c0 - dc)..min(hex.cols - 1, c0 + dc)) {
+        val h = r * hex.cols + c
+        val d = hex.distanceKm(h0, h); if (d <= inKm || d > outKm) continue
+        for (b in HexWorld.BANDS_M.indices) {
+            val q = hw.placeOf[b][h]; if (q < 0) continue
+            if (arrive[q] < bestOdds) { bestOdds = arrive[q]; best = q }
+        }
     }
-    return true
+    memo[h0] = best
+    return best
 }
 
 /**
@@ -322,9 +348,6 @@ private fun HexGroups.spread(g: HexGroup, k: Int, adults: Int, young: Int) {
         fauna.adults[k][p] += adults * share / area; fauna.young[k][p] += young * share / area
     }
 }
-
-/** How near the hexes of the k-th ring about a hex can lie, in k hex widths (its corners lie k widths out, the middles of its sides less). */
-private const val RING_KM = 0.866
 
 /** The hexes within [km] of hex [h0] (itself and its neighbours at least), kept once worked out. */
 private fun HexGroups.ground(h0: Int, km: Double): IntArray {
