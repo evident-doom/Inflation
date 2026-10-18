@@ -109,21 +109,16 @@ class HexGroups(
     /** Game each hunting kind can catch in each place, kg/km² weighed by catchability, worked out once a month for the bearings. */
     internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
-    /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
-    /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
     /** Each herd kind's losses to the residents' hunters this week (also among the residents' deaths, see [takeResidentsKills]). */
     @Transient val lostToResidents = HashMap<Species, Int>()
     /** Each gathering kind's unfed excess by hex this week, heads, as [gather] found it (for the viewer, see [herdsWorth]). */
     @Transient internal val unfed = HashMap<Species, DoubleArray>()
-    /**
-     * Each gathering kind's memory, by hex and month (hex × 12 + month), of the share of its residents there the land
-     * left unfed, and of their heads then (see [foresee]); by the kind's index.
-     */
-    internal val leanShort = HashMap<Int, FloatArray>()
-    internal val leanHeads = HashMap<Int, FloatArray>()
-    /** This week: each gathering kind's share of residents, by place, that expect to go short over the coming season (see [foresee]). */
-    @Transient internal val lean = HashMap<Species, FloatArray>()
+    /** This week: each gathering kind's room by hex, heads, as yet untaken (see [roomAhead]); and the room left in all, less its herds. */
+    @Transient internal val roomBy = HashMap<Species, DoubleArray>()
+    @Transient internal val roomLeft = HashMap<Species, Double>()
+    /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
+    /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1
     internal val monthHunterKg by lazy { FloatArray(n) }
@@ -289,7 +284,7 @@ class HexGroups(
         Phase("herds: gathering and scattering") {
             // (Not in the form-swap test, where each kind keeps the form it has.)
             if (!Catalogue.formsFixed) {
-                foresee(it.date.month)
+                roomAhead()
                 scatter()
                 gather()
             }

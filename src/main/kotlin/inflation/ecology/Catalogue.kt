@@ -381,9 +381,6 @@ object Catalogue {
         habitat = Habitat(cover = 0.2f, wet = 0.2f),
         stalking = 0.4f,
         ferocity = 0.8f,
-        // (Golden jackals take prey up to about 15 kg but mostly up to 4: hares, rodents, fawns, not grown gazelle;
-        // Hayward et al. 2017, prey preferences of jackals.)
-        preyUpTo = 1.5f, preyPreferredUpTo = 0.4f,
         startKm2PerAnimal = 10f,
         followsPeople = true,
         activity = floatArrayOf(0.25f, 0.1f, 0.25f, 0.4f),
@@ -702,21 +699,6 @@ object Catalogue {
      * the land's doing. The [migratory] kinds start as herds, the others spread out.
      */
     val gathering: Set<Species> by lazy { herbivores.toSet() }
-
-    /**
-     * For tests (t.formSwap=NAME:herds,NAME:residents,...; or none): with the key set, herds neither gather nor
-     * scatter ([formsFixed]); after a settled state is loaded, each plant-eater named goes wholly into the form named
-     * (true: herds; see [swapForms]).
-     */
-    val formSwap: Map<Species, Boolean> by lazy {
-        inflation.Config.string("t.formSwap")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() && it != "none" }?.associate { e ->
-            val (name, form) = e.split(':').map { it.trim() }
-            require(form == "herds" || form == "residents") { "t.formSwap: $e (NAME:herds or NAME:residents)" }
-            herbivores.first { it.name == name } to (form == "herds")
-        } ?: emptyMap()
-    }
-    /** Whether herds keep the form they have (t.formSwap set at all; see [formSwap]). */
-    val formsFixed by lazy { inflation.Config.string("t.formSwap") != null }
 
     /**
      * For tests (t.formSwap=NAME:herds,NAME:residents,...; or none): with the key set, herds neither gather nor
