@@ -1,6 +1,8 @@
 package inflation.ecology
 
+import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
+import inflation.KgM2
 
 import inflation.monthsFrom
 import inflation.world.Channel
@@ -592,7 +594,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         var area = 0f
         for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) area += land.areaKm2[p] }
         if (area <= 0f) return
-        for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) small.carrion[p] += kg / area / 1e6f }
+        for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) small.deposit(DeadPool.CARRION, p, KgM2(kg / area / 1e6f)) }
         land.books?.flow(Books.Stuff.MATTER, "to and from the water life", kg.toDouble())
     }
     fun fishTonnes() = fish.indices.sumOf { (fish[it] * waterKm2[it]).toDouble() }.toFloat() / 1000f

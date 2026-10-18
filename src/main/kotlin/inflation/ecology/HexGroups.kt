@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 import inflation.Stocks
 import inflation.Kg
@@ -395,7 +396,7 @@ class HexGroups(
                 val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
                 adultsDied(g, lostA, rnd); g.young -= lostY
                 // (The drowned wash up on the far shore.)
-                small.carrion[g.place] += land.spread(g.place, Kg((lostA + 0.3f * lostY) * g.species.massKg)).v
+                small.deposit(DeadPool.CARRION, g.place, Kg((lostA + HexFauna.YOUNG_WEIGHT * lostY) * g.species.massKg))
                 if (lostA + lostY > 0) stats.deaths.merge(Tally.of(g.species, DeathCause.DROWNED_CROSSING), lostA + lostY, Int::plus)
                 stats.meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
             }

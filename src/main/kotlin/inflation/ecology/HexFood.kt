@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 import inflation.Stocks
 import inflation.KgM2
@@ -105,17 +106,17 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val bore = if (newFruit > 0f) (land.plants.consume(p, LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
                 land.plants.consume(p, LifeForm.TREE, KgM2(newFruit * (1f - fromShrub)))).v else 0f
             fruit[p] = max(0f, fruit[p] + bore - fallen)
-            small.litter[p] += fallen
+            small.deposit(DeadPool.LITTER, p, KgM2(fallen))
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
             val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.plants.herb[p] / SEED_DAYS else 0f
             val shed = seeds[p] * min(1f, days / SEED_DAYS)
             seeds[p] = max(0f, seeds[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * ripeSeed)).v - shed)
-            small.litter[p] += shed
+            small.deposit(DeadPool.LITTER, p, KgM2(shed))
             // (Roots and bulbs fill from the plants above them; old ones rot into the litter.)
             val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
             val rotted = roots[p] * min(1f, days / ROOTS_DAYS)
             roots[p] = max(0f, roots[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v - rotted)
-            small.litter[p] += rotted
+            small.deposit(DeadPool.LITTER, p, KgM2(rotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
             if (cereal[p] > 0f || field[p] > 0f) {
@@ -130,7 +131,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                 }
                 val wild = 1f - domestic[p]
                 val lost = grain[p] * (wild * min(1f, days / SEED_DAYS) + (1f - wild) * min(1f, days / GRAIN_HOLD_DAYS))
-                grain[p] = max(0f, grain[p] - lost); small.litter[p] += lost
+                grain[p] = max(0f, grain[p] - lost); small.deposit(DeadPool.LITTER, p, KgM2(lost))
                 // After the year's ripening, the sown crop is spent, and a stand that seeded itself
                 // drifts back toward the wild (ears that hold their grain cannot sow themselves).
                 if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == 0 && weather.date.dayOfMonth <= days && field[p] > 0f)) {
@@ -148,7 +149,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val grown = land.plants.consume(p, LifeForm.HERB, KgM2(made)).v + eggs * days
             if (eggs > 0f) land.books?.leak(Books.Stuff.MATTER, "eggs, not taken from the birds", (eggs * days * land.areaM2[p]).toDouble())
             val spoilt = finds[p] * min(1f, days / FINDS_DAYS)
-            small.litter[p] += spoilt
+            small.deposit(DeadPool.LITTER, p, KgM2(spoilt))
             finds[p] = max(0f, finds[p] + grown - spoilt)
             // Standing dead grass and twigs build up as a small share of the herbs and shrubs and are eaten down.
             // (The straw is the herbs and shrubs dying back where they stand; it falls into the litter as it weathers.)
@@ -156,7 +157,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             if (toward > 0f) {
                 val herbShare = land.plants.herb[p] / (land.plants.herb[p] + 0.3f * land.plants.shrub[p]).coerceAtLeast(1e-9f)
                 straw[p] += (land.plants.consume(p, LifeForm.HERB, KgM2(toward * herbShare)) + land.plants.consume(p, LifeForm.SHRUB, KgM2(toward * (1f - herbShare)))).v
-            } else { val fell = min(straw[p], -toward); straw[p] -= fell; small.litter[p] += fell }
+            } else { val fell = min(straw[p], -toward); straw[p] -= fell; small.deposit(DeadPool.LITTER, p, KgM2(fell)) }
         }
     }
 

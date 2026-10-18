@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Tuning
 import inflation.wrapMonth
 import inflation.saturate
@@ -227,7 +228,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             adults[j][p] = max(0f, adults[j][p] - fromA / s.massKg)
             young[j][p] = max(0f, young[j][p] - fromY / (YOUNG_WEIGHT * s.massKg))
             huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * land.areaKm2[p]
-            small.carrion[p] += KgKm2(kg * (1f - MEAT_SHARE)).perM2.v
+            small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
             ate += KgKm2(kg).perM2
             ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
         }
@@ -238,7 +239,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val kg = want.v * (hA[i] + hY[i]) / total
             val fromA = kg * hA[i] / (hA[i] + hY[i]); val fromY = kg - fromA
             at.adults.add((fromA / s.massKg * area).toDouble()); at.young.add((fromY / (YOUNG_WEIGHT * s.massKg) * area).toDouble())
-            small.carrion[p] += KgKm2(kg * (1f - MEAT_SHARE)).perM2.v
+            small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
             ate += KgKm2(kg).perM2
             ateBook?.add(-(kg * MEAT_SHARE * area).toDouble()); herdKillBook?.add((kg * area).toDouble())
         }
@@ -751,7 +752,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                                 ateBook?.add(-x * land.areaM2[p].toDouble()) }
                         }
                         animal = (gotMeat + gotSmall + gotCarrion) / animalNeed
-                        small.dung[p] += HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)
+                        small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)))
                         if (ateBook != null) { val m2 = land.areaM2[p].toDouble()
                             ateBook!!.add(-(gotSmall + gotCarrion) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion) * m2) }
                     }
@@ -791,7 +792,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             var tonnes = 0f
             for ((k, s) in kinds.withIndex()) tonnes += (adults[k][p] + young[k][p]) * s.massKg / 1000f
             land.plants.trample(p, RESIDENT_TRAMPLE * tonnes * land.areaKm2[p])
-            small.dung[p] += HexSmallLife.DUNG * eaten
+            small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * eaten))
             if (ateBook != null) { val m2 = land.areaM2[p].toDouble(); ateBook!!.add(-eaten * m2); droppedBook!!.add(HexSmallLife.DUNG * eaten * m2) }
             land.plants.grazing[p] = eatG * 1e6f / days; land.plants.browsing[p] = eatB * 1e6f / days
             // Rooting churns the ground: kg of roots dug per km2 a day.

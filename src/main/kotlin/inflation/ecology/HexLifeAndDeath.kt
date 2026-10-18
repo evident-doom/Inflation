@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 
 import inflation.KgM2
@@ -144,7 +145,7 @@ internal fun HexGroups.graze(weather: Weather) {
             // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
             val short = max(0f, gap)
             val straw = food.take(food.straw, p, KgM2(min(short * HexFauna.GUT_FILL * access, max(0f, room)))).v
-            small.dung[p] += HexSmallLife.DUNG * (grass + browse + fruit + roots + straw + grass2 + browse2 + fruit2 + roots2)
+            small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (grass + browse + fruit + roots + straw + grass2 + browse2 + fruit2 + roots2)))
             // On the way it beat down the plants and dropped the seed of the fruit it ate.
             val band = hw.placeBand[p]
             if (p == g.place.i) for (h in g.path) {
@@ -175,7 +176,7 @@ internal fun HexGroups.graze(weather: Weather) {
                 if (d.grass > 0f && !snowed) grass3 = eatGrass(extra / q * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 if (d.browse > 0f) browse3 = eatBrowse(extra / q * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 surplusKg += (grass3 + browse3) * q * land.areaKm2[p] * 1e6f
-                small.dung[p] += HexSmallLife.DUNG * (grass3 + browse3)
+                small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (grass3 + browse3)))
             }
             land.books?.let { b -> bookEaten(b, p, grass + browse + fruit + roots + straw + grass2 + browse2 + fruit2 + roots2 + grass3 + browse3) }
             land.plants.grazing[p] += (grass + grass2 + grass3) * 1e6f / days
@@ -271,12 +272,12 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             // Young whose last grown animal was killed this week (by hunters or rivals) die too.
             if (!g.alive && g.young > 0) {
                 stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), g.young, Int::plus)
-                small.carrion[g.place] += 0.3f * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)
+                small.deposit(DeadPool.CARRION, g.place, KgM2(HexFauna.YOUNG_WEIGHT * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)))
                 g.young = 0
             }
             continue
         }
-        if (o.carrionKg > 0f) small.carrion[g.place] += o.carrionKg / (land.areaKm2[g.place] * 1e6f)
+        if (o.carrionKg > 0f) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
         if (o.births > 0) stats.births.merge(s.name, o.births, Int::plus)
         note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
