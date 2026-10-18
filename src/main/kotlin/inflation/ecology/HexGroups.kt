@@ -456,7 +456,7 @@ class HexGroups(
                 val len = hypot(e, so); if (len > 1f) { e /= len; so /= len }
                 g.headE = e; g.headS = so
             }
-            g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
+            g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false; g.detourKm = 0f
             crossWater(g, g.path)
         }
     }
@@ -504,7 +504,7 @@ class HexGroups(
      * next: crowding is settled as they meet it, not by hexes and weeks. So each herd, the last to arrive first, that
      * finds a crowd it would die of clearly more than of the one it foresaw (by a step of its score, see
      * [survivalSteps]) weighs again the places within a day's going, by the same score, knowing where the others are
-     * now; and the next herd sees where it went. A herd the hunters stopped short of the place it chose (it turned aside or
+     * now; and the next herd sees where it went. A herd the hunters stopped short of the place it chose (it was chased and
      * scattered) weighs again too, if where it stands is clearly deadlier than it foresaw there: in life it moves on
      * rather than standing where the chase left it.
      */
