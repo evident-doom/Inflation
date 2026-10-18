@@ -44,7 +44,9 @@ class GroupControlTest {
     @Test
     fun `the player's pick and pinned ways are what the band does`() {
         val sim = HexSim(world)
-        val band = sim.groups.groups.first { it.band != null }
+        // (A band with land about it, not one on an islet: bands start near water, some on the coast.)
+        val band = sim.groups.groups.first { g -> g.band != null && (0 until 6).count { d ->
+            val nh = sim.hex.neighbour(sim.hw.placeHex[g.place.i], d); nh >= 0 && sim.hw.placeOf.any { it[nh] >= 0 } } == 6 }
         sim.groups.watched = band.id
         var asked: MoveDecision? = null; var chosen = -1
         sim.groups.control = object : GroupControl {

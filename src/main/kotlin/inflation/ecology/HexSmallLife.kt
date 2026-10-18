@@ -485,7 +485,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     /**
      * Desert locusts: in a spring after good rain, where the desert edge has greened, a swarm may rise;
-     * it strips the green plants where it is, moves on (mostly with the wind) and dies out by late
+     * it strips the green plants where it is, moves on to the greenest country about and dies out by late
      * summer. Birds, foxes, jackals and people eat them (see [catchSmall]).
      */
     private fun stepLocusts(weather: Weather) {
@@ -511,13 +511,25 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             val dying = l * (if (season) LOCUST_DEATHS else 0.6f)
             smallDead[p] += dying * 1f
             l -= dying
-            // Most of a swarm moves on to the neighbours each week.
+            // Most of a swarm moves on to the neighbours each week, settling the more where the green plants stand thicker.
             val nb = land.neighbours[p]
-            if (nb.isNotEmpty() && l > 1f) { val go = 0.6f * l; for (q in nb) locusts[q] += go / nb.size * land.areaKm2[p] / land.areaKm2[q]; l -= go }
+            if (nb.isNotEmpty() && l > 1f) {
+                val go = 0.6f * l
+                var total = 0f
+                for (q in nb) total += greenHerbKm2(q)
+                for (q in nb) {
+                    val share = if (total > 0f) greenHerbKm2(q) / total else 1f / nb.size
+                    locusts[q] += go * share * land.areaKm2[p] / land.areaKm2[q]
+                }
+                l -= go
+            }
             locusts[p] += l - old[p]
         }
         for (p in 0 until n) if (locusts[p] < 0.1f) { smallDead[p] += locusts[p]; locusts[p] = 0f }
     }
+
+    /** Green herb in place [p], over all its area: what draws a swarm in. */
+    private fun greenHerbKm2(q: Int) = land.plants.green[q] * land.plants.herb[q] * land.areaKm2[q]
 
     private var locustSalt = 0L
     private fun locustHash(p: Int): Float {

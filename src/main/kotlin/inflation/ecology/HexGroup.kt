@@ -258,7 +258,15 @@ object HexFeatures {
     const val ON_ROUND = 51
     /** For a herd, how good the forage there is, 0..1: how nourishing and how rich in protein ([HexGroups.freshness]; 0 for others). */
     const val FORAGE_QUALITY = 52
-    const val SIZE = 53
+    /** The fear of ground where game was killed lately ([HexFauna.afraid]), as the herds' hand-written score weighs it. */
+    const val KILL_FEAR = 53
+    /** The share of the place burning this week. */
+    const val BURNING = 54
+    /** 1 if a freeze is coming with snow beyond what it can dig through, as its kind foresees. */
+    const val SNOW_AHEAD = 55
+    /** How much stronger another kind's hunting party holding the place is than its own, when it can tell (0 when none is). */
+    const val STRONGER_HUNTER = 56
+    const val SIZE = 57
 
     /**
      * Each feature's name, as a learned network's `.names` file records it (see [inflation.learning.Schema]): set by
@@ -318,5 +326,9 @@ object HexFeatures {
         it[KEEPS_HEADING] = "keeps heading"
         it[ON_ROUND] = "on round"
         it[FORAGE_QUALITY] = "forage quality"
+        it[KILL_FEAR] = "kill fear"
+        it[BURNING] = "burning"
+        it[SNOW_AHEAD] = "snow ahead"
+        it[STRONGER_HUNTER] = "stronger hunter"
     }.mapIndexed { k, n -> requireNotNull(n) { "feature $k has no name" } }
 }

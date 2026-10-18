@@ -93,7 +93,7 @@ internal fun HexGroups.gather() {
             for (h in about) used[h] = true
             // Whole animals go: each place gives its share of the excess, adults and young as they are there.
             val t = count * herdOf(s) / all
-            var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var protein = 0.0; var most = -1; var mostHeads = 0.0
+            var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var protein = 0.0; var dry = 0.0; var most = -1; var mostHeads = 0.0
             for (h in about) for (b in HexWorld.BANDS_M.indices) {
                 val p = hw.placeOf[b][h]; if (p < 0 || excess[p] <= 0.0) continue
                 val here = (a[p] + y[p]).toDouble()
@@ -101,7 +101,7 @@ internal fun HexGroups.gather() {
                 val ga = a[p] * go * land.areaKm2[p].toDouble(); val gy = y[p] * go * land.areaKm2[p].toDouble()
                 a[p] -= a[p] * go; y[p] -= y[p] * go
                 adults += ga; young += gy
-                fat += (ga + gy) * fauna.reserve[k][p]; fed += (ga + gy) * f[p]; protein += (ga + gy) * fauna.protein[k][p]
+                fat += (ga + gy) * fauna.reserve[k][p]; fed += (ga + gy) * f[p]; protein += (ga + gy) * fauna.protein[k][p]; dry += (ga + gy) * fauna.dry[k][p]
                 if (ga + gy > mostHeads) { mostHeads = ga + gy; most = p }
             }
             val took = adults + young
@@ -116,7 +116,7 @@ internal fun HexGroups.gather() {
             for (i in 0 until count) {
                 val g = spawn(s, most, takeA / count + if (i < takeA % count) 1 else 0)
                 g.young = takeY / count + if (i < takeY % count) 1 else 0
-                g.fat = (fat / took).toFloat(); g.fed = (fed / took).toFloat(); g.protein = (protein / took).toFloat()
+                g.fat = (fat / took).toFloat(); g.fed = (fed / took).toFloat(); g.protein = (protein / took).toFloat(); g.dry = (dry / took).toFloat()
                 g.birthMonth = fauna.birthStart[k][most].toInt()
                 g.formedAt = most
                 inheritSeasons(g)
@@ -247,7 +247,7 @@ private fun HexGroups.join(g: HexGroup, k: Int, taken: BooleanArray) {
     // (Only as many as there is room for, beyond what the herds about already take.)
     var left = roomLeft[s] ?: return
     if (left <= 0.0) return
-    var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var protein = 0.0; var most = -1; var mostHeads = 0.0
+    var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var protein = 0.0; var dry = 0.0; var most = -1; var mostHeads = 0.0
     for (p in placesWithin(g.place.i, s.dailyTravelKm.toDouble())) {
         if (taken[p]) continue
         val here = a[p] + y[p]; if (here <= 0f) continue
@@ -263,7 +263,7 @@ private fun HexGroups.join(g: HexGroup, k: Int, taken: BooleanArray) {
         a[p] -= ga; y[p] -= gy
         val heads = (ga + gy) * area.toDouble()
         adults += ga * area; young += gy * area
-        fat += heads * fauna.reserve[k][p]; fed += heads * fauna.fed[k][p]; protein += heads * fauna.protein[k][p]
+        fat += heads * fauna.reserve[k][p]; fed += heads * fauna.fed[k][p]; protein += heads * fauna.protein[k][p]; dry += heads * fauna.dry[k][p]
         if (heads > mostHeads) { mostHeads = heads; most = p }
     }
     if (most < 0) return
@@ -274,6 +274,7 @@ private fun HexGroups.join(g: HexGroup, k: Int, taken: BooleanArray) {
     if (takeA + takeY == 0) return
     val w = took / (took + g.size)
     g.fat += (w * (fat / took - g.fat)).toFloat(); g.fed += (w * (fed / took - g.fed)).toFloat(); g.protein += (w * (protein / took - g.protein)).toFloat()
+    g.dry += (w * (dry / took - g.dry)).toFloat()
     g.adults += takeA; g.young += takeY; g.joined = takeA + takeY
     roomLeft[s] = left
     stats.hunting.merge(Tally.of(s, Tally.HEADS_JOINED), takeA + takeY, Int::plus)
@@ -299,12 +300,12 @@ const val FED_TO_SCATTER = 0.95f
 
 /**
  * [adults] and [young] of herd [g] settle as residents (slot [k]) about where it stands, within a day's walk of its
- * kind ([Species.dailyTravelKm]), by how much of it suits them and feeds them ([HexGroups.startWeight]); their
- * condition mixed with those there.
+ * kind ([Species.dailyTravelKm]), by how much of it suits them, feeds them and waters them this week
+ * ([HexGroups.startWeight]); their condition, thirst included, mixed with those there.
  */
 private fun HexGroups.spread(g: HexGroup, k: Int, adults: Int, young: Int) {
     val about = placesWithin(g.place.i, g.species.dailyTravelKm.toDouble())
-    val weights = FloatArray(about.size) { startWeight(g.species, about[it]) }
+    val weights = FloatArray(about.size) { startWeight(g.species, about[it], now = true) }
     val total = weights.sum()
     val size = adults + young
     for ((i, p) in (if (total > 0f) about else listOf(g.place.i)).withIndex()) {
@@ -317,6 +318,7 @@ private fun HexGroups.spread(g: HexGroup, k: Int, adults: Int, young: Int) {
         fauna.reserve[k][p] += w * (g.fat - fauna.reserve[k][p])
         fauna.fed[k][p] += w * (g.fed - fauna.fed[k][p])
         fauna.protein[k][p] += w * (g.protein - fauna.protein[k][p])
+        fauna.dry[k][p] += w * (g.dry - fauna.dry[k][p])
         if (there <= 0f && g.birthMonth >= 0) fauna.birthStart[k][p] = g.birthMonth.toByte()
         fauna.adults[k][p] += adults * share / area; fauna.young[k][p] += young * share / area
     }
