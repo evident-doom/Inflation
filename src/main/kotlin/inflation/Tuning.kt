@@ -81,7 +81,7 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     val rodentDeath = f("rodentDeath", 1.2f)
 
     // Groups' choices of where to go.
-    /** Hunters, kg per km², at which a herd's shunning of them ([inflation.ecology.SHUN_HUNTERS]) is half. */
+    /** Hunters, kg per km², at which they halve how good a place is for a herd in its kind's sense of better country ([inflation.ecology.HexGroups.herdQuality]). */
     val huntersHalfKg = f("huntersHalf", 1f)
     /** How strongly a group follows its sense of better country, per reach moved along it. */
     val bearingPull = f("bearingPull", 0.5f)

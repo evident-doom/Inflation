@@ -76,9 +76,14 @@ expect. Raids go by homes a band knows.
 **Each group's own kind, and stronger hunters** are seen by the same rule: crowding beyond the ring is
 expected, and a hunter keeps out of a stronger kind's way only where it senses it.
 
-**The herds' side, by the same rule.** A herd sees hunters in its own hex and the six around it.
-Beyond, it has the landscape of fear (`fauna.afraid`, kills there lately, `FEAR_WEIGHT`) and its
-memory of danger (`PlaceMemory.danger`), but no `predatorKg`. Without this, herds would keep the
+**The herds' side, by the same rule.** A herd counts the animals hunters would kill as deaths in its
+place score (`huntedAhead`, see `deathsAt`), not as a food-side fear. The hunting parties it would
+meet on its way and where it grazes count where it senses them (its own hex and the six around it),
+by the meeting rules at their odds (`herdKillsAhead`: encounters with waylaying on worn paths, being
+seen first, prey switching, catchability, the worth of the chase, tries per band, the hunter's
+week's want of meat). Beyond, it reckons on its kind's usual weekly losses to hunting parties
+(`usualGroupKill`). The residents' hunters about the ground it would graze count by the rate they
+hunted there this week (`HexFauna.residentKillOdds`). Without the sensing rule, herds would keep the
 perfect knowledge that hunters lack.
 
 **For the networks.** Hunters' input 0 and herds' input 3 carry the estimate, not the truth.
