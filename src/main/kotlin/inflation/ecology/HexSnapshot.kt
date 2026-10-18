@@ -64,11 +64,12 @@ object HexSnapshot {
      * 1.4: mending first is a band way.
      * 1.5: residents count the protein in straw and in what they switch to, by weight, as herds do.
      * 1.6: residents remember days without water.
-     * 1.7: fallen mast lies as winter food, the mast and root stocks from records; rooting churns the ground at its recorded rate.
-     * 1.8: mothers bear as their food and reserves can build their young.
+     * 1.7: bears sleep through the cold only when hungry.
+     * 1.10: fallen mast lies as winter food, the mast and root stocks from records; rooting churns the ground at its
+     * recorded rate; mothers bear as their food and reserves can build their young.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 8
+    const val MODEL_MINOR = 10
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

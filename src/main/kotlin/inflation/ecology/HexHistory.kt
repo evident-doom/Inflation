@@ -101,8 +101,11 @@ class HexHistory {
         put("water life/zooplankton, g per m²", wl.zooMean())
         for ((key, v) in wl.fishFlows) if (!key.startsWith("hungry")) put("fish flows/$key, t", v.toFloat())
         // Deaths, births and kills this week.
-        for ((key, v) in fauna.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
-        for ((key, v) in groups.stats.deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
+        // (A kind living both spread out and in herds dies both ways: its residents' and its groups' deaths of a cause are summed.)
+        val deaths = HashMap<String, Double>()
+        for ((key, v) in fauna.deaths) deaths.merge(key, v, Double::plus)
+        for ((key, v) in groups.stats.deaths) deaths.merge(key, v.toDouble(), Double::plus)
+        for ((key, v) in deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
         for ((key, v) in groups.stats.kills) put("deaths/$key/hunted", v.toFloat())
         for ((key, v) in groups.stats.hunting) if (key.startsWith("diag:")) put("hunt diag/" + key.removePrefix("diag:").replace(':', '/'), v / 100f)
         val births = HashMap<String, Double>()
