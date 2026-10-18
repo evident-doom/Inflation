@@ -1,11 +1,11 @@
 name: CI
 
-# Free Actions minutes are few, so CI does as little as it can:
+# CI stays minimal and fast: it does as little as it can:
 # - a PR push runs build-and-test only, and not for drafts or docs-only changes;
 # - merges to main don't rebuild (the PR already built the merge result); a weekly run on main keeps the Gradle
 #   cache fresh, since setup-gradle only saves the cache from the default branch;
 # - step-time and model-identity run only when the "sim-check" label is added to a PR (remove and add it again
-#   to rerun). Olli's PC and katastrofialue run these checks for free.
+#   to rerun). Olli's PC and katastrofialue run the full checks.
 on:
   pull_request:
     branches: [main]
