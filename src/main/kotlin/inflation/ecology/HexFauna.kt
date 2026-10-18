@@ -905,6 +905,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val grow = years / s.yearsToMaturity
             val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
             val grown = grownUp[k]; grown?.fill(0f)
+            val hz = FloatArray(HZ_COUNT)
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
                 val area = land.areaKm2[p]
@@ -924,26 +925,18 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - fromReserves(s, born / (0.5f * a[p]), f[p], days))
                 }
                 // Deaths.
-                // (Hunger, cold and heat, and thirst kill residents by the same rules as herds and packs.)
-                val hunger = Hazards.hunger(f[p])
-                val t = feltC(s, p, weather.temperature[p])
-                val sleeping = asleep(k, p)
-                val cold = if (sleeping) 0f else Hazards.cold(s, t, date.month)
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
                 // water's going (or gets enough from green food and prey); beyond that, its days without water
                 // mount week to week, and past what it can bear they kill as they do a herd.
                 if (drinks(s, p)) dk[p] = 0f
                 else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
-                val thirst = Hazards.thirst(s, dk[p])
-                // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
-                // lean season binds, and then hunger and sickness together hold them.
-                val crowd = (a[p] + y[p] + (herds?.get(p) ?: 0f)) / (CROWDED * usual[k])
-                val disease = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - f[p])) + outbreakDeaths(s, p)
+                hazards(k, p, weather, date.month, f[p], dk[p], a[p] + y[p] + (herds?.get(p) ?: 0f), hz)
+                val hunger = hz[HZ_HUNGER]; val cold = hz[HZ_COLD]; val thirst = hz[HZ_THIRST]; val disease = hz[HZ_DISEASE]
+                val crowd = hz[HZ_CROWD]
                 // Where the herds are crowded, now and then a plague breaks out among them.
                 if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
-                val (fireA, floodA, snowA0) = calamities(s, p, weather, false)
-                val (fireY, floodY, snowY0) = calamities(s, p, weather, true)
-                val snowA = if (sleeping) 0f else snowA0; val snowY = if (sleeping) 0f else snowY0
+                val fireA = hz[HZ_FIRE_A]; val floodA = hz[HZ_FLOOD_A]; val snowA = hz[HZ_SNOW_A]
+                val fireY = hz[HZ_FIRE_Y]; val floodY = hz[HZ_FLOOD_Y]; val snowY = hz[HZ_SNOW_Y]
                 val adultOdds = (s.backgroundMortality * years + hunger + cold + thirst + disease + fireA + floodA + snowA).coerceIn(0f, 0.9f)
                 // Eagles take the young of the smaller hoofed animals in the open.
                 val eagle = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
@@ -1000,6 +993,60 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             }
             for (c in ResidentDeath.entries) deaths[Tally.of(s, c.cause)] = dead[k][c]
         }
+    }
+
+    /**
+     * What kills kind [k]'s animals at place [p] this week besides old age, as shares of them ([HZ_HUNGER] and the rest
+     * into [out]): hunger fed [fed], cold and heat, thirst [dry] days without water, disease among [heads] of its kind per
+     * km² (and a raging outbreak), and fire, flood and deep snow, for the grown and the young. The one rule residents die
+     * by ([breedAndDie]) and weigh a place to stay or leave by ([stayOdds], [arriveOdds]).
+     */
+    internal fun hazards(k: Int, p: Int, weather: Weather, month: Int, fed: Float, dry: Float, heads: Float, out: FloatArray) {
+        val s = kinds[k]
+        // (Hunger, cold and heat, and thirst kill residents by the same rules as herds and packs.)
+        val sleeping = asleep(k, p)
+        out[HZ_HUNGER] = Hazards.hunger(fed)
+        out[HZ_COLD] = if (sleeping) 0f else Hazards.cold(s, feltC(s, p, weather.temperature[p]), month)
+        out[HZ_THIRST] = Hazards.thirst(s, dry)
+        // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
+        // lean season binds, and then hunger and sickness together hold them.
+        val crowd = heads / (CROWDED * usual[k])
+        out[HZ_CROWD] = crowd
+        out[HZ_DISEASE] = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - fed)) + outbreakDeaths(s, p)
+        val (fireA, floodA, snowA) = calamities(s, p, weather, false)
+        val (fireY, floodY, snowY) = calamities(s, p, weather, true)
+        out[HZ_FIRE_A] = fireA; out[HZ_FLOOD_A] = floodA; out[HZ_SNOW_A] = if (sleeping) 0f else snowA
+        out[HZ_FIRE_Y] = fireY; out[HZ_FLOOD_Y] = floodY; out[HZ_SNOW_Y] = if (sleeping) 0f else snowY
+    }
+
+    /** The share of the grown among [out] ([hazards]) that die this week, besides old age. */
+    private fun adultShare(out: FloatArray) =
+        out[HZ_HUNGER] + out[HZ_COLD] + out[HZ_THIRST] + out[HZ_DISEASE] + out[HZ_FIRE_A] + out[HZ_FLOOD_A] + out[HZ_SNOW_A]
+
+    /**
+     * The share of kind [k]'s grown residents at place [p] that would die next week if they stayed ([hazards]): fed as
+     * they were this week, their days without water going on where they cannot drink.
+     */
+    internal fun stayOdds(k: Int, p: Int, weather: Weather, out: FloatArray): Float {
+        val s = kinds[k]
+        val f = fed[k][p]
+        val dryNext = if (drinks(s, p)) 0f else dry[k][p] + Hazards.dryDays(s, days, f, land.plants.green[p])
+        hazards(k, p, weather, weather.date.month, f, dryNext, adults[k][p] + young[k][p], out)
+        return adultShare(out)
+    }
+
+    /**
+     * The share of [band] grown animals of kind [k] coming to place [p] that would die there in a week ([hazards]): fed
+     * as far as the food left uneaten there ([room]) feeds them, with water to drink; NaN where there is none, a place
+     * no one can stay at.
+     */
+    internal fun arriveOdds(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray): Float {
+        val s = kinds[k]
+        if (!drinks(s, p)) return Float.NaN
+        val area = land.areaKm2[p]
+        val f = min(1f, (room[k]?.get(p) ?: 0f) * area / band)
+        hazards(k, p, weather, weather.date.month, f, 0f, adults[k][p] + young[k][p] + band / area, out)
+        return adultShare(out)
     }
 
     /**
@@ -1198,6 +1245,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun drownRisk(s: Species, gapKm: Float) = min(1f, DROWN * gapKm / Catalogue.swimKm(s).coerceAtLeast(1f))
 
     companion object {
+        /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; and the crowding. */
+        const val HZ_HUNGER = 0; const val HZ_COLD = 1; const val HZ_THIRST = 2; const val HZ_DISEASE = 3
+        const val HZ_FIRE_A = 4; const val HZ_FLOOD_A = 5; const val HZ_SNOW_A = 6
+        const val HZ_FIRE_Y = 7; const val HZ_FLOOD_Y = 8; const val HZ_SNOW_Y = 9; const val HZ_CROWD = 10
+        const val HZ_COUNT = 11
         /** Share of the standing plants a week's grazing can take without eating the place bare. */
         const val REACH = 0.01f
         /** How strongly a kind is drawn to the ground it prefers. */

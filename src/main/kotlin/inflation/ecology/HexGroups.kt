@@ -111,11 +111,11 @@ class HexGroups(
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
     /** Each herd kind's losses to the residents' hunters this week (also among the residents' deaths, see [takeResidentsKills]). */
     @Transient val lostToResidents = HashMap<Species, Int>()
-    /** Each gathering kind's unfed excess by hex this week, heads, as [gather] found it (for the viewer, see [herdsWorth]). */
+    /** Each gathering kind's residents leaving by hex this week, heads, as [leaveAhead] found them (for the viewer, see [herdsWorth]). */
     @Transient internal val unfed = HashMap<Species, DoubleArray>()
-    /** This week: each gathering kind's room by hex, heads, as yet untaken (see [roomAhead]); and the room left in all, less its herds. */
-    @Transient internal val roomBy = HashMap<Species, DoubleArray>()
-    @Transient internal val roomLeft = HashMap<Species, Double>()
+    /** This week, by gathering kind: the share of a band that would die at each place on coming there, and the places whose residents leave (see [leaveAhead]). */
+    @Transient internal val arriveBy = HashMap<Species, FloatArray>()
+    @Transient internal val leaving = HashMap<Species, BooleanArray>()
     /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
     /** The land hexes a herd's animals stand on about each hex, by kind and hex ([groundShares]). */
@@ -286,11 +286,11 @@ class HexGroups(
             groups.removeIf { !it.alive }
             newcomers(it.date)
         },
-        // Herds of the kinds that also live spread out scatter where they find room, and condense where the land does not feed them.
+        // Residents of the kinds that also live as herds set off together where their place fails them, and herds settle where theirs does not.
         Phase("herds: gathering and scattering") {
             // (Not in the form-swap test, where each kind keeps the form it has.)
             if (!Catalogue.formsFixed) {
-                roomAhead()
+                leaveAhead(it)
                 scatter()
                 gather()
             }

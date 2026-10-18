@@ -37,7 +37,7 @@ internal class ViewLayers(private val sim: HexSim) {
         POLLINATORS("Pollinators", "kg/km²", 1f, 0.85f, 0.1f), ORGANIC("Soil organic matter", "kg/m²", 0.35f, 0.2f, 0.05f),
         CARRION("Carrion", "kg/km²", 0.4f, 0.1f, 0.4f),
         RESIDENTS("Resident herds (all)", "head/km²", 1f, 0.1f, 0.6f),
-        UNFED("Unfed residents of kinds that also herd", "head/km² the land did not feed this week", 1f, 0.45f, 0.1f),
+        UNFED("Residents leaving, of kinds that also herd", "head/km² whose place failed them this week", 1f, 0.45f, 0.1f),
         HERD_PRESSURE("Herd-forming pressure", "herds' worth of unfed animals within a week's travel (a herd forms at 1)", 1f, 0.25f, 0.05f),
         DEATHS("Where animals die", "kg/km² a week", 0.6f, 0f, 0f), PEOPLE_DEATHS("Where people die", "deaths per 1000 km² a week", 0.6f, 0f, 0.3f),
         KILLS("Kills by packs and people", "kg/km² a week", 0.85f, 0.05f, 0.05f),

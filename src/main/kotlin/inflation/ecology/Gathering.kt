@@ -1,118 +1,146 @@
 package inflation.ecology
 
 import inflation.world.HexWorld
-import inflation.wrapMonth
+import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /*
- * Kinds that live both ways ([Catalogue.gathering]): one population, spread over the land as residents, out of
- * which herds condense where the land about them leaves animals hungry while country beyond their reach has food to
- * spare. Residents move to better ground next door on their own (the spill, see [HexFauna]); a herd is the long walk
- * they cannot make that way. Each week, the hungry within [gatherKm] of a place that come to a full herd of the kind
- * gather into herds, as far as the room the land has beyond that ground, within a month's walk ([farKm]), will feed
- * them, less what the herds already about will take. A kind held short by its food everywhere at once finds no room
- * and stays spread. A herd that has come away from where it formed to ground with room to spare scatters back into
- * the land a band a week; where it finds none, it takes in hungry residents and young males about it, as far as room
- * is left. Heads, young, fat, feeding and protein go across as they are: being moved from one form to the other changes
- * nothing by itself. The room is the land's own: the food left uneaten this week after every kind ate ([HexFauna.room]).
+ * Kinds that live both ways ([Catalogue.gathering]): one population, spread over the land as residents, out of which
+ * groups set off where the place they live in fails them. Residents drift to better ground next door on their own (the
+ * spill, see [HexFauna]); a group is the long walk they cannot make that way. Each week, the residents of a place weigh
+ * the share of them that would die there next week ([HexFauna.stayOdds]: hunger, cold, thirst, disease, fire, flood,
+ * snow, by the rules they die by) against the share that would die at the safest place a group of them could reach in
+ * a month, beyond their own ground ([HexFauna.arriveOdds]); where staying is clearly the deadlier ([clearlyWorse]), they
+ * leave together, as many groups as they make, however few. A group that stands where it is no longer clearly worse off
+ * than anywhere within a month's walk settles back into the land a band a week; elsewhere it takes in the residents
+ * about it that are leaving too. Nothing holds a group together but the need: heads, young, fat, feeding, protein and
+ * thirst go across as they are, and being moved from one form to the other changes nothing by itself.
  */
 
 /** The ground a herd condenses from, and keeps away from until it scatters: half a range across (see [RANGE_KM]). */
 const val GATHER_KM = RANGE_KM / 2
 
 /**
- * The ground a herd of [s] condenses from, and keeps away from until it scatters: as far as the kind walks in a week
- * (a gazelle some 40 km, an onager 100), so a wide-ranging, sparse kind draws on as wide a country as it roams.
+ * The ground residents of [s] leave from together, and their own ground, beyond which a group goes: as far as the kind
+ * walks in a week (a gazelle some 40 km, an onager 100).
  */
 internal fun gatherKm(s: Species) = 7.0 * s.dailyTravelKm
 
-/** How far a herd of [s] looks for room: a month's walk. */
+/** How far a group of [s] looks for a safer place: a month's walk. */
 internal fun farKm(s: Species) = 30.0 * s.dailyTravelKm
 
-/**
- * Each week, before herds scatter and gather: for each gathering kind, the room the land has for it by hex, heads
- * ([HexFauna.room]), and the room left in all once the kind's herds are counted against it ([roomLeft]).
- */
-internal fun HexGroups.roomAhead() {
-    for (s in Catalogue.gathering) {
-        val k = fauna.slot(s); if (k < 0 || s !in kinds) continue
-        val r = fauna.room[k] ?: continue
-        val byHex = DoubleArray(hex.size)
-        for (p in 0 until n) if (r[p] > 0f) byHex[hw.placeHex[p]] += r[p] * land.areaKm2[p].toDouble()
-        roomBy[s] = byHex
-        var herds = 0.0
-        for (g in groups) if (g.alive && g.species == s) herds += g.size
-        roomLeft[s] = byHex.sum() - herds
-    }
-}
-
-/** The heads a gathered herd of [s] holds: as many as its kind's herds gather. */
+/** The most heads one herd of [s] holds: ten bands (see [HERD_UNIT]); more leaving together make more herds. */
 internal fun herdOf(s: Species) = s.maxGroupSize * HERD_UNIT
 
 /**
- * Each week: in each gathering kind, the hungry the land about them does not feed, gathered from about each place where
- * they are most (within [gatherKm], each hex once a week), into as many full herds as they make and the room beyond
- * that ground within [farKm] will feed ([roomAhead]); the rest stays spread.
+ * Whether a band of [band] animals dying at a share [here] in a week is clearly worse off than at a share [there]: by
+ * more than a week's chance spread of its deaths (the binomial deviation at [here]), as groups weigh a place's deaths
+ * (see [HexGroups.survivalSteps]).
  */
-internal fun HexGroups.gather() {
+internal fun clearlyWorse(here: Float, there: Float, band: Float): Boolean {
+    if (!(there < here)) return false
+    val sd = sqrt(band * here * (1f - here))
+    return (here - there) * band > sd
+}
+
+/**
+ * Each week, before herds scatter and gather: for each gathering kind, the share of a band that would die at each place
+ * on coming there ([HexFauna.arriveOdds], NaN where it cannot stay), kept in [arriveBy]; and which residents leave
+ * ([leaving]): about each place where the most would die staying, the residents of the ground within [gatherKm] whose
+ * place is clearly deadlier ([clearlyWorse]) than the safest place within [farKm] beyond that ground, which they head
+ * would head for.
+ */
+internal fun HexGroups.leaveAhead(weather: Weather) {
+    val out = FloatArray(HexFauna.HZ_COUNT)
     for (s in Catalogue.gathering) {
         val k = fauna.slot(s); if (k < 0 || s !in kinds) continue
-        val a = fauna.adults[k]; val y = fauna.young[k]; val f = fauna.fed[k]
-        val room = roomBy[s] ?: continue; var left = roomLeft[s] ?: 0.0
-        // (The excess at each place, heads; and by hex, to start from where it is most.)
-        val excess = DoubleArray(n)
+        val a = fauna.adults[k]; val y = fauna.young[k]
+        val band = s.maxGroupSize.toFloat()
+        val arrive = FloatArray(n) { fauna.arriveOdds(k, it, band, weather, out) }
+        arriveBy[s] = arrive
+        // (Staying, by place; and by hex, the heads that might leave: those whose place could be beaten at all.)
+        val stay = FloatArray(n)
         val byHex = DoubleArray(hex.size)
         for (p in 0 until n) {
             val heads = (a[p] + y[p]) * land.areaKm2[p].toDouble()
             if (heads <= 0.0) continue
-            excess[p] = heads * short(s, k, p)
-            byHex[hw.placeHex[p]] += excess[p]
+            stay[p] = fauna.stayOdds(k, p, weather, out)
+            if (clearlyWorse(stay[p], 0f, band)) byHex[hw.placeHex[p]] += heads * stay[p]
         }
-        unfed[s] = byHex
-        // (Not one herd's worth in all, of the hungry or of room: nothing to gather.)
-        if (byHex.sum() < herdOf(s) || left < herdOf(s)) continue
+        val leave = BooleanArray(n)
+        val used = BooleanArray(hex.size)
+        val leavingByHex = DoubleArray(hex.size)
+        for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
+            if (used[h0]) continue
+            // The safest place beyond their own ground, within a month's walk.
+            var bestOdds = Float.MAX_VALUE
+            for (h in ground(h0, farKm(s) / RING_KM + hex.hexKm)) {
+                val d = hex.distanceKm(h0, h); if (d <= gatherKm(s) || d > farKm(s)) continue
+                for (b in HexWorld.BANDS_M.indices) {
+                    val q = hw.placeOf[b][h]; if (q < 0) continue
+                    if (arrive[q] < bestOdds) bestOdds = arrive[q]
+                }
+            }
+            if (bestOdds == Float.MAX_VALUE) continue
+            val about = ground(h0, gatherKm(s)).filter { !used[it] }
+            for (h in about) {
+                used[h] = true
+                for (b in HexWorld.BANDS_M.indices) {
+                    val p = hw.placeOf[b][h]; if (p < 0 || a[p] + y[p] <= 0f) continue
+                    if (clearlyWorse(stay[p], bestOdds, band)) { leave[p] = true; leavingByHex[h] += (a[p] + y[p]) * land.areaKm2[p].toDouble() }
+                }
+            }
+        }
+        leaving[s] = leave
+        unfed[s] = leavingByHex
+    }
+}
+
+/**
+ * Each week: in each gathering kind, the residents leaving ([leaveAhead]) and not taken in by a herd about them
+ * ([scatter]), together from about each place where they are most (within [gatherKm], each hex once a week), as many
+ * herds as they make ([herdOf] at most in each); no fewer than its kind goes about in ([Species.groupSize]), else they stay.
+ */
+internal fun HexGroups.gather() {
+    for (s in Catalogue.gathering) {
+        val k = fauna.slot(s); if (k < 0 || s !in kinds) continue
+        val leave = leaving[s] ?: continue
+        val a = fauna.adults[k]; val y = fauna.young[k]; val f = fauna.fed[k]
+        val byHex = DoubleArray(hex.size)
+        for (p in 0 until n) if (leave[p]) byHex[hw.placeHex[p]] += (a[p] + y[p]) * land.areaKm2[p].toDouble()
         val used = BooleanArray(hex.size)
         var made = 0; var heads = 0
         for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
             if (used[h0]) continue
-            var all = 0.0
-            for (h in ground(h0, gatherKm(s))) if (!used[h]) all += byHex[h]
-            if (all < herdOf(s)) continue
             val about = ground(h0, gatherKm(s)).filter { !used[it] }
-            // The room beyond their own ground, within a month's walk.
-            val far = ground(h0, farKm(s) / RING_KM + hex.hexKm).filter { val d = hex.distanceKm(h0, it); room[it] > 0.0 && d > gatherKm(s) && d <= farKm(s) }
-            var spare = 0.0; for (h in far) spare += room[h]
-            val count = (minOf(all, spare, left) / herdOf(s)).toInt()
-            if (count == 0) continue
-            // (What they will take of it is no longer room for others.)
-            val takes = count * herdOf(s).toDouble()
-            for (h in far) room[h] -= room[h] * takes / spare
-            left -= takes
+            var all = 0.0; for (h in about) all += byHex[h]
+            if (all < s.groupSize) continue
             for (h in about) used[h] = true
-            // Whole animals go: each place gives its share of the excess, adults and young as they are there.
-            val t = count * herdOf(s) / all
+            // Whole animals go: all of each leaving place, adults and young as they are there.
             var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var protein = 0.0; var dry = 0.0; var most = -1; var mostHeads = 0.0
             for (h in about) for (b in HexWorld.BANDS_M.indices) {
-                val p = hw.placeOf[b][h]; if (p < 0 || excess[p] <= 0.0) continue
-                val here = (a[p] + y[p]).toDouble()
-                val go = (t * excess[p] / land.areaKm2[p] / here).toFloat().coerceIn(0f, 1f)
-                val ga = a[p] * go * land.areaKm2[p].toDouble(); val gy = y[p] * go * land.areaKm2[p].toDouble()
-                a[p] -= a[p] * go; y[p] -= y[p] * go
+                val p = hw.placeOf[b][h]; if (p < 0 || !leave[p]) continue
+                val ga = a[p] * land.areaKm2[p].toDouble(); val gy = y[p] * land.areaKm2[p].toDouble()
+                if (ga + gy <= 0.0) continue
+                a[p] = 0f; y[p] = 0f
                 adults += ga; young += gy
                 fat += (ga + gy) * fauna.reserve[k][p]; fed += (ga + gy) * f[p]; protein += (ga + gy) * fauna.protein[k][p]; dry += (ga + gy) * fauna.dry[k][p]
                 if (ga + gy > mostHeads) { mostHeads = ga + gy; most = p }
             }
+            if (most < 0) continue
             val took = adults + young
             val takeA = adults.roundToInt(); val takeY = young.roundToInt()
-            if (most < 0 || takeA < count) {
-                // (Too few grown animals for the herds: they stay spread, put back where the most came from.)
-                if (most >= 0) { a[most] += (adults / land.areaKm2[most]).toFloat(); y[most] += (young / land.areaKm2[most]).toFloat() }
+            val count = (takeA + takeY + herdOf(s) - 1) / herdOf(s)
+            if (takeA < max(1, count)) {
+                // (Too few grown animals to go: they stay, put back where the most came from.)
+                a[most] += (adults / land.areaKm2[most]).toFloat(); y[most] += (young / land.areaKm2[most]).toFloat()
                 continue
             }
             // (What rounding leaves over goes back to where the most came from.)
-            a[most] += ((adults - takeA) / land.areaKm2[most]).toFloat(); y[most] += ((young - takeY) / land.areaKm2[most]).toFloat()
+            a[most] = max(0f, a[most] + ((adults - takeA) / land.areaKm2[most]).toFloat()); y[most] = max(0f, y[most] + ((young - takeY) / land.areaKm2[most]).toFloat())
             for (i in 0 until count) {
                 val g = spawn(s, most, takeA / count + if (i < takeA % count) 1 else 0)
                 g.young = takeY / count + if (i < takeY % count) 1 else 0
@@ -124,74 +152,30 @@ internal fun HexGroups.gather() {
             }
             made += count; heads += takeA + takeY
         }
-        roomLeft[s] = left
         if (made > 0) { stats.hunting.merge(Tally.of(s, Tally.GATHERED), made, Int::plus); stats.hunting.merge(Tally.of(s, Tally.HEADS_GATHERED), heads, Int::plus) }
     }
 }
 
 /**
- * Diagnostic (unfedDiag): for any resident kind [s], as if it lived both ways, what [gather] would condense out of
- * its residents this week, by the same grouping, counted two ways: of the unfed (heads times what fell short of their
- * need), and of the floaters (heads beyond the breeding ranges a place has, [inflation.Tuning.breedSpacing] times
- * the kind's usual density); and its unfed, floating and all heads. Nothing moves. (Herds unfed, heads unfed, all
- * heads, herds of floaters, floating heads.)
- */
-internal fun HexGroups.wouldGather(s: Species): DoubleArray {
-    val k = fauna.slot(s); if (k < 0) return DoubleArray(5)
-    val a = fauna.adults[k]; val y = fauna.young[k]
-    val ranges = tuning.breedSpacing * HexFauna.usualDensity(s)
-    val unfedByHex = DoubleArray(hex.size); val floatByHex = DoubleArray(hex.size)
-    var unfedHeads = 0.0; var allHeads = 0.0; var floating = 0.0
-    for (p in 0 until n) {
-        val heads = (a[p] + y[p]) * land.areaKm2[p].toDouble()
-        if (heads <= 0.0) continue
-        val e = heads * short(s, k, p)
-        val fl = max(0.0, heads - ranges * land.areaKm2[p])
-        unfedByHex[hw.placeHex[p]] += e; floatByHex[hw.placeHex[p]] += fl
-        unfedHeads += e; floating += fl; allHeads += heads
-    }
-    return doubleArrayOf(herdsIn(s, unfedByHex).toDouble(), unfedHeads, allHeads, herdsIn(s, floatByHex).toDouble(), floating)
-}
-
-/** The full herds of [s] the heads by hex [byHex] would gather into, from where they are most (as [gather] groups them). */
-private fun HexGroups.herdsIn(s: Species, byHex: DoubleArray): Int {
-    if (byHex.sum() < herdOf(s)) return 0
-    var herds = 0
-    val used = BooleanArray(hex.size)
-    for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
-        if (used[h0]) continue
-        var all = 0.0
-        for (h in ground(h0, gatherKm(s))) if (!used[h]) all += byHex[h]
-        val count = (all / herdOf(s)).toInt()
-        if (count == 0) continue
-        for (h in ground(h0, gatherKm(s))) used[h] = true
-        herds += count
-    }
-    return herds
-}
-
-/**
- * For the viewer: by hex, how many herds of kind [s] the unfed excess within [gatherKm] of it came to this week, before
- * any gathered (at 1 or more, a herd forms there unless a place nearer more excess took it first); null before a week.
+ * For the viewer: by hex, how many herds of kind [s] the residents leaving within [gatherKm] of it came to this week,
+ * before any went; null before a week.
  */
 internal fun HexGroups.herdsWorth(s: Species): FloatArray? {
     val byHex = unfed[s] ?: return null
     val out = FloatArray(hex.size)
-    // (The ground is the same both ways: each hex's excess counts towards every hex it lies within reach of.)
+    // (The ground is the same both ways: each hex's leavers count towards every hex it lies within reach of.)
     for (h in byHex.indices) if (byHex[h] > 0.0) { val v = (byHex[h] / herdOf(s)).toFloat(); for (q in ground(h, gatherKm(s))) out[q] += v }
     return out
 }
 
 /**
- * Each week, a herd of a gathering kind keeps the balance with the residents of its kind about it. Where it has come
- * further than [gatherKm] from where it formed, is fed where it stands ([FED_TO_SCATTER]), and finds the residents
- * about it expecting to be fed through the coming season as well (an excess under that share of their heads, see
- * [foresee]), it has found country with room for it: one usual
- * band of its kind ([Species.maxGroupSize]) settles there as residents, about where it stands, and the last band
- * scatters whole. Elsewhere it takes in, within a day's walk of it, the residents that expect to go short (as
- * [gather] counts them) and the young males that grew up there this week and leave to find their own ground (half those grown,
- * see [HexFauna.grownUp]); each place gives to one herd a week. So a herd grows where the country is crowded and
- * thins where it has room, a band a week, and those it leaves are counted with the residents from then on.
+ * Each week, a herd of a gathering kind keeps the balance with the residents of its kind about it. Where a band of it
+ * would not be clearly worse off staying where it stands than at the safest place within a month's walk beyond it
+ * ([settles]), one usual band of its kind ([Species.maxGroupSize]) settles there as residents, about where it stands,
+ * and the last band scatters whole. Elsewhere it takes in, within a day's walk of it, the residents leaving too
+ * ([leaveAhead]) and the young males that grew up there this week and leave to find their own ground (half those grown,
+ * see [HexFauna.grownUp]); each place gives to one herd a week. So herds form where the land fails its residents and
+ * melt back into it where it does not, a band a week.
  */
 internal fun HexGroups.scatter() {
     var any = false
@@ -201,7 +185,7 @@ internal fun HexGroups.scatter() {
         val s = g.species
         if (!g.alive || s !in Catalogue.gathering) continue
         val k = fauna.slot(s); if (k < 0) continue
-        if (!roomFor(g, k)) { join(g, k, taken.getOrPut(s) { BooleanArray(n) }); continue }
+        if (!settles(g)) { join(g, k, taken.getOrPut(s) { BooleanArray(n) }); continue }
         if (g.size <= s.maxGroupSize) {
             spread(g, k, g.adults, g.young)
             stats.hunting.merge(Tally.of(s, Tally.SCATTERED), 1, Int::plus); stats.hunting.merge(Tally.of(s, Tally.HEADS_SCATTERED), g.size, Int::plus)
@@ -221,45 +205,41 @@ internal fun HexGroups.scatter() {
 }
 
 /**
- * Whether herd [g] (its kind's residents in slot [k]) has found country with room for a band of it (see [scatter]): fed,
- * away from where it formed, and the land within [gatherKm] would feed a band more; the band's room is then taken.
+ * Whether a band of herd [g] would stay where it stands: its place, as it would be to a band coming there
+ * ([arriveBy]), is not clearly deadlier ([clearlyWorse]) than the safest place within [farKm] beyond [gatherKm] of it.
  */
-private fun HexGroups.roomFor(g: HexGroup, k: Int): Boolean {
+private fun HexGroups.settles(g: HexGroup): Boolean {
     val s = g.species
-    if (g.fed < FED_TO_SCATTER || fauna.thirstAt(s, g.place.i, g.fed) > 0f) return false
-    if (g.formedAt >= 0 && hex.distanceKm(hw.placeHex[g.place.i], hw.placeHex[g.formedAt]) <= gatherKm(s)) return false
-    val room = roomBy[s] ?: return false
-    val near = ground(hw.placeHex[g.place.i], gatherKm(s))
-    var spare = 0.0; for (h in near) spare += room[h]
-    val band = min(g.size, s.maxGroupSize).toDouble()
-    if (spare < band) return false
-    for (h in near) room[h] -= room[h] * band / spare
-    return true
+    val arrive = arriveBy[s] ?: return false
+    val here = arrive[g.place.i]
+    if (here.isNaN()) return false
+    val h0 = hw.placeHex[g.place.i]
+    var best = Float.MAX_VALUE
+    for (h in ground(h0, farKm(s) / RING_KM + hex.hexKm)) {
+        val d = hex.distanceKm(h0, h); if (d <= gatherKm(s) || d > farKm(s)) continue
+        for (b in HexWorld.BANDS_M.indices) { val q = hw.placeOf[b][h]; if (q >= 0 && arrive[q] < best) best = arrive[q] }
+    }
+    return !clearlyWorse(here, best, s.maxGroupSize.toFloat())
 }
 
 /**
- * Herd [g] takes in, within a day's walk of it, the residents (slot [k]) the land did not feed and the young males
- * leaving home, from the places no other herd has taken from this week ([taken]); their condition mixed with its own.
+ * Herd [g] takes in, within a day's walk of it, the residents (slot [k]) leaving their place this week ([leaveAhead])
+ * and the young males leaving home, from the places no other herd has taken from this week ([taken]); their condition
+ * mixed with its own.
  */
 private fun HexGroups.join(g: HexGroup, k: Int, taken: BooleanArray) {
     val s = g.species
     val a = fauna.adults[k]; val y = fauna.young[k]; val grown = fauna.grownUp[k] ?: return
-    // (Only as many as there is room for, beyond what the herds about already take.)
-    var left = roomLeft[s] ?: return
-    if (left <= 0.0) return
+    val leave = leaving[s] ?: return
     var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var protein = 0.0; var dry = 0.0; var most = -1; var mostHeads = 0.0
     for (p in placesWithin(g.place.i, s.dailyTravelKm.toDouble())) {
         if (taken[p]) continue
         val here = a[p] + y[p]; if (here <= 0f) continue
         taken[p] = true
-        val short = short(s, k, p)
-        // (Per km²: the hungry, adults and young as they are there, and the young males that grew up, from the adults
-        // left; no more than the room left.)
-        val area = land.areaKm2[p]
-        val cap = min(1.0, left / ((a[p] + y[p]) * area)).toFloat()
-        val ga = min(a[p], a[p] * short + 0.5f * grown[p] * (1f - short)) * cap; val gy = y[p] * short * cap
+        // (Per km²: all of a place that is leaving; elsewhere half the young that grew up, the males.)
+        val ga = if (leave[p]) a[p] else min(a[p], 0.5f * grown[p]); val gy = if (leave[p]) y[p] else 0f
         if (ga + gy <= 0f) continue
-        left -= (ga + gy) * area
+        val area = land.areaKm2[p]
         a[p] -= ga; y[p] -= gy
         val heads = (ga + gy) * area.toDouble()
         adults += ga * area; young += gy * area
@@ -276,27 +256,11 @@ private fun HexGroups.join(g: HexGroup, k: Int, taken: BooleanArray) {
     g.fat += (w * (fat / took - g.fat)).toFloat(); g.fed += (w * (fed / took - g.fed)).toFloat(); g.protein += (w * (protein / took - g.protein)).toFloat()
     g.dry += (w * (dry / took - g.dry)).toFloat()
     g.adults += takeA; g.young += takeY; g.joined = takeA + takeY
-    roomLeft[s] = left
     stats.hunting.merge(Tally.of(s, Tally.HEADS_JOINED), takeA + takeY, Int::plus)
-}
-
-/**
- * What the land falls short of for kind [s]'s residents (slot [k]) at place [p], as a share of them: what their food
- * did not meet, or all of them where they cannot drink.
- */
-private fun HexGroups.short(s: Species, k: Int, p: Int): Float {
-    val f = fauna.fed[k][p]
-    return if (fauna.thirstAt(s, p, f) > 0f) 1f else (1f - f).coerceIn(0f, 1f)
 }
 
 /** [HexGroup.mergedInto] of a herd that scattered into the land: its members live on as residents. */
 const val SCATTERED = -2
-
-/**
- * How well fed a herd and the residents about it must be for it to scatter: all but a few percent of their need,
- * as fed is never quite whole where animals are many.
- */
-const val FED_TO_SCATTER = 0.95f
 
 /**
  * [adults] and [young] of herd [g] settle as residents (slot [k]) about where it stands, within a day's walk of its

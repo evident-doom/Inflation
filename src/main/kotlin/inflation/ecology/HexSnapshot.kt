@@ -73,9 +73,10 @@ object HexSnapshot {
      * 1.12: groups and residents weigh every death a place holds when choosing it (#212).
      * 2.0: every plant-eater can live both ways: herds condense where hungry residents have room beyond their reach.
      * 2.1: resident hunters, disease and crowding meet a non-migratory herd as its kind's groups spread over HERD_UNIT times the ground.
+     * 2.2: residents leave as groups where staying is clearly deadlier than a place a month away, and settle where it is not; jackals take prey to 15 kg.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 1
+    const val MODEL_MINOR = 2
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
