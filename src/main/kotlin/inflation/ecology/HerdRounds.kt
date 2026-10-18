@@ -90,7 +90,7 @@ private fun HexGroups.placeNear(p: Int, km: Double): Int {
 }
 
 /** The yearly circuits of kind [s], from how good each place was for it each month ([q]: [month][place]). */
-private fun HexGroups.roundsFor(s: Species, q: Array<FloatArray>): List<IntArray> {
+internal fun HexGroups.roundsFor(s: Species, q: Array<FloatArray>): List<IntArray> {
     // Ranges: the good country of each month gathered in squares of [RANGE_KM]: their worth (mean
     // quality over the square's land) and their best place.
     class Range(val place: Int, val worth: Float, val x: Double, val y: Double)
@@ -157,7 +157,7 @@ private fun HexGroups.roundsFor(s: Species, q: Array<FloatArray>): List<IntArray
 }
 
 /** How good each place was for kind [s] in each month, as noted month by month, or null until a whole year is in. */
-private fun HexGroups.seasonQuality(s: Species): Array<FloatArray>? {
+internal fun HexGroups.seasonQuality(s: Species): Array<FloatArray>? {
     val a = seasonNotes[s.index] ?: return null
     if (a.any { it == null }) return null
     @Suppress("UNCHECKED_CAST") return a as Array<FloatArray>

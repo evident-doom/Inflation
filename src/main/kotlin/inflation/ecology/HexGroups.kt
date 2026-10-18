@@ -287,9 +287,12 @@ class HexGroups(
         },
         // Herds of the kinds that also live spread out scatter where they find room, and condense where the land does not feed them.
         Phase("herds: gathering and scattering") {
-            foresee(it.date.month)
-            scatter()
-            gather()
+            // (Not in the form-swap test, where each kind keeps the form it has.)
+            if (!Catalogue.formsFixed) {
+                foresee(it.date.month)
+                scatter()
+                gather()
+            }
         },
         Phase("herds: remembering places") { val date = it.date
             if (date.dayOfMonth <= days) {
