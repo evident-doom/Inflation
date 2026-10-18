@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.Books
+import inflation.Stocks
 import inflation.Tuning
 import inflation.world.Eruptions
 import inflation.world.HexLand
@@ -38,18 +39,18 @@ class HexSim(
     private val ashKeep = exp(-cfg.daysPerStep / 720.0).toFloat()
     /** The books of water and matter (see [Books]), when kept: set before the first step to keep them. */
     var books: Books? = null
-        set(b) { field = b; land.books = b; if (b != null) keepBooks(b) }
+        set(b) { field = b; land.books = b; b?.keep(stocks()) }
 
     init { if (Books.ON) books = Books() }
 
-    /** Names every stock of water and matter in [b]; they start from the world as the first step finds it (after a save is loaded). */
-    private fun keepBooks(b: Books) {
+    /** Every stock of water and matter in the model, as each part names them (the books start from them as the first step finds them, after a save is loaded). */
+    fun stocks(): Stocks = Stocks().also { s ->
         val n = land.n
-        b.stock(Books.Stuff.WATER, "snow") { var s = 0.0; for (p in 0 until n) s += weather.snowpack[p] / 1000.0 * land.areaM2[p]; s }
-        land.hydro.keepBooks(b)
-        land.plants.keepBooks(b)
-        fauna.keepBooks(b)
-        groups.keepBooks(b)
+        s.add(Books.Stuff.WATER, "snow", weather.snowpack) { var sum = 0.0; for (p in 0 until n) sum += weather.snowpack[p] / 1000.0 * land.areaM2[p]; sum }
+        land.hydro.listStocks(s)
+        land.plants.listStocks(s)
+        fauna.listStocks(s)
+        groups.listStocks(s)
     }
 
     /** One week: the weather, then water and plants, then the residents and small life, then the groups. */

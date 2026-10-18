@@ -23,6 +23,7 @@ import kotlin.math.pow
 import java.util.stream.IntStream
 import java.util.concurrent.atomic.DoubleAdder
 import inflation.Books
+import inflation.Stocks
 import kotlin.math.hypot
 
 /**
@@ -1028,17 +1029,17 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             t(tortoises), t(foxes), t(owls), eagles.indices.sumOf { (eagles[it] * land.areaKm2[it]).toDouble() } / EAGLE_KM2, vultures.size, vultures.sum())
     }
 
-    /** Names the soil's and the small animals' stocks in [books]. */
-    internal fun keepBooks(books: Books) {
-        fun perM2(name: String, a: FloatArray) = books.stock(Books.Stuff.MATTER, name) { var s = 0.0; for (p in 0 until n) s += a[p] * land.areaM2[p].toDouble(); s }
-        fun perKm2(name: String, a: FloatArray) = books.stock(Books.Stuff.MATTER, name) { var s = 0.0; for (p in 0 until n) s += a[p] * land.areaKm2[p].toDouble(); s }
+    /** Names the soil's and the small animals' stocks. */
+    internal fun listStocks(stocks: Stocks) {
+        fun perM2(name: String, a: FloatArray) = stocks.perM2(name, a, land.areaM2)
+        fun perKm2(name: String, a: FloatArray) = stocks.perKm2(name, a, land.areaKm2)
         perM2("litter", litter); perM2("soil organic matter", organicMatter); perM2("carrion", carrion); perM2("bones", bones); perM2("dung", dung)
         perKm2("small dead", smallDead); perKm2("soil animals", soilAnimals); perKm2("insects", insects); perKm2("insects waiting", dormantInsects)
         perKm2("biting insects", biting); perKm2("biting insects waiting", dormantBiting); perKm2("rodents", rodents); perKm2("reptiles and amphibians", herps)
         perKm2("pollinators", pollinators); perKm2("pollinators waiting", dormantPollinators); perKm2("hares", hares); perKm2("hyrax", hyrax)
         perKm2("tortoises", tortoises); perKm2("foxes", foxes); perKm2("owls", owls); perKm2("locusts", locusts)
         for (k in BIRDS.indices) perKm2(BIRDS[k].name, bird[k])
-        books.stock(Books.Stuff.MATTER, "migrant birds away") { away.sum() + waiting.sum() }
+        stocks.add(Books.Stuff.MATTER, "migrant birds away", away, waiting) { away.sum() + waiting.sum() }
     }
 
     /** Takes up to [want] of carrion in place [p]; returns what was taken. */

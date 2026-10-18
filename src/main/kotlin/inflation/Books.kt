@@ -20,7 +20,6 @@ class Books {
     /** What is kept: water, m³; dead and living matter, kg (reported in t). */
     enum class Stuff(val unit: String, val scale: Double) { WATER("m³", 1.0), MATTER("t", 1e-3) }
 
-    private class Stock(val stuff: Stuff, val name: String, val sum: () -> Double)
     private val stocks = ArrayList<Stock>()
     private val flows = ConcurrentHashMap<String, DoubleAdder>()
     /** Each stock at the last check. */
@@ -37,8 +36,8 @@ class Books {
     private val parts = LinkedHashMap<String, Part>()
     private var checks = 0
 
-    /** A stock of [stuff], [name]d, summed over the world by [sum] (m³ or kg). */
-    fun stock(stuff: Stuff, name: String, sum: () -> Double) { stocks += Stock(stuff, name, sum) }
+    /** Keeps [all] the model's stocks ([Stocks]). */
+    fun keep(all: Stocks) { stocks += all.list }
 
     /** Something of [stuff] crossing the world's edge: [amount] in (out when below zero), m³ or kg. */
     fun flow(stuff: Stuff, name: String, amount: Double) { adder(stuff, name).add(amount) }
@@ -107,4 +106,21 @@ class Books {
         /** The known leak of float stocks: a bite under half a float's step off a big stock leaves it as it was. */
         const val ROUNDING = "bites lost to float rounding"
     }
+}
+
+/**
+ * A stock of water or matter the model keeps: [stuff], [name]d, summed over the world by [sum] (m³ or kg); [arrays]
+ * are the tables it is summed from, so that a table of matter that is no stock can be found (see StocksTest).
+ */
+class Stock(val stuff: Books.Stuff, val name: String, val arrays: List<Any>, val sum: () -> Double)
+
+/** Every stock of water and matter in the model, as each part names its own: what the books audit and the reports read. */
+class Stocks {
+    val list = ArrayList<Stock>()
+    /** A stock of [stuff], [name]d, summed by [sum] from the tables [arrays]. */
+    fun add(stuff: Books.Stuff, name: String, vararg arrays: Any, sum: () -> Double) { list += Stock(stuff, name, arrays.toList(), sum) }
+    /** Matter in kg/m² by place, [name]d, over places of [m2] square metres. */
+    fun perM2(name: String, a: FloatArray, m2: FloatArray) = add(Books.Stuff.MATTER, name, a) { var s = 0.0; for (p in a.indices) s += a[p] * m2[p].toDouble(); s }
+    /** Matter in kg/km² by place, [name]d, over places of [km2] square km. */
+    fun perKm2(name: String, a: FloatArray, km2: FloatArray) = add(Books.Stuff.MATTER, name, a) { var s = 0.0; for (p in a.indices) s += a[p] * km2[p].toDouble(); s }
 }
