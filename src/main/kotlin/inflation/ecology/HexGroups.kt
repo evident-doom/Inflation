@@ -822,11 +822,12 @@ class HexGroups(
             val week = g.dailyNeedKg * days
             rangeShares(g, hw.placeHex[g.place]) { h, share -> a[h] += g.size * share; herdWantKg[h] += week * share }
         }
-        val slots = kinds.withIndex().filter { (_, s) -> !s.carnivore && fauna.slot(s) >= 0 }.map { (k, s) -> k to fauna.slot(s) }
-        if (slots.isEmpty()) return
-        for (p in 0 until land.n) {
-            val h = hw.placeHex[p]
-            for ((k, r) in slots) { val m = fauna.adults[r][p] + fauna.young[r][p]; if (m > 0f) grazed[k][h] += m * land.areaKm2[p] }
+        // (Each kind on its own core.)
+        kinds.indices.toList().parallelStream().forEach { k ->
+            val s = kinds[k]; val r = fauna.slot(s)
+            if (s.carnivore || r < 0) return@forEach
+            val a = grazed[k]; val ad = fauna.adults[r]; val yo = fauna.young[r]
+            for (p in 0 until land.n) { val m = ad[p] + yo[p]; if (m > 0f) a[hw.placeHex[p]] += m * land.areaKm2[p] }
         }
     }
     internal val topKind = IntArray(n) { -1 }
@@ -1183,6 +1184,10 @@ class HexGroups(
         val weather: Weather, val date: Date) {
         /** For a herd: the hexes of the ground it grazes where it is now, and its share on each (its own heads in [grazed]). */
         var ownHexes = IntArray(0); var ownShares = FloatArray(0)
+        /** Its diet as it leans this week ([herdDiet]), for a herd. */
+        val diet = if (g.species.carnivore) g.species.diet else herdDiet(g)
+        /** Reused for each place it weighs: see [foreseeFed] and [deathsAt]. */
+        val pantry = DryPantry(); val odds = Odds()
     }
 
     /**
@@ -1252,9 +1257,8 @@ class HexGroups(
      */
     private fun deathsAt(c: PlanContext, p: Place, h: Hex, d: Float, prey: Float, crowded: Float): Float {
         val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
-        val bites = if (s.carnivore) null else foreseeFed(c, p.i, h.i, d)
-        val fed = bites?.first ?: (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f)
-        val protein = bites?.second ?: g.protein
+        val fed = if (s.carnivore) (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f) else foreseeFed(c, p.i, h.i, d)
+        val protein = if (s.carnivore) g.protein else c.pantry.protein
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         // (Herds sicken where their kind crowds: its kind's animals of both forms over each hex of the ground it would graze
         // there ([grazed], less its own spread where it is now), and its own spread over that ground.)
@@ -1262,10 +1266,9 @@ class HexGroups(
             val a = grazed[c.kind]
             crowdSickness(grazingCrowd(g, h.i) { q, share -> max(0f, a[q] - ownShare(c, q) * g.size) + share * g.size }, fed)
         }
-        val hazards = ArrayList<Hazard>(16)
-        placeHazards(g, p.i, weather, fed, protein, thirst, sick, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false, hazards)
-        var adult = 0f; var young = 0f
-        for (z in hazards) { adult += z.adult; young += z.young }
+        val odds = c.odds.also { it.adult = 0f; it.young = 0f }
+        placeHazards(g, p.i, weather, fed, protein, thirst, sick, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false, odds)
+        var adult = odds.adult; var young = odds.young
         if (b != null) {
             val venom = venomOdds(s, p.i, weather)
             val stalked = stalkRate(g, b, p.i, residentManEaters(p.i) + (if (h in c.sensed) manEaterKm2[h.i] else 0f))
@@ -1286,32 +1289,44 @@ class HexGroups(
      * asked of the place as far as the forage the residents left there ([HexFauna.grazeLeft]) holds its range's (the rest
      * from ground like it about), from what is left of it after the other herds about would have eaten theirs ([herdWantKg]).
      */
-    private fun foreseeFed(c: PlanContext, p: Int, h: Int, d: Float): Pair<Float, Float> {
+    private fun foreseeFed(c: PlanContext, p: Int, h: Int, d: Float): Float {
         val g = c.g; val s = g.species
         val wantKg = g.dailyNeedKg * days * (1f + WALK_COST * d / days)
         val m2 = land.areaKm2[p] * 1e6f
         val food = fauna.food
         val stock = fauna.grazeLeft[p] + fauna.browseLeft[p] + food.fruit[p] + food.roots[p]
-        if (stock <= 0f || wantKg <= 0f) return 0f to g.protein
+        val dry = c.pantry
+        dry.protein = g.protein
+        if (stock <= 0f || wantKg <= 0f) return 0f
         val share = min(1f, stock * m2 / (wantKg * RANGE_NEED))
         val want = wantKg * share / m2
         // (The other herds' week's need on this ground, kg per m², shared out over what is there.)
         val others = max(0f, herdWantKg[h] - ownShare(c, h) * g.dailyNeedKg * days) / (hex.areaKm2.toFloat() * 1e6f)
         val left = (1f - others / stock).coerceIn(0f, 1f)
         val reach = grazeAccess(s, p)
-        var grass = left * fauna.grazeLeft[p]; var browse = left * fauna.browseLeft[p]
-        var fruit = left * food.fruit[p]; var roots = left * food.roots[p]; var straw = left * food.straw[p]
-        val b = forage(s, herdDiet(g), p, want, c.weather.snowpack[p] > s.snowLimitMm, reach, object : Pantry {
-            override fun grass(kg: Float): Float { val t = min(kg, reach * grass); grass -= t; return t }
-            override fun browse(kg: Float): Float { val t = min(kg, reach * browse); browse -= t; return t }
-            override fun fruit(kg: Float): Float { val t = min(kg, reach * fruit); fruit -= t; return t }
-            override fun roots(kg: Float): Float { val t = min(kg, reach * roots); roots -= t; return t }
-            override fun straw(kg: Float): Float { val t = min(kg, straw); straw -= t; return t }
-        })
-        val fed = (b.got / want).coerceIn(0f, 1f)
+        dry.reach = reach
+        dry.grass = left * fauna.grazeLeft[p]; dry.browse = left * fauna.browseLeft[p]
+        dry.fruit = left * food.fruit[p]; dry.roots = left * food.roots[p]; dry.straw = left * food.straw[p]
+        val b = forage(s, c.diet, p, want, c.weather.snowpack[p] > s.snowLimitMm, reach, dry)
         val eaten = b.eaten
-        val protein = if (eaten > 0f) g.protein + (fauna.proteinMet(protein(b, p) / eaten) - g.protein) * HexFauna.PROTEIN_MEMORY else g.protein
-        return fed to protein
+        if (eaten > 0f) dry.protein = g.protein + (fauna.proteinMet(protein(b, p) / eaten) - g.protein) * HexFauna.PROTEIN_MEMORY
+        return (b.got / want).coerceIn(0f, 1f)
+    }
+
+    /** A place's food as a herd only reckons on it ([foreseeFed]): what it would get of each, taken off what is there, without eating it; and the protein it would come away with. */
+    private class DryPantry : Pantry {
+        var reach = 0f; var grass = 0f; var browse = 0f; var fruit = 0f; var roots = 0f; var straw = 0f; var protein = 0f
+        override fun grass(kg: Float): Float { val t = min(kg, reach * grass); grass -= t; return t }
+        override fun browse(kg: Float): Float { val t = min(kg, reach * browse); browse -= t; return t }
+        override fun fruit(kg: Float): Float { val t = min(kg, reach * fruit); fruit -= t; return t }
+        override fun roots(kg: Float): Float { val t = min(kg, reach * roots); roots -= t; return t }
+        override fun straw(kg: Float): Float { val t = min(kg, straw); straw -= t; return t }
+    }
+
+    /** The odds of the hazards at a place, summed ([deathsAt]). */
+    private class Odds : HazardSink {
+        var adult = 0f; var young = 0f
+        override fun add(cause: String, adult: Float, young: Float) { this.adult += adult; this.young += young }
     }
 
     /**

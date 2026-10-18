@@ -537,7 +537,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val hazards = arrayListOf(
         Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
-    placeHazards(g, g.place.i, weather, g.fed, g.protein, thirst, sick, band?.fire ?: 0f, band?.atHome ?: false, hazards)
+    placeHazards(g, g.place.i, weather, g.fed, g.protein, thirst, sick, band?.fire ?: 0f, band?.atHome ?: false) { c, a, y -> hazards += Hazard(c, a, y) }
     hazards.addAll(listOf(
         Hazard(DeathCause.HOMELESS.label, homeless, homeless),
         Hazard(DeathCause.CAMP_FOULING.label, 0f, fouled), Hazard(DeathCause.SNAKES.label, venom, venom), Hazard(DeathCause.INBREEDING.label, 0f, inbred),
@@ -746,7 +746,10 @@ private fun HexGroups.packCrowding(g: HexGroup, kinNow: HashMap<Long, Int>, usua
 }
 
 /** One of the week's hazards: its [cause] and the odds it adds that a grown one ([adult]) or a young one ([young]) dies. */
-internal class Hazard(val cause: String, val adult: Float, val young: Float)
+private class Hazard(val cause: String, val adult: Float, val young: Float)
+
+/** Where the week's hazards go as they are reckoned: each cause, and the odds it adds for a grown one and for a young one. */
+internal fun interface HazardSink { fun add(cause: String, adult: Float, young: Float) }
 
 /**
  * The week's hazards to [g] that come of the place it is in ([p]) and how it fares there, into [into]: hunger at [fed],
@@ -756,7 +759,7 @@ internal class Hazard(val cause: String, val adult: Float, val young: Float)
  * at a place it weighs ([HexGroups.deathsAt]).
  */
 internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: Float, protein: Float, thirst: Float, sick: Float,
-    fire: Float, home: Boolean, into: MutableList<Hazard>) {
+    fire: Float, home: Boolean, into: HazardSink) {
     val s = g.species; val b = g.band; val t = weather.temperature[p]
     val hunger = Hazards.hunger(fed)
     // People feel the cold as their clothes allow.
@@ -772,12 +775,11 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: 
     val croc = if (s.human) 0f else fauna.water.crocodileRisk(p, weather) * years
     // (Young plant-eaters short of protein grow slowly and die more.)
     val starved = if (s.carnivore) 0f else tuning.youngProteinDeaths * (1f - protein) * years
-    into.addAll(listOf(
-        Hazard(DeathCause.HUNGER.label, hunger, 1.5f * hunger), Hazard(DeathCause.COLD.label, cold, 1.5f * cold),
-        Hazard(DeathCause.EXPOSURE.label, exposure, 1.5f * exposure), Hazard(DeathCause.THIRST.label, thirst, 1.5f * thirst),
-        Hazard(DeathCause.DISEASE.label, sick, sick), Hazard(DeathCause.OUTBREAK.label, plague, plague),
-        Hazard(DeathCause.FIRE.label, fireA, fireY), Hazard(DeathCause.FLOOD.label, floodA, floodY), Hazard(DeathCause.SNOW.label, snowA, snowY),
-        Hazard(DeathCause.CROCODILES.label, 0f, croc), Hazard(DeathCause.EAGLES.label, 0f, eagle), Hazard(DeathCause.SHORT_OF_PROTEIN.label, 0f, starved)))
+    into.add(DeathCause.HUNGER.label, hunger, 1.5f * hunger); into.add(DeathCause.COLD.label, cold, 1.5f * cold)
+    into.add(DeathCause.EXPOSURE.label, exposure, 1.5f * exposure); into.add(DeathCause.THIRST.label, thirst, 1.5f * thirst)
+    into.add(DeathCause.DISEASE.label, sick, sick); into.add(DeathCause.OUTBREAK.label, plague, plague)
+    into.add(DeathCause.FIRE.label, fireA, fireY); into.add(DeathCause.FLOOD.label, floodA, floodY); into.add(DeathCause.SNOW.label, snowA, snowY)
+    into.add(DeathCause.CROCODILES.label, 0f, croc); into.add(DeathCause.EAGLES.label, 0f, eagle); into.add(DeathCause.SHORT_OF_PROTEIN.label, 0f, starved)
 }
 
 /** Vipers and scorpions, out in the warm months: the odds for people at place [p] this week. */
