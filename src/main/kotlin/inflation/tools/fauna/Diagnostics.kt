@@ -11,6 +11,7 @@ import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
 import inflation.ecology.m2
+import inflation.ecology.crowdSickness
 
 /**
  * The extra lines a fauna check prints when the config asks for them:
@@ -102,7 +103,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         }
     }
 
-    private var crowdSums = DoubleArray(12)
+    private var crowdSums = DoubleArray(16)
     /**
      * The crowd (as the herds' sickness reckons it, 1 = its kind's usual crowding) each herd of [kind] that chose its own
      * place this week foresaw there, against the one it met after all had moved; summed weekly, printed each month ([print]).
@@ -121,6 +122,8 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
                 crowdSums[4] += g.size.toDouble(); crowdSums[5] += (heads[hw.placeHex[g.place]] ?: 1).toDouble()
                 val asPlanned = groups.metAsPlannedCrowd[g.id] ?: met
                 crowdSums[6] += asPlanned.toDouble(); if (groups.reachedChoice[g.id] == true) crowdSums[7] += 1.0
+                crowdSums[12] += groups.crowdSickness(foreseen, g.fed).toDouble(); crowdSums[13] += groups.crowdSickness(met, g.fed).toDouble()
+                if (met > 2f) crowdSums[14] += 1.0; if (met > 4f) crowdSums[15] += 1.0
                 if (met > 2f * foreseen + 0.05f) { crowdSums[8] += 1.0; crowdSums[9] += foreseen.toDouble(); crowdSums[10] += asPlanned.toDouble(); crowdSums[11] += met.toDouble() }
             }
             groups.foreseenCrowd.clear(); groups.metCrowd.clear(); groups.metAsPlannedCrowd.clear(); groups.reachedChoice.clear(); groups.choiceDiag.clear()
@@ -134,7 +137,10 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
             val m = crowdSums[8].coerceAtLeast(1.0)
             println("     crowding %s %s: met as planned %.2f, reached its choice %.0f%%; of those over twice: foreseen %.2f, met as planned %.2f, met %.2f".format(
                 kind, weather.date, crowdSums[6] / n, 100.0 * crowdSums[7] / n, crowdSums[9] / m, crowdSums[10] / m, crowdSums[11] / m))
-            crowdSums = DoubleArray(12)
+            // (The sickness the crowd brings, a week's share dying, foreseen against met: the crowd's tail is what kills.)
+            println("     crowding %s %s: sickness foreseen %.5f, met %.5f a week; met over 2: %.0f%%, over 4: %.0f%%".format(
+                kind, weather.date, crowdSums[12] / n, crowdSums[13] / n, 100.0 * crowdSums[14] / n, 100.0 * crowdSums[15] / n))
+            crowdSums = DoubleArray(16)
         }
     }
 

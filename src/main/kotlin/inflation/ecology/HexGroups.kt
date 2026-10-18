@@ -505,6 +505,9 @@ class HexGroups(
     internal fun spreadOut(weather: Weather) {
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
+        // (crowdDiag: the crowd where each herd stands after the meetings, had the others stayed as they were when it chose.)
+        if (crowdDiag != null) for (g in groups) if (g.alive && g.species.name == crowdDiag)
+            planCrowd(g, hw.placeHex[g.place], grazingRange(g))?.let { metAsPlannedCrowd[g.id] = it }
         Profile.part("spreading out: herds' grazing map") { fillGrazed(); noteGround(planGround) { g -> grazingRange(g) } }
         val herds = groups.indices.filter { groups[it].alive && !groups[it].species.carnivore }
             .sortedWith(compareByDescending<Int> { groups[it].days.lastOrNull() ?: 0f }.thenBy { it })
