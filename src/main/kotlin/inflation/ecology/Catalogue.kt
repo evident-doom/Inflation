@@ -106,7 +106,7 @@ object Catalogue {
         daysWithoutWater = 3, waterFromFood = 0.6f,
         birthMonth = 4, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.1f, snowLimitMm = 80f,
-        products = Products(meat = 28f, fat = 1.5f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 4f),
+        products = Products(meat = 21f, fat = 1.5f, hide = 3f, bone = 5.5f, sinew = 0.4f, hornOrAntler = 4f),
         comfortC = 0f..38f, winterCoat = true,
         speedKmh = 55f,
         foresight = 0.5f,
@@ -558,8 +558,9 @@ object Catalogue {
         domestication = floatArrayOf(0.6f, 0.6f, 0.5f, 0.2f, 0.3f, 0.3f),
         habitat = Habitat(cover = -1f, wet = -0.5f),
         defence = 0.4f,
-        fibreDigestion = 0.5f, // a bird's short gut gets little from straw
-        hindgut = true, // ostriches ferment in a long hindgut and, like horses, eat more of poor forage,
+        // Ostriches ferment fibre in a long hindgut: volatile fatty acids from it may give up to 76% of a growing
+        // chick's metabolisable energy (Swart, Mackie and Hayes 1993). Like horses, they eat more of poor forage.
+        hindgut = true,
         activity = floatArrayOf(0.2f, 0.6f, 0.2f, 0f),
     )
 

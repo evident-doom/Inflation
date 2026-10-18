@@ -172,7 +172,7 @@ class Species(
      */
     val maxFatDays: Float get() = 8f * massKg.pow(0.25f) * if (hibernates) 4f else 1f
     /** Dry-matter (or meat) intake per adult per day, kg. */
-    val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, carnivore)
+    val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, diet)
 
     /**
      * How far its coat stretches the cold end in [month] (from the winter solstice), °C: a winter coat
@@ -202,10 +202,16 @@ object Allometry {
      * 0.08 M^0.75 kg of dry plant matter a day (a 20 kg gazelle ~0.75 kg), some 2-3 times their
      * basal needs. Carnivores need about 0.2 M^0.75 kg
      * of prey body mass a day, counting the parts they leave (a 30 kg wolf ~2.6 kg, in line with
-     * field kill rates of roughly 0.1 kg of prey per kg of wolf per day). Rules of thumb, from memory.
+     * field kill rates of roughly 0.1 kg of prey per kg of wolf per day). Rules of thumb, from memory. A
+     * mixed feeder needs each share of its diet by its own rule (a bear eating a fifth animals, some 0.104 M^0.75),
+     * so the need does not jump as the animal share passes a half.
      */
-    fun dailyIntakeKg(massKg: Float, carnivore: Boolean): Float =
-        (if (carnivore) 0.2f else 0.08f) * massKg.pow(0.75f)
+    fun dailyIntakeKg(massKg: Float, diet: Diet): Float {
+        val animal = diet.meat + diet.smallPrey + diet.carrion
+        val plants = diet.grass + diet.browse + diet.roots + diet.fruit
+        val share = if (animal + plants > 0f) animal / (animal + plants) else 0f
+        return (0.2f * share + 0.08f * (1f - share)) * massKg.pow(0.75f)
+    }
 
     /**
      * Damuth's rule: mammal population density falls with body mass, about 10^4.23 M^-0.75

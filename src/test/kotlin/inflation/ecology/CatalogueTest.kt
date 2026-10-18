@@ -18,4 +18,18 @@ class CatalogueTest {
         // (The ids the saved worlds and networks were made with.)
         assertTrue(Catalogue.GAZELLE.id == 0 && Catalogue.WOLF.id == 18 && Catalogue.HUMAN.id == 24 && Catalogue.ARGALI.id == 26)
     }
+
+    @Test
+    fun `every kind's record adds up`() {
+        for (s in Catalogue.all) {
+            val d = s.diet
+            val diet = d.grass + d.browse + d.roots + d.fruit + d.meat + d.smallPrey + d.carrion
+            assertTrue(kotlin.math.abs(diet - 1f) < 1e-3f, "${s.name}: diet shares sum to $diet")
+            s.activity?.let { assertTrue(kotlin.math.abs(it.sum() - 1f) < 1e-3f, "${s.name}: activity sums to ${it.sum()}") }
+            // (A carcass is less than the animal: guts, blood and the rest are not in it.)
+            val p = s.products
+            val carcass = p.meat + p.fat + p.hide + p.bone + p.sinew + p.hornOrAntler
+            assertTrue(carcass < 0.9f * s.massKg, "${s.name}: products of $carcass kg from a ${s.massKg} kg animal")
+        }
+    }
 }
