@@ -186,6 +186,8 @@ internal fun HexGroups.grazingRange(g: HexGroup, p0: Int = g.place.i): List<Pair
     val band = hw.placeBand[p0]; val h0 = hw.placeHex[p0]
     val needKg = g.dailyNeedKg * days * RANGE_NEED
     fun forage(p: Int) = (fauna.grazeLeft[p] + fauna.browseLeft[p]) * land.areaKm2[p] * 1e6f
+    // (Most often its own place holds enough: then nothing more to look for.)
+    if (forage(p0) >= needKg) return listOf(p0 to 1f)
     val places = arrayListOf(p0); var have = forage(p0)
     var ring = listOf(h0); val seen = hashSetOf(h0)
     var r = 0

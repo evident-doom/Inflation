@@ -1237,15 +1237,15 @@ internal fun HexGroups.roundsWhere(g: HexGroup, weather: Weather): String {
  * hex); the rest it spends in the six hexes round, as evenly as it can cross into them. (A disc reaching beyond
  * the first ring is counted in the ring.)
  */
-internal fun HexGroups.rangeShares(g: HexGroup, h: Int, into: (Int, Float) -> Unit) {
+internal inline fun HexGroups.rangeShares(g: HexGroup, h: Int, into: (Int, Float) -> Unit) {
     val r = g.species.dailyTravelKm
     val home = min(1f, land.areaKm2[g.place] / (Math.PI.toFloat() * r * r))
-    val cross = hex.crossings[Catalogue.travel(g.species).ordinal]
-    var open = 0
-    for (d in 0 until 6) { val n = hex.neighbour(h, d); if (n >= 0 && hex.heart[n] >= 0 && cross[h * 6 + d].isFinite()) open++ }
+    // (The hexes round it it can cross into, worked out once: [HexGroups.openAround].)
+    val around = openAround[g.species.index]
+    val open = around[h * 7]
     if (open == 0 || home >= 1f) { into(h, 1f); return }
     into(h, home)
-    for (d in 0 until 6) { val n = hex.neighbour(h, d); if (n >= 0 && hex.heart[n] >= 0 && cross[h * 6 + d].isFinite()) into(n, (1f - home) / open) }
+    for (i in 1..open) into(around[h * 7 + i], (1f - home) / open)
 }
 
 /**

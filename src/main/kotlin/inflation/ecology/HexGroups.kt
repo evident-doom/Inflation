@@ -19,6 +19,7 @@ import inflation.Config
 
 import inflation.world.Date
 import inflation.world.HexLand
+import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.Weather
 import kotlin.math.exp
@@ -129,6 +130,23 @@ class HexGroups(
     /** The share of each herd kind's animals ([Species.index]) the hunting parties usually kill in a week, over about [USUAL_MONTHS]. */
     private val usualGroupKill = FloatArray(Catalogue.all.size)
     @delegate:Transient internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
+    /**
+     * For each kind ([Species.index]), by its way of travel ([Catalogue.travel]): for each hex, how many of the six
+     * round it are land it can cross into, and which, in direction order (at `h * 7`, then the hexes), for [rangeShares].
+     */
+    @delegate:Transient internal val openAround: Array<IntArray> by lazy {
+        val byTravel = Array(HexMap.Travel.entries.size) { t ->
+            val cross = hex.crossings[t]
+            IntArray(hex.size * 7).also { a ->
+                for (h in 0 until hex.size) {
+                    var open = 0
+                    for (d in 0 until 6) { val nb = hex.neighbour(h, d); if (nb >= 0 && hex.heart[nb] >= 0 && cross[h * 6 + d].isFinite()) a[h * 7 + 1 + open++] = nb }
+                    a[h * 7] = open
+                }
+            }
+        }
+        Array(Catalogue.all.size) { byTravel[Catalogue.travel(Catalogue.all[it]).ordinal] }
+    }
     /** Scent marks of the hunting kinds (saves from before it was split out kept them here as marks and markers). */
     @field:MovedInto("marks", "markers") internal val scent = Scent()
     /** Learned choosers by kind; kinds without one use the hand-written score. */
@@ -1492,10 +1510,10 @@ class HexGroups(
     private fun huntedAhead(c: PlanContext, p: Place, h: Hex, d: Float) {
         val g = c.g; val s = g.species; val weather = c.weather
         var adult = 0f; var young = 0f
-        val ko = c.killOdds; val youngKg = HexFauna.YOUNG_WEIGHT * s.massKg
+        val ko = c.killOdds
         rangeShares(g, h.i) { q, share ->
             val pq = hw.sameBandPlace(p.i, q).takeIf { it >= 0 } ?: p.i
-            fauna.residentKillOdds(s.massKg, youngKg, pq, ko)
+            fauna.residentKillOdds(s, pq, ko)
             adult += share * ko[0]; young += share * ko[1]
         }
         if (!c.shift) {

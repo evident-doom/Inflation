@@ -28,6 +28,7 @@ import kotlin.math.max
 import kotlin.math.min
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReferenceArray
 import java.util.concurrent.atomic.DoubleAdder
 import java.util.stream.IntStream
 
@@ -173,6 +174,26 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for (k in kinds.indices) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
         return v
     }
+
+    /**
+     * [residentKillOdds] for an animal of kind [s] (into `out[0]`) and its young (`out[1]`) about place [p], kept for the
+     * week once worked out (the kill rates stand from the residents' grazing to the next week's): herds of a kind weigh
+     * the same places over and over as they choose.
+     */
+    fun residentKillOdds(s: Species, p: Int, out: FloatArray) {
+        val cache = killOdds ?: AtomicReferenceArray<FloatArray>(Catalogue.all.size).also { killOdds = it }
+        val odds = cache.get(s.index) ?: run {
+            cache.compareAndSet(s.index, null, FloatArray(2 * n) { Float.NaN })
+            cache.get(s.index)
+        }
+        val a = odds[2 * p]; val y = odds[2 * p + 1]
+        if (a.isNaN() || y.isNaN()) {
+            residentKillOdds(s.massKg, YOUNG_WEIGHT * s.massKg, p, out)
+            odds[2 * p] = out[0]; odds[2 * p + 1] = out[1]
+        } else { out[0] = a; out[1] = y }
+    }
+    /** The odds [residentKillOdds] gives each kind ([Species.index]) and its young about each place this week (at `2p` and `2p + 1`; NaN: not yet worked out). */
+    @Transient private var killOdds: AtomicReferenceArray<FloatArray>? = null
 
     /** [residentKillOdds] for an animal of [kg] and one of [youngKg] at once, into [out] (0: the first, 1: the second). */
     fun residentKillOdds(kg: Float, youngKg: Float, p: Int, out: FloatArray) {
@@ -626,6 +647,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     private fun graze(weather: Weather) {
         sleepOrWake(weather)
+        // (The week's kill rates are made afresh here: the odds worked out from last week's are forgotten.)
+        killOdds = AtomicReferenceArray(Catalogue.all.size)
         IntStream.range(0, n).parallel().forEach { p ->
             // How much each kind eats of poor forage depends on its gut (see [gutFill]).
             val quality = land.plants.nourishment(p)
