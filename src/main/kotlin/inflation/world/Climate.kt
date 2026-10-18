@@ -316,7 +316,7 @@ class Climate(
         /** Height over which air pressure falls by e, m. */
         private const val PRESSURE_HEIGHT_M = 8400.0
         /** Height sinking air comes down from, m: it sinks at the rate that warms it against its radiative cooling. */
-        private val SINKING_M = RADIATIVE_COOLING_C / (GRAVITY / CP - LAPSE_RATE) * SINKING_DAYS
+        private val SINKING_M = System.getenv("PROBE_SINK_M")?.toDouble() ?: (RADIATIVE_COOLING_C / (GRAVITY / CP - LAPSE_RATE) * SINKING_DAYS)
         /** Points and weights of a standard normal, for the spread of days (Gauss-Hermite, 9 points). */
         private val NORMAL_Z = doubleArrayOf(-4.5127458633997, -3.2054290028565, -2.0768479786778, -1.0232503231446, 0.0,
             1.0232503231446, 2.0768479786778, 3.2054290028565, 4.5127458633997)
