@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Activity
 import inflation.ecology.Tally
 import inflation.ecology.HexGeography
 import inflation.ecology.Fed
@@ -299,7 +300,7 @@ class Census(private val sim: HexSim) {
         run {
             fun v(k: String) = (lastYear[Tally.bandTime(k)] ?: 0).toDouble()
             val all = v("all").coerceAtLeast(1.0)
-            println("bands' time, last year (share of their hands' days): " + listOf("firewood", "food", "drying", "skins", "shelter", "customs", "training", "tools", "left")
+            println("bands' time, last year (share of their hands' days): " + (Activity.entries.map { it.label } + "left")
                 .joinToString(", ") { "%s %.0f%%".format(it, 100 * v(it) / all) })
         }
         println("bands by clothing, last year (clad: a kit of at least half; share of people-weeks; deaths per person a year, of them of exposure): " + listOf(Tally.CLAD, Tally.POORLY_CLAD).joinToString(", ") { c ->
