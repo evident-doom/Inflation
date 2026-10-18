@@ -1117,28 +1117,33 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * Where the slope of [odds] leads kind [k] from each place, stepping a neighbour a week to the safest
-     * ([safestNeighbour]) while it is safer: the next place ([Slope.next], -1 at the bottom), the place it ends at
-     * ([Slope.end]), the weeks it takes ([Slope.steps]), and the shares that would die on the way, a week at each place
-     * before the end, summed ([Slope.cost]).
+     * ([safestNeighbour]) while it is safer: the place it ends at ([Slope.end]), the weeks it takes ([Slope.steps]), and
+     * the shares that would die on the way, a week at each place before the end, summed ([Slope.cost]). Worked out only
+     * for the places asked about, and those on their way, each once.
      */
-    internal fun slope(k: Int, odds: FloatArray): Slope {
-        val next = IntArray(n)
-        IntStream.range(0, n).parallel().forEach { p -> next[p] = if (odds[p].isNaN()) -1 else safestNeighbour(k, p, odds, odds[p]) }
-        val end = IntArray(n) { -1 }; val steps = IntArray(n); val cost = FloatArray(n)
-        val path = IntArray(n)
-        for (p0 in 0 until n) {
-            if (end[p0] >= 0) continue
-            // (Down the slope until a place already worked out or the bottom; then back up, adding each place's week.)
-            var len = 0; var p = p0
-            while (end[p] < 0 && next[p] >= 0) { path[len++] = p; p = next[p] }
-            if (end[p] < 0) { end[p] = p; steps[p] = 0; cost[p] = 0f }
-            while (len > 0) { val q = path[--len]; end[q] = end[p]; steps[q] = steps[p] + 1; cost[q] = cost[p] + odds[q]; p = q }
-        }
-        return Slope(next, end, steps, cost)
-    }
+    internal fun slope(k: Int, odds: FloatArray) = Slope(k, odds)
 
     /** Where the slope leads from each place ([slope]). */
-    internal class Slope(val next: IntArray, val end: IntArray, val steps: IntArray, val cost: FloatArray)
+    internal inner class Slope(private val k: Int, private val odds: FloatArray) {
+        private val endOf = IntArray(n) { -1 }; private val stepsOf = IntArray(n); private val costOf = FloatArray(n)
+        private val path = IntArray(n)
+
+        fun end(p: Int): Int { resolve(p); return endOf[p] }
+        fun steps(p: Int): Int { resolve(p); return stepsOf[p] }
+        fun cost(p: Int): Float { resolve(p); return costOf[p] }
+
+        private fun resolve(p0: Int) {
+            if (endOf[p0] >= 0) return
+            // (Down the slope until a place already worked out or the bottom; then back up, adding each place's week.)
+            var len = 0; var p = p0
+            while (endOf[p] < 0) {
+                val next = if (odds[p].isNaN()) -1 else safestNeighbour(k, p, odds, odds[p])
+                if (next < 0) { endOf[p] = p; stepsOf[p] = 0; costOf[p] = 0f; break }
+                path[len++] = p; p = next
+            }
+            while (len > 0) { val q = path[--len]; endOf[q] = endOf[p]; stepsOf[q] = stepsOf[p] + 1; costOf[q] = costOf[p] + odds[q]; p = q }
+        }
+    }
 
     /**
      * How good a place is for kind [k] this week: food per head, its ground, water within reach, the weather against

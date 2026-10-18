@@ -309,9 +309,9 @@ class HexGroups(
         Phase("herds: gathering and scattering") {
             // (Not in the form-swap test, where each kind keeps the form it has.)
             if (!Catalogue.formsFixed) {
-                leaveAhead(it)
-                scatter()
-                gather(it.date)
+                Profile.part("herds: who leaves") { leaveAhead(it) }
+                Profile.part("herds: settling") { scatter() }
+                Profile.part("herds: setting off") { gather(it.date) }
             }
         },
         Phase("herds: remembering places") { val date = it.date
