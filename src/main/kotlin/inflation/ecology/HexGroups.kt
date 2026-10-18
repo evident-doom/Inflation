@@ -1078,8 +1078,9 @@ class HexGroups(
             for (b in 0 until HexWorld.BANDS_M.size) {
                 val p = hw.placeIn(b, h)
                 if (p.none) continue
-                // (Its own kind there, as it knows it.)
-                val crowded = crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0))
+                // (Its own kind there, as it knows it: for a kind that also lives spread out, its residents there too, as
+                // a herd looking for room counts them as it does other herds.)
+                val crowded = crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0) + residentsOf(s, p.i))
                 val prey = if (s.carnivore) knownGame(g, kind, p, h, sensed) else 0f
                 val hunters = huntersKm2(p, h)
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
@@ -1242,6 +1243,13 @@ class HexGroups(
     }
 
     internal fun crowd(s: Species, p: Int, g: HexGroup): Float = crowdOf(s, p, (headsHere[kindSlot[s.index]][p] - (if (p == g.place.i) g.size else 0)).toFloat())
+    /** Residents of kind [s] at place [p], heads; 0 for a kind that lives only in groups. */
+    private fun residentsOf(s: Species, p: Int): Float {
+        if (s !in Catalogue.gathering) return 0f
+        val k = fauna.slot(s); if (k < 0) return 0f
+        return (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]
+    }
+
     internal fun crowdOf(s: Species, p: Int, others: Float): Float {
         // Heads of its kind a place usually holds: for herds, their usual density as they live gathered (as for disease).
         val usual = if (s.startKm2PerAnimal > 0f) land.areaKm2[p] / s.startKm2PerAnimal * 3f else land.areaKm2[p] * 0.1f * MIGRANTS_GATHER
