@@ -160,6 +160,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
     /**
+     * What each resident hunter took this week at each place of the game about it ([huntResidents]): the kg it killed per kg
+     * of game there, each kind's weighed by how readily it takes game of its size. An animal there (resident or of a herd)
+     * is killed at that rate times the hunter's [Species.preySize] for it. Null for kinds that eat no meat.
+     */
+    @delegate:Transient private val killRate by lazy { Array(kinds.size) { if (kinds[it].diet.meat > 0f) FloatArray(n) else null } }
+
+    /** The odds that an animal of [kg] about place [p] is killed by the residents' hunters in a week, as they hunted there this week ([killRate]). */
+    fun residentKillOdds(kg: Float, p: Int): Float {
+        var v = 0f
+        for (k in kinds.indices) { val r = killRate[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
+        return v
+    }
+    /**
      * For the books (see [Books]), this step, kg; null when they are not kept: what the residents ate and dropped as
      * dung, the herds' animals their hunters killed (taken from the herds after, see [HexGroups.takeResidentsKills]),
      * the young born and grown, and the carcasses handed to the soil.
@@ -219,6 +232,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val want = min(meat.perKm2, KgKm2(RESIDENT_KILL_MOST * (total + killedSoFar[0]) - killedSoFar[0]))
         if (want.v <= 0f) return KgM2.ZERO
         killedSoFar[0] += want.v
+        killRate[k]?.let { it[p] += want.v / total }
         var ate = KgM2.ZERO
         for ((j, s) in kinds.withIndex()) {
             if (wA[j] + wY[j] <= 0f) continue
@@ -587,6 +601,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // it, and far from water a kind that must drink often uses only the ground within reach of it.
             val avail = FloatArray(kinds.size)
             for ((k, s) in kinds.withIndex()) {
+                killRate[k]?.set(p, 0f)
                 val heads = adults[k][p] + 0.5f * young[k][p]
                 // Bears asleep through the cold eat nothing.
                 // (Only the plant part of the diet here; omnivores' small prey and carrion below.)
