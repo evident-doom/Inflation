@@ -82,7 +82,7 @@ object HexSnapshot {
      * 1.23: herds of a kind choose where to go in turn, each knowing where those before it are going.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 23
+    const val MODEL_MINOR = 24
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
