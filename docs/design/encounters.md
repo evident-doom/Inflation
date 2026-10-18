@@ -83,7 +83,10 @@ meet on its way and where it grazes count where it senses them (its own hex and 
 by the meeting rules at their odds (`herdKillsAhead`: encounters with waylaying on worn paths, being
 seen first, prey switching, catchability, the worth of the chase, tries per band, the hunter's
 week's want of meat). Beyond, it reckons on its kind's usual weekly losses to hunting parties
-(`usualGroupKill`). The residents' hunters about the ground it would graze count by the rate they
+(`usualGroupKill`). A chase on the way scatters the herd and stops it where it is, so it also weighs
+what it would die of in each hex it might be stopped in (thirst, hunger and the rest, as if it had stood
+there) by the odds of being chased there and no earlier (sensed parties by the meeting rules, beyond by its
+kind's usual chases, `usualGroupChase`). The residents' hunters about the ground it would graze count by the rate they
 hunted there this week (`HexFauna.residentKillOdds`). Without the sensing rule, herds would keep the
 perfect knowledge that hunters lack.
 

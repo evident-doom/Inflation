@@ -74,9 +74,10 @@ object HexSnapshot {
      * 1.15: herds count the animals hunters would kill as deaths where they choose to go, and no longer shun hunters for food.
      * 1.16: a herd the hunters stop short of its choice weighs again where it stands if that is clearly deadlier.
      * 1.17: a herd that sees hunters first goes round them and on its way instead of halting.
+     * 1.18: a herd weighs where it would die were hunting parties to chase it and stop it short on its way.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 17
+    const val MODEL_MINOR = 18
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

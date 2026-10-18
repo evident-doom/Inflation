@@ -129,6 +129,10 @@ class HexGroups(
     internal val herdKilledByGroups = IntArray(Catalogue.all.size)
     /** The share of each herd kind's animals ([Species.index]) the hunting parties usually kill in a week, over about [USUAL_MONTHS]. */
     private val usualGroupKill = FloatArray(Catalogue.all.size)
+    /** Herds of each kind ([Species.index]) the hunting parties chased this week ([hunterMeetsHerd]), counted into [usualGroupChase]. */
+    internal val herdChasedByGroups = IntArray(Catalogue.all.size)
+    /** The chases by hunting parties a herd of each kind ([Species.index]) usually meets in a week, over about [USUAL_MONTHS]. */
+    private val usualGroupChase = FloatArray(Catalogue.all.size)
     @delegate:Transient internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Scent marks of the hunting kinds (saves from before it was split out kept them here as marks and markers). */
     @field:MovedInto("marks", "markers") internal val scent = Scent()
@@ -355,14 +359,18 @@ class HexGroups(
         huntersIn.clear()
         for (g in groups) if (g.alive && g.species.carnivore) huntersIn.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
         // (The herds' usual losses to the hunting parties: last week's kills against the heads they have now.)
-        val herdHeads = IntArray(Catalogue.all.size)
-        for (g in groups) if (g.alive && !g.species.carnivore) herdHeads[g.species.index] += g.size
+        // (And the chases they usually meet: last week's chases against the herds there are now.)
+        val herdHeads = IntArray(Catalogue.all.size); val herdCount = IntArray(Catalogue.all.size)
+        for (g in groups) if (g.alive && !g.species.carnivore) { herdHeads[g.species.index] += g.size; herdCount[g.species.index]++ }
+        val fade = days / (USUAL_MONTHS * Date.DAYS_PER_MONTH)
         for (i in herdHeads.indices) {
             if (herdHeads[i] > 0) {
                 val now = herdKilledByGroups[i].toFloat() / herdHeads[i]
-                usualGroupKill[i] = if (usualGroupKill[i] <= 0f) now else usualGroupKill[i] + (now - usualGroupKill[i]) * days / (USUAL_MONTHS * Date.DAYS_PER_MONTH)
+                usualGroupKill[i] = if (usualGroupKill[i] <= 0f) now else usualGroupKill[i] + (now - usualGroupKill[i]) * fade
+                val chased = herdChasedByGroups[i].toFloat() / herdCount[i]
+                usualGroupChase[i] = if (usualGroupChase[i] <= 0f) chased else usualGroupChase[i] + (chased - usualGroupChase[i]) * fade
             }
-            herdKilledByGroups[i] = 0
+            herdKilledByGroups[i] = 0; herdChasedByGroups[i] = 0
         }
         for (a in sickPeople) a.fill(0f)
         for (g in groups) if (g.alive) g.band?.let { b -> for (d in Illness.entries) if (d.contagion > 0f) sickPeople[d.ordinal][g.place] += g.size * b.sick[d] }
@@ -1284,7 +1292,7 @@ class HexGroups(
         // (A band keeps off the known homes of bands it is not close to: those hexes, once for the week.)
         val keepOff = g.band?.let { b -> b.knownHomes.entries.filter { b.tie(it.key) <= 0f }.map { it.value }.toIntArray() }
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, onRound, roundStrength, fromHere, reach, thirsty, keepOff, weather, date)
-        c.via = via; c.shift = shift
+        c.via = via; c.dist = dist; c.shift = shift
         if (!s.carnivore) planGround.ranges[g.id]?.let { c.own = it.toMap() }
         if (!s.carnivore) { val hs = ArrayList<Int>(7); val ss = ArrayList<Float>(7); rangeShares(g, here.i) { q, share -> hs += q; ss += share }
             c.ownHexes = hs.toIntArray(); c.ownShares = ss.toFloatArray() }
@@ -1427,9 +1435,16 @@ class HexGroups(
         /** Its diet as it leans this week ([herdDiet]), for a herd. */
         val diet = if (g.species.carnivore) g.species.diet else herdDiet(g)
         /** Reused for each place it weighs: see [foreseeFed], [deathsAt] and [huntedAhead]. */
-        val pantry = DryPantry(); val odds = Odds(); val hunted = FloatArray(4); val kill = FloatArray(2)
-        /** The hex it reaches each hex from, on its cheapest way from [here]. */
-        var via = IntArray(0)
+        val pantry = DryPantry(); val odds = Odds(); val hunted = FloatArray(4); val kill = FloatArray(3)
+        /** The hex it reaches each hex from, on its cheapest way from [here], and the going to each, km. */
+        var via = IntArray(0); var dist = FloatArray(0)
+        /**
+         * For a herd, from [huntedAhead]: the hexes on its way where hunting parties may chase it and stop it short, from
+         * [here] on ([stops] of them), the odds that it is stopped in each, and the odds that it gets through ([through]).
+         */
+        var stopHex = IntArray(8); var stopOdds = FloatArray(8); var stops = 0; var through = 1f
+        /** The share of it that would die were it stopped in a hex (see [deathsAt]), by hex, as worked out. */
+        val stoppedDeaths = HashMap<Int, Float>()
         /** Whether it weighs again as it arrives, its week's meetings over (see [spreadOut]). */
         var shift = false
     }
@@ -1495,10 +1510,29 @@ class HexGroups(
      * for a herd the hunters ([huntedAhead]), and for a band snakes and the beasts that take people (those of the groups
      * about only where it senses them). The
      * young's odds count for the young. (What it shares wherever it goes, age, the background and its own band's ills, is
-     * left out: it cannot tell places apart.)
+     * left out: it cannot tell places apart.) A herd that hunting parties may chase on its way, and so stop short (see
+     * [meet]), weighs what it would die of where it stopped by those odds ([huntedAhead]).
      */
     private fun deathsAt(c: PlanContext, p: Place, h: Hex, d: Float, prey: Float, crowded: Float): Float {
         val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
+        // (For a herd, first the hunters ahead, and where it may be stopped short: worked out before the rest, which
+        // weighing the stops reuses.)
+        val w = c.odds.weight
+        var partyA = 0f; var partyY = 0f; var resA = 0f; var resY = 0f; var through = 1f; var stopped = 0f
+        if (!s.carnivore) {
+            huntedAhead(c, p, h, d)
+            val hu = c.hunted; resA = hu[2]; resY = hu[3]; partyA = hu[0] - hu[2]; partyY = hu[1] - hu[3]
+            through = c.through
+            val n = c.stops
+            c.odds.byCause?.let { m -> m.getOrPut("hunting parties") { FloatArray(2) }.let { it[0] += w * partyA; it[1] += w * partyY } }
+            for (i in 0 until n) {
+                val q = c.stopHex[i]; val o = c.stopOdds[i]
+                if (o <= 0f) continue
+                stopped += o * if (c.odds.byCause == null) c.stoppedDeaths.getOrPut(q) { stoppedAt(c, q) } else {
+                    c.odds.weight = w * o; stoppedAt(c, q).also { c.odds.weight = w } }
+            }
+        }
+        c.odds.weight = w * through
         val fed = if (s.carnivore) (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f) else foreseeFed(c, p.i, h.i, d)
         val protein = if (s.carnivore) g.protein else c.pantry.protein
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
@@ -1507,13 +1541,9 @@ class HexGroups(
         val sick = if (s.carnivore) 0f else crowdSickness(foreseenCrowd(c, p.i, h.i), fed)
         val odds = c.odds.also { it.adult = 0f; it.young = 0f }
         placeHazards(g, p.i, weather, fed, protein, thirst, sick, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false, odds)
-        var adult = odds.adult; var young = odds.young
-        if (!s.carnivore) {
-            huntedAhead(c, p, h, d); adult += c.hunted[0]; young += c.hunted[1]
-            c.odds.byCause?.let { m -> val hu = c.hunted
-                m.getOrPut("resident hunters") { FloatArray(2) }.let { it[0] += hu[2]; it[1] += hu[3] }
-                m.getOrPut("hunting parties") { FloatArray(2) }.let { it[0] += hu[0] - hu[2]; it[1] += hu[1] - hu[3] } }
-        }
+        var adult = odds.adult + resA + partyA; var young = odds.young + resY + partyY
+        c.odds.byCause?.let { m -> m.getOrPut("resident hunters") { FloatArray(2) }.let { it[0] += w * through * resA; it[1] += w * through * resY } }
+        c.odds.weight = w
         if (b != null) {
             val venom = venomOdds(s, p.i, weather)
             val stalked = stalkRate(g, b, p.i, residentManEaters(p.i) + (if (h in c.sensed) manEaterKm2[h.i] else 0f))
@@ -1535,7 +1565,21 @@ class HexGroups(
                 }
             }
         }
-        return (g.adults * adult.coerceIn(0f, 0.9f) + g.young * young.coerceIn(0f, 0.95f)) / max(1, g.size)
+        val there = (g.adults * adult.coerceIn(0f, 0.9f) + g.young * young.coerceIn(0f, 0.95f)) / max(1, g.size)
+        if (through >= 1f) return there
+        // (Stopped short, it is still hunted on the way as far as it got: the hunting parties' kills count whatever the stop.)
+        return through * there + (1f - through) * (g.adults * partyA.coerceIn(0f, 0.9f) + g.young * partyY.coerceIn(0f, 0.95f)) / max(1, g.size) + stopped
+    }
+
+    /**
+     * The share of [c]'s herd that would die were it chased and stopped in hex [q] on its way ([stopsAt], as [meet] has
+     * it): its deaths there as if it had chosen it, the hunting parties left out (they are weighed on its way), as
+     * [deathsAt] has them.
+     */
+    private fun stoppedAt(c: PlanContext, q: Int): Float {
+        val shift = c.shift
+        c.shift = true
+        return deathsAt(c, stopsAt(c.g, q), Hex(q), c.dist[q], 0f, 0f).also { c.shift = shift }
     }
 
     /**
@@ -1554,21 +1598,29 @@ class HexGroups(
             adult += share * fauna.residentKillOdds(s.massKg, pq); young += share * fauna.residentKillOdds(HexFauna.YOUNG_WEIGHT * s.massKg, pq)
         }
         c.hunted[2] = adult; c.hunted[3] = young
+        c.stops = 0; c.through = 1f
         if (!c.shift) {
             var killedA = 0f; var killedY = 0f; var usual = 0f
             val day = weather.date.absoluteDay.toDouble(); val k = c.kill
-            fun stay(q: Int, span: Float) {
-                if (q !in c.sensed) { usual += span / days; return }
-                val list = huntersIn[q] ?: return
+            // (The kills it would suffer about hex [q] for [span] days, and the odds it is chased there.)
+            fun stay(q: Int, span: Float): Float {
+                if (q !in c.sensed) { usual += span / days; return 1f - exp(-usualGroupChase[s.index] * span / days) }
+                val list = huntersIn[q] ?: return 0f
                 val pq = Place(hw.sameBandPlace(p.i, q).takeIf { it >= 0 } ?: p.i)
-                for (hunter in list) { herdKillsAhead(hunter, g, pq, span, weather, day, k); killedA += k[0]; killedY += k[1] }
+                var free = 1f
+                for (hunter in list) { herdKillsAhead(hunter, g, pq, span, weather, day, k); killedA += k[0]; killedY += k[1]; free *= 1f - k[2] }
+                return 1f - free
             }
-            // (On its way, its going's days spread evenly over the hexes it passes, as [meet] has them; then where it grazes.)
+            // (On its way, its going's days spread evenly over the hexes it passes, as [meet] has them; then where it grazes.
+            // A chase on the way stops it in that hex, as [meet] does.)
             val arrive = min(days.toFloat(), d / s.dailyTravelKm.coerceAtLeast(1e-3f))
             var steps = 0; var q = h.i
             while (q != c.here.i) { q = c.via[q].takeIf { it >= 0 } ?: break; steps++ }
+            if (c.stopHex.size < steps) { c.stopHex = IntArray(steps); c.stopOdds = FloatArray(steps) }
             q = h.i
-            while (q != c.here.i) { q = c.via[q].takeIf { it >= 0 } ?: break; stay(q, arrive / steps) }
+            for (i in steps - 1 downTo 0) { q = c.via[q]; c.stopHex[i] = q; c.stopOdds[i] = stay(q, arrive / steps) }
+            for (i in 0 until steps) { val o = c.stopOdds[i] * c.through; c.through -= o; c.stopOdds[i] = o }
+            c.stops = steps
             rangeShares(g, h.i) { r, share -> stay(r, (days - arrive) * share) }
             adult += killedA / max(1, g.adults) + usual * usualGroupKill[s.index]
             young += killedY / max(1, g.young) + usual * usualGroupKill[s.index]
@@ -1649,11 +1701,12 @@ class HexGroups(
     /** The odds of the hazards at a place, summed ([deathsAt]). */
     private class Odds : HazardSink {
         var adult = 0f; var young = 0f
-        /** For deathDiag: the odds by cause, adults and young, while it is set. */
+        /** For deathDiag: the odds by cause, adults and young, while it is set, each by the odds of the case it is in ([weight]). */
         var byCause: HashMap<String, FloatArray>? = null
+        var weight = 1f
         override fun add(cause: String, adult: Float, young: Float) {
             this.adult += adult; this.young += young
-            byCause?.let { m -> val v = m.getOrPut(cause) { FloatArray(2) }; v[0] += adult; v[1] += young }
+            byCause?.let { m -> val v = m.getOrPut(cause) { FloatArray(2) }; v[0] += weight * adult; v[1] += weight * young }
         }
     }
 
