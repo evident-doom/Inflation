@@ -18,7 +18,7 @@ import kotlin.math.sin
  */
 fun interface AnimalWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 
-val ANIMAL_WAYS_IN = 18 + Temperament.AXES
+val ANIMAL_WAYS_IN = AnimalInputs.size
 const val ANIMAL_WAYS_OUT = 6
 
 /**
@@ -69,31 +69,29 @@ object AnimalWay {
  * ground, the warmth, and what kind of animal it is. */
 internal fun HexGroups.animalInputs(g: HexGroup, weather: Weather, into: FloatArray) {
     val s = g.species
-    var i = 0
+    val x = AnimalInputs
     val angle = 2.0 * Math.PI * weather.date.dayOfYear / Date.DAYS_PER_YEAR
-    into[i++] = sin(angle).toFloat(); into[i++] = cos(angle).toFloat()
-    into[i++] = g.fed
-    into[i++] = g.fat / s.maxFatDays.coerceAtLeast(1f)
-    into[i++] = min(2f, g.dry / s.daysWithoutWater)
-    into[i++] = ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
-    into[i++] = g.young.toFloat() / max(1, g.adults)
-    into[i++] = g.wary(weather.date.absoluteDay.toDouble())
-    into[i++] = if (!g.home.none) 1f else 0f
-    into[i++] = min(1f, g.lean.toFloat() / GIVE_UP_WEEKS)
-    into[i++] = weather.temperature[g.place] / 30f
+    into[x.YEAR_SIN] = sin(angle).toFloat(); into[x.YEAR_COS] = cos(angle).toFloat()
+    into[x.FED] = g.fed
+    into[x.FAT] = g.fat / s.maxFatDays.coerceAtLeast(1f)
+    into[x.DAYS_DRY] = min(2f, g.dry / s.daysWithoutWater)
+    into[x.OWN_SIZE] = ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
+    into[x.YOUNG] = g.young.toFloat() / max(1, g.adults)
+    into[x.WARY] = g.wary(weather.date.absoluteDay.toDouble())
+    into[x.HOLDS_GROUND] = if (!g.home.none) 1f else 0f
+    into[x.WEEKS_HUNGRY] = min(1f, g.lean.toFloat() / GIVE_UP_WEEKS)
+    into[x.TEMPERATURE] = weather.temperature[g.place] / 30f
     // What it is: its weight, and what it eats.
     val d = s.diet
-    into[i++] = ln(s.massKg.coerceAtLeast(1f)) / 5f
-    into[i++] = d.grass; into[i++] = d.browse; into[i++] = d.fruit + d.roots
-    into[i++] = d.meat; into[i++] = d.smallPrey; into[i++] = d.carrion
+    into[x.MASS] = ln(s.massKg.coerceAtLeast(1f)) / 5f
+    into[x.GRASS] = d.grass; into[x.BROWSE] = d.browse; into[x.FRUIT_AND_ROOTS] = d.fruit + d.roots
+    into[x.MEAT] = d.meat; into[x.SMALL_PREY] = d.smallPrey; into[x.CARRION] = d.carrion
     // Its temperament.
-    for (k in 0 until Temperament.AXES) into[i++] = g.temper.getOrElse(k) { 0f }
+    for (k in 0 until Temperament.AXES) into[x.TEMPER + k] = g.temper.getOrElse(k) { 0f }
 }
 
 /** The name of each of [animalInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */
-val ANIMAL_INPUT_NAMES: List<String> get() = (listOf("year sin", "year cos", "fed", "fat", "days dry", "own size", "young per adult", "wary", "holds ground",
-    "weeks hungry", "temperature", "mass", "diet:grass", "diet:browse", "diet:fruit and roots", "diet:meat", "diet:small prey", "diet:carrion") +
-    Temperament.NAMES.map { "temper:$it" }).also { require(it.size == ANIMAL_WAYS_IN) }
+val ANIMAL_INPUT_NAMES: List<String> get() = AnimalInputs.names
 
 /** Sets a herd's or pack's ways from [ways]' outputs. */
 internal fun HexGroups.setAnimalWays(g: HexGroup, weather: Weather, ways: AnimalWays, inputs: FloatArray, out: FloatArray) {
