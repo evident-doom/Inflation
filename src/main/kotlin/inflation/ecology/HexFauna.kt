@@ -661,9 +661,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Phase("residents: moving") {
             // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
             preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n) { p -> preyFor(kinds[k], p) } else null }
+            // (The odds are weighed once, before the bands shift: the shift and the spill both go by them.)
+            Profile.part("residents: weighing places") { fillArrive(it) }
             Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
             probeMark(2)
-            Profile.part("residents: weighing places") { fillArrive(it) }
             Profile.part("residents: spreading to neighbouring hexes") { spill(it) }
             probeMark(3)
             preyNow = null
@@ -1261,7 +1262,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** What a place is worth to a kind for moving there: nothing when below nothing or not a number (see [shiftBands], [spill]). */
     private fun worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w else 0f
 
-    /** Within a hex, a share of each kind moves between neighbouring height bands towards the better one. */
+    /**
+     * Within a hex, a share of each kind moves between neighbouring height bands: death first, as in [walkStep]. Where
+     * staying in one band is clearly deadlier than coming to the other ([arrive], [clearlyWorse]), a share moves to the
+     * safer one, by how much safer it is; else towards the band of the better forage and ground ([appeal]), if it is no
+     * deadlier.
+     */
     private fun shiftBands(weather: Weather) {
         val bands = HexWorld.BANDS_M.size
         // Each kind on its own core: the kinds' numbers are kept apart.
@@ -1274,10 +1280,23 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // (A place worth less than nothing, or past reckoning, counts as nothing: else the gain
                 // passes 1, the share can take more than the place holds and leave it below nothing,
                 // and spill's floor at nothing then makes animals out of nothing.)
-                val al = worthOrNothing(appeal(k, lo, weather)); val ah = worthOrNothing(appeal(k, hi, weather))
-                if (al <= 0f && ah <= 0f) continue
-                val (from, to) = if (ah > al) lo to hi else hi to lo
-                val gain = (max(al, ah) - min(al, ah)) / max(al, ah)
+                // (Where the kind cannot drink, it cannot stay: deadlier than anywhere it can.)
+                val ol = arrive[k][lo].let { if (it.isNaN()) Float.POSITIVE_INFINITY else it }
+                val oh = arrive[k][hi].let { if (it.isNaN()) Float.POSITIVE_INFINITY else it }
+                if (ol.isInfinite() && oh.isInfinite()) continue
+                val band = kinds[k].maxGroupSize.toFloat()
+                val from: Int; val to: Int; val gain: Float
+                if (a[lo] + y[lo] > 0f && (oh.isFinite() && (ol.isInfinite() || clearlyWorse(ol, oh, band)))) {
+                    from = lo; to = hi; gain = if (ol.isInfinite()) 1f else (ol - oh) / ol
+                } else if (a[hi] + y[hi] > 0f && (ol.isFinite() && (oh.isInfinite() || clearlyWorse(oh, ol, band)))) {
+                    from = hi; to = lo; gain = if (oh.isInfinite()) 1f else (oh - ol) / oh
+                } else {
+                    val al = worthOrNothing(appeal(k, lo, weather)); val ah = worthOrNothing(appeal(k, hi, weather))
+                    if (al <= 0f && ah <= 0f) continue
+                    if (ah > al) { from = lo; to = hi } else { from = hi; to = lo }
+                    if (!(arrive[k][to] <= (if (to == hi) ol else oh))) continue
+                    gain = (max(al, ah) - min(al, ah)) / max(al, ah)
+                }
                 val share = BAND_SHIFT * gain
                 if (!(share > 0f)) continue
                 val ma = a[from] * share * land.areaKm2[from]; val my = y[from] * share * land.areaKm2[from]
