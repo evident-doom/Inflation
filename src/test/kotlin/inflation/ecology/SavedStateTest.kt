@@ -46,6 +46,8 @@ class SavedStateTest {
         "fauna.small.returning", "fauna.small.waiting", "fauna.small.leaving", "fauna.small.newborn", "fauna.water.run",
         "fauna.water.runStock", "fauna.water.runWaiting", "fauna.food.cereal", "fauna.food.domestic", "fauna.food.field",
         "fauna.food.ripenedNow",
+        // (The worn paths here grow and grow over within the year, and can stand at none at both ends of it.)
+        "groups.routes.onRoute", "groups.routes.way",
     )
 
     @Test
