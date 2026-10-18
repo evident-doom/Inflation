@@ -19,8 +19,9 @@ import inflation.ecology.m2
  * - fedDiag=true: four times in the first year, how well each kind is fed where it lives, and why;
  * - follow=KIND: one group of that kind week by week, as the viewer's follow mode does;
  * - migDiag=KIND: each month, how far that kind's herds are from the place they remember for the month;
- * - unfedDiag=true: each year, for each resident plant-eater as if it lived both ways, the herds its unfed residents
- *   would condense into week by week (the rule of [inflation.ecology.gather]), and the unfed share of its heads.
+ * - unfedDiag=true: each year, for each plant-eater's residents, the herds they would condense into week by week (the
+ *   grouping of [inflation.ecology.gather]) out of the unfed, and out of the floaters beyond the breeding ranges; and
+ *   the unfed and floating shares of its heads.
  */
 class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
     private val hw = sim.hw
@@ -48,18 +49,20 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
 
     private val UNFED_DIAG = Config.flag("unfedDiag", false)
     /** Per resident plant-eater this year: would-be herds summed over weeks, the most in a week, weeks with any, by month; unfed and all head-weeks. */
-    private class Unfed { var herdWeeks = 0.0; var most = 0; var weeks = 0; var weeksAll = 0; val byMonth = DoubleArray(12); var unfed = 0.0; var heads = 0.0 }
+    private class Unfed { var herdWeeks = 0.0; var most = 0; var weeks = 0; var weeksAll = 0; val byMonth = DoubleArray(12); var unfed = 0.0; var heads = 0.0
+        var floatWeeks = 0.0; var floatMost = 0; var floating = 0.0 }
     private val unfed = LinkedHashMap<inflation.ecology.Species, Unfed>()
 
     private fun unfedWeek() {
         val m = weather.date.month
         for (s in fauna.kinds) {
-            if (s.carnivore || s in inflation.ecology.Catalogue.gathering) continue
+            if (s.carnivore) continue
             val r = groups.wouldGather(s)
             val u = unfed.getOrPut(s) { Unfed() }
             val herds = r[0].toInt()
             u.herdWeeks += herds; u.most = maxOf(u.most, herds); if (herds > 0) u.weeks++; u.weeksAll++
             u.byMonth[m] += herds.toDouble(); u.unfed += r[1]; u.heads += r[2]
+            u.floatWeeks += r[3]; u.floatMost = maxOf(u.floatMost, r[3].toInt()); u.floating += r[4]
         }
     }
 
@@ -67,11 +70,12 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
     fun yearEnd() {
         if (!UNFED_DIAG) return
         println("     would-be herds, resident plant-eaters (kind: herd of N; herds standing a week on average / most in a week / weeks with any of W; " +
-            "unfed share of heads; average herds by month 1-12):")
+            "unfed share of heads; average herds by month 1-12 | floaters: herds standing a week on average / most in a week, floating share of heads):")
         for ((s, u) in unfed) {
             if (u.weeksAll == 0) continue
-            println("        %s: herd of %d; %.1f / %d / %d of %d; %.3f; %s".format(s.name, inflation.ecology.herdOf(s), u.herdWeeks / u.weeksAll, u.most, u.weeks, u.weeksAll,
-                if (u.heads > 0) u.unfed / u.heads else 0.0, u.byMonth.joinToString(" ") { "%.0f".format(it / (u.weeksAll / 12.0)) }))
+            println("        %s: herd of %d; %.1f / %d / %d of %d; %.3f; %s | floaters %.1f / %d, %.3f".format(s.name, inflation.ecology.herdOf(s), u.herdWeeks / u.weeksAll, u.most, u.weeks, u.weeksAll,
+                if (u.heads > 0) u.unfed / u.heads else 0.0, u.byMonth.joinToString(" ") { "%.0f".format(it / (u.weeksAll / 12.0)) },
+                u.floatWeeks / u.weeksAll, u.floatMost, if (u.heads > 0) u.floating / u.heads else 0.0))
         }
         unfed.clear()
     }
