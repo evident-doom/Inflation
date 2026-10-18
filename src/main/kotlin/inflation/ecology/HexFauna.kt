@@ -167,11 +167,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** For the kinds that also live as herds ([Catalogue.gathering]): the young that grew up this week, by place, per km² (see [HexGroups.scatter]). */
     @Transient internal val grownUp: Array<FloatArray?> = Array(kinds.size) { if (kinds[it] in Catalogue.gathering) FloatArray(n) else null }
     /**
-     * For the kinds that also live as herds ([Catalogue.gathering]): how many more of the kind each place could feed this
-     * week, per km², from the food left uneaten there after every kind has eaten, as far as the kind can get at it (cliffs,
-     * the walk to water, biting insects); see [HexGroups.gather].
+     * For the plant-eaters: how many more of the kind each place could feed this week, per km², from the food left
+     * uneaten there after every kind has eaten, as far as the kind can get at it (cliffs, the walk to water, biting
+     * insects); see [arriveOdds].
      */
-    @Transient internal val room: Array<FloatArray?> = Array(kinds.size) { if (kinds[it] in Catalogue.gathering) FloatArray(n) else null }
+    @Transient internal val room: Array<FloatArray?> = Array(kinds.size) { if (!kinds[it].carnivore) FloatArray(n) else null }
+    /**
+     * Each kind's share of a band ([Species.maxGroupSize]) coming to each place that would die there in a week
+     * ([arriveOdds], NaN where it cannot stay), worked out once a week before the residents move ([fillArrive]): the
+     * one measure the residents' drift and the groups' leaving and settling ([HexGroups.leaveAhead]) weigh places by.
+     */
+    @Transient internal val arrive = Array(kinds.size) { FloatArray(n) }
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
     /**
@@ -576,6 +582,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
             preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n) { p -> preyFor(kinds[k], p) } else null }
             Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
+            Profile.part("residents: weighing places") { fillArrive(it) }
             Profile.part("residents: spreading to neighbouring hexes") { spill(it) }
             preyNow = null
         },
@@ -1035,16 +1042,25 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return adultShare(out)
     }
 
+    /** Fills [arrive] for every kind, from this week's [room] and the residents where they now are. */
+    private fun fillArrive(weather: Weather) {
+        val outs = ThreadLocal.withInitial { FloatArray(HZ_COUNT) }
+        for (k in kinds.indices) {
+            val band = kinds[k].maxGroupSize.toFloat(); val odds = arrive[k]
+            IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, band, weather, outs.get()) }
+        }
+    }
+
     /**
      * The share of [band] grown animals of kind [k] coming to place [p] that would die there in a week ([hazards]): fed
-     * as far as the food left uneaten there ([room]) feeds them, with water to drink; NaN where there is none, a place
-     * no one can stay at.
+     * as far as the food left uneaten there ([room]) feeds them (a hunter, as well as the residents there were fed),
+     * with water to drink; NaN where there is none, a place no one can stay at.
      */
     internal fun arriveOdds(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray): Float {
         val s = kinds[k]
         if (!drinks(s, p)) return Float.NaN
         val area = land.areaKm2[p]
-        val f = min(1f, (room[k]?.get(p) ?: 0f) * area / band)
+        val f = room[k]?.let { min(1f, it[p] * area / band) } ?: fed[k][p]
         hazards(k, p, weather, weather.date.month, f, 0f, adults[k][p] + young[k][p] + band / area, out)
         return adultShare(out)
     }
