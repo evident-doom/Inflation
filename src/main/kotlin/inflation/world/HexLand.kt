@@ -130,7 +130,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     )
     val drink = HexDrinkingWater(this)
     @field:MovedInto(
-        "down", "rawMean", "meanFlow", "order", "soilCap", "intake", "aquiferCap", "aquiferM", "drain", "soil", "soilShade", "groundwater", "valley",
+        "down", "meanFlow", "order", "soilCap", "intake", "aquiferCap", "aquiferM", "drain", "soil", "soilShade", "groundwater", "valley",
         "stream", "usualGround", "flow", "flood", "soak", "ranOff",
     )
     val hydro = HexHydrology(this)
