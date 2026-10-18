@@ -5,7 +5,6 @@ import inflation.world.HexWorld
 import inflation.world.Weather
 import inflation.wrapMonth
 import kotlin.math.ceil
-import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -88,7 +87,7 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
                 // trekked by a group a week's walk a week; each week costing what a week on the slope does on average.
                 val steps = 1 + slope.steps[q]
                 val perWeek = (stay[p] + slope.cost[q]) / steps
-                val walk = ceil(steps / max(1.0, floor(gatherKm(s) / hex.hexKm))).toFloat() * perWeek
+                val walk = ceil(steps / fauna.hopsFor(s).toDouble()).toFloat() * perWeek
                 val trek = ceil(steps * hex.hexKm / gatherKm(s)).toFloat() * perWeek
                 if (clearlyWorse(min(1f, walk), min(1f, trek), band)) { leave[p] = true; to[p] = slope.end[q]; leavingByHex[hw.placeHex[p]] += heads }
                 continue
