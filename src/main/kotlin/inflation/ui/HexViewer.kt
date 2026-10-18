@@ -5,6 +5,7 @@ import inflation.Args
 import inflation.Config
 
 import inflation.ecology.HexRoutes
+import inflation.ecology.WATER_LANDMARK_KM
 import inflation.ecology.Catalogue
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
@@ -559,14 +560,16 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 val r = max(2, (2.5 * max(0.5, scale)).toInt())
                 for (h in groups.routes.landmarks) {
                     val (cx, cy) = hex.centreKm(h); val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
-                    g.color = when (groups.routes.kind(h)) {
-                        HexRoutes.Kind.JUNCTION -> Color(0.95f, 0.85f, 0.4f); HexRoutes.Kind.FORD -> Color(0.3f, 0.6f, 1f)
-                        HexRoutes.Kind.PASS -> Color(0.85f, 0.85f, 0.85f); HexRoutes.Kind.WATER -> Color(0.2f, 0.9f, 0.9f)
-                        else -> Color(0.5f, 0.35f, 0.2f)
-                    }
-                    if (groups.routes.kind(h) == HexRoutes.Kind.PASS) g.fillPolygon(intArrayOf(x - r, x, x + r), intArrayOf(y + r, y - r, y + r), 3)
+                    g.color = landmarkColour(groups.routes.kind(h))
+                    if (groups.routes.kind(h).let { it == HexRoutes.Kind.PASS || it == HexRoutes.Kind.PEAK }) g.fillPolygon(intArrayOf(x - r, x, x + r), intArrayOf(y + r, y - r, y + r), 3)
                     else g.fillOval(x - r, y - r, 2 * r, 2 * r)
                 }
+                legends += MapLegend("Paths and landmarks", "Paths: brown lines between hex centres, darker and wider the more worn. Landmarks on the routes: " +
+                    "junction (three or more worn ways meet), ford (a worn way crosses a river deeper than the knee), pass (a worn way through rugged country, " +
+                    "its ring at least as rough), water (within ${WATER_LANDMARK_KM.toInt()} km of drinking water), end (a single worn way). " +
+                    "Natural landmarks, on a route or not: hilltop (higher than all within two rings), lake, spring, where two rivers meet, river mouth.",
+                    note = groups.routes.summary(),
+                    swatches = HexRoutes.Kind.entries.drop(1).map { MapLegend.Swatch(landmarkColour(it), it.label, it == HexRoutes.Kind.PASS || it == HexRoutes.Kind.PEAK) })
             }
             // The hex being inspected.
             if (picked >= 0) {
@@ -956,6 +959,15 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     }
 
     companion object {
+        /** The colour of a landmark on the map (passes are drawn as triangles). */
+        private fun landmarkColour(k: HexRoutes.Kind) = when (k) {
+            HexRoutes.Kind.JUNCTION -> Color(0.95f, 0.85f, 0.4f); HexRoutes.Kind.FORD -> Color(0.3f, 0.6f, 1f)
+            HexRoutes.Kind.PASS -> Color(0.85f, 0.85f, 0.85f); HexRoutes.Kind.WATER -> Color(0.2f, 0.9f, 0.9f)
+            HexRoutes.Kind.PEAK -> Color(0.55f, 0.3f, 0.75f); HexRoutes.Kind.LAKE -> Color(0.1f, 0.25f, 0.8f)
+            HexRoutes.Kind.SPRING -> Color(0.4f, 1f, 0.5f); HexRoutes.Kind.CONFLUENCE -> Color(1f, 0.5f, 0.8f)
+            HexRoutes.Kind.MOUTH -> Color(1f, 0.55f, 0.1f)
+            else -> Color(0.5f, 0.35f, 0.2f)
+        }
         private val KIND_COLOURS = intArrayOf(0xf0e060, 0xa0e070, 0x70d0f0, 0xf0a050, 0xe070e0, 0x90f0c0, 0xffffff, 0xc0a0ff, 0xffc0c0,
             0x80ffff, 0xffd080, 0xb0ff80, 0xff8080, 0x80b0ff, 0xd0d0d0, 0xa0ffa0, 0xffa0ff, 0xc0c060)
     }

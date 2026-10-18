@@ -1,5 +1,10 @@
 package inflation.ecology
+import inflation.world.Channel
+import inflation.world.HexMap
+import inflation.world.HexWorld
+import inflation.world.RiverClass
 import java.util.Arrays
+import kotlin.math.max
 
 /**
  * Routes and landmarks: the worn paths read as a graph. Where the ways meet, cross a river, go over
@@ -8,9 +13,16 @@ import java.util.Arrays
  * landmarks and the leg between can be told the way, and can follow it through country it never
  * walked; a route is remembered by its landmarks long after the country round about is forgotten.
  * Made afresh every [ROUTE_WEEKS] weeks from the paths as they are worn and grow over.
+ *
+ * The country has landmarks of its own too, on a route or not, that anyone can point to and name: a
+ * hilltop higher than all round it, a lake, a spring, where two rivers meet, where a river comes to the
+ * sea. These are found once, from the land ([natural]), and are told and remembered like the others.
  */
 class HexRoutes(private val g: HexGroups) {
-    enum class Kind(val label: String) { NONE("none"), JUNCTION("junction"), FORD("ford"), PASS("pass"), WATER("water"), END("end") }
+    enum class Kind(val label: String) {
+        NONE("none"), JUNCTION("junction"), FORD("ford"), PASS("pass"), WATER("water"), END("end"),
+        PEAK("hilltop"), LAKE("lake"), SPRING("spring"), CONFLUENCE("rivers meet"), MOUTH("river mouth"),
+    }
 
     private val hex = g.hex
     /** Per hex: the kind of landmark there ([Kind.ordinal]; 0 for none). */
@@ -31,25 +43,126 @@ class HexRoutes(private val g: HexGroups) {
     /** Called once a week, after the paths are worn: every [ROUTE_WEEKS] weeks the graph is read afresh. */
     fun week() { if (weeks++ % ROUTE_WEEKS == 0) build() }
 
-    private fun worn(h: Int, d: Int) = g.wear.paths[h * 6 + d] >= ROUTE_WORN
+    private fun wornRaw(h: Int, d: Int) = g.wear.paths[h * 6 + d] >= ROUTE_WORN
+    /** Per border (hex × 6 + side): whether it is a way of the routes, as last read ([build]). */
+    private val way = BooleanArray(hex.size * 6)
+    private fun worn(h: Int, d: Int) = way[h * 6 + d]
+    /** Whether the border is a river that cannot just be stepped over: deeper than the knee at its easiest crossing. */
+    private fun river(i: Int) = hex.riverDepthM[i] >= HexMap.KNEE
+
+    /**
+     * Per hex: its natural landmark ([Kind.ordinal]; 0 for none), the strongest if several: a river's mouth,
+     * then where two rivers meet, a lake, a spring, a hilltop; of each kind the greatest within two rings.
+     * A mouth or meeting is of a river (not a stream, [RiverClass.RIVER]) with the streams that cannot be
+     * stepped over (deeper than the knee) that join it; a spring counts where it is the water of the
+     * country, with no river or lake within an easy walk.
+     */
+    val natural: ByteArray by lazy {
+        val world = g.hw.world; val grid = world.grid; val water = world.water; val recv = water.drainage.receiver
+        // Candidates by kind: hex to how great the feature is there (height, cells of spring or lake, river flow).
+        val found = Kind.entries.associateWith { HashMap<Int, Float>() }
+        fun land(h: Int) = if (h >= 0 && hex.heart[h] >= 0) h else (0 until 6).map { if (h < 0) -1 else hex.neighbour(h, it) }.firstOrNull { it >= 0 && hex.heart[it] >= 0 } ?: -1
+        fun note(h: Int, k: Kind, v: Float) { if (h >= 0) found.getValue(k).merge(h, v, ::maxOf) }
+        fun river(i: Int) = world.riverClass(i) >= RiverClass.STREAM && Channel.depthM(water.discharge[i]) > HexMap.KNEE
+        // A hilltop: the highest land of the hex.
+        for (h in 0 until hex.size) if (hex.heart[h] >= 0) note(h, Kind.PEAK, hex.highM[h])
+        // Springs and oases, from the fine cells.
+        val drink = g.land.drink
+        fun dry(h: Int) = (0 until HexWorld.BANDS_M.size).all { b -> g.hw.placeOf[b][h].let { p -> p < 0 || (drink.nearRiver[p] <= 0f && drink.nearLake[p] <= 0f) } }
+        for (i in 0 until grid.size) if (!world.isSea[i] && (drink.spring[i] || drink.oasis[i]) && dry(hex.owner[i])) found.getValue(Kind.SPRING).merge(hex.owner[i], 1f, Float::plus)
+        // Where rivers meet, and come to the sea: from the fine cells' flow.
+        val inflows = ByteArray(grid.size)
+        for (i in 0 until grid.size) {
+            val r = recv[i]
+            if (r == i || !river(i)) continue
+            if (world.isSea[r]) { if (world.riverClass(i) >= RiverClass.RIVER) note(land(hex.owner[i]), Kind.MOUTH, water.discharge[i]) }
+            else if (inflows[r] < 2) inflows[r]++
+        }
+        for (i in 0 until grid.size) if (inflows[i] >= 2 && world.riverClass(i) >= RiverClass.RIVER) note(land(hex.owner[i]), Kind.CONFLUENCE, water.discharge[i])
+        // A lake: each one, by the land hex that holds most of it (or most of its shore).
+        val lakeOf = IntArray(grid.size) { -1 }; var lakes = 0
+        val share = HashMap<Long, Int>(); val size = ArrayList<Int>()
+        for (i0 in 0 until grid.size) {
+            if (!water.isLake(i0) || lakeOf[i0] >= 0) continue
+            val id = lakes++; val stack = arrayListOf(i0); lakeOf[i0] = id; var n = 0
+            while (stack.isNotEmpty()) {
+                val i = stack.removeAt(stack.size - 1); n++
+                val h = hex.owner[i]
+                val holders = if (hex.heart[h] >= 0) listOf(h) else (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 && hex.heart[it] >= 0 }
+                for (q in holders) share.merge(id.toLong() * hex.size + q, 1, Int::plus)
+                val x = grid.x(i); val y = grid.y(i)
+                for ((dx, dy) in arrayOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                    val nx = x + dx; val ny = y + dy
+                    if (nx < 0 || ny < 0 || nx >= grid.width || ny >= grid.height) continue
+                    val j = grid.index(nx, ny)
+                    if (lakeOf[j] < 0 && water.isLake(j)) { lakeOf[j] = id; stack += j }
+                }
+            }
+            size += n
+        }
+        val holder = HashMap<Int, Pair<Int, Int>>()
+        for ((key, n) in share) { val id = (key / hex.size).toInt(); val h = (key % hex.size).toInt(); if (n > (holder[id]?.second ?: 0)) holder[id] = h to n }
+        for ((id, hn) in holder) note(hn.first, Kind.LAKE, size[id].toFloat())
+        // Of features of a kind within two rings of each other (about 20 km, as far as one is seen or told
+        // apart), the greatest is the landmark: the hill above the rest, the lake and not the pond beside it.
+        val out = ByteArray(hex.size)
+        for ((k, at) in found) for ((h, v) in at) {
+            val seen = hashSetOf(h); var ring = listOf(h); var greatest = true
+            for (r in 0 until 2) { ring = hex.nextRing(ring, seen); if (ring.any { q -> at[q]?.let { it > v || (it == v && q < h) } == true }) { greatest = false; break } }
+            if (greatest && out[h] < k.ordinal) out[h] = k.ordinal.toByte()
+        }
+        out
+    }
 
     fun build() {
         Arrays.fill(landmark, 0); Arrays.fill(onRoute, false); legs.clear(); legsAt.clear()
         val hw = g.hw; val land = g.land
         fun rug(h: Int) = hw.placeOf[0][h].takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f
+        fun water(h: Int) = hw.placeOf[0][h].let { it >= 0 && land.drink.waterKmMean[it] <= WATER_LANDMARK_KM }
+        // A pass: the way through broken country, rougher all round than where the path goes.
+        fun pass(h: Int): Boolean {
+            var round = 0f; var k = 0
+            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && hex.heart[q] >= 0) { round += rug(q); k++ } }
+            return rug(h) >= PASS_RUGGED && k > 0 && round / k >= rug(h)
+        }
+        // A way is a line of wear, not a worn patch: a border counts where it is worn, and at least as worn as
+        // the borders beside it running the same way (from the two hexes flanking it), so of side-by-side
+        // strands across country walked all over, the most trodden is the way. (Wear either way across.)
+        fun wear(h: Int, d: Int): Float {
+            val q = hex.neighbour(h, d); if (q < 0 || hex.heart[h] < 0 || hex.heart[q] < 0) return 0f
+            return max(g.wear.paths[h * 6 + d], g.wear.paths[q * 6 + (d + 3) % 6])
+        }
+        for (h in 0 until hex.size) for (d in 0 until 6) {
+            val w = wear(h, d)
+            way[h * 6 + d] = w >= ROUTE_WORN && hex.neighbour(h, (d + 1) % 6).let { a -> a < 0 || wear(a, d) <= w } &&
+                hex.neighbour(h, (d + 5) % 6).let { b -> b < 0 || wear(b, d) <= w }
+        }
+        // (Both ways across a border agree: a border is a way if it is one from either side.)
+        for (h in 0 until hex.size) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && way[h * 6 + d]) way[q * 6 + (d + 3) % 6] = true }
+        // A worn way that goes off a route into the next hex and stops there, with nothing there to go for
+        // (water, a pass, a river crossed), is a group leaving the route to range, not a way of its own: a
+        // way passes through at least one hex, as only going through country wears one (see [PathWear]).
+        val cut = ArrayList<Int>()
+        for (h in 0 until hex.size) {
+            if (hex.heart[h] < 0) continue
+            var n = 0; var only = -1
+            for (d in 0 until 6) if (way[h * 6 + d]) { n++; only = d }
+            if (n != 1 || water(h) || pass(h) || river(h * 6 + only)) continue
+            val q = hex.neighbour(h, only)
+            if (q >= 0 && (0 until 6).count { way[q * 6 + it] } >= 3) cut += h * 6 + only
+        }
+        for (i in cut) { val h = i / 6; val d = i % 6; way[i] = false; hex.neighbour(h, d).takeIf { it >= 0 }?.let { q -> way[q * 6 + (d + 3) % 6] = false } }
         for (h in 0 until hex.size) {
             if (hex.heart[h] < 0) continue
             var ways = 0; var ford = false
-            for (d in 0 until 6) if (worn(h, d)) { ways++; if (hex.riverM3s[h * 6 + d] >= FORD_M3S) ford = true }
-            if (ways == 0) continue
+            for (d in 0 until 6) if (worn(h, d)) { ways++; if (river(h * 6 + d)) ford = true }
+            if (ways == 0) { landmark[h] = natural[h]; continue }
             onRoute[h] = true
-            // A pass: the way through broken country, rougher all round than where the path goes.
-            var round = 0f; var k = 0
-            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && hex.heart[q] >= 0) { round += rug(q); k++ } }
-            val pass = rug(h) >= PASS_RUGGED && k > 0 && round / k >= rug(h)
-            val water = hw.placeOf[0][h].let { it >= 0 && land.drink.waterKmMean[it] <= WATER_LANDMARK_KM }
+            val pass = pass(h)
+            val water = water(h)
             landmark[h] = (when {
-                ways >= 3 -> Kind.JUNCTION; ford -> Kind.FORD; pass -> Kind.PASS; ways == 1 -> Kind.END; water -> Kind.WATER; else -> Kind.NONE
+                ways >= 3 -> Kind.JUNCTION; ford -> Kind.FORD; natural[h] != 0.toByte() -> Kind.entries[natural[h].toInt()]
+                pass -> Kind.PASS; ways == 1 -> Kind.END; water -> Kind.WATER; else -> Kind.NONE
             }).ordinal.toByte()
         }
         landmarks = (0 until hex.size).filter { isLandmark(it) }.toIntArray()
@@ -98,11 +211,34 @@ class HexRoutes(private val g: HexGroups) {
     /** How long a band keeps [h] in mind once far from it, against other country: landmarks and ways are remembered. */
     fun forgetShare(h: Int) = if (isLandmark(h)) LANDMARK_FORGET else if (onRoute[h]) ROUTE_FORGET else 1f
 
-    /** For the check: landmarks by kind, legs and their mean length, km. */
+    /**
+     * For the check: landmarks by kind; legs, their mean and longest tenth's length, km; hexes on a route
+     * and the share of them that are landmarks; how many separate networks the ways make, and the
+     * hexes and span (widest distance across, km) of the largest.
+     */
     fun summary(): String {
         val byKind = Kind.entries.drop(1).joinToString(", ") { k -> "${k.label} ${landmarks.count { kind(it) == k }}" }
-        val km = if (legs.isEmpty()) 0.0 else legs.sumOf { l -> (0 until l.size - 1).sumOf { hex.distanceKm(l[it], l[it + 1]) } } / legs.size
-        return "%d landmarks (%s); %d legs, mean %.0f km".format(landmarks.size, byKind, legs.size, km)
+        val legKm = legs.map { l -> (0 until l.size - 1).sumOf { hex.distanceKm(l[it], l[it + 1]) } }.sorted()
+        val km = if (legKm.isEmpty()) 0.0 else legKm.average()
+        val km90 = if (legKm.isEmpty()) 0.0 else legKm[(legKm.size * 0.9).toInt().coerceAtMost(legKm.size - 1)]
+        val onIt = (0 until hex.size).count { onRoute[it] }
+        val marked = (0 until hex.size).count { onRoute[it] && isLandmark(it) }
+        // The networks: route hexes joined by worn ways.
+        val seen = BooleanArray(hex.size); var nets = 0; var bigHexes = 0; var bigSpan = 0.0
+        for (h0 in 0 until hex.size) {
+            if (!onRoute[h0] || seen[h0]) continue
+            nets++
+            val stack = arrayListOf(h0); seen[h0] = true; var count = 0
+            var x0 = Double.MAX_VALUE; var x1 = -Double.MAX_VALUE; var y0 = Double.MAX_VALUE; var y1 = -Double.MAX_VALUE
+            while (stack.isNotEmpty()) {
+                val h = stack.removeAt(stack.size - 1); count++
+                val (x, y) = hex.centreKm(h); x0 = minOf(x0, x); x1 = maxOf(x1, x); y0 = minOf(y0, y); y1 = maxOf(y1, y)
+                for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && !seen[q] && onRoute[q] && worn(h, d)) { seen[q] = true; stack += q } }
+            }
+            if (count > bigHexes) { bigHexes = count; bigSpan = Math.hypot(x1 - x0, y1 - y0) }
+        }
+        return "%d landmarks (%s); %d legs, mean %.0f km, longest tenth from %.0f km; %d hexes on routes, %.0f%% of them landmarks; %d networks, largest %d hexes across %.0f km".format(
+            landmarks.size, byKind, legs.size, km, km90, onIt, if (onIt == 0) 0.0 else 100.0 * marked / onIt, nets, bigHexes, bigSpan)
     }
 
     /** For the check: the share of worn borders that cross a river, against the share of all land borders that do (funnelling at fords). */
@@ -112,9 +248,9 @@ class HexRoutes(private val g: HexGroups) {
             if (hex.heart[h] < 0) continue
             for (d in 0 until 6) {
                 val q = hex.neighbour(h, d); if (q < 0 || hex.heart[q] < 0) continue
-                val r = hex.riverM3s[h * 6 + d] >= FORD_M3S
+                val r = river(h * 6 + d)
                 all++; if (r) allR++
-                if (worn(h, d)) { w++; if (r) wr++ }
+                if (wornRaw(h, d)) { w++; if (r) wr++ }
             }
         }
         return (if (w == 0) 0.0 else wr.toDouble() / w) to (if (all == 0) 0.0 else allR.toDouble() / all)
@@ -122,14 +258,12 @@ class HexRoutes(private val g: HexGroups) {
 }
 
 /**
- * Routes: how worn a border must be to count as a way; weeks between readings of the graph; flow of a
- * river a ford crosses, m³/s; ruggedness of a pass; how near water a hex on a path must be to be a
+ * Routes: how worn a border must be to count as a way; weeks between readings of the graph; ruggedness of a pass; how near water a hex on a path must be to be a
  * water landmark, km; longest leg followed, hexes; how far from where bands meet they tell of
  * routes, km; share of the usual forgetting a band keeps of landmarks and of the ways between.
  */
 const val ROUTE_WORN = 0.15f
 const val ROUTE_WEEKS = 4
-const val FORD_M3S = 5f
 const val PASS_RUGGED = 0.3f
 const val WATER_LANDMARK_KM = 1f
 const val MAX_LEG_HEXES = 60
