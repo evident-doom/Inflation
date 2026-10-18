@@ -123,8 +123,8 @@ class HexGroups(
     /** How herds and packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var herdWays: AnimalWays? = null
     @Transient var hunterWays: AnimalWays? = null
-    /** This week's tallies ([WeekStats]; saves from before it was split out kept them here). */
-    @field:MovedInto("kills", "meetings", "deaths", "hunting", "births") val stats = WeekStats()
+    /** This week's tallies ([HexLand.stats]). */
+    val stats get() = land.stats
     internal val years = days / Date.DAYS_PER_YEAR.toFloat()
     internal val small get() = fauna.small
 
@@ -294,7 +294,7 @@ class HexGroups(
      * view of themselves; then each group plans and moves, in parallel, each by last week's world.
      */
     private fun chooseAndMove(weather: Weather, date: Date) {
-        stats.clear(); watchLog.clear()
+        watchLog.clear()
         moon = date.meanMoonlight(days).toFloat()
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
         // through their clothes and, at home, their houses).

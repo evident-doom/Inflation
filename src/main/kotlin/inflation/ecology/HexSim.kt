@@ -71,6 +71,7 @@ class HexSim(
     fun step() {
         // (What changed between steps, as a save loaded into the world or the viewer's hand, is charged to that.)
         books?.check("between steps")
+        land.stats.clear()
         runPhases(phases, weather, books)
     }
 
