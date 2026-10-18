@@ -86,10 +86,15 @@ internal fun HexGroups.scatter(month: Int) {
         if (!still && hex.distanceKm(hw.placeHex[g.place], hw.placeHex[goal]) > GATHER_KM) continue
         spread(g, k)
         stats.hunting.merge(Tally.of(s, Tally.SCATTERED), 1, Int::plus); stats.hunting.merge(Tally.of(s, Tally.HEADS_SCATTERED), g.size, Int::plus)
+        // (Its members live on spread out, not dead: so the learning counts them, see [SCATTERED].)
+        g.mergedSize = g.size; g.mergedInto = SCATTERED; merged += g
         g.adults = 0; g.young = 0; any = true
     }
     if (any) groups.removeIf { !it.alive }
 }
+
+/** [HexGroup.mergedInto] of a herd that scattered into the land: its members live on as residents. */
+const val SCATTERED = -2
 
 /**
  * Herd [g]'s animals spread as residents (slot [k]) over the ground about it ([GATHER_KM], as they gathered from), by how
