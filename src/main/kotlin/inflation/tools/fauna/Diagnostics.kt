@@ -18,7 +18,8 @@ import inflation.ecology.m2
  * - fedDiag=true: four times in the first year, how well each kind is fed where it lives, and why;
  * - follow=KIND: one group of that kind week by week, as the viewer's follow mode does;
  * - migDiag=KIND: each month, how far that kind's herds are from the place they remember for the month;
- * - crowdDiag=KIND: each month, the crowd that kind's herds foresaw where they chose to go against the one they met there.
+ * - crowdDiag=KIND: each month, the crowd that kind's herds foresaw where they chose to go against the one they met there;
+ * - deathDiag=KIND: each quarter, the deaths that kind's herds foresaw by cause where they chose to go against those they met.
  */
 class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
     private val hw = sim.hw
@@ -42,6 +43,46 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         }
         Config.string("migDiag")?.let { kind -> if (weather.date.dayOfMonth <= daysPerStep) migration(kind) }
         Config.string("crowdDiag")?.let { kind -> crowding(kind, weather.date.dayOfMonth <= daysPerStep) }
+        Config.string("deathDiag")?.let { kind -> deaths(kind, weather.date.dayOfMonth <= daysPerStep && weather.date.month % 3 == 0) }
+    }
+
+    private val foreseenBy = java.util.TreeMap<String, Double>(); private val metBy = java.util.TreeMap<String, Double>()
+    private var deathSums = DoubleArray(6)
+    /**
+     * The animals each herd of [kind] foresaw would die this week where it chose to go ([inflation.ecology.HexGroups.foreseenDeaths]:
+     * its share by cause at its heads now), against those that died, by cause (the groups' tally, with the kills of the
+     * hunting parties and of the residents' hunters); and how fed it foresaw it would be against how fed it was, and its
+     * births. Summed weekly, printed each quarter ([print]). (What it foresaw leaves out age and the background, the same
+     * wherever it goes: those show as met only.)
+     */
+    private fun deaths(kind: String, print: Boolean) {
+        val s = groups.kinds.firstOrNull { it.name == kind }
+        if (s != null) {
+            val byId = HashMap<Int, HexGroup>(); for (g in groups.groups) if (g.species == s) byId[g.id] = g
+            for ((id, m) in groups.foreseenDeaths) {
+                val g = byId[id] ?: continue
+                deathSums[5] += g.size.toDouble()
+                for ((cause, v) in m) foreseenBy.merge(cause, (g.adults * v[0] + g.young * v[1]).toDouble(), Double::plus)
+                groups.foreseenFed[id]?.let { deathSums[0] += 1.0; deathSums[1] += it.toDouble(); deathSums[2] += g.fed.toDouble() }
+            }
+            for ((key, v) in groups.stats.deaths) if (key.startsWith("$kind:")) metBy.merge(key.substringAfter(':'), v.toDouble(), Double::plus)
+            metBy.merge("hunting parties", groups.herdKilledByGroups[s.index].toDouble(), Double::plus)
+            metBy.merge("resident hunters", groups.herdKilledByResidents[s.index].toDouble(), Double::plus)
+            groups.herdKilledByResidents[s.index] = 0
+            for (g in groups.groups) if (g.alive && g.species == s) deathSums[3] += g.size.toDouble()
+            deathSums[4] += (groups.stats.births[kind] ?: 0).toDouble()
+            groups.foreseenDeaths.clear(); groups.foreseenFed.clear()
+        }
+        if (print && deathSums[0] > 0.0) {
+            val headWeeks = deathSums[3].coerceAtLeast(1.0)
+            println("     deaths %s %s: foreseen / met, per 1000 head-weeks: ".format(kind, weather.date) +
+                (foreseenBy.keys + metBy.keys).toSortedSet().joinToString(", ") { c ->
+                    "%s %.1f / %.1f".format(c, 1000.0 * (foreseenBy[c] ?: 0.0) / headWeeks, 1000.0 * (metBy[c] ?: 0.0) / headWeeks) } +
+                "; all %.1f / %.1f".format(1000.0 * foreseenBy.values.sum() / headWeeks, 1000.0 * metBy.values.sum() / headWeeks))
+            println("     deaths %s %s: fed foreseen %.2f, met %.2f; births %.1f per 1000 head-weeks; %.0f%% of head-weeks weighed their places".format(
+                kind, weather.date, deathSums[1] / deathSums[0], deathSums[2] / deathSums[0], 1000.0 * deathSums[4] / headWeeks, 100.0 * deathSums[5] / headWeeks))
+            foreseenBy.clear(); metBy.clear(); deathSums = DoubleArray(6)
+        }
     }
 
     private var crowdSums = DoubleArray(12)
