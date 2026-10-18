@@ -307,14 +307,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
     }
-    val p = o.place
-    // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
-    val seen = (sight(p.i, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
-    val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
-    // The defenders' ground and works.
-    val ground = 1f + HIGH_GROUND * land.bestDefence[p]
-    val works = if (ob.atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
-    val sg = strength(g) * surprise; val so = strength(o) * ground * works
+    val (sg, so) = raidStrengths(g, o, ob, planned, ob.atHome, weather)
     // Each side loses some of its people, the more so against the stronger side.
     val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so), rnd)
     val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so), rnd)
@@ -330,6 +323,23 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
+}
+
+/**
+ * The raiders' [g] and the defenders' [o] (band [ob]) strengths when [g] falls on [o] where it is: a planned raid may
+ * take it by surprise, the less so the more it sees (scouts, open ground, moonlight); defenders [atHome] gain from high,
+ * broken ground, their houses and a palisade. The one rule for a raid ([fight]) and for a raiding band weighing its
+ * target ([plotRaid]).
+ */
+internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): Pair<Float, Float> {
+    val p = o.place
+    // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
+    val seen = (sight(p.i, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
+    val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
+    // The defenders' ground and works.
+    val ground = 1f + HIGH_GROUND * land.bestDefence[p]
+    val works = if (atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
+    return strength(g) * surprise to strength(o) * ground * works
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */

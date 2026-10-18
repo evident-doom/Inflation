@@ -298,6 +298,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             pt = Profile.lap("small life: reptiles and amphibians", pt)
             val b = land.fire.burning[p]
             burnSmallLife(p, b)
+            rodentRoom[p] *= 1f - RODENTS_BURNT * b
             pt = Profile.lap("small life: fire", pt)
             stepPollinators(p, month, active)
             pt = Profile.lap("small life: pollinators", pt)
@@ -323,6 +324,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         Profile.part("small life: spreading to neighbours") {
             spread(spreaders)
             spread(eagles) { eagleCrags[it] > 0f }
+            spreadToward(rodents, rodentRoom); spreadToward(hares, hareRoom)
         }
     }
 
@@ -423,6 +425,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val death = tuning.rodentDeath * years + (if (snow > 30f || t < -5f) 3f * years else 0f)
         val starved = r * (1f - fed)
         val ceil = 600f * food / (food + 0.3f)
+        // (What a place holds for rodents wandering in: room on its food, less what the cold and deep snow kill; fire, below.)
+        rodentRoom[p] = ceil * (1f - death).coerceAtLeast(0f)
         val bornR = r * birth * (1 - r / ceil.coerceAtLeast(1f))
         if (bornR > 0f) grew(p, bornR) else crowdLeak?.add(bornR * land.areaKm2[p].toDouble())
         r += bornR - r * death - starved
@@ -465,8 +469,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      */
     private fun burnSmallLife(p: Int, b: Float) {
         if (b > 0f) {
-            smallDead[p] += insects[p] * 0.8f * b + herps[p] * 0.7f * b + rodents[p] * 0.5f * b + pollinators[p] * 0.8f * b
-            insects[p] *= 1f - 0.8f * b; herps[p] *= 1f - 0.7f * b; rodents[p] *= 1f - 0.5f * b; pollinators[p] *= 1f - 0.8f * b
+            smallDead[p] += insects[p] * 0.8f * b + herps[p] * 0.7f * b + rodents[p] * RODENTS_BURNT * b + pollinators[p] * 0.8f * b
+            insects[p] *= 1f - 0.8f * b; herps[p] *= 1f - 0.7f * b; rodents[p] *= 1f - RODENTS_BURNT * b; pollinators[p] *= 1f - 0.8f * b
         }
     }
 
@@ -538,7 +542,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
     private fun stepGame(p: Int, t: Float, month: Int, burnt: Float) {
-        if (land.plants.biomass(p) <= 0f) { smallDead[p] += hares[p] + hyrax[p] + birdSum(p) + tortoises[p] + foxes[p]; hares[p] = 0f; hyrax[p] = 0f; birds[p] = 0f; for (b in bird) b[p] = 0f; tortoises[p] = 0f; foxes[p] = 0f; return }
+        if (land.plants.biomass(p) <= 0f) { smallDead[p] += hares[p] + hyrax[p] + birdSum(p) + tortoises[p] + foxes[p]; hares[p] = 0f; hyrax[p] = 0f; birds[p] = 0f; for (b in bird) b[p] = 0f; tortoises[p] = 0f; foxes[p] = 0f; hareRoom[p] = 0f; return }
         val mild = t > 5f
         // Young raised a year per head, all born in the breeding months (so the rate in them is higher).
         hares[p] = logistic(p, hares[p], if (month in 3..9 && mild) inSeason(4f, 7) else 0f, 0.9f, hareCapacity(p), grazes = true, born = Nest.HARES)
@@ -553,10 +557,11 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         if (eagleCrags[p] > 0f) stepEagles(p, month)
         // Fire: tortoises die where it burns; the rest bolt and many young die.
         if (burnt > 0f) {
-            smallDead[p] += tortoises[p] * 0.6f * burnt + hares[p] * 0.3f * burnt + birds[p] * 0.3f * burnt
+            smallDead[p] += tortoises[p] * 0.6f * burnt + hares[p] * HARES_BURNT * burnt + birds[p] * 0.3f * burnt
             tortLedger[TortLedger.BURNT][p] += tortoises[p] * 0.6f * burnt
-            tortoises[p] *= 1f - 0.6f * burnt; hares[p] *= 1f - 0.3f * burnt; takeBirds(p, 0.3f * burnt)
+            tortoises[p] *= 1f - 0.6f * burnt; hares[p] *= 1f - HARES_BURNT * burnt; takeBirds(p, 0.3f * burnt)
         }
+        hareRoom[p] = hareCapacity(p) * (1f - HARES_BURNT * burnt)
     }
 
     /**
@@ -1111,7 +1116,34 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     }
 
     @delegate:Transient private val spreaders by lazy {
-        (listOf(insects, rodents, herps, pollinators, biting, hares, hyrax, tortoises, foxes) + bird).toTypedArray()
+        (listOf(insects, herps, pollinators, biting, hyrax, tortoises, foxes) + bird).toTypedArray()
+    }
+
+    /**
+     * What each place holds for rodents and for hares wandering in, heads per km²: the room its food gives them, less the
+     * share the week's cold, deep snow and fire kill there ([spreadToward]).
+     */
+    @delegate:Transient private val rodentRoom by lazy { FloatArray(n) }
+    @delegate:Transient private val hareRoom by lazy { FloatArray(n) }
+
+    /**
+     * Rodents and hares wander between neighbouring places as [spread] has small animals do, but toward room: what crosses
+     * each way is as many as [spread] moves, weighed by the room ([room]) of the place they go to against the one they
+     * leave, so that they settle where there is food and they live (each place as full as its room), not evenly. (As many
+     * leave one place as arrive in the other.)
+     */
+    private fun spreadToward(f: FloatArray, room: FloatArray) {
+        val old = f.copyOf()
+        IntStream.range(0, n).parallel().forEach { p ->
+            val nb = land.neighbours[p]
+            val w = spreadWeight[p]
+            var delta = 0f
+            for (i in nb.indices) {
+                val q = nb[i]; val sum = room[p] + room[q]
+                delta += if (sum > 0f) w[i] * 2f * (old[q] * room[p] - old[p] * room[q]) / sum else w[i] * (old[q] - old[p])
+            }
+            f[p] = max(0f, old[p] + delta)
+        }
     }
     /**
      * The share of the difference with each neighbour that crosses in a step: [SPREAD] a month, over
@@ -1126,6 +1158,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     companion object {
         val WETLANDS = setOf("MARSH", "SWAMP_FOREST", "BOG", "SALT_MARSH", "MANGROVE")
+        /** Share of rodents and of hares a fire kills where it burns all of a place (the rest bolt). Not measured. */
+        const val RODENTS_BURNT = 0.5f
+        const val HARES_BURNT = 0.3f
         /** Share of what small plant-eaters eat that becomes their own growth (about a tenth for warm-blooded animals, Lindeman's rule). */
         const val SMALL_EFFICIENCY = 0.1f
         val CHUKAR = BirdKind("chukar", 4..6, 4f, 0.9f, null,

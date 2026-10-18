@@ -681,7 +681,7 @@ private fun HexGroups.scavenge(g: HexGroup, p: Int, expected: Float, sweep: Floa
     // A band at a carcass may meet its owner: lions or hyenas back at their kill. Driving
     // them off is done with a crowd and a din, but now and then someone is mauled.
     if (band != null && got > 1f) {
-        val beasts = monthHunterKg[p] / land.areaKm2[p]
+        val beasts = monthBeastKg[p] / land.areaKm2[p]
         if (rnd.nextFloat() < SCAVENGE_RISK * beasts / (beasts + 3f)) {
             band.wounded(1f, g.adults)
             stats.meetings.merge("bands mauled at a carcass", 1, Int::plus)
