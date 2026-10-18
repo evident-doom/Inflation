@@ -114,11 +114,14 @@ class Species(
      * ground: a hyena clan bites above its weight, a jackal below.
      */
     val ferocity: Float = 1f,
-    /** For a hunter kept as a resident: the biggest game it kills, times its own weight (see [HexFauna.huntResidents]). */
+    /**
+     * For hunters: the biggest game it kills, times its own weight, as the field records its kills (so for kinds
+     * that hunt together, with their groups' strength in it); see [preySize].
+     */
     val preyUpTo: Float = 3f,
     /**
-     * For a hunter kept as a resident: the biggest game it takes as readily as any, times its own weight; above it
-     * it takes game the less readily the nearer it is to [preyUpTo] (see [HexFauna.preference]).
+     * For hunters: the biggest game it takes as readily as any, times its own weight; above it it takes game the
+     * less readily the nearer it is to [preyUpTo] (see [preySize]).
      */
     val preyPreferredUpTo: Float = preyUpTo,
     /** For predators: land per animal at the start, km². */
@@ -194,6 +197,19 @@ class Species(
      * grows in through the autumn to 10 °C and is moulted in spring.
      */
     fun coatC(month: Int): Float = if (winterCoat) 10f * COAT[month] else 0f
+    /**
+     * How readily it takes game of [kg], 0..1, resident hunters and packs alike: not at all under a quarter of its
+     * weight (that is small prey, hunted otherwise) or over [preyUpTo] times it, fully up to [preyPreferredUpTo] times
+     * it, and falling off evenly between. (The even fall is a simplification: the record gives the preferred and the
+     * accessible range, not the shape.)
+     */
+    fun preySize(kg: Float): Float {
+        val r = kg / massKg
+        if (r < 0.25f || r > preyUpTo) return 0f
+        if (r <= preyPreferredUpTo) return 1f
+        return (preyUpTo - r) / (preyUpTo - preyPreferredUpTo)
+    }
+
     /** Degrees colder than its coat bears at [t] °C in [month]. */
     fun coldC(t: Float, month: Int): Float = max(0f, comfortC.start - coatC(month) - t)
     /** Degrees hotter than it bears at [t] °C. */

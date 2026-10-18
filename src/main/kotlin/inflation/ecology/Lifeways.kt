@@ -52,14 +52,13 @@ internal fun HexGroups.lifewayValue(k: Int, s: Species, p: Int): Float = when (s
 }
 
 /**
- * The food term of the hand-written score of place [p] (in hex [h]) for [g], with its own kind's crowding and the
- * hunters it fears there. Packs and bands: the game it knows of there ([prey]), less crowding, and less where a much
- * stronger hunter of another kind holds sway (they hear the roars and smell the marks: cheetahs and hyenas keep out of
- * lions' way, jackals out of wolves'). Herds: their food, as fresh as it is ([PlaceTerms.fresh]), less crowding,
- * hunters and the fear of ground where game was killed lately. (At this scale every hex has its hunters: a herd does not
- * shift its ground to get away from them, it watches and hides where it is; it moves for food, water, weather and the season.)
+ * The food term of the hand-written score of place [p] (in hex [h]) for [g], with its own kind's crowding there. Packs
+ * and bands: the game it knows of there ([prey]), less crowding, and less where a much stronger hunter of another kind
+ * holds sway (they hear the roars and smell the marks: cheetahs and hyenas keep out of lions' way, jackals out of
+ * wolves'). Herds: their food, as fresh as it is ([PlaceTerms.fresh]), less crowding. (The hunters a herd would lose
+ * animals to there count as its deaths, not here: see [HexGroups.huntedAhead].)
  */
-internal fun HexGroups.foodTerm(g: HexGroup, kind: Int, fresh: Float, p: Place, h: Hex, sensed: IntArray, prey: Float, crowded: Float, hunters: Float): Float {
+internal fun HexGroups.foodTerm(g: HexGroup, kind: Int, fresh: Float, p: Place, h: Hex, sensed: IntArray, prey: Float, crowded: Float): Float {
     val s = g.species
     return when (s.lifeway) {
         Lifeway.PACK, Lifeway.BAND -> {
@@ -68,7 +67,6 @@ internal fun HexGroups.foodTerm(g: HexGroup, kind: Int, fresh: Float, p: Place, 
         }
         // (How much there is levels off, how good it is does not: fresh, protein-rich growth is worth
         // more however much of the dry stuff stands, as it is to a mother and her young.)
-        Lifeway.HERD -> saturate(placeValue[kind][p], Thresholds.FOOD_HALF) * fresh - 0.5f * crowded -
-            SHUN_HUNTERS * hunters / (hunters + tuning.huntersHalfKg) - HexFauna.FEAR_WEIGHT * fauna.afraid(p.i)
+        Lifeway.HERD -> saturate(placeValue[kind][p], Thresholds.FOOD_HALF) * fresh - 0.5f * crowded
     }
 }

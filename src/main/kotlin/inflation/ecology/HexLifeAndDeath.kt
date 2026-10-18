@@ -527,7 +527,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // Children of a closed band are inbred; medicine saves some of the sick and wounded.
     val inbred = if (band != null) INBREEDING_DEATHS * band.inbred * years else 0f
     // (Healers save some of the sick and wounded, the more the more they know.)
-    val healed = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
+    val healed = healedShare(band)
     // (And practised midwives and carers lose fewer infants.)
     val cared = band?.lapse(Skill.MIDWIFERY)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f
     // Sicknesses of their own: the flux, marsh fever, the cough (see [Illness]); healers save some.
@@ -871,16 +871,21 @@ private fun HexGroups.peopleSickness(g: HexGroup, weather: Weather): Float {
 }
 
 /** People round a band's camp (its hex and the six round it), per km², against [PEOPLE_FULL_KM2]. */
-internal fun HexGroups.peopleCrowding(g: HexGroup): Float {
-    val h = hw.placeHex[g.place]
-    var heads = 0
+internal fun HexGroups.peopleCrowding(g: HexGroup, h: Int = hw.placeHex[g.place]): Float {
+    var heads = 0; var near = false
     for (k in -1 until 6) {
         val q = if (k < 0) h else hex.neighbour(h, k)
         if (q < 0) continue
+        if (q == hw.placeHex[g.place]) near = true
         for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][q]; if (p >= 0) heads += headsHere[kindSlot[g.species.index]][p] }
     }
+    // (About a hex it would move to, its own heads are not counted there yet.)
+    if (!near) heads += g.size
     return heads / (7f * hex.areaKm2.toFloat()) / PEOPLE_FULL_KM2
 }
+
+/** The share of the sick and wounded of [band] its healers do not save (1 for a group with no band). */
+internal fun healedShare(band: Band?) = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
 
 /** Small herds join up, and lone hunters find mates (see [demography]). */
 internal fun HexGroups.mergeAndPair(date: Date) {

@@ -30,19 +30,13 @@ enum class Illness(val label: String, val weeks: Float, val deadly: Float, val y
 internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: kotlin.random.Random): EnumFloats<Illness> {
     val p = g.place
     val t = weather.temperature[p]
-    val hygiene = b.hygiene
     val crowd = peopleCrowding(g)
     val deaths = enumFloats<Illness>()
     for (d in Illness.entries) {
         val i = d
         val open = (1f - b.sick[i] - b.immune[i]).coerceAtLeast(0f)
-        val rate = when (d) {
-            Illness.FLUX -> FLUX_RATE * (min(1f, b.campWeeks / (stepsPerYear / 2f)) + 0.3f * crowd) * (if (t > 15f) 1f else 0.3f) * hygiene
-            // (As many mosquitoes as breed in the standing water about the camp: marsh, floods, sodden
-            // ground after rain; the parasite ripens in them only in warm weeks.)
-            Illness.MARSH_FEVER -> FEVER_RATE * tuning.marshFever * small.biting[p] / (small.biting[p] + HexSmallLife.HARASS_HALF) * (if (t > 20f) 1f else 0f)
-            Illness.COUGH -> if (r.nextFloat() < COUGH_BREAKS * crowd * crowd * (if (t < 10f) 2f else 1f) * days / 7f) COUGH_FIRST else 0f
-        }
+        val catching = catching(d, b, p.i, t, crowd, b.campWeeks)
+        val rate = if (d == Illness.COUGH) (if (r.nextFloat() < catching) COUGH_FIRST else 0f) else catching
         b.sick[i] = min(1f, b.sick[i] + rate * open * days / 7f)
         // Bouts end: the share that dies is reckoned week by week; the rest recover, spared for a while.
         val ending = min(1f, days / 7f / d.weeks)
@@ -56,6 +50,35 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
 }
 
 /**
+ * How readily band [b] catches [d] at place [p] at [t] °C, as crowded with people as [crowd], having camped there [campWeeks]
+ * weeks: the weekly share of the well who fall ill; for the cough, the chance it breaks out this week (striking
+ * [COUGH_FIRST] of them). The one rule for the week's sickness ([illnessWeek]) and for the sickness a band foresees at a
+ * place ([HexGroups.deathsAt]).
+ */
+internal fun HexGroups.catching(d: Illness, b: Band, p: Int, t: Float, crowd: Float, campWeeks: Int): Float = when (d) {
+    Illness.FLUX -> FLUX_RATE * (min(1f, campWeeks / (stepsPerYear / 2f)) + 0.3f * crowd) * (if (t > 15f) 1f else 0.3f) * b.hygiene
+    // (As many mosquitoes as breed in the standing water about the camp: marsh, floods, sodden
+    // ground after rain; the parasite ripens in them only in warm weeks.)
+    Illness.MARSH_FEVER -> FEVER_RATE * tuning.marshFever * small.biting[p] / (small.biting[p] + HexSmallLife.HARASS_HALF) * (if (t > 20f) 1f else 0f)
+    Illness.COUGH -> COUGH_BREAKS * crowd * crowd * (if (t < 10f) 2f else 1f) * days / 7f
+}
+
+/**
+ * The share of band [b]'s adults ([young] false) or young that would die in time of the sicknesses they catch in a week
+ * at place [p] (at [t] °C, as crowded as [crowd], camped there [campWeeks] weeks), healers saving [healed] of them: what
+ * the place's sickness costs a band choosing it ([HexGroups.deathsAt]).
+ */
+internal fun HexGroups.illnessAhead(b: Band, p: Int, t: Float, crowd: Float, campWeeks: Int, healed: Float, young: Boolean): Float {
+    var dying = 0f
+    for (d in Illness.entries) {
+        val open = (1f - b.sick[d] - b.immune[d]).coerceAtLeast(0f)
+        val c = catching(d, b, p, t, crowd, campWeeks) * (if (d == Illness.COUGH) COUGH_FIRST else 1f)
+        dying += c * open * days / 7f * d.deadly * healed * (if (young) d.young else 1f)
+    }
+    return dying
+}
+
+/**
  * Two bands meet: the sick pass on what is catching, the less so to a band that keeps away from the
  * sick ([Tradition.HYGIENE]) and to those spared by having had it.
  */
@@ -64,12 +87,16 @@ internal fun passIllness(a: Band, b: Band) {
         if (d.contagion <= 0f) continue
         val i = d
         val sa = a.sick[i]; val sb = b.sick[i]
-        if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + d.contagion * sa * max(0f, 1f - b.sick[i] - b.immune[i]) *
-            b.hygiene)
-        if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + d.contagion * sb * max(0f, 1f - a.sick[i] - a.immune[i]) *
-            a.hygiene)
+        if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + caughtFrom(d, sa, b))
+        if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + caughtFrom(d, sb, a))
     }
 }
+
+/**
+ * The share of band [b] that catches [d] from a band it meets with [theirSick] of its people sick of it. The one rule for
+ * a meeting ([passIllness]) and for the sickness a band foresees among the bands gathered at a place ([HexGroups.deathsAt]).
+ */
+internal fun caughtFrom(d: Illness, theirSick: Float, b: Band) = d.contagion * theirSick * max(0f, 1f - b.sick[d] - b.immune[d]) * b.hygiene
 
 /**
  * Sickness: weekly share of the well who fall to the flux in a fouled, warm camp; to marsh fever where

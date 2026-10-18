@@ -137,8 +137,6 @@ const val SHELTER_EFFECT = 0.7f
 const val AVOID_SKILL = 0.6f
 /** How well fed a group must be to keep to its ground without weighing where else to go (every other week). */
 const val CONTENT = 0.95f
-/** How much herds shun ground thick with hunters (half as much at [inflation.Tuning.huntersHalfKg]). */
-const val SHUN_HUNTERS = 0.3f
 /** Share of a migratory herd's weight a hunter's sense of good hunting country counts as game (herds watch and move). */
 const val HERD_GAME = 0.3f
 /** People: plant food counted against game by weight (it is easier to come by, but not all is worth gathering); how much a safe camp site adds. */

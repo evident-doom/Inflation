@@ -25,6 +25,8 @@ object BandInputs : InputSlots() {
     val SKILLS = block(Skill.FORAGING.map { "skill:${it.name.lowercase()}" })
     val TOOLS = block(Tool.entries.map { "tool:${it.name.lowercase()}" })
     val TEMPERATURE = one("temperature"); val CAMP_WEEKS = one("camp weeks"); val SPARE_DAYS = one("spare days")
+    // Its camp's ground: thirst, firewood, cover and snow.
+    val DAYS_DRY = one("days dry"); val FIREWOOD = one("firewood"); val COVER = one("cover"); val SNOW = one("snow")
     // Its health, the dangers and the bands about it.
     val SICK = block(Illness.entries.map { "sick:${it.name.lowercase()}" })
     val WOUNDED = one("wounded"); val LAMED = one("lamed"); val ELDERS = one("elders"); val TAKEN_BY_BEASTS = one("taken by beasts")

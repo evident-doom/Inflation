@@ -1201,13 +1201,15 @@ internal fun HexGroups.settledFertility(g: HexGroup): Float {
 }
 
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
-internal fun HexGroups.campFouling(g: HexGroup): Float {
+internal fun HexGroups.campFouling(g: HexGroup, campWeeks: Int = g.band?.campWeeks ?: 0): Float {
     val b = g.band ?: return 0f
-    return CAMP_FOULING * tuning.campFouling * fouled(b) * b.hygiene * (1f - 0.3f * b.medicine)
+    return CAMP_FOULING * tuning.campFouling * fouled(campWeeks) * b.hygiene * (1f - 0.3f * b.medicine)
 }
 
 /** How fouled a band's camp is, 0..1: not at all for its first two months, fully after a year more. */
-internal fun HexGroups.fouled(b: Band) = min(1f, max(0f, b.campWeeks - stepsPerYear / 6f) / stepsPerYear)
+internal fun HexGroups.fouled(b: Band) = fouled(b.campWeeks)
+/** How fouled a camp kept [campWeeks] weeks is (see [fouled]). */
+internal fun HexGroups.fouled(campWeeks: Int) = min(1f, max(0f, campWeeks - stepsPerYear / 6f) / stepsPerYear)
 
 /** How much a band would rather leave its camp than stay: the camp fouled (less where it keeps it clean), against the graves of its dead. */
 internal fun HexGroups.stayCost(b: Band): Float {
@@ -1332,13 +1334,18 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[x.TEMPERATURE] = weather.temperature[g.place] / 30f
     into[x.CAMP_WEEKS] = min(1f, b.campWeeks / (stepsPerYear / 2f))
     into[x.SPARE_DAYS] = b.spareDays / max(1f, g.adults * days.toFloat())
+    // Its camp's ground: how long it has gone short of water, the wood for its fire, the cover about it, the snow.
+    into[x.DAYS_DRY] = min(1f, g.dry / g.species.daysWithoutWater)
+    into[x.FIREWOOD] = min(1f, (land.plants.tree[g.place] + land.plants.shrub[g.place]) / 3f)
+    into[x.COVER] = land.plants.cover(g.place)
+    into[x.SNOW] = min(1f, weather.snowpack[g.place] / g.species.snowLimitMm)
     // Its health: the sick with each illness, the wounded and lamed, its old; and those beasts took lately.
     for (k in Illness.entries) into[x.SICK + k.ordinal] = b.sick[k]
     into[x.WOUNDED] = b.hurt; into[x.LAMED] = b.lame
     into[x.ELDERS] = b.elders / g.size.coerceAtLeast(1).toFloat()
     into[x.TAKEN_BY_BEASTS] = min(1f, b.beastLoss * 10f)
     // The beasts of prey about its camp, as its tracking reads their sign.
-    val beasts = monthHunterKg[g.place] / land.areaKm2[g.place]
+    val beasts = monthBeastKg[g.place] / land.areaKm2[g.place]
     into[x.BEASTS] = SIGN_GUESS + b.skill(Skill.TRACK) * (beasts / (beasts + 3f) - SIGN_GUESS)
     // The bands about it (in its hex and the next): friends, strangers and those it holds a grudge
     // against, and how sick they are; how lately it was raided, and whether it is set on a raid.
@@ -1489,15 +1496,28 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         return
     }
     val hungry = g.fed < RAID_HUNGER * b.raidWill.coerceAtMost(1.6f)
-    var best = -1; var bestKm = Double.MAX_VALUE
+    val within = ArrayList<Int>()
     for ((id, h) in b.knownHomes) {
         if (b.tie(id) > 0f) continue
         val feud = (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
         if (!hungry && !feud) continue
-        val km = hexKm(here, Hex(h))
-        if (km <= RAID_RANGE_KM && km < bestKm) { bestKm = km; best = id }
+        if (hexKm(here, Hex(h)) <= RAID_RANGE_KM) within += id
     }
-    if (best >= 0 && rnd.nextFloat() < RAID_PLOT * b.raidWill * days / 7f) {
+    if (within.isNotEmpty() && rnd.nextFloat() < RAID_PLOT * b.raidWill * days / 7f) {
+        // Above all it keeps alive: it falls on the home where it would lose fewest of its own (the defenders as it
+        // knows them, at home behind their works; see [raidStrengths]); of homes about as safe (within a step of its
+        // score, see [survivalSteps]), the nearest.
+        val dying = HashMap<Int, Float>()
+        for (id in within) {
+            val o = groups.firstOrNull { it.id == id && it.alive } ?: continue
+            val ob = o.band ?: continue
+            val (sg, so) = raidStrengths(g, o, ob, planned = true, atHome = true, weather)
+            dying[id] = RAID_DEATHS * so / (sg + so)
+        }
+        if (dying.isEmpty()) return
+        val least = dying.values.min()
+        val best = dying.keys.filter { survivalSteps(g, dying.getValue(it) - least) <= 1f }
+            .minWith(compareBy<Int> { hexKm(here, Hex(b.knownHomes.getValue(it))) }.thenBy { it })
         val at = b.knownHomes.getValue(best)
         b.raid = Raid(Hex(at), best, RAID_WEEKS)
         stats.meetings.merge("raids set out", 1, Int::plus)
