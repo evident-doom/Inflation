@@ -1,6 +1,8 @@
 package inflation.world
 
 import inflation.Books
+import inflation.ecology.Phase
+import inflation.ecology.runPhases
 import inflation.Tuning
 import inflation.Config
 import inflation.Kg
@@ -144,14 +146,13 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     @field:MovedInto("burnt", "burning", "fires", "lit")
     val fire = HexFires(this)
 
+    /** The land's part of the week, in order: the water, then the plants that grow by it. */
+    @Transient val phases = listOf(
+        Phase("water") { hydro.step(it); drink.step(it) },
+        Phase("plants") { plants.step(it) },
+    )
     /** Advances one step with the weather of that step on the same places. */
-    fun step(weather: Weather) {
-        hydro.step(weather)
-        drink.step(weather)
-        books?.check("water")
-        plants.step(weather)
-        books?.check("plants")
-    }
+    fun step(weather: Weather) = runPhases(phases, weather, books)
 
     companion object {
         /** Steps through each place's ground at which its ruggedness is kept (see [ruggedSpread]). */

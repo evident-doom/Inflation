@@ -5,6 +5,7 @@ import inflation.world.World
 import inflation.world.WorldConfig
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class BooksTest {
@@ -25,5 +26,9 @@ class BooksTest {
         }
         assertTrue(off.isEmpty(), "left over beyond float noise:\n" + off.joinToString("\n") + "\n" + books.report(steps))
         assertTrue("water" in books.partNames && "groups: births, deaths" in books.partNames, "parts checked: ${books.partNames}")
+        // (Each part of the week is checked under its own name.)
+        val names = sim.phases.map { it.name }
+        assertEquals(names.distinct(), names, "phases sharing a name")
+        assertTrue(books.partNames.containsAll(names), "phases not checked: ${names - books.partNames.toSet()}")
     }
 }

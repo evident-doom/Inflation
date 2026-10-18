@@ -506,8 +506,25 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
-    /** One week, with the weather on the same places. */
-    fun step(weather: Weather, date: Date) {
+    /** The residents' part of the week, in order, with the weather on the same places. */
+    @Transient val phases = listOf(
+        Phase("residents: new month") { newWeek(it, it.date) },
+        Phase("food stocks") { food.step(it) },
+        Phase("water life") { water.step(it) },
+        Phase("residents: grazing") { graze(it) },
+        Phase("residents: births, deaths") { breedAndDie(it, it.date) },
+        Phase("residents: moving") {
+            // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
+            preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n) { p -> preyFor(kinds[k], p) } else null }
+            Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
+            Profile.part("residents: spreading to neighbouring hexes") { spill() }
+            preyNow = null
+        },
+        Phase("soil and small life") { small.step(it, carcassKg) },
+    )
+
+    /** The week's start: the books' running sums, fear fading, outbreaks, a new month's newcomers and sense of direction, and the water. */
+    private fun newWeek(weather: Weather, date: Date) {
         val books = land.books
         ateBook = books?.adder(Books.Stuff.MATTER, "eaten"); droppedBook = books?.adder(Books.Stuff.MATTER, "dung and frass")
         herdKillBook = books?.adder(Books.Stuff.MATTER, "herds killed by residents (from the groups)")
@@ -521,25 +538,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (date.month == 3) shiftBreeding()
         }
         stepWater(weather)
-        books?.check("residents: new month")
-        Profile.time("food stocks") { food.step(weather) }
-        books?.check("food stocks")
-        Profile.time("water life") { water.step(weather) }
-        books?.check("water life")
-        Profile.time("residents: grazing") { graze(weather) }
-        books?.check("residents: grazing")
-        Profile.time("residents: births, deaths") { breedAndDie(weather, date) }
-        books?.check("residents: births, deaths")
-        Profile.time("residents: moving") {
-            // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
-            preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n) { p -> preyFor(kinds[k], p) } else null }
-            Profile.part("residents: moving up and down the slopes") { shiftBands(weather) }
-            Profile.part("residents: spreading to neighbouring hexes") { spill() }
-            preyNow = null
-        }
-        books?.check("residents: moving")
-        Profile.time("soil and small life") { small.step(weather, carcassKg) }
-        books?.check("soil and small life")
     }
 
     /** Names the residents' stocks (the young at [YOUNG_WEIGHT] of a grown animal), with the food stocks and the small life. */
