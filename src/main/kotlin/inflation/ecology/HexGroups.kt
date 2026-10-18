@@ -418,14 +418,24 @@ class HexGroups(
         followedBy.clear()
         for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { val f = groups[k]
             followedBy.getOrPut(groups[l].id) { FloatArray(2) }.let { it[0] += f.size; it[1] += f.dailyNeedKg * days } } }
-        IntStream.range(0, groups.size).parallel().forEach { k ->
+        fun choose(k: Int) {
             val g = groups[k]
-            if (!g.alive || leaderOf[k] >= 0) return@forEach
             // (With profile=fine, the choosing is timed by herds, packs and bands apart.)
             val plan = Profile.part(if (g.band != null) "choosing: bands" else if (g.species.carnivore) "choosing: packs" else "choosing: herds") { plan(g, weather, date, predatorKg) }
             choice[k] = plan.place.i; paths[k] = plan.path; crowds[k] = plan.crowd
             times[k] = Profile.part("choosing: timetable") { timetable(g.species, plan.path) }
         }
+        // Packs and bands choose all at once, each by last week's world.
+        IntStream.range(0, groups.size).parallel().forEach { k ->
+            val g = groups[k]
+            if (g.alive && leaderOf[k] < 0 && g.species.carnivore) choose(k)
+        }
+        // Herds of a kind choose in turn, each knowing where those before it are going: in life they see each other on the
+        // ground and do not all make for the same pasture at once (choosing at once, they crowded onto it: crowdDiag).
+        // (Kinds crowd only their own kind, so the kinds choose side by side.)
+        val herdsByKind = groups.indices.filter { groups[it].alive && leaderOf[it] < 0 && !groups[it].species.carnivore }
+            .groupBy { kindSlot[groups[it].species.index] }.values.toList()
+        herdsByKind.parallelStream().forEach { ks -> for (k in ks) { choose(k); goingTo(groups[k], Place(choice[k])) } }
         for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { choice[k] = choice[l]; paths[k] = paths[l]; times[k] = times[l]; crowds[k] = crowds[l]
             chosenPlace[groups[l].id]?.let { chosenPlace[groups[k].id] = it }; chosenDying[groups[l].id]?.let { chosenDying[groups[k].id] = it } } }
         if (deathDiag != null) for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) {
@@ -1003,7 +1013,21 @@ class HexGroups(
      * The herds' grazing ground: each herd's ([grazingRange]: places, and its share of the week on each) by its id, and
      * the heads of each herd kind grazing each place (by [groundKey]).
      */
-    internal class HerdGround { val ranges = HashMap<Int, List<Pair<Int, Float>>>(); val heads = HashMap<Long, Float>() }
+    internal class HerdGround { val ranges = HashMap<Int, List<Pair<Int, Float>>>(); val heads = ConcurrentHashMap<Long, Float>() }
+
+    /**
+     * Herd [g] (with the herds that follow it) moves, on the herds' grazing maps its kind's later choosers weigh ([grazed],
+     * [planGround]'s heads), from where it is to [dest]: see the herds' choosing in [chooseAndMove].
+     */
+    private fun goingTo(g: HexGroup, dest: Place) {
+        if (dest == g.place) return
+        val kind = kindSlot[g.species.index]; val a = grazed[kind]; val heads = planGround.heads
+        val party = g.size + (followedBy[g.id]?.get(0) ?: 0f)
+        rangeShares(g, hw.placeHex[g.place]) { h, share -> a[h] -= party * share }
+        rangeShares(g, hw.placeHex[dest]) { h, share -> a[h] += party * share }
+        planGround.ranges[g.id]?.forEach { (q, share) -> heads.merge(groundKey(kind, q), -party * share, Float::plus) }
+        for ((q, share) in grazingRange(g, dest.i)) heads.merge(groundKey(kind, q), party * share, Float::plus)
+    }
     internal fun groundKey(kind: Int, p: Int) = kind.toLong() * n + p
     /** Where the herds graze as the week's choosing begins (what each weighs its places against). */
     @Transient internal var planGround = HerdGround()
