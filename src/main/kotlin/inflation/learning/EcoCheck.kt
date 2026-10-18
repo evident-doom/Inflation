@@ -13,7 +13,7 @@ import java.util.concurrent.Executors
  * The training's check of a round's networks: is the ecosystem as a whole no worse with them, and does
  * each role do better with its new network than with its kept one, the other roles as they now are?
  *
- * The current test world ([Config] key `ppo.checkWorld`, default lake-1) runs from its settled state for
+ * The test world ([Config] key `ppo.checkWorld`, default lake-1) runs from its settled state for
  * `ppo.checkYears` years (default 5), its weather drawn `ppo.checkReplicates` ways (default 2), each
  * way with: every role's new network ("new"); every role's kept one ("kept"); and, for each role, its
  * kept network with the others' new ("kept herds" and so on). The runs are their own processes, beside
@@ -122,7 +122,7 @@ class EcoCheck(private val out: File) {
         /** How far a kind may fall below its numbers with the kept networks, and the migratory herds' stand from half a year before. */
         const val FALL = 0.10
         const val SHORTER = 0.05
-        /** Kinds fewer than this on average with the old networks are reported but do not fail the ecosystem (Olli 2026-10-17: rare kinds need tuning of their own). */
+        /** Kinds fewer than this on average with the old networks are reported but do not fail the ecosystem (Olli's choice: rare kinds need tuning of their own). */
         const val RARE = 200.0
 
         /** Copies [roles]' networks, with their side files (and for people, the bands' ways), from [from] to [to]. */

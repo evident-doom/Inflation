@@ -1155,7 +1155,7 @@ const val DOG_DEATHS = 0.1f
 const val DOGS_PER_ADULT = 0.3f
 const val DOG_HUNT = 0.2f
 const val DOG_GUARD = 0.5f
-/** Taming is off unless asked for (taming=true): whether, and how soon, wolves become dogs is still to be decided. */
+/** Taming is off unless asked for (taming=true). */
 val TAMING = Config.flag("taming", false)
 /** How strongly people's camps draw bold animals of kinds that follow people (refuse, scraps, warmth). */
 const val CAMP_LURE = 0.3f
@@ -1844,7 +1844,7 @@ const val NIGHT_WOOD = 3f
  */
 const val HEARTH_WOOD = 1f
 const val FUEL_A_DAY = 25f
-/** Share of a full kit below which a band under the hand-written rules mends before it lays food by (Olli's choice, 2026-10-17). */
+/** Share of a full kit below which a band under the hand-written rules mends before it lays food by (Olli's choice). */
 const val MEND_BELOW = 0.5f
 /**
  * Skin a kilo of small game yields, kg (a hare's or rabbit's pelt is about a tenth of its weight, from memory),
@@ -1857,7 +1857,7 @@ const val SKIN_DAYS = 0.5f
 const val FUEL_MOST = 0.5f
 /**
  * Days of work a clean camp takes a person each day (about a quarter of an hour of a twelve-hour day), and days a
- * carer gives each sick or hurt person each day (half a day). Estimates: no time-use figures found (2026-10-17).
+ * carer gives each sick or hurt person each day (half a day). Estimates: no time-use figures found.
  */
 const val HYGIENE_DAYS = 0.02f
 const val NURSE_DAYS = 0.5f

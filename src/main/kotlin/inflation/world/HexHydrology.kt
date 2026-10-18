@@ -39,7 +39,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         val receiver = world.water.drainage.receiver
         // Each hex drains to the next hex whose main river its own river reaches: a river that only cuts
         // the corner of a hex where a bigger river runs passes it by (sending it down that hex's river
-        // instead left the hex it enters next dry, though its river is the biggest there).
+        // instead would leave the hex it enters next dry, though its river is the biggest there).
         val isMain = BooleanArray(grid.size)
         for (h in 0 until hex.size) if (main[h] >= 0) isMain[main[h]] = true
         for (h in 0 until hex.size) {

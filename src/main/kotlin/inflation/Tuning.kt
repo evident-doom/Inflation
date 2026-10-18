@@ -52,7 +52,7 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     /**
      * Share of the herbs and shrubs a place loses a step for each unit of trampling over it (see
      * [inflation.world.HexPlants.trample]): about 5% of the shrubs a year where a tonne of animals a km² goes
-     * about (it was ten times that, more than shrubs regrow: the shrub layer fell by half in four years and the browsers starved).
+     * about.
      */
     val trampleHerb = f("trampleHerb", 0.005f)
     val trampleShrub = f("trampleShrub", 0.01f)

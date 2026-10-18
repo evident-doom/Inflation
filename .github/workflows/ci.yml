@@ -76,12 +76,12 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           echo "head / base = $r"
-          # A warning, not a failure, until a few runs show how noisy the hosted runners are.
+          # A warning, not a failure: the hosted runners' speed varies from run to run.
           if awk -v r=$r 'BEGIN { exit !(r > 1.5) }'; then echo "::warning::step time $h ms on head vs $b ms on base (x$r)"; fi
 
   # Whether the PR changes the model's output: scripts/faunacmp.sh on the PR's base and head (a 300x400 km world
   # for a year with the diagnostics on, then a year on from the base's save). A refactor must say "identical";
-  # a behaviour change will differ, so this reports and does not fail. The full check stays on Olli's PC.
+  # a behaviour change will differ, so this reports and does not fail. The full check runs on Olli's PC.
   model-identity:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

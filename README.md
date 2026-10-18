@@ -1,8 +1,8 @@
 # Inflation
 
 A simulation of how societies, power, debt and money arise, built up from late stone-age groups.
-The design brief lives in the project's Claude Doc. So far the repository holds the physical world, its
-plants and animals, and stone-age bands; money and inflation come later.
+The design brief lives in the project's Claude Doc. The repository holds the physical world, its
+plants and animals, and stone-age bands.
 
 ## The world
 
@@ -35,7 +35,7 @@ split into height bands (below 500 m, 500–1000, 1000–1500, 1500–2500 and a
 is a *place*, about 23,000 on the full map. Borders between hexes carry the effort of crossing them
 by way of travel (walking, climbing, laden, swimming), with rivers on the hex edges graded by
 depth at the best crossing, and cliffs and gorges from the fine terrain. Weather, water and plants
-run per place (`HexLand`) at about 2 ms a step.
+run per place (`HexLand`).
 
 Animals (`inflation.ecology`):
 
@@ -63,10 +63,6 @@ One step is 6 days (5 steps per month), configurable in `WorldConfig`.
 | Waterworks | Dams with reservoirs that fill and release steadily, canals that divert part or all of a river (must run downhill and cannot loop), irrigation onto fields, and permanent rerouting of a river |
 | Eruptions | Active volcanoes erupt at their own rates; explosivity follows the VEI frequency distribution; ash falls downwind, smothers vegetation and enriches soil |
 | Vegetation | Herbs, shrubs and trees per cell, growing towards a ceiling set by recent moisture, warmth and soil. They die back under drought, frost, deep floods, ash and fire, and regrow: herbs within a season, trees over decades and only from nearby seed. Grazing, browsing and felling go through `consume`; animals' passage through `trample`, which wears trails |
-
-Measured on seed 7 (`summary.txt`): no lowland below 300 m keeps snow lying even at 40°N. Land at
-300–1000 m has it about 10 days a year in the north, land at 1000–2000 m 80–120 days, and mountains
-above 2000 m most of the year.
 
 ![relief](docs/img/relief-seed7.png)
 ![biomes](docs/img/biomes-seed7.png)
@@ -111,7 +107,7 @@ Every tool, what it answers and how to run it: `docs/tools.md`.
 
 `run` writes PNG maps (relief, biomes, geology, minerals, sediment, rivers, precipitation,
 temperature, soil) and `summary.txt`, including snow cover from three simulated years.
-Generation takes 45–60 seconds for the full region; `--size 400` makes a smaller one.
+`--size 400` makes a smaller region.
 
 `hexViewer` opens the hex world over the fine terrain with time controls; herds and hunters glide
 from hex to hex, tints show weather, water, plants, small life and resident herds, arrows show the
@@ -137,8 +133,8 @@ Run settings other than seeds, years and sizes are keys in a config file, not sw
 `inflation.properties` in the directory the run starts in (the project directory for the Gradle
 tasks), or the file `-Dhex.config=FILE` names. `config.example.properties` lists every key with its
 default. A mechanic that has replaced an older way gets no key to bring the old way back; keys are
-kept for what runs really vary: the networks and paths, features still being tried (`rounds`,
-`taming`), and values under study (`t.*`).
+kept for what runs really vary: the networks and paths, features that can be switched (`rounds`,
+`taming`), and tuning values (`t.*`).
 
 A running world can be saved and carried on after small changes to the code: `--save FILE` (every
 five years and at the end) and `--load FILE` in `hexFauna`, Save…/Load… and `--load FILE` in the
@@ -155,8 +151,8 @@ the variant (the change's keys laid over the base config) run for 3 years on eac
 with the weather drawn differently (`--years`, `--replicates`, `--parallel`, `--worlds`), and the
 report gives each kind's effect paired by weather, the base's own swing with the weather, and whether
 every pair went the same way. A settled world still drifts, so a change is never judged against older
-numbers, only against its base. Smaller maps did not track the full map (see `TestWorlds.kt`);
-`small-1` is kept for checking that code runs. `hexFauna --world NAME --years N [--replicate R]`
+numbers, only against its base. Smaller maps do not track the full map (see `TestWorlds.kt`);
+`small-1` is for checking that code runs. `hexFauna --world NAME --years N [--replicate R]`
 carries one settled world on by itself.
 
 ## Known simplifications

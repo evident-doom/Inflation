@@ -4,7 +4,7 @@ import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.sqrt
 
-/** Broad vegetation classes. Flora and fauna in later steps are parameterised per biome. */
+/** Broad vegetation classes. Flora and fauna are parameterised per biome. */
 enum class Biome(val rgb: Int) {
     OCEAN(0x1f3f6f),
     LAKE(0x3f7fbf),

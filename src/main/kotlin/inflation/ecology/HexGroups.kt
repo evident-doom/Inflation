@@ -134,7 +134,7 @@ class HexGroups(
         val area = land.areaKm2.sum()
         for (s in kinds) {
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
-            // At the density a long run showed it settles at, where there is one.
+            // At the density it settles at over a long run, where one is known.
             val settled = Catalogue.settledPer1000Km2(s)
             val unit = unitSize(s)
             val count = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()
