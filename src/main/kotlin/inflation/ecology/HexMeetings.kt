@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 
 import inflation.Kg
@@ -93,7 +94,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     val inputs = FloatArray(WAYS_IN); val out = FloatArray(WAYS_OUT)
     // (What a party killed this week before the last of it died lies where it fell: the meat of it, a beast's need being
     // counted in the whole weight of its kills, see [creditShare].)
-    for (g in groups) if (!g.alive && g.meatMet > 0f) { small.carrion[g.place] += land.spread(g.place, Kg(g.meatMet * meatShare(g.band) / creditShare(g.band))).v; g.meatMet = 0f }
+    for (g in groups) if (!g.alive && g.meatMet > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.meatMet * meatShare(g.band) / creditShare(g.band))); g.meatMet = 0f }
     val hunters = groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)
     // Bands first set their ways for the week.
     if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
@@ -400,15 +401,15 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val gorge = min(spare, SURPLUS_EAT * wantAll)
         g.surplus = gorge / g.dailyNeedKg.coerceAtLeast(1e-3f)
         spare -= gorge
-        small.dung[g.place] += land.spread(g.place, Kg(HexSmallLife.DUNG * gorge)).v
+        small.deposit(DeadPool.DUNG, g.place, Kg(HexSmallLife.DUNG * gorge))
         land.books?.let { bookEaten(it, gorge * meatShare(null), HexSmallLife.DUNG * gorge) }
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
     // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
-    small.carrion[g.place] += land.spread(g.place, Kg(spare)).v
+    small.deposit(DeadPool.CARRION, g.place, Kg(spare))
     // (A band's meat eaten already holds the small game, scraps and fish it ate; what it stored is not yet eaten.)
     val animalEaten = if (band != null) meatEaten else meatEaten + smallGot + scraps + fish
-    small.dung[g.place] += land.spread(g.place, Kg(HexSmallLife.DUNG * animalEaten)).v
+    small.deposit(DeadPool.DUNG, g.place, Kg(HexSmallLife.DUNG * animalEaten))
     land.books?.let { bookForage(it, band, meatEaten, smallGot + scraps + plants + fish, fish, spare, HexSmallLife.DUNG * animalEaten) }
     // (The meat it held from the herds it met is eaten, stored or left by now.)
     g.meatSpent = true
@@ -483,7 +484,7 @@ private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, got
         }
         if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
     }
-    small.carrion[g.place] += land.spread(g.place, Kg(rotten + unskinned)).v
+    small.deposit(DeadPool.CARRION, g.place, Kg(rotten + unskinned))
 }
 
 /**
@@ -537,11 +538,11 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
         }
     }
     fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
-    val young = min(0.3f * ps.massKg, kgEach)
+    val young = min(HexFauna.YOUNG_WEIGHT * ps.massKg, kgEach)
     out.kg = na * kgEach + ny * young
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
     val leftA = na * leftOver(ps, kgEach, band)
-    small.carrion[p] += (leftA + ny * (0.3f * ps.massKg - young) - tallyHide("residents", ps, band?.skin(ps, na, leftA))) / (area * 1e6f)
+    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide("residents", ps, band?.skin(ps, na, leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps.name, kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
@@ -1129,15 +1130,15 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         // (The young keep to the middle of a big herd, out of reach.)
         if (herd.young > 0 && hunter.band?.holds(Tradition.TABOO_YOUNG) != true && rnd.nextFloat() < 0.5f * bandsIn(herd).pow(-BIG_HERD_SHELTERS)) {
             herd.young--
-            hunter.meatMet += 0.3f * herd.species.massKg
-            bookKill(hunter, 0.3f * herd.species.massKg, 0.3f * herd.species.massKg, 0f)
+            hunter.meatMet += HexFauna.YOUNG_WEIGHT * herd.species.massKg
+            bookKill(hunter, HexFauna.YOUNG_WEIGHT * herd.species.massKg, HexFauna.YOUNG_WEIGHT * herd.species.massKg, 0f)
         }
         else {
             herd.adults--
             hunter.meatMet += herd.species.massKg * creditShare(hunter.band)
             hunter.band?.let { it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
             val left = herd.species.massKg * (1f - meatShare(hunter.band))
-            small.carrion[herd.place] += (left - tallyHide("herds", herd.species, hunter.band?.skin(herd.species, 1, left))) / (land.areaKm2[herd.place] * 1e6f)
+            small.deposit(DeadPool.CARRION, herd.place, KgM2((left - tallyHide("herds", herd.species, hunter.band?.skin(herd.species, 1, left))) / (land.areaKm2[herd.place] * 1e6f)))
         }
         stats.kills.merge(herd.species.name, 1, Int::plus)
         diag(herd.species, "herd kills", 1f)
@@ -1157,7 +1158,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         stats.deaths.merge(Tally.of(hunter.species, DeathCause.PREY_FOUGHT_BACK), 1, Int::plus)
         stats.hunting.merge(Tally.of(hunter.species, "${Tally.HURT_BY}${herd.species.name}"), 1, Int::plus)
         hunter.band?.wounded(WOUNDED_PER_DEAD, hunter.adults)
-        small.carrion[hunter.place] += hunter.species.massKg / (land.areaKm2[hunter.place] * 1e6f)
+        small.deposit(DeadPool.CARRION, hunter.place, KgM2(hunter.species.massKg / (land.areaKm2[hunter.place] * 1e6f)))
     }
     }
 }
@@ -1260,14 +1261,14 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
         weak.young--
-        strong.meatMet += 0.3f * 0.5f * weak.species.massKg
-        small.carrion[weak.place] += land.spread(weak.place, Kg(0.3f * 0.5f * weak.species.massKg)).v // (what the killers leave)
-        bookKill(strong, 0.3f * 0.5f * weak.species.massKg, 0.3f * weak.species.massKg, 0.3f * 0.5f * weak.species.massKg)
+        strong.meatMet += HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg
+        small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)) // (what the killers leave)
+        bookKill(strong, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg, HexFauna.YOUNG_WEIGHT * weak.species.massKg, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)
         stats.deaths.merge(Tally.of(weak.species, DeathCause.youngKilledBy(strong.species.name)), 1, Int::plus)
     } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
         adultsDied(weak, 1, rnd)
         strong.meatMet += 0.5f * weak.species.massKg
-        small.carrion[weak.place] += land.spread(weak.place, Kg(0.5f * weak.species.massKg)).v
+        small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * weak.species.massKg))
         bookKill(strong, 0.5f * weak.species.massKg, weak.species.massKg, 0.5f * weak.species.massKg)
         stats.deaths.merge(Tally.of(weak.species, DeathCause.killedBy(strong.species.name)), 1, Int::plus)
     }
@@ -1316,7 +1317,7 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
     val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
     if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) {
         adultsDied(loser, 1, rnd)
-        small.carrion[loser.place] += land.spread(loser.place, Kg(loser.species.massKg)).v
+        small.deposit(DeadPool.CARRION, loser.place, Kg(loser.species.massKg))
         stats.deaths.merge(Tally.of(loser.species, DeathCause.RIVALS), 1, Int::plus)
     }
     if (loser.home.i == h) {
@@ -1326,7 +1327,7 @@ internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk
         if (loser.young > 0 && loser.species.groupSize >= 3) {
             val killed = binomial(loser.young, INFANTICIDE, rnd)
             loser.young -= killed
-            small.carrion[loser.place] += land.spread(loser.place, Kg(0.3f * killed * loser.species.massKg)).v
+            small.deposit(DeadPool.CARRION, loser.place, Kg(HexFauna.YOUNG_WEIGHT * killed * loser.species.massKg))
             if (killed > 0) stats.deaths.merge(Tally.of(loser.species, DeathCause.YOUNG_KILLED_BY_RIVALS), killed, Int::plus)
         }
     }

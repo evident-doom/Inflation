@@ -999,6 +999,17 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         return catchSmall(p, want.perKm2(area), weather, 0.5f * searched / area).over(area)
     }
 
+    /** The pools of dead matter on the ground: what dies, drops or falls anywhere in the model comes to them through [deposit]. */
+    enum class DeadPool { CARRION, LITTER, DUNG }
+    /** Lays [kgM2] of dead matter into [pool] at place [p]. */
+    fun deposit(pool: DeadPool, p: Int, kgM2: KgM2) {
+        when (pool) { DeadPool.CARRION -> carrion[p] += kgM2.v; DeadPool.LITTER -> litter[p] += kgM2.v; DeadPool.DUNG -> dung[p] += kgM2.v }
+    }
+    /** Lays [kg] of dead matter into [pool] at place [p], spread over the place. */
+    fun deposit(pool: DeadPool, p: Int, kg: Kg) = deposit(pool, p, land.spread(p, kg))
+    fun deposit(pool: DeadPool, p: Place, kgM2: KgM2) = deposit(pool, p.i, kgM2)
+    fun deposit(pool: DeadPool, p: Place, kg: Kg) = deposit(pool, p.i, kg)
+
     /** A scavenger searching [sweptKm2] of place [p] takes up to [want] of carrion, at most half of what lies on the ground it searched; returns what was taken. */
     fun scavengeIn(p: Int, want: Kg, sweptKm2: Float): Kg {
         val area = land.areaKm2[p]; val m2 = area * 1e6f

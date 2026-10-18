@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 
 import inflation.Kg
@@ -747,7 +748,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
                     abandoned += x * (1f - cached) * g.storeKgPer[i]
                 }
                 if (cached > 0f) b.cachePlace = b.campPlace
-                if (abandoned > 0f) small.litter[b.campPlace] += land.spread(b.campPlace, Kg(abandoned)).v
+                if (abandoned > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(abandoned))
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
         }
@@ -771,12 +772,12 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
                     lost += x * b.cacheKgPer[i]
                 }
                 // (What they dig up and scatter is food for them and the scavengers after them.)
-                small.carrion[cp] += land.spread(cp, Kg(lost)).v
+                small.deposit(DeadPool.CARRION, cp, Kg(lost))
             }
         }
         val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]], kgPer = b.cacheKgPer) + CACHE_SPOIL * b.cacheMass()
         for (i in Store.entries) b.cache[i] *= 1f - CACHE_SPOIL
-        small.litter[b.cachePlace] += land.spread(b.cachePlace, Kg(spoilt)).v
+        small.deposit(DeadPool.LITTER, b.cachePlace, Kg(spoilt))
         if (hw.hexOf(b.cachePlace) == h) {
             val room = max(0f, carryKg(g, b) - g.larder)
             val take = min(b.cacheKg, room)
@@ -1004,7 +1005,7 @@ private fun HexGroups.leaveExcess(b: Band, p: Place, people: Float, area: Float)
         val over = gd[m] - (GOODS_PER_PERSON + stack) * people
         if (over > 0f) {
             gd[m] -= over
-            if (m in ROTS) small.litter[p] += over / area
+            if (m in ROTS) small.deposit(DeadPool.LITTER, p, KgM2(over / area))
         }
     }
 }
@@ -1061,7 +1062,7 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
 
 /** Gives up a band's cache: what is in it goes back to the ground. */
 internal fun HexGroups.dropCache(b: Band) {
-    if (!b.cachePlace.none) small.litter[b.cachePlace] += land.spread(b.cachePlace, Kg(b.cacheMass())).v
+    if (!b.cachePlace.none) small.deposit(DeadPool.LITTER, b.cachePlace, Kg(b.cacheMass()))
     b.cache.fill(0f); b.cachePlace = Place.NONE
 }
 
@@ -1080,7 +1081,7 @@ internal fun HexGroups.leaveDead(g: HexGroup) {
     val b = g.band ?: return
     val p = g.place
     val rots = ROTS.sumOf { b.goods[it].toDouble() }.toFloat()
-    small.litter[p] += land.spread(p, Kg(massOf(g.stores, g.storeKgPer) + rots)).v
+    small.deposit(DeadPool.LITTER, p, Kg(massOf(g.stores, g.storeKgPer) + rots))
     for (i in Store.entries) g.stores[i] = 0f
     for (m in ROTS) b.goods[m] = 0f
     dropCache(b)
@@ -1609,7 +1610,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         // (The dead lie by the camp; those that run off or stray go wild among their kind.)
         val died = if (dying + running > 0f) lost * dying / (dying + running) else 0f
         val area = land.areaKm2[p]
-        small.carrion[p] += land.spread(p, Kg(died * s.massKg)).v
+        small.deposit(DeadPool.CARRION, p, Kg(died * s.massKg))
         fauna.adults[k][p] += (lost - died) / area
         n = max(0f, n + born - lost)
         // What it cannot keep it culls for meat (the rest of the carcass for the scavengers).
@@ -1618,7 +1619,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
             val cull = n - most
             n = most
             addFood(g.stores, g.storeKgPer, Store.FRESH, cull * s.massKg * MEAT_SHARE, cull * s.massKg * MEAT_SHARE)
-            small.carrion[p] += land.spread(p, Kg(cull * s.massKg * (1f - MEAT_SHARE))).v
+            small.deposit(DeadPool.CARRION, p, Kg(cull * s.massKg * (1f - MEAT_SHARE)))
             stats.meetings.merge("kept animals culled", 1, Int::plus)
         }
         if (n < 0.5f) { fauna.adults[k][p] += n / area; n = 0f }
