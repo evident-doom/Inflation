@@ -700,7 +700,7 @@ object Catalogue {
      * Kinds that live both ways: spread over the land as residents, gathered into herds for the months their
      * round takes them far (see [gather] and [scatter]).
      */
-    val gathering: Set<Species> by lazy { setOf(ONAGER) }
+    val gathering: Set<Species> by lazy { setOf(GAZELLE, ONAGER) }
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
