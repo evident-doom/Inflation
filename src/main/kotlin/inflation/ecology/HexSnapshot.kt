@@ -35,17 +35,32 @@ import java.util.zip.GZIPOutputStream
  * out reaches a run carried on from a save too.
  *
  * It goes by field names, not by layout: a field the code no longer has is dropped, a field the
- * saved state lacks keeps what the fresh model gave it, an array that has grown (a kind added at its
- * end) keeps the fresh model's values past the saved ones, and an array that has shrunk is taken as saved. So small changes to
- * the code still load; large ones (a different map, other resident kinds) are refused.
+ * saved state lacks keeps what the fresh model gave it, an array that has grown keeps the fresh model's values past the saved
+ * ones, and an array that has shrunk is taken as saved. So small changes to the code still load; a save whose numbers would
+ * mean something else to today's code is refused: another map, another model major version ([MODEL_MAJOR]), or other kinds
+ * kept as residents or as groups.
  */
 object HexSnapshot {
     private const val MAGIC = 0x48455853 // "HEXS"
     /**
-     * 2: what lazy fields hold is saved. 3: the order of [ORDERED]'s entries is saved. Older saves still load; older code
+     * The layout of the file. 2: what lazy fields hold is saved. 3: the order of [ORDERED]'s entries is saved. 4: the model
+     * version and the kinds kept by kind are saved; older saves are refused, as nothing says what model made them. Older code
      * refuses newer saves.
      */
-    private const val VERSION = 3
+    private const val VERSION = 4
+
+    /**
+     * What saved state means. Raise the major version with a change after which a saved world's numbers would mean
+     * something else or leave the model in a state it could not reach by running (a kind living another way, a stock
+     * measured in other units, a table kept by another key): a save of another major version is refused, and the test
+     * worlds must be settled again. Raise the minor version with a change that leaves saved state valid but sets the model
+     * to drift from it (a growth rate retuned, a new cost): such a save loads with a warning, and whoever tests on it
+     * judges whether to settle again first. Set the minor version back to 0 with a new major one.
+     *
+     * 1.0: onager live both ways (#179).
+     */
+    const val MODEL_MAJOR = 1
+    const val MODEL_MINOR = 0
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
@@ -64,6 +79,10 @@ object HexSnapshot {
             out.writeLong(sim.cfg.seed); out.writeInt(sim.land.n); out.writeLong(sim.weather.date.absoluteDay)
             out.writeInt(ORDERED.size)
             for (e in ORDERED) { out.writeUTF(e.name); out.writeInt(e.enumConstants.size); for (c in e.enumConstants) out.writeUTF(c.name) }
+            out.writeInt(MODEL_MAJOR); out.writeInt(MODEL_MINOR)
+            val rs = rosters(sim)
+            out.writeInt(rs.size)
+            for ((name, kinds) in rs) { out.writeUTF(name); out.writeInt(kinds.size); for (k in kinds) out.writeUTF(k) }
             val w = Writer(out, ::saved, lazies = false, SPECIES)
             for ((name, root) in roots(sim)) { out.writeUTF(name); w.value(root) }
         }
@@ -76,28 +95,31 @@ object HexSnapshot {
         DataInputStream(BufferedInputStream(GZIPInputStream(file.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
             require(inp.readInt() == MAGIC) { "$file is not a saved hex world" }
             val version = inp.readInt()
-            require(version in 1..VERSION) { "$file was saved by another version ($version)" }
+            require(version <= VERSION) { "$file was saved by newer code (file version $version)" }
+            require(version == VERSION) { "$file was saved before saves carried the model version that made them, so it may hold numbers today's model reads otherwise: settle it again" }
             val seed = inp.readLong(); val n = inp.readInt(); val day = inp.readLong()
             require(seed == sim.cfg.seed && n == sim.land.n) {
                 "$file is of another world (seed $seed, $n places; this one seed ${sim.cfg.seed}, ${sim.land.n} places)"
             }
-            if (version >= 3) repeat(inp.readInt()) {
+            repeat(inp.readInt()) {
                 val name = inp.readUTF(); val saved = List(inp.readInt()) { inp.readUTF() }
                 orderProblem(name, saved)?.let { throw IllegalArgumentException("$file: $it") }
             }
+            val major = inp.readInt(); val minor = inp.readInt()
+            modelProblem(major)?.let { throw IllegalArgumentException("$file: $it") }
+            val code = rosters(sim).toMap()
+            repeat(inp.readInt()) {
+                val name = inp.readUTF(); val saved = List(inp.readInt()) { inp.readUTF() }
+                rosterProblem(name, saved, code[name].orEmpty())?.let { throw IllegalArgumentException("$file: $it") }
+            }
+            if (minor != MODEL_MINOR) println("WARNING: $file was saved by model $major.$minor, this is $MODEL_MAJOR.$MODEL_MINOR: it loads, but the model will drift from it; settle it again if that matters to the test.")
             val r = Reader(inp, SPECIES)
             val byName = roots(sim).toMap()
             val restore = Restorer()
-            // The residents' tables by kind are restored by position, so the kinds must be the ones the code has, in its order.
-            val kinds = sim.fauna.kinds.map { it.name }
             repeat(byName.size) {
                 val name = inp.readUTF()
                 val node = r.node()
                 byName[name]?.let { restore.into(it, node) }
-            }
-            val saved = sim.fauna.kinds.map { it.name }
-            require(saved == kinds) {
-                "$file holds other resident kinds than the code has, so their numbers would land on the wrong kinds: saved $saved, code $kinds"
             }
             if (restore.dropped.isNotEmpty()) System.err.println("$file: the code no longer has, and so dropped: ${restore.dropped.joinToString(", ")}")
             return day
@@ -112,6 +134,28 @@ object HexSnapshot {
         val code = ORDERED.firstOrNull { it.name == name }?.enumConstants?.map { it.name } ?: return null
         if (code.size >= saved.size && code.subList(0, saved.size) == saved) return null
         return "${name.substringAfterLast('.')} is saved in another order than the code has, so its values would land on the wrong entries: saved $saved, code $code"
+    }
+
+    /** Why a save made by model major version [major] would load wrongly (null if it loads). */
+    internal fun modelProblem(major: Int): String? =
+        if (major == MODEL_MAJOR) null else "it was saved by model major version $major, this is $MODEL_MAJOR: its numbers mean something else to today's model; settle it again"
+
+    /**
+     * Why the kinds [saved] for the tables kept by kind under [name] would load wrongly against the code's [code] (null if
+     * they load right): the tables are restored by position, and a kind added, dropped or moved would start from numbers that
+     * are not its own.
+     */
+    internal fun rosterProblem(name: String, saved: List<String>, code: List<String>): String? =
+        if (saved == code) null else "it keeps other kinds as $name than the code does, so their numbers would land on the wrong kinds or start from none: saved $saved, code $code"
+
+    /**
+     * The kinds each part keeps its tables by, in order: the residents and those living as groups. Left out are the kinds the
+     * config moves for an experiment after a load (the form swap, people=false), which change the code's lists but not what a
+     * save holds.
+     */
+    internal fun rosters(sim: HexSim): List<Pair<String, List<String>>> {
+        fun names(kinds: List<Species>) = kinds.filter { it !in Catalogue.formSwap && !it.human }.map { it.name }
+        return listOf("residents" to names(sim.fauna.kinds), "groups" to names(sim.groups.kinds))
     }
 
     /** Kinds are saved by name: the code defines them. */
