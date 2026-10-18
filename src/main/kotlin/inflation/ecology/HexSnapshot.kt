@@ -64,9 +64,10 @@ object HexSnapshot {
      * 1.4: mending first is a band way.
      * 1.5: residents count the protein in straw and in what they switch to, by weight, as herds do.
      * 1.6: residents remember days without water.
+     * 1.7: bears sleep through the cold only when hungry.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 6
+    const val MODEL_MINOR = 7
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
