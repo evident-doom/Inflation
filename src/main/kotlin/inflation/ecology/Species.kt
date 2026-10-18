@@ -74,10 +74,19 @@ class Species(
     /** Adult mortality per year from causes not modelled (age, accident, disease); predation and hunger are modelled. */
     val backgroundMortality: Float,
     /**
-     * Extra yearly mortality of the young from causes not modelled (cold, wet, disease, falls), on
-     * top of the adults'. Species with big litters lose most of them: half of all piglets die in their first year.
+     * Share of the young lost in their first year to causes not modelled (stillbirth, desertion, birth defects,
+     * falls, infanticide); negative: none beyond the adults' rate. Hunger, thirst, cold, crowding sickness, fire,
+     * flood and hunters come on top, each modelled, so a total from the field is too much here.
      */
-    val youngMortality: Float = backgroundMortality,
+    val firstYearLost: Float = -1f,
+    /**
+     * Yearly mortality of the young from causes not modelled, in place of the adults' [backgroundMortality]: by
+     * default [firstYearLost] in the first year and the adults' rate after it, spread over the [yearsToMaturity] they
+     * count as young (they grow up at 1/[yearsToMaturity] a year), so a hippo calf, young for eight years, is not
+     * lost at a newborn's rate every year.
+     */
+    val youngMortality: Float = if (firstYearLost < 0f) backgroundMortality
+        else backgroundMortality + (firstYearLost - backgroundMortality) / max(1f, yearsToMaturity),
     /** Snow depth (mm water equivalent) that stops it feeding and slows it badly. */
     val snowLimitMm: Float,
     /** Raw materials an adult yields (for people: hides, bone, sinew). */
@@ -172,12 +181,13 @@ class Species(
     /** Hunts in packs: a meat-eater that is not people. */
     val pack: Boolean get() = carnivore && !human
     /**
-     * Days of food it can carry as fat: bigger animals store more, about 8 M^0.25 days (a gazelle
-     * some 17, an aurochs 42).
+     * Days of food it can carry as fat. Mammals store some 0.075 M^1.19 kg of fat and burn about 317 M^0.75 kJ a
+     * day at rest, so fat lasts 9.3 M^0.44 days at rest (Lindstedt and Boyce 1985); on the move they burn some
+     * [Allometry.FIELD_OVER_BASAL] times that: a gazelle 14 days, an aurochs 68. A sleeper needs a quarter.
      */
-    val maxFatDays: Float get() = 8f * massKg.pow(0.25f) * if (hibernates) 4f else 1f
+    val maxFatDays: Float get() = 9.3f / Allometry.FIELD_OVER_BASAL * massKg.pow(0.44f) * if (hibernates) 4f else 1f
     /** Dry-matter (or meat) intake per adult per day, kg. */
-    val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, carnivore)
+    val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, diet)
 
     /**
      * How far its coat stretches the cold end in [month] (from the winter solstice), °C: a winter coat
@@ -203,14 +213,26 @@ fun gutFill(s: Species, quality: Float): Float =
 
 object Allometry {
     /**
+     * A free-living mammal's daily energy use against its resting need: about 2-3 times (the herbivores' intake below
+     * is "some 2-3 times their basal needs"); the middle of that.
+     */
+    const val FIELD_OVER_BASAL = 2.5f
+
+    /**
      * Food intake grows with metabolic mass, M^0.75 (Kleiber). Free-living herbivores eat about
      * 0.08 M^0.75 kg of dry plant matter a day (a 20 kg gazelle ~0.75 kg), some 2-3 times their
      * basal needs. Carnivores need about 0.2 M^0.75 kg
      * of prey body mass a day, counting the parts they leave (a 30 kg wolf ~2.6 kg, in line with
-     * field kill rates of roughly 0.1 kg of prey per kg of wolf per day). Rules of thumb, from memory.
+     * field kill rates of roughly 0.1 kg of prey per kg of wolf per day). Rules of thumb, from memory. A
+     * mixed feeder needs each share of its diet by its own rule (a bear eating a fifth animals, some 0.104 M^0.75),
+     * so the need does not jump as the animal share passes a half.
      */
-    fun dailyIntakeKg(massKg: Float, carnivore: Boolean): Float =
-        (if (carnivore) 0.2f else 0.08f) * massKg.pow(0.75f)
+    fun dailyIntakeKg(massKg: Float, diet: Diet): Float {
+        val animal = diet.meat + diet.smallPrey + diet.carrion
+        val plants = diet.grass + diet.browse + diet.roots + diet.fruit
+        val share = if (animal + plants > 0f) animal / (animal + plants) else 0f
+        return (0.2f * share + 0.08f * (1f - share)) * massKg.pow(0.75f)
+    }
 
     /**
      * Damuth's rule: mammal population density falls with body mass, about 10^4.23 M^-0.75
