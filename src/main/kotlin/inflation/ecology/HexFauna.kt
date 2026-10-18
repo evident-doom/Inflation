@@ -10,6 +10,7 @@ import inflation.HASH_C
 import inflation.mix64Once
 import inflation.unitOf
 import inflation.Books
+import inflation.Stocks
 import inflation.Config
 import inflation.Kg
 import inflation.KgKm2
@@ -541,12 +542,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         books?.check("soil and small life")
     }
 
-    /** Names the residents' stocks in [books] (the young at [YOUNG_WEIGHT] of a grown animal), with the food stocks and the small life. */
-    internal fun keepBooks(books: Books) {
+    /** Names the residents' stocks (the young at [YOUNG_WEIGHT] of a grown animal), with the food stocks and the small life. */
+    internal fun listStocks(stocks: Stocks) {
         for ((k, s) in kinds.withIndex())
-            books.stock(Books.Stuff.MATTER, "resident ${s.name}") { var sum = 0.0; for (p in 0 until n) sum += (adults[k][p] + YOUNG_WEIGHT * young[k][p]) * land.areaKm2[p] * s.massKg.toDouble(); sum }
-        food.keepBooks(books)
-        small.keepBooks(books)
+            stocks.add(Books.Stuff.MATTER, "resident ${s.name}", adults[k], young[k]) { var sum = 0.0; for (p in 0 until n) sum += (adults[k][p] + YOUNG_WEIGHT * young[k][p]) * land.areaKm2[p] * s.massKg.toDouble(); sum }
+        food.listStocks(stocks)
+        small.listStocks(stocks)
     }
 
     /**
