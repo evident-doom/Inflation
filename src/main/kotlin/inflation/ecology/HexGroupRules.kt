@@ -17,6 +17,14 @@ const val SURPLUS_EAT = 0.3f
 const val FAT_EFFICIENCY = 0.6f
 /** A newborn's weight against its mother's, paid from her reserves. */
 const val NEWBORN_SHARE = 0.08f
+/**
+ * The share of her litter a mother of [s] bears out of her reserves of [fat] days of food: the young are built from them
+ * ([NEWBORN_SHARE] of her weight each), so she bears only those she has laid by for.
+ */
+fun breeding(s: Species, fat: Float): Float {
+    val litterDays = (if (s.packLitter > 0) s.packLitter.toFloat() else s.youngPerFemale) * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg
+    return if (litterDays > 0f) min(1f, fat / litterDays) else 1f
+}
 /** Share of its fill above which a group lays on reserves rather than drawing on them (a week's food is never exactly what it needs). */
 const val WELL_FED = 0.9f
 /** How many times its usual most a herd may grow to on a full green flush, well fed (herds gather where the grass is new). */
