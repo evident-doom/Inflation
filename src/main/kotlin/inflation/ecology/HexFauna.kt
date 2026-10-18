@@ -193,6 +193,22 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for (k in kinds.indices) { val r = killRate[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
         return v
     }
+
+    /**
+     * The share of each kind's residents at each place the hunting parties (packs and bands) killed in their last week's
+     * foraging ([HexGroups.hunt]; young and grown alike, as they take them as they come on them), set as they kill.
+     */
+    val groupKilled = Array(kinds.size) { FloatArray(n) }
+
+    /**
+     * The odds that a resident of kind [k] at place [p] (one of its young if [young]) is killed by hunters in a week, all of
+     * them: the residents' hunters as they hunted there this week ([residentKillOdds]) and the hunting parties as they did
+     * in their last week ([groupKilled]).
+     */
+    fun huntedOdds(k: Int, p: Int, young: Boolean): Float {
+        val s = kinds[k]
+        return residentKillOdds(if (young) YOUNG_WEIGHT * s.massKg else s.massKg, p) + groupKilled[k][p]
+    }
     /**
      * For the books (see [Books]), this step, kg; null when they are not kept: what the residents ate and dropped as
      * dung, the herds' animals their hunters killed (taken from the herds after, see [HexGroups.takeResidentsKills]),

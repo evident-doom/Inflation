@@ -71,7 +71,7 @@ class StocksTest {
             "HexHydrology.lakeRain", "HexHydrology.lakeEvap", "HexHydrology.flow", "HexHydrology.flood", "HexHydrology.soak",
             "HexHydrology.soakTarget", "HexHydrology.runoffMm", "HexPlants.litterfall", "HexPlants.browsing", "HexPlants.grazing",
             "HexPlants.rooting", "HexPlants.trampling", "HexSmallLife.washedKg", "HexSmallLife.laidKgM2", "HexSmallLife.leaving",
-            "HexSmallLife.newborn", "HexFauna.bornThisWeek",
+            "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexFauna.groupKilled",
             // Shares, states and memories, 0..1 or days or degrees.
             "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexPlants.gdd", "HexPlants.moisture",
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh",
