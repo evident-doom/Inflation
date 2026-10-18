@@ -56,14 +56,12 @@ internal fun tieBreak(id: Int, other: Int, day: Long): Long {
 }
 
 /**
- * How catchable prey [ps] is for hunter [s] in place [p], 0..1: size against the pack, defence,
- * refuge in broken ground, small prey hiding in thick cover, and for stalkers, dark nights.
+ * How catchable prey [ps] is for hunter [s] in place [p], 0..1: its size against what the hunter takes
+ * ([Species.preySize], as resident hunters reckon it too), defence, refuge in broken ground, small prey hiding in
+ * thick cover, and for stalkers, dark nights.
  */
-internal fun HexGroups.catchable(s: Species, ps: Species, p: Int, pack: Float = s.groupSize * s.massKg): Float {
-    val size = min(1f, pack / (1.5f * ps.massKg))
-    val small = if (ps.massKg < s.massKg * 0.05f) 0.3f else 1f // too small to be worth a pack's while
-    return (size * small * (1f - ps.defence) * reachRaw(s, ps, p)).coerceIn(0f, 1f)
-}
+internal fun HexGroups.catchable(s: Species, ps: Species, p: Int): Float =
+    (s.preySize(ps.massKg) * (1f - ps.defence) * reachRaw(s, ps, p)).coerceIn(0f, 1f)
 
 /** How often hunter [s] gets to grips with prey [ps] in place [p], 0..1: the part of [catchable] that is closing in, not overpowering it. */
 internal fun HexGroups.reach(s: Species, ps: Species, p: Int) = reachRaw(s, ps, p).coerceIn(1e-3f, 1f)
@@ -215,7 +213,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         for (k in 0 until nk) {
             if (fauna.adults[k][p] + fauna.young[k][p] <= 0f) continue
             val ps = fauna.kinds[k]
-            residentOdds(g, ps, p, packKg, weather, today, j * nk + k, odds, stalks, met)
+            residentOdds(g, ps, p, weather, today, j * nk + k, odds, stalks, met)
         }
     }
     val order = IntArray(n); val profit = FloatArray(n)
@@ -576,10 +574,10 @@ private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float, out: Haul) {
  * as one, as a herd's are, and may see the hunters first and keep out of their way ([seenFirst]); one try at it, for a
  * band chased scatters. And game it seldom comes on it does not look for (prey switching, see [SEARCH_HALF]).
  */
-private fun HexGroups.residentOdds(g: HexGroup, ps: Species, p: Int, packKg: Float, weather: Weather, today: Double, i: Int,
+private fun HexGroups.residentOdds(g: HexGroup, ps: Species, p: Int, weather: Weather, today: Double, i: Int,
     odds: FloatArray, stalks: FloatArray, met: FloatArray) {
     val s = g.species
-    val success = killChance(g, ps, catchable(s, ps, p, packKg), 0f, 1f)
+    val success = killChance(g, ps, catchable(s, ps, p), 0f, 1f)
     val image = g.metLately(ps.index, today).let { it / (it + SEARCH_HALF) }
     met[i] = (0.5f + 0.5f * Niches.overlap(s, ps)) * (1f - seenFirst(g, ps, p, 0f, weather)) / ps.groupSize
     odds[i] = success * met[i] * image
@@ -1095,9 +1093,9 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         note(hunter) { "let the %s pass: it seldom comes on them".format(herd.species.name) }
         return
     }
-    // Quarry far beyond the party (an aurochs herd for a pair of jackals) is not tried at all.
+    // Quarry beyond what the kind takes (an aurochs herd for wolves) is not tried at all.
     val packKg = max(1, hunter.adults) * hunter.species.massKg
-    val catchable = catchable(hunter.species, herd.species, p.i, packKg)
+    val catchable = catchable(hunter.species, herd.species, p.i)
     if (catchable < NOT_WORTH_TRYING) { diag(herd.species, "herd beyond reach", met.toFloat()); return }
     // (Many eyes see the hunters sooner, and one animal is hard to single out of a milling crowd.)
     val chance = killChance(hunter, herd.species, catchable, wary, bandsIn(herd))
