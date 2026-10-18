@@ -79,9 +79,10 @@ object HexSnapshot {
      * where no slope leads to safety; residents walk towards forage within a week's going (#219).
      * 2.2: residents weigh places by the hunters' kills too, resident and roaming.
      * 2.3: grass loses nourishment and protein as it goes to stem and seed (HexPlants.grassAge).
+     * 2.4: crowding halves a place's appeal for residents where disease starts to bite (CROWDED), not at 20 times usual.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 3
+    const val MODEL_MINOR = 4
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
