@@ -72,9 +72,10 @@ object HexSnapshot {
      * recorded rate; mothers bear as their food and reserves can build their young.
      * 1.12: resident hunters take game the less readily the bigger it is past their preferred size; jackals prefer 4 kg, take 15 at most.
      * 1.15: herds count the animals hunters would kill as deaths where they choose to go, and no longer shun hunters for food.
+     * 1.16: a herd the hunters stop short of its choice weighs again where it stands if that is clearly deadlier.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 15
+    const val MODEL_MINOR = 16
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

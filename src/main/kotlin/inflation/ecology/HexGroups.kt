@@ -386,7 +386,7 @@ class HexGroups(
             herdHeadsMonth = bearings.month
         }
         Profile.part("choosing: valuing places for hunters") { valuePlaces(predatorKg, date.month) }
-        reachCache.clear(); stepEffort.clear()
+        reachCache.clear(); stepEffort.clear(); chosenPlace.clear(); chosenDying.clear()
         val choice = IntArray(groups.size); val paths = arrayOfNulls<IntArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
         val crowds = FloatArray(groups.size) { -1f }
         // Herds of a kind in one place making for the same place this month, and alike in hunger and thirst,
@@ -414,7 +414,8 @@ class HexGroups(
             choice[k] = plan.place.i; paths[k] = plan.path; crowds[k] = plan.crowd
             times[k] = Profile.part("choosing: timetable") { timetable(g.species, plan.path) }
         }
-        for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { choice[k] = choice[l]; paths[k] = paths[l]; times[k] = times[l]; crowds[k] = crowds[l] } }
+        for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { choice[k] = choice[l]; paths[k] = paths[l]; times[k] = times[l]; crowds[k] = crowds[l]
+            chosenPlace[groups[l].id]?.let { chosenPlace[groups[k].id] = it }; chosenDying[groups[l].id]?.let { chosenDying[groups[k].id] = it } } }
         if (deathDiag != null) for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) {
             foreseenDeaths[groups[l].id]?.let { foreseenDeaths[groups[k].id] = it }; foreseenFed[groups[l].id]?.let { foreseenFed[groups[k].id] = it }
             chosenDiag[groups[l].id]?.let { chosenDiag[groups[k].id] = it } } }
@@ -462,6 +463,9 @@ class HexGroups(
         }
     }
 
+    /** The place each herd that weighed its places chose this week, and the share of it it foresaw would die there (the meetings left out), by its id: see [spreadOut]. */
+    @Transient private val chosenPlace = ConcurrentHashMap<Int, Int>()
+    @Transient private val chosenDying = ConcurrentHashMap<Int, Float>()
     /** The crowd each herd foresaw this week where it chose to go (or, not weighing its places, where it was), by its id: see [spreadOut]. */
     @Transient private val foreseen = HashMap<Int, Float>()
 
@@ -486,7 +490,9 @@ class HexGroups(
      * next: crowding is settled as they meet it, not by hexes and weeks. So each herd, the last to arrive first, that
      * finds a crowd it would die of clearly more than of the one it foresaw (by a step of its score, see
      * [survivalSteps]) weighs again the places within a day's going, by the same score, knowing where the others are
-     * now; and the next herd sees where it went.
+     * now; and the next herd sees where it went. A herd the hunters stopped short of the place it chose (it turned aside or
+     * scattered) weighs again too, if where it stands is clearly deadlier than it foresaw there: in life it moves on
+     * rather than standing where the chase left it.
      */
     internal fun spreadOut(weather: Weather) {
         val predatorKg = FloatArray(n)
@@ -498,8 +504,12 @@ class HexGroups(
         for (k in herds) {
             val g = groups[k]
             val before = foreseen[g.id] ?: continue
-            if (survivalSteps(g, crowdSickness(crowdAt(g), g.fed)) - survivalSteps(g, crowdSickness(before, g.fed)) <= 1f) continue
-            val plan = Profile.part("spreading out: weighing again") { plan(g, weather, weather.date, predatorKg, shift = true) }
+            val crowded = survivalSteps(g, crowdSickness(crowdAt(g), g.fed)) - survivalSteps(g, crowdSickness(before, g.fed)) > 1f
+            // (Or the hunters stopped it short of the place it chose: it weighs again if where it stands is clearly deadlier.)
+            val stopped = chosenPlace[g.id]?.let { it != g.place.i } ?: false
+            if (!crowded && !stopped) continue
+            val dying = if (crowded) -1f else chosenDying[g.id] ?: -1f
+            val plan = Profile.part("spreading out: weighing again") { plan(g, weather, weather.date, predatorKg, shift = true, before = dying) }
             if (plan.place == g.place) continue
             onGround(g, -1f)
             g.place = plan.place; g.path = g.path + plan.path.copyOfRange(1, plan.path.size); g.days = timetable(g.species, g.path)
@@ -1035,9 +1045,9 @@ class HexGroups(
      * Reach is a few hexes when content; a forced march when hungry, cold, or heading for its season's
      * place. Hunters keep to their ground unless starving.
      */
-    internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray, shift: Boolean = false): Plan {
+    internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray, shift: Boolean = false, before: Float = -1f): Plan {
         var pt = Profile.mark()
-        val r = planInner(g, weather, date, predatorKg, shift) { name -> pt = Profile.lap(name, pt) }
+        val r = planInner(g, weather, date, predatorKg, shift, before) { name -> pt = Profile.lap(name, pt) }
         Profile.lap("choosing: route", pt)
         return r
     }
@@ -1190,7 +1200,7 @@ class HexGroups(
         }
     }
 
-    private fun planInner(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray, shift: Boolean, lap: (String) -> Unit): Plan {
+    private fun planInner(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray, shift: Boolean, before: Float, lap: (String) -> Unit): Plan {
         val s = g.species
         val here = hw.hexOf(g.place)
         // What it sees of the others: in its own hex and the six around, which its week's ranging covers.
@@ -1278,6 +1288,10 @@ class HexGroups(
         if (!s.carnivore) planGround.ranges[g.id]?.let { c.own = it.toMap() }
         if (!s.carnivore) { val hs = ArrayList<Int>(7); val ss = ArrayList<Float>(7); rangeShares(g, here.i) { q, share -> hs += q; ss += share }
             c.ownHexes = hs.toIntArray(); c.ownShares = ss.toFloatArray() }
+        // (Stopped short of the place it chose, it weighs again only if where it stands is clearly deadlier than it foresaw
+        // there ([before]: see [spreadOut]).)
+        if (shift && before >= 0f && survivalSteps(g, deathsAt(c, g.place, here, 0f, 0f, 0f)) - survivalSteps(g, before) <= 1f)
+            return Plan(g.place, intArrayOf(here.i))
         for (ri in 0 until reached.size) {
             val h = Hex(reached[ri])
             val d = dist[h]
@@ -1383,6 +1397,13 @@ class HexGroups(
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
         val crowd = if (s.carnivore) -1f else foreseenCrowd(c, best.i, hw.placeHex[best])
         if (crowdDiag == s.name) { foreseenCrowd[g.id] = crowd; choiceDiag[g.id] = ChoiceDiag(c.ownHexes, c.ownShares, c.own, best.i) }
+        if (!s.carnivore) {
+            // (What it foresees dying of where it chose, the meetings on the way left out: should the hunters stop it short,
+            // it weighs again if where it stands is clearly deadlier, see [spreadOut].)
+            val bh = hw.hexOf(best)
+            c.shift = true; chosenDying[g.id] = deathsAt(c, best, bh, dist[bh], 0f, 0f); c.shift = false
+            chosenPlace[g.id] = best.i
+        }
         if (deathDiag == s.name) {
             // (The deaths it foresaw where it chose, by cause, and how fed it foresaw it would be there.)
             val bh = hw.hexOf(best); val m = HashMap<String, FloatArray>()
