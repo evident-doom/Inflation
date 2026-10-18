@@ -5,6 +5,7 @@ import inflation.world.HexWorld
 import inflation.world.RiverClass
 import java.util.Arrays
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Routes and landmarks: the worn paths read as a graph. Where the ways meet, cross a river, go over
@@ -161,12 +162,27 @@ class HexRoutes(private val g: HexGroups) {
             if (q >= 0 && (0 until 6).count { way[q * 6 + it] } >= 3) cut += h * 6 + only
         }
         for (i in cut) { val h = i / 6; val d = i % 6; way[i] = false; hex.neighbour(h, d).takeIf { it >= 0 }?.let { q -> way[q * 6 + (d + 3) % 6] = false } }
+        // A ford: where a way crosses a river too deep to step over, at the shallowest crossing of the hex. A way
+        // walked along a river crosses it again and again as it winds between the hexes; of such crossings in a
+        // row along the way the shallowest is the ford, the place to cross (ties: the lower hex).
+        val fordM = FloatArray(hex.size) { Float.POSITIVE_INFINITY }
+        for (h in 0 until hex.size) if (hex.heart[h] >= 0) for (d in 0 until 6) if (worn(h, d) && river(h * 6 + d)) fordM[h] = min(fordM[h], hex.riverDepthM[h * 6 + d])
+        fun ford(h: Int): Boolean {
+            if (fordM[h] == Float.POSITIVE_INFINITY) return false
+            for (d in 0 until 6) {
+                if (!worn(h, d)) continue
+                val q = hex.neighbour(h, d)
+                if (q >= 0 && (fordM[q] < fordM[h] || fordM[q] == fordM[h] && q < h)) return false
+            }
+            return true
+        }
         for (h in 0 until hex.size) {
             if (hex.heart[h] < 0) continue
-            var ways = 0; var ford = false
-            for (d in 0 until 6) if (worn(h, d)) { ways++; if (river(h * 6 + d)) ford = true }
+            var ways = 0
+            for (d in 0 until 6) if (worn(h, d)) ways++
             if (ways == 0) { landmark[h] = natural[h]; continue }
             onRoute[h] = true
+            val ford = ford(h)
             val pass = pass(h)
             val water = water(h)
             landmark[h] = (when {
