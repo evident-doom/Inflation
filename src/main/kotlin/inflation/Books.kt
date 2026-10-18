@@ -110,17 +110,33 @@ class Books {
 
 /**
  * A stock of water or matter the model keeps: [stuff], [name]d, summed over the world by [sum] (m³ or kg); [arrays]
- * are the tables it is summed from, so that a table of matter that is no stock can be found (see StocksTest).
+ * are the tables it is summed from, so that a table of matter that is no stock can be found (see StocksTest); [group] is
+ * the wider pool the reports also count it in ("plants", "small animals"), if any.
  */
-class Stock(val stuff: Books.Stuff, val name: String, val arrays: List<Any>, val sum: () -> Double)
+class Stock(val stuff: Books.Stuff, val name: String, val arrays: List<Any>, val group: String?, val sum: () -> Double)
 
 /** Every stock of water and matter in the model, as each part names its own: what the books audit and the reports read. */
 class Stocks {
     val list = ArrayList<Stock>()
+    private var group: String? = null
     /** A stock of [stuff], [name]d, summed by [sum] from the tables [arrays]. */
-    fun add(stuff: Books.Stuff, name: String, vararg arrays: Any, sum: () -> Double) { list += Stock(stuff, name, arrays.toList(), sum) }
+    fun add(stuff: Books.Stuff, name: String, vararg arrays: Any, sum: () -> Double) { list += Stock(stuff, name, arrays.toList(), group, sum) }
     /** Matter in kg/m² by place, [name]d, over places of [m2] square metres. */
     fun perM2(name: String, a: FloatArray, m2: FloatArray) = add(Books.Stuff.MATTER, name, a) { var s = 0.0; for (p in a.indices) s += a[p] * m2[p].toDouble(); s }
     /** Matter in kg/km² by place, [name]d, over places of [km2] square km. */
     fun perKm2(name: String, a: FloatArray, km2: FloatArray) = add(Books.Stuff.MATTER, name, a) { var s = 0.0; for (p in a.indices) s += a[p] * km2[p].toDouble(); s }
+    /** The stocks [block] adds, counted also in the wider pool [name]. */
+    fun within(name: String, block: () -> Unit) { group = name; try { block() } finally { group = null } }
+
+    /** The matter in each stock and in each wider pool, thousand tonnes, in the order listed. */
+    fun matter(): LinkedHashMap<String, Double> {
+        val out = LinkedHashMap<String, Double>(); val pools = LinkedHashMap<String, Double>()
+        for (s in list) if (s.stuff == Books.Stuff.MATTER) {
+            val kt = s.sum() / 1e6
+            out[s.name] = kt
+            s.group?.let { pools.merge(it, kt, Double::plus) }
+        }
+        for ((k, v) in pools) { require(k !in out) { "pool $k shares its name with a stock" }; out[k] = v }
+        return out
+    }
 }

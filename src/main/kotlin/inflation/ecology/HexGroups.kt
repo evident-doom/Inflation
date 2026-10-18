@@ -231,8 +231,8 @@ class HexGroups(
      * animals and the goods that come from living things (wood, fibre, resin, hide, bone, sinew).
      */
     internal fun listStocks(stocks: Stocks) {
-        for (s in kinds) stocks.add(Books.Stuff.MATTER, "group ${s.name}") {
-            var sum = 0.0; for (g in groups) if (g.alive && g.species == s) sum += (g.adults + HexFauna.YOUNG_WEIGHT * g.young) * s.massKg.toDouble(); sum }
+        stocks.within("herds, packs and bands") { for (s in kinds) stocks.add(Books.Stuff.MATTER, "group ${s.name}") {
+            var sum = 0.0; for (g in groups) if (g.alive && g.species == s) sum += (g.adults + HexFauna.YOUNG_WEIGHT * g.young) * s.massKg.toDouble(); sum } }
         stocks.add(Books.Stuff.MATTER, "hunters' meat in hand") {
             var sum = 0.0; for (g in groups) if (g.meatMet > 0f && !g.meatSpent) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble(); sum }
         fun bands(f: (Band) -> Double) = run { var sum = 0.0; for (g in groups) if (g.alive) g.band?.let { sum += f(it) }; sum }

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Stocks
 import inflation.world.Biome
 import java.io.File
 import inflation.world.Date
@@ -11,8 +12,8 @@ import inflation.world.WorldConfig
  *
  * Series names are paths, "group/name", and the groups are:
  * - "animals": head counts of every resident kind and every kind in herds and packs;
- * - "biomass": thousand tonnes in each pool: plants, litter, soil organic matter, carrion, food
- *   stocks, small life, resident herds, herds and packs, fish;
+ * - "biomass": thousand tonnes in each stock of matter the books keep ([HexSim.stocks]), and in the wider pools
+ *   they make up (plants, small animals, resident animals, herds, packs and bands); and the fish;
  * - "small life" and "water life": the fields of each, in tonnes or head counts;
  * - "deaths/<kind>": deaths of that kind in the week by cause; "births": young born in herds and
  *   packs; "kills": animals killed by hunters, by prey kind;
@@ -49,6 +50,10 @@ class HexHistory {
         s.add(v)
     }
 
+    /** The model's stocks ([HexSim.stocks]), listed at the first week recorded. */
+    @Transient private var stocks: Stocks? = null
+    private fun stocks(sim: HexSim) = stocks ?: sim.stocks().also { stocks = it }
+
     /** Records the week just stepped. */
     fun record(sim: HexSim) = synchronized(this) { recordWeek(sim) }
 
@@ -74,19 +79,12 @@ class HexHistory {
         // Migration: for each migratory kind, the share of its heads above 1000 m, their mean height, and how far
         // its herds stand from where each stood half a year before (km, by heads; herds younger than that left out).
         recordMigration(sim)
-        // Biomass, thousand tonnes.
-        fun perM2(a: FloatArray) = a.indices.sumOf { (a[it] * area[it]).toDouble() }.toFloat()
-        fun perKm2(a: FloatArray) = perM2(a) / 1e6f
+        // Biomass, thousand tonnes: every stock of matter the books keep, and the wider pools they make up.
         val sl = fauna.small
-        put("biomass/herbs", perM2(land.plants.herb)); put("biomass/shrubs", perM2(land.plants.shrub)); put("biomass/trees", perM2(land.plants.tree))
-        put("biomass/litter", perM2(sl.litter)); put("biomass/soil organic matter", perM2(sl.organicMatter))
-        put("biomass/carrion", perM2(sl.carrion)); put("biomass/bones", perM2(sl.bones))
-        put("biomass/fruit", perM2(fauna.food.fruit)); put("biomass/roots and mast", perM2(fauna.food.roots)); put("biomass/straw", perM2(fauna.food.straw))
-        put("biomass/small animals", listOf(sl.insects, sl.dormantInsects, sl.rodents, sl.herps, sl.pollinators, sl.dormantPollinators, sl.hares,
-            sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it).toDouble() }.toFloat())
-        put("biomass/resident herds", fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg }.toFloat() / 1e6f)
-        put("biomass/herds and packs", groups.groups.filter { it.alive }.sumOf { (it.adults + 0.3 * it.young) * it.species.massKg }.toFloat() / 1e6f)
+        fun perKm2(a: FloatArray) = a.indices.sumOf { (a[it] * area[it]).toDouble() }.toFloat() / 1e6f
+        for ((name, kt) in stocks(sim).matter()) put("biomass/$name", kt.toFloat())
         val wl = fauna.water
+        // (The fish are outside the books' edge: the water life is booked as a flow, see [HexWater].)
         put("biomass/sea and lake fish", wl.fishTonnes() / 1000f)
         // Small life, tonnes.
         for ((name, f) in listOf("insects" to sl.insects, "insects waiting as eggs and larvae" to sl.dormantInsects, "biting insects" to sl.biting,

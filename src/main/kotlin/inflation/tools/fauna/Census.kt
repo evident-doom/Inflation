@@ -62,18 +62,15 @@ class Census(private val sim: HexSim) {
         "%s %.0f%% / %.2f".format(s.name, 100 * good, pull)
     }
 
-    /** Where the matter is: each pool over the whole map, thousand tonnes. */
+    /** The model's stocks, listed once. */
+    private val stocks by lazy { sim.stocks() }
+
+    /** Where the matter is: each pool over the whole map, thousand tonnes (as the books count it). */
     fun budget(): String {
-        val sl = fauna.small
-        fun perM2(a: FloatArray) = a.indices.sumOf { (a[it] * land.areaKm2[it]).toDouble() } // kg/m² × km² = 1e6 kg = 1000 t
-        fun perKm2(a: FloatArray) = perM2(a) / 1e6
-        val plants = (0 until fauna.n).sumOf { (land.plants.biomass(it) * land.areaKm2[it]).toDouble() }
-        val smallAnimals = listOf(sl.insects, sl.dormantInsects, sl.rodents, sl.herps, sl.pollinators, sl.dormantPollinators,
-            sl.hares, sl.hyrax, sl.tortoises, sl.foxes, sl.birds).sumOf { perKm2(it) }
-        val residents = fauna.kinds.indices.sumOf { fauna.count(it) * fauna.kinds[it].massKg } / 1e6
-        val inGroups = groups.groups.filter { it.alive }.sumOf { (it.adults + 0.3 * it.young) * it.species.massKg } / 1e6
-        return "plants %.0f, litter %.0f, soil organic %.0f, carrion %.2f, small animals %.2f, resident herds %.2f, herds and packs %.2f (thousand t)".format(
-            plants, perM2(sl.litter), perM2(sl.organicMatter), perM2(sl.carrion), smallAnimals, residents, inGroups)
+        val m = stocks.matter()
+        fun v(name: String) = m[name] ?: 0.0
+        return "plants %.0f, litter %.0f, soil organic %.0f, carrion %.2f, small animals %.2f, resident animals %.2f, herds, packs and bands %.2f (thousand t)".format(
+            v("plants"), v("litter"), v("soil organic matter"), v("carrion"), v("small animals"), v("resident animals"), v("herds, packs and bands"))
     }
 
     /** By kind of country: its share of the land, forage, resident animals, herds, hunters and people, per 1000 km². */
