@@ -11,6 +11,7 @@ import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
 import inflation.ecology.m2
+import inflation.ecology.grazingCrowd
 
 /**
  * The extra lines a fauna check prints when the config asks for them:
@@ -52,17 +53,19 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
     private fun crowding(kind: String, print: Boolean) {
         val k = groups.kinds.indexOfFirst { it.name == kind }
         if (k >= 0) {
+            groups.fillGrazed()
+            val a = groups.grazed[k]
             val heads = HashMap<Int, Int>()
             for (g in groups.groups) if (g.alive && g.species.name == kind) heads.merge(hw.placeHex[g.place], 1, Int::plus)
             for (g in groups.groups) {
                 if (!g.alive || g.species.name != kind) continue
                 val foreseen = groups.foreseenCrowd[g.id] ?: continue
-                val met = groups.metCrowd[g.id] ?: continue
+                val met = groups.grazingCrowd(g, hw.placeHex[g.place]) { q, _ -> a[q] }
                 crowdSums[0] += 1.0; crowdSums[1] += foreseen.toDouble(); crowdSums[2] += met.toDouble()
                 if (met > 2f * foreseen + 0.05f) crowdSums[3] += 1.0
                 crowdSums[4] += g.size.toDouble(); crowdSums[5] += (heads[hw.placeHex[g.place]] ?: 1).toDouble()
             }
-            groups.foreseenCrowd.clear(); groups.metCrowd.clear()
+            groups.foreseenCrowd.clear()
         }
         if (print && crowdSums[0] > 0.0) {
             val n = crowdSums[0]
