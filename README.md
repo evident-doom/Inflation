@@ -1,7 +1,8 @@
 # Inflation
 
 A simulation of how societies, power, debt and money arise, built up from late stone-age groups.
-The design brief lives in the project's Claude Doc. This repository starts with the physical world.
+The design brief lives in the project's Claude Doc. So far the repository holds the physical world, its
+plants and animals, and stone-age bands; money and inflation come later.
 
 ## The world
 
@@ -21,7 +22,7 @@ islands and ocean on every side.
 | Volcanoes | Arcs in a line 105–135 km behind trenches where the plates close fast (continental arcs or island arcs), hotspot chains that age along the plate's motion (active shield at one end, drowned seamounts at the other), and rift cones. Old edifices are eroded with the land, young ones are built afterwards |
 | Erosion and sediment | Stream-power law (implicit Braun & Willett 2013 solver, 40 steps × 50,000 years) and hillslope diffusion. Eroded material is carried downstream: rivers drop what exceeds their capacity, closed basins fill, large rivers build delta plains, and the rest builds a sloping shelf out to a shelf break |
 | Geology | Rock type per cell (sets erodibility and soil), sediment thickness; flint, clay, obsidian, ochre, salt, copper, tin, bitumen |
-| Climate | Monthly normals: latitude, 6.5 °C/km lapse rate, continentality; westerly moisture recharged over open sea, orographic rain and rain shadows; Mediterranean dry summers in the south |
+| Climate | Monthly normals: latitude, 6.5 °C/km lapse rate, continentality; moisture carried from every sea along each weather regime's wind, fronts in a storm track under the jet, orographic rain and rain shadows; Mediterranean dry summers in the south |
 | Rivers and lakes | Thornthwaite evapotranspiration, Fu–Budyko runoff, D8 routing; lakes from a water balance, closed basins turn saline. Valley floors are planed flat beside rivers (width grows with the square root of discharge). Rivers are classed creek, stream, river and great river; reaches with a third of a metre of water and no rapids are navigable by canoe or raft |
 | Floodplains | Height above the nearest river (HAND); land a large flood (about ten times mean flow) reaches is floodplain |
 | Terrain | Ruggedness from slope, local relief and a rock roughness the 1 km grid cannot resolve (lava fields and karst roughest, alluvium smoothest, buried under thick sediment). Walking effort from Tobler's hiking function, roughness, wetlands and river crossings. A river is a sub-cell channel, not a 1 km strip of water: its cost comes from this week's depth (knee deep a wade, waist deep slow, past chest deep a swim most animals refuse), and wide braided reaches on gentle ground have fords while gorges run deep. A stream in spate stops herds; in the dry season the same river can be crossed. Open water is impassable on foot. Line of sight over the terrain in 16 directions out to 30 km with earth curvature; prominence over the surroundings; defensibility from height, broken ground and approaches cut by water, marsh or steep slopes |
@@ -43,6 +44,7 @@ Animals (`inflation.ecology`):
 | Soil and small life (`HexSmallLife`) | Litter, organic matter and soil animals; carrion rotting by warmth; plant-eating and biting insects, rodents, reptiles and amphibians, pollinators setting the fruit crop; hares, rock hyrax, six wild birds (quail and greylag geese migrate), tortoises, foxes and wildcats; golden eagles on crags; griffon vulture colonies soaring 80 km for carcasses |
 | Residents (`HexFauna`) | Densities per place for the plant-eaters and hunters that keep to small home ranges: grazing shared by diet, forage quality, water within reach, crowding disease, shifts between height bands, spill to neighbouring hexes |
 | Herds and packs (`HexGroups`) | Migratory herds and the hunters as groups that plan a week's walk over the hexes; meetings on the way are timetabled and settled in order (herds watch and turn aside, hunters chase and stop to eat, rival packs give way or fight); territories, thirst, wariness after a chase, hiding in cover, moonlight, seasonal memory |
+| People (`HexPeople`, `HexCulture`, `HexRoutes`) | Bands that choose each week where to camp and set their ways: effort on each food, stores that spoil, tools, clothes and shelters made from materials, firewood, night fires, raids; skills held by members and split with them; traditions, ties between bands, a shared naming language, remembered places, and routes told by landmarks |
 | Sense of direction (`HexBearings`) | Each month every kind knows the country within 60 km and the peaks it can see out to 200 km, and feels which way is cooler or warmer when the month is wrong for its coat; groups far out of their country trek that way |
 
 What is ported from the earlier 1 km model and what is not is in `docs/design/hex-port-status.md`.
@@ -162,8 +164,7 @@ carries one settled world on by itself.
 - Rivers use single-direction (D8) routing, randomised during erosion to avoid parallel channels.
 - Within a 6-day step, water reaches the river mouth at once, so flood peaks on large rivers come
   early and sharp. Daily temperature extremes are averaged away, which understates lowland snow days.
-- Moisture comes from the west and a uniform background; there is no monsoon or explicit storm track.
-- The archipelago limits catchment size, so the largest rivers carry a few hundred m³/s, not thousands.
+- There is no monsoon.
 - Vegetation starts from the long-term climate and takes decades of simulated time to settle;
   forests advance only from neighbouring forest.
 - Volcanic cones are idealised shapes with noise; lava flows are not modelled, only ash.
