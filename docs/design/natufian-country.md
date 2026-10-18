@@ -91,9 +91,9 @@ For bands to prefer woodland and parkland edges for real reasons, rather than be
 4. **Hunting success depending on visibility**: harder to find and approach game in thick cover; easier at edges and water where game gathers.
 5. **Foraging radius over several cells**: a band's yield should sum what it can reach in a day, so that mixed neighbourhoods score higher than uniform ones – this is what makes an edge pay without an "edge bonus".
 6. **Dry-season water as a hard need**, with springs and lakes as fixed points, seasonal pools that dry up, and lake levels following climate.
-7. **Predation risk rising with cover** (already partly in place): ambush predators more dangerous in thick cover, lowered by fire, dogs, group size and vigilance.
+7. **Predation risk rising with cover**: ambush predators more dangerous in thick cover, lowered by fire, dogs, group size and vigilance.
 8. **Movement cost rising with cover and slope**, reducing how far gatherers and hunters can range in a day.
-9. **Disease load rising with damp, warmth and crowding** (partly in place): marsh fever by warm marshes, flux in fouled crowded camps; mild forest parasite load in damp closed woodland.
+9. **Disease load rising with damp, warmth and crowding**: marsh fever by warm marshes, flux in fouled crowded camps; mild forest parasite load in damp closed woodland.
 10. **Climate shifting the vegetation belts** over decades: woodland spreading in warm, wet phases and retreating in cold or dry ones, so that edge locations move and bands have to follow or broaden their diet.
 11. **Steppe viability limited by water and rainfall variance**, not by a ban: steppe bands should succeed at wetlands in good years and suffer in droughts.
 

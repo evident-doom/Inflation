@@ -2,7 +2,7 @@
 # Usage: learncmp.sh REPO BASE_REF NEW_REF WORKDIR
 # Runs each small learning-tool command below on BASE_REF and on NEW_REF (each in its own git worktree under WORKDIR),
 # then compares what each printed (lines with timings in seconds are dropped) and every file it wrote.
-# Written for the code-quality cleanup: NEW_REF is meant to behave exactly as BASE_REF does.
+# NEW_REF is meant to behave exactly as BASE_REF does.
 set -u
 REPO=$1; BASE=$2; NEW=$3; W=$4
 mkdir -p "$W"; W=$(cd "$W" && pwd)

@@ -1,33 +1,26 @@
-# Skills: what rests on constants today, and what could be learned
+# Skills: what is learned, and the constants it touches
 
-Inventory, 2026-10-14. It lists every people's ability now set by a fixed constant and asks two questions of each: is it learned in reality, and do tools or materials change it? The skills a band teaches all its children are a large part of its culture. Which skills, and which variants of them, a band holds marks it out as much as its customs do.
+This lists people's abilities that are learned in reality and asks two questions of each: which constants of the model it touches, and do tools or materials change it? The skills a band teaches all its children are a large part of its culture. Which skills, and which variants of them, a band holds marks it out as much as its customs do.
 
-## Already skills (level 0..1, learned by practice, fading, spread by partners)
+Skills are kinds of work (`Domain`), each done by one or more variants (`Skill`), in `Skill.kt`. Tools (`Tool`: spear, bow, net, sickle, grinder, basket, clothes) are known or not, and a band's kit wears.
 
-(As of 2026-10-14. The `Forage` and `Making` types named here are gone: all skills are now `Domain` and `Skill` in `Skill.kt`, see the status below.)
+## Learned in reality
 
-- **Foraging** (`Forage`): gathering, small game, fishing, hunting, storing.
-- **Making** (`Making`): knapping, woodwork, hide work, cordage, fire.
-- **Plant knowledge**, for each kind of country.
-- **Tools** (`Tool`): spear, bow, net, sickle, grinder, basket, clothes. A band knows a tool or not, and its kit wears.
+Each row is a skill. It has variants by tool or material, and constants of the model it touches.
 
-## Fixed today, learned in reality
-
-Each row is a candidate skill. It has variants by tool or material, and the constants it would replace.
-
-| Domain | Skill | Variants (tools, materials) | Constants it would replace |
+| Domain | Skill | Variants (tools, materials) | Constants |
 |---|---|---|---|
-| **Hunting** | tracking and reading sign | dogs | `SEARCHING` (the old `TRACKING` is gone; built as the `TRACK` skill) |
+| **Hunting** | tracking and reading sign | dogs | `SEARCHING`, the `TRACK` skill |
 | | stalking and ambush | cover, blinds, camouflage | `AVOID_SKILL`, `SURPRISE`, `CATCH` |
 | | killing at range | thrusting spear, spear-thrower, bow, poison | `WEAPONLESS`, `BOW_GAIN` |
-| | drive hunting | nets, fire drives; needs organising | (none: kites were removed from the model) |
+| | drive hunting | nets, fire drives; needs organising | (none) |
 | | butchery and marrow | flakes, hammerstones | `MEAT_SHARE`, `BONE_DAYS`, `HANDLING_DAYS` |
 | **Small game and fish** | trapping | snares, deadfalls, nets | `SMALL_SENSE_KM`, `SMALL_CATCH`, `NET_GAIN` |
 | | fishing | hand, spear, hook and line, weirs, traps, nets, boats | `FISH_HANDLING_DAYS_PER_KG` |
 | | shellfish and shore | — | (in gathering) |
 | **Plant food** | digging | digging stick (weighted), knowledge of tubers | `ROOT_DIGGING` |
 | | seed processing | threshing, winnowing, grinding, baking | `SEED_HANDLING_DAYS_PER_KG`, `RAW_SEED` |
-| | detoxifying | leaching acorns, roasting, soaking; turns inedible plants into food | (built as `LEACHING`; `PALATABLE_FLOOR` is gone) |
+| | detoxifying | leaching acorns, roasting, soaking; turns inedible plants into food | the `LEACHING` skill |
 | | cultivation | clearing, sowing, weeding, seed choice, burning | `SOW_DAYS_PER_KG`, `FIELD_YIELD`, `SICKLE_SELECT`, `BURN_OFF` |
 | **Cooking** | cooking | roasting, stone boiling (needs containers), earth ovens, pots | `RAW_COST`, `RAW_SEED` |
 | | brewing and fermenting | containers, grain | `BEER_KG` |
@@ -39,7 +32,7 @@ Each row is a candidate skill. It has variants by tool or material, and the cons
 | | fortifying | brush, palisade, ditch, wall | `PALISADE_*` |
 | **Moving** | carrying | bags, baskets, carrying frames, dogs, boats | `CARRY_KG`, `GOODS_PER_PERSON` |
 | | walking in hard country | footwear, snowshoes | `WALK_COST`, `SNOW_EFFORT_MM` |
-| | boats | rafts, dugouts, skin boats | (none: rivers and the sea are not routes yet) |
+| | boats | rafts, dugouts, skin boats | (none) |
 | **Knowing the land** | navigation and landscape lore | — | `SIGHT_*`, `SCOUT_*`, `KNOWN_AT_START`, `UNKNOWN_COUNTRY` |
 | | weather and sky lore | calendars by moon and stars | `RAIN_AHEAD_MM`, appointment keeping |
 | **Health** | medicine | herbs, wound care, bone setting | `PEOPLE_SICK`, `MARSH_FEVER`, the `MEDICINE` custom |
@@ -50,7 +43,7 @@ Each row is a candidate skill. It has variants by tool or material, and the cons
 | **Crafts** | bead and ornament making | drills, abrasives | `ORNAMENT_DAYS`, `SHELL_EACH` |
 | | ground stone | grinders, axes for clearing forest, stone vessels | `GRINDER` recipe |
 | | weaving and basketry | looms, fibre | (in cordage) |
-| | pottery (later) | clay, kilns | (none) |
+| | pottery | clay, kilns | (none) |
 | **Fighting** | war | shields, ambush, formations, scouts | `RAID_DEATHS`, `FIGHT_RATIO`, `SURPRISE_RAID`, `FLEE` |
 | **Learning itself** | teaching and memory | oral tradition, songs, marks | `PRACTICE`, `FORGET`, `TEACH`, `INVENT` |
 
@@ -58,29 +51,16 @@ Each row is a candidate skill. It has variants by tool or material, and the cons
 
 Body and physics stay fixed: daily need, walking cost per km, how long a person lasts without water, gestation, ageing, and how fast meat rots in heat. Skills change how people meet these limits, not the limits themselves.
 
-## Proposal: one generic skill system
+## One generic skill system
 
 - **Skills:** each is a domain plus a variant, for example cooking by stone boiling, or fire by hand drill. Each has a level 0..1, a floor, a practice rate and a fade rate.
 - **Tools and materials** multiply what a skill does. A variant needs its tools: stone boiling needs containers, and bows need sinew and resin.
 - **What each constant above becomes:** a base value (the body or physics) times what the skill does, so a practised band with good tools does better.
-- **How skills change:** they grow by doing, and fade without it (more slowly where songs and stories keep them). They are taught to the young, so everyone in the band holds the basics. They spread to partners and to bands that meet. New variants are hit on now and then by bands that have a use for them, as tools are now.
+- **How skills change:** they grow by doing, and fade without it (more slowly where songs and stories keep them). They are taught to the young, so everyone in the band holds the basics. They spread to partners and to bands that meet. New variants are hit on now and then by bands that have a use for them, as tools are.
 - **Choices:** what a band spends its spare time practising and making is one of its ways, which the learned networks can take over.
 - **Culture:** a band's set of skills and variants is part of its customs. It's reported and compared like words and traditions, so neighbours share packages and distant bands differ.
 
-**Order of work proposed:**
-1. The generic system, replacing the current `craft` and `making`.
-2. Cooking and detoxifying, which unlock plant food.
-3. Food keeping and containers.
-4. Clothing and building variants.
-5. Medicine and child care.
-6. Hunting subskills.
-7. Moving and boats.
-8. The rest.
-
-## Status (2026-10-14)
-
-Built:
-- **The generic system** (`Skill.kt`): kinds of work (`Domain`), each done by one or more variants (`Skill`). Each variant has a floor, a start level, whether bands know it from the start, and a gain. Bands invent new variants where they practise the work, show them to bands they meet, and partners bring theirs. The check prints "ways of working": the share of bands that know each variant and their mean level.
+In `Skill.kt`, each variant has a floor, a start level, whether bands know it from the start, and a gain. Bands invent new variants where they practise the work, show them to bands they meet, and partners bring theirs. The check prints "ways of working": the share of bands that know each variant and their mean level. A start band's level gives the base behaviour, and a variant changes nothing until a band knows it. Among the variants:
 - **Cooking:** roasting, stone boiling, earth ovens.
 - **Detoxifying:** leaching.
 - **Keeping food:** sun drying (slowed by rain), smoking, sealing pits.
@@ -88,32 +68,28 @@ Built:
 - **Building:** stone footings, pit houses, mudbrick. A band builds the way its materials go furthest.
 - **Healing:** herbs.
 - **Child care:** midwifery.
-
-Skills that existed before keep their behaviour at a start band's level. New variants change nothing until a band knows them.
-
-Next: hunting subskills (tracking, stalking, drives, butchery), moving (carrying, snowshoes, boats), animal handling, the remaining crafts, fighting. (Since built: tracking, stalking, butchery and animal tending, as `TRACK`, `STALK`, `BUTCHER` and `TENDING`. Drives, moving, boats and fighting still have no skill.)
-
-**Added later the same day:**
+- **Hunting and animals:** tracking, stalking, butchery and animal tending (`TRACK`, `STALK`, `BUTCHER`, `TENDING`).
 - **Toolmaking:** knapping as flakes, blades and microliths. Blades and microliths are faster and take 40% of the flint, and bands use whichever way they do best. Also ground stone (pecking, for grinders), bone tools (needles and awls, practised with clothes) and hafting (glued and bound tools wear out more slowly).
 - **Meta skills:** showing (apprenticeship: all practice goes faster or slower), lore (songs and stories: forgetting slower or faster) and tinkering (new tools and ways hit on more or less often). Each is kept up by use: teaching the young, telling, and making things.
-- Bands try the other ways of a craft now and then, so a better new way can overtake the old one.
 
-## Why skills spread uniformly, and mechanisms to stop it (proposal, 2026-10-14)
+Bands try the other ways of a craft now and then, so a better new way can overtake the old one.
 
-Today learning costs nothing, a band can hold every skill at once, a single meeting passes a way on, and forgetting is weak (about 20% a year, 8% with oral tradition). So every skill drifts to every band. The record shows the opposite: regional toolkits, crafts lost by small or isolated groups (Tasmania, after it was cut off), and specialists.
+## Keeping skills from spreading uniformly
 
-Proposed mechanisms, most important first. (Status 2026-10-18: all six are built in some form in `HexPeople.kt` and `HexCulture.kt`. 1: `Band.holders`, divided on a split, with `SLOTS` ways a person keeps up. 2: training holders takes person-days from the band's spare time (`APPRENTICE_DAYS`). 3: partners bring their skills a little short of their teacher (`TRANSMIT_LOSS`). 4: `FORGET_HANDS` and `FORGET_KNOWLEDGE`. 5: `Skill.needs` and `NEEDS_LEVEL`. 6: `CONFORMITY` and `PRESTIGE`. Whether practice is a learned choice, as 2 asks, is not checked here.)
+If learning cost nothing, a band could hold every skill at once, a single meeting passed a way on, and forgetting were weak, every skill would drift to every band. The record shows the opposite: regional toolkits, crafts lost by small or isolated groups (Tasmania, after it was cut off), and specialists.
 
-1. **Skills live in people.** Each skill has a number of holders in the band, not just a level. A band can keep only so many people practised: each person has time for a few crafts. The band's level in a skill depends on its best few holders. When a band splits, its holders are divided between the two bands, so a splinter group can lose a craft outright. Small, isolated bands lose complex skills, and large, connected ones keep them (Henrich's model of cultural loss).
-2. **Learning takes time.** Practice and teaching come out of the spare days the band also spends on making, building and feasts. What a band practises is one of its choices, for the learned ways to take over. Specialisation follows: a band invests in what its country rewards.
-3. **Passing a skill on is lossy and needs long contact.** Learners reach on average a little below their teacher. One meeting can show that a way exists, but the skill itself comes only with people who stay: partners who marry in, bands that join, visits at gatherings.
-4. **Forgetting by disuse.** A skill unused for a few years fades fast. Lore slows this only for what is sung and told (plants, places, the sky), not for hand skills.
-5. **Prerequisites.** Some ways need others first: microliths need blades, stone boiling needs containers, sealing needs settled life, and later pottery needs good fire control.
-6. **Conformity.** Bands take up a stranger's way less readily the more their customs and words differ, and more readily from bands that are doing well (prestige).
+The mechanisms, most important first (in `HexPeople.kt` and `HexCulture.kt`):
 
-Recommended to build first: 1, 2 and 3. Together they give regional toolkits, loss in isolation, and specialists.
+1. **Skills live in people.** Each skill has a number of holders in the band, not just a level. A band can keep only so many people practised: each person has time for a few crafts. The band's level in a skill depends on its best few holders. When a band splits, its holders are divided between the two bands, so a splinter group can lose a craft outright. Small, isolated bands lose complex skills, and large, connected ones keep them (Henrich's model of cultural loss). (`Band.holders`, divided on a split, with `SLOTS` ways a person keeps up.)
+2. **Learning takes time.** Practice and teaching come out of the spare days the band also spends on making, building and feasts. What a band practises is one of its choices, for the learned ways to take over. Specialisation follows: a band invests in what its country rewards. (Training holders takes person-days from the band's spare time: `APPRENTICE_DAYS`.)
+3. **Passing a skill on is lossy and needs long contact.** Learners reach on average a little below their teacher. One meeting can show that a way exists, but the skill itself comes only with people who stay: partners who marry in, bands that join, visits at gatherings. (`TRANSMIT_LOSS`.)
+4. **Forgetting by disuse.** A skill unused for a few years fades fast. Lore slows this only for what is sung and told (plants, places, the sky), not for hand skills. (`FORGET_HANDS`, `FORGET_KNOWLEDGE`.)
+5. **Prerequisites.** Some ways need others first: microliths need blades, stone boiling needs containers, sealing needs settled life, and later pottery needs good fire control. (`Skill.needs`, `NEEDS_LEVEL`.)
+6. **Conformity.** Bands take up a stranger's way less readily the more their customs and words differ, and more readily from bands that are doing well (prestige). (`CONFORMITY`, `PRESTIGE`.)
 
-## What the record says about how skills grow, cap and fade (2026-10-14)
+Together, 1, 2 and 3 give regional toolkits, loss in isolation, and specialists.
+
+## What the record says about how skills grow, cap and fade
 
 These are from memory of the literature, with authors named for following up. The figures are approximate.
 

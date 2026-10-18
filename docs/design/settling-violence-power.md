@@ -1,6 +1,6 @@
 # Settling, violence and power: what the record says, and what it means for the model
 
-Notes, 2026-10-14. These are from memory of the literature (authors named for following up). The figures are approximate.
+Notes from memory of the literature (authors named for following up). The figures are approximate.
 
 ## Violence: mobile and settled
 
@@ -57,19 +57,18 @@ Both are on rich, fixed resources (a river, a lake shore): contested places.
 
 ## What it means for the model
 
-The model already has stores, houses, feasts with ties, gifts, ornaments, grave goods, raids, palisades, claims and customs.
+The model has stores, houses, feasts with ties, gifts, ornaments, grave goods, raids, palisades, claims and customs. On top of these, the record asks for:
 
-**Missing or thin:**
-1. **Violence within bands** (personal quarrels, revenge, executions). It is the most common forager violence and is rising with crowding and settling. Today a band's inner conflict shows only as earlier splits.
-2. **Raids that pay**, with the target's stores and the raiders' mobility mattering (partly built). Nomad–settled frontiers will emerge once herders exist.
-3. **Fertility rising with settling** (already built) together with disease (built). Check the balance as houses spread.
+1. **Violence within bands** (personal quarrels, revenge, executions). It is the most common forager violence and rises with crowding and settling.
+2. **Raids that pay**, with the target's stores and the raiders' mobility mattering. Nomad–settled frontiers emerge where herders exist.
+3. **Fertility rising with settling**, together with disease. The balance between them matters as houses spread.
 4. **Levelling customs against aggrandisers.**
-   - A band's **standing** is already shaped by ornaments.
-   - Add **individual prestige inside a band**, held by a leader: it grows by hosting feasts, giving gifts and leading successful raids, and counts in decisions (raids, feasts, appointments).
+   - A band's **standing** is shaped by ornaments.
+   - **Individual prestige inside a band**, held by a leader: it grows by hosting feasts, giving gifts and leading successful raids, and counts in decisions (raids, feasts, appointments).
    - A **levelling custom** caps it.
    - **Inherited wealth** (stores, houses, herds, ornaments passing down) lets prestige pass to heirs and become rank.
 
    Rank then appears where surplus, storage, defensible places and inheritance meet, and not elsewhere.
 5. **Ritual centres:** gathering places with built monuments (labour pooled across bands), binding ties and claims at the scale of a region.
 
-**Proposed:** add 4 and 5 as **step 8, "standing, leaders and rank"**, after the climate shock, and fold 1 into step 2c's conflict work.
+Points 4 and 5 make up step 8, "standing, leaders and rank", of [neolithic-path.md](neolithic-path.md), and point 1 belongs with step 2c's conflict work.
