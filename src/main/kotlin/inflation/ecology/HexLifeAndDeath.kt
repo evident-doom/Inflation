@@ -54,9 +54,9 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
             val snow = if (t < -1f && s.diet.grass > 0.3f) 0.2f else 1f
             val (cx, cy) = hex.centreKm(h)
             val dist = hypot(cx - hx, cy - hy) / reachKm
-            // ... and how much forage grows there at all: a desert flush is little food.
+            // ... and how much forage grows there at all: a desert flush is little food; and whether it can drink there in a usual year.
             val food = foodFor(s, p)
-            val score = (0.2f + grow) * food / (food + 0.3f) * fauna.suits(s, p) * snow / (1f + discomfort * discomfort) /
+            val score = (0.2f + grow) * food / (food + 0.3f) * fauna.suits(s, p) * fauna.usualTether(s, p) * snow / (1f + discomfort * discomfort) /
                 (1f + SEASON_DISTANCE * dist.toFloat())
             if (score > bestScore) { bestScore = score; best = p }
         }
@@ -814,9 +814,13 @@ private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     from.adults = 0; from.young = 0; from.larder = 0f
 }
 
-/** Herds remember the place where they did best in each month. */
+/**
+ * Herds remember the place where they did best in each month: how well they fed there, by the share of them that would
+ * live through a month of the week's odds (a place they fed well at but went dry, froze or sickened at is no good place).
+ */
 internal fun HexGroups.remember(date: Date) {
     val m = date.month
+    val weeksAMonth = stepsPerYear / 12f
     // Every group remembers where it was this week and how it fared there.
     val week = stepOf(date)
     for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place.i], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place.i), week, stepsPerYear)
@@ -824,11 +828,12 @@ internal fun HexGroups.remember(date: Date) {
         if (g.species.pack) continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,
         // and a clearly better place takes its place.
-        if (g.seasonPlace[m] < 0) { g.seasonPlace[m] = g.place.i; g.seasonQ[m] = g.fed }
-        else if (g.seasonPlace[m] == g.place.i) g.seasonQ[m] += 0.3f * (g.fed - g.seasonQ[m])
+        val fared = g.fed * (1f - g.deathOdds).pow(weeksAMonth)
+        if (g.seasonPlace[m] < 0) { g.seasonPlace[m] = g.place.i; g.seasonQ[m] = fared }
+        else if (g.seasonPlace[m] == g.place.i) g.seasonQ[m] += 0.3f * (fared - g.seasonQ[m])
         else {
             g.seasonQ[m] *= MEMORY_FADE
-            if (g.fed > g.seasonQ[m] + 0.1f) { g.seasonPlace[m] = g.place.i; g.seasonQ[m] = g.fed }
+            if (fared > g.seasonQ[m] + 0.1f) { g.seasonPlace[m] = g.place.i; g.seasonQ[m] = fared }
         }
     }
 }
