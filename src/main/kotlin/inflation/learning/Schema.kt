@@ -76,22 +76,20 @@ object Schema {
         require(net.sizes.size >= 3) { "a network needs a hidden layer to be refitted" }
         val sizes = net.sizes.copyOf().also { it[0] = inputs.size; it[it.size - 1] = outputs.size }
         val m = Mlp(sizes)
-        val oldIn = net.sizes[0]; val h = net.sizes[1]
+        val h = net.sizes[1]; val top = net.sizes.size - 1
         // First layer: each hidden unit's weight on each input, by the input's name; then its bias.
         val inAt = inputs.map { savedIn.indexOf(it) }
-        for (j in 0 until h) for ((i, k) in inAt.withIndex()) if (k >= 0) m.w[j * inputs.size + i] = net.w[j * oldIn + k]
-        for (j in 0 until h) m.w[inputs.size * h + j] = net.w[oldIn * h + j]
-        // The hidden layers between are as they were.
-        var offOld = oldIn * h + h; var offNew = inputs.size * h + h
-        for (l in 2 until net.sizes.size - 1) {
-            val n = net.sizes[l - 1] * net.sizes[l] + net.sizes[l]
-            net.w.copyInto(m.w, offNew, offOld, offOld + n); offOld += n; offNew += n
+        for (j in 0 until h) {
+            for ((i, k) in inAt.withIndex()) if (k >= 0) m.w[m.at(1, i, j)] = net.w[net.at(1, k, j)]
+            m.w[m.biasAt(1, j)] = net.w[net.biasAt(1, j)]
         }
-        // Last layer: each output's row and bias, by the output's name (a new one stays zero).
-        val last = net.sizes[net.sizes.size - 2]; val oldOut = net.sizes.last()
+        // The hidden layers between are as they were.
+        for (l in 2 until top) net.w.copyInto(m.w, m.at(l, 0, 0), net.at(l, 0, 0), net.biasAt(l, net.sizes[l]))
+        // Last layer: each output's weights and bias, by the output's name (a new one stays zero).
+        val last = net.sizes[top - 1]
         for ((o, k) in outputs.map { savedOut.indexOf(it) }.withIndex()) if (k >= 0) {
-            for (j in 0 until last) m.w[offNew + o * last + j] = net.w[offOld + k * last + j]
-            m.w[offNew + outputs.size * last + o] = net.w[offOld + oldOut * last + k]
+            for (j in 0 until last) m.w[m.at(top, j, o)] = net.w[net.at(top, j, k)]
+            m.w[m.biasAt(top, o)] = net.w[net.biasAt(top, k)]
         }
         return m
     }
