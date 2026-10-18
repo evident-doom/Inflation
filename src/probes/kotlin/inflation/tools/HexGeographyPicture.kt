@@ -62,6 +62,8 @@ fun main(args: Array<String>) {
     for (feat in f.all.filter { it.kind != HexGeography.Kind.VALLEY }.sortedByDescending { it.hexes.size }) {
         g.font = Font(Font.SANS_SERIF, if (feat.kind == HexGeography.Kind.RIVER) Font.ITALIC else Font.BOLD, (7 + 1.6 * ln(feat.hexes.size.toDouble())).toInt() * px / 2 + 4)
         val w = g.fontMetrics.stringWidth(feat.name); val lx = x(feat.label) - w / 2; val ly = y(feat.label)
+        val across = if (feat.kind == HexGeography.Kind.RIVER) feat.hexes.size * hex.hexKm else kotlin.math.sqrt(feat.hexes.size * hex.areaKm2)
+        if (w > across * px) continue
         g.color = Color(255, 255, 255, 190)
         for ((dx, dy) in arrayOf(-1 to 0, 1 to 0, 0 to -1, 0 to 1)) g.drawString(feat.name, lx + dx, ly + dy)
         g.color = if (feat.kind == HexGeography.Kind.RIVER || feat.kind == HexGeography.Kind.LAKE || feat.kind == HexGeography.Kind.BAY) Color(0, 30, 150) else Color(40, 30, 20)
