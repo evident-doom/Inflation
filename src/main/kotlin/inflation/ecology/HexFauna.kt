@@ -590,19 +590,82 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
+    // PROBE (not for merging): what moves upland residents' mean height, month by month.
+    @Transient private var probeKs: List<Int>? = null
+    @Transient private var probeAcc: Array<DoubleArray>? = null
+    @Transient private var probeAt: DoubleArray? = null
+    private fun probeHeight(k: Int): Double {
+        var h = 0.0; var w = 0.0
+        for (p in 0 until n) { val v = ((adults[k][p] + young[k][p]) * land.areaKm2[p]).toDouble(); w += v; h += v * hw.placeElevationM[p] }
+        return if (w > 0.0) h / w else Double.NaN
+    }
+    /** Stage 0 before births and deaths (the change since last week's end goes to "groups and the rest"), 1 after, 2 after the band shift, 3 after spill. */
+    private fun probeMark(stage: Int) {
+        val ks = probeKs ?: kinds.indices.filter { kinds[it].name in setOf("mouflon", "ibex", "wild goat", "argali", "red deer") }.also {
+            probeKs = it; probeAcc = Array(kinds.size) { DoubleArray(5) }; probeAt = DoubleArray(kinds.size) { Double.NaN } }
+        val acc = probeAcc!!; val at = probeAt!!
+        for (k in ks) {
+            val h = probeHeight(k)
+            val slot = when (stage) { 0 -> 3; 1 -> 0; 2 -> 1; else -> 2 }
+            if (!at[k].isNaN() && !h.isNaN()) acc[k][slot] += h - at[k]
+            at[k] = h
+            if (stage == 3) acc[k][4] += 1.0
+        }
+    }
+    private fun probeReport(weather: Weather, month: Int) {
+        val ks = probeKs ?: return; val acc = probeAcc!!
+        val out = FloatArray(HZ_COUNT)
+        for (k in ks) {
+            val s = kinds[k]
+            val bands = HexWorld.BANDS_M.size
+            val byBand = DoubleArray(bands); var heads = 0.0
+            // Heads-weighted over hexes with two or more bands: ln(top / bottom) of appeal's parts, and top minus bottom of the week's death shares.
+            val parts = DoubleArray(8); val deaths = DoubleArray(7); var wsum = 0.0
+            for (h in 0 until hex.size) {
+                var lo = -1; var hi = -1; var hh = 0.0
+                for (b in 0 until bands) { val p = hw.placeOf[b][h]; if (p < 0) continue
+                    val v = ((adults[k][p] + young[k][p]) * land.areaKm2[p]).toDouble(); byBand[b] += v; heads += v; hh += v
+                    if (lo < 0) lo = p; hi = p }
+                if (lo < 0 || hi == lo || hh <= 0.0) continue
+                fun part(p: Int): FloatArray {
+                    val m = weather.date.month
+                    val disc = ((1f - s.foresight) * s.discomfortC(feltC(s, p, weather.temperature[p]), m) + s.foresight * s.discomfortC(feltC(s, p, weather.forecastTemp(p)), m)) / 10f
+                    return floatArrayOf(appeal(k, p, weather), fareFor(s, p), land.plants.nourishment(p) * forageProtein(s, p), suits(s, p), tether(s, p),
+                        if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f, 1f / (1f + disc), 1f / (1f + (adults[k][p] + young[k][p]) / (CROWDED * usual[k])))
+                }
+                val pl = part(lo); val ph = part(hi)
+                for (i in parts.indices) { val r = kotlin.math.ln(((ph[i] + 1e-9f) / (pl[i] + 1e-9f)).toDouble()); if (r.isFinite()) parts[i] += hh * r }
+                fun dz(p: Int): FloatArray { stayOdds(k, p, weather, out)
+                    return floatArrayOf(out[HZ_HUNGER], out[HZ_COLD], out[HZ_THIRST], out[HZ_DISEASE], out[HZ_SNOW_A], out[HZ_HUNTED], adultShare(out)) }
+                val dl = dz(lo); val du = dz(hi)
+                for (i in deaths.indices) deaths[i] += hh * (du[i] - dl[i])
+                wsum += hh
+            }
+            if (heads <= 0.0) continue
+            val a = acc[k]; val w = wsum.coerceAtLeast(1e-9)
+            println("HPROBE m%02d %-9s height %5.0f | change m: births-deaths %+5.0f bandshift %+5.0f spill %+5.0f groups+rest %+5.0f | bands %s".format(
+                month + 1, s.name, probeHeight(k), a[0], a[1], a[2], a[3], byBand.joinToString(" ") { "%3.0f%%".format(100 * it / heads) }))
+            println("HPROBE m%02d %-9s ln(top/bottom): appeal %+.2f fare %+.2f fresh %+.2f suits %+.2f tether %+.2f snow %+.2f comfort %+.2f crowd %+.2f | week deaths top-bottom x1000: hunger %+.2f cold %+.2f thirst %+.2f disease %+.2f snow %+.2f hunted %+.2f all %+.2f".format(
+                month + 1, s.name, *(parts.map { it / w } + deaths.map { 1000 * it / w }).toTypedArray()))
+            a.fill(0.0)
+        }
+    }
+
     /** The residents' part of the week, in order, with the weather on the same places. */
     @Transient val phases = listOf(
         Phase("residents: new month") { newWeek(it, it.date) },
         Phase("food stocks") { food.step(it) },
         Phase("water life") { water.step(it) },
         Phase("residents: grazing") { graze(it) },
-        Phase("residents: births, deaths") { breedAndDie(it, it.date) },
+        Phase("residents: births, deaths") { probeMark(0); breedAndDie(it, it.date); probeMark(1) },
         Phase("residents: moving") {
             // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
             preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n) { p -> preyFor(kinds[k], p) } else null }
             Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
+            probeMark(2)
             Profile.part("residents: weighing places") { fillArrive(it) }
             Profile.part("residents: spreading to neighbouring hexes") { spill(it) }
+            probeMark(3)
             preyNow = null
         },
         Phase("soil and small life") { small.step(it, carcassKg) },
@@ -617,6 +680,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
+            probeReport(weather, bearings.month)
             if (date.month == 0) newcomers(date)
             Profile.time("sense of direction") { bearings.update(date.month) }
             if (date.month == 3) shiftBreeding()
