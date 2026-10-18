@@ -3,6 +3,8 @@ package inflation.learning
 import inflation.run.freshSim
 import inflation.ecology.HexSim
 import inflation.ecology.Catalogue
+import inflation.ecology.GATHER_KM
+import inflation.Config
 import inflation.ecology.HexFeatures
 import inflation.ecology.Temperament
 import inflation.ecology.HexGroup
@@ -197,6 +199,15 @@ object HexPpo {
      */
     const val PEOPLE_HORIZON = 13
     const val PEOPLE_DISCOUNT = 0.98f
+    /**
+     * What a migratory herd's choice earns, on top of its members' fate, for where they stand at the end of its
+     * horizon: up to this much, reached once they are [MIGRATION_KM] from where they chose (key ppo.migrationWeight).
+     * About what a twentieth more of its members living earns, so living stays first; it is what the ecosystem
+     * check also asks of the herds, so the networks learn to move rather than only being stopped from settling.
+     */
+    val MIGRATION_WEIGHT = Config.float("ppo.migrationWeight", 0.05f)
+    /** The distance at which the migration bonus is whole: where a herd may scatter into the land ([GATHER_KM]). */
+    const val MIGRATION_KM = GATHER_KM
     const val CLIP = 0.2f
     /**
      * Parts each batch of learning is split into, to be worked on all cores (with 16 parts, as
@@ -342,6 +353,13 @@ object HexPpo {
         var derailed: String? = null; private set
         private val startNumbers = HashMap<Int, Int>()
         private fun numbersByRole(): Map<Int, Int> = run.groups.groups.filter { it.alive }.groupingBy { role(it.species) }.fold(0) { a, g -> a + g.size }
+        /** The migration bonus of choice [c] judged over [horizon] weeks ([MIGRATION_WEIGHT]); 0 where its group was not seen. */
+        private fun migration(c: Choice, horizon: Int): Float {
+            val a = outcomes.where(c.groupId, c.week); val b = outcomes.where(c.groupId, c.week + horizon)
+            if (a < 0 || b < 0) return 0f
+            return MIGRATION_WEIGHT * min(1.0, run.groups.hw.hex.distanceKm(a, b) / MIGRATION_KM).toFloat()
+        }
+
         private fun checkRails() {
             val now = numbersByRole()
             if (startNumbers.isEmpty()) { startNumbers.putAll(now); return }
@@ -379,7 +397,7 @@ object HexPpo {
                     setRates()
                     census("year %d%s: %s".format(week / stepsPerYear, if (week <= burnSteps) " (settling)" else "", kinds.joinToString(", ") { s -> "${s.name} ${run.groups.count(s)}" }))
                 }
-                outcomes.record(week, run.groups.groups, run.groups.merged)
+                outcomes.record(week, run.groups.groups, run.groups.merged) { g -> run.groups.hw.placeHex[g.place.i] }
             }
             val out = ArrayList<Choice>()
             val waiting = ArrayList<Choice>()
@@ -401,8 +419,10 @@ object HexPpo {
                     if (k <= boot) part += d * m else tail += d
                     d *= discount
                 }
-                c.ret = sum / norm
-                c.part = part / norm
+                // (A migratory herd's choice is also judged by how far its members went in the half year, as the check judges the herds.)
+                val went = if (c.kind in Catalogue.migratory) migration(c, horizon) else 0f
+                c.ret = sum / norm + went
+                c.part = part / norm + went
                 c.boot = own[boot - 1] / c.size.coerceAtLeast(1).toFloat() * tail / norm
                 out += c
             }
