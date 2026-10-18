@@ -412,7 +412,7 @@ class Band(kinds: Int) {
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
         copied(o)
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
-        // (A band from a save made before the form-swap test added a resident kind keeps fewer kinds: see [HexFauna.kinds].)
+        // (A band from a save made when there were fewer resident kinds keeps fewer: see [HexFauna.kinds].)
         for (i in 0 until min(herd.size, o.herd.size)) { o.herd[i] *= share; herd[i] -= o.herd[i] }
         for (m in Material.entries) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic

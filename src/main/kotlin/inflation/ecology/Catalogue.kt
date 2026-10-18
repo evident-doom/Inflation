@@ -695,14 +695,6 @@ object Catalogue {
     fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
 
     /**
-     * For tests: kinds run in the other form than their own after a settled state is loaded (t.formSwap=NAME,NAME):
-     * residents as herds or packs, herds and packs as residents (see [swapForms]). Not people.
-     */
-    val formSwap: List<Species> by lazy {
-        inflation.Config.string("t.formSwap")?.split(',')?.map { n -> all.first { it.name == n.trim() } }?.filter { !it.human } ?: emptyList()
-    }
-
-    /**
      * Kinds that live both ways: spread over the land as residents, gathered into herds for the months their
      * round takes them far (see [gather] and [scatter]).
      */

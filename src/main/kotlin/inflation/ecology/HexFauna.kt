@@ -64,10 +64,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * The resident kinds, and for each, adults and young per km² of each place: those that live only so, then the herd kinds that
-     * also live spread out between their gatherings ([Catalogue.gathering]), and those run as residents in the form-swap test.
+     * also live spread out between their gatherings ([Catalogue.gathering]).
      */
-    @Transient val kinds = (Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.gathering.sortedBy { it.index } +
-        Catalogue.formSwap.filter { !Catalogue.resident(it) }).distinct()
+    @Transient val kinds = (Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.gathering.sortedBy { it.index }).distinct()
     /** Each kind's place in [kinds] (and in every table here kept by kind), by its [Species.index]; -1 for a kind kept in groups. */
     @Transient private val slots = IntArray(Catalogue.all.size) { -1 }.also { for ((k, s) in kinds.withIndex()) it[s.index] = k }
     /** [s]'s place in [kinds], or -1 if it is not a resident. */
