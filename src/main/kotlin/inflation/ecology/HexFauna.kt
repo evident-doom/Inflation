@@ -834,9 +834,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
         val bornBook = land.books?.adder(Books.Stuff.MATTER, "residents born and grew up")
+        // A kind that lives both ways is crowded by all of its animals about a place, its herds' as well as its own:
+        // each herd's heads per km2 over the ground it grazes ([herdsAt]).
+        val herdKm2 = arrayOfNulls<FloatArray>(kinds.size)
+        for ((p, list) in herdsAt) for (at in list) {
+            val k = slot(at.g.species); if (k < 0) continue
+            (herdKm2[k] ?: FloatArray(n).also { herdKm2[k] = it })[p] += at.g.size * at.share / land.areaKm2[p]
+        }
         kinds.indices.toList().parallelStream().forEach { k ->
             val s = kinds[k]
             val carcassKg = carcasses[k]
+            val herds = herdKm2[k]
             val start = birthStart[k]
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
             val grow = years / s.yearsToMaturity
@@ -850,7 +858,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     // (Mothers short of protein bear and suckle fewer.)
                     // (A mother needs a range of her own to bear and raise her young in: where they crowd beyond
                     // [inflation.Tuning.breedSpacing] times their usual numbers, only as many as there are ranges breed.)
-                    val ranges = min(1f, tuning.breedSpacing * usual[k] / (a[p] + y[p]))
+                    val ranges = min(1f, tuning.breedSpacing * usual[k] / (a[p] + y[p] + (herds?.get(p) ?: 0f)))
                     val born = 0.5f * a[p] * ranges * s.youngPerFemale * f[p] * protein[k][p] / stepsInSeason
                     y[p] += born
                     bornThisWeek[k] += (born * area).toDouble()
@@ -872,7 +880,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val thirst = Hazards.thirst(s, dk[p])
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
                 // lean season binds, and then hunger and sickness together hold them.
-                val crowd = (a[p] + y[p]) / (CROWDED * usual[k])
+                val crowd = (a[p] + y[p] + (herds?.get(p) ?: 0f)) / (CROWDED * usual[k])
                 val disease = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - f[p])) + outbreakDeaths(s, p)
                 // Where the herds are crowded, now and then a plague breaks out among them.
                 if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
