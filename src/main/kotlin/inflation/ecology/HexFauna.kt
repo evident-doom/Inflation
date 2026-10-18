@@ -274,8 +274,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val food = HexFood(land, small, days)
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
     val carcassKg = FloatArray(n)
-    /** Deaths this week by cause, animals. */
-    val deaths = TreeMap<String, Double>()
+    /** Deaths this week by cause, animals ([WeekStats.residentDeaths]). */
+    val deaths get() = land.stats.residentDeaths
     /** Where things died and dead matter went, for the viewer; null (and not kept) unless something reads it. */
     @Transient var record: PlaceRecord? = null
         set(v) { field = v; small.record = v }
@@ -531,7 +531,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         herdKillBook = books?.adder(Books.Stuff.MATTER, "herds killed by residents (from the groups)")
         for (p in 0 until n) fear[p] *= FEAR_KEEP
         Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
-        deaths.clear()
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
             if (date.month == 0) newcomers(date)

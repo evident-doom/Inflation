@@ -6,7 +6,9 @@ import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.atomic.DoubleAdder
 
 /**
- * The groups' tallies for the week, by free-form key: what the reports and checks read back.
+ * The week's tallies, by free-form key: what the reports and checks read back. The model never reads them. One
+ * ledger for the whole step, kept by the land and cleared once as the week starts ([inflation.ecology.HexSim.step]),
+ * so a tally written in any phase lasts until the reports read it.
  * (Concurrent and sorted: hunting runs region by region on all cores.)
  */
 class WeekStats {
@@ -22,9 +24,11 @@ class WeekStats {
     @Transient val childDeaths = ConcurrentHashMap<String, DoubleAdder>()
     /** Young born this week by kind. */
     val births = TreeMap<String, Int>()
+    /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
+    val residentDeaths = TreeMap<String, Double>()
 
     /** Starts a new week (the children's ledger runs on until read). */
-    fun clear() { kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear() }
+    fun clear() { kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
 
     companion object {
         /** [hunting] keys the reports read back ("people:children died"). */

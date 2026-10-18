@@ -3,6 +3,7 @@ package inflation.world
 import inflation.Books
 import inflation.ecology.Phase
 import inflation.ecology.runPhases
+import inflation.ecology.WeekStats
 import inflation.Tuning
 import inflation.Config
 import inflation.Kg
@@ -123,6 +124,8 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     @Transient internal val slopeShade = hw.sunlight.shade
     /** The books of the run's water and matter, when kept (see [Books]); the parts and the ecology book their flows in them. */
     @Transient var books: Books? = null
+    /** The week's tallies for the reports ([WeekStats]), shared by every part like the books; not saved. */
+    @Transient val stats = WeekStats()
 
     // ---------------------------------------------------------------- the parts (saved before they were split out as the land's own fields)
 
