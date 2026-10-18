@@ -1078,6 +1078,8 @@ class HexGroups(
             val offGround = (if (beyond > 0f && (denning || (g.fed >= Thresholds.HUNGRY && !astray))) KEEP_TO_GROUND else 0f) +
                 (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
             val toGoal = if (goal >= 0) hexKm(h.i, goalHex) else 0.0
+            // The open water on the way there, as the share of it a crossing drowns (see [move]).
+            val drowning = crossingDeaths(s, h.i, here.i, via)
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(kind, here.i, h.i, pullKm)
             // And a herd goes on the way it has been going, as far as it has kept to one way (see [HexGroup.headE]).
@@ -1093,7 +1095,7 @@ class HexGroups(
                 val prey = if (s.carnivore) knownGame(g, kind, p, h, sensed) else 0f
                 val hunters = huntersKm2(p, h)
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
-                var score = scorePlace(c, t, p, h, d, toGoal, offGround, pull, keepOn, prey, crowded, hunters)
+                var score = scorePlace(c, t, p, h, d, toGoal, offGround, pull, keepOn, prey, crowded, hunters, drowning)
                 seen?.add(p.i to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
@@ -1159,7 +1161,7 @@ class HexGroups(
      * water, the going, the season's place or round, its bearing and heading, staying, and a band's own pulls.
      */
     private fun scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h: Hex, d: Float, toGoal: Double, offGround: Float, pull: Float, keepOn: Float,
-        prey: Float, crowded: Float, hunters: Float): Float {
+        prey: Float, crowded: Float, hunters: Float, drowning: Float): Float {
         val g = c.g; val s = g.species; val kind = c.kind; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
         val goalQ = c.goalQ; val onRound = c.onRound; val roundStrength = c.roundStrength; val fromHere = c.fromHere; val reach = c.reach
         val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather; val date = c.date
@@ -1180,13 +1182,14 @@ class HexGroups(
         // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
         // (People can dig for water in a dry bed where it lies near.)
         score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
+        if (thirsty && !canDrink(s, p.i)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need (see [walkCost]).
         score -= WALK_COST * d / days
         // Above all, it keeps alive: the share of it that would die there this week weighs against all the rest, in
         // steps of the chance in a week's deaths for a group its size (see [survivalSteps]). Places alike in that are
         // told apart by the rest of the score; a place clearly deadlier is not taken for any food or comfort.
-        score -= survivalSteps(g, deathsAt(c, p, h, prey, crowded))
+        score -= survivalSteps(g, deathsAt(c, p, h, prey, crowded) + drowning)
         // Herds and bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && (!s.carnivore || s.human)) {
             // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
@@ -1217,6 +1220,32 @@ class HexGroups(
      * and the background, is left out: it cannot tell places apart.)
      */
     private fun deathsAt(c: PlanContext, p: Place, h: Hex, prey: Float, crowded: Float): Float {
+        val g0 = c.g; val s0 = g0.species
+        // (Herds sicken where their kind crowds, as [sicknessWeek] has it: its own kind there as it knows it, itself included.)
+        val sick = if (s0.carnivore) 0f else {
+            val heads = knownHeads(c.kind, p, h, c.sensed) - (if (p == g0.place) g0.size else 0) + g0.size
+            val crowd = heads / hex.areaKm2.toFloat() / (HexFauna.CROWDED * HexFauna.usualDensity(s0) * MIGRANTS_GATHER)
+            HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g0.fed))
+        }
+        return sick + deathsOfPlace(c, p, h, prey, crowded)
+    }
+
+    /**
+     * The share of a group of [s] that drowns on the way from hex [here] to hex [to] along the cheapest chain ([via]):
+     * each strait crossed, as [move] drowns it (the young twice as many, counted here as grown).
+     */
+    private fun crossingDeaths(s: Species, to: Int, here: Int, via: IntArray): Float {
+        var risk = 0f; var h = to
+        while (h != here) {
+            val from = via[h]; if (from < 0) break
+            val gap = seaGap(from, h)
+            if (gap.isFinite()) risk += DROWN * gap / Catalogue.swimKm(s).coerceAtLeast(1f)
+            h = from
+        }
+        return min(0.9f, risk)
+    }
+
+    private fun deathsOfPlace(c: PlanContext, p: Place, h: Hex, prey: Float, crowded: Float): Float {
         val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
         val t = weather.temperature[p]
         // (Its food there, as the score's food term reckons it, as how fed it would be.)
