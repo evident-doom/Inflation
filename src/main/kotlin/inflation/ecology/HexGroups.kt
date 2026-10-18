@@ -1180,21 +1180,13 @@ class HexGroups(
         // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
         // (People can dig for water in a dry bed where it lies near.)
         score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
-        if (thirsty && !canDrink(s, p.i)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need (see [walkCost]).
         score -= WALK_COST * d / days
-        // What it would die of there that it can see: the fire (herds weigh it in their food, see [lifewayValue]), plague
-        // among its kind, and for a band the beasts that take people (those of the groups about only where it senses them);
-        // each death the life it ends, as a hunter weighs a chase ([worthChasing]).
-        var dying = fauna.outbreakDeaths(s, p.i)
-        if (s.lifeway != Lifeway.HERD) dying += land.fire.burning[p] * HexFauna.FIRE_ADULT
-        // (And the cold beyond what its clothes, the fire it could keep there and its house keep off: see [HexGroups.liveWeek].)
-        g.band?.let { b ->
-            dying += stalkRate(g, b, p.i, residentManEaters(p.i) + (if (h in sensed) manEaterKm2[h.i] else 0f))
-            dying += min(0.9f, EXPOSURE * b.exposure(weather.temperature[p], fireAt(g, b, p.i), atHouse(b, p.i)) * days / 7f)
-        }
-        score -= dying * lifeWeeks(g)
+        // Above all, it keeps alive: the share of it that would die there this week weighs against all the rest, in
+        // steps of the chance in a week's deaths for a group its size (see [survivalSteps]). Places alike in that are
+        // told apart by the rest of the score; a place clearly deadlier is not taken for any food or comfort.
+        score -= survivalSteps(g, deathsAt(c, p, h, prey, crowded))
         // Herds and bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && (!s.carnivore || s.human)) {
             // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
@@ -1217,10 +1209,42 @@ class HexGroups(
     }
 
     /**
-     * What a life of [g]'s is worth, in weeks of its need: all it would yet eat, by the odds it lives under now (the hungry,
-     * the cold and the sick have less to lose), as [worthChasing] weighs a hunter lost.
+     * The share of [c]'s group that would die this week at place [p] (in hex [h]) of what the place holds, by the rules
+     * that kill it there ([liveWeek]): hunger at the food it would find ([prey] for hunters, against its own kind's
+     * [crowded]ing), thirst where it cannot drink, the cold past its coat (or clothes, the fire it could keep there and its
+     * house), fire, flood and deep snow, plague among its kind, and for a band the beasts that take people (those of the
+     * groups about only where it senses them). The young's odds count for the young. (What it shares wherever it goes, age
+     * and the background, is left out: it cannot tell places apart.)
      */
-    internal fun lifeWeeks(g: HexGroup) = 1f / max(g.deathOdds, g.species.backgroundMortality * years)
+    private fun deathsAt(c: PlanContext, p: Place, h: Hex, prey: Float, crowded: Float): Float {
+        val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
+        val t = weather.temperature[p]
+        // (Its food there, as the score's food term reckons it, as how fed it would be.)
+        val food = if (s.carnivore) prey / (prey + PREY_HALF) else saturate(placeValue[c.kind][p], Thresholds.FOOD_HALF)
+        val hunger = Hazards.hunger((food - 0.5f * crowded).coerceIn(0f, 1f))
+        val thirst = if (canDrink(s, p.i)) 0f else Hazards.thirst(s, g.dry + Hazards.dryDays(s, days, g.fed, land.plants.green[p]))
+        val cold = Hazards.cold(s, if (b != null) b.feels(t, fireAt(g, b, p.i), atHouse(b, p.i)) else t, weather.date.month)
+        val exposure = if (b != null) min(0.9f, EXPOSURE * b.exposure(t, fireAt(g, b, p.i), atHouse(b, p.i)) * days / 7f) else 0f
+        val (fireA, floodA, snowA) = fauna.calamities(s, p.i, weather, false)
+        val (fireY, floodY, snowY) = fauna.calamities(s, p.i, weather, true)
+        val plague = fauna.outbreakDeaths(s, p.i)
+        val stalked = if (b != null) stalkRate(g, b, p.i, residentManEaters(p.i) + (if (h in c.sensed) manEaterKm2[h.i] else 0f)) else 0f
+        val pressing = hunger + thirst + cold + exposure
+        val adult = pressing + fireA + floodA + snowA + plague + stalked
+        val young = 1.5f * pressing + fireY + floodY + snowY + plague + YOUNG_STALKED / (b?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked
+        val size = max(1, g.size)
+        return (g.adults * adult.coerceIn(0f, 0.9f) + g.young * young.coerceIn(0f, 0.95f)) / size
+    }
+
+    /**
+     * Deaths [dying] (a share of [g] this week) in steps of the chance in a week's deaths: the spread of the share that dies
+     * of a group of [g]'s size at the odds it lives under now (at least its kind's background). A difference within a step
+     * is no more than chance and weighs as one unit of the rest of the score; one of many steps outweighs all of it.
+     */
+    internal fun survivalSteps(g: HexGroup, dying: Float): Float {
+        val q = max(g.deathOdds, g.species.backgroundMortality * years).coerceIn(1e-6f, 0.5f)
+        return dying / sqrt(q * (1f - q) / max(1, g.size))
+    }
 
     internal fun hexKm(a: Int, b: Int): Double = hex.distanceKm(a, b)
     internal fun hexKm(a: Hex, b: Hex): Double = hex.distanceKm(a.i, b.i)
