@@ -10,8 +10,10 @@ import kotlin.math.roundToInt
  * Kinds that live both ways ([Catalogue.gathering]): one population, spread over the land as residents, out of
  * which herds condense where there are more animals than the land will feed. The residents of each place remember,
  * month by month, how much of them the land there left unfed before; what they expect to go short of over the
- * coming season ([LOOKAHEAD_MONTHS]), that food shared among the heads there now, is its excess (see [foresee]): a
- * lean week once does not move them, a lean season known to come does, before it starves them. Where the excess
+ * coming season ([LOOKAHEAD_MONTHS]), that food shared among the heads there now, beyond what they go short of there
+ * in a usual month of the year, is its excess (see [foresee]): a lean week once does not move them, nor does the
+ * want that holds their numbers to what the land feeds the year round; a lean season known to come does, before
+ * it starves them. Where the excess
  * within [gatherKm] of a place comes to a full herd of the kind, it gathers into herds that go looking for other
  * country, and those the land will feed stay. A herd that has come away from where it formed, and is fed where it stands among residents of its
  * kind that are fed too, scatters back into the land. Heads, young, fat, feeding and protein go across as they are:
@@ -36,10 +38,10 @@ const val LOOKAHEAD_MONTHS = 3
 
 /**
  * Each week, before herds scatter and gather: for each gathering kind, the share of its residents in each place
- * that expect to go short over the coming season ([lean]). This week's want goes into the memory of the month first
- * ([leanShort], [leanHeads], by hex and month); then for each month ahead, the share the land left unfed then,
- * its food shared among the heads there now. A month in which the land fed them all says nothing of how many more
- * it would feed, so it counts as no shortfall.
+ * that expect to go short over the coming season beyond their usual want there ([lean]). This week's want goes into
+ * the memory of the month first ([leanShort], [leanHeads], by hex and month); then for each month, the share the
+ * land left unfed then, its food shared among the heads there now; the coming season's against the year's. A month
+ * in which the land fed them all says nothing of how many more it would feed, so it counts as no shortfall.
  */
 internal fun HexGroups.foresee(month: Int) {
     for (s in Catalogue.gathering) {
@@ -58,12 +60,13 @@ internal fun HexGroups.foresee(month: Int) {
             // (The first time a month is seen there, it is taken as it is.)
             if (lh[i] <= 0f) { ls[i] = now; lh[i] = heads[h].toFloat() }
             else { ls[i] += (now - ls[i]) * HexFauna.FED_MEMORY; lh[i] += (heads[h].toFloat() - lh[i]) * HexFauna.FED_MEMORY }
-            var sum = 0f
-            for (d in 0 until LOOKAHEAD_MONTHS) {
+            var soon = 0f; var year = 0f
+            for (d in 0 until 12) {
                 val j = h * 12 + wrapMonth(month + d)
-                if (ls[j] > 0f) sum += max(0f, 1f - (1f - ls[j]) * lh[j] / heads[h].toFloat())
+                val want = if (ls[j] > 0f) max(0f, 1f - (1f - ls[j]) * lh[j] / heads[h].toFloat()) else 0f
+                year += want; if (d < LOOKAHEAD_MONTHS) soon += want
             }
-            ahead[h] = sum / LOOKAHEAD_MONTHS
+            ahead[h] = max(0f, soon / LOOKAHEAD_MONTHS - year / 12)
         }
         lean[s] = FloatArray(n) { ahead[hw.placeHex[it]] }
     }
