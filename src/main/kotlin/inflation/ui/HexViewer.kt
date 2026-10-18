@@ -136,11 +136,10 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean,
                         val both: BothWays? = null)
     /**
-     * For a herd of a kind that also lives spread out: what it did with the residents this week ([state]), where it
-     * formed (km, NaN for none) and whether it is past the ground it may not scatter on, and its kind's pull where it
-     * stands (east, south; 0..1).
+     * For a herd of a kind that also lives spread out: what it did with the residents this week ([state]) and its kind's
+     * pull where it stands (east, south; 0..1).
      */
-    private class BothWays(val state: HerdState, val fromX: Float, val fromY: Float, val far: Boolean, val pullE: Float, val pullS: Float)
+    private class BothWays(val state: HerdState, val pullE: Float, val pullS: Float)
     private enum class HerdState(val label: String, val colour: Color) {
         FORMED("condensed this week", Color(1f, 0.9f, 0.1f)), JOINING("taking in residents", Color(0.2f, 0.9f, 0.3f)),
         SETTLING("leaving a band settled", Color(1f, 0.55f, 0.1f)), MOVING("neither", Color(0.85f, 0.85f, 0.85f))
@@ -380,10 +379,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             else -> HerdState.MOVING
         }
         val h = hw.placeHex[g.place]
-        val (fx, fy) = if (g.formedAt >= 0) hex.centreKm(hw.placeHex[g.formedAt]).let { it.first.toFloat() to it.second.toFloat() } else Float.NaN to Float.NaN
-        val far = g.formedAt < 0 || hex.distanceKm(h, hw.placeHex[g.formedAt]) > inflation.ecology.gatherKm(s)
         val k = groups.kinds.indexOf(s)
-        return BothWays(state, fx, fy, far, if (k >= 0) groups.bearings.east[k][h] else 0f, if (k >= 0) groups.bearings.south[k][h] else 0f)
+        return BothWays(state, if (k >= 0) groups.bearings.east[k][h] else 0f, if (k >= 0) groups.bearings.south[k][h] else 0f)
     }
 
     /** The model: learned networks where given ([nets], [waysFile], see [LearnedModel]), else the hand-written choices. */
@@ -750,13 +747,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     g.color = Color(1f, 1f, 1f, a); g.fillRect(sx(x) - 3, sy(y) - 3, 7, 7)
                     g.color = Color(0.82f, 0.06f, 0.06f, a); g.fillRect(sx(x) - 2, sy(y) - 2, 5, 5)
                 } else {
-                    // A herd of a kind that also lives spread out: a line back to where it condensed (grey while it is
-                    // too near to settle, white once past), its kind's pull where it stands, and a ring for what it did.
+                    // A herd of a kind that also lives spread out: its kind's pull where it stands, and a ring for what it did.
                     s.both?.let { b ->
-                        if (!b.fromX.isNaN()) {
-                            g.color = if (b.far) Color(1f, 1f, 1f, 0.6f) else Color(0.6f, 0.6f, 0.6f, 0.6f)
-                            g.drawLine(sx(b.fromX), sy(b.fromY), sx(x), sy(y))
-                        }
                         val st = hypot(b.pullE, b.pullS)
                         if (st > 0.02f) {
                             val len = (min(1f, st * 2f) * hex.hexKm * 1.5).toFloat()
@@ -774,9 +766,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             }
             if (bothShown) legends += MapLegend("Herds that also live spread out", "Herds of the kinds that live both as residents and as herds: " +
                 "a ring for what the herd did this week (condensed out of the unfed residents, took in hungry residents and young males, or left a band settled " +
-                "where the land had room), a line back to where it condensed (grey while within a week's travel of it, where it may not settle; white past it), " +
-                "and a yellow arrow for its kind's pull where it stands.",
-                note = "line: back to where it condensed; arrow: its kind's pull", swatches = HerdState.entries.map { MapLegend.Swatch(it.colour, it.label) })
+                "where the land had room) and a yellow arrow for its kind's pull where it stands.",
+                note = "arrow: its kind's pull", swatches = HerdState.entries.map { MapLegend.Swatch(it.colour, it.label) })
             // What the tints' colours mean, in the top right corner.
             MapLegend.draw(g, legends, width)
         }
