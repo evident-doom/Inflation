@@ -73,7 +73,6 @@ internal fun HexGroups.gather() {
         unfed[s] = byHex
         // (Not one herd's worth in all, of the hungry or of room: nothing to gather.)
         if (byHex.sum() < herdOf(s) || left < herdOf(s)) continue
-        val roomy = (0 until hex.size).filter { room[it] > 0.0 }
         val used = BooleanArray(hex.size)
         var made = 0; var heads = 0
         for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
@@ -83,7 +82,7 @@ internal fun HexGroups.gather() {
             if (all < herdOf(s)) continue
             val about = ground(h0, gatherKm(s)).filter { !used[it] }
             // The room beyond their own ground, within a month's walk.
-            val far = roomy.filter { val d = hex.distanceKm(h0, it); d > gatherKm(s) && d <= farKm(s) }
+            val far = ground(h0, farKm(s) / RING_KM + hex.hexKm).filter { val d = hex.distanceKm(h0, it); room[it] > 0.0 && d > gatherKm(s) && d <= farKm(s) }
             var spare = 0.0; for (h in far) spare += room[h]
             val count = (minOf(all, spare, left) / herdOf(s)).toInt()
             if (count == 0) continue
@@ -322,6 +321,9 @@ private fun HexGroups.spread(g: HexGroup, k: Int, adults: Int, young: Int) {
         fauna.adults[k][p] += adults * share / area; fauna.young[k][p] += young * share / area
     }
 }
+
+/** How near the hexes of the k-th ring about a hex can lie, in k hex widths (its corners lie k widths out, the middles of its sides less). */
+private const val RING_KM = 0.866
 
 /** The hexes within [km] of hex [h0] (itself and its neighbours at least), kept once worked out. */
 private fun HexGroups.ground(h0: Int, km: Double): IntArray {

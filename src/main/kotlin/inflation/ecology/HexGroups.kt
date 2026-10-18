@@ -118,6 +118,8 @@ class HexGroups(
     @Transient internal val roomLeft = HashMap<Species, Double>()
     /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
+    /** The land hexes a herd's animals stand on about each hex, by kind and hex ([groundShares]). */
+    @Transient internal val herdGround = java.util.concurrent.ConcurrentHashMap<Long, IntArray>()
     /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1

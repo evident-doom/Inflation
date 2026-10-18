@@ -1189,16 +1189,20 @@ internal fun HexGroups.groundShares(g: HexGroup, h: Int, into: (Int, Float) -> U
     if (g.species in Catalogue.migratory) { rangeShares(g, h, into); return }
     val r = g.species.dailyTravelKm * kotlin.math.sqrt(HERD_UNIT.toFloat())
     if (Math.PI.toFloat() * r * r <= land.areaKm2[g.place]) { rangeShares(g, h, into); return }
-    val out = ArrayList<Int>(); out += h
-    val seen = HashSet<Int>(); seen += h
-    var ring = listOf(h)
-    while (ring.isNotEmpty()) {
-        val next = ArrayList<Int>()
-        for (q in ring) for (d in 0 until 6) {
-            val nq = hex.neighbour(q, d)
-            if (nq >= 0 && hex.heart[nq] >= 0 && seen.add(nq) && hex.distanceKm(h, nq) <= r) next += nq
+    // (The land hexes within reach of a hex never change: worked out once a kind and hex.)
+    val out = herdGround.getOrPut(g.species.id.toLong() * hex.size + h) {
+        val found = ArrayList<Int>(); found += h
+        val seen = HashSet<Int>(); seen += h
+        var ring = listOf(h)
+        while (ring.isNotEmpty()) {
+            val next = ArrayList<Int>()
+            for (q in ring) for (d in 0 until 6) {
+                val nq = hex.neighbour(q, d)
+                if (nq >= 0 && hex.heart[nq] >= 0 && seen.add(nq) && hex.distanceKm(h, nq) <= r) next += nq
+            }
+            found += next; ring = next
         }
-        out += next; ring = next
+        found.toIntArray()
     }
     if (out.size == 1) { rangeShares(g, h, into); return }
     val share = 1f / out.size
