@@ -42,11 +42,11 @@ internal fun HexGroups.contentEvery(s: Species): Int = when (s.lifeway) {
 /**
  * What place [p] is worth to kind [s] (its [k]th) this week, before crowding, hunters and the going. A herd: its food, as
  * its country suits it, not burning, and as near its usual country. A pack: the game it may expect there, as its diet
- * values it. A band: the game it expects, and the plant food, as good camping ground ([campFactor]).
+ * values it. A band: the game it expects, small game and carrion as for a pack, and the plant food, as good camping ground ([campFactor]).
  * (Hunters and bands value a place by the herds they expect there; where they see or read sign, by what they find: see [knownGame].)
  */
 internal fun HexGroups.lifewayValue(k: Int, s: Species, p: Int): Float = when (s.lifeway) {
-    Lifeway.BAND -> (preyHere(s, p) + expectPrey[k][p]) * campFactor(p) + campPlants(p)
+    Lifeway.BAND -> dietValue(s, p, preyHere(s, p) + expectPrey[k][p]) * campFactor(p) + campPlants(p)
     Lifeway.PACK -> dietValue(s, p, preyHere(s, p) + expectPrey[k][p])
     Lifeway.HERD -> foodFor(s, p) * fauna.suits(s, p) * (1f - land.fire.burning[p]) * fauna.tether(s, p)
 }

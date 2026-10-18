@@ -90,7 +90,11 @@ class SchemaTest {
             HexFeatures.FISH to "fish and shellfish",
             HexFeatures.KEEPS_HEADING to "keeps heading",
             HexFeatures.ON_ROUND to "on round",
-            HexFeatures.FORAGE_QUALITY to "forage quality"
+            HexFeatures.FORAGE_QUALITY to "forage quality",
+            HexFeatures.KILL_FEAR to "kill fear",
+            HexFeatures.BURNING to "burning",
+            HexFeatures.SNOW_AHEAD to "snow ahead",
+            HexFeatures.STRONGER_HUNTER to "stronger hunter"
         )
         assertEquals(HexFeatures.SIZE, named.size)
         for ((slot, name) in named) assertEquals(name, Schema.PLACE[slot], "feature slot $slot")
