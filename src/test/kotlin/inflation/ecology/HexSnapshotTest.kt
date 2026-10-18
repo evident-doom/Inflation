@@ -54,6 +54,17 @@ class HexSnapshotTest {
     }
 
     @Test
+    fun `a save of another model major version or with other kinds by kind is refused`() {
+        assertEquals(null, HexSnapshot.modelProblem(HexSnapshot.MODEL_MAJOR))
+        assertNotNull(HexSnapshot.modelProblem(HexSnapshot.MODEL_MAJOR - 1))
+        val kinds = listOf("roe deer", "red deer")
+        assertEquals(null, HexSnapshot.rosterProblem("residents", kinds, kinds))
+        // (A kind added at the end too: its tables would start from nothing in a settled world.)
+        assertNotNull(HexSnapshot.rosterProblem("residents", kinds, kinds + "onager"))
+        assertNotNull(HexSnapshot.rosterProblem("residents", kinds, kinds.reversed()))
+    }
+
+    @Test
     fun `a saved world does not bring the learned ways it ran with`() {
         val world = World.generate(cfg)
         val a = HexSim(world)
