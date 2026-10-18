@@ -357,8 +357,24 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return if (all <= 0f) 1f else (d.grass + d.browse + d.fruit + d.roots) / all
     }
 
-    /** Whether [s] is asleep in its winter den in place [p]: kinds that hibernate, in the cold. */
-    fun asleep(s: Species, p: Int, weather: Weather) = s.hibernates && weather.temperature[p] < HIBERNATE_C
+    /** Of the kinds that can hibernate, those asleep in their winter dens, by place (null for the kinds that cannot; see [sleepOrWake]). */
+    val sleeping = Array(kinds.size) { k -> if (kinds[k].hibernates) BooleanArray(n) else null }
+
+    /** Whether kind [k] is asleep in its winter den in place [p] this week (see [sleepOrWake]). */
+    fun asleep(k: Int, p: Int) = sleeping[k]?.get(p) ?: false
+
+    /**
+     * Sleeping is a way through a lean winter, not a rule of the calendar: kinds that can hibernate lie up in their dens
+     * where it is cold and they went hungry last week, with fat to sleep on, and sleep on while the cold lasts and their
+     * fat holds out. Well fed, they stay awake.
+     */
+    private fun sleepOrWake(weather: Weather) {
+        for ((k, z) in sleeping.withIndex()) {
+            if (z == null) continue
+            val f = fed[k]; val r = reserve[k]
+            for (p in 0 until n) z[p] = weather.temperature[p] < HIBERNATE_C && r[p] > 0f && (z[p] || f[p] < Thresholds.HUNGRY)
+        }
+    }
 
     /**
      * Once a year: in each place, a kind's births move a month earlier or later where that puts them
@@ -563,6 +579,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * grass and browse is made up from the standing straw, at what each kind's gut gets out of it.
      */
     private fun graze(weather: Weather) {
+        sleepOrWake(weather)
         IntStream.range(0, n).parallel().forEach { p ->
             // How much each kind eats of poor forage depends on its gut (see [gutFill]).
             val quality = land.plants.nourishment(p)
@@ -575,7 +592,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Bears asleep through the cold eat nothing.
                 // (Only the plant part of the diet here; omnivores' small prey and carrion below.)
                 // (More in the cold, see [coldNeed].)
-                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
+                need[k] = if (asleep(k, p)) 0f else heads * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
                     days / 1e6f * plantShare(s) // kg per m2 this week
                 // (Biting insects harassing them cost them feeding time.)
                 avail[k] = HexFood.access(s, land.crag[p]) * tether(s, p) * (1f - HexSmallLife.HARASS_FEED * small.harassment(p))
@@ -709,7 +726,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val ps = plantShare(s)
                     protein[k][p] += (proteinMet(ps * (proteinKg[k] + strawKg * tuning.proteinStraw) / eaten + (1f - ps)) - protein[k][p]) * PROTEIN_MEMORY
                 }
-                val sleeping = asleep(s, p, weather)
+                val sleeping = asleep(k, p)
                 var f = if (sleeping) {
                     // Asleep, it lives on its fat at a quarter of its waking need; fed as far as the fat lasts.
                     val want = SLEEP_NEED * days
@@ -787,7 +804,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // (What the young would be born to: food, and the protein their mothers' milk and their growth need.)
                 fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * FED_MEMORY
                 // Laying on fat for the winter: how well fed through late summer and autumn.
-                if (s.hibernates && weather.date.month in 7..11 && !asleep(s, p, weather)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
+                if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
             }
             // What is left of the week's grazing and browsing for the herds that come through after.
             grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB)
@@ -845,7 +862,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // (Hunger, cold and heat, and thirst kill residents by the same rules as herds and packs.)
                 val hunger = Hazards.hunger(f[p])
                 val t = feltC(s, p, weather.temperature[p])
-                val sleeping = asleep(s, p, weather)
+                val sleeping = asleep(k, p)
                 val cold = if (sleeping) 0f else Hazards.cold(s, t, date.month)
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
                 // water's going (or gets enough from green food and prey); beyond that, its days without water
