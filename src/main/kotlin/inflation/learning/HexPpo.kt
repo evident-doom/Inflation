@@ -71,6 +71,34 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         if (band > 0) { into.fill(0f, INPUTS, inputs); state?.copyInto(into, INPUTS, 0, min(state.size, band)) }
     }
 
+    /** Per-thread room for [netScores]. */
+    inner class Scratch {
+        val b = net.buffers()
+        val shared = FloatArray(inputs)
+        var rows = FloatArray(0)
+        var out = FloatArray(0)
+    }
+
+    /**
+     * The network's score of each candidate place [features] for a group of kind [s] with temperament [temper] and (people's)
+     * view of itself [state], in the first `features.size` of [Scratch.out]: what [fill] and [Mlp.forward] give for each, to
+     * the bit, with the part all candidates share (the kind, the temperament, the band) read once.
+     */
+    fun netScores(s: Species, features: Array<FloatArray>, state: FloatArray?, temper: FloatArray?, sc: Scratch): FloatArray {
+        val n = features.size; val v = HexFeatures.SIZE
+        if (sc.out.size < n) sc.out = FloatArray(2 * n)
+        if (n == 0) return sc.out
+        if (sc.rows.size < n * v) sc.rows = FloatArray(2 * n * v)
+        fill(s, features[0], state, sc.shared, temper)
+        for (k in 0 until n) {
+            val f = features[k]; val m = min(f.size, v)
+            f.copyInto(sc.rows, k * v, 0, m)
+            if (m < v) sc.rows.fill(0f, k * v + m, (k + 1) * v)
+        }
+        net.forwardShared(sc.rows, n, v, sc.shared, sc.out, sc.b)
+        return sc.out
+    }
+
     fun copy() = SharedMover(net.copy(), identity.copyOf())
 
     fun save(file: File) {
@@ -127,9 +155,8 @@ open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: 
 class MoverPolicy(private val mover: SharedMover, private val record: ConcurrentLinkedQueue<Choice>?, private val rate: (Species) -> Float, private val week: () -> Int,
                   /** Recorded choices waiting to see their group again some weeks on, by group (see [Choice.probe]); null: none wanted. */
                   private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null, private val season: () -> Float = { 0f }) : HexPolicy {
-    private val buffers = ThreadLocal.withInitial { mover.net.buffers() }
+    private val scratch = ThreadLocal.withInitial { mover.Scratch() }
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
-        val b = buffers.get()
         val n = features.size
         val state = g.band?.state; val temper = g.temper
         if (probes != null) probes[g.id]?.let { waiting -> synchronized(waiting) {
@@ -141,7 +168,8 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
                 waiting.removeAll(due)
             }
         } }
-        val scores = FloatArray(n) { k -> mover.fill(g.species, features[k], state, b.a[0], temper); mover.net.forward(b) + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
+        val net = mover.netScores(g.species, features, state, temper, scratch.get())
+        val scores = FloatArray(n) { k -> net[k] + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
         // Only the choices recorded to learn from are drawn by chance; every other group takes its best, so the
         // training worlds live as they would with the networks choosing (a world of chance moves goes under).
         if (record == null || rnd.nextFloat() >= rate(g.species)) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
@@ -154,9 +182,9 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         return taken
     }
     override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
-        val b = buffers.get()
         val state = g.band?.state; val temper = g.temper
-        return FloatArray(features.size) { k -> mover.fill(g.species, features[k], state, b.a[0], temper); mover.net.forward(b) + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
+        val net = mover.netScores(g.species, features, state, temper, scratch.get())
+        return FloatArray(features.size) { k -> net[k] + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
     }
 }
 
