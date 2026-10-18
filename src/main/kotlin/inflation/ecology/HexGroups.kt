@@ -330,7 +330,7 @@ class HexGroups(
         }
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
-        fillGrazed()
+        Profile.part("choosing: herds' grazing map") { fillGrazed() }
         manEaterKm2.fill(0f)
         for (g in groups) if (g.alive && g.species.takesPeople > 0f)
             manEaterKm2[hw.placeHex[g.place]] += g.species.takesPeople * g.size * g.species.massKg / hex.areaKm2.toFloat()
@@ -422,6 +422,19 @@ class HexGroups(
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
         /** The place being weighed: what the hand-written score and the features both read of it. */
         val terms = PlaceTerms()
+        /**
+         * The places weighed by the hand-written score whose deaths are left till after ([planInner]): each place, its
+         * hex, the going there, the game and crowding it knows of there, and its score without its deaths (and with
+         * its noise and temper).
+         */
+        val laterPlace = IntList(); var laterD = FloatArray(64); var laterPrey = FloatArray(64); var laterCrowd = FloatArray(64)
+        var laterScore = FloatArray(64); var laterBeside = FloatArray(64); var laterUpper = FloatArray(64)
+        fun later(p: Int, d: Float, prey: Float, crowded: Float, score: Float, beside: Float) {
+            val k = laterPlace.size
+            if (k == laterD.size) { val m = 2 * k; laterD = laterD.copyOf(m); laterPrey = laterPrey.copyOf(m); laterCrowd = laterCrowd.copyOf(m)
+                laterScore = laterScore.copyOf(m); laterBeside = laterBeside.copyOf(m); laterUpper = laterUpper.copyOf(m) }
+            laterPlace += p; laterD[k] = d; laterPrey[k] = prey; laterCrowd[k] = crowded; laterScore[k] = score; laterBeside[k] = beside; laterUpper[k] = score + beside
+        }
     }
 
     /**
@@ -1081,6 +1094,9 @@ class HexGroups(
         val diag = PLAN_DIAG == s.name && goal >= 0 && date.dayOfMonth <= days && g.id % 97 == 0
         val seen = if (g.id == watched || diag) ArrayList<Pair<Int, Float>>() else null
         val candPlaces = buf.candPlaces; candPlaces.clear(); val candFeats = buf.candFeats
+        // (Every place's whole score is wanted for a network, for capture and for a watched herd; else only the best.)
+        val wantAll = seen != null || policy != null || capture
+        buf.laterPlace.clear()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
         // hungry pack ranges wider: up to three times that after weeks of hunger.
@@ -1109,8 +1125,8 @@ class HexGroups(
             val offGround = (if (beyond > 0f && (denning || (g.fed >= Thresholds.HUNGRY && !astray))) KEEP_TO_GROUND else 0f) +
                 (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
             val toGoal = if (goal >= 0) hexKm(h.i, goalHex) else 0.0
-            // The open water on the way there, as the share of it a crossing drowns (see [move]).
-            val drowning = crossingDeaths(s, h.i, here.i, via)
+            // The open water on the way there, as the share of it a crossing drowns (see [move]): worked out when first wanted.
+            var drowning = -1f
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(kind, here.i, h.i, pullKm)
             // And a herd goes on the way it has been going, as far as it has kept to one way (see [HexGroup.headE]).
@@ -1127,12 +1143,12 @@ class HexGroups(
                 val hunters = huntersKm2(p, h)
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
                 var score = scorePlace(c, t, p, h, d, toGoal, offGround, pull, keepOn, prey, crowded, hunters)
-                // Above all, it keeps alive: the share of it that would die there this week weighs against all the rest
-                // (see [survivalSteps]). (Its deaths only take away: a place that would not beat the best so far without
-                // them is not reckoned further, unless every place's score is wanted.)
+                // (Above all, it keeps alive: see below.)
                 val beside = 0.02f * (hashNoise(g.id, p.i) - 0.5f) + temperPull(g, p, h, hunters, crowded)
-                if (seen != null || policy != null || capture || score + beside > bestScore)
-                    score -= survivalSteps(g, deathsAt(c, p, h, d, prey, crowded) + drowning)
+                // (Where only the best place is wanted, its deaths are worked out after, best first, see below.)
+                if (!wantAll) { buf.later(p.i, d, prey, crowded, score, beside); continue }
+                if (drowning < 0f) drowning = crossingDeaths(s, h.i, here.i, via)
+                score -= survivalSteps(g, deathsAt(c, p, h, d, prey, crowded) + drowning)
                 seen?.add(p.i to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
@@ -1147,6 +1163,22 @@ class HexGroups(
                 score += beside
                 if (capture) buf.candScores[candPlaces.size - 1] = score
                 if (score > bestScore) { bestScore = score; best = p }
+            }
+        }
+        // Above all, it keeps alive: the share of it that would die at a place this week weighs against all the rest
+        // (see [survivalSteps]). Its deaths only take away, so they are worked out best place first, and only while a place
+        // could still beat the best so far: the same place is chosen as if every place's were (the first weighed, of equals).
+        val nl = buf.laterPlace.size
+        if (nl > 0) {
+            val up = buf.laterUpper
+            val order = (0 until nl).sortedWith { a, b -> if (up[a] != up[b]) up[b].compareTo(up[a]) else a.compareTo(b) }
+            var bestK = Int.MAX_VALUE
+            for (k in order) {
+                if (up[k] < bestScore) break
+                val p = Place(buf.laterPlace[k]); val h = hw.hexOf(p)
+                val total = buf.laterScore[k] - survivalSteps(g, deathsAt(c, p, h, buf.laterD[k], buf.laterPrey[k], buf.laterCrowd[k]) +
+                    crossingDeaths(s, h.i, here.i, via)) + buf.laterBeside[k]
+                if (total > bestScore || (total == bestScore && k < bestK)) { bestScore = total; best = p; bestK = k }
             }
         }
         lap("choosing: weighing places (hand-written score)")
