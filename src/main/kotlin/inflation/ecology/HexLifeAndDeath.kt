@@ -360,7 +360,6 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     val n = HexGroup(nextId++, s, g.place, adults, young)
     g.memory.copyInto(n.memory)
     n.fed = g.fed
-    n.condition = g.condition
     n.fat = g.fat
     n.tag = g.tag
     n.sizePref = g.sizePref
@@ -419,7 +418,6 @@ internal class Split(val adults: Int, val young: Int)
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
     val s = g.species
     feedOnReserves(g)
-    g.condition += (g.fed - g.condition) * Hazards.CONDITION_MEMORY
     moveBirthMonth(g, date)
     val inSeason = monthsFrom(g.birthMonth, date.month) < s.birthMonths
     var bornNow = 0
@@ -429,14 +427,14 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val mothers = mothersIn(g)
     val help = if (band != null) min(1f, band.elders * ELDER_MOTHERS / max(1, mothers)) else 0f
     // (Births follow one rule for every kind, groups and residents alike: each mother bears her
-    // litter as her condition allows ([Hazards.breeding]; people as they are fed), through the birth season; only where just the leading pair of a pack
+    // litter as she is fed, through the birth season; only where just the leading pair of a pack
     // breeds ([Species.packLitter]: wolves) is there one litter a pack. A pack bears only on ground of its own.)
     if (inSeason && g.adults >= 2 && !(s.pack && g.home.none)) {
         val births = if (s.packLitter > 0) {
-            if (date.dayOfMonth <= days && date.month == g.birthMonth && !g.home.none) (s.packLitter * Hazards.breeding(g.condition) + r.nextFloat()).toInt() else 0
+            if (date.dayOfMonth <= days && date.month == g.birthMonth && !g.home.none) (s.packLitter * g.fed + r.nextFloat()).toInt() else 0
         } else {
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-            val rate = s.youngPerFemale * (if (s.human) g.fed else Hazards.breeding(g.condition)) * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * tuning.humanBirths else 1f) *
+            val rate = s.youngPerFemale * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * tuning.humanBirths else 1f) *
                 (1f + GRANDMOTHERS * help) / stepsInSeason
             // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
             val each = rate * (if (s.carnivore) 1f else g.protein * herdRanges(g, kinNow))
@@ -744,7 +742,6 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         if (other != null && other.size + g.size <= maxSize(other, date)) {
             val share = g.size.toFloat() / (other.size + g.size)
             other.fed += (g.fed - other.fed) * share; other.fat += (g.fat - other.fat) * share
-            other.condition += (g.condition - other.condition) * share
             g.mergedSize = g.size; g.mergedInto = other.id
             other.adults += g.adults; other.young += g.young
             g.adults = 0; g.young = 0
@@ -785,7 +782,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
                 hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM * a.will[AnimalWay.MATE] } ?: continue
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
-            a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.condition = (a.condition + b.condition) / 2f
+            a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f
             if (a.home.none) claimGround(a, b.home)
             b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
@@ -798,7 +795,7 @@ private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
     into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
-    into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.condition += w * (from.condition - into.condition)
+    into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
     for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
     // (Its cache is left: no one goes back for it.)

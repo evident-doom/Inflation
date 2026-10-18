@@ -9,7 +9,7 @@ import kotlin.math.roundToInt
  * most of the year, gathered into herds for the months their kind's round takes them far. Residents
  * where a round leaves the ground about its place ([GATHER_KM]) next month gather into herds of the kind's full
  * herd size and go with it; a herd that has come to where its round stays a while scatters back into
- * the land where it stands. Heads, young, fat, feeding, condition and protein go across as they are: being moved
+ * the land where it stands. Heads, young, fat, feeding and protein go across as they are: being moved
  * from one form to the other changes nothing by itself. Where no round passes, the kind never gathers.
  */
 
@@ -36,11 +36,11 @@ internal fun HexGroups.gather(month: Int) {
         var made = 0; var heads = 0
         for ((from, round) in leaving) {
             val about = placesWithin(from, GATHER_KM)
-            var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var condition = 0.0; var protein = 0.0; var most = -1; var mostHeads = 0.0
+            var adults = 0.0; var young = 0.0; var fat = 0.0; var fed = 0.0; var protein = 0.0; var most = -1; var mostHeads = 0.0
             for (p in about) {
                 val ad = a[p] * land.areaKm2[p].toDouble(); val yo = y[p] * land.areaKm2[p].toDouble(); val h = ad + yo
                 adults += ad; young += yo
-                fat += h * fauna.reserve[k][p]; fed += h * fauna.fed[k][p]; condition += h * fauna.condition[k][p]; protein += h * fauna.protein[k][p]
+                fat += h * fauna.reserve[k][p]; fed += h * fauna.fed[k][p]; protein += h * fauna.protein[k][p]
                 if (h > mostHeads) { mostHeads = h; most = p }
             }
             val all = adults + young
@@ -54,7 +54,7 @@ internal fun HexGroups.gather(month: Int) {
             for (i in 0 until count) {
                 val g = spawn(s, from, takeA / count + if (i < takeA % count) 1 else 0)
                 g.young = takeY / count + if (i < takeY % count) 1 else 0
-                g.fat = (fat / all).toFloat(); g.fed = (fed / all).toFloat(); g.condition = (condition / all).toFloat(); g.protein = (protein / all).toFloat()
+                g.fat = (fat / all).toFloat(); g.fed = (fed / all).toFloat(); g.protein = (protein / all).toFloat()
                 g.birthMonth = fauna.birthStart[k][most].toInt()
                 inheritSeasons(g)
                 round.copyInto(g.route)
@@ -113,7 +113,6 @@ private fun HexGroups.spread(g: HexGroup, k: Int) {
         val w = come / max(1e-6f, there + come)
         fauna.reserve[k][p] += w * (g.fat - fauna.reserve[k][p])
         fauna.fed[k][p] += w * (g.fed - fauna.fed[k][p])
-        fauna.condition[k][p] += w * (g.condition - fauna.condition[k][p])
         fauna.protein[k][p] += w * (g.protein - fauna.protein[k][p])
         if (there <= 0f && g.birthMonth >= 0) fauna.birthStart[k][p] = g.birthMonth.toByte()
         fauna.adults[k][p] += g.adults * share / area; fauna.young[k][p] += g.young * share / area

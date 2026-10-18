@@ -15,8 +15,6 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     /** Fed last week, 0..1; body reserves, days of food. */
     var fed = 1f
     var fat = 0f
-    /** Body condition, 0..1: how well fed over the last weeks (see [Hazards.breeding]). */
-    var condition = 1f
     /** What it ate this week beyond its needs, days of food: laid on as reserves (see [liveWeek]). */
     var surplus = 0f
     /** The hexes it passed through this week, in order (its own last), and the day it entered each. */
