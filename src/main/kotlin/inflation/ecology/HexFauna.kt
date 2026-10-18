@@ -1116,9 +1116,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * How good a place is for kind [k] this week: food per head, its ground, water within reach, the weather against
      * its comfort, deep snow, fear, and the share that would live through the week's fire and plague there.
      */
-    internal fun appeal(k: Int, p: Int, weather: Weather): Float {
+    internal fun appeal(k: Int, p: Int, weather: Weather): Float = appealUncrowded(k, p, weather) / crowding(k, adults[k][p] + young[k][p])
+
+    /** [appeal] before its own kind's crowding: what a place offers kind [k] however many of it stand there. */
+    private fun appealUncrowded(k: Int, p: Int, weather: Weather): Float {
         val s = kinds[k]
-        val heads = adults[k][p] + young[k][p]
         // Weather now, and as far as the kind senses it, what is coming.
         val m = weather.date.month
         val discomfort = ((1f - s.foresight) * s.discomfortC(feltC(s, p, weather.temperature[p]), m) +
@@ -1128,9 +1130,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // protein, as herds do: so they go up to the green high pasture in summer and down for the winter.)
         val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
         return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * snowed * (1f - FEAR_WEIGHT * shy(s, p)) *
-            (1f - land.fire.burning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
-            (1f + heads / (CROWD * usual[k])) / (1f + discomfort)
+            (1f - land.fire.burning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) / (1f + discomfort)
     }
+
+    /** What [heads] of kind [k] per km² take off a place's [appeal] by crowding it: it is divided by this. */
+    private fun crowding(k: Int, heads: Float) = 1f + heads / (CROWD * usual[k])
 
     /** How well kind [s]'s diet at place [p] would meet its need for protein, 0..1 (see [proteinMet]). */
     fun forageProtein(s: Species, p: Int): Float {
@@ -1189,6 +1193,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * Hungry or crowded animals spill into neighbouring hexes, at about the same height, towards
      * better feeding; the harder the border is for their way of travelling, the fewer cross it.
+     * Those that leave walk on, hex by hex, as long as the country ahead is better than where they stand
+     * and their week's going allows ([hopsFor]): so a kind follows the seasons' change of country by
+     * walking, not only by spreading a hex a week.
      */
     private fun spill(weather: Weather) {
         // (The swimmers drowned this week, kind by kind: their weight as grown animals by place, and their heads.)
@@ -1197,7 +1204,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val s = kinds[k]
             val a = adults[k]; val y = young[k]; val f = fed[k]
             val cross = hex.crossings[travel[k].ordinal]
-            val moveA = FloatArray(n); val moveY = FloatArray(n); val arrived = FloatArray(n)
+            val moveA = FloatArray(n); val moveY = FloatArray(n)
+            // (The heads that came, and the km they walked to come: what the walk costs their fat.)
+            val arrived = FloatArray(n); val walkedKm = FloatArray(n)
+            // Those still walking after the first hex, by where they stand: grown, young, their days without water and km walked (summed over heads).
+            val hops = hopsFor(s)
+            val walkA = FloatArray(n); val walkY = FloatArray(n); val walkDry = FloatArray(n); val walkKm = FloatArray(n)
             // What each place is worth to the kind this week, as it is worth to those moving up and down the slopes
             // (worked out once a place, for every neighbour that weighs it).
             val worthOf = FloatArray(n)
@@ -1277,22 +1289,28 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 for (i in 0 until 18) {
                     if (ws[i] <= 0f) continue
                     val q = wq[i]
-                    moveA[q] += goA * ws[i] / total; moveY[q] += goY * ws[i] / total
-                    arrived[q] += (goA + goY) * ws[i] / total
+                    val ga = goA * ws[i] / total; val gy = goY * ws[i] / total
+                    if (hops > 1) {
+                        walkA[q] += ga; walkY[q] += gy; walkDry[q] += (ga + gy) * dk[p]; walkKm[q] += (ga + gy) * hex.hexKm.toFloat()
+                    } else {
+                        moveA[q] += ga; moveY[q] += gy
+                        arrived[q] += ga + gy; walkedKm[q] += (ga + gy) * hex.hexKm.toFloat()
+                    }
                     if (flow) {
-                        val heads = (goA + goY) * ws[i] / total
+                        // (The first hex of their way: where those walking on end up is not traced back to here.)
                         val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
-                        flowEast[h] += heads * (x1 - x0).toFloat(); flowSouth[h] += heads * (y1 - y0).toFloat(); flowOut[h] += heads
+                        flowEast[h] += (ga + gy) * (x1 - x0).toFloat(); flowSouth[h] += (ga + gy) * (y1 - y0).toFloat(); flowOut[h] += ga + gy
                     }
                 }
             }
             stuck[k].let { it[Stuck.HEADS.ordinal] += weekHeads; it[Stuck.STUCK.ordinal] += weekStuck; it[Stuck.AT_EDGE.ordinal] += weekEdge
                 if (weekHeads > 0.0) it[Stuck.PEAK.ordinal] = max(it[Stuck.PEAK.ordinal], weekStuck / weekHeads) }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
-            // (Those that came over from the next hex walked it, at a herd's cost a km out of their fat, see [walkCost].)
+            if (hops > 1) walkOn(k, weather, hops, walkA, walkY, walkDry, walkKm, arrived, walkedKm)
+            // (Those that came walked here, at a herd's cost a km out of their fat, see [walkCost].)
             for (p in 0 until n) if (arrived[p] > 0f) {
                 val heads = (a[p] + y[p]) * land.areaKm2[p]
-                if (heads > 0f) reserve[k][p] = max(0f, reserve[k][p] - WALK_COST * hex.hexKm.toFloat() * min(1f, arrived[p] / heads))
+                if (heads > 0f) reserve[k][p] = max(0f, reserve[k][p] - WALK_COST * walkedKm[p] / heads)
             }
         }
         // (The drowned, counted kind by kind, go to the soil with the week's other carcasses.)
@@ -1302,6 +1320,106 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (drownedHeads[k] > 0.0) deaths.merge(Tally.of(s, DeathCause.DROWNED_CROSSING), drownedHeads[k], Double::plus)
         }
         land.books?.flow(Books.Stuff.MATTER, "carcasses (to the soil)", -drownedKg)
+    }
+
+    /**
+     * How many hexes kind [s] can walk in a step, the first included: its usual day's going over the step's days.
+     * (Its usual going is how far it ranges in a day; a resident that sets off for better country can make at least
+     * that much headway, so this is the lower bound of what it could cover.)
+     */
+    private fun hopsFor(s: Species) = max(1, (s.dailyTravelKm * days / hex.hexKm).toInt())
+
+    /**
+     * The walkers of kind [k] ([spill]'s, who left their place and have crossed into the next hex) walk on for up to
+     * [hops] hexes in all, from where each stands to the neighbouring places (at about the same height) as the residents'
+     * groups weigh a place ([HexGroups.leaveAhead]): death first, by the rules the residents die by ([hazards]), with the
+     * food left uneaten there ([room]) shared among all who come, crowded by those there and those coming, and thirst
+     * going on where they cannot drink. Where a neighbour is clearly safer ([clearlyWorse], for a band of the kind),
+     * they go on to the safe ones; else on to those not clearly deadlier where the country is better ([appeal]). Where
+     * neither is so, or their week's going is spent, they stay. Adds the heads that came to each place to [arrived] and
+     * the km they walked to [walkedKm].
+     */
+    private fun walkOn(k: Int, weather: Weather, hops: Int, walkA: FloatArray, walkY: FloatArray, walkDry: FloatArray, walkKm: FloatArray,
+                       arrived: FloatArray, walkedKm: FloatArray) {
+        val s = kinds[k]
+        val a = adults[k]; val y = young[k]
+        val cross = hex.crossings[travel[k].ordinal]
+        val area = land.areaKm2
+        val month = weather.date.month
+        val band = s.maxGroupSize.toFloat()
+        val offer = FloatArray(n)
+        IntStream.range(0, n).parallel().forEach { q -> offer[q] = appealUncrowded(k, q, weather) }
+        // (Of the food left uneaten at each place, the heads it would feed that have not been taken by those that came this week.)
+        val roomLeft = room[k]?.let { r -> FloatArray(n) { q -> r[q] * area[q] } }
+        val out = FloatArray(HZ_COUNT)
+        var wA = walkA; var wY = walkY; var wD = walkDry; var wK = walkKm
+        var nA = FloatArray(n); var nY = FloatArray(n); var nD = FloatArray(n); var nK = FloatArray(n)
+        val odds = FloatArray(18); val worth = FloatArray(18); val ease = FloatArray(18); val wq = IntArray(18)
+        fun stay(q: Int) {
+            val heads = wA[q] + wY[q]
+            a[q] += wA[q] / area[q]; y[q] += wY[q] / area[q]
+            roomLeft?.let { it[q] = max(0f, it[q] - heads) }
+            arrived[q] += heads; walkedKm[q] += wK[q]
+        }
+        for (hop in 2..hops) {
+            var moving = false
+            for (q in 0 until n) {
+                val heads = wA[q] + wY[q]
+                if (!(heads > 0f)) continue
+                val dryDays = wD[q] / heads
+                // The share of them that would die in a week at place [at], and what it offers them, were they all there.
+                fun oddsAt(at: Int): Float {
+                    val f = roomLeft?.let { min(1f, it[at] / heads) } ?: fed[k][at]
+                    val dryThere = if (drinks(s, at)) 0f else dryDays + Hazards.dryDays(s, days, f, land.plants.green[at])
+                    hazards(k, at, weather, month, f, dryThere, a[at] + y[at] + heads / area[at], out)
+                    return adultShare(out)
+                }
+                fun worthAt(at: Int): Float {
+                    val w = worthOrNothing(offer[at] / crowding(k, a[at] + y[at] + heads / area[at]))
+                    val thirst = (dryDays / s.daysWithoutWater).coerceIn(0f, 1f)
+                    return if (thirst > 0f && !drinks(s, at)) w * (1f - thirst) else w
+                }
+                val hereOdds = oddsAt(q); val hereWorth = worthAt(q)
+                val h = hw.placeHex[q]; val b = hw.placeBand[q]
+                var m = 0; var safest = Float.MAX_VALUE
+                for (d in 0 until 6) {
+                    val nh = hex.neighbour(h, d)
+                    if (nh < 0) continue
+                    val e = cross[h * 6 + d]
+                    if (!e.isFinite()) continue
+                    val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
+                    for (db in -1..1) {
+                        val nextBand = b + db; if (nextBand !in 0 until HexWorld.BANDS_M.size) continue
+                        val r = hw.placeOf[nextBand][nh]
+                        if (r < 0) continue
+                        odds[m] = oddsAt(r); worth[m] = worthAt(r); ease[m] = hex.hexKm.toFloat() / e * toward; wq[m] = r
+                        if (odds[m] < safest) safest = odds[m]
+                        m++
+                    }
+                }
+                // On to the places no deadlier than here where the country is better, the more the better it is; where
+                // staying is clearly the deadlier, to those about as safe as the safest, the better ones the more.
+                val flee = clearlyWorse(hereOdds, safest, band)
+                var total = 0f
+                for (i in 0 until m) {
+                    val w = if (flee) { if (clearlyWorse(odds[i], safest, band)) 0f else ease[i] * (worth[i] + 1e-4f) }
+                        else { val gain = worth[i] - hereWorth; if (gain > 0f && odds[i] <= hereOdds) ease[i] * gain else 0f }
+                    worth[i] = w; total += w
+                }
+                if (!(total > 0f)) { stay(q); continue }
+                moving = true
+                for (i in 0 until m) {
+                    if (worth[i] <= 0f) continue
+                    val r = wq[i]; val f = worth[i] / total
+                    nA[r] += wA[q] * f; nY[r] += wY[q] * f; nD[r] += wD[q] * f; nK[r] += (wK[q] + heads * hex.hexKm.toFloat()) * f
+                }
+            }
+            wA = nA; wY = nY; wD = nD; wK = nK
+            nA = FloatArray(n); nY = FloatArray(n); nD = FloatArray(n); nK = FloatArray(n)
+            if (!moving) break
+        }
+        // (Where their going ran out, they stay.)
+        for (q in 0 until n) if (wA[q] + wY[q] > 0f) stay(q)
     }
 
     /** Share of [s] that drown swimming [gapKm] of open water: by the groups' rule, the nearer the strait to all it can swim, the more. */

@@ -264,8 +264,13 @@ class MovementTally(private val sim: HexSim) {
     /** Head-weeks of each herd kind (and of people, under "people") by month and [CELL_KM] cell, this year and last. */
     private var cells = HashMap<String, Array<HashMap<Long, Double>>>()
     private var cellsLastYear = HashMap<String, Array<HashMap<Long, Double>>>()
+    /** Each resident kind's heads by hex in the year's first week, and its heads-weighted mean height then (m). */
+    private var janResidents: Array<DoubleArray>? = null
+    private var janHeight = DoubleArray(0)
+    /** Each resident kind's January to July: the share of its heads in other hexes, in other [CELL_KM] cells, and its mean heights. */
+    private val residentsMoved = HashMap<String, DoubleArray>()
 
-    fun startYear() { julyKm.clear(); cellsLastYear = cells; cells = HashMap() }
+    fun startYear() { julyKm.clear(); cellsLastYear = cells; cells = HashMap(); residentsMoved.clear() }
 
     fun week(w: Int) {
         val groups = sim.groups; val hw = sim.hw; val hex = sim.hex
@@ -282,6 +287,44 @@ class MovementTally(private val sim: HexSim) {
             if (date.month == 6) for (g in groups.groups) if (g.alive && !g.species.carnivore) janHex[g.id]?.let {
                 julyKm.getOrPut(g.species.name) { ArrayList() } += hex.distanceKm(it, hw.placeHex[g.place])
             }
+            if (date.month == 0) residentsByHex().let { (byHex, height) -> janResidents = byHex; janHeight = height }
+            if (date.month == 6) janResidents?.let { jan -> compareResidents(jan, residentsByHex()) }
+        }
+    }
+
+    /** Each resident kind's heads by hex, and its heads-weighted mean height (m). */
+    private fun residentsByHex(): Pair<Array<DoubleArray>, DoubleArray> {
+        val fauna = sim.fauna; val hw = sim.hw; val land = sim.land
+        val height = DoubleArray(fauna.kinds.size)
+        val byHex = Array(fauna.kinds.size) { k ->
+            val out = DoubleArray(sim.hex.size); var m = 0.0; var heads = 0.0
+            for (p in 0 until fauna.n) {
+                val v = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble()
+                out[hw.placeHex[p]] += v; m += v * hw.placeElevationM[p]; heads += v
+            }
+            height[k] = if (heads > 0.0) m / heads else 0.0
+            out
+        }
+        return byHex to height
+    }
+
+    private fun compareResidents(jan: Array<DoubleArray>, now: Pair<Array<DoubleArray>, DoubleArray>) {
+        val hex = sim.hex
+        for ((k, s) in sim.fauna.kinds.withIndex()) {
+            val a = jan[k]; val b = now.first[k]
+            val ta = a.sum(); val tb = b.sum()
+            if (ta <= 0.0 || tb <= 0.0) continue
+            var byHex = 0.0
+            val cellA = HashMap<Long, Double>(); val cellB = HashMap<Long, Double>()
+            for (h in a.indices) {
+                if (a[h] <= 0.0 && b[h] <= 0.0) continue
+                byHex += kotlin.math.abs(a[h] / ta - b[h] / tb)
+                val (x, y) = hex.centreKm(h)
+                val cell = (x / CELL_KM).toLong() * 100_000 + (y / CELL_KM).toLong()
+                cellA.merge(cell, a[h] / ta, Double::plus); cellB.merge(cell, b[h] / tb, Double::plus)
+            }
+            val byCell = (cellA.keys + cellB.keys).sumOf { kotlin.math.abs((cellA[it] ?: 0.0) - (cellB[it] ?: 0.0)) }
+            residentsMoved[s.name] = doubleArrayOf(byHex / 2, byCell / 2, janHeight[k], now.second[k])
         }
     }
 
@@ -295,6 +338,8 @@ class MovementTally(private val sim: HexSim) {
                 .map { sim.hex.distanceKm(hw.placeHex[it.seasonPlace[0]], hw.placeHex[it.seasonPlace[6]]) }
             "%s %.0f".format(s.name, if (d.isEmpty()) 0.0 else d.average())
         })
+        if (residentsMoved.isNotEmpty()) println("     residents' January to July (share of heads in other hexes / other ${CELL_KM.toInt()} km cells, mean height m): " +
+            residentsMoved.entries.joinToString(", ") { (k, v) -> "%s %.0f%% / %.0f%%, %.0f to %.0f".format(k, 100 * v[0], 100 * v[1], v[2], v[3]) })
         printPredictable()
     }
 
