@@ -336,7 +336,7 @@ object HexPpo {
         val done get() = (lifeSteps > 0 && week >= lifeSteps) || derailed != null
         /**
          * Why it has gone off the rails, if it has (else null): no bands left, herds, hunters or people
-         * grown tenfold, or half the kinds gone. Short of that it lives on, whatever befalls it, swings
+         * grown tenfold since the world settled, or half the kinds gone. Short of that it lives on, whatever befalls it, swings
          * included: the networks are to learn in worlds that have run long.
          */
         var derailed: String? = null; private set
@@ -373,6 +373,8 @@ object HexPpo {
             repeat(if (lifeSteps > 0) min(total, lifeSteps - week) else total) {
                 run.step()
                 week++
+                // (Growth is judged from the settled world, not from the seeded one: the settling years bring the kinds to their own level.)
+                if (week == burnSteps) { startNumbers.clear(); startNumbers.putAll(numbersByRole()) }
                 if (week % stepsPerYear == 0) {
                     setRates()
                     census("year %d%s: %s".format(week / stepsPerYear, if (week <= burnSteps) " (settling)" else "", kinds.joinToString(", ") { s -> "${s.name} ${run.groups.count(s)}" }))
