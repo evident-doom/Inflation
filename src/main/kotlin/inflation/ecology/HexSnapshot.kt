@@ -70,9 +70,10 @@ object HexSnapshot {
      * 1.10: herds sicken by crowding as residents do, counted over the ground each herd grazes.
      * 1.11: fallen mast lies as winter food, the mast and root stocks from records; rooting churns the ground at its
      * recorded rate; mothers bear as their food and reserves can build their young.
+     * 1.12: resident hunters take game the less readily the bigger it is past their preferred size; jackals prefer 4 kg, take 15 at most.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 11
+    const val MODEL_MINOR = 12
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
