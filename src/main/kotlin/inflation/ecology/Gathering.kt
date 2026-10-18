@@ -25,7 +25,7 @@ const val GATHER_KM = RANGE_KM / 2
  */
 internal fun gatherKm(s: Species) = 7.0 * s.dailyTravelKm
 
-/** The heads a gathered herd of [s] holds: as many as its kind's herds gather (see [toHerds]). */
+/** The heads a gathered herd of [s] holds: as many as its kind's herds gather. */
 internal fun herdOf(s: Species) = s.maxGroupSize * HERD_UNIT
 
 /**
