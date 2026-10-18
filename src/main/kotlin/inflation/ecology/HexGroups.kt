@@ -509,25 +509,35 @@ class HexGroups(
         if (crowdDiag != null) for (g in groups) if (g.alive && g.species.name == crowdDiag)
             planCrowd(g, hw.placeHex[g.place], grazingRange(g))?.let { metAsPlannedCrowd[g.id] = it }
         Profile.part("spreading out: herds' grazing map") { fillGrazed(); noteGround(planGround) { g -> grazingRange(g) } }
-        val herds = groups.indices.filter { groups[it].alive && !groups[it].species.carnivore }
-            .sortedWith(compareByDescending<Int> { groups[it].days.lastOrNull() ?: 0f }.thenBy { it })
         var moved = 0
-        for (k in herds) {
-            val g = groups[k]
-            val before = foreseen[g.id] ?: continue
-            val crowded = survivalSteps(g, crowdSickness(crowdAt(g), g.fed)) - survivalSteps(g, crowdSickness(before, g.fed)) > 1f
-            // (Or the hunters stopped it short of the place it chose: it weighs again if where it stands is clearly deadlier.)
-            val stopped = chosenPlace[g.id]?.let { it != g.place.i } ?: false
-            if (!crowded && !stopped) continue
-            val dying = if (crowded) -1f else chosenDying[g.id] ?: -1f
-            val plan = Profile.part("spreading out: weighing again") { plan(g, weather, weather.date, predatorKg, shift = true, before = dying) }
-            if (plan.place == g.place) continue
-            onGround(g, -1f)
-            g.place = plan.place; g.path = g.path + plan.path.copyOfRange(1, plan.path.size); g.days = timetable(g.species, g.path)
-            onGround(g, 1f)
-            crossWater(g, plan.path)
-            moved++
-            if (deathDiag == g.species.name) shiftedDiag += g.id
+        // (A herd moving on can crowd one that was settled: so they go on spreading, a day's going at a time, till none
+        // moves or the week's days are spent.)
+        for (pass in 0 until days) {
+            val herds = groups.indices.filter { groups[it].alive && !groups[it].species.carnivore }
+                .sortedWith(compareByDescending<Int> { groups[it].days.lastOrNull() ?: 0f }.thenBy { it })
+            var movedNow = 0
+            for (k in herds) {
+                val g = groups[k]
+                val before = foreseen[g.id] ?: continue
+                val crowded = survivalSteps(g, crowdSickness(crowdAt(g), g.fed)) - survivalSteps(g, crowdSickness(before, g.fed)) > 1f
+                // (Or the hunters stopped it short of the place it chose: it weighs again if where it stands is clearly deadlier.)
+                val stopped = chosenPlace[g.id]?.let { it != g.place.i } ?: false
+                if (!crowded && !stopped) continue
+                val dying = if (crowded) -1f else chosenDying[g.id] ?: -1f
+                // (Weighed again where the chase left it, it has settled that.)
+                if (stopped) chosenPlace[g.id] = g.place.i
+                val plan = Profile.part("spreading out: weighing again") { plan(g, weather, weather.date, predatorKg, shift = true, before = dying) }
+                if (plan.place == g.place) continue
+                onGround(g, -1f)
+                g.place = plan.place; g.path = g.path + plan.path.copyOfRange(1, plan.path.size); g.days = timetable(g.species, g.path)
+                onGround(g, 1f)
+                if (stopped) chosenPlace[g.id] = g.place.i
+                crossWater(g, plan.path)
+                movedNow++
+                if (deathDiag == g.species.name) shiftedDiag += g.id
+            }
+            moved += movedNow
+            if (movedNow == 0) break
         }
         stats.meetings.merge("herds that spread out on arrival", moved, Int::plus)
     }
