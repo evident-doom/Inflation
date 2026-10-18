@@ -1178,7 +1178,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
         return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * snowed * (1f - FEAR_WEIGHT * shy(s, p)) *
             (1f - land.fire.burning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
-            (1f + heads / (CROWD * usual[k])) / (1f + discomfort)
+            (1f + heads / (CROWDED * usual[k])) / (1f + discomfort)
     }
 
     /** How well kind [s]'s diet at place [p] would meet its need for protein, 0..1 (see [proteinMet]). */
@@ -1429,7 +1429,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val REACH = 0.01f
         /** How strongly a kind is drawn to the ground it prefers. */
         const val HABITAT = 3f
-        /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
+        /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year; and at which crowding halves a place's appeal ([appeal]). */
         const val CROWDED = 4f
         /** For the check only ([stuck]): fed below this counts as hungry. */
         const val STUCK_FED = 0.8f
@@ -1491,8 +1491,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
         /** Below this density, per km², a kind is gone from a place. */
         const val EXTINCT = 1e-4f
-        /** Density, as a multiple of a kind's usual, at which crowding halves a place's appeal. */
-        const val CROWD = 20f
         /**
          * Outbreaks: yearly chance one starts in a place at its kind's crowded density; share of the kind it kills a
          * week at full strength; share of its strength it passes to a neighbouring hex; share kept a week.
