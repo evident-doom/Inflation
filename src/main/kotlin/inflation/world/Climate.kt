@@ -267,7 +267,7 @@ class Climate(
                             val keep = exp(-lift[y] * exp(-overLand / FRONT_LAND_DAYS) * days)
                             // Air lifted over high ground holds less; what it cannot hold rains out.
                             var left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
-                            if (CONV && sea[c] < 1) { val cv = convection(left, w0[y].toDouble(), groundT[c].toDouble(), elev[c].toDouble(),
+                            if (sea[c] < 1) { val cv = convection(left, w0[y].toDouble(), groundT[c].toDouble(), elev[c].toDouble(),
                                 petC[c] / 30.0, seaLevelTemp(rowLat[y], day, 0.0), rising[y])
                                 left -= (1 - sea[c]) * min(left, cv * days) }
                             rain[c] = ((wet + (1 - sea[c]) * gain[c] * days - left) / days * 30).toFloat()
@@ -291,29 +291,67 @@ class Climate(
             }
         }
 
-        val CONV = System.getenv("CONV") != null
-        val CONV_SURFACE_Q = System.getenv("CONV_SURFACE_Q") != null
+        /** Probe only (not for merge): the storms off, for the base arm. */
+        private val NO_STORMS = System.getenv("PROBE_NO_STORMS") != null
+        /** Depth of the air the sun stirs over land by afternoon, m (about 1-2 km in summer). */
         const val BOUNDARY_LAYER_M = 1500.0
-        var ENTRAINMENT_PER_M = (System.getenv("CONV_EPS") ?: "0.5").toDouble() * 1e-3
+        /** Share of the air around it a rising cloud mixes in per metre (deep cumulus: about 0.2-1 per km, de Rooy et al. 2013). */
+        val ENTRAINMENT_PER_M = (System.getenv("PROBE_EPS") ?: "0.5").toDouble() * 1e-3
+        /** Height a shower cloud must climb to, m: about the 500 hPa level. */
         const val CLOUD_TOP_M = 5500.0
+        /** Cooling of clear air by its own radiation, °C a day (about 1.5), which sinking air in a high makes up by warming as it sinks. */
         const val RADIATIVE_COOLING_C = 1.5
+        /** Days air sinks under a high before it is stirred again: about the week a regime lasts. */
         const val SINKING_DAYS = 7.0
+        /**
+         * Day-to-day spread of a summer afternoon's warmth, °C, and of the air's moisture, as a share of it, about the
+         * month's mean (about 2-3 °C and 15-20% at inland mid-latitude stations in summer; from memory, to be sourced).
+         */
+        const val DAILY_TEMP_SD_C = 2.5
+        const val DAILY_MOISTURE_SD = 0.18
         private const val CP = 1005.0
         private const val LV = 2.5e6
         private const val GRAVITY = 9.81
         private const val R_DRY = 287.0
+        /** Height over which air pressure falls by e, m. */
         private const val PRESSURE_HEIGHT_M = 8400.0
-        val sinkingM = RADIATIVE_COOLING_C / (GRAVITY / CP - LAPSE_RATE) * SINKING_DAYS
+        /** Height sinking air comes down from, m: it sinks at the rate that warms it against its radiative cooling. */
+        private val SINKING_M = RADIATIVE_COOLING_C / (GRAVITY / CP - LAPSE_RATE) * SINKING_DAYS
+        /** Points and weights of a standard normal, for the spread of days (Gauss-Hermite, 9 points). */
+        private val NORMAL_Z = doubleArrayOf(-4.5127458633997, -3.2054290028565, -2.0768479786778, -1.0232503231446, 0.0,
+            1.0232503231446, 2.0768479786778, 3.2054290028565, 4.5127458633997)
+        private val NORMAL_W = doubleArrayOf(2.2345844007747e-5, 2.7891413212318e-3, 4.9916406765218e-2, 0.24409750289494,
+            0.40634920634921, 0.24409750289494, 4.9916406765218e-2, 2.7891413212318e-3, 2.2345844007747e-5)
+
+        /** Moist static energy of air at [t] °C, [z] m up, holding [q] kg of vapour per kg, J/kg. */
         private fun staticEnergy(t: Double, z: Double, q: Double) = CP * (t + 273.15) + GRAVITY * z + LV * q
+        /** Density of air at [t] °C, [z] m up, kg/m³. */
         private fun airDensity(t: Double, z: Double) = 101325 * exp(-z / PRESSURE_HEIGHT_M) / (R_DRY * (t + 273.15))
+        /** Vapour, kg per kg of air, that saturates air at [t] °C, [z] m up. */
         private fun saturatedQ(t: Double, z: Double) = saturatedVapour(t) / 1000 / airDensity(t, z)
+
+        /**
+         * Afternoon showers over land, mm a day, over ground at [z] m with a mean temperature of [t] °C under a column of
+         * [column] mm, which the sun warms with [petDay] mm a day's worth of energy. The day's heat goes into the
+         * [BOUNDARY_LAYER_M] of air above the ground, which holds the column's vapour as it lies over the ground (its own
+         * evaporation and the air that climbs the slopes by day keep it there, so high ground is not as dry as the free air
+         * at its height). From the top of that layer the air rises as cloud, mixing in [ENTRAINMENT_PER_M] of the free air
+         * around it per metre; it rains if it stays lighter than the free air up to [CLOUD_TOP_M], and what it held beyond the
+         * least that would have made it rains out, at most the day's own energy.
+         *
+         * The free air keeps the sea's warmth ([seaTemp], °C) less the lapse rate. Where it rises (in troughs, [rising]
+         * share) it holds [SEA_HUMIDITY] of saturation; where it sinks it is as dry as air saturated [SINKING_M] higher up.
+         * Afternoons differ from day to day ([DAILY_TEMP_SD_C], [DAILY_MOISTURE_SD]), so the month's showers are the mean
+         * over that spread of days: a few days storm before the mean day would.
+         */
         private fun convection(column: Double, seaColumn: Double, t: Double, z: Double, petDay: Double, seaTemp: Double, rising: Double): Double {
-            if (petDay <= 0 || column <= 0) return 0.0
+            if (NO_STORMS || petDay <= 0 || column <= 0) return 0.0
             val density = airDensity(t, z)
-            val thin = if (CONV_SURFACE_Q) 1.0 else exp(-z / VAPOUR_HEIGHT_M)
-            val q = min(min(column, seaColumn * thin) / VAPOUR_HEIGHT_M, saturatedVapour(t) / 1000) / density
+            val q = min(min(column, seaColumn) / VAPOUR_HEIGHT_M, saturatedVapour(t) / 1000) / density
             val mass = density * BOUNDARY_LAYER_M
             val heating = petDay * LV / mass
+            // The cloud's energy at each height is a·h0 + b for a start of h0; the least start that stays above the
+            // saturated free air all the way up.
             var a = 1.0; var b = 0.0; var need = Double.NEGATIVE_INFINITY
             var level = z + BOUNDARY_LAYER_M
             val dz = 250.0
@@ -322,13 +360,16 @@ class Climate(
                 level += dz
                 val tf = seaTemp - LAPSE_RATE * level
                 val saturated = saturatedQ(tf, level)
-                val qf = rising * SEA_HUMIDITY * saturated + (1 - rising) * min(saturated, saturatedQ(tf - LAPSE_RATE * sinkingM, level + sinkingM))
+                val qf = rising * SEA_HUMIDITY * saturated + (1 - rising) * min(saturated, saturatedQ(tf - LAPSE_RATE * SINKING_M, level + SINKING_M))
                 a *= 1 - mix
                 b = b * (1 - mix) + mix * staticEnergy(tf, level, qf)
                 need = max(need, (staticEnergy(tf, level, saturated) - b) / a)
             }
-            val excess = min(staticEnergy(t, z, q) + heating - need, heating)
-            return if (excess <= 0) 0.0 else mass * excess / LV
+            val mean = staticEnergy(t, z, q) + heating - need
+            val spread = hypot(CP * DAILY_TEMP_SD_C, LV * q * DAILY_MOISTURE_SD)
+            var excess = 0.0
+            for (k in NORMAL_Z.indices) excess += NORMAL_W[k] * (mean + spread * NORMAL_Z[k]).coerceIn(0.0, heating)
+            return mass * excess / LV
         }
 
         /** Thornthwaite (1948) potential evapotranspiration in mm per month from monthly mean temperatures. */
