@@ -20,7 +20,7 @@ import kotlin.random.Random
  */
 class HexGeography(private val hw: HexWorld) {
     enum class Kind(val label: String) {
-        RIVER("river"), VALLEY("valley"), FLOODPLAIN("floodplain"), LAKE("lake"), MOUNTAINS("mountains"),
+        RIVER("river"), VALLEY("valley"), FLOODPLAIN("floodplain"), LAKE("lake"), MOUNTAINS("mountains"), HILLS("hills"),
         FOREST("forest"), DEEP_FOREST("deep forest"), WOODLAND("woods"), STEPPE("steppe"), DESERT("desert"),
         MARSH("marsh"), BAY("bay"), STRAIT("strait"), PENINSULA("peninsula"), ISTHMUS("isthmus"), ISLAND("island"),
     }
@@ -141,7 +141,7 @@ class HexGeography(private val hw: HexWorld) {
         val cover = arrayOfNulls<Kind>(hex.size)
         for (h in 0 until hex.size) {
             if (!land(h)) continue
-            if (mountain(h)) { cover[h] = Kind.MOUNTAINS; continue }
+            mountain(h)?.let { cover[h] = it; continue }
             val b = Biome.entries.maxBy { hw.biome[it.ordinal][h] }
             cover[h] = when (b) {
                 Biome.CONIFER_FOREST, Biome.TEMPERATE_FOREST, Biome.SWAMP_FOREST, Biome.MANGROVE, Biome.FLOODPLAIN_FOREST -> Kind.FOREST
@@ -168,9 +168,17 @@ class HexGeography(private val hw: HexWorld) {
 
     /**
      * Mountain country as geographers map it (Kapos et al. 2000, for UNEP-WCMC): high (over 2500 m), or over 300 m
-     * with more than 300 m between the lowest and highest ground about it (the hex, about 7 km either way of its centre).
+     * with more than 300 m between the lowest and highest ground about it (the hex, about 7 km either way of its
+     * centre). Its lowest class, under 1000 m, is told apart as hills.
      */
-    private fun mountain(h: Int) = hex.midM[h] >= 2500f || (hex.midM[h] >= 300f && hex.highM[h] - hex.lowM[h] > 300f)
+    private fun mountain(h: Int): Kind? {
+        val mid = hex.midM[h]; val relief = hex.highM[h] - hex.lowM[h]
+        return when {
+            mid >= 2500f || (mid >= 1000f && relief > 300f) -> Kind.MOUNTAINS
+            mid >= 300f && relief > 300f -> Kind.HILLS
+            else -> null
+        }
+    }
 
     /**
      * Bays, peninsulas and islands. A peninsula is land narrower than the ground a place draws on ([GATHER_KM]) that

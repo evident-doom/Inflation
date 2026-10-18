@@ -607,7 +607,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 }
                 g.font = font
                 legends += MapLegend("Names", "The great features of the country, each named once: rivers (main stems, the greater flow keeping the name), " +
-                    "their valleys and floodplains, lakes, and stretches of mountains, forest, woods, steppe, desert and marsh larger than the ground one place draws on; " +
+                    "their valleys and floodplains, lakes, and stretches of mountains, hills, forest, woods, steppe, desert and marsh larger than the ground one place draws on; " +
                     "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on). The larger the feature, the larger its name.", note = features.summary(),
                     swatches = HexGeography.Kind.entries.map { MapLegend.Swatch(featureColour(it), it.label) })
             }
@@ -1004,7 +1004,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             HexGeography.Kind.RIVER, HexGeography.Kind.LAKE, HexGeography.Kind.BAY, HexGeography.Kind.STRAIT -> Color(0.1f, 0.25f, 0.7f)
             HexGeography.Kind.VALLEY, HexGeography.Kind.FLOODPLAIN -> Color(0.15f, 0.4f, 0.4f)
             HexGeography.Kind.FOREST, HexGeography.Kind.DEEP_FOREST, HexGeography.Kind.WOODLAND -> Color(0.1f, 0.35f, 0.1f)
-            HexGeography.Kind.MOUNTAINS -> Color(0.35f, 0.25f, 0.2f)
+            HexGeography.Kind.MOUNTAINS, HexGeography.Kind.HILLS -> Color(0.35f, 0.25f, 0.2f)
             HexGeography.Kind.STEPPE, HexGeography.Kind.DESERT -> Color(0.45f, 0.35f, 0.05f)
             HexGeography.Kind.MARSH -> Color(0.2f, 0.4f, 0.3f)
             HexGeography.Kind.PENINSULA, HexGeography.Kind.ISTHMUS, HexGeography.Kind.ISLAND -> Color(0.3f, 0.3f, 0.3f)

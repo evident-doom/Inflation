@@ -41,7 +41,7 @@ fun main(args: Array<String>) {
     fun x(h: Int) = (hex.centreKm(h).first * px).toInt()
     fun y(h: Int) = (hex.centreKm(h).second * px).toInt()
     val tint = mapOf(
-        HexGeography.Kind.MOUNTAINS to Color(120, 80, 60, 70), HexGeography.Kind.FOREST to Color(0, 90, 0, 60),
+        HexGeography.Kind.MOUNTAINS to Color(120, 80, 60, 90), HexGeography.Kind.HILLS to Color(170, 130, 90, 50), HexGeography.Kind.FOREST to Color(0, 90, 0, 60),
         HexGeography.Kind.DEEP_FOREST to Color(0, 60, 0, 90), HexGeography.Kind.WOODLAND to Color(90, 140, 40, 50),
         HexGeography.Kind.STEPPE to Color(220, 200, 80, 60), HexGeography.Kind.DESERT to Color(240, 180, 90, 70),
         HexGeography.Kind.MARSH to Color(40, 140, 120, 70), HexGeography.Kind.FLOODPLAIN to Color(0, 160, 200, 70),
