@@ -1256,8 +1256,16 @@ class HexGroups(
     private fun deathsOfPlace(c: PlanContext, p: Place, h: Hex, prey: Float, crowded: Float): Float {
         val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
         val t = weather.temperature[p]
-        // (Its food there, as the score's food term reckons it, as how fed it would be.)
-        val food = if (s.carnivore) prey / (prey + PREY_HALF) else saturate(placeValue[c.kind][p], Thresholds.FOOD_HALF)
+        // (Its food there, as the score's food term reckons it, as how fed it would be: for a plant-eater, as far as its gut
+        // gets its need out of the grass and browse there as green or cured as they stand, and none of the grass under deep
+        // snow, as [graze] feeds it; fruit and roots keep their value.)
+        val food = if (s.carnivore) prey / (prey + PREY_HALF) else {
+            val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
+            val q = land.plants.nourishment(p.i)
+            val gut = min(1f, gutFill(s, q) * q / HexFauna.GUT_QREF)
+            val grass = if (weather.snowpack[p] > s.snowLimitMm) 0f else d.grass
+            saturate(placeValue[c.kind][p], Thresholds.FOOD_HALF) * ((grass + d.browse) * gut + d.fruit + d.roots) / total
+        }
         val hunger = Hazards.hunger((food - 0.5f * crowded).coerceIn(0f, 1f))
         val thirst = if (canDrink(s, p.i)) 0f else Hazards.thirst(s, g.dry + Hazards.dryDays(s, days, g.fed, land.plants.green[p]))
         val cold = Hazards.cold(s, if (b != null) b.feels(t, fireAt(g, b, p.i), atHouse(b, p.i)) else t, weather.date.month)
