@@ -834,9 +834,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
         val bornBook = land.books?.adder(Books.Stuff.MATTER, "residents born and grew up")
+        // A kind that lives both ways is crowded by all of its animals about a place, its herds' as well as its own:
+        // each herd's heads per km2 over the ground it grazes ([herdsAt]).
+        val herdKm2 = arrayOfNulls<FloatArray>(kinds.size)
+        for ((p, list) in herdsAt) for (at in list) {
+            val k = slot(at.g.species); if (k < 0) continue
+            (herdKm2[k] ?: FloatArray(n).also { herdKm2[k] = it })[p] += at.g.size * at.share / land.areaKm2[p]
+        }
         kinds.indices.toList().parallelStream().forEach { k ->
             val s = kinds[k]
             val carcassKg = carcasses[k]
+            val herds = herdKm2[k]
             val start = birthStart[k]
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
             val grow = years / s.yearsToMaturity
@@ -850,7 +858,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     // (Mothers short of protein bear and suckle fewer.)
                     // (A mother needs a range of her own to bear and raise her young in: where they crowd beyond
                     // [inflation.Tuning.breedSpacing] times their usual numbers, only as many as there are ranges breed.)
-                    val ranges = min(1f, tuning.breedSpacing * usual[k] / (a[p] + y[p]))
+                    val ranges = min(1f, tuning.breedSpacing * usual[k] / (a[p] + y[p] + (herds?.get(p) ?: 0f)))
                     val born = 0.5f * a[p] * ranges * s.youngPerFemale * f[p] * protein[k][p] / stepsInSeason
                     y[p] += born
                     bornThisWeek[k] += (born * area).toDouble()
@@ -867,12 +875,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
                 // water's going (or gets enough from green food and prey); beyond that, its days without water
                 // mount week to week, and past what it can bear they kill as they do a herd.
-                if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) dk[p] = 0f
+                if (drinks(s, p)) dk[p] = 0f
                 else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
                 val thirst = Hazards.thirst(s, dk[p])
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
                 // lean season binds, and then hunger and sickness together hold them.
-                val crowd = (a[p] + y[p]) / (CROWDED * usual[k])
+                val crowd = (a[p] + y[p] + (herds?.get(p) ?: 0f)) / (CROWDED * usual[k])
                 val disease = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - f[p])) + outbreakDeaths(s, p)
                 // Where the herds are crowded, now and then a plague breaks out among them.
                 if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
@@ -961,6 +969,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return proteinMet(ps * share + (1f - ps))
     }
 
+    /** Whether [s] can drink at place [p]: water there, or within half its days without water's going (see [Hazards.fetchKm]). */
+    private fun drinks(s: Species, p: Int) =
+        s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)
+
     /** What a place is worth to a kind for moving there: nothing when below nothing or not a number (see [shiftBands], [spill]). */
     private fun worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w else 0f
 
@@ -1011,11 +1023,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 worthOf[q] = worthOrNothing(fareFor(s, q) * fresh * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * shy(s, q)) /
                     (1f + (a[q] + y[q]) / (CROWD * usual[k])))
             }
+            val dk = dry[k]
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
-                val need = (1f - f[p]).coerceIn(0f, 1f)
+                // (Thirst drives them as hunger does: by how far their days without water have gone towards what they can bear.)
+                val thirst = (dk[p] / s.daysWithoutWater).coerceIn(0f, 1f)
+                val need = max((1f - f[p]).coerceIn(0f, 1f), thirst)
                 val h = hw.placeHex[p]; val b = hw.placeBand[p]
-                // Hungry ones leave, and so do those whose country does not suit them, towards better.
+                // Hungry or thirsty ones leave, and so do those whose country does not suit them, towards better.
                 val leave = SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k, h)
                 // Where they could go: each neighbouring hex at about the same height (its band, or the one above
                 // or below: so they work up a valley to the high pasture and down again), weighed by food, how
@@ -1034,7 +1049,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         val q = hw.placeOf[nextBand][nh]
                         if (q < 0) continue
                         val i = d * 3 + db + 1
-                        val worth = worthOf[q]
+                        // (The thirsty shun country where they could not drink, the more the thirstier: as herds head for water.)
+                        val worth = if (thirst > 0f && !drinks(s, q)) worthOf[q] * (1f - thirst) else worthOf[q]
                         if (worth > best) best = worth
                         ws[i] = ease * (worth + 1e-4f) * toward
                         wq[i] = q
@@ -1052,7 +1068,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
                 if (total <= 0f) continue
                 // (And the more so the better the country next door is than here: as the seasons turn, they follow the fresh pasture.)
-                val here = worthOf[p]
+                val here = if (thirst > 0f && !drinks(s, p)) worthOf[p] * (1f - thirst) else worthOf[p]
                 val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
                 val go = min(0.5f, leave + SPILL_BETTER * better)
                 val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]
