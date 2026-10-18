@@ -1,18 +1,32 @@
 name: CI
 
+# Free Actions minutes are few, so CI does as little as it can:
+# - a PR push runs build-and-test only, and not for drafts or docs-only changes;
+# - merges to main don't rebuild (the PR already built the merge result); a weekly run on main keeps the Gradle
+#   cache fresh, since setup-gradle only saves the cache from the default branch;
+# - step-time and model-identity run only when the "sim-check" label is added to a PR (remove and add it again
+#   to rerun). Olli's PC and katastrofialue run these checks for free.
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths-ignore: ['**.md', 'docs/**']
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # A label run gets its own group so adding the label doesn't cancel the PR's build.
+  group: ci-${{ github.ref }}-${{ github.event.action == 'labeled' && 'sim' || 'build' }}
   cancel-in-progress: true
 
 jobs:
   build-and-test:
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.action != 'labeled' && !github.event.pull_request.draft)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -32,8 +46,9 @@ jobs:
   # shared hardware's speed mostly cancels out. A small world: catches big jumps (a method falling out of the
   # JIT, a loop gone quadratic), not a few per cent.
   step-time:
-    if: github.event_name == 'pull_request'
+    if: github.event.action == 'labeled' && github.event.label.name == 'sim-check'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -83,8 +98,9 @@ jobs:
   # for a year with the diagnostics on, then a year on from the base's save). A refactor must say "identical";
   # a behaviour change will differ, so this reports and does not fail. The full check runs on Olli's PC.
   model-identity:
-    if: github.event_name == 'pull_request'
+    if: github.event.action == 'labeled' && github.event.label.name == 'sim-check'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
