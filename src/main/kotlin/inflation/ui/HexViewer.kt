@@ -784,7 +784,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
 
     private fun causeNote(tint: Measure) = if (tint.byCause) " (" + causeChoice.selectedItem + ")" else ""
 
-    /** The measures' own fixed colour scales, as the viewer has always drawn them; null for a measure without one. */
+    /** The measures' own fixed colour scales; null for a measure without one. */
     private fun fixedColour(tint: Measure, values: FloatArray, out: Array<Color?>): MapLegend? {
         // What the scale says, and the values it runs over: its ends, with any marked between them.
         val (legend, marks) = when (tint) {

@@ -6,8 +6,7 @@ import kotlin.test.assertTrue
 
 /**
  * The JIT does not compile a method of more than 8000 bytes of bytecode (HotSpot's HugeMethodLimit):
- * it runs interpreted, many times slower. The planner once grew 1 byte past it and the weekly choosing
- * ran 4.5 times slower on the big worlds. No method of the model may pass it.
+ * it runs interpreted, many times slower. No method of the model may pass it.
  */
 class HugeMethodTest {
     private val limit = 8000

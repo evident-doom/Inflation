@@ -48,7 +48,7 @@ class Terrain(private val world: World) {
     val viewKm = FloatArray(n)
     /**
      * How defensible a place is, 0..1: height over the surroundings, broken ground, and approaches
-     * cut by water, marsh or steep slopes. For settlements and refuges in later stages.
+     * cut by water, marsh or steep slopes.
      */
     val defensibility = FloatArray(n)
 

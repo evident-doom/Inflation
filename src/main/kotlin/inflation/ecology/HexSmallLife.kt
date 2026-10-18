@@ -317,7 +317,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         }
         lastMonth = month
         Profile.part("small life: vultures") { stepVultures(weather) }
-        // A little every week, not all at once each month: a monthly lump showed as a pulse at the
+        // A little every week, not all at once each month: a monthly lump would show as a pulse at the
         // start of each month where the spreaders arrived and then died back over the weeks.
         Profile.part("small life: spreading to neighbours") {
             spread(spreaders)

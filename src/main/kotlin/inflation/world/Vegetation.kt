@@ -24,9 +24,8 @@ import kotlin.random.Random
 /**
  * Plant life forms tracked per cell. Food, fodder, fuel and materials are drawn from these.
  * (Herbs' fastest growth: a short sward in full warmth and water doubles in about three weeks, as spring
- * pasture and semi-arid grassland put on 1-3 g/m² a day from a low stand, from memory; at half that, they
- * stood at a quarter to a third of their ceiling everywhere and a dry country's spring was over before
- * its grass had grown.)
+ * pasture and semi-arid grassland put on 1-3 g/m² a day from a low stand, from memory; slower growth would
+ * leave a dry country's spring over before its grass had grown.)
  */
 enum class LifeForm(
     /** Largest standing biomass in the best conditions, kg dry matter per m². */

@@ -16,7 +16,7 @@ import inflation.world.WorldCache
 import inflation.world.WorldConfig
 
 /**
- * The anomalies the plenty check turned up, by the classes of [HexClasses]:
+ * A closer look at the land by the classes of the plenty check ([HexClasses]):
  *
  * - drinking water: the share of the land with lasting water (river, fresh lake, spring) within an easy
  *   walk, the mean walk to it, and the share that is humid country (where no springs are placed) with

@@ -61,8 +61,7 @@ class HexGroups(
     internal var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. For comparison runs, people=false leaves people out. */
     @Transient val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } +
-        Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag("people", true)) } +
-        Catalogue.formSwap.filter { Catalogue.resident(it) })
+        Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag("people", true)) })
     /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
     val bearings by lazy {
         HexBearings(hw, kinds, { s, p, m ->
@@ -135,7 +134,7 @@ class HexGroups(
         val area = land.areaKm2.sum()
         for (s in kinds) {
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
-            // At the density a long run showed it settles at, where there is one.
+            // At the density it settles at over a long run, where one is known.
             val settled = Catalogue.settledPer1000Km2(s)
             val unit = unitSize(s)
             val count = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()

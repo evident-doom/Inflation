@@ -1,6 +1,6 @@
-# The many sides of a herd's size (2026-10-14)
+# The many sides of a herd's size
 
-Status (2026-10-18): built. Each herd has a herd-size way (`AnimalWay.HERD_SIZE` in `HexAnimalWays.kt`), set by the herds' ways network rather than the movement network. Many eyes and confusion cut the catch (`BIG_HERD_EYES`), the young are sheltered (`BIG_HERD_SHELTERS`), small herds hide in cover (`HIDE_IN_COVER`) and big herds move slower (`BIG_HERD_SLOW`), all in `HexGroupRules.kt`.
+Each herd has a herd-size way (`AnimalWay.HERD_SIZE` in `HexAnimalWays.kt`), set by the herds' ways network rather than the movement network. Many eyes and confusion cut the catch (`BIG_HERD_EYES`), the young are sheltered (`BIG_HERD_SHELTERS`), small herds hide in cover (`HIDE_IN_COVER`) and big herds move slower (`BIG_HERD_SLOW`), all in `HexGroupRules.kt`.
 
 Olli's point: a big herd cannot hide in a 10 km hex, a small one can; but a big herd shelters its young and old inside. Size should be a real trade-off, so that splitting and joining can be learned.
 
@@ -17,8 +17,8 @@ Olli's point: a big herd cannot hide in a 10 km hex, a small one can; but a big 
 - **Crowding:** disease and parasites, and queues at water.
 - **Slowness:** a big herd moves more slowly and turns less readily.
 
-**How it would fit:**
-- **Being found:** meetings already grow with the herd's usual bands. Cover would add hiding for small herds only.
+**How it fits:**
+- **Being found:** meetings grow with the herd's usual bands. Cover gives hiding to small herds only.
 - **Killing:** each attempt is less likely to succeed in big herds (confusion and many eyes). Young and old are taken less often in big herds.
-- **Food, crowding and slowness:** grazing over the range and disease from crowding already exist. Walking pace would slow a little with size.
-- **Choices:** splitting and joining become learned choices, scored by the movement networks alongside moving. Each herd's own leaning to a size, built today, gives the training varied sizes to learn from.
+- **Food, crowding and slowness:** grazing over the range and disease from crowding apply to every herd. Walking pace slows a little with size.
+- **Choices:** the herd-size way is a learned choice. Each herd's own leaning to a size gives the training varied sizes to learn from.

@@ -64,10 +64,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * The resident kinds, and for each, adults and young per km² of each place: those that live only so, then the herd kinds that
-     * also live spread out between their gatherings ([Catalogue.gathering]), and those run as residents in the form-swap test.
+     * also live spread out between their gatherings ([Catalogue.gathering]).
      */
-    @Transient val kinds = (Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.gathering.sortedBy { it.index } +
-        Catalogue.formSwap.filter { !Catalogue.resident(it) }).distinct()
+    @Transient val kinds = (Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.gathering.sortedBy { it.index }).distinct()
     /** Each kind's place in [kinds] (and in every table here kept by kind), by its [Species.index]; -1 for a kind kept in groups. */
     @Transient private val slots = IntArray(Catalogue.all.size) { -1 }.also { for ((k, s) in kinds.withIndex()) it[s.index] = k }
     /** [s]'s place in [kinds], or -1 if it is not a resident. */
@@ -1118,7 +1117,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
         /** Below this density, per km², a kind is gone from a place. */
         const val EXTINCT = 1e-4f
-        /** Density, as a multiple of a kind's usual, at which crowding halves a place's appeal (10/km² against the 0.5/km² all kinds were given before). */
+        /** Density, as a multiple of a kind's usual, at which crowding halves a place's appeal. */
         const val CROWD = 20f
         /**
          * Outbreaks: yearly chance one starts in a place at its kind's crowded density; share of the kind it kills a

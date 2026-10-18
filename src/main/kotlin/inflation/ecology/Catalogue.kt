@@ -417,7 +417,6 @@ object Catalogue {
      * Wild goat (bezoar): herds of the broken hill country, crags and open oak woods of the Taurus
      * and Zagros; they climb to the high pastures in summer and come down to the lower slopes and
      * valleys in winter, ahead of the deep snow. The ancestor of the goat (figures from memory).
-     * (It took the place of the reindeer, which this latitude did not suit, and keeps its index.)
      */
     val WILD_GOAT = Species(
         id = 11, name = "wild goat", massKg = 40f,
@@ -693,14 +692,6 @@ object Catalogue {
 
     /** Kinds that keep to small home ranges all year, kept as numbers per place: plant-eaters, and the [residentHunters]. */
     fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
-
-    /**
-     * For tests: kinds run in the other form than their own after a settled state is loaded (t.formSwap=NAME,NAME):
-     * residents as herds or packs, herds and packs as residents (see [swapForms]). Not people.
-     */
-    val formSwap: List<Species> by lazy {
-        inflation.Config.string("t.formSwap")?.split(',')?.map { n -> all.first { it.name == n.trim() } }?.filter { !it.human } ?: emptyList()
-    }
 
     /**
      * Kinds that live both ways: spread over the land as residents, gathered into herds for the months their

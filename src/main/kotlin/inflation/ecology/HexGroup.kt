@@ -105,8 +105,6 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var dietRate = 0f
     /** Its grown ones' odds of dying in a step, as its last week's hazards had them (0 before its first week): what a life risked is set against. */
     var deathOdds = 0f
-    /** For hunters, with [HERDS_IN_DIET]: the herds it came on unseen this week, for its diet pass. Not saved. */
-    @Transient var herdsMetWeek: ArrayList<HerdMet>? = null
     /** How often it has come on herds of [k] lately, at [day]. */
     fun metLately(k: Int, day: Double): Float = herdsMet?.let { it[k] * exp(-(day - herdsMetOn) / SEARCH_DAYS).toFloat() } ?: SEARCH_HALF
     /** Counts a meeting with a herd of [k] at [day]. */

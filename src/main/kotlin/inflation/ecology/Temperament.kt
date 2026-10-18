@@ -27,8 +27,7 @@ object Temperament {
     /**
      * Spread of founders' temperaments, in units of a place's score: three times the pull of staying
      * put ([STAY]). Not measured; kept wide on purpose so that runs try out markedly different ways of
-     * choosing and selection and learning sort them (in a 3-year check it shifted herds' and packs'
-     * share of weeks moved by up to 25 points).
+     * choosing and selection and learning sort them.
      */
     const val FOUNDER_SD = 3f * STAY
     /** The change at each split: a fifth of the founders' spread, so lineages stay recognisable over a few splits. Not measured. */
