@@ -75,7 +75,7 @@ class Climate(
             // are worked out together a few times over.
             val evap = Array(12) { FloatArray(n) }
             repeat(RECYCLING_PASSES) { pass ->
-                carry(grid, cfg, elevation, isSea, lat, evap, precip)
+                carry(grid, cfg, elevation, isSea, lat, temp, monthlyPet, evap, precip)
                 if (pass == RECYCLING_PASSES - 1) return@repeat
                 java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
                     val p = (0 until 12).sumOf { precip[it][i].toDouble() }
@@ -91,7 +91,7 @@ class Climate(
             }
 
             // Fronts and storms are hundreds of km across.
-            for (m in 0 until 12) precip[m] = blur(grid, precip[m], (20 / grid.cellKm).toInt().coerceAtLeast(1))
+            for (m in 0 until 12) precip[m] = blur(grid, precip[m], ((System.getenv("PROBE_BLUR_KM") ?: "20").toDouble() / grid.cellKm).toInt())
             val annualP = FloatArray(n) { i -> (0 until 12).sumOf { precip[it][i].toDouble() }.toFloat() }
             val aet = FloatArray(n)
             val runoff = FloatArray(n)
@@ -125,7 +125,7 @@ class Climate(
         }
 
         /** Size of the cells the moisture is carried over, km. */
-        const val CARRY_KM = 10.0
+        val CARRY_KM = (System.getenv("PROBE_CARRY_KM") ?: "10").toDouble()
         /** Relative humidity of air over the sea (it is near 80% over the open oceans). */
         const val SEA_HUMIDITY = 0.8
         /** Height over which water vapour thins by e, m (about 2 km in the real atmosphere). */
@@ -186,7 +186,7 @@ class Climate(
          * Worked on cells of [CARRY_KM] and spread back to the fine cells.
          */
         private fun carry(grid: Grid, cfg: WorldConfig, elevation: FloatArray, isSea: BooleanArray, lat: DoubleArray,
-                          evap: Array<FloatArray>, precip: Array<FloatArray>) {
+                          temp: Array<FloatArray>, monthlyPet: Array<FloatArray>, evap: Array<FloatArray>, precip: Array<FloatArray>) {
             val f = max(1, Math.round(CARRY_KM / grid.cellKm).toInt())
             val cw = (grid.width + f - 1) / f; val ch = (grid.height + f - 1) / f
             val ckm = f * grid.cellKm
@@ -203,6 +203,7 @@ class Climate(
             val shower = FloatArray(cw * ch)
             val seaT = FloatArray(ch); val seaAirT = FloatArray(ch)
             val gain = FloatArray(cw * ch); val wSat = FloatArray(cw * ch)
+            val groundT = FloatArray(cw * ch); val petC = FloatArray(cw * ch)
             fun at(a: FloatArray, x: Double, y: Double, outside: Float): Float {
                 if (x < 0 || y < 0 || x > cw - 1 || y > ch - 1) return outside
                 val x0 = x.toInt().coerceAtMost(cw - 2).coerceAtLeast(0); val y0 = y.toInt().coerceAtMost(ch - 2).coerceAtLeast(0)
@@ -220,6 +221,9 @@ class Climate(
                 gain.fill(0f)
                 for (i in 0 until grid.size) { val c = (grid.y(i) / f) * cw + grid.x(i) / f; gain[c] += evap[m][i] }
                 for (c in 0 until cw * ch) gain[c] /= cnt[c].coerceAtLeast(1)
+                groundT.fill(0f); petC.fill(0f)
+                for (i in 0 until grid.size) { val c = (grid.y(i) / f) * cw + grid.x(i) / f; groundT[c] += temp[m][i]; petC[c] += monthlyPet[m][i] }
+                for (c in 0 until cw * ch) { groundT[c] /= cnt[c].coerceAtLeast(1); petC[c] /= cnt[c].coerceAtLeast(1) }
                 for (y in 0 until ch) { seaT[y] = seaSurfaceTemp(rowLat[y], day).toFloat(); seaAirT[y] = seaLevelTemp(rowLat[y], day, 0.0).toFloat() }
                 total.fill(0f)
                 var weights = 0.0
@@ -227,6 +231,8 @@ class Climate(
                     val w = winds.weight(r, season)
                     weights += w
                     val frontal = r == Regime.WESTERLY || r == Regime.SOUTHERLY || r == Regime.NORTHERLY
+                    val troughs = r != Regime.BLOCKING && r != Regime.SUMMER_HIGH
+                    val rising = DoubleArray(ch) { y -> if (troughs) exp(-((rowLat[y] - jet) / STORM_TRACK_DEG).let { it * it }) else 0.0 }
                     // Unit wind of each row (towards the east and the south), its speed in km a day, and how fast fronts rain the air out, a day.
                     val ux = DoubleArray(ch); val uy = DoubleArray(ch); val kmDay = DoubleArray(ch); val lift = DoubleArray(ch)
                     for (y in 0 until ch) {
@@ -239,7 +245,7 @@ class Climate(
                     // and a wind of speed U lifts it at most U/N over a ridge; below that it flows round (the Froude limit).
                     for (c in 0 until cw * ch) {
                         val y = c / cw
-                        val lifted = min(elev[c].toDouble(), kmDay[y] / 86.4 / BUOYANCY_HZ)
+                        val lifted = if (System.getenv("PROBE_NO_FROUDE") != null) elev[c].toDouble() else min(elev[c].toDouble(), kmDay[y] / 86.4 / BUOYANCY_HZ)
                         wSat[c] = saturatedColumn(seaLevelTemp(rowLat[y], day, 0.0) - LAPSE_RATE * lifted).toFloat()
                     }
                     // Downwind order: each cell after the cells upwind of it.
@@ -260,7 +266,10 @@ class Climate(
                             landDays[c] = overLand.toFloat()
                             val keep = exp(-lift[y] * exp(-overLand / FRONT_LAND_DAYS) * days)
                             // Air lifted over high ground holds less; what it cannot hold rains out.
-                            val left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
+                            var left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
+                            if (CONV && sea[c] < 1) { val cv = convection(left, w0[y].toDouble(), groundT[c].toDouble(), elev[c].toDouble(),
+                                petC[c] / 30.0, seaLevelTemp(rowLat[y], day, 0.0), rising[y])
+                                left -= (1 - sea[c]) * min(left, cv * days) }
                             rain[c] = ((wet + (1 - sea[c]) * gain[c] * days - left) / days * 30).toFloat()
                             q[c] = left.toFloat()
                             // A sea warmer than the air over it gives the air more vapour than the air's own warmth would, mm a day,
@@ -280,6 +289,46 @@ class Climate(
                     precip[m][i] = at(total, (grid.x(i) + 0.5) / f - 0.5, (grid.y(i) + 0.5) / f - 0.5, 0f)
                 }
             }
+        }
+
+        val CONV = System.getenv("CONV") != null
+        val CONV_SURFACE_Q = System.getenv("CONV_SURFACE_Q") != null
+        const val BOUNDARY_LAYER_M = 1500.0
+        var ENTRAINMENT_PER_M = (System.getenv("CONV_EPS") ?: "0.5").toDouble() * 1e-3
+        const val CLOUD_TOP_M = 5500.0
+        const val RADIATIVE_COOLING_C = 1.5
+        const val SINKING_DAYS = 7.0
+        private const val CP = 1005.0
+        private const val LV = 2.5e6
+        private const val GRAVITY = 9.81
+        private const val R_DRY = 287.0
+        private const val PRESSURE_HEIGHT_M = 8400.0
+        val sinkingM = RADIATIVE_COOLING_C / (GRAVITY / CP - LAPSE_RATE) * SINKING_DAYS
+        private fun staticEnergy(t: Double, z: Double, q: Double) = CP * (t + 273.15) + GRAVITY * z + LV * q
+        private fun airDensity(t: Double, z: Double) = 101325 * exp(-z / PRESSURE_HEIGHT_M) / (R_DRY * (t + 273.15))
+        private fun saturatedQ(t: Double, z: Double) = saturatedVapour(t) / 1000 / airDensity(t, z)
+        private fun convection(column: Double, seaColumn: Double, t: Double, z: Double, petDay: Double, seaTemp: Double, rising: Double): Double {
+            if (petDay <= 0 || column <= 0) return 0.0
+            val density = airDensity(t, z)
+            val thin = if (CONV_SURFACE_Q) 1.0 else exp(-z / VAPOUR_HEIGHT_M)
+            val q = min(min(column, seaColumn * thin) / VAPOUR_HEIGHT_M, saturatedVapour(t) / 1000) / density
+            val mass = density * BOUNDARY_LAYER_M
+            val heating = petDay * LV / mass
+            var a = 1.0; var b = 0.0; var need = Double.NEGATIVE_INFINITY
+            var level = z + BOUNDARY_LAYER_M
+            val dz = 250.0
+            val mix = ENTRAINMENT_PER_M * dz
+            while (level < max(CLOUD_TOP_M, z + BOUNDARY_LAYER_M + 1000)) {
+                level += dz
+                val tf = seaTemp - LAPSE_RATE * level
+                val saturated = saturatedQ(tf, level)
+                val qf = rising * SEA_HUMIDITY * saturated + (1 - rising) * min(saturated, saturatedQ(tf - LAPSE_RATE * sinkingM, level + sinkingM))
+                a *= 1 - mix
+                b = b * (1 - mix) + mix * staticEnergy(tf, level, qf)
+                need = max(need, (staticEnergy(tf, level, saturated) - b) / a)
+            }
+            val excess = min(staticEnergy(t, z, q) + heating - need, heating)
+            return if (excess <= 0) 0.0 else mass * excess / LV
         }
 
         /** Thornthwaite (1948) potential evapotranspiration in mm per month from monthly mean temperatures. */
