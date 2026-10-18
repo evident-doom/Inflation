@@ -147,7 +147,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     val fire = HexFires(this)
 
     /** The land's part of the week, in order: the water, then the plants that grow by it. */
-    val phases = listOf(
+    @Transient val phases = listOf(
         Phase("water") { hydro.step(it); drink.step(it) },
         Phase("plants") { plants.step(it) },
     )

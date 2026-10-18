@@ -507,7 +507,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** The residents' part of the week, in order, with the weather on the same places. */
-    val phases = listOf(
+    @Transient val phases = listOf(
         Phase("residents: new month") { newWeek(it, it.date) },
         Phase("food stocks") { food.step(it) },
         Phase("water life") { water.step(it) },

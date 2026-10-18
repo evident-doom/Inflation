@@ -243,7 +243,7 @@ class HexGroups(
     }
 
     /** The groups' part of the week, in order. */
-    val phases = listOf(
+    @Transient val phases = listOf(
         Phase("groups: choosing and moving") { chooseAndMove(it, it.date) },
         // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
         // same days, the earlier meetings are settled first, by each side's standing orders.

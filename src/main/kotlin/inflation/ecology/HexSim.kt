@@ -57,7 +57,7 @@ class HexSim(
      * The week, in order: the weather and what falls from the sky, the water and plants ([HexLand.phases]), the residents and
      * small life ([HexFauna.phases]), what the residents' hunters took of the herds, and the groups ([HexGroups.phases]).
      */
-    val phases: List<Phase> = listOf(
+    @Transient val phases: List<Phase> = listOf(
         Phase("weather") { weather.step(); bookSnow() },
         Phase("ash and eruptions") { fallingAsh() },
     ) + land.phases + listOf(
