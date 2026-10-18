@@ -256,7 +256,14 @@ class HexRoutes(private val g: HexGroups) {
      */
     fun tell(teller: Band, listener: Band, here: Int): Int {
         var learnt = 0
-        for (a in landmarks) {
+        // (Only the rows of hexes within reach: the landmarks are in hex order, row by row.)
+        val rows = (ROUTE_TOLD_KM / hex.rowKm).toInt() + 1
+        val row = here / hex.cols
+        val from = Arrays.binarySearch(landmarks, max(0, row - rows) * hex.cols).let { if (it < 0) -it - 1 else it }
+        val until = (row + rows + 1) * hex.cols
+        for (i in from until landmarks.size) {
+            val a = landmarks[i]
+            if (a >= until) break
             if (!teller.knows(a) || hex.distanceKm(a, here) > ROUTE_TOLD_KM) continue
             if (!listener.knows(a)) { listener.learn(a, hex.size); learnt++ }
             for (i in legsAt[a] ?: continue) {
