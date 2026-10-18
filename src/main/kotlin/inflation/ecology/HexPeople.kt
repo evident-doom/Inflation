@@ -973,9 +973,9 @@ private fun HexGroups.makeOrnaments(b: Band, people: Float, time: BandTime) {
 private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time: BandTime) {
     if (b.atHome && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f && time.left > 0f) {
         val stock = g.stores[Store.SEED]
-        val sow = minOf(stock * SOW_SHARE * b.sowWill, time.left * hands(g) / SOW_DAYS_PER_KG)
+        val sow = minOf(stock * SOW_SHARE * b.sowWill, time.left / SOW_DAYS_PER_KG)
         if (sow > 0.1f) {
-            g.stores[Store.SEED] -= sow; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG / hands(g))
+            g.stores[Store.SEED] -= sow; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
             val food = fauna.food
             val standing = food.cereal[p] * land.plants.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
             val add = land.spread(p, Kg(sow * g.storeKgPer[Store.SEED])).v
@@ -1509,7 +1509,6 @@ const val SOW_DAYS_PER_KG = 0.5f
  * wild-gathered grain), not the decades a pure sickle-and-resow model would give.
  */
 const val SICKLE_SELECT = 0.06f
-private fun hands(g: HexGroup) = max(1, g.adults).toFloat()
 
 /**
  * Ornaments: shell gathered on a shore a week per person, kg; shell and bone for one ornament, kg;

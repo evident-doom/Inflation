@@ -58,9 +58,10 @@ object HexSnapshot {
      * judges whether to settle again first. Set the minor version back to 0 with a new major one.
      *
      * 1.0: onager live both ways.
+     * 1.1: sowing charged its full person-days.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 0
+    const val MODEL_MINOR = 1
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
