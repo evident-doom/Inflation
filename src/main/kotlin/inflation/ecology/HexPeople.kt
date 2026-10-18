@@ -228,6 +228,8 @@ class Band(kinds: Int) {
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
     val sowWill get() = will[BandWay.SOWING]
+    /** How far a band with worn kit holds back from laying food by, to mend first (0 not at all, 1 wholly). */
+    val mendFirst get() = will[BandWay.MENDING_FIRST].coerceAtMost(1f)
     /**
      * Its choices against the dangers (1 for each gives the scaffold's way):
      * - how far from camp its gatherers go, against today's reach: further brings more food and
@@ -1297,7 +1299,8 @@ enum class BandWay(val label: String) {
     FEASTING("feasting"),
     APPOINTMENTS("appointments"),
     BURNING_OFF("burning off"),
-    REPAYING("repaying");
+    REPAYING("repaying"),
+    MENDING_FIRST("mending first");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
 }
@@ -1841,7 +1844,7 @@ const val OCHRE_A_DAY = 5f
 const val FIBRE_A_DAY = 10f
 const val RESIN_A_DAY = 0.5f
 const val SHELL_A_DAY = 0.5f
-/** Share of a full kit below which a band under the hand-written rules mends before it lays food by (Olli's choice). */
+/** Share of a full kit below which a band counts its kit worn, and mends before it lays food by as far as its way goes ([Band.mendFirst]; Olli's choice). */
 const val MEND_BELOW = 0.5f
 /**
  * Skin a kilo of small game yields, kg (a hare's or rabbit's pelt is about a tenth of its weight, from memory),

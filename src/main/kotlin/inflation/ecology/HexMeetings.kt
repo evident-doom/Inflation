@@ -999,15 +999,15 @@ internal fun HexGroups.openness(h: Int, band: Int): Float {
 }
 
 /**
+ * The food [band] works to lay by this week: while its kit is worn it holds back from storing as far as its way of
+ * mending first goes ([Band.mendFirst]: the scaffold's 1 stores nothing, mending from the time the stores would take).
+ */
+internal fun HexGroups.storeWork(g: HexGroup, band: Band) = if (band.worn()) storeWant(g, band) * (1f - band.mendFirst) else storeWant(g, band)
+
+/**
  * What band [g] works this week to lay by towards the stores it aims to keep (its choice), kg: a share
  * of what it lacks. (A band holding to demand sharing stores less: what it lays by is asked of it.)
  */
-/**
- * The food [band] works to lay by this week: under the hand-written rules, none while its kit is worn (it mends
- * first, from the time the stores would have taken); a learned band keeps to its own aim.
- */
-internal fun HexGroups.storeWork(g: HexGroup, band: Band) = if (ways == null && band.worn()) 0f else storeWant(g, band)
-
 internal fun storeWant(g: HexGroup, band: Band) =
     max(0f, band.storeAim * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg - g.larder) * STORE_FILL
 
