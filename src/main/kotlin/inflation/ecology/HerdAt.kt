@@ -29,6 +29,7 @@ internal fun HexGroups.herdsByPlace(): Map<Int, List<HerdAt>> {
 
 /** The herds' losses to the residents' hunters this week, drawn as whole animals and taken from them. */
 internal fun HexGroups.takeResidentsKills(at: Map<Int, List<HerdAt>>) {
+    lostToResidents.clear()
     for (list in at.values) for (a in list) {
         val g = a.g
         if (!g.alive) continue
@@ -39,6 +40,7 @@ internal fun HexGroups.takeResidentsKills(at: Map<Int, List<HerdAt>>) {
         land.books?.flow(Books.Stuff.MATTER, "herds killed by residents (from the groups)", -(da + HexFauna.YOUNG_WEIGHT * dy) * g.species.massKg.toDouble())
         // (Into the residents' week's deaths, as the groups' own tally is cleared when their week begins.)
         fauna.deaths.merge("${g.species.name}:resident hunters", (da + dy).toDouble(), Double::plus)
+        lostToResidents.merge(g.species, da + dy, Int::plus)
         note(g) { "lost %d to jackals or lynx".format(da + dy) }
     }
 }

@@ -164,6 +164,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** How well a diet with [share] of fresh growth's protein meets a mother's and a growing young's need, 0..1. */
     fun proteinMet(share: Float) = min(1f, share / PROTEIN_NEED)
 
+    /** For the kinds that also live as herds ([Catalogue.gathering]): the young that grew up this week, by place, per km² (see [HexGroups.scatter]). */
+    @Transient internal val grownUp: Array<FloatArray?> = Array(kinds.size) { if (kinds[it] in Catalogue.gathering) FloatArray(n) else null }
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
     /**
@@ -835,6 +837,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
             val grow = years / s.yearsToMaturity
             val a = adults[k]; val y = young[k]; val f = fed[k]
+            val grown = grownUp[k]; grown?.fill(0f)
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
                 val area = land.areaKm2[p]
@@ -906,6 +909,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Growing up.
                 val up = y[p] * grow
                 y[p] -= up; a[p] += up
+                if (grown != null) grown[p] = up
                 bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
                 if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }

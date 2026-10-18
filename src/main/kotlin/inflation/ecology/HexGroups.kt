@@ -111,6 +111,8 @@ class HexGroups(
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
     /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
     /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
+    /** Each herd kind's losses to the residents' hunters this week (also among the residents' deaths, see [takeResidentsKills]). */
+    @Transient val lostToResidents = HashMap<Species, Int>()
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1

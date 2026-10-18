@@ -20,6 +20,7 @@ import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
 import inflation.ecology.m2
+import inflation.world.Date
 
 /** Deaths and births by "kind:cause" over the run, from the model's weekly ledgers; and herds' head-weeks by size. */
 class DeathTally(private val sim: HexSim) {
@@ -98,7 +99,11 @@ class HuntTally(private val sim: HexSim) {
     var grainReapedLastYear = 0.0; private set
     private var grainReapedNow = 0.0
 
-    fun startYear() { year.clear(); fedSum.clear(); groupWeeks.clear() }
+    /** For the kinds that live both ways, this year: head-weeks as herds and spread, and the residents' hunters' kills of each. */
+    private val headWeeks = HashMap<String, Double>()
+    private val residentsKilled = HashMap<String, Double>()
+
+    fun startYear() { year.clear(); fedSum.clear(); groupWeeks.clear(); headWeeks.clear(); residentsKilled.clear() }
 
     fun week() {
         val groups = sim.groups
@@ -106,6 +111,15 @@ class HuntTally(private val sim: HexSim) {
         for ((key, v) in groups.stats.hunting) year.merge(key, v, Int::plus)
         for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
         for (g in groups.groups) if (g.alive && g.species in Catalogue.gathering) groupWeeks.merge("herds of ${g.species.name}", 1, Int::plus)
+        val fauna = sim.fauna
+        for (s in Catalogue.gathering) {
+            val k = fauna.slot(s); if (k < 0) continue
+            headWeeks.merge("${s.name} herds", groups.count(s).toDouble(), Double::plus)
+            headWeeks.merge("${s.name} spread", fauna.count(k), Double::plus)
+            val inHerds = (groups.lostToResidents[s] ?: 0).toDouble()
+            residentsKilled.merge("${s.name} herds", inHerds, Double::plus)
+            residentsKilled.merge("${s.name} spread", (fauna.deaths[Tally.of(s, "resident hunters")] ?: 0.0) - inHerds, Double::plus)
+        }
         for (g in groups.groups) if (g.alive && g.species.carnivore) {
             fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus)
             groupWeeks.merge(g.species.name, 1, Int::plus)
@@ -142,11 +156,30 @@ class HuntTally(private val sim: HexSim) {
     /** For the kinds that live both ways: herds gathered and scattered this year (heads), herd-weeks, and heads now in herds and spread. */
     fun printGathering() {
         val fauna = sim.fauna; val groups = sim.groups
-        println("     gathering kinds (this year: herds gathered (heads) / scattered (heads), herd-weeks; now: heads in herds / spread): " +
+        println("     gathering kinds (this year: herds gathered (heads) / scattered (heads), heads joined / settled on the way, herd-weeks; now: heads in herds / spread): " +
             Catalogue.gathering.filter { fauna.slot(it) >= 0 }.joinToString("; ") { s ->
                 fun t(what: String) = year[Tally.of(s, what)] ?: 0
-                "%s %d (%d) / %d (%d), %d; %d / %.0f".format(s.name, t(Tally.GATHERED), t(Tally.HEADS_GATHERED), t(Tally.SCATTERED), t(Tally.HEADS_SCATTERED),
+                "%s %d (%d) / %d (%d), %d / %d, %d; %d / %.0f".format(s.name, t(Tally.GATHERED), t(Tally.HEADS_GATHERED), t(Tally.SCATTERED), t(Tally.HEADS_SCATTERED),
+                    t(Tally.HEADS_JOINED), t(Tally.HEADS_SETTLED),
                     groupWeeks["herds of ${s.name}"] ?: 0, groups.count(s), fauna.count(fauna.slot(s)))
+            })
+    }
+
+    /**
+     * For the kinds that live both ways: what the hunters took of them this year as herds and as residents, per head a
+     * year (hunting groups + the residents' hunters), to set the safety a herd gives against living spread.
+     */
+    fun printHerdSafety() {
+        val weeks = Date.DAYS_PER_YEAR / sim.cfg.daysPerStep.toDouble()
+        println("     hunted per head a year, gathering kinds (in herds: by groups + by resident hunters / spread: the same): " +
+            Catalogue.gathering.filter { sim.fauna.slot(it) >= 0 }.joinToString("; ") { s ->
+                fun rate(form: String, groupKills: String): String {
+                    val hw = (headWeeks["${s.name} $form"] ?: 0.0) / weeks
+                    if (hw <= 0.0) return "-"
+                    val byGroups = (year[Tally.of(s, groupKills)] ?: 0) / hw; val byResidents = (residentsKilled["${s.name} $form"] ?: 0.0) / hw
+                    return "%.3f (%.3f + %.3f)".format(byGroups + byResidents, byGroups, byResidents)
+                }
+                "%s %s / %s".format(s.name, rate("herds", Tally.KILLED_IN_HERDS), rate("spread", Tally.KILLED_SPREAD))
             })
     }
 

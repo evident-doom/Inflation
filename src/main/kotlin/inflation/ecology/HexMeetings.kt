@@ -545,6 +545,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide("residents", ps, band?.skin(ps, na, leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps.name, kills1, Int::plus)
+    if (ps in Catalogue.gathering) stats.hunting.merge(Tally.of(ps, Tally.KILLED_SPREAD), kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
     fauna.killed(p, Kg(kills1 * ps.massKg))
     stats.hunting.merge(Tally.of(s, Tally.KILLS_OF_RESIDENTS), kills1, Int::plus)
@@ -1141,6 +1142,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
             small.deposit(DeadPool.CARRION, herd.place, KgM2((left - tallyHide("herds", herd.species, hunter.band?.skin(herd.species, 1, left))) / (land.areaKm2[herd.place] * 1e6f)))
         }
         stats.kills.merge(herd.species.name, 1, Int::plus)
+        if (herd.species in Catalogue.gathering) stats.hunting.merge(Tally.of(herd.species, Tally.KILLED_IN_HERDS), 1, Int::plus)
         diag(herd.species, "herd kills", 1f)
         roundsKey?.let { stats.hunting.merge(it + "killed", 1, Int::plus) }
         if (ROUNDS && herd.route[0] != ROUND_OPEN) stats.deaths.merge(
