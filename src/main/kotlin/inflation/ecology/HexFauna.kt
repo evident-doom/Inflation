@@ -203,6 +203,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * size ([preference]), herd or resident alike, at most [RESIDENT_KILL_MOST] of that game in a week; what it cannot
      * eat of a kill is left as carrion. Returns what it ate.
      */
+    /**
+     * For the check: by prey kind, the weight of game the residents' hunters could take (in their size range) and took,
+     * spread and in herds ([HuntSeen]), summed over every hunt since last cleared: a kill rate per kg by form.
+     */
+    @Transient val huntSeen = Array(kinds.size) { Array(HuntSeen.entries.size) { DoubleAdder() } }
+    enum class HuntSeen { SPREAD_KG, SPREAD_TAKEN, HERDS_KG, HERDS_TAKEN }
+
     private fun huntResidents(k: Int, p: Int, meat: KgM2, killedSoFar: FloatArray): KgM2 {
         if (meat.v <= 0f) return KgM2.ZERO
         val hunter = kinds[k]
@@ -238,6 +245,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for ((j, s) in kinds.withIndex()) {
             if (wA[j] + wY[j] <= 0f) continue
             val kg = want.v * (wA[j] + wY[j]) / total
+            huntSeen[j][HuntSeen.SPREAD_KG.ordinal].add(((wA[j] + wY[j]) * area).toDouble()); huntSeen[j][HuntSeen.SPREAD_TAKEN.ordinal].add((kg * area).toDouble())
             val fromA = kg * wA[j] / (wA[j] + wY[j]); val fromY = kg - fromA
             adults[j][p] = max(0f, adults[j][p] - fromA / s.massKg)
             young[j][p] = max(0f, young[j][p] - fromY / (YOUNG_WEIGHT * s.massKg))
@@ -251,6 +259,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (hA[i] + hY[i] <= 0f) continue
             val s = at.g.species
             val kg = want.v * (hA[i] + hY[i]) / total
+            val j = slot(s)
+            if (j >= 0) { huntSeen[j][HuntSeen.HERDS_KG.ordinal].add(((hA[i] + hY[i]) * area).toDouble()); huntSeen[j][HuntSeen.HERDS_TAKEN.ordinal].add((kg * area).toDouble()) }
             val fromA = kg * hA[i] / (hA[i] + hY[i]); val fromY = kg - fromA
             at.adults.add((fromA / s.massKg * area).toDouble()); at.young.add((fromY / (YOUNG_WEIGHT * s.massKg) * area).toDouble())
             small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)

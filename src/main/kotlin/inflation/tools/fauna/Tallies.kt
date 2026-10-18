@@ -212,6 +212,26 @@ class HuntTally(private val sim: HexSim) {
                     return if (hw > 0.0) "%.4f".format((pressureMet["${s.name} $form"] ?: 0.0) / hw) else "-" }
                 "%s %s / %s".format(s.name, met("herds"), met("spread"))
             })
+        val fauna = sim.fauna
+        println("     residents' hunters' take per kg in their size range, per hunt, gathering kinds (in herds / spread): " +
+            Catalogue.gathering.filter { fauna.slot(it) >= 0 }.joinToString("; ") { s ->
+                val h = fauna.huntSeen[fauna.slot(s)]
+                fun r(kg: inflation.ecology.HexFauna.HuntSeen, taken: inflation.ecology.HexFauna.HuntSeen) =
+                    if (h[kg.ordinal].sum() > 0.0) "%.4f".format(h[taken.ordinal].sum() / h[kg.ordinal].sum()) else "-"
+                "%s %s / %s".format(s.name, r(inflation.ecology.HexFauna.HuntSeen.HERDS_KG, inflation.ecology.HexFauna.HuntSeen.HERDS_TAKEN),
+                    r(inflation.ecology.HexFauna.HuntSeen.SPREAD_KG, inflation.ecology.HexFauna.HuntSeen.SPREAD_TAKEN))
+            })
+        for (row in fauna.huntSeen) for (a in row) a.reset()
+        println("     young share now, gathering kinds (in herds / spread): " +
+            Catalogue.gathering.filter { fauna.slot(it) >= 0 }.joinToString("; ") { s ->
+                val k = fauna.slot(s)
+                var hy = 0.0; var ha = 0.0
+                for (g in sim.groups.groups) if (g.alive && g.species == s) { hy += g.young; ha += g.adults }
+                var ry = 0.0; var ra = 0.0
+                for (p in 0 until sim.land.n) { ry += fauna.young[k][p] * sim.land.areaKm2[p]; ra += fauna.adults[k][p] * sim.land.areaKm2[p] }
+                fun sh(y: Double, a: Double) = if (y + a > 0.0) "%.2f".format(y / (y + a)) else "-"
+                "%s %s / %s".format(s.name, sh(hy, ha), sh(ry, ra))
+            })
     }
 
     /** Where people's hides came from this year: kg a person from herds, resident game and small pelts. */
