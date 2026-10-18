@@ -77,7 +77,7 @@ class StocksTest {
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh",
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
             "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning",
-            "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.usual", "HexFauna.outbreak",
+            "HexFauna.waterC", "HexFauna.fed", "HexFauna.condition", "HexFauna.protein", "HexFauna.fear", "HexFauna.usual", "HexFauna.outbreak",
             "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFood.domestic", "HexSmallLife.pollination",
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
             // Ash is mm of rock, not living or dead matter; the grass that fell to the litter is a memory of the stand (the

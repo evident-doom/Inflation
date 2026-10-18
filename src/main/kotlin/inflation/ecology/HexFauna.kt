@@ -85,6 +85,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * [proteinMet]): what mothers make milk of and the young grow on.
      */
     val protein = Array(kinds.size) { FloatArray(n) { 1f } }
+    /** Each kind's body condition in each place, 0..1: how well fed over the last weeks (see [Hazards.breeding]). */
+    val condition = Array(kinds.size) { FloatArray(n) { 1f } }
     /**
      * For the check: where each kind's food came from, summed over its animals since last read (fresh
      * grass, browse, fruit and roots; standing straw; small prey and carrion; its reserves), and the
@@ -772,6 +774,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     else r[p] = min(s.maxFatDays, r[p] + FAT_EFFICIENCY * surplus[k] * days)
                 }
                 fed[k][p] = f
+                condition[k][p] += (f - condition[k][p]) * Hazards.CONDITION_MEMORY
                 val fm = fedByMonth[k]; val i = p * 12 + weather.date.month
                 // (What the young would be born to: food, and the protein their mothers' milk and their growth need.)
                 fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * FED_MEMORY
@@ -816,14 +819,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
                 val area = land.areaKm2[p]
-                // Births: half the adults are mothers; a hungry mother bears and keeps fewer.
+                // Births: half the adults are mothers; a mother in poor condition bears and keeps fewer (see [Hazards.breeding]).
                 val inSeason = monthsFrom(start[p].toInt(), date.month) < s.birthMonths
                 if (inSeason) {
                     // (Mothers short of protein bear and suckle fewer.)
                     // (A mother needs a range of her own to bear and raise her young in: where they crowd beyond
                     // [inflation.Tuning.breedSpacing] times their usual numbers, only as many as there are ranges breed.)
                     val ranges = min(1f, tuning.breedSpacing * usual[k] / (a[p] + y[p]))
-                    val born = 0.5f * a[p] * ranges * s.youngPerFemale * f[p] * protein[k][p] / stepsInSeason
+                    val born = 0.5f * a[p] * ranges * s.youngPerFemale * Hazards.breeding(condition[k][p]) * protein[k][p] / stepsInSeason
                     y[p] += born
                     bornThisWeek[k] += (born * area).toDouble()
                     bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
