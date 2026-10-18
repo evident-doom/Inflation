@@ -320,7 +320,7 @@ class HexGroups(
                     // Herds on the move watch and are hard to come at: worth a share of their weight in game.
                     for ((j, ps) in kinds.withIndex()) if (!ps.carnivore && monthHeads[j][p] > 0) h += HERD_GAME * monthHeads[j][p] * ps.massKg *
                         catchable(s, ps, p) / land.areaKm2[p]
-                    huntable[k][p] = if (s.human) h else dietValue(s, p, h)
+                    huntable[k][p] = dietValue(s, p, h)
                 }
             }
             Profile.time("sense of direction") { bearings.update(date.month) }
