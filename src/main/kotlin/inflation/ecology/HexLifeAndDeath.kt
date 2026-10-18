@@ -250,6 +250,15 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     val kinNow = HashMap<Long, Int>()
     for (g in groups) if (g.alive) kinNow.merge(g.species.index.toLong() * hex.size + hw.placeHex[g.place], g.size, Int::plus)
+    // (A kind that lives both ways is crowded by all of its animals about, its residents' as well as its groups':
+    // heads by kind and hex, both forms.)
+    val crowdNow = HashMap(kinNow)
+    for (s in kinds) {
+        val k = fauna.slot(s); if (k < 0) continue
+        val heads = HashMap<Int, Float>()
+        for (p in 0 until land.n) { val m = fauna.adults[k][p] + fauna.young[k][p]; if (m > 0f) heads.merge(hw.placeHex[p], m * land.areaKm2[p], Float::plus) }
+        for ((h, m) in heads) crowdNow.merge(s.index.toLong() * hex.size + h, m.roundToInt(), Int::plus)
+    }
     // Where each kind's groups are, for outbreaks to pass between them.
     for (a in fauna.groupHeads) a.fill(0)
     for (g in groups) if (g.alive) fauna.groupHeads[g.species.index][hw.placeHex[g.place]] += g.size
@@ -259,7 +268,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     val outcome = arrayOfNulls<Outcome>(list.size)
     IntStream.range(0, list.size).parallel().forEach { k ->
         val g = list[k]
-        if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
+        if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, crowdNow, groupRandom(g.id, date.absoluteDay)) }
     }
     // Outbreaks that broke out this week rage from next week: started after every group has lived its
     // week, so no group's plague depends on which core another group's ran on.
@@ -415,7 +424,7 @@ internal data class Died(val cause: String, val n: Int)
 internal class Split(val adults: Int, val young: Int)
 
 /** One group's week of feeding on its reserves, births, deaths and growing up; with its own random stream [r]. */
-internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
+internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, crowdNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
     val s = g.species
     feedOnReserves(g)
     moveBirthMonth(g, date)
@@ -437,7 +446,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             val rate = s.youngPerFemale * g.fed * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * tuning.humanBirths else 1f) *
                 (1f + GRANDMOTHERS * help) / stepsInSeason
             // (Mothers short of protein bear and suckle fewer: see [HexFauna.proteinMet].)
-            val each = rate * (if (s.carnivore) 1f else g.protein * herdRanges(g, kinNow))
+            val each = rate * (if (s.carnivore) 1f else g.protein * herdRanges(g, crowdNow))
             bornExpected = mothers * rate
             // (A big litter over a short season is more than one a mother a week: the whole ones, and the rest by chance.)
             val whole = each.toInt()
@@ -472,7 +481,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val thirst = thirstWeek(g)
     // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
     val plague = fauna.outbreakDeaths(s, g.place.i)
-    val sick = sicknessWeek(g, weather, kinNow, r)
+    val sick = sicknessWeek(g, weather, crowdNow, r)
     val disease = plague + sick
     // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
     val homeless = if (s.pack && g.home.none) DISPERSAL_DEATHS * years else 0f
