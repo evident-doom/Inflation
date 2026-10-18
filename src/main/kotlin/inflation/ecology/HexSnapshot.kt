@@ -77,9 +77,10 @@ object HexSnapshot {
      * 1.18: a herd weighs where it would die were hunting parties to chase it and stop it short on its way.
      * 1.19: herds go on spreading out on arrival, a day's going at a time, till none moves, while they have a day of the week left.
      * 1.20: a herd that sees hunters first halts short again (the 1.17 detour taken out).
+     * 1.21: a herd others follow weighs its places with them: their heads in its crowd, their need in its food.
      */
     const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 20
+    const val MODEL_MINOR = 21
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

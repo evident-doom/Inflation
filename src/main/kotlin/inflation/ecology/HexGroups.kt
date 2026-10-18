@@ -414,6 +414,10 @@ class HexGroups(
                 val l = first.putIfAbsent(key, k); if (l != null) leaderOf[k] = l
             }
         }
+        // (A herd others follow weighs its places for them too: they crowd and graze where it goes.)
+        followedBy.clear()
+        for (k in groups.indices) { val l = leaderOf[k]; if (l >= 0) { val f = groups[k]
+            followedBy.getOrPut(groups[l].id) { FloatArray(2) }.let { it[0] += f.size; it[1] += f.dailyNeedKg * days } } }
         IntStream.range(0, groups.size).parallel().forEach { k ->
             val g = groups[k]
             if (!g.alive || leaderOf[k] >= 0) return@forEach
@@ -473,6 +477,8 @@ class HexGroups(
 
     /** The place each herd that weighed its places chose this week, and the share of it it foresaw would die there (the meetings left out), by its id: see [spreadOut]. */
     @Transient private val chosenPlace = ConcurrentHashMap<Int, Int>()
+    /** For each herd that others follow this week: its followers' heads and their week's need, kg (see [planInner]). */
+    @Transient private val followedBy = HashMap<Int, FloatArray>()
     @Transient private val chosenDying = ConcurrentHashMap<Int, Float>()
     /** The crowd each herd foresaw this week where it chose to go (or, not weighing its places, where it was), by its id: see [spreadOut]. */
     @Transient private val foreseen = HashMap<Int, Float>()
@@ -1308,6 +1314,7 @@ class HexGroups(
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, onRound, roundStrength, fromHere, reach, thirsty, keepOff, weather, date)
         c.via = via; c.dist = dist; c.shift = shift
         if (!s.carnivore) planGround.ranges[g.id]?.let { c.own = it.toMap() }
+        if (!s.carnivore && !shift) followedBy[g.id]?.let { c.partyHeads = it[0]; c.partyKg = it[1] }
         if (!s.carnivore) { val hs = ArrayList<Int>(7); val ss = ArrayList<Float>(7); rangeShares(g, here.i) { q, share -> hs += q; ss += share }
             c.ownHexes = hs.toIntArray(); c.ownShares = ss.toFloatArray() }
         // (Stopped short of the place it chose, it weighs again only if where it stands is clearly deadlier than it foresaw
@@ -1446,6 +1453,8 @@ class HexGroups(
         var ownHexes = IntArray(0); var ownShares = FloatArray(0)
         /** For a herd: its share of the week on each place of the ground it grazes where it is now (its own heads in [planGround]). */
         var own: Map<Int, Float> = emptyMap()
+        /** For a herd others follow this week: their heads, and their week's need, kg ([followedBy]); 0 weighing again. */
+        var partyHeads = 0f; var partyKg = 0f
         /** Its diet as it leans this week ([herdDiet]), for a herd. */
         val diet = if (g.species.carnivore) g.species.diet else herdDiet(g)
         /** Reused for each place it weighs: see [foreseeFed], [deathsAt] and [huntedAhead]. */
@@ -1651,8 +1660,10 @@ class HexGroups(
      */
     private fun foreseenCrowd(c: PlanContext, p: Int, h: Int): Float {
         val g = c.g; val a = grazed[c.kind]; val heads = planGround.heads
-        return herdCrowd(g, h, grazingRange(g, p), { q, share -> max(0f, a[q] - ownShare(c, q) * g.size) + share * g.size }) { q, share ->
-            max(0f, (heads[groundKey(c.kind, q)] ?: 0f) - (c.own[q] ?: 0f) * g.size) + share * g.size }
+        // (The herds that follow it go with it: off the ground they share with it now, onto the ground it would graze.)
+        val party = g.size + c.partyHeads
+        return herdCrowd(g, h, grazingRange(g, p), { q, share -> max(0f, a[q] - ownShare(c, q) * party) + share * party }) { q, share ->
+            max(0f, (heads[groundKey(c.kind, q)] ?: 0f) - (c.own[q] ?: 0f) * party) + share * party }
     }
 
     /**
@@ -1692,7 +1703,8 @@ class HexGroups(
         val share = min(1f, stock * m2 / (wantKg * RANGE_NEED))
         val want = wantKg * share / m2
         // (The other herds' week's need on this ground, kg per m², shared out over what is there.)
-        val others = max(0f, herdWantKg[h] - ownShare(c, h) * g.dailyNeedKg * days) / (hex.areaKm2.toFloat() * 1e6f)
+        // (The herds that follow it graze there with it, and leave the ground they share with it now.)
+        val others = max(0f, herdWantKg[h] - ownShare(c, h) * (g.dailyNeedKg * days + c.partyKg)) / (hex.areaKm2.toFloat() * 1e6f) + c.partyKg / m2
         val left = (1f - others / stock).coerceIn(0f, 1f)
         val reach = grazeAccess(s, p)
         dry.reach = reach
