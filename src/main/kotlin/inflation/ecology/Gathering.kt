@@ -39,14 +39,16 @@ internal fun HexGroups.gather() {
             excess[p] = heads * short(s, k, p)
             byHex[hw.placeHex[p]] += excess[p]
         }
+        // (Not one herd's worth in all: nothing to gather.)
+        if (byHex.sum() < herdOf(s)) continue
         val used = BooleanArray(hex.size)
-        val steps = (GATHER_KM / hex.hexKm).roundToInt()
         var made = 0; var heads = 0
         for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
             if (used[h0]) continue
-            val about = hexesWithin(h0, steps).filter { !used[it] }
             var all = 0.0
-            for (h in about) all += byHex[h]
+            for (h in ground(h0)) if (!used[h]) all += byHex[h]
+            if (all < herdOf(s)) continue
+            val about = ground(h0).filter { !used[it] }
             val count = (all / herdOf(s)).toInt()
             if (count == 0) continue
             for (h in about) used[h] = true
@@ -101,7 +103,7 @@ internal fun HexGroups.scatter() {
         if (g.fed < FED_TO_SCATTER || fauna.thirstAt(s, g.place.i, g.fed) > 0f) continue
         if (g.formedAt >= 0 && hex.distanceKm(hw.placeHex[g.place.i], hw.placeHex[g.formedAt]) <= GATHER_KM) continue
         var heads = 0.0; var wanting = 0.0
-        for (p in placesWithin(g.place.i, GATHER_KM)) {
+        for (p in placesWithin(g.place.i)) {
             val h = (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p].toDouble()
             heads += h; wanting += h * short(s, k, p)
         }
@@ -138,7 +140,7 @@ const val FED_TO_SCATTER = 0.95f
  * them and feeds them ([HexGroups.startWeight]); their condition mixed with those there.
  */
 private fun HexGroups.spread(g: HexGroup, k: Int) {
-    val about = placesWithin(g.place.i, GATHER_KM)
+    val about = placesWithin(g.place.i)
     val weights = FloatArray(about.size) { startWeight(g.species, about[it]) }
     val total = weights.sum()
     for ((i, p) in (if (total > 0f) about else listOf(g.place.i)).withIndex()) {
@@ -156,21 +158,23 @@ private fun HexGroups.spread(g: HexGroup, k: Int) {
     }
 }
 
-/** The hexes within [steps] hexes of hex [h0] (itself included). */
-private fun HexGroups.hexesWithin(h0: Int, steps: Int): List<Int> {
+/** The hexes within [GATHER_KM] of hex [h0] (itself included), kept once worked out. */
+private fun HexGroups.ground(h0: Int): IntArray {
+    val all = gatherGround ?: arrayOfNulls<IntArray>(hex.size).also { gatherGround = it }
+    all[h0]?.let { return it }
     val out = arrayListOf(h0); val seen = hashSetOf(h0)
     var ring = listOf(h0)
-    repeat(steps) {
+    repeat((GATHER_KM / hex.hexKm).roundToInt()) {
         val next = ArrayList<Int>()
         for (h in ring) for (d in 0 until 6) { val nh = hex.neighbour(h, d); if (nh >= 0 && seen.add(nh)) next += nh }
         out += next; ring = next
     }
-    return out
+    return out.toIntArray().also { all[h0] = it }
 }
 
-/** The places in the hexes within [km] of place [p]'s hex. */
-private fun HexGroups.placesWithin(p: Int, km: Double): List<Int> {
+/** The places in the hexes within [GATHER_KM] of place [p]'s hex. */
+private fun HexGroups.placesWithin(p: Int): List<Int> {
     val out = ArrayList<Int>()
-    for (h in hexesWithin(hw.placeHex[p], (km / hex.hexKm).roundToInt())) for (b in HexWorld.BANDS_M.indices) { val q = hw.placeOf[b][h]; if (q >= 0) out += q }
+    for (h in ground(hw.placeHex[p])) for (b in HexWorld.BANDS_M.indices) { val q = hw.placeOf[b][h]; if (q >= 0) out += q }
     return out
 }

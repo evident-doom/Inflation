@@ -110,6 +110,8 @@ class HexGroups(
     internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
     /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
+    /** For [gather] and [scatter]: the hexes within [GATHER_KM] of each hex, worked out when first asked for. */
+    @Transient internal var gatherGround: Array<IntArray?>? = null
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1
     internal val monthHunterKg by lazy { FloatArray(n) }
