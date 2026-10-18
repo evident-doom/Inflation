@@ -1,6 +1,6 @@
 # Discomfort: what a group feels, and what it does about it
 
-Status (2026-10-16): steps 1 to 3 are built (step 1 was A/B'd: no effect); steps 4 and 5 are proposals.
+Status (2026-10-18): steps 1 to 3 are built (step 1 was A/B'd: no effect). Step 4's marsh fever is built; its other parts are proposals. Step 5 is not built as written: bands and herds have a temperament (`Temperament.kt`), but on four axes (boldness, exploration, activity, sociability), not as a tolerance for each source.
 
 ## Why
 
@@ -46,15 +46,17 @@ is not a cost unit. Biting insects had none until step 1. Wet has neither.
 
 ## Steps
 
-1. **Built.** `HexGroups.felt` = temperature discomfort + `bitten`, where `bitten` is the insects'
-   real cost as a share: feeding time for plant-eaters (`HARASS_FEED`·h), working time for people
-   (`HARASS_TIME`·h / (1 + `HARASS_TIME`·h)), and 0 for hunters (they are not charged). It feeds
-   the place score, herd restlessness and mover input `f[4]` (`f[5]` adds the flies to the forecast
-   weather). Bands are now also restless when cold or heat, felt through their clothes and fire,
-   plus the flies, passes 0.5, the same threshold herds use. The death term stays temperature only.
-   No new inputs. Step cost: one array read per candidate place.
+1. **Built.** The flies are felt through `HexGroups.bitten`, the insects' real cost as a share: feeding
+   time for plant-eaters (`HARASS_FEED`·h), working time for people
+   (`HARASS_TIME`·h / (1 + `HARASS_TIME`·h)), and 0 for hunters (they are not charged). There is no
+   separate `felt` any more. `HexGroups.discomfort` is the temperature alone, and the flies reach the
+   place score inside `HexGroups.drain` (step 2). Mover inputs `f[4]` and `f[5]` carry discomfort plus
+   drain (`f[5]` with the forecast weather). Restlessness from the weather is temperature only: herds
+   when `discomfort` passes 0.5, bands when the cold or heat felt through their clothes and fire
+   passes 0.5 (`Lifeways.kt`). The flies make a group restless only through step 3's relief test.
+   The death term stays temperature only. Step cost: one array read per candidate place.
    - Limit: at worst the flies cost people a third of their time and plant-eaters 0.4 of their
-     feeding, so on their own they never make a group restless. Combined with heat they can.
+     feeding. They are not part of the 0.5 test, so only step 3's relief test lets them move a group.
 2. **Built: drains in the going's unit.** Cold already costs food (`coldNeed`, about 1% of need
    per °C beyond the coat, in line with Scholander-curve slopes for mid-size mammals). So the
    place score now subtracts `HexGroups.drain`, the cold's extra food plus the flies' cost, as a

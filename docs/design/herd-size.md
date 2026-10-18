@@ -1,4 +1,6 @@
-# The many sides of a herd's size (proposal, 2026-10-14)
+# The many sides of a herd's size (2026-10-14)
+
+Status (2026-10-18): built. Each herd has a herd-size way (`AnimalWay.HERD_SIZE` in `HexAnimalWays.kt`), set by the herds' ways network rather than the movement network. Many eyes and confusion cut the catch (`BIG_HERD_EYES`), the young are sheltered (`BIG_HERD_SHELTERS`), small herds hide in cover (`HIDE_IN_COVER`) and big herds move slower (`BIG_HERD_SLOW`), all in `HexGroupRules.kt`.
 
 Olli's point: a big herd cannot hide in a 10 km hex, a small one can; but a big herd shelters its young and old inside. Size should be a real trade-off, so that splitting and joining can be learned.
 

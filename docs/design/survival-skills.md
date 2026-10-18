@@ -1,6 +1,6 @@
 # Survival skills: a ladder from the naked floor, with checkpoints
 
-Proposal, 2026-10-14. Not built yet: these are new mechanisms, so they wait for Olli's approval.
+Proposal, 2026-10-14. Status (2026-10-18): a first version is built (fire, shelter, plant knowledge, floors, exposure deaths and water finding; see the status section at the end and `Skill.kt`, `HexPeople.kt`). Trapping, tracking and fishing as their own skills came later with `Skill.kt`.
 
 ## Idea
 
@@ -12,12 +12,12 @@ Survival rests on specific skills. Each skill:
 
 The naked-person floor (the skills floor test in [neolithic-path.md](neolithic-path.md)) is the bottom rung. Survival shows, experimental archaeology and ethnography give checkpoints for how long each rung takes, and with what tools.
 
-## What the model has now
+## What the model had before (2026-10-14)
 
-- **Crafts** (`Making`): knapping, woodwork, hide work, cordage. They make tools (spear, bow, net, sickle, grinder, basket, clothes).
+- **Crafts** (then a `Making` type, now `Domain` and `Skill` in `Skill.kt`): knapping, woodwork, hide work, cordage. They make tools (spear, bow, net, sickle, grinder, basket, clothes).
 - **The success floor:** untrained bands get `CRAFT_FLOOR` (0.3) of the success at a hunt or harvest.
 - **Hunting without spears:** `WEAPONLESS` (0.3).
-- **Cold:** only a food cost (at most 1.6 times the need). Nothing models fire, shelter skill, water finding or knowledge of plants.
+- **Cold:** only a food cost (at most 1.6 times the need). Nothing modelled fire, shelter skill, water finding or knowledge of plants. (All of these are built now: see the status section.)
 
 ## Skills to model, with checkpoints
 

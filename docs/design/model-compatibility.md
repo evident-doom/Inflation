@@ -38,3 +38,7 @@ Built:
   - `baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT]`, `baseline list`, `baseline show NAME` (what each network lacks against today's model);
   - kept in `runs/baselines/NAME`, and never overwritten;
   - `nets=NAME` in the config file loads one by name.
+
+Partly built (2026-10-18):
+- **Side by side** (point 4), in a weaker form: the training's ecosystem check (`learning/EcoCheck.kt`) runs each role's new network against its kept one, with the same world and weather. The runs are separate, not mixed in one world.
+- **Continuing from a checkpoint** (point 5), in part: PPO training carries on from the networks already in its `out` folder (`learning/PpoTrainer.kt`). Training only the new rows first, with the old ones frozen, is not built.

@@ -1,5 +1,7 @@
 # Reading the land, and choices that turn dangers into advantages (2026-10-15)
 
+Status (2026-10-18): sections 1 and 2 are built. The signs are place features (trees, shrubs, grass, marsh, water against usual, paths, herds about, dung, grazing and kills; `HexGroup.kt`). The choices are band ways (`BandWay.GATHERING_RANGE`, `WATCHING_CHILDREN`, `NIGHT_FIRE`, `SHUNNING_THE_SICK`). Section 3 is partly built, as marked there.
+
 From Olli's notes of this morning:
 - The ecology is balanced and every niche is taken except that of a smart, learning primate.
 - Dangers should be real, but each should be lessened, or even turned to advantage, by planning, care and skill.
@@ -32,7 +34,7 @@ Each starts at the hand-written default (an output of 0), so the model's lethali
   - Children left alone are easy pickings, so predation and accidents among the young fall steeply with watching.
   - **The default** is today's level.
 - **Fire through the night:** firewood to gather (time, and wood near camp).
-  - It keeps beasts off at night (the fire guard is built today, but with fire always kept); without it the guard is lost.
+  - It keeps beasts off at night; without it the guard is lost. (Built: the night fire is now a choice, and burns only as far as the firewood the band fetched goes.)
   - **The default** is to keep it, as now.
 - **Keeping away from the sick:** refuse to meet, marry with, or feast with a band showing sickness.
   - It loses ties, partners and news, but spares the band the cough and the flux.
@@ -41,10 +43,10 @@ Each starts at the hand-written default (an output of 0), so the model's lethali
 
 ## 3. Turning dangers into advantages
 
-These are the next steps after 1 and 2.
+These were the next steps after 1 and 2. Some are built now (marked).
 
-- **Scavenging:** carcass signs lead to kills that can be stolen from lions and hyenas: meat, at a risk.
-- **Watering holes:** herds come to drink, so waiting there is good hunting, and also where predators wait.
+- **Scavenging:** carcass signs lead to kills that can be stolen from lions and hyenas: meat, at a risk. (Partly built: bands eat carrion they come on when foraging.)
+- **Watering holes:** herds come to drink, so waiting there is good hunting, and also where predators wait. (Partly built: hunters, people among them, meet more game where worn paths funnel it, at fords, passes and water: `AMBUSH`.)
 - **Predators' leavings:** following vultures to a kill.
-- **Dogs:** they warn and guard, and later hunt.
-- **Fire drives and burning:** burnt ground greens and draws herds.
+- **Dogs:** they warn and guard, and later hunt. (Built, behind `taming=true`.)
+- **Fire drives and burning:** burnt ground greens and draws herds. (Burning off is built as a band way; fire drives are not.)
