@@ -74,11 +74,19 @@ class Species(
     /** Adult mortality per year from causes not modelled (age, accident, disease); predation and hunger are modelled. */
     val backgroundMortality: Float,
     /**
-     * Yearly mortality of the young from causes not modelled (stillbirth, desertion, birth defects, falls,
-     * infanticide), in place of the adults' [backgroundMortality]; hunger, thirst, cold, crowding sickness, fire,
+     * Share of the young lost in their first year to causes not modelled (stillbirth, desertion, birth defects,
+     * falls, infanticide); negative: none beyond the adults' rate. Hunger, thirst, cold, crowding sickness, fire,
      * flood and hunters come on top, each modelled, so a total from the field is too much here.
      */
-    val youngMortality: Float = backgroundMortality,
+    val firstYearLost: Float = -1f,
+    /**
+     * Yearly mortality of the young from causes not modelled, in place of the adults' [backgroundMortality]: by
+     * default [firstYearLost] in the first year and the adults' rate after it, spread over the [yearsToMaturity] they
+     * count as young (they grow up at 1/[yearsToMaturity] a year), so a hippo calf, young for eight years, is not
+     * lost at a newborn's rate every year.
+     */
+    val youngMortality: Float = if (firstYearLost < 0f) backgroundMortality
+        else backgroundMortality + (firstYearLost - backgroundMortality) / max(1f, yearsToMaturity),
     /** Snow depth (mm water equivalent) that stops it feeding and slows it badly. */
     val snowLimitMm: Float,
     /** Raw materials an adult yields (for people: hides, bone, sinew). */
