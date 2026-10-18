@@ -10,6 +10,7 @@ import inflation.ecology.HexSim
 import inflation.ecology.Skill
 import inflation.ecology.Species
 import inflation.ecology.Store
+import inflation.ecology.Stuck
 import inflation.world.Biome
 import inflation.world.HexWorld
 import kotlin.math.abs
@@ -118,6 +119,13 @@ class Census(private val sim: HexSim) {
             "%s %.2f/%.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sumThenReset() / h, ff[Fed.STRAW].sumThenReset() / h,
                 ff[Fed.ANIMAL].sumThenReset() / h, ff[Fed.RESERVES].sumThenReset() / h)
         })
+        println("     residents held hungry with no better place next door (share of head-weeks this year / of those at a closed border / most in one week): " +
+            fauna.kinds.indices.filter { fauna.stuck[it][Stuck.HEADS.ordinal] > 0.0 }.joinToString(", ") { k ->
+            val st = fauna.stuck[k]; val h = st[Stuck.HEADS.ordinal]
+            "%s %.0f%% / %.0f%% / %.0f%%".format(fauna.kinds[k].name, 100 * st[Stuck.STUCK.ordinal] / h,
+                100 * st[Stuck.AT_EDGE.ordinal] / st[Stuck.STUCK.ordinal].coerceAtLeast(1e-9), 100 * st[Stuck.PEAK.ordinal])
+        })
+        for (st in fauna.stuck) st.fill(0.0)
         // What they find there: edible forage, how green, how well the roe deer fed, how far water is.
         fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps ->
             ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }

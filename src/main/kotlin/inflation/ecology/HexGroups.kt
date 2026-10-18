@@ -62,7 +62,7 @@ class HexGroups(
     val groups = ArrayList<HexGroup>()
     internal var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. For comparison runs, people=false leaves people out. */
-    @Transient val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } +
+    @Transient val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory || it in Catalogue.gathering } +
         Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag("people", true)) })
     /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
     val bearings by lazy {
@@ -110,6 +110,20 @@ class HexGroups(
     internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
     /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
+    /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
+    /** Each herd kind's losses to the residents' hunters this week (also among the residents' deaths, see [takeResidentsKills]). */
+    @Transient val lostToResidents = HashMap<Species, Int>()
+    /** Each gathering kind's unfed excess by hex this week, heads, as [gather] found it (for the viewer, see [herdsWorth]). */
+    @Transient internal val unfed = HashMap<Species, DoubleArray>()
+    /**
+     * Each gathering kind's memory, by hex and month (hex × 12 + month), of the share of its residents there the land
+     * left unfed, and of their heads then (see [foresee]); by the kind's index.
+     */
+    internal val leanShort = HashMap<Int, FloatArray>()
+    internal val leanHeads = HashMap<Int, FloatArray>()
+    /** This week: each gathering kind's share of residents, by place, that expect to go short over the coming season (see [foresee]). */
+    @Transient internal val lean = HashMap<Species, FloatArray>()
+    @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1
     internal val monthHunterKg by lazy { FloatArray(n) }
@@ -135,6 +149,8 @@ class HexGroups(
         // Start each kind at its usual density over the land that suits it, in groups of its usual size.
         val area = land.areaKm2.sum()
         for (s in kinds) {
+            // (A plant-eater that keeps to a home range starts spread out, see [HexFauna]; its herds condense later, if ever.)
+            if (!s.carnivore && s !in Catalogue.migratory) continue
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
             // At the density it settles at over a long run, where one is known.
             val settled = Catalogue.settledPer1000Km2(s)
@@ -176,7 +192,7 @@ class HexGroups(
     internal fun newcomers(date: Date) {
         if (!newcomersOn || date.month != 0 || date.dayOfMonth > days) return
         for (s in kinds) {
-            if (s.human) continue
+            if (s.human || (!s.carnivore && s !in Catalogue.migratory)) continue
             val now = groups.count { it.alive && it.species == s }
             // (A kind that also lives spread out has its newcomers only if it is gone from the land too.)
             if (now >= NEWCOMER_BELOW || (s in Catalogue.gathering && fauna.slot(s) >= 0 && fauna.count(fauna.slot(s)) >= herdOf(s))) continue
@@ -269,12 +285,13 @@ class HexGroups(
             groups.removeIf { !it.alive }
             newcomers(it.date)
         },
-        // Herds of the kinds that also live spread out scatter where their round stays a while, and gather where it leaves.
+        // Herds of the kinds that also live spread out scatter where they find room, and condense where the land does not feed them.
         Phase("herds: gathering and scattering") {
             // (Not in the form-swap test, where each kind keeps the form it has.)
             if (!Catalogue.formsFixed) {
-                scatter(it.date.month)
-                if (it.date.dayOfMonth <= days) gather(it.date.month)
+                foresee(it.date.month)
+                scatter()
+                gather()
             }
         },
         Phase("herds: remembering places") { val date = it.date
@@ -1075,8 +1092,9 @@ class HexGroups(
             for (b in 0 until HexWorld.BANDS_M.size) {
                 val p = hw.placeIn(b, h)
                 if (p.none) continue
-                // (Its own kind there, as it knows it.)
-                val crowded = crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0))
+                // (Its own kind there, as it knows it: for a kind that also lives spread out, its residents there too, as
+                // a herd looking for room counts them as it does other herds.)
+                val crowded = crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0) + residentsOf(s, p.i))
                 val prey = if (s.carnivore) knownGame(g, kind, p, h, sensed) else 0f
                 val hunters = huntersKm2(p, h)
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
@@ -1239,6 +1257,13 @@ class HexGroups(
     }
 
     internal fun crowd(s: Species, p: Int, g: HexGroup): Float = crowdOf(s, p, (headsHere[kindSlot[s.index]][p] - (if (p == g.place.i) g.size else 0)).toFloat())
+    /** Residents of kind [s] at place [p], heads; 0 for a kind that lives only in groups. */
+    private fun residentsOf(s: Species, p: Int): Float {
+        if (s !in Catalogue.gathering) return 0f
+        val k = fauna.slot(s); if (k < 0) return 0f
+        return (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]
+    }
+
     internal fun crowdOf(s: Species, p: Int, others: Float): Float {
         // Heads of its kind a place usually holds: for herds, their usual density as they live gathered (as for disease).
         val usual = if (s.startKm2PerAnimal > 0f) land.areaKm2[p] / s.startKm2PerAnimal * 3f else land.areaKm2[p] * 0.1f * MIGRANTS_GATHER

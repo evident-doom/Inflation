@@ -68,9 +68,10 @@ object HexSnapshot {
      * 1.8: thirsty residents spread toward water (#210).
      * 1.9: crowding and breeding room count a kind's animals in both forms (#211).
      * 1.10: herds sicken by crowding as residents do, counted over the ground each herd grazes.
+     * 2.0: every plant-eater can live both ways: herds condense where hungry residents have room beyond their reach.
      */
-    const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 10
+    const val MODEL_MAJOR = 2
+    const val MODEL_MINOR = 0
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

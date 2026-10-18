@@ -545,6 +545,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide("residents", ps, band?.skin(ps, na, leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps.name, kills1, Int::plus)
+    if (ps in Catalogue.gathering) stats.hunting.merge(Tally.of(ps, Tally.KILLED_SPREAD), kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
     fauna.killed(p, Kg(kills1 * ps.massKg))
     stats.hunting.merge(Tally.of(s, Tally.KILLS_OF_RESIDENTS), kills1, Int::plus)
@@ -951,8 +952,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
  * How many times two groups that are in the same place for [span] days run into each other, on
  * average: as gas molecules do (Hutchinson & Waser 2007), 2 r v T / A, with r how far the one that
  * finds the other senses it, v how fast they close on each other, T the time both spend about
- * (searching, at the same hours) and A the place's size. A herd stands for several of its kind's
- * usual bands spread over the ground: each can be run into.
+ * (searching, at the same hours) and A the place's size. A herd keeps together, and is run into as one: the ground it
+ * stands on (some tens of metres across, even for a thousand head) is small against how far a hunter senses it.
  */
 internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Place, span: Float): Float {
     val hunting = a.species.carnivore != b.species.carnivore
@@ -972,7 +973,7 @@ internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Place, span: Floa
     val bands = bandsIn(herd)
     // A small herd can lie hidden in cover; a big one cannot.
     val hidden = if (bands < SMALL_HERD_BANDS) HIDE_IN_COVER * Niches.shelter(herd.species, p.i, land) * (1f - bands / SMALL_HERD_BANDS) else 0f
-    return one * bands * (1f - hidden)
+    return one * (1f - hidden)
 }
 
 /**
@@ -1115,9 +1116,9 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // Caught or not, the herd is alarmed for a while after.
     herd.chasedOn = day
     stats.hunting.merge(Tally.of(hunter.species, Tally.CHASES), 1, Int::plus)
-    // A big herd stands for several of its kind's usual bands: the hunters try each one they ran into while hungry
-    // (once each: a band that was chased has scattered).
-    val tries = max(1, min(met, ceil(bandsIn(herd)).toInt()))
+    // Hunters that came on a herd keep with it while they are hungry, and try as many of its animals as it has
+    // bands of its kind (once each: a band that was chased has scattered); the more there are, the less each risks.
+    val tries = max(1, ceil(bandsIn(herd)).toInt())
     diag(herd.species, "herd tries", tries.toFloat())
     roundsKey?.let { stats.hunting.merge(it + "chased", 1, Int::plus); stats.hunting.merge(it + "tries", tries, Int::plus)
         stats.hunting.merge(it + "wary", (100 * wary).toInt(), Int::plus) }
@@ -1141,6 +1142,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
             small.deposit(DeadPool.CARRION, herd.place, KgM2((left - tallyHide("herds", herd.species, hunter.band?.skin(herd.species, 1, left))) / (land.areaKm2[herd.place] * 1e6f)))
         }
         stats.kills.merge(herd.species.name, 1, Int::plus)
+        if (herd.species in Catalogue.gathering) stats.hunting.merge(Tally.of(herd.species, Tally.KILLED_IN_HERDS), 1, Int::plus)
         diag(herd.species, "herd kills", 1f)
         roundsKey?.let { stats.hunting.merge(it + "killed", 1, Int::plus) }
         if (ROUNDS && herd.route[0] != ROUND_OPEN) stats.deaths.merge(

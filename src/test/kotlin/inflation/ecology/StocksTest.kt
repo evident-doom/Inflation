@@ -80,6 +80,8 @@ class StocksTest {
             "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.usual", "HexFauna.outbreak",
             "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFood.domestic", "HexSmallLife.pollination",
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
+            // For the check and the viewer: heads held hungry with no better place next door, and one kind's spill last week.
+            "HexFauna.stuck", "HexFauna.flowEast", "HexFauna.flowSouth", "HexFauna.flowOut",
             // Ash is mm of rock, not living or dead matter; the grass that fell to the litter is a memory of the stand (the
             // litter holds its mass).
             "HexPlants.ash", "HexPlants.hayFallen",
