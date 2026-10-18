@@ -1026,7 +1026,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * What kills kind [k]'s animals at place [p] this week besides old age, as shares of them ([HZ_HUNGER] and the rest
      * into [out]): hunger fed [fed], cold and heat, thirst [dry] days without water, disease among [heads] of its kind per
      * km² (and a raging outbreak), fire, flood and deep snow, for the grown and the young, and the residents' hunters
-     * ([residentKillOdds]). The one rule residents die by ([breedAndDie], which takes the hunters' kills as they make
+     * ([huntedOdds]). The one rule residents die by ([breedAndDie], which takes the hunters' kills as they make
      * them) and weigh a place to stay or leave by ([stayOdds], [arriveOdds]).
      */
     internal fun hazards(k: Int, p: Int, weather: Weather, month: Int, fed: Float, dry: Float, heads: Float, out: FloatArray) {
@@ -1045,8 +1045,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val (fireY, floodY, snowY) = calamities(s, p, weather, true)
         out[HZ_FIRE_A] = fireA; out[HZ_FLOOD_A] = floodA; out[HZ_SNOW_A] = if (sleeping) 0f else snowA
         out[HZ_FIRE_Y] = fireY; out[HZ_FLOOD_Y] = floodY; out[HZ_SNOW_Y] = if (sleeping) 0f else snowY
-        // (And the residents' hunters, as they hunted there this week; [breedAndDie] takes their kills as they make them.)
-        out[HZ_HUNTED] = residentKillOdds(s.massKg, p)
+        // (And the hunters, resident and roaming, as they hunted there lately; [breedAndDie] takes their kills as they make them.)
+        out[HZ_HUNTED] = huntedOdds(k, p, false)
     }
 
     /** The share of the grown among [out] ([hazards]) that die this week, besides old age. */

@@ -77,7 +77,7 @@ object HexSnapshot {
      * its kind's groups over HERD_UNIT times the ground.
      * 2.1: species records follow their sources (#213); a leaving group heads for the place found for it; groups form only
      * where no slope leads to safety; residents walk towards forage within a week's going (#219).
-     * 2.2: residents weigh places by the resident hunters' kills too.
+     * 2.2: residents weigh places by the hunters' kills too, resident and roaming.
      */
     const val MODEL_MAJOR = 2
     const val MODEL_MINOR = 2
