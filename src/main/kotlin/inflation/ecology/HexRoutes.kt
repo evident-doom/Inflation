@@ -35,6 +35,15 @@ class HexRoutes(private val g: HexGroups) {
     val legsAt = HashMap<Int, IntArray>()
     /** The landmarks, in hex order. */
     var landmarks = IntArray(0); private set
+    /**
+     * Places: landmarks told of as one (the ford by the junction, the hill above the lake), each the most
+     * telling landmark and the others within a ring of it. [places] are those landmarks' hexes; [placeOf]
+     * gives each landmark hex its place (-1 off any). Legs run between places, not within one.
+     */
+    var places = IntArray(0); private set
+    val placeOf = IntArray(hex.size) { -1 }
+    /** Per leg: how worn its least worn border is (its use, as the weakest stretch shows it). */
+    var legWear = FloatArray(0); private set
     private var weeks = 0
 
     fun kind(h: Int) = Kind.entries[landmark[h].toInt()]
@@ -115,7 +124,7 @@ class HexRoutes(private val g: HexGroups) {
     }
 
     fun build() {
-        Arrays.fill(landmark, 0); Arrays.fill(onRoute, false); legs.clear(); legsAt.clear()
+        Arrays.fill(landmark, 0); Arrays.fill(onRoute, false); Arrays.fill(placeOf, -1); legs.clear(); legsAt.clear()
         val hw = g.hw; val land = g.land
         fun rug(h: Int) = hw.placeOf[0][h].takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f
         fun water(h: Int) = hw.placeOf[0][h].let { it >= 0 && land.drink.waterKmMean[it] <= WATER_LANDMARK_KM }
@@ -166,6 +175,21 @@ class HexRoutes(private val g: HexGroups) {
             }).ordinal.toByte()
         }
         landmarks = (0 until hex.size).filter { isLandmark(it) }.toIntArray()
+        // Places: the most telling landmark not yet in a place takes in those within a ring of it. Natural
+        // ones tell most (anyone can see them), then fords and passes, then junctions by the ways that meet.
+        fun telling(h: Int): Int = when (kind(h)) {
+            Kind.MOUTH, Kind.CONFLUENCE, Kind.LAKE, Kind.SPRING, Kind.PEAK -> 100 + landmark[h]
+            Kind.FORD, Kind.PASS -> 50
+            Kind.JUNCTION -> 10 + (0 until 6).count { worn(h, it) }
+            else -> 0
+        }
+        val seeds = ArrayList<Int>()
+        for (h in landmarks.sortedWith(compareByDescending<Int> { telling(it) }.thenBy { it })) {
+            if (placeOf[h] >= 0) continue
+            val id = seeds.size; seeds += h; placeOf[h] = id
+            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && isLandmark(q) && placeOf[q] < 0) placeOf[q] = id }
+        }
+        places = seeds.toIntArray()
         // The legs: from each landmark along each worn way, through hexes with two ways, to the next landmark.
         val at = HashMap<Int, ArrayList<Int>>()
         val done = HashSet<Long>()
@@ -179,7 +203,7 @@ class HexRoutes(private val g: HexGroups) {
             }
             if (!isLandmark(cur)) continue
             val b = cur
-            if (a == b) continue
+            if (a == b || placeOf[a] == placeOf[b]) continue
             // Each leg once: by its start and first step, either way round.
             if (!done.add(a.toLong() * hex.size + first)) continue
             done.add(b.toLong() * hex.size + way[way.size - 2])
@@ -187,6 +211,13 @@ class HexRoutes(private val g: HexGroups) {
             at.getOrPut(a) { ArrayList() } += i; at.getOrPut(b) { ArrayList() } += i
         }
         for ((h, l) in at) legsAt[h] = l.toIntArray()
+        legWear = FloatArray(legs.size) { i -> val l = legs[i]; (0 until l.size - 1).minOf { k -> wearOf(l[k], l[k + 1]) } }
+    }
+
+    /** How worn the border between neighbours [a] and [b] is, the more worn way across. */
+    private fun wearOf(a: Int, b: Int): Float {
+        val d = (0 until 6).first { hex.neighbour(a, it) == b }
+        return max(g.wear.paths[a * 6 + d], g.wear.paths[b * 6 + (d + 3) % 6])
     }
 
     /**
@@ -212,7 +243,7 @@ class HexRoutes(private val g: HexGroups) {
     fun forgetShare(h: Int) = if (isLandmark(h)) LANDMARK_FORGET else if (onRoute[h]) ROUTE_FORGET else 1f
 
     /**
-     * For the check: landmarks by kind; legs, their mean and longest tenth's length, km; hexes on a route
+     * For the check: landmarks by kind, and the places they make; legs, their mean and longest tenth's length, km; hexes on a route
      * and the share of them that are landmarks; how many separate networks the ways make, and the
      * hexes and span (widest distance across, km) of the largest.
      */
@@ -237,8 +268,11 @@ class HexRoutes(private val g: HexGroups) {
             }
             if (count > bigHexes) { bigHexes = count; bigSpan = Math.hypot(x1 - x0, y1 - y0) }
         }
-        return "%d landmarks (%s); %d legs, mean %.0f km, longest tenth from %.0f km; %d hexes on routes, %.0f%% of them landmarks; %d networks, largest %d hexes across %.0f km".format(
-            landmarks.size, byKind, legs.size, km, km90, onIt, if (onIt == 0) 0.0 else 100.0 * marked / onIt, nets, bigHexes, bigSpan)
+        val placesOnRoute = places.count { onRoute[it] }
+        return ("%d landmarks (%s) in %d places, %d of them on routes (%.0f%% of route hexes); %d legs between places, mean %.0f km, longest tenth from %.0f km; " +
+            "%d hexes on routes, %.0f%% of them landmarks; %d networks, largest %d hexes across %.0f km").format(
+            landmarks.size, byKind, places.size, placesOnRoute, if (onIt == 0) 0.0 else 100.0 * placesOnRoute / onIt, legs.size, km, km90,
+            onIt, if (onIt == 0) 0.0 else 100.0 * marked / onIt, nets, bigHexes, bigSpan)
     }
 
     /** For the check: the share of worn borders that cross a river, against the share of all land borders that do (funnelling at fords). */
