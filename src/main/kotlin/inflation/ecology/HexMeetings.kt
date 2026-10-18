@@ -1093,7 +1093,7 @@ internal fun HexGroups.herdKillsAhead(hunter: HexGroup, herd: HexGroup, p: Place
 
 /**
  * Standing orders, hunter and herd. The herd watches for hunters: in open country it often sees
- * them first and turns aside, ending its week short of that hex. Otherwise there is a chase,
+ * them first and goes round them, out of their notice, and on its way ([DETOUR]). Otherwise there is a chase,
  * likelier to end in a kill if the hunters came on it unseen; a herd that was chased scatters and
  * stops where it is; hunters that killed stop there to eat.
  */
@@ -1115,7 +1115,8 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         note(herd) { "saw the hunters first and turned aside" }; note(hunter) { "was seen first; the herd turned aside" }
         stats.hunting.merge(Tally.of(hunter.species, Tally.SAW_FIRST), 1, Int::plus)
         roundsKey?.let { stats.hunting.merge(it + "saw them first", 1, Int::plus) }
-        stop[rk] = min(stop[rk], max(0, ri - 1))
+        // It goes round them, out of their notice, and on its way: the walk round is its cost.
+        herd.detourKm += DETOUR * hunter.species.senseKm
         return
     }
     // A hunter that has eaten its fill this week lets the herd pass; a band hunts on for the stores it
