@@ -113,6 +113,15 @@ class HexGroups(
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1
     internal val monthHunterKg by lazy { FloatArray(n) }
+    /**
+     * The beasts of prey in each place this month, kg: the hunters other than people, what a band reads as danger in their
+     * sign (made afresh after a load).
+     */
+    @delegate:Transient internal val monthBeastKg by lazy { FloatArray(n).also { a -> for (g in groups) if (g.alive && g.species.carnivore && !g.species.human) a[g.place] += g.size * g.species.massKg } }
+    /** People sick of each catching illness in each place as the week's choosing begins (heads × share sick). */
+    @delegate:Transient private val sickPeople by lazy { Array(Illness.entries.size) { FloatArray(n) } }
+    /** The beasts of prey in each place as the week's choosing begins, kg (the hunters other than people). */
+    @delegate:Transient private val beastKg by lazy { FloatArray(n) }
     @delegate:Transient internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Scent marks of the hunting kinds (saves from before it was split out kept them here as marks and markers). */
     @field:MovedInto("marks", "markers") internal val scent = Scent()
@@ -318,6 +327,8 @@ class HexGroups(
             for (g in groups) if (g.alive) monthHeads[kindSlot[g.species.index]][g.place] += g.size
             monthHunterKg.fill(0f)
             for (g in groups) if (g.alive && g.species.carnivore) monthHunterKg[g.place] += g.size * g.species.massKg
+            monthBeastKg.fill(0f)
+            for (g in groups) if (g.alive && g.species.carnivore && !g.species.human) monthBeastKg[g.place] += g.size * g.species.massKg
             IntStream.range(0, n).parallel().forEach { p ->
                 for ((k, s) in kinds.withIndex()) {
                     if (!s.carnivore) continue
@@ -332,6 +343,10 @@ class HexGroups(
         }
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
+        beastKg.fill(0f)
+        for (g in groups) if (g.alive && g.species.carnivore && !g.species.human) beastKg[g.place] += g.size * g.species.massKg
+        for (a in sickPeople) a.fill(0f)
+        for (g in groups) if (g.alive) g.band?.let { b -> for (d in Illness.entries) if (d.contagion > 0f) sickPeople[d.ordinal][g.place] += g.size * b.sick[d] }
         Profile.part("choosing: herds' grazing map") { fillGrazed(); noteGround(planGround) { g -> grazingRange(g) } }
         manEaterKm2.fill(0f)
         for (g in groups) if (g.alive && g.species.takesPeople > 0f)
@@ -737,10 +752,19 @@ class HexGroups(
     /** What place [p] is worth to hunter [g] as it knows it: [placeValue] with the herds it knows of there in place of those it expects. */
     private fun knownGame(g: HexGroup, kind: Int, p: Place, h: Hex, sensed: IntArray): Float {
         val s = g.species
-        if (h !in sensed && (signWeeks < 2 || h !in g.path)) return placeValue[kind][p]
+        val fish = g.band?.let { fishWorth(g, it, h) } ?: 0f
+        if (h !in sensed && (signWeeks < 2 || h !in g.path)) return placeValue[kind][p] + fish
         val diff = knownHerdGame(g, kind, p, h, sensed) - expectPrey[kind][p]
-        return placeValue[kind][p] + diff * (if (s.human) campFactor(p.i) else 1f)
+        return placeValue[kind][p] + diff * (if (s.human) campFactor(p.i) else 1f) + fish
     }
+
+    /**
+     * The fish and shellfish band [b] could take from hex [h] in a week, with its skill ([HexWater.fishWithin]; less
+     * plain where it is a stranger), as the game standing on the ground that would yield as much to its hunters: game
+     * is met over the ground its party sweeps in a week ([sweptKm2]) and caught at [CATCH].
+     */
+    private fun fishWorth(g: HexGroup, b: Band, h: Hex): Float =
+        fauna.water.fishWithin(h.i, b.fishing()) * (if (b.knows(h.i)) 1f else 0.5f) / (sweptKm2(g.species) * CATCH)
 
     /**
      * What draws band [b] (group [g]) to place [p] in hex [h] or puts it off, beyond what any group weighs: its
@@ -790,8 +814,8 @@ class HexGroups(
      * and the less the more of its days the hearth's firewood takes there (none left where there is nothing to burn).
      */
     internal fun campFactor(p: Int): Float {
-        // Water close to camp: women and children fetch it every day.
-        val w = land.drink.waterKm[p] / 3f
+        // Water close to camp: women and children fetch it every day (from a well dug in a dry bed, where water lies near).
+        val w = land.drink.peopleWaterKm(p) / 3f
         val fuel = min(1f, HEARTH_WOOD / (FUEL_A_DAY * min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)).coerceAtLeast(1e-6f))
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
@@ -1132,7 +1156,9 @@ class HexGroups(
         // What it sees of the others: in its own hex and the six around, which its week's ranging covers.
         // Beyond, it goes by the sign it crossed, what it remembers, and what it expects (see [knownGame]).
         val sensed = IntArray(7) { if (it == 0) here.i else hex.neighbour(here.i, it - 1) }
-        fun huntersKm2(p: Place, h: Hex) = if (h in sensed) predatorKg[p] / land.areaKm2[p] else usualHuntersKm2
+        // (A band reads the beasts of prey about, not other people: those it weighs as bands. Where it has not looked it
+        // expects hunters as thick as they usually are, people among them.)
+        fun huntersKm2(p: Place, h: Hex) = if (h in sensed) (if (s.human) beastKg else predatorKg)[p] / land.areaKm2[p] else usualHuntersKm2
         // How far it will shift its ground this week. Most of a week's walking is within its range
         // (grazing, patrolling); the net shift is a couple of days' going when content, more on a trek
         // when hungry, cold or snowed in. A pack holding ground patrols it; a starving or homeless one roams.
@@ -1410,6 +1436,22 @@ class HexGroups(
             val venom = venomOdds(s, p.i, weather)
             val stalked = stalkRate(g, b, p.i, residentManEaters(p.i) + (if (h in c.sensed) manEaterKm2[h.i] else 0f))
             adult += venom + stalked; young += venom + YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked
+            // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough
+            // where people crowd), and the fouling of a camp kept on: weeks camped there go on if it stays, else start afresh.
+            val campWeeks = if (p == g.place) b.campWeeks + 1 else 0
+            val crowd = peopleCrowding(g, h.i); val t = weather.temperature[p]; val healed = healedShare(b)
+            adult += illnessAhead(b, p.i, t, crowd, campWeeks, healed, false)
+            young += illnessAhead(b, p.i, t, crowd, campWeeks, healed, true) + campFouling(g, campWeeks) * years
+            // What it would catch of the bands it sees gathered there (a feast draws bands together, and the cough with them).
+            if (h in c.sensed && peopleSlot >= 0) {
+                val stays = p == g.place
+                val others = headsHere[peopleSlot][p] - (if (stays) g.size else 0)
+                if (others > 0) for (ill in Illness.entries) if (ill.contagion > 0f) {
+                    val theirSick = (sickPeople[ill.ordinal][p] - (if (stays) g.size * b.sick[ill] else 0f)).coerceAtLeast(0f) / others
+                    val dying = caughtFrom(ill, theirSick, b) * ill.deadly * healed
+                    adult += dying; young += dying * ill.young
+                }
+            }
         }
         return (g.adults * adult.coerceIn(0f, 0.9f) + g.young * young.coerceIn(0f, 0.95f)) / max(1, g.size)
     }
