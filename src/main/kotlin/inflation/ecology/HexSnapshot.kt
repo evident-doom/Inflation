@@ -60,7 +60,7 @@ object HexSnapshot {
      * 1.0: onager live both ways.
      * 1.1: sowing charged its full person-days.
      * 1.2: gathering materials takes time.
-     * 1.3: fallen mast lies as winter food, the mast and root stocks from records, and mothers breed by their condition.
+     * 1.3: fallen mast lies as winter food, the mast and root stocks from records, and mothers breed by their condition; rooting churns the ground at its recorded rate.
      */
     const val MODEL_MAJOR = 1
     const val MODEL_MINOR = 3
