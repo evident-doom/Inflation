@@ -4,6 +4,7 @@ import inflation.world.Date
 import inflation.world.HexWorld
 import inflation.world.Weather
 import inflation.wrapMonth
+import java.util.stream.IntStream
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -62,34 +63,39 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float): Boolean {
  * walk slowly.
  */
 internal fun HexGroups.leaveAhead(weather: Weather) {
-    val out = FloatArray(HexFauna.HZ_COUNT)
+    val outs = ThreadLocal.withInitial { FloatArray(HexFauna.HZ_COUNT) }
     for (s in Catalogue.gathering) {
         val k = fauna.slot(s); if (k < 0 || s !in kinds) continue
         val a = fauna.adults[k]; val y = fauna.young[k]
         val band = s.maxGroupSize.toFloat()
         val arrive = fauna.arrive[k]
         arriveBy[s] = arrive
-        val slope = fauna.slope(k, arrive)
         val leave = BooleanArray(n); val to = IntArray(n) { -1 }
         val leavingByHex = DoubleArray(hex.size)
-        // (Staying, by place; and by hex, the heads whose slope stops short of safety, weighed by how many would die.)
+        leaving[s] = leave; leaveTo[s] = to; unfed[s] = leavingByHex
+        // (Staying, by place, and whether it is clearly deadly: on all cores, then the few that are, one by one.)
         val stay = FloatArray(n)
+        val deadly = BooleanArray(n)
+        IntStream.range(0, n).parallel().forEach { p ->
+            if (a[p] + y[p] > 0f) { stay[p] = fauna.stayOdds(k, p, weather, outs.get()); deadly[p] = clearlyWorse(stay[p], 0f, band) }
+        }
+        if (deadly.none { it }) continue
+        val slope = fauna.slope(k, arrive)
+        // (By hex, the heads whose slope stops short of safety, weighed by how many would die.)
         val stalled = BooleanArray(n)
         val byHex = DoubleArray(hex.size)
         for (p in 0 until n) {
+            if (!deadly[p]) continue
             val heads = (a[p] + y[p]) * land.areaKm2[p].toDouble()
-            if (heads <= 0.0) continue
-            stay[p] = fauna.stayOdds(k, p, weather, out)
-            if (!clearlyWorse(stay[p], 0f, band)) continue
             val q = fauna.safestNeighbour(k, p, arrive, stay[p])
-            if (q >= 0 && !clearlyWorse(arrive[slope.end[q]], 0f, band)) {
+            if (q >= 0 && !clearlyWorse(arrive[slope.end(q)], 0f, band)) {
                 // A slope to safety: walked by the residents as many hexes a week as their week's going covers, or
                 // trekked by a group a week's walk a week; each week costing what a week on the slope does on average.
-                val steps = 1 + slope.steps[q]
-                val perWeek = (stay[p] + slope.cost[q]) / steps
+                val steps = 1 + slope.steps(q)
+                val perWeek = (stay[p] + slope.cost(q)) / steps
                 val walk = ceil(steps / fauna.hopsFor(s).toDouble()).toFloat() * perWeek
                 val trek = ceil(steps * hex.hexKm / gatherKm(s)).toFloat() * perWeek
-                if (clearlyWorse(min(1f, walk), min(1f, trek), band)) { leave[p] = true; to[p] = slope.end[q]; leavingByHex[hw.placeHex[p]] += heads }
+                if (clearlyWorse(min(1f, walk), min(1f, trek), band)) { leave[p] = true; to[p] = slope.end(q); leavingByHex[hw.placeHex[p]] += heads }
                 continue
             }
             stalled[p] = true
@@ -117,8 +123,6 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
                 }
             }
         }
-        leaving[s] = leave; leaveTo[s] = to
-        unfed[s] = leavingByHex
     }
 }
 
@@ -243,12 +247,14 @@ private fun HexGroups.settles(g: HexGroup): Boolean {
     val here = arrive[g.place.i]
     if (here.isNaN()) return false
     val h0 = hw.placeHex[g.place.i]
-    var best = Float.MAX_VALUE
+    // (Any place safer than this is one it is clearly worse off than ([clearlyWorse]): the first found will do.)
+    val band = s.maxGroupSize.toFloat()
+    val clearlyBelow = here - sqrt(band * here * (1f - here)) / band
     for (h in ground(h0, farKm(s) / RING_KM + hex.hexKm)) {
         val d = hex.distanceKm(h0, h); if (d <= gatherKm(s) || d > farKm(s)) continue
-        for (b in HexWorld.BANDS_M.indices) { val q = hw.placeOf[b][h]; if (q >= 0 && arrive[q] < best) best = arrive[q] }
+        for (b in HexWorld.BANDS_M.indices) { val q = hw.placeOf[b][h]; if (q >= 0 && arrive[q] < clearlyBelow) return false }
     }
-    return !clearlyWorse(here, best, s.maxGroupSize.toFloat())
+    return true
 }
 
 /**

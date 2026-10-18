@@ -193,6 +193,22 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for (k in kinds.indices) { val r = killRate[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
         return v
     }
+
+    /**
+     * The share of each kind's residents at each place the hunting parties (packs and bands) killed in their last week's
+     * foraging ([HexGroups.hunt]; young and grown alike, as they take them as they come on them), set as they kill.
+     */
+    val groupKilled = Array(kinds.size) { FloatArray(n) }
+
+    /**
+     * The odds that a resident of kind [k] at place [p] (one of its young if [young]) is killed by hunters in a week, all of
+     * them: the residents' hunters as they hunted there this week ([residentKillOdds]) and the hunting parties as they did
+     * in their last week ([groupKilled]).
+     */
+    fun huntedOdds(k: Int, p: Int, young: Boolean): Float {
+        val s = kinds[k]
+        return residentKillOdds(if (young) YOUNG_WEIGHT * s.massKg else s.massKg, p) + groupKilled[k][p]
+    }
     /**
      * For the books (see [Books]), this step, kg; null when they are not kept: what the residents ate and dropped as
      * dung, the herds' animals their hunters killed (taken from the herds after, see [HexGroups.takeResidentsKills]),
@@ -1009,8 +1025,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * What kills kind [k]'s animals at place [p] this week besides old age, as shares of them ([HZ_HUNGER] and the rest
      * into [out]): hunger fed [fed], cold and heat, thirst [dry] days without water, disease among [heads] of its kind per
-     * km² (and a raging outbreak), fire, flood and deep snow, for the grown and the young, and the residents' hunters
-     * ([residentKillOdds]). The one rule residents die by ([breedAndDie], which takes the hunters' kills as they make
+     * km² (and a raging outbreak), fire, flood and deep snow, for the grown and the young, and the hunters
+     * ([huntedOdds]). The one rule residents die by ([breedAndDie], which takes the hunters' kills as they make
      * them) and weigh a place to stay or leave by ([stayOdds], [arriveOdds]).
      */
     internal fun hazards(k: Int, p: Int, weather: Weather, month: Int, fed: Float, dry: Float, heads: Float, out: FloatArray) {
@@ -1029,8 +1045,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val (fireY, floodY, snowY) = calamities(s, p, weather, true)
         out[HZ_FIRE_A] = fireA; out[HZ_FLOOD_A] = floodA; out[HZ_SNOW_A] = if (sleeping) 0f else snowA
         out[HZ_FIRE_Y] = fireY; out[HZ_FLOOD_Y] = floodY; out[HZ_SNOW_Y] = if (sleeping) 0f else snowY
-        // (And the residents' hunters, as they hunted there this week; [breedAndDie] takes their kills as they make them.)
-        out[HZ_HUNTED] = residentKillOdds(s.massKg, p)
+        // (And the hunters, resident and roaming, as they hunted there lately; [breedAndDie] takes their kills as they make them.)
+        out[HZ_HUNTED] = huntedOdds(k, p, false)
     }
 
     /** The share of the grown among [out] ([hazards]) that die this week, besides old age. */
@@ -1117,28 +1133,33 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * Where the slope of [odds] leads kind [k] from each place, stepping a neighbour a week to the safest
-     * ([safestNeighbour]) while it is safer: the next place ([Slope.next], -1 at the bottom), the place it ends at
-     * ([Slope.end]), the weeks it takes ([Slope.steps]), and the shares that would die on the way, a week at each place
-     * before the end, summed ([Slope.cost]).
+     * ([safestNeighbour]) while it is safer: the place it ends at ([Slope.end]), the weeks it takes ([Slope.steps]), and
+     * the shares that would die on the way, a week at each place before the end, summed ([Slope.cost]). Worked out only
+     * for the places asked about, and those on their way, each once.
      */
-    internal fun slope(k: Int, odds: FloatArray): Slope {
-        val next = IntArray(n)
-        IntStream.range(0, n).parallel().forEach { p -> next[p] = if (odds[p].isNaN()) -1 else safestNeighbour(k, p, odds, odds[p]) }
-        val end = IntArray(n) { -1 }; val steps = IntArray(n); val cost = FloatArray(n)
-        val path = IntArray(n)
-        for (p0 in 0 until n) {
-            if (end[p0] >= 0) continue
-            // (Down the slope until a place already worked out or the bottom; then back up, adding each place's week.)
-            var len = 0; var p = p0
-            while (end[p] < 0 && next[p] >= 0) { path[len++] = p; p = next[p] }
-            if (end[p] < 0) { end[p] = p; steps[p] = 0; cost[p] = 0f }
-            while (len > 0) { val q = path[--len]; end[q] = end[p]; steps[q] = steps[p] + 1; cost[q] = cost[p] + odds[q]; p = q }
-        }
-        return Slope(next, end, steps, cost)
-    }
+    internal fun slope(k: Int, odds: FloatArray) = Slope(k, odds)
 
     /** Where the slope leads from each place ([slope]). */
-    internal class Slope(val next: IntArray, val end: IntArray, val steps: IntArray, val cost: FloatArray)
+    internal inner class Slope(private val k: Int, private val odds: FloatArray) {
+        private val endOf = IntArray(n) { -1 }; private val stepsOf = IntArray(n); private val costOf = FloatArray(n)
+        private val path = IntArray(n)
+
+        fun end(p: Int): Int { resolve(p); return endOf[p] }
+        fun steps(p: Int): Int { resolve(p); return stepsOf[p] }
+        fun cost(p: Int): Float { resolve(p); return costOf[p] }
+
+        private fun resolve(p0: Int) {
+            if (endOf[p0] >= 0) return
+            // (Down the slope until a place already worked out or the bottom; then back up, adding each place's week.)
+            var len = 0; var p = p0
+            while (endOf[p] < 0) {
+                val next = if (odds[p].isNaN()) -1 else safestNeighbour(k, p, odds, odds[p])
+                if (next < 0) { endOf[p] = p; stepsOf[p] = 0; costOf[p] = 0f; break }
+                path[len++] = p; p = next
+            }
+            while (len > 0) { val q = path[--len]; endOf[q] = endOf[p]; stepsOf[q] = stepsOf[p] + 1; costOf[q] = costOf[p] + odds[q]; p = q }
+        }
+    }
 
     /**
      * How good a place is for kind [k] this week: food per head, its ground, water within reach, the weather against
@@ -1398,7 +1419,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun drownRisk(s: Species, gapKm: Float) = min(1f, DROWN * gapKm / Catalogue.swimKm(s).coerceAtLeast(1f))
 
     companion object {
-        /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the residents' hunters' take of the grown. */
+        /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */
         const val HZ_HUNGER = 0; const val HZ_COLD = 1; const val HZ_THIRST = 2; const val HZ_DISEASE = 3
         const val HZ_FIRE_A = 4; const val HZ_FLOOD_A = 5; const val HZ_SNOW_A = 6
         const val HZ_FIRE_Y = 7; const val HZ_FLOOD_Y = 8; const val HZ_SNOW_Y = 9; const val HZ_CROWD = 10
