@@ -38,7 +38,7 @@ object Niches {
      */
     fun shelter(s: Species, p: Int, land: HexLand): Float {
         var best = 0f
-        for (u in shelters(s)) best = maxOf(best, when (u) {
+        for (u in s.shelterArray) best = maxOf(best, when (u) {
             Shelter.CRAG -> land.cragShelter[p]
             // Dens: burrows in broken ground, and best of all caves.
             Shelter.DEN -> maxOf(land.denShelter[p], land.caves[p])

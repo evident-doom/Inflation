@@ -28,6 +28,7 @@ import kotlin.math.max
 import kotlin.math.min
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReferenceArray
 import java.util.concurrent.atomic.DoubleAdder
 import java.util.stream.IntStream
 
@@ -189,9 +190,42 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** The odds that an animal of [kg] about place [p] is killed by the residents' hunters in a week, as they hunted there this week ([killRate]). */
     fun residentKillOdds(kg: Float, p: Int): Float {
+        val rates = killRate
         var v = 0f
-        for (k in kinds.indices) { val r = killRate[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
+        for (k in kinds.indices) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
         return v
+    }
+
+    /**
+     * [residentKillOdds] for an animal of kind [s] (into `out[0]`) and its young (`out[1]`) about place [p], kept for the
+     * week once worked out (the kill rates stand from the residents' grazing to the next week's): herds of a kind weigh
+     * the same places over and over as they choose.
+     */
+    fun residentKillOdds(s: Species, p: Int, out: FloatArray) {
+        val cache = killOdds ?: AtomicReferenceArray<FloatArray>(Catalogue.all.size).also { killOdds = it }
+        val odds = cache.get(s.index) ?: run {
+            cache.compareAndSet(s.index, null, FloatArray(2 * n) { Float.NaN })
+            cache.get(s.index)
+        }
+        val a = odds[2 * p]; val y = odds[2 * p + 1]
+        if (a.isNaN() || y.isNaN()) {
+            residentKillOdds(s.massKg, YOUNG_WEIGHT * s.massKg, p, out)
+            odds[2 * p] = out[0]; odds[2 * p + 1] = out[1]
+        } else { out[0] = a; out[1] = y }
+    }
+    /** The odds [residentKillOdds] gives each kind ([Species.index]) and its young about each place this week (at `2p` and `2p + 1`; NaN: not yet worked out). */
+    @Transient private var killOdds: AtomicReferenceArray<FloatArray>? = null
+
+    /** [residentKillOdds] for an animal of [kg] and one of [youngKg] at once, into [out] (0: the first, 1: the second). */
+    fun residentKillOdds(kg: Float, youngKg: Float, p: Int, out: FloatArray) {
+        val rates = killRate
+        var v = 0f; var w = 0f
+        for (k in kinds.indices) {
+            val r = rates[k] ?: continue
+            val rp = r[p]
+            if (rp > 0f) { val ks = kinds[k]; v += rp * ks.preySize(kg); w += rp * ks.preySize(youngKg) }
+        }
+        out[0] = v; out[1] = w
     }
 
     /**
@@ -482,11 +516,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (h.rugged == 0f) return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f)))
         // (The ground it likes is a share of the place: the valley floors of a rough hex for a plains kind,
         // its crags for a wild goat; it suits as the mean over its ground, see [HexLand.ruggedSpread].)
-        return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f))) * ruggedFit(h.rugged)[p]
+        val fits = ruggedFitOf ?: arrayOfNulls<FloatArray>(Catalogue.all.size).also { ruggedFitOf = it }
+        val fit = fits[s.index] ?: ruggedFit(h.rugged).also { fits[s.index] = it }
+        return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f))) * fit[p]
     }
 
     /** For a kind's liking for rough ground [rugged] (see [Habitat]): how well each place's ground suits it on that alone, the mean over its ground. */
     @Transient private var ruggedFits: ConcurrentHashMap<Float, FloatArray>? = ConcurrentHashMap()
+    /** [ruggedFit] by kind ([Species.index]), as first asked for. */
+    @Transient private var ruggedFitOf: Array<FloatArray?>? = null
     private fun ruggedFit(rugged: Float): FloatArray = (ruggedFits ?: ConcurrentHashMap<Float, FloatArray>().also { ruggedFits = it }).getOrPut(rugged) {
         val q = land.ruggedSpread
         FloatArray(n) { p -> var v = 0f; for (k in q.indices) v += exp(HABITAT * rugged * (q[k][p] - 0.3f)); v / q.size }
@@ -646,6 +684,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     private fun graze(weather: Weather) {
         sleepOrWake(weather)
+        // (The week's kill rates are made afresh here: the odds worked out from last week's are forgotten.)
+        killOdds = AtomicReferenceArray(Catalogue.all.size)
         IntStream.range(0, n).parallel().forEach { p ->
             // How much each kind eats of poor forage depends on its gut (see [gutFill]).
             val quality = land.plants.nourishment(p)
