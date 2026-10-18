@@ -425,6 +425,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * two graze out from water and back, and leave the far country to those that live on the water
      * in their food (gazelle, oryx, camels). Kinds bound to water (hippos) use only what lies by it.
      */
+    /** The share of kind [s]'s residents at place [p], fed [fed], that thirst kills in a week there: none where they can drink. */
+    fun thirstAt(s: Species, p: Int, fed: Float): Float =
+        if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
+        else Hazards.thirst(s, Hazards.dryDays(s, days, fed, land.plants.green[p]))
+
     fun tether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.water[p], land.drink.waterKm[p])
 
     /** [tether] in an ordinary year: from the lasting water around, not this week's. */
@@ -856,8 +861,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
                 // water's going (or gets enough from green food and prey); beyond that, a week dry beyond what
                 // it can bear kills as it does a herd.
-                val thirst = if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
-                    else Hazards.thirst(s, Hazards.dryDays(s, days, f[p], land.plants.green[p]))
+                val thirst = thirstAt(s, p, f[p])
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
                 // lean season binds, and then hunger and sickness together hold them.
                 val crowd = (a[p] + y[p]) / (CROWDED * usual[k])

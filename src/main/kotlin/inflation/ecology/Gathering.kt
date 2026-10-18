@@ -24,6 +24,7 @@ internal fun herdOf(s: Species) = s.maxGroupSize * HERD_UNIT
 /**
  * Each week: in each gathering kind, the excess the land did not feed, gathered from about each place where it is
  * most (within [GATHER_KM], each hex once a week), into as many full herds as it makes; less than a herd stays spread.
+ * Those that cannot drink where they are count wholly to the excess.
  */
 internal fun HexGroups.gather() {
     for (s in Catalogue.gathering) {
@@ -35,7 +36,7 @@ internal fun HexGroups.gather() {
         for (p in 0 until n) {
             val heads = (a[p] + y[p]) * land.areaKm2[p].toDouble()
             if (heads <= 0.0) continue
-            excess[p] = heads * (1f - f[p]).coerceIn(0f, 1f)
+            excess[p] = heads * short(s, k, p)
             byHex[hw.placeHex[p]] += excess[p]
         }
         val used = BooleanArray(hex.size)
@@ -97,14 +98,14 @@ internal fun HexGroups.scatter() {
         val s = g.species
         if (!g.alive || s !in Catalogue.gathering) continue
         val k = fauna.slot(s); if (k < 0) continue
-        if (g.fed < FED_TO_SCATTER) continue
+        if (g.fed < FED_TO_SCATTER || fauna.thirstAt(s, g.place.i, g.fed) > 0f) continue
         if (g.formedAt >= 0 && hex.distanceKm(hw.placeHex[g.place.i], hw.placeHex[g.formedAt]) <= GATHER_KM) continue
-        var heads = 0.0; var short = 0.0
+        var heads = 0.0; var wanting = 0.0
         for (p in placesWithin(g.place.i, GATHER_KM)) {
             val h = (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p].toDouble()
-            heads += h; short += h * (1f - fauna.fed[k][p]).coerceIn(0f, 1f)
+            heads += h; wanting += h * short(s, k, p)
         }
-        if (heads > 0.0 && short > (1f - FED_TO_SCATTER) * heads) continue
+        if (heads > 0.0 && wanting > (1f - FED_TO_SCATTER) * heads) continue
         spread(g, k)
         stats.hunting.merge(Tally.of(s, Tally.SCATTERED), 1, Int::plus); stats.hunting.merge(Tally.of(s, Tally.HEADS_SCATTERED), g.size, Int::plus)
         // (Its members live on spread out, not dead: so the learning counts them, see [SCATTERED].)
@@ -112,6 +113,15 @@ internal fun HexGroups.scatter() {
         g.adults = 0; g.young = 0; any = true
     }
     if (any) groups.removeIf { !it.alive }
+}
+
+/**
+ * What the land falls short of for kind [s]'s residents (slot [k]) at place [p], as a share of them: what their food
+ * did not meet, or all of them where they cannot drink.
+ */
+private fun HexGroups.short(s: Species, k: Int, p: Int): Float {
+    val f = fauna.fed[k][p]
+    return if (fauna.thirstAt(s, p, f) > 0f) 1f else (1f - f).coerceIn(0f, 1f)
 }
 
 /** [HexGroup.mergedInto] of a herd that scattered into the land: its members live on as residents. */
