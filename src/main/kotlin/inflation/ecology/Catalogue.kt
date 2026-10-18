@@ -381,9 +381,6 @@ object Catalogue {
         habitat = Habitat(cover = 0.2f, wet = 0.2f),
         stalking = 0.4f,
         ferocity = 0.8f,
-        // (Golden jackals take prey up to about 15 kg but mostly up to 4: hares, rodents, fawns, not grown gazelle;
-        // Hayward et al. 2017, prey preferences of jackals.)
-        preyUpTo = 1.5f, preyPreferredUpTo = 0.4f,
         startKm2PerAnimal = 10f,
         followsPeople = true,
         activity = floatArrayOf(0.25f, 0.1f, 0.25f, 0.4f),
@@ -697,11 +694,10 @@ object Catalogue {
     fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
 
     /**
-     * Kinds that live both ways: spread over the land as residents, gathered into herds where the land will not feed
-     * them through the coming season (see [gather] and [scatter]): every plant-eater, so that whether a kind herds is
-     * the land's doing. The [migratory] kinds start as herds, the others spread out.
+     * Kinds that live both ways: spread over the land as residents, gathered into herds for the months their
+     * round takes them far (see [gather] and [scatter]).
      */
-    val gathering: Set<Species> by lazy { herbivores.toSet() }
+    val gathering: Set<Species> by lazy { setOf(ONAGER) }
 
     /**
      * For tests (t.formSwap=NAME:herds,NAME:residents,...; or none): with the key set, herds neither gather nor

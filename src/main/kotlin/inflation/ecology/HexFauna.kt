@@ -93,13 +93,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     val fedFrom = Array(kinds.size) { Array(Fed.entries.size) { DoubleAdder() } }
     /**
-     * For the check, since last read: each kind's resident head-weeks ([Stuck.HEADS]); those hungry (fed under
-     * [STUCK_FED]) with no neighbouring place the spill could take them to that is better ([Stuck.STUCK]); of those,
-     * the ones where some border is closed to them, by sea or ground they cannot cross ([Stuck.AT_EDGE]); and the
-     * most of a kind so held in any one week, as a share ([Stuck.PEAK]). Where gradual movement piles animals up.
-     */
-    @Transient val stuck = Array(kinds.size) { DoubleArray(Stuck.entries.size) }
-    /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
      * away from ground where its kind has been killed (the landscape of fear).
      */
@@ -164,8 +157,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** How well a diet with [share] of fresh growth's protein meets a mother's and a growing young's need, 0..1. */
     fun proteinMet(share: Float) = min(1f, share / PROTEIN_NEED)
 
-    /** For the kinds that also live as herds ([Catalogue.gathering]): the young that grew up this week, by place, per km² (see [HexGroups.scatter]). */
-    @Transient internal val grownUp: Array<FloatArray?> = Array(kinds.size) { if (kinds[it] in Catalogue.gathering) FloatArray(n) else null }
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
     /**
@@ -193,13 +184,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * Resident hunter [k] at place [p] kills game among the residents there, and among the herds about it this week
      * ([herdsAt]), for up to [meat] of meat: prey from a quarter of its weight to [Species.preyUpTo] times it (the young
-     * of bigger kinds too), each kind as it is common there, by its weight and as readily as the hunter takes game of its
-     * size ([preference]), herd or resident alike, at most [RESIDENT_KILL_MOST] of that game in a week; what it cannot
-     * eat of a kill is left as carrion. Returns what it ate.
+     * of bigger kinds too), each kind as it is common there and by its weight, herd or resident alike, at most
+     * [RESIDENT_KILL_MOST] of a kind's numbers in a week; what it cannot eat of a kill is left as carrion. Returns
+     * what it ate.
      */
     private fun huntResidents(k: Int, p: Int, meat: KgM2, killedSoFar: FloatArray): KgM2 {
         if (meat.v <= 0f) return KgM2.ZERO
         val hunter = kinds[k]
+        val lo = 0.25f * hunter.massKg; val hi = hunter.preyUpTo * hunter.massKg
         val area = land.areaKm2[p]
         var total = 0f
         // (Weights in kg per km2, as the numbers are kept.)
@@ -207,8 +199,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for ((j, s) in kinds.withIndex()) {
             if (j == k || s.carnivore) continue
             val ym = YOUNG_WEIGHT * s.massKg
-            wA[j] = adults[j][p] * s.massKg * preference(hunter, s.massKg)
-            wY[j] = young[j][p] * ym * preference(hunter, ym)
+            if (s.massKg in lo..hi) wA[j] = adults[j][p] * s.massKg
+            if (ym in lo..hi) wY[j] = young[j][p] * ym
             total += wA[j] + wY[j]
         }
         val herds = herdsAt[p]
@@ -216,8 +208,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (herds != null) for ((i, at) in herds.withIndex()) {
             val s = at.g.species
             val ym = YOUNG_WEIGHT * s.massKg
-            hA[i] = at.g.adults * at.share / area * s.massKg * preference(hunter, s.massKg)
-            hY[i] = at.g.young * at.share / area * ym * preference(hunter, ym)
+            if (s.massKg in lo..hi) hA[i] = at.g.adults * at.share / area * s.massKg
+            if (ym in lo..hi) hY[i] = at.g.young * at.share / area * ym
             total += hA[i] + hY[i]
         }
         if (total <= 0f) return KgM2.ZERO
@@ -276,6 +268,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val reserve = Array(kinds.size) { k -> FloatArray(n) { 0.5f * kinds[k].maxFatDays } }
     /** For kinds that sleep through the winter: how well fed they went to sleep, 0..1. */
     private val autumnFed = Array(kinds.size) { FloatArray(n) { 0.8f } }
+    /** Days each kind has gone without water in each place, as a herd keeps them (see [HexGroup.dry]): they mount week to week until it drinks. */
+    val dry = Array(kinds.size) { FloatArray(n) }
     /** Life in the sea, lakes and rivers. */
     val water = HexWater(hw, land, days, small)
     /** Fruit, roots and straw as stocks. */
@@ -299,8 +293,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // crashing out of it: half its usual density where its food grows, no denser where the ground
         // suits it best, and thinner where it is far from water or the climate is wrong for it.
         for ((k, s) in kinds.withIndex()) {
-            // (A kind that follows the seasons starts as its herds, see [HexGroups].)
-            if (s in Catalogue.migratory) continue
+            // (A kind that also gathers into herds starts as its herds, see [HexGroups].)
+            if (s in Catalogue.gathering) continue
             val dens = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
             for (p in 0 until n) {
                 // (Hunters among the residents live on prey found wherever there is life: food is no bar to them here.)
@@ -363,8 +357,24 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return if (all <= 0f) 1f else (d.grass + d.browse + d.fruit + d.roots) / all
     }
 
-    /** Whether [s] is asleep in its winter den in place [p]: kinds that hibernate, in the cold. */
-    fun asleep(s: Species, p: Int, weather: Weather) = s.hibernates && weather.temperature[p] < HIBERNATE_C
+    /** Of the kinds that can hibernate, those asleep in their winter dens, by place (null for the kinds that cannot; see [sleepOrWake]). */
+    val sleeping = Array(kinds.size) { k -> if (kinds[k].hibernates) BooleanArray(n) else null }
+
+    /** Whether kind [k] is asleep in its winter den in place [p] this week (see [sleepOrWake]). */
+    fun asleep(k: Int, p: Int) = sleeping[k]?.get(p) ?: false
+
+    /**
+     * Sleeping is a way through a lean winter, not a rule of the calendar: kinds that can hibernate lie up in their dens
+     * where it is cold and they went hungry last week, with fat to sleep on, and sleep on while the cold lasts and their
+     * fat holds out. Well fed, they stay awake.
+     */
+    private fun sleepOrWake(weather: Weather) {
+        for ((k, z) in sleeping.withIndex()) {
+            if (z == null) continue
+            val f = fed[k]; val r = reserve[k]
+            for (p in 0 until n) z[p] = weather.temperature[p] < HIBERNATE_C && r[p] > 0f && (z[p] || f[p] < Thresholds.HUNGRY)
+        }
+    }
 
     /**
      * Once a year: in each place, a kind's births move a month earlier or later where that puts them
@@ -427,11 +437,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * two graze out from water and back, and leave the far country to those that live on the water
      * in their food (gazelle, oryx, camels). Kinds bound to water (hippos) use only what lies by it.
      */
-    /** The share of kind [s]'s residents at place [p], fed [fed], that thirst kills in a week there: none where they can drink. */
-    fun thirstAt(s: Species, p: Int, fed: Float): Float =
-        if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
-        else Hazards.thirst(s, Hazards.dryDays(s, days, fed, land.plants.green[p]))
-
     fun tether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.water[p], land.drink.waterKm[p])
 
     /** [tether] in an ordinary year: from the lasting water around, not this week's. */
@@ -466,28 +471,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Game a resident hunter [s] takes at place [p], kg per km²: residents and herds of its prey's size ([huntResidents]). */
     private fun preyFor(s: Species, p: Int): Float {
+        val lo = 0.25f * s.massKg; val hi = s.preyUpTo * s.massKg
         var v = 0f
         for ((j, ps) in kinds.withIndex()) {
             if (ps.carnivore) continue
-            v += adults[j][p] * ps.massKg * preference(s, ps.massKg)
-            v += young[j][p] * YOUNG_WEIGHT * ps.massKg * preference(s, YOUNG_WEIGHT * ps.massKg)
+            if (ps.massKg in lo..hi) v += adults[j][p] * ps.massKg
+            if (YOUNG_WEIGHT * ps.massKg in lo..hi) v += young[j][p] * YOUNG_WEIGHT * ps.massKg
         }
         herdsAt[p]?.let { for (at in it) { val ps = at.g.species
-            v += at.g.adults * at.share / land.areaKm2[p] * ps.massKg * preference(s, ps.massKg)
-            v += at.g.young * at.share / land.areaKm2[p] * YOUNG_WEIGHT * ps.massKg * preference(s, YOUNG_WEIGHT * ps.massKg) } }
+            if (ps.massKg in lo..hi) v += at.g.adults * at.share / land.areaKm2[p] * ps.massKg
+            if (YOUNG_WEIGHT * ps.massKg in lo..hi) v += at.g.young * at.share / land.areaKm2[p] * YOUNG_WEIGHT * ps.massKg } }
         return v
-    }
-
-    /**
-     * How readily resident hunter [hunter] takes game of [kg], 0..1: not at all under a quarter of its weight or over
-     * [Species.preyUpTo] times it, fully up to [Species.preyPreferredUpTo] times it, and falling off evenly between.
-     * (The even fall is a simplification: the record gives the preferred and the accessible range, not the shape.)
-     */
-    private fun preference(hunter: Species, kg: Float): Float {
-        val r = kg / hunter.massKg
-        if (r < 0.25f || r > hunter.preyUpTo) return 0f
-        if (r <= hunter.preyPreferredUpTo) return 1f
-        return (hunter.preyUpTo - r) / (hunter.preyUpTo - hunter.preyPreferredUpTo)
     }
 
     /** The game each resident hunter takes at each place ([preyFor]) while the residents move; null otherwise. */
@@ -517,8 +511,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (!newcomersOn) return
         val r = kotlin.random.Random((date.absoluteDay * 7919L + 13) xor seedSalt)
         for (k in kinds.indices) {
-            // (A kind that follows the seasons gets its newcomers as herds.)
-            if (count(k) >= NEWCOMER_ANIMALS || kinds[k] in Catalogue.migratory) continue
+            // (A kind that also gathers into herds gets its newcomers as herds.)
+            if (count(k) >= NEWCOMER_ANIMALS || kinds[k] in Catalogue.gathering) continue
             val s = kinds[k]
             val w = FloatArray(n) { p -> land.areaKm2[p] * suits(s, p) * climateSuits(s, p) }
             val total = w.sum(); if (total <= 0f) continue
@@ -585,6 +579,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * grass and browse is made up from the standing straw, at what each kind's gut gets out of it.
      */
     private fun graze(weather: Weather) {
+        sleepOrWake(weather)
         IntStream.range(0, n).parallel().forEach { p ->
             // How much each kind eats of poor forage depends on its gut (see [gutFill]).
             val quality = land.plants.nourishment(p)
@@ -597,7 +592,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Bears asleep through the cold eat nothing.
                 // (Only the plant part of the diet here; omnivores' small prey and carrion below.)
                 // (More in the cold, see [coldNeed].)
-                need[k] = if (asleep(s, p, weather)) 0f else heads * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
+                need[k] = if (asleep(k, p)) 0f else heads * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
                     days / 1e6f * plantShare(s) // kg per m2 this week
                 // (Biting insects harassing them cost them feeding time.)
                 avail[k] = HexFood.access(s, land.crag[p]) * tether(s, p) * (1f - HexSmallLife.HARASS_FEED * small.harassment(p))
@@ -619,6 +614,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // left (diet switching) and fatten on it.
             var spareG = grass; var spareB = browse; var spareF = food.fruit[p]; var spareR = food.roots[p]
             val gs = FloatArray(kinds.size); val bs = FloatArray(kinds.size)
+            // (What each kind ate this week, kg per m2, and the protein in it: fresh growth full, cured grass and straw
+            // little, as for the herds; see [proteinMet]. Fattening on a surplus is left out, as for the herds.)
+            val ateKg = FloatArray(kinds.size); val proteinKg = FloatArray(kinds.size)
+            val gp = grassProtein(p); val bp = browseProtein(p)
             for (k in byMass) {
                 val s = kinds[k]
                 if (need[k] <= 0f) continue
@@ -635,14 +634,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 eatG += need[k] * fill * d.grass / total * g; eatB += need[k] * fill * d.browse / total * b
                 eatF += need[k] * d.fruit / total * f; eatR += need[k] * d.roots / total * r
                 got[k] = (d.grass / total * g + d.browse / total * b) * fill * quality + d.fruit / total * f + d.roots / total * r
-                // (And how rich in protein what it ate was: fresh growth full, cured grass little; see [proteinMet].)
-                val eaten = d.grass / total * g + d.browse / total * b + d.fruit / total * f + d.roots / total * r
-                if (eaten > 0f) {
-                    val share = (d.grass / total * g * grassProtein(p) + d.browse / total * b * browseProtein(p) +
-                        (d.fruit / total * f + d.roots / total * r) * PROTEIN_FRUIT) / eaten
-                    val ps = plantShare(s)
-                    protein[k][p] += (proteinMet(ps * share + (1f - ps)) - protein[k][p]) * PROTEIN_MEMORY
-                }
+                ateKg[k] = wG * g + wB * b + wF * f + wR * r
+                proteinKg[k] = wG * g * gp + wB * b * bp + (wF * f + wR * r) * PROTEIN_FRUIT
             }
             for (k in byMass) {
                 val s = kinds[k]
@@ -663,6 +656,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val x = min(min(gap, room * qf), avail[k] * spareB / need[k] * qf)
                     spareB -= x * need[k] / qf
                     eatB += x * need[k] / qf
+                    ateKg[k] += x * need[k] / qf; proteinKg[k] += x * need[k] / qf * bp
                     got[k] += x
                     gap -= x
                     room -= x / qf
@@ -671,6 +665,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val x = min(min(gap, room * qf), avail[k] * spareG / need[k] * qf)
                     spareG -= x * need[k] / qf
                     eatG += x * need[k] / qf
+                    ateKg[k] += x * need[k] / qf; proteinKg[k] += x * need[k] / qf * gp
                     got[k] += x
                     gap -= x
                     room -= x / qf
@@ -679,6 +674,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val x = min(min(gap, SWITCH * d.fruit / total), avail[k] * spareF / need[k])
                     spareF -= x * need[k]
                     eatF += x * need[k]
+                    ateKg[k] += x * need[k]; proteinKg[k] += x * need[k] * PROTEIN_FRUIT
                     got[k] += x
                     gap -= x
                 }
@@ -686,6 +682,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val x = min(min(gap, SWITCH * d.roots / total), avail[k] * spareR / need[k])
                     spareR -= x * need[k]
                     eatR += x * need[k]
+                    ateKg[k] += x * need[k]; proteinKg[k] += x * need[k] * PROTEIN_FRUIT
                     got[k] += x
                     gap -= x
                 }
@@ -722,7 +719,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val rs = if (wantStraw > 0f) min(1f, food.straw[p] / wantStraw) else 1f
             for ((k, s) in kinds.withIndex()) {
                 val strawPart = if (need[k] > 0f) short[k] / need[k] * min(1f, GUT_FILL * HexFood.roughage(s)) * min(1f, avail[k]) * rs else 0f
-                val sleeping = asleep(s, p, weather)
+                // (And how rich in protein all it ate was, straw included; animal food is rich in it.)
+                val strawKg = short[k] * GUT_FILL * min(1f, avail[k]) * rs
+                val eaten = ateKg[k] + strawKg
+                if (eaten > 0f) {
+                    val ps = plantShare(s)
+                    protein[k][p] += (proteinMet(ps * (proteinKg[k] + strawKg * tuning.proteinStraw) / eaten + (1f - ps)) - protein[k][p]) * PROTEIN_MEMORY
+                }
+                val sleeping = asleep(k, p)
                 var f = if (sleeping) {
                     // Asleep, it lives on its fat at a quarter of its waking need; fed as far as the fat lasts.
                     val want = SLEEP_NEED * days
@@ -800,7 +804,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // (What the young would be born to: food, and the protein their mothers' milk and their growth need.)
                 fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * FED_MEMORY
                 // Laying on fat for the winter: how well fed through late summer and autumn.
-                if (s.hibernates && weather.date.month in 7..11 && !asleep(s, p, weather)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
+                if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
             }
             // What is left of the week's grazing and browsing for the herds that come through after.
             grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB)
@@ -836,10 +840,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val start = birthStart[k]
             val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
             val grow = years / s.yearsToMaturity
-            val a = adults[k]; val y = young[k]; val f = fed[k]
-            val grown = grownUp[k]; grown?.fill(0f)
+            val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
             for (p in 0 until n) {
-                if (a[p] + y[p] <= 0f) continue
+                if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a hungry mother bears and keeps fewer.
                 val inSeason = monthsFrom(start[p].toInt(), date.month) < s.birthMonths
@@ -859,12 +862,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // (Hunger, cold and heat, and thirst kill residents by the same rules as herds and packs.)
                 val hunger = Hazards.hunger(f[p])
                 val t = feltC(s, p, weather.temperature[p])
-                val sleeping = asleep(s, p, weather)
+                val sleeping = asleep(k, p)
                 val cold = if (sleeping) 0f else Hazards.cold(s, t, date.month)
                 // Thirst by the herds' rule: an animal drinks where water is within half its days without
-                // water's going (or gets enough from green food and prey); beyond that, a week dry beyond what
-                // it can bear kills as it does a herd.
-                val thirst = thirstAt(s, p, f[p])
+                // water's going (or gets enough from green food and prey); beyond that, its days without water
+                // mount week to week, and past what it can bear they kill as they do a herd.
+                if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) dk[p] = 0f
+                else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
+                val thirst = Hazards.thirst(s, dk[p])
                 // Crowding breeds disease and parasites, far more among the underfed: herds grow until the
                 // lean season binds, and then hunger and sickness together hold them.
                 val crowd = (a[p] + y[p]) / (CROWDED * usual[k])
@@ -909,7 +914,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Growing up.
                 val up = y[p] * grow
                 y[p] -= up; a[p] += up
-                if (grown != null) grown[p] = up
                 bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
                 if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }
@@ -986,15 +990,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
     }
 
-    /**
-     * For the viewer: the kind (slot) whose spill to record, -1 for none; and this week's, by hex, the heads that
-     * left it for each neighbour summed as a way east and south (km times heads), and the heads that left it.
-     */
-    @Volatile @Transient var flowOf = -1
-    @Transient val flowEast = FloatArray(hex.size)
-    @Transient val flowSouth = FloatArray(hex.size)
-    @Transient val flowOut = FloatArray(hex.size)
-
     /** The straits from each hex, as (hex across, km of open water) pairs; set by the groups (see [HexGroups.seaLinks]). */
     var seaLinks: ((Int) -> List<Pair<Int, Float>>)? = null
 
@@ -1016,9 +1011,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 worthOf[q] = worthOrNothing(fareFor(s, q) * fresh * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * shy(s, q)) /
                     (1f + (a[q] + y[q]) / (CROWD * usual[k])))
             }
-            var weekHeads = 0.0; var weekStuck = 0.0; var weekEdge = 0.0
-            val flow = flowOf == k
-            if (flow) { flowEast.fill(0f); flowSouth.fill(0f); flowOut.fill(0f) }
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
                 val need = (1f - f[p]).coerceIn(0f, 1f)
@@ -1028,13 +1020,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Where they could go: each neighbouring hex at about the same height (its band, or the one above
                 // or below: so they work up a valley to the high pasture and down again), weighed by food, how
                 // fresh and rich in protein it is, and how easy the border is.
-                var total = 0f; var best = 0f; var closed = false
+                var total = 0f; var best = 0f
                 val ws = FloatArray(18); val wq = IntArray(18) { -1 }
                 for (d in 0 until 6) {
                     val nh = hex.neighbour(h, d)
-                    if (nh < 0) { closed = true; continue }
+                    if (nh < 0) continue
                     val e = cross[h * 6 + d]
-                    if (!e.isFinite()) { closed = true; continue }
+                    if (!e.isFinite()) continue
                     val ease = hex.hexKm.toFloat() / e
                     val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     for (db in -1..1) {
@@ -1058,12 +1050,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     for ((nh, gapKm) in links) { if (gapKm > swim) continue; val q = hw.placeOf[b][nh].takeIf { it >= 0 } ?: continue
                         val wq = SEA_SPILL * (1f - gapKm / swim) * land.areaKm2[q] * (fareFor(s, q) + 1e-4f); if (wq > seaW) { seaW = wq; seaTo = q } }
                 }
-                val here = worthOf[p]
-                val heads = ((a[p] + y[p]) * land.areaKm2[p]).toDouble()
-                weekHeads += heads
-                if (f[p] < STUCK_FED && best <= here) { weekStuck += heads; if (closed) weekEdge += heads }
                 if (total <= 0f) continue
                 // (And the more so the better the country next door is than here: as the seasons turn, they follow the fresh pasture.)
+                val here = worthOf[p]
                 val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
                 val go = min(0.5f, leave + SPILL_BETTER * better)
                 val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]
@@ -1080,15 +1069,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val q = wq[i]
                     moveA[q] += goA * ws[i] / total; moveY[q] += goY * ws[i] / total
                     arrived[q] += (goA + goY) * ws[i] / total
-                    if (flow) {
-                        val heads = (goA + goY) * ws[i] / total
-                        val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
-                        flowEast[h] += heads * (x1 - x0).toFloat(); flowSouth[h] += heads * (y1 - y0).toFloat(); flowOut[h] += heads
-                    }
                 }
             }
-            stuck[k].let { it[Stuck.HEADS.ordinal] += weekHeads; it[Stuck.STUCK.ordinal] += weekStuck; it[Stuck.AT_EDGE.ordinal] += weekEdge
-                if (weekHeads > 0.0) it[Stuck.PEAK.ordinal] = max(it[Stuck.PEAK.ordinal], weekStuck / weekHeads) }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
             // (Those that came over from the next hex walked it, at a herd's cost a km out of their fat, see [walkCost].)
             for (p in 0 until n) if (arrived[p] > 0f) {
@@ -1105,8 +1087,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val HABITAT = 3f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 4f
-        /** For the check only ([stuck]): fed below this counts as hungry. */
-        const val STUCK_FED = 0.8f
         /**
          * Protein in forage, against fresh growth: cured grass and straw keep some of their energy but
          * lose most of their protein (about 4% crude protein against 16% green, though grazers pick the
@@ -1231,9 +1211,6 @@ enum class ResidentDeath(val cause: DeathCause) {
 }
 @Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.get(d: ResidentDeath) = this[d.ordinal]
 @Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.set(d: ResidentDeath, v: Double) { this[d.ordinal] = v }
-
-/** Residents held hungry where they are ([HexFauna.stuck]). */
-enum class Stuck { HEADS, STUCK, AT_EDGE, PEAK }
 
 /** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, straw, prey and carrion, reserves; and the animals counted. */
 enum class Fed { PLANTS, STRAW, ANIMAL, RESERVES, HEADS }

@@ -59,12 +59,16 @@ object HexSnapshot {
      *
      * 1.0: onager live both ways.
      * 1.1: sowing charged its full person-days.
-     * 2.0: every plant-eater lives both ways; residents remember their lean months.
-     * 2.1: herds sicken by crowding as residents do (no 20x allowance).
-     * 2.2: herd crowding for disease counted over the ground each herd grazes, not its one hex.
+     * 1.2: gathering materials takes time.
+     * 1.3: caching food takes time.
+     * 1.4: mending first is a band way.
+     * 1.5: residents count the protein in straw and in what they switch to, by weight, as herds do.
+     * 1.6: residents remember days without water.
+     * 1.7: bears sleep through the cold only when hungry.
+     * 1.8: herds sicken by crowding as residents do, counted over the ground each herd grazes.
      */
-    const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 2
+    const val MODEL_MAJOR = 1
+    const val MODEL_MINOR = 8
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

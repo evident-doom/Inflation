@@ -6,7 +6,7 @@ import kotlin.math.roundToInt
 /** The kinds of work that take a band's time, each by its line in the census of band time ([Tally.bandTime]). */
 enum class Activity(val label: String) {
     FIREWOOD("firewood"), FOOD("food"), DRYING("drying"), SKINS("skins"), SHELTER("shelter"), CUSTOMS("customs"),
-    TRAINING("training"), TOOLS("tools"), HOUSES("houses"), ORNAMENTS("ornaments"), SOWING("sowing"), PALISADE("palisade"),
+    TRAINING("training"), TOOLS("tools"), HOUSES("houses"), ORNAMENTS("ornaments"), SOWING("sowing"), PALISADE("palisade"), MATERIALS("materials"), CACHING("caching"),
 }
 
 /**

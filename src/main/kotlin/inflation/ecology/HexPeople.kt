@@ -228,6 +228,8 @@ class Band(kinds: Int) {
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
     val sowWill get() = will[BandWay.SOWING]
+    /** How far a band with worn kit holds back from laying food by, to mend first (0 not at all, 1 wholly). */
+    val mendFirst get() = will[BandWay.MENDING_FIRST].coerceAtMost(1f)
     /**
      * Its choices against the dangers (1 for each gives the scaffold's way):
      * - how far from camp its gatherers go, against today's reach: further brings more food and
@@ -626,18 +628,20 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val p = g.place
     val h = hw.hexOf(p)
     val area = land.m2(p)
-    campAndCache(g, b, p, h, date)
+    // The time the band has to spare goes first to caching what it leaves at a camp, then to gathering what it lacks of
+    // its materials, then to making and mending.
+    val time = BandTime(b.spareDays)
+    campAndCache(g, b, p, h, date, time)
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
     keepHerds(g, b, date)
     val people = g.adults.toFloat()
     val gd = b.goods
-    gatherMaterials(g, b, p, h, people, area)
+    gatherMaterials(g, b, p, h, people, area, time)
     val living0 = b.livingGoods()
     val years = days / Date.DAYS_PER_YEAR.toFloat()
     wearAndInvent(b, years)
-    // Making and mending takes the time the band has to spare, the tools it ranks first first (the
+    // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
-    val time = BandTime(b.spareDays)
     // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
     if (b.campWeeks == 0) b.shelter = 0f
     // (A debris hut takes a novice an afternoon, the practised an hour.)
@@ -652,7 +656,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
     makeTools(b, people, time)
-    time.count(stats.hunting, Activity.SHELTER, Activity.CUSTOMS, Activity.TRAINING, Activity.TOOLS)
+    time.count(stats.hunting, Activity.CACHING, Activity.MATERIALS, Activity.SHELTER, Activity.CUSTOMS, Activity.TRAINING, Activity.TOOLS)
     time.count(stats.hunting, "left", time.left)
     b.renown *= 1f - RENOWN_FADE * years
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > 1) Unlucky(u.hex, u.weeks - 1) else null }
@@ -728,7 +732,7 @@ private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + 
  * the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it
  * has room for.
  */
-private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date: Date) {
+private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date: Date, time: BandTime) {
     if (b.campPlace.none || h != hw.hexOf(b.campPlace)) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
@@ -736,9 +740,12 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
             val carry = carryKg(g, b)
             val total = g.larder
             if (total > carry) {
-                // (It chooses how much of what it cannot carry to cache; the rest is left where it lies.)
+                // (It chooses how much of what it cannot carry to cache, as far as its time to dig and cover the pits goes;
+                // the rest is left where it lies.)
                 val left = 1f - carry / total
-                val cached = min(1f, b.cacheWill)
+                val leftKg = Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
+                val cached = min(min(1f, b.cacheWill), if (leftKg > 0f) max(0f, time.left) * CACHE_KG_A_DAY / leftKg else 0f)
+                time.spend(Activity.CACHING, cached * leftKg / CACHE_KG_A_DAY)
                 if (cached > 0f) dropCache(b)
                 var abandoned = 0f
                 for (i in Store.entries) {
@@ -789,34 +796,60 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
     }
 }
 
-/** What the country gives [g]'s band in a week, kg per adult, into its goods. */
-private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float) {
+/**
+ * What [g]'s band gathers of its materials in a week, into its goods: what the country gives along the way, as far as the
+ * band lacks it (up to what it carries, [carried]) and as far as the [time] it has to spare goes, each material at its
+ * own rate of gathering.
+ */
+private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime) {
     val gd = b.goods
+    /** Takes up to [give] kg of [m], as far as the band lacks it and has the time at [perDay] kg a person-day; returns what it took. */
+    fun gather(m: Material, give: Float, perDay: Float): Float {
+        val want = min(give, carried(b, m, people) - gd[m])
+        if (want <= 0f || time.left <= 0f) return 0f
+        val took = min(want, time.left * perDay)
+        gd[m] += took; time.spend(Activity.MATERIALS, took / perDay)
+        return took
+    }
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
     // along the way (poorer stone anywhere), wood and resin where there are trees, fibre from grass,
     // scrub and reeds; hides, bone and sinew from the big game it killed.
     fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.sameBandPlace(p.i, q).takeIf { it >= 0 }?.let { a[it] } ?: 0f } ?: 0f)
     val stone = alongTheWay(land.stone)
     // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED].)
-    gd[Material.STONE] += people * 0.8f * min(1f, 5f * stone)
+    gather(Material.STONE, people * 0.8f * min(1f, 5f * stone), STONE_A_DAY)
     // Salt scraped from a dry lake bed or pan along the way, and a little from the shore; ochre dug where it crops out.
-    gd[Material.SALT] += people * (SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)) + if (hw.coast[h]) SEA_SALT_A_WEEK else 0f)
-    gd[Material.OCHRE] += people * OCHRE_A_WEEK * min(1f, 5f * alongTheWay(land.ochre))
-    // (Wood and fibre are what the plants give up: from the trees and the scrub, and the grass and scrub, each by its share.)
+    gather(Material.SALT, people * (SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)) + if (hw.coast[h]) SEA_SALT_A_WEEK else 0f), SALT_A_DAY)
+    gather(Material.OCHRE, people * OCHRE_A_WEEK * min(1f, 5f * alongTheWay(land.ochre)), OCHRE_A_DAY)
+    // (Wood and fibre are what the plants give up: from the trees and the scrub, and the grass and scrub, each by its share.
+    // Wood comes as slowly as firewood does, by how thick the trees and scrub stand.)
     val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]; val herb = land.plants.herb[p]
     val woody = tree + shrub
-    val wood = 2f * people * min(1f, woody / 3f)
-    if (woody > 0f) gd[Material.WOOD] += land.plants.consume(p.i, LifeForm.TREE, Kg(wood * tree / woody).perM2(m2)).over(m2).v +
-        land.plants.consume(p.i, LifeForm.SHRUB, Kg(wood * shrub / woody).perM2(m2)).over(m2).v
-    gd[Material.RESIN] += 0.05f * people * min(1f, tree / 3f)
-    land.books?.leak(Books.Stuff.MATTER, "resin, not taken from the trees", (0.05f * people * min(1f, tree / 3f)).toDouble())
+    if (woody > 0f) {
+        val cover = min(1f, woody / 3f)
+        val wood = gd[Material.WOOD]
+        val took = gather(Material.WOOD, 2f * people * cover, FUEL_A_DAY * cover)
+        gd[Material.WOOD] = wood + land.plants.consume(p.i, LifeForm.TREE, Kg(took * tree / woody).perM2(m2)).over(m2).v +
+            land.plants.consume(p.i, LifeForm.SHRUB, Kg(took * shrub / woody).perM2(m2)).over(m2).v
+    }
+    val resin = gather(Material.RESIN, 0.05f * people * min(1f, tree / 3f), RESIN_A_DAY)
+    land.books?.leak(Books.Stuff.MATTER, "resin, not taken from the trees", resin.toDouble())
     // (Reeds and rushes in a marsh give the best fibre of all.)
-    val fibre = people * min(1f, (herb + shrub) / 0.5f + 2f * land.waterlogged[p])
     val green = herb + shrub
-    if (green > 0f) gd[Material.FIBRE] += land.plants.consume(p.i, LifeForm.HERB, Kg(fibre * herb / green).perM2(m2)).over(m2).v +
-        land.plants.consume(p.i, LifeForm.SHRUB, Kg(fibre * shrub / green).perM2(m2)).over(m2).v
+    if (green > 0f) {
+        val fibre = gd[Material.FIBRE]
+        val took = gather(Material.FIBRE, people * min(1f, (herb + shrub) / 0.5f + 2f * land.waterlogged[p]), FIBRE_A_DAY)
+        gd[Material.FIBRE] = fibre + land.plants.consume(p.i, LifeForm.HERB, Kg(took * herb / green).perM2(m2)).over(m2).v +
+            land.plants.consume(p.i, LifeForm.SHRUB, Kg(took * shrub / green).perM2(m2)).over(m2).v
+    }
     // Shells on the shore, for beads.
-    if (hw.coast[h]) gd[Material.SHELL] += SHELL_A_WEEK * people
+    if (hw.coast[h]) gather(Material.SHELL, SHELL_A_WEEK * people, SHELL_A_DAY)
+}
+
+/** What [b] carries of [m] at most, kg: its share of the goods a person carries, and at a camp it keeps, building stone and timber stacked beyond that. */
+private fun carried(b: Band, m: Material, people: Float): Float {
+    val stack = if (m == Material.STONE || m == Material.WOOD) (if (b.campWeeks >= 4) HOUSE_STONE + HOUSE_WOOD else 0f) else 0f
+    return (GOODS_PER_PERSON + stack) * people
 }
 
 /**
@@ -1001,8 +1034,7 @@ private fun HexGroups.buildPalisade(b: Band, people: Float, time: BandTime) {
 private fun HexGroups.leaveExcess(b: Band, p: Place, people: Float, area: Float) {
     val gd = b.goods
     for (m in Material.entries) {
-        val stack = if (m == Material.STONE || m == Material.WOOD) (if (b.campWeeks >= 4) HOUSE_STONE + HOUSE_WOOD else 0f) else 0f
-        val over = gd[m] - (GOODS_PER_PERSON + stack) * people
+        val over = gd[m] - carried(b, m, people)
         if (over > 0f) {
             gd[m] -= over
             if (m in ROTS) small.deposit(DeadPool.LITTER, p, KgM2(over / area))
@@ -1267,7 +1299,8 @@ enum class BandWay(val label: String) {
     FEASTING("feasting"),
     APPOINTMENTS("appointments"),
     BURNING_OFF("burning off"),
-    REPAYING("repaying");
+    REPAYING("repaying"),
+    MENDING_FIRST("mending first");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
 }
@@ -1798,7 +1831,20 @@ const val NIGHT_WOOD = 3f
  */
 const val HEARTH_WOOD = 1f
 const val FUEL_A_DAY = 25f
-/** Share of a full kit below which a band under the hand-written rules mends before it lays food by (Olli's choice). */
+/**
+ * Materials gathered, kg a person-day where the country has them (wood comes at [FUEL_A_DAY]). Estimates, not field
+ * figures: good stone picked up where it crops out, salt scraped from a pan, ochre dug, reeds and grass cut for fibre,
+ * resin scraped from trees and shells picked over on the shore for beads.
+ */
+const val STONE_A_DAY = 50f
+/** Food cached, kg a person-day: pits dug, lined and covered (an estimate, not a field figure). */
+const val CACHE_KG_A_DAY = 100f
+const val SALT_A_DAY = 20f
+const val OCHRE_A_DAY = 5f
+const val FIBRE_A_DAY = 10f
+const val RESIN_A_DAY = 0.5f
+const val SHELL_A_DAY = 0.5f
+/** Share of a full kit below which a band counts its kit worn, and mends before it lays food by as far as its way goes ([Band.mendFirst]; Olli's choice). */
 const val MEND_BELOW = 0.5f
 /**
  * Skin a kilo of small game yields, kg (a hare's or rabbit's pelt is about a tenth of its weight, from memory),
