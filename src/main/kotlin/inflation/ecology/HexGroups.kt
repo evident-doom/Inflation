@@ -528,7 +528,7 @@ class HexGroups(
         var moved = 0
         // (A herd moving on can crowd one that was settled: so they go on spreading, a day's going at a time, till none
         // moves. After the first look, a herd moves on only while it has a day of the week left: its way there took the rest.)
-        for (pass in 0 until days) {
+        for (pass in 0 until 1) {
             val herds = groups.indices.filter { groups[it].alive && !groups[it].species.carnivore }
                 .sortedWith(compareByDescending<Int> { groups[it].days.lastOrNull() ?: 0f }.thenBy { it })
             var movedNow = 0
