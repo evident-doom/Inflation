@@ -309,7 +309,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         for ((i, s) in all.withIndex()) {
             if (i >= fauna.kinds.size && s in fauna.kinds) continue
             val b = JToggleButton(s.name); b.margin = Insets(1, 4, 1, 4)
-            b.toolTipText = if (s in fauna.kinds && s in groups.kinds) "${s.name}: lives spread over the land and in herds (shown as the spread ones' density, and only its herds drawn)"
+            b.toolTipText = if (s in fauna.kinds && s in groups.kinds) "${s.name}: lives spread over the land and in herds; the button counts the spread ones, then the herded ones and their herds (shown as the spread ones' density, and only its herds drawn)"
                 else if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)"
                 else "${s.name}: lives in herds or packs (shown as its density, and only its groups drawn)"
             b.addActionListener {
@@ -433,7 +433,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val kindTexts = all.withIndex().filter { (i, s) -> i < fauna.kinds.size || s !in fauna.kinds }.map { (i, s) ->
             "${s.name} " + when {
                 i >= fauna.kinds.size -> herded(s)
-                s in groups.kinds -> "%.0f spread, ".format(fauna.count(i)) + herded(s)
+                s in groups.kinds -> "%.0f, ".format(fauna.count(i)) + herded(s)
                 else -> "%.0f".format(fauna.count(i))
             }
         }
