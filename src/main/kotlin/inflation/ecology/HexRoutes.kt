@@ -162,28 +162,33 @@ class HexRoutes(private val g: HexGroups) {
             if (q >= 0 && (0 until 6).count { way[q * 6 + it] } >= 3) cut += h * 6 + only
         }
         for (i in cut) { val h = i / 6; val d = i % 6; way[i] = false; hex.neighbour(h, d).takeIf { it >= 0 }?.let { q -> way[q * 6 + (d + 3) % 6] = false } }
-        // A ford: where a way crosses a river too deep to step over, at the shallowest crossing of the hex. A way
-        // walked along a river crosses it again and again as it winds between the hexes; of such crossings in a
-        // row along the way the shallowest is the ford, the place to cross (ties: the lower hex).
-        val fordM = FloatArray(hex.size) { Float.POSITIVE_INFINITY }
-        for (h in 0 until hex.size) if (hex.heart[h] >= 0) for (d in 0 until 6) if (worn(h, d) && river(h * 6 + d)) fordM[h] = min(fordM[h], hex.riverDepthM[h * 6 + d])
-        fun ford(h: Int): Boolean {
-            if (fordM[h] == Float.POSITIVE_INFINITY) return false
+        // Of like features in a row along a way, the best is the one told of (ties: the lower hex): of the
+        // crossings of a river a way walked along it makes as it winds between the hexes, the shallowest is
+        // the ford; of passes one after another up broken country, the easiest is the pass. [cost]: lower is
+        // better, infinite where there is none.
+        fun best(h: Int, cost: FloatArray): Boolean {
+            if (cost[h] == Float.POSITIVE_INFINITY) return false
             for (d in 0 until 6) {
                 if (!worn(h, d)) continue
                 val q = hex.neighbour(h, d)
-                if (q >= 0 && (fordM[q] < fordM[h] || fordM[q] == fordM[h] && q < h)) return false
+                if (q >= 0 && (cost[q] < cost[h] || cost[q] == cost[h] && q < h)) return false
             }
             return true
         }
+        // A ford: where a way crosses a river too deep to step over, by the shallowest crossing of the hex.
+        val fordM = FloatArray(hex.size) { Float.POSITIVE_INFINITY }
+        for (h in 0 until hex.size) if (hex.heart[h] >= 0) for (d in 0 until 6) if (worn(h, d) && river(h * 6 + d)) fordM[h] = min(fordM[h], hex.riverDepthM[h * 6 + d])
+        // A pass, by how rugged it is.
+        val passRug = FloatArray(hex.size) { Float.POSITIVE_INFINITY }
+        for (h in 0 until hex.size) if (hex.heart[h] >= 0 && (0 until 6).any { worn(h, it) } && pass(h)) passRug[h] = rug(h)
         for (h in 0 until hex.size) {
             if (hex.heart[h] < 0) continue
             var ways = 0
             for (d in 0 until 6) if (worn(h, d)) ways++
             if (ways == 0) { landmark[h] = natural[h]; continue }
             onRoute[h] = true
-            val ford = ford(h)
-            val pass = pass(h)
+            val ford = best(h, fordM)
+            val pass = best(h, passRug)
             val water = water(h)
             landmark[h] = (when {
                 ways >= 3 -> Kind.JUNCTION; ford -> Kind.FORD; natural[h] != 0.toByte() -> Kind.entries[natural[h].toInt()]
@@ -192,15 +197,23 @@ class HexRoutes(private val g: HexGroups) {
         }
         landmarks = (0 until hex.size).filter { isLandmark(it) }.toIntArray()
         // Places: the most telling landmark not yet in a place takes in those within a ring of it. Natural
-        // ones tell most (anyone can see them), then fords and passes, then junctions by the ways that meet.
+        // ones tell most (anyone can see them), then fords and passes, then junctions; of landmarks alike,
+        // the best: the shallowest ford, the easiest pass, the junction of the most travelled ways (natural
+        // ones are already the greatest of their kind around).
         fun telling(h: Int): Int = when (kind(h)) {
             Kind.MOUTH, Kind.CONFLUENCE, Kind.LAKE, Kind.SPRING, Kind.PEAK -> 100 + landmark[h]
-            Kind.FORD, Kind.PASS -> 50
-            Kind.JUNCTION -> 10 + (0 until 6).count { worn(h, it) }
+            Kind.FORD, Kind.PASS -> 50 + landmark[h]
+            Kind.JUNCTION -> 10
             else -> 0
         }
+        fun better(h: Int): Float = when (kind(h)) {
+            Kind.FORD -> -fordM[h]
+            Kind.PASS -> -passRug[h]
+            Kind.JUNCTION -> (0 until 6).sumOf { d -> if (worn(h, d)) hex.neighbour(h, d).let { q -> wearOf(h, q).toDouble() } else 0.0 }.toFloat()
+            else -> 0f
+        }
         val seeds = ArrayList<Int>()
-        for (h in landmarks.sortedWith(compareByDescending<Int> { telling(it) }.thenBy { it })) {
+        for (h in landmarks.sortedWith(compareByDescending<Int> { telling(it) }.thenByDescending { better(it) }.thenBy { it })) {
             if (placeOf[h] >= 0) continue
             val id = seeds.size; seeds += h; placeOf[h] = id
             for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && isLandmark(q) && placeOf[q] < 0) placeOf[q] = id }
