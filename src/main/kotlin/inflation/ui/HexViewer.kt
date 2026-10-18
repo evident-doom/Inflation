@@ -22,6 +22,8 @@ import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseWheelEvent
@@ -275,7 +277,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
         useNetworks()
         load?.let { f -> commands += { loadWorld(f) } }
-        val bottom = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
+        // Every kind's button in view: as many rows as the window's width needs.
+        val bottom = JPanel(WrapLayout(FlowLayout.LEFT, 4, 2))
         val all = fauna.kinds + groups.kinds
         for ((i, s) in all.withIndex()) {
             val b = JToggleButton(s.name); b.margin = Insets(1, 4, 1, 4)
@@ -299,6 +302,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val south = JPanel(BorderLayout())
         south.add(legendText.apply { border = BorderFactory.createEmptyBorder(2, 6, 2, 6) }, BorderLayout.NORTH)
         south.add(bottom, BorderLayout.CENTER)
+        south.addComponentListener(object : ComponentAdapter() { override fun componentResized(e: ComponentEvent) = bottom.revalidate() })
         add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(south, BorderLayout.SOUTH)
         snapshot()
         Thread(::loop, "hex simulation").apply { isDaemon = true }.start()
