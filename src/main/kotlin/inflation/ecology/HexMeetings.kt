@@ -343,7 +343,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
     }
     // The resident bands it came on while it searched count towards its search image, as the herds it met do.
-    if (SHARED_HUNT && searched > 0f) countResidentsMet(g, sweep, met, searched, today)
+    if (searched > 0f) countResidentsMet(g, sweep, met, searched, today)
     countHerdsMet(g, searched, today)
     if (band != null) practise(g, band, meat > g.meatMet, smallGot, plants, fish)
     var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
@@ -585,13 +585,6 @@ private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float, out: Haul) {
 private fun HexGroups.residentOdds(g: HexGroup, ps: Species, p: Int, packKg: Float, weather: Weather, today: Double, i: Int,
     odds: FloatArray, stalks: FloatArray, met: FloatArray) {
     val s = g.species
-    if (!SHARED_HUNT) {
-        // (As on main: each animal come on alone, unwarned, and no search image.)
-        val success = CATCH * catchable(s, ps, p, packKg) * (g.band?.huntEdge(ps, tuning) ?: 1f)
-        odds[i] = success * (0.5f + 0.5f * Niches.overlap(s, ps))
-        stalks[i] = 1f / success.coerceIn(1e-3f, 1f)
-        return
-    }
     val success = killChance(g, ps, catchable(s, ps, p, packKg), 0f, 1f)
     val image = g.metLately(ps.index, today).let { it / (it + SEARCH_HALF) }
     met[i] = (0.5f + 0.5f * Niches.overlap(s, ps)) * (1f - seenFirst(g, ps, p, 0f, weather)) / ps.groupSize
@@ -1088,13 +1081,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     val p = hw.sameBandPlace(herd.place, h).takeIf { !it.none } ?: herd.place
     // A herd chased lately keeps a sharper watch.
     val wary = herd.wary(day)
-    val seen = rnd.nextFloat() < (if (SHARED_HUNT) seenFirst(hunter, herd.species, p.i, wary, weather) else {
-        // (As on main: the herd's watch by the hex where they meet, the light and cover by where the herd ended its week.)
-        val open = openness(h, hw.placeBand[herd.place])
-        val fear = if (hunter.band != null) 0.5f + herd.species.fearOfPeople else 1f
-        min(0.95f, VIGILANCE * open * (1f - hunter.species.stalking) * (1f + wary) * fear *
-            (0.5f + 0.5f * sight(herd.place.i, weather) / (1f - SIGHT_COVER * land.plants.cover(herd.place.i)).coerceAtLeast(0.1f)))
-    })
+    val seen = rnd.nextFloat() < seenFirst(hunter, herd.species, p.i, wary, weather)
     if (seen) {
         diag(herd.species, "herd saw first", met.toFloat())
         stats.meetings.merge("herd turned aside", 1, Int::plus)
@@ -1128,7 +1115,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     // Game worth less for the time a kill takes than the rest of its diet brings is let pass, herd or resident
     // alike (Charnov's rule; see [HexGroup.dietRate]).
     val reach = reach(hunter.species, herd.species, p.i)
-    if (SHARED_HUNT && !worthChasing(hunter, herd.species, chance, packKg, reach)) {
+    if (!worthChasing(hunter, herd.species, chance, packKg, reach)) {
         diag(herd.species, "herd not worth it", met.toFloat())
         stats.hunting.merge("${hunter.species.name}:herds not worth it", 1, Int::plus)
         note(hunter) { "let the %s pass: not worth the chase".format(herd.species.name) }

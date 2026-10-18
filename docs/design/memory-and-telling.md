@@ -1,10 +1,10 @@
 # Memory and telling
 
-Proposal, 2026-10-14. Nothing here is built.
+Proposal, 2026-10-14. Status (2026-10-18): step 1 is built in a simpler form. Each group keeps a 16-slot `PlaceMemory`, read through fixed place features (remembered season, fed, water, danger, age, ancestors, appointment), not with attention. Step 2 is partly built: bands pass memories at meetings as far as they trust each other (`PlaceMemory.hear`), and tell each other routes by their landmarks (`HexRoutes`). What to share is not a learned choice yet, and step 3 is not built. Spoken places as descriptions are still a proposal, apart from routes told by landmarks.
 
 ## Now
 
-The networks have no memory of their own. They score each candidate place from this week's inputs. All memory is engineered state that hand-written code turns into inputs:
+(As written on 2026-10-14.) The networks have no memory of their own. They score each candidate place from this week's inputs. All memory is engineered state that hand-written code turns into inputs (since then, the remembered places of step 1 are among those inputs too):
 - **Herds:** the place they did best in each month, and how well. It drives migration and passes to offshoots.
 - **Hunters:** the ground they hold, and the hexes they hunted out lately.
 - **Bands:** the country they know (exact hexes), their caches, camps and kin.
@@ -20,7 +20,7 @@ Communication is engineered too:
 2. **Telling by passing tokens at meetings.** Animals pass a few, and bands pass more as far as they understand each other. What to share is a learned choice.
 3. **A learned state carried from week to week**, for what the tokens miss.
 
-Steps 1 to 3 move learning to PyTorch on the GPU (see the GPU plan).
+The plan was to move learning to PyTorch on the GPU for these steps. That did not happen: learning stays in Kotlin (`learning/Mlp.kt`), and step 1 was built without attention.
 
 ## Spoken places are descriptions
 

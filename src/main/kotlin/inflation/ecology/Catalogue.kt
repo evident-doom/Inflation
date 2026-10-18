@@ -695,7 +695,7 @@ object Catalogue {
     fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
 
     /**
-     * EXPERIMENT: kinds run in the other form than their own after a settled state is loaded (t.formSwap=NAME,NAME):
+     * For tests: kinds run in the other form than their own after a settled state is loaded (t.formSwap=NAME,NAME):
      * residents as herds or packs, herds and packs as residents (see [swapForms]). Not people.
      */
     val formSwap: List<Species> by lazy {

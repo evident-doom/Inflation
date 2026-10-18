@@ -4,6 +4,8 @@ Inventory, 2026-10-14. It lists every people's ability now set by a fixed consta
 
 ## Already skills (level 0..1, learned by practice, fading, spread by partners)
 
+(As of 2026-10-14. The `Forage` and `Making` types named here are gone: all skills are now `Domain` and `Skill` in `Skill.kt`, see the status below.)
+
 - **Foraging** (`Forage`): gathering, small game, fishing, hunting, storing.
 - **Making** (`Making`): knapping, woodwork, hide work, cordage, fire.
 - **Plant knowledge**, for each kind of country.
@@ -15,17 +17,17 @@ Each row is a candidate skill. It has variants by tool or material, and the cons
 
 | Domain | Skill | Variants (tools, materials) | Constants it would replace |
 |---|---|---|---|
-| **Hunting** | tracking and reading sign | dogs | `TRACKING`, `SEARCHING` |
+| **Hunting** | tracking and reading sign | dogs | `SEARCHING` (the old `TRACKING` is gone; built as the `TRACK` skill) |
 | | stalking and ambush | cover, blinds, camouflage | `AVOID_SKILL`, `SURPRISE`, `CATCH` |
 | | killing at range | thrusting spear, spear-thrower, bow, poison | `WEAPONLESS`, `BOW_GAIN` |
-| | drive hunting | kites, nets, fire drives; needs organising | `KITE_*` |
+| | drive hunting | nets, fire drives; needs organising | (none: kites were removed from the model) |
 | | butchery and marrow | flakes, hammerstones | `MEAT_SHARE`, `BONE_DAYS`, `HANDLING_DAYS` |
 | **Small game and fish** | trapping | snares, deadfalls, nets | `SMALL_SENSE_KM`, `SMALL_CATCH`, `NET_GAIN` |
 | | fishing | hand, spear, hook and line, weirs, traps, nets, boats | `FISH_HANDLING_DAYS_PER_KG` |
 | | shellfish and shore | — | (in gathering) |
 | **Plant food** | digging | digging stick (weighted), knowledge of tubers | `ROOT_DIGGING` |
 | | seed processing | threshing, winnowing, grinding, baking | `SEED_HANDLING_DAYS_PER_KG`, `RAW_SEED` |
-| | detoxifying | leaching acorns, roasting, soaking; turns inedible plants into food | `PALATABLE_FLOOR` |
+| | detoxifying | leaching acorns, roasting, soaking; turns inedible plants into food | (built as `LEACHING`; `PALATABLE_FLOOR` is gone) |
 | | cultivation | clearing, sowing, weeding, seed choice, burning | `SOW_DAYS_PER_KG`, `FIELD_YIELD`, `SICKLE_SELECT`, `BURN_OFF` |
 | **Cooking** | cooking | roasting, stone boiling (needs containers), earth ovens, pots | `RAW_COST`, `RAW_SEED` |
 | | brewing and fermenting | containers, grain | `BEER_KG` |
@@ -89,7 +91,7 @@ Built:
 
 Skills that existed before keep their behaviour at a start band's level. New variants change nothing until a band knows them.
 
-Next: hunting subskills (tracking, stalking, drives, butchery), moving (carrying, snowshoes, boats), animal handling, the remaining crafts, fighting.
+Next: hunting subskills (tracking, stalking, drives, butchery), moving (carrying, snowshoes, boats), animal handling, the remaining crafts, fighting. (Since built: tracking, stalking, butchery and animal tending, as `TRACK`, `STALK`, `BUTCHER` and `TENDING`. Drives, moving, boats and fighting still have no skill.)
 
 **Added later the same day:**
 - **Toolmaking:** knapping as flakes, blades and microliths. Blades and microliths are faster and take 40% of the flint, and bands use whichever way they do best. Also ground stone (pecking, for grinders), bone tools (needles and awls, practised with clothes) and hafting (glued and bound tools wear out more slowly).
@@ -100,7 +102,7 @@ Next: hunting subskills (tracking, stalking, drives, butchery), moving (carrying
 
 Today learning costs nothing, a band can hold every skill at once, a single meeting passes a way on, and forgetting is weak (about 20% a year, 8% with oral tradition). So every skill drifts to every band. The record shows the opposite: regional toolkits, crafts lost by small or isolated groups (Tasmania, after it was cut off), and specialists.
 
-Proposed mechanisms, most important first:
+Proposed mechanisms, most important first. (Status 2026-10-18: all six are built in some form in `HexPeople.kt` and `HexCulture.kt`. 1: `Band.holders`, divided on a split, with `SLOTS` ways a person keeps up. 2: training holders takes person-days from the band's spare time (`APPRENTICE_DAYS`). 3: partners bring their skills a little short of their teacher (`TRANSMIT_LOSS`). 4: `FORGET_HANDS` and `FORGET_KNOWLEDGE`. 5: `Skill.needs` and `NEEDS_LEVEL`. 6: `CONFORMITY` and `PRESTIGE`. Whether practice is a learned choice, as 2 asks, is not checked here.)
 
 1. **Skills live in people.** Each skill has a number of holders in the band, not just a level. A band can keep only so many people practised: each person has time for a few crafts. The band's level in a skill depends on its best few holders. When a band splits, its holders are divided between the two bands, so a splinter group can lose a craft outright. Small, isolated bands lose complex skills, and large, connected ones keep them (Henrich's model of cultural loss).
 2. **Learning takes time.** Practice and teaching come out of the spare days the band also spends on making, building and feasts. What a band practises is one of its choices, for the learned ways to take over. Specialisation follows: a band invests in what its country rewards.

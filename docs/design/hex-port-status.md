@@ -1,6 +1,6 @@
 # Hex model: what is ported from the 1 km model
 
-Status on 13 Oct 2026, after the ground-up port. For each feature of the 1 km (grid) model: **yes** ported, **partly** ported
+Status on 13 Oct 2026, after the ground-up port; rows corrected on 18 Oct 2026. For each feature of the 1 km (grid) model: **yes** ported, **partly** ported
 (what is missing), **no** not yet. The hex model runs from the hex viewer, the hex checks and the
 hex learning tools. (The 1 km model's `Simulation` has since been removed; the hex model is the only one.)
 
@@ -24,7 +24,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Feature | Hex |
 |---|---|
 | Soil water, evaporation, groundwater | yes (per band) |
-| Rivers routed downstream | partly: hex to hex, held to long-term flows |
+| Rivers routed downstream | yes: hex to hex, carrying what the land sheds (unscaled since the water fix); lakes are a saved stock (`HexHydrology`) |
 | Floods on the floodplain | yes |
 | Rivers as barriers, fords | yes (on hex edges, by depth); no spring spate |
 | Wetlands drowning woody plants | yes |
@@ -46,7 +46,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Separate food pools (roots, mast, fruit, straw) | yes |
 | Roughage value by body size; selective feeders | yes (straw by gut size) |
 | Boar rooting, seed carried by fruit-eaters | yes |
-| Trampling and worn paths, paths easing travel | partly: trampling and paths yes; paths do not ease travel on hexes |
+| Trampling and worn paths, paths easing travel | yes: worn paths ease the going, more so in broken country (`PathWear`) |
 | Soil erosion, soil recovery | yes |
 | Litter, soil life, organic matter | yes |
 | Pollinators setting the fruit crop | yes |
@@ -78,7 +78,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 
 | Feature | Hex |
 |---|---|
-| Resident kinds | yes, as densities per height band |
+| Resident kinds | yes, as densities per height band; jackal and lynx are resident hunters, and onager lives both ways (resident, gathering into herds for its round) |
 | Migratory kinds as herds | yes |
 | Choosing where to go each week | yes (own rule, learnable) |
 | Routes over passes, climbers and walkers | yes (graded borders) |
@@ -87,7 +87,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Seasonal memory, inherited template | yes |
 | Grazing shared by diet and need | yes |
 | Births, growing up, splitting and merging | yes |
-| Crowding disease | yes; random outbreaks no |
+| Crowding disease | yes; outbreaks too (start where a kind is crowded, spread and burn out: `HexFauna.outbreak`) |
 | Snow hiding grass | yes; deaths in deep snow no |
 | Cold and heat (coat) | yes (coat grows in autumn, moulted in spring) |
 | Fat reserves | yes (herds; autumn fattening; bears' autumn condition) |
@@ -111,7 +111,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Stealing kills | yes |
 | Extra deaths for packs without ground | yes |
 | Small prey, scavenging | yes |
-| Following people's camps | no |
+| Following people's camps | partly: bold animals of kinds that follow people are drawn to camps and tallied for taming, behind `taming=true` |
 
 ## People
 
@@ -122,11 +122,11 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Hunting resident game and herds; snares and nets; fishing and shellfish | yes |
 | Larder (dried meat, stored plant food), caches at old camps | yes |
 | Season memory, news of good ground and food gifts when bands meet | yes |
-| Skills learned by practice and forgotten unused | yes (gathering, small game, fishing, hunting, storing; four making skills) |
+| Skills learned by practice and forgotten unused | yes (`Skill.kt`: about 34 variants in 24 kinds of work, among them tracking, stalking, butchery, tending, healing and lore) |
 | Tools made from local materials, worn out, carried | yes (spear, bow, net, sickle, grinding stone, basket, clothes) |
 | Tools hit on and shown to bands met | yes |
 | Camp kept: births closer with stores, children sicken in a fouled camp, bands leave fouled camps | yes |
-| Traditions with effects, copied from bands doing better, taken up and dropped | yes (nine) |
+| Traditions with effects, copied from bands doing better, taken up and dropped | yes (ten) |
 | Language as words per concept, understanding between bands | yes (naming game, drift) |
 | Marrying out, lineage mix, inbreeding | yes |
 | Elders and grandmothers | yes |
@@ -137,17 +137,18 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Knowing the country (walked, seen, told of by bands understood), forgetting far country | yes |
 | Sharing on demand: hungry bands fed by better-stocked bands nearby | yes |
 | Camp followers growing bold, pups taken, dogs kept (hunting, guarding) | yes, behind `taming=true` in the config (off by default) |
-| Firewood, middens, worn routes, scouting, land claims, ornaments and renown, gatherings, task groups | no |
-| Keeping herd animals, tending plants | no |
-| Learned bands | started: imitation (92% same choice) and evolution |
+| Firewood, worn routes, scouting, land claims, ornaments and renown, gatherings | yes (firewood fetched for the hearth and the night fire; routes and landmarks in `HexRoutes`; scouting and gatherings as band ways) |
+| Middens, task groups | no (middens only as part of keeping camp clean) |
+| Keeping herd animals, tending plants | partly: keeping young animals and sowing are band ways; `TENDING` is a skill |
+| Learned bands | yes: people's mover and the bands' ways trained by PPO (see Learning) |
 
 ## Learning
 
 | Feature | Hex |
 |---|---|
-| Learnable choice of where to go | yes (herds) |
-| Copying the hand-written behaviour, evolution | yes (herds; hunters optional as hand-written) |
-| Learned bands | no |
+| Learnable choice of where to go | yes: one mover per role (herds, hunters, people), trained by PPO (`HexPpo`, `PpoTrainer`) |
+| Copying the hand-written behaviour, evolution | yes: imitation is PPO's warm start; evolution remains for the ways (`HexEvolveWays`) |
+| Learned bands | yes: bands' ways by PPO (`WaysPpo`) or evolution |
 
 ## New on hexes, not in the 1 km model
 
@@ -162,6 +163,6 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 
 ## Still missing
 
-The people features marked "no" above, dams, canals and irrigation (the 1 km code is kept for
-porting with people), worn paths easing travel, random outbreaks of disease. The work list and the
-closed-ecology rules are in `hex-gaps.md`.
+The people features marked "no" above, and dams, canals and irrigation (the 1 km code is kept for
+porting with people). The old work list and closed-ecology rules (hex-gaps.md) are in the project's
+archive (archive/repo-docs-2026-10-18/design/ in the shared folder).

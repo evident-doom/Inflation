@@ -77,7 +77,7 @@ class HexSim(
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
         Profile.time("water and plants") { land.step(weather) }
         // The residents' hunters find the herds about them as they find the resident game (see [HerdAt]).
-        if (SHARED_HUNT) fauna.herdsAt = groups.herdsByPlace()
+        fauna.herdsAt = groups.herdsByPlace()
         fauna.step(weather, weather.date)
         groups.takeResidentsKills(fauna.herdsAt)
         books?.check("herds' losses to resident hunters")
