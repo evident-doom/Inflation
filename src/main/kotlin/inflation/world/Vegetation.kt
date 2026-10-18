@@ -21,7 +21,13 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
 
-/** Plant life forms tracked per cell. Food, fodder, fuel and materials are drawn from these. */
+/**
+ * Plant life forms tracked per cell. Food, fodder, fuel and materials are drawn from these.
+ * (Herbs' fastest growth: a short sward in full warmth and water doubles in about three weeks, as spring
+ * pasture and semi-arid grassland put on 1-3 g/m² a day from a low stand, from memory; at half that, they
+ * stood at a quarter to a third of their ceiling everywhere and a dry country's spring was over before
+ * its grass had grown.)
+ */
 enum class LifeForm(
     /** Largest standing biomass in the best conditions, kg dry matter per m². */
     val maxBiomass: Float,
@@ -36,7 +42,7 @@ enum class LifeForm(
     /** Air temperature that kills it outright, °C. */
     val frostKill: Float,
 ) {
-    HERB(0.6f, 6f, 0.05f, 0.35f, 4f, 12f, -45f),
+    HERB(0.6f, 12f, 0.05f, 0.35f, 4f, 12f, -45f),
     SHRUB(3f, 0.8f, 0.12f, 0.45f, 6f, 14f, -30f),
     TREE(25f, 0.25f, 0.3f, 0.7f, 10f, 16f, -25f),
 }

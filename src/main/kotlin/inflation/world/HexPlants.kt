@@ -191,14 +191,15 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val water0 = (wet / HexHydrology.UNSTRESSED).coerceIn(0f, 1f)
             val waterShade = (hydro.soilShade[p] / hydro.soilCap[p] / HexHydrology.UNSTRESSED).coerceIn(0f, 1f)
             // Grass that dries out in growing weather sets seed and cures to straw where it stands; it greens
-            // again when rain wets the soil enough to sprout it: a soaking rain ([GERMINATION_MM] in the week) on soil
-            // moist enough to keep the seedlings (as moist as the grass cured at), or soil filled to where plants take
-            // water unstressed. So do the annual grasses of hot, dry summers. Where summers are cool the sward is
-            // perennial: deep roots keep it growing until the soil is a quarter full, it browns as the soil dries
-            // further and greens again with the next rain, without curing for the year.
+            // again when rain wets the soil enough to sprout it: a soaking rain ([GERMINATION_MM] in the week), or any
+            // rain on soil moist enough to keep the seedlings (as moist as the grass cured at). So do the annual grasses
+            // of hot, dry summers. Where summers are cool the sward is perennial: deep roots keep it growing until the
+            // soil is a quarter full, it browns as the soil dries further and greens again with the next rain, without
+            // curing for the year.
+            val rained = t >= 0f && weather.precipitation[p] > 0f
             val soaked = t >= 0f && weather.precipitation[p] >= GERMINATION_MM
-            if (season > 0f && water0 < 0.5f) cured[p] = true else if (water0 >= 1f || soaked) cured[p] = false
-            if (season > 0f && waterShade < 0.5f) curedShade[p] = true else if (waterShade >= 1f || soaked) curedShade[p] = false
+            if (season > 0f && water0 < 0.5f) cured[p] = true else if ((rained && water0 >= 0.5f) || soaked) cured[p] = false
+            if (season > 0f && waterShade < 0.5f) curedShade[p] = true else if ((rained && waterShade >= 0.5f) || soaked) curedShade[p] = false
             val shaded = land.slopeShade[p]
             val sunnyGrowth = herbGrowth(p, season, wet, cured[p])
             val shadyGrowth = herbGrowth(p, season, hydro.soilShade[p] / hydro.soilCap[p], curedShade[p])
