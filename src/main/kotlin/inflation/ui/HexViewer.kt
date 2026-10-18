@@ -4,6 +4,7 @@ import inflation.learning.LearnedModel
 import inflation.Args
 import inflation.Config
 
+import inflation.ecology.HexGeography
 import inflation.ecology.HexRoutes
 import inflation.ecology.WATER_LANDMARK_KM
 import inflation.ecology.Catalogue
@@ -154,6 +155,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val peopleBox = JCheckBox("People", true)
     /** Paths worn by herds, packs and bands, drawn hex to hex, darker and wider the more worn. */
     private val pathsBox = JCheckBox("Paths", true)
+    /** The names of the great features of the country (see [HexGeography]), written over the map. */
+    private val namesBox = JCheckBox("Names", false)
+    private val features by lazy { HexGeography(hw) }
     /** Follow mode: the group followed (-1 none), kept in view week by week, with what happened to it. */
     @Volatile private var followLog = ""
 
@@ -234,6 +238,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         huntersBox.addActionListener { map.repaint() }
         peopleBox.addActionListener { map.repaint() }
         pathsBox.addActionListener { map.repaint() }
+        namesBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
         bar.add(run)
         bar.add(step)
@@ -247,6 +252,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         bar.add(huntersBox)
         bar.add(peopleBox)
         bar.add(pathsBox)
+        bar.add(namesBox)
         bar.add(windBox)
         bar.add(riversBox)
         bar.add(pullChoice)
@@ -584,6 +590,26 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     "Natural landmarks, on a route or not: hilltop (higher than all within two rings), lake, spring, where two rivers meet, river mouth.",
                     note = groups.routes.summary(),
                     swatches = HexRoutes.Kind.entries.drop(1).map { MapLegend.Swatch(landmarkColour(it), it.label, it == HexRoutes.Kind.PASS || it == HexRoutes.Kind.PEAK) })
+            }
+            // The names of the country: the larger the feature, the larger its name; rivers in blue along their middle.
+            if (namesBox.isSelected) {
+                val font = g.font
+                for (f in features.all.sortedByDescending { it.hexes.size }) {
+                    if (!onScreen(f.label)) continue
+                    val px = (9 + 2.2 * ln(f.hexes.size.toDouble())) * max(0.5, scale)
+                    g.font = font.deriveFont(if (f.kind == HexGeography.Kind.RIVER) Font.ITALIC else Font.BOLD, px.toFloat())
+                    val (cx, cy) = hex.centreKm(f.label)
+                    val w = g.fontMetrics.stringWidth(f.name); val x = sx(cx.toFloat()) - w / 2; val y = sy(cy.toFloat())
+                    g.color = Color(1f, 1f, 1f, 0.7f)
+                    for ((dx, dy) in arrayOf(-1 to 0, 1 to 0, 0 to -1, 0 to 1)) g.drawString(f.name, x + dx, y + dy)
+                    g.color = featureColour(f.kind)
+                    g.drawString(f.name, x, y)
+                }
+                g.font = font
+                legends += MapLegend("Names", "The great features of the country, each named once: rivers (main stems, the greater flow keeping the name), " +
+                    "their valleys and floodplains, lakes, and stretches of mountains, forest, woods, steppe, desert and marsh larger than the ground one place draws on; " +
+                    "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on). The larger the feature, the larger its name.", note = features.summary(),
+                    swatches = HexGeography.Kind.entries.map { MapLegend.Swatch(featureColour(it), it.label) })
             }
             // The hex being inspected.
             if (picked >= 0) {
@@ -974,6 +1000,15 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
 
     companion object {
         /** The colour of a landmark on the map (passes are drawn as triangles). */
+        private fun featureColour(k: HexGeography.Kind) = when (k) {
+            HexGeography.Kind.RIVER, HexGeography.Kind.LAKE, HexGeography.Kind.BAY, HexGeography.Kind.STRAIT -> Color(0.1f, 0.25f, 0.7f)
+            HexGeography.Kind.VALLEY, HexGeography.Kind.FLOODPLAIN -> Color(0.15f, 0.4f, 0.4f)
+            HexGeography.Kind.FOREST, HexGeography.Kind.DEEP_FOREST, HexGeography.Kind.WOODLAND -> Color(0.1f, 0.35f, 0.1f)
+            HexGeography.Kind.MOUNTAINS -> Color(0.35f, 0.25f, 0.2f)
+            HexGeography.Kind.STEPPE, HexGeography.Kind.DESERT -> Color(0.45f, 0.35f, 0.05f)
+            HexGeography.Kind.MARSH -> Color(0.2f, 0.4f, 0.3f)
+            HexGeography.Kind.PENINSULA, HexGeography.Kind.ISTHMUS, HexGeography.Kind.ISLAND -> Color(0.3f, 0.3f, 0.3f)
+        }
         private fun landmarkColour(k: HexRoutes.Kind) = when (k) {
             HexRoutes.Kind.JUNCTION -> Color(0.95f, 0.85f, 0.4f); HexRoutes.Kind.FORD -> Color(0.3f, 0.6f, 1f)
             HexRoutes.Kind.PASS -> Color(0.85f, 0.85f, 0.85f); HexRoutes.Kind.WATER -> Color(0.2f, 0.9f, 0.9f)

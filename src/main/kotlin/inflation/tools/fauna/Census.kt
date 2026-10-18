@@ -1,6 +1,7 @@
 package inflation.tools.fauna
 
 import inflation.ecology.Tally
+import inflation.ecology.HexGeography
 import inflation.ecology.Fed
 import inflation.ecology.HexFauna
 import inflation.ecology.get
@@ -31,6 +32,8 @@ class Census(private val sim: HexSim) {
     private val fauna = sim.fauna
     private val groups = sim.groups
     private val weather get() = sim.weather
+    /** The named features of the country, told once (they are the land as the world made it). */
+    private var featuresTold = false
 
     /** Each place's main kind of country, as the most of its cells. */
     private val biomeOf: IntArray by lazy {
@@ -141,6 +144,7 @@ class Census(private val sim: HexSim) {
             landHexes.map { rug(it).toDouble() }.average(), groups.wear.paths.average()))
         val (fw, fa) = groups.routes.fordShare()
         println("     routes: %s; worn ways crossing rivers %.1f%% against %.1f%% of all borders".format(groups.routes.summary(), 100 * fw, 100 * fa))
+        if (!featuresTold) { featuresTold = true; println("     features: " + HexGeography(hw).summary()) }
     }
 
     /** How many groups, how big, how much of the land they cover, and how far each herd is from the nearest hunting pack. */
