@@ -94,6 +94,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     // counted in the whole weight of its kills, see [creditShare].)
     for (g in groups) if (!g.alive && g.meatMet > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.meatMet * meatShare(g.band) / creditShare(g.band))); g.meatMet = 0f }
     val hunters = groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)
+    for (a in fauna.groupKilled) a.fill(0f)
     // Bands first set their ways for the week.
     if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
@@ -536,6 +537,8 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
         }
     }
     fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
+    // (The share of them it killed, kept for the residents' odds of being hunted, see [HexFauna.huntedOdds].)
+    fauna.groupKilled[k][p] += kills1 / (dens * area)
     val young = min(HexFauna.YOUNG_WEIGHT * ps.massKg, kgEach)
     out.kg = na * kgEach + ny * young
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
