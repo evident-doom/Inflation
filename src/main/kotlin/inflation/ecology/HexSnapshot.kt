@@ -74,9 +74,10 @@ object HexSnapshot {
      * 2.0: every plant-eater lives both ways: residents leave as groups where staying is clearly deadlier than a place a
      * month away, and groups settle where it is not; resident hunters, disease and crowding meet a non-migratory herd as
      * its kind's groups over HERD_UNIT times the ground.
+     * 2.1: species records follow their sources (#213); a leaving group heads for the place found for it.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 0
+    const val MODEL_MINOR = 1
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
