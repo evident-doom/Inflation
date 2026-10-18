@@ -150,11 +150,11 @@ object HexSnapshot {
 
     /**
      * The kinds each part keeps its tables by, in order: the residents and those living as groups. Left out are the kinds the
-     * config moves for an experiment after a load (the form swap, people=false), which change the code's lists but not what a
+     * config moves for a comparison after a load (people=false), which change the code's lists but not what a
      * save holds.
      */
     internal fun rosters(sim: HexSim): List<Pair<String, List<String>>> {
-        fun names(kinds: List<Species>) = kinds.filter { it !in Catalogue.formSwap && !it.human }.map { it.name }
+        fun names(kinds: List<Species>) = kinds.filter { !it.human }.map { it.name }
         return listOf("residents" to names(sim.fauna.kinds), "groups" to names(sim.groups.kinds))
     }
 

@@ -16,7 +16,7 @@ import kotlin.math.roundToInt
 /** The ground a round's place draws its animals from, and holds them on: half a range across (see [RANGE_KM]). */
 const val GATHER_KM = RANGE_KM / 2
 
-/** The heads a gathered herd of [s] holds: as many as its kind's herds gather (see [toHerds]). */
+/** The heads a gathered herd of [s] holds: as many as its kind's herds gather. */
 internal fun herdOf(s: Species) = s.maxGroupSize * HERD_UNIT
 
 /**

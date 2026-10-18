@@ -58,7 +58,7 @@ class HexHistory {
         val n = land.n
         val area = land.areaKm2
         // Animals.
-        // (A kind in both forms, in the form-swap test, counts in both.)
+        // (A kind that lives both ways, as residents and in herds, counts in both.)
         val animals = LinkedHashMap<String, Double>()
         for ((k, s) in fauna.kinds.withIndex()) animals.merge(s.name, fauna.count(k), Double::plus)
         for (s in groups.kinds) animals.merge(s.name, groups.count(s).toDouble(), Double::plus)
