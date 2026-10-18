@@ -65,7 +65,7 @@ object HexSnapshot {
      * 1.5: residents count the protein in straw and in what they switch to, by weight, as herds do.
      * 1.6: residents remember days without water.
      * 1.7: fallen mast lies as winter food, the mast and root stocks from records; rooting churns the ground at its recorded rate.
-     * 1.8: mothers bear as their reserves allow.
+     * 1.8: mothers bear as their food and reserves can build their young.
      */
     const val MODEL_MAJOR = 1
     const val MODEL_MINOR = 8
