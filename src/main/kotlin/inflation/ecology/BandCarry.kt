@@ -61,8 +61,6 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.BLENDED, "herdTame", "seedDomestic")
     rule(OnSplit.COPIED, OnJoin.LOST, "sinceRaided")
     // Its ways' choices.
-    rule(OnSplit.CHOSEN, OnJoin.CHOSEN, "storeAim", "sowWill", "gatherRange", "childWatch", "nightFire", "shunSick", "explore", "raidWill",
-        "fortifyWill", "giveWill", "robWill", "cacheWill", "dryWill", "keepWill", "shelterWill", "feastWill", "appointWill", "burnWill", "repayWill",
-        "houseWill", "scoutShare", "makeFirst", "effort")
+    rule(OnSplit.CHOSEN, OnJoin.CHOSEN, "storeAim", "will", "makeFirst", "effort")
     return r
 }

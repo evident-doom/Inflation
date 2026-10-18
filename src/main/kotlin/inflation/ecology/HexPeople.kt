@@ -223,8 +223,10 @@ class Band(kinds: Int) {
     val herdTame = FloatArray(kinds)
     /** Of the grain in its stores, the share from ears that hold their grain (what it would sow). */
     var seedDomestic = 0f
+    /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
+    val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
-    var sowWill = 1f
+    val sowWill get() = will[BandWay.SOWING]
     /**
      * Its choices against the dangers (1 for each gives the scaffold's way):
      * - how far from camp its gatherers go, against today's reach: further brings more food and
@@ -235,12 +237,12 @@ class Band(kinds: Int) {
      * - how readily it keeps away from bands with sickness among them (0: not at all), losing their
      *   company, news and partners.
      */
-    var gatherRange = 1f
-    var childWatch = 1f
-    var nightFire = 1f
-    var shunSick = 0f
+    val gatherRange get() = will[BandWay.GATHERING_RANGE]
+    val childWatch get() = will[BandWay.WATCHING_CHILDREN]
+    val nightFire get() = will[BandWay.NIGHT_FIRE]
+    val shunSick get() = (will[BandWay.SHUNNING_THE_SICK] - 1f).coerceAtLeast(0f)
     /** How keen it is to go into country it does not know (1: the usual wariness of strange ground; 2: drawn to it). */
-    var explore = 1f
+    val explore get() = will[BandWay.EXPLORING]
     /** The fire as it guards the camp at night: kept only as faithfully as the band chooses. */
     val nightGuard get() = fire * min(1f, nightFire) * nightWood
     /** Share of the night's firewood it had this week. */
@@ -248,8 +250,8 @@ class Band(kinds: Int) {
     /** Share of the hearth's firewood (warmth and cooking) it fetched this week: its fire burns only as far as that goes. */
     var hearthWood = 1f
     /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
-    var raidWill = 1f
-    var fortifyWill = 1f
+    val raidWill get() = will[BandWay.RAIDS]
+    val fortifyWill get() = will[BandWay.PALISADES]
     /**
      * Its choices in dealings with other bands and with its own camp (each 1 for the scaffold's way;
      * 0 never, 2 twice as readily or as much):
@@ -263,15 +265,15 @@ class Band(kinds: Int) {
      *   (above 1 even a band without the custom does; below, even one with it holds back);
      * - how readily it burns off dry grass round its camp.
      */
-    var giveWill = 1f
-    var robWill = 1f
-    var cacheWill = 1f
-    var dryWill = 1f
-    var keepWill = 1f
-    var shelterWill = 1f
-    var feastWill = 1f
-    var appointWill = 1f
-    var burnWill = 1f
+    val giveWill get() = will[BandWay.GIVING]
+    val robWill get() = will[BandWay.TAKING_FROM_CACHES]
+    val cacheWill get() = will[BandWay.CACHING]
+    val dryWill get() = will[BandWay.DRYING]
+    val keepWill get() = will[BandWay.KEEPING_YOUNG_ANIMALS]
+    val shelterWill get() = will[BandWay.SHELTERS]
+    val feastWill get() = will[BandWay.FEASTING]
+    val appointWill get() = will[BandWay.APPOINTMENTS]
+    val burnWill get() = will[BandWay.BURNING_OFF]
     /** Whether it acts on a custom: by the custom at its will's default (1), and away from it as its will goes towards 0 or 2. */
     fun byCustom(holds: Boolean, will: Float) = (will - 1f + (if (holds) 1f else 0f)).coerceIn(0f, 1f)
 
@@ -283,10 +285,10 @@ class Band(kinds: Int) {
     /** Brush shelters at its present camp, 0..1 (left behind when it moves on). */
     var shelter = 0f
     /** Its choices: how ready it is to build (1 the scaffold's: after [HOUSE_AFTER_YEARS] of a year at a camp that feeds it well). */
-    var houseWill = 1f
+    val houseWill get() = will[BandWay.HOUSES]
     var atHome = false
     /** Its choices: the share of its adults out scouting rather than foraging. */
-    var scoutShare = SCOUT_SHARE
+    val scoutShare get() = SCOUT_SHARE * will[BandWay.SCOUTS]
     /** Its choices: how it ranks making each tool ([Tool]) with its spare time (the scaffold: the most worn first). */
     val makeFirst = enumFloats<Tool> { 1f }
     /**
@@ -307,7 +309,7 @@ class Band(kinds: Int) {
     fun owedBy(other: Int) = max(0f, favours[other] ?: 0f)
     fun owesTo(other: Int) = max(0f, -(favours[other] ?: 0f))
     /** Its choices: how fully it returns the favours it owes when a band it owes is hungry (1 the scaffold's: as far as the other's need goes; 0 not at all). */
-    var repayWill = 1f
+    val repayWill get() = will[BandWay.REPAYING]
     /** Person-days its people had to spare this week, after getting and keeping food. */
     var spareDays = 0f
     /**
@@ -1239,9 +1241,7 @@ const val MAKE_FIRST_SLOT = STORE_AIM_SLOT + 1
  * each kind of food, the days of food it aims to keep, and how it ranks making each tool.
  */
 fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
-/** The part of [bandInputs] about its health and the dangers and bands about it. */
-val BAND_SITUATION = Illness.entries.size + 14 + Tradition.entries.size + Temperament.AXES
-val WAYS_IN = 2 + 1 + 1 + Store.entries.size + 2 + Skill.FORAGING.size + Tool.entries.size + 3 + BAND_SITUATION
+val WAYS_IN = BandInputs.size
 /**
  * A band's ways after its effort on each food, its store aim and its ranking of the tools, in the order of
  * [setWays]' outputs; [label] is the output's name in saved networks ([inflation.learning.Schema.WAYS_OUT]).
@@ -1281,27 +1281,27 @@ val WAYS_OUT_NAMES: List<String> get() = (0 until FOOD_TYPES).map { "effort:$it"
  */
 internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArray) {
     val b = g.band ?: return
-    var i = 0
+    val x = BandInputs
     val angle = 2.0 * Math.PI * weather.date.dayOfYear / Date.DAYS_PER_YEAR
-    into[i++] = sin(angle).toFloat(); into[i++] = cos(angle).toFloat()
-    into[i++] = g.fed
+    into[x.YEAR_SIN] = sin(angle).toFloat(); into[x.YEAR_COS] = cos(angle).toFloat()
+    into[x.FED] = g.fed
     val total = g.larder
-    into[i++] = total / max(1e-3f, 60f * g.dailyNeedKg)
-    for (st in Store.entries) into[i++] = if (total > 0f) g.stores[st] / total else 0f
-    into[i++] = g.adults / 30f; into[i++] = g.young.toFloat() / max(1, g.adults)
-    for (f in Skill.FORAGING) into[i++] = b.skill(f)
-    for (t in Tool.entries) into[i++] = b.has(t)
-    into[i++] = weather.temperature[g.place] / 30f
-    into[i++] = min(1f, b.campWeeks / (stepsPerYear / 2f))
-    into[i++] = b.spareDays / max(1f, g.adults * days.toFloat())
+    into[x.LARDER] = total / max(1e-3f, 60f * g.dailyNeedKg)
+    for (st in Store.entries) into[x.STORES + st.ordinal] = if (total > 0f) g.stores[st] / total else 0f
+    into[x.ADULTS] = g.adults / 30f; into[x.YOUNG] = g.young.toFloat() / max(1, g.adults)
+    for ((k, f) in Skill.FORAGING.withIndex()) into[x.SKILLS + k] = b.skill(f)
+    for (t in Tool.entries) into[x.TOOLS + t.ordinal] = b.has(t)
+    into[x.TEMPERATURE] = weather.temperature[g.place] / 30f
+    into[x.CAMP_WEEKS] = min(1f, b.campWeeks / (stepsPerYear / 2f))
+    into[x.SPARE_DAYS] = b.spareDays / max(1f, g.adults * days.toFloat())
     // Its health: the sick with each illness, the wounded and lamed, its old; and those beasts took lately.
-    for (k in Illness.entries) into[i++] = b.sick[k]
-    into[i++] = b.hurt; into[i++] = b.lame
-    into[i++] = b.elders / g.size.coerceAtLeast(1).toFloat()
-    into[i++] = min(1f, b.beastLoss * 10f)
+    for (k in Illness.entries) into[x.SICK + k.ordinal] = b.sick[k]
+    into[x.WOUNDED] = b.hurt; into[x.LAMED] = b.lame
+    into[x.ELDERS] = b.elders / g.size.coerceAtLeast(1).toFloat()
+    into[x.TAKEN_BY_BEASTS] = min(1f, b.beastLoss * 10f)
     // The beasts of prey about its camp, as its tracking reads their sign.
     val beasts = monthHunterKg[g.place] / land.areaKm2[g.place]
-    into[i++] = SIGN_GUESS + b.skill(Skill.TRACK) * (beasts / (beasts + 3f) - SIGN_GUESS)
+    into[x.BEASTS] = SIGN_GUESS + b.skill(Skill.TRACK) * (beasts / (beasts + 3f) - SIGN_GUESS)
     // The bands about it (in its hex and the next): friends, strangers and those it holds a grudge
     // against, and how sick they are; how lately it was raided, and whether it is set on a raid.
     var friends = 0; var strangers = 0; var foes = 0; var theirSick = 0f; var near = 0
@@ -1317,27 +1317,22 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
             theirSick += ob.sick.sum(); near++
         }
     }
-    into[i++] = min(1f, friends / 3f); into[i++] = min(1f, strangers / 3f); into[i++] = min(1f, foes / 3f)
-    into[i++] = if (near > 0) min(1f, theirSick / near) else 0f
-    into[i++] = 1f - min(1f, b.sinceRaided / stepsPerYear)
-    into[i++] = if (!b.raidHex.none) 1f else 0f
-    into[i++] = min(1f, b.inbred * 4f)
+    into[x.FRIENDS] = min(1f, friends / 3f); into[x.STRANGERS] = min(1f, strangers / 3f); into[x.FOES] = min(1f, foes / 3f)
+    into[x.THEIR_SICKNESS] = if (near > 0) min(1f, theirSick / near) else 0f
+    into[x.RAIDED] = 1f - min(1f, b.sinceRaided / stepsPerYear)
+    into[x.ON_A_RAID] = if (!b.raidHex.none) 1f else 0f
+    into[x.INBRED] = min(1f, b.inbred * 4f)
     // The favours owed to it and that it owes, all told (in weeks of food: a few weeks' worth is a lot).
     var owed = 0f; var owes = 0f
     for (v in b.favours.values) if (v > 0f) owed += v else owes -= v
-    into[i++] = owed / (1f + owed); into[i++] = owes / (1f + owes)
+    into[x.OWED] = owed / (1f + owed); into[x.OWES] = owes / (1f + owes)
     // Its customs, and its temperament.
-    for (t in Tradition.entries) into[i++] = if (b.holds(t)) 1f else 0f
-    for (k in 0 until Temperament.AXES) into[i++] = g.temper.getOrElse(k) { 0f }
+    for (t in Tradition.entries) into[x.CUSTOMS + t.ordinal] = if (b.holds(t)) 1f else 0f
+    for (k in 0 until Temperament.AXES) into[x.TEMPER + k] = g.temper.getOrElse(k) { 0f }
 }
 
 /** The name of each of [bandInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */
-val BAND_INPUT_NAMES: List<String> get() = (listOf("year sin", "year cos", "fed", "larder") + Store.entries.map { "store:${it.name.lowercase()}" } +
-    listOf("adults", "young per adult") + Skill.FORAGING.map { "skill:${it.name.lowercase()}" } + Tool.entries.map { "tool:${it.name.lowercase()}" } +
-    listOf("temperature", "camp weeks", "spare days") + Illness.entries.map { "sick:${it.name.lowercase()}" } +
-    listOf("wounded", "lamed", "elders", "taken by beasts", "beasts about", "friendly bands about", "strange bands about", "hostile bands about",
-        "sickness of bands about", "raided lately", "set on a raid", "inbreeding", "favours owed to it", "favours it owes") +
-    Tradition.entries.map { "custom:${it.name.lowercase()}" } + Temperament.NAMES.map { "temper:$it" }).also { require(it.size == WAYS_IN) }
+val BAND_INPUT_NAMES: List<String> get() = BandInputs.names
 
 /**
  * Every band's view of itself and of the bands about it, as the week starts ([Band.state]), for the
@@ -1363,30 +1358,10 @@ internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, in
     ways.choose(g, inputs, out)
     if (g.id == watched) control?.ways(g, out)
     fun squash(x: Float) = 2f / (1f + exp(-x))
-    fun way(w: BandWay) = squash(out[w.slot])
     for (t in 0 until FOOD_TYPES) b.effort[t] = squash(out[t])
     b.storeAim = STORE_AIM_DAYS * squash(out[STORE_AIM_SLOT])
     for (t in Tool.entries) b.makeFirst[t] = squash(out[MAKE_FIRST_SLOT + t.ordinal])
-    b.scoutShare = SCOUT_SHARE * way(BandWay.SCOUTS)
-    b.houseWill = way(BandWay.HOUSES)
-    b.raidWill = way(BandWay.RAIDS)
-    b.fortifyWill = way(BandWay.PALISADES)
-    b.sowWill = way(BandWay.SOWING)
-    b.gatherRange = way(BandWay.GATHERING_RANGE)
-    b.childWatch = way(BandWay.WATCHING_CHILDREN)
-    b.nightFire = way(BandWay.NIGHT_FIRE)
-    b.shunSick = (way(BandWay.SHUNNING_THE_SICK) - 1f).coerceAtLeast(0f)
-    b.explore = way(BandWay.EXPLORING)
-    b.giveWill = way(BandWay.GIVING)
-    b.robWill = way(BandWay.TAKING_FROM_CACHES)
-    b.cacheWill = way(BandWay.CACHING)
-    b.dryWill = way(BandWay.DRYING)
-    b.keepWill = way(BandWay.KEEPING_YOUNG_ANIMALS)
-    b.shelterWill = way(BandWay.SHELTERS)
-    b.feastWill = way(BandWay.FEASTING)
-    b.appointWill = way(BandWay.APPOINTMENTS)
-    b.burnWill = way(BandWay.BURNING_OFF)
-    b.repayWill = way(BandWay.REPAYING)
+    for (w in BandWay.entries) b.will[w] = squash(out[w.slot])
 }
 
 /**
