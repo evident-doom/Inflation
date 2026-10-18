@@ -46,8 +46,8 @@ class SavedStateTest {
         "fauna.small.returning", "fauna.small.waiting", "fauna.small.leaving", "fauna.small.newborn", "fauna.water.run",
         "fauna.water.runStock", "fauna.water.runWaiting", "fauna.food.cereal", "fauna.food.domestic", "fauna.food.field",
         "fauna.food.ripenedNow",
-        // (A worn route forms from many crossings: on this small world a year may or may not see the first one.)
-        "groups.routes.legWear",
+        // (A worn route forms from many crossings: on this small world a year may or may not see the first one, or a way along it.)
+        "groups.routes.legWear", "groups.routes.onRoute", "groups.routes.way",
     )
 
     @Test

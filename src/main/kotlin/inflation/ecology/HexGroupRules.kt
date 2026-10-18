@@ -17,6 +17,24 @@ const val SURPLUS_EAT = 0.3f
 const val FAT_EFFICIENCY = 0.6f
 /** A newborn's weight against its mother's, paid from her reserves. */
 const val NEWBORN_SHARE = 0.08f
+/** A newborn of [s], in days of its mother's food: what she gives of her reserves or her food to bear it. */
+fun youngDays(s: Species) = NEWBORN_SHARE * s.massKg / s.dailyIntakeKg
+
+/** What a mother of [s] fed [fed] over [days] can give her young of the week's food: what she ate above the hunger line, days of food. */
+fun spareDays(fed: Float, days: Int) = max(0f, fed - HexFauna.HUNGER_FROM) * days
+
+/**
+ * The share of her young due this step a mother of [s] bears, [young] of them in full: she builds them first out of the
+ * food she ate beyond the hunger line ([spareDays]), the rest out of her reserves of [fat] days, and bears only those she
+ * can build.
+ */
+fun breeding(s: Species, young: Float, fat: Float, fed: Float, days: Int): Float {
+    val cost = young * youngDays(s)
+    return if (cost > 0f) min(1f, (spareDays(fed, days) + fat) / cost) else 1f
+}
+
+/** Days of reserves a mother of [s] fed [fed] over [days] gives up for [young] young: what her spare food did not build. */
+fun fromReserves(s: Species, young: Float, fed: Float, days: Int) = max(0f, young * youngDays(s) - spareDays(fed, days))
 /** Share of its fill above which a group lays on reserves rather than drawing on them (a week's food is never exactly what it needs). */
 const val WELL_FED = 0.9f
 /** How many times its usual most a herd may grow to on a full green flush, well fed (herds gather where the grass is new). */
@@ -43,7 +61,7 @@ const val FIGHT_BACK = 0.002f
 const val NOT_WORTH_TRYING = 0.05f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
 const val AVOID_STRONGER = 0.3f
-/** How many times its usual density a migratory herd bears where herds gather before crowding sickens it. */
+/** How many times a resident kind's usual density a herd of a kind with no catalogued density takes as usual where it chooses ground (see [HexGroups.crowdOf]). */
 const val MIGRANTS_GATHER = 20f
 /**
  * A herd agent stands for this many of its kind's usual bands (a gazelle herd of 120 rather than 12):

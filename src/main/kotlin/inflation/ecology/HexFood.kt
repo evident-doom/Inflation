@@ -19,7 +19,8 @@ import java.util.stream.IntStream
  *
  * - Fruit, berries, seeds and nuts on shrubs and trees: ripen from midsummer to autumn, as many as
  *   the spring's flowers were pollinated for; what is not eaten falls and rots into the litter.
- * - Bulbs, roots and fallen mast that rooting animals dig up: slow to replace, most mast in autumn.
+ * - Bulbs, roots and fallen mast that rooting animals dig up: bulbs and roots from the herbs, slow to
+ *   replace; the mast is the trees' fruit fallen in autumn, lying on the ground through the winter.
  * - Standing dead grass, stems and twigs: plentiful but poor, the fallback of the lean months; it
  *   builds up over months and is eaten down where herds crowd, so the dry season and the winter set
  *   how many grazers the land carries. Big animals get more from it (Jarman-Bell, see [roughage]).
@@ -70,9 +71,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
 
     /** Fruit-bearing plants at [p], kg/m²: shrubs and the fruiting share of trees. */
     // (Only the edible kinds bear food people eat, see [HexLand.palatable].)
-    private fun bearing(p: Int) = land.palatable[p] * (0.5f * land.plants.shrub[p] + 0.05f * land.plants.tree[p])
+    private fun bearing(p: Int) = land.palatable[p] * (0.5f * land.plants.shrub[p] + TREE_BEARING * land.plants.tree[p])
     private fun strawCap(p: Int) = STRAW_SHARE * (land.plants.herb[p] + 0.3f * land.plants.shrub[p])
-    private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * (land.plants.herb[p] + 0.05f * land.plants.tree[p]) + REED_ROOTS * land.waterlogged[p]
+    private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * land.plants.herb[p] + REED_ROOTS * land.waterlogged[p]
 
     private var standYear = -1
     /** Grain ripened at each place so far this year, kg/m², and over all the land in the last whole year, t. */
@@ -95,18 +96,19 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             // plants die back; a warm year brings all of it on earlier, high ground later.
             val season = land.plants.gdd[p] / land.plants.annualGdd[p].coerceAtLeast(1f)
             // Fruit ripens from midsummer to autumn, as many as the spring's flowers were pollinated
-            // for and the spring was wet enough to fill; then it falls and rots.
+            // for and the spring was wet enough to fill; then it falls: the shrubs' berries rot, the trees'
+            // acorns and nuts lie on the ground as mast for rooting animals through the winter.
             val ripe = if (season in FRUIT_FROM..FRUIT_TO) FRUIT_SHARE * bearing(p) * small.fruitSet(p) *
                 min(1f, land.plants.moisture[p] / 0.5f) / FRUIT_DAYS else 0f
             val fallen = fruit[p] * min(1f, days / FRUIT_DAYS)
             // (It grows on the shrubs and trees that bear it, and comes off them.)
-            val shrubBears = 0.5f * land.plants.shrub[p]; val treeBears = 0.05f * land.plants.tree[p]
+            val shrubBears = 0.5f * land.plants.shrub[p]; val treeBears = TREE_BEARING * land.plants.tree[p]
             val fromShrub = if (shrubBears + treeBears > 0f) shrubBears / (shrubBears + treeBears) else 1f
             val newFruit = days * ripe
             val bore = if (newFruit > 0f) (land.plants.consume(p, LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
                 land.plants.consume(p, LifeForm.TREE, KgM2(newFruit * (1f - fromShrub)))).v else 0f
             fruit[p] = max(0f, fruit[p] + bore - fallen)
-            small.deposit(DeadPool.LITTER, p, KgM2(fallen))
+            small.deposit(DeadPool.LITTER, p, KgM2(fallen * fromShrub))
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
             val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.plants.herb[p] / SEED_DAYS else 0f
             val shed = seeds[p] * min(1f, days / SEED_DAYS)
@@ -115,7 +117,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             // (Roots and bulbs fill from the plants above them; old ones rot into the litter.)
             val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
             val rotted = roots[p] * min(1f, days / ROOTS_DAYS)
-            roots[p] = max(0f, roots[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v - rotted)
+            roots[p] = max(0f, roots[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v + fallen * (1f - fromShrub) - rotted)
             small.deposit(DeadPool.LITTER, p, KgM2(rotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
@@ -201,8 +203,19 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         /** Share of a wild stand whose ears hold their grain (rare mutants, kept down by their failing to sow themselves). */
         const val MUTANT = 0.003f
         const val SEED_DAYS = 40f
-        /** Roots and mast to be dug, per kg/m² of herbs (and trees × 0.05); days to replace them. */
-        const val ROOTS_SHARE = 0.0003f
+        /**
+         * Fruit-bearing share of the trees: mast (acorns, nuts) a year of about 20 kg/ha per kg/m² of trees, some
+         * 200 kg/ha in a woodland of 10 kg/m² (oak stands in Moravia bore 182-667 kg/ha of acorns, dry, in 2013; wild
+         * boar ate over 90% of it: Zeman et al. 2016, Acta Univ. Agric. Silvic. Mendel. Brun. 64:579).
+         */
+        const val TREE_BEARING = 1.25f
+        /**
+         * Bulbs, corms, tubers and rhizomes to be dug, per kg/m² of herbs; days to replace them, and for fallen mast to
+         * rot or sprout. About 1-3 g/m² dry under 0.15-0.3 kg/m² of herbs: edible underground storage organs in the southern
+         * Cape's shrublands, sampled at random, came to 52-160 kg/ha fresh by kind of country (Singels 2013, thesis,
+         * Stellenbosch University; taken here as about 30% dry, from memory), and the Cape is the richest in bulbs there is.
+         */
+        const val ROOTS_SHARE = 0.01f
         const val ROOTS_DAYS = 180f
         /** Small finds a day in season: honey per kg/m² of shrubs (and trees) at full pollination, truffles and snails per kg/m² of herbs,
          * eggs per kg of birds; days they keep. */

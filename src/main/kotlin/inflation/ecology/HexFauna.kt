@@ -852,19 +852,20 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
                 val area = land.areaKm2[p]
-                // Births: half the adults are mothers; a hungry mother bears and keeps fewer.
+                // Births: half the adults are mothers; a mother bears what her food and reserves can build.
                 val inSeason = monthsFrom(start[p].toInt(), date.month) < s.birthMonths
                 if (inSeason) {
                     // (Mothers short of protein bear and suckle fewer.)
                     // (A mother needs a range of her own to bear and raise her young in: where they crowd beyond
                     // [inflation.Tuning.breedSpacing] times their usual numbers, only as many as there are ranges breed.)
                     val ranges = min(1f, tuning.breedSpacing * usual[k] / (a[p] + y[p] + (herds?.get(p) ?: 0f)))
-                    val born = 0.5f * a[p] * ranges * s.youngPerFemale * f[p] * protein[k][p] / stepsInSeason
+                    val due = ranges * s.youngPerFemale * protein[k][p] / stepsInSeason
+                    val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days)
                     y[p] += born
                     bornThisWeek[k] += (born * area).toDouble()
                     bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
-                    // The young are made of what their mothers ate: their weight comes off the mothers' reserves (as in groups).
-                    if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - born * NEWBORN_SHARE * s.massKg / s.dailyIntakeKg / (0.5f * a[p]))
+                    // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
+                    if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - fromReserves(s, born / (0.5f * a[p]), f[p], days))
                 }
                 // Deaths.
                 // (Hunger, cold and heat, and thirst kill residents by the same rules as herds and packs.)

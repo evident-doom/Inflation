@@ -699,6 +699,21 @@ object Catalogue {
      */
     val gathering: Set<Species> by lazy { setOf(ONAGER) }
 
+    /**
+     * For tests (t.formSwap=NAME:herds,NAME:residents,...; or none): with the key set, herds neither gather nor
+     * scatter ([formsFixed]); after a settled state is loaded, each plant-eater named goes wholly into the form named
+     * (true: herds; see [swapForms]).
+     */
+    val formSwap: Map<Species, Boolean> by lazy {
+        inflation.Config.string("t.formSwap")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() && it != "none" }?.associate { e ->
+            val (name, form) = e.split(':').map { it.trim() }
+            require(form == "herds" || form == "residents") { "t.formSwap: $e (NAME:herds or NAME:residents)" }
+            herbivores.first { it.name == name } to (form == "herds")
+        } ?: emptyMap()
+    }
+    /** Whether herds keep the form they have (t.formSwap set at all; see [formSwap]). */
+    val formsFixed by lazy { inflation.Config.string("t.formSwap") != null }
+
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
 
