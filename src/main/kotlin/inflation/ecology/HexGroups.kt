@@ -486,8 +486,6 @@ class HexGroups(
          * hex, the going there, the game and crowding it knows of there, and its score without its deaths (and with
          * its noise and temper).
          */
-        /** The places weighed, and their whole scores, that a herd picks among ([ABOUT_AS_GOOD]). */
-        val topPlace = IntList(); val topScore = FloatList()
         val laterPlace = IntList(); var laterD = FloatArray(64); var laterPrey = FloatArray(64); var laterCrowd = FloatArray(64)
         var laterScore = FloatArray(64); var laterBeside = FloatArray(64); var laterUpper = FloatArray(64)
         fun later(p: Int, d: Float, prey: Float, crowded: Float, score: Float, beside: Float) {
@@ -531,13 +529,6 @@ class HexGroups(
         operator fun get(i: Int) = items[i]
         fun clear() { size = 0 }
         fun toIntArray() = items.copyOf(size)
-    }
-    /** A growable list of floats, in the order added. */
-    internal class FloatList {
-        var items = FloatArray(64); var size = 0
-        operator fun plusAssign(v: Float) { if (size == items.size) items = items.copyOf(2 * size); items[size++] = v }
-        operator fun get(i: Int) = items[i]
-        fun clear() { size = 0 }
     }
     /** A binary min-heap of longs (no boxing). */
     internal class LongHeap {
@@ -1202,9 +1193,6 @@ class HexGroups(
         // (Every place's whole score is wanted for a network, for capture and for a watched herd; else only the best.)
         val wantAll = seen != null || policy != null || capture
         buf.laterPlace.clear()
-        // (A herd choosing by the hand-written score picks among the places about as good as the best: see below.)
-        val spread = !s.carnivore && policy == null && !capture
-        buf.topPlace.clear(); buf.topScore.clear()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
         // hungry pack ranges wider: up to three times that after weeks of hunger.
@@ -1271,7 +1259,6 @@ class HexGroups(
                 }
                 score += beside
                 if (capture) buf.candScores[candPlaces.size - 1] = score
-                if (spread) { buf.topPlace += p.i; buf.topScore += score }
                 if (score > bestScore) { bestScore = score; best = p }
             }
         }
@@ -1284,23 +1271,11 @@ class HexGroups(
             val order = (0 until nl).sortedWith { a, b -> if (up[a] != up[b]) up[b].compareTo(up[a]) else a.compareTo(b) }
             var bestK = Int.MAX_VALUE
             for (k in order) {
-                if (up[k] < bestScore - (if (spread) ABOUT_AS_GOOD else 0f)) break
+                if (up[k] < bestScore) break
                 val p = Place(buf.laterPlace[k]); val h = hw.hexOf(p)
                 val total = buf.laterScore[k] - survivalSteps(g, deathsAt(c, p, h, buf.laterD[k], buf.laterPrey[k], buf.laterCrowd[k]) +
                     crossingDeaths(s, h.i, here.i, via)) + buf.laterBeside[k]
-                if (spread) { buf.topPlace += p.i; buf.topScore += total }
                 if (total > bestScore || (total == bestScore && k < bestK)) { bestScore = total; best = p; bestK = k }
-            }
-        }
-        // A herd goes to one of the places about as good as the best (within [ABOUT_AS_GOOD]), by chance, the better
-        // the likelier: herds alike, side by side, then spread over the good ground instead of all making for one place.
-        if (spread) {
-            var sum = 0f
-            for (i in 0 until buf.topPlace.size) sum += max(0f, buf.topScore[i] - (bestScore - ABOUT_AS_GOOD))
-            var x = unitOf(mix64Once(g.id * HASH_A + date.absoluteDay * HASH_B + seedBase * HASH_C)) * sum
-            for (i in 0 until buf.topPlace.size) {
-                val w = max(0f, buf.topScore[i] - (bestScore - ABOUT_AS_GOOD)); if (w <= 0f) continue
-                x -= w; if (x <= 0f) { best = Place(buf.topPlace[i]); break }
             }
         }
         lap("choosing: weighing places (hand-written score)")
