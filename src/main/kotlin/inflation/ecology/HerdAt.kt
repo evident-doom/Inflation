@@ -14,12 +14,12 @@ class HerdAt(val g: HexGroup, val share: Float) {
     val young = DoubleAdder()
 }
 
-/** The plant-eaters' herds about each place this week, each over the ground it grazes ([rangeShares]). */
+/** The plant-eaters' herds about each place this week, each over the ground its animals stand on ([groundShares]). */
 internal fun HexGroups.herdsByPlace(): Map<Int, List<HerdAt>> {
     val at = HashMap<Int, ArrayList<HerdAt>>()
     for (g in groups) {
         if (!g.alive || g.species.carnivore) continue
-        rangeShares(g, hw.placeHex[g.place]) { h, share ->
+        groundShares(g, hw.placeHex[g.place]) { h, share ->
             val p = hw.sameBandPlace(g.place, h).takeIf { !it.none } ?: g.place
             at.getOrPut(p.i) { ArrayList() } += HerdAt(g, share)
         }

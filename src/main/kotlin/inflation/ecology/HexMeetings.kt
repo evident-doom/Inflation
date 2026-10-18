@@ -1180,6 +1180,32 @@ internal fun HexGroups.roundsWhere(g: HexGroup, weather: Weather): String {
 }
 
 /**
+ * The ground herd [g]'s animals stand on this week about hex [h], as [into] (hex, share of its animals): a herd agent
+ * stands for [HERD_UNIT] of its kind's groups, which in life graze apart, each over the ground a group ranges over, so
+ * together over [HERD_UNIT] times that ground, as evenly as it lies (land only). The kinds that truly mass on their
+ * migrations ([Catalogue.migratory]) keep together, over one herd's ground ([rangeShares]).
+ */
+internal fun HexGroups.groundShares(g: HexGroup, h: Int, into: (Int, Float) -> Unit) {
+    if (g.species in Catalogue.migratory) { rangeShares(g, h, into); return }
+    val r = g.species.dailyTravelKm * kotlin.math.sqrt(HERD_UNIT.toFloat())
+    if (Math.PI.toFloat() * r * r <= land.areaKm2[g.place]) { rangeShares(g, h, into); return }
+    val out = ArrayList<Int>(); out += h
+    val seen = HashSet<Int>(); seen += h
+    var ring = listOf(h)
+    while (ring.isNotEmpty()) {
+        val next = ArrayList<Int>()
+        for (q in ring) for (d in 0 until 6) {
+            val nq = hex.neighbour(q, d)
+            if (nq >= 0 && hex.heart[nq] >= 0 && seen.add(nq) && hex.distanceKm(h, nq) <= r) next += nq
+        }
+        out += next; ring = next
+    }
+    if (out.size == 1) { rangeShares(g, h, into); return }
+    val share = 1f / out.size
+    for (q in out) into(q, share)
+}
+
+/**
  * Where herd [g], grazing about hex [h] this week, spends its time, as [into] (hex, share of the time): its
  * usual day's going ([Species.dailyTravelKm]) takes it out round the middle of its ground, over a disc of that
  * radius, of which the hex holds its own area's share (all of it for a herd whose day's going stays within the

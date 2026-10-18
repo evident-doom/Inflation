@@ -259,12 +259,12 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         for (p in 0 until land.n) { val m = fauna.adults[k][p] + fauna.young[k][p]; if (m > 0f) heads.merge(hw.placeHex[p], m * land.areaKm2[p], Float::plus) }
         for ((h, m) in heads) crowdNow.merge(s.index.toLong() * hex.size + h, m.roundToInt(), Int::plus)
     }
-    // Plant-eaters' heads by the ground they graze this week, both forms: each herd spread over its grazing ground
-    // ([rangeShares]), as the residents meet it, and the residents in their hex.
+    // Plant-eaters' heads by the ground they graze this week, both forms: each herd spread over the ground its animals
+    // stand on ([groundShares]), as the residents meet it, and the residents in their hex.
     val grazing = HashMap<Long, Float>()
     for (g in groups) if (g.alive && !g.species.carnivore) {
         val key = g.species.index.toLong() * hex.size
-        rangeShares(g, hw.placeHex[g.place]) { h, share -> grazing.merge(key + h, g.size * share, Float::plus) }
+        groundShares(g, hw.placeHex[g.place]) { h, share -> grazing.merge(key + h, g.size * share, Float::plus) }
     }
     for (s in kinds) {
         val k = fauna.slot(s); if (s.carnivore || k < 0) continue
@@ -662,7 +662,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
     var crowd = 0f
     if (!s.carnivore) {
         val key = s.index.toLong() * hex.size
-        rangeShares(g, hw.placeHex[g.place]) { h, share -> crowd += share * (grazing[key + h] ?: 0f) }
+        groundShares(g, hw.placeHex[g.place]) { h, share -> crowd += share * (grazing[key + h] ?: 0f) }
         crowd /= hex.areaKm2.toFloat() * HexFauna.CROWDED * usual
     }
     // (Hunters by their kind's numbers over the ground they range over, as residents by theirs in their place.)
