@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.groundOfHerds
 import inflation.ecology.Tally
 import inflation.ecology.Catalogue
 import inflation.ecology.Thresholds
@@ -102,8 +103,10 @@ class HuntTally(private val sim: HexSim) {
     /** For the kinds that live both ways, this year: head-weeks as herds and spread, and the residents' hunters' kills of each. */
     private val headWeeks = HashMap<String, Double>()
     private val residentsKilled = HashMap<String, Double>()
+    /** The same: head-weeks times the residents' hunters' kg against all the plant-eaters' kg where each head is (see [printHerdSafety]). */
+    private val pressureMet = HashMap<String, Double>()
 
-    fun startYear() { year.clear(); fedSum.clear(); groupWeeks.clear(); headWeeks.clear(); residentsKilled.clear() }
+    fun startYear() { year.clear(); fedSum.clear(); groupWeeks.clear(); headWeeks.clear(); residentsKilled.clear(); pressureMet.clear() }
 
     fun week() {
         val groups = sim.groups
@@ -112,6 +115,28 @@ class HuntTally(private val sim: HexSim) {
         for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
         for (g in groups.groups) if (g.alive && g.species in Catalogue.gathering) groupWeeks.merge("herds of ${g.species.name}", 1, Int::plus)
         val fauna = sim.fauna
+        // (The residents' hunters' kg per kg of plant-eaters, residents and herds, at each place: what one head there
+        // meets of them, as the hunters share their kills out by weight.)
+        val land = sim.land; val n = land.n
+        val pressure = DoubleArray(n)
+        val herdsAt = groups.groundOfHerds()
+        for (p in 0 until n) {
+            var hunters = 0.0; var prey = 0.0
+            for ((j, s) in fauna.kinds.withIndex()) {
+                val kg = (fauna.adults[j][p] + 0.3 * fauna.young[j][p]) * s.massKg
+                if (s in Catalogue.residentHunters) hunters += kg else if (!s.carnivore) prey += kg
+            }
+            herdsAt[p]?.let { for (at in it) prey += (at.g.adults + 0.3 * at.g.young) * at.share / land.areaKm2[p] * at.g.species.massKg }
+            pressure[p] = if (prey > 0.0) hunters / prey else 0.0
+        }
+        for (s in Catalogue.gathering) {
+            val k = fauna.slot(s); if (k < 0) continue
+            var spread = 0.0
+            for (p in 0 until n) spread += (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p] * pressure[p]
+            pressureMet.merge("${s.name} spread", spread, Double::plus)
+        }
+        for ((p, list) in herdsAt) for (at in list) if (at.g.alive && at.g.species in Catalogue.gathering)
+            pressureMet.merge("${at.g.species.name} herds", at.g.size * at.share * pressure[p], Double::plus)
         for (s in Catalogue.gathering) {
             val k = fauna.slot(s); if (k < 0) continue
             headWeeks.merge("${s.name} herds", groups.count(s).toDouble(), Double::plus)
@@ -180,6 +205,12 @@ class HuntTally(private val sim: HexSim) {
                     return "%.3f (%.3f + %.3f)".format(byGroups + byResidents, byGroups, byResidents)
                 }
                 "%s %s / %s".format(s.name, rate("herds", Tally.KILLED_IN_HERDS), rate("spread", Tally.KILLED_SPREAD))
+            })
+        println("     residents' hunters' kg per kg of plant-eaters where each head is, gathering kinds (in herds / spread): " +
+            Catalogue.gathering.filter { sim.fauna.slot(it) >= 0 }.joinToString("; ") { s ->
+                fun met(form: String): String { val hw = headWeeks["${s.name} $form"] ?: 0.0
+                    return if (hw > 0.0) "%.4f".format((pressureMet["${s.name} $form"] ?: 0.0) / hw) else "-" }
+                "%s %s / %s".format(s.name, met("herds"), met("spread"))
             })
     }
 

@@ -27,6 +27,9 @@ internal fun HexGroups.herdsByPlace(): Map<Int, List<HerdAt>> {
     return at
 }
 
+/** For the checks: [herdsByPlace] as it stands now. */
+fun HexGroups.groundOfHerds(): Map<Int, List<HerdAt>> = herdsByPlace()
+
 /** The herds' losses to the residents' hunters this week, drawn as whole animals and taken from them. */
 internal fun HexGroups.takeResidentsKills(at: Map<Int, List<HerdAt>>) {
     lostToResidents.clear()
