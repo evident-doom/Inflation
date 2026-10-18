@@ -196,7 +196,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         return -1
     }
     /** Whose sense of direction to draw as arrows: a resident kind or a kind living in groups. */
-    private val pullChoice by lazy { JComboBox(arrayOf("(no sense of direction)") + (fauna.kinds + groups.kinds).map { "pull: " + it.name }.toTypedArray()) }
+    private val pullChoice by lazy { JComboBox(arrayOf("(no sense of direction)") + kindNames().map { "pull: $it" }.toTypedArray()) }
+    /**
+     * The resident kinds and the kinds in groups, by name; a kind that lives both ways is named twice, so its two
+     * entries say which is which.
+     */
+    private fun kindNames() = fauna.kinds.map { if (it in groups.kinds) "${it.name} (spread)" else it.name } +
+        groups.kinds.map { if (it in fauna.kinds) "${it.name} (herds)" else it.name }
     /** Where each group was drawn at the end of the last move, km. */
     private val lastDrawn = HashMap<Int, Pair<Float, Float>>()
     @Volatile private var shown = emptyList<Shown>()
@@ -217,7 +223,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val waterLayers by lazy { listOf<Pair<String, FloatArray>>("sea and lake fish" to fauna.water.fish, "river fish" to fauna.water.riverFish,
         "shellfish" to fauna.water.shellfish) +
         HexWater.SEA.mapIndexed { i, k -> k.name to fauna.water.sea[i] } }
-    private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + (fauna.kinds + groups.kinds).map { "where: " + it.name }.toTypedArray() +
+    private val residentChoice by lazy { JComboBox(arrayOf("(no kind shown)") + kindNames().map { "where: $it" }.toTypedArray() +
         waterLayers.map { "water: " + it.first }.toTypedArray()) }
     private val map = MapPanel()
     /** The hex being inspected, -1 for none, and its groups. */
@@ -299,14 +305,17 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         useNetworks()
         load?.let { f -> commands += { loadWorld(f) } }
         val bottom = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
+        // (One button a kind: a kind that lives both ways shows its residents' density and only its herds drawn.)
         val all = fauna.kinds + groups.kinds
         for ((i, s) in all.withIndex()) {
+            if (i >= fauna.kinds.size && s in fauna.kinds) continue
             val b = JToggleButton(s.name); b.margin = Insets(1, 4, 1, 4)
-            b.toolTipText = if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)"
+            b.toolTipText = if (s in fauna.kinds && s in groups.kinds) "${s.name}: lives spread over the land and in herds (shown as the spread ones' density, and only its herds drawn)"
+                else if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)"
                 else "${s.name}: lives in herds or packs (shown as its density, and only its groups drawn)"
             b.addActionListener {
                 for (o in kindButtons) if (o !== b) o.isSelected = false
-                onlyKind = if (b.isSelected && i >= fauna.kinds.size) s else null
+                onlyKind = if (b.isSelected && s in groups.kinds) s else null
                 residentChoice.selectedIndex = if (b.isSelected) i + 1 else 0
                 map.repaint()
             }
@@ -423,9 +432,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         // (The texts are made here, on the simulation's thread, from the world as the week left it.)
         val dateText = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
         val all = fauna.kinds + groups.kinds
-        val kindTexts = all.mapIndexed { i, s ->
-            "${s.name} " +
-                (if (i < fauna.kinds.size) "%.0f".format(fauna.count(i)) else "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}")
+        val herded = { s: Species -> "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}" }
+        val kindTexts = all.withIndex().filter { (i, s) -> i < fauna.kinds.size || s !in fauna.kinds }.map { (i, s) ->
+            "${s.name} " + when {
+                i >= fauna.kinds.size -> herded(s)
+                s in groups.kinds -> "%.0f spread, ".format(fauna.count(i)) + herded(s)
+                else -> "%.0f".format(fauna.count(i))
+            }
         }
         SwingUtilities.invokeLater {
             date.text = dateText
