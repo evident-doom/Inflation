@@ -574,18 +574,22 @@ class Band(kinds: Int) {
     /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
     fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    fun feels(t: Float) =
+    fun feels(t: Float) = feels(t, fire, atHome)
+    /** [feels] with a fire of [fire] and at its house or not ([home]): as it would camped elsewhere. */
+    fun feels(t: Float, fire: Float, home: Boolean) =
         if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire +
-            max(SHELTER_C * shelter, if (atHome) HOUSE_C * house else 0f)) else t
+            max(SHELTER_C * shelter, if (home) HOUSE_C * house else 0f)) else t
 
     /**
      * How far below what people can bear the cold at [t] °C (the week's mean) takes the band, °C: full
      * fur clothes, a fire and a shelter or house keep people alive in deep cold; the naked die of
      * exposure in a night of a few degrees above freezing, wet and windy.
      */
-    fun exposure(t: Float) =
+    fun exposure(t: Float) = exposure(t, fire, atHome)
+    /** [exposure] with a fire of [fire] and at its house or not ([home]). */
+    fun exposure(t: Float, fire: Float, home: Boolean) =
         (EXPOSURE_C - t - PROTECT_CLOTHES * has(Tool.CLOTHES) * clothesFit() - PROTECT_FIRE * fire -
-            max(PROTECT_SHELTER * shelter, if (atHome) PROTECT_HOUSE * house else 0f)).coerceAtLeast(0f)
+            max(PROTECT_SHELTER * shelter, if (home) PROTECT_HOUSE * house else 0f)).coerceAtLeast(0f)
 
     companion object {
         /**

@@ -867,6 +867,21 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
         pressure += v; if (v > worstP) { worstP = v; worst = k.name }
     }
     if (pressure <= 0f) return Stalking.NONE
+    // (Where one was taken the band remembers the danger.)
+    return Stalking(stalkRate(g, b, p.i, pressure), worst)
+}
+
+/** The man-eaters' flesh in resident animals at place [p], kg/km², weighted by how readily each takes people ([Species.takesPeople]). */
+internal fun HexGroups.residentManEaters(p: Int): Float {
+    var v = 0f
+    for ((ki, k) in fauna.kinds.withIndex()) { val w = k.takesPeople; if (w > 0f) v += w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg }
+    return v
+}
+
+/** The yearly-scaled share of band [b] (group [g]) beasts of prey would take a week camped at place [p], where their flesh is [pressure] kg/km² (see [stalkedBy]). */
+internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Int, pressure: Float): Float {
+    if (pressure <= 0f) return 0f
+    val h = hw.placeHex[p]
     val cover = 0.5f + land.plants.cover(p)
     val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
@@ -874,9 +889,7 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
     val company = (STALKED_BAND / max(1, g.size).toFloat()).coerceIn(0.5f, 2f).pow(0.3f)
     val sign = b.lapse(Skill.TRACK).pow(0.5f)
     // (Beasts lie up by the paths people and game use: a camp on a busy way is the more dangerous.)
-    val rate = STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * spread * (1f + 0.5f * AMBUSH * wear.at(h)) * years
-    // (Where one was taken the band remembers the danger.)
-    return Stalking(rate, worst)
+    return STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * spread * (1f + 0.5f * AMBUSH * wear.at(h)) * years
 }
 
 /** A band's [rate] of loss to beasts of prey (yearly-scaled share) and the beast most to blame, [by] ("" when none). */

@@ -327,6 +327,9 @@ class HexGroups(
         }
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
+        manEaterKm2.fill(0f)
+        for (g in groups) if (g.alive && g.species.takesPeople > 0f)
+            manEaterKm2[hw.placeHex[g.place]] += g.species.takesPeople * g.size * g.species.massKg / hex.areaKm2.toFloat()
         // The strongest hunting party in each place, and its kind: weaker hunters keep out of its way.
         topStrength.fill(0f); topKind.fill(-1)
         for (g in groups) if (g.alive && g.species.carnivore) {
@@ -799,6 +802,8 @@ class HexGroups(
 
     /** Strongest hunting party in each place last week, and its kind's index (-1 for none). */
     internal val topStrength = FloatArray(n)
+    /** The flesh of the groups of beasts that take people in each hex this week, kg/km², by how readily they do ([stalkRate]). */
+    internal val manEaterKm2 = FloatArray(hex.size)
     internal val topKind = IntArray(n) { -1 }
 
     /**
@@ -1179,6 +1184,17 @@ class HexGroups(
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need (see [walkCost]).
         score -= WALK_COST * d / days
+        // What it would die of there that it can see: the fire (herds weigh it in their food, see [lifewayValue]), plague
+        // among its kind, and for a band the beasts that take people (those of the groups about only where it senses them);
+        // each death the life it ends, as a hunter weighs a chase ([worthChasing]).
+        var dying = fauna.outbreakDeaths(s, p.i)
+        if (s.lifeway != Lifeway.HERD) dying += land.fire.burning[p] * HexFauna.FIRE_ADULT
+        // (And the cold beyond what its clothes, the fire it could keep there and its house keep off: see [HexGroups.liveWeek].)
+        g.band?.let { b ->
+            dying += stalkRate(g, b, p.i, residentManEaters(p.i) + (if (h in sensed) manEaterKm2[h.i] else 0f))
+            dying += min(0.9f, EXPOSURE * b.exposure(weather.temperature[p], fireAt(g, b, p.i), atHouse(b, p.i)) * days / 7f)
+        }
+        score -= dying * lifeWeeks(g)
         // Herds and bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && (!s.carnivore || s.human)) {
             // The season's place draws a herd on, the more so the better it promises and the worse it fares now.
@@ -1200,6 +1216,12 @@ class HexGroups(
         return score
     }
 
+    /**
+     * What a life of [g]'s is worth, in weeks of its need: all it would yet eat, by the odds it lives under now (the hungry,
+     * the cold and the sick have less to lose), as [worthChasing] weighs a hunter lost.
+     */
+    internal fun lifeWeeks(g: HexGroup) = 1f / max(g.deathOdds, g.species.backgroundMortality * years)
+
     internal fun hexKm(a: Int, b: Int): Double = hex.distanceKm(a, b)
     internal fun hexKm(a: Hex, b: Hex): Double = hex.distanceKm(a.i, b.i)
     internal fun territoryKm(s: Species) = sqrt(max(1f, s.startKm2PerAnimal) * s.groupSize / Math.PI.toFloat()) + 5f
@@ -1215,8 +1237,22 @@ class HexGroups(
      */
     internal fun drain(g: HexGroup, p: Int, weather: Weather): Float {
         val s = g.species; val t = weather.temperature[p]
-        return coldNeed(s, g.band?.feels(t) ?: t, weather.date.month, tuning) - 1f + bitten(s, p)
+        return coldNeed(s, g.band?.let { b -> b.feels(t, fireAt(g, b, p), atHouse(b, p)) } ?: t, weather.date.month, tuning) - 1f + bitten(s, p)
     }
+
+    /**
+     * The fire band [b] (group [g]) would keep camped at place [p]: its fire now, less where there is less wood about to
+     * feed it than where it is (the hearth is fed from the trees and scrub round the camp, see [fetchFuel]).
+     */
+    internal fun fireAt(g: HexGroup, b: Band, p: Int): Float {
+        if (p == g.place.i) return b.fire
+        fun wood(q: Int) = min(1f, (land.plants.tree[q] + land.plants.shrub[q]) / 3f)
+        val here = wood(g.place.i)
+        return if (here <= 0f) b.fire else b.fire * min(1f, wood(p) / here)
+    }
+
+    /** Whether band [b] camped at place [p] would be at its house. */
+    internal fun atHouse(b: Band, p: Int) = b.houseHex.i == hw.placeHex[p] && b.house > 0.05f
 
     /** The least [drain] at the places next to hex [here] (in the group's band of places). */
     private fun leastDrainNear(g: HexGroup, here: Int, weather: Weather): Float {
