@@ -107,6 +107,11 @@ class Species(
     val ferocity: Float = 1f,
     /** For a hunter kept as a resident: the biggest game it kills, times its own weight (see [HexFauna.huntResidents]). */
     val preyUpTo: Float = 3f,
+    /**
+     * For a hunter kept as a resident: the biggest game it takes as readily as any, times its own weight; above it
+     * it takes game the less readily the nearer it is to [preyUpTo] (see [HexFauna.preference]).
+     */
+    val preyPreferredUpTo: Float = preyUpTo,
     /** For predators: land per animal at the start, km². */
     val startKm2PerAnimal: Float = 0f,
     /**

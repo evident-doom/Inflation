@@ -184,14 +184,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * Resident hunter [k] at place [p] kills game among the residents there, and among the herds about it this week
      * ([herdsAt]), for up to [meat] of meat: prey from a quarter of its weight to [Species.preyUpTo] times it (the young
-     * of bigger kinds too), each kind as it is common there and by its weight, herd or resident alike, at most
-     * [RESIDENT_KILL_MOST] of a kind's numbers in a week; what it cannot eat of a kill is left as carrion. Returns
-     * what it ate.
+     * of bigger kinds too), each kind as it is common there, by its weight and as readily as the hunter takes game of its
+     * size ([preference]), herd or resident alike, at most [RESIDENT_KILL_MOST] of that game in a week; what it cannot
+     * eat of a kill is left as carrion. Returns what it ate.
      */
     private fun huntResidents(k: Int, p: Int, meat: KgM2, killedSoFar: FloatArray): KgM2 {
         if (meat.v <= 0f) return KgM2.ZERO
         val hunter = kinds[k]
-        val lo = 0.25f * hunter.massKg; val hi = hunter.preyUpTo * hunter.massKg
         val area = land.areaKm2[p]
         var total = 0f
         // (Weights in kg per km2, as the numbers are kept.)
@@ -199,8 +198,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for ((j, s) in kinds.withIndex()) {
             if (j == k || s.carnivore) continue
             val ym = YOUNG_WEIGHT * s.massKg
-            if (s.massKg in lo..hi) wA[j] = adults[j][p] * s.massKg
-            if (ym in lo..hi) wY[j] = young[j][p] * ym
+            wA[j] = adults[j][p] * s.massKg * preference(hunter, s.massKg)
+            wY[j] = young[j][p] * ym * preference(hunter, ym)
             total += wA[j] + wY[j]
         }
         val herds = herdsAt[p]
@@ -208,8 +207,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (herds != null) for ((i, at) in herds.withIndex()) {
             val s = at.g.species
             val ym = YOUNG_WEIGHT * s.massKg
-            if (s.massKg in lo..hi) hA[i] = at.g.adults * at.share / area * s.massKg
-            if (ym in lo..hi) hY[i] = at.g.young * at.share / area * ym
+            hA[i] = at.g.adults * at.share / area * s.massKg * preference(hunter, s.massKg)
+            hY[i] = at.g.young * at.share / area * ym * preference(hunter, ym)
             total += hA[i] + hY[i]
         }
         if (total <= 0f) return KgM2.ZERO
@@ -453,17 +452,28 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Game a resident hunter [s] takes at place [p], kg per km²: residents and herds of its prey's size ([huntResidents]). */
     private fun preyFor(s: Species, p: Int): Float {
-        val lo = 0.25f * s.massKg; val hi = s.preyUpTo * s.massKg
         var v = 0f
         for ((j, ps) in kinds.withIndex()) {
             if (ps.carnivore) continue
-            if (ps.massKg in lo..hi) v += adults[j][p] * ps.massKg
-            if (YOUNG_WEIGHT * ps.massKg in lo..hi) v += young[j][p] * YOUNG_WEIGHT * ps.massKg
+            v += adults[j][p] * ps.massKg * preference(s, ps.massKg)
+            v += young[j][p] * YOUNG_WEIGHT * ps.massKg * preference(s, YOUNG_WEIGHT * ps.massKg)
         }
         herdsAt[p]?.let { for (at in it) { val ps = at.g.species
-            if (ps.massKg in lo..hi) v += at.g.adults * at.share / land.areaKm2[p] * ps.massKg
-            if (YOUNG_WEIGHT * ps.massKg in lo..hi) v += at.g.young * at.share / land.areaKm2[p] * YOUNG_WEIGHT * ps.massKg } }
+            v += at.g.adults * at.share / land.areaKm2[p] * ps.massKg * preference(s, ps.massKg)
+            v += at.g.young * at.share / land.areaKm2[p] * YOUNG_WEIGHT * ps.massKg * preference(s, YOUNG_WEIGHT * ps.massKg) } }
         return v
+    }
+
+    /**
+     * How readily resident hunter [hunter] takes game of [kg], 0..1: not at all under a quarter of its weight or over
+     * [Species.preyUpTo] times it, fully up to [Species.preyPreferredUpTo] times it, and falling off evenly between.
+     * (The even fall is a simplification: the record gives the preferred and the accessible range, not the shape.)
+     */
+    private fun preference(hunter: Species, kg: Float): Float {
+        val r = kg / hunter.massKg
+        if (r < 0.25f || r > hunter.preyUpTo) return 0f
+        if (r <= hunter.preyPreferredUpTo) return 1f
+        return (hunter.preyUpTo - r) / (hunter.preyUpTo - hunter.preyPreferredUpTo)
     }
 
     /** The game each resident hunter takes at each place ([preyFor]) while the residents move; null otherwise. */
