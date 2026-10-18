@@ -1224,10 +1224,15 @@ class HexGroups(
      */
     private fun deathsAt(c: PlanContext, p: Place, h: Hex, prey: Float, crowded: Float): Float {
         val g0 = c.g; val s0 = g0.species
-        // (Herds sicken where their kind crowds, as [sicknessWeek] has it: its own kind there as it knows it, itself included.)
+        // (Herds sicken where their kind crowds, as [sicknessWeek] has it: its kind's animals of both forms over the ground it
+        // would graze there, its own spread over that ground and the others as it knows them, in the place's hex.)
         val sick = if (s0.carnivore) 0f else {
-            val heads = knownHeads(c.kind, p, h, c.sensed) - (if (p == g0.place) g0.size else 0) + g0.size
-            val crowd = heads / hex.areaKm2.toFloat() / (HexFauna.CROWDED * HexFauna.usualDensity(s0) * MIGRANTS_GATHER)
+            val k = fauna.slot(s0)
+            val residents = if (k >= 0) (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p] else 0f
+            val others = knownHeads(c.kind, p, h, c.sensed) - (if (p == g0.place) g0.size else 0) + residents
+            var centre = 0f; var own = 0f
+            rangeShares(g0, h.i) { q, share -> own += share * share * g0.size; if (q == h.i) centre = share }
+            val crowd = (centre * others + own) / (hex.areaKm2.toFloat() * HexFauna.CROWDED * HexFauna.usualDensity(s0))
             HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g0.fed))
         }
         return sick + deathsOfPlace(c, p, h, prey, crowded)
