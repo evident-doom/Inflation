@@ -381,9 +381,6 @@ object Catalogue {
         habitat = Habitat(cover = 0.2f, wet = 0.2f),
         stalking = 0.4f,
         ferocity = 0.8f,
-        // (Golden jackals take prey up to about 15 kg, mostly up to 4: hares, rodents, fawns, not grown gazelle;
-        // Hayward et al. 2017, prey preferences of jackals.)
-        preyUpTo = 1.5f,
         startKm2PerAnimal = 10f,
         followsPeople = true,
         activity = floatArrayOf(0.25f, 0.1f, 0.25f, 0.4f),
@@ -709,7 +706,7 @@ object Catalogue {
      * Kinds that live both ways: spread over the land as residents, gathered into herds for the months their
      * round takes them far (see [gather] and [scatter]).
      */
-    val gathering: Set<Species> by lazy { setOf(GAZELLE, ONAGER) }
+    val gathering: Set<Species> by lazy { setOf(ONAGER) }
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
