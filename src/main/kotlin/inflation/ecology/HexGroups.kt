@@ -330,6 +330,7 @@ class HexGroups(
         }
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
+        fillGrazed()
         manEaterKm2.fill(0f)
         for (g in groups) if (g.alive && g.species.takesPeople > 0f)
             manEaterKm2[hw.placeHex[g.place]] += g.species.takesPeople * g.size * g.species.massKg / hex.areaKm2.toFloat()
@@ -807,6 +808,23 @@ class HexGroups(
     internal val topStrength = FloatArray(n)
     /** The flesh of the groups of beasts that take people in each hex this week, kg/km², by how readily they do ([stalkRate]). */
     internal val manEaterKm2 = FloatArray(hex.size)
+    /** Each herd kind's heads on the ground they graze this week, by hex, both forms: as [sicknessWeek] counts them (see [fillGrazed]). */
+    @delegate:Transient internal val grazed by lazy { Array(kinds.size) { FloatArray(hex.size) } }
+
+    /** [grazed] afresh, before the week's choosing: each herd spread over its grazing ground ([rangeShares]), and the residents in their hex. */
+    private fun fillGrazed() {
+        for (a in grazed) a.fill(0f)
+        for (g in groups) if (g.alive && !g.species.carnivore) {
+            val a = grazed[kindSlot[g.species.index]]
+            rangeShares(g, hw.placeHex[g.place]) { h, share -> a[h] += g.size * share }
+        }
+        val slots = kinds.withIndex().filter { (_, s) -> !s.carnivore && fauna.slot(s) >= 0 }.map { (k, s) -> k to fauna.slot(s) }
+        if (slots.isEmpty()) return
+        for (p in 0 until land.n) {
+            val h = hw.placeHex[p]
+            for ((k, r) in slots) { val m = fauna.adults[r][p] + fauna.young[r][p]; if (m > 0f) grazed[k][h] += m * land.areaKm2[p] }
+        }
+    }
     internal val topKind = IntArray(n) { -1 }
 
     /**
@@ -1070,6 +1088,8 @@ class HexGroups(
         // (A band keeps off the known homes of bands it is not close to: those hexes, once for the week.)
         val keepOff = g.band?.let { b -> b.knownHomes.entries.filter { b.tie(it.key) <= 0f }.map { it.value }.toIntArray() }
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, onRound, roundStrength, fromHere, reach, thirsty, keepOff, weather, date)
+        if (!s.carnivore) { val hs = ArrayList<Int>(7); val ss = ArrayList<Float>(7); rangeShares(g, here.i) { q, share -> hs += q; ss += share }
+            c.ownHexes = hs.toIntArray(); c.ownShares = ss.toFloatArray() }
         for (ri in 0 until reached.size) {
             val h = Hex(reached[ri])
             val d = dist[h]
@@ -1156,7 +1176,10 @@ class HexGroups(
     /** What a group weighing its places this week brings to each of them: worked out once in [planInner], read by [scorePlace]. */
     private class PlanContext(val g: HexGroup, val kind: Int, val here: Hex, val sensed: IntArray, val month: Int, val goal: Int, val goalQ: Float,
         val onRound: Boolean, val roundStrength: Float, val fromHere: Double, val reach: Float, val thirsty: Boolean, val keepOff: IntArray?,
-        val weather: Weather, val date: Date)
+        val weather: Weather, val date: Date) {
+        /** For a herd: the hexes of the ground it grazes where it is now, and its share on each (its own heads in [grazed]). */
+        var ownHexes = IntArray(0); var ownShares = FloatArray(0)
+    }
 
     /**
      * The hand-written score of place [p] (in hex [h], [d] km of going away) for the group weighing its places in [c]:
@@ -1224,15 +1247,17 @@ class HexGroups(
      */
     private fun deathsAt(c: PlanContext, p: Place, h: Hex, prey: Float, crowded: Float): Float {
         val g0 = c.g; val s0 = g0.species
-        // (Herds sicken where their kind crowds, as [sicknessWeek] has it: its kind's animals of both forms over the ground it
-        // would graze there, its own spread over that ground and the others as it knows them, in the place's hex.)
+        // (Herds sicken where their kind crowds, as [sicknessWeek] has it: its kind's animals of both forms over each hex of
+        // the ground it would graze there ([grazed], less its own spread where it is now), and its own spread over that ground.)
         val sick = if (s0.carnivore) 0f else {
-            val k = fauna.slot(s0)
-            val residents = if (k >= 0) (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p] else 0f
-            val others = knownHeads(c.kind, p, h, c.sensed) - (if (p == g0.place) g0.size else 0) + residents
-            var centre = 0f; var own = 0f
-            rangeShares(g0, h.i) { q, share -> own += share * share * g0.size; if (q == h.i) centre = share }
-            val crowd = (centre * others + own) / (hex.areaKm2.toFloat() * HexFauna.CROWDED * HexFauna.usualDensity(s0))
+            val a = grazed[c.kind]
+            var crowd = 0f
+            rangeShares(g0, h.i) { q, share ->
+                var ownNow = 0f
+                for (i in 0 until c.ownHexes.size) if (c.ownHexes[i] == q) ownNow = c.ownShares[i] * g0.size
+                crowd += share * (max(0f, a[q] - ownNow) + share * g0.size)
+            }
+            crowd /= hex.areaKm2.toFloat() * HexFauna.CROWDED * HexFauna.usualDensity(s0)
             HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - g0.fed))
         }
         return sick + deathsOfPlace(c, p, h, prey, crowded)
