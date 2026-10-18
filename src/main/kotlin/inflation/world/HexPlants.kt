@@ -354,8 +354,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         const val ASH_FERTILITY = 0.002f
         /** Grazing, kg/km²/day, that over years turns grassland into short lawn. */
         const val LAWN_SCALE = 8f
-        /** Rooting, kg/km²/day, at which most of the ground is churned. */
-        const val ROOT_SCALE = 2f
+        /**
+         * Rooting, kg/km²/day, at which most of the ground is churned: wild boar at a few a km², digging most of a kilo a
+         * day each, turn over about a tenth of the ground in a year (8-11% of a Pannonian oak forest's floor a year:
+         * Drimaj et al. 2025, Eur. J. Wildl. Res. 71, 10.1007/s10344-025-01994-5; the boar's density there not given).
+         */
+        const val ROOT_SCALE = 30f
         /** How fast trampling wears a path (per unit of trampling, slowing as the path deepens), and how fast an unused one fades, per year. */
         const val TRAIL_WEAR = 0.3f
         const val TRAIL_FADE = 1f
