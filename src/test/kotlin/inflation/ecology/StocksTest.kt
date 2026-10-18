@@ -5,6 +5,7 @@ import inflation.world.WorldConfig
 import java.lang.reflect.Modifier
 import java.util.IdentityHashMap
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -41,6 +42,18 @@ class StocksTest {
             }
         }
         assertTrue(unlisted.isEmpty(), "tables neither in HexSim.stocks() nor in NOT_STOCKS:\n" + unlisted.joinToString("\n"))
+    }
+
+    @Test
+    fun `the reports' wider pools add up their stocks`() {
+        val sim = HexSim(World.generate(cfg))
+        val stocks = sim.stocks()
+        val m = stocks.matter()
+        for (pool in listOf("plants", "small animals", "resident animals", "herds, packs and bands")) {
+            val parts = stocks.list.filter { it.group == pool }
+            assertTrue(parts.isNotEmpty(), "no stocks in $pool")
+            assertEquals(parts.sumOf { it.sum() } / 1e6, m.getValue(pool), 1e-9 * (1 + m.getValue(pool)))
+        }
     }
 
     companion object {
