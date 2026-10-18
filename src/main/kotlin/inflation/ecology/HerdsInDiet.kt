@@ -8,7 +8,7 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /*
- * EXPERIMENT (branch only, not for main): the herds a hunter came on this week are foods in its one diet pass
+ * Trial (t.herdsInDiet, off until its form-swap test is judged): the herds a hunter came on this week are foods in its one diet pass
  * ([forage]), as resident game is, instead of chased where they were met. The meetings still happen in [meet]
  * (and a herd that sees the hunters first still turns aside there), but whether the hunter tries them, and how
  * many, is settled with the rest of its week's food: it chases a herd only while it is hungry and the herd is
@@ -17,7 +17,7 @@ import kotlin.math.roundToInt
  * [forage] runs); and a chase no longer alarms the herd for its later meetings that week.
  */
 
-/** EXPERIMENT switch: herds met are foods in the hunter's one diet pass (see [HerdMet]); off: chased where met. */
+/** Trial switch: herds met are foods in the hunter's one diet pass (see [HerdMet]); off: chased where met. */
 internal val HERDS_IN_DIET = inflation.Config.flag("t.herdsInDiet", false)
 
 /**

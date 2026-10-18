@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, claude/project-thread-6gdbsm]
+    branches: [main]
   push:
-    branches: [main, claude/project-thread-6gdbsm]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}

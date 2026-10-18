@@ -41,7 +41,7 @@ Animals (`inflation.ecology`):
 | Layer | Model |
 | --- | --- |
 | Soil and small life (`HexSmallLife`) | Litter, organic matter and soil animals; carrion rotting by warmth; plant-eating and biting insects, rodents, reptiles and amphibians, pollinators setting the fruit crop; hares, rock hyrax, six wild birds (quail and greylag geese migrate), tortoises, foxes and wildcats; golden eagles on crags; griffon vulture colonies soaring 80 km for carcasses |
-| Resident plant-eaters (`HexFauna`) | Densities per place for the kinds that keep to small home ranges: grazing shared by diet, forage quality, water within reach, crowding disease, shifts between height bands, spill to neighbouring hexes |
+| Residents (`HexFauna`) | Densities per place for the plant-eaters and hunters that keep to small home ranges: grazing shared by diet, forage quality, water within reach, crowding disease, shifts between height bands, spill to neighbouring hexes |
 | Herds and packs (`HexGroups`) | Migratory herds and the hunters as groups that plan a week's walk over the hexes; meetings on the way are timetabled and settled in order (herds watch and turn aside, hunters chase and stop to eat, rival packs give way or fight); territories, thirst, wariness after a chase, hiding in cover, moonlight, seasonal memory |
 | Sense of direction (`HexBearings`) | Each month every kind knows the country within 60 km and the peaks it can see out to 200 km, and feels which way is cooler or warmer when the month is wrong for its coat; groups far out of their country trek that way |
 
@@ -72,12 +72,25 @@ above 2000 m most of the year.
 
 ## Learned behaviour (`inflation.learning`)
 
-A herd kind can choose where to go each week with a small network (`HexLearning`: 22 inputs, two
-hidden layers of 32) that scores the places it could reach, from the same inputs as the
-hand-written rule. It is first fitted to copy the rule, then evolved by evolution strategies on
-600 km mountain worlds, with fitness from how long a lineage lives and grows. Plain Kotlin, no
-dependencies. Seasonal migration training is paused until the hex model has the 1 km model's
-fundamentals.
+Every choice a group makes (where to go each week, and its ways: effort on each food, stores,
+what to make) has a hand-written rule, and can instead be made by a small network (`Mlp`, plain
+Kotlin, no dependencies). There are three move networks by role (`Role`): one for the herds, one
+for the hunters and one for people; kinds within a role share it and are told apart by their traits
+and a learned identity. Bands' ways have a network of their own (`ways.mlp`).
+
+- `HexPpo` trains them by proximal policy optimisation: each round, training worlds with all the
+  animals and people run on the current networks, a share of every kind's choices is recorded, and
+  each choice is judged by what became of the group's members over the following weeks (`Outcomes`,
+  `Critic`). Every few rounds each role's new network is set against its kept one on a settled test
+  world (`EcoCheck`, keys `ppo.check*`) and kept only if the whole ecosystem holds up (`kept/`).
+  Command line: `PpoOptions.USAGE`; learning settings are `ppo.*` keys.
+- `HexEvolveWays` evolves bands', herds' or packs' ways by evolution strategies (keys `evolveWays.*`).
+- `HexPickWorld` ranks small worlds by how hard their seasons push herds to migrate.
+
+A network is saved with a `.names` file listing its inputs and outputs, so it keeps working as
+features are added (`Schema`, `docs/design/model-compatibility.md`). `nets=DIR` in the config file
+makes the networks in DIR the model for any run (`LearnedModel`); without it the hand-written rules
+are the model.
 
 ## Running
 
@@ -89,6 +102,7 @@ Requires Gradle 9 (the wrapper is included); a JDK 21 toolchain is downloaded if
 ./gradlew hexViewer -PviewerArgs="--seed 1"
 ./gradlew hexFauna -PfaunaArgs="--seed 1 --years 10"
 ./gradlew runTool -Pmain=inflation.tools.WindReportKt -PtoolArgs="--seed 1"   # any tool, by its main class
+./gradlew hexPpo -PppoArgs="--out runs/ppo --size 2000 --rounds 20"           # the trainer
 ```
 
 Every tool, what it answers and how to run it: `docs/tools.md`.

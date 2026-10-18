@@ -105,3 +105,6 @@ tool("residentHunger", "inflation.tools.ResidentHungerCheckKt", "hungerArgs",
 
 tool("floodplainCheck", "inflation.tools.FloodplainCheckKt", "floodArgs",
     description = "Measures the river plains world generation makes and, with --years, whether they flood and stay moist (-PfloodArgs=\"--seed 1 --years 2\").")
+
+tool("hexPpo", "inflation.learning.HexPpo", "ppoArgs", heap = null,
+    description = "The trainer: learns the move networks and bands' ways by PPO (-PppoArgs=\"--out DIR --size KM --rounds N\"; settings are ppo.* config keys).")

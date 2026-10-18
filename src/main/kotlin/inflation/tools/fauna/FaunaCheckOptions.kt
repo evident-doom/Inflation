@@ -37,7 +37,7 @@ class FaunaCheckOptions(
             HexSnapshot.load(sim, f)
             println("carrying on the world saved in $f, at ${sim.weather.date} (loaded in %.1f s)".format((System.nanoTime() - t0) / 1e9))
             if (replicate != 0L) { sim.weather.reseed(replicate); println("weather drawn afresh: replicate $replicate") }
-            // (The form-swap experiment: kinds run in the other form from the settled state on.)
+            // (The form-swap test: kinds run in the other form from the settled state on.)
             sim.swapForms { println(it) }
         }
         Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }

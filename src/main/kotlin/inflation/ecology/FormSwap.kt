@@ -3,27 +3,12 @@ package inflation.ecology
 import kotlin.math.roundToInt
 
 /*
- * EXPERIMENT (branch only, not for main): the same kind run in the other form than its own, from a
- * settled state, to see what being a herd or a resident costs a kind (t.formSwap=NAME,NAME). A resident
+ * For tests: the same kind run in the other form than its own, from a settled state, to see what being a herd or a resident costs a kind (t.formSwap=NAME,NAME). A resident
  * kind's animals are gathered into herds of its kind's full herd size (as big as herds gather,
  * [Species.maxGroupSize] × [HERD_UNIT]) at places drawn by its numbers there; a herd kind's animals are
  * spread as residents over the ground each herd ranges over this week ([rangeShares]). Fat, feeding,
  * protein and the birth month go with them.
  */
-
-/** EXPERIMENT switch: herds and residents hunted by one rule (see [seenFirst], [killChance], [worthChasing], [HerdAt]); off: as on main. */
-internal val SHARED_HUNT = inflation.Config.flag("t.sharedHunt", true)
-
-/** EXPERIMENT switch: herds reach their food as residents do (a share of the place's food out of reach, not of their need), and residents pay for the km they move as herds do; off: as on main. */
-internal val SHARED_FEED = inflation.Config.flag("t.sharedFeed", true)
-
-/** EXPERIMENT switch: counts each step of the hunt, herds and residents alike, by prey kind, into the history ("hunt diag/KIND/STEP"). */
-internal val HUNT_DIAG = inflation.Config.flag("t.huntDiag", false)
-
-/** Adds [n] to the hunt-step count [what] for prey [s] (kept in hundredths, see [HexHistory]). */
-internal fun HexGroups.diag(s: Species, what: String, n: Float) {
-    if (HUNT_DIAG && n > 0f) stats.hunting.merge("diag:${s.name}:$what", (n * 100f).roundToInt(), Int::plus)
-}
 
 /** Swaps the form of each kind in [Catalogue.formSwap] (after a settled state is loaded); [log] says what it did. */
 fun HexSim.swapForms(log: (String) -> Unit) {

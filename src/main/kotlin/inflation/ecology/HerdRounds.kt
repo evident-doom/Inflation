@@ -40,7 +40,7 @@ internal fun HexGroups.growRounds(month: Int) {
 }
 
 /**
- * EXPERIMENT (form swap, see [toHerds]): kind [s]'s rounds grown now, alone, its herds taking them as at the
+ * For the form-swap test (see [toHerds]): kind [s]'s rounds grown now, alone, its herds taking them as at the
  * first growth (a [inflation.Tuning.roundStartShare] of them; the rest keep to their own country).
  */
 internal fun HexGroups.growRoundsFor(s: Species, month: Int) {

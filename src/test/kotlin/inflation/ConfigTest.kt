@@ -69,14 +69,16 @@ class ConfigTest {
         } finally { f.delete() }
     }
 
-    /** Every tuning key the code reads, with its default where that is written as a number: "t.name" to "1.5", or to null. */
+    /** Every tuning key the code reads (switches and names too), with its default where that is written as a number: "t.name" to "1.5", or to null. */
     private fun keysInCode(): Map<String, String?> {
         val read = Regex("""Config\.(?:float|double|int)\("(t\.\w+)",\s*([^)]+)\)""")
         val tuning = Regex("""\b[fdi]\("(\w+)",\s*([^)]+)\)""")
+        val switch = Regex("""Config\.(?:flag|string)\("(t\.\w+)"""")
         val out = HashMap<String, String>()
         for (file in File("src/main/kotlin").walkTopDown().filter { it.name.endsWith(".kt") }) {
             val text = file.readText()
             for (m in read.findAll(text)) out[m.groupValues[1]] = m.groupValues[2]
+            for (m in switch.findAll(text)) out[m.groupValues[1]] = ""
             if (file.name == "Tuning.kt") for (m in tuning.findAll(text)) out["t." + m.groupValues[1]] = m.groupValues[2]
         }
         return out.mapValues { (_, d) -> d.trim().removeSuffix("f").toDoubleOrNull()?.toString() }

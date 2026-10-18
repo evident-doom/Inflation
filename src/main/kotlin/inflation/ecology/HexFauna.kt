@@ -64,7 +64,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * The resident kinds, and for each, adults and young per km² of each place: those that live only so, then the herd kinds that
-     * also live spread out between their gatherings ([Catalogue.gathering]), and those run as residents in the form-swap experiment.
+     * also live spread out between their gatherings ([Catalogue.gathering]), and those run as residents in the form-swap test.
      */
     @Transient val kinds = (Catalogue.all.filter { Catalogue.resident(it) } + Catalogue.gathering.sortedBy { it.index } +
         Catalogue.formSwap.filter { !Catalogue.resident(it) }).distinct()
@@ -1045,8 +1045,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 }
             }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
-            // (With [SHARED_FEED]: those that came over from the next hex walked it, at a herd's cost a km out of their fat, see [walkCost].)
-            if (SHARED_FEED) for (p in 0 until n) if (arrived[p] > 0f) {
+            // (Those that came over from the next hex walked it, at a herd's cost a km out of their fat, see [walkCost].)
+            for (p in 0 until n) if (arrived[p] > 0f) {
                 val heads = (a[p] + y[p]) * land.areaKm2[p]
                 if (heads > 0f) reserve[k][p] = max(0f, reserve[k][p] - WALK_COST * hex.hexKm.toFloat() * min(1f, arrived[p] / heads))
             }
