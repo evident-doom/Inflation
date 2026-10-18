@@ -70,13 +70,13 @@ object HexSnapshot {
      * 1.10: herds sicken by crowding as residents do, counted over the ground each herd grazes.
      * 1.11: fallen mast lies as winter food, the mast and root stocks from records; rooting churns the ground at its
      * recorded rate; mothers bear as their food and reserves can build their young.
-     * 1.12: groups and residents weigh every death a place holds when choosing it (#212).
-     * 2.0: every plant-eater can live both ways: herds condense where hungry residents have room beyond their reach.
-     * 2.1: resident hunters, disease and crowding meet a non-migratory herd as its kind's groups spread over HERD_UNIT times the ground.
-     * 2.2: residents leave as groups where staying is clearly deadlier than a place a month away, and settle where it is not; jackals take prey to 15 kg.
+     * 1.12: resident hunters take game the less readily the bigger it is past their preferred size; jackals prefer 4 kg, take 15 at most.
+     * 2.0: every plant-eater lives both ways: residents leave as groups where staying is clearly deadlier than a place a
+     * month away, and groups settle where it is not; resident hunters, disease and crowding meet a non-migratory herd as
+     * its kind's groups over HERD_UNIT times the ground.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 2
+    const val MODEL_MINOR = 0
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
