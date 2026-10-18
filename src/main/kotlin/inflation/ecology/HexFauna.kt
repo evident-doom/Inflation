@@ -93,6 +93,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     val fedFrom = Array(kinds.size) { Array(Fed.entries.size) { DoubleAdder() } }
     /**
+     * For the check, since last read: each kind's resident head-weeks ([Stuck.HEADS]); those hungry (fed under
+     * [STUCK_FED]) with no neighbouring place the spill could take them to that is better ([Stuck.STUCK]); of those,
+     * the ones where some border is closed to them, by sea or ground they cannot cross ([Stuck.AT_EDGE]); and the
+     * most of a kind so held in any one week, as a share ([Stuck.PEAK]). Where gradual movement piles animals up.
+     */
+    @Transient val stuck = Array(kinds.size) { DoubleArray(Stuck.entries.size) }
+    /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
      * away from ground where its kind has been killed (the landscape of fear).
      */
@@ -992,6 +999,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 worthOf[q] = worthOrNothing(fareFor(s, q) * fresh * suits(s, q) * tether(s, q) * (1f - FEAR_WEIGHT * shy(s, q)) /
                     (1f + (a[q] + y[q]) / (CROWD * usual[k])))
             }
+            var weekHeads = 0.0; var weekStuck = 0.0; var weekEdge = 0.0
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
                 val need = (1f - f[p]).coerceIn(0f, 1f)
@@ -1001,13 +1009,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Where they could go: each neighbouring hex at about the same height (its band, or the one above
                 // or below: so they work up a valley to the high pasture and down again), weighed by food, how
                 // fresh and rich in protein it is, and how easy the border is.
-                var total = 0f; var best = 0f
+                var total = 0f; var best = 0f; var closed = false
                 val ws = FloatArray(18); val wq = IntArray(18) { -1 }
                 for (d in 0 until 6) {
                     val nh = hex.neighbour(h, d)
-                    if (nh < 0) continue
+                    if (nh < 0) { closed = true; continue }
                     val e = cross[h * 6 + d]
-                    if (!e.isFinite()) continue
+                    if (!e.isFinite()) { closed = true; continue }
                     val ease = hex.hexKm.toFloat() / e
                     val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
                     for (db in -1..1) {
@@ -1031,9 +1039,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     for ((nh, gapKm) in links) { if (gapKm > swim) continue; val q = hw.placeOf[b][nh].takeIf { it >= 0 } ?: continue
                         val wq = SEA_SPILL * (1f - gapKm / swim) * land.areaKm2[q] * (fareFor(s, q) + 1e-4f); if (wq > seaW) { seaW = wq; seaTo = q } }
                 }
+                val here = worthOf[p]
+                val heads = ((a[p] + y[p]) * land.areaKm2[p]).toDouble()
+                weekHeads += heads
+                if (f[p] < STUCK_FED && best <= here) { weekStuck += heads; if (closed) weekEdge += heads }
                 if (total <= 0f) continue
                 // (And the more so the better the country next door is than here: as the seasons turn, they follow the fresh pasture.)
-                val here = worthOf[p]
                 val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
                 val go = min(0.5f, leave + SPILL_BETTER * better)
                 val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]
@@ -1052,6 +1063,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     arrived[q] += (goA + goY) * ws[i] / total
                 }
             }
+            stuck[k].let { it[Stuck.HEADS.ordinal] += weekHeads; it[Stuck.STUCK.ordinal] += weekStuck; it[Stuck.AT_EDGE.ordinal] += weekEdge
+                if (weekHeads > 0.0) it[Stuck.PEAK.ordinal] = max(it[Stuck.PEAK.ordinal], weekStuck / weekHeads) }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
             // (Those that came over from the next hex walked it, at a herd's cost a km out of their fat, see [walkCost].)
             for (p in 0 until n) if (arrived[p] > 0f) {
@@ -1068,6 +1081,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val HABITAT = 3f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year. */
         const val CROWDED = 4f
+        /** For the check only ([stuck]): fed below this counts as hungry. */
+        const val STUCK_FED = 0.8f
         /**
          * Protein in forage, against fresh growth: cured grass and straw keep some of their energy but
          * lose most of their protein (about 4% crude protein against 16% green, though grazers pick the
@@ -1192,6 +1207,9 @@ enum class ResidentDeath(val cause: DeathCause) {
 }
 @Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.get(d: ResidentDeath) = this[d.ordinal]
 @Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.set(d: ResidentDeath, v: Double) { this[d.ordinal] = v }
+
+/** Residents held hungry where they are ([HexFauna.stuck]). */
+enum class Stuck { HEADS, STUCK, AT_EDGE, PEAK }
 
 /** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, straw, prey and carrion, reserves; and the animals counted. */
 enum class Fed { PLANTS, STRAW, ANIMAL, RESERVES, HEADS }
