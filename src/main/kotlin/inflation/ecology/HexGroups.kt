@@ -828,6 +828,15 @@ class HexGroups(
     @Transient internal val foreseenCrowd = ConcurrentHashMap<Int, Float>()
     /** For crowdDiag=KIND: the crowd each herd of that kind met this week ([sicknessWeek]), by its id. */
     @Transient internal val metCrowd = ConcurrentHashMap<Int, Float>()
+    /**
+     * For crowdDiag=KIND: the crowd each herd of that kind would have met where it ended the week had the other herds and
+     * the residents stayed as they were when it chose ([planCrowd]); and whether it reached the place it chose.
+     */
+    @Transient internal val metAsPlannedCrowd = ConcurrentHashMap<Int, Float>()
+    @Transient internal val reachedChoice = ConcurrentHashMap<Int, Boolean>()
+    /** For crowdDiag=KIND: each herd's own spread as it chose ([PlanContext.ownHexes], [PlanContext.own]) and the place it chose. */
+    internal class ChoiceDiag(val ownHexes: IntArray, val ownShares: FloatArray, val own: Map<Int, Float>, val place: Int)
+    @Transient internal val choiceDiag = ConcurrentHashMap<Int, ChoiceDiag>()
 
     /**
      * The herds' grazing ground: each herd's ([grazingRange]: places, and its share of the week on each) by its id, and
@@ -1243,7 +1252,8 @@ class HexGroups(
             println("plan ${s.name} #${g.id} month ${date.month + 1}: chose " + parts(best) + (towards?.let { " | toward goal " + parts(it) } ?: ""))
         }
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
-        if (crowdDiag == s.name) foreseenCrowd[g.id] = foreseenCrowd(c, best.i, hw.placeHex[best])
+        if (crowdDiag == s.name) { foreseenCrowd[g.id] = foreseenCrowd(c, best.i, hw.placeHex[best])
+            choiceDiag[g.id] = ChoiceDiag(c.ownHexes, c.ownShares, c.own, best.i) }
         return Plan(best, pathTo(best.i))
     }
 
@@ -1351,6 +1361,19 @@ class HexGroups(
         val g = c.g; val a = grazed[c.kind]; val heads = planGround.heads
         return herdCrowd(g, h, grazingRange(g, p), { q, share -> max(0f, a[q] - ownShare(c, q) * g.size) + share * g.size }) { q, share ->
             max(0f, (heads[groundKey(c.kind, q)] ?: 0f) - (c.own[q] ?: 0f) * g.size) + share * g.size }
+    }
+
+    /**
+     * For crowdDiag: how crowded herd [g] would be grazing [range] about hex [h] had the other herds and the residents
+     * stayed as they were when it chose ([grazed], [planGround], less its own heads as it chose).
+     */
+    internal fun planCrowd(g: HexGroup, h: Int, range: List<Pair<Int, Float>>): Float? {
+        val d = choiceDiag[g.id] ?: return null
+        val a = grazed[kindSlot[g.species.index]]; val heads = planGround.heads; val k = kindSlot[g.species.index]
+        fun ownAt(q: Int): Float { for (i in d.ownHexes.indices) if (d.ownHexes[i] == q) return d.ownShares[i]; return 0f }
+        reachedChoice[g.id] = g.place.i == d.place
+        return herdCrowd(g, h, range, { q, share -> max(0f, a[q] - ownAt(q) * g.size) + share * g.size }) { q, share ->
+            max(0f, (heads[groundKey(k, q)] ?: 0f) - (d.own[q] ?: 0f) * g.size) + share * g.size }
     }
 
     /** The share of [c]'s herd at hex [q], spread over the ground it grazes where it is now (as it counts in [grazed] and [herdWantKg]). */

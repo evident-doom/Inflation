@@ -705,8 +705,10 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
     val key = s.index.toLong() * hex.size
     val crowd = if (s.carnivore) 0f else {
         val k = kindSlot[s.index]
-        herdCrowd(g, hw.placeHex[g.place], weekGround.ranges[g.id] ?: listOf(g.place.i to 1f), { h, _ -> grazing[key + h] ?: 0f },
-            { q, share -> weekGround.heads[groundKey(k, q)] ?: (g.size * share) }).also { if (crowdDiag == s.name) metCrowd[g.id] = it }
+        val range = weekGround.ranges[g.id] ?: listOf(g.place.i to 1f)
+        herdCrowd(g, hw.placeHex[g.place], range, { h, _ -> grazing[key + h] ?: 0f },
+            { q, share -> weekGround.heads[groundKey(k, q)] ?: (g.size * share) }).also { if (crowdDiag == s.name) { metCrowd[g.id] = it
+                planCrowd(g, hw.placeHex[g.place], range)?.let { m -> metAsPlannedCrowd[g.id] = m } } }
     }
     // (Hunters by their kind's numbers over the ground they range over, as residents by theirs in their place.)
     val packs = if (s.carnivore && !s.human) packCrowding(g, kinNow, usual) else 0f
