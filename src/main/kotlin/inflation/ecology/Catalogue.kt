@@ -5,6 +5,15 @@ import java.util.Properties
 
 object Catalogue {
     /**
+     * Yearly share of hoofed young dying of causes not modelled (stillbirth, desertion, birth defects, failing to suckle,
+     * falls). Where nothing hunts them, about a fifth of temperate ungulate young die as newborns, and predators
+     * cause some 70% of the losses where they hunt (Linnell et al. 1995); on Rum, free of predators, 18% of red deer
+     * calves died before five months, most in their first week, chiefly deserted, stillborn or malformed (Guinness,
+     * Clutton-Brock and Albon 1978). Hunger, cold, crowding sickness, eagles and hunters come on top, each modelled.
+     */
+    const val HOOFED_YOUNG_LOST = 0.2f
+
+    /**
      * Where each kind settled in a long run, animals per 1000 km² of land (settled-start.properties);
      * null for a kind with no settled value.
      */
@@ -25,7 +34,7 @@ object Catalogue {
         dailyTravelKm = 6f, maxDailyTravelKm = 30f, senseKm = 4f,
         daysWithoutWater = 5, waterFromFood = 0.8f,
         birthMonth = 4, birthMonths = 2, youngPerFemale = 1f, yearsToMaturity = 1f,
-        backgroundMortality = 0.08f, snowLimitMm = 40f,
+        backgroundMortality = 0.08f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 40f,
         products = Products(meat = 9f, fat = 0.5f, hide = 1.2f, bone = 2.5f, sinew = 0.2f, hornOrAntler = 0.3f),
         comfortC = 0f..36f, 
         speedKmh = 80f,
@@ -44,8 +53,8 @@ object Catalogue {
         dailyTravelKm = 3f, maxDailyTravelKm = 20f, senseKm = 1f,
         daysWithoutWater = 4, waterFromFood = 0.9f,
         birthMonth = 5, birthMonths = 1, youngPerFemale = 1.6f, yearsToMaturity = 2f,
-        // (Half or more of the fawns are lost in their first year, to foxes, eagles, boar, cold and wet.)
-        backgroundMortality = 0.07f, youngMortality = 0.4f, snowLimitMm = 150f,
+        // (Snow 50 cm deep, some 125 mm of water, bounds it in the north: Danilkin 1996, Mysterud and Østbye 2006.)
+        backgroundMortality = 0.07f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 125f,
         products = Products(meat = 12f, fat = 0.5f, hide = 1.5f, bone = 3f, sinew = 0.2f, hornOrAntler = 0.3f),
         comfortC = -8f..29f, winterCoat = true,
         speedKmh = 70f,
@@ -64,7 +73,7 @@ object Catalogue {
         dailyTravelKm = 4f, maxDailyTravelKm = 25f, senseKm = 2f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
         birthMonth = 5, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, snowLimitMm = 150f,
+        backgroundMortality = 0.1f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 150f,
         products = Products(meat = 32f, fat = 2f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 2f),
         comfortC = -5f..35f, winterCoat = true,
         speedKmh = 65f,
@@ -84,7 +93,7 @@ object Catalogue {
         dailyTravelKm = 6f, maxDailyTravelKm = 40f, senseKm = 3f,
         daysWithoutWater = 3, waterFromFood = 0.5f,
         birthMonth = 5, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 3f,
-        backgroundMortality = 0.08f, snowLimitMm = 180f,
+        backgroundMortality = 0.08f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 180f,
         products = Products(meat = 75f, fat = 6f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 5f),
         comfortC = -12f..29f, winterCoat = true,
         speedKmh = 60f,
@@ -105,7 +114,7 @@ object Catalogue {
         dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 3f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
         birthMonth = 4, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.1f, snowLimitMm = 80f,
+        backgroundMortality = 0.1f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 80f,
         products = Products(meat = 21f, fat = 1.5f, hide = 3f, bone = 5.5f, sinew = 0.4f, hornOrAntler = 4f),
         comfortC = 0f..38f, winterCoat = true,
         speedKmh = 55f,
@@ -126,7 +135,9 @@ object Catalogue {
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 2, waterFromFood = 0.4f,
         birthMonth = 4, birthMonths = 2, youngPerFemale = 5f, yearsToMaturity = 1.5f,
-        backgroundMortality = 0.2f, youngMortality = 0.6f,
+        // Piglets and adults die mostly by hunting, then hard winters; few of other causes (Keuling et al. 2013,
+        // Jędrzejewski et al. 1992), so the unmodelled adult rate is that of other hoofed kinds of its size.
+        backgroundMortality = 0.08f, youngMortality = HOOFED_YOUNG_LOST,
         snowLimitMm = 110f,
         products = Products(meat = 45f, fat = 8f, hide = 5f, bone = 9f, sinew = 0.5f, hornOrAntler = 0.5f),
         comfortC = -8f..34f, winterCoat = true,
@@ -150,7 +161,7 @@ object Catalogue {
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 2f,
         daysWithoutWater = 2, waterFromFood = 0.2f,
         birthMonth = 4, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 3f,
-        backgroundMortality = 0.06f, snowLimitMm = 200f,
+        backgroundMortality = 0.06f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 200f,
         products = Products(meat = 370f, fat = 40f, hide = 40f, bone = 80f, sinew = 4f, hornOrAntler = 6f),
         comfortC = -12f..33f, winterCoat = true,
         speedKmh = 50f,
@@ -171,7 +182,7 @@ object Catalogue {
         // Wild asses of the desert steppe go three or four days between drinks, and get water from green grass.
         daysWithoutWater = 4, waterFromFood = 0.4f,
         birthMonth = 5, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2f,
-        backgroundMortality = 0.05f, snowLimitMm = 150f,
+        backgroundMortality = 0.05f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 150f,
         products = Products(meat = 110f, fat = 8f, hide = 15f, bone = 25f, sinew = 2f),
         comfortC = -8f..38f, winterCoat = true,
         speedKmh = 70f,
@@ -195,7 +206,7 @@ object Catalogue {
         dailyTravelKm = 4f, maxDailyTravelKm = 10f, senseKm = 1f,
         daysWithoutWater = 1, waterFromFood = 0f,
         birthMonth = 6, birthMonths = 4, youngPerFemale = 0.4f, yearsToMaturity = 8f,
-        backgroundMortality = 0.04f, snowLimitMm = 20f,
+        backgroundMortality = 0.04f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 20f,
         products = Products(meat = 600f, fat = 80f, hide = 100f, bone = 150f, sinew = 5f, hornOrAntler = 3f),
         comfortC = 10f..36f, 
         speedKmh = 30f,
@@ -222,7 +233,8 @@ object Catalogue {
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 4f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
         birthMonth = 0, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 5f,
-        backgroundMortality = 0.05f, snowLimitMm = 600f,
+        // (Cubs lost a year: 0.04 to 0.35, mostly to infanticide by incoming males; Swenson et al. 2001.)
+        backgroundMortality = 0.05f, youngMortality = 0.2f, snowLimitMm = 600f,
         products = Products(meat = 70f, fat = 30f, hide = 12f, bone = 15f, sinew = 1f, fur = true),
         comfortC = -15f..28f, winterCoat = true,
         speedKmh = 50f,
@@ -302,7 +314,8 @@ object Catalogue {
         birthMonth = 6, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 2.5f,
         backgroundMortality = 0.07f, youngMortality = 0.4f, snowLimitMm = 300f,
         products = Products(meat = 18f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
-        comfortC = -8f..35f, 
+        comfortC = -8f..35f, winterCoat = true,
+        // (Its winter fur grows to some 70 mm on the back, against 20-25 in summer: Heptner and Sludskij 1972.)
         speedKmh = 58f,
         domestication = floatArrayOf(0.1f, 0.4f, 0.1f, 0.0f, 0.2f, 0.0f),
         habitat = Habitat(cover = 0.7f, rugged = 0.6f),
@@ -350,7 +363,8 @@ object Catalogue {
         birthMonth = 5, birthMonths = 2, youngPerFemale = 2f, yearsToMaturity = 2f,
         backgroundMortality = 0.07f, youngMortality = 0.3f, snowLimitMm = 200f,
         products = Products(meat = 14f, fat = 1f, hide = 2.5f, bone = 4f, sinew = 0.2f, fur = true),
-        comfortC = 0f..38f, 
+        comfortC = 0f..38f, winterCoat = true,
+        // (A dense, soft winter coat with underfur, shed for a coarse summer one: Heptner and Sludskii 1992.)
         speedKmh = 50f,
         domestication = floatArrayOf(0.8f, 0.3f, 0.2f, 0.3f, 0.3f, 0.2f),
         habitat = Habitat(rugged = 0.3f),
@@ -401,7 +415,8 @@ object Catalogue {
         dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
         birthMonth = 7, birthMonths = 1, youngPerFemale = 1.2f, yearsToMaturity = 2f,
-        backgroundMortality = 0.07f, snowLimitMm = 300f,
+        // (It all but stops moving past 90-100 cm of snow, some 250 mm of water: Kelsall and Prescott 1967, Nasimovich 1955.)
+        backgroundMortality = 0.07f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 250f,
         products = Products(meat = 200f, fat = 15f, hide = 25f, bone = 45f, sinew = 3f, hornOrAntler = 15f),
         comfortC = -30f..17f, winterCoat = true,
         speedKmh = 55f,
@@ -426,7 +441,7 @@ object Catalogue {
         dailyTravelKm = 5f, maxDailyTravelKm = 25f, senseKm = 3f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
         birthMonth = 4, birthMonths = 1, youngPerFemale = 1.3f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, snowLimitMm = 100f,
+        backgroundMortality = 0.1f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 100f,
         products = Products(meat = 18f, fat = 1.5f, hide = 3f, bone = 5f, sinew = 0.4f, hornOrAntler = 3f),
         comfortC = -15f..35f, winterCoat = true,
         speedKmh = 50f,
@@ -451,7 +466,7 @@ object Catalogue {
         // Steppe horses drink once a day or two but go three days between waterholes in a pinch.
         daysWithoutWater = 3, waterFromFood = 0.3f,
         birthMonth = 6, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.06f, snowLimitMm = 250f,
+        backgroundMortality = 0.06f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 250f,
         products = Products(meat = 140f, fat = 10f, hide = 18f, bone = 30f, sinew = 2f),
         comfortC = -25f..30f, winterCoat = true,
         speedKmh = 70f,
@@ -475,7 +490,7 @@ object Catalogue {
         dailyTravelKm = 5f, maxDailyTravelKm = 25f, senseKm = 3f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
         birthMonth = 5, birthMonths = 1, youngPerFemale = 1.2f, yearsToMaturity = 2f,
-        backgroundMortality = 0.12f, snowLimitMm = 80f,
+        backgroundMortality = 0.12f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 80f,
         products = Products(meat = 18f, fat = 2f, hide = 3f, bone = 5f, sinew = 0.3f, hornOrAntler = 2f),
         comfortC = -15f..32f, winterCoat = true,
         speedKmh = 55f,
@@ -500,7 +515,7 @@ object Catalogue {
         dailyTravelKm = 8f, maxDailyTravelKm = 40f, senseKm = 4f,
         daysWithoutWater = 3, waterFromFood = 0.5f,
         birthMonth = 5, birthMonths = 1, youngPerFemale = 1.1f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, snowLimitMm = 100f,
+        backgroundMortality = 0.1f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 100f,
         products = Products(meat = 45f, fat = 5f, hide = 6f, bone = 12f, sinew = 0.8f, hornOrAntler = 8f),
         comfortC = -30f..25f, winterCoat = true,
         speedKmh = 60f,
@@ -525,7 +540,7 @@ object Catalogue {
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 4f,
         daysWithoutWater = 30, waterFromFood = 0.95f,
         birthMonth = 3, birthMonths = 6, youngPerFemale = 0.8f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.08f, snowLimitMm = 20f,
+        backgroundMortality = 0.08f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 20f,
         products = Products(meat = 30f, fat = 2f, hide = 5f, bone = 8f, sinew = 0.6f, hornOrAntler = 2f),
         comfortC = 8f..45f,
         speedKmh = 60f,
@@ -572,7 +587,7 @@ object Catalogue {
         dailyTravelKm = 8f, maxDailyTravelKm = 40f, senseKm = 3f,
         daysWithoutWater = 5, waterFromFood = 0.5f, // goes days without drinking where the grass is green
         birthMonth = 4, birthMonths = 2, youngPerFemale = 0.8f, yearsToMaturity = 2f,
-        backgroundMortality = 0.08f, snowLimitMm = 30f,
+        backgroundMortality = 0.08f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 30f,
         products = Products(meat = 70f, fat = 4f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 2f),
         comfortC = 5f..40f,
         speedKmh = 70f,
@@ -593,7 +608,7 @@ object Catalogue {
         dailyTravelKm = 15f, maxDailyTravelKm = 60f, senseKm = 4f,
         daysWithoutWater = 14, waterFromFood = 0.5f,
         birthMonth = 2, birthMonths = 3, youngPerFemale = 0.4f, yearsToMaturity = 4f,
-        backgroundMortality = 0.05f, snowLimitMm = 40f,
+        backgroundMortality = 0.05f, youngMortality = HOOFED_YOUNG_LOST, snowLimitMm = 40f,
         products = Products(meat = 200f, fat = 40f, hide = 30f, bone = 50f, sinew = 3f),
         comfortC = 5f..48f,
         speedKmh = 60f,

@@ -74,8 +74,9 @@ class Species(
     /** Adult mortality per year from causes not modelled (age, accident, disease); predation and hunger are modelled. */
     val backgroundMortality: Float,
     /**
-     * Extra yearly mortality of the young from causes not modelled (cold, wet, disease, falls), on
-     * top of the adults'. Species with big litters lose most of them: half of all piglets die in their first year.
+     * Yearly mortality of the young from causes not modelled (stillbirth, desertion, birth defects, falls,
+     * infanticide), in place of the adults' [backgroundMortality]; hunger, thirst, cold, crowding sickness, fire,
+     * flood and hunters come on top, each modelled, so a total from the field is too much here.
      */
     val youngMortality: Float = backgroundMortality,
     /** Snow depth (mm water equivalent) that stops it feeding and slows it badly. */
@@ -167,10 +168,11 @@ class Species(
     /** Hunts in packs: a meat-eater that is not people. */
     val pack: Boolean get() = carnivore && !human
     /**
-     * Days of food it can carry as fat: bigger animals store more, about 8 M^0.25 days (a gazelle
-     * some 17, an aurochs 42).
+     * Days of food it can carry as fat. Mammals store some 0.075 M^1.19 kg of fat and burn about 317 M^0.75 kJ a
+     * day at rest, so fat lasts 9.3 M^0.44 days at rest (Lindstedt and Boyce 1985); on the move they burn some
+     * [Allometry.FIELD_OVER_BASAL] times that: a gazelle 14 days, an aurochs 68. A sleeper needs a quarter.
      */
-    val maxFatDays: Float get() = 8f * massKg.pow(0.25f) * if (hibernates) 4f else 1f
+    val maxFatDays: Float get() = 9.3f / Allometry.FIELD_OVER_BASAL * massKg.pow(0.44f) * if (hibernates) 4f else 1f
     /** Dry-matter (or meat) intake per adult per day, kg. */
     val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, diet)
 
@@ -197,6 +199,12 @@ fun gutFill(s: Species, quality: Float): Float =
     if (s.hindgut) min(HexFauna.GUT_FILL, 1f / quality.coerceAtLeast(1e-3f)) else min(1f, 0.5f + 0.5f * quality / 0.8f * s.fibreDigestion)
 
 object Allometry {
+    /**
+     * A free-living mammal's daily energy use against its resting need: about 2-3 times (the herbivores' intake below
+     * is "some 2-3 times their basal needs"); the middle of that.
+     */
+    const val FIELD_OVER_BASAL = 2.5f
+
     /**
      * Food intake grows with metabolic mass, M^0.75 (Kleiber). Free-living herbivores eat about
      * 0.08 M^0.75 kg of dry plant matter a day (a 20 kg gazelle ~0.75 kg), some 2-3 times their
