@@ -52,98 +52,74 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float): Boolean {
 
 /**
  * Each week, before herds scatter and gather: for each gathering kind, the share of a band that would die at each place
- * on coming there, as the residents weighed it before they moved ([HexFauna.arrive]), kept in [arriveBy], and the share
- * of its food it would go without there (by the food left uneaten, [HexFauna.room]); and which residents leave ([leaving]) and where for ([leaveTo]). Death first: those whose place is clearly deadly
- * ([clearlyWorse] than none dying) leave for safety. Then food, among places about as safe: those clearly short of food
- * where they are ([clearlyWorse] than none going without) leave for where a band would be clearly better fed, and no
- * clearly deadlier than staying. Either way, where the land slopes from their place to one that is not deadly (or not
- * short) ([HexFauna.slope]), they follow it as residents, as many hexes a week as their week's going covers, unless that
- * is clearly worse than going it as a group, a week's walk ([gatherKm]) a week (so only where the residents' walk is
- * the slower): then they set off for its end together. Where the slope stops short, about each place worst off, those
- * of the ground within [gatherKm] whose place is clearly worse off than the best place within [farKm] beyond that ground
- * set off for it (for food, the place best fed for all of them together). So groups form where no slope leads to safety or food, or only one too long to walk slowly.
+ * on coming there, as the residents weighed it before they moved ([HexFauna.arrive]), kept in [arriveBy]; and which residents leave
+ * ([leaving]) and where for ([leaveTo]), of those whose place is clearly deadly ([clearlyWorse] than none dying).
+ * Where the land slopes from their place to one that is not ([HexFauna.slope]), they follow it as residents, as many
+ * hexes a week as their week's going covers, unless that is clearly deadlier than going it as a group, a week's walk
+ * ([gatherKm]) a week (so only where the residents' walk is the slower):
+ * then they set off for its end together. Where the slope stops short of safety, about each place where the most
+ * would die, those of the ground within [gatherKm] whose place is clearly deadlier than the safest place within
+ * [farKm] beyond that ground set off for it. So groups form where no slope leads to safety, or only one too long to
+ * walk slowly.
  */
 internal fun HexGroups.leaveAhead(weather: Weather) {
     val outs = ThreadLocal.withInitial { FloatArray(HexFauna.HZ_COUNT) }
     for (s in Catalogue.gathering) {
         val k = fauna.slot(s); if (k < 0 || s !in kinds) continue
-        val a = fauna.adults[k]; val y = fauna.young[k]; val fed = fauna.fed[k]
-        val room = fauna.room[k] ?: continue
+        val a = fauna.adults[k]; val y = fauna.young[k]
         val band = s.maxGroupSize.toFloat()
         val arrive = fauna.arrive[k]
         arriveBy[s] = arrive
-        val unfedThere = FloatArray(n)
         val leave = BooleanArray(n); val to = IntArray(n) { -1 }
         val leavingByHex = DoubleArray(hex.size)
         leaving[s] = leave; leaveTo[s] = to; unfed[s] = leavingByHex
-        // (Staying, by place, and whether it is clearly deadly, or else clearly short of food: on all cores, then the
-        // few that are, one by one.)
+        // (Staying, by place, and whether it is clearly deadly: on all cores, then the few that are, one by one.)
         val stay = FloatArray(n)
-        val deadly = BooleanArray(n); val short = BooleanArray(n)
+        val deadly = BooleanArray(n)
         IntStream.range(0, n).parallel().forEach { p ->
-            unfedThere[p] = if (arrive[p].isNaN()) Float.NaN else 1f - min(1f, room[p] * land.areaKm2[p] / band)
-            if (a[p] + y[p] > 0f) {
-                stay[p] = fauna.stayOdds(k, p, weather, outs.get()); deadly[p] = clearlyWorse(stay[p], 0f, band)
-                short[p] = !deadly[p] && clearlyWorse(1f - fed[p], 0f, band)
-            }
+            if (a[p] + y[p] > 0f) { stay[p] = fauna.stayOdds(k, p, weather, outs.get()); deadly[p] = clearlyWorse(stay[p], 0f, band) }
         }
-        if (deadly.none { it } && short.none { it }) continue
-        val slopes = arrayOf(fauna.slope(k, arrive), fauna.slope(k, unfedThere))
-        // (By hex, the heads whose slope stops short, weighed by how badly off they are: for safety, then for food.)
-        val stalled = arrayOf(BooleanArray(n), BooleanArray(n))
-        val byHex = arrayOf(DoubleArray(hex.size), DoubleArray(hex.size))
+        if (deadly.none { it }) continue
+        val slope = fauna.slope(k, arrive)
+        // (By hex, the heads whose slope stops short of safety, weighed by how many would die.)
+        val stalled = BooleanArray(n)
+        val byHex = DoubleArray(hex.size)
         for (p in 0 until n) {
-            val need = if (deadly[p]) 0 else if (short[p]) 1 else continue
-            val odds = if (need == 0) arrive else unfedThere
-            val here = if (need == 0) stay[p] else 1f - fed[p]
+            if (!deadly[p]) continue
             val heads = (a[p] + y[p]) * land.areaKm2[p].toDouble()
-            val slope = slopes[need]
-            val q = fauna.safestNeighbour(k, p, odds, here)
-            // (For food, the end must be no clearly deadlier than staying.)
-            if (q >= 0 && !clearlyWorse(odds[slope.end(q)], 0f, band) && (need == 0 || !clearlyWorse(arrive[slope.end(q)], stay[p], band))) {
-                // A slope to safety (or food): walked by the residents as many hexes a week as their week's going
-                // covers, or trekked by a group a week's walk a week; each week costing what a week on the slope does
-                // on average.
+            val q = fauna.safestNeighbour(k, p, arrive, stay[p])
+            if (q >= 0 && !clearlyWorse(arrive[slope.end(q)], 0f, band)) {
+                // A slope to safety: walked by the residents as many hexes a week as their week's going covers, or
+                // trekked by a group a week's walk a week; each week costing what a week on the slope does on average.
                 val steps = 1 + slope.steps(q)
-                val perWeek = (here + slope.cost(q)) / steps
+                val perWeek = (stay[p] + slope.cost(q)) / steps
                 val walk = ceil(steps / fauna.hopsFor(s).toDouble()).toFloat() * perWeek
                 val trek = ceil(steps * hex.hexKm / gatherKm(s)).toFloat() * perWeek
                 if (clearlyWorse(min(1f, walk), min(1f, trek), band)) { leave[p] = true; to[p] = slope.end(q); leavingByHex[hw.placeHex[p]] += heads }
                 continue
             }
-            stalled[need][p] = true
-            byHex[need][hw.placeHex[p]] += heads * here
+            stalled[p] = true
+            byHex[hw.placeHex[p]] += heads * stay[p]
         }
-        for (need in 0..1) {
-            val used = BooleanArray(hex.size)
-            for (h0 in (0 until hex.size).filter { byHex[need][it] > 0.0 }.sortedByDescending { byHex[need][it] }) {
-                if (used[h0]) continue
-                // (For food, as many as would go: those short of it on the ground about, all together.)
-                var going = 0f
-                if (need == 1) for (h in ground(h0, gatherKm(s))) if (!used[h]) for (b in HexWorld.BANDS_M.indices) {
-                    val p = hw.placeOf[b][h]; if (p >= 0 && stalled[1][p]) going += (a[p] + y[p]) * land.areaKm2[p]
+        val used = BooleanArray(hex.size)
+        for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
+            if (used[h0]) continue
+            // The safest place beyond their own ground, within a month's walk.
+            var best = -1; var bestOdds = Float.MAX_VALUE
+            for (h in ground(h0, farKm(s) / RING_KM + hex.hexKm)) {
+                val d = hex.distanceKm(h0, h); if (d <= gatherKm(s) || d > farKm(s)) continue
+                for (b in HexWorld.BANDS_M.indices) {
+                    val q = hw.placeOf[b][h]; if (q < 0) continue
+                    if (arrive[q] < bestOdds) { bestOdds = arrive[q]; best = q }
                 }
-                // The safest place (or, for food, the best fed for them all, then the safest) beyond their own ground,
-                // within a month's walk.
-                var best = -1; var bestOdds = Float.MAX_VALUE; var bestUnfed = Float.MAX_VALUE
-                for (h in ground(h0, farKm(s) / RING_KM + hex.hexKm)) {
-                    val d = hex.distanceKm(h0, h); if (d <= gatherKm(s) || d > farKm(s)) continue
-                    for (b in HexWorld.BANDS_M.indices) {
-                        val q = hw.placeOf[b][h]; if (q < 0 || arrive[q].isNaN()) continue
-                        val u = if (need == 0) 0f else 1f - min(1f, room[q] * land.areaKm2[q] / max(band, going))
-                        if (u < bestUnfed || (u == bestUnfed && arrive[q] < bestOdds)) { bestUnfed = u; bestOdds = arrive[q]; best = q }
-                    }
-                }
-                if (best < 0) continue
-                val about = ground(h0, gatherKm(s)).filter { !used[it] }
-                for (h in about) {
-                    used[h] = true
-                    for (b in HexWorld.BANDS_M.indices) {
-                        val p = hw.placeOf[b][h]; if (p < 0 || !stalled[need][p] || leave[p]) continue
-                        val worse = if (need == 0) clearlyWorse(stay[p], bestOdds, band)
-                            else clearlyWorse(1f - fed[p], bestUnfed, band) && !clearlyWorse(bestOdds, stay[p], band)
-                        if (worse) { leave[p] = true; to[p] = best; leavingByHex[h] += (a[p] + y[p]) * land.areaKm2[p].toDouble() }
-                    }
+            }
+            if (best < 0) continue
+            val about = ground(h0, gatherKm(s)).filter { !used[it] }
+            for (h in about) {
+                used[h] = true
+                for (b in HexWorld.BANDS_M.indices) {
+                    val p = hw.placeOf[b][h]; if (p < 0 || !stalled[p]) continue
+                    if (clearlyWorse(stay[p], bestOdds, band)) { leave[p] = true; to[p] = best; leavingByHex[h] += (a[p] + y[p]) * land.areaKm2[p].toDouble() }
                 }
             }
         }
@@ -261,8 +237,7 @@ internal fun HexGroups.scatter() {
 
 /**
  * Whether a band of herd [g] would stay where it stands: its place, as it would be to a band coming there
- * ([arriveBy]), is not clearly deadlier ([clearlyWorse]) than the safest place within [farKm] beyond [gatherKm] of it,
- * nor clearly worse fed (by the food left uneaten, for all of it) than one there no clearly deadlier;
+ * ([arriveBy]), is not clearly deadlier ([clearlyWorse]) than the safest place within [farKm] beyond [gatherKm] of it;
  * and it has once gone more than [gatherKm] from where it formed ([HexGroup.formedAt]: the place it left had failed it).
  */
 private fun HexGroups.settles(g: HexGroup): Boolean {
@@ -271,23 +246,13 @@ private fun HexGroups.settles(g: HexGroup): Boolean {
     val arrive = arriveBy[s] ?: return false
     val here = arrive[g.place.i]
     if (here.isNaN()) return false
-    val room = fauna.room[fauna.slot(s)] ?: return false
-    // (The food left uneaten, for all of the herd.)
-    fun unfedAt(q: Int) = 1f - min(1f, room[q] * land.areaKm2[q] / max(1, g.size))
-    val hereUnfed = unfedAt(g.place.i)
     val h0 = hw.placeHex[g.place.i]
-    // (Any place safer than this is one it is clearly worse off than ([clearlyWorse]): the first found will do. So is
-    // one clearly better fed and no clearly deadlier.)
+    // (Any place safer than this is one it is clearly worse off than ([clearlyWorse]): the first found will do.)
     val band = s.maxGroupSize.toFloat()
     val clearlyBelow = here - sqrt(band * here * (1f - here)) / band
-    val short = clearlyWorse(hereUnfed, 0f, band)
     for (h in ground(h0, farKm(s) / RING_KM + hex.hexKm)) {
         val d = hex.distanceKm(h0, h); if (d <= gatherKm(s) || d > farKm(s)) continue
-        for (b in HexWorld.BANDS_M.indices) {
-            val q = hw.placeOf[b][h]; if (q < 0) continue
-            if (arrive[q] < clearlyBelow) return false
-            if (short && clearlyWorse(hereUnfed, unfedAt(q), band) && !clearlyWorse(arrive[q], here, band)) return false
-        }
+        for (b in HexWorld.BANDS_M.indices) { val q = hw.placeOf[b][h]; if (q >= 0 && arrive[q] < clearlyBelow) return false }
     }
     return true
 }
