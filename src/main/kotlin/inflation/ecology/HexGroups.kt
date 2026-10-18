@@ -242,7 +242,57 @@ class HexGroups(
         stocks.add(Books.Stuff.MATTER, "bands' goods of living things") { bands { it.livingGoods().toDouble() } }
     }
 
-    fun step(weather: Weather, date: Date) {
+    /** The groups' part of the week, in order. */
+    val phases = listOf(
+        Phase("groups: choosing and moving") { chooseAndMove(it, it.date) },
+        // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
+        // same days, the earlier meetings are settled first, by each side's standing orders.
+        Phase("groups: meetings") { val t0 = System.nanoTime(); meet(it); meetNs += System.nanoTime() - t0 },
+        Phase("groups: leaving sign") { leaveSign() },
+        Phase("groups: wearing paths") { wear.week(groups, hw, land, days); routes.week() },
+        Phase("groups: grazing") { graze(it) },
+        Phase("groups: hunting and foraging") { hunt(it) },
+        Phase("people: burning off") { burnOff(it) },
+        Phase("people: robbing caches") { robCaches(it) },
+        Phase("people: visiting kin") { visitKin(it) },
+        Phase("groups: births, deaths") {
+            Profile.part("hunters: marking ground") { mark() }
+            Profile.part("hunters: settling ground") { settle(it) }
+            demography(it, it.date)
+        },
+        Phase("groups: the dead and newcomers") {
+            // (Groups that merged into another this week, kept for following what became of their choices.)
+            merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
+            // (A band that died out leaves what it had; one that joined another took it along.)
+            for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g)
+            groups.removeIf { !it.alive }
+            newcomers(it.date)
+        },
+        // Herds of the kinds that also live spread out scatter where their round stays a while, and gather where it leaves.
+        Phase("herds: gathering and scattering") {
+            scatter(it.date.month)
+            if (it.date.dayOfMonth <= days) gather(it.date.month)
+        },
+        Phase("herds: remembering places") { val date = it.date
+            if (date.dayOfMonth <= days) {
+                noteSeasons(date.month)
+                // The rounds are grown once a whole year's seasons are in, and again every [ROUND_YEARS] years;
+                // herds without one (newcomers) take the nearest.
+                if (ROUNDS) {
+                    if (herdRounds.isEmpty() || (date.month == 0 && date.year % ROUND_YEARS == 0L)) growRounds(date.month)
+                    for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] == ROUND_OPEN)
+                        herdRounds[g.species.index]?.let { takeRound(g, it, date.month) }
+                }
+            }
+            remember(date)
+        },
+    )
+
+    /**
+     * The week's start: each group's warmth, the month's sense of where game is, the ways herds and packs set, the bands'
+     * view of themselves; then each group plans and moves, in parallel, each by last week's world.
+     */
+    private fun chooseAndMove(weather: Weather, date: Date) {
         stats.clear(); watchLog.clear()
         moon = date.meanMoonlight(days).toFloat()
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
@@ -283,7 +333,6 @@ class HexGroups(
         // Bands take stock of themselves and of the bands about them, for the people networks.
         Profile.part("bands: taking stock") { fillBandStates(weather) }
         // Plan and move, in parallel: each group's choice depends only on last week's world.
-        val tPlan = System.nanoTime(); val cPlan = Profile.cpuNow()
         if (herdHeadsMonth != bearings.month || monthHerdHeads.size != n) {
             monthHerdHeads = FloatArray(n) { p -> kinds.indices.sumOf { k -> if (kinds[k].carnivore) 0.0 else monthHeads[k][p].toDouble() }.toFloat() }
             herdHeadsMonth = bearings.month
@@ -350,55 +399,6 @@ class HexGroups(
                 if (lostA + lostY > 0) stats.deaths.merge(Tally.of(g.species, DeathCause.DROWNED_CROSSING), lostA + lostY, Int::plus)
                 stats.meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
             }
-        }
-        Profile.add("groups: choosing where to go", System.nanoTime() - tPlan, Profile.cpuNow() - cPlan)
-        // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
-        // same days, the earlier meetings are settled first, by each side's standing orders.
-        val t0 = System.nanoTime()
-        val books = land.books
-        books?.check("groups: choosing and moving")
-        Profile.time("groups: meetings") { meet(weather) }
-        meetNs += System.nanoTime() - t0
-        books?.check("groups: meetings")
-        Profile.part("groups: leaving sign") { leaveSign() }
-        Profile.part("groups: wearing paths") { wear.week(groups, hw, land, days); routes.week() }
-        Profile.time("groups: grazing") { graze(weather) }
-        books?.check("groups: grazing")
-        Profile.time("groups: hunting") { hunt(weather) }
-        books?.check("groups: hunting and foraging")
-        Profile.part("people: burning off") { burnOff(weather) }
-        Profile.part("people: robbing caches") { robCaches(weather) }
-        Profile.part("people: visiting kin") { visitKin(weather) }
-        books?.check("people: robbing caches, visiting kin")
-        Profile.time("groups: ground, births, deaths") {
-            Profile.part("hunters: marking ground") { mark() }
-            Profile.part("hunters: settling ground") { settle(weather) }
-            demography(weather, date)
-        }
-        books?.check("groups: births, deaths")
-        // (Groups that merged into another this week, kept for following what became of their choices.)
-        merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
-        // (A band that died out leaves what it had; one that joined another took it along.)
-        for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g)
-        groups.removeIf { !it.alive }
-        newcomers(date)
-        // Herds of the kinds that also live spread out scatter where their round stays a while, and gather where it leaves.
-        Profile.part("herds: gathering and scattering") {
-            scatter(date.month)
-            if (date.dayOfMonth <= days) gather(date.month)
-        }
-        Profile.part("herds: remembering places") {
-            if (date.dayOfMonth <= days) {
-                noteSeasons(date.month)
-                // The rounds are grown once a whole year's seasons are in, and again every [ROUND_YEARS] years;
-                // herds without one (newcomers) take the nearest.
-                if (ROUNDS) {
-                    if (herdRounds.isEmpty() || (date.month == 0 && date.year % ROUND_YEARS == 0L)) growRounds(date.month)
-                    for (g in groups) if (g.alive && !g.species.carnivore && g.route[0] == ROUND_OPEN)
-                        herdRounds[g.species.index]?.let { takeRound(g, it, date.month) }
-                }
-            }
-            remember(date)
         }
     }
 

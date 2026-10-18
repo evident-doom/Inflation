@@ -53,37 +53,45 @@ class HexSim(
         groups.listStocks(s)
     }
 
-    /** One week: the weather, then water and plants, then the residents and small life, then the groups. */
+    /**
+     * The week, in order: the weather and what falls from the sky, the water and plants ([HexLand.phases]), the residents and
+     * small life ([HexFauna.phases]), what the residents' hunters took of the herds, and the groups ([HexGroups.phases]).
+     */
+    val phases: List<Phase> = listOf(
+        Phase("weather") { weather.step(); bookSnow() },
+        Phase("ash and eruptions") { fallingAsh() },
+    ) + land.phases + listOf(
+        // The residents' hunters find the herds about them as they find the resident game (see [HerdAt]).
+        Phase("residents: herds about") { fauna.herdsAt = groups.herdsByPlace() },
+    ) + fauna.phases + listOf(
+        Phase("herds' losses to resident hunters") { groups.takeResidentsKills(fauna.herdsAt); fauna.herdsAt = emptyMap() },
+    ) + groups.phases
+
+    /** One week ([phases]). */
     fun step() {
         // (What changed between steps, as a save loaded into the world or the viewer's hand, is charged to that.)
         books?.check("between steps")
-        Profile.time("weather") { weather.step() }
-        books?.let { b ->
-            // (Snow falls in the cold; the melt goes to the soil, booked again there as it comes in.)
-            var fell = 0.0; var melt = 0.0
-            for (p in 0 until land.n) {
-                if (weather.temperature[p] < 0f) fell += weather.precipitation[p] / 1000.0 * land.areaM2[p]
-                melt += weather.meltwater[p] / 1000.0 * land.areaM2[p]
-            }
-            b.flow(Books.Stuff.WATER, "snowfall", fell); b.flow(Books.Stuff.WATER, "snowmelt (to the soil)", -melt)
-            b.check("weather")
+        runPhases(phases, weather, books)
+    }
+
+    /** Snow falls in the cold; the melt goes to the soil, booked again there as it comes in. */
+    private fun bookSnow() {
+        val b = books ?: return
+        var fell = 0.0; var melt = 0.0
+        for (p in 0 until land.n) {
+            if (weather.temperature[p] < 0f) fell += weather.precipitation[p] / 1000.0 * land.areaM2[p]
+            melt += weather.meltwater[p] / 1000.0 * land.areaM2[p]
         }
-        // Ash on the ground weathers into the soil over about two years.
+        b.flow(Books.Stuff.WATER, "snowfall", fell); b.flow(Books.Stuff.WATER, "snowmelt (to the soil)", -melt)
+    }
+
+    /** Ash on the ground weathers into the soil over about two years; eruptions lay fresh ash, and a great one's veil cools the whole region for a couple of years. */
+    private fun fallingAsh() {
         for (p in 0 until land.n) if (land.plants.ash[p] > 0f) land.plants.ash[p] = if (land.plants.ash[p] < 0.05f) 0f else land.plants.ash[p] * ashKeep
         val now = eruptions.step(weather.date, cfg.daysPerStep, wind = { c ->
             val p = hw.firstPlaceIn(hex.owner[c])
             if (p < 0) 1f to 0f else weather.windEast(p) to weather.windSouth(p)
         }) { c, mm -> val p = cellPlace[c]; if (p >= 0) land.plants.ash[p] += mm / hw.placeCells[p].size }
-        // A great eruption's veil cools the whole region for a couple of years.
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
-        Profile.time("water and plants") { land.step(weather) }
-        // The residents' hunters find the herds about them as they find the resident game (see [HerdAt]).
-        fauna.herdsAt = groups.herdsByPlace()
-        fauna.step(weather, weather.date)
-        groups.takeResidentsKills(fauna.herdsAt)
-        books?.check("herds' losses to resident hunters")
-        fauna.herdsAt = emptyMap()
-        groups.step(weather, weather.date)
-        books?.check("groups: the rest of the week")
     }
 }
