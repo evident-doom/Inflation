@@ -810,11 +810,14 @@ class HexGroups(
     internal val manEaterKm2 = FloatArray(hex.size)
     /** Each herd kind's heads on the ground they graze this week, by hex, both forms: as [sicknessWeek] counts them (see [fillGrazed]). */
     @delegate:Transient internal val grazed by lazy { Array(kinds.size) { FloatArray(hex.size) } }
+    /** For crowdDiag=KIND (a report): the crowd each herd of that kind foresaw at the place it chose this week, by its id. */
+    @Transient internal val crowdDiag: String? = Config.string("crowdDiag")
+    @Transient internal val foreseenCrowd = ConcurrentHashMap<Int, Float>()
     /** All the herds' week's need on each hex's ground, kg, each herd spread over its grazing ground: what they will eat of it (see [fillGrazed]). */
     @delegate:Transient internal val herdWantKg by lazy { FloatArray(hex.size) }
 
     /** [grazed] afresh, before the week's choosing: each herd spread over its grazing ground ([rangeShares]), and the residents in their hex. */
-    private fun fillGrazed() {
+    internal fun fillGrazed() {
         for (a in grazed) a.fill(0f)
         herdWantKg.fill(0f)
         for (g in groups) if (g.alive && !g.species.carnivore) {
@@ -1181,6 +1184,8 @@ class HexGroups(
             println("plan ${s.name} #${g.id} month ${date.month + 1}: chose " + parts(best) + (towards?.let { " | toward goal " + parts(it) } ?: ""))
         }
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
+        if (crowdDiag == s.name) { val a = grazed[kind]
+            foreseenCrowd[g.id] = grazingCrowd(g, hw.placeHex[best]) { q, share -> max(0f, a[q] - ownShare(c, q) * g.size) + share * g.size } }
         return Plan(best, pathTo(best.i))
     }
 
