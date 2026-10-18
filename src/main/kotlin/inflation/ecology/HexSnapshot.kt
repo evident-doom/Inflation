@@ -75,7 +75,7 @@ object HexSnapshot {
      * 1.16: a herd the hunters stop short of its choice weighs again where it stands if that is clearly deadlier.
      * 1.17: a herd that sees hunters first goes round them and on its way instead of halting.
      * 1.18: a herd weighs where it would die were hunting parties to chase it and stop it short on its way.
-     * 1.19: herds go on spreading out on arrival, a day's going at a time, till none moves or the week's days are spent.
+     * 1.19: herds go on spreading out on arrival, a day's going at a time, till none moves, while they have a day of the week left.
      */
     const val MODEL_MAJOR = 1
     const val MODEL_MINOR = 19
