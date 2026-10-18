@@ -1025,7 +1025,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * What kills kind [k]'s animals at place [p] this week besides old age, as shares of them ([HZ_HUNGER] and the rest
      * into [out]): hunger fed [fed], cold and heat, thirst [dry] days without water, disease among [heads] of its kind per
-     * km² (and a raging outbreak), fire, flood and deep snow, for the grown and the young, and the residents' hunters
+     * km² (and a raging outbreak), fire, flood and deep snow, for the grown and the young, and the hunters
      * ([huntedOdds]). The one rule residents die by ([breedAndDie], which takes the hunters' kills as they make
      * them) and weigh a place to stay or leave by ([stayOdds], [arriveOdds]).
      */
@@ -1419,7 +1419,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun drownRisk(s: Species, gapKm: Float) = min(1f, DROWN * gapKm / Catalogue.swimKm(s).coerceAtLeast(1f))
 
     companion object {
-        /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the residents' hunters' take of the grown. */
+        /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */
         const val HZ_HUNGER = 0; const val HZ_COLD = 1; const val HZ_THIRST = 2; const val HZ_DISEASE = 3
         const val HZ_FIRE_A = 4; const val HZ_FLOOD_A = 5; const val HZ_SNOW_A = 6
         const val HZ_FIRE_Y = 7; const val HZ_FLOOD_Y = 8; const val HZ_SNOW_Y = 9; const val HZ_CROWD = 10
