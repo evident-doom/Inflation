@@ -185,7 +185,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * Resident hunter [k] at place [p] kills game among the residents there, and among the herds about it this week
      * ([herdsAt]), for up to [meat] of meat: prey from a quarter of its weight to [Species.preyUpTo] times it (the young
      * of bigger kinds too), each kind as it is common there, by its weight and as readily as the hunter takes game of its
-     * size ([preference]), herd or resident alike, at most [RESIDENT_KILL_MOST] of that game in a week; what it cannot
+     * size ([Species.preySize]), herd or resident alike, at most [RESIDENT_KILL_MOST] of that game in a week; what it cannot
      * eat of a kill is left as carrion. Returns what it ate.
      */
     private fun huntResidents(k: Int, p: Int, meat: KgM2, killedSoFar: FloatArray): KgM2 {
@@ -198,8 +198,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for ((j, s) in kinds.withIndex()) {
             if (j == k || s.carnivore) continue
             val ym = YOUNG_WEIGHT * s.massKg
-            wA[j] = adults[j][p] * s.massKg * preference(hunter, s.massKg)
-            wY[j] = young[j][p] * ym * preference(hunter, ym)
+            wA[j] = adults[j][p] * s.massKg * hunter.preySize(s.massKg)
+            wY[j] = young[j][p] * ym * hunter.preySize(ym)
             total += wA[j] + wY[j]
         }
         val herds = herdsAt[p]
@@ -207,8 +207,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (herds != null) for ((i, at) in herds.withIndex()) {
             val s = at.g.species
             val ym = YOUNG_WEIGHT * s.massKg
-            hA[i] = at.g.adults * at.share / area * s.massKg * preference(hunter, s.massKg)
-            hY[i] = at.g.young * at.share / area * ym * preference(hunter, ym)
+            hA[i] = at.g.adults * at.share / area * s.massKg * hunter.preySize(s.massKg)
+            hY[i] = at.g.young * at.share / area * ym * hunter.preySize(ym)
             total += hA[i] + hY[i]
         }
         if (total <= 0f) return KgM2.ZERO
@@ -473,26 +473,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         var v = 0f
         for ((j, ps) in kinds.withIndex()) {
             if (ps.carnivore) continue
-            v += adults[j][p] * ps.massKg * preference(s, ps.massKg)
-            v += young[j][p] * YOUNG_WEIGHT * ps.massKg * preference(s, YOUNG_WEIGHT * ps.massKg)
+            v += adults[j][p] * ps.massKg * s.preySize(ps.massKg)
+            v += young[j][p] * YOUNG_WEIGHT * ps.massKg * s.preySize(YOUNG_WEIGHT * ps.massKg)
         }
         herdsAt[p]?.let { for (at in it) { val ps = at.g.species
-            v += at.g.adults * at.share / land.areaKm2[p] * ps.massKg * preference(s, ps.massKg)
-            v += at.g.young * at.share / land.areaKm2[p] * YOUNG_WEIGHT * ps.massKg * preference(s, YOUNG_WEIGHT * ps.massKg) } }
+            v += at.g.adults * at.share / land.areaKm2[p] * ps.massKg * s.preySize(ps.massKg)
+            v += at.g.young * at.share / land.areaKm2[p] * YOUNG_WEIGHT * ps.massKg * s.preySize(YOUNG_WEIGHT * ps.massKg) } }
         return v
     }
 
-    /**
-     * How readily resident hunter [hunter] takes game of [kg], 0..1: not at all under a quarter of its weight or over
-     * [Species.preyUpTo] times it, fully up to [Species.preyPreferredUpTo] times it, and falling off evenly between.
-     * (The even fall is a simplification: the record gives the preferred and the accessible range, not the shape.)
-     */
-    private fun preference(hunter: Species, kg: Float): Float {
-        val r = kg / hunter.massKg
-        if (r < 0.25f || r > hunter.preyUpTo) return 0f
-        if (r <= hunter.preyPreferredUpTo) return 1f
-        return (hunter.preyUpTo - r) / (hunter.preyUpTo - hunter.preyPreferredUpTo)
-    }
 
     /** The game each resident hunter takes at each place ([preyFor]) while the residents move; null otherwise. */
     @Transient private var preyNow: Array<FloatArray?>? = null

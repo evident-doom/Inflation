@@ -270,6 +270,9 @@ object Catalogue {
         domestication = floatArrayOf(0.7f, 0.5f, 0.6f, 0.4f, 0.6f, 0.9f), // became the dog
         packLitter = 4,
         stalking = 0.3f,
+        // (Packs take mostly red deer hinds and calves, some 100 kg, at 25-40 kg a wolf (Nowak et al. 2005), and in
+        // Yellowstone elk of five or six times their weight, bison seldom: ranges inferred, not stated by the sources.)
+        preyPreferredUpTo = 3f, preyUpTo = 6f,
         startKm2PerAnimal = 50f,
         followsPeople = true,
         activity = floatArrayOf(0.3f, 0.1f, 0.3f, 0.3f),
@@ -298,6 +301,9 @@ object Catalogue {
         habitat = Habitat(cover = -0.2f, rugged = -0.3f),
         stalking = 0.7f,
         ferocity = 1.2f,
+        // (Prides prefer prey of 190-550 kg, most of all some 350 (Hayward and Kerley 2005), and take up to some
+        // 630 (Clements et al. 2014).)
+        preyPreferredUpTo = 3.7f, preyUpTo = 4.2f,
         startKm2PerAnimal = 50f,
         activity = floatArrayOf(0.25f, 0.05f, 0.3f, 0.4f),
         takesPeople = 1f,
@@ -321,6 +327,8 @@ object Catalogue {
         habitat = Habitat(cover = 0.7f, rugged = 0.6f),
         stalking = 1f,
         ferocity = 1.1f,
+        // (Leopards prefer prey of 10-40 kg (Hayward et al. 2006) and avoid any over 45 (Clements et al. 2014).)
+        preyPreferredUpTo = 0.9f, preyUpTo = 1f,
         startKm2PerAnimal = 50f,
         activity = floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
         shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.DEN, Niches.Shelter.THICKET, Niches.Shelter.TREE),
@@ -643,6 +651,8 @@ object Catalogue {
         habitat = Habitat(cover = -0.8f, rugged = -0.5f),
         stalking = 0.3f,
         ferocity = 0.6f,
+        // (Cheetahs prefer prey of 23-56 kg (Hayward et al. 2006) and take up to some 135 (Clements et al. 2014).)
+        preyPreferredUpTo = 1.25f, preyUpTo = 3f,
         startKm2PerAnimal = 100f,
         activity = floatArrayOf(0.25f, 0.55f, 0.15f, 0.05f),
         swimKm = 1f,
@@ -683,6 +693,8 @@ object Catalogue {
         defence = 0.7f,
         stalking = 0.6f,
         ferocity = 1.5f, // spears, numbers and fire: lions and hyenas give way
+        // (With spears, bows and numbers people take game of any size, aurochs too; the danger is in [defence].)
+        preyPreferredUpTo = Float.POSITIVE_INFINITY, preyUpTo = Float.POSITIVE_INFINITY,
         startKm2PerAnimal = 40f,
         human = true,
         intakeKg = 1.6f,
