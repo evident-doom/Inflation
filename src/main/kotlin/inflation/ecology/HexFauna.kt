@@ -154,11 +154,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Notes [kg] of game killed at place [p], for the fear of it. */
     fun killed(p: Int, kg: Kg) { fear[p] += kg.v / land.areaKm2[p] }
 
-    /** Protein of the grass and of the browse at place [p], against fresh growth: full when green, little when cured. */
+    /** Protein of the grass and of the browse at place [p], against fresh growth: full when green and leafy, little when cured or ripe. */
     fun grassProtein(p: Int): Float {
         // (Cured grass is leached toward straw as it weathers, see [HexPlants.hayFresh].)
         val dry = tuning.proteinStraw + (tuning.proteinDryGrass - tuning.proteinStraw) * land.plants.hayFresh[p]
-        return dry + (1f - dry) * land.plants.green[p]
+        return dry + (1f - dry) * land.plants.leafy(p)
     }
     fun browseProtein(p: Int) = PROTEIN_DRY_BROWSE + (1f - PROTEIN_DRY_BROWSE) * land.plants.green[p]
     /** How well a diet with [share] of fresh growth's protein meets a mother's and a growing young's need, 0..1. */
