@@ -34,8 +34,7 @@ A herd agent stands for `bandsIn(herd)` bands spread over the hex, so its expect
 (`AMBUSH`), gatherings at springs (`gather`) and small herds hiding in cover (`HIDE_IN_COVER`)
 multiply `λ`.
 
-On a meeting (`hunterMeetsHerd`) the herd may see the hunters first and go round them (`DETOUR`:
-the walk round their sense range costs it food, and it goes on its way); otherwise there
+On a meeting (`hunterMeetsHerd`) the herd may see the hunters first and turn aside; otherwise there
 is a chase, the herd scatters, and the hunter stops to eat a kill. The number of tries in the chase
 is the number of encounters drawn, at most one for each band (a band that was chased has
 scattered). Satiation (`need`) and stopping to eat a kill give a type II response: a fed hunter lets

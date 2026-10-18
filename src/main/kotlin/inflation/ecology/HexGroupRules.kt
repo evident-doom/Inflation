@@ -205,21 +205,16 @@ const val COLD_MAX = 1.6f
 
 /**
  * What the week's going costs [g] in food, as a share of a week's need: each km of net shift (the
- * hexes passed, and a herd's walk round hunters, see [DETOUR]) costs [WALK_COST] of a day's food. (Mammals spend about 2-3 J per kg per m walking,
+ * hexes passed) costs [WALK_COST] of a day's food. (Mammals spend about 2-3 J per kg per m walking,
  * a little under a hundredth of a day's energy per km, whatever their size; the walking within its
  * usual range is part of the day's need already.)
  */
-fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * (max(0, g.path.size - 1) * hex.hexKm.toFloat() + g.detourKm) / days *
+fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * max(0, g.path.size - 1) * hex.hexKm.toFloat() / days *
     // (People pushing through thick woods and scrub go slower and tire more than in the open.)
     (if (g.species.human) 1f + COVER_GOING * land.plants.cover(g.place) else 1f) +
     // (Gatherers going further than usual walk the difference out and back each day.)
     (g.band?.let { b -> if (b.gatherRange > 1f) WALK_COST * GATHER_WALK_KM * (b.gatherRange - 1f) * 0.5f else 0f } ?: 0f)
 const val WALK_COST = 0.011f
-/**
- * The walk round hunters a herd saw first, in their sense range: keeping that far off them, half way round a circle of
- * it instead of across it ((pi - 2) times the range).
- */
-const val DETOUR = (Math.PI - 2.0).toFloat()
 
 /**
  * How far a group sees this week against a clear day in the open, 0..1: rain, snow and fog cut the

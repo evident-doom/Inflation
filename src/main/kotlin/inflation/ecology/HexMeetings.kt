@@ -1093,29 +1093,32 @@ internal fun HexGroups.youngTaken(hunter: HexGroup, herd: HexGroup) =
  * (the herd's share of its time there taken in): [hunterMeetsHerd]'s rules at their odds. How often they run into each
  * other ([encounters], waylaying on worn paths included), the herd seeing it first, game it seldom comes on let pass,
  * game beyond reach or not worth the chase, a try at each of the herd's bands it met, and no more kills than its week's
- * want of meat ([herdHuntNeed]). Into [out]: adults and young killed, and the odds that it chases the herd (which scatters
- * it and stops it where it is).
+ * want of meat ([herdHuntNeed]). Into [out]: adults and young killed, and the odds that the meeting stops the herd short:
+ * seen first (it halts) or chased (it scatters).
  */
 internal fun HexGroups.herdKillsAhead(hunter: HexGroup, herd: HexGroup, p: Place, span: Float, weather: Weather, day: Double, out: FloatArray) {
     out[0] = 0f; out[1] = 0f; out[2] = 0f
     if (span <= 0f || herd.adults <= 0 || hunter.adults <= 0) return
     val s = herd.species
+    val wary = herd.wary(day)
+    // (Seeing the hunters first, it turns aside and halts, whatever they would have done.)
+    val met = encounters(hunter, herd, p, span)
+    val seen = seenFirst(hunter, s, p.i, wary, weather)
+    out[2] = (1f - exp(-met)) * seen
     val catchable = catchable(hunter.species, s, p.i)
     if (catchable < NOT_WORTH_TRYING) return
-    val wary = herd.wary(day)
     val chance = killChance(hunter, s, catchable, wary, bandsIn(herd))
     if (!worthChasing(hunter, s, chance, max(1, hunter.adults) * hunter.species.massKg, reach(hunter.species, s, p.i))) return
-    val met = encounters(hunter, herd, p, span)
     val tries = min(met, ceil(bandsIn(herd)))
-    val unseen = (1f - seenFirst(hunter, s, p.i, wary, weather)) * searchOdds(hunter.metLately(s.index, day))
+    val unseen = (1f - seen) * searchOdds(hunter.metLately(s.index, day))
     val kills = min(tries * chance * unseen, herdHuntNeed(hunter) / killKg(hunter, s).coerceAtLeast(1e-3f))
     val young = youngTaken(hunter, herd)
-    out[0] = kills * (1f - young); out[1] = kills * young; out[2] = (1f - exp(-met)) * unseen
+    out[0] = kills * (1f - young); out[1] = kills * young; out[2] += (1f - exp(-met)) * unseen
 }
 
 /**
  * Standing orders, hunter and herd. The herd watches for hunters: in open country it often sees
- * them first and goes round them, out of their notice, and on its way ([DETOUR]). Otherwise there is a chase,
+ * them first and turns aside, ending its week short of that hex. Otherwise there is a chase,
  * likelier to end in a kill if the hunters came on it unseen; a herd that was chased scatters and
  * stops where it is; hunters that killed stop there to eat.
  */
@@ -1137,8 +1140,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         note(herd) { "saw the hunters first and turned aside" }; note(hunter) { "was seen first; the herd turned aside" }
         stats.hunting.merge(Tally.of(hunter.species, Tally.SAW_FIRST), 1, Int::plus)
         roundsKey?.let { stats.hunting.merge(it + "saw them first", 1, Int::plus) }
-        // It goes round them, out of their notice, and on its way: the walk round is its cost.
-        herd.detourKm += DETOUR * hunter.species.senseKm
+        stop[rk] = min(stop[rk], max(0, ri - 1))
         return
     }
     // A hunter that has eaten its fill this week lets the herd pass; a band hunts on for the stores it
