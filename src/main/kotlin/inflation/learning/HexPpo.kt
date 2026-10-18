@@ -419,8 +419,9 @@ object HexPpo {
                     if (k <= boot) part += d * m else tail += d
                     d *= discount
                 }
-                // (A migratory herd's choice is also judged by how far its members went in the half year, as the check judges the herds.)
-                val went = if (c.kind in Catalogue.migratory) migration(c, horizon) else 0f
+                // (A migratory herd's choice is also judged by how far its members went in the half year, as the check judges the herds:
+                // for those of them still living, so that going far is never worth dying on the way.)
+                val went = if (c.kind in Catalogue.migratory) migration(c, horizon) * min(1f, own[horizon - 1] / c.size.coerceAtLeast(1).toFloat()) else 0f
                 c.ret = sum / norm + went
                 c.part = part / norm + went
                 c.boot = own[boot - 1] / c.size.coerceAtLeast(1).toFloat() * tail / norm
