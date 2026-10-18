@@ -1324,6 +1324,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (weekHeads > 0.0) it[Stuck.PEAK.ordinal] = max(it[Stuck.PEAK.ordinal], weekStuck / weekHeads) }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
             if (hops > 1) walkOn(k, hops, worthOf, walkA, walkY, walkKm, arrived, walkedKm)
+            // (A place left with too few to count, by those leaving or the few that came, has none: as after births and deaths,
+            // they go to the soil with the drowned. Else they would feed and die there as fractions too small to reckon with.)
+            for (p in 0 until n) if (a[p] + y[p] > 0f && a[p] + y[p] < EXTINCT) { drowned[k][p] += a[p] + y[p] * YOUNG_WEIGHT; a[p] = 0f; y[p] = 0f }
             // (Those that came walked here, at a herd's cost a km out of their fat, see [walkCost].)
             for (p in 0 until n) if (arrived[p] > 0f) {
                 val heads = (a[p] + y[p]) * land.areaKm2[p]
