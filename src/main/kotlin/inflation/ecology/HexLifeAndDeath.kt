@@ -250,6 +250,12 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     val kinNow = HashMap<Long, Int>()
     for (g in groups) if (g.alive) kinNow.merge(g.species.index.toLong() * hex.size + hw.placeHex[g.place], g.size, Int::plus)
+    // Plant-eaters' herds by the ground each grazes this week ([rangeShares]), as the residents meet them.
+    val grazing = HashMap<Long, Float>()
+    for (g in groups) if (g.alive && !g.species.carnivore) {
+        val key = g.species.index.toLong() * hex.size
+        rangeShares(g, hw.placeHex[g.place]) { h, share -> grazing.merge(key + h, g.size * share, Float::plus) }
+    }
     // Where each kind's groups are, for outbreaks to pass between them.
     for (a in fauna.groupHeads) a.fill(0)
     for (g in groups) if (g.alive) fauna.groupHeads[g.species.index][hw.placeHex[g.place]] += g.size
@@ -259,7 +265,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     val outcome = arrayOfNulls<Outcome>(list.size)
     IntStream.range(0, list.size).parallel().forEach { k ->
         val g = list[k]
-        if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
+        if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, grazing, groupRandom(g.id, date.absoluteDay)) }
     }
     // Outbreaks that broke out this week rage from next week: started after every group has lived its
     // week, so no group's plague depends on which core another group's ran on.
@@ -416,7 +422,7 @@ internal data class Died(val cause: String, val n: Int)
 internal class Split(val adults: Int, val young: Int)
 
 /** One group's week of feeding on its reserves, births, deaths and growing up; with its own random stream [r]. */
-internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
+internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, grazing: HashMap<Long, Float>, r: kotlin.random.Random): Outcome {
     val s = g.species
     feedOnReserves(g)
     moveBirthMonth(g, date)
@@ -473,7 +479,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val thirst = thirstWeek(g)
     // An outbreak raging where it is kills its share; where its kind is crowded, one may break out.
     val plague = fauna.outbreakDeaths(s, g.place.i)
-    val sick = sicknessWeek(g, weather, kinNow, r)
+    val sick = sicknessWeek(g, weather, kinNow, grazing, r)
     val disease = plague + sick
     // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
     val homeless = if (s.pack && g.home.none) DISPERSAL_DEATHS * years else 0f
@@ -632,12 +638,18 @@ private fun mothersIn(g: HexGroup): Int {
  * sicknesses; hunters' mange, distemper and rabies from packs of their kind about; herds' diseases and
  * parasites where they crowd. Where its kind is crowded, an outbreak may break out (drawn from [r]).
  */
-private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMap<Long, Int>, r: Random): Float {
+private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMap<Long, Int>, grazing: HashMap<Long, Float>, r: Random): Float {
     val s = g.species
     // Crowded herds catch each other's diseases and parasites.
     val usual = HexFauna.usualDensity(s)
-    // (By the resident rule: its kind's heads in its hex against what crowds a resident of its kind.)
-    val crowd = (kinNow[s.index.toLong() * hex.size + hw.placeHex[g.place]] ?: 0) / hex.areaKm2.toFloat() / (HexFauna.CROWDED * usual)
+    // (By the resident rule, against what crowds a resident of its kind: its kind's herds over the ground it grazes,
+    // each herd spread over its own grazing ground, weighed by the share of the week it spends on each.)
+    var crowd = 0f
+    if (!s.carnivore) {
+        val key = s.index.toLong() * hex.size
+        rangeShares(g, hw.placeHex[g.place]) { h, share -> crowd += share * (grazing[key + h] ?: 0f) }
+        crowd /= hex.areaKm2.toFloat() * HexFauna.CROWDED * usual
+    }
     // (Hunters by their kind's numbers over the ground they range over, as residents by theirs in their place.)
     val packs = if (s.carnivore && !s.human) packCrowding(g, kinNow, usual) else 0f
     val crowdNow = if (s.human) peopleCrowding(g) else if (s.carnivore) packs else crowd

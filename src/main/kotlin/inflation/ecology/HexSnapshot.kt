@@ -61,9 +61,10 @@ object HexSnapshot {
      * 1.1: sowing charged its full person-days.
      * 2.0: every plant-eater lives both ways; residents remember their lean months.
      * 2.1: herds sicken by crowding as residents do (no 20x allowance).
+     * 2.2: herd crowding for disease counted over the ground each herd grazes, not its one hex.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 1
+    const val MODEL_MINOR = 2
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
