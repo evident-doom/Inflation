@@ -1050,6 +1050,53 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
+     * The neighbouring place kind [k]'s residents at place [p] would walk to down the slope of [odds] (the share that
+     * would die at each place in a week, NaN where they cannot stay): of the places across each border it can cross into
+     * the six hexes about, in its band or the one above or below (the ground [spill] weighs), the one with the lowest
+     * odds below [than]; -1 where none is lower. The one rule for which way the land slopes for a kind.
+     */
+    internal fun safestNeighbour(k: Int, p: Int, odds: FloatArray, than: Float): Int {
+        val cross = hex.crossings[travel[k].ordinal]
+        val h = hw.placeHex[p]; val b = hw.placeBand[p]
+        var best = -1; var bestOdds = than
+        for (d in 0 until 6) {
+            val nh = hex.neighbour(h, d)
+            if (nh < 0 || !cross[h * 6 + d].isFinite()) continue
+            for (db in -1..1) {
+                val nb = b + db; if (nb !in HexWorld.BANDS_M.indices) continue
+                val q = hw.placeOf[nb][nh]
+                if (q >= 0 && odds[q] < bestOdds) { bestOdds = odds[q]; best = q }
+            }
+        }
+        return best
+    }
+
+    /**
+     * Where the slope of [odds] leads kind [k] from each place, stepping a neighbour a week to the safest
+     * ([safestNeighbour]) while it is safer: the next place ([Slope.next], -1 at the bottom), the place it ends at
+     * ([Slope.end]), the weeks it takes ([Slope.steps]), and the shares that would die on the way, a week at each place
+     * before the end, summed ([Slope.cost]).
+     */
+    internal fun slope(k: Int, odds: FloatArray): Slope {
+        val next = IntArray(n)
+        IntStream.range(0, n).parallel().forEach { p -> next[p] = if (odds[p].isNaN()) -1 else safestNeighbour(k, p, odds, odds[p]) }
+        val end = IntArray(n) { -1 }; val steps = IntArray(n); val cost = FloatArray(n)
+        val path = IntArray(n)
+        for (p0 in 0 until n) {
+            if (end[p0] >= 0) continue
+            // (Down the slope until a place already worked out or the bottom; then back up, adding each place's week.)
+            var len = 0; var p = p0
+            while (end[p] < 0 && next[p] >= 0) { path[len++] = p; p = next[p] }
+            if (end[p] < 0) { end[p] = p; steps[p] = 0; cost[p] = 0f }
+            while (len > 0) { val q = path[--len]; end[q] = end[p]; steps[q] = steps[p] + 1; cost[q] = cost[p] + odds[q]; p = q }
+        }
+        return Slope(next, end, steps, cost)
+    }
+
+    /** Where the slope leads from each place ([slope]). */
+    internal class Slope(val next: IntArray, val end: IntArray, val steps: IntArray, val cost: FloatArray)
+
+    /**
      * How good a place is for kind [k] this week: food per head, its ground, water within reach, the weather against
      * its comfort, deep snow, fear, and the share that would live through the week's fire and plague there.
      */

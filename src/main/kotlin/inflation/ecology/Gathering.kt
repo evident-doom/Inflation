@@ -4,6 +4,8 @@ import inflation.world.Date
 import inflation.world.HexWorld
 import inflation.world.Weather
 import inflation.wrapMonth
+import java.util.stream.IntStream
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -51,30 +53,49 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float): Boolean {
 /**
  * Each week, before herds scatter and gather: for each gathering kind, the share of a band that would die at each place
  * on coming there ([HexFauna.arriveOdds], NaN where it cannot stay), kept in [arriveBy]; and which residents leave
- * ([leaving]): about each place where the most would die staying, the residents of the ground within [gatherKm] whose
- * place is clearly deadlier ([clearlyWorse]) than the safest place within [farKm] beyond that ground, which they head
- * for ([leaveTo]).
+ * ([leaving]) and where for ([leaveTo]), of those whose place is clearly deadly ([clearlyWorse] than none dying).
+ * Where the land slopes from their place to one that is not ([HexFauna.slope]), they follow it as residents, a
+ * neighbour a week, unless that walk is clearly deadlier than going it as a group, a week's walk ([gatherKm]) a week:
+ * then they set off for its end together. Where the slope stops short of safety, about each place where the most
+ * would die, those of the ground within [gatherKm] whose place is clearly deadlier than the safest place within
+ * [farKm] beyond that ground set off for it. So groups form where no slope leads to safety, or only one too long to
+ * walk slowly.
  */
 internal fun HexGroups.leaveAhead(weather: Weather) {
+    val outs = ThreadLocal.withInitial { FloatArray(HexFauna.HZ_COUNT) }
     val out = FloatArray(HexFauna.HZ_COUNT)
     for (s in Catalogue.gathering) {
         val k = fauna.slot(s); if (k < 0 || s !in kinds) continue
         val a = fauna.adults[k]; val y = fauna.young[k]
         val band = s.maxGroupSize.toFloat()
-        val arrive = FloatArray(n) { fauna.arriveOdds(k, it, band, weather, out) }
+        val arrive = FloatArray(n)
+        IntStream.range(0, n).parallel().forEach { arrive[it] = fauna.arriveOdds(k, it, band, weather, outs.get()) }
         arriveBy[s] = arrive
-        // (Staying, by place; and by hex, the heads that might leave: those whose place could be beaten at all.)
+        val slope = fauna.slope(k, arrive)
+        val leave = BooleanArray(n); val to = IntArray(n) { -1 }
+        val leavingByHex = DoubleArray(hex.size)
+        // (Staying, by place; and by hex, the heads whose slope stops short of safety, weighed by how many would die.)
         val stay = FloatArray(n)
+        val stalled = BooleanArray(n)
         val byHex = DoubleArray(hex.size)
         for (p in 0 until n) {
             val heads = (a[p] + y[p]) * land.areaKm2[p].toDouble()
             if (heads <= 0.0) continue
             stay[p] = fauna.stayOdds(k, p, weather, out)
-            if (clearlyWorse(stay[p], 0f, band)) byHex[hw.placeHex[p]] += heads * stay[p]
+            if (!clearlyWorse(stay[p], 0f, band)) continue
+            val q = fauna.safestNeighbour(k, p, arrive, stay[p])
+            if (q >= 0 && !clearlyWorse(arrive[slope.end[q]], 0f, band)) {
+                // A slope to safety: walked a neighbour a week, or as a group a week's walk a week.
+                val steps = 1 + slope.steps[q]
+                val walk = stay[p] + slope.cost[q]
+                val trek = ceil(steps * hex.hexKm / gatherKm(s)).toFloat() * walk / steps
+                if (clearlyWorse(min(1f, walk), min(1f, trek), band)) { leave[p] = true; to[p] = slope.end[q]; leavingByHex[hw.placeHex[p]] += heads }
+                continue
+            }
+            stalled[p] = true
+            byHex[hw.placeHex[p]] += heads * stay[p]
         }
-        val leave = BooleanArray(n); val to = IntArray(n) { -1 }
         val used = BooleanArray(hex.size)
-        val leavingByHex = DoubleArray(hex.size)
         for (h0 in (0 until hex.size).filter { byHex[it] > 0.0 }.sortedByDescending { byHex[it] }) {
             if (used[h0]) continue
             // The safest place beyond their own ground, within a month's walk.
@@ -91,7 +112,7 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
             for (h in about) {
                 used[h] = true
                 for (b in HexWorld.BANDS_M.indices) {
-                    val p = hw.placeOf[b][h]; if (p < 0 || a[p] + y[p] <= 0f) continue
+                    val p = hw.placeOf[b][h]; if (p < 0 || !stalled[p]) continue
                     if (clearlyWorse(stay[p], bestOdds, band)) { leave[p] = true; to[p] = best; leavingByHex[h] += (a[p] + y[p]) * land.areaKm2[p].toDouble() }
                 }
             }
