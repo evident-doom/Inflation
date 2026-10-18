@@ -1072,18 +1072,39 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * odds below [than]; -1 where none is lower. The one rule for which way the land slopes for a kind.
      */
     internal fun safestNeighbour(k: Int, p: Int, odds: FloatArray, than: Float): Int {
+        var best = -1; var bestOdds = than
+        neighbourPlaces(k, p) { q -> if (odds[q] < bestOdds) { bestOdds = odds[q]; best = q } }
+        return best
+    }
+
+    /** Each place kind [k]'s residents at place [p] can walk to in a step: across each border it can cross into the six hexes about, in its band or the one above or below. */
+    private inline fun neighbourPlaces(k: Int, p: Int, f: (Int) -> Unit) {
         val cross = hex.crossings[travel[k].ordinal]
         val h = hw.placeHex[p]; val b = hw.placeBand[p]
-        var best = -1; var bestOdds = than
         for (d in 0 until 6) {
             val nh = hex.neighbour(h, d)
             if (nh < 0 || !cross[h * 6 + d].isFinite()) continue
             for (db in -1..1) {
                 val nb = b + db; if (nb !in HexWorld.BANDS_M.indices) continue
                 val q = hw.placeOf[nb][nh]
-                if (q >= 0 && odds[q] < bestOdds) { bestOdds = odds[q]; best = q }
+                if (q >= 0) f(q)
             }
         }
+    }
+
+    /**
+     * Where kind [k]'s walkers at place [p] step next: death first, by [odds] (the share that would die at each place on
+     * coming there, NaN where they cannot stay); where staying is clearly the deadlier ([clearlyWorse] for a band of the
+     * kind), to the safest neighbour; else to the neighbour of the best forage ([worth], as [appeal] weighs a place) among
+     * those no deadlier than here, where it is better than here; -1 where they stay.
+     */
+    internal fun walkStep(k: Int, p: Int, odds: FloatArray, worth: FloatArray): Int {
+        val here = odds[p]
+        if (here.isNaN()) return -1
+        val safest = safestNeighbour(k, p, odds, here)
+        if (safest >= 0 && clearlyWorse(here, odds[safest], kinds[k].maxGroupSize.toFloat())) return safest
+        var best = -1; var bestWorth = worth[p]
+        neighbourPlaces(k, p) { q -> if (odds[q] <= here && worth[q] > bestWorth) { bestWorth = worth[q]; best = q } }
         return best
     }
 
@@ -1189,9 +1210,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * Hungry or crowded animals spill into neighbouring hexes, at about the same height, towards
      * better feeding; the harder the border is for their way of travelling, the fewer cross it.
-     * Those that leave walk on, hex by hex, as long as the place ahead is safer than where they stand
-     * and their week's going allows ([walkOn], [hopsFor]): so a kind follows the seasons' change of country
-     * by walking, not only by spreading a hex a week.
+     * Those that leave walk on, hex by hex, to safer places, or to better feeding no deadlier than where they
+     * stand, as far as their week's going allows ([walkOn], [hopsFor]): so a kind follows the seasons' change of
+     * country by walking, not only by spreading a hex a week.
      */
     private fun spill(weather: Weather) {
         // (The swimmers drowned this week, kind by kind: their weight as grown animals by place, and their heads.)
@@ -1302,7 +1323,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             stuck[k].let { it[Stuck.HEADS.ordinal] += weekHeads; it[Stuck.STUCK.ordinal] += weekStuck; it[Stuck.AT_EDGE.ordinal] += weekEdge
                 if (weekHeads > 0.0) it[Stuck.PEAK.ordinal] = max(it[Stuck.PEAK.ordinal], weekStuck / weekHeads) }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
-            if (hops > 1) walkOn(k, hops, walkA, walkY, walkKm, arrived, walkedKm)
+            if (hops > 1) walkOn(k, hops, worthOf, walkA, walkY, walkKm, arrived, walkedKm)
             // (Those that came walked here, at a herd's cost a km out of their fat, see [walkCost].)
             for (p in 0 until n) if (arrived[p] > 0f) {
                 val heads = (a[p] + y[p]) * land.areaKm2[p]
@@ -1326,14 +1347,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     internal fun hopsFor(s: Species) = max(1, (s.dailyTravelKm * days / hex.hexKm).toInt())
 
     /**
-     * The walkers of kind [k] ([spill]'s, who left their place and have crossed into the next hex) walk on down the slope
-     * of the share that would die at each place on coming there ([arrive]): from where they
-     * stand to the safest neighbour while it is safer ([safestNeighbour], the one rule for which way the land slopes),
-     * for up to [hops] hexes in all; at the bottom, or where their week's going is spent, they stay. Only for the kinds
-     * whose food left uneaten is reckoned ([room]). Adds the heads that came to each place to [arrived] and the km they
-     * walked to [walkedKm].
+     * The walkers of kind [k] ([spill]'s, who left their place and have crossed into the next hex) walk on, a step at a
+     * time as [walkStep] leads (death first by [arrive], then the forage [worth] among places no deadlier), for up to
+     * [hops] hexes in all; where it leads nowhere, or their week's going is spent, they stay. Only for the kinds whose
+     * food left uneaten is reckoned ([room]). Adds the heads that came to each place to [arrived] and the km they walked
+     * to [walkedKm].
      */
-    private fun walkOn(k: Int, hops: Int, walkA: FloatArray, walkY: FloatArray, walkKm: FloatArray,
+    private fun walkOn(k: Int, hops: Int, worth: FloatArray, walkA: FloatArray, walkY: FloatArray, walkKm: FloatArray,
                        arrived: FloatArray, walkedKm: FloatArray) {
         val a = adults[k]; val y = young[k]
         val area = land.areaKm2
@@ -1347,7 +1367,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             for (q in 0 until n) {
                 val heads = wA[q] + wY[q]
                 if (!(heads > 0f)) continue
-                if (next[q] == -2) next[q] = if (odds[q].isNaN()) -1 else safestNeighbour(k, q, odds, odds[q])
+                if (next[q] == -2) next[q] = walkStep(k, q, odds, worth)
                 val r = next[q]
                 if (r < 0) {
                     a[q] += wA[q] / area[q]; y[q] += wY[q] / area[q]; arrived[q] += heads; walkedKm[q] += wK[q]
