@@ -1,7 +1,6 @@
 package inflation.world
 
 import inflation.Books
-import inflation.Config
 
 import kotlin.math.exp
 import kotlin.math.max
@@ -26,13 +25,6 @@ import kotlin.math.min
 class HexHydrology(land: HexLand) : HexLandPart(land) {
     /** The hex each hex's main river flows into, -1 at the sea or a closed basin. */
     @Transient val down = IntArray(hex.size) { -1 }
-    /**
-     * Running mean of each hex's routed flow before correction, m³/s, over about two years. The
-     * buckets of whole bands shed less water than their cells would one by one, and the coarse
-     * network misses lakes and splits; each hex's flow is scaled so that over the years it matches
-     * the long-term flow of its fine river.
-     */
-    private val rawMean = FloatArray(hex.size)
     /** Long-term mean flow of each hex's main river, m³/s. */
     @Transient val meanFlow = FloatArray(hex.size)
     @Transient private val order: IntArray
@@ -74,13 +66,6 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         // (Each hex drains to the hex whose main river its own reaches downstream on the fine grid, which
         // has no loops, so neither has this; a hex left out would never route its water, so make sure.)
         check(order.size == hex.size) { "hex rivers form a loop: ${hex.size - order.size} hexes never drain" }
-        // What the hex network would carry on average from the long-term runoff of the places,
-        // against the long-term flow of the fine rivers: lakes, splits and losses the coarse
-        // network misses are put back as a fixed factor per hex.
-        val mean = DoubleArray(hex.size)
-        for (p in 0 until n) mean[hw.placeHex[p]] += mean(p) { world.climate.runoff[it] } / 1000.0 * land.areaM2[p] / (Date.DAYS_PER_YEAR * 86_400.0)
-        for (h in order) { val d = down[h]; if (d >= 0) mean[d] += mean[h] }
-        for (h in 0 until hex.size) rawMean[h] = mean[h].toFloat()
     }
 
     /**
@@ -139,7 +124,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         }
     }
     /**
-     * The lakes of each hex (see [CONSERVE_WATER]): their area, m²; the water they hold up to their surface, m³; and the
+     * The lakes of each hex: their area, m²; the water they hold up to their surface, m³; and the
      * rain and snow on them and the open water's evaporation in each month, m³ (from the fine world's lakes and climate).
      */
     @Transient private val lakeM2 = DoubleArray(hex.size)
@@ -177,8 +162,8 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             for (k in d.indices) { lakeHold[lakeAt[h] + k] = (deeper - k * d[k].toDouble()) * area; deeper += d[k] }
         }
     }
-    /** The water each hex's lakes hold, m³: full to begin with (and on loading a save, while this is a trial). */
-    @Transient val lakeM3 = lakeFull.copyOf()
+    /** The water each hex's lakes hold, m³: full to begin with. */
+    val lakeM3 = lakeFull.copyOf()
 
     /** The share of hex [h]'s lake beds under water when its lakes hold [m3]: a low lake covers only its deeper cells. */
     private fun wetShare(h: Int, m3: Double): Double {
@@ -190,52 +175,13 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         return lo.toDouble() / n
     }
 
-    /** What the lakes hold against their fill, and how many hexes' lakes are dry, low or full (see [CONSERVE_WATER]). */
+    /** What the lakes hold against their fill, and how many hexes' lakes are dry, low or full. */
     fun lakeSummary(): String {
         val lakes = lakeM2.indices.filter { lakeFull[it] > 0.0 }
         val share = lakes.map { lakeM3[it] / lakeFull[it] }
         return "hold %.0f of %.0f million m³ (%.1f%%); of %d hexes' lakes %d dry (<1%%), %d below half, %d full (>99%%)".format(
             lakes.sumOf { lakeM3[it] } / 1e6, lakes.sumOf { lakeFull[it] } / 1e6, 100 * lakes.sumOf { lakeM3[it] } / lakes.sumOf { lakeFull[it] }.coerceAtLeast(1.0),
-            lakes.size, share.count { it < 0.01 }, share.count { it < 0.5 }, share.count { it > 0.99 }) +
-            // (Against the fine rivers' long-term flow, the hex rivers' own flow over the last two years or so: the
-            // lakes were filled by the fine world's water, and fall where the hexes bring them less.)
-            "; rivers carry %.0f%% of the fine rivers' flow, into lakes %.0f%%, into lakes with no outlet %.0f%%, into those of them below 99%% %.0f%%; of the lakes below 99%% %d have no outlet".format(
-                100 * carried { meanFlow[it] >= CREEK }, 100 * carried { meanFlow[it] >= CREEK && intoLake(it) },
-                100 * carried { intoLake(it) && down[down[it]] < 0 }, 100 * carried { intoLake(it) && down[down[it]] < 0 && lakeM3[down[it]] < 0.99 * lakeFull[down[it]] },
-                lakes.count { lakeM3[it] < 0.99 * lakeFull[it] && down[it] < 0 })
-    }
-    /** This year's rain and snow on each place, and what its soil could not hold (run off or into the rock), mm (see [lakeSummary]). */
-    @Transient private val rainYear = FloatArray(n)
-    @Transient private val shedYear = FloatArray(n)
-
-    /**
-     * For the catchments of lakes with no outlet, sinking (below 99%) or not: this year's rain and what the soil shed
-     * against the fine world's long-term rain and runoff (from which it sized those lakes). Starts the next year's count.
-     */
-    fun catchmentSummary(): String {
-        // (Each hex's last hex down its rivers: a lake with no outlet, or the sea.)
-        val end = IntArray(hex.size) { -1 }
-        for (h in order.reversed()) end[h] = if (down[h] < 0) h else end[down[h]]
-        val sums = Array(2) { DoubleArray(5) }
-        for (p in 0 until n) {
-            val e = end[hw.placeHex[p]]
-            if (e < 0 || down[e] >= 0 || lakeFull[e] <= 0.0) continue
-            val a = land.areaM2[p].toDouble()
-            val s = sums[if (lakeM3[e] < 0.99 * lakeFull[e]) 0 else 1]
-            s[0] += rainYear[p] * a; s[1] += shedYear[p] * a
-            s[2] += mean(p) { world.climate.annualPrecip[it] } * a; s[3] += mean(p) { world.climate.runoff[it] } * a; s[4] += a
-        }
-        rainYear.fill(0f); shedYear.fill(0f)
-        return listOf("sinking", "not sinking").mapIndexed { k, name -> val s = sums[k]
-            "%s %.0f km², rain %.0f%% of the fine world's (%.0f mm), shed %.0f%% of its runoff (%.0f against %.0f mm)".format(
-                name, s[4] / 1e6, 100 * s[0] / max(s[2], 1.0), s[2] / max(s[4], 1.0), 100 * s[1] / max(s[3], 1.0), s[1] / max(s[4], 1.0), s[3] / max(s[4], 1.0))
-        }.joinToString("; ")
-    }
-    private fun intoLake(h: Int) = down[h] >= 0 && lakeFull[down[h]] > 0.0
-    private inline fun carried(which: (Int) -> Boolean): Double {
-        var raw = 0.0; var fine = 0.0
-        for (h in 0 until hex.size) if (which(h)) { raw += rawMean[h]; fine += meanFlow[h] }
-        return raw / max(fine, 1e-9)
+            lakes.size, share.count { it < 0.01 }, share.count { it < 0.5 }, share.count { it > 0.99 })
     }
 
     /** Each aquifer's settled level, mm, against which springs weaken (at least a millimetre). */
@@ -305,7 +251,6 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             val taken = min(excess * intake[p], aquiferCap[p] - groundwater[p]).coerceAtLeast(0f)
             groundwater[p] += taken
             volume[hw.placeHex[p]] += (excess - taken) / 1000.0 * land.areaM2[p]
-            if (CONSERVE_WATER) { rainYear[p] += weather.precipitation[p]; shedYear[p] += excess }
             ranOff[p] = excess - taken > 0f
             runoffMm[p] = excess - taken
             // The water in the bed sands sinks into the rock below.
@@ -324,7 +269,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             // Ground water drains into the hex's stream, or on underground to the valley of the hex below.
             val v = valley[h]
             // (A hex all lake has no ground for it: it comes up in the lake.)
-            if (CONSERVE_WATER && v < 0) volume[h] += underground[h]
+            if (v < 0) volume[h] += underground[h]
             if (v >= 0 && underground[h] > 0.0) {
                 val mm = (underground[h] / land.areaM2[v] * 1000.0).toFloat()
                 val room = max(0f, aquiferCap[v] - groundwater[v])
@@ -342,7 +287,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             }
             // The lakes take what runs in, with the rain on their beds, and give up what the sun takes from their open
             // water, which shrinks as they sink; full, they pass on what comes in beyond it.
-            if (CONSERVE_WATER && lakeM2[h] > 0.0) {
+            if (lakeM2[h] > 0.0) {
                 val rainOn = lakeRain[m][h] * share
                 val water = lakeM3[h] + volume[h] + rainOn
                 val evap = min(water, lakeEvap[m][h] * share * wetShare(h, lakeM3[h]))
@@ -351,9 +296,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 rainIn += rainOn; toAir += evap
             }
             val raw = (volume[h] / land.stepSeconds).toFloat()
-            rawMean[h] += (raw - rawMean[h]) * FLOW_MEMORY
-            // (Without [CONSERVE_WATER] the flow is scaled to the fine river's long-term flow: water no store holds.)
-            flow[h] = if (CONSERVE_WATER) raw else if (rawMean[h] > 0.01f && meanFlow[h] > 0f) raw * (meanFlow[h] / rawMean[h]).coerceIn(0.3f, 3f) else raw
+            flow[h] = raw
             for (p in hw.placesOf(h)) {
                 flood[p] = if (land.floodShare[p] <= 0f || meanFlow[h] < RiverClass.STREAM.minDischarge) 0f else Channel.floodStageM(flow[h], meanFlow[h])
             }
@@ -490,8 +433,6 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     }
 
     companion object {
-        /** Trial (t.conserveWater): rivers carry the water the land sheds, not scaled to the fine rivers' flow, and lakes hold water, rained on and evaporating. */
-        @JvmField val CONSERVE_WATER: Boolean = Config.flag("t.conserveWater", false)
         /** Share of the soil's water plants take up without stress; drier than that, growth and evaporation fall in step (FAO-56, p about 0.5). */
         const val UNSTRESSED = 0.5f
         /** How moist the water table keeps the ground round fresh lakes and springs, as a share of a full soil. */
@@ -531,7 +472,5 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
          * of some 10-30 hexes, so about 3% in each.
          */
         const val FLOOD_TRAP = 0.03
-        /** Weekly weight of the newest flow in the running mean used to correct river flows (about two years). */
-        const val FLOW_MEMORY = 0.01f
     }
 }
