@@ -17,10 +17,12 @@ import kotlin.math.sqrt
  * spill, see [HexFauna]); a group is the long walk they cannot make that way. Each week, the residents of a place weigh
  * the share of them that would die there next week ([HexFauna.stayOdds]: hunger, cold, thirst, disease, fire, flood,
  * snow, by the rules they die by) against the share that would die at the safest place a group of them could reach in
- * a month, beyond their own ground ([HexFauna.arriveOdds]); where staying is clearly the deadlier ([clearlyWorse]), they
- * leave together, as many groups as they make, however few. A group that stands where it is no longer clearly worse off
- * than anywhere within a month's walk settles back into the land a band a week; elsewhere it takes in the residents
- * about it that are leaving too. Nothing holds a group together but the need: heads, young, fat, feeding, protein and
+ * a month, beyond their own ground ([HexFauna.arriveOdds]); where staying is clearly the deadlier ([clearlyWorse]), and a
+ * band of them would be clearly worse off as a herd standing there than as one at the place they head for, by the odds a
+ * herd weighs its places by ([HexGroups.herdOddsAt]), they leave together, as many groups as they make, however few. A
+ * group that stands where a band of it, by the same odds, is no longer clearly worse off than at the safest place within
+ * a month's walk settles back into the land a band a week; elsewhere it takes in the residents about it that are leaving
+ * too. So a herd forms only where, being one, it has somewhere to go, and keeps together only while it has. Nothing holds a group together but the need: heads, young, fat, feeding, protein and
  * thirst go across as they are, and being moved from one form to the other changes nothing by itself.
  */
 
@@ -60,7 +62,9 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float): Boolean {
  * then they set off for its end together. Where the slope stops short of safety, about each place where the most
  * would die, those of the ground within [gatherKm] whose place is clearly deadlier than the safest place within
  * [farKm] beyond that ground set off for it. So groups form where no slope leads to safety, or only one too long to
- * walk slowly.
+ * walk slowly. Either way only where a band of them, as a herd, would itself be clearly worse off standing at their
+ * place than at the one they head for ([herdLeaves]): the herd they make weighs its places by those odds, and would
+ * otherwise stand where it formed.
  */
 internal fun HexGroups.leaveAhead(weather: Weather) {
     val outs = ThreadLocal.withInitial { FloatArray(HexFauna.HZ_COUNT) }
@@ -97,7 +101,9 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
                 val perWeek = (stay[p] + slope.cost(q)) / steps
                 val walk = ceil(steps / fauna.hopsFor(s).toDouble()).toFloat() * perWeek
                 val trek = ceil(steps * hex.hexKm / gatherKm(s)).toFloat() * perWeek
-                if (clearlyWorse(min(1f, walk), min(1f, trek), band)) { leave[p] = true; to[p] = slope.end(q); leavingByHex[hw.placeHex[p]] += heads }
+                if (clearlyWorse(min(1f, walk), min(1f, trek), band) && herdLeaves(s, k, p, slope.end(q), weather)) {
+                    leave[p] = true; to[p] = slope.end(q); leavingByHex[hw.placeHex[p]] += heads
+                }
                 continue
             }
             stalled[p] = true
@@ -118,7 +124,9 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
                 used[h] = true
                 for (b in HexWorld.BANDS_M.indices) {
                     val p = hw.placeOf[b][h]; if (p < 0 || !stalled[p]) continue
-                    if (clearlyWorse(stay[p], bestOdds, band)) { leave[p] = true; to[p] = best; leavingByHex[h] += (a[p] + y[p]) * land.areaKm2[p].toDouble() }
+                    if (clearlyWorse(stay[p], bestOdds, band) && herdLeaves(s, k, p, best, weather)) {
+                        leave[p] = true; to[p] = best; leavingByHex[h] += (a[p] + y[p]) * land.areaKm2[p].toDouble()
+                    }
                 }
             }
         }
@@ -200,21 +208,21 @@ internal fun HexGroups.herdsWorth(s: Species): FloatArray? {
 
 /**
  * Each week, a herd of a gathering kind keeps the balance with the residents of its kind about it. Where a band of it
- * would not be clearly worse off staying where it stands than at the safest place within a month's walk beyond it,
- * once it is well away from the place it left ([settles]), one usual band of its kind ([Species.maxGroupSize]) settles there as residents, about where it stands,
+ * would not be clearly worse off staying where it stands than at the safest place within a month's walk beyond it
+ * ([settles]), one usual band of its kind ([Species.maxGroupSize]) settles there as residents, about where it stands,
  * and the last band scatters whole. Elsewhere it takes in, within a day's walk of it, the residents leaving too
  * ([leaveAhead]) and the young males that grew up there this week and leave to find their own ground (half those grown,
  * see [HexFauna.grownUp]); each place gives to one herd a week. So herds form where the land fails its residents and
  * melt back into it where it does not, a band a week.
  */
-internal fun HexGroups.scatter() {
+internal fun HexGroups.scatter(weather: Weather) {
     var any = false
     for (g in groups) { g.settled = 0; g.joined = 0 }
     val taken = HashMap<Species, BooleanArray>()
     // (Whether each settles, on all cores: it reads only this week's odds.)
     val settling = BooleanArray(groups.size)
     IntStream.range(0, groups.size).parallel().forEach { i -> val g = groups[i]
-        if (g.alive && g.species in Catalogue.gathering && fauna.slot(g.species) >= 0) settling[i] = settles(g) }
+        if (g.alive && g.species in Catalogue.gathering && fauna.slot(g.species) >= 0) settling[i] = settles(g, weather) }
     for ((i, g) in groups.withIndex()) {
         val s = g.species
         if (!g.alive || s !in Catalogue.gathering) continue
@@ -239,33 +247,58 @@ internal fun HexGroups.scatter() {
 }
 
 /**
- * Whether a band of herd [g] would stay where it stands: its place, as it would be to a band coming there
- * ([arriveBy]), is not clearly deadlier ([clearlyWorse]) than the safest place within [farKm] beyond [gatherKm] of it;
- * and it has once gone more than [gatherKm] from where it formed ([HexGroup.formedAt]: the place it left had failed it).
+ * Whether a band of herd [g] would stay where it stands: standing there as a herd, it would not die clearly more
+ * ([clearlyWorse], by [HexGroups.herdOddsAt]) than at the safest place within [farKm] beyond [gatherKm] of it (by
+ * [arriveBy]), where it can drink at all. The same test as for residents setting off ([herdLeaves]): so where a band of
+ * it would leave, it keeps together, and where it would not, it melts back, wherever it formed.
  */
-private fun HexGroups.settles(g: HexGroup): Boolean {
+private fun HexGroups.settles(g: HexGroup, weather: Weather): Boolean {
     val s = g.species
-    if (g.formedAt >= 0) { if (hex.distanceKm(hw.placeHex[g.place.i], hw.placeHex[g.formedAt]) <= gatherKm(s)) return false; g.formedAt = -1 }
     val arrive = arriveBy[s] ?: return false
-    val here = arrive[g.place.i]
-    if (here.isNaN()) return false
+    if (arrive[g.place.i].isNaN()) return false
     val best = farthest(s, hw.placeHex[g.place.i])
-    return best < 0 || !clearlyWorse(here, arrive[best], s.maxGroupSize.toFloat())
+    if (best < 0) return true
+    val band = bandAsHerd(g)
+    return !clearlyWorse(herdOddsAt(band, g.place.i, weather), herdOddsAt(band, best, weather), s.maxGroupSize.toFloat())
+}
+
+/**
+ * Whether residents of [s] (slot [k]) at place [p] heading for place [to] set off as a herd: a band of them, as a herd
+ * standing at [p], would die clearly more ([clearlyWorse]) than at [to], by the odds a herd weighs its places by
+ * ([HexGroups.herdOddsAt]). Else the herd they made would have nowhere it wants to go, and would stand where it formed.
+ */
+private fun HexGroups.herdLeaves(s: Species, k: Int, p: Int, to: Int, weather: Weather): Boolean {
+    val a = fauna.adults[k][p]; val y = fauna.young[k][p]
+    val young = if (a + y > 0f) (s.maxGroupSize * y / (a + y)).roundToInt() else 0
+    val band = HexGroup(-1, s, Place(p), max(1, s.maxGroupSize - young), young)
+    band.fed = fauna.fed[k][p]; band.fat = fauna.reserve[k][p]; band.protein = fauna.protein[k][p]; band.dry = fauna.dry[k][p]
+    return clearlyWorse(herdOddsAt(band, p, weather), herdOddsAt(band, to, weather), s.maxGroupSize.toFloat())
+}
+
+/** A band's worth of herd [g] ([Species.maxGroupSize]), adults and young as in it, in its condition: not one of the groups. */
+private fun bandAsHerd(g: HexGroup): HexGroup {
+    val s = g.species
+    val young = (s.maxGroupSize.toLong() * g.young / max(1, g.size)).toInt()
+    return HexGroup(-1, s, g.place, max(1, s.maxGroupSize - young), young).also {
+        it.fed = g.fed; it.fat = g.fat; it.protein = g.protein; it.dry = g.dry; g.will.copyInto(it.will); it.warmth = g.warmth
+    }
 }
 
 /** [HexGroups.safestFar] not yet worked out for a hex. */
 private const val UNWEIGHED = -2
 
 /**
- * The safest place for kind [s] beyond [gatherKm] of hex [h0] and within [farKm], by this week's [arriveBy] (-1 where
- * none can be stayed at): worked out once a week for each hex asked about, and kept in [HexGroups.safestFar] (safe to
- * ask on all cores: a hex worked out twice comes out the same).
+ * The safest place for kind [s] beyond [gatherKm] of hex [h0] and within [farKm], by this week's [arriveBy], on land it
+ * can walk to from there ([landOf]: not over the sea or a river too deep to cross; -1 where none can be stayed at):
+ * worked out once a week for each hex asked about, and kept in [HexGroups.safestFar] (safe to ask on all cores: a hex
+ * worked out twice comes out the same).
  */
-private fun HexGroups.farthest(s: Species, h0: Int): Int {
+internal fun HexGroups.farthest(s: Species, h0: Int): Int {
     val memo = safestFar[s] ?: return -1
     memo[h0].let { if (it != UNWEIGHED) return it }
     val arrive = arriveBy[s] ?: return -1
     val ring = farRing[s] ?: return -1
+    val walk = landOf(s); val mine = walk[h0]
     var best = -1; var bestOdds = Float.MAX_VALUE
     val r0 = h0 / hex.cols; val c0 = h0 % hex.cols
     val steps = ring[r0 and 1]
@@ -273,6 +306,7 @@ private fun HexGroups.farthest(s: Species, h0: Int): Int {
         val r = r0 + steps[i]; val c = c0 + steps[i + 1]
         if (r < 0 || r >= hex.rows || c < 0 || c >= hex.cols) continue
         val h = r * hex.cols + c
+        if (walk[h] != mine) continue
         for (b in HexWorld.BANDS_M.indices) {
             val q = hw.placeOf[b][h]; if (q < 0) continue
             if (arrive[q] < bestOdds) { bestOdds = arrive[q]; best = q }
@@ -280,6 +314,36 @@ private fun HexGroups.farthest(s: Species, h0: Int): Int {
     }
     memo[h0] = best
     return best
+}
+
+/**
+ * Which land each hex belongs to for kind [s] (kept in [HexGroups.landIds]), worked out the first time it is asked: hexes joined
+ * by borders it can cross at all ([inflation.world.HexMap.crossings] for its way of going) and straits it can swim
+ * ([HexGroups.seaLinks], [Catalogue.swimKm]) share a number; sea hexes have none (-1).
+ */
+internal fun HexGroups.landOf(s: Species): IntArray = landIds.computeIfAbsent(s) {
+    val cross = hex.crossings[Catalogue.travel(s).ordinal]; val swim = Catalogue.swimKm(s)
+    val out = IntArray(hex.size) { -1 }
+    var next = 0
+    val stack = IntArray(hex.size)
+    for (h0 in 0 until hex.size) {
+        if (out[h0] >= 0 || hex.heart[h0] < 0) continue
+        val id = next++
+        var top = 0; stack[top++] = h0; out[h0] = id
+        while (top > 0) {
+            val h = stack[--top]
+            for (d in 0 until 6) {
+                val nh = hex.neighbour(h, d)
+                if (nh < 0 || out[nh] >= 0 || hex.heart[nh] < 0 || !cross[h * 6 + d].isFinite()) continue
+                out[nh] = id; stack[top++] = nh
+            }
+            if (swim > 0f) for ((i, nh) in seaLinks[h].withIndex()) {
+                if (out[nh] >= 0 || seaGaps[h][i] > swim) continue
+                out[nh] = id; stack[top++] = nh
+            }
+        }
+    }
+    out
 }
 
 /**
