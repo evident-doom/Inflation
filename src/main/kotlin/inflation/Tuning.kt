@@ -72,6 +72,12 @@ class Tuning(private val read: (String) -> String? = Config::string) {
      */
     val residentMoveWeeks = i("residentMoveWeeks", 1).also { require(it >= 1) { "t.residentMoveWeeks is $it: residents move at most every week" } }
     /**
+     * Residents: the share of a kind's animals at a place that take a step each week along the route their
+     * seasonal memory leads to better ground ([inflation.ecology.SeasonalMemory.route]), as far as the crowding ahead
+     * lets them. 1: all of them, too much; set by eye in the viewer while the memory is tuned.
+     */
+    val residentRouteShare = f("residentRouteShare", 0.3f).also { require(it in 0f..1f) { "t.residentRouteShare is $it: a share, 0..1" } }
+    /**
      * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
      * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).
      * 0: none. For the step's cost: fewer places hold each kind.
