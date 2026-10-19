@@ -4,6 +4,7 @@ import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
 import inflation.ecology.Profile
+import inflation.run.Nominal
 
 /**
  * A fauna check's run: the start, the weeks with what is tallied after each, a report at each year's
@@ -129,5 +130,8 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         val groups = sim.groups
         println("a step of weather, water, plants and all animals: %.1f ms, of it settling meetings %.1f ms, the sense of direction %.1f ms"
             .format(stepNs / 1e6 / steps, groups.meetNs / 1e6 / steps, (groups.bearings.updateNs + sim.fauna.bearings.updateNs) / 1e6 / steps))
+        // Whether the run stayed within nominal limits (reported only): the state it ends in, and its history if one was kept.
+        println(Nominal.state(sim).report())
+        println(if (options.historyFile != null) Nominal.history(history).report() else "within nominal limits (series): not checked, no history kept (--history FILE)")
     }
 }

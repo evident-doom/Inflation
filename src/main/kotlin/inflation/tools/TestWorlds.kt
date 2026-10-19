@@ -2,6 +2,7 @@ package inflation.tools
 
 import inflation.Config
 import inflation.ecology.HexHistory
+import inflation.run.Nominal
 import inflation.run.TestWorlds
 import inflation.run.gitCommit
 import inflation.world.WorldCache
@@ -44,6 +45,11 @@ fun main(args: Array<String>) {
             while (k < args.size) { when (args[k]) { "--worlds" -> worlds = args[++k].split(','); "--replicates" -> replicates = args[++k].toInt(); else -> error("unknown argument ${args[k]}") }; k++ }
             TestWorlds.abReport(out, worlds, replicates, "the variant")
         }
+        "nominal" -> {
+            // nominal HISTORY.csv...: whether runs already made stayed within nominal limits (their series; see Nominal).
+            require(args.size > 1) { "nominal needs history files (.csv)" }
+            for (f in args.drop(1)) println("$f: " + Nominal.history(HexHistory.readCsv(File(f))).report(most = Int.MAX_VALUE))
+        }
         "compare" -> {
             var full = emptyList<TestWorlds.Run>(); var fullVariant = emptyList<TestWorlds.Run>()
             val tests = ArrayList<Triple<String, TestWorlds.Run, TestWorlds.Run?>>()
@@ -60,7 +66,7 @@ fun main(args: Array<String>) {
             }
             TestWorlds.compare(full, fullVariant, tests)
         }
-        else -> println("usage: testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
+        else -> println("usage: testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
             "a test on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE]")
     }
 }

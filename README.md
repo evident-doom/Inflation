@@ -155,6 +155,16 @@ numbers, only against its base. Smaller maps do not track the full map (see `Tes
 `small-1` is for checking that code runs. `hexFauna --world NAME --years N [--replicate R]`
 carries one settled world on by itself.
 
+Every `hexFauna` run ends by saying whether it stayed within nominal limits (`run/Nominal.kt`): wide
+bounds on every series of its history (numbers that are numbers, matter not below zero, fed within
+0..1, weather and densities in reason, no kind gone, no kind or stock swinging many times over from
+year to year) and on the state it ends in (every table of the weather, land and animals a number,
+every stock at or above zero, shares within 0..1, groups sound, the books if kept). `testWorld ab`
+reports the same for each run and what the variant alone broke, the training's ecosystem check adds
+a line for its runs and logs each training world's state as it is replaced, and
+`testWorld -PtestArgs="nominal HISTORY.csv..."` checks histories already made. It is reported only,
+and its limits are lax, to be tightened as the model settles.
+
 ## Known simplifications
 
 - Rivers use single-direction (D8) routing, randomised during erosion to avoid parallel channels.

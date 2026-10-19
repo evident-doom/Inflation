@@ -33,10 +33,25 @@ class HexHistory {
         private const val ANIMALS = "animals/"
         private const val BIOMASS = "biomass/"
         private const val MIGRATION = "migration/"
+        private const val FED = "fed/"
+        private const val DEATHS = "deaths/"
+        private const val BIRTHS = "births/"
+        private const val KILLS = "kills/"
+        private const val FISH_FLOWS = "fish flows/"
+        private const val SMALL_LIFE = "small life/"
+        private const val WATER_LIFE = "water life/"
+        private const val WEATHER = "weather/"
+        private const val BIOME = "biome/"
         /** The land's area, km². */
         const val LAND_AREA = "land/area km²"
         const val TEMPERATURE = "weather/temperature °C"
         const val RAIN = "weather/rain mm"
+        const val SNOW = "weather/snow lying mm"
+        const val SOIL_WATER = "weather/soil water mm"
+        const val DROUGHTS = "weather/droughts under way"
+        /** What a [biome] series measures besides a kind's head count. */
+        const val AREA = "area km²"
+        const val PLANTS = "plants kg per m²"
         /** Head count of [kind] (resident, herds and packs). */
         fun animals(kind: String) = ANIMALS + kind
         /** The kind an [animals] key counts, or null for any other key. */
@@ -44,13 +59,38 @@ class HexHistory {
         /** Thousand tonnes in the pool or stock [name]. */
         fun biomass(name: String) = BIOMASS + name
         fun isBiomass(key: String) = key.startsWith(BIOMASS)
-        fun isWeather(key: String) = key.startsWith("weather/")
-        /** [what] ("area km²", "plants kg per m²" or a kind's head count) in the country of [biome]. */
-        fun biome(biome: Biome, what: String) = "biome/${biome.label}/$what"
+        fun isWeather(key: String) = key.startsWith(WEATHER)
+        /** How well fed the plant-eaters of [kind] were, 0 to 1, by heads. */
+        fun fed(kind: String) = FED + kind
+        fun isFed(key: String) = key.startsWith(FED)
+        /** Deaths of [kind] of [cause] in the week. */
+        fun deaths(kind: String, cause: String) = "$DEATHS$kind/$cause"
+        /** The kind a [deaths] key is about, or null for any other key. */
+        fun deathsKind(key: String) = if (key.startsWith(DEATHS)) key.split('/')[1] else null
+        /** Young of [kind] born in the week. */
+        fun births(kind: String) = BIRTHS + kind
+        /** Animals of [kind] killed by hunters in the week. */
+        fun kills(kind: String) = KILLS + kind
+        /** Tonnes of sea and lake fish gone one [way] in the week. */
+        fun fishFlow(way: String) = "$FISH_FLOWS$way, t"
+        /** A field of the small life ([HexSmallLife]), in tonnes or head counts. */
+        fun smallLife(name: String) = SMALL_LIFE + name
+        fun isSmallLife(key: String) = key.startsWith(SMALL_LIFE)
+        /** A field of the water life ([HexWater]). */
+        fun waterLife(name: String) = WATER_LIFE + name
+        fun isWaterLife(key: String) = key.startsWith(WATER_LIFE)
+        /** [what] ([AREA], [PLANTS] or a kind's head count) in the country of [biome]. */
+        fun biome(biome: Biome, what: String) = "$BIOME${biome.label}/$what"
+        /** What a [biome] key measures, or null for any other key. */
+        fun biomeWhat(key: String) = if (key.startsWith(BIOME)) key.substringAfterLast('/') else null
         /** How the plant-eaters of [kind] in groups stand and move ([Migration]). */
         fun migration(kind: String, m: Migration) = "$MIGRATION$kind/${m.label}"
         /** The kind a [migration] key is about, or null for any other key. */
         fun migrationKind(key: String) = if (key.startsWith(MIGRATION)) key.split('/')[1] else null
+        /** What a [migration] key measures, or null for any other key. */
+        fun migrationOf(key: String) = if (key.startsWith(MIGRATION)) Migration.entries.firstOrNull { key.endsWith("/" + it.label) } else null
+        /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
+        fun isFlow(key: String) = key.startsWith(DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN
     }
 
     /** What a [Key.migration] series measures. */
@@ -74,8 +114,7 @@ class HexHistory {
     }
 
     /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
-    fun isFlow(key: String) = key.startsWith("deaths/") || key.startsWith("births/") || key.startsWith("kills/") || key.startsWith("fish flows/") ||
-        key == "weather/rain mm"
+    fun isFlow(key: String) = Key.isFlow(key)
 
     private fun put(key: String, v: Float) {
         val s = series.getOrPut(key) { FloatList().also { it.pad(weeks - 1) } }
@@ -108,7 +147,7 @@ class HexHistory {
             for (p in 0 until land.n) { val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble(); a[0] += h * fauna.fed[k][p]; a[1] += h }
         }
         for (g in groups.groups) if (g.alive && !g.species.carnivore) fedSum.getOrPut(g.species.name) { DoubleArray(2) }.let { it[0] += g.size * g.fed.toDouble(); it[1] += g.size.toDouble() }
-        for ((name, a) in fedSum) if (a[1] > 0.0) put("fed/$name", (a[0] / a[1]).toFloat())
+        for ((name, a) in fedSum) if (a[1] > 0.0) put(Key.fed(name), (a[0] / a[1]).toFloat())
         // Migration: for each migratory kind, the share of its heads above 1000 m, their mean height, and how far
         // its herds stand from where each stood half a year before (km, by heads; herds younger than that left out).
         recordMigration(sim)
@@ -124,36 +163,36 @@ class HexHistory {
             "biting insects waiting as eggs and larvae" to sl.dormantBiting, "rodents" to sl.rodents, "reptiles and amphibians" to sl.herps,
             "pollinators" to sl.pollinators, "pollinators waiting as eggs and larvae" to sl.dormantPollinators, "hares" to sl.hares, "hyrax" to sl.hyrax,
             "tortoises" to sl.tortoises, "foxes and wildcats" to sl.foxes, "wild birds" to sl.birds))
-            put("small life/$name", perKm2(f) * 1000f)
-        put("small life/eagle pairs", sl.eagles.indices.sumOf { (sl.eagles[it] * area[it]).toDouble() }.toFloat() / HexSmallLife.EAGLE_KM2.toFloat())
-        put("small life/vultures", sl.vultures.sum())
+            put(Key.smallLife(name), perKm2(f) * 1000f)
+        put(Key.smallLife("eagle pairs"), sl.eagles.indices.sumOf { (sl.eagles[it] * area[it]).toDouble() }.toFloat() / HexSmallLife.EAGLE_KM2.toFloat())
+        put(Key.smallLife("vultures"), sl.vultures.sum())
         // Water life.
-        for ((k, a) in HexWater.SEA.withIndex()) put("water life/${a.name}", wl.seaHeads(k))
-        put("water life/fish, tonnes", wl.fishTonnes()); put("water life/river fish, tonnes", wl.riverFishTonnes())
-        put("water life/shellfish, tonnes", wl.shellfishTonnes()); put("water life/sea birds", wl.colonyBirds.sum())
-        put("water life/zooplankton, g per m²", wl.zooMean())
-        for ((key, v) in wl.fishFlows) if (!key.startsWith("hungry")) put("fish flows/$key, t", v.toFloat())
+        for ((k, a) in HexWater.SEA.withIndex()) put(Key.waterLife(a.name), wl.seaHeads(k))
+        put(Key.waterLife("fish, tonnes"), wl.fishTonnes()); put(Key.waterLife("river fish, tonnes"), wl.riverFishTonnes())
+        put(Key.waterLife("shellfish, tonnes"), wl.shellfishTonnes()); put(Key.waterLife("sea birds"), wl.colonyBirds.sum())
+        put(Key.waterLife("zooplankton, g per m²"), wl.zooMean())
+        for ((key, v) in wl.fishFlows) if (!key.startsWith("hungry")) put(Key.fishFlow(key), v.toFloat())
         // Deaths, births and kills this week.
         // (A kind living both spread out and in herds dies both ways: its residents' and its groups' deaths of a cause are summed.)
         val deaths = HashMap<String, Double>()
         for ((key, v) in fauna.deaths) deaths.merge(key, v, Double::plus)
         for ((key, v) in groups.stats.deaths) deaths.merge(key, v.toDouble(), Double::plus)
-        for ((key, v) in deaths) put("deaths/${key.substringBefore(":")}/${key.substringAfter(":")}", v.toFloat())
-        for ((key, v) in groups.stats.kills) put("deaths/$key/hunted", v.toFloat())
+        for ((key, v) in deaths) put(Key.deaths(key.substringBefore(":"), key.substringAfter(":")), v.toFloat())
+        for ((key, v) in groups.stats.kills) put(Key.deaths(key, "hunted"), v.toFloat())
         for ((key, v) in groups.stats.hunting) if (key.startsWith("diag:")) put("hunt diag/" + key.removePrefix("diag:").replace(':', '/'), v / 100f)
         val births = HashMap<String, Double>()
         for ((key, v) in groups.stats.births) births.merge(key, v.toDouble(), Double::plus)
         for ((k, s) in fauna.kinds.withIndex()) if (fauna.bornThisWeek[k] > 0.0) births.merge(s.name, fauna.bornThisWeek[k], Double::plus)
-        for ((key, v) in births) put("births/$key", v.toFloat())
-        for ((key, v) in groups.stats.kills) put("kills/$key", v.toFloat())
+        for ((key, v) in births) put(Key.births(key), v.toFloat())
+        for ((key, v) in groups.stats.kills) put(Key.kills(key), v.toFloat())
         // Weather, means over the land.
         val total = area.sum()
         fun mean(f: (Int) -> Float) = (0 until n).sumOf { (f(it) * area[it]).toDouble() }.toFloat() / total
         put(Key.TEMPERATURE, mean { w.temperature[it] })
         put(Key.RAIN, mean { w.precipitation[it] })
-        put("weather/snow lying mm", mean { w.snowpack[it] })
-        put("weather/droughts under way", w.droughtCount().toFloat())
-        put("weather/soil water mm", mean { land.hydro.soil[it] })
+        put(Key.SNOW, mean { w.snowpack[it] })
+        put(Key.DROUGHTS, w.droughtCount().toFloat())
+        put(Key.SOIL_WATER, mean { land.hydro.soil[it] })
         // By kind of country: its area, plants per km² and head counts (and the whole land's area, to set worlds of other sizes beside each other).
         val biomeArea = DoubleArray(Biome.entries.size)
         for (p in 0 until n) biomeArea[biomeOf(sim, p)] += area[p].toDouble()
@@ -168,8 +207,8 @@ class HexHistory {
         for (g in groups.groups) if (g.alive) heads.getOrPut(g.species.name) { DoubleArray(Biome.entries.size) }[biomeOf(sim, g.place.i)] += g.size.toDouble()
         for (b in Biome.entries) {
             if (biomeArea[b.ordinal] <= 0.0) continue
-            put(Key.biome(b, "area km²"), biomeArea[b.ordinal].toFloat())
-            put(Key.biome(b, "plants kg per m²"), (plants[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.AREA), biomeArea[b.ordinal].toFloat())
+            put(Key.biome(b, Key.PLANTS), (plants[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((kind, a) in heads) put(Key.biome(b, kind), a[b.ordinal].toFloat())
         }
         // Keep every series as long as the record.
