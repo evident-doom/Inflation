@@ -90,9 +90,11 @@ object HexSnapshot {
      * 2.10: a place's room for an arriving band is how well it would be fed there by the residents' own feeding rule
      * ([HexFauna.forage]), so the foresight behind walking, band shifts and gathering into herds no longer foresees
      * starvation that those already there don't meet.
+     * 2.11: plant-eaters weigh a place to move to by the rate a band of them would grow at there over a year, by the rules
+     * they are born and die by ([HexFauna.growth]), not by a separate appeal of their own.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 10
+    const val MODEL_MINOR = 11
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
