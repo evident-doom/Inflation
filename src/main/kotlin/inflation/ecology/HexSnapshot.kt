@@ -72,9 +72,17 @@ object HexSnapshot {
      * recorded rate; mothers bear as their food and reserves can build their young.
      * 1.12: resident hunters take game the less readily the bigger it is past their preferred size; jackals prefer 4 kg, take 15 at most.
      * 1.15: herds count the animals hunters would kill as deaths where they choose to go, and no longer shun hunters for food.
+     * 2.0: every plant-eater lives both ways: residents leave as groups where staying is clearly deadlier than a place a
+     * month away, and groups settle where it is not; resident hunters, disease and crowding meet a non-migratory herd as
+     * its kind's groups over HERD_UNIT times the ground.
+     * 2.1: species records follow their sources (#213); a leaving group heads for the place found for it; groups form only
+     * where no slope leads to safety; residents walk towards forage within a week's going (#219).
+     * 2.2: residents weigh places by the hunters' kills too, resident and roaming.
+     * 2.3: grass loses nourishment and protein as it goes to stem and seed (HexPlants.grassAge).
+     * 2.4: crowding halves a place's appeal for residents where disease starts to bite (CROWDED), not at 20 times usual.
      */
-    const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 15
+    const val MODEL_MAJOR = 2
+    const val MODEL_MINOR = 4
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
