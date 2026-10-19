@@ -18,7 +18,7 @@ import inflation.wrapMonth
 /**
  * Why herds of the kinds that live both ways stand still where they formed: week by week, for each such kind, its
  * herds, how many stood still (same hex as last week), and of those how many have never gone beyond their gathering
- * ground ([gatherKm] of where they formed, so cannot settle), how many stand within two hexes of their season's place
+ * ground ([gatherKm] of where they formed), how many stand within two hexes of their season's place
  * (so are not restless for it), their feeding, the heads they took in and gave back; how many herds share one hex; and
  * at the end, for herds that formed during the run, how long they lived, how far they got, and how they ended.
  *

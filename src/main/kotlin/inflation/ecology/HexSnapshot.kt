@@ -96,12 +96,14 @@ object HexSnapshot {
      * ([HexGroups.herdOddsAt]); a herd no longer keeps together until it is beyond [gatherKm] of where it formed; and the
      * place residents set off for, and a herd weighs settling against, is one it can walk to (not across the sea or a
      * river too deep to cross).
-     * 2.13: plant-eaters weigh a place to move to by the rate a band of them would grow at there over a year, by the rules
+     * 2.13: a herd weighing whether to settle back weighs itself, whole, at both places, its own heads where it grazes now
+     * taken out of the others' (it was crowded by itself where it stood and weighed as a band's worth alone elsewhere).
+     * 2.14: plant-eaters weigh a place to move to by the rate a band of them would grow at there over a year, by the rules
      * they are born and die by ([HexFauna.growth]), not by a separate appeal of their own; and residents weigh a place
      * they would come to with a band of them added over the ground a band ranges in a day, not over the place's own.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 13
+    const val MODEL_MINOR = 14
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
