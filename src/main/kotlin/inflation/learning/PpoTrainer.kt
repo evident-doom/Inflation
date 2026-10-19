@@ -103,7 +103,11 @@ class PpoTrainer(private val o: PpoOptions) {
     /** One round's play in every training world, with [ms] choosing and the bands' ways drawn from [ways]; fresh worlds where one is done. */
     private fun playRound(r: Int, ms: List<SharedMover>, ways: LearnedWays?): List<List<Choice>> {
         val fresh = (0 until o.worlds).filter { w -> players[w]?.done != false }
-        for (w in fresh) players[w]?.derailed?.let { why -> log.write("world $w replaced after round ${r - 1}: $why") }
+        for (w in fresh) players[w]?.let { p ->
+            p.derailed?.let { why -> log.write("world $w replaced after round ${r - 1}: $why") }
+            // (Reported only: whether the world it leaves stands within nominal limits.)
+            log.write("world $w at its end, within nominal limits (state): ${p.nominal().brief()}")
+        }
         // (New worlds are made side by side.)
         fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.width, o.height, w), kinds, steps * o.worldRounds, o.burnYears * WorldConfig().stepsPerYear, o.sampling) { line -> log.write("world $w $line") } }
             .toList().forEach { (w, p) -> players[w] = p }

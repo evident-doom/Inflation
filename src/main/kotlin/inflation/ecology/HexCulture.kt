@@ -200,7 +200,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         }
     }
     // Ways are copied from the band that does better: more food in hand, more children.
-    fun doing(g: HexGroup) = g.fed + g.larder / max(1f, g.dailyNeedKg * 60f) + g.young.toFloat() / max(1, g.adults) +
+    fun doing(g: HexGroup) = g.wellOff() + g.young.toFloat() / max(1, g.adults) +
         STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + RENOWN * (g.band?.renown ?: 0f)
     val (lo, hi) = if (doing(a) < doing(b)) bandA to bandB else bandB to bandA
     for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {

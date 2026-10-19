@@ -124,6 +124,11 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     HERBS(Domain.HEALING, CRAFT_FLOOR, 0.5f),
     /** Midwifery and care of infants. */
     MIDWIFERY(Domain.CHILDCARE, CRAFT_FLOOR, 0.5f),
+    /**
+     * Curing meat and fish with salt: works in any weather, and keeps far longer. Hit on only by a band
+     * that has salt; not attested among Levantine foragers (salt working is first dated about 6000 BC).
+     */
+    SALTING(Domain.KEEPING, 0.3f, known = false),
     ;
 
     /**
@@ -134,7 +139,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      */
     val share: Float get() = when (this) {
         GATHER, FIRE, ROASTING -> 1f
-        SMALL_GAME, FISH, HUNT, STORE, SMOKING, SEWING, TRACK, STALK, BUTCHER, STONE_BOILING, EARTH_OVEN, LEACHING -> 0.5f
+        SMALL_GAME, FISH, HUNT, STORE, SMOKING, SALTING, SEWING, TRACK, STALK, BUTCHER, STONE_BOILING, EARTH_OVEN, LEACHING -> 0.5f
         HERBS, MIDWIFERY, LORE, TINKER, TENDING -> 0.1f
         SHOWING -> 0.3f
         else -> 0.2f

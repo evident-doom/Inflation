@@ -668,13 +668,7 @@ class HexGroups(
     }
 
     /** The main kind of country of each place. */
-    internal val biomeOfPlace: IntArray by lazy {
-        IntArray(land.n) { pl ->
-            val c = IntArray(Biome.entries.size)
-            for (cell in hw.placeCells[pl]) c[hw.world.biome[cell].ordinal]++
-            c.indices.maxBy { c[it] }
-        }
-    }
+    internal val biomeOfPlace: IntArray get() = hw.placeBiome
     /** A kind's usual group as an agent. */
     internal fun unitSize(s: Species) = s.groupSize
 

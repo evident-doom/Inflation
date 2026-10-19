@@ -58,7 +58,7 @@ One step is 6 days (5 steps per month), configurable in `WorldConfig`.
 | Process | Model |
 | --- | --- |
 | Calendar | 12 months × 30 days; the moon is new on day 1 and full on day 16; the year starts at the winter solstice (month 1 about January) and a run at the spring equinox; day length by latitude |
-| Weather | Weekly weather regimes with their winds: westerly fronts, cold northerly outbreaks, warm southerlies, blocking highs, and the summer high with steady north winds over the south. The jet stream lies over the north in summer and moves south in winter, meandering week to week. Rain falls on the slopes facing the week's wind, with rain shadows behind ridges and volcanoes, and still averages to the normals. The wind drives fire spread, ash plumes and sea upwelling, and is known a week ahead. On top of that: coarse autoregressive temperature and rain anomalies (about five days' persistence), wet and dry years, a quasi-periodic ~5-year oscillation and a decadal swing with their own spatial patterns. Shocks: drought years over a region (12% chance a year somewhere), multi-year droughts (about 1.5% chance a year), severe winters (6%), heat waves (8%), and volcanic winters after VEI 5+ eruptions. Snowpack with degree-day melt |
+| Weather | Weekly weather regimes with their winds: westerly fronts, cold northerly outbreaks, warm southerlies, blocking highs, and the summer high with steady north winds over the south. The jet stream lies over the north in summer and moves south in winter, meandering week to week. Rain falls on the slopes facing the week's wind, with rain shadows behind ridges and volcanoes, and still averages to the normals. The wind drives fire spread, ash plumes and sea upwelling, and is known a week ahead. On top of that: coarse autoregressive temperature and rain anomalies (about five days' persistence), wet and dry years, a quasi-periodic ~5-year oscillation and a decadal swing with their own spatial patterns. Shocks: drought years over a region (12% chance a year somewhere), multi-year droughts (about 1.5% chance a year), severe winters (6%), heat waves (8%), and volcanic winters after VEI 5+ eruptions. Snowpack with degree-day melt; on the hexes, snow deeper than a glacier there can stand (ice yielding at 100 kPa on its bed: Nye) flows as ice to the next place down and melts there, or off the land at the sea. |
 | Water | Soil bucket (150 mm), groundwater and baseflow; runoff routed down the network every step. Rivers above bankfull (4× mean) flood their floodplains |
 | Waterworks | Dams with reservoirs that fill and release steadily, canals that divert part or all of a river (must run downhill and cannot loop), irrigation onto fields, and permanent rerouting of a river |
 | Eruptions | Active volcanoes erupt at their own rates; explosivity follows the VEI frequency distribution; ash falls downwind, smothers vegetation and enriches soil |
@@ -154,6 +154,18 @@ every pair went the same way. A settled world still drifts, so a change is never
 numbers, only against its base. Smaller maps do not track the full map (see `TestWorlds.kt`);
 `small-1` is for checking that code runs. `hexFauna --world NAME --years N [--replicate R]`
 carries one settled world on by itself.
+
+Every `hexFauna` run ends by saying whether it stayed within nominal limits (`run/Nominal.kt`): wide
+bounds on every series of its history (numbers that are numbers, matter not below zero, fed within
+0..1, weather and densities in reason, no kind gone, no kind or stock swinging many times over from
+year to year, each kind's births and deaths adding up to the heads it gained, hunters fed, holding
+ground and killing, hunters against the hunted by biomass, and bands keeping at least what the
+Natufians had: fire, spears, clothes, hunting and game in their food) and on the state it ends in (every table of the weather, land and animals a number,
+every stock at or above zero, shares within 0..1, groups sound, the books if kept). `testWorld ab`
+reports the same for each run and what the variant alone broke, the training's ecosystem check adds
+a line for its runs and logs each training world's state as it is replaced, and
+`testWorld -PtestArgs="nominal HISTORY.csv..."` checks histories already made. It is reported only,
+and its limits are set from reference values in nature, with their sources in the code.
 
 ## Known simplifications
 

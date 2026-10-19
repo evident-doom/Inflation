@@ -176,7 +176,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * tuning.plantHandling / gatherers / carry + eats
     val seedDays = SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling / gatherers / carry /
-        (1f + SICKLE_GAIN * (band?.has(Tool.SICKLE) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
+        (1f + (band?.sickleGain(tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
     val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } }
         .ifEmpty { listOf(g.place.i) } else listOf(g.place.i)
@@ -462,16 +462,16 @@ private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, got
     // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
     val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
     val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
-    // (A band with salt salts what it cures: salt cures in any weather.)
-    val salt = band.goods[Material.SALT]
-    val salting = if (salt > 0f) band.skill(Skill.STORE) else 0f
+    // (A band that knows salting and has salt salts what it cures: salt cures in any weather.)
+    val salt = if (band.knowsSkill[Skill.SALTING]) band.goods[Material.SALT] else 0f
+    val salting = if (salt > 0f) band.skill(Skill.SALTING) else 0f
     val dryRate = max(max(sun, smoke), salting)
     // (As much of it as the band chooses to.)
     val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
     if (dried > 0f) {
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
-        g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
+        g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (salting >= max(sun, smoke)) Skill.SALTING else if (smoke > sun) Skill.SMOKING else Skill.STORE)
     }
     // What time is left is for making and mending (see [bandWeek]).
     val time = BandTime(spareDays * hands)
@@ -484,9 +484,8 @@ private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, got
     // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
     // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
     val home = if (band.atHome) band.house else 0f
-    // (Smoked meat keeps longer than sun-dried; pits sealed with clay and plaster keep the mice out.)
-    val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
-    var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, smoked * (1f - tuning.saltKeep * band.salted), g.storeKgPer)
+    // (Pits sealed with clay and plaster keep the mice out.)
+    var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer)
     val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
     if (home > 0f) {
         for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) {
@@ -679,6 +678,12 @@ private val FORAGE_DIAG = Config.string("forageDiag")
 private fun diagSampled(g: HexGroup, weather: Weather, share: Float, salt: Int) =
     unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + salt * HASH_C)) < share
 
+/** How much of the usual loss band [band]'s dried meat and fish suffer: smoked keeps longer than sun-dried, salted longer still. */
+internal fun HexGroups.driedKeep(band: Band): Float {
+    val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
+    return smoked * (1f - tuning.saltKeep * band.salted)
+}
+
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost (weighed at [kgPer] for each kg of worth). */
 internal fun HexGroups.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f, kgPer: EnumFloats<Store>? = null): Float {
     var lost = 0f
@@ -856,7 +861,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
     if (meetingEndsInRaid(a, b, weather)) return
-    val (poor, rich) = if (a.fed + a.larder / (a.dailyNeedKg * 30f) < b.fed + b.larder / (b.dailyNeedKg * 30f)) a to b else b to a
+    val (poor, rich) = if (a.wellOff() < b.wellOff()) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
     // (More to a band it is close to.)

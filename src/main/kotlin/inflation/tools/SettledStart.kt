@@ -27,11 +27,7 @@ fun main(args: Array<String>) {
     val sim = HexSim(World.generate(cfg))
     val land = sim.land
     val area = DoubleArray(Biome.entries.size)
-    for (p in 0 until land.n) {
-        val counts = IntArray(Biome.entries.size)
-        for (c in sim.hw.placeCells[p]) counts[sim.world.biome[c].ordinal]++
-        area[counts.indices.maxBy { counts[it] }] += land.areaKm2[p].toDouble()
-    }
+    for (p in 0 until land.n) area[sim.hw.placeBiome[p]] += land.areaKm2[p].toDouble()
     val total = area.sum()
     val last = history.year[history.weeks - 1]
     val first = if (fromYear >= 0f) history.year[0] + fromYear else last - 40f
