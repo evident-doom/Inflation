@@ -595,7 +595,7 @@ class HexGroups(
         t.discomfort = discomfort(s, p.i, weather)
         t.drain = drain(g, p.i, weather)
         t.aheadC = s.discomfortC(weather.forecastTemp(p.i), date.month)
-        t.waterKm = if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p]
+        t.waterKm = if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.animalWaterKm(p.i)
         t.suitsLn = ln(fauna.suits(s, p.i).coerceAtLeast(1e-3f))
         t.fresh = if (s.carnivore) 0f else freshness(s, p.i)
     }
