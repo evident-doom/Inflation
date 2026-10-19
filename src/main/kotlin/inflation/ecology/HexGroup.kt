@@ -15,6 +15,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     /** The hexes it passed through this week, in order (its own last), and the day it entered each. */
     var path = IntArray(0)
     var days = FloatArray(0)
+    /** The height it gained this week, from the place it left to the place it came to, m (none going down): see [walkCost]. */
+    var climbedM = 0f
     /** Meat it took this week from other hunters it met on the way, kg (see [enemiesMeet]). */
     var meatMet = 0f
     /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then; a loaded group's is spent). */

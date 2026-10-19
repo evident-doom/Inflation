@@ -1317,9 +1317,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 bred[k][to] = mixed(bred[k][to], a[to] * land.areaKm2[to], bred[k][from], ma)
                 a[from] -= ma / land.areaKm2[from]; y[from] -= my / land.areaKm2[from]
                 a[to] += ma / land.areaKm2[to]; y[to] += my / land.areaKm2[to]
+                // (Those that climbed pay for it out of their fat, as for a walk, see [climbKm].)
+                val heads = (a[to] + y[to]) * land.areaKm2[to]
+                if (heads > 0f) reserve[k][to] = max(0f, reserve[k][to] - WALK_COST * climbKm(k, from, to) * (ma + my) / heads)
             }
         }
     }
+
+    /** The level km that going from place [p] to [q] up costs kind [k] as much as, by the height gained (none going down): see [climbKmPerM]. */
+    private fun climbKm(k: Int, p: Int, q: Int): Float = climbPerM[k] * max(0f, hw.placeElevationM[q] - hw.placeElevationM[p])
+    @delegate:Transient private val climbPerM: FloatArray by lazy { FloatArray(kinds.size) { climbKmPerM(kinds[it].massKg) } }
 
     /**
      * For the viewer: the kind (slot) whose spill to record, -1 for none; and the last move's ([Tuning.residentMoveWeeks]),
@@ -1461,7 +1468,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val ga = goA * ws[i] / total; val gy = goY * ws[i] / total
                 moveA[q] += ga; moveY[q] += gy
                 cameA[q] += ga; cameBred[q] += ga * bk[p]
-                arrived[q] += ga + gy; walkedKm[q] += (ga + gy) * hex.hexKm.toFloat()
+                arrived[q] += ga + gy; walkedKm[q] += (ga + gy) * (hex.hexKm.toFloat() + climbKm(k, p, q))
                 if (flow) {
                     val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
                     flowEast[h] += (ga + gy) * (x1 - x0).toFloat(); flowSouth[h] += (ga + gy) * (y1 - y0).toFloat(); flowOut[h] += ga + gy
@@ -1605,7 +1612,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val lostA = mA * risk; val lostY = mY * min(1f, 2f * risk)
                     if (lostA + lostY > 0f) { drowned[q] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble(); exact[q] = false }
                     ga[q] += mA - lostA; gy[q] += mY - lostY; gb[q] += (mA - lostA) * hadBred
-                    arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * km
+                    arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (km + climbKm(k, p, q))
                     changed[q] = true
                     if (record && hw.placeHex[q] != h) {
                         val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
@@ -1746,7 +1753,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val ga = a[p] * area[p]; val gy = y[p] * area[p]
             bred[k][to] = mixed(bred[k][to], a[to] * area[to], bred[k][p], ga)
             a[to] += ga / area[to]; y[to] += gy / area[to]; a[p] = 0f; y[p] = 0f
-            arrived[to] += ga + gy; walkedKm[to] += (ga + gy) * hex.hexKm.toFloat()
+            arrived[to] += ga + gy; walkedKm[to] += (ga + gy) * (hex.hexKm.toFloat() + climbKm(k, p, to))
         }
     }
 

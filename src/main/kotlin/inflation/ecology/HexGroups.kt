@@ -314,6 +314,7 @@ class HexGroups(
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < Thresholds.HUNGRY)
                 stats.meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
+            g.climbedM = max(0f, hw.placeElevationM[choice[k]] - hw.placeElevationM[g.place.i])
             g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             crossWater(g, g.path)
         }
@@ -1100,8 +1101,8 @@ class HexGroups(
         score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
         if (thirsty && !canDrink(s, p.i)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
-        // The going costs food: a share of the week's need (see [walkCost]).
-        score -= WALK_COST * d / days
+        // The going costs food: a share of the week's need, the height gained as the level walk it equals (see [walkCost]).
+        score -= WALK_COST * (d + climbKmPerM(s.massKg) * max(0f, hw.placeElevationM[p.i] - hw.placeElevationM[g.place.i])) / days
         // (Above all, it keeps alive: its deaths there are weighed against all this by the caller, see [planInner].)
         // Bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && s.human) {
