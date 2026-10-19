@@ -91,7 +91,7 @@ class Climate(
             }
 
             // Fronts and storms are hundreds of km across.
-            for (m in 0 until 12) precip[m] = blur(grid, precip[m], (20 / grid.cellKm).toInt().coerceAtLeast(1))
+            if (System.getenv("PROBE_NOBLUR") == null) for (m in 0 until 12) precip[m] = blur(grid, precip[m], (20 / grid.cellKm).toInt().coerceAtLeast(1))
             val annualP = FloatArray(n) { i -> (0 until 12).sumOf { precip[it][i].toDouble() }.toFloat() }
             val aet = FloatArray(n)
             val runoff = FloatArray(n)
@@ -124,6 +124,14 @@ class Climate(
             return sum / 1000
         }
 
+        /** Probe only: carry-cell rain, mm a month, by [month][regime × 4 + process (front, slope, storm, shower)], weighted by the regime's share. */
+        @JvmStatic var PROBE: Array<Array<FloatArray>>? = null
+        @JvmStatic var PROBE_F = 0
+        @JvmStatic var PROBE_CW = 0
+        /** Probe only: seconds condensate takes to form and fall (0: at once). */
+        val DRIFT_S = System.getenv("PROBE_DRIFT_S")?.toDouble() ?: 0.0
+        val TC_S = System.getenv("PROBE_TC_S")?.toDouble() ?: 0.0
+        val TF_S = System.getenv("PROBE_TF_S")?.toDouble() ?: 0.0
         /** Size of the cells the moisture is carried over, km. */
         const val CARRY_KM = 10.0
         /** Relative humidity of air over the sea (it is near 80% over the open oceans). */
@@ -198,6 +206,7 @@ class Climate(
             val winds = Winds(null)
             val tmp = FloatArray(2)
             val q = FloatArray(cw * ch); val rain = FloatArray(cw * ch); val total = FloatArray(cw * ch)
+            if (System.getenv("PROBE_SPLIT") != null) { PROBE = Array(12) { Array(Regime.entries.size * 4) { FloatArray(cw * ch) } }; PROBE_F = f; PROBE_CW = cw }
             // Days the air has been over land since it left the sea.
             val landDays = FloatArray(cw * ch)
             // Shower water the air carries, mm, and the temperatures of the sea's surface and the air over it, °C.
@@ -205,6 +214,7 @@ class Climate(
             val seaT = FloatArray(ch); val seaAirT = FloatArray(ch)
             val gain = FloatArray(cw * ch); val wSat = FloatArray(cw * ch)
             val groundT = FloatArray(cw * ch); val petC = FloatArray(cw * ch)
+            val cloud = FloatArray(cw * ch); val hydro = FloatArray(cw * ch)
             fun at(a: FloatArray, x: Double, y: Double, outside: Float): Float {
                 if (x < 0 || y < 0 || x > cw - 1 || y > ch - 1) return outside
                 val x0 = x.toInt().coerceAtMost(cw - 2).coerceAtLeast(0); val y0 = y.toInt().coerceAtMost(ch - 2).coerceAtLeast(0)
@@ -228,6 +238,17 @@ class Climate(
                 for (y in 0 until ch) { seaT[y] = seaSurfaceTemp(rowLat[y], day).toFloat(); seaAirT[y] = seaLevelTemp(rowLat[y], day, 0.0).toFloat() }
                 total.fill(0f)
                 var weights = 0.0
+                val shLat = System.getenv("PROBE_SH_LAT")?.split(",")?.map { it.toDouble() }
+                val wSH = winds.weight(Regime.SUMMER_HIGH, season)
+                val wSum = Regime.entries.sumOf { winds.weight(it, season) }
+                // Probe: the summer high's share falls from full at shLat[0] to none at shLat[1]; the others share the rest.
+                fun rowShare(r: Regime, y: Int): Double {
+                    val w = winds.weight(r, season) / wSum
+                    if (shLat == null) return w
+                    val g = ((shLat[1] - rowLat[y]) / (shLat[1] - shLat[0])).coerceIn(0.0, 1.0)
+                    val pSH = wSH / wSum * g
+                    return if (r == Regime.SUMMER_HIGH) pSH else w * (1 - pSH) / (1 - wSH / wSum)
+                }
                 for (r in Regime.entries) {
                     val w = winds.weight(r, season)
                     weights += w
@@ -245,14 +266,15 @@ class Climate(
                     for (c in 0 until cw * ch) {
                         val y = c / cw
                         val lifted = min(elev[c].toDouble(), kmDay[y] / 86.4 / BUOYANCY_HZ)
-                        wSat[c] = saturatedColumn(seaLevelTemp(rowLat[y], day, 0.0) - LAPSE_RATE * lifted).toFloat()
+                        val t0 = if (System.getenv("PROBE_WSAT_GROUND") != null && cnt[c] > 0) max(seaLevelTemp(rowLat[y], day, 0.0), groundT[c] + LAPSE_RATE * elev[c]) else seaLevelTemp(rowLat[y], day, 0.0)
+                        wSat[c] = saturatedColumn(t0 - LAPSE_RATE * lifted).toFloat()
                     }
                     // Downwind order: each cell after the cells upwind of it.
                     val order = (0 until cw * ch).sortedBy { c -> val y = c / cw; (c % cw) * ux[y] + y * uy[y] }
                     for (c in 0 until cw * ch) q[c] = w0[c / cw]
                     landDays.fill(0f)
-                    shower.fill(0f)
-                    repeat(2) {
+                    shower.fill(0f); cloud.fill(0f); hydro.fill(0f)
+                    repeat(2) { pass ->
                         for (c in order) {
                             val x = c % cw; val y = c / cw
                             val bx = x - ux[y]; val by = y - uy[y]
@@ -265,11 +287,40 @@ class Climate(
                             landDays[c] = overLand.toFloat()
                             val keep = exp(-lift[y] * exp(-overLand / FRONT_LAND_DAYS) * days)
                             // Air lifted over high ground holds less; what it cannot hold rains out.
-                            var left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
+                            val supply = wet * keep + (1 - sea[c]) * gain[c] * days
+                            var left = min(supply, wSat[c].toDouble())
+                            var fall = supply - left
+                            if (TF_S > 0) {
+                                // Probe, two stages (Smith and Barstad 2004): condensate turns to rain or snow over TC_S, which falls over TF_S;
+                                // sinking air takes up cloud first, then falling rain.
+                                var cl = at(cloud, bx, by, 0f) + (supply - left)
+                                var hy = at(hydro, bx, by, 0f).toDouble()
+                                var deficit = max(0.0, wSat[c] - supply)
+                                val e1 = min(cl, deficit); cl -= e1; deficit -= e1
+                                val e2 = min(hy, deficit); hy -= e2
+                                left += e1 + e2
+                                val dt = days * 86400
+                                val conv = cl * (1 - exp(-dt / TC_S)); cl -= conv
+                                fall = hy * (1 - exp(-dt / TF_S)); hy += conv - fall
+                                cloud[c] = cl.toFloat(); hydro[c] = hy.toFloat()
+                            } else if (DRIFT_S > 0) {
+                                // Probe: what condenses is carried downwind as cloud and falls out over DRIFT_S; sinking air takes it back up.
+                                var cl = at(cloud, bx, by, 0f) + (supply - left)
+                                val ev = min(cl, max(0.0, wSat[c] - supply)); cl -= ev; left += ev
+                                fall = cl * (1 - exp(-days * 86400 / DRIFT_S))
+                                cloud[c] = (cl - fall).toFloat()
+                            }
+                            val afterOro = left
                             if (sea[c] < 1) { val cv = convection(left, w0[y].toDouble(), groundT[c].toDouble(), elev[c].toDouble(),
                                 petC[c] / 30.0, m, rowLat[y])
                                 left -= (1 - sea[c]) * min(left, cv * days) }
-                            rain[c] = ((wet + (1 - sea[c]) * gain[c] * days - left) / days * 30).toFloat()
+                            if (pass == 1) PROBE?.let { sp ->
+                                val k = 30 / days * rowShare(r, y)
+                                sp[m][r.ordinal * 4 + 0][c] += (k * (wet - wet * keep)).toFloat()
+                                sp[m][r.ordinal * 4 + 1][c] += (k * fall).toFloat()
+                                sp[m][r.ordinal * 4 + 2][c] += (k * (afterOro - left)).toFloat()
+                            }
+                            rain[c] = ((wet - wet * keep + fall + afterOro - left) / days * 30).toFloat()
                             q[c] = left.toFloat()
                             // A sea warmer than the air over it gives the air more vapour than the air's own warmth would, mm a day,
                             // and that rains out in showers.
@@ -278,11 +329,11 @@ class Climate(
                             val sKeep = sin * exp(-days / SHOWER_DAYS)
                             shower[c] = sKeep.toFloat()
                             rain[c] += ((sin - sKeep) / days * 30).toFloat()
+                            if (pass == 1) PROBE?.let { sp -> sp[m][r.ordinal * 4 + 3][c] += (rowShare(r, y) * (sin - sKeep) / days * 30).toFloat() }
                         }
                     }
-                    for (c in 0 until cw * ch) total[c] += (w * rain[c]).toFloat()
+                    for (c in 0 until cw * ch) total[c] += (rowShare(r, c / cw) * rain[c]).toFloat()
                 }
-                for (c in 0 until cw * ch) total[c] = (total[c] / weights).toFloat()
                 // Back to the fine cells.
                 java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
                     precip[m][i] = at(total, (grid.x(i) + 0.5) / f - 0.5, (grid.y(i) + 0.5) / f - 0.5, 0f)
