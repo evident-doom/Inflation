@@ -72,7 +72,9 @@ class PpoTrainer(private val o: PpoOptions) {
             for (mi in models.indices) learn(mi, all, byKind, round - firstRound, round, stats)
             waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round)).append("; "); it.save() }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
-            val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns)
+            // (What was not a number when the networks chose, if anything: see [NonFinite].)
+            val nonFinite = NonFinite.take().takeIf { it.isNotEmpty() }?.let { "; not numbers when choosing: $it" } ?: ""
+            val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s%s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns, nonFinite)
             log.write(line)
             if (round % o.checkEvery == o.checkEvery - 1) {
                 // The ecosystem check runs beside the training (one at a time: a round whose check would start while the
@@ -149,11 +151,14 @@ class PpoTrainer(private val o: PpoOptions) {
         val t0 = System.nanoTime()
         val kindsHere = mine.map { it.kind }.distinct()
         val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
+        var skipped = 0
         repeat(4) { epoch ->
             for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
                 val parts = inParts(batch) { part -> gradient(model, part, weight) }
                 val gradW = FloatArray(model.net.w.size); val gradId = FloatArray(model.identity.size)
                 for ((w, id) in parts) { gradW.add(w); gradId.add(id) }
+                // (A step that is not all numbers would make the network not a number for good: it is left out, and told.)
+                if (!gradW.allFinite() || !gradId.allFinite()) { skipped++; continue }
                 // (Each batch is a share of the whole, so its weights are scaled up to stand for it.)
                 val scale = mine.size.toFloat() / batch.size
                 for (i in gradW.indices) gradW[i] *= scale; for (i in gradId.indices) gradId[i] *= scale
@@ -161,7 +166,8 @@ class PpoTrainer(private val o: PpoOptions) {
             }
         }
         model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)
-        stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices (%.0f s); ".format((System.nanoTime() - t0) / 1e9))
+        stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices (%.0f s%s); ".format((System.nanoTime() - t0) / 1e9,
+            if (skipped > 0) ", $skipped steps left out: not numbers" else ""))
     }
 
     /**
