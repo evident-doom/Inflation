@@ -123,9 +123,11 @@ object HexSnapshot {
      * alike over the rest of the month.
      * 4.3: the memory's route crosses only borders a week's going crosses, and as few step along it as the border is hard
      * to cross (a route over all but closed borders had walked them 1e10 km and starved them of their fat).
+     * 4.4: plant-eating residents weigh places for the flow by a year of this week again (births over the birth
+     * season's weeks), not the rest of the month; the memory's route still weighs a month.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 3
+    const val MODEL_MINOR = 4
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

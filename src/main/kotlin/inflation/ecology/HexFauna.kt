@@ -1175,16 +1175,20 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * What [placeWorth] makes of [growthOf]'s week in [parts] for kind [k] ([youngPerGrown] young to a grown one): the
-     * week's growth, the young born to a head and the share that live, kept up for [weeks] weeks, in the terms the
-     * kind remembers its year in ([SeasonalMemory]). The births are those a mother would bear there by its food in a week
-     * of her season, whatever the month and the place's own calendar: she bears a year's young once ([bred]), so a place
-     * in its season gives her none she would not bear elsewhere.
+     * rate those coming there would grow at over a year as they would fare there this week. The week's deaths are taken
+     * over the year's weeks; its births over the weeks of the birth season only, since they are born in that season and
+     * not all year (else a week of it would count as a year of births and outweigh any death). The births are those a
+     * mother would bear there by its food in a week of her season, whatever the month and the place's own calendar: she
+     * bears a year's young once ([bred]), so a place in its season gives her none she would not bear elsewhere. (Over a
+     * year, not the rest of the month: over a few weeks the places about differ too little for the residents to leave
+     * the bad ones, and the dry country's walkers die where they stand.)
      */
-    private fun growthFor(k: Int, parts: FloatArray, youngPerGrown: Float, weeks: Float): Float {
+    private fun growthFor(k: Int, parts: FloatArray, youngPerGrown: Float): Float {
         val head = 1f + youngPerGrown
+        val stepsInSeason = kinds[k].birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
         val dying = ((parts[GROWTH_GROWN_DIE] + youngPerGrown * parts[GROWTH_YOUNG_DIE]) / head).coerceIn(0f, 1f)
-        // (ln(1 - dying) in double, near enough to log1p for these odds and far cheaper.)
-        return exp(weeks * (ln(1.0 + parts[GROWTH_BORN] / head) + ln(1.0 - dying))).toFloat()
+        // (Survival over the year as the week's, compounded: ln(1 - dying) in double, near enough to log1p for these odds and far cheaper.)
+        return (1f + stepsInSeason * parts[GROWTH_BORN] / head) * exp(Date.DAYS_PER_YEAR / days.toFloat() * ln(1.0 - dying)).toFloat()
     }
 
     /**
@@ -1558,22 +1562,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val month = weather.date.month
         val st = routeStep[k] ?: IntArray(n).also { routeStep[k] = it }; val gn = routeGain[k] ?: FloatArray(n).also { routeGain[k] = it }
         Profile.part("residents: seasonal memory, routes") { seasons.route(k, seasons.monthAt(k, (month + 1) % 12, seasonFare[k], seasonSeen[k]), ways, st, gn) }
-        // This week's lot at a place, as it stands at the numbers there, holds until the month is out; after it, what they
-        // remember of the year from the next month on: the best ground a month's going reaches draws them along the first
-        // step towards it, by all it is better than staying ([routeGain]).
+        // What they remember of the year from the next month on: the best ground a month's going reaches draws them along
+        // the first step towards it, by all it is better than staying ([routeGain]).
         val step = routeStep[k]!!; val boost = routeGain[k]!!.let { g -> FloatArray(n) { p -> exp(g[p]) } }
         // (At the arrival, only the share of the route's gain the crowding check trusts: [inflation.Tuning.residentRouteTrust].)
         val trusted = routeGain[k]!!.let { g -> FloatArray(n) { p -> exp(tuning.residentRouteTrust * g[p]) } }
-        val weeksLeft = max(1f, (Date.DAYS_PER_MONTH - weather.date.dayOfMonth + 1) / days.toFloat())
-        // (Those on the route weigh a month at a place, as the route's gain is a month's: this week's lot kept up a month.)
-        val toMonth = (Date.DAYS_PER_MONTH / days.toFloat()) / weeksLeft
+        // (Those on the route weigh a month at a place, as the route's gain is a month's: a year of this week's lot taken
+        // to a month.)
+        val toMonth = (Date.DAYS_PER_MONTH / days.toFloat()) / (Date.DAYS_PER_YEAR / days.toFloat())
         fun month(x: Float) = x.toDouble().pow(toMonth.toDouble()).toFloat()
         // (What does not change at a place within the week is worked out once, as the place is first weighed.)
         val fixed = WeekFixed(n)
-        // (The rest of the month at a place, at [heads] there: how they would fare there, before what they remember.)
+        // (A year of this week at a place, at [heads] there: how they would fare there, before what they remember.)
         fun weigh(p: Int, heads: Float): Float {
             if (!fixed.done[p]) fix(k, p, weather, outs.get(), fixed)
-            return placeWorth(k, p, fixed, heads, food[p], weeksLeft, partsOf.get())
+            return placeWorth(k, p, fixed, heads, food[p], partsOf.get())
         }
         // (Only the places the kind is at and those next to them are weighed, as it comes to them: no other can matter yet.)
         val weighed = BooleanArray(n); v.fill(0f)
@@ -1756,14 +1759,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * What place [p] is worth to plant-eating kind [k]'s residents with [heads] of them there ([flow]): how they would
-     * grow there over [weeks] weeks ([growthFor]), crowded as they would be there, and fed as far as the [food] there (in heads it
-     * feeds fully) goes round them; none where they cannot drink. What does not change there within the week is [fixed]'s.
+     * grow there over a year as this week ([growthFor]), crowded as they would be there, and fed as far as the [food] there
+     * (in heads it feeds fully) goes round them; none where they cannot drink. What does not change there within the week is [fixed]'s.
      */
-    private fun placeWorth(k: Int, p: Int, fixed: WeekFixed, heads: Float, food: Float, weeks: Float, parts: FloatArray): Float {
+    private fun placeWorth(k: Int, p: Int, fixed: WeekFixed, heads: Float, food: Float, parts: FloatArray): Float {
         if (!fixed.drinks[p]) return 0f
         val f = if (heads > 0f) min(1f, food / heads) else if (food > 0f) 1f else 0f
         growthOf(k, fixed.grown[p], fixed.young[p], fixed.huntedYoung[p], fixed.protein[p], moverYoung[k], moverFat[k], f, heads / land.areaKm2[p], parts)
-        return worthOrNothing(growthFor(k, parts, moverYoung[k], weeks))
+        return worthOrNothing(growthFor(k, parts, moverYoung[k]))
     }
 
     /** What does not change at each place within a week for one kind, as [flow] weighs places ([placeWorth]), worked out as first needed ([fix]). */
