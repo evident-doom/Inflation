@@ -180,8 +180,7 @@ class HexGroups(
 
     init {
         // The residents swim the same straits.
-        val pairs by lazy { Array(hex.size) { h -> seaLinks[h].indices.map { seaLinks[h][it] to seaGaps[h][it] } } }
-        fauna.seaLinks = { h -> pairs[h] }
+        fauna.seaLinks = lazy { seaLinks }; fauna.seaGaps = lazy { seaGaps }
         // Start each kind at its usual density over the land that suits it, in groups of its usual size.
         val area = land.areaKm2.sum()
         for (s in kinds) {
