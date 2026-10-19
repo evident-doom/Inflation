@@ -35,6 +35,7 @@ import kotlin.math.abs
  *   testWorld build NAME... [--years N] [--commit HASH]   (settles each and saves it; the config file's keys apply, as in hexFauna)
  *   testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR]
  *        (FILE: config keys; the variant's are laid over the base's, the base being the run's own config file unless given)
+ *   testWorld ab-report DIR [--worlds a,b] [--replicates 2]   (the report again from runs already made)
  *   testWorld compare --full A.csv,B.csv[,..] [--full-variant A2.csv,B2.csv,..] NAME=BASE.csv[,VARIANT.csv] ...
  * A single run on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE].
  */
