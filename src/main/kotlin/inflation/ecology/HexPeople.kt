@@ -96,6 +96,15 @@ const val BASKET_GAIN = 0.3f
  * children as a whole.
  */
 const val CHILD_GATHER = 0.15f
+/**
+ * The share of a band's hands that go out hunting while the rest gather, fish and snare, at the scaffold's effort on
+ * big game: the men. In nearly every foraging people men do most of the hunting and women most of the gathering
+ * (Marlowe 2007, Cross-Cultural Research 41: 170-195), and about half the grown are men. The hunters search on their
+ * own, all the days they are out, so meeting game does not wait on the gatherers' handling of plant food.
+ */
+const val HUNTERS_SHARE = 0.5f
+/** The share of [band]'s hands that hunt this week: [HUNTERS_SHARE] at the scaffold's effort on big game, all at twice it. */
+internal fun huntersShare(band: Band) = (HUNTERS_SHARE * band.effort[Food.BIG_GAME.ordinal]).coerceIn(0f, 1f)
 /** Extra small game and fish with nets and snares. */
 const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */
@@ -317,7 +326,8 @@ class Band(kinds: Int) {
     var spareDays = 0f
     /**
      * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small
-     * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's.
+     * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's. Big game's
+     * sets how many of its hands go hunting ([HUNTERS_SHARE] of them at 1, see [huntersShare]).
      */
     val effort = FloatArray(FOOD_TYPES) { 1f }
     /**

@@ -98,14 +98,16 @@ object HexSnapshot {
      * river too deep to cross).
      * 2.13: a herd weighing whether to settle back weighs itself, whole, at both places, its own heads where it grazes now
      * taken out of the others' (it was crowded by itself where it stood and weighed as a band's worth alone elsewhere).
-     * 2.14: plant-eaters weigh a place to move to by the rate a band of them would grow at there over a year, by the rules
+     * 2.14: a band's hunters (half its hands at the scaffold's effort on big game) search for game all the days they are out,
+     * while the rest gather ([HUNTERS_SHARE]).
+     * 2.15: plant-eaters weigh a place to move to by the rate a band of them would grow at there over a year, by the rules
      * they are born and die by ([HexFauna.growth]), not by a separate appeal of their own; and residents weigh a place
      * they would come to with a band of them added over the ground a band ranges in a day, not over the place's own; and
      * walking residents count those that came to a place this move, its food shared among them all, as many staying as
      * find it, with them there, no worse than walking on.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 14
+    const val MODEL_MINOR = 15
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
