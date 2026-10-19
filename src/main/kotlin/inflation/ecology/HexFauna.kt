@@ -1615,11 +1615,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 share[p] = FLOW_STEP * most; gapSum[p] = sum
                 // Where the memory's route leads somewhere better than staying, a share of them take a step along it each
                 // week, the week's first ([inflation.Tuning.residentRouteShare]), as far as the crowding ahead lets them
-                // ([take]); the rest of the week's going is spent about where they are.
+                // ([take]), the fewer the harder the border it crosses (its ease, as for the rest of the flow); the rest of the
+                // week's going is spent about where they are.
                 val r = if (pass == 0) step[p] else -1
                 if (r >= 0 && gaps[r] > 0f) {
                     for (i in ways.from[p] until ways.from[p + 1]) if (i != r) gaps[i] = 0f
-                    share[p] = max(share[p], tuning.residentRouteShare); gapSum[p] = gaps[r]
+                    share[p] = max(share[p], tuning.residentRouteShare * ways.ease[r]); gapSum[p] = gaps[r]
                 }
             }
             if (pass == 0) for (p in 0 until n) {
