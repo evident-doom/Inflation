@@ -3,14 +3,9 @@ import inflation.world.HexLand
 import kotlin.math.exp
 import kotlin.math.max
 
-/** A herd, pack or pride on the hexes: where it stands (a place: a height band of a hex) and who it is. */
+/** A pack, pride or band of people on the hexes: where it stands (a place: a height band of a hex) and who it is. */
 class HexGroup(val id: Int, val species: Species, var place: Place, var adults: Int, var young: Int) {
     val size get() = adults + young
-    /**
-     * For a herd: how large it likes to grow against its kind's usual, its own leaning (a third to
-     * three times), kept by both halves when it splits; so herds of every size live side by side.
-     */
-    var sizePref = 1f
     val alive get() = adults > 0
     /** Fed last week, 0..1; body reserves, days of food. */
     var fed = 1f
@@ -20,25 +15,15 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     /** The hexes it passed through this week, in order (its own last), and the day it entered each. */
     var path = IntArray(0)
     var days = FloatArray(0)
-    /** Meat it got this week from herds it met on the way, kg. */
+    /** Meat it took this week from other hunters it met on the way, kg (see [enemiesMeet]). */
     var meatMet = 0f
     /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then; a loaded group's is spent). */
     @Transient var meatSpent = true
-    /** For a herd of a kind that also lives spread out: the place it condensed at ([gather]); -1 for none. */
-    var formedAt = -1
-    /** For such a herd: heads it took in from the residents this week, and gave back to them ([scatter]). Not saved: read in the same step. */
-    @Transient var joined = 0
-    @Transient var settled = 0
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
-    /** For a herd: the place it remembers doing best in each month, and how well (0..1). */
+    /** For a band: the place it remembers doing best in each month, and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
-    /**
-     * Its yearly round, as its elders taught it: the place it makes for each month ([ROUND_OPEN]: none yet; [NO_ROUND]:
-     * keeps to its own country; see [growRounds]).
-     */
-    val route = IntArray(12) { ROUND_OPEN }
     /** Days since it last drank. */
     var dry = 0f
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
@@ -53,25 +38,17 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var mergedSize = -1
     /** The group it merged into, the step it did (else -1): for following what became of its members. Not saved: read in the same step. */
     @Transient var mergedInto = -1
-    /** How well its diet met its need for protein over the last weeks, 0..1 (see [HexFauna.proteinMet]). */
+    /** How well its diet meets its need for protein, 0..1: in full for hunters and people, whose meat is rich in it. */
     var protein = 1f
-    /** How well its diet met its need for protein in each month, as it remembers (births move toward the months rich in it). */
-    val proteinByMonth = FloatArray(12) { 1f }
-    /**
-     * Which way a herd has been heading, as east and south parts (km-free, at most 1 long): kept from week
-     * to week and bent a little each week toward better country, so small nudges add up to a long trek.
-     */
-    var headE = 0f
-    var headS = 0f
     /**
      * A band's luck in its own week's births and deaths, summed since it began: born less died as
      * drawn, against as expected from the week's odds (for training, which judges people by what
      * their choices made likely, not by chance; animals keep 0).
      */
     var luck = 0f
-    /** The month its young are born in, drifting towards the months that feed them best; -1 for its kind's. */
+    /** The month its young are born in; -1 until its first week (then its kind's). */
     var birthMonth = -1
-    /** For a herd or pack: its ways this week, 1 the hand-written way (see [AnimalWay]). */
+    /** For a pack: its ways this week, 1 the hand-written way (see [AnimalWay]). */
     val will = FloatArray(ANIMAL_WAYS_OUT) { 1f }
     /** For a band: food on hand, kg, by kind ([Store]). */
     val stores = enumFloats<Store>()
@@ -96,30 +73,13 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var bold = -1f
     /** Its temperament ([Temperament]): a founder's by chance, an offshoot's from its parent. */
     var temper = Temperament.founder(id, 0L)
-    /** When it was last chased, in days from the start (with the hour): it is alarmed for a while after (see [wary]). */
-    var chasedOn = Double.NEGATIVE_INFINITY
-    /** How alarmed it still is at [day] (days from the start) from its last chase, 0..1: it keeps a sharper watch, fading over [ALARM_DAYS]. */
-    fun wary(day: Double) = exp(-(day - chasedOn) / ALARM_DAYS).toFloat()
-    /** For hunters: meetings with game of each kind ([Species.index]), herds and residents alike, as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */
+    /** For hunters: meetings with game of each kind ([Species.index]), as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */
     var herdsMet: FloatArray? = null
     var herdsMetOn = 0.0
-    /**
-     * For hunters: the rate of intake its last week's diet promised, kg a day of searching and handling (see [forage]).
-     * Game it meets is worth chasing only if a kill of it yields more for the time it takes (Charnov's rule).
-     */
-    var dietRate = 0f
     /** Its grown ones' odds of dying in a step, as its last week's hazards had them (0 before its first week): what a life risked is set against. */
     var deathOdds = 0f
-    /** How often it has come on herds of [k] lately, at [day]. */
+    /** How often it has come on game of [k] lately, at [day]. */
     fun metLately(k: Int, day: Double): Float = herdsMet?.let { it[k] * exp(-(day - herdsMetOn) / SEARCH_DAYS).toFloat() } ?: SEARCH_HALF
-    /** Counts a meeting with a herd of [k] at [day]. */
-    fun metHerd(k: Int, day: Double) {
-        val m = herdsMet ?: FloatArray(Catalogue.all.size) { SEARCH_HALF }.also { herdsMet = it; herdsMetOn = day }
-        val fade = exp(-(day - herdsMetOn) / SEARCH_DAYS).toFloat()
-        for (i in m.indices) m[i] *= fade
-        m[k] += 1f
-        herdsMetOn = day
-    }
     /** Counts the meetings in [counts] (by [Species.index]) at [day]. */
     fun metGame(counts: FloatArray, day: Double) {
         val m = herdsMet ?: FloatArray(Catalogue.all.size) { SEARCH_HALF }.also { herdsMet = it; herdsMetOn = day }
@@ -238,7 +198,7 @@ object HexFeatures {
     const val WATER_AGAINST_USUAL = 41
     /** Worn paths. */
     const val PATHS = 42
-    /** Herds about this month. */
+    /** Herds about this month: kept for the layout until retraining, 0. */
     const val HERDS_ABOUT = 43
     /** Dung. */
     const val DUNG = 44
@@ -252,13 +212,13 @@ object HexFeatures {
     const val OTHERS_MARKS = 48
     /** For a band, the fish and shellfish it could take there in a week with its skill, against its week's need (0 for animals). */
     const val FISH = 49
-    /** For a herd, how far going there keeps to the way it has been heading ([HexGroup.headE]; 0 for others). */
+    /** For a herd, how far going there kept to the way it had been heading: kept for the layout until retraining, 0. */
     const val KEEPS_HEADING = 50
-    /** For a herd on its yearly round, how far the place takes it on toward the round's place this month (0 off a round). */
+    /** For a band on its yearly round, how far the place takes it on toward the round's place this month (0 off a round). */
     const val ON_ROUND = 51
-    /** For a herd, how good the forage there is, 0..1: how nourishing and how rich in protein ([HexGroups.freshness]; 0 for others). */
+    /** For a herd, how good the forage there was: kept for the layout until retraining, 0. */
     const val FORAGE_QUALITY = 52
-    /** The fear of ground where game was killed lately ([HexFauna.afraid]), as the herds' hand-written score weighs it. */
+    /** The fear of ground where game was killed lately ([HexFauna.afraid]). */
     const val KILL_FEAR = 53
     /** The share of the place burning this week. */
     const val BURNING = 54

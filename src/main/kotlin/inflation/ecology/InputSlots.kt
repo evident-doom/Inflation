@@ -39,7 +39,7 @@ object BandInputs : InputSlots() {
     val TEMPER = block(Temperament.NAMES.map { "temper:$it" })
 }
 
-/** The slots of a herd's or pack's view of itself ([animalInputs]). */
+/** The slots of a pack's view of itself ([animalInputs]). */
 object AnimalInputs : InputSlots() {
     val YEAR_SIN = one("year sin"); val YEAR_COS = one("year cos")
     val FED = one("fed"); val FAT = one("fat"); val DAYS_DRY = one("days dry"); val OWN_SIZE = one("own size"); val YOUNG = one("young per adult")

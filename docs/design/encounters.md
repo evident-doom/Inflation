@@ -1,5 +1,7 @@
 # Encounters and what hunters know
 
+A design record: since model 3.0 plant-eaters live only as residents, so the herds' side below no longer runs.
+
 Olli chose the same rule for herds and for people.
 
 ## Why

@@ -49,7 +49,7 @@ class StocksTest {
         val sim = HexSim(World.generate(cfg))
         val stocks = sim.stocks()
         val m = stocks.matter()
-        for (pool in listOf("plants", "small animals", "resident animals", "herds, packs and bands")) {
+        for (pool in listOf("plants", "small animals", "resident animals", "packs and bands")) {
             val parts = stocks.list.filter { it.group == pool }
             assertTrue(parts.isNotEmpty(), "no stocks in $pool")
             assertEquals(parts.sumOf { it.sum() } / 1e6, m.getValue(pool), 1e-9 * (1 + m.getValue(pool)))
@@ -72,13 +72,15 @@ class StocksTest {
             "HexHydrology.soakTarget", "HexHydrology.runoffMm", "HexPlants.litterfall", "HexPlants.browsing", "HexPlants.grazing",
             "HexPlants.rooting", "HexPlants.trampling", "HexPlants.trodden", "HexSmallLife.washedKg", "HexSmallLife.laidKgM2", "HexSmallLife.leaving",
             "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexFauna.groupKilled",
+            // The week's food left uneaten, a reading of the plants' stocks, not one of its own.
+            "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareRoots", "HexFauna.spareStraw",
             // Shares, states and memories, 0..1 or days or degrees.
             "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture",
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
             "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning",
             "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.usual", "HexFauna.outbreak",
-            "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFood.domestic", "HexSmallLife.pollination",
+            "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.moverYoung", "HexFauna.bred", "HexFauna.moverFat", "HexFood.domestic", "HexSmallLife.pollination",
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
             // For the check and the viewer: heads held hungry with no better place next door, and one kind's spill last week.
             "HexFauna.stuck", "HexFauna.flowEast", "HexFauna.flowSouth", "HexFauna.flowOut",

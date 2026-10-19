@@ -106,9 +106,15 @@ object HexSnapshot {
      * 2.17: one rule for how well off a band is ([wellOff], 30 days of larder as a week fed), one sickle gain
      * ([Band.sickleGain]), and caches keep by the week's weather, smoked and salted as the larder ([driedKeep]).
      * 2.18: salting is a skill a band hits on with salt to hand ([Skill.SALTING]), no longer open to any band holding salt.
+     * 3.0: plant-eaters live only as residents; the groups are the hunters and people. Plant-eaters weigh a place by the
+     * rate a band of them would grow at there over a year, by the rules they are born and die by ([HexFauna.growth]), over
+     * the ground a band ranges in a day; they flow over the land as a fluid finds its level, from each place a share to the
+     * neighbouring places worth more at the numbers there and here ([HexFauna.flow]), every week; and a mother bears a
+     * year's young once, wherever she walks ([HexFauna.bred]), a week's share of her season by its days, and a place is
+     * worth its births to movers whatever its calendar.
      */
-    const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 18
+    const val MODEL_MAJOR = 3
+    const val MODEL_MINOR = 0
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

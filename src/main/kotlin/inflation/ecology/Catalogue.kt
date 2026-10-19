@@ -711,41 +711,23 @@ object Catalogue {
     private val laterHerbivores = listOf(ARGALI)
     val herbivores = firstHerbivores + laterHerbivores
 
-    /** Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges. */
+    /**
+     * Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges.
+     * They live as residents ([resident]) as the others do; the set keeps their place at the end of [HexFauna.kinds] and
+     * the learned movers' "migratory" input.
+     */
     val migratory = setOf(GAZELLE, WILD_GOAT, HORSE, ONAGER, ORYX, OSTRICH, HARTEBEEST, DROMEDARY, ARGALI)
 
     /**
-     * Hunters that live everywhere they can on small home ranges and do not follow the herds, kept as
-     * numbers per place like the resident plant-eaters rather than as packs that choose where to go
+     * Hunters that live everywhere they can on small home ranges, kept as
+     * numbers per place like the plant-eaters rather than as packs that choose where to go
      * (cheaper, and the same rules of eating, breeding and dying): golden jackals and lynx. (They stay
      * in [predators], so every kind keeps its index.)
      */
     val residentHunters by lazy { setOf(JACKAL, LYNX) }
 
-    /** Kinds that keep to small home ranges all year, kept as numbers per place: plant-eaters, and the [residentHunters]. */
-    fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
-
-    /**
-     * Kinds that live both ways: spread over the land as residents, gathered into herds where the land will not feed
-     * them through the coming season (see [gather] and [scatter]): every plant-eater, so that whether a kind herds is
-     * the land's doing. The [migratory] kinds start as herds, the others spread out.
-     */
-    val gathering: Set<Species> by lazy { herbivores.toSet() }
-
-    /**
-     * For tests (t.formSwap=NAME:herds,NAME:residents,...; or none): with the key set, herds neither gather nor
-     * scatter ([formsFixed]); after a settled state is loaded, each plant-eater named goes wholly into the form named
-     * (true: herds; see [swapForms]).
-     */
-    val formSwap: Map<Species, Boolean> by lazy {
-        inflation.Config.string("t.formSwap")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() && it != "none" }?.associate { e ->
-            val (name, form) = e.split(':').map { it.trim() }
-            require(form == "herds" || form == "residents") { "t.formSwap: $e (NAME:herds or NAME:residents)" }
-            herbivores.first { it.name == name } to (form == "herds")
-        } ?: emptyMap()
-    }
-    /** Whether herds keep the form they have (t.formSwap set at all; see [formSwap]). */
-    val formsFixed by lazy { inflation.Config.string("t.formSwap") != null }
+    /** Kinds kept as numbers per place, the residents: every plant-eater, and the [residentHunters]. */
+    fun resident(s: Species) = !s.carnivore || s in residentHunters
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
@@ -764,11 +746,11 @@ object Catalogue {
     /** Every kind, in [Species.id] order (so `all[s.index] === s`). */
     val all = (firstHerbivores + predators + laterHerbivores).sortedBy { it.id }
     /**
-     * The kinds that move as groups with a learned mover: the migratory herds, the beasts of prey and
-     * people. Named, not read from the diet: people eat about half meat, and a small retune of their
-     * diet would otherwise drop them from training and from the check without a word.
+     * The kinds that move as groups with a learned mover: the beasts of prey and people. Named, not read
+     * from the diet: people eat about half meat, and a small retune of their diet would otherwise drop
+     * them from training and from the check without a word.
      */
-    val learned = all.filter { (it in migratory || it in predators) && it !in residentHunters }
+    val learned = all.filter { it in predators && it !in residentHunters }
 
     init {
         require(all.withIndex().all { (i, s) -> s.id == i }) { "species ids must run 0 until ${all.size} without gaps or repeats" }

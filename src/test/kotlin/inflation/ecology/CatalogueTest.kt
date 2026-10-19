@@ -9,7 +9,7 @@ class CatalogueTest {
         assertTrue(Catalogue.all.filter { it.human }.all { it in Catalogue.learned })
         assertTrue(Catalogue.predators.filter { it !in Catalogue.residentHunters }.all { it in Catalogue.learned })
         assertTrue(Catalogue.residentHunters.none { it in Catalogue.learned })
-        assertTrue(Catalogue.migratory.all { it in Catalogue.learned })
+        assertTrue(Catalogue.migratory.all { Catalogue.resident(it) && it !in Catalogue.learned })
     }
 
     @Test

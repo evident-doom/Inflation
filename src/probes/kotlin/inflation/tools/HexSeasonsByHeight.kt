@@ -46,7 +46,7 @@ fun main(args: Array<String>) {
         val cured = land.plants.cured
         for (kk in run.fauna.kinds.indices) for (h in 0 until run.hex.size) for (bb in 0 until HexWorld.BANDS_M.size - 1) {
             val lo = hw.placeOf[bb][h]; val hi = hw.placeOf[bb + 1][h]; if (lo < 0 || hi < 0) continue
-            val al = run.fauna.appeal(kk, lo, run.weather); val ah = run.fauna.appeal(kk, hi, run.weather)
+            val al = run.fauna.worth[kk][lo]; val ah = run.fauna.worth[kk][hi]
             if (al > 0f && ah > 0f) { ratioSum[kk][m] += ln((ah / al).toDouble()); ratioN[kk][m]++ }
         }
         for (p in 0 until n) {

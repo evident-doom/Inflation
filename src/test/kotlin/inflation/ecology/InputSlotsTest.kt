@@ -11,7 +11,7 @@ class InputSlotsTest {
     private val cfg = WorldConfig(seed = 5, widthKm = 200, heightKm = 200, erosionSteps = 10, plates = 6, oceanMarginKm = 40.0)
 
     @Test
-    fun `every named slot of a band's view and a herd's or pack's is written`() {
+    fun `every named slot of a band's view and a pack's is written`() {
         val sim = HexSim(World.generate(cfg))
         repeat(2) { sim.step() }
         val live = sim.groups.groups.filter { it.alive }
@@ -19,11 +19,10 @@ class InputSlotsTest {
         val into = FloatArray(WAYS_IN) { Float.NaN }
         sim.groups.bandInputs(band, sim.weather, into)
         assertEquals(emptyList(), into.indices.filter { into[it].isNaN() }.map { BAND_INPUT_NAMES[it] }, "band slots left unwritten")
-        for (g in listOf(live.first { it.band == null && !it.species.carnivore }, live.first { it.band == null && it.species.carnivore })) {
-            val a = FloatArray(ANIMAL_WAYS_IN) { Float.NaN }
-            sim.groups.animalInputs(g, sim.weather, a)
-            assertEquals(emptyList(), a.indices.filter { a[it].isNaN() }.map { ANIMAL_INPUT_NAMES[it] }, "${g.species.name} slots left unwritten")
-        }
+        val pack = live.first { it.band == null }
+        val a = FloatArray(ANIMAL_WAYS_IN) { Float.NaN }
+        sim.groups.animalInputs(pack, sim.weather, a)
+        assertEquals(emptyList(), a.indices.filter { a[it].isNaN() }.map { ANIMAL_INPUT_NAMES[it] }, "${pack.species.name} slots left unwritten")
     }
 
     @Test

@@ -17,12 +17,10 @@ import inflation.ecology.m2
  * - huntDiag=KIND,...: four times a year, that kind's hungry packs against its fed ones, and the thirsty, with their ground;
  * - fedDiag=true: four times in the first year, how well each kind is fed where it lives, and why;
  * - follow=KIND: one group of that kind week by week, as the viewer's follow mode does;
- * - migDiag=KIND: each month, how far that kind's herds are from the place they remember for the month;
- * - crowdDiag=KIND: each month, the crowd that kind's herds foresaw where they chose to go against the one they met there;
  * - shrubDiag=true: each year, the shrubs' kg gained and lost by each process ([inflation.world.HexPlants.shrubBook]),
  *   with the shrubs standing and the most they could grow to ([inflation.world.HexPlants.ceiling]), summed over the map.
  */
-class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
+class Diagnostics(private val sim: HexSim) {
     private val hw = sim.hw
     private val land = sim.land
     private val fauna = sim.fauna
@@ -42,8 +40,6 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
             println("   follow #%d (%s, %d) %s:".format(groups.watched, g?.species?.name ?: "?", g?.size ?: 0, weather.date))
             for (l in groups.watchLog) println("      $l")
         }
-        Config.string("migDiag")?.let { kind -> if (weather.date.dayOfMonth <= daysPerStep) migration(kind) }
-        Config.string("crowdDiag")?.let { kind -> crowding(kind, weather.date.dayOfMonth <= daysPerStep) }
         land.plants.shrubBook?.let { book -> val y = weather.date.year; if (shrubYear >= 0 && y != shrubYear) shrubs(book); shrubYear = y }
     }
 
@@ -56,46 +52,9 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         println("   shrubDiag %s (tonnes over the map): standing %.4g, ceiling %.4g".format(weather.date, stand / 1000, cap / 1000))
         for ((i, name) in inflation.world.HexPlants.SHRUB_PARTS.withIndex()) println("      %-50s %+.4g".format(name, book[i].sumThenReset() / 1000))
         val n = inflation.world.HexPlants.SHRUB_PARTS.size
-        val herd = book[n].sumThenReset(); val res = book[n + 1].sumThenReset()
-        println("      (ground trodden, km²: by herds %.4g, by residents %.4g, of %.4g)".format(herd / 1e6, res / 1e6, land.areaM2.sum() / 1e6))
+        val res = book[n].sumThenReset()
+        println("      (ground trodden by residents, km²: %.4g of %.4g)".format(res / 1e6, land.areaM2.sum() / 1e6))
     }
-
-    private var crowdSums = DoubleArray(12)
-    /**
-     * The crowd (as the herds' sickness reckons it, 1 = its kind's usual crowding) each herd of [kind] that chose its own
-     * place this week foresaw there, against the one it met after all had moved; summed weekly, printed each month ([print]).
-     */
-    private fun crowding(kind: String, print: Boolean) {
-        val k = groups.kinds.indexOfFirst { it.name == kind }
-        if (k >= 0) {
-            val heads = HashMap<Int, Int>()
-            for (g in groups.groups) if (g.alive && g.species.name == kind) heads.merge(hw.placeHex[g.place], 1, Int::plus)
-            for (g in groups.groups) {
-                if (!g.alive || g.species.name != kind) continue
-                val foreseen = groups.foreseenCrowd[g.id] ?: continue
-                val met = groups.metCrowd[g.id] ?: continue
-                crowdSums[0] += 1.0; crowdSums[1] += foreseen.toDouble(); crowdSums[2] += met.toDouble()
-                if (met > 2f * foreseen + 0.05f) crowdSums[3] += 1.0
-                crowdSums[4] += g.size.toDouble(); crowdSums[5] += (heads[hw.placeHex[g.place]] ?: 1).toDouble()
-                val asPlanned = groups.metAsPlannedCrowd[g.id] ?: met
-                crowdSums[6] += asPlanned.toDouble(); if (groups.reachedChoice[g.id] == true) crowdSums[7] += 1.0
-                if (met > 2f * foreseen + 0.05f) { crowdSums[8] += 1.0; crowdSums[9] += foreseen.toDouble(); crowdSums[10] += asPlanned.toDouble(); crowdSums[11] += met.toDouble() }
-            }
-            groups.foreseenCrowd.clear(); groups.metCrowd.clear(); groups.metAsPlannedCrowd.clear(); groups.reachedChoice.clear(); groups.choiceDiag.clear()
-        }
-        if (print && crowdSums[0] > 0.0) {
-            val n = crowdSums[0]
-            println("     crowding %s %s: %d choices, foreseen %.2f, met %.2f, met over twice foreseen %.0f%%, herd size %.0f, herds of its kind in its hex %.1f".format(
-                kind, weather.date, n.toInt(), crowdSums[1] / n, crowdSums[2] / n, 100.0 * crowdSums[3] / n, crowdSums[4] / n, crowdSums[5] / n))
-            // (Met as planned: where it ended the week, had the others stayed as they were when it chose. Foreseen to that is
-            // its own ground and place changing; that to met is the others moving.)
-            val m = crowdSums[8].coerceAtLeast(1.0)
-            println("     crowding %s %s: met as planned %.2f, reached its choice %.0f%%; of those over twice: foreseen %.2f, met as planned %.2f, met %.2f".format(
-                kind, weather.date, crowdSums[6] / n, 100.0 * crowdSums[7] / n, crowdSums[9] / m, crowdSums[10] / m, crowdSums[11] / m))
-            crowdSums = DoubleArray(12)
-        }
-    }
-
 
     /** Packs of [kind] that went hungry this week against those that ate, and their ground; and the thirsty ones. */
     private fun hunters(w: Int, kind: String) {
@@ -122,7 +81,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
                 mean { it.path.size.toDouble() }, mean { it.dry.toDouble() })
     }
 
-    /** How well each resident kind is fed where it lives, and why, weighted by head count; and the herds and packs. */
+    /** How well each resident kind is fed where it lives, and why, weighted by head count; and the packs and bands. */
     private fun fed(w: Int) {
         println("     week $w, residents: fed / share hungry / tether / access / green / reserve days")
         for ((k, s) in fauna.kinds.withIndex()) {
@@ -136,7 +95,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
             if (heads > 0) println("       %-12s %.2f / %.0f%% / %.2f / %.2f / %.2f / %.0f".format(s.name, fed / heads, 100 * hungry / heads,
                 teth / heads, acc / heads, gr / heads, res / heads))
         }
-        println("     herds and packs: fed / reserve days / young per adult / days without water / cold degrees")
+        println("     packs and bands: fed / reserve days / young per adult / days without water / cold degrees")
         for (s in groups.kinds) {
             val gs = groups.groups.filter { it.alive && it.species == s }
             val heads = gs.sumOf { it.size }.toDouble().coerceAtLeast(1.0)
@@ -145,13 +104,5 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
                 gs.sumOf { it.young }.toDouble() / gs.sumOf { it.adults }.coerceAtLeast(1), gs.sumOf { it.dry.toDouble() * it.size } / heads,
                 gs.sumOf { s.coldC(weather.temperature[it.place], weather.date.month).toDouble() * it.size } / heads))
         }
-    }
-
-    private fun migration(kind: String) {
-        val m = weather.date.month
-        val gs = groups.groups.filter { it.alive && it.species.name == kind && it.seasonPlace[m] >= 0 }
-        if (gs.isNotEmpty()) println("     month ${m + 1} $kind: %.0f km from this month's place, fed %.2f, remembered worth %.2f".format(
-            gs.map { sim.hex.distanceKm(hw.placeHex[it.place], hw.placeHex[it.seasonPlace[m]]) }.average(), gs.map { it.fed.toDouble() }.average(),
-            gs.map { it.seasonQ[m].toDouble() }.average()))
     }
 }

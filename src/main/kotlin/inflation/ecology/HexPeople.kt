@@ -224,7 +224,7 @@ class Band(kinds: Int) {
     var ornaments = 0f
     var exotic = 0f
     /**
-     * Animals it keeps by its camp, by kind of the resident herds ([HexFauna.kinds] index): young
+     * Animals it keeps by its camp, by kind of the residents ([HexFauna.kinds] index): young
      * taken in the hunt and raised, and their offspring; and how tame each kind has grown under it
      * (the docile breed and stay, the wild ones run off), 0..1.
      */
@@ -374,8 +374,8 @@ class Band(kinds: Int) {
      */
     fun riteFor(month: Int): RoundPull? {
         if (riteStrength <= 0f) return null
-        // (A rite's month is spent at its site: the band is drawn there from the month before, as a
-        // herd is to next month's place, and kept there until the month after, unless that has its own.)
+        // (A rite's month is spent at its site: the band is drawn there from the month before, and kept
+        // there until the month after, unless that has its own.)
         val site = if (rite[month] >= 0) rite[month] else rite[wrapMonth(month - 1)]
         return if (site >= 0) RoundPull(site, riteStrength) else null
     }
@@ -386,7 +386,7 @@ class Band(kinds: Int) {
      * chosen for what they bring, so a rite that costs lives lasts as long as the line that keeps it.
      */
     val rite = IntArray(12) { -1 }
-    /** How strongly its people hold to their rites (0: not at all; [inflation.Tuning.roundStrength] as a herd keeps its round). */
+    /** How strongly its people hold to their rites (0: not at all; see [inflation.Tuning.riteFounderMax]). */
     var riteStrength = 0f
 
     fun holds(t: Tradition) = traditions[t]

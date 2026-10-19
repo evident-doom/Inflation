@@ -38,7 +38,7 @@ class MoveDecision(
     /** The place its round or its memory of the season draws it to (-1 none), and whether it is on its round. */
     val goal: Int,
     val onRound: Boolean,
-    /** What it knows of itself (a band: [Band.state], as its networks read it; a herd or pack: [animalInputs]). */
+    /** What it knows of itself (a band: [Band.state], as its networks read it; a pack: [animalInputs]). */
     val knows: FloatArray,
     /** The ways the model would set this week (0 the hand-written way each), and whether a learned network sets them. */
     val ways: FloatArray,
@@ -62,7 +62,7 @@ internal fun HexGroups.askControl(
     val scores = hand.copyOf(n)
     val net = policy?.scores(g, features, scores)
     val model = places.indexOf(modelPlace).takeIf { it >= 0 } ?: places.indexOf(g.place.i).coerceAtLeast(0)
-    // Its ways, as the model would set them now: a band's from what it knew of itself as the week began, a herd's or pack's from the same as set them.
+    // Its ways, as the model would set them now: a band's from what it knew of itself as the week began, a pack's from the same as set them.
     val knows: FloatArray; val out: FloatArray; val learnedWays: Boolean
     val band = g.band
     if (band != null) {
@@ -70,14 +70,14 @@ internal fun HexGroups.askControl(
         out = FloatArray(WAYS_OUT); (ways ?: HAND_WRITTEN_WAYS).choose(g, knows.copyOf(), out); learnedWays = ways != null
     } else {
         knows = FloatArray(ANIMAL_WAYS_IN).also { animalInputs(g, weather, it) }
-        val w = if (g.species.carnivore) hunterWays else herdWays
+        val w = hunterWays
         out = FloatArray(ANIMAL_WAYS_OUT); (w ?: HAND_WRITTEN_ANIMAL_WAYS).choose(g, knows.copyOf(), out); learnedWays = w != null
     }
     val d = MoveDecision(g, date, places, features, scores, net, Array(n) { pathTo(places[it]) }, model, policy != null, content, restless, reach, goal,
         onRound, knows, out, learnedWays)
     val pick = ctl.move(d).takeIf { it in 0 until n } ?: model
-    // A herd's or pack's ways were set before it chose (bands set theirs as they forage): the player's pins take hold now.
-    if (band == null) setAnimalWays(g, weather, (if (g.species.carnivore) hunterWays else herdWays) ?: HAND_WRITTEN_ANIMAL_WAYS, FloatArray(ANIMAL_WAYS_IN),
+    // A pack's ways were set before it chose (bands set theirs as they forage): the player's pins take hold now.
+    if (band == null) setAnimalWays(g, weather, hunterWays ?: HAND_WRITTEN_ANIMAL_WAYS, FloatArray(ANIMAL_WAYS_IN),
         FloatArray(ANIMAL_WAYS_OUT))
     return places[pick]
 }

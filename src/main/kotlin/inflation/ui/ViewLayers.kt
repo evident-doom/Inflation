@@ -4,11 +4,8 @@ import inflation.ecology.HexFauna
 import inflation.ecology.get
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
-import inflation.ecology.Lifeway
 import inflation.ecology.HexFood
 import inflation.ecology.Species
-import inflation.ecology.Catalogue
-import inflation.ecology.herdsWorth
 import inflation.ecology.grassUnderSnow
 import inflation.world.Date
 import kotlin.math.max
@@ -37,9 +34,7 @@ internal class ViewLayers(private val sim: HexSim) {
         BITING("Biting insects", "kg/km²", 0.8f, 0.1f, 0.1f),
         POLLINATORS("Pollinators", "kg/km²", 1f, 0.85f, 0.1f), ORGANIC("Soil organic matter", "kg/m²", 0.35f, 0.2f, 0.05f),
         CARRION("Carrion", "kg/km²", 0.4f, 0.1f, 0.4f),
-        RESIDENTS("Resident herds (all)", "head/km²", 1f, 0.1f, 0.6f),
-        UNFED("Residents leaving, of kinds that also herd", "head/km² whose place failed them this week", 1f, 0.45f, 0.1f),
-        HERD_PRESSURE("Herd-forming pressure", "herds' worth of unfed animals within a week's travel (a herd forms at 1)", 1f, 0.25f, 0.05f),
+        RESIDENTS("Residents (all)", "head/km²", 1f, 0.1f, 0.6f),
         DEATHS("Where animals die", "kg/km² a week", 0.6f, 0f, 0f), PEOPLE_DEATHS("Where people die", "deaths per 1000 km² a week", 0.6f, 0f, 0.3f),
         KILLS("Kills by packs and people", "kg/km² a week", 0.85f, 0.05f, 0.05f),
         HUNTERS_PER_PREY("Hunters per prey", "kg hunters per 100 kg big game (blank under 1 kg/km² of game)", 0.9f, 0.2f, 0.1f),
@@ -126,15 +121,6 @@ internal class ViewLayers(private val sim: HexSim) {
         now[Measure.POLLINATORS.name] = hexMean { sl.pollinators[it] }
         now[Measure.ORGANIC.name] = hexMean { sl.organicMatter[it] }
         now[Measure.CARRION.name] = hexMean { sl.carrion[it] * 1e6f }
-        // Kinds that also live as herds: their residents the land did not feed this week, and how many herds' worth of
-        // them lie within a week's travel (a herd condenses where that comes to one; the most of any such kind).
-        val unfed = DoubleArray(nh); val worth = FloatArray(nh)
-        for (s in Catalogue.gathering) {
-            groups.unfed[s]?.let { u -> for (h in 0 until nh) unfed[h] += u[h] }
-            groups.herdsWorth(s)?.let { v -> for (h in 0 until nh) worth[h] = max(worth[h], v[h]) }
-        }
-        now[Measure.UNFED.name] = FloatArray(nh) { if (area[it] > 0) (unfed[it] / area[it]).toFloat() else Float.NaN }
-        now[Measure.HERD_PRESSURE.name] = FloatArray(nh) { if (area[it] > 0) worth[it] else Float.NaN }
         now[Measure.RESIDENTS.name] = hexMean { p -> var v = 0f; for (k in fauna.kinds.indices) v += fauna.adults[k][p] + fauna.young[k][p]; v }
 
         // Deaths: this week's, by cause, as a running mean over about a month (a single week is mostly noise).
@@ -172,8 +158,7 @@ internal class ViewLayers(private val sim: HexSim) {
         }
         for (g in groups.groups) {
             if (!g.alive || g.species.human) continue
-            val kg = (g.adults + 0.3 * g.young) * g.species.massKg
-            if (g.species.carnivore) hunterKg[hw.placeHex[g.place]] += kg else preyKg[hw.placeHex[g.place]] += kg
+            hunterKg[hw.placeHex[g.place]] += (g.adults + 0.3 * g.young) * g.species.massKg
         }
         now[Measure.HUNTERS_PER_PREY.name] = FloatArray(nh) { h ->
             if (area[h] <= 0) return@FloatArray Float.NaN
@@ -204,10 +189,6 @@ internal class ViewLayers(private val sim: HexSim) {
                 val hd = (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]
                 if (hd > 0f) sh[hw.placeHex[p]] += hd * (1.0 - fauna.fed[k][p]) * fs
             }
-        }
-        for (g in groups.groups) if (g.alive && g.species.lifeway == Lifeway.HERD) {
-            val fs = fodderShare(g.species); if (fs <= 0f) continue
-            shortBy.getOrPut(g.species) { DoubleArray(nh) }[hw.placeHex[g.place]] += g.size * (1.0 - g.fed) * fs
         }
         val shortKm2 = DoubleArray(nh); val byPlenty = DoubleArray(nh)
         for ((s, sh) in shortBy) {

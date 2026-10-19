@@ -13,12 +13,12 @@ import kotlin.math.exp
 
 /**
  * The whole hex model over a generated [world]: the hexes and their places, the weather on them,
- * water and plants, the soil and small life with the resident herds, and the herds and packs that
+ * water and plants, the soil and small life with the residents, and the packs and bands that
  * live as groups. One [step] is one week, always in the same order.
  */
 class HexSim(
     val world: World,
-    /** The kinds that live as groups (default: the migratory herds and the hunters other than people). */
+    /** The kinds that live as groups (default: the hunting packs and people). */
     kinds: List<Species>? = null,
     /** Start the groups spread evenly over the land, wherever it suits them or not. */
     uniformStart: Boolean = false,
@@ -55,17 +55,12 @@ class HexSim(
 
     /**
      * The week, in order: the weather and what falls from the sky, the water and plants ([HexLand.phases]), the residents and
-     * small life ([HexFauna.phases]), what the residents' hunters took of the herds, and the groups ([HexGroups.phases]).
+     * small life ([HexFauna.phases]), and the groups ([HexGroups.phases]).
      */
     @Transient val phases: List<Phase> = listOf(
         Phase("weather") { weather.step(); bookSnow() },
         Phase("ash and eruptions") { fallingAsh() },
-    ) + land.phases + listOf(
-        // The residents' hunters find the herds about them as they find the resident game (see [HerdAt]).
-        Phase("residents: herds about") { fauna.herdsAt = groups.herdsByPlace() },
-    ) + fauna.phases + listOf(
-        Phase("herds' losses to resident hunters") { groups.takeResidentsKills(fauna.herdsAt); fauna.herdsAt = emptyMap() },
-    ) + groups.phases
+    ) + land.phases + fauna.phases + groups.phases
 
     /** One week ([phases]). */
     fun step() {

@@ -70,13 +70,6 @@ object Nominal {
     /** People over the land, per km²: foragers live at 0.01–0.5 (Binford 2001), above it only on rich coasts and rivers (the runs: 0.015–0.06). */
     const val PEOPLE_MAX_KM2 = 0.5
     /**
-     * The migratory herds' share above 1000 m, mean height (m) and distance from half a year before (km): the longest
-     * migrations on land take animals some 1000 km from where they were (caribou, Mongolian gazelles: Joly et al. 2019,
-     * from memory; the runs: under 280 km).
-     */
-    const val HEIGHT_MIN_M = -450.0; const val HEIGHT_MAX_M = 9000.0
-    const val KM_FROM_HALF_A_YEAR_MAX = 1000.0
-    /**
      * Young born to a kind in a year, per head it numbered on average: the most fecund here, wild boar, wolves and
      * jackals, bear litters of 4–6 a year to a breeding female, about 1 a head; the ungulates 0.2–0.5 (the runs: up to
      * 0.85, wolves).
@@ -247,9 +240,6 @@ object Nominal {
                 }
                 Key.biomeWhat(k) == Key.PLANTS -> weekly(0.0, BIOME_PLANTS_MAX_KG_M2, "kg/m²")
                 // (The herds' own series: dropped with the herds, if they go.)
-                Key.migrationOf(k) == HexHistory.Migration.SHARE_ABOVE_1000_M -> weekly(0.0, 1.0, "")
-                Key.migrationOf(k) == HexHistory.Migration.MEAN_HEIGHT_M -> weekly(HEIGHT_MIN_M, HEIGHT_MAX_M, "m")
-                Key.migrationOf(k) == HexHistory.Migration.KM_FROM_HALF_A_YEAR -> weekly(0.0, KM_FROM_HALF_A_YEAR_MAX, "km")
                 Key.animalKind(k) != null -> {
                     val kind = Key.animalKind(k)!!
                     val d = animals(kind)

@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 class MoverPolicyTest {
     private val gazelle = Catalogue.all.first { it.name == "gazelle" }
 
-    /** Four places: the first is where the herd stands; place [bad] has a hand-written score that is not a number. */
+    /** Four places: the first is where the group stands; place [bad] has a hand-written score that is not a number. */
     private fun places(bad: Int, badScore: Float) = Pair(
         Array(4) { k -> FloatArray(HexFeatures.SIZE).also { if (k == 0) it[HexFeatures.STAYS] = 1f; it[HexFeatures.FOOD] = 0.1f * k } },
         floatArrayOf(0f, 1f, 2f, 3f).also { it[bad] = badScore })

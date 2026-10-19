@@ -22,8 +22,7 @@ import java.util.concurrent.Executors
  * the training, each under the training's own config with only the networks changed. A role's new network is kept when, set against its kept one with the others' new (all
  * new against "kept herds" and so on, so that only that role's network differs):
  * - the ecosystem holds: no kind's numbers in the last whole year fall more than [FALL] below in every
- *   weather alike (a fall in one weather only is chance), no kind present is gone in every weather, the
- *   migratory herds stand no less far from where they stood half a year before (within [SHORTER]), and
+ *   weather alike (a fall in one weather only is chance), no kind present is gone in every weather, and
  *   there are not fewer people in every weather; and
  * - its own members fare better: the role's kinds number more in the last whole year.
  */
@@ -85,14 +84,10 @@ class EcoCheck(private val out: File) {
             if (pairs.all { n[it] <= 0.0 }) why += "$k gone"
             else if (pairs.all { n[it] < (1 - FALL) * o[it] }) why += "$k %+.0f%%".format(100 * (n.sum() / o.sum() - 1))
         }
-        val kmNew = km(new); val kmOld = km(old)
-        if (!kmNew.isNaN() && !kmOld.isNaN() && kmNew < (1 - SHORTER) * kmOld) why += "herds stand %.0f km from half a year before, against %.0f".format(kmNew, kmOld)
         val pn = lastYears(new, HexHistory.Key.animals(Catalogue.HUMAN.name)); val po = lastYears(old, HexHistory.Key.animals(Catalogue.HUMAN.name))
         if (pn.indices.all { pn[it] < po[it] }) why += "fewer people"
         return why
     }
-
-    private fun km(rs: List<TestWorlds.Run>) = Catalogue.migratory.map { lastYear(rs, HexHistory.Key.migration(it.name, HexHistory.Migration.KM_FROM_HALF_A_YEAR)) }.filter { !it.isNaN() }.average()
 
     private fun judge(round: Int, runs: Map<String, List<TestWorlds.Run>>): Verdict {
         val new = runs.getValue("new"); val kept = runs.getValue("kept")
@@ -100,8 +95,8 @@ class EcoCheck(private val out: File) {
         val lines = ArrayList<String>()
         val cells = kinds.mapNotNull { k -> val n = lastYear(new, HexHistory.Key.animals(k)); val o = lastYear(kept, HexHistory.Key.animals(k)); if (o > 0.0) "%s %+.1f%%".format(k, 100 * (n / o - 1)) else null }
         val all = fails(new, kept, kinds)
-        lines += "check round %d ecosystem (%s, %d years, %d weathers; last year, every role new against every role kept): %s; migratory herds %.0f -> %.0f km from half a year before -> %s".format(
-            round + 1, world.name, years, replicates, cells.joinToString(", "), km(kept), km(new), if (all.isEmpty()) "holds" else "fails: " + all.joinToString(", "))
+        lines += "check round %d ecosystem (%s, %d years, %d weathers; last year, every role new against every role kept): %s -> %s".format(
+            round + 1, world.name, years, replicates, cells.joinToString(", "), if (all.isEmpty()) "holds" else "fails: " + all.joinToString(", "))
         // (Reported only: whether the runs stayed within nominal limits does not decide what is kept.)
         lines += "check round %d within nominal limits (series): every role new %s; every role kept %s".format(round + 1,
             new.joinToString(", ") { it.nominal.brief() }, kept.joinToString(", ") { it.nominal.brief() })
@@ -124,9 +119,8 @@ class EcoCheck(private val out: File) {
     fun apply(v: Verdict, candidate: File) { copyRoles(candidate, kept, v.roles.filterValues { it }.keys) }
 
     companion object {
-        /** How far a kind may fall below its numbers with the kept networks, and the migratory herds' stand from half a year before. */
+        /** How far a kind may fall below its numbers with the kept networks. */
         const val FALL = 0.10
-        const val SHORTER = 0.05
         /** Kinds fewer than this on average with the old networks are reported but do not fail the ecosystem (Olli's choice: rare kinds need tuning of their own). */
         const val RARE = 200.0
 

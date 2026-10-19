@@ -23,7 +23,9 @@ object Config {
     private val GONE = setOf("trade", "t.noGifts", "t.noSourceRites", "noHerding", "t.noDenning", "t.herdRanges", "t.noProtein",
         "t.noGreenBearing", "noBearings", "t.bandContentWeeks", "t.spanFloor", "t.ambush", "migrantUnit", "migrantStart", "sizeByLeaning",
         "newcomers", "catalogueStart", "t.roundCue", "t.roundSpread", "t.roundFollowGreen", "t.supersense", "t.superTop", "t.superKm",
-        "t.superLure", "t.scoutKm", "t.scoutChance", "t.scoutMargin", "t.plateauKm", "t.plateauM")
+        "t.superLure", "t.scoutKm", "t.scoutChance", "t.scoutMargin", "t.plateauKm", "t.plateauM", "t.plantEaterHerds", "t.formSwap",
+        "t.contentWeeks", "t.huntersHalf", "t.headingKeep", "t.headingMoved", "t.headingPull", "t.roundStrength", "t.roundTrekDays",
+        "t.roundDrift", "t.roundSwitch", "t.roundStart", "t.roundKmCost", "herdWays", "migDiag", "crowdDiag", "ppo.migrationWeight")
 
     private val props = Properties()
     /** The keys set in the file that the run has read. */

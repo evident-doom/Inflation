@@ -25,7 +25,7 @@ islands and ocean on every side.
 | Climate | Monthly normals: latitude, 6.5 °C/km lapse rate, continentality; moisture carried from every sea along each weather regime's wind, fronts in a storm track under the jet, orographic rain and rain shadows; Mediterranean dry summers in the south |
 | Rivers and lakes | Thornthwaite evapotranspiration, Fu–Budyko runoff, D8 routing; lakes from a water balance, closed basins turn saline. Valley floors are planed flat beside rivers (width grows with the square root of discharge). Rivers are classed creek, stream, river and great river; reaches with a third of a metre of water and no rapids are navigable by canoe or raft |
 | Floodplains | Height above the nearest river (HAND); land a large flood (about ten times mean flow) reaches is floodplain |
-| Terrain | Ruggedness from slope, local relief and a rock roughness the 1 km grid cannot resolve (lava fields and karst roughest, alluvium smoothest, buried under thick sediment). Walking effort from Tobler's hiking function, roughness, wetlands and river crossings. A river is a sub-cell channel, not a 1 km strip of water: its cost comes from this week's depth (knee deep a wade, waist deep slow, past chest deep a swim most animals refuse), and wide braided reaches on gentle ground have fords while gorges run deep. A stream in spate stops herds; in the dry season the same river can be crossed. Open water is impassable on foot. Line of sight over the terrain in 16 directions out to 30 km with earth curvature; prominence over the surroundings; defensibility from height, broken ground and approaches cut by water, marsh or steep slopes |
+| Terrain | Ruggedness from slope, local relief and a rock roughness the 1 km grid cannot resolve (lava fields and karst roughest, alluvium smoothest, buried under thick sediment). Walking effort from Tobler's hiking function, roughness, wetlands and river crossings. A river is a sub-cell channel, not a 1 km strip of water: its cost comes from this week's depth (knee deep a wade, waist deep slow, past chest deep a swim most animals refuse), and wide braided reaches on gentle ground have fords while gorges run deep. A stream in spate stops animals on foot; in the dry season the same river can be crossed. Open water is impassable on foot. Line of sight over the terrain in 16 directions out to 30 km with earth curvature; prominence over the surroundings; defensibility from height, broken ground and approaches cut by water, marsh or steep slopes |
 | Biomes | Potential vegetation from aridity, temperature and drainage, including marsh, swamp forest, bog, salt marsh, mangrove and floodplain forest |
 
 ### The hex world
@@ -42,8 +42,8 @@ Animals (`inflation.ecology`):
 | Layer | Model |
 | --- | --- |
 | Soil and small life (`HexSmallLife`) | Litter, organic matter and soil animals; carrion rotting by warmth; plant-eating and biting insects, rodents, reptiles and amphibians, pollinators setting the fruit crop; hares, rock hyrax, six wild birds (quail and greylag geese migrate), tortoises, foxes and wildcats; golden eagles on crags; griffon vulture colonies soaring 80 km for carcasses |
-| Residents (`HexFauna`) | Densities per place for the plant-eaters and hunters that keep to small home ranges: grazing shared by diet, forage quality, water within reach, crowding disease, shifts between height bands, spill to neighbouring hexes |
-| Herds and packs (`HexGroups`) | Migratory herds and the hunters as groups that plan a week's walk over the hexes; meetings on the way are timetabled and settled in order (herds watch and turn aside, hunters chase and stop to eat, rival packs give way or fight); territories, thirst, wariness after a chase, hiding in cover, moonlight, seasonal memory |
+| Residents (`HexFauna`) | Densities per place for every plant-eater and for the hunters that keep to small home ranges: grazing shared by diet, forage quality, water within reach, crowding disease, shifts between height bands, spill to neighbouring hexes |
+| Packs (`HexGroups`) | The hunters as groups that plan a week's walk over the hexes and hunt the residents; meetings on the way are timetabled and settled in order (hunters rob or kill weaker ones, rival packs give way or fight); territories, thirst, hiding in cover, moonlight, seasonal memory |
 | People (`HexPeople`, `HexCulture`, `HexRoutes`) | Bands that choose each week where to camp and set their ways: effort on each food, stores that spoil, tools, clothes and shelters made from materials, firewood, night fires, raids; skills held by members and split with them; traditions, ties between bands, a shared naming language, remembered places, and routes told by landmarks |
 | Sense of direction (`HexBearings`) | Each month every kind knows the country within 60 km and the peaks it can see out to 200 km, and feels which way is cooler or warmer when the month is wrong for its coat; groups far out of their country trek that way |
 
@@ -72,9 +72,9 @@ One step is 6 days (5 steps per month), configurable in `WorldConfig`.
 
 Every choice a group makes (where to go each week, and its ways: effort on each food, stores,
 what to make) has a hand-written rule, and can instead be made by a small network (`Mlp`, plain
-Kotlin, no dependencies). There are three move networks by role (`Role`): one for the herds, one
-for the hunters and one for people; kinds within a role share it and are told apart by their traits
-and a learned identity. Bands' ways have a network of their own (`ways.mlp`).
+Kotlin, no dependencies). There are move networks by role (`Role`): one for the hunters and one
+for people (the herds' role keeps its place in the layout, with no groups to move); kinds within a
+role share it and are told apart by their traits and a learned identity. Bands' ways have a network of their own (`ways.mlp`).
 
 - `HexPpo` trains them by proximal policy optimisation: each round, training worlds with all the
   animals and people run on the current networks, a share of every kind's choices is recorded, and
@@ -82,8 +82,8 @@ and a learned identity. Bands' ways have a network of their own (`ways.mlp`).
   `Critic`). Every few rounds each role's new network is set against its kept one on a settled test
   world (`EcoCheck`, keys `ppo.check*`) and kept only if the whole ecosystem holds up (`kept/`).
   Command line: `PpoOptions.USAGE`; learning settings are `ppo.*` keys.
-- `HexEvolveWays` evolves bands', herds' or packs' ways by evolution strategies (keys `evolveWays.*`).
-- `HexPickWorld` ranks small worlds by how hard their seasons push herds to migrate.
+- `HexEvolveWays` evolves bands' or packs' ways by evolution strategies (keys `evolveWays.*`).
+- `HexPickWorld` ranks small worlds by how hard their seasons push plant-eaters to move.
 
 A network is saved with a `.names` file listing its inputs and outputs, so it keeps working as
 features are added (`Schema`, `docs/design/model-compatibility.md`). `nets=DIR` in the config file
@@ -109,8 +109,8 @@ Every tool, what it answers and how to run it: `docs/tools.md`.
 temperature, soil) and `summary.txt`, including snow cover from three simulated years.
 `--size 400` makes a smaller region.
 
-`hexViewer` opens the hex world over the fine terrain with time controls; herds and hunters glide
-from hex to hex, tints show weather, water, plants, small life and resident herds, arrows show the
+`hexViewer` opens the hex world over the fine terrain with time controls; packs and bands glide
+from hex to hex, tints show weather, water, plants, small life and residents, arrows show the
 wind or a kind's sense of direction, and clicking a hex lists everything living there.
 Picking a group in the list and pressing Follow… opens the follow window: its local map (the
 country a band does not know dimmed, its way over the last four weeks, the pull of its round or

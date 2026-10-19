@@ -15,7 +15,7 @@ class NetWays(private val net: Mlp) : BandWays {
     }
 }
 
-/** Sets herds' or packs' ways with a network: inputs as [inflation.ecology.animalInputs], outputs as [inflation.ecology.AnimalWay]. */
+/** Sets packs' ways with a network: inputs as [inflation.ecology.animalInputs], outputs as [inflation.ecology.AnimalWay]. */
 class NetAnimalWays(private val net: Mlp) : AnimalWays {
     private val buffers = ThreadLocal.withInitial { net.buffers() }
     override fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) {
