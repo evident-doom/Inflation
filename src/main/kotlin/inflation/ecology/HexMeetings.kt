@@ -357,16 +357,25 @@ private class Offers(n: Int) {
         type[m] = t; kind[m] = k; place[m] = p; rate[m] = r; kg[m] = e; time[m] = h; who[m] = w; m++
     }
 
-    /** Ranks the foods by kilos a day of handling, best first, and takes them up while they raise each party's own rate (Charnov's rule). */
+    /**
+     * Takes up the foods best first by kilos a day of handling while they raise each party's own rate (Charnov's rule).
+     * (Foods worth the same in the order they were offered in. They are drawn best first from a heap, as far as the
+     * parties go: each stops at the first food not worth its while, so most are never ranked.)
+     */
     fun takeUp() {
-        // (A stable sort: foods worth the same keep the order they were offered in.)
         for (i in 0 until m) profit[i] = kg[i] / time[i]
-        rankDescending(profit, m, order, sortKeys)
+        rankKeys(profit, m, sortKeys)
+        heapify(sortKeys, m)
         gain.fill(0f); spent.fill(1f); full.fill(false); used = 0
-        for (r in 0 until m) {
-            val i = order[r]; val w = who[i]
+        // (A party with no food on offer is as good as done.)
+        var hunters = 0; for (i in 0 until m) if (who[i] == 0) hunters++
+        if (hunters == 0) full[0] = true
+        if (hunters == m) full[1] = true
+        var left = m
+        while (left > 0 && !(full[0] && full[1])) {
+            val i = (popMin(sortKeys, left--) and 0xffffffffL).toInt(); val w = who[i]
             if (full[w]) continue
-            if (profit[i] <= gain[w] / spent[w]) { full[w] = true; if (full[0] && full[1]) break; continue }
+            if (profit[i] <= gain[w] / spent[w]) { full[w] = true; continue }
             gain[w] += rate[i] * kg[i]; spent[w] += rate[i] * time[i]; order[used++] = i
         }
     }
@@ -715,18 +724,36 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
 }
 
 /**
- * The indices 0 until [m] into [order], by [v] largest first, equal values in index order (as a stable sort by
- * [java.lang.Float.compare] would put them), without boxing: each value's bits made to sort as signed ints, negated
- * and put above its index in [keys].
+ * Keys for ranking [v]'s first [m] values largest first, equal values in index order (as a stable sort by
+ * [java.lang.Float.compare] would put them), into [keys]: each value's bits made to sort as signed ints, negated and put
+ * above its index, so that the smallest key is the first in rank and its low half the index.
  */
-internal fun rankDescending(v: FloatArray, m: Int, order: IntArray, keys: LongArray) {
+internal fun rankKeys(v: FloatArray, m: Int, keys: LongArray) {
     for (i in 0 until m) {
         val bits = java.lang.Float.floatToIntBits(v[i])
         val sortable = bits xor ((bits shr 31) and 0x7fffffff)
         keys[i] = (-sortable.toLong() shl 32) or i.toLong()
     }
-    java.util.Arrays.sort(keys, 0, m)
-    for (r in 0 until m) order[r] = (keys[r] and 0xffffffffL).toInt()
+}
+
+/** Makes the first [m] of [a] a binary min-heap. */
+internal fun heapify(a: LongArray, m: Int) { for (i in m / 2 - 1 downTo 0) siftDown(a, i, m) }
+
+/** Takes the smallest of min-heap [a]'s first [m] off it (its last moves up into its place) and returns it. */
+internal fun popMin(a: LongArray, m: Int): Long {
+    val top = a[0]; a[0] = a[m - 1]; siftDown(a, 0, m - 1)
+    return top
+}
+
+private fun siftDown(a: LongArray, from: Int, m: Int) {
+    var i = from; val x = a[i]
+    while (true) {
+        var c = 2 * i + 1; if (c >= m) break
+        if (c + 1 < m && a[c + 1] < a[c]) c++
+        if (a[c] >= x) break
+        a[i] = a[c]; i = c
+    }
+    a[i] = x
 }
 
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
