@@ -49,7 +49,7 @@ class EcoCheck(private val out: File) {
             for ((r, src) in from) copyRoles(src, armDir, listOf(r))
             // The training's own config (its model keys judge the networks as they were trained), with this arm's networks.
             val cfg = File(armDir, "check.properties")
-            val keys = configWith(mapOf("nets" to armDir.absoluteFile.invariantSeparatorsPath, "ways" to File(armDir, "ways.mlp").absoluteFile.invariantSeparatorsPath))
+            val keys = configWith(mapOf("nets" to armDir.absoluteFile.invariantSeparatorsPath, WaysKind.BANDS.configKey to File(armDir, WaysKind.BANDS.file).absoluteFile.invariantSeparatorsPath))
             cfg.writer().use { keys.store(it, "check arm $name, written by the training's ecosystem check") }
             (0 until replicates).map { r -> pool.submit<File> { runOne(cfg, armDir, r) } }
         }.mapValues { (_, fs) -> fs.map { TestWorlds.Run(it.get()) } }
@@ -129,7 +129,7 @@ class EcoCheck(private val out: File) {
         fun copyRoles(from: File, to: File, roles: Collection<Role>) {
             to.mkdirs()
             for (r in roles) {
-                val prefixes = listOf(r.label + ".mlp") + if (r == Role.PEOPLE) listOf("ways.mlp") else emptyList()
+                val prefixes = listOf(r.label + ".mlp") + if (r == Role.PEOPLE) listOf(WaysKind.BANDS.file) else emptyList()
                 from.listFiles()?.filter { f -> f.isFile && prefixes.any { f.name.startsWith(it) } }?.forEach { it.copyTo(File(to, it.name), overwrite = true) }
             }
         }
