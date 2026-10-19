@@ -30,11 +30,12 @@ object FreeAir {
         val x = ((lat - lats[0]) / (lats[1] - lats[0])).coerceIn(0.0, lats.size - 1.0)
         val j0 = min(x.toInt(), lats.size - 2); val f = x - j0
         var t = 0.0; var q = 0.0
-        for ((j, w) in listOf(j0 to 1 - f, j0 + 1 to f)) {
-            val col = rows[m][j]
-            // Between levels, linear in height; below the lowest and above the highest, the nearest level's moisture and its
-            // temperature carried on at the lapse rate of the nearest pair.
-            val k = (0 until col.size - 1).firstOrNull { z < col[it + 1].z } ?: (col.size - 2)
+        for (side in 0..1) {
+            val col = rows[m][j0 + side]; val w = if (side == 0) 1 - f else f
+            // Between levels, linear in height; below the lowest and above the highest, the nearest pair's temperature
+            // carried on along its lapse rate, and the nearest level's moisture.
+            var k = 0
+            while (k < col.size - 2 && z >= col[k + 1].z) k++
             val a = col[k]; val b = col[k + 1]
             val s = (z - a.z) / (b.z - a.z)
             t += w * (a.t + (b.t - a.t) * s)
