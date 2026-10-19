@@ -1109,7 +1109,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * taken over the [stepsPerYear], so that places compare as a year there would leave them.
      */
     private fun growth(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float,
-                       stepsPerYear: Float): Float {
+                       stepsPerYear: Float): Float =
+        exp(stepsPerYear * ln1p(max(-1f, growthParts(k, p, band, weather, out, youngPerGrown, carried, null))))
+
+    /**
+     * [growth]'s week: the change in heads a head of kind [k] coming to place [p] would see there in a week. Where [parts]
+     * is given, it takes the young born to a grown one ([GROWTH_BORN]), the shares of the grown and the young that die
+     * ([GROWTH_GROWN_DIE], [GROWTH_YOUNG_DIE]), and how well fed and how well met their need for protein would be
+     * ([GROWTH_FED], [GROWTH_PROTEIN]).
+     */
+    internal fun growthParts(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float,
+                             parts: FloatArray?): Float {
         val s = kinds[k]
         val f = room[k]?.get(p) ?: fed[k][p]
         val protein = forageProtein(s, p)
@@ -1120,8 +1130,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
         val grownDie = (s.backgroundMortality * years + adultShare(out)).coerceIn(0f, 0.9f)
         val youngDie = min(0.95f, youngOdds(s, out, eagleOdds(s, p), crocodileOdds(p, weather), protein) + huntedOdds(k, p, true))
-        val perHead = (born - grownDie - youngPerGrown * youngDie) / (1f + youngPerGrown)
-        return exp(stepsPerYear * ln1p(max(-1f, perHead)))
+        if (parts != null) { parts[GROWTH_BORN] = born; parts[GROWTH_GROWN_DIE] = grownDie; parts[GROWTH_YOUNG_DIE] = youngDie; parts[GROWTH_FED] = f; parts[GROWTH_PROTEIN] = protein }
+        return (born - grownDie - youngPerGrown * youngDie) / (1f + youngPerGrown)
     }
 
     /**
@@ -1541,6 +1551,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     companion object {
         /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */
+        /** Where [growthParts] puts each part. */
+        const val GROWTH_BORN = 0; const val GROWTH_GROWN_DIE = 1; const val GROWTH_YOUNG_DIE = 2; const val GROWTH_FED = 3; const val GROWTH_PROTEIN = 4; const val GROWTH_PARTS = 5
         const val HZ_HUNGER = 0; const val HZ_COLD = 1; const val HZ_THIRST = 2; const val HZ_DISEASE = 3
         const val HZ_FIRE_A = 4; const val HZ_FLOOD_A = 5; const val HZ_SNOW_A = 6
         const val HZ_FIRE_Y = 7; const val HZ_FLOOD_Y = 8; const val HZ_SNOW_Y = 9; const val HZ_CROWD = 10
