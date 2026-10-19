@@ -100,9 +100,11 @@ object HexSnapshot {
      * taken out of the others' (it was crowded by itself where it stood and weighed as a band's worth alone elsewhere).
      * 2.14: a band's hunters (half its hands at the scaffold's effort on big game) search for game all the days they are out,
      * while the rest gather ([HUNTERS_SHARE]).
+     * 2.15: a band weighs camps by the sim's own firewood, fire and raw-food rules ([fuelShare], [hearthShare],
+     * [warmthNeed]), and a band with learned ways reads the bands about it after this week's moves.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 14
+    const val MODEL_MINOR = 15
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
