@@ -44,7 +44,7 @@ fun main(args: Array<String>) {
         val month = weather.date.month
         val share = cfg.daysPerStep.toDouble() / Date.DAYS_PER_MONTH
         weather.step()
-        counts[month / 3][weather.regime.ordinal]++
+        counts[month / 3][weather.regimeAt(cfg.centreLatitude).ordinal]++
         for (i in 0 until g.size) {
             if (world.isSea[i]) continue
             val p = weather.precipitation[i].toDouble()

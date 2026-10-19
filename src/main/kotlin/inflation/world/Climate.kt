@@ -173,7 +173,7 @@ class Climate(
         private fun saturatedHumidity(t: Double) = 0.622 * 6.1078 * exp(17.27 * t / (t + 237.3)) / 1013.25
 
         /**
-         * Monthly rain, mm, into [precip]. In each weather regime ([Regime], weighted by how often it blows that
+         * Monthly rain, mm, into [precip]. In each weather regime ([Regime], weighted by how often it blows at that latitude that
          * month) the air comes in from the seas round about along the regime's wind. Over open water it holds
          * what the sea's warmth allows ([SEA_HUMIDITY] of saturation through [VAPOUR_HEIGHT_M]); over land
          * it gains what the land evaporates ([evap], mm a day) and loses what rains out. Rain needs rising
@@ -227,10 +227,9 @@ class Climate(
                 for (c in 0 until cw * ch) { groundT[c] /= cnt[c].coerceAtLeast(1); petC[c] /= cnt[c].coerceAtLeast(1) }
                 for (y in 0 until ch) { seaT[y] = seaSurfaceTemp(rowLat[y], day).toFloat(); seaAirT[y] = seaLevelTemp(rowLat[y], day, 0.0).toFloat() }
                 total.fill(0f)
-                var weights = 0.0
                 for (r in Regime.entries) {
-                    val w = winds.weight(r, season)
-                    weights += w
+                    // The regime's share of the month's weeks in each row (the summer high reaches only so far north).
+                    val share = DoubleArray(ch) { winds.share(r, season, rowLat[it]) }
                     val frontal = r == Regime.WESTERLY || r == Regime.SOUTHERLY || r == Regime.NORTHERLY
                     // Unit wind of each row (towards the east and the south), its speed in km a day, and how fast fronts rain the air out, a day.
                     val ux = DoubleArray(ch); val uy = DoubleArray(ch); val kmDay = DoubleArray(ch); val lift = DoubleArray(ch)
@@ -242,10 +241,13 @@ class Climate(
                     }
                     // Air from the sea keeps the sea's warmth aloft and cools only as it is lifted over high ground,
                     // and a wind of speed U lifts it at most U/N over a ridge; below that it flows round (the Froude limit).
+                    // Over land warmer than the coast the sun's heat is stirred up through the air, which then holds more;
+                    // over colder land the chill stays in a shallow layer at the ground and the air above keeps the sea's warmth.
                     for (c in 0 until cw * ch) {
                         val y = c / cw
                         val lifted = min(elev[c].toDouble(), kmDay[y] / 86.4 / BUOYANCY_HZ)
-                        wSat[c] = saturatedColumn(seaLevelTemp(rowLat[y], day, 0.0) - LAPSE_RATE * lifted).toFloat()
+                        val airT = max(seaLevelTemp(rowLat[y], day, 0.0), groundT[c] + LAPSE_RATE * elev[c])
+                        wSat[c] = saturatedColumn(airT - LAPSE_RATE * lifted).toFloat()
                     }
                     // Downwind order: each cell after the cells upwind of it.
                     val order = (0 until cw * ch).sortedBy { c -> val y = c / cw; (c % cw) * ux[y] + y * uy[y] }
@@ -280,9 +282,8 @@ class Climate(
                             rain[c] += ((sin - sKeep) / days * 30).toFloat()
                         }
                     }
-                    for (c in 0 until cw * ch) total[c] += (w * rain[c]).toFloat()
+                    for (c in 0 until cw * ch) total[c] += (share[c / cw] * rain[c]).toFloat()
                 }
-                for (c in 0 until cw * ch) total[c] = (total[c] / weights).toFloat()
                 // Back to the fine cells.
                 java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
                     precip[m][i] = at(total, (grid.x(i) + 0.5) / f - 0.5, (grid.y(i) + 0.5) / f - 0.5, 0f)
