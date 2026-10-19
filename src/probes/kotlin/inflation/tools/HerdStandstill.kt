@@ -7,6 +7,7 @@ import inflation.ecology.HexSim
 import inflation.ecology.clearlyWorse
 import inflation.ecology.HexSnapshot
 import inflation.ecology.gatherKm
+import inflation.ecology.landOf
 import inflation.learning.LearnedModel
 import inflation.run.TestWorlds
 import inflation.world.Date
@@ -76,6 +77,10 @@ fun main(args: Array<String>) {
             val gs = alive.filter { it.species == s }
             if (gs.isEmpty()) { println("$w ${s.name}: none"); continue }
             val arrive = groups.arriveBy[s]
+            // (How big the land is that each hex belongs to, for this kind's going: an island or ground walled in by rivers.)
+            val landId = groups.landOf(s); val landSize = landId.toList().filter { it >= 0 }.groupingBy { it }.eachCount()
+            val cross = hex.crossings[Catalogue.travel(s).ordinal]
+            var small = 0; var walled = 0
             var fresh = 0; var still = 0; var stuck = 0; var atGoal = 0; var fed = 0.0; var joined = 0.0; var settled = 0.0; var odds = 0.0; var oddsN = 0
             for (g in gs) {
                 val h = hw.placeHex[g.place.i]
@@ -87,15 +92,18 @@ fun main(args: Array<String>) {
                     val goal = g.seasonPlace[month]
                     if (goal < 0 || hex.distanceKm(h, hw.placeHex[goal]) <= 2 * hex.hexKm) atGoal++
                     fed += g.fed; joined += g.joined; settled += g.settled
+                    if ((landSize[landId[h]] ?: 0) < 100) small++
+                    if ((0 until 6).none { cross[h * 6 + it].isFinite() }) walled++
                     arrive?.get(g.place.i)?.takeIf { it.isFinite() }?.let { odds += it; oddsN++ }
                 }
                 lastHex[g.id] = h
             }
             val byHex = gs.groupingBy { hw.placeHex[it.place.i] }.eachCount()
             val crowded = byHex.filter { it.value >= 5 }.keys
-            println("%d %s: %d (%d) %d | still %.2f, never left %.2f, near goal %.2f, fed %.2f, joined %.0f settled %.0f, arrive odds %.4f | %d hexes (coast %.2f, river %.2f), most %d".format(
+            println("%d %s: %d (%d) %d | still %.2f, never left %.2f, near goal %.2f, on land under 100 hexes %.2f, no border crossable %.2f, fed %.2f, joined %.0f settled %.0f, arrive odds %.4f | %d hexes (coast %.2f, river %.2f), most %d".format(
                 w, s.name, gs.size, fresh, gs.sumOf { it.size },
                 still.toDouble() / gs.size, stuck.toDouble() / still.coerceAtLeast(1), atGoal.toDouble() / still.coerceAtLeast(1),
+                small.toDouble() / still.coerceAtLeast(1), walled.toDouble() / still.coerceAtLeast(1),
                 fed / still.coerceAtLeast(1), joined / still.coerceAtLeast(1), settled / still.coerceAtLeast(1), odds / oddsN.coerceAtLeast(1),
                 crowded.size, crowded.count { hw.coast[it] }.toDouble() / crowded.size.coerceAtLeast(1),
                 crowded.count { hw.riverM3s[it] > 1f }.toDouble() / crowded.size.coerceAtLeast(1), byHex.values.maxOrNull() ?: 0))

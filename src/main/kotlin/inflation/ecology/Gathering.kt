@@ -288,15 +288,17 @@ private fun bandAsHerd(g: HexGroup): HexGroup {
 private const val UNWEIGHED = -2
 
 /**
- * The safest place for kind [s] beyond [gatherKm] of hex [h0] and within [farKm], by this week's [arriveBy] (-1 where
- * none can be stayed at): worked out once a week for each hex asked about, and kept in [HexGroups.safestFar] (safe to
- * ask on all cores: a hex worked out twice comes out the same).
+ * The safest place for kind [s] beyond [gatherKm] of hex [h0] and within [farKm], by this week's [arriveBy], on land it
+ * can walk to from there ([landOf]: not over the sea or a river too deep to cross; -1 where none can be stayed at):
+ * worked out once a week for each hex asked about, and kept in [HexGroups.safestFar] (safe to ask on all cores: a hex
+ * worked out twice comes out the same).
  */
-private fun HexGroups.farthest(s: Species, h0: Int): Int {
+internal fun HexGroups.farthest(s: Species, h0: Int): Int {
     val memo = safestFar[s] ?: return -1
     memo[h0].let { if (it != UNWEIGHED) return it }
     val arrive = arriveBy[s] ?: return -1
     val ring = farRing[s] ?: return -1
+    //WALLFIX val walk = landOf(s); val mine = walk[h0]
     var best = -1; var bestOdds = Float.MAX_VALUE
     val r0 = h0 / hex.cols; val c0 = h0 % hex.cols
     val steps = ring[r0 and 1]
@@ -304,6 +306,7 @@ private fun HexGroups.farthest(s: Species, h0: Int): Int {
         val r = r0 + steps[i]; val c = c0 + steps[i + 1]
         if (r < 0 || r >= hex.rows || c < 0 || c >= hex.cols) continue
         val h = r * hex.cols + c
+        //WALLFIX if (walk[h] != mine) continue
         for (b in HexWorld.BANDS_M.indices) {
             val q = hw.placeOf[b][h]; if (q < 0) continue
             if (arrive[q] < bestOdds) { bestOdds = arrive[q]; best = q }
@@ -311,6 +314,36 @@ private fun HexGroups.farthest(s: Species, h0: Int): Int {
     }
     memo[h0] = best
     return best
+}
+
+/**
+ * Which land each hex belongs to for kind [s] (kept in [HexGroups.landIds]), worked out the first time it is asked: hexes joined
+ * by borders it can cross at all ([inflation.world.HexMap.crossings] for its way of going) and straits it can swim
+ * ([HexGroups.seaLinks], [Catalogue.swimKm]) share a number; sea hexes have none (-1).
+ */
+internal fun HexGroups.landOf(s: Species): IntArray = landIds.computeIfAbsent(s) {
+    val cross = hex.crossings[Catalogue.travel(s).ordinal]; val swim = Catalogue.swimKm(s)
+    val out = IntArray(hex.size) { -1 }
+    var next = 0
+    val stack = IntArray(hex.size)
+    for (h0 in 0 until hex.size) {
+        if (out[h0] >= 0 || hex.heart[h0] < 0) continue
+        val id = next++
+        var top = 0; stack[top++] = h0; out[h0] = id
+        while (top > 0) {
+            val h = stack[--top]
+            for (d in 0 until 6) {
+                val nh = hex.neighbour(h, d)
+                if (nh < 0 || out[nh] >= 0 || hex.heart[nh] < 0 || !cross[h * 6 + d].isFinite()) continue
+                out[nh] = id; stack[top++] = nh
+            }
+            if (swim > 0f) for ((i, nh) in seaLinks[h].withIndex()) {
+                if (out[nh] >= 0 || seaGaps[h][i] > swim) continue
+                out[nh] = id; stack[top++] = nh
+            }
+        }
+    }
+    out
 }
 
 /**

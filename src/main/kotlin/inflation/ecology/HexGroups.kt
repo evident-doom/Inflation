@@ -125,6 +125,12 @@ class HexGroups(
     @Transient internal val farRing = HashMap<Species, Array<IntArray>>()
     /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
+    /**
+     * For each gathering kind: the land each hex belongs to, as the kind can walk it (across every border it can cross at
+     * all, and the straits it can swim): hexes of one number are joined over land, hexes of different numbers are not
+     * ([farthest] looks for a herd's goal only in its own; see [landOf]). Worked out once: borders and straits do not change.
+     */
+    @Transient internal val landIds = java.util.concurrent.ConcurrentHashMap<Species, IntArray>()
     /** The land hexes a herd's animals stand on about each hex, by kind and hex ([groundShares]). */
     @Transient internal val herdGround = java.util.concurrent.ConcurrentHashMap<Long, IntArray>()
     /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
@@ -1413,7 +1419,7 @@ class HexGroups(
             }
             val formed = if (g.formedAt >= 0) ", %.0f km from where it formed".format(hexKm(here.i, hw.placeHex[g.formedAt])) else ""
             val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
-                hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: hex.heart[h] }?.takeIf { it >= 0 }?.let { Place(it) }
+                hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: HexWorld.BANDS_M.indices.map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } }?.let { Place(it) }
             println("plan ${s.name} #${g.id} of ${g.size} month ${date.month + 1}$formed, ${if (restless) "restless" else "content"}, reach %.0f km, weighed %d places: chose ".format(reach, seen.size) +
                 parts(best) + (if (best != g.place) " | stay " + parts(g.place) else "") + (towards?.let { " | toward goal " + parts(it) } ?: ""))
         }
