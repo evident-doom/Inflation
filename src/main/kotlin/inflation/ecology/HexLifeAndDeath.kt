@@ -317,11 +317,13 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     // (A kind that lives both ways is crowded by all of its animals about, its residents' as well as its groups':
     // heads by kind and hex, both forms.)
     val crowdNow = HashMap(kinNow)
+    // (Summed by hex in an array, place by place as a map would sum them.)
+    val heads = FloatArray(hex.size); val there = BooleanArray(hex.size)
     for (s in kinds) {
         val k = fauna.slot(s); if (k < 0) continue
-        val heads = HashMap<Int, Float>()
-        for (p in 0 until land.n) { val m = fauna.adults[k][p] + fauna.young[k][p]; if (m > 0f) heads.merge(hw.placeHex[p], m * land.areaKm2[p], Float::plus) }
-        for ((h, m) in heads) crowdNow.merge(s.index.toLong() * hex.size + h, m.roundToInt(), Int::plus)
+        heads.fill(0f); there.fill(false)
+        for (p in 0 until land.n) { val m = fauna.adults[k][p] + fauna.young[k][p]; if (m > 0f) { val h = hw.placeHex[p]; heads[h] += m * land.areaKm2[p]; there[h] = true } }
+        for (h in 0 until hex.size) if (there[h]) crowdNow.merge(s.index.toLong() * hex.size + h, heads[h].roundToInt(), Int::plus)
     }
     // Plant-eaters' heads by the ground they graze this week, both forms: each herd spread over the ground its animals
     // stand on ([groundShares]), as the residents meet it, and the residents in their hex.
@@ -333,7 +335,11 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     for (s in kinds) {
         val k = fauna.slot(s); if (s.carnivore || k < 0) continue
         val key = s.index.toLong() * hex.size
-        for (p in 0 until land.n) { val m = fauna.adults[k][p] + fauna.young[k][p]; if (m > 0f) grazing.merge(key + hw.placeHex[p], m * land.areaKm2[p], Float::plus) }
+        heads.fill(0f); there.fill(false)
+        for (p in 0 until land.n) { val m = fauna.adults[k][p] + fauna.young[k][p]; if (m > 0f) { val h = hw.placeHex[p]
+            if (!there[h]) { there[h] = true; heads[h] = grazing[key + h] ?: 0f }
+            heads[h] += m * land.areaKm2[p] } }
+        for (h in 0 until hex.size) if (there[h]) grazing[key + h] = heads[h]
     }
     // Where each kind's groups are, for outbreaks to pass between them.
     for (a in fauna.groupHeads) a.fill(0)
