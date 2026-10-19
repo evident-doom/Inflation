@@ -163,7 +163,7 @@ every stock at or above zero, shares within 0..1, groups sound, the books if kep
 reports the same for each run and what the variant alone broke, the training's ecosystem check adds
 a line for its runs and logs each training world's state as it is replaced, and
 `testWorld -PtestArgs="nominal HISTORY.csv..."` checks histories already made. It is reported only,
-and its limits are lax, to be tightened as the model settles.
+and its limits are set from reference values in nature, with their sources in the code.
 
 ## Known simplifications
 

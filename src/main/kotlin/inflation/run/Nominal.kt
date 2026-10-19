@@ -16,63 +16,119 @@ import kotlin.math.min
  * a number that is not one, matter below zero, a kind gone, a stock running away, is caught after any test, A/B or
  * training check rather than found later by eye. Reported only: a finding does not stop or fail the run.
  *
- * The limits are lax on purpose (Olli, 2026-10-19): a finding says the run left what the model has done in settled
- * runs so far, not that it is wrong in detail. They were set against the storm and silt worlds' histories (3 and 20
- * years) with room to spare, and are to be tightened here as the model settles. Years are whole years from the
- * history's first week; a year cut short at the end is left out.
+ * The limits are what nature shows (Olli, 2026-10-19: first lax, then from reference values in nature), each with its
+ * source: a finding says the run left what real land, plants and animals do, not that it is wrong in detail. Years are
+ * whole years from the history's first week; a year cut short at the end is left out.
  */
 object Nominal {
     // ---- the limits
-
-    /** How well fed a plant-eating kind may be: at most fully (with float slack), and over a whole year at least this. */
-    const val FED_MAX = 1.001
-    const val FED_YEAR_MIN = 0.5
-    /** The land's mean temperature, °C: in any week, and over a year. */
-    const val TEMPERATURE_WEEK_MIN = -45.0; const val TEMPERATURE_WEEK_MAX = 50.0
-    const val TEMPERATURE_YEAR_MIN = -15.0; const val TEMPERATURE_YEAR_MAX = 35.0
-    /** Rain on the land, mm: the mean in any week, and its sum over a year. */
-    const val RAIN_WEEK_MAX = 300.0
-    const val RAIN_YEAR_MIN = 50.0; const val RAIN_YEAR_MAX = 4000.0
-    /** The land's mean snow lying and soil water, mm. */
-    const val SNOW_MAX_MM = 10_000.0
-    const val SOIL_WATER_MAX_MM = 3000.0
-    /** Areas (the land's, each kind of country's) may change by this share over a run: they should not change at all. */
-    const val AREA_DRIFT = 1e-4
-    /** Plants over the whole land and in any kind of country, kg/m². */
-    const val PLANTS_MIN_KG_M2 = 0.02; const val PLANTS_MAX_KG_M2 = 60.0
-    const val BIOME_PLANTS_MAX_KG_M2 = 100.0
-    /** All big animals (residents, herds, packs and bands) over the land, t/km² (wild ungulates reach some 20 t/km² at their richest). */
-    const val ANIMALS_MAX_T_KM2 = 30.0
-    /** People over the land, per km² (foragers live at a hundredth to a few tenths). */
-    const val PEOPLE_MAX_KM2 = 2.0
-    /** The migratory herds' share above 1000 m, mean height (m) and distance from half a year before (km). */
-    const val HEIGHT_MIN_M = -450.0; const val HEIGHT_MAX_M = 9000.0
-    const val KM_FROM_HALF_A_YEAR_MAX = 3000.0
-    /** A kind's deaths, and young born, in a year, per head it numbered on average. */
-    const val DEATHS_PER_HEAD = 2.0
-    const val BIRTHS_PER_HEAD = 2.0
+    // (Set from what nature shows, with the source; "from memory" where the figure is recalled, not looked up. The run
+    // histories they were checked against: storm-1..2 3 years, silt-1..3 20 years on main.)
 
     /**
-     * How a state may change from year to year ([yearly], times either way) and from the first whole year to the last
-     * ([run]), once it is at least [floor] in either year (a few animals or tonnes rise and fall too much by chance to
-     * judge by); and whether it may come to nothing, a kind or pool there in the first year and gone at the end.
+     * How well fed a plant-eating kind may be: at most fully (with float slack), and over a whole year at least this. A
+     * year short by more than this cannot be carried: an ungulate's fat keeps it some weeks at most (Parker et al. 2009,
+     * from memory), so a kind living a year on 70% of its need is starving, not wintering.
      */
-    class Drift(val yearly: Double, val run: Double, val floor: Double)
-    /** A kind's numbers (Olli: mild cycles, no extinction). */
-    val ANIMALS = Drift(yearly = 3.0, run = 10.0, floor = 20.0)
-    /** The big slow stocks of plants and soil, thousand tonnes. */
-    val SLOW_STOCKS = Drift(yearly = 1.5, run = 4.0, floor = 1.0)
-    val SLOW = setOf("plants", "herbs", "shrubs", "trees", "litter", "soil organic matter", "soil animals")
-    /** Every other pool of matter (thousand tonnes), of small life (tonnes or heads) and of water life. */
-    val POOLS = Drift(yearly = 5.0, run = 20.0, floor = 0.01)
-    val SMALL_AND_WATER_LIFE = Drift(yearly = 5.0, run = 20.0, floor = 1.0)
-    /** Snow lying (mm over the land): it must not pile up from year to year. */
-    val SNOW = Drift(yearly = 2.0, run = 4.0, floor = 1.0)
+    const val FED_MAX = 1.001
+    const val FED_YEAR_MIN = 0.7
+    /**
+     * The land's mean temperature, °C, in any week and over a year: land between some 30° and 45° N, from the coast to
+     * the high mountains, keeps a yearly mean of about 5–20 °C (the runs: 9–12 °C), and a week's mean over all of it
+     * well within -25..35 °C (the runs: -7..24 °C).
+     */
+    const val TEMPERATURE_WEEK_MIN = -25.0; const val TEMPERATURE_WEEK_MAX = 35.0
+    const val TEMPERATURE_YEAR_MIN = 0.0; const val TEMPERATURE_YEAR_MAX = 22.0
+    /**
+     * Rain on the land, mm: the mean over all of it in any week, and its sum over a year. The lands about the
+     * Mediterranean and the Near East take some 300–900 mm a year on average (the runs: 490–700); a week of over
+     * 120 mm on all the land at once has no match there.
+     */
+    const val RAIN_WEEK_MAX = 120.0
+    const val RAIN_YEAR_MIN = 150.0; const val RAIN_YEAR_MAX = 1500.0
+    /**
+     * The land's mean snow lying, mm of water: under 2 m, as if a twentieth of the land lay under 40 m of glacier ice
+     * (the runs: 25–630 mm); the soil's water, under the deepest soil the model has (220 mm, [inflation.world.HexHydrology.soilCap]).
+     */
+    const val SNOW_MAX_MM = 2000.0
+    const val SOIL_WATER_MAX_MM = 250.0
+    /** Areas (the land's, each kind of country's) may change by this share over a run: they should not change at all. */
+    const val AREA_DRIFT = 1e-4
+    /**
+     * Plants over the whole land, kg/m² dry: the world's land holds some 7 (about 450 Gt of carbon in plants on
+     * 130 million km²: Erb et al. 2018), drier lands less (the runs: 3.5–8); and in any kind of country, under the
+     * richest temperate forests' 60.
+     */
+    const val PLANTS_MIN_KG_M2 = 1.0; const val PLANTS_MAX_KG_M2 = 20.0
+    const val BIOME_PLANTS_MAX_KG_M2 = 60.0
+    /**
+     * All big animals (residents, herds, packs and bands) over the land, t/km², at most what the land's rain carries:
+     * large herbivores' biomass in African savannas rises with the rain as log10(kg/km²) = 1.685 log10(mm) - 0.537
+     * (Coe, Cumming & Phillipson 1976), some 14 t/km² at 600 mm; the richest of all are no richer (the runs: 0.8–1.9).
+     */
+    fun animalsMaxTKm2(rainMm: Double) = Math.pow(10.0, 1.685 * Math.log10(rainMm) - 0.537) / 1000
+    /** People over the land, per km²: foragers live at 0.01–0.5 (Binford 2001), above it only on rich coasts and rivers (the runs: 0.015–0.06). */
+    const val PEOPLE_MAX_KM2 = 0.5
+    /**
+     * The migratory herds' share above 1000 m, mean height (m) and distance from half a year before (km): the longest
+     * migrations on land take animals some 1000 km from where they were (caribou, Mongolian gazelles: Joly et al. 2019,
+     * from memory; the runs: under 280 km).
+     */
+    const val HEIGHT_MIN_M = -450.0; const val HEIGHT_MAX_M = 9000.0
+    const val KM_FROM_HALF_A_YEAR_MAX = 1000.0
+    /**
+     * Young born to a kind in a year, per head it numbered on average: the most fecund here, wild boar, wolves and
+     * jackals, bear litters of 4–6 a year to a breeding female, about 1 a head; the ungulates 0.2–0.5 (the runs: up to
+     * 0.85, wolves). Deaths are not held to a limit: the history counts a kill both as a death of the herd's and as
+     * one hunted, so they do not add up to the heads lost.
+     */
+    const val BIRTHS_PER_HEAD = 1.2
 
-    /** Residents of all kinds in any one place, t/km². */
-    const val RESIDENTS_MAX_T_KM2 = 100.0
-    /** Any place's temperature, °C. */
-    const val PLACE_TEMPERATURE_MIN = -70.0; const val PLACE_TEMPERATURE_MAX = 60.0
+    /**
+     * How a state may change from year to year (rise to at most [rise] times, fall to no less than 1/[fall]) and from
+     * the first whole year to the last ([run] times either way), once it is at least [floor] in either year (a few
+     * animals or tonnes rise and fall too much by chance to judge by).
+     */
+    class Drift(val rise: Double, val fall: Double, val run: Double, val floor: Double)
+    /**
+     * A kind's numbers. They can grow at most at their kind's highest rate, r = 1.5 W^-0.36 a year for W kg
+     * (Caughley & Krebs 1983), with half again for the scatter about that line; people at most some 3% a year
+     * (foragers: Hassan 1981, from memory). A hard winter can take two thirds of a herd (Soay sheep: Clutton-Brock &
+     * Pemberton 2004). Over a run, mild cycles and no kind more than 4 times up or down (Olli: no extinction).
+     */
+    fun animals(kind: String): Drift {
+        val r = if (kind == Catalogue.HUMAN.name) 0.03 else 1.5 * Math.pow((Catalogue.all.firstOrNull { it.name == kind }?.massKg ?: 50f).toDouble(), -0.36)
+        return Drift(rise = Math.exp(1.5 * r), fall = 3.0, run = 4.0, floor = 20.0)
+    }
+    /**
+     * The slow stocks of plants and soil, thousand tonnes, over the whole land. Trees and the soil's organic matter
+     * turn over in decades: a year changes them by a few per cent (the runs: 4% at most); litter and the soil's
+     * animals follow the year's growth and warmth, shrubs their browsing; grass and herbs follow the rain, a dry year
+     * growing half a wet one's (Knapp & Smith 2001; Sala et al. 1988).
+     */
+    val STOCKS = mapOf(
+        "plants" to Drift(rise = 1.1, fall = 1.1, run = 1.5, floor = 1.0), "trees" to Drift(rise = 1.1, fall = 1.1, run = 1.5, floor = 1.0),
+        "soil organic matter" to Drift(rise = 1.05, fall = 1.05, run = 1.5, floor = 1.0),
+        "litter" to Drift(rise = 1.25, fall = 1.25, run = 2.0, floor = 1.0), "soil animals" to Drift(rise = 1.25, fall = 1.25, run = 2.0, floor = 1.0),
+        "shrubs" to Drift(rise = 1.25, fall = 1.25, run = 2.0, floor = 1.0), "herbs" to Drift(rise = 2.0, fall = 2.0, run = 3.0, floor = 1.0),
+    )
+    /**
+     * Every other pool of matter (thousand tonnes), of small life (tonnes or heads) and of water life: insects and
+     * rodents swing many times over from year to year (vole cycles: Krebs 2013, from memory), so these are held only
+     * against running away.
+     */
+    val POOLS = Drift(rise = 5.0, fall = 5.0, run = 20.0, floor = 0.01)
+    val SMALL_AND_WATER_LIFE = Drift(rise = 5.0, fall = 5.0, run = 20.0, floor = 1.0)
+    /** Snow lying (mm over the land): it must not pile up from year to year. */
+    val SNOW = Drift(rise = 1.5, fall = 2.0, run = 2.0, floor = 1.0)
+
+    /**
+     * Residents of all kinds in any one place, t/km²: twice the richest savanna's whole-ecosystem 25 t/km² (Coe et al.
+     * 1976 at 1000 mm), for a season's crowding on the best ground.
+     */
+    const val RESIDENTS_MAX_T_KM2 = 50.0
+    /** Any place's temperature over a week, °C: the coldest and hottest weeks on Earth's land are near -60 and 45 °C. */
+    const val PLACE_TEMPERATURE_MIN = -60.0; const val PLACE_TEMPERATURE_MAX = 50.0
     /** What a table of a stock may hold below zero, as a share of its largest value (float rounding). */
     const val STOCK_BELOW_ZERO = 1e-6
     /** Tables in which NaN means "none" by design, so only an infinity in them is out of limits: the odds of arriving, NaN where a kind cannot stay ([inflation.ecology.HexFauna.arrive]). */
@@ -163,17 +219,16 @@ object Nominal {
                 Key.migrationOf(k) == HexHistory.Migration.MEAN_HEIGHT_M -> weekly(HEIGHT_MIN_M, HEIGHT_MAX_M, "m")
                 Key.migrationOf(k) == HexHistory.Migration.KM_FROM_HALF_A_YEAR -> weekly(0.0, KM_FROM_HALF_A_YEAR_MAX, "km")
                 Key.animalKind(k) != null -> {
-                    drift(t, k, years, ::yearly, ANIMALS, gone = true)
                     val kind = Key.animalKind(k)!!
+                    val d = animals(kind)
+                    drift(t, k, years, ::yearly, d, gone = true)
                     // Present in the first week and none in the last: gone (not judged by the year's mean, which a kind dying out in its last weeks keeps above 0).
                     val last = (s.size - 1 downTo first).firstOrNull { !s[it].isNaN() }
                     if (last != null && last > first) t.check(!(s[first] > 0f && s[last] <= 0f), k) { "gone by the end (%s at the start)".format(fmt(s[first].toDouble())) }
                     if (kind == Catalogue.HUMAN.name && area > 0) eachYear(0.0, PEOPLE_MAX_KM2, "people per km²", 1 / area)
                     for (y in 0 until years) {
                         val heads = yearly(k, y)
-                        if (!(heads >= ANIMALS.floor)) continue
-                        val died = h.series.keys.filter { Key.deathsKind(it) == kind }.sumOf { yearly(it, y).let { v -> if (v.isNaN()) 0.0 else v } }
-                        t.check(died <= DEATHS_PER_HEAD * heads, k) { "%s deaths in year %d of %s heads on average, over %s a head".format(fmt(died), y + 1, fmt(heads), fmt(DEATHS_PER_HEAD)) }
+                        if (!(heads >= d.floor)) continue
                         val born = yearly(Key.births(kind), y)
                         if (!born.isNaN()) t.check(born <= BIRTHS_PER_HEAD * heads, k) { "%s born in year %d of %s heads on average, over %s a head".format(fmt(born), y + 1, fmt(heads), fmt(BIRTHS_PER_HEAD)) }
                     }
@@ -183,7 +238,7 @@ object Nominal {
                     // (A kind's residents and groups are judged by its head count: one living the other way for a while is no fault.)
                     if (name.startsWith("resident ") || name.startsWith("group ")) continue
                     // (Fast pools may empty for a year, as the locusts between plagues; the slow stocks may not.)
-                    drift(t, k, years, ::yearly, if (name in SLOW) SLOW_STOCKS else POOLS, gone = name in SLOW)
+                    drift(t, k, years, ::yearly, STOCKS[name] ?: POOLS, gone = name in STOCKS)
                     if (name == "plants" && area > 0) eachYear(PLANTS_MIN_KG_M2, PLANTS_MAX_KG_M2, "kg/m² of plants over the land", 1 / area)
                 }
                 Key.isSmallLife(k) || Key.isWaterLife(k) -> drift(t, k, years, ::yearly, SMALL_AND_WATER_LIFE, gone = true)
@@ -194,7 +249,8 @@ object Nominal {
             val pools = listOf(Key.biomass("resident animals"), Key.biomass("herds, packs and bands")).filter { it in h.series }
             if (pools.isNotEmpty()) for (y in 0 until years) {
                 val tKm2 = pools.sumOf { yearly(it, y).let { v -> if (v.isNaN()) 0.0 else v } } * 1000 / area
-                t.check(tKm2 <= ANIMALS_MAX_T_KM2, "big animals") { "%s t/km² over the land in year %d, over %s".format(fmt(tKm2), y + 1, fmt(ANIMALS_MAX_T_KM2)) }
+                val most = animalsMaxTKm2(yearly(Key.RAIN, y))
+                if (!most.isNaN()) t.check(tKm2 <= most, "big animals") { "%s t/km² over the land in year %d, over the %s its rain carries".format(fmt(tKm2), y + 1, fmt(most)) }
             }
         }
         return Result(t.findings, t.tried, "series, ${h.series.size} over ${h.weeks} weeks")
@@ -208,7 +264,7 @@ object Nominal {
             if (a.isNaN() || b.isNaN() || max(a, b) < d.floor) continue
             if (gone && a > 0 && b <= 0) { t.check(false, k) { "gone in year ${y + 1}" }; return }
             if (a <= 0 || b <= 0) continue
-            t.check(b / a in 1 / d.yearly..d.yearly, k) { "%s to %s from year %d to %d, beyond %s times either way".format(fmt(a), fmt(b), y, y + 1, fmt(d.yearly)) }
+            t.check(b / a in 1 / d.fall..d.rise, k) { "%s to %s from year %d to %d, beyond %s..%s times".format(fmt(a), fmt(b), y, y + 1, fmt(1 / d.fall), fmt(d.rise)) }
         }
         val a = ys.first(); val b = ys.last()
         if (years > 2 && a > 0 && b > 0 && max(a, b) >= d.floor)
