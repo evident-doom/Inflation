@@ -1149,12 +1149,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * year, as it would fare there this week, by the rules residents are born and die by ([breedAndDie]):
      * the young born there to its mothers (fed as far as the food left uneaten feeds them, [room], with the protein the
      * forage there holds, [forageProtein], and the fat they [carried]), less the grown and the young ([youngPerGrown] to a
-     * grown one) that die there of the [hazards] in [out] (as [arriveOdds] filled it) and to the hunters. A week's rate
-     * taken over the [stepsPerYear], so that places compare as a year there would leave them.
+     * grown one) that die there of the [hazards] in [out] (as [arriveOdds] filled it) and to the hunters. The week's
+     * deaths are taken over the [stepsPerYear]; its births over the weeks of the birth season only, since they are born
+     * in that season and not all year (else a week of it would count as a year of births and outweigh any death).
      */
     private fun growth(k: Int, p: Int, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float, stepsPerYear: Float,
-                       f: Float = room[k]?.get(p) ?: fed[k][p]): Float =
-        exp(stepsPerYear * ln1p(max(-1f, growthParts(k, p, weather, out, youngPerGrown, carried, null, f))))
+                       f: Float = room[k]?.get(p) ?: fed[k][p]): Float {
+        val parts = FloatArray(GROWTH_PARTS)
+        growthParts(k, p, weather, out, youngPerGrown, carried, parts, f)
+        val head = 1f + youngPerGrown
+        val stepsInSeason = kinds[k].birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
+        val dying = ((parts[GROWTH_GROWN_DIE] + youngPerGrown * parts[GROWTH_YOUNG_DIE]) / head).coerceIn(0f, 1f)
+        return (1f + stepsInSeason * parts[GROWTH_BORN] / head) * exp(stepsPerYear * ln1p(-dying))
+    }
 
     /**
      * [growth]'s week: the change in heads a head of kind [k] coming to place [p] would see there in a week. Where [parts]
