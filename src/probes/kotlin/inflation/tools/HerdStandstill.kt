@@ -80,7 +80,7 @@ fun main(args: Array<String>) {
             for (g in gs) {
                 val h = hw.placeHex[g.place.i]
                 val t = tracks[g.id] ?: if (g.id !in preexisting) Track(s.name, lastHex[g.id] ?: h, w).also { tracks[g.id] = it; fresh++ } else null
-                t?.let { it.weeks++; it.maxKm = maxOf(it.maxKm, hex.distanceKm(it.firstHex, h)); if (g.formedAt < 0) it.everFree = true; it.joined += g.joined; it.settled += g.settled; it.lastHex = h }
+                t?.let { it.weeks++; it.maxKm = maxOf(it.maxKm, hex.distanceKm(it.firstHex, h)); if (g.formedAt < 0 || hex.distanceKm(h, hw.placeHex[g.formedAt]) > gatherKm(s)) it.everFree = true; it.joined += g.joined; it.settled += g.settled; it.lastHex = h }
                 if (lastHex[g.id] == h) {
                     still++
                     if (g.formedAt >= 0 && hex.distanceKm(h, hw.placeHex[g.formedAt]) <= gatherKm(s)) stuck++

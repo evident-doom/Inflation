@@ -331,7 +331,7 @@ class HexGroups(
             // (Not in the form-swap test, where each kind keeps the form it has.)
             if (!Catalogue.formsFixed) {
                 Profile.part("herds: who leaves") { leaveAhead(it) }
-                Profile.part("herds: settling") { scatter() }
+                Profile.part("herds: settling") { scatter(it) }
                 Profile.part("herds: setting off") { gather(it.date) }
             }
         },
@@ -1690,6 +1690,29 @@ class HexGroups(
     internal fun survivalSteps(g: HexGroup, dying: Float): Float {
         val q = max(g.deathOdds, g.species.backgroundMortality * years).coerceIn(1e-6f, 0.5f)
         return dying / sqrt(q * (1f - q) / max(1, g.size))
+    }
+
+    /** The way to any place [herdOddsAt] weighs: none, as it stands there already (no hexes passed). */
+    @delegate:Transient private val noWay by lazy { IntArray(hex.size) { -1 } }
+
+    /**
+     * The share of herd [g] that would die in a week standing at place [p], with no going: by [deathsAt], the rule a herd
+     * weighs its places by. So residents set off together ([leaveAhead]), and herds settle back ([settles]), by the very
+     * odds the herd they are or would be weighs its places by: a herd does not form where it would find staying no worse
+     * than going, nor stay together where it would. [g] (a band's worth, not one of [groups]: see [bandAsHerd]) stands
+     * at [p] for the while, its ground reckoned from there.
+     */
+    internal fun herdOddsAt(g: HexGroup, p: Int, weather: Weather): Float {
+        val s = g.species; val kind = kindIndex[s] ?: return Float.NaN
+        val was = g.place; g.place = Place(p)
+        try {
+            val here = hw.hexOf(g.place)
+            val sensed = IntArray(7) { if (it == 0) here.i else hex.neighbour(here.i, it - 1) }
+            val c = PlanContext(g, kind, here, sensed, weather.date.month, -1, 0f, false, 0f, 0.0, 0f, g.dry > 0.5f * s.daysWithoutWater,
+                null, weather, weather.date)
+            c.via = noWay
+            return deathsAt(c, g.place, here, 0f, 0f, 0f)
+        } finally { g.place = was }
     }
 
     internal fun hexKm(a: Int, b: Int): Double = hex.distanceKm(a, b)
