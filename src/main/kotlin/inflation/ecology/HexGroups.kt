@@ -1256,7 +1256,12 @@ class HexGroups(
         // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
         val capture = control != null && g.id == watched
         val content = !restless && !relief && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
-        if (content && !capture && !shift) { planCounts.incrementAndGet(s.index * 3); return Plan(g.place, intArrayOf(here.i)) }
+        if (content && !capture && !shift) {
+            if (PLAN_DIAG == s.name && g.formedAt >= 0 && g.id % 7 == 0 && date.dayOfMonth <= days)
+                println("plan ${s.name} #${g.id} of ${g.size} month ${date.month + 1}, %.0f km from where it formed: content, kept its ground (fed %.2f, goal %s)".format(
+                    hexKm(here.i, hw.placeHex[g.formedAt]), g.fed, if (goal >= 0) "%.0f km".format(hexKm(here.i, hw.placeHex[goal])) else "none"))
+            planCounts.incrementAndGet(s.index * 3); return Plan(g.place, intArrayOf(here.i))
+        }
         // (A big herd moves more slowly than a small one: it waits for its stragglers.)
         // (A starving herd on eaten-out ground goes as far as it must, up to its whole week's travel.)
         // (A herd far behind its round treks: the whole week's going.)
@@ -1278,7 +1283,8 @@ class HexGroups(
         val policy = policies[s]
         // (For a followed group: every place it weighed, and how it scored.)
         // planDiag=kind: once a month, one herd's reasons, for the place it chose and the best-placed step toward its season's place.
-        val diag = PLAN_DIAG == s.name && goal >= 0 && date.dayOfMonth <= days && g.id % 97 == 0
+        // (And of the herds that formed from residents, one in seven, each month.)
+        val diag = PLAN_DIAG == s.name && goal >= 0 && date.dayOfMonth <= days && (g.id % 97 == 0 || (g.formedAt >= 0 && g.id % 7 == 0))
         val seen = if (g.id == watched || diag) ArrayList<Pair<Int, Float>>() else null
         val candPlaces = buf.candPlaces; candPlaces.clear(); val candFeats = buf.candFeats
         // (Every place's whole score is wanted for a network, for capture and for a watched herd; else only the best.)
@@ -1399,14 +1405,17 @@ class HexGroups(
             // (The score is the hand-written one before its small noise and the group's temper, as [scorePlace] gives it.)
             fun parts(p: Place): String {
                 val h = hw.hexOf(p); val hunters = huntersKm2(p, h)
-                return "score %.2f: food %.2f fresh %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
-                    seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, placeValue[kind][p], freshness(s, p.i),
+                val dying = deathsAt(c, p, h, dist[h], 0f, 0f)
+                return "score %.2f: deaths %.4f (%.1f steps) food %.2f fresh %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
+                    seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, dying, survivalSteps(g, dying), placeValue[kind][p], freshness(s, p.i),
                     crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0)), hunters,
                     if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p], dist[h], hexKm(h.i, goalHex))
             }
+            val formed = if (g.formedAt >= 0) ", %.0f km from where it formed".format(hexKm(here.i, hw.placeHex[g.formedAt])) else ""
             val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
                 hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: hex.heart[h] }?.takeIf { it >= 0 }?.let { Place(it) }
-            println("plan ${s.name} #${g.id} month ${date.month + 1}: chose " + parts(best) + (towards?.let { " | toward goal " + parts(it) } ?: ""))
+            println("plan ${s.name} #${g.id} of ${g.size} month ${date.month + 1}$formed, ${if (restless) "restless" else "content"}, reach %.0f km, weighed %d places: chose ".format(reach, seen.size) +
+                parts(best) + (if (best != g.place) " | stay " + parts(g.place) else "") + (towards?.let { " | toward goal " + parts(it) } ?: ""))
         }
         if (shift) return Plan(best, pathTo(best.i))
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
