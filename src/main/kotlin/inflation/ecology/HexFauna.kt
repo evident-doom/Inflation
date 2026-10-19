@@ -417,6 +417,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     val birthStart = Array(kinds.size) { k -> ByteArray(n) { kinds[k].birthMonth.toByte() } }
     private val fedByMonth = Array(kinds.size) { FloatArray(n * 12) { 0.7f } }
+    /**
+     * The share of the year's season of births the mothers of each kind in each place have had (0..1): it goes with them
+     * as they move, so a mother bears a year's young once, wherever she walks and whatever each place's calendar; it
+     * starts again in the kind's [offSeason].
+     */
+    val bred = Array(kinds.size) { FloatArray(n) }
     /** Days of food each kind carries as fat in each place. */
     val reserve = Array(kinds.size) { k -> FloatArray(n) { 0.5f * kinds[k].maxFatDays } }
     /** For kinds that sleep through the winter: how well fed they went to sleep, 0..1. */
@@ -706,7 +712,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Phase("soil and small life") { small.step(it, carcassKg) },
     )
 
-    /** The week's start: the books' running sums, fear fading, outbreaks, a new month's newcomers and sense of direction, and the water. */
+    /** The week's start: the books' running sums, fear fading, outbreaks, a new month's newcomers, mothers' new year ([bred]) and sense of direction, and the water. */
     private fun newWeek(weather: Weather, date: Date) {
         val books = land.books
         ateBook = books?.adder(Books.Stuff.MATTER, "eaten"); droppedBook = books?.adder(Books.Stuff.MATTER, "dung and frass")
@@ -716,6 +722,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
             if (date.month == 0) newcomers(date)
+            for ((k, s) in kinds.withIndex()) if (offSeason(s) == date.month) bred[k].fill(0f)
             Profile.time("sense of direction") { bearings.update(date.month) }
             if (date.month == 3) shiftBreeding()
         }
@@ -957,8 +964,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val s = kinds[k]
             val carcassKg = carcasses[k]
             val herds = herdKm2[k]
-            val start = birthStart[k]
-            val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
             val grow = years / s.yearsToMaturity
             val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
             val grown = grownUp[k]; grown?.fill(0f)
@@ -967,9 +972,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a mother bears what her food and reserves can build.
-                val inSeason = monthsFrom(start[p].toInt(), date.month) < s.birthMonths
-                if (inSeason) {
-                    val due = dueYoung(k, a[p] + y[p] + (herds?.get(p) ?: 0f), protein[k][p], stepsInSeason)
+                val share = seasonShare(k, p, date)
+                if (share > 0f) {
+                    bred[k][p] += share
+                    val due = dueYoung(k, a[p] + y[p] + (herds?.get(p) ?: 0f), protein[k][p], share)
                     val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days)
                     y[p] += born
                     bornThisWeek[k] += (born * area).toDouble()
@@ -1070,14 +1076,33 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * The young a mother of kind [k] is due this step of the [stepsInSeason] steps of her season, among [heads] of her kind
-     * per km², fed [protein] of her need for it: mothers short of protein bear and suckle fewer, and a mother needs a range
-     * of her own to bear and raise her young in (where they crowd beyond [inflation.Tuning.breedSpacing] times their usual
-     * numbers, only as many as there are ranges breed). How many she bears of them is [breeding]'s.
+     * The young a mother of kind [k] is due this step, its [share] of her season, among [heads] of her kind per km², fed
+     * [protein] of her need for it: mothers short of protein bear and suckle fewer, and a mother needs a range of her own to
+     * bear and raise her young in (where they crowd beyond [inflation.Tuning.breedSpacing] times their usual numbers, only
+     * as many as there are ranges breed). How many she bears of them is [breeding]'s.
      */
-    private fun dueYoung(k: Int, heads: Float, protein: Float, stepsInSeason: Float): Float {
+    private fun dueYoung(k: Int, heads: Float, protein: Float, share: Float): Float {
         val ranges = min(1f, tuning.breedSpacing * usual[k] / heads)
-        return ranges * kinds[k].youngPerFemale * protein / stepsInSeason
+        return ranges * kinds[k].youngPerFemale * protein * share
+    }
+
+    /**
+     * The month kind [s]'s mothers start their year again ([bred]): the middle of the months outside its season as it
+     * began ([Species.birthMonth]). (A place whose season has drifted over it lets its mothers bear part of a season again.)
+     */
+    private fun offSeason(s: Species) = (s.birthMonth + s.birthMonths + (12 - s.birthMonths) / 2) % 12
+
+    /**
+     * The share of her season a mother of kind [k] at place [p] bears this week of [date] ([dueYoung]): none out of the
+     * place's season; else a week's share of the season ([Date.DAYS_PER_MONTH] days a month, so a month of four or five
+     * weekly steps counts alike), no more than she has left ([bred]), and in the season's last week all she has left.
+     */
+    private fun seasonShare(k: Int, p: Int, date: Date): Float {
+        val s = kinds[k]; val start = birthStart[k][p].toInt()
+        if (monthsFrom(start, date.month) >= s.birthMonths) return 0f
+        val left = max(0f, 1f - bred[k][p])
+        val last = monthsFrom(start, date.plusDays(days).month) >= s.birthMonths
+        return if (last) left else min(left, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
     }
 
     /** Eagles take the young of the smaller hoofed animals in the open: the share of [s]'s young at [p] they take in a step. */
@@ -1147,7 +1172,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * the protein the forage there holds, [forageProtein], and the fat they [carried]; among [heads] per km²), less the
      * grown and the young ([youngPerGrown] to a grown one) that die there of the [hazards] in [out] and to the hunters. The week's
      * deaths are taken over the [stepsPerYear]; its births over the weeks of the birth season only, since they are born
-     * in that season and not all year (else a week of it would count as a year of births and outweigh any death).
+     * in that season and not all year (else a week of it would count as a year of births and outweigh any death). The
+     * births are those a mother would bear there by its food, whatever the month and the place's own calendar: she bears
+     * a year's young once ([bred]), so a place in its season gives her none she would not bear elsewhere.
      */
     private fun growth(k: Int, p: Int, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float, stepsPerYear: Float,
                        f: Float = room[k]?.get(p) ?: fed[k][p], heads: Float = adults[k][p] + young[k][p] + arrivingKm2(k)): Float {
@@ -1169,11 +1196,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                              f: Float = room[k]?.get(p) ?: fed[k][p], heads: Float = adults[k][p] + young[k][p] + arrivingKm2(k)): Float {
         val s = kinds[k]
         val protein = forageProtein(s, p)
-        val inSeason = monthsFrom(birthStart[k][p].toInt(), weather.date.month) < s.birthMonths
-        val born = if (!inSeason) 0f else {
-            val due = dueYoung(k, heads, protein, s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat())
-            0.5f * due * breeding(s, due, carried, f, days)
-        }
+        val due = dueYoung(k, heads, protein, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
+        val born = 0.5f * due * breeding(s, due, carried, f, days)
         val grownDie = (s.backgroundMortality * years + adultShare(out)).coerceIn(0f, 0.9f)
         val youngDie = min(0.95f, youngOdds(s, out, eagleOdds(s, p), crocodileOdds(p, weather), protein) + huntedOdds(k, p, true))
         if (parts != null) { parts[GROWTH_BORN] = born; parts[GROWTH_GROWN_DIE] = grownDie; parts[GROWTH_YOUNG_DIE] = youngDie; parts[GROWTH_FED] = f; parts[GROWTH_PROTEIN] = protein }
@@ -1350,6 +1374,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val share = (BAND_SHIFT * gain).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
                 if (!(share > 0f)) continue
                 val ma = a[from] * share * land.areaKm2[from]; val my = y[from] * share * land.areaKm2[from]
+                bred[k][to] = mixed(bred[k][to], a[to] * land.areaKm2[to], bred[k][from], ma)
                 a[from] -= ma / land.areaKm2[from]; y[from] -= my / land.areaKm2[from]
                 a[to] += ma / land.areaKm2[to]; y[to] += my / land.areaKm2[to]
             }
@@ -1412,6 +1437,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val a = adults[k]; val y = young[k]; val f = fed[k]
         val cross = hex.crossings[travel[k].ordinal]
         val moveA = FloatArray(n); val moveY = FloatArray(n)
+        // (The grown that came, times the share of their season of births they had had: [bred] goes with them.)
+        val cameBred = FloatArray(n); val cameA = FloatArray(n); val bk = bred[k]
         // (Moving every few weeks, a move takes the share those weeks' would have.)
         val weeks = tuning.residentMoveWeeks
         // What each place is worth to the kind this week, as it is worth to those moving up and down the slopes.
@@ -1485,6 +1512,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val lostA = goA * share * risk; val lostY = goY * share * min(1f, 2f * risk)
                 moveA[seaTo] += goA * share - lostA
                 moveY[seaTo] += goY * share - lostY
+                cameA[seaTo] += goA * share - lostA; cameBred[seaTo] += (goA * share - lostA) * bk[p]
                 drowned[seaTo] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble()
             }
             moveA[p] -= goA; moveY[p] -= goY
@@ -1493,6 +1521,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val q = wq[i]
                 val ga = goA * ws[i] / total; val gy = goY * ws[i] / total
                 moveA[q] += ga; moveY[q] += gy
+                cameA[q] += ga; cameBred[q] += ga * bk[p]
                 arrived[q] += ga + gy; walkedKm[q] += (ga + gy) * hex.hexKm.toFloat()
                 if (flow) {
                     val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
@@ -1501,9 +1530,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             }
         }
         countStuck(k, weekHeads, weekStuck, weekEdge)
-        for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
+        for (p in 0 until n) {
+            // (Those that stayed are those there less those that left: the grown that came are all in moveA.)
+            if (cameA[p] > 0f) bk[p] = mixed(bk[p], max(0f, a[p] * land.areaKm2[p] + moveA[p] - cameA[p]), cameBred[p] / cameA[p], cameA[p])
+            a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p])
+        }
         return drownedHeads
     }
+
+    /** The share of their season of births ([bred]) of [there] grown that had had [was] and [came] that had had [had], together. */
+    private fun mixed(was: Float, there: Float, had: Float, came: Float) =
+        if (there + came > 0f) ((was * there + had * came) / (there + came)).coerceIn(0f, 1f) else was
 
     /** Adds a move's heads of kind [k], those hungry with nowhere better to go, and of them those at a closed border, to [stuck]. */
     private fun countStuck(k: Int, heads: Double, stuckHeads: Double, atEdge: Double) {
@@ -1533,6 +1570,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val passes = hopsFor(s, tuning.residentMoveWeeks)
         // Heads at each place, grown and young; and the food there, in heads it feeds fully: those there, as fed as they were, and the food left uneaten.
         val ga = FloatArray(n) { p -> a[p] * area[p] }; val gy = FloatArray(n) { p -> y[p] * area[p] }
+        // (The grown times the share of their season of births they have had: [bred] goes with them.)
+        val bk = bred[k]; val gb = FloatArray(n) { p -> bk[p] * ga[p] }
         val food = FloatArray(n)
         val tools = ThreadLocal.withInitial { DryPantry() to Bites() }
         IntStream.range(0, n).parallel().forEach { p -> val (d, b) = tools.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, d, b) }
@@ -1593,11 +1632,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // They go: from the places as they stood at the pass's start (those come this pass walk on next pass).
             changed.fill(false)
             for (q in 0 until n) exact[q] = take[q] >= 1f && coming[q] > 0f && !(share[q] > 0f)
-            val startA = ga.copyOf(); val startY = gy.copyOf()
+            val startA = ga.copyOf(); val startY = gy.copyOf(); val startB = gb.copyOf()
             for (p in 0 until n) {
                 if (!(share[p] > 0f)) continue
                 val heads = startA[p] + startY[p]; val here = v[p]; val sum = gapSum[p]
                 val youngShare = startY[p] / heads; val goAll = share[p] * heads
+                val hadBred = if (startA[p] > 0f) startB[p] / startA[p] else 0f
                 val h = hw.placeHex[p]
                 var left = 0f
                 flowPlaces(k, p) { q, ease, km, keep ->
@@ -1609,7 +1649,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val risk = 1f - keep
                     val lostA = mA * risk; val lostY = mY * min(1f, 2f * risk)
                     if (lostA + lostY > 0f) { drowned[q] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble(); exact[q] = false }
-                    ga[q] += mA - lostA; gy[q] += mY - lostY
+                    ga[q] += mA - lostA; gy[q] += mY - lostY; gb[q] += (mA - lostA) * hadBred
                     arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * km
                     changed[q] = true
                     if (record && hw.placeHex[q] != h) {
@@ -1618,13 +1658,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     }
                 }
                 ga[p] = max(0f, ga[p] - left * (1f - youngShare)); gy[p] = max(0f, gy[p] - left * youngShare); changed[p] = true
+                gb[p] = max(0f, gb[p] - left * (1f - youngShare) * hadBred)
             }
             IntStream.range(0, n).parallel().forEach { p -> if (changed[p]) v[p] = if (exact[p]) full[p] else weigh(p, ga[p] + gy[p]) }
             // (And the places next to those newly come to, as yet unweighed.)
             for (p in 0 until n) if (changed[p] && ga[p] + gy[p] > 0f) weighNear(p)
         }
         countStuck(k, weekHeads, weekStuck, weekEdge)
-        for (p in 0 until n) { a[p] = max(0f, ga[p] / area[p]); y[p] = max(0f, gy[p] / area[p]) }
+        for (p in 0 until n) { a[p] = max(0f, ga[p] / area[p]); y[p] = max(0f, gy[p] / area[p]); if (ga[p] > 0f) bk[p] = (gb[p] / ga[p]).coerceIn(0f, 1f) }
         return drownedHeads
     }
 
@@ -1733,6 +1774,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             neighbourPlaces(k, p) { q -> val dq = a[q] + y[q]; if (dq < floor && dq * area[q] > most && drinks(s, q)) { most = dq * area[q]; to = q } }
             if (to < 0) continue
             val ga = a[p] * area[p]; val gy = y[p] * area[p]
+            bred[k][to] = mixed(bred[k][to], a[to] * area[to], bred[k][p], ga)
             a[to] += ga / area[to]; y[to] += gy / area[to]; a[p] = 0f; y[p] = 0f
             arrived[to] += ga + gy; walkedKm[to] += (ga + gy) * hex.hexKm.toFloat()
         }

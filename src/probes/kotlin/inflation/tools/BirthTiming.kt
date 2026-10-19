@@ -17,6 +17,7 @@ import inflation.world.WorldConfig
  * from. For each plant-eating kind, over the weeks run: the share of its mothers in a season (heads-weighted, per week)
  * against what one season a year gives ([Species.birthMonths] of 12) — above 1, mothers spend more weeks in season than
  * one season, so bear more than once a year's young; the heads-weighted mean birth month of the places by height band;
+ * the young born a year to a mother (the week's births over the mothers there, summed) against [Species.youngPerFemale];
  * and the share of the week's arrivals (heads up at a place from the week before, among the places where heads rose)
  * that came to places in season, against the share of all heads at places in season. With --still the residents never
  * move (the control: what births and deaths alone make of the ratio).
@@ -41,7 +42,7 @@ fun main(args: Array<String>) {
     val kinds = fauna.kinds.indices.filter { k -> fauna.room[k] != null && (names == null || fauna.kinds[k].name in names) }
     val bands = hw.placeBand.max() + 1
 
-    val inSeason = DoubleArray(kinds.size); val weeksRun = IntArray(kinds.size)
+    val inSeason = DoubleArray(kinds.size); val weeksRun = IntArray(kinds.size); val bornPerMother = DoubleArray(kinds.size)
     val cameIn = DoubleArray(kinds.size); val came = DoubleArray(kinds.size); val atIn = DoubleArray(kinds.size)
     // [kind][band]: heads, heads times the months from January of the birth start (as an angle's sine and cosine, to wrap the year).
     val bandHeads = Array(kinds.size) { DoubleArray(bands) }
@@ -67,7 +68,7 @@ fun main(args: Array<String>) {
                 }
                 before[i][p] = h
             }
-            if (mothers > 0.0) { inSeason[i] += mothersIn / mothers; weeksRun[i]++ }
+            if (mothers > 0.0) { inSeason[i] += mothersIn / mothers; weeksRun[i]++; bornPerMother[i] += fauna.bornThisWeek[k] / mothers }
         }
     }
     println(if (still) "(residents kept still)" else "(residents moving)")
@@ -82,8 +83,8 @@ fun main(args: Array<String>) {
                 "%5.1f".format(mo + 1)
             }
         }
-        println("%-12s season %d mo from %2d: mothers in season %.2f of one season; arrivals to places in season %.3f against heads there %.3f; birth month by band %s (heads %s)".format(
-            s.name, s.birthMonths, s.birthMonth + 1, ratio,
+        println("%-12s season %d mo from %2d: born a year to a mother %.2f of %.2f; mothers in season %.2f of one season; arrivals to places in season %.3f against heads there %.3f; birth month by band %s (heads %s)".format(
+            s.name, s.birthMonths, s.birthMonth + 1, bornPerMother[i] * (360.0 / 7) / weeksRun[i].coerceAtLeast(1), s.youngPerFemale, ratio,
             if (came[i] > 0) cameIn[i] / came[i] else Double.NaN, if (total > 0) atIn[i] / (bandHeads[i].sum()) else Double.NaN, months,
             (0 until bands).joinToString("/") { b -> "%.0f%%".format(100 * bandHeads[i][b] / total) }))
     }

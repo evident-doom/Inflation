@@ -107,7 +107,9 @@ object HexSnapshot {
      * they would come to with a band of them added over the ground a band ranges in a day, not over the place's own; and
      * plant-eating residents flow over the land as a fluid finds its level, from each place a share to the neighbouring
      * places worth more to them at the numbers there and here, until about level ([HexFauna.flow]); and residents move every week again;
-     * and plant-eaters live only as residents (Tuning.plantEaterHerds), their herds spread as residents.
+     * and plant-eaters live only as residents (Tuning.plantEaterHerds), their herds spread as residents; and a resident
+     * mother bears a year's young once, wherever she walks ([HexFauna.bred]), a week's share of her season by its days, and
+     * a place is worth its births to movers whatever its calendar.
      */
     const val MODEL_MAJOR = 2
     const val MODEL_MINOR = 16

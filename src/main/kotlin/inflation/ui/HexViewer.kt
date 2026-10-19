@@ -503,6 +503,23 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             painter.paint(g0) { paintMap(it) }
         }
 
+        /**
+         * Up/down: where in each hex's span of heights resident kind [r]'s animals stand, by heads (0 the lowest band's, 1
+         * the highest's; [dens] its heads in each hex), so that moving up and down the slopes within a hex shows; NaN for
+         * hexes with one band, left clear.
+         */
+        private fun upDown(r: Int, dens: DoubleArray): FloatArray {
+            val lo = FloatArray(hex.size) { Float.MAX_VALUE }; val hi = FloatArray(hex.size) { -Float.MAX_VALUE }
+            val sum = DoubleArray(hex.size)
+            for (p in 0 until fauna.n) { val h = hw.placeHex[p]; val e = hw.placeElevationM[p]
+                lo[h] = min(lo[h], e); hi[h] = max(hi[h], e)
+                sum[h] += (fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p] * e.toDouble() }
+            return FloatArray(hex.size) { h -> if (dens[h] <= 0 || hi[h] - lo[h] < 1f) Float.NaN else ((sum[h] / dens[h] - lo[h]) / (hi[h] - lo[h])).toFloat().coerceIn(0f, 1f) }
+        }
+        private val upDownLegend = MapLegend("Up/down", "Up/down: where the chosen kind stands in each hex's span of heights, by heads",
+            { x -> Color(x, 0.25f, 1f - x, 0.75f) }, listOf(0f to "lowest band", 0.5f to "between", 1f to "highest band"),
+            "hexes of one band left clear")
+
         private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             g.drawImage(ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
@@ -516,6 +533,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 val margin = hexes * hex.hexKm * kmPx
                 val x = ox + cx * kmPx; val y = oy + cy * kmPx
                 return x > -margin && y > -margin && x < width + margin && y < height + margin
+            }
+            // Hex [h] filled with [colour], or with [fill] false outlined.
+            fun hexagon(h: Int, colour: Color, fill: Boolean = true) {
+                val (cx, cy) = hex.centreKm(h); val rad = hex.hexKm / sqrt(3.0)
+                val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                g.color = colour; if (fill) g.fillPolygon(xs, ys, 6) else g.drawPolygon(xs, ys, 6)
             }
             // The chosen measure as a tint over the hexes (see [ViewLayers]), shown as the mode says.
             val tint = Measure.entries[tintChoice.selectedIndex]
@@ -531,10 +555,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 for (h in 0 until hex.size) {
                     val colour = colours[h] ?: continue
                     if (!onScreen(h)) continue
-                    val (cx, cy) = hex.centreKm(h)
-                    val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                    val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                    g.color = colour; g.fillPolygon(xs, ys, 6)
+                    hexagon(h, colour)
                 }
             } else if (legendText.text.isNotEmpty()) SwingUtilities.invokeLater { legendText.text = "" }
             // Wind as small arrows, every few hexes, longer and brighter the stronger.
@@ -595,26 +616,12 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     val stock = waterLayers[r - fauna.kinds.size - groups.kinds.size].second
                     for (h in 0 until hex.size) { area[h] = 1.0; dens[h] = stock[h].toDouble() }
                 }
-                // Up/down: where in each hex's span of heights the kind's animals stand, by heads (0 the lowest band's, 1 the
-                // highest's), so that moving up and down the slopes within a hex shows; hexes with one band are left clear.
-                val up = if (heightBox.isSelected && r < fauna.kinds.size) {
-                    val lo = FloatArray(hex.size) { Float.MAX_VALUE }; val hi = FloatArray(hex.size) { -Float.MAX_VALUE }
-                    val sum = DoubleArray(hex.size)
-                    for (p in 0 until fauna.n) { val h = hw.placeHex[p]; val e = hw.placeElevationM[p]
-                        lo[h] = min(lo[h], e); hi[h] = max(hi[h], e)
-                        sum[h] += (fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p] * e.toDouble() }
-                    FloatArray(hex.size) { h -> if (dens[h] <= 0 || hi[h] - lo[h] < 1f) Float.NaN else ((sum[h] / dens[h] - lo[h]) / (hi[h] - lo[h])).toFloat().coerceIn(0f, 1f) }
-                } else null
+                val up = if (heightBox.isSelected && r < fauna.kinds.size) upDown(r, dens) else null
                 if (up != null) {
-                    legends += MapLegend("Up/down", "Up/down: where the chosen kind stands in each hex's span of heights, by heads",
-                        { x -> Color(x, 0.25f, 1f - x, 0.75f) }, listOf(0f to "lowest band", 0.5f to "between", 1f to "highest band"),
-                        "hexes of one band left clear")
+                    legends += upDownLegend
                     for (h in 0 until hex.size) {
                         val x = up[h]; if (x.isNaN() || !onScreen(h)) continue
-                        val (cx, cy) = hex.centreKm(h)
-                        val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                        val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                        g.color = Color(x, 0.25f, 1f - x, 0.75f); g.fillPolygon(xs, ys, 6)
+                        hexagon(h, Color(x, 0.25f, 1f - x, 0.75f))
                     }
                 } else {
                 // Shaded against the densest twentieth of hexes, so that thin spreads show too.
@@ -629,10 +636,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     if (area[h] <= 0) continue
                     if (dens[h] <= 0 || !onScreen(h)) continue
                     val v = sqrt(dens[h] / area[h] / top).toFloat().coerceIn(0.15f, 1f)
-                    val (cx, cy) = hex.centreKm(h)
-                    val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                    val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                    g.color = Color(1f, 0.1f, 0.6f, 0.6f * v); g.fillPolygon(xs, ys, 6)
+                    hexagon(h, Color(1f, 0.1f, 0.6f, 0.6f * v))
                 }
                 }
             }
@@ -732,11 +736,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             }
             // The hex being inspected.
             if (picked >= 0) {
-                val (cx, cy) = hex.centreKm(picked)
-                val rad = hex.hexKm / sqrt(3.0)
-                val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                g.stroke = BasicStroke(2.5f); g.color = Color.WHITE; g.drawPolygon(xs, ys, 6); g.stroke = BasicStroke(1f)
+                g.stroke = BasicStroke(2.5f); hexagon(picked, Color.WHITE, false); g.stroke = BasicStroke(1f)
             }
             // The groups, each part of the way along the hexes it walked this week; at the end of the
             // week those sharing a hex stand side by side in a small ring around its centre.
