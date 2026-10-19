@@ -1308,7 +1308,9 @@ class HexGroups(
                 // (Where only the best place is wanted, its deaths are worked out after, best first, see below.)
                 if (!wantAll) { buf.later(p.i, d, prey, crowded, score, beside); continue }
                 if (drowning < 0f) drowning = crossingDeaths(s, h.i, here.i, via)
+                val alive = score
                 score -= survivalSteps(g, deathsAt(c, p, h, d, prey, crowded) + drowning)
+                if (!score.isFinite()) tellNotANumber(c, t, p, h, d, prey, crowded, drowning, alive)
                 seen?.add(p.i to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
@@ -1338,6 +1340,7 @@ class HexGroups(
                 val p = Place(buf.laterPlace[k]); val h = hw.hexOf(p)
                 val total = buf.laterScore[k] - survivalSteps(g, deathsAt(c, p, h, buf.laterD[k], buf.laterPrey[k], buf.laterCrowd[k]) +
                     crossingDeaths(s, h.i, here.i, via)) + buf.laterBeside[k]
+                if (!total.isFinite()) tellNotANumber(c, null, p, h, buf.laterD[k], buf.laterPrey[k], buf.laterCrowd[k], crossingDeaths(s, h.i, here.i, via), buf.laterScore[k])
                 if (total > bestScore || (total == bestScore && k < bestK)) { bestScore = total; best = p; bestK = k }
             }
         }
@@ -1380,6 +1383,34 @@ class HexGroups(
         val crowd = if (s.carnivore) -1f else foreseenCrowd(c, best.i, hw.placeHex[best])
         if (crowdDiag == s.name) { foreseenCrowd[g.id] = crowd; choiceDiag[g.id] = ChoiceDiag(c.ownHexes, c.ownShares, c.own, best.i) }
         return Plan(best, pathTo(best.i), crowd)
+    }
+
+    /** How many places' hand-written scores have come out not a number this run (see [tellNotANumber]). */
+    @Transient private val notANumber = java.util.concurrent.atomic.AtomicInteger()
+
+    /**
+     * Prints the first few places whose hand-written score for [c]'s group came out not a number (NaN or infinite), with
+     * the parts it is made of: such a place is never chosen, by the hand-written rules or a network, so nothing else shows
+     * it. [alive] is the score before its deaths; [t] the place's terms (null where they were not kept).
+     */
+    private fun tellNotANumber(c: PlanContext, t: PlaceTerms?, p: Place, h: Hex, d: Float, prey: Float, crowded: Float, drowning: Float, alive: Float) {
+        if (notANumber.incrementAndGet() > 20) return
+        val g = c.g; val s = g.species; val b = g.band
+        val deaths = deathsAt(c, p, h, d, prey, crowded)
+        val fed = if (s.carnivore) (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f) else foreseeFed(c, p.i, h.i, d)
+        val protein = if (s.carnivore) g.protein else c.pantry.protein
+        val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
+        val crowd = if (s.carnivore) 0f else foreseenCrowd(c, p.i, h.i)
+        val sick = if (s.carnivore) 0f else crowdSickness(crowd, fed)
+        val causes = StringBuilder()
+        placeHazards(g, p.i, c.weather, fed, protein, thirst, sick, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false) { cause, a, y ->
+            if (a != 0f || y != 0f) causes.append(" ").append(cause).append(" ").append(a).append("/").append(y) }
+        if (!s.carnivore) huntedAhead(c, p, h, d)
+        val terms = t?.let { "food value %s fresh %s discomfort %s drain %s suits %s water %s km".format(placeValue[c.kind][p], it.fresh, it.discomfort, it.drain, it.suitsLn, it.waterKm) } ?: "not kept"
+        println("not a number: ${s.name} #${g.id} of ${g.size} (${g.adults} grown, ${g.young} young, odds of dying ${g.deathOdds}, fed ${g.fed}) at place ${p.i}, " +
+            "$d km of going${if (c.shift) ", spreading out" else ""}: score before deaths $alive, deaths $deaths, drowning $drowning, steps ${survivalSteps(g, deaths + drowning)}; " +
+            "foreseen fed $fed, protein $protein, thirst $thirst, crowd $crowd (crowded $crowded), sickness $sick, hunted ${c.hunted[0]}/${c.hunted[1]}, prey $prey; " +
+            "hazards:$causes; terms: $terms")
     }
 
     /** What a group weighing its places this week brings to each of them: worked out once in [planInner], read by [scorePlace]. */
