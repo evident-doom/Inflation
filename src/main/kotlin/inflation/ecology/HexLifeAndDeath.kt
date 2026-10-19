@@ -676,7 +676,7 @@ private fun HexGroups.woundsWeek(band: Band): Float {
 
 /** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
 /**
- * Whether a group of [s] can drink at place [p]: where there is water, or where water is within its going.
+ * Whether a group of [s] can drink at place [p]: where there is water (for animals, soft snow too), or where water is within its going.
  * People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round
  * will do. Animals go to water and back as often as they must: a kind that can go days without
  * drinking can live as many half-days' going from it. (People also dig for it in a dry bed where the
@@ -684,7 +684,8 @@ private fun HexGroups.woundsWeek(band: Band): Float {
  */
 internal fun HexGroups.canDrink(s: Species, p: Int): Boolean {
     val fetch = if (s.human) s.dailyTravelKm else Hazards.fetchKm(s)
-    return land.drink.water[p] >= Thresholds.WET || (s.maxWaterKm.isInfinite() && land.drink.waterKm[p] <= fetch) ||
+    return (if (s.human) land.drink.water[p] else land.drink.animalWater(p)) >= Thresholds.WET ||
+        (s.maxWaterKm.isInfinite() && land.drink.waterKm[p] <= fetch) ||
         (s.human && land.drink.mustDig(p, fetch))
 }
 

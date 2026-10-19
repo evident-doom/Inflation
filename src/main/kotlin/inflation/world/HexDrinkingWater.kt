@@ -36,6 +36,20 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
      * ground is not frozen. Animals do not count it; a band pays for it in time (see the ecology).
      */
     val dug = FloatArray(n)
+    /**
+     * This week: 1 where snow lies soft enough for animals to eat it for their water (sheep and cattle wintered on snow
+     * alone eat as much and keep their weight as those given water: Degen & Young 1981, 1990; Alberta and Ontario
+     * extension trials), 0 where there is too little of it ([SNOW_EAT_MM]) or it is iced over: rain on snow freezes into a
+     * crust they cannot get enough from, until fresh snow covers it ([iced]). People melt it at the fire instead: not counted.
+     */
+    val snowWater = FloatArray(n)
+    /** 1 where the lying snow has been iced over by rain on it (see [snowWater]), until fresh snow falls on it or it is gone. */
+    val iced = FloatArray(n)
+
+    /** Share of place [p] within an easy walk of water an animal can drink this week: running or standing, or soft snow. */
+    fun animalWater(p: Int) = max(water[p], snowWater[p])
+    /** How far an animal at [p] goes for water this week, km: none where it eats the snow. */
+    fun animalWaterKm(p: Int) = if (snowWater[p] > 0f) 0f else waterKm[p]
 
     /** Whether people at [p] with water within [fetchKm] only by digging must dig for it this week. */
     fun mustDig(p: Int, fetchKm: Float) = water[p] < 0.05f && waterKm[p] > fetchKm && dug[p] >= 0.05f
@@ -128,6 +142,14 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
             // In a dry bed the water may lie a little way down, in the sand and gravel under it.
             // (Under the beds of the valleys the water in the sands sinks away after each flood; under the
             // streams it stands as high as the water table.)
+            val snow = weather.snowpack[p] >= SNOW_EAT_MM
+            iced[p] = when {
+                !snow -> 0f
+                weather.temperature[p] <= 0f && weather.precipitation[p] >= SNOW_EAT_MM -> 0f
+                weather.temperature[p] > 0f && weather.precipitation[p] >= SNOW_EAT_MM -> 1f
+                else -> iced[p]
+            }
+            snowWater[p] = if (snow && iced[p] < 0.5f) 1f else 0f
             dug[p] = if (thawed) {
                 max(nearBed[p] * (1f - SAND_M * (1f - sand[p]) / DIG_M), nearRiver[p] * (1f - hydro.waterTableM(p) / DIG_M)).coerceIn(0f, 1f)
             } else 0f
@@ -139,6 +161,11 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
         const val DRINK_KM = 3f
         const val MAX_WATER_KM = 60f
         const val POOL_WETNESS = 0.8f
+        /**
+         * Least snow lying, and least fresh snow in a week, that animals can eat for water, mm water equivalent: a few cm of
+         * snow, as "snow lying" is counted (see [inflation.tools.GenerateWorld]).
+         */
+        const val SNOW_EAT_MM = 5f
         /** Springs: least groundwater flow for a spring, m³/yr; dry country per spring, km². */
         const val MIN_SPRING_FLOW = 3e4f
         const val SPRING_KM2 = 150f
