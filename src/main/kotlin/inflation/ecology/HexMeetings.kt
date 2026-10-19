@@ -96,6 +96,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     val hunters = groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
     // Bands first set their ways for the week.
+    // (Where the bands about it stand now, after this week's moves, as its own place is.)
+    if (ways != null || control != null) indexBands()
     if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
     if (ways == null) controlledWays()?.let { w -> hunters.firstOrNull { it.id == watched && it.band != null }?.let { setWays(it, weather, w, inputs, out) } }
@@ -133,6 +135,16 @@ internal fun HexGroups.hunt(weather: Weather) {
 }
 
 /**
+ * The hands [g] forages with: its grown, less a band's scouts (who range ahead instead), lookouts and adults kept back
+ * with the children beyond the usual.
+ */
+internal fun forageHands(g: HexGroup): Int {
+    val band = g.band
+    return max(1, (g.adults * (band?.ableShare ?: 1f) * (1f - (band?.scoutShare ?: 0f)) *
+        (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
+}
+
+/**
  * A party's week, as optimal foraging: along its way it meets big game, small game, carrion (if it
  * eats it), plant food (if it eats plants) and, for bands, fish, each at a rate set by how much there
  * is, how much ground it searches for that kind of food, and how likely a meeting ends in a meal (its
@@ -151,10 +163,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val band = g.band
     // (Its own stream of chance, so that regions can be worked at once.)
     val rnd = kotlin.random.Random(g.id * 1_000_003L + weather.date.absoluteDay)
-    // (A band's scouts range ahead instead of foraging.)
-    // (Lookouts, and adults kept back with the children beyond the usual, do not gather or hunt.)
-    val hands = max(1, (g.adults * (band?.ableShare ?: 1f) * (1f - (band?.scoutShare ?: 0f)) *
-        (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
+    val hands = forageHands(g)
     // A band splits: its hunters go after big game, searching all the days they are out, while the rest
     // gather, fish and snare (see [HUNTERS_SHARE]); an animal's party forages as one.
     val hunt = band?.let { huntersShare(it) } ?: 1f
@@ -186,8 +195,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             hex.neighbour(h0, d).takeIf { it >= 0 }?.let { hw.placeOf[campBand][it] }?.takeIf { it >= 0 && it !in gatherAt }
         } } else emptyList()
     val roundShare = (band?.let { RING_REACH * it.gatherRange } ?: 0f)
-    // The foods on offer: type (0 big game of [kinds] index k, 1 small game, 2 carrion, 3 bones,
-    // 4 fruit, 5 roots, 6 grass seed, 7 small finds, 8 fish), place, rate a day, kg each, days each ([Food] numbers the types).
+    // The foods on offer: its [Food] (big game of [kinds] index k, or another food), place, rate a day, kg each, days each.
     val n = g.path.size * (fauna.kinds.size + 4) + (gatherAt.size + roundCamp.size) * 5 + 1
     val type = Array(n) { Food.BIG_GAME }; val kind = IntArray(n); val place = IntArray(n)
     // (Which of the band's parties takes each food: 0 the hunters, 1 the gatherers; an animal's is all 0.)
@@ -369,7 +377,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     stats.hunting.merge(Tally.diet(s, "plants"), plants.toInt(), Int::plus)
     // For bands, the same by the kind of country they are in, and how they fared.
     if (band != null) {
-        val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
+        val c = Biome.entries[biomeOfPlace[g.place]].label
         stats.hunting.merge(Tally.bandsIn(c, "asked"), wantAll.toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, "meat"), (meat + smallGot + scraps).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, "plants"), plants.toInt(), Int::plus); stats.hunting.merge(Tally.bandsIn(c, "fish"), fish.toInt(), Int::plus)

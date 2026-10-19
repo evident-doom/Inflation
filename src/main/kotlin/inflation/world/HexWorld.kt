@@ -109,7 +109,7 @@ class HexWorld(val world: World, val hex: HexMap) {
     }
 
     /** Normal temperature of place [p] in month [m], °C: its hex's, corrected for the band's height. */
-    fun placeTemp(p: Int, m: Int): Float = temp[m][placeHex[p]] - 6.5e-3f * (placeElevationM[p] - elevationM[placeHex[p]])
+    fun placeTemp(p: Int, m: Int): Float = temp[m][placeHex[p]] - Climate.LAPSE_RATE.toFloat() * (placeElevationM[p] - elevationM[placeHex[p]])
 
     /** The places as the weather sees them: the mean position, normals and wind exposure of each band's cells. */
     fun weatherPlaces(cfg: WorldConfig): Weather.Places {

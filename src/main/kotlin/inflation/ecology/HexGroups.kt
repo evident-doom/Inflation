@@ -377,7 +377,8 @@ class HexGroups(
         // (Raw meals give less: a band without fire needs more food for the same strength.)
         for (g in groups) if (g.alive) {
             val t = weather.temperature[g.place]
-            g.warmth = coldNeed(g.species, g.band?.feels(t) ?: t, date.month, tuning) * (g.band?.let { 1f + RAW_COST * (1f - it.fire) } ?: 1f)
+            val b = g.band
+            g.warmth = warmthNeed(g.species, b, t, b?.fire ?: 0f, b?.atHome ?: false, date.month, tuning)
         }
         if (bearings.month != date.month) {
             // Head counts of the migratory herds in each place, for the hunters' sense of where game is.
@@ -650,7 +651,7 @@ class HexGroups(
     private class Reach(val reach: Float, val hexes: IntArray, val dist: FloatArray, val via: IntArray)
     /** The groups that merged into another in the last step (gone from [groups]), with their numbers when they did ([HexGroup.mergedSize]). */
     @Transient val merged = ArrayList<HexGroup>()
-    /** Bands by the hex they are in at the start of the week (see [fillBandStates]). */
+    /** Bands by the hex they are in ([indexBands]): at the start of the week for [fillBandStates], after the moves for [setWays]. */
     @Transient internal val bandIndex = HashMap<Int, ArrayList<HexGroup>>()
     /** Raiders that reached their target's home this week, with the band they came for: fought once every band has had its week. */
     @Transient internal val raidsDue = ArrayList<Pair<HexGroup, HexGroup>>()
@@ -887,12 +888,14 @@ class HexGroups(
     internal fun campValue(s: Species, p: Int): Float = (preyHere(s, p) + herdPrey(s, p)) * campFactor(p) + campPlants(p)
     /**
      * What a camp's game is worth to a band, times: the more where the camp is safe, the less the further water is,
-     * and the less the more of its days the hearth's firewood takes there (none left where there is nothing to burn).
+     * and the less the more of its days the hearth's firewood takes there ([fuelShare], for a band whose every mouth
+     * fetches: the place's worth to bands at large). Where there is too little wood, the cold and the raw meals it
+     * costs are in [drain].
      */
     internal fun campFactor(p: Int): Float {
         // Water close to camp: women and children fetch it every day (from a well dug in a dry bed, where water lies near).
         val w = land.drink.peopleWaterKm(p) / 3f
-        val fuel = min(1f, HEARTH_WOOD / (FUEL_A_DAY * min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)).coerceAtLeast(1e-6f))
+        val fuel = fuelShare(woodCover(p), 1f)
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
     internal fun campPlants(p: Int) = KgM2(fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]).perKm2.v * PLANT_FOOD_WEIGHT * campFactor(p)
@@ -1761,18 +1764,19 @@ class HexGroups(
      */
     internal fun drain(g: HexGroup, p: Int, weather: Weather): Float {
         val s = g.species; val t = weather.temperature[p]
-        return coldNeed(s, g.band?.let { b -> b.feels(t, fireAt(g, b, p), atHouse(b, p)) } ?: t, weather.date.month, tuning) - 1f + bitten(s, p)
+        val b = g.band
+        return warmthNeed(s, b, t, b?.let { fireAt(g, it, p) } ?: 0f, b?.let { atHouse(it, p) } ?: false, weather.date.month, tuning) - 1f + bitten(s, p)
     }
 
     /**
-     * The fire band [b] (group [g]) would keep camped at place [p]: its fire now, less where there is less wood about to
-     * feed it than where it is (the hearth is fed from the trees and scrub round the camp, see [fetchFuel]).
+     * The fire band [b] (group [g]) would keep camped at place [p]: its fire now; elsewhere the fire it keeps lit, as far
+     * as the wood its hands can fetch there feeds it ([hearthShare], as [fetchFuel] fetches it). (A band that had no
+     * wood at all this week counts on keeping a fire lit where there is wood.)
      */
     internal fun fireAt(g: HexGroup, b: Band, p: Int): Float {
         if (p == g.place.i) return b.fire
-        fun wood(q: Int) = min(1f, (land.plants.tree[q] + land.plants.shrub[q]) / 3f)
-        val here = wood(g.place.i)
-        return if (here <= 0f) b.fire else b.fire * min(1f, wood(p) / here)
+        val lit = if (b.hearthWood > 0f) min(1f, b.fire / b.hearthWood) else 1f
+        return lit * hearthShare(woodCover(p), g.size.toFloat() / forageHands(g))
     }
 
     /** Whether band [b] camped at place [p] would be at its house. */

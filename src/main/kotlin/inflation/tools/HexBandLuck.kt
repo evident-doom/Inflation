@@ -26,7 +26,7 @@ fun main(args: Array<String>) {
     val options = FaunaCheckOptions.parse(args)
     val sim = options.start()
     val gs = sim.groups; val hex = sim.hex
-    val weeks = options.years * 365 / sim.cfg.daysPerStep
+    val weeks = options.years * sim.cfg.stepsPerYear
     // Each band's shortfall by week (NaN while it is not about), and the sum of its positions.
     val short = HashMap<Int, FloatArray>(); val sx = HashMap<Int, Double>(); val sy = HashMap<Int, Double>(); val seen = HashMap<Int, Int>()
     val reach = doubleArrayOf(20.0, 50.0, 100.0, 200.0)

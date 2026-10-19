@@ -74,7 +74,7 @@ private fun build(e: TestWorlds.Entry, years: Int, commit: String = gitCommit())
     val seconds = (System.nanoTime() - t0) / 1e9
     if (e.state.exists()) e.state.delete()
     require(building.renameTo(e.state)) { "could not move $building to ${e.state}" }
-    val area = HexHistory.readCsv(e.settle).series["land/area km²"]?.let { it[it.size - 1] } ?: Float.NaN
+    val area = HexHistory.readCsv(e.settle).series[HexHistory.Key.LAND_AREA]?.let { it[it.size - 1] } ?: Float.NaN
     val p = Properties()
     p["name"] = e.name; p["seed"] = "${e.seed}"; p["widthKm"] = "${e.widthKm}"; p["heightKm"] = "${e.heightKm}"
     p["years"] = "$years"; p["commit"] = commit; p["built"] = java.time.LocalDateTime.now().withNano(0).toString()

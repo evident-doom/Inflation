@@ -3,7 +3,6 @@ package inflation.ecology
 import inflation.Stocks
 import inflation.world.Biome
 import java.io.File
-import inflation.world.Date
 import inflation.world.WorldConfig
 
 /**
@@ -25,6 +24,40 @@ import inflation.world.WorldConfig
  * CSV file, so a long run in the check can be looked at in the viewer.
  */
 class HexHistory {
+    /**
+     * The names of the series that reports read back ([inflation.run.TestWorlds], [inflation.learning.EcoCheck],
+     * [inflation.tools.SettledStart]): written and read only through here, so that a renamed series cannot leave a reader
+     * quietly finding nothing.
+     */
+    object Key {
+        private const val ANIMALS = "animals/"
+        private const val BIOMASS = "biomass/"
+        private const val MIGRATION = "migration/"
+        /** The land's area, km². */
+        const val LAND_AREA = "land/area km²"
+        const val TEMPERATURE = "weather/temperature °C"
+        const val RAIN = "weather/rain mm"
+        /** Head count of [kind] (resident, herds and packs). */
+        fun animals(kind: String) = ANIMALS + kind
+        /** The kind an [animals] key counts, or null for any other key. */
+        fun animalKind(key: String) = if (key.startsWith(ANIMALS)) key.removePrefix(ANIMALS) else null
+        /** Thousand tonnes in the pool or stock [name]. */
+        fun biomass(name: String) = BIOMASS + name
+        fun isBiomass(key: String) = key.startsWith(BIOMASS)
+        fun isWeather(key: String) = key.startsWith("weather/")
+        /** [what] ("area km²", "plants kg per m²" or a kind's head count) in the country of [biome]. */
+        fun biome(biome: Biome, what: String) = "biome/${biome.label}/$what"
+        /** How the plant-eaters of [kind] in groups stand and move ([Migration]). */
+        fun migration(kind: String, m: Migration) = "$MIGRATION$kind/${m.label}"
+        /** The kind a [migration] key is about, or null for any other key. */
+        fun migrationKind(key: String) = if (key.startsWith(MIGRATION)) key.split('/')[1] else null
+    }
+
+    /** What a [Key.migration] series measures. */
+    enum class Migration(val label: String) {
+        SHARE_ABOVE_1000_M("share above 1000 m"), MEAN_HEIGHT_M("mean height m"), KM_FROM_HALF_A_YEAR("km from half a year before")
+    }
+
     /** Each series' weekly values, in the order first recorded. */
     val series = LinkedHashMap<String, FloatList>()
     /** Year and month of each recorded week. */
@@ -67,7 +100,7 @@ class HexHistory {
         val animals = LinkedHashMap<String, Double>()
         for ((k, s) in fauna.kinds.withIndex()) animals.merge(s.name, fauna.count(k), Double::plus)
         for (s in groups.kinds) animals.merge(s.name, groups.count(s).toDouble(), Double::plus)
-        for ((name, v) in animals) put("animals/$name", v.toFloat())
+        for ((name, v) in animals) put(Key.animals(name), v.toFloat())
         // How well fed each plant-eating kind was this week, by heads (residents by place, herds by group), and the young born to residents.
         val fedSum = HashMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) if (!s.carnivore) {
@@ -82,10 +115,10 @@ class HexHistory {
         // Biomass, thousand tonnes: every stock of matter the books keep, and the wider pools they make up.
         val sl = fauna.small
         fun perKm2(a: FloatArray) = a.indices.sumOf { (a[it] * area[it]).toDouble() }.toFloat() / 1e6f
-        for ((name, kt) in stocks(sim).matter()) put("biomass/$name", kt.toFloat())
+        for ((name, kt) in stocks(sim).matter()) put(Key.biomass(name), kt.toFloat())
         val wl = fauna.water
         // (The fish are outside the books' edge: the water life is booked as a flow, see [HexWater].)
-        put("biomass/sea and lake fish", wl.fishTonnes() / 1000f)
+        put(Key.biomass("sea and lake fish"), wl.fishTonnes() / 1000f)
         // Small life, tonnes.
         for ((name, f) in listOf("insects" to sl.insects, "insects waiting as eggs and larvae" to sl.dormantInsects, "biting insects" to sl.biting,
             "biting insects waiting as eggs and larvae" to sl.dormantBiting, "rodents" to sl.rodents, "reptiles and amphibians" to sl.herps,
@@ -116,15 +149,15 @@ class HexHistory {
         // Weather, means over the land.
         val total = area.sum()
         fun mean(f: (Int) -> Float) = (0 until n).sumOf { (f(it) * area[it]).toDouble() }.toFloat() / total
-        put("weather/temperature °C", mean { w.temperature[it] })
-        put("weather/rain mm", mean { w.precipitation[it] })
+        put(Key.TEMPERATURE, mean { w.temperature[it] })
+        put(Key.RAIN, mean { w.precipitation[it] })
         put("weather/snow lying mm", mean { w.snowpack[it] })
         put("weather/droughts under way", w.droughtCount().toFloat())
         put("weather/soil water mm", mean { land.hydro.soil[it] })
         // By kind of country: its area, plants per km² and head counts (and the whole land's area, to set worlds of other sizes beside each other).
         val biomeArea = DoubleArray(Biome.entries.size)
         for (p in 0 until n) biomeArea[biomeOf(sim, p)] += area[p].toDouble()
-        put("land/area km²", biomeArea.sum().toFloat())
+        put(Key.LAND_AREA, biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
         for (p in 0 until n) plants[biomeOf(sim, p)] += (land.plants.biomass(p) * area[p]).toDouble()
         val heads = HashMap<String, DoubleArray>()
@@ -135,10 +168,9 @@ class HexHistory {
         for (g in groups.groups) if (g.alive) heads.getOrPut(g.species.name) { DoubleArray(Biome.entries.size) }[biomeOf(sim, g.place.i)] += g.size.toDouble()
         for (b in Biome.entries) {
             if (biomeArea[b.ordinal] <= 0.0) continue
-            val name = b.name.lowercase().replace('_', ' ')
-            put("biome/$name/area km²", biomeArea[b.ordinal].toFloat())
-            put("biome/$name/plants kg per m²", (plants[b.ordinal] / biomeArea[b.ordinal]).toFloat())
-            for ((kind, a) in heads) put("biome/$name/$kind", a[b.ordinal].toFloat())
+            put(Key.biome(b, "area km²"), biomeArea[b.ordinal].toFloat())
+            put(Key.biome(b, "plants kg per m²"), (plants[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            for ((kind, a) in heads) put(Key.biome(b, kind), a[b.ordinal].toFloat())
         }
         // Keep every series as long as the record.
         for (s in series.values) s.pad(weeks)
@@ -171,9 +203,9 @@ class HexHistory {
         for (s in sim.groups.kinds) {
             if (s.carnivore) continue
             val a = heads[s] ?: DoubleArray(5)
-            put("migration/${s.name}/share above 1000 m", if (a[0] > 0) (a[1] / a[0]).toFloat() else Float.NaN)
-            put("migration/${s.name}/mean height m", if (a[0] > 0) (a[2] / a[0]).toFloat() else Float.NaN)
-            put("migration/${s.name}/km from half a year before", if (a[3] > 0) (a[4] / a[3]).toFloat() else Float.NaN)
+            put(Key.migration(s.name, Migration.SHARE_ABOVE_1000_M), if (a[0] > 0) (a[1] / a[0]).toFloat() else Float.NaN)
+            put(Key.migration(s.name, Migration.MEAN_HEIGHT_M), if (a[0] > 0) (a[2] / a[0]).toFloat() else Float.NaN)
+            put(Key.migration(s.name, Migration.KM_FROM_HALF_A_YEAR), if (a[3] > 0) (a[4] / a[3]).toFloat() else Float.NaN)
         }
     }
 
@@ -237,7 +269,7 @@ class HexHistory {
 
     companion object {
         /** Half a year in weeks (steps). */
-        val HALF_YEAR_WEEKS = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep / 2
+        val HALF_YEAR_WEEKS = WorldConfig().stepsPerYear / 2
 
         fun readCsv(file: File): HexHistory {
             val h = HexHistory()

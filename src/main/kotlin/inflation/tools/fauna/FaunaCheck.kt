@@ -4,7 +4,6 @@ import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
 import inflation.ecology.Profile
-import inflation.world.Date
 
 /**
  * A fauna check's run: the start, the weeks with what is tallied after each, a report at each year's
@@ -12,7 +11,7 @@ import inflation.world.Date
  * week by week through the tallies; [Diagnostics] adds the lines the config asks for.
  */
 class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions) {
-    private val stepsPerYear = Date.DAYS_PER_YEAR / options.cfg.daysPerStep
+    private val stepsPerYear = options.cfg.stepsPerYear
     private val census = Census(sim)
     private val deaths = DeathTally(sim)
     private val hunting = HuntTally(sim)
