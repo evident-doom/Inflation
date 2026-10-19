@@ -183,6 +183,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     @Transient internal val arrive = Array(kinds.size) { FloatArray(n) }
     /**
+     * Per km², the heads a band of each kind ([Species.maxGroupSize]) coming to a place adds to those there: spread over
+     * the ground it ranges in a day, a circle half its day's going across (out and back).
+     */
+    private fun arrivingKm2(k: Int): Float {
+        val s = kinds[k]; val r = 0.5f * s.dailyTravelKm
+        return s.maxGroupSize / (Math.PI.toFloat() * r * r)
+    }
+    /**
      * What each place is worth to each kind for moving there, worked out in the weeks the residents move ([fillArrive]):
      * for the plant-eaters, the rate a band coming there would grow at over a year by the rules they are born and die by
      * ([growth]); for the resident hunters, its [appeal]. Never below nothing nor past reckoning ([worthOrNothing]).
@@ -1123,7 +1131,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val protein = forageProtein(s, p)
         val inSeason = monthsFrom(birthStart[k][p].toInt(), weather.date.month) < s.birthMonths
         val born = if (!inSeason) 0f else {
-            val due = dueYoung(k, adults[k][p] + young[k][p], protein, s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat())
+            val due = dueYoung(k, adults[k][p] + young[k][p] + arrivingKm2(k), protein, s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat())
             0.5f * due * breeding(s, due, carried, f, days)
         }
         val grownDie = (s.backgroundMortality * years + adultShare(out)).coerceIn(0f, 0.9f)
@@ -1135,16 +1143,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * The share of grown animals of kind [k] coming to place [p] that would die there in a week ([hazards]): fed as far
      * as the food left uneaten there ([room]) feeds them (a hunter, as well as the residents there were fed), with water
-     * to drink; NaN where there is none, a place no one can stay at. Crowded as those there are: the residents come as a
-     * share of those about, spread over many places, so the few that come to one change its numbers little. (A whole
-     * band counted on one place's ground crowded the smaller places, the high ground's above all, past any that live
-     * there.)
+     * to drink; NaN where there is none, a place no one can stay at. Crowded by those there and a band of the kind come
+     * to them ([arrivingKm2]): over the ground a band ranges in a day, the same wherever it goes. (Counted on the place's
+     * own ground, a band crowded the smaller places, the high ground's above all, past any that live there; not counted
+     * at all, all that move see a place as it is and crowd into the same ones together.)
      */
     internal fun arriveOdds(k: Int, p: Int, weather: Weather, out: FloatArray): Float {
         val s = kinds[k]
         if (!drinks(s, p)) return Float.NaN
         val f = room[k]?.get(p) ?: fed[k][p]
-        hazards(k, p, weather, weather.date.month, f, 0f, adults[k][p] + young[k][p], out)
+        hazards(k, p, weather, weather.date.month, f, 0f, adults[k][p] + young[k][p] + arrivingKm2(k), out)
         return adultShare(out)
     }
 
