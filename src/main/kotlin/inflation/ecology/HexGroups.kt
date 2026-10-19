@@ -63,7 +63,7 @@ class HexGroups(
     val groups = ArrayList<HexGroup>()
     internal var nextId = 0
     /** The kinds that live as groups: the migratory herds and the hunters other than people. For comparison runs, people=false leaves people out. */
-    @Transient val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory } +
+    @Transient val kinds = kindsHere ?: (Catalogue.herbivores.filter { it in Catalogue.migratory || it in Catalogue.gathering } +
         Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag("people", true)) })
     /** Each kind's sense of where better country lies: food or prey, its ground, water, and the climate this month. */
     val bearings by lazy {
@@ -110,6 +110,21 @@ class HexGroups(
     /** Game each hunting kind can catch in each place, kg/km² weighed by catchability, worked out once a month for the bearings. */
     internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
+    /** Each herd kind's losses to the residents' hunters this week (also among the residents' deaths, see [takeResidentsKills]). */
+    @Transient val lostToResidents = HashMap<Species, Int>()
+    /** Each gathering kind's residents leaving by hex this week, heads, as [leaveAhead] found them (for the viewer, see [herdsWorth]). */
+    @Transient internal val unfed = HashMap<Species, DoubleArray>()
+    /** This week, by gathering kind: the share of a band that would die at each place on coming there, and the places whose residents leave (see [leaveAhead]). */
+    @Transient internal val arriveBy = HashMap<Species, FloatArray>()
+    @Transient internal val leaving = HashMap<Species, BooleanArray>()
+    /** Each gathering kind's place that each leaving place's residents head for this week, -1 where none leave ([leaveAhead]). */
+    @Transient internal val leaveTo = HashMap<Species, IntArray>()
+    /** By gathering kind, by hex: the safest place far off this week, as far as asked for (see [farthest]). */
+    @Transient internal val safestFar = HashMap<Species, IntArray>()
+    /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
+    @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
+    /** The land hexes a herd's animals stand on about each hex, by kind and hex ([groundShares]). */
+    @Transient internal val herdGround = java.util.concurrent.ConcurrentHashMap<Long, IntArray>()
     /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
     @Transient private var monthHerdHeads = FloatArray(0)
     @Transient private var herdHeadsMonth = -1
@@ -168,6 +183,8 @@ class HexGroups(
         // Start each kind at its usual density over the land that suits it, in groups of its usual size.
         val area = land.areaKm2.sum()
         for (s in kinds) {
+            // (A plant-eater that keeps to a home range starts spread out, see [HexFauna]; its herds condense later, if ever.)
+            if (!s.carnivore && s !in Catalogue.migratory) continue
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
             // At the density it settles at over a long run, where one is known.
             val settled = Catalogue.settledPer1000Km2(s)
@@ -209,7 +226,7 @@ class HexGroups(
     internal fun newcomers(date: Date) {
         if (!newcomersOn || date.month != 0 || date.dayOfMonth > days) return
         for (s in kinds) {
-            if (s.human) continue
+            if (s.human || (!s.carnivore && s !in Catalogue.migratory)) continue
             val now = groups.count { it.alive && it.species == s }
             // (A kind that also lives spread out has its newcomers only if it is gone from the land too.)
             if (now >= NEWCOMER_BELOW || (s in Catalogue.gathering && fauna.slot(s) >= 0 && fauna.count(fauna.slot(s)) >= herdOf(s))) continue
@@ -308,12 +325,13 @@ class HexGroups(
             groups.removeIf { !it.alive }
             newcomers(it.date)
         },
-        // Herds of the kinds that also live spread out scatter where their round stays a while, and gather where it leaves.
+        // Residents of the kinds that also live as herds set off together where their place fails them, and herds settle where theirs does not.
         Phase("herds: gathering and scattering") {
             // (Not in the form-swap test, where each kind keeps the form it has.)
             if (!Catalogue.formsFixed) {
-                scatter(it.date.month)
-                if (it.date.dayOfMonth <= days) gather(it.date.month)
+                Profile.part("herds: who leaves") { leaveAhead(it) }
+                Profile.part("herds: settling") { scatter() }
+                Profile.part("herds: setting off") { gather(it.date) }
             }
         },
         Phase("herds: remembering places") { val date = it.date
@@ -989,14 +1007,18 @@ class HexGroups(
     /** All the herds' week's need on each hex's ground, kg, each herd spread over its grazing ground: what they will eat of it (see [fillGrazed]). */
     @delegate:Transient internal val herdWantKg by lazy { FloatArray(hex.size) }
 
-    /** [grazed] afresh, before the week's choosing: each herd spread over its grazing ground ([rangeShares]), and the residents in their hex. */
+    /**
+     * [grazed] afresh, before the week's choosing: each herd spread over the ground its animals stand on ([groundShares]),
+     * and the residents in their hex; and [herdWantKg], each herd's need over the ground it grazes ([rangeShares]).
+     */
     internal fun fillGrazed() {
         for (a in grazed) a.fill(0f)
         herdWantKg.fill(0f)
         for (g in groups) if (g.alive && !g.species.carnivore) {
             val a = grazed[kindSlot[g.species.index]]
             val week = g.dailyNeedKg * days
-            rangeShares(g, hw.placeHex[g.place]) { h, share -> a[h] += g.size * share; herdWantKg[h] += week * share }
+            groundShares(g, hw.placeHex[g.place]) { h, share -> a[h] += g.size * share }
+            rangeShares(g, hw.placeHex[g.place]) { h, share -> herdWantKg[h] += week * share }
         }
         // (Each kind on its own core.)
         kinds.indices.toList().parallelStream().forEach { k ->
@@ -1303,8 +1325,9 @@ class HexGroups(
             for (b in 0 until HexWorld.BANDS_M.size) {
                 val p = hw.placeIn(b, h)
                 if (p.none) continue
-                // (Its own kind there, as it knows it.)
-                val crowded = crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0))
+                // (Its own kind there, as it knows it: for a kind that also lives spread out, its residents there too, as
+                // a herd looking for room counts them as it does other herds.)
+                val crowded = crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0) + residentsOf(s, p.i))
                 val prey = if (s.carnivore) knownGame(g, kind, p, h, sensed) else 0f
                 val hunters = huntersKm2(p, h)
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
@@ -1739,6 +1762,13 @@ class HexGroups(
     }
 
     internal fun crowd(s: Species, p: Int, g: HexGroup): Float = crowdOf(s, p, (headsHere[kindSlot[s.index]][p] - (if (p == g.place.i) g.size else 0)).toFloat())
+    /** Residents of kind [s] at place [p], heads; 0 for a kind that lives only in groups. */
+    private fun residentsOf(s: Species, p: Int): Float {
+        if (s !in Catalogue.gathering) return 0f
+        val k = fauna.slot(s); if (k < 0) return 0f
+        return (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]
+    }
+
     internal fun crowdOf(s: Species, p: Int, others: Float): Float {
         // Heads of its kind a place usually holds: for herds, their usual density as they live gathered (as for disease).
         val usual = if (s.startKm2PerAnimal > 0f) land.areaKm2[p] / s.startKm2PerAnimal * 3f else land.areaKm2[p] * 0.1f * MIGRANTS_GATHER

@@ -74,6 +74,8 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     internal fun burn(p: Int, share: Float): Float {
         val before = plants.biomass(p)
         plants.herb[p] *= 1f - 0.9f * share; plants.shrub[p] *= 1f - 0.8f * share; plants.tree[p] *= 1f - 0.3f * share
+        // (What burnt of the grass grows back as new leaf.)
+        plants.grassAge[p] *= 1f - 0.9f * share
         plants.straw[p] *= 1f - share
         burnt[p] = max(burnt[p], share)
         plants.fertility[p] = min(1f, plants.fertility[p] + 0.01f * share)

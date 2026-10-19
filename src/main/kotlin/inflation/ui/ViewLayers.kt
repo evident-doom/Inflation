@@ -7,6 +7,8 @@ import inflation.ecology.PlaceRecord
 import inflation.ecology.Lifeway
 import inflation.ecology.HexFood
 import inflation.ecology.Species
+import inflation.ecology.Catalogue
+import inflation.ecology.herdsWorth
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
@@ -35,6 +37,8 @@ internal class ViewLayers(private val sim: HexSim) {
         POLLINATORS("Pollinators", "kg/km²", 1f, 0.85f, 0.1f), ORGANIC("Soil organic matter", "kg/m²", 0.35f, 0.2f, 0.05f),
         CARRION("Carrion", "kg/km²", 0.4f, 0.1f, 0.4f),
         RESIDENTS("Resident herds (all)", "head/km²", 1f, 0.1f, 0.6f),
+        UNFED("Residents leaving, of kinds that also herd", "head/km² whose place failed them this week", 1f, 0.45f, 0.1f),
+        HERD_PRESSURE("Herd-forming pressure", "herds' worth of unfed animals within a week's travel (a herd forms at 1)", 1f, 0.25f, 0.05f),
         DEATHS("Where animals die", "kg/km² a week", 0.6f, 0f, 0f), PEOPLE_DEATHS("Where people die", "deaths per 1000 km² a week", 0.6f, 0f, 0.3f),
         KILLS("Kills by packs and people", "kg/km² a week", 0.85f, 0.05f, 0.05f),
         HUNTERS_PER_PREY("Hunters per prey", "kg hunters per 100 kg big game (blank under 1 kg/km² of game)", 0.9f, 0.2f, 0.1f),
@@ -121,6 +125,15 @@ internal class ViewLayers(private val sim: HexSim) {
         now[Measure.POLLINATORS.name] = hexMean { sl.pollinators[it] }
         now[Measure.ORGANIC.name] = hexMean { sl.organicMatter[it] }
         now[Measure.CARRION.name] = hexMean { sl.carrion[it] * 1e6f }
+        // Kinds that also live as herds: their residents the land did not feed this week, and how many herds' worth of
+        // them lie within a week's travel (a herd condenses where that comes to one; the most of any such kind).
+        val unfed = DoubleArray(nh); val worth = FloatArray(nh)
+        for (s in Catalogue.gathering) {
+            groups.unfed[s]?.let { u -> for (h in 0 until nh) unfed[h] += u[h] }
+            groups.herdsWorth(s)?.let { v -> for (h in 0 until nh) worth[h] = max(worth[h], v[h]) }
+        }
+        now[Measure.UNFED.name] = FloatArray(nh) { if (area[it] > 0) (unfed[it] / area[it]).toFloat() else Float.NaN }
+        now[Measure.HERD_PRESSURE.name] = FloatArray(nh) { if (area[it] > 0) worth[it] else Float.NaN }
         now[Measure.RESIDENTS.name] = hexMean { p -> var v = 0f; for (k in fauna.kinds.indices) v += fauna.adults[k][p] + fauna.young[k][p]; v }
 
         // Deaths: this week's, by cause, as a running mean over about a month (a single week is mostly noise).

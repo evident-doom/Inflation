@@ -14,12 +14,12 @@ class HerdAt(val g: HexGroup, val share: Float) {
     val young = DoubleAdder()
 }
 
-/** The plant-eaters' herds about each place this week, each over the ground it grazes ([rangeShares]). */
+/** The plant-eaters' herds about each place this week, each over the ground its animals stand on ([groundShares]). */
 internal fun HexGroups.herdsByPlace(): Map<Int, List<HerdAt>> {
     val at = HashMap<Int, ArrayList<HerdAt>>()
     for (g in groups) {
         if (!g.alive || g.species.carnivore) continue
-        rangeShares(g, hw.placeHex[g.place]) { h, share ->
+        groundShares(g, hw.placeHex[g.place]) { h, share ->
             val p = hw.sameBandPlace(g.place, h).takeIf { !it.none } ?: g.place
             at.getOrPut(p.i) { ArrayList() } += HerdAt(g, share)
         }
@@ -27,8 +27,12 @@ internal fun HexGroups.herdsByPlace(): Map<Int, List<HerdAt>> {
     return at
 }
 
+/** For the checks: [herdsByPlace] as it stands now. */
+fun HexGroups.groundOfHerds(): Map<Int, List<HerdAt>> = herdsByPlace()
+
 /** The herds' losses to the residents' hunters this week, drawn as whole animals and taken from them. */
 internal fun HexGroups.takeResidentsKills(at: Map<Int, List<HerdAt>>) {
+    lostToResidents.clear()
     for (list in at.values) for (a in list) {
         val g = a.g
         if (!g.alive) continue
@@ -39,6 +43,7 @@ internal fun HexGroups.takeResidentsKills(at: Map<Int, List<HerdAt>>) {
         land.books?.flow(Books.Stuff.MATTER, "herds killed by residents (from the groups)", -(da + HexFauna.YOUNG_WEIGHT * dy) * g.species.massKg.toDouble())
         // (Into the residents' week's deaths, as the groups' own tally is cleared when their week begins.)
         fauna.deaths.merge("${g.species.name}:resident hunters", (da + dy).toDouble(), Double::plus)
+        lostToResidents.merge(g.species, da + dy, Int::plus)
         note(g) { "lost %d to jackals or lynx".format(da + dy) }
     }
 }
