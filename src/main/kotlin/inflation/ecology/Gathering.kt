@@ -247,10 +247,11 @@ internal fun HexGroups.scatter(weather: Weather) {
 }
 
 /**
- * Whether a band of herd [g] would stay where it stands: standing there as a herd, it would not die clearly more
- * ([clearlyWorse], by [HexGroups.herdOddsAt]) than at the safest place within [farKm] beyond [gatherKm] of it (by
- * [arriveBy]), where it can drink at all. The same test as for residents setting off ([herdLeaves]): so where a band of
- * it would leave, it keeps together, and where it would not, it melts back, wherever it formed.
+ * Whether herd [g] settles back where it stands: standing there, the whole of it, it would not die clearly more
+ * ([clearlyWorse], by [HexGroups.herdOddsAt], its own heads out of the others' at both places) than at the safest place
+ * within [farKm] beyond [gatherKm] of it (by [arriveBy]), where it can drink at all. The same test as for residents
+ * setting off ([herdLeaves]): so where it would leave, it keeps together, and where it would not, it melts back,
+ * wherever it formed.
  */
 private fun HexGroups.settles(g: HexGroup, weather: Weather): Boolean {
     val s = g.species
@@ -258,8 +259,8 @@ private fun HexGroups.settles(g: HexGroup, weather: Weather): Boolean {
     if (arrive[g.place.i].isNaN()) return false
     val best = farthest(s, hw.placeHex[g.place.i])
     if (best < 0) return true
-    val band = bandAsHerd(g)
-    return !clearlyWorse(herdOddsAt(band, g.place.i, weather), herdOddsAt(band, best, weather), s.maxGroupSize.toFloat())
+    val herd = asHerd(g)
+    return !clearlyWorse(herdOddsAt(herd, g.place.i, weather, g), herdOddsAt(herd, best, weather, g), s.maxGroupSize.toFloat())
 }
 
 /**
@@ -275,14 +276,11 @@ private fun HexGroups.herdLeaves(s: Species, k: Int, p: Int, to: Int, weather: W
     return clearlyWorse(herdOddsAt(band, p, weather), herdOddsAt(band, to, weather), s.maxGroupSize.toFloat())
 }
 
-/** A band's worth of herd [g] ([Species.maxGroupSize]), adults and young as in it, in its condition: not one of the groups. */
-private fun bandAsHerd(g: HexGroup): HexGroup {
-    val s = g.species
-    val young = (s.maxGroupSize.toLong() * g.young / max(1, g.size)).toInt()
-    return HexGroup(-1, s, g.place, max(1, s.maxGroupSize - young), young).also {
+/** Herd [g] as it is, adults, young and condition: not one of the groups, so it can stand elsewhere for the while. */
+private fun asHerd(g: HexGroup): HexGroup =
+    HexGroup(-1, g.species, g.place, g.adults, g.young).also {
         it.fed = g.fed; it.fat = g.fat; it.protein = g.protein; it.dry = g.dry; g.will.copyInto(it.will); it.warmth = g.warmth
     }
-}
 
 /** [HexGroups.safestFar] not yet worked out for a hex. */
 private const val UNWEIGHED = -2
