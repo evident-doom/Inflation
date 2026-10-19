@@ -1674,7 +1674,7 @@ class HexGroups(
         dry.reach = reach
         dry.grass = left * fauna.grazeLeft[p]; dry.browse = left * fauna.browseLeft[p]
         dry.fruit = left * food.fruit[p]; dry.roots = left * food.roots[p]; dry.straw = left * food.straw[p]
-        val b = forage(s, c.diet, p, want, c.weather.snowpack[p] > s.snowLimitMm, reach, dry)
+        val b = forage(s, c.diet, p, want, grassUnderSnow(s, c.weather.snowpack[p]), reach, dry)
         val eaten = b.eaten
         if (eaten > 0f) dry.protein = g.protein + (fauna.proteinMet(protein(b, p) / eaten) - g.protein) * HexFauna.PROTEIN_MEMORY
         return (b.got / want).coerceIn(0f, 1f)
