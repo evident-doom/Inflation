@@ -622,8 +622,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val w = FloatArray(n) { p -> land.areaKm2[p] * suits(s, p) * climateSuits(s, p) }
             val total = w.sum(); if (total <= 0f) continue
             repeat(NEWCOMER_PLACES) {
-                var u = r.nextFloat() * total; var p = 0
-                while (p < n - 1 && u > w[p]) { u -= w[p]; p++ }
+                val p = inflation.drawWeighted(w, total, r)
                 adults[k][p] += NEWCOMER_HEADS / land.areaKm2[p]
                 land.books?.flow(Books.Stuff.MATTER, "newcomers from beyond the map", (NEWCOMER_HEADS * s.massKg).toDouble())
             }
@@ -1100,10 +1099,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Eagles take the young of the smaller hoofed animals in the open: the share of [s]'s young at [p] they take in a step. */
-    private fun eagleOdds(s: Species, p: Int) = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+    internal fun eagleOdds(s: Species, p: Int) = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
 
     /** Crocodiles take the young that come down to warm rivers and lakes to drink: the share at [p] they take in a step. */
-    private fun crocodileOdds(p: Int, weather: Weather) = water.crocodileRisk(p, weather) * years
+    internal fun crocodileOdds(p: Int, weather: Weather) = water.crocodileRisk(p, weather) * years
 
     /**
      * The odds, summed before any cap, that one of [s]'s young dies in a step besides the hunters' take: their usual deaths, the [hazards] in [hz]
@@ -1129,7 +1128,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         s.backgroundMortality * years + hz[HZ_COLD] + hz[HZ_THIRST] + hz[HZ_OUTBREAK] + hz[HZ_FIRE_A] + hz[HZ_FLOOD_A] + hz[HZ_SNOW_A] + hz[HZ_HUNTED]
 
     /** The share of the young that die short of protein in a step, fed [protein] of their need for it. */
-    private fun starvedOdds(protein: Float) = tuning.youngProteinDeaths * (1f - protein) * years
+    internal fun starvedOdds(protein: Float) = tuning.youngProteinDeaths * (1f - protein) * years
 
     /** The share of the grown among [out] ([hazards]) that die this week, besides old age. */
     private fun adultShare(out: FloatArray) =
