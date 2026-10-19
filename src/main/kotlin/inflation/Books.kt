@@ -50,6 +50,8 @@ class Books {
     /** Sets the stocks against the flows since the last check, charging what is left over to [part]. */
     fun check(part: String) {
         val now = DoubleArray(stocks.size) { stocks[it].sum() }
+        // (A stock that is no longer a number stops the run at the part that made it so, before it spreads.)
+        for ((i, v) in now.withIndex()) kotlin.check(v.isFinite()) { "the stock ${stocks[i].name} is $v after $part" }
         val before = last
         last = now
         if (before == null) { flows.clear(); return }

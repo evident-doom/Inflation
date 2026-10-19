@@ -106,7 +106,7 @@ object WaysPpo {
 
     /** The ways and their critic, as kept in a training directory. */
     class State(val dir: File, hidden: Int, rate: Float) {
-        val file = File(dir, "ways.mlp")
+        val file = File(dir, WaysKind.BANDS.file)
         val criticFile = File(dir, "ways.value.mlp")
         val ways = LearnedWays.loadOrNew(file, hidden)
         val critic: Mlp = if (criticFile.exists()) Schema.load(criticFile, Schema.WAYS_IN, listOf("value")) else

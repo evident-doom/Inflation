@@ -10,7 +10,7 @@ import inflation.world.blur
 /**
  * Rain by height and by place within the local relief (ridges, valleys), June-August and the year, in latitude bands;
  * world generation only. Answered whether the hexes' averaged geometry starved the mountains of summer rain (it did not)
- * and checks the summer storms against ERA5 (review 2026-10-18-mountain-summer-rain).
+ * and checks the summer storms against ERA5 (review 2026-10-18-mountain-summer-rain) and the summer high's reach (2026-10-19-rain-regimes).
  */
 fun main(args: Array<String>) {
     val a = inflation.Args(args, "rain-by-height [--seed N] [--width KM] [--height KM]")
@@ -30,7 +30,8 @@ fun main(args: Array<String>) {
         val p = cs.map { c.annualPrecip[it].toDouble() }.average(); val s = cs.map { jja[it].toDouble() }.average()
         val pet = cs.map { ((c.monthlyPet[5][it] + c.monthlyPet[6][it] + c.monthlyPet[7][it]) / 3).toDouble() }.average()
         val t = cs.map { c.monthlyTemp[6][it].toDouble() }.average()
-        println("  %-28s n=%7d  year %5.0f mm  JJA %5.1f mm/month (%4.1f mm/wk)  JJA PET %4.0f  July %4.1f C".format(name, cs.size, p, s, s * 7 / 30, pet, t))
+        val djf = cs.map { ((c.monthlyPrecip[11][it] + c.monthlyPrecip[0][it] + c.monthlyPrecip[1][it]) / 3).toDouble() }.average()
+        println("  %-28s n=%7d  year %5.0f mm  JJA %5.1f mm/month (%4.1f mm/wk)  JJA PET %4.0f  July %4.1f C  DJF %5.1f".format(name, cs.size, p, s, s * 7 / 30, pet, t, djf))
     }
     val bands = listOf(0f, 500f, 1000f, 1500f, 2500f, 9000f)
     for ((lo, hi) in listOf(42.0 to 99.0, 36.0 to 42.0, 0.0 to 36.0)) {
