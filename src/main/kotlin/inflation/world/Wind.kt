@@ -33,12 +33,14 @@ enum class Regime(
 /**
  * A simple model of the region's winds. The jet stream, and the storm track under it, lies over
  * the north of the map in summer and moves south in winter, meandering week to week. Each week
- * has a [Regime], which tends to persist for a week or two and is drawn by season otherwise. Its
- * wind is the regime's flow, stronger near the jet for the westerlies, plus slowly changing eddies.
+ * has a [Regime], which tends to persist for a week or two and is drawn by season otherwise; the
+ * summer high holds the south and reaches north only so far ([highReach]), and beyond it the week's
+ * other regime blows. Its wind is the regime's flow, stronger near the jet for the westerlies, plus
+ * slowly changing eddies.
  *
  * The wind decides where rain falls: air forced up a slope facing it rains out, and the lee of a
  * ridge or a lone volcano lies in its shadow. The pattern for each of eight wind directions is
- * worked out once from the terrain ([rainFactor]). Averaged over the season's regimes, rain still
+ * worked out once from the terrain ([rainFactor]). Averaged over the regimes of the season and latitude, rain still
  * comes out at the climate normals: the factors are divided by their seasonal mean ([normalFactor]).
  */
 class Winds(
@@ -58,6 +60,30 @@ class Winds(
         }
         return winter * (1 - s) + summer * s
     }
+
+    /**
+     * Share of the weeks [r] holds at latitude [lat] at [season]. The summer high is the sinking side of the Hadley cell,
+     * and it reaches only so far north ([highReach]); the weeks it leaves there go to the other regimes in their usual
+     * proportions, so fronts come more often in the north's summer.
+     */
+    fun share(r: Regime, season: Double, lat: Double): Double {
+        val high = highShare(season)
+        val here = high * highReach(lat)
+        return if (r == Regime.SUMMER_HIGH) here else weight(r, season) / totalWeight(season) * (1 - here) / (1 - high)
+    }
+
+    /** Share of the weeks the summer high holds where it reaches fully, at [season]. */
+    fun highShare(season: Double) = weight(Regime.SUMMER_HIGH, season) / totalWeight(season)
+
+    private fun totalWeight(season: Double) = Regime.entries.sumOf { weight(it, season) }
+
+    /**
+     * How much of its share the summer high holds at latitude [lat]: all of it south of [HIGH_FULL_LAT], none north of
+     * [HIGH_EDGE_LAT]. In ERA5 (1990-2019, 20-50 °E) the June-August air at 500 hPa sinks by 0.04-0.05 Pa/s over 30-36 °N,
+     * 0.02 at 37-39 °N, 0.01 at 40-44 °N and not at all at 46 °N, and 1-4% of days are wet at 33-36 °N against 39-51% at
+     * 42-45 °N (review 2026-10-19-rain-regimes).
+     */
+    fun highReach(lat: Double) = ((HIGH_EDGE_LAT - lat) / (HIGH_EDGE_LAT - HIGH_FULL_LAT)).coerceIn(0.0, 1.0)
 
     /** Mean latitude of the jet stream, °N: about 48 in summer, 36 in winter. */
     fun jetLatitude(season: Double) = 42.0 + 6.0 * season
@@ -94,11 +120,11 @@ class Winds(
         }
     }
 
-    /** Seasonal mean of [warmth] over the regimes. */
-    fun meanWarmth(season: Double): Double {
-        var w = 0.0; var sum = 0.0
-        for (r in Regime.entries) { val p = weight(r, season); w += p; sum += p * warmth(r, season) }
-        return sum / w
+    /** Seasonal mean of [warmth] over the regimes at latitude [lat]. */
+    fun meanWarmth(season: Double, lat: Double): Double {
+        var sum = 0.0
+        for (r in Regime.entries) sum += share(r, season, lat) * warmth(r, season)
+        return sum
     }
 
     /** Orographic rain factor at [i] for wind (u east, v south) m/s: 1 in calm air or with no terrain. */
@@ -119,7 +145,7 @@ class Winds(
         val jet = jetLatitude(season)
         var w = 0.0; var sum = 0.0
         for (r in Regime.entries) {
-            val p = weight(r, season)
+            val p = share(r, season, lat)
             baseWind(r, lat, jet, tmp)
             w += p; sum += p * r.storminess * rainFactor(i, tmp[0], tmp[1])
         }
@@ -136,6 +162,9 @@ class Winds(
         const val OROGRAPHIC = 0.01f
         /** Rain falls by e for every 1250 m of higher ground upwind. */
         const val SHADOW = 0.0008f
+        /** Latitude south of which the summer high holds its full share, °N, and north of which it holds none ([highReach]). */
+        const val HIGH_FULL_LAT = 36.0
+        const val HIGH_EDGE_LAT = 46.0
 
         /** The orographic rain factors of every cell of [grid] for the eight wind directions. */
         fun sectors(grid: Grid, elevation: FloatArray): Array<FloatArray> {

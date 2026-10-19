@@ -41,6 +41,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     /** Set by the ecology: browsing, grazing and rooting lately, kg/km²/day; seed carried by animals, 0..1; trampling. */
     val browsing = FloatArray(n); val grazing = FloatArray(n); val rooting = FloatArray(n); val animalSeed = FloatArray(n)
     private val trampling = FloatArray(n)
+    /** Ground stepped on at each place this step, m² (see [tread]): the seedlings of shrubs and trees it kills. */
+    private val trodden = FloatArray(n)
     /**
      * How green each place's forage is this week, 0..1: young growth in warm, moist weeks; dry or
      * dormant stuff in drought, heat and cold. Grazers get full nourishment from green forage and a
@@ -157,11 +159,21 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         return KgM2(taken)
     }
 
-    fun trample(p: Int, intensity: Float, herd: Boolean = false) {
-        trampling[p] += intensity
-        // (shrubDiag: the shrubs' share of it, kg, by who trampled them: what [step] will take of them for it, at once.)
-        shrubBook?.let { it[if (herd) SHRUB_PARTS.size else SHRUB_PARTS.size + 1].add(
-            (shrub[p] * (1f - exp(-tuning.trampleShrub * intensity / land.areaKm2[p])) * land.areaM2[p]).toDouble()) }
+    fun trample(p: Int, intensity: Float) { trampling[p] += intensity }
+
+    /**
+     * Records [km] walked at place [p] by [heads] animals of [massKg] each: the ground their feet come down on, m². Each
+     * stride sets all four feet down once, on as much ground as carries the animal's weight at a hoof's usual pressure
+     * on the ground ([HOOF_KPA]); strides lengthen with size as legs do ([STRIDE_M] at 50 kg, as the cube root of mass).
+     * (Grown shrubs and trees stand above the hooves and are walked round: only their seedlings are trodden, see [step].)
+     */
+    fun tread(p: Int, heads: Float, massKg: Float, km: Float, herd: Boolean = false) {
+        if (heads <= 0f || km <= 0f) return
+        val feetM2 = massKg * 9.81f / (HOOF_KPA * 1000f)
+        val strideM = STRIDE_M * Math.cbrt(massKg / 50.0).toFloat()
+        val m2 = heads * km * 1000f / strideM * feetM2
+        trodden[p] += m2
+        shrubBook?.let { it[if (herd) SHRUB_PARTS.size else SHRUB_PARTS.size + 1].add(m2.toDouble()) }
     }
 
     /** Browse at [p], kg/m². (Never below nothing: worlds saved before [eatBrowse] kept its floor may hold shoots a rounding below it.) */
@@ -265,9 +277,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val tree0 = tree[p]; val shrub0 = shrub[p]
             // (Woody plants on the wet valley floor draw on the water table whatever the weather.)
             val woodyWater = water0 + wetShare * (1f - water0)
-            grew += grow(LifeForm.TREE, tree, p, season * woodyWater * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed))
+            // Hooves kill the seedlings they come down on: a seedling lives if no hoof falls on its spot in the years it
+            // takes to grow up out of their way, the share of the ground stepped on in a year being this step's at its rate.
+            val trod = exp(-trodden[p] / land.areaM2[p] / years * SEEDLING_YEARS).let { if (it.isNaN()) 1f else it }
+            trodden[p] = 0f
+            grew += grow(LifeForm.TREE, tree, p, season * woodyWater * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed) * trod)
             val sGrow = shrub[p]
-            grew += grow(LifeForm.SHRUB, shrub, p, season * woodyWater * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed))
+            grew += grow(LifeForm.SHRUB, shrub, p, season * woodyWater * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed) * trod)
             shrubNote(if (shrub[p] >= sGrow) 0 else 1, p, sGrow)
             // New shoots: what the woody plants grew, and the leaves and twigs they renew, in growing weather.
             val renew = season * water0 * years
@@ -325,7 +341,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val tr = trampling[p] / land.areaKm2[p]
             if (tr > 0f) {
                 val h0 = herb[p]; val s0 = shrub[p]
-                herb[p] *= exp(-tuning.trampleHerb * tr); shrub[p] *= exp(-tuning.trampleShrub * tr)
+                herb[p] *= exp(-tuning.trampleHerb * tr)
                 shrubNote(7, p, s0)
                 val beaten = h0 - herb[p] + s0 - shrub[p]
                 // (What is beaten down falls into the litter.)
@@ -365,8 +381,20 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     companion object {
+        /**
+         * Pressure an ungulate's hooves put on the ground standing, kPa: about 50-80 for deer and sheep, 150-250 for
+         * cattle (from memory of soil-compaction studies; not checked against a source).
+         */
+        const val HOOF_KPA = 100f
+        /** A 50 kg ungulate's walking stride, m (from memory: deer and sheep walk at about a metre a stride). */
+        const val STRIDE_M = 1f
+        /**
+         * Years a shrub or tree seedling takes to grow up out of the way of hooves (from memory: a few years for
+         * shrubs on good ground; not checked against a source).
+         */
+        const val SEEDLING_YEARS = 3f
         /** What changes the shrubs, for shrubDiag (see [shrubBook]). */
-        val SHRUB_PARTS = listOf("grew", "died back over its ceiling", "browsed", "frost", "flood", "ash", "fire", "trampled",
+        val SHRUB_PARTS = listOf("grew", "died back over its ceiling", "browsed", "frost", "flood", "ash", "fire", "trampled (none now)",
             "taken otherwise (small life, fruit, curing, people)")
         /**
          * Perennial swards: wholly so where the warmest month is at most this, °C (annuals wholly where it is

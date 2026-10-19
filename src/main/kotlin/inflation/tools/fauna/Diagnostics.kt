@@ -57,7 +57,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         for ((i, name) in inflation.world.HexPlants.SHRUB_PARTS.withIndex()) println("      %-50s %+.4g".format(name, book[i].sumThenReset() / 1000))
         val n = inflation.world.HexPlants.SHRUB_PARTS.size
         val herd = book[n].sumThenReset(); val res = book[n + 1].sumThenReset()
-        println("      (trampled, roughly: by herds %.4g, by residents %.4g)".format(herd / 1000, res / 1000))
+        println("      (ground trodden, km²: by herds %.4g, by residents %.4g, of %.4g)".format(herd / 1e6, res / 1e6, land.areaM2.sum() / 1e6))
     }
 
     private var crowdSums = DoubleArray(12)

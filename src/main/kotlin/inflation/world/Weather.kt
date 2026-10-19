@@ -146,9 +146,15 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     val meltSun = FloatArray(n); val meltShade = FloatArray(n)
 
     @Transient val winds = Winds(places.sector)
-    /** The weather pattern of the last step, and of the coming one (already drawn, see [prepare]). */
+    /**
+     * The weather pattern of the last step beyond the summer high's reach, and of the coming one (already drawn, see
+     * [prepare]); [regimeAt] gives the pattern at a latitude.
+     */
     var regime = Regime.WESTERLY; private set
     var upcomingRegime = Regime.WESTERLY; private set
+    /** Latitude, °N, south of which the summer high held over the last step, and will over the coming one. */
+    private var highEdge = -90.0
+    private var upcomingHighEdge = -90.0
     /** How far the jet stream lies north (+) or south (-) of its seasonal mean, degrees. */
     private var meander = 0.0
     /** Wind over the last step and the coming one, m/s towards the east and the south, on the coarse grid. */
@@ -169,6 +175,9 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     fun windEast(i: Int): Float = sample(windU, cx(i), cy(i))
     /** Wind over the last step at cell [i], m/s towards the south. */
     fun windSouth(i: Int): Float = sample(windV, cx(i), cy(i))
+
+    /** The weather pattern of the last step at latitude [lat], °N. */
+    fun regimeAt(lat: Double) = if (lat < highEdge) Regime.SUMMER_HIGH else regime
 
     /** How many droughts are under way. */
     fun droughtCount() = events.count { it.kind == ClimateEvent.Kind.DROUGHT && it.activeOn(date.absoluteDay) }
@@ -218,12 +227,13 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         val pNow = climate.monthlyPrecip[m]
         val stepShare = days.toFloat() / Date.DAYS_PER_MONTH
         val s = season(date)
-        val warmth = (winds.warmth(upcomingRegime, s) - winds.meanWarmth(s) - volcanicCooling).toFloat()
-        val storm = upcomingRegime.storminess
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             val x = cx(i); val y = cy(i)
+            val lat = places.latitude[i]
+            val here = if (lat < upcomingHighEdge) Regime.SUMMER_HIGH else upcomingRegime
+            val warmth = (winds.warmth(here, s) - winds.meanWarmth(s, lat) - volcanicCooling).toFloat()
             nextTemp[i] = tNow[i] * (1 - f) + tNext[i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) + warmth
-            val wind = storm * winds.rainFactor(i, sample(nextU, x, y), sample(nextV, x, y)) / norm[i]
+            val wind = here.storminess * winds.rainFactor(i, sample(nextU, x, y), sample(nextV, x, y)) / norm[i]
             // Rain comes in storms: a week is wet or dry, the wetter the month the likelier wet, and wet
             // spells hang together in space and time (the rain anomaly decides where); a wet week brings
             // the dry weeks' share too. Dry country swings more from year to year, with bust years.
@@ -247,14 +257,22 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         prepared = true
     }
 
-    /** The coming step's regime and wind: a regime often persists, else one is drawn for the season. */
+    /**
+     * The coming step's regimes and wind: a pattern often persists, else one is drawn for the season. How far north the
+     * summer high reaches is drawn so that it holds [Winds.share] of the weeks at each latitude; beyond it one of the
+     * other regimes blows, by their seasonal weights.
+     */
     private fun drawWind() {
         val days = cfg.daysPerStep
         val s = season(date)
         if (rnd.nextDouble() >= REGIME_PERSISTENCE) {
-            val weights = Regime.entries.map { winds.weight(it, s) }
+            val others = Regime.entries.filter { it != Regime.SUMMER_HIGH }
+            val weights = others.map { winds.weight(it, s) }
             var u = rnd.nextDouble() * weights.sum()
-            upcomingRegime = Regime.entries.first { r -> u -= weights[r.ordinal]; u <= 0 }
+            upcomingRegime = others.indices.first { k -> u -= weights[k]; u <= 0 }.let { others[it] }
+            // (The high holds where highShare × highReach(lat) exceeds one uniform draw: south of a line.)
+            val reach = rnd.nextDouble() / winds.highShare(s)
+            upcomingHighEdge = if (reach >= 1) -90.0 else Winds.HIGH_EDGE_LAT - reach * (Winds.HIGH_EDGE_LAT - Winds.HIGH_FULL_LAT)
         }
         val keep = exp(-days / 10.0)
         meander = keep * meander + sqrt(1 - keep * keep) * 2.0 * gaussian()
@@ -263,7 +281,8 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         ar1(eddyV, exp(-days / 7.0), EDDY_SIGMA)
         val base = FloatArray(2)
         for (y in 0 until ch) {
-            winds.baseWind(upcomingRegime, cfg.centreLatitude - (y * coarseKm - places.heightKm / 2) / WorldConfig.KM_PER_DEGREE, jet, base)
+            val lat = cfg.centreLatitude - (y * coarseKm - places.heightKm / 2) / WorldConfig.KM_PER_DEGREE
+            winds.baseWind(if (lat < upcomingHighEdge) Regime.SUMMER_HIGH else upcomingRegime, lat, jet, base)
             for (x in 0 until cw) {
                 val c = y * cw + x
                 nextU[c] = base[0] + eddyU[c]; nextV[c] = base[1] + eddyV[c]
@@ -320,6 +339,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         if (!prepared) prepare()
         lastMonth = date.month
         regime = upcomingRegime
+        highEdge = upcomingHighEdge
         nextU.copyInto(windU); nextV.copyInto(windV)
         val (shockT, shockRain) = shock()
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->

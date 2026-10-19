@@ -34,8 +34,7 @@ less of it seen in rain, haze or cover, `sight`), its share of the week in that 
 as one. The count is drawn from a Poisson. Ambush ground (`AMBUSH`, herds walk the worn paths) and, for
 two bands, gatherings at springs (`gather`) multiply `λ`.
 
-On a meeting (`hunterMeetsHerd`) the herd may see the hunters first and go round them (`DETOUR`:
-the walk round their sense range costs it food, and it goes on its way); otherwise there
+On a meeting (`hunterMeetsHerd`) the herd may see the hunters first and turn aside; otherwise there
 is a chase, the herd scatters, and the hunter stops to eat a kill. The number of tries in the chase
 is the number of encounters drawn, at most one for each band (a band that was chased has
 scattered). Satiation (`need`) and stopping to eat a kill give a type II response: a fed hunter lets
@@ -83,10 +82,7 @@ meet on its way and where it grazes count where it senses them (its own hex and 
 by the meeting rules at their odds (`herdKillsAhead`: encounters with waylaying on worn paths, being
 seen first, prey switching, catchability, the worth of the chase, tries per band, the hunter's
 week's want of meat). Beyond, it reckons on its kind's usual weekly losses to hunting parties
-(`usualGroupKill`). A chase on the way scatters the herd and stops it where it is, so it also weighs
-what it would die of in each hex it might be stopped in (thirst, hunger and the rest, as if it had stood
-there) by the odds of being chased there and no earlier (sensed parties by the meeting rules, beyond by its
-kind's usual chases, `usualGroupChase`). The residents' hunters about the ground it would graze count by the rate they
+(`usualGroupKill`). The residents' hunters about the ground it would graze count by the rate they
 hunted there this week (`HexFauna.residentKillOdds`). Without the sensing rule, herds would keep the
 perfect knowledge that hunters lack.
 
