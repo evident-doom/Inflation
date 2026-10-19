@@ -84,6 +84,8 @@ internal fun HexGroups.bookEaten(b: Books, p: Int, kgM2: Float) {
  * fruit and roots as their diet goes and as far as they can get at it, then straw for a shortfall.
  */
 internal fun HexGroups.graze(weather: Weather) {
+    // (reachDiag, a report: the grass and browse the residents left this week, before the herds eat theirs.)
+    reachLeft?.let { r -> for (p in 0 until n) { r[0][p] = fauna.grazeLeft[p]; r[1][p] = fauna.browseLeft[p] } }
     val food = fauna.food
     // Where food is short the bigger kinds drive the smaller off it: the herds graze in turn by body mass,
     // the biggest first, as the residents do (see [HexFauna.graze]); within a kind, as they stand.

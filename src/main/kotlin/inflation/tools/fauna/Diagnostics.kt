@@ -21,6 +21,9 @@ import inflation.ecology.crowdSickness
  * - migDiag=KIND: each month, how far that kind's herds are from the place they remember for the month;
  * - crowdDiag=KIND: each month, the crowd that kind's herds foresaw where they chose to go against the one they met there;
  * - deathDiag=KIND: each quarter, the deaths that kind's herds foresaw by cause where they chose to go against those they met.
+ * - reachDiag=true: each year, by resident kind, its head-weeks' shortfall of food, by where the forage to make it up lay
+ *   that week (left by the residents, before the herds ate, and left after them): in its own place already, in the next
+ *   ring of hexes, within three rings, or nowhere near.
  */
 class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
     private val hw = sim.hw
@@ -45,6 +48,53 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         Config.string("migDiag")?.let { kind -> if (weather.date.dayOfMonth <= daysPerStep) migration(kind) }
         Config.string("crowdDiag")?.let { kind -> crowding(kind, weather.date.dayOfMonth <= daysPerStep) }
         Config.string("deathDiag")?.let { kind -> deaths(kind, weather.date.dayOfMonth <= daysPerStep && weather.date.month % 3 == 0) }
+        if (Config.flag("reachDiag", false)) { val y = weather.date.year; reach(reachYear >= 0 && y != reachYear); reachYear = y }
+    }
+
+    /** reachDiag: by "kind|before or after herds", the head-weeks' shortfall (heads times 1 - fed) by where its food lay: own, ring 1, rings 2-3, none. */
+    private val reachSums = java.util.TreeMap<String, DoubleArray>()
+    private var reachYear = -1L
+    /**
+     * Whether residents go short for want of reach: each place where a resident kind is fed under 1, its week's shortfall
+     * in kg (heads times its day's intake times the week times 1 - fed; taken as all plants, an approximation) against
+     * the grass (if it grazes) and browse (if it browses) still uneaten in its own place, then out ring by ring to three,
+     * before the herds ate ([inflation.ecology.HexGroups.reachLeft]) and after. Where its own place held enough, its
+     * shortfall is quality or access, not reach.
+     */
+    private fun reach(print: Boolean) {
+        val before = groups.reachLeft ?: return
+        val after = arrayOf(fauna.grazeLeft, fauna.browseLeft)
+        val hex = hw.hex; val days = daysPerStep.toFloat()
+        for ((k, s) in fauna.kinds.withIndex()) {
+            if (s.carnivore) continue
+            val eatsGrass = s.diet.grass > 0f; val eatsBrowse = s.diet.browse > 0f
+            if (!eatsGrass && !eatsBrowse) continue
+            for (p in 0 until hw.placeHex.size) {
+                val heads = fauna.adults[k][p] + 0.5f * fauna.young[k][p]
+                val short = 1f - fauna.fed[k][p]
+                if (heads <= 0f || short <= 0.01f) continue
+                val needKg = heads * s.dailyIntakeKg * days * short
+                val band = hw.placeBand[p]; val h0 = hw.placeHex[p]
+                for ((w, left) in listOf("before herds" to before, "after herds" to after)) {
+                    fun kgAt(q: Int) = ((if (eatsGrass) left[0][q] else 0f) + (if (eatsBrowse) left[1][q] else 0f)) * land.areaKm2[q] * 1e6f
+                    var have = kgAt(p); var where = if (have >= needKg) 0 else -1
+                    var ring = listOf(h0); val seen = hashSetOf(h0); var r = 0
+                    while (where < 0 && r < 3) {
+                        val next = hex.nextRing(ring, seen)
+                        for (h in next) { val q = hw.placeOf[band][h]; if (q >= 0) have += kgAt(q) }
+                        ring = next; r++
+                        if (have >= needKg) where = if (r == 1) 1 else 2
+                    }
+                    if (where < 0) where = 3
+                    reachSums.getOrPut("${s.name}|$w") { DoubleArray(4) }[where] += (heads * short).toDouble()
+                }
+            }
+        }
+        if (!print) return
+        println("   reachDiag (resident shortfall head-weeks by where the food to make it up lay: own place | ring 1 | rings 2-3 | none):")
+        for ((key, v) in reachSums) { val t = v.sum(); if (t <= 0.0) continue
+            println("      %-28s %10.0f  own %4.1f%%  r1 %4.1f%%  r2-3 %4.1f%%  none %4.1f%%".format(key, t, 100 * v[0] / t, 100 * v[1] / t, 100 * v[2] / t, 100 * v[3] / t)) }
+        reachSums.clear()
     }
 
     private val foreseenBy = java.util.TreeMap<String, Double>(); private val metBy = java.util.TreeMap<String, Double>()

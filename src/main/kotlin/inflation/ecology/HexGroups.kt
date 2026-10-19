@@ -1011,6 +1011,8 @@ class HexGroups(
     internal val manEaterKm2 = FloatArray(hex.size)
     /** Each herd kind's heads on the ground they graze this week, by hex, both forms: as [sicknessWeek] counts them (see [fillGrazed]). */
     @delegate:Transient internal val grazed by lazy { Array(kinds.size) { FloatArray(hex.size) } }
+    /** For reachDiag=true (a report): the grass and browse the residents left at each place this week, before the herds ate ([graze]). */
+    @delegate:Transient internal val reachLeft: Array<FloatArray>? by lazy { if (Config.flag("reachDiag", false)) Array(2) { FloatArray(n) } else null }
     /** For crowdDiag=KIND (a report): the crowd each herd of that kind foresaw at the place it chose this week, by its id. */
     @Transient internal val crowdDiag: String? = Config.string("crowdDiag")
     @Transient internal val foreseenCrowd = ConcurrentHashMap<Int, Float>()
