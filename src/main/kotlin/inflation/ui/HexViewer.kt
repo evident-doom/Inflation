@@ -139,6 +139,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** A resident kind's spill last week, by hex (see [inflation.ecology.HexFauna.flowOf]): its slot, the net way east and south, head/km². */
     private class Flow(val kind: Int, val east: FloatArray, val south: FloatArray)
     @Volatile private var flowShown: Flow? = null
+    /** Where the chosen plant-eater's seasonal memory pulls it from each hex for the coming month ([inflation.ecology.SeasonalMemory]), as a [Flow] of log worth per hex. */
+    @Volatile private var pullShown: Flow? = null
 
     /** What the hexes are tinted by, worked out each week and kept month by month (see [ViewLayers]). */
     private val layers = ViewLayers(sim)
@@ -157,6 +159,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val flowBox = JCheckBox("Resident flow", true)
     /** Tints the chosen resident kind by how high up its hexes it stands, not by its numbers. */
     private val heightBox = JCheckBox("Up/down", false)
+    /** The chosen plant-eater's pull by its seasonal memory, as arrows (see [pullShown]). */
+    private val pullBox = JCheckBox("Memory pull", true)
     /** Rivers by this week's flow (see [RiverOverlay]); unticked, no rivers are drawn. */
     private val riversBox = JCheckBox("River flows", true)
     private val huntersBox = JCheckBox("Hunters", true)
@@ -243,6 +247,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         }
         flowBox.addActionListener { map.repaint() }
         heightBox.addActionListener { map.repaint() }
+        pullBox.addActionListener { map.repaint() }
         tintChoice.addActionListener {
             causeChoice.isEnabled = Measure.entries[tintChoice.selectedIndex].byCause
             map.repaint()
@@ -266,6 +271,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         bar.add(residentChoice)
         bar.add(flowBox)
         bar.add(heightBox)
+        bar.add(pullBox)
         bar.add(huntersBox)
         bar.add(peopleBox)
         bar.add(pathsBox)
@@ -395,6 +401,20 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             for (p in 0 until fauna.n) area[hw.placeHex[p]] += land.areaKm2[p].toDouble()
             Flow(fk, FloatArray(hex.size) { if (area[it] > 0) (fauna.flowEast[it] / hex.hexKm / area[it]).toFloat() else 0f },
                 FloatArray(hex.size) { if (area[it] > 0) (fauna.flowSouth[it] / hex.hexKm / area[it]).toFloat() else 0f })
+        }
+        // Its seasonal memory's pull, as the residents follow it this week: from each hex, the first step of the route
+        // from its place that gains most ([HexFauna.routeTo]), as long as all that route gains.
+        pullShown = if (fk < 0 || fauna.room[fk] == null) null else {
+            val east = FloatArray(hex.size); val south = FloatArray(hex.size); val most = FloatArray(hex.size)
+            for (p in 0 until fauna.n) {
+                val h = hw.placeHex[p]; val g = fauna.routeGainAt(fk, p); if (!(g > most[h])) continue
+                val q = fauna.routeTo(fk, p); if (q < 0) continue
+                val to = hw.placeHex[q]; most[h] = g
+                if (to == h) { east[h] = 0f; south[h] = 0f; continue }
+                val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(to)
+                east[h] = (g * (x1 - x0) / hex.hexKm).toFloat(); south[h] = (g * (y1 - y0) / hex.hexKm).toFloat()
+            }
+            Flow(fk, east, south)
         }
         // Following a group (in the follow window): the week's log, for the panel when that group is picked.
         followLog = if (groups.watched >= 0) groups.watchLog.joinToString("\n") else ""
@@ -628,6 +648,32 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 legends += MapLegend("Resident flow", "Resident flow: where the chosen resident kind's animals went last week on balance, an arrow from each hex the " +
                     "net way they spilled to the hexes about it, longer and brighter the more went (full at the busiest twentieth of hexes).",
                     note = "net head/km² a week; full at " + MapLegend.num(top))
+            }
+            // The chosen plant-eater's seasonal memory: an arrow from each hex the way it pulls them for the coming month.
+            val pull = pullShown
+            if (pullBox.isSelected && pull != null && pull.kind == r) {
+                val every = max(1, (1.5 / scale).toInt())
+                val mags = (0 until hex.size).map { hypot(pull.east[it], pull.south[it]) }.filter { it > 0f }.sorted()
+                val top = (if (mags.isEmpty()) 0f else mags[(mags.size * 0.95).toInt().coerceAtMost(mags.size - 1)]).coerceAtLeast(1e-9f)
+                for (h in 0 until hex.size) {
+                    val col = h % hex.cols; val row = h / hex.cols
+                    if (col % every != 0 || row % every != 0 || !onScreen(h, every + 1)) continue
+                    val u = pull.east[h]; val v = pull.south[h]
+                    val m = hypot(u, v); if (m < 0.05f * top) continue
+                    val x = min(1f, m / top)
+                    val (cx, cy) = hex.centreKm(h)
+                    val len = (x * hex.hexKm * every * 0.8).toFloat()
+                    val x0 = sx(cx.toFloat()); val y0 = sy(cy.toFloat())
+                    val x1 = sx(cx.toFloat() + u / m * len); val y1 = sy(cy.toFloat() + v / m * len)
+                    g.color = Color(1f, 0.75f, 0.2f, 0.35f + 0.65f * x)
+                    g.drawLine(x0, y0, x1, y1)
+                    val ang = atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
+                    for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * sin(ang + sgn * 0.5)).toInt())
+                }
+                legends += MapLegend("Memory pull", "Memory pull: the route the chosen plant-eater's seasonal memory leads its residents along this week, " +
+                    "from each hex the first step towards the best ground a month's going reaches, longer and brighter the more that ground gains over " +
+                    "staying (full at the strongest twentieth of hexes). Empty until the kind has lived a year with the memory.",
+                    note = "gain over staying (log), full at " + MapLegend.num(top * 100) + "%")
             }
             // Paths: hex centre to hex centre, each pair once, darker and wider the more worn.
             if (pathsBox.isSelected) {
