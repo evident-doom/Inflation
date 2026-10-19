@@ -250,7 +250,7 @@ class HuntTally(private val sim: HexSim) {
         println("     hunters' food (meat / small prey / carrion / plants, as shares of what they need): " +
             sim.groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val asked = (year[Tally.diet(s, "asked")] ?: 0).toDouble().coerceAtLeast(1.0)
-            fun part(k: String) = 100 * (year[Tally.diet(s, k)] ?: 0) / asked
+            fun part(k: String) = 100.0 * (year[Tally.diet(s, k)] ?: 0) / asked
             "%s %.0f/%.0f/%.0f/%.0f%%".format(s.name, part("meat"), part("small prey"), part("carrion"), part("plants"))
         })
     }

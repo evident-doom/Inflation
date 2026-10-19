@@ -42,6 +42,8 @@ class HexHistory {
         private const val WATER_LIFE = "water life/"
         private const val WEATHER = "weather/"
         private const val BIOME = "biome/"
+        private const val PEOPLE = "people/"
+        private const val HUNTERS = "hunters/"
         /** The land's area, km². */
         const val LAND_AREA = "land/area km²"
         const val TEMPERATURE = "weather/temperature °C"
@@ -89,13 +91,48 @@ class HexHistory {
         fun migrationKind(key: String) = if (key.startsWith(MIGRATION)) key.split('/')[1] else null
         /** What a [migration] key measures, or null for any other key. */
         fun migrationOf(key: String) = if (key.startsWith(MIGRATION)) Migration.entries.firstOrNull { key.endsWith("/" + it.label) } else null
+        /** How the bands live ([PeopleWay]), by heads. */
+        fun people(w: PeopleWay) = PEOPLE + w.label
+        /** What a [people] key measures, or null for any other key. */
+        fun peopleWay(key: String) = if (key.startsWith(PEOPLE)) PeopleWay.entries.firstOrNull { key == people(it) } else null
+        /** How the hunting kind [kind] in groups (packs and bands) fares ([Hunters]). */
+        fun hunters(kind: String, h: Hunters) = "$HUNTERS$kind/${h.label}"
+        /** The kind a [hunters] key is about, or null for any other key. */
+        fun huntersKind(key: String) = if (key.startsWith(HUNTERS)) key.split('/')[1] else null
+        /** What a [hunters] key measures, or null for any other key. */
+        fun huntersOf(key: String) = if (key.startsWith(HUNTERS)) Hunters.entries.firstOrNull { key.endsWith("/" + it.label) } else null
         /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
-        fun isFlow(key: String) = key.startsWith(DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN
+        fun isFlow(key: String) = key.startsWith(DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN ||
+            huntersOf(key) == Hunters.KILLS
     }
 
     /** What a [Key.migration] series measures. */
     enum class Migration(val label: String) {
         SHARE_ABOVE_1000_M("share above 1000 m"), MEAN_HEIGHT_M("mean height m"), KM_FROM_HALF_A_YEAR("km from half a year before")
+    }
+
+    /** What a [Key.people] series measures, by the bands' heads. */
+    enum class PeopleWay(val label: String) {
+        /** In bands with clothes for at least half of them. */
+        CLAD("share clad"),
+        /** In bands with spears for at least half of them. */
+        SPEARS("share with spears"),
+        /** In bands that know a way of making fire. */
+        FIRE("share knowing fire"),
+        /** The bands' level at hunting big game, 0..1 (0 where it is forgotten). */
+        HUNTING("hunting skill"),
+        /** Game (big and small, and scraps) as a share of the food the bands got (game, plants, fish). */
+        GAME("share of food from game"),
+    }
+
+    /** What a [Key.hunters] series measures. */
+    enum class Hunters(val label: String) {
+        /** The food it got (meat, small prey, carrion, plants) as a share of what it needed. */
+        FED("food got of need"),
+        /** Animals it killed (from herds and residents), in the week. */
+        KILLS("kills"),
+        /** The share of its packs that hold ground of their own (not of bands). */
+        HOLDING("share of packs holding ground"),
     }
 
     /** Each series' weekly values, in the order first recorded. */
@@ -125,6 +162,26 @@ class HexHistory {
     /** The model's stocks ([HexSim.stocks]), listed at the first week recorded. */
     @Transient private var stocks: Stocks? = null
     private fun stocks(sim: HexSim) = stocks ?: sim.stocks().also { stocks = it }
+
+    /** The hunting kinds in groups: how fed, how many they killed, how many packs hold ground; and how the bands live. */
+    private fun recordHunters(sim: HexSim) {
+        val groups = sim.groups; val hunting = groups.stats.hunting
+        for (s in groups.kinds) if (s.carnivore) {
+            fun v(k: String) = (hunting[k] ?: 0).toDouble()
+            val asked = v(Tally.diet(s, "asked"))
+            if (asked > 0) put(Key.hunters(s.name, Hunters.FED), ((v(Tally.diet(s, "meat")) + v(Tally.diet(s, "small prey")) + v(Tally.diet(s, "carrion")) +
+                v(Tally.diet(s, "plants"))) / asked).toFloat())
+            put(Key.hunters(s.name, Hunters.KILLS), (v(Tally.of(s, Tally.KILLS_FROM_HERDS)) + v(Tally.of(s, Tally.KILLS_OF_RESIDENTS))).toFloat())
+            if (!s.human) holdingGround(groups, s)?.let { put(Key.hunters(s.name, Hunters.HOLDING), it.toFloat()) }
+        }
+        peopleWays(groups)?.let { by -> for (w in PeopleWay.entries) if (!by[w.ordinal].isNaN()) put(Key.people(w), by[w.ordinal].toFloat()) }
+        var game = 0.0; var food = 0.0
+        for ((k, v) in hunting) if (k.startsWith(Tally.BANDS_IN)) when (Tally.whatOf(k)) {
+            "meat" -> { game += v; food += v }
+            "plants", "fish" -> food += v
+        }
+        if (food > 0) put(Key.people(PeopleWay.GAME), (game / food).toFloat())
+    }
 
     /** Records the week just stepped. */
     fun record(sim: HexSim) = synchronized(this) { recordWeek(sim) }
@@ -185,6 +242,7 @@ class HexHistory {
         for ((k, s) in fauna.kinds.withIndex()) if (fauna.bornThisWeek[k] > 0.0) births.merge(s.name, fauna.bornThisWeek[k], Double::plus)
         for ((key, v) in births) put(Key.births(key), v.toFloat())
         for ((key, v) in groups.stats.kills) put(Key.kills(key), v.toFloat())
+        recordHunters(sim)
         // Weather, means over the land.
         val total = area.sum()
         fun mean(f: (Int) -> Float) = (0 until n).sumOf { (f(it) * area[it]).toDouble() }.toFloat() / total
@@ -307,6 +365,34 @@ class HexHistory {
     }
 
     companion object {
+        /** The share of kind [s]'s packs that hold ground of their own, or null where it has none. */
+        fun holdingGround(groups: HexGroups, s: Species): Double? {
+            var packs = 0; var holding = 0
+            for (g in groups.groups) if (g.alive && g.species == s) { packs++; if (!g.home.none) holding++ }
+            return if (packs > 0) holding.toDouble() / packs else null
+        }
+
+        /**
+         * How the bands live now, by heads, as [PeopleWay]'s shares (NaN for [PeopleWay.GAME], which is the week's
+         * food, not the bands' state), or null where there are no bands.
+         */
+        fun peopleWays(groups: HexGroups): DoubleArray? {
+            val by = DoubleArray(PeopleWay.entries.size); var heads = 0.0
+            for (g in groups.groups) {
+                val b = g.band ?: continue
+                if (!g.alive) continue
+                val n = g.size.toDouble(); heads += n
+                if (b.has(Tool.CLOTHES) >= 0.5f) by[PeopleWay.CLAD.ordinal] += n
+                if (b.has(Tool.SPEAR) >= 0.5f) by[PeopleWay.SPEARS.ordinal] += n
+                if (Skill.of(Domain.FIRE).any { b.knowsSkill[it] }) by[PeopleWay.FIRE.ordinal] += n
+                if (b.knowsSkill[Skill.HUNT]) by[PeopleWay.HUNTING.ordinal] += n * b.skills[Skill.HUNT]
+            }
+            if (heads <= 0) return null
+            for (i in by.indices) by[i] /= heads
+            by[PeopleWay.GAME.ordinal] = Double.NaN
+            return by
+        }
+
         /** Half a year in weeks (steps). */
         val HALF_YEAR_WEEKS = WorldConfig().stepsPerYear / 2
 

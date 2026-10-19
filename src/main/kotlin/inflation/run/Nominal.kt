@@ -79,10 +79,42 @@ object Nominal {
     /**
      * Young born to a kind in a year, per head it numbered on average: the most fecund here, wild boar, wolves and
      * jackals, bear litters of 4–6 a year to a breeding female, about 1 a head; the ungulates 0.2–0.5 (the runs: up to
-     * 0.85, wolves). Deaths are not held to a limit: the history counts a kill both as a death of the herd's and as
-     * one hunted, so they do not add up to the heads lost.
+     * 0.85, wolves).
      */
     const val BIRTHS_PER_HEAD = 1.2
+    /**
+     * A kind's heads must add up over each year: the heads it gained, against its young born less its deaths of every
+     * cause, may differ by at most this share of its heads on average (heads that went extinct in a place, and the
+     * rounding of whole animals in groups; the runs: within 0.06, but for the deaths booked beyond the capped odds
+     * before model 2.17, up to 0.64).
+     */
+    const val DEATHS_BALANCE = 0.1
+    /**
+     * All big hunting kinds' biomass (packs, lone hunters and resident hunters, not people) against the plant-eaters':
+     * 10 t of prey carries some 90 kg of each kind of carnivore that hunts it (Carbone & Gittleman 2002), so the
+     * hunters together at most some 3%; the Serengeti's lions, hyenas, leopards and cheetahs weigh some 0.3% of its
+     * plant-eaters (from memory, rough). Below 0.05% the hunters are as good as gone (the runs: 0.15–0.22%).
+     */
+    const val PREDATORS_MIN = 0.0005; const val PREDATORS_MAX = 0.03
+    /**
+     * Hunting kinds in groups, over a year: fed at least as the plant-eaters ([FED_YEAR_MIN]); at least half their
+     * packs holding ground of their own (wolves: floaters are some 10–15% of a population, Mech & Boitani 2003, from
+     * memory; the runs: 88–100%); and a kind of at least [HUNTERS_FLOOR] heads kills something every year.
+     */
+    const val HUNTERS_FED_YEAR_MIN = FED_YEAR_MIN
+    const val HOLDING_MIN = 0.5
+    const val HUNTERS_FLOOR = 20.0
+    /**
+     * The least the bands must keep, as the Natufians of the Levant had it (Olli, 2026-10-19: for now at least): every
+     * band keeps fire (hearths in every Natufian site: Bar-Yosef 1998); spears and clothes for most of them (bone awls
+     * and needles, and the cold winters of the hills; the start kit is spears for all, clothes for half); hunting known
+     * and practised (gazelle the main game, Bar-Oz 2004, from memory), at least 0.3 of a master's level (a guess: bands
+     * start at 0, and those that hunt week by week near 1 in a few years; the runs: 0.96); and game at least a fifth of
+     * the food got (foragers in warm lands get some 25–50% of it from hunting: Cordain et al. 2000, from memory; the
+     * runs: 24–42% by country). Shares of the bands' heads, over each year and at the end.
+     */
+    val PEOPLE_MIN = mapOf(HexHistory.PeopleWay.FIRE to 0.99, HexHistory.PeopleWay.SPEARS to 0.8, HexHistory.PeopleWay.CLAD to 0.8,
+        HexHistory.PeopleWay.HUNTING to 0.3, HexHistory.PeopleWay.GAME to 0.2)
 
     /**
      * How a state may change from year to year (rise to at most [rise] times, fall to no less than 1/[fall]) and from
@@ -172,7 +204,7 @@ object Nominal {
         fun yearly(k: String, y: Int): Double {
             val s = h.series[k] ?: return Double.NaN
             var sum = 0.0; var c = 0
-            for (i in y * w until (y + 1) * w) { val v = s[i]; if (!v.isNaN()) { sum += v; c++ } }
+            for (i in y * w until min((y + 1) * w, s.size)) { val v = s[i]; if (!v.isNaN()) { sum += v; c++ } }
             return if (c == 0) Double.NaN else if (Key.isFlow(k)) sum else sum / c
         }
         fun at(i: Int) = "year ${i / w + 1}, week ${i % w + 1}"
@@ -242,6 +274,50 @@ object Nominal {
                     if (name == "plants" && area > 0) eachYear(PLANTS_MIN_KG_M2, PLANTS_MAX_KG_M2, "kg/m² of plants over the land", 1 / area)
                 }
                 Key.isSmallLife(k) || Key.isWaterLife(k) -> drift(t, k, years, ::yearly, SMALL_AND_WATER_LIFE, gone = true)
+                Key.peopleWay(k) != null -> { weekly(0.0, 1.0, ""); eachYear(PEOPLE_MIN.getValue(Key.peopleWay(k)!!), 1.0, "of the bands over the year") }
+                Key.huntersOf(k) == HexHistory.Hunters.FED -> eachYear(HUNTERS_FED_YEAR_MIN, Double.POSITIVE_INFINITY, "of its need got over the year")
+                Key.huntersOf(k) == HexHistory.Hunters.HOLDING -> { weekly(0.0, 1.0, ""); eachYear(HOLDING_MIN, 1.0, "of packs holding ground over the year") }
+                Key.huntersOf(k) == HexHistory.Hunters.KILLS -> {
+                    val kind = Key.huntersKind(k)!!
+                    for (y in 0 until years) if (yearly(Key.animals(kind), y) >= HUNTERS_FLOOR) t.check(yearly(k, y) > 0, k) { "killed nothing in year ${y + 1}" }
+                }
+            }
+        }
+        // Heads that add up: what a kind gained in a year against its young born less its dead, year-end to year-end
+        // (the first year from its first week, whose births and deaths came before it was counted).
+        run {
+            val deathKeys = HashMap<String, MutableList<String>>()
+            for (k in h.series.keys) Key.deathsKind(k)?.let { deathKeys.getOrPut(it) { ArrayList() } += k }
+            for ((kind, dk) in deathKeys) {
+                val heads = h.series[Key.animals(kind)] ?: continue
+                val born = h.series[Key.births(kind)]
+                fun sum(s: HexHistory.FloatList?, from: Int, to: Int): Double { var v = 0.0; if (s != null) for (i in from until min(to, s.size)) { val x = s[i]; if (!x.isNaN()) v += x }; return v }
+                for (y in 0 until years) {
+                    val from = max(1, y * w); val to = (y + 1) * w
+                    if (to > heads.size) continue
+                    val h0 = heads[from - 1].toDouble(); val h1 = heads[to - 1].toDouble(); val mean = yearly(Key.animals(kind), y)
+                    if (h0.isNaN() || h1.isNaN() || !(mean >= animals(kind).floor)) continue
+                    val b = sum(born, from, to); val d = dk.sumOf { sum(h.series[it], from, to) }
+                    val off = (h1 - h0) - (b - d)
+                    t.check(abs(off) <= DEATHS_BALANCE * mean, "deaths of $kind") {
+                        "year %d: heads %s to %s, born %s, died %s: %s heads %s, over %s of its %s".format(y + 1, fmt(h0), fmt(h1), fmt(b), fmt(d), fmt(abs(off)),
+                            if (off > 0) "more dead than lost" else "lost beyond the dead", fmt(DEATHS_BALANCE), fmt(mean))
+                    }
+                }
+            }
+        }
+        // The hunters against the hunted, by biomass.
+        run {
+            val kinds = Catalogue.all.filter { !it.human && Key.animals(it.name) in h.series }
+            // (Only in a world that had hunters: one without them is a test of something else.)
+            if (kinds.none { it.carnivore }) return@run
+            for (y in 0 until years) {
+                fun kg(carnivore: Boolean) = kinds.filter { it.carnivore == carnivore }.sumOf { s -> yearly(Key.animals(s.name), y).let { if (it.isNaN()) 0.0 else it * s.massKg } }
+                val prey = kg(false)
+                if (prey > 0) {
+                    val share = kg(true) / prey
+                    t.check(share in PREDATORS_MIN..PREDATORS_MAX, "hunters to plant-eaters") { "%s of the plant-eaters' biomass in year %d, outside %s..%s".format(fmt(share), y + 1, fmt(PREDATORS_MIN), fmt(PREDATORS_MAX)) }
+                }
             }
         }
         // All big animals over the land, from the books' pools (thousand tonnes over km² is kt/km², times 1000 for t/km²).
@@ -349,6 +425,16 @@ object Nominal {
                 if (why != null) { bad++; if (first == null) first = "${g.species.name} #${g.id}: $why" }
             }
             t.check(bad == 0, "groups") { "$bad groups unsound, first $first" }
+        }
+        // The bands' least (as the Natufians), and the packs holding ground.
+        HexHistory.peopleWays(sim.groups)?.let { by ->
+            for ((way, least) in PEOPLE_MIN) {
+                val v = by[way.ordinal]
+                if (!v.isNaN()) t.check(v >= least, "people, ${way.label}") { "%s of the bands' heads, under %s".format(fmt(v), fmt(least)) }
+            }
+        }
+        for (s in sim.groups.kinds) if (s.pack) HexHistory.holdingGround(sim.groups, s)?.let { v ->
+            t.check(v >= HOLDING_MIN, "${s.name}, packs holding ground") { "%s of its packs, under %s".format(fmt(v), fmt(HOLDING_MIN)) }
         }
         // The books (audit=true): what no process explains, against the stock.
         sim.books?.let { b ->

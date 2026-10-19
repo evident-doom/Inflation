@@ -158,7 +158,9 @@ carries one settled world on by itself.
 Every `hexFauna` run ends by saying whether it stayed within nominal limits (`run/Nominal.kt`): wide
 bounds on every series of its history (numbers that are numbers, matter not below zero, fed within
 0..1, weather and densities in reason, no kind gone, no kind or stock swinging many times over from
-year to year) and on the state it ends in (every table of the weather, land and animals a number,
+year to year, each kind's births and deaths adding up to the heads it gained, hunters fed, holding
+ground and killing, hunters against the hunted by biomass, and bands keeping at least what the
+Natufians had: fire, spears, clothes, hunting and game in their food) and on the state it ends in (every table of the weather, land and animals a number,
 every stock at or above zero, shares within 0..1, groups sound, the books if kept). `testWorld ab`
 reports the same for each run and what the variant alone broke, the training's ecosystem check adds
 a line for its runs and logs each training world's state as it is replaced, and

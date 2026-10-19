@@ -12,10 +12,10 @@ import kotlin.test.assertTrue
 class NominalTest {
     private val weeks = 3 * WorldConfig().stepsPerYear
 
-    /** A history of three years: a steady kind, plants and the land, with [change] applied to its series. */
-    private fun history(change: (Map<String, HexHistory.FloatList>) -> Unit = {}): HexHistory {
+    /** A history of three years: a steady kind, plants and the land, and the [extra] series each week, with [change] applied to its series. */
+    private fun history(extra: Map<String, Float> = emptyMap(), change: (Map<String, HexHistory.FloatList>) -> Unit = {}): HexHistory {
         val h = HexHistory()
-        val series = mapOf(Key.animals("roe deer") to 1000f, Key.biomass("plants") to 5e6f, Key.LAND_AREA to 1e6f, Key.TEMPERATURE to 10f, Key.RAIN to 10f)
+        val series = (mapOf(Key.animals("roe deer") to 1000f, Key.biomass("plants") to 5e6f, Key.LAND_AREA to 1e6f, Key.TEMPERATURE to 10f, Key.RAIN to 10f) + extra)
             .mapValues { (k, v) -> HexHistory.FloatList().also { s -> h.series[k] = s; repeat(weeks) { s.add(v) } } }
         repeat(weeks) { h.year.add((it / WorldConfig().stepsPerYear).toFloat()); h.month.add((it % 60 / 5).toFloat()) }
         change(series)
@@ -47,10 +47,30 @@ class NominalTest {
     }
 
     @Test
+    fun `deaths that do not add up to the heads lost are found, and those that do pass`() {
+        val dead = Key.deaths("roe deer", "hunger")
+        val off = Nominal.history(history(mapOf(dead to 10f)))
+        assertTrue(off.findings.any { it.what == "deaths of roe deer" }, off.report())
+        val even = Nominal.history(history(mapOf(dead to 10f, Key.births("roe deer") to 10f)))
+        assertTrue(even.ok, even.report())
+    }
+
+    @Test
+    fun `bands forgetting hunting and going unclad are found`() {
+        val r = Nominal.history(history(mapOf(Key.people(HexHistory.PeopleWay.HUNTING) to 0.05f, Key.people(HexHistory.PeopleWay.CLAD) to 0.3f,
+            Key.people(HexHistory.PeopleWay.FIRE) to 1f)))
+        val what = r.findings.map { it.what }.toSet()
+        assertTrue(Key.people(HexHistory.PeopleWay.HUNTING) in what && Key.people(HexHistory.PeopleWay.CLAD) in what &&
+            Key.people(HexHistory.PeopleWay.FIRE) !in what, r.report())
+    }
+
+    @Test
     fun `a small world's state after some weeks is within limits`() {
         val sim = HexSim(World.generate(WorldConfig(seed = 3, widthKm = 200, heightKm = 200, erosionSteps = 10, plates = 6, oceanMarginKm = 40.0)))
         repeat(10) { sim.step() }
         val r = Nominal.state(sim)
-        assertTrue(r.ok, r.report())
+        // (Bands start with half a kit of clothes, which wears below half before they make more: a fresh world's bands
+        // are short of the clothes a settled world's have.)
+        assertTrue(r.findings.all { it.what == "people, " + HexHistory.PeopleWay.CLAD.label }, r.report())
     }
 }
