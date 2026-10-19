@@ -36,6 +36,9 @@ class BandTime(left: Float) {
         for (a in activities) census.merge(Tally.bandTime(a.label), (spent[a.ordinal] * 10f).roundToInt(), Int::plus)
     }
 
+    /** Adds what went to every [Activity] to [census] (tenths of a day), so a new activity needs no list of its own here. */
+    fun countEach(census: MutableMap<String, Int>) = count(census, *Activity.entries.toTypedArray())
+
     /** Adds [personDays] to the census under [what] ("all", "left"). */
     fun count(census: MutableMap<String, Int>, what: String, personDays: Float) {
         census.merge(Tally.bandTime(what), (personDays * 10f).roundToInt(), Int::plus)

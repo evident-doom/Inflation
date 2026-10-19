@@ -76,8 +76,7 @@ object HexEvolveWays {
     fun main(args: Array<String>) {
         val a = Args(args, "hex-evolve-ways [--role bands|herds|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--nets DIR]")
         val out = a.file("--out") ?: File("hex-ways")
-        val role = a.string("--role") ?: "bands"
-        require(role in listOf("bands", "herds", "hunters")) { "--role is bands, herds or hunters" }
+        val role = requireNotNull(WaysKind.named(a.string("--role") ?: WaysKind.BANDS.label)) { "--role is bands, herds or hunters" }
         val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(81L, 82L, 83L, 84L, 85L, 86L, 87L, 88L)
         val size = a.int("--size", 600)
         val years = a.int("--years", 5)
@@ -91,11 +90,11 @@ object HexEvolveWays {
     }
 }
 
-/** [HexEvolveWays] for one [role]'s ways ("bands", "herds" or "hunters"), every kind moving by [movers] (by role) if given. */
-class WaysEvolution(private val role: String, private val movers: List<SharedMover>?) {
-    private val inNames = if (role == "bands") Schema.WAYS_IN else Schema.ANIMAL_WAYS_IN
-    private val outNames = when (role) { "bands" -> Schema.WAYS_OUT; "herds" -> Schema.HERD_WAYS_OUT; else -> Schema.HUNTER_WAYS_OUT }
-    private val fileName = when (role) { "bands" -> "ways.mlp"; "herds" -> "herd-ways.mlp"; else -> "hunter-ways.mlp" }
+/** [HexEvolveWays] for one [role]'s ways, every kind moving by [movers] (by role) if given. */
+class WaysEvolution(private val role: WaysKind, private val movers: List<SharedMover>?) {
+    private val inNames = role.inNames
+    private val outNames = role.outNames
+    private val fileName = role.file
     private val checkSeeds = listOf(91L, 92L, 93L, 94L, 95L, 96L, 97L, 98L)
 
     fun run(out: File, seeds: List<Long>, size: Int, years: Int, gens: Int, es: EvolutionStrategy, rate: Float, hidden: Int) {
@@ -137,7 +136,7 @@ class WaysEvolution(private val role: String, private val movers: List<SharedMov
         val run = freshSim(cfg, Catalogue.learned.distinct())
         movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[Role.of(s).ordinal] }
         val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
-        if (role == "bands") {
+        if (role == WaysKind.BANDS) {
             val people = Catalogue.HUMAN
             val nets = variants.map { NetWays(it) }
             run.groups.ways = BandWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
@@ -145,7 +144,7 @@ class WaysEvolution(private val role: String, private val movers: List<SharedMov
             val (fitness, _) = dealt(run, Random(cfg.seed), variants.size, steps) { it.species == people }
             return Result(fitness, "seed ${cfg.seed}: people $start->${run.groups.count(people)}")
         }
-        val hunters = role == "hunters"
+        val hunters = role == WaysKind.HUNTERS
         val nets = variants.map { NetAnimalWays(it) }
         val ways = AnimalWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
         if (hunters) run.groups.hunterWays = ways else run.groups.herdWays = ways

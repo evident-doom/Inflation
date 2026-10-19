@@ -43,7 +43,6 @@ internal fun HexGroups.takeResidentsKills(at: Map<Int, List<HerdAt>>) {
         land.books?.flow(Books.Stuff.MATTER, "herds killed by residents (from the groups)", -(da + HexFauna.YOUNG_WEIGHT * dy) * g.species.massKg.toDouble())
         // (Into the residents' week's deaths, as the groups' own tally is cleared when their week begins.)
         fauna.deaths.merge("${g.species.name}:resident hunters", (da + dy).toDouble(), Double::plus)
-        herdKilledByResidents[g.species.index] += da + dy
         lostToResidents.merge(g.species, da + dy, Int::plus)
         note(g) { "lost %d to jackals or lynx".format(da + dy) }
     }

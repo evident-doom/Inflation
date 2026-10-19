@@ -96,8 +96,6 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var bold = -1f
     /** Its temperament ([Temperament]): a founder's by chance, an offshoot's from its parent. */
     var temper = Temperament.founder(id, 0L)
-    /** For a herd: how far it walked this week going round hunters it saw first, km (see [HexGroups.hunterMeetsHerd]). */
-    var detourKm = 0f
     /** When it was last chased, in days from the start (with the hour): it is alarmed for a while after (see [wary]). */
     var chasedOn = Double.NEGATIVE_INFINITY
     /** How alarmed it still is at [day] (days from the start) from its last chase, 0..1: it keeps a sharper watch, fading over [ALARM_DAYS]. */

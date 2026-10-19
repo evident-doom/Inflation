@@ -857,15 +857,10 @@ internal fun HexGroups.meet(weather: Weather) {
         val i = max(0, stop[k])
         val h = g.path[i]
         g.path = g.path.copyOf(i + 1); g.days = g.days.copyOf(i + 1)
-        g.place = stopsAt(g, h)
+        val band = hw.placeBand[g.place]
+        g.place = Place(hw.placeOf[band][h].takeIf { it >= 0 } ?: (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: g.place.i)
     }
     Profile.lap("meetings: settling them", mt)
-}
-
-/** Where group [g] ends its week if stopped in hex [h]: the same height band in that hex if it has one. */
-internal fun HexGroups.stopsAt(g: HexGroup, h: Int): Place {
-    val band = hw.placeBand[g.place]
-    return Place(hw.placeOf[band][h].takeIf { it >= 0 } ?: (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: g.place.i)
 }
 
 /**
@@ -1090,11 +1085,10 @@ internal fun HexGroups.youngTaken(hunter: HexGroup, herd: HexGroup) =
  * (the herd's share of its time there taken in): [hunterMeetsHerd]'s rules at their odds. How often they run into each
  * other ([encounters], waylaying on worn paths included), the herd seeing it first, game it seldom comes on let pass,
  * game beyond reach or not worth the chase, a try at each of the herd's bands once met, and no more kills than its week's
- * want of meat ([herdHuntNeed]). Into [out]: adults and young killed, and the odds that it chases the herd (which scatters
- * it and stops it where it is).
+ * want of meat ([herdHuntNeed]). Into [out]: adults and young killed.
  */
 internal fun HexGroups.herdKillsAhead(hunter: HexGroup, herd: HexGroup, p: Place, span: Float, weather: Weather, day: Double, out: FloatArray) {
-    out[0] = 0f; out[1] = 0f; out[2] = 0f
+    out[0] = 0f; out[1] = 0f
     if (span <= 0f || herd.adults <= 0 || hunter.adults <= 0) return
     val s = herd.species
     val catchable = catchable(hunter.species, s, p.i)
@@ -1103,17 +1097,16 @@ internal fun HexGroups.herdKillsAhead(hunter: HexGroup, herd: HexGroup, p: Place
     val chance = killChance(hunter, s, catchable, wary, bandsIn(herd))
     if (!worthChasing(hunter, s, chance, max(1, hunter.adults) * hunter.species.massKg, reach(hunter.species, s, p.i))) return
     // (Met at least once, it tries a band of the herd at a time while hungry, as [hunterMeetsHerd].)
-    val met = encounters(hunter, herd, p, span, weather)
-    val tries = (1f - exp(-met)) * max(1f, ceil(bandsIn(herd)))
-    val unseen = (1f - seenFirst(hunter, s, p.i, wary, weather)) * searchOdds(hunter.metLately(s.index, day))
-    val kills = min(tries * chance * unseen, herdHuntNeed(hunter) / killKg(hunter, s).coerceAtLeast(1e-3f))
+    val tries = (1f - exp(-encounters(hunter, herd, p, span, weather))) * max(1f, ceil(bandsIn(herd)))
+    val kills = min(tries * chance * (1f - seenFirst(hunter, s, p.i, wary, weather)) * searchOdds(hunter.metLately(s.index, day)),
+        herdHuntNeed(hunter) / killKg(hunter, s).coerceAtLeast(1e-3f))
     val young = youngTaken(hunter, herd)
-    out[0] = kills * (1f - young); out[1] = kills * young; out[2] = (1f - exp(-met)) * unseen
+    out[0] = kills * (1f - young); out[1] = kills * young
 }
 
 /**
  * Standing orders, hunter and herd. The herd watches for hunters: in open country it often sees
- * them first and goes round them, out of their notice, and on its way ([DETOUR]). Otherwise there is a chase,
+ * them first and turns aside, ending its week short of that hex. Otherwise there is a chase,
  * likelier to end in a kill if the hunters came on it unseen; a herd that was chased scatters and
  * stops where it is; hunters that killed stop there to eat.
  */
@@ -1135,8 +1128,7 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
         note(herd) { "saw the hunters first and turned aside" }; note(hunter) { "was seen first; the herd turned aside" }
         stats.hunting.merge(Tally.of(hunter.species, Tally.SAW_FIRST), 1, Int::plus)
         roundsKey?.let { stats.hunting.merge(it + "saw them first", 1, Int::plus) }
-        // It goes round them, out of their notice, and on its way: the walk round is its cost.
-        herd.detourKm += DETOUR * hunter.species.senseKm
+        stop[rk] = min(stop[rk], max(0, ri - 1))
         return
     }
     // A hunter that has eaten its fill this week lets the herd pass; a band hunts on for the stores it
@@ -1169,7 +1161,6 @@ internal fun HexGroups.hunterMeetsHerd(hunter: HexGroup, hk: Int, hi: Int, herd:
     }
     hunter.band?.practise(Skill.HUNT)
     stop[rk] = min(stop[rk], ri) // scattered
-    herdChasedByGroups[herd.species.index]++
     // Caught or not, the herd is alarmed for a while after.
     herd.chasedOn = day
     stats.hunting.merge(Tally.of(hunter.species, Tally.CHASES), 1, Int::plus)

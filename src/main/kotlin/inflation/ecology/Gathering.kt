@@ -71,6 +71,7 @@ internal fun HexGroups.leaveAhead(weather: Weather) {
         val arrive = fauna.arrive[k]
         arriveBy[s] = arrive
         safestFar[s] = IntArray(hex.size) { UNWEIGHED }
+        farRing.getOrPut(s) { ring(gatherKm(s), farKm(s)) }
         val leave = BooleanArray(n); val to = IntArray(n) { -1 }
         val leavingByHex = DoubleArray(hex.size)
         leaving[s] = leave; leaveTo[s] = to; unfed[s] = leavingByHex
@@ -264,16 +265,14 @@ private fun HexGroups.farthest(s: Species, h0: Int): Int {
     val memo = safestFar[s] ?: return -1
     memo[h0].let { if (it != UNWEIGHED) return it }
     val arrive = arriveBy[s] ?: return -1
-    val inKm = gatherKm(s); val outKm = farKm(s)
+    val ring = farRing[s] ?: return -1
     var best = -1; var bestOdds = Float.MAX_VALUE
-    // (Row by row over the square about it, the hexes whose centres lie in the ring: by the offset rows, without
-    // walking out ring by ring.)
-    val rowKm = hex.hexKm * sqrt(3.0) / 2
-    val r0 = h0 / hex.cols; val dr = ceil(outKm / rowKm).toInt(); val dc = ceil(outKm / hex.hexKm).toInt() + 1
-    val c0 = h0 % hex.cols
-    for (r in max(0, r0 - dr)..min(hex.rows - 1, r0 + dr)) for (c in max(0, c0 - dc)..min(hex.cols - 1, c0 + dc)) {
+    val r0 = h0 / hex.cols; val c0 = h0 % hex.cols
+    val steps = ring[r0 and 1]
+    for (i in 0 until steps.size step 2) {
+        val r = r0 + steps[i]; val c = c0 + steps[i + 1]
+        if (r < 0 || r >= hex.rows || c < 0 || c >= hex.cols) continue
         val h = r * hex.cols + c
-        val d = hex.distanceKm(h0, h); if (d <= inKm || d > outKm) continue
         for (b in HexWorld.BANDS_M.indices) {
             val q = hw.placeOf[b][h]; if (q < 0) continue
             if (arrive[q] < bestOdds) { bestOdds = arrive[q]; best = q }
@@ -281,6 +280,24 @@ private fun HexGroups.farthest(s: Species, h0: Int): Int {
     }
     memo[h0] = best
     return best
+}
+
+/**
+ * The hexes whose centres lie beyond [inKm] of a hex and within [outKm], as steps (rows, columns) from it, row by row:
+ * for a hex in an even row, then in an odd one (the offset rows lie half a hex apart).
+ */
+private fun HexGroups.ring(inKm: Double, outKm: Double): Array<IntArray> {
+    val dr = ceil(outKm / hex.rowKm).toInt(); val dc = ceil(outKm / hex.hexKm).toInt() + 1
+    return Array(2) { odd ->
+        val steps = ArrayList<Int>()
+        for (r in -dr..dr) for (c in -dc..dc) {
+            // (As [inflation.world.HexMap.distanceKm] works it out.)
+            val dx = hex.hexKm * (-c + 0.5 * (odd - ((odd + r) and 1))); val dy = hex.rowKm * -r
+            val d = sqrt(dx * dx + dy * dy); if (d <= inKm || d > outKm) continue
+            steps += r; steps += c
+        }
+        steps.toIntArray()
+    }
 }
 
 /**
@@ -331,8 +348,12 @@ const val SCATTERED = -2
 private fun HexGroups.spread(g: HexGroup, k: Int, adults: Int, young: Int) {
     val about = placesWithin(g.place.i, g.species.dailyTravelKm.toDouble())
     val weights = FloatArray(about.size) { startWeight(g.species, about[it], now = true) }
-    val total = weights.sum()
     val size = adults + young
+    // (A place whose share would bring fewer than count as any ([HexFauna.EXTINCT]) gets none: as after births and deaths
+    // and the spill, else they would feed and die there as fractions too small to reckon with.)
+    val all = weights.sum()
+    if (all > 0f) for (i in weights.indices) if (size * weights[i] / all / land.areaKm2[about[i]] < HexFauna.EXTINCT) weights[i] = 0f
+    val total = weights.sum()
     for ((i, p) in (if (total > 0f) about else listOf(g.place.i)).withIndex()) {
         val share = if (total > 0f) weights[i] / total else 1f
         if (share <= 0f) continue

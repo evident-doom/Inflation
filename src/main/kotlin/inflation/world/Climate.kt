@@ -75,7 +75,7 @@ class Climate(
             // are worked out together a few times over.
             val evap = Array(12) { FloatArray(n) }
             repeat(RECYCLING_PASSES) { pass ->
-                carry(grid, cfg, elevation, isSea, lat, evap, precip)
+                carry(grid, cfg, elevation, isSea, lat, temp, monthlyPet, evap, precip)
                 if (pass == RECYCLING_PASSES - 1) return@repeat
                 java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
                     val p = (0 until 12).sumOf { precip[it][i].toDouble() }
@@ -182,11 +182,12 @@ class Climate(
          * out what it cannot hold. Highs give rain only on windward slopes. Air crossing a sea warmer than
          * itself (the sea lags the seasons, [SEA_HEAT_DAYS], so in autumn and winter) is heated from below and
          * takes up more vapour than at its own temperature; that extra water rains out in showers that drift a
-         * few tens of km before they die ([SHOWER_DAYS]), so they fall on the sea and the coast it blows onto.
+         * few tens of km before they die ([SHOWER_DAYS]), so they fall on the sea and the coast it blows onto. Over land
+         * the sun's heat lifts the air into afternoon storms where the free air above lets it ([convection]).
          * Worked on cells of [CARRY_KM] and spread back to the fine cells.
          */
         private fun carry(grid: Grid, cfg: WorldConfig, elevation: FloatArray, isSea: BooleanArray, lat: DoubleArray,
-                          evap: Array<FloatArray>, precip: Array<FloatArray>) {
+                          temp: Array<FloatArray>, monthlyPet: Array<FloatArray>, evap: Array<FloatArray>, precip: Array<FloatArray>) {
             val f = max(1, Math.round(CARRY_KM / grid.cellKm).toInt())
             val cw = (grid.width + f - 1) / f; val ch = (grid.height + f - 1) / f
             val ckm = f * grid.cellKm
@@ -203,6 +204,7 @@ class Climate(
             val shower = FloatArray(cw * ch)
             val seaT = FloatArray(ch); val seaAirT = FloatArray(ch)
             val gain = FloatArray(cw * ch); val wSat = FloatArray(cw * ch)
+            val groundT = FloatArray(cw * ch); val petC = FloatArray(cw * ch)
             fun at(a: FloatArray, x: Double, y: Double, outside: Float): Float {
                 if (x < 0 || y < 0 || x > cw - 1 || y > ch - 1) return outside
                 val x0 = x.toInt().coerceAtMost(cw - 2).coerceAtLeast(0); val y0 = y.toInt().coerceAtMost(ch - 2).coerceAtLeast(0)
@@ -220,6 +222,9 @@ class Climate(
                 gain.fill(0f)
                 for (i in 0 until grid.size) { val c = (grid.y(i) / f) * cw + grid.x(i) / f; gain[c] += evap[m][i] }
                 for (c in 0 until cw * ch) gain[c] /= cnt[c].coerceAtLeast(1)
+                groundT.fill(0f); petC.fill(0f)
+                for (i in 0 until grid.size) { val c = (grid.y(i) / f) * cw + grid.x(i) / f; groundT[c] += temp[m][i]; petC[c] += monthlyPet[m][i] }
+                for (c in 0 until cw * ch) { groundT[c] /= cnt[c].coerceAtLeast(1); petC[c] /= cnt[c].coerceAtLeast(1) }
                 for (y in 0 until ch) { seaT[y] = seaSurfaceTemp(rowLat[y], day).toFloat(); seaAirT[y] = seaLevelTemp(rowLat[y], day, 0.0).toFloat() }
                 total.fill(0f)
                 var weights = 0.0
@@ -260,7 +265,10 @@ class Climate(
                             landDays[c] = overLand.toFloat()
                             val keep = exp(-lift[y] * exp(-overLand / FRONT_LAND_DAYS) * days)
                             // Air lifted over high ground holds less; what it cannot hold rains out.
-                            val left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
+                            var left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
+                            if (sea[c] < 1) { val cv = convection(left, w0[y].toDouble(), groundT[c].toDouble(), elev[c].toDouble(),
+                                petC[c] / 30.0, m, rowLat[y])
+                                left -= (1 - sea[c]) * min(left, cv * days) }
                             rain[c] = ((wet + (1 - sea[c]) * gain[c] * days - left) / days * 30).toFloat()
                             q[c] = left.toFloat()
                             // A sea warmer than the air over it gives the air more vapour than the air's own warmth would, mm a day,
@@ -280,6 +288,83 @@ class Climate(
                     precip[m][i] = at(total, (grid.x(i) + 0.5) / f - 0.5, (grid.y(i) + 0.5) / f - 0.5, 0f)
                 }
             }
+        }
+
+        /** Depth of the air the sun stirs over land by afternoon, m (about 1-2 km in summer). */
+        const val BOUNDARY_LAYER_M = 1500.0
+        /**
+         * Share of the air around it a rising cloud mixes in per metre. Deep cumulus mix in about 0.2-1 per km (de Rooy et al.
+         * 2013); 0.4 per km gives the summer rain ERA5 has on high ground at 36-39 °N (about 20 mm a month) and leaves the
+         * lowlands dry, where 0.3 wets the lowlands and 0.5 gives the mountains almost nothing (review 2026-10-18-mountain-summer-rain).
+         */
+        const val ENTRAINMENT_PER_M = 0.4e-3
+        /** Height a shower cloud must climb to, m: about the 500 hPa level. */
+        const val CLOUD_TOP_M = 5500.0
+        /**
+         * Day-to-day spread of a summer afternoon's warmth, °C, and of the air's moisture, as a share of it, about the
+         * month's mean (about 2-3 °C and 15-20% at inland mid-latitude stations in summer; from memory, to be sourced).
+         */
+        const val DAILY_TEMP_SD_C = 2.5
+        const val DAILY_MOISTURE_SD = 0.18
+        private const val CP = 1005.0
+        private const val LV = 2.5e6
+        private const val GRAVITY = 9.81
+        private const val R_DRY = 287.0
+        /** Height over which air pressure falls by e, m. */
+        private const val PRESSURE_HEIGHT_M = 8400.0
+        /** Points and weights of a standard normal, for the spread of days (Gauss-Hermite, 9 points). */
+        private val NORMAL_Z = doubleArrayOf(-4.5127458633997, -3.2054290028565, -2.0768479786778, -1.0232503231446, 0.0,
+            1.0232503231446, 2.0768479786778, 3.2054290028565, 4.5127458633997)
+        private val NORMAL_W = doubleArrayOf(2.2345844007747e-5, 2.7891413212318e-3, 4.9916406765218e-2, 0.24409750289494,
+            0.40634920634921, 0.24409750289494, 4.9916406765218e-2, 2.7891413212318e-3, 2.2345844007747e-5)
+
+        /** Moist static energy of air at [t] °C, [z] m up, holding [q] kg of vapour per kg, J/kg. */
+        private fun staticEnergy(t: Double, z: Double, q: Double) = CP * (t + 273.15) + GRAVITY * z + LV * q
+        /** Density of air at [t] °C, [z] m up, kg/m³. */
+        private fun airDensity(t: Double, z: Double) = 101325 * exp(-z / PRESSURE_HEIGHT_M) / (R_DRY * (t + 273.15))
+        /** Vapour, kg per kg of air, that saturates air at [t] °C, [z] m up. */
+        private fun saturatedQ(t: Double, z: Double) = saturatedVapour(t) / 1000 / airDensity(t, z)
+
+        /**
+         * Afternoon showers over land, mm a day, over ground at [z] m with a mean temperature of [t] °C under a column of
+         * [column] mm, which the sun warms with [petDay] mm a day's worth of energy. The day's heat goes into the
+         * [BOUNDARY_LAYER_M] of air above the ground, which holds the column's vapour as it lies over the ground (its own
+         * evaporation and the air that climbs the slopes by day keep it there, so high ground is not as dry as the free air
+         * at its height). From the top of that layer the air rises as cloud, mixing in [ENTRAINMENT_PER_M] of the free air
+         * around it per metre; it rains if it stays lighter than the free air up to [CLOUD_TOP_M], and what it held beyond the
+         * least that would have made it rains out, at most the day's own energy.
+         *
+         * The free air is as observed for month [m] at latitude [lat] ([FreeAir]): warm and dry aloft over the subtropics in
+         * summer, where it sinks, so the storms there are few even over high ground.
+         * Afternoons differ from day to day ([DAILY_TEMP_SD_C], [DAILY_MOISTURE_SD]), so the month's showers are the mean
+         * over that spread of days: a few days storm before the mean day would.
+         */
+        private fun convection(column: Double, seaColumn: Double, t: Double, z: Double, petDay: Double, m: Int, lat: Double): Double {
+            if (petDay <= 0 || column <= 0) return 0.0
+            val density = airDensity(t, z)
+            val q = min(min(column, seaColumn) / VAPOUR_HEIGHT_M, saturatedVapour(t) / 1000) / density
+            val mass = density * BOUNDARY_LAYER_M
+            val heating = petDay * LV / mass
+            // The cloud's energy at each height is a·h0 + b for a start of h0; the least start that stays above the
+            // saturated free air all the way up.
+            var a = 1.0; var b = 0.0; var need = Double.NEGATIVE_INFINITY
+            var level = z + BOUNDARY_LAYER_M
+            val dz = 250.0
+            val mix = ENTRAINMENT_PER_M * dz
+            val air = DoubleArray(2)
+            while (level < max(CLOUD_TOP_M, z + BOUNDARY_LAYER_M + 1000)) {
+                level += dz
+                FreeAir.at(m, lat, level, air)
+                val tf = air[0]; val saturated = saturatedQ(tf, level); val qf = min(air[1], saturated)
+                a *= 1 - mix
+                b = b * (1 - mix) + mix * staticEnergy(tf, level, qf)
+                need = max(need, (staticEnergy(tf, level, saturated) - b) / a)
+            }
+            val mean = staticEnergy(t, z, q) + heating - need
+            val spread = hypot(CP * DAILY_TEMP_SD_C, LV * q * DAILY_MOISTURE_SD)
+            var excess = 0.0
+            for (k in NORMAL_Z.indices) excess += NORMAL_W[k] * (mean + spread * NORMAL_Z[k]).coerceIn(0.0, heating)
+            return mass * excess / LV
         }
 
         /** Thornthwaite (1948) potential evapotranspiration in mm per month from monthly mean temperatures. */

@@ -8,6 +8,7 @@ import inflation.run.baselineDir
 import inflation.run.gitCommit
 import inflation.learning.Schema
 import inflation.learning.SharedMover
+import inflation.learning.WaysKind
 import java.io.File
 
 /**
@@ -38,7 +39,7 @@ fun main(args: Array<String>) {
                 // Loaded and saved again, so it carries its names.
                 SharedMover.load(f).save(r.file(dir))
             }
-            ways?.let { Schema.save(Schema.load(it, Schema.WAYS_IN, Schema.WAYS_OUT), File(dir, "ways.mlp"), Schema.WAYS_IN, Schema.WAYS_OUT) }
+            ways?.let { WaysKind.BANDS.save(WaysKind.BANDS.load(it), File(dir, WaysKind.BANDS.file)) }
             File(dir, "info.txt").writeText("kept ${java.time.LocalDateTime.now()}\nfrom ${from.path}${ways?.let { " and ${it.path}" } ?: ""}\ncommit $commit\n$note\n")
             println("kept baseline $name in $dir")
         }
@@ -52,7 +53,7 @@ fun main(args: Array<String>) {
                 val f = r.file(dir)
                 if (f.exists()) report(r.label, f, if (r == Role.PEOPLE) Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT)
             }
-            File(dir, "ways.mlp").takeIf { it.exists() }?.let { report("ways", it, Schema.WAYS_IN, Schema.WAYS_OUT) }
+            for (k in WaysKind.entries) File(dir, k.file).takeIf { it.exists() }?.let { report("${k.label}' ways", it, k.inNames, k.outNames) }
         }
         else -> println("usage: baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT] | baseline list | baseline show NAME")
     }
