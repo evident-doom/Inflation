@@ -665,11 +665,12 @@ class HexGroups(
             for (k in 0 until 6) {
                 val nh = hex.neighbour(h, k)
                 if (nh < 0 || hex.heart[nh] < 0) continue
-                // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper.
-                val np = hw.placeOf[band][nh].takeIf { it >= 0 } ?: hex.heart[nh]
-                val snowMm = if (np in 0 until n) weather.snowpack[np] else 0f
+                // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper. (Read in the
+                // band it walks in; where the next hex has no ground at that height, at its heart, where the way crosses.)
+                val np = hw.placeOf[band][nh].takeIf { it >= 0 } ?: hw.placeAt(hex.heart[nh])
+                val snowMm = if (np >= 0) weather.snowpack[np] else 0f
                 // A worn path makes the going easier, the more so where the country is broken.
-                val worn = wear.paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np in 0 until n) land.ruggedness[np] else 0f))
+                val worn = wear.paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np >= 0) land.ruggedness[np] else 0f))
                 out[h * 6 + k] = cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
             }
         }
