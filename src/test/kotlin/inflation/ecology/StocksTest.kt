@@ -80,7 +80,7 @@ class StocksTest {
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
             "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning",
             "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.usual", "HexFauna.outbreak",
-            "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.faredByMonth", "HexFauna.recalled", "HexFauna.moverYoung", "HexFauna.moverFat", "HexFood.domestic", "HexSmallLife.pollination",
+            "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.faredByMonth", "HexFauna.bred", "HexFauna.recalled", "HexFauna.moverYoung", "HexFauna.moverFat", "HexFood.domestic", "HexSmallLife.pollination",
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
             // For the check and the viewer: heads held hungry with no better place next door, and one kind's spill last week.
             "HexFauna.stuck", "HexFauna.flowEast", "HexFauna.flowSouth", "HexFauna.flowOut",

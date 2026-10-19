@@ -107,7 +107,7 @@ object HexSnapshot {
      * find it, with them there, no worse than walking on.
      * 2.16: no plant-eater herds unless t.herds; residents flow towards better country as well as spreading out, and move
      * between height bands faster; a place's worth to movers counts its births as if in season (not by the calendar); and
-     * residents remember how they fared at each place in each month ([HexFauna.faredByMonth]) and move by that too.
+     * residents remember how they fared at each place in each month ([HexFauna.faredByMonth]) and move by that too; and the grown bear once a year wherever they walk ([HexFauna.bred]).
      */
     const val MODEL_MAJOR = 2
     const val MODEL_MINOR = 16
