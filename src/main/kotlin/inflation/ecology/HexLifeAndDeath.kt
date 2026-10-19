@@ -104,7 +104,7 @@ internal fun HexGroups.graze(weather: Weather) {
         // poor steppe, and keeps close on rich pasture).
         val range = grazingRange(g)
         ranges[g.id] = range
-        val wantKg = g.dailyNeedKg * days * (1f + walkCost(g) + rangeWalkCost(range))
+        val wantKg = g.dailyNeedKg * days * (1f + walkCost(g))
         var gotKg = 0f; var surplusKg = 0f; var eatenKg = 0f; var proteinKg = 0f
         g.surplus = 0f
         for ((p, share) in range) {
@@ -205,18 +205,6 @@ internal fun HexGroups.grazingRange(g: HexGroup, p0: Int = g.place.i): List<Pair
     if (places.size == 1 || have <= 0f) return listOf(p0 to 1f)
     val total = have
     return places.map { it to forage(it) / total }
-}
-/**
- * What grazing [range] (see [grazingRange]) costs a herd in food beyond its usual day's walking, as a share of a week's
- * need: it goes out to each place and back once in the week, so the further its forage lies, the more it walks for it
- * ([WALK_COST] a km). (Its own hex is its usual range, whose walking is part of the day's need already.)
- */
-internal fun HexGroups.rangeWalkCost(range: List<Pair<Int, Float>>): Float {
-    if (range.size <= 1) return 0f
-    val h0 = hw.placeHex[range[0].first]
-    var km = 0.0
-    for ((q, share) in range) km += share * 2.0 * hex.distanceKm(h0, hw.placeHex[q])
-    return WALK_COST * km.toFloat() / days
 }
 /** A herd's diet as it leans this week: its kind's, weighted by its own choice. */
 internal fun herdDiet(g: HexGroup): Diet = g.species.diet.let { k -> Diet(grass = k.grass * g.will[AnimalWay.GRASS], browse = k.browse * g.will[AnimalWay.BROWSE],
