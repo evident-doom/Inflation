@@ -20,11 +20,7 @@ fun main(args: Array<String>) {
     val sim = HexSim(World.generate(cfg))
     val land = sim.land; val hw = sim.hw; val fauna = sim.fauna
     val n = land.n
-    val biomeOf = IntArray(n) { p ->
-        val counts = IntArray(Biome.entries.size)
-        for (c in hw.placeCells[p]) counts[sim.world.biome[c].ordinal]++
-        counts.indices.maxBy { counts[it] }
-    }
+    val biomeOf = hw.placeBiome
     val total = land.areaKm2.sum()
     println("land %.0f km², by kind of country:".format(total))
     val byBiome = DoubleArray(Biome.entries.size)

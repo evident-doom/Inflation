@@ -38,13 +38,7 @@ class Census(private val sim: HexSim) {
     private var featuresTold = false
 
     /** Each place's main kind of country, as the most of its cells. */
-    private val biomeOf: IntArray by lazy {
-        IntArray(land.n) { pl ->
-            val c = IntArray(Biome.entries.size)
-            for (cell in hw.placeCells[pl]) c[sim.world.biome[cell].ordinal]++
-            c.indices.maxBy { c[it] }
-        }
-    }
+    private val biomeOf: IntArray get() = hw.placeBiome
 
     /** Animals of resident kind [k] at place [pl] (adults and young). */
     private fun residents(k: Int, pl: Int) = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble()

@@ -32,11 +32,7 @@ fun main(args: Array<String>) {
     val hw = sim.hw; val hex = sim.hex; val land = sim.land; val fauna = sim.fauna; val groups = sim.groups
     val n = fauna.n; val nh = hex.size
     val nb = Biome.entries.size
-    val biomeOf = IntArray(n) { pl ->
-        val c = IntArray(nb)
-        for (cell in hw.placeCells[pl]) c[sim.world.biome[cell].ordinal]++
-        c.indices.maxBy { c[it] }
-    }
+    val biomeOf = hw.placeBiome
     val hexBiome = IntArray(nh) { -1 }
     run {
         val a = Array(nh) { DoubleArray(nb) }

@@ -91,6 +91,14 @@ class HexWorld(val world: World, val hex: HexMap) {
     val placeElevationM: FloatArray
     /** How much sun the shaded and sunny slopes of each place get, by month (worked out once, from the terrain). */
     val sunlight: Sunlight by lazy { Sunlight.of(world, placeCells) }
+    /** The main kind of country of each place, as a [Biome] ordinal: the kind most of its cells are (a tie goes to the earlier kind). */
+    val placeBiome: IntArray by lazy {
+        IntArray(placeCells.size) { p ->
+            val counts = IntArray(Biome.entries.size)
+            for (c in placeCells[p]) counts[world.biome[c].ordinal]++
+            counts.indices.maxBy { counts[it] }
+        }
+    }
 
     init {
         val lists = HashMap<Long, ArrayList<Int>>()
