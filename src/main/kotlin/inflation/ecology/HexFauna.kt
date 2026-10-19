@@ -1249,12 +1249,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * kind), to the safest neighbour; else to the neighbour of the best forage ([worth], as [appeal] weighs a place) among
      * those no deadlier than here, where it is better than here; -1 where they stay.
      */
-    internal fun walkStep(k: Int, p: Int, odds: FloatArray, worth: FloatArray): Int {
-        val here = odds[p]
+    internal fun walkStep(k: Int, p: Int, odds: FloatArray, worth: FloatArray, here: Float = odds[p], hereWorth: Float = worth[p]): Int {
         if (here.isNaN()) return -1
         // (The safest neighbour, as [safestNeighbour] finds it, and the best fed of those no deadlier, in one pass.)
         var safest = -1; var safestOdds = here
-        var best = -1; var bestWorth = worth[p]
+        var best = -1; var bestWorth = hereWorth
         neighbourPlaces(k, p) { q ->
             val o = odds[q]
             if (o < safestOdds) { safestOdds = o; safest = q }
@@ -1574,22 +1573,31 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val area = land.areaKm2
         // (The places as this move's walkers see them, changing as they come: the week's own are left as they were.)
         val odds = arrive[k].copyOf(); val seen = worth[k].copyOf()
-        val weigh = Weigh(k, weather, odds, seen, arrived)
+        val weighs = ThreadLocal.withInitial { Weigh(k, weather, odds, seen, arrived) }
+        // (Each hop, every place's walkers decide at once, seeing the places as they stood after the last hop; then those
+        // that stay are counted in, and the places they stay at weighed again.)
+        val stayOf = FloatArray(n); val toOf = IntArray(n); val oddsOf = FloatArray(n); val worthOf = FloatArray(n)
         var wA = walkA; var wY = walkY; var wK = walkKm
         var nA = FloatArray(n); var nY = FloatArray(n); var nK = FloatArray(n)
         for (hop in 2..hops) {
+            IntStream.range(0, n).parallel().forEach { q ->
+                if (!(wA[q] + wY[q] > 0f)) return@forEach
+                val r = walkStep(k, q, odds, seen)
+                if (r >= 0) { stayOf[q] = 0f; toOf[q] = r; return@forEach }
+                val w = weighs.get()
+                stayOf[q] = w.settle(q, wA[q], wY[q]); toOf[q] = w.onward; oddsOf[q] = w.odds; worthOf[q] = w.worth
+            }
             var moving = false
             for (q in 0 until n) {
                 val heads = wA[q] + wY[q]
                 if (!(heads > 0f)) continue
-                var r = walkStep(k, q, odds, seen)
-                var go = 1f
-                if (r < 0) {
-                    val stay = weigh.settle(q, wA[q], wY[q])
+                val stay = stayOf[q]
+                if (stay > 0f) {
                     a[q] += stay * wA[q] / area[q]; y[q] += stay * wY[q] / area[q]; arrived[q] += stay * heads; walkedKm[q] += stay * wK[q]
-                    go = 1f - stay; r = weigh.onward
-                    if (!(go > 0f) || r < 0) continue
+                    odds[q] = oddsOf[q]; seen[q] = worthOf[q]
                 }
+                val go = 1f - stay; val r = toOf[q]
+                if (!(go > 0f) || r < 0) continue
                 moving = true
                 nA[r] += go * wA[q]; nY[r] += go * wY[q]; nK[r] += go * (wK[q] + heads * hex.hexKm.toFloat())
             }
@@ -1604,28 +1612,33 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * How kind [k]'s walkers weigh a place this move ([walkOn]), with those that came there this move ([arrived]) counted:
      * the share that would die there ([arriveOdds]) and what it is worth ([growth]), fed as far as the food left uneaten
-     * feeds a band of them and all that came before it together ([roomFor]); kept in [odds] and [worth] as they change.
+     * feeds a band of them and all that came before it together ([roomFor]); against the places about as they stand in
+     * [odds] and [worth]. One to a core: it keeps its workings, and changes nothing but the place it weighs, and that
+     * only while it weighs it.
      */
-    private inner class Weigh(private val k: Int, private val weather: Weather, private val odds: FloatArray,
-                              private val worth: FloatArray, private val arrived: FloatArray) {
+    private inner class Weigh(private val k: Int, private val weather: Weather, private val allOdds: FloatArray,
+                              private val allWorth: FloatArray, private val arrived: FloatArray) {
         private val out = FloatArray(HZ_COUNT); private val dry = DryPantry(); private val b = Bites()
         private val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
         /** Where those that do not stay ([settle]) walk on to; -1 where all stay. */
         var onward = -1; private set
+        /** The share that would die at the place [settle] weighed, and what it is worth, with those that stay there. */
+        var odds = 0f; private set
+        var worth = 0f; private set
 
         /** [odds] and [worth] at place [p] with [came] heads come there this move besides those counted in its numbers. */
         private fun reweigh(p: Int, came: Float) {
             val f = roomFor(k, p, kinds[k].maxGroupSize + arrived[p] + came, weather, dry, b)
             val o = arriveOdds(k, p, weather, out, f)
-            odds[p] = o
-            worth[p] = if (o.isNaN()) 0f else worthOrNothing(growth(k, p, weather, out, moverYoung[k], moverFat[k], stepsPerYear, f))
+            odds = o
+            worth = if (o.isNaN()) 0f else worthOrNothing(growth(k, p, weather, out, moverYoung[k], moverFat[k], stepsPerYear, f))
         }
 
         /**
          * Of [wa] grown and [wy] young walkers at place [p], where [walkStep] would have them stay, the share that stays:
          * all, where with all of them there it still would; else as many as find it, with them there, still no worse
          * than walking on, found by halving ([SETTLE_HALVINGS] times), the rest walking on to [onward]. Leaves [odds] and
-         * [worth] at [p] as they are with those that stay.
+         * [worth] as they are at [p] with those that stay.
          */
         fun settle(p: Int, wa: Float, wy: Float): Float {
             val area = land.areaKm2[p]; val a = adults[k]; val y = young[k]
@@ -1634,7 +1647,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             fun stepWith(share: Float): Int {
                 a[p] = a0 + share * wa / area; y[p] = y0 + share * wy / area
                 reweigh(p, share * heads)
-                val r = walkStep(k, p, odds, worth)
+                val r = walkStep(k, p, allOdds, allWorth, odds, worth)
                 a[p] = a0; y[p] = y0
                 return r
             }
