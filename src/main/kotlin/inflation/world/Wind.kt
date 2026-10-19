@@ -51,15 +51,17 @@ class Winds(
     /** Seasonal weight of [r] at [season] (-1 midwinter .. 1 midsummer). */
     fun weight(r: Regime, season: Double): Double {
         val s = (1 + season) / 2 // 0 winter .. 1 summer
-        val (winter, summer) = when (r) {
-            Regime.WESTERLY -> 0.40 to 0.10
-            Regime.NORTHERLY -> 0.20 to 0.10
-            Regime.SOUTHERLY -> 0.20 to 0.05
-            Regime.BLOCKING -> 0.15 to 0.15
-            Regime.SUMMER_HIGH -> 0.05 to 0.60
+        return when (r) {
+            Regime.WESTERLY -> blend(0.40, 0.10, s)
+            Regime.NORTHERLY -> blend(0.20, 0.10, s)
+            Regime.SOUTHERLY -> blend(0.20, 0.05, s)
+            Regime.BLOCKING -> blend(0.15, 0.15, s)
+            Regime.SUMMER_HIGH -> blend(0.05, 0.60, s)
         }
-        return winter * (1 - s) + summer * s
     }
+
+    /** [winter]'s value through to [summer]'s at [s] (0 winter .. 1 summer). */
+    private fun blend(winter: Double, summer: Double, s: Double) = winter * (1 - s) + summer * s
 
     /**
      * Share of the weeks [r] holds at latitude [lat] at [season]. The summer high is the sinking side of the Hadley cell,
@@ -121,10 +123,30 @@ class Winds(
     }
 
     /** Seasonal mean of [warmth] over the regimes at latitude [lat]. */
-    fun meanWarmth(season: Double, lat: Double): Double {
-        var sum = 0.0
-        for (r in Regime.entries) sum += share(r, season, lat) * warmth(r, season)
-        return sum
+    fun meanWarmth(season: Double, lat: Double): Double = at(season).meanWarmth(lat)
+
+    /** The regimes at [season], worked out once for every latitude ([Season]). */
+    fun at(season: Double) = Season(season)
+
+    /** [share] and [meanWarmth] at one season: what depends on the season alone worked out once. */
+    inner class Season(season: Double) {
+        private val high = highShare(season)
+        private val total = totalWeight(season)
+        private val weights = DoubleArray(Regime.entries.size) { weight(Regime.entries[it], season) }
+        private val warmths = DoubleArray(Regime.entries.size) { warmth(Regime.entries[it], season) }
+
+        /** [Winds.share] at latitude [lat]. */
+        fun share(r: Regime, lat: Double): Double {
+            val here = high * highReach(lat)
+            return if (r == Regime.SUMMER_HIGH) here else weights[r.ordinal] / total * (1 - here) / (1 - high)
+        }
+
+        /** [Winds.meanWarmth] at latitude [lat]. */
+        fun meanWarmth(lat: Double): Double {
+            var sum = 0.0
+            for (r in Regime.entries) sum += share(r, lat) * warmths[r.ordinal]
+            return sum
+        }
     }
 
     /** Orographic rain factor at [i] for wind (u east, v south) m/s: 1 in calm air or with no terrain. */
