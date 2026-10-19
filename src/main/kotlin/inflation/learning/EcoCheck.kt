@@ -3,6 +3,7 @@ package inflation.learning
 import inflation.ecology.HexHistory
 import inflation.Config
 import inflation.ecology.Catalogue
+import inflation.run.Nominal
 import inflation.run.TestWorlds
 import inflation.run.configWith
 import inflation.run.startFaunaCheck
@@ -101,6 +102,9 @@ class EcoCheck(private val out: File) {
         val all = fails(new, kept, kinds)
         lines += "check round %d ecosystem (%s, %d years, %d weathers; last year, every role new against every role kept): %s; migratory herds %.0f -> %.0f km from half a year before -> %s".format(
             round + 1, world.name, years, replicates, cells.joinToString(", "), km(kept), km(new), if (all.isEmpty()) "holds" else "fails: " + all.joinToString(", "))
+        // (Reported only: whether the runs stayed within nominal limits does not decide what is kept.)
+        lines += "check round %d within nominal limits (series): every role new %s; every role kept %s".format(round + 1,
+            new.joinToString(", ") { it.nominal.brief() }, kept.joinToString(", ") { it.nominal.brief() })
         val roles = Role.entries.associateWith { r ->
             val alone = runs.getValue("kept-$r")
             val why = fails(new, alone, kinds)

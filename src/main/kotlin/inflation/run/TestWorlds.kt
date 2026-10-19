@@ -181,6 +181,7 @@ object TestWorlds {
         }
         val n = worlds.size * replicates
         lines += migrationReport(runs, worlds)
+        lines += nominalReport(runs, worlds)
         lines += "-> $same key numbers moved the same way in all $n pairs, $mixed were mixed (a mixed one is not shown to change by this test; a number the change does not touch goes one way in all $n pairs by chance %.0f%% of the time)".format(100 * 2 * Math.pow(0.5, n.toDouble()))
         File(out, "ab-report.txt").writeText(lines.joinToString("\n", postfix = "\n"))
         println(lines.joinToString("\n"))
@@ -221,6 +222,20 @@ object TestWorlds {
         return lines
     }
 
+    /**
+     * Whether each run's series stayed within nominal limits ([Nominal]), and what the variant's runs found that their
+     * base's did not (the state each run ended in is checked in its own output, the .txt beside its history).
+     */
+    fun nominalReport(runs: Map<String, List<Pair<Run, Run>>>, worlds: List<String>): List<String> {
+        val lines = arrayListOf("", "within nominal limits (series; the state at the end is in each run's .txt):")
+        for (w in worlds) for ((r, pair) in runs.getValue(w).withIndex()) {
+            val base = pair.first.nominal; val variant = pair.second.nominal
+            val new = variant.findings.filter { f -> base.findings.none { it.what == f.what } }
+            lines += "  $w r$r: base ${base.brief()} | variant ${variant.brief()}" + if (new.isEmpty()) "" else "\n    the variant's alone: " + new.joinToString("; ")
+        }
+        return lines
+    }
+
     // ---- how well a smaller world tracks the full map
 
     /** One run's history, reduced to whole years from its start (a year being 60 weeks from wherever the run began): each key number's yearly mean, or sum for flows. */
@@ -228,6 +243,8 @@ object TestWorlds {
         val name = file.name
         private val h = HexHistory.readCsv(file)
         private val weeksPerYear = WorldConfig().stepsPerYear
+        /** Whether its series stayed within nominal limits ([Nominal]). */
+        val nominal by lazy { Nominal.history(h) }
         /** The whole years recorded, 1 for the first; a year cut short at the end is left out. */
         val years: List<Int> = (1..h.weeks / weeksPerYear).toList()
         init { require(years.isNotEmpty()) { "$file holds less than a year" } }

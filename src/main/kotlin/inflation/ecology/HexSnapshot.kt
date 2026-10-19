@@ -102,9 +102,10 @@ object HexSnapshot {
      * while the rest gather ([HUNTERS_SHARE]).
      * 2.15: a band weighs camps by the sim's own firewood, fire and raw-food rules ([fuelShare], [hearthShare],
      * [warmthNeed]), and a band with learned ways reads the bands about it after this week's moves.
+     * 2.16: snow deeper than a glacier there can stand flows as ice to the next place down ([inflation.world.HexHydrology.iceCapMm]).
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 15
+    const val MODEL_MINOR = 16
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

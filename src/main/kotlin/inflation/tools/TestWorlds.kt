@@ -3,12 +3,13 @@ package inflation.tools
 import inflation.Args
 import inflation.Config
 import inflation.ecology.HexHistory
+import inflation.run.Nominal
 import inflation.run.TestWorlds
 import inflation.run.gitCommit
 import java.io.File
 import java.util.Properties
 
-private const val USAGE = "testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
+private const val USAGE = "testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
     "a test on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE]"
 
 /** The testWorld program: see [TestWorlds]. */
@@ -38,6 +39,12 @@ fun main(args: Array<String>) {
             val replicates = a.int("--replicates", 2)
             val out = File(a.rest().singleOrNull() ?: error("ab-report DIR: which runs?")); a.done()
             TestWorlds.abReport(out, worlds, replicates, "the variant")
+        }
+        "nominal" -> {
+            // nominal HISTORY.csv...: whether runs already made stayed within nominal limits (their series; see Nominal).
+            val files = a.rest(); a.done()
+            require(files.isNotEmpty()) { "nominal needs history files (.csv)" }
+            for (f in files) println("$f: " + Nominal.history(HexHistory.readCsv(File(f))).report(most = Int.MAX_VALUE))
         }
         "compare" -> {
             fun runs(s: String) = s.split(',').filter { it.isNotBlank() }.map { TestWorlds.Run(File(it)) }
