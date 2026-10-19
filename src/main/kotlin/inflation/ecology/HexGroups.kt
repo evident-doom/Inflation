@@ -172,7 +172,7 @@ class HexGroups(
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */
     private fun startWeights(s: Species) = FloatArray(n) { p -> startWeight(s, p) }
-    private fun startWeight(s: Species, p: Int) = land.areaKm2[p] * fauna.suits(s, p) * fauna.climateSuits(s, p) * fauna.usualTether(s, p)
+    private fun startWeight(s: Species, p: Int) = fauna.startWeight(s, p)
 
     /** A place drawn at random by [weights] (summing to [total]). */
     internal fun drawPlace(weights: FloatArray, total: Float): Int {
@@ -934,10 +934,10 @@ class HexGroups(
             var drowning = -1f
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(kind, here.i, h.i, pullKm)
+            // (Its own kind about there, as it knows it.)
+            val crowded = crowdAround(g, kind, h, sensed)
             for (pi in hw.placesOf(h.i)) {
                 val p = Place(pi)
-                // (Its own kind there, as it knows it.)
-                val crowded = crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0))
                 val prey = knownGame(g, kind, p, h)
                 val hunters = huntersKm2(p, h)
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
@@ -1011,7 +1011,7 @@ class HexGroups(
                 val dying = deathsAt(c, p, h, 0f, 0f)
                 return "score %.2f: deaths %.4f (%.1f steps) food %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
                     seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, dying, survivalSteps(g, dying), placeValue[kind][p],
-                    crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0)), hunters,
+                    crowdAround(g, kind, h, sensed), hunters,
                     if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p], dist[h], hexKm(h.i, goalHex))
             }
             val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
@@ -1176,10 +1176,8 @@ class HexGroups(
      * of a group of [g]'s size at the odds it lives under now (at least its kind's background). A difference within a step
      * is no more than chance and weighs as one unit of the rest of the score; one of many steps outweighs all of it.
      */
-    internal fun survivalSteps(g: HexGroup, dying: Float): Float {
-        val q = max(g.deathOdds, g.species.backgroundMortality * years).coerceIn(1e-6f, 0.5f)
-        return dying / sqrt(q * (1f - q) / max(1, g.size))
-    }
+    internal fun survivalSteps(g: HexGroup, dying: Float) =
+        Hazards.survivalSteps(dying, g.deathOdds, g.species.backgroundMortality * years, g.size.toFloat())
 
     internal fun hexKm(a: Int, b: Int): Double = hex.distanceKm(a, b)
     internal fun hexKm(a: Hex, b: Hex): Double = hex.distanceKm(a.i, b.i)
@@ -1239,12 +1237,27 @@ class HexGroups(
         }
     }
 
-    internal fun crowd(s: Species, p: Int, g: HexGroup): Float = crowdOf(s, p, (headsHere[kindSlot[s.index]][p] - (if (p == g.place.i) g.size else 0)).toFloat())
-    internal fun crowdOf(s: Species, p: Int, others: Float): Float {
-        // Heads of its kind a place usually holds.
-        val usual = land.areaKm2[p] / s.startKm2PerAnimal * 3f
-        return others / (others + usual + 1f)
+    /**
+     * How crowded group [g] (of kind slot [kind]) foresees it would be in hex [h], 0..1: its own kind there as it knows
+     * it ([knownHeads], itself left out), over the ground it would range from there (the hex, and the six round it where
+     * its kind's home range reaches beyond one: [rangesWide]), by the one measure ([Hazards.crowding]) as x / (1 + x).
+     */
+    internal fun crowdAround(g: HexGroup, kind: Int, h: Hex, sensed: IntArray): Float {
+        val s = g.species; val own = hw.placeHex[g.place]
+        var heads = 0f; var area = 0f
+        for (d in -1 until (if (rangesWide(s)) 6 else 0)) {
+            val q = if (d < 0) h.i else hex.neighbour(h.i, d)
+            if (q < 0) continue
+            for (pp in hw.placesOf(q)) { heads += knownHeads(kind, Place(pp), Hex(q), sensed); area += land.areaKm2[pp] }
+            if (q == own) heads -= g.size
+        }
+        if (area <= 0f) return 0f
+        val x = Hazards.crowding(max(0f, heads) / area, HexFauna.usualDensity(s))
+        return x / (1f + x)
     }
+
+    /** Whether kind [s]'s home range reaches beyond its hex, so that it counts its kind over the six round it too. */
+    internal fun rangesWide(s: Species) = territoryKm(s) > 0.6f * hex.hexKm
 
     /**
      * What place [p] offers a hunter of kind [s] by its whole diet, kg/km²: the big game it can catch

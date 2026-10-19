@@ -189,8 +189,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             days / 1e6f * plantShare(s)
     }
 
-    /** How much of the food at place [p] kind [s] can get at: cliffs keep all but climbers off some of it, a kind that must drink often uses only the ground within reach of water, and biting insects cost it feeding time. */
-    private fun reachOf(s: Species, p: Int) = HexFood.access(s, land.crag[p]) * tether(s, p) * (1f - HexSmallLife.HARASS_FEED * small.harassment(p))
+    /** How much of the food at place [p] kind [s] can get at: cliffs keep all but climbers off some of it, a kind that must drink often uses only the ground within reach of water, and biting insects cost it feeding time ([unbitten]). */
+    private fun reachOf(s: Species, p: Int) = HexFood.access(s, land.crag[p]) * tether(s, p) * unbitten(p)
+    /** The share of its feeding time biting insects leave an animal at place [p]: the part of [reachOf] that is not the ground. */
+    private fun unbitten(p: Int) = 1f - HexSmallLife.HARASS_FEED * small.harassment(p)
 
     /**
      * How well [heads] of kind [s] coming to place [p] together would be fed there, 0..1 of their need: wanting [each] a
@@ -337,7 +339,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Each kind's sense of where better country lies. */
     val bearings = HexBearings(hw, kinds, { s, p, m ->
         val food = fareFor(s, p) * min(1.5f, suits(s, p)) / 1.5f
-        saturate(food, Thresholds.FOOD_HALF) * tether(s, p) * monthFit(s, p, m)
+        saturate(food, Thresholds.FOOD_HALF) * tether(s, p) * unbitten(p) * monthFit(s, p, m)
     }, { s -> val k = slot(s); (0 until n).any { adults[k][it] > 0f } }, land.tuning)
     /**
      * Each kind's month births begin in each place, which drifts year by year towards the months
@@ -585,6 +587,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return plants / total * HexFood.access(s, land.crag[p])
     }
 
+    /** How much a newcomer of [s], resident or group, is drawn to place [p]: its ground, the climate and water in an ordinary year, by its area. */
+    fun startWeight(s: Species, p: Int) = land.areaKm2[p] * suits(s, p) * climateSuits(s, p) * usualTether(s, p)
+
     fun count(k: Int): Double = (0 until n).sumOf { ((adults[k][it] + young[k][it]) * land.areaKm2[it]).toDouble() }
 
     /**
@@ -599,7 +604,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for (k in kinds.indices) {
             if (count(k) >= NEWCOMER_ANIMALS) continue
             val s = kinds[k]
-            val w = FloatArray(n) { p -> land.areaKm2[p] * suits(s, p) * climateSuits(s, p) }
+            val w = FloatArray(n) { p -> startWeight(s, p) }
             val total = w.sum(); if (total <= 0f) continue
             repeat(NEWCOMER_PLACES) {
                 var u = r.nextFloat() * total; var p = 0
@@ -1024,7 +1029,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         out[HZ_THIRST] = Hazards.thirst(s, dry)
         // Crowding breeds disease and parasites, far more among the underfed: numbers grow until the
         // lean season binds, and then hunger and sickness together hold them.
-        val crowd = heads / (CROWDED * usual[k])
+        val crowd = Hazards.crowding(heads, usual[k])
         out[HZ_CROWD] = crowd
         out[HZ_SICK] = Hazards.crowdDisease(crowd, fed, years); out[HZ_OUTBREAK] = outbreakDeaths(s, p)
         out[HZ_DISEASE] = out[HZ_SICK] + out[HZ_OUTBREAK]
@@ -1036,35 +1041,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         out[HZ_HUNTED] = huntedOdds(k, p, false)
     }
 
-    /**
-     * The young a mother of kind [k] is due this step, its [share] of her season, among [heads] of her kind per km², fed
-     * [protein] of her need for it: mothers short of protein bear and suckle fewer, and a mother needs a range of her own to
-     * bear and raise her young in (where they crowd beyond [inflation.Tuning.breedSpacing] times their usual numbers, only
-     * as many as there are ranges breed). How many she bears of them is [breeding]'s.
-     */
-    private fun dueYoung(k: Int, heads: Float, protein: Float, share: Float): Float {
-        val ranges = min(1f, tuning.breedSpacing * usual[k] / heads)
-        return ranges * kinds[k].youngPerFemale * protein * share
-    }
+    /** The young a mother of kind [k] is due this step, its [share] of her season, among [heads] of her kind per km², fed [protein] of her need for it ([youngDue]). */
+    private fun dueYoung(k: Int, heads: Float, protein: Float, share: Float) = youngDue(kinds[k], heads, usual[k], tuning.breedSpacing, protein, share)
 
     /**
      * The month kind [s]'s mothers start their year again ([bred]): the middle of the months outside its season as it
      * began ([Species.birthMonth]). (A place whose season has drifted over it lets its mothers bear part of a season again.)
      */
-    private fun offSeason(s: Species) = (s.birthMonth + s.birthMonths + (12 - s.birthMonths) / 2) % 12
+    private fun offSeason(s: Species) = offSeason(s, s.birthMonth)
 
     /**
      * The share of her season a mother of kind [k] at place [p] bears this week of [date] ([dueYoung]): none out of the
      * place's season; else a week's share of the season ([Date.DAYS_PER_MONTH] days a month, so a month of four or five
      * weekly steps counts alike), no more than she has left ([bred]), and in the season's last week all she has left.
      */
-    private fun seasonShare(k: Int, p: Int, date: Date): Float {
-        val s = kinds[k]; val start = birthStart[k][p].toInt()
-        if (monthsFrom(start, date.month) >= s.birthMonths) return 0f
-        val left = max(0f, 1f - bred[k][p])
-        val last = monthsFrom(start, date.plusDays(days).month) >= s.birthMonths
-        return if (last) left else min(left, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
-    }
+    private fun seasonShare(k: Int, p: Int, date: Date) = seasonShare(kinds[k], birthStart[k][p].toInt(), max(0f, 1f - bred[k][p]), date, days)
 
     /** Eagles take the young of the smaller hoofed animals in the open: the share of [s]'s young at [p] they take in a step. */
     private fun eagleOdds(s: Species, p: Int) = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
@@ -1183,7 +1174,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun growthOf(k: Int, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                          carried: Float, f: Float, heads: Float, parts: FloatArray?): Float {
         val s = kinds[k]
-        val hunger = Hazards.hunger(f); val sick = Hazards.crowdDisease(heads / (CROWDED * usual[k]), f, years)
+        val hunger = Hazards.hunger(f); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
         val due = dueYoung(k, heads, protein, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
         val born = 0.5f * due * breeding(s, due, carried, f, days)
         val grownDie = (grownFixed + hunger + sick).coerceIn(0f, 0.9f)
@@ -1254,9 +1245,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
         // protein: so they go up to the green high pasture in summer and down for the winter.)
         val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
-        return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * snowed * (1f - FEAR_WEIGHT * shy(s, p)) *
+        return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * shy(s, p)) *
             (1f - land.fire.burning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
-            (1f + heads / (CROWDED * usual[k])) / (1f + discomfort)
+            (1f + Hazards.crowding(heads, usual[k])) / (1f + discomfort)
     }
 
     /** How well kind [s]'s diet at place [p] would meet its need for protein, 0..1 (see [proteinMet]). */
@@ -1298,11 +1289,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val ol = arrive[k][lo].let { if (it.isNaN()) Float.POSITIVE_INFINITY else it }
                 val oh = arrive[k][hi].let { if (it.isNaN()) Float.POSITIVE_INFINITY else it }
                 if (ol.isInfinite() && oh.isInfinite()) continue
-                val band = kinds[k].maxGroupSize.toFloat()
+                val band = kinds[k].maxGroupSize.toFloat(); val background = kinds[k].backgroundMortality * years
                 val from: Int; val to: Int; val gain: Float
-                if (a[lo] + y[lo] > 0f && (oh.isFinite() && (ol.isInfinite() || clearlyWorse(ol, oh, band)))) {
+                if (a[lo] + y[lo] > 0f && (oh.isFinite() && (ol.isInfinite() || clearlyWorse(ol, oh, band, background)))) {
                     from = lo; to = hi; gain = if (ol.isInfinite()) 1f else (ol - oh) / ol
-                } else if (a[hi] + y[hi] > 0f && (ol.isFinite() && (oh.isInfinite() || clearlyWorse(oh, ol, band)))) {
+                } else if (a[hi] + y[hi] > 0f && (ol.isFinite() && (oh.isInfinite() || clearlyWorse(oh, ol, band, background)))) {
                     from = hi; to = lo; gain = if (oh.isInfinite()) 1f else (oh - ol) / oh
                 } else {
                     val al = worth[k][lo]; val ah = worth[k][hi]
@@ -1924,11 +1915,10 @@ private enum class AnimalFood { MEAT, SMALL_PREY, CARRION }
 
 /**
  * Whether a band of [band] animals dying at a share [here] in a week is clearly worse off than at a share [there]: by
- * more than a week's chance spread of its deaths (the binomial deviation at [here]), as groups weigh a place's deaths
- * (see [HexGroups.survivalSteps]).
+ * more than a step of a week's chance spread of its deaths ([Hazards.survivalSteps], at [here] or its kind's
+ * [background] share), as groups weigh a place's deaths.
  */
-internal fun clearlyWorse(here: Float, there: Float, band: Float): Boolean {
+internal fun clearlyWorse(here: Float, there: Float, band: Float, background: Float): Boolean {
     if (!(there < here)) return false
-    val sd = sqrt(band * here * (1f - here))
-    return (here - there) * band > sd
+    return Hazards.survivalSteps(here - there, here, background, band) > 1f
 }
