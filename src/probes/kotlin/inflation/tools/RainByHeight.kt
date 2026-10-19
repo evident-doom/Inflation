@@ -7,9 +7,13 @@ import inflation.world.World
 import inflation.world.WorldConfig
 import inflation.world.blur
 
-/** Probe (not for merge): rain by height and by place within the local relief, June-August and the year. */
+/**
+ * Rain by height and by place within the local relief (ridges, valleys), June-August and the year, in latitude bands;
+ * world generation only. Answered whether the hexes' averaged geometry starved the mountains of summer rain (it did not)
+ * and checks the summer storms against ERA5 (review 2026-10-18-mountain-summer-rain).
+ */
 fun main(args: Array<String>) {
-    val a = inflation.Args(args, "rain-geometry-probe [--seed N]")
+    val a = inflation.Args(args, "rain-by-height [--seed N] [--width KM] [--height KM]")
     val cfg = a.world(WorldConfig(seed = 1)); a.done()
     val t0 = System.currentTimeMillis()
     val land = LandformCache.load(cfg) { System.err.println(it) }
