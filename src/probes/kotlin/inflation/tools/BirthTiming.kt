@@ -41,7 +41,7 @@ fun main(args: Array<String>) {
     val days = sim.cfg.daysPerStep
     val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
 
-    val cols = listOf("pull", "pull, no births", "heads out->in", "pull out->in", "heads in->out", "pull in->out", "best moved")
+    val cols = listOf("pull", "pull, no births", "heads out->in", "pull out->in", "heads in->out", "pull in->out", "best moved", "height above hex")
     val sums = Array(kinds.size) { Array(12) { DoubleArray(cols.size + 1) } }
     // Where each kind's births start now, by month 1-12, heads-weighted: how far apart the places' calendars have drifted.
     for (k in kinds) {
@@ -51,6 +51,9 @@ fun main(args: Array<String>) {
     }
     val out = FloatArray(HexFauna.HZ_COUNT); val parts = FloatArray(HexFauna.GROWTH_PARTS)
     val full = FloatArray(n); val bare = FloatArray(n); val season = BooleanArray(n)
+    val bornByYear = Array(kinds.size) { DoubleArray(10) }; val headsByYear = Array(kinds.size) { DoubleArray(10) }
+    val lowest = FloatArray(hex.size) { Float.MAX_VALUE }
+    for (p in 0 until n) lowest[hw.placeHex[p]] = minOf(lowest[hw.placeHex[p]], hw.placeElevationM[p])
 
     for (w in 0 until weeks) {
         val m = sim.weather.date.month
@@ -93,10 +96,13 @@ fun main(args: Array<String>) {
                 if (season[bestF] && !season[p]) { row[2] += heads; row[3] += heads * pullF }
                 if (!season[bestF] && season[p]) { row[4] += heads; row[5] += heads * pullF }
                 if (bestF != bestB) row[6] += heads
+                // (How high it stands above its hex's lowest band, m: the seasonal up and down within the hexes.)
+                row[7] += heads * (hw.placeElevationM[p] - lowest[h])
                 row[cols.size] += heads
             }
         }
         sim.step()
+        for ((i, k) in kinds.withIndex()) { val y = (w / 52).coerceAtMost(9); bornByYear[i][y] += fauna.bornThisWeek[k]; headsByYear[i][y] += fauna.count(k) / 52 }
     }
     for ((i, k) in kinds.withIndex()) {
         println("${fauna.kinds[k].name} (births from month ${fauna.kinds[k].birthMonth + 1}, ${fauna.kinds[k].birthMonths} months), by month 1-12, heads-weighted:")
@@ -106,10 +112,13 @@ fun main(args: Array<String>) {
                 all <= 0.0 -> "     -"
                 c == 3 -> if (row[2] > 0.0) "%6.3f".format(row[3] / row[2]) else "     -"
                 c == 5 -> if (row[4] > 0.0) "%6.3f".format(row[5] / row[4]) else "     -"
+                c == 7 -> "%6.0f".format(row[c] / all)
                 else -> "%6.3f".format(row[c] / all)
             }
         }))
     }
+    for ((i, k) in kinds.withIndex()) println("${fauna.kinds[k].name} by year: mean heads " + (0 until (weeks + 51) / 52).joinToString(" ") { "%.0f".format(headsByYear[i][it]) } +
+        ", born a head " + (0 until (weeks + 51) / 52).joinToString(" ") { "%.3f".format(bornByYear[i][it] / headsByYear[i][it].coerceAtLeast(1.0)) })
     println("(pull: (best next door - here) / best; heads out->in: share of heads out of their birth season whose best place next door is in" +
         " its; best moved: share of heads whose best place next door is another one without the births.)")
 }
