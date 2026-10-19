@@ -262,54 +262,79 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
  */
 internal fun HexGroups.huntGround(g: HexGroup, km2: Float): HuntGround {
     val path = g.path; val area = land.areaKm2
-    val places = ArrayList<Int>(path.size + 6); val swept = ArrayList<Float>(path.size + 6)
+    var places = IntArray(path.size + 6); var swept = FloatArray(path.size + 6); var m = 0
+    fun indexOf(p: Int): Int { for (i in 0 until m) if (places[i] == p) return i; return -1 }
+    fun add(p: Int, s: Float) {
+        if (m == places.size) { places = places.copyOf(2 * m); swept = swept.copyOf(2 * m) }
+        places[m] = p; swept[m] = s; m++
+    }
     val share = km2 / path.size.coerceAtLeast(1)
     var over = 0f
     for (h in path) {
         val p = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
-        val i = places.indexOf(p)
+        val i = indexOf(p)
         val had = if (i >= 0) swept[i] else 0f
         val s = min(area[p], had + share)
         over += had + share - s
-        if (i >= 0) swept[i] = s else { places += p; swept += s }
+        if (i >= 0) swept[i] = s else add(p, s)
     }
-    val onWay = places.size
+    val onWay = m
     if (over > 0f) {
         val cross = hex.crossings[Catalogue.travel(g.species).ordinal]
         for (h in path) for (d in 0 until 6) {
             val nh = hex.neighbour(h, d); if (nh < 0 || !cross[h * 6 + d].isFinite() || nh in path) continue
             val q = hw.placeNear(g.place.i, nh).takeIf { it >= 0 } ?: continue
-            if (q !in places) { places += q; swept += 0f }
+            if (indexOf(q) < 0) add(q, 0f)
         }
         // (Evenly over the places about, those too small for their share filled and the rest shared again among the others.)
-        var open = places.size - onWay
+        var open = m - onWay
         while (over > 1e-3f && open > 0) {
             val each = over / open; open = 0
-            for (i in onWay until places.size) {
+            for (i in onWay until m) {
                 val room = area[places[i]] - swept[i]; if (room <= 0f) continue
                 val s = min(room, each); swept[i] += s; over -= s
                 if (s < room) open++
             }
         }
     }
-    return HuntGround(places.toIntArray(), swept.toFloatArray())
+    return HuntGround(places.copyOf(m), swept.copyOf(m))
 }
 
 /** The places of a hunting party's week's ground ([huntGround]), and the km² of each it searches. */
 internal class HuntGround(val place: IntArray, val km2: FloatArray) { val size get() = place.size }
 
-/** [forage]'s odds of a kill of each kind present in each place of [w]'s hunting ground, and the game worth stalking there. */
+/**
+ * [forage]'s odds that [w]'s party comes on and kills each kind present in each place of its hunting ground, per animal
+ * there, into [ForageWeek.odds]; the stalks a kill takes into [ForageWeek.stalks], and the bands come on unseen per
+ * animal into [ForageWeek.met]; and the game worth stalking there. Prey resting while the hunter is about lie up in
+ * cover and are found less; a band's weapons, dogs and hunting skill change the odds that a stalk ends in a kill
+ * ([killChance]). Residents go about in their kind's usual bands: a band is come on as one, and may see the hunters
+ * first and keep out of their way ([seenFirst]); one try at it, for a band chased scatters. And game it seldom comes on
+ * it does not look for (prey switching, see [SEARCH_HALF]). (What depends on the kind alone is reckoned once a kind,
+ * what depends on the place alone once a place.)
+ */
 private fun HexGroups.huntingOdds(w: ForageWeek) {
-    val g = w.g; val nk = w.nk
+    val g = w.g; val s = g.species; val band = g.band; val nk = w.nk
     val adults = fauna.adults; val young = fauna.young
+    val edge = FloatArray(nk); val image = FloatArray(nk); val meets = FloatArray(nk); val view = FloatArray(2)
+    for (k in 0 until nk) {
+        val ps = fauna.kinds[k]
+        edge[k] = band?.huntEdge(ps, tuning) ?: 1f
+        image[k] = g.metLately(ps.index, w.today).let { it / (it + SEARCH_HALF) }
+        meets[k] = 0.5f + 0.5f * Niches.overlap(s, ps)
+    }
     for (j in 0 until w.ground.size) {
         w.gameFrom[j] = w.games
         val p = w.ground.place[j]
+        openness(s, p, w.weather, view)
         for (k in 0 until nk) {
             if (adults[k][p] + young[k][p] <= 0f) continue
-            val ps = fauna.kinds[k]
-            residentOdds(g, ps, p, w.weather, w.today, j * nk + k, w.odds, w.stalks, w.met)
-            if (!(w.odds[j * nk + k] <= 0f)) w.gameAt[w.games++] = j * nk + k
+            val ps = fauna.kinds[k]; val i = j * nk + k
+            val success = killChance(catchable(s, ps, p), edge[k])
+            w.met[i] = meets[k] * (1f - seenFirst(view[0], view[1], band, ps)) / ps.groupSize
+            w.odds[i] = success * w.met[i] * image[k]
+            w.stalks[i] = 1f / success.coerceIn(1e-3f, 1f)
+            if (!(w.odds[i] <= 0f)) w.gameAt[w.games++] = i
         }
     }
     w.gameFrom[w.ground.size] = w.games
@@ -720,23 +745,6 @@ private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float, out: Haul) {
     }
 }
 
-/**
- * [forage]'s odds that [g] comes on and kills resident [ps] at place [p], per animal there, into [odds] at [i]; the
- * stalks a kill takes into [stalks], and the bands come on unseen per animal into [met]. Prey resting while the hunter
- * is about lie up in cover and are found less; a band's weapons, dogs and hunting skill change the odds that a stalk
- * ends in a kill ([killChance]). Residents go about in their kind's usual bands: a band is come on as one, and may see
- * the hunters first and keep out of their way ([seenFirst]); one try at it, for a band chased scatters. And game it seldom comes on it does not look for (prey switching, see [SEARCH_HALF]).
- */
-private fun HexGroups.residentOdds(g: HexGroup, ps: Species, p: Int, weather: Weather, today: Double, i: Int,
-    odds: FloatArray, stalks: FloatArray, met: FloatArray) {
-    val s = g.species
-    val success = killChance(g, ps, catchable(s, ps, p))
-    val image = g.metLately(ps.index, today).let { it / (it + SEARCH_HALF) }
-    met[i] = (0.5f + 0.5f * Niches.overlap(s, ps)) * (1f - seenFirst(g, ps, p, weather)) / ps.groupSize
-    odds[i] = success * met[i] * image
-    stalks[i] = 1f / success.coerceIn(1e-3f, 1f)
-}
-
 /** [forage]'s count of the resident bands [g] came on unseen ([met] per animal, by place of its hunting [ground] and kind) in the [searched] share of its week. */
 private fun HexGroups.countResidentsMet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, today: Double) {
     val nk = fauna.kinds.size
@@ -1116,23 +1124,27 @@ internal fun storeWant(g: HexGroup, band: Band) =
     max(0f, band.storeAim * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg - g.larder) * STORE_FILL
 
 /**
- * The odds that game of kind [ps] at place [p] sees hunter [hunter] first and keeps out of its way: likelier in the
- * open, in clear weather, against a courser than a stalker, and against people for game bred to fear them.
+ * The odds that game of kind [ps] sees the hunters first and keeps out of their way: likelier in the [open] (the less
+ * cover, and against a courser than a stalker) and in [clear] weather ([openness]), and against [band]s for game bred
+ * to fear people over the millennia.
  */
-internal fun HexGroups.seenFirst(hunter: HexGroup, ps: Species, p: Int, weather: Weather): Float {
+internal fun seenFirst(open: Float, clear: Float, band: Band?, ps: Species): Float {
+    val fear = if (band != null) 0.5f + ps.fearOfPeople else 1f
+    return min(0.95f, open * fear * clear)
+}
+
+/** [seenFirst]'s parts at place [p] for hunter [s]: how open the ground is to a hunter of its way, and how clear the weather and cover leave the view. */
+private fun HexGroups.openness(s: Species, p: Int, weather: Weather, out: FloatArray) {
     val cover = land.plants.cover(p)
-    // Game bred to fear people over the millennia keeps a sharper watch for them.
-    val fear = if (hunter.band != null) 0.5f + ps.fearOfPeople else 1f
-    return min(0.95f, VIGILANCE * (1f - cover) * (1f - hunter.species.stalking) * fear *
-        (0.5f + 0.5f * sight(p, weather) / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)))
+    out[0] = VIGILANCE * (1f - cover) * (1f - s.stalking)
+    out[1] = 0.5f + 0.5f * sight(p, weather) / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
 }
 
 /**
- * The odds that one try at a band of [ps] ends in a kill, once the hunter has come on it unseen ([catchable] the odds
- * against the prey's traits there).
+ * The odds that one try at a band of game ends in a kill, once the hunter has come on it unseen: as [catchable] as it
+ * is there, and by a band's [edge] over it ([Band.huntEdge]; 1 for a beast of prey).
  */
-internal fun HexGroups.killChance(hunter: HexGroup, ps: Species, catchable: Float): Float =
-    CATCH * SURPRISE * catchable * (hunter.band?.huntEdge(ps, tuning) ?: 1f)
+internal fun killChance(catchable: Float, edge: Float): Float = CATCH * SURPRISE * catchable * edge
 
 /**
  * Standing orders, hunters of different kinds. The weaker gives way; if it had made a kill this week
