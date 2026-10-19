@@ -709,13 +709,18 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // How much of the place's food each kind can get at: cliffs keep all but climbers off some of
             // it, and far from water a kind that must drink often uses only the ground within reach of it.
             val avail = FloatArray(kinds.size)
+            // (Each kind's need against the cold here, worked out once for both its plant and its animal food.)
+            val cold = FloatArray(kinds.size)
             for ((k, s) in kinds.withIndex()) {
                 killRate[k]?.set(p, 0f)
                 val heads = adults[k][p] + 0.5f * young[k][p]
+                // (A kind with none here eats nothing; one weighed for the herds ([room]) is still reckoned as it would eat.)
+                if (heads <= 0f && room[k] == null) continue
                 // Bears asleep through the cold eat nothing.
                 // (Only the plant part of the diet here; omnivores' small prey and carrion below.)
                 // (More in the cold, see [coldNeed].)
-                each[k] = if (asleep(k, p)) 0f else s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
+                if (!asleep(k, p)) cold[k] = coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning)
+                each[k] = if (asleep(k, p)) 0f else s.dailyIntakeKg * cold[k] *
                     days / 1e6f * plantShare(s) // kg per m2 this week, for one animal per km2
                 need[k] = heads * each[k]
                 // (Biting insects harassing them cost them feeding time.)
@@ -806,8 +811,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     // these or of the plants, is made up from whichever of them is to be had (as a pack does).
                     val ps = plantShare(s)
                     var animal = 0f
-                    val needAll = (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
-                        days / 1e6f // all of the diet, kg per m2
+                    val headsHere = adults[k][p] + 0.5f * young[k][p]
+                    val needAll = if (headsHere > 0f) headsHere * s.dailyIntakeKg * cold[k] * days / 1e6f else 0f // all of the diet, kg per m2
                     if (ps < 1f && needAll > 0f) {
                         val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
                         val animalNeed = needAll * (1f - ps)
