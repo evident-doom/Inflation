@@ -236,6 +236,19 @@ internal interface Pantry {
 }
 
 /**
+ * A place's food as it is only reckoned on ([HexGroups] foreseeing a place, the residents' [HexFauna.room]): what an
+ * animal would get of each, taken off what is there, without eating it; and, for a herd, the protein it would come away with.
+ */
+internal class DryPantry : Pantry {
+    var reach = 0f; var grass = 0f; var browse = 0f; var fruit = 0f; var roots = 0f; var straw = 0f; var protein = 0f
+    override fun grass(kg: Float): Float { val t = min(kg, reach * grass); grass -= t; return t }
+    override fun browse(kg: Float): Float { val t = min(kg, reach * browse); browse -= t; return t }
+    override fun fruit(kg: Float): Float { val t = min(kg, reach * fruit); fruit -= t; return t }
+    override fun roots(kg: Float): Float { val t = min(kg, reach * roots); roots -= t; return t }
+    override fun straw(kg: Float): Float { val t = min(kg, straw); straw -= t; return t }
+}
+
+/**
  * What an animal of a kind eats at a place in a week, kg per m² of it, and what it [got] of nourishment (see [forage]):
  * filled in by [forage], so one can be kept and filled again (the residents graze every place, every kind, every week).
  */

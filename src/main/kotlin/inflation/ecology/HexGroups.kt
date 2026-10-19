@@ -1661,16 +1661,6 @@ class HexGroups(
         return (b.got / want).coerceIn(0f, 1f)
     }
 
-    /** A place's food as a herd only reckons on it ([foreseeFed]): what it would get of each, taken off what is there, without eating it; and the protein it would come away with. */
-    private class DryPantry : Pantry {
-        var reach = 0f; var grass = 0f; var browse = 0f; var fruit = 0f; var roots = 0f; var straw = 0f; var protein = 0f
-        override fun grass(kg: Float): Float { val t = min(kg, reach * grass); grass -= t; return t }
-        override fun browse(kg: Float): Float { val t = min(kg, reach * browse); browse -= t; return t }
-        override fun fruit(kg: Float): Float { val t = min(kg, reach * fruit); fruit -= t; return t }
-        override fun roots(kg: Float): Float { val t = min(kg, reach * roots); roots -= t; return t }
-        override fun straw(kg: Float): Float { val t = min(kg, straw); straw -= t; return t }
-    }
-
     /** The odds of the hazards at a place, summed ([deathsAt]). */
     private class Odds : HazardSink {
         var adult = 0f; var young = 0f

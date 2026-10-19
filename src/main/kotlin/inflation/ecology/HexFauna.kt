@@ -730,7 +730,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 override fun roots(kg: Float): Float { val t = min(kg, access * spareR); spareR -= t; return t }
                 override fun straw(kg: Float): Float { val t = min(kg, spareS); spareS -= t; return t }
             }
-            val b = Bites()
+            val b = Bites(); val dry = DryPantry()
             // (Of each kind's need: what it got of plants, and of straw; what it ate beyond, laid on.)
             val got = FloatArray(kinds.size); val strawShare = FloatArray(kinds.size); val surplus = FloatArray(kinds.size)
             var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f; var eatS = 0f
@@ -759,19 +759,22 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 eatF += b.fruit + b.fruit2; eatR += b.roots + b.roots2; eatS += b.straw
                 ateKg[k] = b.eaten; proteinKg[k] = protein(b, gp, bp, tuning.proteinStraw)
             }
-            // What is left would feed this many more of each kind that also lives as herds, per km²: of each food in its
-            // diet, what is left as far as it can get at it, against what one of it eats of that food; the scarcest
-            // decides (plenty of grass does not feed a boar short of roots and mast).
+            // What is left would feed this many more of each plant-eater, per km², eating by the same rule ([forage]): asked
+            // for all the nourishment within its reach, it gets what its diet, switching and the straw let it; asked again
+            // for that much, the gut's room is as for so many of it, and what it gets then is what that many would eat.
             for ((k, s) in kinds.withIndex()) {
                 val r = room[k] ?: continue
                 if (each[k] <= 0f) { r[p] = 0f; continue }
-                val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
-                val fill = gutFill(s, quality)
                 val snowed = weather.snowpack[p] > s.snowLimitMm
-                var most = Float.MAX_VALUE
-                fun feeds(share: Float, left: Float, per: Float) { if (share > 0f) most = min(most, avail[k] * max(0f, left) / (each[k] * per * share / total)) }
-                feeds(d.grass, if (snowed) 0f else spareG, fill); feeds(d.browse, spareB, fill); feeds(d.fruit, spareF, 1f); feeds(d.roots, spareR, 1f)
-                r[p] = if (most == Float.MAX_VALUE) 0f else most
+                var want = avail[k] * (max(0f, spareG) + max(0f, spareB)) * quality + avail[k] * (max(0f, spareF) + max(0f, spareR)) +
+                    max(0f, spareS) * HexFood.roughage(s)
+                for (pass in 0..1) {
+                    if (want <= 0f) break
+                    dry.reach = avail[k]; dry.grass = max(0f, spareG); dry.browse = max(0f, spareB)
+                    dry.fruit = max(0f, spareF); dry.roots = max(0f, spareR); dry.straw = max(0f, spareS)
+                    want = forage(s, s.diet, quality, want, snowed, avail[k], dry, b).got
+                }
+                r[p] = max(0f, want) / each[k]
             }
             for ((k, s) in kinds.withIndex()) {
                 val strawPart = strawShare[k]
