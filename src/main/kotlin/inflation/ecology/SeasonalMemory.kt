@@ -189,12 +189,14 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
         val lnKeep = keeps.getOrPut(k) { FloatArray(ways.keep.size) { ln(ways.keep[it]) } }
         var best = after.copyOf(); var hops = IntArray(n); var via = IntArray(n) { -1 }
         var best2 = FloatArray(n); var hops2 = IntArray(n); var via2 = IntArray(n)
-        val passes = max(1, (monthKm(s) / hex.hexKm).toInt())
+        val passes = max(1, (monthKm(s) / hex.hexKm).toInt()); val reach = weekKm(s)
         for (pass in 0 until passes) {
             val b0 = best; val h0 = hops; val v0 = via; val b1 = best2; val h1 = hops2; val v1 = via2
             val moved = IntStream.range(0, n).parallel().map { p ->
                 var b = b0[p]; var h = h0[p]; var w = v0[p]
                 for (i in ways.from[p] until ways.from[p + 1]) {
+                    // (Only across borders a week's going crosses: past them a way is all but closed, [HexFauna.FlowWays.km].)
+                    if (ways.km[i] > reach) continue
                     val q = ways.to[i]; val x = b0[q] + lnKeep[i]
                     // (The better, or as good by fewer steps.)
                     if (x > b || (x == b && w >= 0 && h0[q] + 1 < h)) { b = x; h = h0[q] + 1; w = i }

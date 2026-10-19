@@ -121,9 +121,11 @@ object HexSnapshot {
      * of the land) in each month ([SeasonalMemory]), and a share of them take a step a week along the route to the
      * ground a month's going reaches that is best next month for its season; a place is weighed by births and deaths
      * alike over the rest of the month.
+     * 4.3: the memory's route crosses only borders a week's going crosses, and as few step along it as the border is hard
+     * to cross (a route over all but closed borders had walked them 1e10 km and starved them of their fat).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 2
+    const val MODEL_MINOR = 3
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
