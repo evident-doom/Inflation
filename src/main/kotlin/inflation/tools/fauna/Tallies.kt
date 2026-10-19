@@ -59,7 +59,7 @@ class DeathTally(private val sim: HexSim) {
     fun printResidentDeathsThisYear() {
         val residentNames = sim.fauna.kinds.map { it.name }.toSet()
         val year = HashMap<String, Double>()
-        for ((key, v) in causes) if (Tally.kindOf(key) in residentNames) year.merge(Tally.whatOf(key), v - (before[key] ?: 0.0), Double::plus)
+        for ((key, v) in causes) if (Tally.kindOf(key) in residentNames && Tally.whatOf(key) != Tally.BORN) year.merge(Tally.whatOf(key), v - (before[key] ?: 0.0), Double::plus)
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }
             .joinToString(", ") { "%s %.0f".format(it.key, it.value) })
     }
@@ -250,7 +250,7 @@ class HuntTally(private val sim: HexSim) {
         println("     hunters' food (meat / small prey / carrion / plants, as shares of what they need): " +
             sim.groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val asked = (year[Tally.diet(s, "asked")] ?: 0).toDouble().coerceAtLeast(1.0)
-            fun part(k: String) = 100 * (year[Tally.diet(s, k)] ?: 0) / asked
+            fun part(k: String) = 100.0 * (year[Tally.diet(s, k)] ?: 0) / asked
             "%s %.0f/%.0f/%.0f/%.0f%%".format(s.name, part("meat"), part("small prey"), part("carrion"), part("plants"))
         })
     }

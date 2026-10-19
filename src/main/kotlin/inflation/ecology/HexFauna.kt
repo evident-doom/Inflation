@@ -943,35 +943,41 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
                 val fireA = hz[HZ_FIRE_A]; val floodA = hz[HZ_FLOOD_A]; val snowA = hz[HZ_SNOW_A]
                 val fireY = hz[HZ_FIRE_Y]; val floodY = hz[HZ_FLOOD_Y]; val snowY = hz[HZ_SNOW_Y]
-                val adultOdds = (s.backgroundMortality * years + hunger + cold + thirst + disease + fireA + floodA + snowA).coerceIn(0f, 0.9f)
+                val adultSum = s.backgroundMortality * years + hunger + cold + thirst + disease + fireA + floodA + snowA
+                val adultOdds = adultSum.coerceIn(0f, 0.9f)
                 // Eagles take the young of the smaller hoofed animals in the open.
                 val eagle = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
                 // Crocodiles take the young that come down to warm rivers and lakes to drink.
                 val croc = water.crocodileRisk(p, weather) * years
                 // (Young short of protein grow slowly and die more.)
                 val starved = tuning.youngProteinDeaths * (1f - protein[k][p]) * years
-                val youngOdds = (s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + eagle + fireY + floodY + snowY + croc +
-                    starved).coerceIn(0f, 0.95f)
+                val youngSum = s.youngMortality * years + 1.5f * (hunger + cold + thirst) + disease + eagle + fireY + floodY + snowY + croc + starved
+                val youngOdds = youngSum.coerceIn(0f, 0.95f)
                 val da = a[p] * adultOdds; val dy = y[p] * youngOdds
-                dead[k][ResidentDeath.AGE] += (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years) * area
-                dead[k][ResidentDeath.HUNGER] += ((a[p] + 1.5f * y[p]) * hunger) * area
-                dead[k][ResidentDeath.COLD] += ((a[p] + 1.5f * y[p]) * cold) * area
-                dead[k][ResidentDeath.DISEASE] += ((a[p] + y[p]) * disease) * area
-                dead[k][ResidentDeath.EAGLES] += y[p] * eagle * area
-                dead[k][ResidentDeath.FIRE] += (a[p] * fireA + y[p] * fireY) * area
-                dead[k][ResidentDeath.FLOOD] += (a[p] * floodA + y[p] * floodY) * area
-                dead[k][ResidentDeath.SNOW] += (a[p] * snowA + y[p] * snowY) * area
-                dead[k][ResidentDeath.CROCODILES] += y[p] * croc * area
-                dead[k][ResidentDeath.THIRST] += ((a[p] + 1.5f * y[p]) * thirst) * area
+                // (The causes are booked as shares of the deaths that happen: where the odds are capped, each cause is cut alike.)
+                val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
+                val cy = if (youngSum > 0f) y[p] * youngOdds / youngSum * area else 0f
+                val dd = dead[k]
+                dd[ResidentDeath.AGE] += ca * s.backgroundMortality * years + cy * s.youngMortality * years
+                dd[ResidentDeath.HUNGER] += (ca + 1.5f * cy) * hunger
+                dd[ResidentDeath.COLD] += (ca + 1.5f * cy) * cold
+                dd[ResidentDeath.DISEASE] += (ca + cy) * disease
+                dd[ResidentDeath.EAGLES] += cy * eagle
+                dd[ResidentDeath.FIRE] += ca * fireA + cy * fireY
+                dd[ResidentDeath.FLOOD] += ca * floodA + cy * floodY
+                dd[ResidentDeath.SNOW] += ca * snowA + cy * snowY
+                dd[ResidentDeath.CROCODILES] += cy * croc
+                dd[ResidentDeath.THIRST] += (ca + 1.5f * cy) * thirst
+                dd[ResidentDeath.SHORT_OF_PROTEIN] += cy * starved
                 record?.let { r ->
-                    val kg = s.massKg * area
-                    r.resident(k, p, PlaceRecord.Cause.HUNGER, (a[p] + 1.5f * y[p]) * hunger * kg)
-                    r.resident(k, p, PlaceRecord.Cause.THIRST, (a[p] + 1.5f * y[p]) * thirst * kg)
-                    r.resident(k, p, PlaceRecord.Cause.COLD, ((a[p] + 1.5f * y[p]) * cold + a[p] * snowA + y[p] * snowY) * kg)
-                    r.resident(k, p, PlaceRecord.Cause.ILLNESS, (a[p] + y[p]) * disease * kg)
-                    r.resident(k, p, PlaceRecord.Cause.KILLED, y[p] * (eagle + croc) * kg)
-                    r.resident(k, p, PlaceRecord.Cause.OTHER, (a[p] * s.backgroundMortality * years + y[p] * s.youngMortality * years +
-                        a[p] * (fireA + floodA) + y[p] * (fireY + floodY)) * kg)
+                    val ka = ca * s.massKg; val ky = cy * s.massKg
+                    r.resident(k, p, PlaceRecord.Cause.HUNGER, (ka + 1.5f * ky) * hunger)
+                    r.resident(k, p, PlaceRecord.Cause.THIRST, (ka + 1.5f * ky) * thirst)
+                    r.resident(k, p, PlaceRecord.Cause.COLD, (ka + 1.5f * ky) * cold + ka * snowA + ky * snowY)
+                    r.resident(k, p, PlaceRecord.Cause.ILLNESS, (ka + ky) * disease)
+                    r.resident(k, p, PlaceRecord.Cause.KILLED, ky * (eagle + croc))
+                    r.resident(k, p, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) +
+                        ka * (fireA + floodA) + ky * (fireY + floodY))
                 }
                 a[p] -= da; y[p] -= dy
                 carcassKg[p] += (da + 0.3f * dy) * area * s.massKg
@@ -1604,7 +1610,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 /** The residents' deaths in a week, by [cause] as the deaths ledger names it. */
 enum class ResidentDeath(val cause: DeathCause) {
     AGE(DeathCause.AGE), HUNGER(DeathCause.HUNGER), COLD(DeathCause.COLD), DISEASE(DeathCause.DISEASE), EAGLES(DeathCause.EAGLES),
-    FIRE(DeathCause.FIRE), FLOOD(DeathCause.FLOOD), SNOW(DeathCause.SNOW), CROCODILES(DeathCause.CROCODILES), THIRST(DeathCause.THIRST)
+    FIRE(DeathCause.FIRE), FLOOD(DeathCause.FLOOD), SNOW(DeathCause.SNOW), CROCODILES(DeathCause.CROCODILES), THIRST(DeathCause.THIRST),
+    SHORT_OF_PROTEIN(DeathCause.SHORT_OF_PROTEIN)
 }
 @Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.get(d: ResidentDeath) = this[d.ordinal]
 @Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.set(d: ResidentDeath, v: Double) { this[d.ordinal] = v }

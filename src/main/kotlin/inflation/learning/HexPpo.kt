@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.run.Nominal
 import inflation.run.freshSim
 import inflation.ecology.HexSim
 import inflation.ecology.Catalogue
@@ -426,6 +427,8 @@ object HexPpo {
          * included: the networks are to learn in worlds that have run long.
          */
         var derailed: String? = null; private set
+        /** Whether its world stands within nominal limits now (the state only: a training world keeps no history). */
+        fun nominal() = Nominal.state(run)
         private val startNumbers = HashMap<Species, Int>()
         private fun numbersByKind(): Map<Species, Int> = run.groups.groups.filter { it.alive }.groupingBy { it.species }.fold(0) { a, g -> a + g.size }
         /** The migration bonus of choice [c] judged over [horizon] weeks ([MIGRATION_WEIGHT]); 0 where its group was not seen. */
