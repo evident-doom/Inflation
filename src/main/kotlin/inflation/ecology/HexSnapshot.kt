@@ -87,9 +87,12 @@ object HexSnapshot {
      * 2.8: residents move every second week (Tuning.residentMoveWeeks), and their animals under 1% of usual numbers at a
      * place gather into the next thin place (Tuning.residentFloor).
      * 2.9: hooves no longer take grown shrubs; they kill the seedlings of shrubs and trees on the ground they step on (HexPlants.tread).
+     * 2.10: a place's room for an arriving band is how well it would be fed there by the residents' own feeding rule
+     * ([HexFauna.forage]), so the foresight behind walking, band shifts and gathering into herds no longer foresees
+     * starvation that those already there don't meet.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 9
+    const val MODEL_MINOR = 10
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
