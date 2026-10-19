@@ -1,7 +1,7 @@
 package inflation.ecology
 
 /**
- * A place: an index into the arrays kept per place (a hex at one height band, see [inflation.world.HexWorld.placeHex]).
+ * A place: an index into the arrays kept per place (a hex, or its low or high ground, see [inflation.world.HexWorld.placeHex]).
  * A type of its own so that a place and a [Hex] cannot be swapped; where it is a parameter, local or field it compiles
  * to a plain int, so it costs nothing and a saved field keeps its layout. [NONE] (-1) is "no place".
  */
@@ -35,8 +35,8 @@ package inflation.ecology
 
 /** The hex place [p] lies in. */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.hexOf(p: Place) = Hex(placeHex[p.i])
-/** The place in hex [h] at height band [band] ([Place.NONE] if the hex has no land there). */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeIn(band: Int, h: Hex) = Place(placeOf[band][h.i])
+/** Hex [h]'s low or high ground, its only place where it is not split ([Place.NONE] if it has no land). */
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeIn(band: Int, h: Hex) = Place(placeIn(band, h.i))
 /** Area of place [p], m². */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.m2(p: Place) = m2(p.i)
 /** [kg] spread over place [p]. */
@@ -49,7 +49,7 @@ package inflation.ecology
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexPlants.canopy(p: Place) = canopy(p.i)
 /** Whether water at place [p] must be dug for, fetching up to [fetchKm]. */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexDrinkingWater.mustDig(p: Place, fetchKm: Float) = mustDig(p.i, fetchKm)
-/** The place in hex [h] at the height band of place [p] ([Place.NONE] if the hex has no land there). */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.sameBandPlace(p: Place, h: Hex) = Place(sameBandPlace(p.i, h.i))
+/** The place in hex [h] nearest in height to place [p] ([Place.NONE] if the hex has no land). */
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeNear(p: Place, h: Hex) = Place(placeNear(p.i, h.i))
 /** As above, for a hex index kept as a plain int. */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.sameBandPlace(p: Place, h: Int) = Place(sameBandPlace(p.i, h))
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeNear(p: Place, h: Int) = Place(placeNear(p.i, h))

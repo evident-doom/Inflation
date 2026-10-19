@@ -10,9 +10,9 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The plants of the places of [HexLand], on the averages of each band's cells (begun from the fine [Vegetation]'s rules, since gone further):
+ * The plants of the places of [HexLand], on the averages of each place's cells (begun from the fine [Vegetation]'s rules, since gone further):
  * herbs, shrubs and trees grow towards ceilings set by recent moisture, warmth and soil; trees shade the rest;
- * seed comes from the place itself and its neighbours (the bands above and below in the hex, the same heights
+ * seed comes from the place itself and its neighbours (the other half of its hex, the places
  * in the hexes around); frost, floods, ash and fire set them back. Grazing, browsing, rooting, trampling and
  * seed carried by animals are set by the ecology.
  */

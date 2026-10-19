@@ -53,8 +53,8 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         this(Places.of(grid, climate, cfg, elevation), cfg)
 
     /**
-     * The places the weather is kept for: anything from every fine cell to a few height bands of
-     * each hex. Each has a position, a latitude, its monthly normals and how much rain each wind
+     * The places the weather is kept for: anything from every fine cell to the low and high ground
+     * of each hex. Each has a position, a latitude, its monthly normals and how much rain each wind
      * direction brings it against calm air.
      */
     class Places(

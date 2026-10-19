@@ -66,7 +66,7 @@ fun main(args: Array<String>) {
         if (w.snowpack[p] > s.snowLimitMm) fSnow[c] += hm
         fQuality[c] += hm * land.plants.nourishment(p)
         fCold[c] += hm * coldNeed(s, fauna.feltC(s, p, w.temperature[p]), w.date.month, tuning)
-        val h = hw.placeHex[p]; fBandNb[c] += hm * (0 until 6).count { d -> val q = hex.neighbour(h, d); q >= 0 && hw.sameBandPlace(p, q) >= 0 }
+        val h = hw.placeHex[p]; fBandNb[c] += hm * (0 until 6).count { d -> val q = hex.neighbour(h, d); q >= 0 && hw.placeNear(p, q) >= 0 }
         fLeftHere[c] += hm * (fauna.grazeLeft[p] + fauna.browseLeft[p])
     }
 

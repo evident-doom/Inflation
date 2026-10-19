@@ -135,7 +135,7 @@ class Census(private val sim: HexSim) {
     /** Paths: how many ways are worn, and whether they gather where the going is hard (broken ground, rivers). */
     fun printPaths() {
         val worn = (0 until hex.size).filter { groups.wear.at(it) > 0.3f }
-        val rug = { h: Int -> hw.placeOf[0][h].takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f }
+        val rug = { h: Int -> hw.firstPlaceIn(h).takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f }
         val landHexes = (0 until hex.size).filter { hw.land[it] > 0.5f }
         println("     paths: %d hexes with a worn path (%.1f%% of land); ruggedness where worn %.2f against %.2f overall; mean wear %.3f".format(
             worn.size, 100.0 * worn.size / landHexes.size.coerceAtLeast(1), worn.map { rug(it).toDouble() }.average().takeIf { !it.isNaN() } ?: 0.0,
@@ -345,11 +345,11 @@ class Census(private val sim: HexSim) {
             "%d / %s / %s".format(sizes[c], gs.joinToString(",").ifEmpty { "-" }, res.joinToString(",").ifEmpty { "-" }) })
     }
 
-    /** Where each kind lives at the end: share in each height band. */
+    /** Where each kind lives at the end: share on low ground (and in unsplit hexes) and on high ground. */
     fun printHeights() {
-        println("share of each kind by height band (lowest first):")
+        println("share of each kind on low ground (and in unsplit hexes), and on high ground:")
         for ((i, s) in fauna.kinds.withIndex()) {
-            val byBand = DoubleArray(HexWorld.BANDS_M.size)
+            val byBand = DoubleArray(HexWorld.BANDS)
             for (p in 0 until fauna.n) byBand[hw.placeBand[p]] += residents(i, p)
             val tot = byBand.sum().coerceAtLeast(1.0)
             println("  %-12s ".format(s.name) + byBand.joinToString(" ") { "%3.0f%%".format(100 * it / tot) })

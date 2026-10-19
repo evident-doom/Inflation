@@ -112,8 +112,11 @@ object HexSnapshot {
      * neighbouring places worth more at the numbers there and here ([HexFauna.flow]), every week; and a mother bears a
      * year's young once, wherever she walks ([HexFauna.bred]), a week's share of her season by its days, and a place is
      * worth its births to movers whatever its calendar.
+     * 4.0: a hex is one place, or two (its low and high ground, split at the median height of its land) where its land
+     * rises more than [inflation.world.HexWorld.SPLIT_RELIEF_M]; the five fixed height bands are gone. Whatever looks to
+     * another hex at a place's height takes the place there nearest in height ([inflation.world.HexWorld.placeNear]).
      */
-    const val MODEL_MAJOR = 3
+    const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 0
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant

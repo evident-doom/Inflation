@@ -297,6 +297,7 @@ class HexGroups(
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < Thresholds.HUNGRY)
                 stats.meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
+            g.climbedM = max(0f, hw.placeElevationM[choice[k]] - hw.placeElevationM[g.place.i])
             g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             crossWater(g, g.path)
         }
@@ -418,9 +419,9 @@ class HexGroups(
             for (k in 0 until 6) {
                 val nh = hex.neighbour(h, k)
                 if (nh < 0 || hex.heart[nh] < 0) continue
-                // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper. (Read in the
-                // band it walks in; where the next hex has no ground at that height, at its heart, where the way crosses.)
-                val np = hw.placeOf[band][nh].takeIf { it >= 0 } ?: hw.placeAt(hex.heart[nh])
+                // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper. (Read at the height
+                // it walks at: in the next hex, the ground nearest the low or high ground of this one it keeps to.)
+                val np = hw.placeIn(band, h).let { if (it >= 0) hw.placeNear(it, nh) else hw.placeIn(band, nh) }
                 val snowMm = if (np >= 0) weather.snowpack[np] else 0f
                 // A worn path makes the going easier, the more so where the country is broken.
                 val worn = wear.paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np >= 0) land.ruggedness[np] else 0f))
@@ -906,7 +907,7 @@ class HexGroups(
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
         // hungry pack ranges wider: up to three times that after weeks of hunger.
-        val homeValue = if (!g.home.none) placeValue[kind][hw.sameBandPlace(g.place.i, g.home.i).takeIf { it >= 0 } ?: g.place.i] else PREY_HALF
+        val homeValue = if (!g.home.none) placeValue[kind][hw.placeNear(g.place.i, g.home.i).takeIf { it >= 0 } ?: g.place.i] else PREY_HALF
         // (A pack with young in the den, from its births for [inflation.Tuning.denMonths], hunts only
         // within [inflation.Tuning.denKm] of its home, however hungry: it cannot follow game that moves on.)
         val denning = s.pack && !g.home.none && g.young > 0 && monthsFrom(g.birthMonth, month) < tuning.denMonths
@@ -933,9 +934,8 @@ class HexGroups(
             var drowning = -1f
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(kind, here.i, h.i, pullKm)
-            for (b in 0 until HexWorld.BANDS_M.size) {
-                val p = hw.placeIn(b, h)
-                if (p.none) continue
+            for (pi in hw.placesOf(h.i)) {
+                val p = Place(pi)
                 // (Its own kind there, as it knows it.)
                 val crowded = crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0))
                 val prey = knownGame(g, kind, p, h)
@@ -1015,7 +1015,7 @@ class HexGroups(
                     if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p], dist[h], hexKm(h.i, goalHex))
             }
             val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
-                hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: HexWorld.BANDS_M.indices.map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } }?.let { Place(it) }
+                hw.placeNear(g.place.i, h).takeIf { it >= 0 } }?.let { Place(it) }
             println("plan ${s.name} #${g.id} of ${g.size} month ${date.month + 1}, ${if (restless) "restless" else "content"}, reach %.0f km, weighed %d places: chose ".format(reach, seen.size) +
                 parts(best) + (if (best != g.place) " | stay " + parts(g.place) else "") + (towards?.let { " | toward goal " + parts(it) } ?: ""))
         }
@@ -1084,8 +1084,8 @@ class HexGroups(
         score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
         if (thirsty && !canDrink(s, p.i)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
-        // The going costs food: a share of the week's need (see [walkCost]).
-        score -= WALK_COST * d / days
+        // The going costs food: a share of the week's need, the height gained as the level walk it equals (see [walkCost]).
+        score -= WALK_COST * (d + climbKmPerM(s.massKg) * max(0f, hw.placeElevationM[p.i] - hw.placeElevationM[g.place.i])) / days
         // (Above all, it keeps alive: its deaths there are weighed against all this by the caller, see [planInner].)
         // Bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && s.human) {
@@ -1214,14 +1214,13 @@ class HexGroups(
     /** Whether band [b] camped at place [p] would be at its house. */
     internal fun atHouse(b: Band, p: Int) = b.houseHex.i == hw.placeHex[p] && b.house > 0.05f
 
-    /** The least [drain] at the places next to hex [here] (in the group's band of places). */
+    /** The least [drain] at the places next to hex [here] (at the height nearest the group's). */
     private fun leastDrainNear(g: HexGroup, here: Int, weather: Weather): Float {
-        val b = hw.placeBand[g.place]
         var least = Float.MAX_VALUE
         for (k in 0 until 6) {
             val q = hex.neighbour(here, k)
             if (q < 0) continue
-            val p = hw.placeOf[b][q]
+            val p = hw.placeNear(g.place.i, q)
             if (p >= 0) least = min(least, drain(g, p, weather))
         }
         return if (least == Float.MAX_VALUE) drain(g, g.place.i, weather) else least

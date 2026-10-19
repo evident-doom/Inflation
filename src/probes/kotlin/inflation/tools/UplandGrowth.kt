@@ -54,9 +54,9 @@ fun main(args: Array<String>) {
             for (p in 0 until land.n) { val area = land.areaKm2[p]; grown += ad[p] * area; little += yo[p] * area; fatDays += fauna.reserve[k][p] * ad[p] * area }
             if (grown <= 0.0) continue
             val ypg = (little / grown).toFloat(); val fat = (fatDays / grown).toFloat()
-            for (h in 0 until hex.size) for (b in 0 until HexWorld.BANDS_M.size - 1) {
-                val lo = hw.placeOf[b][h]; val hi = hw.placeOf[b + 1][h]
-                if (lo < 0 || hi < 0) continue
+            for (h in 0 until hex.size) {
+                val lo = hw.placeIn(HexWorld.LOW, h); val hi = hw.placeIn(HexWorld.HIGH, h)
+                if (lo < 0 || hi == lo) continue
                 val nLo = (ad[lo] + yo[lo]) * land.areaKm2[lo].toDouble(); val nHi = (ad[hi] + yo[hi]) * land.areaKm2[hi].toDouble()
                 val n = nLo + nHi; if (n <= 0.0) continue
                 val oLo = fauna.arriveOdds(k, lo, sim.weather, outLo); val oHi = fauna.arriveOdds(k, hi, sim.weather, outHi)

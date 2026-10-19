@@ -37,14 +37,14 @@ import java.util.stream.IntStream
 
 /**
  * The resident plant-eaters on the hexes, as densities: adults and young per km² of each place
- * (a height band of a hex). Each week, in each place:
+ * (a hex, or its low or high ground). Each week, in each place:
  *
  * - The animals of every kind graze and browse the place's plants, sharing them by what each wants
  *   of grass, browse and fruit; snow deeper than a kind can dig through hides the grass.
  * - Young are born in the season, and grow up over the years to maturity.
  * - Animals die of age and accident, faster when hungry, in cold beyond what their coat allows,
  *   and the young most.
- * - Within a hex they shift between its height bands towards better feeding and kinder weather,
+ * - Within a hex they shift between its low and high ground towards better feeding and kinder weather,
  *   up the mountain in summer and down in winter.
  * - When hungry or crowded, some spill over into the places around, over the hex borders as their
  *   way of travelling allows (climbers over crags, swimmers across rivers), towards better feeding.
@@ -149,7 +149,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 for (d in 0 until 6) {
                     val q = hex.neighbour(h, d); if (q < 0) continue
                     val here = groupHeads[si][q] > 0 ||
-                        (k >= 0 && (0 until HexWorld.BANDS_M.size).any { b -> hw.placeOf[b][q].let { p -> p >= 0 && adults[k][p] + young[k][p] > 0.01f } })
+                        (k >= 0 && hw.placesOf(q).any { p -> adults[k][p] + young[k][p] > 0.01f })
                     if (here) o[q] = min(1f, max(o[q], OUTBREAK_SPREAD * old[h]))
                 }
             }
@@ -1207,7 +1207,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return adultShare(out)
     }
 
-    /** Each place kind [k]'s residents at place [p] can walk to in a step: across each border it can cross into the six hexes about, in its band or the one above or below. */
+    /** Each place kind [k]'s residents at place [p] can walk to in a step: across each border it can cross, the places of the six hexes about. */
     private inline fun neighbourPlaces(k: Int, p: Int, f: (Int) -> Unit) {
         val t = stepPlaces[travel[k].ordinal]
         val from = t.from; val to = t.to
@@ -1223,15 +1223,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val from = IntArray(n + 1); var to = IntArray(12 * n); var m = 0
             for (p in 0 until n) {
                 from[p] = m
-                val h = hw.placeHex[p]; val b = hw.placeBand[p]
+                val h = hw.placeHex[p]
                 for (d in 0 until 6) {
                     val nh = hex.neighbour(h, d)
                     if (nh < 0 || !cross[h * 6 + d].isFinite()) continue
-                    for (db in -1..1) {
-                        val nb = b + db; if (nb !in HexWorld.BANDS_M.indices) continue
-                        val q = hw.placeOf[nb][nh]
-                        if (q >= 0) { if (m == to.size) to = to.copyOf(2 * m); to[m++] = q }
-                    }
+                    for (q in hw.placesOf(nh)) { if (m == to.size) to = to.copyOf(2 * m); to[m++] = q }
                 }
             }
             from[n] = m
@@ -1279,22 +1275,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w else 0f
 
     /**
-     * Within a hex, a share of each resident hunter kind moves between neighbouring height bands (the plant-eaters move
-     * between them as they [flow]): death first. Where staying in one band is clearly deadlier than coming to the other
-     * ([arrive], [clearlyWorse]), a share moves to the safer one, by how much safer it is; else towards the band of the
+     * Within a split hex, a share of each resident hunter kind moves between its low and high ground (the plant-eaters
+     * move between them as they [flow]): death first. Where staying on one is clearly deadlier than coming to the other
+     * ([arrive], [clearlyWorse]), a share moves to the safer one, by how much safer it is; else towards the one of the
      * better hunting and ground ([appeal]), if it is no deadlier.
      */
     private fun shiftBands(weather: Weather) {
-        val bands = HexWorld.BANDS_M.size
         // (Moving every few weeks, a move takes the share those weeks' would have.)
         val weeks = tuning.residentMoveWeeks
         // Each kind on its own core: the kinds' numbers are kept apart.
         kinds.indices.toList().parallelStream().forEach { k ->
             if (room[k] != null) return@forEach
             val a = adults[k]; val y = young[k]
-            for (h in 0 until hex.size) for (b in 0 until bands - 1) {
-                val lo = hw.placeOf[b][h]; val hi = hw.placeOf[b + 1][h]
-                if (lo < 0 || hi < 0) continue
+            for (h in 0 until hex.size) {
+                val lo = hw.placeIn(HexWorld.LOW, h); val hi = hw.placeIn(HexWorld.HIGH, h)
+                if (lo < 0 || hi == lo) continue
                 if (a[lo] + y[lo] <= 0f && a[hi] + y[hi] <= 0f) continue
                 // (A place worth less than nothing, or past reckoning, counts as nothing: else the gain
                 // passes 1, the share can take more than the place holds and leave it below nothing,
@@ -1322,9 +1317,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 bred[k][to] = mixed(bred[k][to], a[to] * land.areaKm2[to], bred[k][from], ma)
                 a[from] -= ma / land.areaKm2[from]; y[from] -= my / land.areaKm2[from]
                 a[to] += ma / land.areaKm2[to]; y[to] += my / land.areaKm2[to]
+                // (Those that climbed pay for it out of their fat, as for a walk, see [climbKm].)
+                val heads = (a[to] + y[to]) * land.areaKm2[to]
+                if (heads > 0f) reserve[k][to] = max(0f, reserve[k][to] - WALK_COST * climbKm(k, from, to) * (ma + my) / heads)
             }
         }
     }
+
+    /** The level km that going from place [p] to [q] up costs kind [k] as much as, by the height gained (none going down): see [climbKmPerM]. */
+    private fun climbKm(k: Int, p: Int, q: Int): Float = climbPerM[k] * max(0f, hw.placeElevationM[q] - hw.placeElevationM[p])
+    @delegate:Transient private val climbPerM: FloatArray by lazy { FloatArray(kinds.size) { climbKmPerM(kinds[it].massKg) } }
 
     /**
      * For the viewer: the kind (slot) whose spill to record, -1 for none; and the last move's ([Tuning.residentMoveWeeks]),
@@ -1401,13 +1403,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val uneasy = (s.discomfortC(feltC(s, p, weather.temperature[p]), weather.date.month) / 10f).coerceIn(0f, 1f)
             val snowedIn = (weather.snowpack[p] / s.snowLimitMm - 1f).coerceIn(0f, 1f)
             val need = maxOf((1f - f[p]).coerceIn(0f, 1f), thirst, max(uneasy, snowedIn))
-            val h = hw.placeHex[p]; val b = hw.placeBand[p]
+            val h = hw.placeHex[p]
             // Hungry, thirsty, cold or snowed-in ones leave, and so do those whose country does not suit them, towards better.
             val leave = SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k, h)
-            // Where they could go: each neighbouring hex at about the same height (its band, or the one above
-            // or below), weighed by how good it is and how easy the border is.
+            // Where they could go: each neighbouring hex's low and high ground, weighed by how good it is and how
+            // easy the border is.
             var total = 0f; var best = 0f; var closed = false
-            val ws = FloatArray(18); val wq = IntArray(18) { -1 }
+            val ws = FloatArray(6 * HexWorld.BANDS); val wq = IntArray(6 * HexWorld.BANDS) { -1 }
             for (d in 0 until 6) {
                 val nh = hex.neighbour(h, d)
                 if (nh < 0) { closed = true; continue }
@@ -1415,11 +1417,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (!e.isFinite()) { closed = true; continue }
                 val ease = hex.hexKm.toFloat() / e
                 val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k, h, nh, hex.hexKm))
-                for (db in -1..1) {
-                    val nextBand = b + db; if (nextBand !in 0 until HexWorld.BANDS_M.size) continue
-                    val q = hw.placeOf[nextBand][nh]
-                    if (q < 0) continue
-                    val i = d * 3 + db + 1
+                val places = hw.placesOf(nh)
+                for (j in places.indices) {
+                    val q = places[j]
+                    val i = d * HexWorld.BANDS + j
                     // (The thirsty shun country where they could not drink, the more the thirstier: as groups head for water.)
                     val worth = if (thirst > 0f && !drinks(s, q)) worthOf[q] * (1f - thirst) else worthOf[q]
                     if (worth > best) best = worth
@@ -1434,7 +1435,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (swim > 0f && linksTo != null && gapsTo != null) {
                 val to = linksTo[h]; val gaps = gapsTo[h]
                 for (i in to.indices) { val nh = to[i]; val gapKm = gaps[i]
-                    if (gapKm > swim) continue; val q = hw.placeOf[b][nh].takeIf { it >= 0 } ?: continue
+                    if (gapKm > swim) continue; val q = hw.placeNear(p, nh).takeIf { it >= 0 } ?: continue
                     // (Weighed by those that would reach the far shore: the strait drowns some, as it does groups.)
                     val wq = SEA_SPILL * (1f - gapKm / swim) * (1f - drownRisk(s, gapKm)) * land.areaKm2[q] * (worthOf[q] + 1e-4f)
                     if (wq > seaW) { seaW = wq; seaTo = q; seaGapKm = gapKm } }
@@ -1461,13 +1462,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 drowned[seaTo] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble()
             }
             moveA[p] -= goA; moveY[p] -= goY
-            for (i in 0 until 18) {
+            for (i in ws.indices) {
                 if (ws[i] <= 0f) continue
                 val q = wq[i]
                 val ga = goA * ws[i] / total; val gy = goY * ws[i] / total
                 moveA[q] += ga; moveY[q] += gy
                 cameA[q] += ga; cameBred[q] += ga * bk[p]
-                arrived[q] += ga + gy; walkedKm[q] += (ga + gy) * hex.hexKm.toFloat()
+                arrived[q] += ga + gy; walkedKm[q] += (ga + gy) * (hex.hexKm.toFloat() + climbKm(k, p, q))
                 if (flow) {
                     val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
                     flowEast[h] += (ga + gy) * (x1 - x0).toFloat(); flowSouth[h] += (ga + gy) * (y1 - y0).toFloat(); flowOut[h] += ga + gy
@@ -1506,7 +1507,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * they came from, only as many come as would bring it down to them (as a straight line between it as it is and with
      * all of them would have it). The food does not move: what a place feeds is what those there ate and the food left
      * uneaten ([spareHeads]), shared among however many there are. Asleep, they stay. Adds the heads that came to each
-     * place to [arrived], the km they walked to [walkedKm] (a hex's border crossing; between bands of a hex, none), and
+     * place to [arrived], the km they walked to [walkedKm] (a hex's border crossing, and the height they climbed as level km, see [climbKm]), and
      * the drowned to [drowned]; leaves what each place is worth at the end in [worth] (where the kind is and next to it;
      * elsewhere nothing); gives the heads drowned.
      */
@@ -1611,7 +1612,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val lostA = mA * risk; val lostY = mY * min(1f, 2f * risk)
                     if (lostA + lostY > 0f) { drowned[q] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble(); exact[q] = false }
                     ga[q] += mA - lostA; gy[q] += mY - lostY; gb[q] += (mA - lostA) * hadBred
-                    arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * km
+                    arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (km + climbKm(k, p, q))
                     changed[q] = true
                     if (record && hw.placeHex[q] != h) {
                         val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
@@ -1646,9 +1647,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private class FlowWays(val from: IntArray, val to: IntArray, val ease: FloatArray, val km: FloatArray, val keep: FloatArray)
 
     /**
-     * [FlowWays] for each kind, worked out once (borders, straits and places do not change): the bands above and below in
-     * its hex; across each border it can cross, the neighbouring hex's places in its band or the one above or below; and
-     * the shores across a strait it can swim, in its band (a trickle, [SEA_SPILL], the nearer all it can swim the fewer).
+     * [FlowWays] for each kind, worked out once (borders, straits and places do not change): the other half of its hex;
+     * across each border it can cross, the neighbouring hex's places; and the shore across a strait it can swim, at the
+     * height nearest its own (a trickle, [SEA_SPILL], the nearer all it can swim the fewer).
      */
     @delegate:Transient private val flowWays: Array<FlowWays> by lazy {
         val links = seaLinks?.value; val gaps = seaGaps?.value
@@ -1658,19 +1659,18 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             fun way(q: Int, e: Float, d: Float, l: Float) { to += q; ease += e; km += d; keep += l }
             for (p in 0 until n) {
                 from[p] = to.size
-                val h = hw.placeHex[p]; val b = hw.placeBand[p]
-                if (b > 0) hw.placeOf[b - 1][h].let { if (it >= 0) way(it, 1f, 0f, 1f) }
-                if (b + 1 < HexWorld.BANDS_M.size) hw.placeOf[b + 1][h].let { if (it >= 0) way(it, 1f, 0f, 1f) }
+                val h = hw.placeHex[p]
+                for (q in hw.placesOf(h)) if (q != p) way(q, 1f, 0f, 1f)
                 for (d in 0 until 6) {
                     val nh = hex.neighbour(h, d); if (nh < 0) continue
                     val e = cross[h * 6 + d]; if (!e.isFinite()) continue
-                    for (nb in max(0, b - 1)..min(HexWorld.BANDS_M.size - 1, b + 1)) { val q = hw.placeOf[nb][nh]; if (q >= 0) way(q, min(1f, hex.hexKm.toFloat() / e), e, 1f) }
+                    for (q in hw.placesOf(nh)) way(q, min(1f, hex.hexKm.toFloat() / e), e, 1f)
                 }
                 if (swim > 0f && links != null && gaps != null) {
                     val across = links[h]; val gapKm = gaps[h]
                     for (i in across.indices) {
                         if (gapKm[i] > swim) continue
-                        val q = hw.placeOf[b][across[i]]; if (q < 0) continue
+                        val q = hw.placeNear(p, across[i]); if (q < 0) continue
                         way(q, SEA_SPILL * (1f - gapKm[i] / swim), gapKm[i], 1f - drownRisk(s, gapKm[i]))
                     }
                 }
@@ -1753,7 +1753,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val ga = a[p] * area[p]; val gy = y[p] * area[p]
             bred[k][to] = mixed(bred[k][to], a[to] * area[to], bred[k][p], ga)
             a[to] += ga / area[to]; y[to] += gy / area[to]; a[p] = 0f; y[p] = 0f
-            arrived[to] += ga + gy; walkedKm[to] += (ga + gy) * hex.hexKm.toFloat()
+            arrived[to] += ga + gy; walkedKm[to] += (ga + gy) * (hex.hexKm.toFloat() + climbKm(k, p, to))
         }
     }
 

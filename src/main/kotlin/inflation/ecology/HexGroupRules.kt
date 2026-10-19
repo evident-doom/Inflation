@@ -5,6 +5,7 @@ import inflation.Config
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 // The numbers the packs and bands on the hexes live by.
@@ -182,8 +183,20 @@ fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * max(0, g.path.size - 1)
     // (People pushing through thick woods and scrub go slower and tire more than in the open.)
     (if (g.species.human) 1f + COVER_GOING * land.plants.cover(g.place) else 1f) +
     // (Gatherers going further than usual walk the difference out and back each day.)
-    (g.band?.let { b -> if (b.gatherRange > 1f) WALK_COST * GATHER_WALK_KM * (b.gatherRange - 1f) * 0.5f else 0f } ?: 0f)
+    (g.band?.let { b -> if (b.gatherRange > 1f) WALK_COST * GATHER_WALK_KM * (b.gatherRange - 1f) * 0.5f else 0f } ?: 0f) +
+    // (And the height it gained on the way costs as the level walk it equals, see [climbKmPerM].)
+    WALK_COST * climbKmPerM(g.species.massKg) * g.climbedM / days
 const val WALK_COST = 0.011f
+
+/**
+ * The km of level walking that a metre climbed costs as much as, for an animal of [massKg]: lifting its body takes
+ * about [CLIMB_J_PER_KG_M] per kg per m gained whatever its size (g over the muscles' ~30% efficiency; Taylor, Caldwell
+ * & Rowntree 1972), walking on the level 10.7 M^-0.316 J per kg per m (Taylor, Heglund & Maloiy 1982). So a metre up is
+ * about 13 m of level going for a 100 kg animal, 12 m for a person (Naismith's rule has about 8), 6 m for a 10 kg one.
+ * Going down is taken as free: on the gentle slopes of a week's going it costs no more than the level.
+ */
+fun climbKmPerM(massKg: Float): Float = CLIMB_J_PER_KG_M / (10.7f * massKg.pow(-0.316f)) / 1000f
+const val CLIMB_J_PER_KG_M = 33f
 
 /**
  * How far a group sees this week against a clear day in the open, 0..1: rain, snow and fog cut the

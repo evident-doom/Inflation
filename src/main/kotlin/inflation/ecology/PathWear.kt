@@ -23,7 +23,7 @@ class PathWear(private val hex: HexMap) {
     /** This week's ([days]) going wears the ways [groups] went; the rest grow back a little, the faster the greener the ground. */
     fun week(groups: List<HexGroup>, hw: HexWorld, land: HexLand, days: Int) {
         for (h in 0 until hex.size) {
-            val p = (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } ?: -1
+            val p = hw.firstPlaceIn(h)
             val regrow = PATH_FADE * (0.3f + (if (p >= 0) land.plants.green[p] else 0f)) * days / 7f
             for (d in 0 until 6) { val i = h * 6 + d; if (paths[i] > 0f) paths[i] = max(0f, paths[i] - regrow * paths[i] - 1e-4f) }
         }

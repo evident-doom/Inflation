@@ -13,7 +13,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Climate shocks (drought, cold winter, heat wave) | yes |
 | Volcanic winter | yes |
 | Weather regimes, jet stream, wind | yes |
-| Rain on windward slopes, rain shadow | yes (averaged per height band) |
+| Rain on windward slopes, rain shadow | yes (averaged over each place: a hex, or its low and high ground) |
 | Snow pack and melt | yes |
 | Weather known a week ahead | yes: cold, heat, deep snow and rain ahead, by each kind's foresight |
 | Calendar and moon | yes (moonlight helps stalkers) |
@@ -78,7 +78,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 
 | Feature | Hex |
 |---|---|
-| Resident kinds | yes, as densities per height band: every plant-eater, the migratory kinds too, and jackal and lynx as resident hunters |
+| Resident kinds | yes, as densities per place (a hex, or its low and high ground): every plant-eater, the migratory kinds too, and jackal and lynx as resident hunters |
 | Choosing where to go each week | yes (own rule, learnable) |
 | Routes over passes, climbers and walkers | yes (graded borders) |
 | Snow making travel harder | yes |
@@ -151,7 +151,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 
 ## New on hexes, not in the 1 km model
 
-- Height bands inside each hex, with animals moving between them.
+- Low and high ground inside each hex with enough relief, with animals moving between them.
 - Border crossings graded by way of travelling, with rivers on hex edges.
 - Meetings timetabled within the week, which can cut a group's week short.
 - A sense of direction for every kind (`HexBearings`): each month, the way to better country it

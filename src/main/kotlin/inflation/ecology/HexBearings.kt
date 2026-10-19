@@ -134,7 +134,7 @@ class HexBearings(
         val places = hw.placeHex.size
         for ((k, s) in kinds.withIndex()) {
             if (!present(s)) { east[k].fill(0f); south[k].fill(0f); continue }
-            // Best of each hex this month, over its height bands.
+            // Best of each hex this month, over its places.
             val pq = FloatArray(places)
             IntStream.range(0, places).parallel().forEach { p -> pq[p] = quality(s, p, m) }
             val hq = FloatArray(size)

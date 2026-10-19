@@ -16,7 +16,7 @@ import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
- * Runs weather, water and plants on every fine cell and on the hexes' height bands side by side
+ * Runs weather, water and plants on every fine cell and on the hexes' places side by side
  * from the same seed (no animals), and compares them at the end, place by place: herbs, shrubs and
  * trees, soil moisture, the flow of each hex's main river, and the area burned. Also times a step
  * of each.
