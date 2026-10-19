@@ -1,10 +1,9 @@
 package inflation.tools
 
 import inflation.Args
-import inflation.Config
-
 import inflation.learning.Role
 import inflation.run.baselineDir
+import inflation.run.baselinesRoot
 import inflation.run.gitCommit
 import inflation.learning.Schema
 import inflation.learning.SharedMover
@@ -24,7 +23,7 @@ import java.io.File
  *   baseline show NAME      (loads each network into today's model, by name, and says what it lacks)
  */
 fun main(args: Array<String>) {
-    val root = File(Config.string("baselines") ?: "runs/baselines")
+    val root = baselinesRoot()
     when (args.getOrNull(0)) {
         "save" -> {
             val name = args[1]; val from = File(args[2])
@@ -58,7 +57,6 @@ fun main(args: Array<String>) {
         else -> println("usage: baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT] | baseline list | baseline show NAME")
     }
 }
-
 
 private fun report(what: String, f: File, inputs: List<String>, outputs: List<String>) {
     val nf = Schema.namesFile(f)

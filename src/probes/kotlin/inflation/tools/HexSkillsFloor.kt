@@ -41,11 +41,7 @@ fun main(args: Array<String>) {
     val results = listOf(true, false).parallelStream().map { naked ->
         val run = freshSim(cfg, kinds)
         val land = run.land
-        val biomeOf = IntArray(land.n) { p ->
-            val counts = IntArray(Biome.entries.size)
-            for (c in run.hw.placeCells[p]) counts[run.world.biome[c].ordinal]++
-            counts.indices.maxBy { counts[it] }
-        }
+        val biomeOf = run.hw.placeBiome
         val start = DoubleArray(Biome.entries.size)
         for (g in run.groups.groups) if (g.alive && g.species == people) {
             g.tag = biomeOf[g.place]; start[g.tag] += g.size.toDouble()

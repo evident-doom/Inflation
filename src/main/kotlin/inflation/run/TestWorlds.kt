@@ -35,12 +35,15 @@ import kotlin.math.abs
  *   testWorld build NAME... [--years N] [--commit HASH]   (settles each and saves it; the config file's keys apply, as in hexFauna)
  *   testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR]
  *        (FILE: config keys; the variant's are laid over the base's, the base being the run's own config file unless given)
+ *   testWorld ab-report DIR [--worlds a,b] [--replicates 2]   (the report again from runs already made)
  *   testWorld compare --full A.csv,B.csv[,..] [--full-variant A2.csv,B2.csv,..] NAME=BASE.csv[,VARIANT.csv] ...
  * A single run on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE].
  */
 object TestWorlds {
     class Entry(val name: String, val seed: Long, val widthKm: Int, val heightKm: Int, val note: String) {
         val config get() = WorldConfig(seed = seed, widthKm = widthKm, heightKm = heightKm)
+        /** The world-making code's key for this world as it is kept in the info file: it changes when the land or climate code does. */
+        val worldKey: String get() = "%016x".format(WorldCache.key(config))
         val dir get() = File(root, name)
         val state get() = File(dir, "state.bin")
         val about get() = File(dir, "about.properties")
@@ -88,8 +91,7 @@ object TestWorlds {
         require(e.state.isFile) { "test world ${e.name} is not built yet (testWorld build ${e.name})" }
         val a = e.info() ?: Properties()
         println("test world ${e.name}: seed ${e.seed}, ${e.widthKm} x ${e.heightKm} km (${e.note}), ${sim.land.n} places; settled ${a.getProperty("years", "?")} years at commit ${a.getProperty("commit", "?")} on ${a.getProperty("built", "?")}")
-        val key = "%016x".format(WorldCache.key(e.config))
-        if (a.getProperty("worldKey") != key) println("WARNING: the world-making code has changed since ${e.name} was settled: its saved state is of the old land and climate. Rebuild it (testWorld build ${e.name}) before trusting a test on it.")
+        if (a.getProperty("worldKey") != e.worldKey) println("WARNING: the world-making code has changed since ${e.name} was settled: its saved state is of the old land and climate. Rebuild it (testWorld build ${e.name}) before trusting a test on it.")
         val then = a.getProperty("config", ""); val now = Config.set("")
         if (then != now) println("WARNING: the config differs from when ${e.name} was settled.\n  then: ${then.ifEmpty { "(defaults)" }}\n  now:  ${now.ifEmpty { "(defaults)" }}")
     }
@@ -101,7 +103,7 @@ object TestWorlds {
             val built = when {
                 a == null || !e.state.isFile -> "not built"
                 else -> {
-                    val stale = a.getProperty("worldKey") != "%016x".format(WorldCache.key(e.config))
+                    val stale = a.getProperty("worldKey") != e.worldKey
                     "%s years at %s on %s, %s s a year, %.0f MB%s".format(a.getProperty("years"), a.getProperty("commit"), a.getProperty("built"), a.getProperty("secondsPerYear"),
                         e.state.length() / 1e6, if (stale) " — WORLD CODE CHANGED SINCE: rebuild" else "")
                 }
