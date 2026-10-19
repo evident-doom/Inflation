@@ -110,11 +110,15 @@ class HexGroups(
     /** Game each hunting kind can catch in each place, kg/km² weighed by catchability, worked out once a month for the bearings. */
     internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
     private val monthHeads by lazy { Array(kinds.size) { IntArray(n) } }
-    /** Each herd kind's losses to the residents' hunters this week (also among the residents' deaths, see [takeResidentsKills]). */
+    /** Each herd kind's losses to the residents' hunters this week (also among the groups' deaths, see [takeResidentsKills]). */
     @Transient val lostToResidents = HashMap<Species, Int>()
     /** Each gathering kind's residents leaving by hex this week, heads, as [leaveAhead] found them (for the viewer, see [herdsWorth]). */
     @Transient internal val unfed = HashMap<Species, DoubleArray>()
-    /** This week, by gathering kind: the share of a band that would die at each place on coming there, and the places whose residents leave (see [leaveAhead]). */
+    /**
+     * This week, by gathering kind: the share of a band that would die at each place on coming there, and the places whose residents leave
+     * (see [leaveAhead]). [arriveBy] is [HexFauna.arrive] itself, not a copy: it holds as the residents weighed places before they moved,
+     * until their next week's [HexFauna.fillArrive].
+     */
     @Transient internal val arriveBy = HashMap<Species, FloatArray>()
     @Transient internal val leaving = HashMap<Species, BooleanArray>()
     /** Each gathering kind's place that each leaving place's residents head for this week, -1 where none leave ([leaveAhead]). */
