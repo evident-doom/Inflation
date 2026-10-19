@@ -129,6 +129,12 @@ class HexGroups(
     @Transient internal val farRing = HashMap<Species, Array<IntArray>>()
     /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
+    /**
+     * For each gathering kind: the land each hex belongs to, as the kind can walk it (across every border it can cross at
+     * all, and the straits it can swim): hexes of one number are joined over land, hexes of different numbers are not
+     * ([farthest] looks for a herd's goal only in its own; see [landOf]). Worked out once: borders and straits do not change.
+     */
+    @Transient internal val landIds = java.util.concurrent.ConcurrentHashMap<Species, IntArray>()
     /** The land hexes a herd's animals stand on about each hex, by kind and hex ([groundShares]). */
     @Transient internal val herdGround = java.util.concurrent.ConcurrentHashMap<Long, IntArray>()
     /** The migratory herds' heads in each place this month, all kinds together (from [monthHeads]; made afresh after a load). */
@@ -335,7 +341,7 @@ class HexGroups(
             // (Not in the form-swap test, where each kind keeps the form it has.)
             if (!Catalogue.formsFixed) {
                 Profile.part("herds: who leaves") { leaveAhead(it) }
-                Profile.part("herds: settling") { scatter() }
+                Profile.part("herds: settling") { scatter(it) }
                 Profile.part("herds: setting off") { gather(it.date) }
             }
         },
@@ -1260,7 +1266,12 @@ class HexGroups(
         // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
         val capture = control != null && g.id == watched
         val content = !restless && !relief && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
-        if (content && !capture && !shift) { planCounts.incrementAndGet(s.index * 3); return Plan(g.place, intArrayOf(here.i)) }
+        if (content && !capture && !shift) {
+            if (PLAN_DIAG == s.name && g.formedAt >= 0 && g.id % 7 == 0 && date.dayOfMonth <= days)
+                println("plan ${s.name} #${g.id} of ${g.size} month ${date.month + 1}, %.0f km from where it formed: content, kept its ground (fed %.2f, goal %s)".format(
+                    hexKm(here.i, hw.placeHex[g.formedAt]), g.fed, if (goal >= 0) "%.0f km".format(hexKm(here.i, hw.placeHex[goal])) else "none"))
+            planCounts.incrementAndGet(s.index * 3); return Plan(g.place, intArrayOf(here.i))
+        }
         // (A big herd moves more slowly than a small one: it waits for its stragglers.)
         // (A starving herd on eaten-out ground goes as far as it must, up to its whole week's travel.)
         // (A herd far behind its round treks: the whole week's going.)
@@ -1282,7 +1293,8 @@ class HexGroups(
         val policy = policies[s]
         // (For a followed group: every place it weighed, and how it scored.)
         // planDiag=kind: once a month, one herd's reasons, for the place it chose and the best-placed step toward its season's place.
-        val diag = PLAN_DIAG == s.name && goal >= 0 && date.dayOfMonth <= days && g.id % 97 == 0
+        // (And of the herds that formed from residents, one in seven, each month.)
+        val diag = PLAN_DIAG == s.name && goal >= 0 && date.dayOfMonth <= days && (g.id % 97 == 0 || (g.formedAt >= 0 && g.id % 7 == 0))
         val seen = if (g.id == watched || diag) ArrayList<Pair<Int, Float>>() else null
         val candPlaces = buf.candPlaces; candPlaces.clear(); val candFeats = buf.candFeats
         // (Every place's whole score is wanted for a network, for capture and for a watched herd; else only the best.)
@@ -1403,14 +1415,17 @@ class HexGroups(
             // (The score is the hand-written one before its small noise and the group's temper, as [scorePlace] gives it.)
             fun parts(p: Place): String {
                 val h = hw.hexOf(p); val hunters = huntersKm2(p, h)
-                return "score %.2f: food %.2f fresh %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
-                    seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, placeValue[kind][p], freshness(s, p.i),
+                val dying = deathsAt(c, p, h, dist[h], 0f, 0f)
+                return "score %.2f: deaths %.4f (%.1f steps) food %.2f fresh %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
+                    seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, dying, survivalSteps(g, dying), placeValue[kind][p], freshness(s, p.i),
                     crowdOf(s, p.i, knownHeads(kind, p, h, sensed) - (if (p == g.place) g.size else 0)), hunters,
                     if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p], dist[h], hexKm(h.i, goalHex))
             }
+            val formed = if (g.formedAt >= 0) ", %.0f km from where it formed".format(hexKm(here.i, hw.placeHex[g.formedAt])) else ""
             val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
-                hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: hex.heart[h] }?.takeIf { it >= 0 }?.let { Place(it) }
-            println("plan ${s.name} #${g.id} month ${date.month + 1}: chose " + parts(best) + (towards?.let { " | toward goal " + parts(it) } ?: ""))
+                hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: HexWorld.BANDS_M.indices.map { hw.placeOf[it][h] }.firstOrNull { it >= 0 } }?.let { Place(it) }
+            println("plan ${s.name} #${g.id} of ${g.size} month ${date.month + 1}$formed, ${if (restless) "restless" else "content"}, reach %.0f km, weighed %d places: chose ".format(reach, seen.size) +
+                parts(best) + (if (best != g.place) " | stay " + parts(g.place) else "") + (towards?.let { " | toward goal " + parts(it) } ?: ""))
         }
         if (shift) return Plan(best, pathTo(best.i))
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
@@ -1659,7 +1674,7 @@ class HexGroups(
         dry.reach = reach
         dry.grass = left * fauna.grazeLeft[p]; dry.browse = left * fauna.browseLeft[p]
         dry.fruit = left * food.fruit[p]; dry.roots = left * food.roots[p]; dry.straw = left * food.straw[p]
-        val b = forage(s, c.diet, p, want, c.weather.snowpack[p] > s.snowLimitMm, reach, dry)
+        val b = forage(s, c.diet, p, want, grassUnderSnow(s, c.weather.snowpack[p]), reach, dry)
         val eaten = b.eaten
         if (eaten > 0f) dry.protein = g.protein + (fauna.proteinMet(protein(b, p) / eaten) - g.protein) * HexFauna.PROTEIN_MEMORY
         return (b.got / want).coerceIn(0f, 1f)
@@ -1694,6 +1709,29 @@ class HexGroups(
     internal fun survivalSteps(g: HexGroup, dying: Float): Float {
         val q = max(g.deathOdds, g.species.backgroundMortality * years).coerceIn(1e-6f, 0.5f)
         return dying / sqrt(q * (1f - q) / max(1, g.size))
+    }
+
+    /** The way to any place [herdOddsAt] weighs: none, as it stands there already (no hexes passed). */
+    @delegate:Transient private val noWay by lazy { IntArray(hex.size) { -1 } }
+
+    /**
+     * The share of herd [g] that would die in a week standing at place [p], with no going: by [deathsAt], the rule a herd
+     * weighs its places by. So residents set off together ([leaveAhead]), and herds settle back ([settles]), by the very
+     * odds the herd they are or would be weighs its places by: a herd does not form where it would find staying no worse
+     * than going, nor stay together where it would. [g] (a band's worth, not one of [groups]: see [bandAsHerd]) stands
+     * at [p] for the while, its ground reckoned from there.
+     */
+    internal fun herdOddsAt(g: HexGroup, p: Int, weather: Weather): Float {
+        val s = g.species; val kind = kindIndex[s] ?: return Float.NaN
+        val was = g.place; g.place = Place(p)
+        try {
+            val here = hw.hexOf(g.place)
+            val sensed = IntArray(7) { if (it == 0) here.i else hex.neighbour(here.i, it - 1) }
+            val c = PlanContext(g, kind, here, sensed, weather.date.month, -1, 0f, false, 0f, 0.0, 0f, g.dry > 0.5f * s.daysWithoutWater,
+                null, weather, weather.date)
+            c.via = noWay
+            return deathsAt(c, g.place, here, 0f, 0f, 0f)
+        } finally { g.place = was }
     }
 
     internal fun hexKm(a: Int, b: Int): Double = hex.distanceKm(a, b)

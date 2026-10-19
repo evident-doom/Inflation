@@ -477,7 +477,8 @@ object Catalogue {
         // Steppe horses drink once a day or two but go three days between waterholes in a pinch.
         daysWithoutWater = 3, waterFromFood = 0.3f,
         birthMonth = 6, birthMonths = 2, youngPerFemale = 0.7f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.06f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 250f,
+        // (Steppe horses paw down to grass under some 50 cm of snow, some 125 mm of water: the Yakut horse's, Khazanov 1995.)
+        backgroundMortality = 0.06f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 125f,
         products = Products(meat = 140f, fat = 10f, hide = 18f, bone = 30f, sinew = 2f),
         comfortC = -25f..30f, winterCoat = true,
         speedKmh = 70f,

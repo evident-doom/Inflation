@@ -756,15 +756,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val want = need[k]
                 if (want <= 0f) continue
                 val d = s.diet
-                val snowed = weather.snowpack[p] > s.snowLimitMm
+                val underSnow = grassUnderSnow(s, weather.snowpack[p])
                 access = avail[k]
-                forage(s, d, quality, want, snowed, avail[k], pantry, b)
+                forage(s, d, quality, want, underSnow, avail[k], pantry, b)
                 val strawGot = min(b.short, b.straw * HexFood.roughage(s))
                 got[k] = (b.got - strawGot) / want; strawShare[k] = strawGot / want
                 var grass3 = 0f; var browse3 = 0f
                 if (b.got >= want && reserve[k][p] < s.maxFatDays) {
                     val extra = SURPLUS_EAT * want
-                    if (d.grass > 0f && !snowed) grass3 = pantry.grass(extra / quality * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
+                    if (d.grass > 0f) grass3 = pantry.grass(underSnow * extra / quality * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
                     if (d.browse > 0f) browse3 = pantry.browse(extra / quality * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
                     surplus[k] = (grass3 + browse3) * quality / want
                 }
@@ -781,7 +781,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val want = kinds[k].maxGroupSize / land.areaKm2[p] * each[k]
                 dry.reach = avail[k]; dry.grass = max(0f, spareG); dry.browse = max(0f, spareB)
                 dry.fruit = max(0f, spareF); dry.roots = max(0f, spareR); dry.straw = max(0f, spareS)
-                r[p] = (forage(s, s.diet, quality, want, weather.snowpack[p] > s.snowLimitMm, avail[k], dry, b).got / want).coerceIn(0f, 1f)
+                r[p] = (forage(s, s.diet, quality, want, grassUnderSnow(s, weather.snowpack[p]), avail[k], dry, b).got / want).coerceIn(0f, 1f)
             }
             for ((k, s) in kinds.withIndex()) {
                 val strawPart = strawShare[k]
@@ -1245,7 +1245,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val m = weather.date.month
         val discomfort = ((1f - s.foresight) * s.discomfortC(feltC(s, p, weather.temperature[p]), m) +
             s.foresight * s.discomfortC(feltC(s, p, weather.forecastTemp(p)), m)) / 10f
-        val snowed = if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f
+        // (A plant-eater weighs the snow as it feeds under it: its grass by the share it gets at, see [grassUnderSnow].)
+        val snowed = if (s.carnivore) { if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f } else s.diet.let { d ->
+            val plants = d.grass + d.browse + d.fruit + d.roots
+            if (plants <= 0f) 1f else 1f - d.grass * (1f - grassUnderSnow(s, weather.snowpack[p])) / plants }
         // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
         // protein, as herds do: so they go up to the green high pasture in summer and down for the winter.)
         val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)

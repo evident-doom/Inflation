@@ -9,6 +9,7 @@ import inflation.ecology.HexFood
 import inflation.ecology.Species
 import inflation.ecology.Catalogue
 import inflation.ecology.herdsWorth
+import inflation.ecology.grassUnderSnow
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
@@ -184,12 +185,12 @@ internal class ViewLayers(private val sim: HexSim) {
         // Hungry next to plenty: grazers and browsers going short (heads x (1 - fed), counted as far as
         // grass and browse are their diet: a boar short of roots is not short of grass) per km², times the most
         // grass and browse their kind could eat within two hexes over land: what is left uneaten this week,
-        // less what lies under snow deeper than it digs, behind crags it cannot climb or beyond its reach of water.
+        // less the grass under snow it cannot dig to, behind crags it cannot climb or beyond its reach of water.
         val usable = HashMap<Species, FloatArray>()
         fun usableFor(s: Species) = usable.getOrPut(s) {
             val d = s.diet; val gb = (d.grass + d.browse).coerceAtLeast(1e-6f)
             hexMean { p ->
-                val grass = if (w.snowpack[p] > s.snowLimitMm) 0f else fauna.grazeLeft[p] * d.grass / gb
+                val grass = grassUnderSnow(s, w.snowpack[p]) * fauna.grazeLeft[p] * d.grass / gb
                 (grass + fauna.browseLeft[p] * d.browse / gb) * HexFood.access(s, land.crag[p]) * fauna.tether(s, p)
             }
         }
