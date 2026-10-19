@@ -298,7 +298,7 @@ internal fun HexGroups.farthest(s: Species, h0: Int): Int {
     memo[h0].let { if (it != UNWEIGHED) return it }
     val arrive = arriveBy[s] ?: return -1
     val ring = farRing[s] ?: return -1
-    //WALLFIX val walk = landOf(s); val mine = walk[h0]
+    val walk = landOf(s); val mine = walk[h0]
     var best = -1; var bestOdds = Float.MAX_VALUE
     val r0 = h0 / hex.cols; val c0 = h0 % hex.cols
     val steps = ring[r0 and 1]
@@ -306,7 +306,7 @@ internal fun HexGroups.farthest(s: Species, h0: Int): Int {
         val r = r0 + steps[i]; val c = c0 + steps[i + 1]
         if (r < 0 || r >= hex.rows || c < 0 || c >= hex.cols) continue
         val h = r * hex.cols + c
-        //WALLFIX if (walk[h] != mine) continue
+        if (walk[h] != mine) continue
         for (b in HexWorld.BANDS_M.indices) {
             val q = hw.placeOf[b][h]; if (q < 0) continue
             if (arrive[q] < bestOdds) { bestOdds = arrive[q]; best = q }

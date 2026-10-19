@@ -91,7 +91,9 @@ object HexSnapshot {
      * ([HexFauna.forage]), so the foresight behind walking, band shifts and gathering into herds no longer foresees
      * starvation that those already there don't meet.
      * 2.11: residents set off as a herd, and herds settle back, by the death odds a herd weighs its places by
-     * ([HexGroups.herdOddsAt]); a herd no longer keeps together until it is beyond [gatherKm] of where it formed.
+     * ([HexGroups.herdOddsAt]); a herd no longer keeps together until it is beyond [gatherKm] of where it formed; and the
+     * place residents set off for, and a herd weighs settling against, is one it can walk to (not across the sea or a
+     * river too deep to cross).
      */
     const val MODEL_MAJOR = 2
     const val MODEL_MINOR = 11
