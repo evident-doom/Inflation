@@ -212,54 +212,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     // And the sick among them pass on what is catching.
     passIllness(bandA, bandB)
     // Each tells the other of the country it knows round about, as far as they understand each other.
-    if (rnd.nextFloat() < u * (0.6f + 0.4f * close)) {
-        val h0 = hw.placeHex[a.place]
-        var ring = listOf(h0); val seen = hashSetOf(h0)
-        for (r in 0..TOLD_RINGS) {
-            for (h in ring) { if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
-            if (r == TOLD_RINGS) break
-            ring = hex.nextRing(ring, seen)
-        }
-        stats.meetings.merge("bands told of country", 1, Int::plus)
-        // And of the ways they know further off: landmarks, and the legs between those they know.
-        val toldWays = routes.tell(bandA, bandB, h0) + routes.tell(bandB, bandA, h0)
-        if (toldWays > 0) stats.meetings.merge("bands told of routes", 1, Int::plus)
-        // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
-        // takes up the other's (the more they are close, the likelier).
-        val hMeet = hw.placeHex[a.place]; val wk = stepOf(weather.date); val sMeet = PlaceMemory.seasonOf(weather.date.month)
-        a.memory.mark(hMeet, sMeet, wk, stepsPerYear, a.memory.met, 1f); b.memory.mark(hMeet, sMeet, wk, stepsPerYear, b.memory.met, 1f)
-        // And where each has its houses, and the homes of others they know of: settled bands can be found.
-        if (!bandB.houseHex.none && bandB.house >= Thresholds.HOUSE_STANDING) {
-            bandA.knownHomes[b.id] = bandB.houseHex.i
-            bandA.knownLineage[b.id] = bandB.mainLineage()
-        }
-        if (!bandA.houseHex.none && bandA.house >= Thresholds.HOUSE_STANDING) {
-            bandB.knownHomes[a.id] = bandA.houseHex.i
-            bandB.knownLineage[a.id] = bandA.mainLineage()
-        }
-        for ((id, hh) in bandB.knownHomes) if (id != a.id && rnd.nextFloat() < u) {
-            bandA.knownHomes.putIfAbsent(id, hh)
-            bandB.knownLineage[id]?.let { bandA.knownLineage.putIfAbsent(id, it) }
-        }
-        for ((id, hh) in bandA.knownHomes) if (id != b.id && rnd.nextFloat() < u) {
-            bandB.knownHomes.putIfAbsent(id, hh)
-            bandA.knownLineage[id]?.let { bandB.knownLineage.putIfAbsent(id, it) }
-        }
-        fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {
-            if (by.appointHex.none || by.appointHex == bx.appointHex) return
-            val theirs = y.memory.deadAt(by.appointHex) + y.memory.metAt(by.appointHex)
-            val ours = if (!bx.appointHex.none) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
-            if (theirs > ours && rnd.nextFloat() < u * (0.3f + 0.7f * max(0f, bx.tie(y.id)))) {
-                bx.appointment = by.appointment
-                stats.meetings.merge("bands took up another's appointment", 1, Int::plus)
-            }
-        }
-        adopt(a, bandA, b, bandB); adopt(b, bandB, a, bandA)
-        // And of the places they remember, as far as they trust each other.
-        val week = stepOf(weather.date)
-        val trust = (0.5f + 0.5f * max(0f, bandA.tie(b.id))) * u
-        a.memory.hear(b.memory, week, stepsPerYear, trust); b.memory.hear(a.memory, week, stepsPerYear, trust)
-    }
+    if (rnd.nextFloat() < u * (0.6f + 0.4f * close)) tellOfCountry(a, bandA, b, bandB, u, weather)
     // Partners: where either holds to marrying out, young adults change bands, both ways.
     val marry = (if (bandA.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bandB.holds(Tradition.EXOGAMY)) 0.5f else 0f)
     if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry * (0.5f + close)) {
@@ -268,6 +221,56 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         stats.meetings.merge("bands exchanged partners", 1, Int::plus)
     }
     return false
+}
+
+/**
+ * Bands [a] and [b] that understand each other as far as [u] tell each other of the country round about,
+ * the routes they know, where they met, where their homes and those of others they know are, the
+ * appointments they keep, and the places they remember (as far as they trust each other).
+ */
+private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, u: Float, weather: Weather) {
+    val h0 = hw.placeHex[a.place]
+    var ring = listOf(h0); val seen = hashSetOf(h0)
+    for (r in 0..TOLD_RINGS) {
+        for (h in ring) { if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
+        if (r == TOLD_RINGS) break
+        ring = hex.nextRing(ring, seen)
+    }
+    stats.meetings.merge("bands told of country", 1, Int::plus)
+    // And of the ways they know further off: landmarks, and the legs between those they know.
+    val toldWays = routes.tell(bandA, bandB, h0) + routes.tell(bandB, bandA, h0)
+    if (toldWays > 0) stats.meetings.merge("bands told of routes", 1, Int::plus)
+    // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
+    // takes up the other's (the more they are close, the likelier).
+    val wk = stepOf(weather.date); val sMeet = PlaceMemory.seasonOf(weather.date.month)
+    a.memory.mark(h0, sMeet, wk, stepsPerYear, a.memory.met, 1f); b.memory.mark(h0, sMeet, wk, stepsPerYear, b.memory.met, 1f)
+    // And where each has its houses, and the homes of others they know of: settled bands can be found.
+    fun showsHome(teller: HexGroup, bt: Band, hearer: Band) {
+        if (bt.houseHex.none || bt.house < Thresholds.HOUSE_STANDING) return
+        hearer.knownHomes[teller.id] = bt.houseHex.i
+        hearer.knownLineage[teller.id] = bt.mainLineage()
+    }
+    fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
+        for ((id, hh) in bt.knownHomes) if (id != hearer.id && rnd.nextFloat() < u) {
+            bh.knownHomes.putIfAbsent(id, hh)
+            bt.knownLineage[id]?.let { bh.knownLineage.putIfAbsent(id, it) }
+        }
+    }
+    showsHome(b, bandB, bandA); showsHome(a, bandA, bandB)
+    tellsHomes(bandB, a, bandA); tellsHomes(bandA, b, bandB)
+    fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {
+        if (by.appointHex.none || by.appointHex == bx.appointHex) return
+        val theirs = y.memory.deadAt(by.appointHex) + y.memory.metAt(by.appointHex)
+        val ours = if (!bx.appointHex.none) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
+        if (theirs > ours && rnd.nextFloat() < u * (0.3f + 0.7f * max(0f, bx.tie(y.id)))) {
+            bx.appointment = by.appointment
+            stats.meetings.merge("bands took up another's appointment", 1, Int::plus)
+        }
+    }
+    adopt(a, bandA, b, bandB); adopt(b, bandB, a, bandA)
+    // And of the places they remember, as far as they trust each other.
+    val trust = (0.5f + 0.5f * max(0f, bandA.tie(b.id))) * u
+    a.memory.hear(b.memory, wk, stepsPerYear, trust); b.memory.hear(a.memory, wk, stepsPerYear, trust)
 }
 
 /** [g] raids [o] if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
@@ -453,7 +456,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.
     if (b.appointHex.none &&
-        rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat() * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill)) {
+        rnd.nextFloat() < years * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill)) {
         val mem = g.memory
         var best = -1; var bestScore = 0f
         for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
@@ -473,13 +476,12 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
         while (it.hasNext()) { val e = it.next(); e.setValue(e.value * keep); if (abs(e.value) < 0.01f) it.remove() }
     }
     // Country far from where it now lives fades from memory, a share of it a year.
-    if (rnd.nextFloat() < days / Date.DAYS_PER_YEAR.toFloat()) {
+    if (rnd.nextFloat() < years) {
         val here = hw.placeHex[g.place]
         for (w in b.known.indices) { var bits = b.known[w]; while (bits != 0L) { val i = java.lang.Long.numberOfTrailingZeros(bits); bits = bits and (bits - 1)
             val h = w * 64 + i
             if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
     }
-    val years = days / Date.DAYS_PER_YEAR.toFloat()
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
     for (i in b.grudge.indices) b.grudge[i] *= 1f - GRUDGE_FADE * years
     if (rnd.nextFloat() < WORD_DRIFT * Language.CONCEPTS * years) b.words[rnd.nextInt(Language.CONCEPTS)] = rnd.nextInt(Language.FORMS)
@@ -512,13 +514,12 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (!ROUNDS) return
     val b = g.band ?: return
-    val yearShare = days / Date.DAYS_PER_YEAR.toFloat()
     val keep = if (b.holds(Tradition.ORAL_TRADITION)) 0.5f else 1f
-    for (m in 0 until 12) if (b.rite[m] >= 0 && rnd.nextFloat() < RITE_FORGET * keep * yearShare) {
+    for (m in 0 until 12) if (b.rite[m] >= 0 && rnd.nextFloat() < RITE_FORGET * keep * years) {
         b.rite[m] = -1
         stats.meetings.merge("bands let a rite go", 1, Int::plus)
     }
-    if (b.rite.count { it >= 0 } >= RITE_SITES || rnd.nextFloat() >= yearShare) return
+    if (b.rite.count { it >= 0 } >= RITE_SITES || rnd.nextFloat() >= years) return
     val held = b.rite.toHashSet()
     var bestPlace = -1; var bestMonth = -1; var bestScore = 0f
     fun consider(p: Int, month: Int, score: Float) {
