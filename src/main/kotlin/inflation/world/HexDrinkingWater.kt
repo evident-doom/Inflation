@@ -145,8 +145,8 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
             val snow = weather.snowpack[p] >= SNOW_EAT_MM
             iced[p] = when {
                 !snow -> 0f
-                weather.temperature[p] <= 0f && weather.precipitation[p] >= SNOW_EAT_MM -> 0f
-                weather.temperature[p] > 0f && weather.precipitation[p] >= SNOW_EAT_MM -> 1f
+                weather.snowfall(p) >= SNOW_EAT_MM -> 0f
+                weather.rain(p) >= SNOW_EAT_MM -> 1f
                 else -> iced[p]
             }
             snowWater[p] = if (snow && iced[p] < 0.5f) 1f else 0f

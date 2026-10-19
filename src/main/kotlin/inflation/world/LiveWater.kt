@@ -88,7 +88,7 @@ class LiveWater(private val world: World) {
         val water = world.water
         for (i in 0 until n) {
             if (world.isSea[i]) { volume[i] = 0f; continue }
-            val rain = if (weather.temperature[i] >= 0f) weather.precipitation[i] else 0f
+            val rain = weather.rain(i)
             val input = rain + weather.meltwater[i]
             if (water.isLake(i) || submerged[i]) {
                 volume[i] = (input - 1.1f * pet[i] * share) / 1000f * cellArea

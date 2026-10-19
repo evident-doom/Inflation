@@ -9,7 +9,6 @@ import inflation.ecology.AnimalWays
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
 import inflation.ecology.HexGroup
-import inflation.world.Date
 import inflation.world.WorldConfig
 import java.io.File
 import kotlin.math.PI
@@ -135,7 +134,7 @@ class WaysEvolution(private val role: WaysKind, private val movers: List<SharedM
     fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Result {
         val run = freshSim(cfg, Catalogue.learned.distinct())
         movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[Role.of(s).ordinal] }
-        val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
+        val steps = years * cfg.stepsPerYear
         if (role == WaysKind.BANDS) {
             val people = Catalogue.HUMAN
             val nets = variants.map { NetWays(it) }

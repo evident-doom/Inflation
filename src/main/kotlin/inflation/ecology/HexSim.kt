@@ -80,7 +80,7 @@ class HexSim(
         val b = books ?: return
         var fell = 0.0; var melt = 0.0
         for (p in 0 until land.n) {
-            if (weather.temperature[p] < 0f) fell += weather.precipitation[p] / 1000.0 * land.areaM2[p]
+            fell += weather.snowfall(p) / 1000.0 * land.areaM2[p]
             melt += weather.meltwater[p] / 1000.0 * land.areaM2[p]
         }
         b.flow(Books.Stuff.WATER, "snowfall", fell); b.flow(Books.Stuff.WATER, "snowmelt (to the soil)", -melt)

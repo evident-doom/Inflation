@@ -6,7 +6,6 @@ import inflation.ecology.Species
 import inflation.ecology.WAYS_IN
 import inflation.learning.HexPpo.CLIP
 import inflation.learning.HexPpo.ENTROPY
-import inflation.world.Date
 import inflation.world.WorldConfig
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -39,7 +38,7 @@ class PpoTrainer(private val o: PpoOptions) {
     private var checking: Pair<CompletableFuture<EcoCheck.Verdict>, File>? = null
     /** The training worlds, living on from round to round (for [PpoOptions.worldRounds] rounds, if set, then a fresh one takes its place). */
     private val players = arrayOfNulls<HexPpo.Player>(o.worlds)
-    private val steps = o.years * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
+    private val steps = o.years * WorldConfig().stepsPerYear
     private val log = RunLog(out, "round")
 
     fun run() {
@@ -106,7 +105,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val fresh = (0 until o.worlds).filter { w -> players[w]?.done != false }
         for (w in fresh) players[w]?.derailed?.let { why -> log.write("world $w replaced after round ${r - 1}: $why") }
         // (New worlds are made side by side.)
-        fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.width, o.height, w), kinds, steps * o.worldRounds, o.burnYears * Date.DAYS_PER_YEAR / WorldConfig().daysPerStep, o.sampling) { line -> log.write("world $w $line") } }
+        fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.width, o.height, w), kinds, steps * o.worldRounds, o.burnYears * WorldConfig().stepsPerYear, o.sampling) { line -> log.write("world $w $line") } }
             .toList().forEach { (w, p) -> players[w] = p }
         return (0 until o.worlds).toList().parallelStream().map { w -> players[w]!!.play(steps, ms, ways) }.toList()
     }

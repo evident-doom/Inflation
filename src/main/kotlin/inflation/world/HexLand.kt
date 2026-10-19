@@ -15,8 +15,9 @@ import kotlin.math.exp
 /**
  * Water and plants on the places of a [HexWorld] (the height bands of each hex), stepped with the
  * weather on the same places: what each place is, and its parts, the water ([HexHydrology], [HexDrinkingWater]),
- * the plants ([HexPlants]) and fires ([HexFires]). The same rules as the fine [LiveWater] and [Vegetation], on
- * the averages of each band's cells.
+ * the plants ([HexPlants]) and fires ([HexFires]), on the averages of each band's cells. They began as the rules
+ * of the fine [LiveWater] and [Vegetation] and have since gone further (a soil and an aquifer of each place's own,
+ * sunny and shaded slopes, another fire spread), so the two no longer agree.
  */
 class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's settings ([Tuning]). */ @Transient val tuning: Tuning = Tuning.config) {
     private val world = hw.world

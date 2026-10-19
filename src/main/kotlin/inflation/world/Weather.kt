@@ -133,6 +133,10 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     val temperature = FloatArray(n)
     /** Rain and snow that fell during the last step, mm water. */
     val precipitation = FloatArray(n)
+    /** What fell at [p] in the last step as rain, mm water: all of it unless it [snows] there. */
+    fun rain(p: Int) = if (snows(temperature[p])) 0f else precipitation[p]
+    /** What fell at [p] in the last step as snow, mm water. */
+    fun snowfall(p: Int) = if (snows(temperature[p])) precipitation[p] else 0f
     /** Snow on the ground, mm water equivalent. */
     val snowpack = FloatArray(n)
     /** Snowmelt released during the last step, mm. */
@@ -199,7 +203,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     private var prepared = false
 
     /** Where the year stands, -1 at midwinter to 1 at midsummer, as in the climate normals. */
-    private fun season(d: Date) = cos(2 * PI * (d.dayOfYear - Climate.WARMEST_DAY) / Date.DAYS_PER_YEAR)
+    private fun season(d: Date) = Climate.seasonCos(d.dayOfYear.toDouble())
 
     /**
      * Draws the weather for the step starting on [date]: done one step ahead, so that the coming
@@ -314,7 +318,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     /** The seasonal mean of the wind's rain factor this month, so that rain keeps to the normals on average. */
     private fun normalise() {
         normMonth = date.month
-        val s = cos(2 * PI * (date.month * Date.DAYS_PER_MONTH + 15 - Climate.WARMEST_DAY) / Date.DAYS_PER_YEAR)
+        val s = Climate.seasonCos(date.month * Date.DAYS_PER_MONTH + 15.0)
         val tmp = ThreadLocal.withInitial { FloatArray(2) }
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             norm[i] = winds.normalFactor(i, places.latitude[i], s, tmp.get())
@@ -349,7 +353,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
             precipitation[i] = p
             // (A world saved before the slopes were kept apart has its snow only as the place's mean.)
             if (snowpack[i] > 0f && snowSun[i] == 0f && snowShade[i] == 0f) { snowSun[i] = snowpack[i]; snowShade[i] = snowpack[i] }
-            if (t < 0) {
+            if (snows(t)) {
                 snowSun[i] += p; snowShade[i] += p
                 meltSun[i] = 0f; meltShade[i] = 0f
             } else {
@@ -498,6 +502,8 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     private fun gaussian(): Double = inflation.gaussian(rnd)
 
     companion object {
+        /** Whether what falls at a week's mean air temperature [t], °C, falls as snow: the one rule for rain and snow. */
+        fun snows(t: Float) = t < 0f
         /** Snow melted per degree-day above freezing on level ground, mm; the part of it that the air's warmth melts without the sun (Hock 1999: about 1.8). */
         const val MELT_DEGREE_DAY = 4f
         const val MELT_AIR = 1.8f

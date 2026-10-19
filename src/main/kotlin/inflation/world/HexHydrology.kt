@@ -8,7 +8,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The water of the places of [HexLand], as the fine [LiveWater] keeps it on the averages of each band's cells:
+ * The water of the places of [HexLand], on the averages of each band's cells (begun from the fine [LiveWater]'s rules, since gone further):
  *
  * - Each place has a soil bucket and a groundwater store; what runs off flows down the hexes'
  *   rivers within the step (each hex drains to the hex its main river enters), and a river above
@@ -226,7 +226,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         var rainIn = 0.0; var toAir = 0.0
         for (p in 0 until n) {
             val t = weather.temperature[p]
-            val rain = if (t >= 0f) weather.precipitation[p] else 0f
+            val rain = weather.rain(p)
             // Evaporation follows the week's heat against the month's normal (about 6% a degree) and the sun on the
             // slopes; plants draw at full rate until the soil is half dry, then less as it dries (the same stress their
             // growth feels). The sunny and the shaded slopes each keep their own soil water.
