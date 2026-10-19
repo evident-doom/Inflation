@@ -10,6 +10,7 @@ import inflation.ecology.WATER_LANDMARK_KM
 import inflation.ecology.Catalogue
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
+import inflation.ecology.swapForms
 import inflation.ui.ViewLayers.Measure
 import inflation.world.Date
 import inflation.world.HexMap
@@ -352,6 +353,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private fun loadWorld(f: File) {
         try {
             HexSnapshot.load(sim, f)
+            // (Kinds in the other form from the settled state on, as in the checks: see [swapForms].)
+            sim.swapForms { println(it) }
             layers.reset()
             useNetworks()
             lastDrawn.clear()

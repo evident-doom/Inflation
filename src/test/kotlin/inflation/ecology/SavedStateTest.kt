@@ -66,7 +66,9 @@ class SavedStateTest {
         val before = hashes(HexSnapshot.roots(sim))
         repeat(52) { sim.step() }
         val after = hashes(HexSnapshot.roots(sim))
-        val still = before.filter { (k, v) -> after[k] == v && k !in stillOnThisWorld }.keys
+        // (Without herds, see [Catalogue.herds], what the herds learn and lose stays as it began.)
+        val noHerds = if (Catalogue.herds) emptySet() else setOf("groups.usualGroupKill", "groups.herdSign")
+        val still = before.filter { (k, v) -> after[k] == v && k !in stillOnThisWorld && k !in noHerds }.keys
         assertTrue(still.isEmpty(), "saved, but a year leaves them as they were (worked out from the world? then @Transient): $still")
     }
 }

@@ -19,7 +19,9 @@ class InputSlotsTest {
         val into = FloatArray(WAYS_IN) { Float.NaN }
         sim.groups.bandInputs(band, sim.weather, into)
         assertEquals(emptyList(), into.indices.filter { into[it].isNaN() }.map { BAND_INPUT_NAMES[it] }, "band slots left unwritten")
-        for (g in listOf(live.first { it.band == null && !it.species.carnivore }, live.first { it.band == null && it.species.carnivore })) {
+        // (A herd only while there are herds, see [Catalogue.herds].)
+        val herd = if (Catalogue.herds) live.first { it.band == null && !it.species.carnivore } else null
+        for (g in listOfNotNull(herd, live.first { it.band == null && it.species.carnivore })) {
             val a = FloatArray(ANIMAL_WAYS_IN) { Float.NaN }
             sim.groups.animalInputs(g, sim.weather, a)
             assertEquals(emptyList(), a.indices.filter { a[it].isNaN() }.map { ANIMAL_INPUT_NAMES[it] }, "${g.species.name} slots left unwritten")

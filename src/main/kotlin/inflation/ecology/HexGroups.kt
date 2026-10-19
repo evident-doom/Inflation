@@ -195,7 +195,7 @@ class HexGroups(
         val area = land.areaKm2.sum()
         for (s in kinds) {
             // (A plant-eater that keeps to a home range starts spread out, see [HexFauna]; its herds condense later, if ever.)
-            if (!s.carnivore && s !in Catalogue.migratory) continue
+            if (!s.carnivore && s !in Catalogue.startsAsHerds) continue
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
             // At the density it settles at over a long run, where one is known.
             val settled = Catalogue.settledPer1000Km2(s)
@@ -237,7 +237,7 @@ class HexGroups(
     internal fun newcomers(date: Date) {
         if (!newcomersOn || date.month != 0 || date.dayOfMonth > days) return
         for (s in kinds) {
-            if (s.human || (!s.carnivore && s !in Catalogue.migratory)) continue
+            if (s.human || (!s.carnivore && s !in Catalogue.startsAsHerds)) continue
             val now = groups.count { it.alive && it.species == s }
             // (A kind that also lives spread out has its newcomers only if it is gone from the land too.)
             if (now >= NEWCOMER_BELOW || (s in Catalogue.gathering && fauna.slot(s) >= 0 && fauna.count(fauna.slot(s)) >= herdOf(s))) continue

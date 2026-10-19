@@ -71,6 +71,7 @@ class GroupControlTest {
 
     @Test
     fun `a herd can be steered too`() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(Catalogue.herds, "no herds (t.herds)")
         val sim = HexSim(world)
         val herd = sim.groups.groups.first { !it.species.carnivore }
         sim.groups.watched = herd.id

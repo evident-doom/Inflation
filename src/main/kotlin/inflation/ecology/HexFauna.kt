@@ -446,7 +446,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // suits it best, and thinner where it is far from water or the climate is wrong for it.
         for ((k, s) in kinds.withIndex()) {
             // (A kind that follows the seasons starts as its herds, see [HexGroups].)
-            if (s in Catalogue.migratory) continue
+            if (s in Catalogue.startsAsHerds) continue
             val dens = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
             for (p in 0 until n) {
                 // (Hunters among the residents live on prey found wherever there is life: food is no bar to them here.)
@@ -668,7 +668,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val r = kotlin.random.Random((date.absoluteDay * 7919L + 13) xor seedSalt)
         for (k in kinds.indices) {
             // (A kind that follows the seasons gets its newcomers as herds.)
-            if (count(k) >= NEWCOMER_ANIMALS || kinds[k] in Catalogue.migratory) continue
+            if (count(k) >= NEWCOMER_ANIMALS || kinds[k] in Catalogue.startsAsHerds) continue
             val s = kinds[k]
             val w = FloatArray(n) { p -> land.areaKm2[p] * suits(s, p) * climateSuits(s, p) }
             val total = w.sum(); if (total <= 0f) continue

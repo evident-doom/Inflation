@@ -744,8 +744,16 @@ object Catalogue {
             herbivores.first { it.name == name } to (form == "herds")
         } ?: emptyMap()
     }
-    /** Whether herds keep the form they have (t.formSwap set at all; see [formSwap]). */
-    val formsFixed by lazy { inflation.Config.string("t.formSwap") != null }
+    /**
+     * Whether plant-eaters live as herds at all (t.herds, off by default here). Off, every plant-eater lives spread out
+     * as residents: none start or come in as herds, none gather, and a loaded world's herds are spread out ([swapForms]).
+     */
+    val herds by lazy { inflation.Config.flag("t.herds", false) }
+    /** The plant-eaters that start, and come in, as herds: the [migratory] ones, while there are [herds]. */
+    val startsAsHerds by lazy { if (herds) migratory else emptySet() }
+
+    /** Whether herds keep the form they have (t.formSwap set at all, see [formSwap]; or no [herds]). */
+    val formsFixed by lazy { !herds || inflation.Config.string("t.formSwap") != null }
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)

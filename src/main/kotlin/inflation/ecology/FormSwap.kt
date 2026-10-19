@@ -12,8 +12,15 @@ import kotlin.math.roundToInt
  * birth month go with them.
  */
 
-/** Puts each kind in [Catalogue.formSwap] into the form named for it (after a settled state is loaded); [log] says what it did. */
+/**
+ * Puts each kind in [Catalogue.formSwap] into the form named for it (after a settled state is loaded); without
+ * [Catalogue.herds], spreads every plant-eater's herds as residents instead. [log] says what it did.
+ */
 fun HexSim.swapForms(log: (String) -> Unit) {
+    if (!Catalogue.herds) {
+        for (s in Catalogue.herbivores) if (groups.groups.any { it.alive && it.species == s }) groups.toResidents(s, log)
+        return
+    }
     for ((s, herds) in Catalogue.formSwap) if (herds) groups.toHerds(s, weather.date.month, log) else groups.toResidents(s, log)
 }
 
