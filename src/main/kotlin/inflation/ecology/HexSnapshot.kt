@@ -98,9 +98,11 @@ object HexSnapshot {
      * river too deep to cross).
      * 2.13: a herd weighing whether to settle back weighs itself, whole, at both places, its own heads where it grazes now
      * taken out of the others' (it was crowded by itself where it stood and weighed as a band's worth alone elsewhere).
+     * 2.14: a band's hunters (half its hands at the scaffold's effort on big game) search for game all the days they are out,
+     * while the rest gather ([HUNTERS_SHARE]).
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 13
+    const val MODEL_MINOR = 14
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

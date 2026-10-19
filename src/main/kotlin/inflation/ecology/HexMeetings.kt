@@ -139,7 +139,8 @@ internal fun HexGroups.hunt(weather: Weather) {
  * size, speed, stalking and the cover against the prey's size, speed, weapons and refuge). Each food
  * is worth its kilos over the time it takes to catch, gather or dig, prepare and eat. The party takes
  * the most rewarding foods first and adds poorer ones only while they raise its rate of intake
- * (Charnov's diet model), until it is fed. So who eats whom, and how much of each, comes from the
+ * (Charnov's diet model), until it is fed. A band forages as two parties side by side, its hunters after big game
+ * and the rest after everything else, each by its own diet and its own time. So who eats whom, and how much of each, comes from the
  * animals' traits and what is about. A band's tools and skills enter only as what they change: a
  * spear or bow the odds of a kill, snares and nets the ground searched, sickles and grinding stones
  * the time seed takes, baskets the time to carry a harvest home.
@@ -154,19 +155,23 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // (Lookouts, and adults kept back with the children beyond the usual, do not gather or hunt.)
     val hands = max(1, (g.adults * (band?.ableShare ?: 1f) * (1f - (band?.scoutShare ?: 0f)) *
         (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
+    // A band splits: its hunters go after big game, searching all the days they are out, while the rest
+    // gather, fish and snare (see [HUNTERS_SHARE]); an animal's party forages as one.
+    val hunt = band?.let { huntersShare(it) } ?: 1f
+    val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
     // (Walking costs food, see [walkCost].)
     val wantAll = g.dailyNeedKg * days * (1f + walkCost(g))
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
-    val smallSweep = s.dailyTravelKm * days * 2f * SMALL_SENSE_KM * sqrt(hands.toFloat() / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
+    val smallSweep = s.dailyTravelKm * days * 2f * SMALL_SENSE_KM * sqrt(gatherHands / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
     val smallCatch = smallCatch(s)
-    val smallDays = SMALL_HANDLING_DAYS_PER_KG / hands * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
+    val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherHands * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
     val eatsPlants = d.fruit + d.roots > 0f
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
     // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed.)
-    val gatherers = hands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * tuning.plantHandling / gatherers / carry + eats
     val seedDays = SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling / gatherers / carry /
         (1f + SICKLE_GAIN * (band?.has(Tool.SICKLE) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
@@ -185,6 +190,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // 4 fruit, 5 roots, 6 grass seed, 7 small finds, 8 fish), place, rate a day, kg each, days each ([Food] numbers the types).
     val n = g.path.size * (fauna.kinds.size + 4) + (gatherAt.size + roundCamp.size) * 5 + 1
     val type = Array(n) { Food.BIG_GAME }; val kind = IntArray(n); val place = IntArray(n)
+    // (Which of the band's parties takes each food: 0 the hunters, 1 the gatherers; an animal's is all 0.)
+    val who = IntArray(n); val party = floatArrayOf(hunt, 1f - hunt)
     val rate = FloatArray(n); val kg = FloatArray(n); val time = FloatArray(n)
     var m = 0
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
@@ -226,9 +233,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (left <= 0.01f * wantAll) break
         m = 0
         fun offer(t: Food, k: Int, p: Int, r: Float, e: Float, h: Float) {
-            // A band meets each kind of food the more, the more of its effort it puts into it.
-            val rr = if (band != null) r * band.effort[when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal] else r
-            if (rr <= 0f || e <= 0f) return
+            // A band meets each kind of food the more, the more of its effort it puts into it (big game: the more
+            // hunters it sends, see [huntersShare]).
+            val rr = if (band != null && t != Food.BIG_GAME) r * band.effort[when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal] else r
+            if (rr <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && gatherers <= 0f)) return
+            who[m] = if (band != null && t != Food.BIG_GAME) 1 else 0
             // (Biting insects slow people at whatever they do out there; fish are offered by hex, so the
             // camp's place stands for the water they fish.)
             val hh = if (band != null) h * (1f + HexSmallLife.HARASS_TIME * small.harassment(if (t == Food.FISH) g.place.i else p)) else h
@@ -238,6 +247,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             val p = hw.sameBandPlace(g.place.i, h).takeIf { it >= 0 } ?: continue
             val area = land.areaKm2[p]
             val swept = min(area, sweep)
+            // (A band's hunters fan out over less of it than the whole band would, as for a smaller party: see [searchKm2].)
+            val huntSwept = if (band != null) min(area, sweep * sqrt(hunt)) else swept
             for (k in 0 until nk) {
                 // (The odds first: they are none for most kinds, and spare reading the densities.)
                 val chance = odds[j * nk + k]
@@ -249,7 +260,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 // dry); the rest is left to others.
                 val meat1 = min(ps.massKg * creditShare(band), (1f + SURPLUS_EAT) * wantAll)
                 // (Each kill also costs the stalks and chases that failed before it.)
-                offer(Food.BIG_GAME, k, p, dens * swept * chance / days, meat1, HANDLING_DAYS + STALK_DAYS * stalks[j * nk + k] + meat1 * eats)
+                offer(Food.BIG_GAME, k, p, dens * huntSwept * chance / days, meat1, HANDLING_DAYS + STALK_DAYS * stalks[j * nk + k] + meat1 * eats)
             }
             val small = this.small
             offer(Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area, smallSweep) * smallCatch / days, 1f, smallDays)
@@ -285,39 +296,43 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // Bands fish the river, the lake or the sea shore by their camp.
         if (band != null) {
             val h = hw.placeHex[g.place]
-            offer(Food.FISH, 0, h, fauna.water.fishWithin(h, band.fishing()) / days, 1f, FISH_HANDLING_DAYS_PER_KG / hands * band.slowness(Skill.FISH) + eats)
+            offer(Food.FISH, 0, h, fauna.water.fishWithin(h, band.fishing()) / days, 1f, FISH_HANDLING_DAYS_PER_KG / gatherHands * band.slowness(Skill.FISH) + eats)
         }
         // Rank by kilos a day of handling, best first. (A stable sort: foods worth the same keep the order they were offered in.)
         for (i in 0 until m) profit[i] = kg[i] / time[i]
         rankDescending(profit, m, order, sortKeys)
-        var gain = 0f; var spent = 1f; var used = 0
+        // Each party takes up its foods best first while they raise its own rate (Charnov's rule).
+        val gain = FloatArray(2); val spent = floatArrayOf(1f, 1f); val full = BooleanArray(2); var used = 0
         for (r in 0 until m) {
-            val i = order[r]
-            if (profit[i] <= gain / spent) break
-            gain += rate[i] * kg[i]; spent += rate[i] * time[i]; used++
+            val i = order[r]; val w = who[i]
+            if (full[w]) continue
+            if (profit[i] <= gain[w] / spent[w]) { full[w] = true; if (full[0] && full[1]) break; continue }
+            gain[w] += rate[i] * kg[i]; spent[w] += rate[i] * time[i]; order[used++] = i
         }
-        // (What the week's diet promised, at first sight of it: the bar game it meets must clear, see [worthChasing].)
-        if (pass == 0) g.dietRate = gain / spent
+        // (What the hunters' diet promised, at first sight of it: the bar game they meet must clear, see [worthChasing].)
+        if (pass == 0) g.dietRate = gain[0] / spent[0]
         note(g) {
             "pass %d: took up %d of %d foods, best first: ".format(pass + 1, used, m) + (0 until min(used, 6)).joinToString(", ") { r -> val i = order[r]
                 (if (type[i] == Food.BIG_GAME) fauna.kinds[kind[i]].name else type[i].label) + " %.1f kg/day of work".format(profit[i]) }
         }
-        // What the week brings at that rate, as far as the party wants: it stops when fed.
-        val f = if (gain > 0f) min(1f, left / (workDays * gain / spent)) else 0f
+        // What the week brings at those rates, the parties working side by side, as far as the band wants: it stops when fed.
+        val intake = gain[0] / spent[0] + gain[1] / spent[1]
+        val f = if (intake > 0f) min(1f, left / (workDays * intake)) else 0f
         if (pass == 0) searched = f
         if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
-            "forage ${s.name} adults ${g.adults} want ${wantAll} left $left offers $m used $used gain $gain spent $spent f $f: " +
+            "forage ${s.name} adults ${g.adults} want ${wantAll} left $left offers $m used $used gain ${gain.toList()} spent ${spent.toList()} f $f: " +
             order.take(min(6, m)).joinToString("; ") { "t${type[it].ordinal} k${kind[it]} r=${rate[it]} e=${kg[it]} h=${time[it]}" })
         for (r in 0 until used) {
             val i = order[r]
-            val expected = workDays * rate[i] / spent * f
+            val expected = workDays * rate[i] / spent[who[i]] * f
             val p = place[i]
-            if (type[i] != Food.BIG_GAME) busy += expected * time[i]
+            // (Days of work counted for the whole band: each party's days in its share of the hands.)
+            if (type[i] != Food.BIG_GAME) busy += expected * time[i] * party[who[i]]
             when (type[i]) {
                 Food.BIG_GAME -> {
                     val kills1 = huntGame(g, kind[i], p, expected, kg[i], spareYoung, rnd, haul)
                     if (kills1 <= 0) continue
-                    busy += kills1 * time[i]
+                    busy += kills1 * time[i] * party[0]
                     meat += haul.kg
                 }
                 Food.SMALL_GAME -> smallGot += small.catchSmallIn(p, Kg(expected), min(land.areaKm2[p], smallSweep), weather).v
