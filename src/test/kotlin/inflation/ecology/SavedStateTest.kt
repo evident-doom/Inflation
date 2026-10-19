@@ -58,6 +58,8 @@ class SavedStateTest {
         // (Snow lies on this world's hills only some winter weeks, and the walk to water and residents' days without it
         // change only in a dry spell: the year may begin and end in April with no snow, the same water and none gone dry.)
         "weather.snowpack", "weather.snowSun", "weather.snowShade", "land.drink.snowWater", "land.drink.waterKm", "fauna.dry",
+        // (What the herds learn of the hunters and of each other: there are no herds now, model 2.16.)
+        "groups.usualGroupKill", "groups.herdSign",
     )
 
     @Test
@@ -66,9 +68,7 @@ class SavedStateTest {
         val before = hashes(HexSnapshot.roots(sim))
         repeat(52) { sim.step() }
         val after = hashes(HexSnapshot.roots(sim))
-        // (Without herds, see [Catalogue.herds], what the herds learn and lose stays as it began.)
-        val noHerds = if (Catalogue.herds) emptySet() else setOf("groups.usualGroupKill", "groups.herdSign")
-        val still = before.filter { (k, v) -> after[k] == v && k !in stillOnThisWorld && k !in noHerds }.keys
+        val still = before.filter { (k, v) -> after[k] == v && k !in stillOnThisWorld }.keys
         assertTrue(still.isEmpty(), "saved, but a year leaves them as they were (worked out from the world? then @Transient): $still")
     }
 }

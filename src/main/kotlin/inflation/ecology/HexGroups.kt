@@ -194,8 +194,8 @@ class HexGroups(
         // Start each kind at its usual density over the land that suits it, in groups of its usual size.
         val area = land.areaKm2.sum()
         for (s in kinds) {
-            // (A plant-eater that keeps to a home range starts spread out, see [HexFauna]; its herds condense later, if ever.)
-            if (!s.carnivore && s !in Catalogue.startsAsHerds) continue
+            // (Plant-eaters start spread out, see [HexFauna].)
+            if (!s.carnivore) continue
             val per = if (s.startKm2PerAnimal > 0f) s.startKm2PerAnimal else 50f
             // At the density it settles at over a long run, where one is known.
             val settled = Catalogue.settledPer1000Km2(s)
@@ -237,7 +237,7 @@ class HexGroups(
     internal fun newcomers(date: Date) {
         if (!newcomersOn || date.month != 0 || date.dayOfMonth > days) return
         for (s in kinds) {
-            if (s.human || (!s.carnivore && s !in Catalogue.startsAsHerds)) continue
+            if (s.human || !s.carnivore) continue
             val now = groups.count { it.alive && it.species == s }
             // (A kind that also lives spread out has its newcomers only if it is gone from the land too.)
             if (now >= NEWCOMER_BELOW || (s in Catalogue.gathering && fauna.slot(s) >= 0 && fauna.count(fauna.slot(s)) >= herdOf(s))) continue
@@ -335,15 +335,6 @@ class HexGroups(
             for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g)
             groups.removeIf { !it.alive }
             newcomers(it.date)
-        },
-        // Residents of the kinds that also live as herds set off together where their place fails them, and herds settle where theirs does not.
-        Phase("herds: gathering and scattering") {
-            // (Not in the form-swap test, where each kind keeps the form it has.)
-            if (!Catalogue.formsFixed) {
-                Profile.part("herds: who leaves") { leaveAhead(it) }
-                Profile.part("herds: settling") { scatter(it) }
-                Profile.part("herds: setting off") { gather(it.date) }
-            }
         },
         Phase("herds: remembering places") { val date = it.date
             if (date.dayOfMonth <= days) {

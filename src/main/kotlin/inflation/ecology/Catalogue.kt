@@ -726,34 +726,10 @@ object Catalogue {
     fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
 
     /**
-     * Kinds that live both ways: spread over the land as residents, gathered into herds where the land will not feed
-     * them through the coming season (see [gather] and [scatter]): every plant-eater, so that whether a kind herds is
-     * the land's doing. The [migratory] kinds start as herds, the others spread out.
+     * The plant-eaters, all of which live spread over the land as residents, kept as numbers per place: none of them
+     * gathers into herds any more (model 2.16), and a saved world's herds are spread out when it is loaded ([swapForms]).
      */
     val gathering: Set<Species> by lazy { herbivores.toSet() }
-
-    /**
-     * For tests (t.formSwap=NAME:herds,NAME:residents,...; or none): with the key set, herds neither gather nor
-     * scatter ([formsFixed]); after a settled state is loaded, each plant-eater named goes wholly into the form named
-     * (true: herds; see [swapForms]).
-     */
-    val formSwap: Map<Species, Boolean> by lazy {
-        inflation.Config.string("t.formSwap")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() && it != "none" }?.associate { e ->
-            val (name, form) = e.split(':').map { it.trim() }
-            require(form == "herds" || form == "residents") { "t.formSwap: $e (NAME:herds or NAME:residents)" }
-            herbivores.first { it.name == name } to (form == "herds")
-        } ?: emptyMap()
-    }
-    /**
-     * Whether plant-eaters live as herds at all (t.herds, off by default here). Off, every plant-eater lives spread out
-     * as residents: none start or come in as herds, none gather, and a loaded world's herds are spread out ([swapForms]).
-     */
-    val herds by lazy { inflation.Config.flag("t.herds", false) }
-    /** The plant-eaters that start, and come in, as herds: the [migratory] ones, while there are [herds]. */
-    val startsAsHerds by lazy { if (herds) migratory else emptySet() }
-
-    /** Whether herds keep the form they have (t.formSwap set at all, see [formSwap]; or no [herds]). */
-    val formsFixed by lazy { !herds || inflation.Config.string("t.formSwap") != null }
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)

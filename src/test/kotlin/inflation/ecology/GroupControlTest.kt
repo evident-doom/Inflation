@@ -68,27 +68,4 @@ class GroupControlTest {
         assertTrue(band.path.isNotEmpty() && way.copyOf(band.path.size).contentEquals(band.path), "path ${band.path.toList()} along ${way.toList()}")
         assertTrue(band.band!!.storeAim > 1.9f * STORE_AIM_DAYS, "store aim ${band.band!!.storeAim}")
     }
-
-    @Test
-    fun `a herd can be steered too`() {
-        org.junit.jupiter.api.Assumptions.assumeTrue(Catalogue.herds, "no herds (t.herds)")
-        val sim = HexSim(world)
-        val herd = sim.groups.groups.first { !it.species.carnivore }
-        sim.groups.watched = herd.id
-        var places = IntArray(0); var chosen = -1; var way = IntArray(0)
-        sim.groups.control = object : GroupControl {
-            override fun move(d: MoveDecision): Int {
-                places = d.places
-                chosen = d.places.indices.firstOrNull { it != d.model } ?: d.model
-                way = d.paths[chosen]
-                return chosen
-            }
-            override fun ways(g: HexGroup, out: FloatArray) { out[AnimalWay.FATTEN] = -10f }
-        }
-        sim.step()
-        assertTrue(places.size > 1, "it had a choice")
-        // (It sets off on the way chosen; a meeting on the way may stop it short.)
-        assertTrue(herd.path.isNotEmpty() && way.copyOf(herd.path.size).contentEquals(herd.path), "path ${herd.path.toList()} along ${way.toList()}")
-        assertTrue(herd.will[AnimalWay.FATTEN] < 0.01f)
-    }
 }

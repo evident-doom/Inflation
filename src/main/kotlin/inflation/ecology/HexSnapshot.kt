@@ -105,7 +105,7 @@ object HexSnapshot {
      * they would come to with a band of them added over the ground a band ranges in a day, not over the place's own; and
      * walking residents count those that came to a place this move, its food shared among them all, as many staying as
      * find it, with them there, no worse than walking on.
-     * 2.16: no plant-eater herds unless t.herds; residents flow towards better country as well as spreading out, and move
+     * 2.16: plant-eaters no longer live as herds (a saved world's herds are spread out as residents on loading); residents flow towards better country as well as spreading out, and move
      * between height bands faster; a place's worth to movers counts its births as if in season (not by the calendar); and
      * residents remember how they fared at each place in each month ([HexFauna.faredByMonth]) and move by that too; and the grown bear once a year wherever they walk ([HexFauna.bred]).
      */
