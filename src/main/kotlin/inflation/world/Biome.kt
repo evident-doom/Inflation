@@ -31,7 +31,10 @@ enum class Biome(val rgb: Int) {
     /** Mangrove on warm tidal coasts. */
     MANGROVE(0x3f6f3f),
     /** Gallery forest on the floodplains of rivers. */
-    FLOODPLAIN_FOREST(0x2f7f5f),
+    FLOODPLAIN_FOREST(0x2f7f5f);
+
+    /** Its name in reports and in history keys, as "floodplain forest". */
+    val label = name.lowercase().replace('_', ' ')
 }
 
 object Biomes {

@@ -44,15 +44,14 @@ fun main(args: Array<String>) {
     val lines = ArrayList<String>()
     lines += "# Where each kind settled: animals per 1000 km² of land, and of each kind of country (kind@country),"
     lines += "# the mean of the years from ${first.toInt()} of a run on seed ${cfg.seed}. Written by SettledStart."
-    val kinds = history.series.keys.filter { it.startsWith("animals/") }.map { it.removePrefix("animals/") }
+    val kinds = history.series.keys.mapNotNull { HexHistory.Key.animalKind(it) }
     for (kind in kinds) {
-        val whole = mean("animals/$kind")
+        val whole = mean(HexHistory.Key.animals(kind))
         if (whole <= 0.5) continue // died out: no line, so it starts from its default seeding
         lines += "${kind.replace(" ", "\\ ")}=%.4f".format(whole / total * 1000)
         for (b in Biome.entries) {
             if (area[b.ordinal] <= 0.0) continue
-            val name = b.name.lowercase().replace('_', ' ')
-            val heads = mean("biome/$name/$kind")
+            val heads = mean(HexHistory.Key.biome(b, kind))
             lines += "${kind.replace(" ", "\\ ")}@${b.name}=%.4f".format(heads / area[b.ordinal] * 1000)
         }
     }

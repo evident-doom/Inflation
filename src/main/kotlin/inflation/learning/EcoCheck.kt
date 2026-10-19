@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.ecology.HexHistory
 import inflation.Config
 import inflation.ecology.Catalogue
 import inflation.run.TestWorlds
@@ -77,7 +78,7 @@ class EcoCheck(private val out: File) {
     private fun fails(new: List<TestWorlds.Run>, old: List<TestWorlds.Run>, kinds: List<String>): List<String> {
         val why = ArrayList<String>()
         for (k in kinds) {
-            val n = lastYears(new, "animals/$k"); val o = lastYears(old, "animals/$k")
+            val n = lastYears(new, HexHistory.Key.animals(k)); val o = lastYears(old, HexHistory.Key.animals(k))
             val pairs = n.indices.filter { o[it] > 0.0 }
             if (pairs.isEmpty() || o.sum() / pairs.size < RARE) continue
             if (pairs.all { n[it] <= 0.0 }) why += "$k gone"
@@ -85,18 +86,18 @@ class EcoCheck(private val out: File) {
         }
         val kmNew = km(new); val kmOld = km(old)
         if (!kmNew.isNaN() && !kmOld.isNaN() && kmNew < (1 - SHORTER) * kmOld) why += "herds stand %.0f km from half a year before, against %.0f".format(kmNew, kmOld)
-        val pn = lastYears(new, "animals/${Catalogue.HUMAN.name}"); val po = lastYears(old, "animals/${Catalogue.HUMAN.name}")
+        val pn = lastYears(new, HexHistory.Key.animals(Catalogue.HUMAN.name)); val po = lastYears(old, HexHistory.Key.animals(Catalogue.HUMAN.name))
         if (pn.indices.all { pn[it] < po[it] }) why += "fewer people"
         return why
     }
 
-    private fun km(rs: List<TestWorlds.Run>) = Catalogue.migratory.map { lastYear(rs, "migration/${it.name}/km from half a year before") }.filter { !it.isNaN() }.average()
+    private fun km(rs: List<TestWorlds.Run>) = Catalogue.migratory.map { lastYear(rs, HexHistory.Key.migration(it.name, HexHistory.Migration.KM_FROM_HALF_A_YEAR)) }.filter { !it.isNaN() }.average()
 
     private fun judge(round: Int, runs: Map<String, List<TestWorlds.Run>>): Verdict {
         val new = runs.getValue("new"); val kept = runs.getValue("kept")
-        val kinds = new.first().allKeys.filter { it.startsWith("animals/") }.map { it.removePrefix("animals/") }
+        val kinds = new.first().allKeys.mapNotNull { HexHistory.Key.animalKind(it) }
         val lines = ArrayList<String>()
-        val cells = kinds.mapNotNull { k -> val n = lastYear(new, "animals/$k"); val o = lastYear(kept, "animals/$k"); if (o > 0.0) "%s %+.1f%%".format(k, 100 * (n / o - 1)) else null }
+        val cells = kinds.mapNotNull { k -> val n = lastYear(new, HexHistory.Key.animals(k)); val o = lastYear(kept, HexHistory.Key.animals(k)); if (o > 0.0) "%s %+.1f%%".format(k, 100 * (n / o - 1)) else null }
         val all = fails(new, kept, kinds)
         lines += "check round %d ecosystem (%s, %d years, %d weathers; last year, every role new against every role kept): %s; migratory herds %.0f -> %.0f km from half a year before -> %s".format(
             round + 1, world.name, years, replicates, cells.joinToString(", "), km(kept), km(new), if (all.isEmpty()) "holds" else "fails: " + all.joinToString(", "))
@@ -104,8 +105,8 @@ class EcoCheck(private val out: File) {
             val alone = runs.getValue("kept-$r")
             val why = fails(new, alone, kinds)
             val own = Catalogue.learned.filter { Role.of(it) == r }.map { it.name }
-            val withNew = own.sumOf { lastYears(new, "animals/$it").average() }
-            val withKept = own.sumOf { lastYears(alone, "animals/$it").average() }
+            val withNew = own.sumOf { lastYears(new, HexHistory.Key.animals(it)).average() }
+            val withKept = own.sumOf { lastYears(alone, HexHistory.Key.animals(it)).average() }
             val better = withNew > withKept
             lines += "check round %d %s: own kinds %.0f with the new network against %.0f with the kept one (%+.1f%%), the others new; ecosystem %s -> %s".format(
                 round + 1, r, withNew, withKept, if (withKept > 0) 100 * (withNew / withKept - 1) else 0.0,

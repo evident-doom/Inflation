@@ -94,7 +94,7 @@ class Census(private val sim: HexSim) {
         println("     by country (share of land: edible forage kg/m², residents / herds / hunters / people per 1000 km²): " +
             Biome.entries.indices.filter { bArea[it] > 0.01 * total }.sortedByDescending { bArea[it] }.joinToString(", ") { b ->
             val k = 1000.0 / bArea[b]
-            "%s %.0f%%: %.2f, %.0f / %.0f / %.1f / %.1f".format(Biome.entries[b].name.lowercase().replace('_', ' '), 100 * bArea[b] / total,
+            "%s %.0f%%: %.2f, %.0f / %.0f / %.1f / %.1f".format(Biome.entries[b].label, 100 * bArea[b] / total,
                 forage[b] / bArea[b], res[b] * k, herdsB[b] * k, huntersB[b] * k, peopleB[b] * k) })
     }
 
@@ -263,7 +263,7 @@ class Census(private val sim: HexSim) {
         fun top(byB: DoubleArray): String {
             val tot = byB.sum().coerceAtLeast(1e-9)
             return byB.indices.sortedByDescending { byB[it] }.take(3).filter { byB[it] > 0 }.joinToString(", ") {
-                "%s %.0f%% (land %.0f%%)".format(Biome.entries[it].name.lowercase().replace('_', ' '), 100 * byB[it] / tot, 100 * landB[it] / landB.sum())
+                "%s %.0f%% (land %.0f%%)".format(Biome.entries[it].label, 100 * byB[it] / tot, 100 * landB[it] / landB.sum())
             }
         }
         println("kind by kind, at the end:")
