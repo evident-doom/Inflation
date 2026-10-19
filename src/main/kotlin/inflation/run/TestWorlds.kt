@@ -73,6 +73,10 @@ object TestWorlds {
         Entry("silt-1", 1, 1000, 2000, "the full map, river soils"),
         Entry("silt-2", 2, 1000, 2000, "the full map, river soils"),
         Entry("silt-3", 3, 1000, 2000, "the full map, river soils"),
+        // The same seeds, settled with afternoon storms over land against the observed free air (#233).
+        Entry("storm-1", 1, 1000, 2000, "the full map, summer storms"),
+        Entry("storm-2", 2, 1000, 2000, "the full map, summer storms"),
+        Entry("storm-3", 3, 1000, 2000, "the full map, summer storms"),
     )
 
     /** The worlds a change is tested on. */
