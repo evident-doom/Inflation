@@ -76,6 +76,8 @@ object Nominal {
     const val PLACE_SNOW_MAX_MM = 20_000.0
     /** What a table of a stock may hold below zero, as a share of its largest value (float rounding). */
     const val STOCK_BELOW_ZERO = 1e-6
+    /** Tables in which NaN means "none" by design, so only an infinity in them is out of limits: the odds of arriving, NaN where a kind cannot stay ([inflation.ecology.HexFauna.arrive]). */
+    val NAN_MEANS_NONE = setOf("HexFauna.arrive")
     /** What the books may leave unexplained over the run (audit=true), as a share of the stock now. */
     const val BOOKS_LEFT_OVER = 1e-3
 
@@ -227,9 +229,10 @@ object Nominal {
         val parts = listOf(sim.weather, land, land.hydro, land.drink, land.plants, land.fire, fauna, fauna.food, fauna.small, fauna.water)
         for (part in parts) for ((name, table) in tables(part)) {
             var bad = 0; var badAt = -1
+            val nanOk = name.substringBefore('[') in NAN_MEANS_NONE
             when (table) {
-                is FloatArray -> for (i in table.indices) if (!table[i].isFinite()) { bad++; if (badAt < 0) badAt = i }
-                is DoubleArray -> for (i in table.indices) if (!table[i].isFinite()) { bad++; if (badAt < 0) badAt = i }
+                is FloatArray -> for (i in table.indices) if (if (nanOk) table[i].isInfinite() else !table[i].isFinite()) { bad++; if (badAt < 0) badAt = i }
+                is DoubleArray -> for (i in table.indices) if (if (nanOk) table[i].isInfinite() else !table[i].isFinite()) { bad++; if (badAt < 0) badAt = i }
             }
             t.check(bad == 0, name) { "$bad not numbers, first at index $badAt" }
         }
