@@ -690,7 +690,7 @@ private fun HexGroups.woundsWeek(band: Band): Float {
 
 /** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
 /**
- * Whether a group of [s] can drink at place [p]: where there is water, or where water is within its going.
+ * Whether a group of [s] can drink at place [p]: where there is water (for animals, soft snow too), or where water is within its going.
  * People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round
  * will do. Animals go to water and back as often as they must: a kind that can go days without
  * drinking can live as many half-days' going from it. (People also dig for it in a dry bed where the
@@ -698,7 +698,8 @@ private fun HexGroups.woundsWeek(band: Band): Float {
  */
 internal fun HexGroups.canDrink(s: Species, p: Int): Boolean {
     val fetch = if (s.human) s.dailyTravelKm else Hazards.fetchKm(s)
-    return land.drink.water[p] >= Thresholds.WET || (s.maxWaterKm.isInfinite() && land.drink.waterKm[p] <= fetch) ||
+    return (if (s.human) land.drink.water[p] else land.drink.animalWater(p)) >= Thresholds.WET ||
+        (s.maxWaterKm.isInfinite() && land.drink.waterKm[p] <= fetch) ||
         (s.human && land.drink.mustDig(p, fetch))
 }
 
@@ -762,7 +763,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
     return if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         // Hunters catch mange, distemper and rabies where their kind crowds the ground.
-        else if (s.carnivore) HexFauna.DISEASE * packs * packs * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+        else if (s.carnivore) Hazards.crowdDisease(packs, g.fed, years)
         else crowdSickness(crowd, g.fed)
 }
 
@@ -805,7 +806,7 @@ internal inline fun HexGroups.herdCrowd(g: HexGroup, h: Int, range: List<Pair<In
 }
 
 /** The share of a herd that dies this week of the diseases and parasites crowded herds catch of each other, as crowded as [crowd] and fed [fed]. */
-internal fun HexGroups.crowdSickness(crowd: Float, fed: Float) = HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - fed))
+internal fun HexGroups.crowdSickness(crowd: Float, fed: Float) = Hazards.crowdDisease(crowd, fed, years)
 
 /**
  * How crowded [g]'s kind is about it, against its usual density ([HexFauna.CROWDED] times [usual] is 1): its kind's

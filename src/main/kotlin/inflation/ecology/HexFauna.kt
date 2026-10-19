@@ -294,7 +294,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             wY[j] = young[j][p] * ym * hunter.preySize(ym)
             total += wA[j] + wY[j]
         }
-        val herds = herdsAt[p]
+        val herds = herdsHere?.get(p)
         val hA = FloatArray(herds?.size ?: 0); val hY = FloatArray(hA.size)
         if (herds != null) for ((i, at) in herds.withIndex()) {
             val s = at.g.species
@@ -344,6 +344,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
     /** The herds about each place this week, for the residents' hunters (see [huntResidents]); set by the groups before the residents' week. */
     @Transient var herdsAt: Map<Int, List<HerdAt>> = emptyMap()
+        set(v) { field = v; herdsHere = if (v.isEmpty()) null else arrayOfNulls<List<HerdAt>>(n).also { for ((p, l) in v) it[p] = l } }
+    /** [herdsAt] by place, for looking up on every place (null when there are none). */
+    @Transient private var herdsHere: Array<List<HerdAt>?>? = null
     /** How much fear puts game off a place, 0..1. */
     fun afraid(p: Int) = fear[p] / (fear[p] + FEAR_HALF)
     /** The soil life and small animals the herds live among. */
@@ -536,12 +539,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * two graze out from water and back, and leave the far country to those that live on the water
      * in their food (gazelle, oryx, camels). Kinds bound to water (hippos) use only what lies by it.
      */
-    /** The share of kind [s]'s residents at place [p], fed [fed], that thirst kills in a week there: none where they can drink. */
-    fun thirstAt(s: Species, p: Int, fed: Float): Float =
-        if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
-        else Hazards.thirst(s, Hazards.dryDays(s, days, fed, land.plants.green[p]))
-
-    fun tether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.water[p], land.drink.waterKm[p])
+    fun tether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.animalWater(p), land.drink.animalWaterKm(p))
 
     /** [tether] in an ordinary year: from the lasting water around, not this week's. */
     fun usualTether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p],
@@ -581,7 +579,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             v += adults[j][p] * ps.massKg * s.preySize(ps.massKg)
             v += young[j][p] * YOUNG_WEIGHT * ps.massKg * s.preySize(YOUNG_WEIGHT * ps.massKg)
         }
-        herdsAt[p]?.let { for (at in it) { val ps = at.g.species
+        herdsHere?.get(p)?.let { for (at in it) { val ps = at.g.species
             v += at.g.adults * at.share / land.areaKm2[p] * ps.massKg * s.preySize(ps.massKg)
             v += at.g.young * at.share / land.areaKm2[p] * YOUNG_WEIGHT * ps.massKg * s.preySize(YOUNG_WEIGHT * ps.massKg) } }
         return v
@@ -1016,7 +1014,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // lean season binds, and then hunger and sickness together hold them.
         val crowd = heads / (CROWDED * usual[k])
         out[HZ_CROWD] = crowd
-        out[HZ_DISEASE] = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - fed)) + outbreakDeaths(s, p)
+        out[HZ_DISEASE] = Hazards.crowdDisease(crowd, fed, years) + outbreakDeaths(s, p)
         val (fireA, floodA, snowA) = calamities(s, p, weather, false)
         val (fireY, floodY, snowY) = calamities(s, p, weather, true)
         out[HZ_FIRE_A] = fireA; out[HZ_FLOOD_A] = floodA; out[HZ_SNOW_A] = if (sleeping) 0f else snowA
@@ -1190,7 +1188,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Whether [s] can drink at place [p]: water there, or within half its days without water's going (see [Hazards.fetchKm]). */
     private fun drinks(s: Species, p: Int) =
-        s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)
+        s.maxWaterKm.isFinite() || land.drink.animalWater(p) >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)
 
     /** What a place is worth to a kind for moving there: nothing when below nothing or not a number (see [shiftBands], [spill]). */
     private fun worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w else 0f
@@ -1248,8 +1246,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient val flowSouth = FloatArray(hex.size)
     @Transient val flowOut = FloatArray(hex.size)
 
-    /** The straits from each hex, as (hex across, km of open water) pairs; set by the groups (see [HexGroups.seaLinks]). */
-    var seaLinks: ((Int) -> List<Pair<Int, Float>>)? = null
+    /** The straits from each hex: the hexes across ([seaLinks]) and the km of open water to each ([seaGaps]); set by the groups (see [HexGroups.seaLinks]). */
+    @Transient var seaLinks: Lazy<Array<IntArray>>? = null
+    @Transient var seaGaps: Lazy<Array<FloatArray>>? = null
 
     /**
      * Hungry or crowded animals spill into neighbouring hexes, at about the same height, towards
@@ -1278,6 +1277,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val dk = dry[k]
             var weekHeads = 0.0; var weekStuck = 0.0; var weekEdge = 0.0
             val flow = flowOf == k
+            val linksTo = seaLinks?.value; val gapsTo = seaGaps?.value
             if (flow) { flowEast.fill(0f); flowSouth.fill(0f); flowOut.fill(0f) }
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) continue
@@ -1318,10 +1318,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // A few swim the strait to the coast across, as far as they can swim it.
                 val swim = Catalogue.swimKm(s)
                 var seaW = 0f; var seaTo = -1; var seaGapKm = 0f
-                val linksOf = seaLinks
-                if (swim > 0f && linksOf != null) {
-                    val links = linksOf(h)
-                    for ((nh, gapKm) in links) { if (gapKm > swim) continue; val q = hw.placeOf[b][nh].takeIf { it >= 0 } ?: continue
+                if (swim > 0f && linksTo != null && gapsTo != null) {
+                    val to = linksTo[h]; val gaps = gapsTo[h]
+                    for (i in to.indices) { val nh = to[i]; val gapKm = gaps[i]
+                        if (gapKm > swim) continue; val q = hw.placeOf[b][nh].takeIf { it >= 0 } ?: continue
                         // (Weighed by those that would reach the far shore: the strait drowns some, as it does groups.)
                         val wq = SEA_SPILL * (1f - gapKm / swim) * (1f - drownRisk(s, gapKm)) * land.areaKm2[q] * (worthOf[q] + 1e-4f)
                         if (wq > seaW) { seaW = wq; seaTo = q; seaGapKm = gapKm } }
@@ -1432,7 +1432,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Share of [s] that drown swimming [gapKm] of open water: by the groups' rule, the nearer the strait to all it can swim, the more. */
-    private fun drownRisk(s: Species, gapKm: Float) = min(1f, DROWN * gapKm / Catalogue.swimKm(s).coerceAtLeast(1f))
+    private fun drownRisk(s: Species, gapKm: Float) = min(1f, Hazards.drowning(s, gapKm))
 
     companion object {
         /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */

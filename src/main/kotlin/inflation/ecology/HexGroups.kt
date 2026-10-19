@@ -180,8 +180,7 @@ class HexGroups(
 
     init {
         // The residents swim the same straits.
-        val pairs by lazy { Array(hex.size) { h -> seaLinks[h].indices.map { seaLinks[h][it] to seaGaps[h][it] } } }
-        fauna.seaLinks = { h -> pairs[h] }
+        fauna.seaLinks = lazy { seaLinks }; fauna.seaGaps = lazy { seaGaps }
         // Start each kind at its usual density over the land that suits it, in groups of its usual size.
         val area = land.areaKm2.sum()
         for (s in kinds) {
@@ -486,7 +485,7 @@ class HexGroups(
     private fun crossWater(g: HexGroup, path: IntArray) {
         for (i in 0 until path.size - 1) {
             val gapKm = seaGap(path[i], path[i + 1]); if (!gapKm.isFinite()) continue
-            val risk = DROWN * gapKm / Catalogue.swimKm(g.species).coerceAtLeast(1f)
+            val risk = Hazards.drowning(g.species, gapKm)
             val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
             adultsDied(g, lostA, rnd); g.young -= lostY
             // (The drowned wash up on the far shore.)
@@ -595,7 +594,7 @@ class HexGroups(
         t.discomfort = discomfort(s, p.i, weather)
         t.drain = drain(g, p.i, weather)
         t.aheadC = s.discomfortC(weather.forecastTemp(p.i), date.month)
-        t.waterKm = if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p]
+        t.waterKm = if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.animalWaterKm(p.i)
         t.suitsLn = ln(fauna.suits(s, p.i).coerceAtLeast(1e-3f))
         t.fresh = if (s.carnivore) 0f else freshness(s, p.i)
     }
@@ -1687,7 +1686,7 @@ class HexGroups(
         while (h != here) {
             val from = via[h]; if (from < 0) break
             val gap = seaGap(from, h)
-            if (gap.isFinite()) risk += DROWN * gap / Catalogue.swimKm(s).coerceAtLeast(1f)
+            if (gap.isFinite()) risk += Hazards.drowning(s, gap)
             h = from
         }
         return min(0.9f, risk)
