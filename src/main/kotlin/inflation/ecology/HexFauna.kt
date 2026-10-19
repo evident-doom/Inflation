@@ -96,10 +96,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     val fedFrom = Array(kinds.size) { Array(Fed.entries.size) { DoubleAdder() } }
     /**
-     * For the check, since last read: each kind's resident head-weeks ([Stuck.HEADS]); those hungry (fed under
-     * [STUCK_FED]) with no neighbouring place the spill could take them to that is better ([Stuck.STUCK]); of those,
-     * the ones where some border is closed to them, by sea or ground they cannot cross ([Stuck.AT_EDGE]); and the
-     * most of a kind so held in any one week, as a share ([Stuck.PEAK]). Where gradual movement piles animals up.
+     * For the check, since last read, counted on the weeks the residents move ([Tuning.residentMoveWeeks]): each kind's
+     * resident heads summed over those weeks ([Stuck.HEADS]); those hungry (fed under [STUCK_FED]) with no neighbouring
+     * place the spill could take them to that is better ([Stuck.STUCK]); of those, the ones where some border is closed to
+     * them, by sea or ground they cannot cross ([Stuck.AT_EDGE]); and the most of a kind so held at any one move, as a
+     * share ([Stuck.PEAK]). Where gradual movement piles animals up.
      */
     @Transient val stuck = Array(kinds.size) { DoubleArray(Stuck.entries.size) }
     /**
@@ -1055,7 +1056,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * The share of [band] grown animals of kind [k] coming to place [p] that would die there in a week ([hazards]): fed
      * as far as the food left uneaten there ([room]) feeds them (a hunter, as well as the residents there were fed),
-     * with water to drink; NaN where there is none, a place no one can stay at.
+     * with water to drink; NaN where there is none, a place no one can stay at. ([band] counts in the crowd only: [room]
+     * is reckoned in [graze] for a band of [Species.maxGroupSize].)
      */
     internal fun arriveOdds(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray): Float {
         val s = kinds[k]
@@ -1247,8 +1249,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * For the viewer: the kind (slot) whose spill to record, -1 for none; and this week's, by hex, the heads that
-     * left it for each neighbour summed as a way east and south (km times heads), and the heads that left it.
+     * For the viewer: the kind (slot) whose spill to record, -1 for none; and the last move's ([Tuning.residentMoveWeeks]),
+     * by hex, the heads that spilled from it to each neighbour summed as a way east and south (km times heads), and the
+     * heads that left it (the thin gathered in are not counted).
      */
     @Volatile @Transient var flowOf = -1
     @Transient val flowEast = FloatArray(hex.size)

@@ -71,7 +71,7 @@ class Tuning(private val read: (String) -> String? = Config::string) {
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about), each move taking what
      * that many weeks' would ([inflation.ecology.HexFauna.spill]). For the step's cost: they change by a few percent a week.
      */
-    val residentMoveWeeks = i("residentMoveWeeks", 2)
+    val residentMoveWeeks = i("residentMoveWeeks", 2).also { require(it >= 1) { "t.residentMoveWeeks is $it: residents move at most every week" } }
     /**
      * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
      * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).

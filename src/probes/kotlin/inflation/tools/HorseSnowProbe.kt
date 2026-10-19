@@ -6,13 +6,14 @@ import inflation.world.HexWorld
 /**
  * Probe: where a resident kind (default wild horse) stands by height through the year, against the snow on its
  * places, how well it fed there, and what the bottom band of the same hex would be worth to it.
- * Usage: horseSnowProbe --world storm-1 --years 1 [kind=wild horse via -Dkind]
+ * Usage: horseSnowProbe --world storm-1 --years 1 [--kind wild_horse] (a kind's name with _ for its spaces, as runTool splits at them)
  */
 fun main(args: Array<String>) {
-    val options = FaunaCheckOptions.parse(args)
+    val at = args.indexOf("--kind")
+    val name = if (at >= 0) args.getOrNull(at + 1)?.replace('_', ' ') ?: error("--kind needs a name") else "wild horse"
+    val options = FaunaCheckOptions.parse(if (at >= 0) (args.take(at) + args.drop(at + 2)).toTypedArray() else args)
     val sim = options.start()
     val fauna = sim.fauna; val hw = sim.hw; val land = sim.land; val weather = sim.weather
-    val name = System.getProperty("kind", "wild horse")
     val k = fauna.kinds.indexOfFirst { it.name == name }
     require(k >= 0) { "no resident kind $name" }
     val s = fauna.kinds[k]
