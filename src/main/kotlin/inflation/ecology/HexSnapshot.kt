@@ -105,9 +105,10 @@ object HexSnapshot {
      * 2.16: snow deeper than a glacier there can stand flows as ice to the next place down ([inflation.world.HexHydrology.iceCapMm]).
      * 2.17: one rule for how well off a band is ([wellOff], 30 days of larder as a week fed), one sickle gain
      * ([Band.sickleGain]), and caches keep by the week's weather, smoked and salted as the larder ([driedKeep]).
+     * 2.18: salting is a skill a band hits on with salt to hand ([Skill.SALTING]), no longer open to any band holding salt.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 17
+    const val MODEL_MINOR = 18
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
