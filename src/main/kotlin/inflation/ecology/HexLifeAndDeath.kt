@@ -748,7 +748,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
     return if (s.human) peopleSickness(g, weather) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
         // Hunters catch mange, distemper and rabies where their kind crowds the ground.
-        else if (s.carnivore) HexFauna.DISEASE * packs * packs * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
+        else if (s.carnivore) Hazards.crowdDisease(packs, g.fed, years)
         else crowdSickness(crowd, g.fed)
 }
 
@@ -791,7 +791,7 @@ internal inline fun HexGroups.herdCrowd(g: HexGroup, h: Int, range: List<Pair<In
 }
 
 /** The share of a herd that dies this week of the diseases and parasites crowded herds catch of each other, as crowded as [crowd] and fed [fed]. */
-internal fun HexGroups.crowdSickness(crowd: Float, fed: Float) = HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - fed))
+internal fun HexGroups.crowdSickness(crowd: Float, fed: Float) = Hazards.crowdDisease(crowd, fed, years)
 
 /**
  * How crowded [g]'s kind is about it, against its usual density ([HexFauna.CROWDED] times [usual] is 1): its kind's

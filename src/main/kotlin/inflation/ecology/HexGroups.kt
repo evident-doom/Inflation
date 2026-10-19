@@ -486,7 +486,7 @@ class HexGroups(
     private fun crossWater(g: HexGroup, path: IntArray) {
         for (i in 0 until path.size - 1) {
             val gapKm = seaGap(path[i], path[i + 1]); if (!gapKm.isFinite()) continue
-            val risk = DROWN * gapKm / Catalogue.swimKm(g.species).coerceAtLeast(1f)
+            val risk = Hazards.drowning(g.species, gapKm)
             val lostA = binomial(g.adults, risk, rnd); val lostY = binomial(g.young, 2f * risk, rnd)
             adultsDied(g, lostA, rnd); g.young -= lostY
             // (The drowned wash up on the far shore.)
@@ -1687,7 +1687,7 @@ class HexGroups(
         while (h != here) {
             val from = via[h]; if (from < 0) break
             val gap = seaGap(from, h)
-            if (gap.isFinite()) risk += DROWN * gap / Catalogue.swimKm(s).coerceAtLeast(1f)
+            if (gap.isFinite()) risk += Hazards.drowning(s, gap)
             h = from
         }
         return min(0.9f, risk)
