@@ -96,9 +96,11 @@ object HexSnapshot {
      * ([HexGroups.herdOddsAt]); a herd no longer keeps together until it is beyond [gatherKm] of where it formed; and the
      * place residents set off for, and a herd weighs settling against, is one it can walk to (not across the sea or a
      * river too deep to cross).
+     * 2.13: a band's hunters (half its hands at the scaffold's effort on big game) search for game all the days they are out,
+     * while the rest gather ([HUNTERS_SHARE]).
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 12
+    const val MODEL_MINOR = 13
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
