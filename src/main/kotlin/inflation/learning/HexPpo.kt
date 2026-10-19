@@ -164,19 +164,33 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
             val due = waiting.filter { it.week + Critic.boot(it.kind) == w }
             if (due.isNotEmpty()) {
                 val p = Probe(features[Critic.here(features)].copyOf(HexFeatures.SIZE), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season()))
-                for (c in due) c.probe = p
+                // (Where it then stood is unknown to the critic if any of it is not a number: its whole horizon counts as seen.)
+                val known = p.features.allFinite() && p.band.allFinite() && p.temper.allFinite() && p.group.allFinite()
+                if (known) for (c in due) c.probe = p
                 waiting.removeAll(due)
             }
         } }
         val net = mover.netScores(g.species, features, state, temper, scratch.get())
         val scores = FloatArray(n) { k -> net[k] + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
+        // A place whose score or features are not numbers is never taken, as with the hand-written score; and if no place
+        // can be weighed the group stays where it is. One such number learnt from makes the whole network not a number.
+        var weighed = 0
+        for (k in 0 until n) if (scores[k].isFinite() && features[k].allFinite(HexFeatures.SIZE)) weighed++ else {
+            NonFinite.note(g.species, features[k], baseline[k], net[k], mover.pull(temper, features[k])); scores[k] = Float.NEGATIVE_INFINITY }
+        if (weighed == 0) return Critic.here(features)
         // Only the choices recorded to learn from are drawn by chance; every other group takes its best, so the
         // training worlds live as they would with the networks choosing (a world of chance moves goes under).
         if (record == null || rnd.nextFloat() >= rate(g.species)) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
         val p = softmax(scores)
-        var u = rnd.nextFloat(); var taken = n - 1
-        for (k in 0 until n) { u -= p[k]; if (u <= 0f) { taken = k; break } }
-        val c = Choice(g.species, g.id, g.size, week(), Array(n) { k -> features[k].copyOf(HexFeatures.SIZE) }, taken, ln(max(p[taken], 1e-8f))).also { it.baseline = baseline.copyOf(); it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf(); it.group = Critic.groupState(g, season()) }
+        var u = rnd.nextFloat(); var taken = -1
+        for (k in 0 until n) if (p[k] > 0f) { taken = k; u -= p[k]; if (u <= 0f) break }
+        val group = Critic.groupState(g, season())
+        // (Nor is a choice learnt from whose group's own numbers are not all numbers.)
+        if (!temper.allFinite() || !state.allFinite() || !group.allFinite()) { NonFinite.note(g.species, "group"); return taken }
+        // (The places not weighed are left out of what is learnt.)
+        val kept = (0 until n).filter { scores[it] > Float.NEGATIVE_INFINITY }
+        val c = Choice(g.species, g.id, g.size, week(), Array(kept.size) { features[kept[it]].copyOf(HexFeatures.SIZE) }, kept.indexOf(taken), ln(max(p[taken], 1e-8f)))
+            .also { it.baseline = FloatArray(kept.size) { baseline[kept[it]] }; it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf(); it.group = group }
         record += c
         probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
         return taken
@@ -185,6 +199,39 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         val state = g.band?.state; val temper = g.temper
         val net = mover.netScores(g.species, features, state, temper, scratch.get())
         return FloatArray(features.size) { k -> net[k] + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
+    }
+}
+
+/** Whether the first [size] numbers (all, by default) are numbers, neither infinite nor NaN; true for none. */
+internal fun FloatArray?.allFinite(size: Int = Int.MAX_VALUE): Boolean {
+    if (this == null) return true
+    for (i in 0 until min(size, this.size)) if (!this[i].isFinite()) return false
+    return true
+}
+
+/**
+ * The scores and inputs that were not numbers (NaN or infinite) when a network chose, by kind and by what was not: the
+ * hand-written score of a place, a place feature (by name), the network's score, the temperament's pull, or the group's
+ * own numbers. Such places are never taken and never learnt from (see [MoverPolicy]); the training's round log reports
+ * them, so that what makes them can be found.
+ */
+object NonFinite {
+    private val counts = ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong>()
+
+    fun note(s: Species, what: String) { counts.computeIfAbsent("${s.name}: $what") { java.util.concurrent.atomic.AtomicLong() }.incrementAndGet() }
+
+    /** A place [features] whose score was not a number: the hand-written score [baseline], the network's [net], the temperament's [pull]. */
+    fun note(s: Species, features: FloatArray, baseline: Float, net: Float, pull: Float) {
+        for (i in 0 until min(features.size, HexFeatures.SIZE)) if (!features[i].isFinite()) note(s, "feature ${HexFeatures.NAMES[i]}")
+        if (!baseline.isFinite()) note(s, "hand-written score")
+        if (!net.isFinite()) note(s, "network")
+        if (!pull.isFinite()) note(s, "pull")
+    }
+
+    /** What has been counted since the last call, most first ("" if nothing), and the counts cleared. */
+    fun take(): String {
+        val now = counts.keys.toList().map { it to (counts.remove(it)?.get() ?: 0L) }.filter { it.second > 0 }
+        return now.sortedByDescending { it.second }.joinToString(", ") { "${it.first} ${it.second}" }
     }
 }
 
@@ -452,6 +499,7 @@ object HexPpo {
                 c.ret = sum / norm + went
                 c.part = part / norm + went
                 c.boot = own[boot - 1] / c.size.coerceAtLeast(1).toFloat() * tail / norm
+                if (!c.ret.isFinite() || !c.part.isFinite() || !c.boot.isFinite()) { NonFinite.note(c.kind, "return"); continue }
                 out += c
             }
             pending.clear(); pending += waiting
