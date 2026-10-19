@@ -170,9 +170,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** For the kinds that also live as herds ([Catalogue.gathering]): the young that grew up this week, by place, per km² (see [HexGroups.scatter]). */
     @Transient internal val grownUp: Array<FloatArray?> = Array(kinds.size) { if (kinds[it] in Catalogue.gathering) FloatArray(n) else null }
     /**
-     * For the plant-eaters: how many more of the kind each place could feed this week, per km², from the food left
-     * uneaten there after every kind has eaten, as far as the kind can get at it (cliffs, the walk to water, biting
-     * insects); see [arriveOdds].
+     * For the plant-eaters: how well a band of the kind ([Species.maxGroupSize]) coming to each place would be fed there
+     * this week, 0..1 of its need, eating by the same rule as those there ([forage]) from the food left uneaten after
+     * every kind has eaten, as far as the kind can get at it (cliffs, the walk to water, biting insects); see [arriveOdds].
      */
     @Transient internal val room: Array<FloatArray?> = Array(kinds.size) { if (!kinds[it].carnivore) FloatArray(n) else null }
     /**
@@ -735,7 +735,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 override fun roots(kg: Float): Float { val t = min(kg, access * spareR); spareR -= t; return t }
                 override fun straw(kg: Float): Float { val t = min(kg, spareS); spareS -= t; return t }
             }
-            val b = Bites()
+            val b = Bites(); val dry = DryPantry()
             // (Of each kind's need: what it got of plants, and of straw; what it ate beyond, laid on.)
             val got = FloatArray(kinds.size); val strawShare = FloatArray(kinds.size); val surplus = FloatArray(kinds.size)
             var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f; var eatS = 0f
@@ -764,19 +764,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 eatF += b.fruit + b.fruit2; eatR += b.roots + b.roots2; eatS += b.straw
                 ateKg[k] = b.eaten; proteinKg[k] = protein(b, gp, bp, tuning.proteinStraw)
             }
-            // What is left would feed this many more of each kind that also lives as herds, per km²: of each food in its
-            // diet, what is left as far as it can get at it, against what one of it eats of that food; the scarcest
-            // decides (plenty of grass does not feed a boar short of roots and mast).
+            // How well a band of each plant-eater coming here would be fed on what is left, eating by the same rule ([forage]):
+            // its diet, switching and the straw as far as its gut holds them, so poor food feeds it no better than it feeds
+            // those already here.
             for ((k, s) in kinds.withIndex()) {
                 val r = room[k] ?: continue
-                if (each[k] <= 0f) { r[p] = 0f; continue }
-                val d = s.diet; val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
-                val fill = gutFill(s, quality)
-                val snowed = weather.snowpack[p] > s.snowLimitMm
-                var most = Float.MAX_VALUE
-                fun feeds(share: Float, left: Float, per: Float) { if (share > 0f) most = min(most, avail[k] * max(0f, left) / (each[k] * per * share / total)) }
-                feeds(d.grass, if (snowed) 0f else spareG, fill); feeds(d.browse, spareB, fill); feeds(d.fruit, spareF, 1f); feeds(d.roots, spareR, 1f)
-                r[p] = if (most == Float.MAX_VALUE) 0f else most
+                if (each[k] <= 0f) { r[p] = 1f; continue }
+                val want = kinds[k].maxGroupSize / land.areaKm2[p] * each[k]
+                dry.reach = avail[k]; dry.grass = max(0f, spareG); dry.browse = max(0f, spareB)
+                dry.fruit = max(0f, spareF); dry.roots = max(0f, spareR); dry.straw = max(0f, spareS)
+                r[p] = (forage(s, s.diet, quality, want, weather.snowpack[p] > s.snowLimitMm, avail[k], dry, b).got / want).coerceIn(0f, 1f)
             }
             for ((k, s) in kinds.withIndex()) {
                 val strawPart = strawShare[k]
@@ -1064,7 +1061,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val s = kinds[k]
         if (!drinks(s, p)) return Float.NaN
         val area = land.areaKm2[p]
-        val f = room[k]?.let { min(1f, it[p] * area / band) } ?: fed[k][p]
+        val f = room[k]?.get(p) ?: fed[k][p]
         hazards(k, p, weather, weather.date.month, f, 0f, adults[k][p] + young[k][p] + band / area, out)
         return adultShare(out)
     }
