@@ -339,10 +339,15 @@ class HexGroups(
         // Residents of the kinds that also live as herds set off together where their place fails them, and herds settle where theirs does not.
         Phase("herds: gathering and scattering") {
             // (Not in the form-swap test, where each kind keeps the form it has.)
-            if (!Catalogue.formsFixed) {
+            if (!Catalogue.formsFixed && tuning.plantEaterHerds) {
                 Profile.part("herds: who leaves") { leaveAhead(it) }
                 Profile.part("herds: settling") { scatter(it) }
                 Profile.part("herds: setting off") { gather(it.date) }
+            } else if (!Catalogue.formsFixed) {
+                // (With no plant-eater herds, any there are melt back into the residents at once.)
+                Profile.part("herds: settling") {
+                    for (s in groups.filter { it.alive && it.species in Catalogue.gathering }.map { it.species }.distinct()) toResidents(s) { }
+                }
             }
         },
         Phase("herds: remembering places") { val date = it.date

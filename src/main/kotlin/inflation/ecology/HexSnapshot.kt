@@ -104,7 +104,8 @@ object HexSnapshot {
      * they are born and die by ([HexFauna.growth]), not by a separate appeal of their own; and residents weigh a place
      * they would come to with a band of them added over the ground a band ranges in a day, not over the place's own; and
      * walking residents count those that came to a place this move, its food shared among them all, as many staying as
-     * find it, with them there, no worse than walking on.
+     * find it, with them there, no worse than walking on; and residents move every week again;
+     * and plant-eaters live only as residents (Tuning.plantEaterHerds), their herds spread as residents.
      */
     const val MODEL_MAJOR = 2
     const val MODEL_MINOR = 15

@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+import inflation.Tuning
 import inflation.world.World
 import inflation.world.WorldConfig
 import kotlin.test.Test
@@ -12,7 +14,8 @@ class InputSlotsTest {
 
     @Test
     fun `every named slot of a band's view and a herd's or pack's is written`() {
-        val sim = HexSim(World.generate(cfg))
+        // (With plant-eater herds, so that there is one to read.)
+        val sim = HexSim(World.generate(cfg), tuning = Tuning { if (it == "t.plantEaterHerds") "true" else Config.string(it) })
         repeat(2) { sim.step() }
         val live = sim.groups.groups.filter { it.alive }
         val band = live.first { it.band != null }

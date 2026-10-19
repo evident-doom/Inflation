@@ -10,6 +10,7 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     private fun f(name: String, default: Float) = read("t.$name")?.toFloat() ?: default
     private fun d(name: String, default: Double) = read("t.$name")?.toDouble() ?: default
     private fun i(name: String, default: Int) = read("t.$name")?.toInt() ?: default
+    private fun b(name: String, default: Boolean) = read("t.$name")?.toBooleanStrict() ?: default
 
     /** Outbreaks starting among people, against [inflation.ecology.HexFauna.OUTBREAK_START]. */
     val peopleOutbreak = f("peopleOutbreak", 1f)
@@ -69,9 +70,17 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     val breedSpacing = f("breedSpacing", 1.5f)
     /**
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about), each move taking what
-     * that many weeks' would ([inflation.ecology.HexFauna.spill]). For the step's cost: they change by a few percent a week.
+     * that many weeks' would ([inflation.ecology.HexFauna.spill]). Every week: with no herds to carry them, residents are
+     * the ones that follow the seasons, and a fortnight's wait is too coarse for that.
      */
-    val residentMoveWeeks = i("residentMoveWeeks", 2).also { require(it >= 1) { "t.residentMoveWeeks is $it: residents move at most every week" } }
+    val residentMoveWeeks = i("residentMoveWeeks", 1).also { require(it >= 1) { "t.residentMoveWeeks is $it: residents move at most every week" } }
+    /**
+     * Whether plant-eaters also live as herds (true), gathering where their place fails them and settling back where it
+     * does not ([inflation.ecology.HexGroups.leaveAhead]); or only as residents (false), any herds there are, from a
+     * saved world or newcomers, spread as residents over the ground they graze the week they are found
+     * ([inflation.ecology.HexGroups.toResidents]). Packs and people keep their groups either way.
+     */
+    val plantEaterHerds = b("plantEaterHerds", false)
     /**
      * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
      * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).
