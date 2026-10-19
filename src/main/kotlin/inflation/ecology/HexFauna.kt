@@ -987,7 +987,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         record?.foldResidents()
         for ((k, s) in kinds.withIndex()) {
             // (Summed place by place in order, so that a run is the same on any number of cores.)
-            deaths[Tally.of(s, "resident hunters")] = huntedByResidents[k].let { h ->
+            deaths[Tally.of(s, DeathCause.RESIDENT_HUNTERS)] = huntedByResidents[k].let { h ->
                 var sum = 0.0
                 for (p in h.indices) {
                     sum += h[p]

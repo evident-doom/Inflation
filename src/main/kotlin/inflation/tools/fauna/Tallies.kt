@@ -143,7 +143,7 @@ class HuntTally(private val sim: HexSim) {
             headWeeks.merge("${s.name} spread", fauna.count(k), Double::plus)
             val inHerds = (groups.lostToResidents[s] ?: 0).toDouble()
             residentsKilled.merge("${s.name} herds", inHerds, Double::plus)
-            residentsKilled.merge("${s.name} spread", (fauna.deaths[Tally.of(s, "resident hunters")] ?: 0.0) - inHerds, Double::plus)
+            residentsKilled.merge("${s.name} spread", fauna.deaths[Tally.of(s, DeathCause.RESIDENT_HUNTERS)] ?: 0.0, Double::plus)
         }
         for (g in groups.groups) if (g.alive && g.species.carnivore) {
             fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus)

@@ -14,7 +14,8 @@ enum class DeathCause(val label: String, val shown: PlaceRecord.Cause) {
     INBREEDING("inbreeding", PlaceRecord.Cause.OTHER), WOUNDS("wounds", PlaceRecord.Cause.OTHER), OLD_AGE("old age", PlaceRecord.Cause.OTHER),
     ORPHANED("orphaned", PlaceRecord.Cause.HUNGER), DROWNED_CROSSING("drowned crossing", PlaceRecord.Cause.OTHER),
     RAIDS("raids", PlaceRecord.Cause.KILLED), PREY_FOUGHT_BACK("prey fought back", PlaceRecord.Cause.KILLED), RIVALS("rivals", PlaceRecord.Cause.KILLED),
-    YOUNG_KILLED_BY_RIVALS("young killed by rivals", PlaceRecord.Cause.KILLED);
+    YOUNG_KILLED_BY_RIVALS("young killed by rivals", PlaceRecord.Cause.KILLED),
+    RESIDENT_HUNTERS("resident hunters", PlaceRecord.Cause.KILLED);
 
     override fun toString() = label
 
