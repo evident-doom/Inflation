@@ -81,9 +81,11 @@ object HexSnapshot {
      * 2.3: grass loses nourishment and protein as it goes to stem and seed (HexPlants.grassAge).
      * 2.4: crowding halves a place's appeal for residents where disease starts to bite (CROWDED), not at 20 times usual.
      * 2.5: afternoon storms over land against the observed free air: summer rain on high ground north of about 36 °N.
+ * 2.6: the summer high reaches north only to about 46 °N (fronts more often in the north's summer), and air over hot
+     * inland ground holds more before it rains out on slopes.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 5
+    const val MODEL_MINOR = 6
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
