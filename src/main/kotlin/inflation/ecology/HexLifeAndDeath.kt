@@ -127,7 +127,7 @@ internal fun HexGroups.graze(weather: Weather) {
             // (Far from water, a kind that must drink often uses only the ground within reach of it, as the residents do: see [HexFauna.tether].)
             // (Biting insects harassing it cost it feeding time.)
             val access = grazeAccess(s, p)
-            val snowed = weather.snowpack[p] > s.snowLimitMm
+            val underSnow = grassUnderSnow(s, weather.snowpack[p])
             // (Its diet as it leans this week: its kind's, weighted by its own choice.)
             val d = herdDiet(g)
             val reach = access
@@ -140,7 +140,7 @@ internal fun HexGroups.graze(weather: Weather) {
                 override fun roots(kg: Float) = food.take(food.roots, p, KgM2(min(kg, reach * food.roots[p]))).v
                 override fun straw(kg: Float) = food.take(food.straw, p, KgM2(kg)).v
             }
-            val b = forage(s, d, p, want, snowed, access, pantry)
+            val b = forage(s, d, p, want, underSnow, access, pantry)
             val grass = b.grass; val browse = b.browse; val fruit = b.fruit; val roots = b.roots
             val grass2 = b.grass2; val browse2 = b.browse2; val fruit2 = b.fruit2; val roots2 = b.roots2
             val q = b.q; val room = b.room; val straw = b.straw
@@ -162,16 +162,16 @@ internal fun HexGroups.graze(weather: Weather) {
             eatenKg += b.eaten * m2p
             proteinKg += protein(b, p) * m2p
             if (p == g.place.i) note(g) {
-                "grazed at %.0f m: fed %.2f (green %.2f, grass %.3f browse %.3f kg/m² there; ate grass %.2g browse %.2g straw %.2g; gut room left %.2g; snowed %s; grazing over %d places)".format(
+                "grazed at %.0f m: fed %.2f (green %.2f, grass %.3f browse %.3f kg/m² there; ate grass %.2g browse %.2g straw %.2g; gut room left %.2g; grass reached under snow %.2f; grazing over %d places)".format(
                     hw.placeElevationM[p], got / want.coerceAtLeast(1e-9f), land.plants.green[p], land.plants.herb[p], land.plants.shrub[p],
                     grass + grass2, browse + browse2, straw,
-                    room, snowed, range.size)
+                    room, underSnow, range.size)
             }
             // With food to spare and reserves short, it eats more and lays the surplus on.
             var grass3 = 0f; var browse3 = 0f
             if (got >= want && g.fat < s.maxFatDays) {
                 val extra = SURPLUS_EAT * g.will[AnimalWay.FATTEN] * want
-                if (d.grass > 0f && !snowed) grass3 = pantry.grass(extra / q * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
+                if (d.grass > 0f) grass3 = pantry.grass(underSnow * extra / q * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 if (d.browse > 0f) browse3 = pantry.browse(extra / q * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 surplusKg += (grass3 + browse3) * q * land.areaKm2[p] * 1e6f
                 small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (grass3 + browse3)))
@@ -266,22 +266,32 @@ internal class Bites {
 }
 
 /** [forage] at place [p], at the nourishment of its forage there. */
-internal fun HexGroups.forage(s: Species, d: Diet, p: Int, want: Float, snowed: Boolean, access: Float, pantry: Pantry): Bites =
-    forage(s, d, land.plants.nourishment(p), want, snowed, access, pantry, Bites())
+internal fun HexGroups.forage(s: Species, d: Diet, p: Int, want: Float, underSnow: Float, access: Float, pantry: Pantry): Bites =
+    forage(s, d, land.plants.nourishment(p), want, underSnow, access, pantry, Bites())
+
+/**
+ * The share of the grass it would eat that kind [s] gets at under [snowMm] of snow (mm water): all of it on bare ground,
+ * falling evenly to none at the depth it can dig through no more ([Species.snowLimitMm]). Grazing under snow is
+ * digging: the deeper the snow, the more snow it moves and the more of its feeding time goes to clearing each mouthful,
+ * until at its limit digging takes all of it. (The even fall is the simplest shape between the two ends the record
+ * gives, bare ground and the limit. Digging is cheap work, caribou spend 118-481 J a stroke, Fancy and White 1985, so
+ * the snow is felt as time lost from feeding, not as fat.)
+ */
+internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s.snowLimitMm).coerceIn(0f, 1f)
 
 /**
  * How animals of [s] eating diet [d] feed where the forage nourishes [q], asking [want] kg per m² this week, from
- * [pantry]: grass (none under deep snow) and browse as far as the gut fills at that nourishment, fruit and roots, then
+ * [pantry]: grass (as far as it gets at it under the snow, [underSnow], see [grassUnderSnow]) and browse as far as the gut fills at that nourishment, fruit and roots, then
  * switching between them for a shortfall, then straw; into [out]. The one rule for the week's grazing, herds' ([graze])
  * and residents' ([HexFauna.graze]), and for how fed a herd foresees it would be at a place ([HexGroups.foreseeFed]).
  */
-internal fun forage(s: Species, d: Diet, q: Float, want: Float, snowed: Boolean, access: Float, pantry: Pantry, out: Bites): Bites {
+internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, access: Float, pantry: Pantry, out: Bites): Bites {
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
     // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
     val fill = gutFill(s, q)
     // (As the residents: what it cannot get at is a share of the place's food it cannot reach, not a share
     // of its need it goes without; where food is plenty it still eats its fill.)
-    val grass = pantry.grass(if (snowed) 0f else want * fill * d.grass / total)
+    val grass = pantry.grass(underSnow * want * fill * d.grass / total)
     val browse = pantry.browse(want * fill * d.browse / total)
     val fruit = pantry.fruit(want * d.fruit / total)
     val roots = pantry.roots(want * d.roots / total)
@@ -297,7 +307,7 @@ internal fun forage(s: Species, d: Diet, q: Float, want: Float, snowed: Boolean,
     // (What it switches to nourishes it as well as its gut digests fibre, [Species.fibreDigestion].)
     val qf = q * s.fibreDigestion
     if (gap > 0f && d.browse > 0f) { browse2 = pantry.browse(min(gap / qf, room)); gap -= browse2 * qf; room -= browse2 }
-    if (gap > 0f && d.grass > 0f && !snowed) { grass2 = pantry.grass(min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
+    if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, SWITCH * want * d.fruit / total)); gap -= fruit2 }
     if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, SWITCH * want * d.roots / total)); gap -= roots2 }
     // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
