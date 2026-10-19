@@ -75,7 +75,8 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap()
                     g
                 }
                 val g = FloatArray(net.w.size); for (p in parts) g.add(p)
-                adam.step(net.w, g)
+                // (A step that is not all numbers would make the critic not a number for good: it is left out.)
+                if (g.allFinite()) adam.step(net.w, g)
             }
         }
     }
