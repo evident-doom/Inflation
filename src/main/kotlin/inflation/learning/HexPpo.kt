@@ -281,6 +281,8 @@ object HexPpo {
      * check also asks of the herds, so the networks learn to move rather than only being stopped from settling.
      */
     val MIGRATION_WEIGHT = Config.float("ppo.migrationWeight", 0.05f)
+    /** The fewest animals of a kind its tenfold growth is measured from: a kind may grow from a few groups to this tenfold before the world counts as off the rails. */
+    const val GROWTH_FLOOR = 10_000
     /** The distance at which the migration bonus is whole: where a herd may scatter into the land ([GATHER_KM]). */
     const val MIGRATION_KM = GATHER_KM
     const val CLIP = 0.2f
@@ -420,13 +422,13 @@ object HexPpo {
         /** Whether it has lived its time (if it has one), or gone badly off the rails: then a fresh world takes its place. */
         val done get() = (lifeSteps > 0 && week >= lifeSteps) || derailed != null
         /**
-         * Why it has gone off the rails, if it has (else null): no bands left, herds, hunters or people
-         * grown tenfold since the world settled, or half the kinds gone. Short of that it lives on, whatever befalls it, swings
+         * Why it has gone off the rails, if it has (else null): no bands left, a kind grown tenfold since the world settled
+         * (from at least [GROWTH_FLOOR] animals, so that a kind starting from a few groups may grow into its range), or half the kinds gone. Short of that it lives on, whatever befalls it, swings
          * included: the networks are to learn in worlds that have run long.
          */
         var derailed: String? = null; private set
-        private val startNumbers = HashMap<Int, Int>()
-        private fun numbersByRole(): Map<Int, Int> = run.groups.groups.filter { it.alive }.groupingBy { role(it.species) }.fold(0) { a, g -> a + g.size }
+        private val startNumbers = HashMap<Species, Int>()
+        private fun numbersByKind(): Map<Species, Int> = run.groups.groups.filter { it.alive }.groupingBy { it.species }.fold(0) { a, g -> a + g.size }
         /** The migration bonus of choice [c] judged over [horizon] weeks ([MIGRATION_WEIGHT]); 0 where its group was not seen. */
         private fun migration(c: Choice, horizon: Int): Float {
             val a = outcomes.where(c.groupId, c.week); val b = outcomes.where(c.groupId, c.week + horizon)
@@ -435,12 +437,14 @@ object HexPpo {
         }
 
         private fun checkRails() {
-            val now = numbersByRole()
+            val now = numbersByKind()
             if (startNumbers.isEmpty()) { startNumbers.putAll(now); return }
             val gone = kinds.count { s -> run.groups.groups.none { it.alive && it.species == s } }
+            val people = { m: Map<Species, Int> -> m.entries.sumOf { (s, n) -> if (s.human) n else 0 } }
+            val grown = kinds.firstOrNull { s -> (now[s] ?: 0) > 10.0 * max(startNumbers[s] ?: 0, GROWTH_FLOOR) }
             derailed = when {
-                (startNumbers[Role.PEOPLE.ordinal] ?: 0) > 0 && (now[Role.PEOPLE.ordinal] ?: 0) == 0 -> "no bands left"
-                Role.entries.indices.any { r -> (now[r] ?: 0) > 10.0 * (startNumbers[r] ?: Int.MAX_VALUE / 20) } -> "a role grown tenfold"
+                people(startNumbers) > 0 && people(now) == 0 -> "no bands left"
+                grown != null -> "${grown.name} grown tenfold"
                 gone * 2 > kinds.size -> "$gone of ${kinds.size} kinds gone"
                 else -> null
             }
@@ -466,7 +470,7 @@ object HexPpo {
                 run.step()
                 week++
                 // (Growth is judged from the settled world, not from the seeded one: the settling years bring the kinds to their own level.)
-                if (week == burnSteps) { startNumbers.clear(); startNumbers.putAll(numbersByRole()) }
+                if (week == burnSteps) { startNumbers.clear(); startNumbers.putAll(numbersByKind()) }
                 if (week % stepsPerYear == 0) {
                     setRates()
                     census("year %d%s: %s".format(week / stepsPerYear, if (week <= burnSteps) " (settling)" else "", kinds.joinToString(", ") { s -> "${s.name} ${run.groups.count(s)}" }))
