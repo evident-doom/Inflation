@@ -177,7 +177,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     @Transient internal val room: Array<FloatArray?> = Array(kinds.size) { if (!kinds[it].carnivore) FloatArray(n) else null }
     /**
-     * Each kind's share of a band ([Species.maxGroupSize]) coming to each place that would die there in a week
+     * Each kind's share of those coming to each place that would die there in a week
      * ([arriveOdds], NaN where it cannot stay), worked out once a week before the residents move ([fillArrive]): the
      * one measure the residents' drift and the groups' leaving and settling ([HexGroups.leaveAhead]) weigh places by.
      */
@@ -1077,11 +1077,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val outs = ThreadLocal.withInitial { FloatArray(HZ_COUNT) }
         for (k in kinds.indices) {
             val s = kinds[k]
-            val band = s.maxGroupSize.toFloat(); val odds = arrive[k]; val w = worth[k]
-            if (!moving) { IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, band, weather, outs.get()) }; continue }
+            val odds = arrive[k]; val w = worth[k]
+            if (!moving) { IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, outs.get()) }; continue }
             if (room[k] == null) {
                 IntStream.range(0, n).parallel().forEach { p ->
-                    odds[p] = arriveOdds(k, p, band, weather, outs.get()); w[p] = worthOrNothing(appeal(k, p, weather)) }
+                    odds[p] = arriveOdds(k, p, weather, outs.get()); w[p] = worthOrNothing(appeal(k, p, weather)) }
                 continue
             }
             // (Those that move are the kind as it is: its young to its grown, and the fat its grown carry, all over.)
@@ -1093,24 +1093,23 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
             IntStream.range(0, n).parallel().forEach { p ->
                 val out = outs.get()
-                val o = arriveOdds(k, p, band, weather, out)
+                val o = arriveOdds(k, p, weather, out)
                 odds[p] = o
-                w[p] = if (o.isNaN()) 0f else worthOrNothing(growth(k, p, band, weather, out, youngPerGrown, carried, stepsPerYear))
+                w[p] = if (o.isNaN()) 0f else worthOrNothing(growth(k, p, weather, out, youngPerGrown, carried, stepsPerYear))
             }
         }
     }
 
     /**
-     * What place [p] is worth to plant-eating kind [k] for moving there: the rate a band of [band] grown coming there would
-     * grow at over a year, as it would fare there this week, by the rules residents are born and die by ([breedAndDie]):
+     * What place [p] is worth to plant-eating kind [k] for moving there: the rate those coming there would grow at over a
+     * year, as it would fare there this week, by the rules residents are born and die by ([breedAndDie]):
      * the young born there to its mothers (fed as far as the food left uneaten feeds them, [room], with the protein the
      * forage there holds, [forageProtein], and the fat they [carried]), less the grown and the young ([youngPerGrown] to a
      * grown one) that die there of the [hazards] in [out] (as [arriveOdds] filled it) and to the hunters. A week's rate
      * taken over the [stepsPerYear], so that places compare as a year there would leave them.
      */
-    private fun growth(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float,
-                       stepsPerYear: Float): Float =
-        exp(stepsPerYear * ln1p(max(-1f, growthParts(k, p, band, weather, out, youngPerGrown, carried, null))))
+    private fun growth(k: Int, p: Int, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float, stepsPerYear: Float): Float =
+        exp(stepsPerYear * ln1p(max(-1f, growthParts(k, p, weather, out, youngPerGrown, carried, null))))
 
     /**
      * [growth]'s week: the change in heads a head of kind [k] coming to place [p] would see there in a week. Where [parts]
@@ -1118,14 +1117,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * ([GROWTH_GROWN_DIE], [GROWTH_YOUNG_DIE]), and how well fed and how well met their need for protein would be
      * ([GROWTH_FED], [GROWTH_PROTEIN]).
      */
-    internal fun growthParts(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float,
-                             parts: FloatArray?): Float {
+    internal fun growthParts(k: Int, p: Int, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float, parts: FloatArray?): Float {
         val s = kinds[k]
         val f = room[k]?.get(p) ?: fed[k][p]
         val protein = forageProtein(s, p)
         val inSeason = monthsFrom(birthStart[k][p].toInt(), weather.date.month) < s.birthMonths
         val born = if (!inSeason) 0f else {
-            val due = dueYoung(k, adults[k][p] + young[k][p] + band / land.areaKm2[p], protein, s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat())
+            val due = dueYoung(k, adults[k][p] + young[k][p], protein, s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat())
             0.5f * due * breeding(s, due, carried, f, days)
         }
         val grownDie = (s.backgroundMortality * years + adultShare(out)).coerceIn(0f, 0.9f)
@@ -1135,16 +1133,18 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * The share of [band] grown animals of kind [k] coming to place [p] that would die there in a week ([hazards]): fed
-     * as far as the food left uneaten there ([room]) feeds them (a hunter, as well as the residents there were fed),
-     * with water to drink; NaN where there is none, a place no one can stay at.
+     * The share of grown animals of kind [k] coming to place [p] that would die there in a week ([hazards]): fed as far
+     * as the food left uneaten there ([room]) feeds them (a hunter, as well as the residents there were fed), with water
+     * to drink; NaN where there is none, a place no one can stay at. Crowded as those there are: the residents come as a
+     * share of those about, spread over many places, so the few that come to one change its numbers little. (A whole
+     * band counted on one place's ground crowded the smaller places, the high ground's above all, past any that live
+     * there.)
      */
-    internal fun arriveOdds(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray): Float {
+    internal fun arriveOdds(k: Int, p: Int, weather: Weather, out: FloatArray): Float {
         val s = kinds[k]
         if (!drinks(s, p)) return Float.NaN
-        val area = land.areaKm2[p]
         val f = room[k]?.get(p) ?: fed[k][p]
-        hazards(k, p, weather, weather.date.month, f, 0f, adults[k][p] + young[k][p] + band / area, out)
+        hazards(k, p, weather, weather.date.month, f, 0f, adults[k][p] + young[k][p], out)
         return adultShare(out)
     }
 

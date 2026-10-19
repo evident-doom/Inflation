@@ -97,7 +97,8 @@ object HexSnapshot {
      * place residents set off for, and a herd weighs settling against, is one it can walk to (not across the sea or a
      * river too deep to cross).
      * 2.13: plant-eaters weigh a place to move to by the rate a band of them would grow at there over a year, by the rules
-     * they are born and die by ([HexFauna.growth]), not by a separate appeal of their own.
+     * they are born and die by ([HexFauna.growth]), not by a separate appeal of their own; and residents weigh a place
+     * they would come to as crowded as those there make it, not with a whole band of them added on its ground.
      */
     const val MODEL_MAJOR = 2
     const val MODEL_MINOR = 13

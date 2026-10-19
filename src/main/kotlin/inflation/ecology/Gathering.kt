@@ -53,7 +53,7 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float): Boolean {
 }
 
 /**
- * Each week, before herds scatter and gather: for each gathering kind, the share of a band that would die at each place
+ * Each week, before herds scatter and gather: for each gathering kind, the share of those coming that would die at each place
  * on coming there, as the residents weighed it before they moved ([HexFauna.arrive]), kept in [arriveBy]; and which residents leave
  * ([leaving]) and where for ([leaveTo]), of those whose place is clearly deadly ([clearlyWorse] than none dying).
  * Where the land slopes from their place to one that is not ([HexFauna.slope]), they follow it as residents, as many

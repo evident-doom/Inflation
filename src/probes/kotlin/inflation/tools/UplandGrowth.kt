@@ -15,7 +15,7 @@ import inflation.world.WorldConfig
  * neighbouring height bands in a hex where the kind lives, the share of its heads in the higher band, and the higher
  * band's weekly growth for a band coming there ([HexFauna.growthParts]) against the lower's, split into what it is made
  * of: the young born to a grown one, the grown and young dying, feeding and protein, each hazard of the grown and the
- * crowding (of its usual, with the band come), the part of it the band itself makes; and last the higher and the lower
+ * crowding (of its usual), what a band of the kind would add to it on that place's ground; and last the higher and the lower
  * place's km². Each pair weighs by the
  * heads in it. Read with the weekly deaths: a hazard 0.001 higher a week is about 5% a year.
  *
@@ -60,10 +60,10 @@ fun main(args: Array<String>) {
                 if (lo < 0 || hi < 0) continue
                 val nLo = (ad[lo] + yo[lo]) * land.areaKm2[lo].toDouble(); val nHi = (ad[hi] + yo[hi]) * land.areaKm2[hi].toDouble()
                 val n = nLo + nHi; if (n <= 0.0) continue
-                val oLo = fauna.arriveOdds(k, lo, band, sim.weather, outLo); val oHi = fauna.arriveOdds(k, hi, band, sim.weather, outHi)
+                val oLo = fauna.arriveOdds(k, lo, sim.weather, outLo); val oHi = fauna.arriveOdds(k, hi, sim.weather, outHi)
                 if (oLo.isNaN() || oHi.isNaN()) continue
-                val gLo = fauna.growthParts(k, lo, band, sim.weather, outLo, ypg, fat, partsLo)
-                val gHi = fauna.growthParts(k, hi, band, sim.weather, outHi, ypg, fat, partsHi)
+                val gLo = fauna.growthParts(k, lo, sim.weather, outLo, ypg, fat, partsLo)
+                val gHi = fauna.growthParts(k, hi, sim.weather, outHi, ypg, fat, partsHi)
                 val d = diff[i][m]
                 d[0] += n * (gHi - gLo)
                 for (c in 0 until HexFauna.GROWTH_PARTS) d[1 + c] += n * (partsHi[c] - partsLo[c])
