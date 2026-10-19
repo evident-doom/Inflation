@@ -660,8 +660,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
     makeTools(b, people, time)
-    time.count(stats.hunting, Activity.CACHING, Activity.MATERIALS, Activity.SHELTER, Activity.CUSTOMS, Activity.TRAINING, Activity.TOOLS)
-    time.count(stats.hunting, "left", time.left)
     b.renown *= 1f - RENOWN_FADE * years
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > 1) Unlucky(u.hex, u.weeks - 1) else null }
     b.sinceRaided++
@@ -690,6 +688,9 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // as its time and timber go.
     buildPalisade(b, people, time)
     if (!b.houseHex.none && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
+    // Counted once every chore has had its time, so that what the census shows as left is what is left.
+    time.countEach(stats.hunting)
+    time.count(stats.hunting, "left", time.left)
     b.spareDays = max(0f, time.left)
     // (The wood burnt through the night goes to the air; what went into tools, houses, palisades and ornaments
     // is not kept as matter, and they do not go back to the ground as they wear: a known leak.)
