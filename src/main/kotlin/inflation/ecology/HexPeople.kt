@@ -654,7 +654,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val gd = b.goods
     gatherMaterials(g, b, p, h, people, area, time)
     val living0 = b.livingGoods()
-    val years = days / Date.DAYS_PER_YEAR.toFloat()
     wearAndInvent(b, years)
     // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
@@ -1101,7 +1100,6 @@ private fun HexGroups.forget(b: Band) {
  * raises it. Its dogs breed when the band eats well, help it hunt and guard its camp.
  */
 private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
-    val years = days / Date.DAYS_PER_YEAR.toFloat()
     val h = hw.placeHex[g.place]
     for (o in followersByHex[h].orEmpty()) {
         if (!o.alive) continue
@@ -1685,7 +1683,6 @@ fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(
  * grow tamer, since the docile stay and breed.
  */
 private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
-    val years = days / Date.DAYS_PER_YEAR.toFloat()
     val p = g.place
     val moved = max(0, g.path.size - 1)
     for (k in b.herd.indices) {
