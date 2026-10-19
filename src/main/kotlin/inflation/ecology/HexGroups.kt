@@ -1718,10 +1718,12 @@ class HexGroups(
      * The share of herd [g] that would die in a week standing at place [p], with no going: by [deathsAt], the rule a herd
      * weighs its places by. So residents set off together ([leaveAhead]), and herds settle back ([settles]), by the very
      * odds the herd they are or would be weighs its places by: a herd does not form where it would find staying no worse
-     * than going, nor stay together where it would. [g] (a band's worth, not one of [groups]: see [bandAsHerd]) stands
-     * at [p] for the while, its ground reckoned from there.
+     * than going, nor stay together where it would. [g] (not one of [groups]: see [asHerd]) stands at [p] for the while,
+     * its ground reckoned from there. For herd [self] (one of [groups], as big as [g]), its own heads where it grazes now
+     * are taken out of the others' ([grazed], [herdWantKg], [planGround]), as [planInner] takes them: so it is not
+     * crowded by itself where it stands, and not alone where it would go.
      */
-    internal fun herdOddsAt(g: HexGroup, p: Int, weather: Weather): Float {
+    internal fun herdOddsAt(g: HexGroup, p: Int, weather: Weather, self: HexGroup? = null): Float {
         val s = g.species; val kind = kindIndex[s] ?: return Float.NaN
         val was = g.place; g.place = Place(p)
         try {
@@ -1730,6 +1732,11 @@ class HexGroups(
             val c = PlanContext(g, kind, here, sensed, weather.date.month, -1, 0f, false, 0f, 0.0, 0f, g.dry > 0.5f * s.daysWithoutWater,
                 null, weather, weather.date)
             c.via = noWay
+            if (self != null && !s.carnivore) {
+                planGround.ranges[self.id]?.let { c.own = it.toMap() }
+                val hs = ArrayList<Int>(7); val ss = ArrayList<Float>(7); rangeShares(self, hw.placeHex[self.place.i]) { q, share -> hs += q; ss += share }
+                c.ownHexes = hs.toIntArray(); c.ownShares = ss.toFloatArray()
+            }
             return deathsAt(c, g.place, here, 0f, 0f, 0f)
         } finally { g.place = was }
     }
