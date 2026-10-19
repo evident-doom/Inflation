@@ -70,6 +70,17 @@ class Tuning(private val read: (String) -> String? = Config::string) {
      */
     val breedSpacing = f("breedSpacing", 1.5f)
     /**
+     * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about), each move taking what
+     * that many weeks' would ([inflation.ecology.HexFauna.spill]). For the step's cost: they change by a few percent a week.
+     */
+    val residentMoveWeeks = i("residentMoveWeeks", 2)
+    /**
+     * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
+     * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).
+     * 0: none. For the step's cost: fewer places hold each kind.
+     */
+    val residentFloor = f("residentFloor", 0.01f)
+    /**
      * Protein in cured grass and in straw, against fresh growth (see [inflation.ecology.HexFauna.PROTEIN_NEED]): cured grass
      * and straw keep some of their energy but lose most of their protein (about 4% crude protein against 16% green, though grazers
      * pick the best of it and get about 6%; 3% of straw); and the young's deaths a year from want of protein, at none.
