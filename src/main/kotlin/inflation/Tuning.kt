@@ -74,15 +74,15 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     /**
      * Residents: the share of a kind's animals at a place that take a step each week along the route their
      * seasonal memory leads to better ground ([inflation.ecology.SeasonalMemory.route]), as far as the crowding ahead
-     * lets them. 1: all of them, too much; set by eye in the viewer while the memory is tuned.
+     * lets them. 1: all of them, too much; 0.3 looked right in the viewer but crowded them into disease over 10 years; 0.1 with half the gain trusted at the arrival ([residentRouteTrust]) for now.
      */
-    val residentRouteShare = f("residentRouteShare", 0.3f).also { require(it in 0f..1f) { "t.residentRouteShare is $it: a share, 0..1" } }
+    val residentRouteShare = f("residentRouteShare", 0.1f).also { require(it in 0f..1f) { "t.residentRouteShare is $it: a share, 0..1" } }
     /**
      * Residents: how much of what the memory's route promises those on it count when they weigh where they come against
      * where they left ([inflation.ecology.HexFauna.flow]): 1, all of it, so they crowd in until the place is as much
      * worse than where they left as the route gains; 0, none, so they come only while it is no worse than where they left.
      */
-    val residentRouteTrust = f("residentRouteTrust", 1f).also { require(it in 0f..1f) { "t.residentRouteTrust is $it: a share, 0..1" } }
+    val residentRouteTrust = f("residentRouteTrust", 0.5f).also { require(it in 0f..1f) { "t.residentRouteTrust is $it: a share, 0..1" } }
     /**
      * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
      * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).
