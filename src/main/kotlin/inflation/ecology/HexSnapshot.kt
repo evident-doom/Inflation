@@ -115,9 +115,11 @@ object HexSnapshot {
      * 4.0: a hex is one place, or two (its low and high ground, split at the median height of its land) where its land
      * rises more than [inflation.world.HexWorld.SPLIT_RELIEF_M]; the five fixed height bands are gone. Whatever looks to
      * another hex at a place's height takes the place there nearest in height ([inflation.world.HexWorld.placeNear]).
+     * 4.1: a hunting party's search no longer stops at the places on its way: what they are too small for is spread over
+     * the places about its way ([HexGroups.huntGround]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 0
+    const val MODEL_MINOR = 1
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
