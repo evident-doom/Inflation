@@ -879,6 +879,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             var tonnes = 0f
             for ((k, s) in kinds.withIndex()) tonnes += (adults[k][p] + young[k][p]) * s.massKg / 1000f
             land.plants.trample(p, RESIDENT_TRAMPLE * tonnes * land.areaKm2[p])
+            // (And their going about it each day steps on the ground: see [HexPlants.tread]. Heads are per km².)
+            for ((k, s) in kinds.withIndex()) land.plants.tread(p, (adults[k][p] + young[k][p]) * land.areaKm2[p], s.massKg, s.dailyTravelKm * days)
             small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * eaten))
             if (ateBook != null) { val m2 = land.areaM2[p].toDouble(); ateBook!!.add(-eaten * m2); droppedBook!!.add(HexSmallLife.DUNG * eaten * m2) }
             land.plants.grazing[p] = eatG * 1e6f / days; land.plants.browsing[p] = eatB * 1e6f / days

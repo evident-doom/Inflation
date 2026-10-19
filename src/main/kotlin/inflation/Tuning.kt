@@ -50,12 +50,10 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     /** Browsing, kg/km²/day, at which seedlings and saplings are mostly eaten (a few deer per km²). */
     val browseScale = f("browseScale", 3f)
     /**
-     * Share of the herbs and shrubs a place loses a step for each unit of trampling over it (see
-     * [inflation.world.HexPlants.trample]): about 5% of the shrubs a year where a tonne of animals a km² goes
-     * about.
+     * Share of the herbs a place loses a step for each unit of trampling over it (see
+     * [inflation.world.HexPlants.trample]). (Shrubs and trees lose only their seedlings, see [inflation.world.HexPlants.tread].)
      */
     val trampleHerb = f("trampleHerb", 0.005f)
-    val trampleShrub = f("trampleShrub", 0.01f)
     /** How fast the leaves of the shoots fall in the cold, a year: about two-thirds gone over a four-month winter, the twigs and buds left (0: they last as twigs do). */
     val leafFall = f("leafFall", 4f)
     /** The floor of the share of each place's plants something can eat ([inflation.world.HexLand.palatable]). */

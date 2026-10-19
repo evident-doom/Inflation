@@ -70,7 +70,7 @@ class StocksTest {
             // Rates and the week's passing water: flows over a step, not water held.
             "HexHydrology.lakeRain", "HexHydrology.lakeEvap", "HexHydrology.flow", "HexHydrology.flood", "HexHydrology.soak",
             "HexHydrology.soakTarget", "HexHydrology.runoffMm", "HexPlants.litterfall", "HexPlants.browsing", "HexPlants.grazing",
-            "HexPlants.rooting", "HexPlants.trampling", "HexSmallLife.washedKg", "HexSmallLife.laidKgM2", "HexSmallLife.leaving",
+            "HexPlants.rooting", "HexPlants.trampling", "HexPlants.trodden", "HexSmallLife.washedKg", "HexSmallLife.laidKgM2", "HexSmallLife.leaving",
             "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexFauna.groupKilled",
             // Shares, states and memories, 0..1 or days or degrees.
             "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture",

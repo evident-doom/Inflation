@@ -18,7 +18,9 @@ import inflation.ecology.m2
  * - fedDiag=true: four times in the first year, how well each kind is fed where it lives, and why;
  * - follow=KIND: one group of that kind week by week, as the viewer's follow mode does;
  * - migDiag=KIND: each month, how far that kind's herds are from the place they remember for the month;
- * - crowdDiag=KIND: each month, the crowd that kind's herds foresaw where they chose to go against the one they met there.
+ * - crowdDiag=KIND: each month, the crowd that kind's herds foresaw where they chose to go against the one they met there;
+ * - shrubDiag=true: each year, the shrubs' kg gained and lost by each process ([inflation.world.HexPlants.shrubBook]),
+ *   with the shrubs standing and the most they could grow to ([inflation.world.HexPlants.ceiling]), summed over the map.
  */
 class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
     private val hw = sim.hw
@@ -42,6 +44,20 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         }
         Config.string("migDiag")?.let { kind -> if (weather.date.dayOfMonth <= daysPerStep) migration(kind) }
         Config.string("crowdDiag")?.let { kind -> crowding(kind, weather.date.dayOfMonth <= daysPerStep) }
+        land.plants.shrubBook?.let { book -> val y = weather.date.year; if (shrubYear >= 0 && y != shrubYear) shrubs(book); shrubYear = y }
+    }
+
+    private var shrubYear = -1L
+    /** shrubDiag: the year's shrub kg by process (then cleared), and the shrubs standing against their ceiling, tonnes. */
+    private fun shrubs(book: Array<java.util.concurrent.atomic.DoubleAdder>) {
+        val p = land.plants
+        var stand = 0.0; var cap = 0.0
+        for (i in 0 until hw.placeHex.size) { stand += p.shrub[i] * land.areaM2[i].toDouble(); cap += p.ceiling(inflation.world.LifeForm.SHRUB, i) * land.areaM2[i].toDouble() }
+        println("   shrubDiag %s (tonnes over the map): standing %.4g, ceiling %.4g".format(weather.date, stand / 1000, cap / 1000))
+        for ((i, name) in inflation.world.HexPlants.SHRUB_PARTS.withIndex()) println("      %-50s %+.4g".format(name, book[i].sumThenReset() / 1000))
+        val n = inflation.world.HexPlants.SHRUB_PARTS.size
+        val herd = book[n].sumThenReset(); val res = book[n + 1].sumThenReset()
+        println("      (ground trodden, km²: by herds %.4g, by residents %.4g, of %.4g)".format(herd / 1e6, res / 1e6, land.areaM2.sum() / 1e6))
     }
 
     private var crowdSums = DoubleArray(12)
