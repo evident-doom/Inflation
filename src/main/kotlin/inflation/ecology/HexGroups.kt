@@ -85,12 +85,11 @@ class HexGroups(
      * The beasts of prey in each place this month, kg: the hunters other than people, what a band reads as danger in their
      * sign (made afresh after a load).
      */
-    @delegate:Transient internal val monthBeastKg by lazy { FloatArray(n).also { a -> for (g in groups) if (g.alive && g.species.carnivore && !g.species.human) a[g.place] += g.size * g.species.massKg } }
+    @delegate:Transient internal val monthBeastKg by lazy { FloatArray(n).also { beastsKg(it, people = false) } }
     /** People sick of each catching illness in each place as the week's choosing begins (heads × share sick). */
     @delegate:Transient private val sickPeople by lazy { Array(Illness.entries.size) { FloatArray(n) } }
     /** The beasts of prey in each place as the week's choosing begins, kg (the hunters other than people). */
     @delegate:Transient private val beastKg by lazy { FloatArray(n) }
-    @delegate:Transient internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
     /** Scent marks of the hunting kinds (saves from before it was split out kept them here as marks and markers). */
     @field:MovedInto("marks", "markers") internal val scent = Scent()
     /** Learned choosers by kind; kinds without one use the hand-written score. */
@@ -118,7 +117,7 @@ class HexGroups(
             val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s)
             val total = weights.sum()
             repeat(count) {
-                val p = drawPlace(weights, total)
+                val p = inflation.drawWeighted(weights, total, rnd)
                 val g = spawn(s, p, unit)
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
@@ -158,7 +157,7 @@ class HexGroups(
             val total = weights.sum(); if (total <= 0f) continue
             val unit = unitSize(s)
             repeat(NEWCOMERS) {
-                val p = drawPlace(weights, total)
+                val p = inflation.drawWeighted(weights, total, rnd)
                 val g = spawn(s, p, unit)
                 // (Unlike at the start, any newcomer hunter, not only a pack, comes with ground of its own.)
                 claimGround(g, Hex(hw.placeHex[p]))
@@ -173,13 +172,6 @@ class HexGroups(
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */
     private fun startWeights(s: Species) = FloatArray(n) { p -> startWeight(s, p) }
     private fun startWeight(s: Species, p: Int) = fauna.startWeight(s, p)
-
-    /** A place drawn at random by [weights] (summing to [total]). */
-    internal fun drawPlace(weights: FloatArray, total: Float): Int {
-        var u = rnd.nextFloat() * total; var p = 0
-        while (p < n - 1 && u > weights[p]) { u -= weights[p]; p++ }
-        return p
-    }
 
     /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat. */
     internal fun spawn(s: Species, p: Int, unit: Int): HexGroup {
@@ -258,15 +250,12 @@ class HexGroups(
             g.warmth = warmthNeed(g.species, b, t, b?.fire ?: 0f, b?.atHome ?: false, date.month, tuning)
         }
         if (bearings.month != date.month) {
-            monthBeastKg.fill(0f)
-            for (g in groups) if (g.alive && g.species.carnivore && !g.species.human) monthBeastKg[g.place] += g.size * g.species.massKg
+            beastsKg(monthBeastKg, people = false)
             IntStream.range(0, n).parallel().forEach { p -> for ((k, s) in kinds.withIndex()) huntable[k][p] = dietValue(s, p, preyHere(s, p)) }
             Profile.time("sense of direction") { bearings.update(date.month) }
         }
-        val predatorKg = FloatArray(n)
-        for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
-        beastKg.fill(0f)
-        for (g in groups) if (g.alive && g.species.carnivore && !g.species.human) beastKg[g.place] += g.size * g.species.massKg
+        val predatorKg = FloatArray(n).also { beastsKg(it, people = true) }
+        beastsKg(beastKg, people = false)
         for (a in sickPeople) a.fill(0f)
         for (g in groups) if (g.alive) g.band?.let { b -> for (d in Illness.entries) if (d.contagion > 0f) sickPeople[d.ordinal][g.place] += g.size * b.sick[d] }
         manEaterKm2.fill(0f)
@@ -503,6 +492,13 @@ class HexGroups(
      */
     internal val cacheDiggers by lazy { fauna.kinds.indices.filter { fauna.kinds[it].massKg >= 50f && fauna.kinds[it].diet.roots >= 0.2f } }
     /** Each catalogue kind's slot among the group [kinds], -1 for a kind that keeps no groups (so a wrong lookup fails, not reads kind 0); worked out afresh, not saved. */
+    /** Fills [into] with the kg of the groups' beasts of prey at each place, people with them or not. */
+    private fun beastsKg(into: FloatArray, people: Boolean) {
+        into.fill(0f)
+        for (g in groups) if (g.alive && g.species.carnivore && (people || !g.species.human)) into[g.place] += g.size * g.species.massKg
+    }
+
+    /** Each kind's slot in [kinds], by its [Species.index]; -1 for a kind not kept in groups. */
     @delegate:Transient internal val kindSlot by lazy { IntArray(Catalogue.all.size) { i -> kinds.indexOfFirst { it.index == i } } }
 
     private fun valuePlaces(predatorKg: FloatArray, month: Int) {
@@ -865,7 +861,7 @@ class HexGroups(
         val roundStrength = round?.strength ?: 0f
         val goalFar = goal >= 0 && s.human && hexKm(here.i, hw.placeHex[goal]) > 2 * hex.hexKm
         // Far out of its country, it treks.
-        val astray = bearings.strength(kindIndex[s] ?: 0, here.i) > ASTRAY
+        val astray = bearings.strength(kindSlot[s.index], here.i) > ASTRAY
         // Any group weighs its places where what the place drains from it (the cold, the flies) is worse,
         // by more than a step's going costs, than at the next place over: relief lies a step away. (It
         // looks about, but does not trek for it: its usual week's going reaches the next place.)
@@ -888,7 +884,7 @@ class HexGroups(
         val weak = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS * (1f - WEAK_SLOW * weak) *
             (if (s.human) 1f / (1f + COVER_GOING * land.plants.cover(g.place)) else 1f)
-        val kind = kindIndex[s] ?: 0
+        val kind = kindSlot[s.index]
         // Least effort to each hex within reach.
         val buf = scratch.get()
         val dist = buf.dist; val via = buf.via; val reached = buf.reached

@@ -591,12 +591,12 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: 
     // An outbreak raging where it is kills its share.
     val plague = fauna.outbreakDeaths(s, p)
     // Eagles take the young of the smaller hoofed animals in the open.
-    val eagle = if (!s.human && s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+    val eagle = if (s.human) 0f else fauna.eagleOdds(s, p)
     val (fireA, floodA, snowA) = fauna.calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
-    val croc = if (s.human) 0f else fauna.water.crocodileRisk(p, weather) * years
+    val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)
     // (Young plant-eaters short of protein grow slowly and die more.)
-    val starved = if (s.carnivore) 0f else tuning.youngProteinDeaths * (1f - protein) * years
+    val starved = if (s.carnivore) 0f else fauna.starvedOdds(protein)
     into.add(DeathCause.HUNGER.label, hunger, 1.5f * hunger); into.add(DeathCause.COLD.label, cold, 1.5f * cold)
     into.add(DeathCause.EXPOSURE.label, exposure, 1.5f * exposure); into.add(DeathCause.THIRST.label, thirst, 1.5f * thirst)
     into.add(DeathCause.DISEASE.label, sick, sick); into.add(DeathCause.OUTBREAK.label, plague, plague)

@@ -38,6 +38,13 @@ fun gaussian(r: kotlin.random.Random): Double {
     return sqrt(-2 * ln(u)) * cos(2 * Math.PI * r.nextDouble())
 }
 
+/** An index drawn at random by [weights] (summing to [total]), from [r]. */
+fun drawWeighted(weights: FloatArray, total: Float, r: kotlin.random.Random): Int {
+    var u = r.nextFloat() * total; var i = 0
+    while (i < weights.size - 1 && u > weights[i]) { u -= weights[i]; i++ }
+    return i
+}
+
 /** A Poisson draw of [mean] from [r] (normal, rounded to the nearest count, above a mean of 30). */
 fun poisson(mean: Float, r: kotlin.random.Random): Int {
     if (mean <= 0f) return 0

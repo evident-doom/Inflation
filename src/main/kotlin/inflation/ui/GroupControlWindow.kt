@@ -570,7 +570,7 @@ class GroupControlWindow(
                     g.color = pink
                     g.drawString((if (d.onRound) "its round" else "its season's place") + ", %.0f km".format(hex.distanceKm(centre, gh)), lx, ly)
                 }
-                groups.kindIndex[grp.species]?.let { kind ->
+                groups.kindSlot[grp.species.index].takeIf { it >= 0 }?.let { kind ->
                     val e = groups.bearings.east[kind][centre]; val so = groups.bearings.south[kind][centre]
                     val st = hypot(e, so)
                     if (st > 0.02f) {
