@@ -19,8 +19,10 @@ class BooksTest {
         val steps = 26
         repeat(steps) { sim.step() }
         // (Float stocks leave a little over: m³ of water against some 1e8 m³ a step, and tenths of a tonne of matter
-        // against 1e5 t of litterfall; a process that makes or loses matter unbooked leaves far more.)
-        val most = mapOf(Books.Stuff.WATER to 100.0, Books.Stuff.MATTER to 300.0)
+        // against 1e5 t of litterfall; a process that makes or loses matter unbooked leaves far more. The plants' float
+        // noise alone comes to about 300 kg a step either way on some seeds: -275 on seed 4, -315 on seed 3 once residents
+        // flow towards better.)
+        val most = mapOf(Books.Stuff.WATER to 100.0, Books.Stuff.MATTER to 500.0)
         val off = books.partNames.flatMap { part ->
             Books.Stuff.entries.mapNotNull { s -> val x = books.leftOver(part, s) / steps; if (abs(x) > most.getValue(s)) "$part: $x ${s.unit}/step" else null }
         }

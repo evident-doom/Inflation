@@ -506,6 +506,31 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             painter.paint(g0) { paintMap(it) }
         }
 
+        /** Where resident kind [r]'s heads ([dens], per hex) stand in each hex's span of heights: 0 its lowest band, 1 its highest; NaN where none or one band. */
+        private fun upDown(r: Int, dens: DoubleArray): FloatArray {
+            val lo = FloatArray(hex.size) { Float.MAX_VALUE }; val hi = FloatArray(hex.size) { -Float.MAX_VALUE }
+            val sum = DoubleArray(hex.size)
+            for (p in 0 until fauna.n) { val h = hw.placeHex[p]; val e = hw.placeElevationM[p]
+                lo[h] = min(lo[h], e); hi[h] = max(hi[h], e)
+                sum[h] += (fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p] * e.toDouble() }
+            return FloatArray(hex.size) { h -> if (dens[h] <= 0 || hi[h] - lo[h] < 1f) Float.NaN else ((sum[h] / dens[h] - lo[h]) / (hi[h] - lo[h])).toFloat().coerceIn(0f, 1f) }
+        }
+
+        private fun upDownShown(r: Int) = heightBox.isSelected && r < fauna.kinds.size
+        /** Draws the [upDown] tint; gives its legend. */
+        private fun drawUpDown(g: Graphics2D, up: FloatArray, rad: Double, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Int, Int) -> Boolean): MapLegend {
+            for (h in 0 until hex.size) {
+                val x = up[h]; if (x.isNaN() || !onScreen(h, 1)) continue
+                val (cx, cy) = hex.centreKm(h)
+                val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
+                g.color = Color(x, 0.25f, 1f - x, 0.75f); g.fillPolygon(xs, ys, 6)
+            }
+            return MapLegend("Up/down", "Up/down: where the chosen kind stands in each hex's span of heights, by heads",
+                { x -> Color(x, 0.25f, 1f - x, 0.75f) }, listOf(0f to "lowest band", 0.5f to "between", 1f to "highest band"),
+                "hexes of one band left clear")
+        }
+
         private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             g.drawImage(ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
@@ -600,26 +625,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 }
                 // Up/down: where in each hex's span of heights the kind's animals stand, by heads (0 the lowest band's, 1 the
                 // highest's), so that moving up and down the slopes within a hex shows; hexes with one band are left clear.
-                val up = if (heightBox.isSelected && r < fauna.kinds.size) {
-                    val lo = FloatArray(hex.size) { Float.MAX_VALUE }; val hi = FloatArray(hex.size) { -Float.MAX_VALUE }
-                    val sum = DoubleArray(hex.size)
-                    for (p in 0 until fauna.n) { val h = hw.placeHex[p]; val e = hw.placeElevationM[p]
-                        lo[h] = min(lo[h], e); hi[h] = max(hi[h], e)
-                        sum[h] += (fauna.adults[r][p] + fauna.young[r][p]) * land.areaKm2[p] * e.toDouble() }
-                    FloatArray(hex.size) { h -> if (dens[h] <= 0 || hi[h] - lo[h] < 1f) Float.NaN else ((sum[h] / dens[h] - lo[h]) / (hi[h] - lo[h])).toFloat().coerceIn(0f, 1f) }
-                } else null
-                if (up != null) {
-                    legends += MapLegend("Up/down", "Up/down: where the chosen kind stands in each hex's span of heights, by heads",
-                        { x -> Color(x, 0.25f, 1f - x, 0.75f) }, listOf(0f to "lowest band", 0.5f to "between", 1f to "highest band"),
-                        "hexes of one band left clear")
-                    for (h in 0 until hex.size) {
-                        val x = up[h]; if (x.isNaN() || !onScreen(h)) continue
-                        val (cx, cy) = hex.centreKm(h)
-                        val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                        val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
-                        g.color = Color(x, 0.25f, 1f - x, 0.75f); g.fillPolygon(xs, ys, 6)
-                    }
-                } else {
+                if (upDownShown(r)) legends += drawUpDown(g, upDown(r, dens), rad, ::sx, ::sy, ::onScreen) else {
                 // Shaded against the densest twentieth of hexes, so that thin spreads show too.
                 val values = (0 until hex.size).filter { area[it] > 0 && dens[it] > 0 }.map { dens[it] / area[it] }.sorted()
                 val top = (if (values.isEmpty()) 0.0 else values[(values.size * 0.95).toInt().coerceAtMost(values.size - 1)]).coerceAtLeast(1e-6)

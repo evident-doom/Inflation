@@ -1438,6 +1438,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // fresh and rich in protein it is, and how easy the border is.
                 var total = 0f; var best = 0f; var closed = false
                 val ws = FloatArray(18); val wq = IntArray(18) { -1 }
+                // (And how much better each is than here, for those flowing towards better: see below.)
+                val here = if (thirst > 0f && !drinks(s, p)) worthOf[p] * (1f - thirst) else worthOf[p]
+                val gs = FloatArray(18); var gains = 0f
                 for (d in 0 until 6) {
                     val nh = hex.neighbour(h, d)
                     if (nh < 0) { closed = true; continue }
@@ -1456,6 +1459,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         ws[i] = ease * (worth + 1e-4f) * toward
                         wq[i] = q
                         total += ws[i]
+                        if (worth > here) { gs[i] = ease * toward * (worth - here) / worth; gains += gs[i] }
                     }
                 }
                 // A few swim the strait to the coast across, as far as they can swim it.
@@ -1469,17 +1473,22 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                         val wq = SEA_SPILL * (1f - gapKm / swim) * (1f - drownRisk(s, gapKm)) * land.areaKm2[q] * (worthOf[q] + 1e-4f)
                         if (wq > seaW) { seaW = wq; seaTo = q; seaGapKm = gapKm } }
                 }
-                val here = if (thirst > 0f && !drinks(s, p)) worthOf[p] * (1f - thirst) else worthOf[p]
                 val heads = ((a[p] + y[p]) * land.areaKm2[p]).toDouble()
                 weekHeads += heads
                 if (f[p] < STUCK_FED && best <= here) { weekStuck += heads; if (closed) weekEdge += heads }
                 if (total <= 0f) continue
-                // (And the more so the better the country next door is than here: as the seasons turn, they follow the fresh pasture.)
+                // And more flow on towards better country, only to the places better than here and the more to the better of
+                // them, the more the better the best is: as the seasons turn, they pour after the fresh pasture down the
+                // slopes and back, as water runs downhill, not only spreading out every way as the leavers do.
                 val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
-                val go = min(0.5f, leave + SPILL_BETTER * better).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
+                val flowing = if (gains > 0f) SPILL_BETTER * better else 0f
+                val once = min(SPILL_MOST, leave + flowing)
+                val go = once.let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
+                // (Of those going, the share that spread out every way, by worth; the rest flow towards better, by gain.)
+                val spread = if (once > 0f) min(leave, once) / once else 1f
                 val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]
                 if (seaTo >= 0) {
-                    val share = seaW / (total + seaW)
+                    val share = spread * seaW / (total + seaW)
                     moveA[p] -= goA * share
                     moveY[p] -= goY * share
                     // (The drowned wash up on the far shore.)
@@ -1493,7 +1502,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 for (i in 0 until 18) {
                     if (ws[i] <= 0f) continue
                     val q = wq[i]
-                    val ga = goA * ws[i] / total; val gy = goY * ws[i] / total
+                    val to = spread * ws[i] / total + (if (gains > 0f) (1f - spread) * gs[i] / gains else 0f)
+                    val ga = goA * to; val gy = goY * to
                     if (hops > 1) {
                         walkA[q] += ga; walkY[q] += gy; walkKm[q] += (ga + gy) * hex.hexKm.toFloat()
                     } else {
@@ -1697,8 +1707,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val PROTEIN_FRUIT = 0.4f
         const val PROTEIN_NEED = 0.5f
         const val PROTEIN_MEMORY = 0.3f
-        /** Share a week of residents that leave for the best country next door when it is as good again as here (none when it is no better). */
-        const val SPILL_BETTER = 0.1f
+        /**
+         * Share a week of residents that flow towards better country next door, at its best (the best as good again as
+         * here: half of this; none when none is better); the most of them that move in a week.
+         */
+        const val SPILL_BETTER = 0.6f
+        const val SPILL_MOST = 0.6f
         /** How many times [HexFauna.Weigh.settle] halves the share of walkers that stay, to find it: to within 1/64 of them. */
         const val SETTLE_HALVINGS = 6
         /**
@@ -1757,7 +1771,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val FEAR_WEIGHT = 0.5f
         const val FEAR_KEEP = 0.7f
         /** Weekly share moving between bands at full advantage. */
-        const val BAND_SHIFT = 0.15f
+        const val BAND_SHIFT = 0.5f
         /** Weekly share spilling to neighbouring hexes anyway, and more when hungry. */
         const val SPILL_BASE = 0.005f
         const val SPILL_HUNGER = 0.1f
