@@ -8,7 +8,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The water of the places of [HexLand], on the averages of each band's cells (begun from the fine [LiveWater]'s rules, since gone further):
+ * The water of the places of [HexLand], on the averages of each place's cells (begun from the fine [LiveWater]'s rules, since gone further):
  *
  * - Each place has a soil bucket and a groundwater store; what runs off flows down the hexes'
  *   rivers within the step (each hex drains to the hex its main river enters), and a river above

@@ -173,16 +173,16 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val control by lazy { GroupControlWindow(sim, ground, px, rivers, worldLock, requestStep = { commands += { advance() } }, running = { running }) }
 
     /**
-     * The place whose weather stands for hex [h]: its own lowest band, or for a sea or lake hex the
+     * The place whose weather stands for hex [h]: its own low ground, or for a sea or lake hex the
      * nearest land within a few rings (the weather is worked out on land only); -1 if none.
      */
     private fun windPlace(h: Int): Int {
-        (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][h] }.firstOrNull { it >= 0 }?.let { return it }
+        hw.firstPlaceIn(h).takeIf { it >= 0 }?.let { return it }
         var ring = listOf(h); val seen = hashSetOf(h)
         repeat(4) {
             val next = ArrayList<Int>()
             for (r in ring) for (d in 0 until 6) { val q = hex.neighbour(r, d); if (q >= 0 && seen.add(q)) next += q }
-            for (q in next) (0 until HexWorld.BANDS_M.size).map { hw.placeOf[it][q] }.firstOrNull { it >= 0 }?.let { return it }
+            for (q in next) hw.firstPlaceIn(q).takeIf { it >= 0 }?.let { return it }
             ring = next
         }
         return -1
@@ -924,11 +924,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val sb = StringBuilder()
         val (cx, cy) = hex.centreKm(h)
         sb.appendLine("Hex %d at (%.0f, %.0f) km%s".format(h, cx, cy, if (hex.water[h]) " - water" else ""))
-        for (b in 0 until HexWorld.BANDS_M.size) {
-            val p = hw.placeOf[b][h]
-            if (p < 0) continue
-            sb.appendLine("band %d (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(
-                b, hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.hydro.soil[p]))
+        for (p in hw.placesOf(h)) {
+            sb.appendLine("%s (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(
+                if (hw.placeBand[p] == HexWorld.HIGH) "high ground" else if (hw.placesOf(h).size > 1) "low ground" else "the hex", hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.hydro.soil[p]))
             sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², green %.0f%%, rugged %.2f, refuge %.2f, lookout %.0f km".format(
                 land.plants.herb[p], land.plants.shrub[p], land.plants.tree[p], 100 * land.plants.green[p],
                 land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
@@ -945,9 +943,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         var totalArea = 0f
         val residents = DoubleArray(fauna.kinds.size)
         var food = 0.0; var small = 0.0; var carrion = 0.0
-        for (b in 0 until HexWorld.BANDS_M.size) {
-            val p = hw.placeOf[b][h]
-            if (p < 0) continue
+        for (p in hw.placesOf(h)) {
             val a = land.areaKm2[p]; totalArea += a
             for (k in fauna.kinds.indices) residents[k] += ((fauna.adults[k][p] + fauna.young[k][p]) * a).toDouble()
             food += ((land.plants.herb[p] + land.plants.shrub[p]) * a).toDouble() // kg/m² × km² = 1e6 kg
@@ -1009,7 +1005,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val sb = StringBuilder()
         sb.appendLine("%s #%d".format(s.name, g.id))
         sb.appendLine("%d adults, %d young; fed %.0f%% last week, reserves %.0f of %.0f days".format(g.adults, g.young, 100 * g.fed, g.fat, s.maxFatDays))
-        sb.appendLine("stands in band %d at %.0f m".format(hw.placeBand[g.place], hw.placeElevationM[g.place]))
+        sb.appendLine("stands on %s at %.0f m".format(if (hw.placeBand[g.place] == HexWorld.HIGH) "high ground" else "low ground", hw.placeElevationM[g.place]))
         sb.appendLine("this week it walked %d hexes: %s".format(max(0, g.path.size - 1), g.path.joinToString(" > ")))
         if (g.days.isNotEmpty()) sb.appendLine("entering them on days: " + g.days.joinToString(" ") { "%.1f".format(it) })
         g.band?.let { b ->
@@ -1045,10 +1041,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         if (hw.sea[h] > 0.3f) parts += "%s sea".format(share(hw.sea[h]))
         if (hw.lake[h] > 0.1f) parts += "%s lake".format(share(hw.lake[h]))
         for ((b, s) in names.take(3)) parts += "%s %s".format(share(s), b.label)
-        // Plants over the land, area-weighted over the height bands.
+        // Plants over the land, area-weighted over its low and high ground.
         var a = 0.0; var herb = 0.0; var shrub = 0.0; var tree = 0.0; var green = 0.0; var fruit = 0.0; var straw = 0.0; var snow = 0.0; var burnt = 0.0
-        for (b in 0 until HexWorld.BANDS_M.size) {
-            val p = hw.placeOf[b][h]; if (p < 0) continue
+        for (p in hw.placesOf(h)) {
             val w = land.areaKm2[p].toDouble(); a += w
             herb += land.plants.herb[p] * w; shrub += land.plants.shrub[p] * w; tree += land.plants.tree[p] * w; green += land.plants.green[p] * w
             fruit += fauna.food.fruit[p] * w; straw += fauna.food.straw[p] * w; snow += weather.snowpack[p] * w; burnt += land.fire.burnt[p] * w

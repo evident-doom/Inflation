@@ -44,8 +44,8 @@ fun main(args: Array<String>) {
         if (w < steps - perYear) return@repeat
         val m = run.weather.date.month
         val cured = land.plants.cured
-        for (kk in run.fauna.kinds.indices) for (h in 0 until run.hex.size) for (bb in 0 until HexWorld.BANDS_M.size - 1) {
-            val lo = hw.placeOf[bb][h]; val hi = hw.placeOf[bb + 1][h]; if (lo < 0 || hi < 0) continue
+        for (kk in run.fauna.kinds.indices) for (h in 0 until run.hex.size) {
+            val lo = hw.placeIn(HexWorld.LOW, h); val hi = hw.placeIn(HexWorld.HIGH, h); if (lo < 0 || hi == lo) continue
             val al = run.fauna.worth[kk][lo]; val ah = run.fauna.worth[kk][hi]
             if (al > 0f && ah > 0f) { ratioSum[kk][m] += ln((ah / al).toDouble()); ratioN[kk][m]++ }
         }

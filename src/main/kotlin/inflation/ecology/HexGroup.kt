@@ -3,7 +3,7 @@ import inflation.world.HexLand
 import kotlin.math.exp
 import kotlin.math.max
 
-/** A pack, pride or band of people on the hexes: where it stands (a place: a height band of a hex) and who it is. */
+/** A pack, pride or band of people on the hexes: where it stands (a place: a hex, or its low or high ground) and who it is. */
 class HexGroup(val id: Int, val species: Species, var place: Place, var adults: Int, var young: Int) {
     val size get() = adults + young
     val alive get() = adults > 0

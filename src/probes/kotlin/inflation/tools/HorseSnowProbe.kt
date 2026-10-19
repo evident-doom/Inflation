@@ -50,7 +50,7 @@ fun main(args: Array<String>) {
                 hiHeads += heads; hiSnow += heads * sp; hiFed += heads * f[p]
                 hiT += heads * fauna.feltC(s, p, weather.temperature[p])
                 hiAp += heads * fauna.appeal(k, p, weather); hiOdds += heads * fauna.arrive[k][p]
-                val low = hw.placeOf[0][hw.placeHex[p]]
+                val low = hw.firstPlaceIn(hw.placeHex[p])
                 if (fauna.arrive[k][p].isNaN()) nanHeads += heads
                 if (low >= 0 && low != p) {
                     hiLowN += heads
@@ -73,5 +73,5 @@ fun main(args: Array<String>) {
                 hi(hiAp), hl(hiApLow), hi(hiOdds), hl(hiOddsLow), if (loHeads > 0) "%.3f".format(loFed / loHeads) else "-"))
         }
     }
-    println("bands: ${HexWorld.BANDS_M.joinToString()}")
+    println("hexes split into low and high ground above ${HexWorld.SPLIT_RELIEF_M} m of relief")
 }

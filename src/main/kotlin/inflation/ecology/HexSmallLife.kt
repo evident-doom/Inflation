@@ -50,7 +50,7 @@ class BirdKind(
 }
 
 /**
- * The life in the soil and the small animals of each place (height band of a hex), as in the 1 km
+ * The life in the soil and the small animals of each place (a hex, or its low or high ground), as in the 1 km
  * model's soil life and small fauna:
  *
  * - Soil: dead plant matter falls as litter and rots, faster in warm, moist soil, building organic

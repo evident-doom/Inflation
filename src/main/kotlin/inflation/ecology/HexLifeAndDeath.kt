@@ -45,10 +45,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
         val h = row * hex.cols + col
         val (cx, cy) = hex.centreKm(h)
         if (abs(cx - hx) <= reachKm && abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm)
-            for (b in HexWorld.BANDS_M.indices) {
-                val p = hw.placeOf[b][h]
-                if (p >= 0) { if (count == near.size) near = near.copyOf(2 * count); near[count++] = p }
-            }
+            for (p in hw.placesOf(h)) { if (count == near.size) near = near.copyOf(2 * count); near[count++] = p }
     }
     if (count == 0) return
     java.util.Arrays.sort(near, 0, count)
@@ -669,7 +666,7 @@ internal fun HexGroups.peopleCrowding(g: HexGroup, h: Int = hw.placeHex[g.place]
         val q = if (k < 0) h else hex.neighbour(h, k)
         if (q < 0) continue
         if (q == hw.placeHex[g.place]) near = true
-        for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][q]; if (p >= 0) heads += headsHere[kindSlot[g.species.index]][p] }
+        for (p in hw.placesOf(q)) heads += headsHere[kindSlot[g.species.index]][p]
     }
     // (About a hex it would move to, its own heads are not counted there yet.)
     if (!near) heads += g.size

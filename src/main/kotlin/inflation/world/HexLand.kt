@@ -13,9 +13,9 @@ import inflation.store.MovedInto
 import kotlin.math.exp
 
 /**
- * Water and plants on the places of a [HexWorld] (the height bands of each hex), stepped with the
+ * Water and plants on the places of a [HexWorld] (each hex, or its low and high ground), stepped with the
  * weather on the same places: what each place is, and its parts, the water ([HexHydrology], [HexDrinkingWater]),
- * the plants ([HexPlants]) and fires ([HexFires]), on the averages of each band's cells. They began as the rules
+ * the plants ([HexPlants]) and fires ([HexFires]), on the averages of each place's cells. They began as the rules
  * of the fine [LiveWater] and [Vegetation] and have since gone further (a soil and an aquifer of each place's own,
  * sunny and shaded slopes, another fire spread), so the two no longer agree.
  */
@@ -110,15 +110,15 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     @Transient val caves = FloatArray(n) { p -> mean(p) { (if (world.geology.rock[it] == Rock.LIMESTONE) 1f else 0.2f) * (world.terrain.ruggedness[it] / 0.5f).coerceIn(0f, 1f) } }
     @Transient val bestDefence = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.defensibility[it] } }
     @Transient val bestViewKm = FloatArray(n) { p -> hw.placeCells[p].maxOf { world.terrain.viewKm[it] } }
-    /** Neighbouring places: the bands above and below in the hex and the bands at about the same height around it. */
+    /** Neighbouring places: the other half of its hex, if split, and the places of the hexes around it. */
     @Transient val neighbours: Array<IntArray> = Array(n) { p ->
-        val h = hw.placeHex[p]; val b = hw.placeBand[p]
+        val h = hw.placeHex[p]
         val out = ArrayList<Int>()
-        for (db in -1..1) { val bb = b + db; if (db != 0 && bb in 0 until HexWorld.BANDS_M.size) hw.placeOf[bb][h].let { if (it >= 0) out += it } }
+        for (q in hw.placesOf(h)) if (q != p) out += q
         for (d in 0 until 6) {
             val nh = hex.neighbour(h, d)
             if (nh < 0) continue
-            for (db in -1..1) { val bb = b + db; if (bb in 0 until HexWorld.BANDS_M.size) hw.placeOf[bb][nh].let { if (it >= 0) out += it } }
+            for (q in hw.placesOf(nh)) out += q
         }
         out.toIntArray()
     }

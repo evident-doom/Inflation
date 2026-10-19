@@ -367,11 +367,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     // Food wanted, kg over the hex, and what the litter can give.
                     val want = change / FISH_EFFICIENCY * landKm2h
                     var litterKg = 0.0
-                    for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) litterKg += small.litter[p] * land.areaKm2[p] * 1e6 }
+                    for (p in hw.placesOf(h)) litterKg += small.litter[p] * land.areaKm2[p] * 1e6
                     val ate = min(want, 0.5f * litterKg.toFloat())
-                    if (ate > 0f) for (b in 0 until HexWorld.BANDS_M.size) {
-                        val p = hw.placeOf[b][h]
-                        if (p >= 0) { val l0 = small.litter[p]; small.litter[p] *= 1f - ate / litterKg.toFloat()
+                    if (ate > 0f) for (p in hw.placesOf(h)) {
+                        run { val l0 = small.litter[p]; small.litter[p] *= 1f - ate / litterKg.toFloat()
                             land.books?.flow(Books.Stuff.MATTER, "to and from the water life", (small.litter[p] - l0) * land.areaM2[p].toDouble()) }
                     }
                     grew = FISH_EFFICIENCY * ate / landKm2h
@@ -592,9 +591,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /** Leaves [kg] of dead fish on the banks of hex [h]: carrion on its places, by their area. */
     private fun bankCarrion(h: Int, kg: Float) {
         var area = 0f
-        for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) area += land.areaKm2[p] }
+        for (p in hw.placesOf(h)) area += land.areaKm2[p]
         if (area <= 0f) return
-        for (b in 0 until HexWorld.BANDS_M.size) { val p = hw.placeOf[b][h]; if (p >= 0) small.deposit(DeadPool.CARRION, p, KgM2(kg / area / 1e6f)) }
+        for (p in hw.placesOf(h)) small.deposit(DeadPool.CARRION, p, KgM2(kg / area / 1e6f))
         land.books?.flow(Books.Stuff.MATTER, "to and from the water life", kg.toDouble())
     }
     fun fishTonnes() = fish.indices.sumOf { (fish[it] * waterKm2[it]).toDouble() }.toFloat() / 1000f

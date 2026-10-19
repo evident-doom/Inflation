@@ -15,7 +15,7 @@ import kotlin.math.min
  * What the viewer tints the hexes by, worked out hex by hex once a week (on the simulation's
  * thread), and kept month by month over the last year for the seasonal views: how much each hex
  * swings over the year, in which month it peaks, and how this month stands against the same month
- * a year before. Each value is a hex's area-weighted mean over its height bands; NaN where a hex
+ * a year before. Each value is a hex's area-weighted mean over its places; NaN where a hex
  * has no land.
  */
 internal class ViewLayers(private val sim: HexSim) {

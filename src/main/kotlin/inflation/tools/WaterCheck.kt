@@ -11,7 +11,7 @@ import inflation.world.WorldConfig
 import inflation.world.LandformCache
 
 /**
- * Runs weather, water and plants on the hexes' height bands (no animals) and reports, year by year,
+ * Runs weather, water and plants on the hexes' places (no animals) and reports, year by year,
  * how much of dry country has water within reach in its driest week, how the springs hold up, how
  * the ground water stands, and whether rivers run dry.
  *
@@ -73,7 +73,7 @@ fun main(args: Array<String>) {
         if (y == years - 1) for (h in 0 until hw.hex.size) if (rcls[h] >= 1 && dryWeeks[h] > 0)
             println("    below a trickle: hex %d, usual %.0f m³/s, %d weeks, lowest %.4f of usual, %d places, land share %.2f, drains to %d".format(
                 h, land.hydro.meanFlow[h], dryWeeks[h], rMin[h],
-                (0 until HexWorld.BANDS_M.size).count { hw.placeOf[it][h] >= 0 }, hw.land[h], land.hydro.down[h]))
+                hw.placesOf(h).size, hw.land[h], land.hydro.down[h]))
         for ((c, cl) in classes.withIndex()) {
             val ps = (0 until n).filter { cls[it] == c }; if (ps.isEmpty()) continue
             val a = ps.sumOf { land.areaKm2[it].toDouble() }
