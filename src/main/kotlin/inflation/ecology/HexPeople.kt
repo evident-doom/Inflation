@@ -563,10 +563,13 @@ class Band(kinds: Int) {
     /** Its people's fighting weight per kg: with spears and bows lions and hyenas give way; without, they are no match. */
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))
 
+    /** How much more seed its sickles reap, as well as their stone cuts. */
+    fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], tuning)
+
     /** Gathering: the most of a plant food's stock in a place it can take in a week; [seed] for grass seed. */
     fun gatherShare(seed: Boolean, tuning: Tuning): Float {
         val kit = 1f + BASKET_GAIN * has(Tool.BASKET) +
-            if (seed) SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], tuning) +
+            if (seed) sickleGain(tuning) +
                 GRINDER_GAIN * has(Tool.GRINDER) else GRINDER_GAIN * 0.5f * has(Tool.GRINDER)
         return min(0.9f, GATHER_SHARE * skill(Skill.GATHER) * kit)
     }
@@ -644,7 +647,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // The time the band has to spare goes first to caching what it leaves at a camp, then to gathering what it lacks of
     // its materials, then to making and mending.
     val time = BandTime(b.spareDays)
-    campAndCache(g, b, p, h, date, time)
+    campAndCache(g, b, p, h, weather, date, time)
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
     keepHerds(g, b, date)
     val people = g.adults.toFloat()
@@ -747,7 +750,7 @@ private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + 
  * the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it
  * has room for.
  */
-private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date: Date, time: BandTime) {
+private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weather: Weather, date: Date, time: BandTime) {
     if (b.campPlace.none || h != hw.hexOf(b.campPlace)) {
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
@@ -779,7 +782,8 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
     b.campPlace = p
     // A cache keeps, but not perfectly; back at it, the band takes up what it has room for.
     if (!b.cachePlace.none) {
-        // (A cache spoils as stores do, and mice and badgers get into it too; boar, bears and hyenas dig
+        // (A cache spoils as stores do, by the week's weather where it lies and as well as its meat was smoked
+        // and salted, and mice and badgers get into it too; boar, bears and hyenas dig
         // it up where they are about.)
         run {
             val cp = b.cachePlace
@@ -797,7 +801,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, date:
                 small.deposit(DeadPool.CARRION, cp, Kg(lost))
             }
         }
-        val spoilt = spoil(b.cache, hw.temp[date.month][hw.placeHex[b.cachePlace]], kgPer = b.cacheKgPer) + CACHE_SPOIL * b.cacheMass()
+        val spoilt = spoil(b.cache, weather.temperature[b.cachePlace], driedKeep = driedKeep(b), kgPer = b.cacheKgPer) + CACHE_SPOIL * b.cacheMass()
         for (i in Store.entries) b.cache[i] *= 1f - CACHE_SPOIL
         small.deposit(DeadPool.LITTER, b.cachePlace, Kg(spoilt))
         if (hw.hexOf(b.cachePlace) == h) {
@@ -1222,7 +1226,7 @@ const val MARSH_FEVER = 0.05f
 /** Settled life with stores shortens the spacing of births. */
 internal fun HexGroups.settledFertility(g: HexGroup): Float {
     val b = g.band ?: return 1f
-    return 1f + SETTLED_FERTILITY * tuning.settledFertility * min(1f, b.campWeeks / (stepsPerYear / 2f)) * min(1f, g.larder / max(1e-3f, 30f * g.dailyNeedKg))
+    return 1f + SETTLED_FERTILITY * tuning.settledFertility * min(1f, b.campWeeks / (stepsPerYear / 2f)) * min(1f, g.larderDays() / WELL_STOCKED_DAYS)
 }
 
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
@@ -1269,6 +1273,13 @@ internal fun moveFood(from: HexGroup, to: HexGroup, value: Float) {
         from.stores[st] -= x; addFood(to.stores, to.storeKgPer, st, x, x * from.storeKgPer[st])
     }
 }
+
+/** Days of its own need [larder][HexGroup.larder] holds. */
+internal fun HexGroup.larderDays() = larder / max(1e-3f, dailyNeedKg)
+/** A larder of this many days counts as much as a week fully fed, in how well off a band is ([wellOff]). */
+const val WELL_STOCKED_DAYS = 30f
+/** How well off a group is: how fed this week, and how many months of need it has on hand. */
+internal fun HexGroup.wellOff() = fed + larderDays() / WELL_STOCKED_DAYS
 
 /** [g] eats [value] of its stores, what spoils first first; returns the kg it ate. */
 internal fun eatStores(g: HexGroup, value: Float): Float {
@@ -1351,7 +1362,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[x.YEAR_SIN] = sin(angle).toFloat(); into[x.YEAR_COS] = cos(angle).toFloat()
     into[x.FED] = g.fed
     val total = g.larder
-    into[x.LARDER] = total / max(1e-3f, 60f * g.dailyNeedKg)
+    into[x.LARDER] = g.larderDays() / WELL_STOCKED_DAYS
     for (st in Store.entries) into[x.STORES + st.ordinal] = if (total > 0f) g.stores[st] / total else 0f
     into[x.ADULTS] = g.adults / 30f; into[x.YOUNG] = g.young.toFloat() / max(1, g.adults)
     for ((k, f) in Skill.FORAGING.withIndex()) into[x.SKILLS + k] = b.skill(f)
