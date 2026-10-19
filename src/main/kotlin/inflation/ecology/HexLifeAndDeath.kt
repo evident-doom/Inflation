@@ -104,6 +104,8 @@ internal fun HexGroups.graze(weather: Weather) {
     val ordered = arrayOfNulls<HexGroup>(groups.size)
     for (g in groups) ordered[start[g.species.index]++] = g
     val ranges = HashMap<Int, List<Pair<Int, Float>>>()
+    // (What each kind ate and how many places it ranged over, tallied here and handed to [stats] once a kind.)
+    val ate = Array(4) { IntArray(Catalogue.all.size) }; val ranged = IntArray(Catalogue.all.size); val grazed = BooleanArray(Catalogue.all.size)
     for (g in ordered) {
         g!!
         val s = g.species
@@ -174,16 +176,21 @@ internal fun HexGroups.graze(weather: Weather) {
             land.plants.browsing[p] += (browse + browse2 + browse3) * 1e6f / days
             land.plants.rooting[p] += (roots + roots2) * 1e6f / days
         val m2 = land.m2(p)
-        stats.hunting.merge(Tally.ate(s, "grass"), ((grass + grass2 + grass3) * m2).toInt(), Int::plus)
-        stats.hunting.merge(Tally.ate(s, "browse"), ((browse + browse2 + browse3) * m2).toInt(), Int::plus)
-        stats.hunting.merge(Tally.ate(s, "fruit and roots"), ((fruit + fruit2 + roots + roots2) * m2).toInt(), Int::plus)
-        stats.hunting.merge(Tally.ate(s, "straw"), (straw * m2).toInt(), Int::plus)
+        val i = s.index
+        ate[0][i] += ((grass + grass2 + grass3) * m2).toInt()
+        ate[1][i] += ((browse + browse2 + browse3) * m2).toInt()
+        ate[2][i] += ((fruit + fruit2 + roots + roots2) * m2).toInt()
+        ate[3][i] += (straw * m2).toInt()
         }
         g.fed = (gotKg / wantKg.coerceAtLeast(1e-6f)).coerceIn(0f, 1f)
         if (eatenKg > 0f) g.protein += (fauna.proteinMet(proteinKg / eatenKg) - g.protein) * HexFauna.PROTEIN_MEMORY
         val pm = weather.date.month; g.proteinByMonth[pm] += (g.protein - g.proteinByMonth[pm]) * HexFauna.PROTEIN_MEMORY
         if (surplusKg > 0f) g.surplus = surplusKg / (wantKg / days)
-        stats.hunting.merge(Tally.of(s, Tally.RANGED), range.size, Int::plus)
+        ranged[s.index] += range.size; grazed[s.index] = true
+    }
+    for (s in Catalogue.all) if (grazed[s.index]) {
+        for ((f, food) in listOf("grass", "browse", "fruit and roots", "straw").withIndex()) stats.hunting.merge(Tally.ate(s, food), ate[f][s.index], Int::plus)
+        stats.hunting.merge(Tally.of(s, Tally.RANGED), ranged[s.index], Int::plus)
     }
     // (Where each herd grazed, as the bigger ones before it left it room: see [herdCrowd].)
     noteGround(weekGround) { ranges[it.id] }
