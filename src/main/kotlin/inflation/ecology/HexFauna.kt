@@ -638,7 +638,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Phase("residents: births, deaths") { breedAndDie(it, it.date) },
         Phase("residents: moving") {
             // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
-            preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n) { p -> preyFor(kinds[k], p) } else null }
+            preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n).also { v -> IntStream.range(0, n).parallel().forEach { p -> v[p] = preyFor(kinds[k], p) } } else null }
             // (The odds are weighed once, before the bands shift: the shift and the spill both go by them.)
             Profile.part("residents: weighing places") { fillArrive(it) }
             Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
