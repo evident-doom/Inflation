@@ -84,6 +84,10 @@ object Tally {
     /** Herds of a kind that also lives spread out, gathered and scattered, and the heads that went (see [gather], [scatter]). */
     const val GATHERED = "herds gathered"; const val HEADS_GATHERED = "heads gathered"
     const val SCATTERED = "herds scattered"; const val HEADS_SCATTERED = "heads scattered"
+    /** Heads herds of such a kind gave to the land and took in from it on their way (see [scatter]). */
+    /** Animals of such a kind killed by the hunting groups as herds and as residents (see [inflation.tools.fauna.HuntTally.printHerdSafety]). */
+    const val KILLED_IN_HERDS = "killed in herds"; const val KILLED_SPREAD = "killed spread"
+    const val HEADS_SETTLED = "heads settled"; const val HEADS_JOINED = "heads joined"
     const val HURT_BY = "killed by prey "
     /** Hide people got from [source] (herds, residents, small pelts), grams. */
     fun hide(source: String) = "people hide:$source"

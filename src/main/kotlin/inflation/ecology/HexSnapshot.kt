@@ -72,17 +72,21 @@ object HexSnapshot {
      * recorded rate; mothers bear as their food and reserves can build their young.
      * 1.12: resident hunters take game the less readily the bigger it is past their preferred size; jackals prefer 4 kg, take 15 at most.
      * 1.15: herds count the animals hunters would kill as deaths where they choose to go, and no longer shun hunters for food.
-     * 1.16: a herd the hunters stop short of its choice weighs again where it stands if that is clearly deadlier.
-     * 1.17: a herd that sees hunters first goes round them and on its way instead of halting.
-     * 1.18: a herd weighs where it would die were hunting parties to chase it and stop it short on its way.
-     * 1.19: herds go on spreading out on arrival, a day's going at a time, till none moves, while they have a day of the week left.
-     * 1.20: a herd that sees hunters first halts short again (the 1.17 detour taken out).
-     * 1.21: a herd others follow weighs its places with them: their heads in its crowd, their need in its food.
-     * 1.22: the 1.17 detour back: a herd that sees hunters first goes round them.
-     * 1.23: herds of a kind choose where to go in turn, each knowing where those before it are going.
+     * 2.0: every plant-eater lives both ways: residents leave as groups where staying is clearly deadlier than a place a
+     * month away, and groups settle where it is not; resident hunters, disease and crowding meet a non-migratory herd as
+     * its kind's groups over HERD_UNIT times the ground.
+     * 2.1: species records follow their sources (#213); a leaving group heads for the place found for it; groups form only
+     * where no slope leads to safety; residents walk towards forage within a week's going (#219).
+     * 2.2: residents weigh places by the hunters' kills too, resident and roaming.
+     * 2.3: grass loses nourishment and protein as it goes to stem and seed (HexPlants.grassAge).
+     * 2.4: crowding halves a place's appeal for residents where disease starts to bite (CROWDED), not at 20 times usual.
+     * 2.5: a herd the hunters stop short of its choice weighs again where it stands; one that sees hunters first goes
+     * round them; herds weigh where hunting parties would stop them on the way; a herd others follow weighs places with
+     * their heads and need; herds of a kind choose in turn, each knowing where those before it are going; grazing a wider
+     * range costs walking.
      */
-    const val MODEL_MAJOR = 1
-    const val MODEL_MINOR = 24
+    const val MODEL_MAJOR = 2
+    const val MODEL_MINOR = 5
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

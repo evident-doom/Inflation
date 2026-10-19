@@ -48,6 +48,9 @@ class SavedStateTest {
         "fauna.food.ripenedNow",
         // (A worn route forms from many crossings: on this small world a year may or may not see the first one, or a way along it.)
         "groups.routes.legWear", "groups.routes.onRoute", "groups.routes.way",
+        // (The hunting parties' kills of herds in the last week: herds form only where no slope leads residents to safety,
+        // so on this small world the year may end with none killed or chased that week, as it began.)
+        "groups.herdKilledByGroups", "groups.herdChasedByGroups",
     )
 
     @Test

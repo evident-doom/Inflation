@@ -144,6 +144,7 @@ class Diagnostics(private val sim: HexSim, private val daysPerStep: Int) {
         }
     }
 
+
     /** Packs of [kind] that went hungry this week against those that ate, and their ground; and the thirsty ones. */
     private fun hunters(w: Int, kind: String) {
         val gs = groups.groups.filter { it.alive && it.species.name == kind }

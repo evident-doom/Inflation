@@ -23,16 +23,16 @@ how far they detect each other (Hutchinson & Waser 2007, the "ideal gas" encount
     expected encounters  λ = 2 r v T / A
 
 - `r`: the hunter's detection distance, its `senseKm` (people: × their tracking edge).
-- `v`: their relative speed, `sqrt(va² + vb²)` with each side's `dailyTravelKm` (the mean for random
-  headings is within about 10% of this).
+- `v`: for a hunter, its own `dailyTravelKm`; for two hunters, their relative speed `sqrt(va² + vb²)`.
 - `T`: days both are in the hex, from their timetables (`Meeting.span`), times `SEARCHING` 0.3 (the
   share of the day spent looking), times the `hours` overlap of their active hours.
 - `A`: the hex's area.
 
-A herd agent stands for `bandsIn(herd)` bands spread over the hex, so its expected encounters are
-`λ × bands`, linear, not `1 − (1 − p)^bands`. The count is drawn from a Poisson. Ambush ground
-(`AMBUSH`), gatherings at springs (`gather`) and small herds hiding in cover (`HIDE_IN_COVER`)
-multiply `λ`.
+A hunter comes on a herd exactly as it comes on a band of resident game: over the ground it searches
+(`searchKm2`: `2 r v × days × SEARCHING`, a bigger party fanning out as the square root of its numbers,
+less of it seen in rain, haze or cover, `sight`), its share of the week in that hex. A herd is run into
+as one. The count is drawn from a Poisson. Ambush ground (`AMBUSH`, herds walk the worn paths) and, for
+two bands, gatherings at springs (`gather`) multiply `λ`.
 
 On a meeting (`hunterMeetsHerd`) the herd may see the hunters first and go round them (`DETOUR`:
 the walk round their sense range costs it food, and it goes on its way); otherwise there

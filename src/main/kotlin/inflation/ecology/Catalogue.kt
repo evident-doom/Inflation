@@ -725,10 +725,11 @@ object Catalogue {
     fun resident(s: Species) = (!s.carnivore && s !in migratory) || s in residentHunters
 
     /**
-     * Kinds that live both ways: spread over the land as residents, gathered into herds for the months their
-     * round takes them far (see [gather] and [scatter]).
+     * Kinds that live both ways: spread over the land as residents, gathered into herds where the land will not feed
+     * them through the coming season (see [gather] and [scatter]): every plant-eater, so that whether a kind herds is
+     * the land's doing. The [migratory] kinds start as herds, the others spread out.
      */
-    val gathering: Set<Species> by lazy { setOf(ONAGER) }
+    val gathering: Set<Species> by lazy { herbivores.toSet() }
 
     /**
      * For tests (t.formSwap=NAME:herds,NAME:residents,...; or none): with the key set, herds neither gather nor

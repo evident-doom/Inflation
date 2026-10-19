@@ -5,6 +5,7 @@ import inflation.Config
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 // The numbers the herds and packs on the hexes live by.
 
@@ -109,14 +110,11 @@ const val WEAK_SLOW = 0.6f
 /**
  * The sides of a herd's size, against its kind's usual band: how its walking slows, how much less
  * each attempt on it succeeds (many eyes, confusion), and how much less often its young are taken
- * (they keep to the middle), each as a power of the bands it is; under how many bands a herd can lie
- * hidden in cover, and how much of its being found the best cover saves a lone band.
+ * (they keep to the middle), each as a power of the bands it is.
  */
 const val BIG_HERD_SLOW = 0.05f
 const val BIG_HERD_EYES = 0.15f
 const val BIG_HERD_SHELTERS = 0.3f
-const val SMALL_HERD_BANDS = 3f
-const val HIDE_IN_COVER = 0.6f
 /** A content herd weighs its places one week in this many (others keep to their ground unweighed). */
 const val CONTENT_WEEKS = 2
 /**
@@ -268,6 +266,14 @@ const val FORAGE_PASSES = 3
 
 /** Ground a hunting party of kind [s] sweeps in a week, km² (shared over the hexes it passes): its going, by the width it senses. */
 fun HexGroups.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * SEARCHING
+/**
+ * Ground hunting party [g] searches in a week about place [p], km² (shared over the hexes it passes): [sweptKm2], a
+ * bigger party fanning out over more of it (as the square root of its numbers against its kind's usual party), a band's
+ * trackers reading sign further off, and less of it seen when rain, haze or cover hide game ([sight]). Resident game
+ * and herds are come on over the same ground.
+ */
+fun HexGroups.searchKm2(g: HexGroup, p: Int, weather: Weather) = sweptKm2(g.species) * (g.band?.edge(Skill.TRACK) ?: 1f) *
+    sqrt(max(1, g.adults).toFloat() / g.species.groupSize) * sight(p, weather)
 /** Share of a kill's weight that is eaten. */
 const val MEAT_SHARE = 0.6f
 const val HOME_ADVANTAGE = 1.5f
