@@ -37,7 +37,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     val (hx, hy) = hex.centreKm(here)
     val reachKm = SEASON_RANGE_KM
     val r = (reachKm / hex.hexKm).toInt() + 1
-    val near = ArrayList<Int>()
+    var near = IntArray(64); var count = 0
     // (The hexes of the square about it, row by row, rather than every place on the map; in the places' order.)
     val r0 = here / hex.cols; val c0 = here % hex.cols
     val dr = (reachKm / (hex.hexKm * 0.866)).toInt() + 2; val dc = r + 1
@@ -45,24 +45,33 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
         val h = row * hex.cols + col
         val (cx, cy) = hex.centreKm(h)
         if (abs(cx - hx) <= reachKm && abs(cy - hy) <= reachKm && hypot(cx - hx, cy - hy) <= reachKm)
-            for (b in HexWorld.BANDS_M.indices) { val p = hw.placeOf[b][h]; if (p >= 0) near += p }
+            for (b in HexWorld.BANDS_M.indices) {
+                val p = hw.placeOf[b][h]
+                if (p >= 0) { if (count == near.size) near = near.copyOf(2 * count); near[count++] = p }
+            }
     }
-    near.sort()
-    if (near.isEmpty()) return
+    if (count == 0) return
+    java.util.Arrays.sort(near, 0, count)
+    // (How far each lies, the same every month.)
+    val distOf = DoubleArray(count) { i -> val (cx, cy) = hex.centreKm(hw.placeHex[near[i]]); hypot(cx - hx, cy - hy) / reachKm }
+    // (And its forage, ground and water, the same every month as the forebears reckon them.)
+    val foodOf = FloatArray(count) { foodFor(s, near[it]) }
+    val suitsOf = FloatArray(count) { fauna.suits(s, near[it]) }
+    val tetherOf = FloatArray(count) { fauna.usualTether(s, near[it]) }
     var top = 0f
     for (m in 0 until 12) {
         var best = -1; var bestScore = 0f
-        for (p in near) {
+        for (i in 0 until count) {
+            val p = near[i]
             val t = hw.placeTemp(p, m)
             val h = hw.placeHex[p]
             val grow = ((t - 2f) / 13f).coerceIn(0f, 1f) * (hw.precip[m][h] / hw.pet[m][h].coerceAtLeast(1f)).coerceIn(0.1f, 1f)
             val discomfort = s.discomfortC(t, m) / 10f
             val snow = if (t < -1f && s.diet.grass > 0.3f) 0.2f else 1f
-            val (cx, cy) = hex.centreKm(h)
-            val dist = hypot(cx - hx, cy - hy) / reachKm
+            val dist = distOf[i]
             // ... and how much forage grows there at all: a desert flush is little food; and whether it can drink there in a usual year.
-            val food = foodFor(s, p)
-            val score = (0.2f + grow) * food / (food + 0.3f) * fauna.suits(s, p) * fauna.usualTether(s, p) * snow / (1f + discomfort * discomfort) /
+            val food = foodOf[i]
+            val score = (0.2f + grow) * food / (food + 0.3f) * suitsOf[i] * tetherOf[i] * snow / (1f + discomfort * discomfort) /
                 (1f + SEASON_DISTANCE * dist.toFloat())
             if (score > bestScore) { bestScore = score; best = p }
         }

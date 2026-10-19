@@ -20,6 +20,7 @@ import inflation.min
 
 import inflation.world.Date
 import inflation.world.HexLand
+import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.LifeForm
 import inflation.world.Weather
@@ -1143,16 +1144,33 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Each place kind [k]'s residents at place [p] can walk to in a step: across each border it can cross into the six hexes about, in its band or the one above or below. */
     private inline fun neighbourPlaces(k: Int, p: Int, f: (Int) -> Unit) {
-        val cross = hex.crossings[travel[k].ordinal]
-        val h = hw.placeHex[p]; val b = hw.placeBand[p]
-        for (d in 0 until 6) {
-            val nh = hex.neighbour(h, d)
-            if (nh < 0 || !cross[h * 6 + d].isFinite()) continue
-            for (db in -1..1) {
-                val nb = b + db; if (nb !in HexWorld.BANDS_M.indices) continue
-                val q = hw.placeOf[nb][nh]
-                if (q >= 0) f(q)
+        val t = stepPlaces[travel[k].ordinal]
+        val from = t.from; val to = t.to
+        for (i in from[p] until from[p + 1]) f(to[i])
+    }
+
+    /** The places a step leads to from each place, for [neighbourPlaces]: those of place `p` are `to[from[p] until from[p + 1]]`. */
+    private class StepPlaces(val from: IntArray, val to: IntArray)
+    /** [StepPlaces] for each way of travel, worked out once (borders and places do not change). */
+    @delegate:Transient private val stepPlaces: Array<StepPlaces> by lazy {
+        Array(HexMap.Travel.entries.size) { t ->
+            val cross = hex.crossings[t]
+            val from = IntArray(n + 1); var to = IntArray(12 * n); var m = 0
+            for (p in 0 until n) {
+                from[p] = m
+                val h = hw.placeHex[p]; val b = hw.placeBand[p]
+                for (d in 0 until 6) {
+                    val nh = hex.neighbour(h, d)
+                    if (nh < 0 || !cross[h * 6 + d].isFinite()) continue
+                    for (db in -1..1) {
+                        val nb = b + db; if (nb !in HexWorld.BANDS_M.indices) continue
+                        val q = hw.placeOf[nb][nh]
+                        if (q >= 0) { if (m == to.size) to = to.copyOf(2 * m); to[m++] = q }
+                    }
+                }
             }
+            from[n] = m
+            StepPlaces(from, to.copyOf(m))
         }
     }
 
@@ -1165,10 +1183,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     internal fun walkStep(k: Int, p: Int, odds: FloatArray, worth: FloatArray): Int {
         val here = odds[p]
         if (here.isNaN()) return -1
-        val safest = safestNeighbour(k, p, odds, here)
-        if (safest >= 0 && clearlyWorse(here, odds[safest], kinds[k].maxGroupSize.toFloat())) return safest
+        // (The safest neighbour, as [safestNeighbour] finds it, and the best fed of those no deadlier, in one pass.)
+        var safest = -1; var safestOdds = here
         var best = -1; var bestWorth = worth[p]
-        neighbourPlaces(k, p) { q -> if (odds[q] <= here && worth[q] > bestWorth) { bestWorth = worth[q]; best = q } }
+        neighbourPlaces(k, p) { q ->
+            val o = odds[q]
+            if (o < safestOdds) { safestOdds = o; safest = q }
+            if (o <= here && worth[q] > bestWorth) { bestWorth = worth[q]; best = q }
+        }
+        if (safest >= 0 && clearlyWorse(here, odds[safest], kinds[k].maxGroupSize.toFloat())) return safest
         return best
     }
 
