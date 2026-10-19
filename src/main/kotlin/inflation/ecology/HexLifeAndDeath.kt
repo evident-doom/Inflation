@@ -118,7 +118,10 @@ internal fun HexGroups.graze(weather: Weather) {
         val wantKg = g.dailyNeedKg * days * (1f + walkCost(g))
         var gotKg = 0f; var surplusKg = 0f; var eatenKg = 0f; var proteinKg = 0f
         g.surplus = 0f
+        // (What it walks grazing, beyond the way it went, steps on the ground of its range by each place's share.)
+        val grazeKm = max(0f, s.dailyTravelKm * days - max(0, g.path.size - 1) * hex.hexKm.toFloat())
         for ((p, share) in range) {
+            land.plants.tread(p, g.size.toFloat(), s.massKg, grazeKm * share, herd = true)
             // (Walking costs food: a share of a day's need for each km of the week's going, see [walkCost].)
             val want = wantKg * share / 1e6f / land.areaKm2[p] // kg per m² of the place
             // (Far from water, a kind that must drink often uses only the ground within reach of it, as the residents do: see [HexFauna.tether].)
@@ -147,6 +150,8 @@ internal fun HexGroups.graze(weather: Weather) {
             if (p == g.place.i) for (h in g.path) {
                 val q = hw.placeOf[band][h].takeIf { it >= 0 } ?: continue
                 land.plants.trample(q, g.size * s.massKg / 1000f)
+                // (Its going across each hex of the way steps on the ground there; see [HexPlants.tread].)
+                if (h != g.path.last()) land.plants.tread(q, g.size.toFloat(), s.massKg, hex.hexKm.toFloat(), herd = true)
                 if (fruit > 0f) land.plants.animalSeed[q] =
                     min(1f, land.plants.animalSeed[q] + fruit * land.areaKm2[p] * 1e6f / g.path.size / land.areaKm2[q] / HexFauna.SEED_KG)
             }
