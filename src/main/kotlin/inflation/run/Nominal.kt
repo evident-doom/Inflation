@@ -109,9 +109,9 @@ object Nominal {
      * band keeps fire (hearths in every Natufian site: Bar-Yosef 1998); spears and clothes for most of them (bone awls
      * and needles, and the cold winters of the hills; the start kit is spears for all, clothes for half); hunting known
      * and practised (gazelle the main game, Bar-Oz 2004, from memory), at least 0.3 of a master's level (a guess: bands
-     * start at 0, and those that hunt week by week near 1 in a few years; the runs: 0.96); and game at least a fifth of
-     * the food got (foragers in warm lands get some 25–50% of it from hunting: Cordain et al. 2000, from memory; the
-     * runs: 24–42% by country). Shares of the bands' heads, over each year and at the end.
+     * start at 0, and those that hunt week by week near 1 in a few years; the runs: 0.96); and meat and fish at least a
+     * fifth of what they eat (foragers in warm lands get some 25–50% of their food from hunting: Cordain et al. 2000,
+     * from memory; the runs: 40–45%). Shares of the bands' heads, over each year and at the end.
      */
     val PEOPLE_MIN = mapOf(HexHistory.PeopleWay.FIRE to 0.99, HexHistory.PeopleWay.SPEARS to 0.8, HexHistory.PeopleWay.CLAD to 0.8,
         HexHistory.PeopleWay.HUNTING to 0.3, HexHistory.PeopleWay.GAME to 0.2)

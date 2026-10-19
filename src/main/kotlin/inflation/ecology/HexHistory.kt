@@ -121,8 +121,8 @@ class HexHistory {
         FIRE("share knowing fire"),
         /** The bands' level at hunting big game, 0..1 (0 where it is forgotten). */
         HUNTING("hunting skill"),
-        /** Game (big and small, and scraps) as a share of the food the bands got (game, plants, fish). */
-        GAME("share of food from game"),
+        /** Meat and fish as a share of the food the bands ate (this week's and from their stores). */
+        GAME("share of food eaten from animals"),
     }
 
     /** What a [Key.hunters] series measures. */
@@ -175,12 +175,9 @@ class HexHistory {
             if (!s.human) holdingGround(groups, s)?.let { put(Key.hunters(s.name, Hunters.HOLDING), it.toFloat()) }
         }
         peopleWays(groups)?.let { by -> for (w in PeopleWay.entries) if (!by[w.ordinal].isNaN()) put(Key.people(w), by[w.ordinal].toFloat()) }
-        var game = 0.0; var food = 0.0
-        for ((k, v) in hunting) if (k.startsWith(Tally.BANDS_IN)) when (Tally.whatOf(k)) {
-            "meat" -> { game += v; food += v }
-            "plants", "fish" -> food += v
-        }
-        if (food > 0) put(Key.people(PeopleWay.GAME), (game / food).toFloat())
+        val meat = (hunting[Tally.of(Catalogue.HUMAN, WeekStats.MEAT_EATEN)] ?: 0).toDouble()
+        val food = meat + (hunting[Tally.of(Catalogue.HUMAN, WeekStats.PLANTS_EATEN)] ?: 0)
+        if (food > 0) put(Key.people(PeopleWay.GAME), (meat / food).toFloat())
     }
 
     /** Records the week just stepped. */
@@ -374,7 +371,7 @@ class HexHistory {
 
         /**
          * How the bands live now, by heads, as [PeopleWay]'s shares (NaN for [PeopleWay.GAME], which is the week's
-         * food, not the bands' state), or null where there are no bands.
+         * meals, not the bands' state), or null where there are no bands.
          */
         fun peopleWays(groups: HexGroups): DoubleArray? {
             val by = DoubleArray(PeopleWay.entries.size); var heads = 0.0

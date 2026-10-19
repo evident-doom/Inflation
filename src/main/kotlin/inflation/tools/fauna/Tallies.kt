@@ -59,7 +59,7 @@ class DeathTally(private val sim: HexSim) {
     fun printResidentDeathsThisYear() {
         val residentNames = sim.fauna.kinds.map { it.name }.toSet()
         val year = HashMap<String, Double>()
-        for ((key, v) in causes) if (Tally.kindOf(key) in residentNames) year.merge(Tally.whatOf(key), v - (before[key] ?: 0.0), Double::plus)
+        for ((key, v) in causes) if (Tally.kindOf(key) in residentNames && Tally.whatOf(key) != Tally.BORN) year.merge(Tally.whatOf(key), v - (before[key] ?: 0.0), Double::plus)
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }
             .joinToString(", ") { "%s %.0f".format(it.key, it.value) })
     }
