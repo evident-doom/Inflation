@@ -1051,12 +1051,6 @@ internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Place): Boolea
     return rnd.nextFloat() < min(0.9f, chance)
 }
 
-/** How open hex [h] is where a group passes: the share of the ground with no cover to hide in. */
-internal fun HexGroups.openness(h: Int, band: Int): Float {
-    val p = hw.placeOf[band][h].takeIf { it >= 0 } ?: return 0.5f
-    return 1f - land.plants.cover(p)
-}
-
 /**
  * The food [band] works to lay by this week: while its kit is worn it holds back from storing as far as its way of
  * mending first goes ([Band.mendFirst]: the scaffold's 1 stores nothing, mending from the time the stores would take).

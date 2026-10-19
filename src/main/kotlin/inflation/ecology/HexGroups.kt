@@ -91,23 +91,6 @@ class HexGroups(
     /** The beasts of prey in each place as the week's choosing begins, kg (the hunters other than people). */
     @delegate:Transient private val beastKg by lazy { FloatArray(n) }
     @delegate:Transient internal val kindIndex by lazy { kinds.withIndex().associate { it.value to it.index } }
-    /**
-     * For each kind ([Species.index]), by its way of travel ([Catalogue.travel]): for each hex, how many of the six
-     * round it are land it can cross into, and which, in direction order (at `h * 7`, then the hexes).
-     */
-    @delegate:Transient internal val openAround: Array<IntArray> by lazy {
-        val byTravel = Array(HexMap.Travel.entries.size) { t ->
-            val cross = hex.crossings[t]
-            IntArray(hex.size * 7).also { a ->
-                for (h in 0 until hex.size) {
-                    var open = 0
-                    for (d in 0 until 6) { val nb = hex.neighbour(h, d); if (nb >= 0 && hex.heart[nb] >= 0 && cross[h * 6 + d].isFinite()) a[h * 7 + 1 + open++] = nb }
-                    a[h * 7] = open
-                }
-            }
-        }
-        Array(Catalogue.all.size) { byTravel[Catalogue.travel(Catalogue.all[it]).ordinal] }
-    }
     /** Scent marks of the hunting kinds (saves from before it was split out kept them here as marks and markers). */
     @field:MovedInto("marks", "markers") internal val scent = Scent()
     /** Learned choosers by kind; kinds without one use the hand-written score. */

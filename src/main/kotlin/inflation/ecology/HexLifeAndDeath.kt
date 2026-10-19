@@ -488,7 +488,6 @@ private fun HexGroups.woundsWeek(band: Band): Float {
     return fester
 }
 
-/** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
 /**
  * Whether a group of [s] can drink at place [p]: where there is water (for animals, soft snow too), or where water is within its going.
  * People carry water home in skins, gourds and ostrich eggshells: anywhere within the day's round
@@ -503,6 +502,7 @@ internal fun HexGroups.canDrink(s: Species, p: Int): Boolean {
         (s.human && land.drink.mustDig(p, fetch))
 }
 
+/** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
 private fun HexGroups.thirstWeek(g: HexGroup): Float {
     g.dry = dryAfter(g, g.place.i, g.fed)
     return thirstOdds(g, g.place.i, g.dry)
