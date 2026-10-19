@@ -71,9 +71,8 @@ object Nominal {
 
     /** Residents of all kinds in any one place, t/km². */
     const val RESIDENTS_MAX_T_KM2 = 100.0
-    /** Any place's temperature, °C, and its snow lying, mm of water. */
+    /** Any place's temperature, °C. */
     const val PLACE_TEMPERATURE_MIN = -70.0; const val PLACE_TEMPERATURE_MAX = 60.0
-    const val PLACE_SNOW_MAX_MM = 20_000.0
     /** What a table of a stock may hold below zero, as a share of its largest value (float rounding). */
     const val STOCK_BELOW_ZERO = 1e-6
     /** Tables in which NaN means "none" by design, so only an infinity in them is out of limits: the odds of arriving, NaN where a kind cannot stay ([inflation.ecology.HexFauna.arrive]). */
@@ -262,7 +261,13 @@ object Nominal {
             t.check(out == 0, name) { "outside %s..%s %s in %d places, first place %d (%s)".format(fmt(lo), fmt(hi), unit, out, at, a[at]) }
         }
         range("temperature", sim.weather.temperature, PLACE_TEMPERATURE_MIN, PLACE_TEMPERATURE_MAX, "°C")
-        range("snow lying", sim.weather.snowpack, 0.0, PLACE_SNOW_MAX_MM, "mm")
+        // Snow and ice no deeper than a glacier there can stand (deeper flows on: [inflation.world.HexHydrology.iceCapMm]).
+        run {
+            val snow = sim.weather.snowpack; val cap = land.hydro.iceCapMm
+            var out = 0; var at = -1
+            for (p in 0 until n) if (!(snow[p] >= 0f && snow[p] <= cap[p] * 1.001f)) { out++; if (at < 0) at = p }
+            t.check(out == 0, "snow lying") { "outside 0..what a glacier there can stand in %d places, first place %d (%s mm against %s)".format(out, at, snow[at], cap[at]) }
+        }
         // Residents, all kinds together, in each place (the viewer's "Resident herds (all)").
         run {
             var out = 0; var at = -1; var most = 0.0

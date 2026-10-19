@@ -360,6 +360,53 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             books.flow(Books.Stuff.WATER, "evaporation", -toAir)
             books.flow(Books.Stuff.WATER, "rivers to the sea and closed lakes", -outflow)
         }
+        glaciersFlow(weather)
+    }
+
+    /**
+     * The most snow and ice each place holds, mm of water: ice deeper than a glacier's bed can bear flows on downhill.
+     * Ice behaves nearly as a plastic body that yields at a basal shear stress [ICE_YIELD_PA], so a glacier on a bed
+     * of slope α stands at most τ/(ρ g sin α) thick (Nye 1952; Cuffey & Paterson 2010, ch. 8); on gentle ground the
+     * ice's own surface slope sets the limit, an ice cap's profile H = √(2τL/(ρ_ice g)) over half a hex (Nye 1951).
+     * (ρ_ice H = ρ_water × the water it holds.)
+     */
+    @Transient val iceCapMm = FloatArray(n) { p ->
+        val tan = land.slope[p].toDouble()
+        val sin = tan / Math.sqrt(1 + tan * tan)
+        val onBed = if (sin > 0) ICE_YIELD_PA / (WATER_KG_M3 * G * sin) else Double.MAX_VALUE
+        val cap = Math.sqrt(2 * ICE_YIELD_PA * hex.hexKm * 1000 / 2 / (ICE_KG_M3 * G)) * ICE_KG_M3 / WATER_KG_M3
+        (1000 * min(onBed, cap)).toFloat()
+    }
+
+    /**
+     * Snow lying deeper than the place can hold ([iceCapMm]) flows as ice to the next place down: the next band down
+     * in its hex, from the lowest band to the valley of the hex its river runs into, and at the sea or a closed basin
+     * off the land. Upstream hexes and higher bands first, so ice moves as far down in a week as it must; it melts
+     * where it comes to by the weather's own melt.
+     */
+    private fun glaciersFlow(weather: Weather) {
+        var off = 0.0
+        fun take(p: Int): Double {
+            val over = weather.snowpack[p] - iceCapMm[p]
+            if (over <= 0f) return 0.0
+            val k = iceCapMm[p] / weather.snowpack[p]
+            weather.snowSun[p] *= k; weather.snowShade[p] *= k; weather.snowpack[p] = iceCapMm[p]
+            return over / 1000.0 * land.areaM2[p]
+        }
+        fun give(p: Int, m3: Double) {
+            val mm = (m3 / land.areaM2[p] * 1000).toFloat()
+            weather.snowSun[p] += mm; weather.snowShade[p] += mm; weather.snowpack[p] += mm
+        }
+        for (h in order) {
+            val ps = hw.placesOf(h)
+            for (i in ps.indices.reversed()) {
+                val m3 = take(ps[i])
+                if (m3 <= 0.0) continue
+                val to = if (i > 0) ps[i - 1] else down[h].let { d -> if (d >= 0) valley[d] else -1 }
+                if (to >= 0) give(to, m3) else off += m3
+            }
+        }
+        land.books?.flow(Books.Stuff.WATER, "glacier ice to the sea and closed lakes", -off)
     }
 
     /** Names the water's stocks: the soil, the ground water, the lakes and the water in the bed sands. */
@@ -434,6 +481,11 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     }
 
     companion object {
+        /** Basal shear stress at which glacier ice yields, Pa (50–150 kPa on valley glaciers: Cuffey & Paterson 2010). */
+        const val ICE_YIELD_PA = 100_000.0
+        const val ICE_KG_M3 = 917.0
+        const val WATER_KG_M3 = 1000.0
+        const val G = 9.81
         /** Share of the soil's water plants take up without stress; drier than that, growth and evaporation fall in step (FAO-56, p about 0.5). */
         const val UNSTRESSED = 0.5f
         /** How moist the water table keeps the ground round fresh lakes and springs, as a share of a full soil. */
