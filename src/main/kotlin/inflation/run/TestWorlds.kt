@@ -195,7 +195,7 @@ object TestWorlds {
      */
     fun migrationReport(runs: Map<String, List<Pair<Run, Run>>>, worlds: List<String>): List<String> {
         val first = runs.values.first().first().first
-        val kinds = first.allKeys.filter { it.startsWith("migration/") }.map { it.split('/')[1] }.distinct()
+        val kinds = first.allKeys.mapNotNull { HexHistory.Key.migrationKind(it) }.distinct()
         if (kinds.isEmpty()) return emptyList()
         val lines = ArrayList<String>()
         lines += ""
@@ -203,9 +203,9 @@ object TestWorlds {
         lines += "%-34s ".format("") + worlds.joinToString(" | ") { "%-32s".format(it) }
         fun swing(m: DoubleArray) = m.filter { !it.isNaN() }.let { if (it.size < 2) Double.NaN else it.max() - it.min() }
         val measures = listOf<Pair<String, (Run, String) -> Double>>(
-            "height swing m" to { r, k -> swing(r.monthly("migration/$k/mean height m", r.years.last())) },
-            "above 1000 m swing pts" to { r, k -> 100 * swing(r.monthly("migration/$k/share above 1000 m", r.years.last())) },
-            "km from half a year" to { r, k -> r.yearly("migration/$k/km from half a year before", r.years.last()) },
+            "height swing m" to { r, k -> swing(r.monthly(HexHistory.Key.migration(k, HexHistory.Migration.MEAN_HEIGHT_M), r.years.last())) },
+            "above 1000 m swing pts" to { r, k -> 100 * swing(r.monthly(HexHistory.Key.migration(k, HexHistory.Migration.SHARE_ABOVE_1000_M), r.years.last())) },
+            "km from half a year" to { r, k -> r.yearly(HexHistory.Key.migration(k, HexHistory.Migration.KM_FROM_HALF_A_YEAR), r.years.last()) },
         )
         for (k in kinds) for ((label, f) in measures) {
             val cells = worlds.map { w ->
@@ -231,7 +231,7 @@ object TestWorlds {
         val years: List<Int> = (1..h.weeks / weeksPerYear).toList()
         init { require(years.isNotEmpty()) { "$file holds less than a year" } }
         private fun rows(year: Int) = (year - 1) * weeksPerYear until year * weeksPerYear
-        val landKm2: Double = h.series["land/area km²"]?.let { s -> (0 until s.size).map { s[it] }.lastOrNull { !it.isNaN() }?.toDouble() } ?: Double.NaN
+        val landKm2: Double = h.series[HexHistory.Key.LAND_AREA]?.let { s -> (0 until s.size).map { s[it] }.lastOrNull { !it.isNaN() }?.toDouble() } ?: Double.NaN
         val keys: List<String> get() = h.series.keys.filter { isKey(it) }
 
         /** Every series recorded. */
@@ -257,13 +257,14 @@ object TestWorlds {
             return if (a > 0 && b > 0 && years.size > 1) 100 * ln(b / a) / (years.last() - years.first()) else Double.NaN
         }
         private fun scale(key: String) = when {
-            key.startsWith("animals/") -> 1000 / landKm2
-            key.startsWith("biomass/") -> 1000 / landKm2
+            HexHistory.Key.animalKind(key) != null -> 1000 / landKm2
+            HexHistory.Key.isBiomass(key) -> 1000 / landKm2
             else -> 1.0
         }
     }
 
-    private fun isKey(k: String) = k.startsWith("animals/") || k in setOf("biomass/herbs", "biomass/shrubs", "biomass/trees", "biomass/small animals", "weather/temperature °C", "weather/rain mm")
+    private val KEY_NUMBERS = listOf("herbs", "shrubs", "trees", "small animals").map { HexHistory.Key.biomass(it) }.toSet() + HexHistory.Key.TEMPERATURE + HexHistory.Key.RAIN
+    private fun isKey(k: String) = HexHistory.Key.animalKind(k) != null || k in KEY_NUMBERS
 
     /** The change a variant made against its base in the last whole year, %. */
     private fun effect(base: Run, variant: Run, key: String): Double {
@@ -280,7 +281,7 @@ object TestWorlds {
         require(full.isNotEmpty()) { "compare needs at least one full-map run (--full)" }
         require(fullVariant.isEmpty() || fullVariant.size == full.size) { "--full-variant needs one run for each --full run, in the same order" }
         if (full.size < 2) println("(only one full-map run: its 'range' is a single value, so nearly everything reads as out of it; give two or more seeds)")
-        val keys = full.first().keys.filter { k -> full.all { it.density(k) > 0 || k.startsWith("weather/") } }
+        val keys = full.first().keys.filter { k -> full.all { it.density(k) > 0 || HexHistory.Key.isWeather(k) } }
         println("full map: ${full.joinToString(", ") { "${it.name} (${it.years.size} years, land %.0f km²)".format(it.landKm2) }}")
         for ((name, base, variant) in tests) {
             println()
@@ -292,7 +293,7 @@ object TestWorlds {
             for (k in keys) {
                 val label = k.substringAfter('/').take(24)
                 val d = base.density(k)
-                if (k.startsWith("animals/") && !(d > 0)) { missing += label; continue }
+                if (HexHistory.Key.animalKind(k) != null && !(d > 0)) { missing += label; continue }
                 fun cell(ref: List<Double>, v: Double, counts: (Boolean) -> Unit, way: ((Boolean) -> Unit)?): String {
                     val r = ref.filter { !it.isNaN() }
                     if (r.isEmpty() || v.isNaN()) return "%-28s".format("-")

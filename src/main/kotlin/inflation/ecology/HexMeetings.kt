@@ -369,7 +369,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     stats.hunting.merge(Tally.diet(s, "plants"), plants.toInt(), Int::plus)
     // For bands, the same by the kind of country they are in, and how they fared.
     if (band != null) {
-        val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
+        val c = Biome.entries[biomeOfPlace[g.place]].label
         stats.hunting.merge(Tally.bandsIn(c, "asked"), wantAll.toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, "meat"), (meat + smallGot + scraps).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, "plants"), plants.toInt(), Int::plus); stats.hunting.merge(Tally.bandsIn(c, "fish"), fish.toInt(), Int::plus)

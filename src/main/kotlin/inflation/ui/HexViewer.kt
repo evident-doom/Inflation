@@ -1078,7 +1078,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val parts = ArrayList<String>()
         if (hw.sea[h] > 0.3f) parts += "%s sea".format(share(hw.sea[h]))
         if (hw.lake[h] > 0.1f) parts += "%s lake".format(share(hw.lake[h]))
-        for ((b, s) in names.take(3)) parts += "%s %s".format(share(s), b.name.lowercase().replace('_', ' '))
+        for ((b, s) in names.take(3)) parts += "%s %s".format(share(s), b.label)
         // Plants over the land, area-weighted over the height bands.
         var a = 0.0; var herb = 0.0; var shrub = 0.0; var tree = 0.0; var green = 0.0; var fruit = 0.0; var straw = 0.0; var snow = 0.0; var burnt = 0.0
         for (b in 0 until HexWorld.BANDS_M.size) {
