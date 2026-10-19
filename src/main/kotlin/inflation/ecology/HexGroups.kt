@@ -248,7 +248,7 @@ class HexGroups(
      */
     private fun chooseAndMove(weather: Weather, date: Date) {
         watchLog.clear()
-        moon = date.meanMoonlight(days).toFloat()
+        fauna.moon = date.meanMoonlight(days).toFloat()
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
         // through their clothes and, at home, their houses).
         // (Raw meals give less: a band without fire needs more food for the same strength.)
@@ -330,13 +330,13 @@ class HexGroups(
          * hex, the going there, the game and crowding it knows of there, and its score without its deaths (and with
          * its noise and temper).
          */
-        val laterPlace = IntList(); var laterD = FloatArray(64); var laterPrey = FloatArray(64); var laterCrowd = FloatArray(64)
+        val laterPlace = IntList(); var laterD = FloatArray(64); var laterPrey = FloatArray(64); var laterFed = FloatArray(64)
         var laterScore = FloatArray(64); var laterBeside = FloatArray(64); var laterUpper = FloatArray(64)
-        fun later(p: Int, d: Float, prey: Float, crowded: Float, score: Float, beside: Float) {
+        fun later(p: Int, d: Float, prey: Float, fed: Float, score: Float, beside: Float) {
             val k = laterPlace.size
-            if (k == laterD.size) { val m = 2 * k; laterD = laterD.copyOf(m); laterPrey = laterPrey.copyOf(m); laterCrowd = laterCrowd.copyOf(m)
+            if (k == laterD.size) { val m = 2 * k; laterD = laterD.copyOf(m); laterPrey = laterPrey.copyOf(m); laterFed = laterFed.copyOf(m)
                 laterScore = laterScore.copyOf(m); laterBeside = laterBeside.copyOf(m); laterUpper = laterUpper.copyOf(m) }
-            laterPlace += p; laterD[k] = d; laterPrey[k] = prey; laterCrowd[k] = crowded; laterScore[k] = score; laterBeside[k] = beside; laterUpper[k] = score + beside
+            laterPlace += p; laterD[k] = d; laterPrey[k] = prey; laterFed[k] = fed; laterScore[k] = score; laterBeside[k] = beside; laterUpper[k] = score + beside
         }
     }
 
@@ -935,21 +935,23 @@ class HexGroups(
             // Better country further off: the way the kind's sense of the land points.
             val pull = bearings.along(kind, here.i, h.i, pullKm)
             // (Its own kind about there, as it knows it.)
-            val crowded = crowdAround(g, kind, h, sensed)
+            val kin = kinAround(g, kind, h, sensed)
+            val crowded = crowdedBy(s, kin)
             for (pi in hw.placesOf(h.i)) {
                 val p = Place(pi)
                 val prey = knownGame(g, kind, p, h)
+                val fed = foreseenFed(g, prey, kin, crowded)
                 val hunters = huntersKm2(p, h)
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
                 var score = scorePlace(c, t, p, h, d, toGoal, offGround, pull, prey, crowded, hunters)
                 // (Above all, it keeps alive: see below.)
                 val beside = 0.02f * (hashNoise(g.id, p.i) - 0.5f) + temperPull(g, p, h, hunters, crowded)
                 // (Where only the best place is wanted, its deaths are worked out after, best first, see below.)
-                if (!wantAll) { buf.later(p.i, d, prey, crowded, score, beside); continue }
+                if (!wantAll) { buf.later(p.i, d, prey, fed, score, beside); continue }
                 if (drowning < 0f) drowning = crossingDeaths(s, h.i, here.i, via)
                 val alive = score
-                score -= survivalSteps(g, deathsAt(c, p, h, prey, crowded) + drowning)
-                if (!score.isFinite()) tellNotANumber(c, t, p, h, d, prey, crowded, drowning, alive)
+                score -= survivalSteps(g, deathsAt(c, p, h, fed) + drowning)
+                if (!score.isFinite()) tellNotANumber(c, t, p, h, d, prey, crowded, fed, drowning, alive)
                 seen?.add(p.i to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
@@ -977,9 +979,9 @@ class HexGroups(
             for (k in order) {
                 if (up[k] < bestScore) break
                 val p = Place(buf.laterPlace[k]); val h = hw.hexOf(p)
-                val total = buf.laterScore[k] - survivalSteps(g, deathsAt(c, p, h, buf.laterPrey[k], buf.laterCrowd[k]) +
+                val total = buf.laterScore[k] - survivalSteps(g, deathsAt(c, p, h, buf.laterFed[k]) +
                     crossingDeaths(s, h.i, here.i, via)) + buf.laterBeside[k]
-                if (!total.isFinite()) tellNotANumber(c, null, p, h, buf.laterD[k], buf.laterPrey[k], buf.laterCrowd[k], crossingDeaths(s, h.i, here.i, via), buf.laterScore[k])
+                if (!total.isFinite()) tellNotANumber(c, null, p, h, buf.laterD[k], buf.laterPrey[k], Float.NaN, buf.laterFed[k], crossingDeaths(s, h.i, here.i, via), buf.laterScore[k])
                 if (total > bestScore || (total == bestScore && k < bestK)) { bestScore = total; best = p; bestK = k }
             }
         }
@@ -1008,10 +1010,10 @@ class HexGroups(
             // (The score is the hand-written one before its small noise and the group's temper, as [scorePlace] gives it.)
             fun parts(p: Place): String {
                 val h = hw.hexOf(p); val hunters = huntersKm2(p, h)
-                val dying = deathsAt(c, p, h, 0f, 0f)
+                val dying = deathsAt(c, p, h, 0f)
                 return "score %.2f: deaths %.4f (%.1f steps) food %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
                     seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, dying, survivalSteps(g, dying), placeValue[kind][p],
-                    crowdAround(g, kind, h, sensed), hunters,
+                    crowdedBy(s, kinAround(g, kind, h, sensed)), hunters,
                     if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p], dist[h], hexKm(h.i, goalHex))
             }
             val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
@@ -1031,11 +1033,10 @@ class HexGroups(
      * the parts it is made of: such a place is never chosen, by the hand-written rules or a network, so nothing else shows
      * it. [alive] is the score before its deaths; [t] the place's terms (null where they were not kept).
      */
-    private fun tellNotANumber(c: PlanContext, t: PlaceTerms?, p: Place, h: Hex, d: Float, prey: Float, crowded: Float, drowning: Float, alive: Float) {
+    private fun tellNotANumber(c: PlanContext, t: PlaceTerms?, p: Place, h: Hex, d: Float, prey: Float, crowded: Float, fed: Float, drowning: Float, alive: Float) {
         if (notANumber.incrementAndGet() > 20) return
         val g = c.g; val s = g.species; val b = g.band
-        val deaths = deathsAt(c, p, h, prey, crowded)
-        val fed = foreseenFed(prey, crowded)
+        val deaths = deathsAt(c, p, h, fed)
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         val causes = StringBuilder()
         placeHazards(g, p.i, c.weather, fed, g.protein, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false) { cause, a, y ->
@@ -1110,15 +1111,13 @@ class HexGroups(
 
     /**
      * The share of [c]'s group that would die this week at place [p] (in hex [h]), by the rules that
-     * kill it there ([placeHazards], as [liveWeek] has them): hunger at how fed it foresees it would be ([foreseenFed]: the
-     * game it knows of there, [prey], against its own kind's [crowded]ing), thirst, the cold, fire, flood and deep snow,
+     * kill it there ([placeHazards], as [liveWeek] has them): hunger at how [fed] it foresees it would be ([foreseenFed]), thirst, the cold, fire, flood and deep snow,
      * plague, crocodiles, eagles, and for a band snakes and the beasts that take people (those of the groups about only
      * where it senses them). The young's odds count for the young. (What it shares wherever it goes, age, the background and its own band's ills, is
      * left out: it cannot tell places apart.)
      */
-    private fun deathsAt(c: PlanContext, p: Place, h: Hex, prey: Float, crowded: Float): Float {
+    private fun deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float): Float {
         val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
-        val fed = foreseenFed(prey, crowded)
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         val odds = c.odds.also { it.adult = 0f; it.young = 0f }
         placeHazards(g, p.i, weather, fed, g.protein, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false, odds)
@@ -1147,8 +1146,18 @@ class HexGroups(
         return (g.adults * adult.coerceIn(0f, 0.9f) + g.young * young.coerceIn(0f, 0.95f)) / max(1, g.size)
     }
 
-    /** How fed a hunter foresees it would be where it knows of [prey] (see [knownGame]) and its own kind is [crowded]. */
-    private fun foreseenFed(prey: Float, crowded: Float) = (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f)
+    /**
+     * How fed group [g] foresees it would be where it knows of [prey] (see [knownGame]) among [kinKm2] of its kind per km²
+     * (itself counted; [crowded] by the one measure). A beast of prey by the residents' hunters' feeding rule: its kind
+     * takes at most [HexFauna.RESIDENT_KILL_MOST] of the game in a week, shared by heads against their need. A band (whose
+     * food is mostly gathered) still by how much there is against [PREY_HALF], less for crowding.
+     */
+    private fun foreseenFed(g: HexGroup, prey: Float, kinKm2: Float, crowded: Float): Float {
+        val s = g.species
+        if (s.human) return (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f)
+        val needKg = s.dailyIntakeKg * g.warmth * days * (g.adults + 0.5f * g.young) / max(1, g.size)
+        return min(1f, HexFauna.RESIDENT_KILL_MOST * prey / max(1e-6f, kinKm2 * needKg))
+    }
 
     /** The odds of the hazards at a place, summed ([deathsAt]). */
     private class Odds : HazardSink {
@@ -1238,11 +1247,11 @@ class HexGroups(
     }
 
     /**
-     * How crowded group [g] (of kind slot [kind]) foresees it would be in hex [h], 0..1: its own kind there as it knows
-     * it ([knownHeads], itself left out), over the ground it would range from there (the hex, and the six round it where
-     * its kind's home range reaches beyond one: [rangesWide]), by the one measure ([Hazards.crowding]) as x / (1 + x).
+     * The heads of its own kind per km² group [g] (of kind slot [kind]) foresees about it in hex [h]: its kind there as
+     * it knows it ([knownHeads]) and itself, over the ground it would range from there (the hex, and the six round it
+     * where its kind's home range reaches beyond one: [rangesWide]), as [liveWeek] counts its kin where it is.
      */
-    internal fun crowdAround(g: HexGroup, kind: Int, h: Hex, sensed: IntArray): Float {
+    internal fun kinAround(g: HexGroup, kind: Int, h: Hex, sensed: IntArray): Float {
         val s = g.species; val own = hw.placeHex[g.place]
         var heads = 0f; var area = 0f
         for (d in -1 until (if (rangesWide(s)) 6 else 0)) {
@@ -1251,8 +1260,12 @@ class HexGroups(
             for (pp in hw.placesOf(q)) { heads += knownHeads(kind, Place(pp), Hex(q), sensed); area += land.areaKm2[pp] }
             if (q == own) heads -= g.size
         }
-        if (area <= 0f) return 0f
-        val x = Hazards.crowding(max(0f, heads) / area, HexFauna.usualDensity(s))
+        return if (area > 0f) (max(0f, heads) + g.size) / area else 0f
+    }
+
+    /** How crowded kind [s] is among [kinKm2] of its own kind per km², 0..1: the one measure ([Hazards.crowding]) as x / (1 + x). */
+    internal fun crowdedBy(s: Species, kinKm2: Float): Float {
+        val x = Hazards.crowding(kinKm2, HexFauna.usualDensity(s))
         return x / (1f + x)
     }
 
@@ -1270,14 +1283,11 @@ class HexGroups(
         return game + smallWorth * small.smallPreyKg(p) + (if (s.diet.carrion > 0f) KgM2(small.carrion[p]).perKm2.v else 0f)
     }
 
-    internal fun preyHere(s: Species, p: Int): Float {
-        var v = 0f
-        for ((k, ps) in fauna.kinds.withIndex()) v += (fauna.adults[k][p] + 0.5f * fauna.young[k][p]) * ps.massKg * catchable(s, ps, p)
-        return v
-    }
+    /** The resident game hunter [s] sees at place [p], kg per km² ([HexFauna.game], as resident hunters count it). */
+    internal fun preyHere(s: Species, p: Int): Float = fauna.game(s, p)
 
     /** Mean moonlight over this week's nights, 0 (new moon) to 1 (full). */
-    internal var moon = 0.5f
+    internal val moon get() = fauna.moon
 
     /** Time spent settling meetings, ns, over the run (for measuring the cost). */
     @Transient var meetNs = 0L

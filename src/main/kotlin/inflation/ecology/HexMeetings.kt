@@ -49,32 +49,8 @@ internal fun tieBreak(id: Int, other: Int, day: Long): Long {
     return z xor (z ushr 31)
 }
 
-/**
- * How catchable prey [ps] is for hunter [s] in place [p], 0..1: its size against what the hunter takes
- * ([Species.preySize], as resident hunters reckon it too), defence, refuge in broken ground, small prey hiding in
- * thick cover, and for stalkers, dark nights.
- */
-internal fun HexGroups.catchable(s: Species, ps: Species, p: Int): Float =
-    (s.preySize(ps.massKg) * (1f - ps.defence) * reachRaw(s, ps, p)).coerceIn(0f, 1f)
-
-/** How often hunter [s] gets to grips with prey [ps] in place [p], 0..1: the part of [catchable] that is closing in, not overpowering it. */
-internal fun HexGroups.reach(s: Species, ps: Species, p: Int) = reachRaw(s, ps, p).coerceIn(1e-3f, 1f)
-
-private fun HexGroups.reachRaw(s: Species, ps: Species, p: Int): Float {
-    // Shelter: crags, dens, thickets and trees, as the prey uses them; small prey hide in any cover.
-    // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
-    // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
-    val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * Niches.shelter(ps, p, land)
-    // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
-    val hide = 1f - HIDING * land.plants.cover(p) * (1f - s.stalking) * max(0f, 1f - ps.massKg / HIDING_KG)
-    // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
-    val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
-    // A courser must run its quarry down; a stalker gets close unseen and needs no speed.
-    val speed = s.stalking + (1f - s.stalking) * min(1f, s.speedKmh / ps.speedKmh)
-    // And it needs room to run: in thick woods and scrub a chase ends at the first tangle.
-    val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(p)
-    return refuge * hide * dark * speed * room
-}
+/** How catchable prey [ps] is for hunter [s] in place [p], 0..1, this week ([HexFauna.catchable], as resident hunters reckon it too). */
+internal fun HexGroups.catchable(s: Species, ps: Species, p: Int): Float = fauna.catchable(s, ps, ps.massKg, p)
 
 /**
  * Hunters (and bands) feed along their way: the resident game of every place they passed, small game,

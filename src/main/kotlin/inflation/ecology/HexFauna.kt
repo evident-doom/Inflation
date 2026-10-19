@@ -288,9 +288,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * Resident hunter [k] at place [p] kills game among the residents there, for up to [meat] of meat: prey from a quarter
-     * of its weight to [Species.preyUpTo] times it (the young of bigger kinds too), each kind as it is common there, by its
-     * weight and as readily as the hunter takes game of its size ([Species.preySize]), at most [RESIDENT_KILL_MOST] of that game in a week; what it cannot
+     * Resident hunter [k] at place [p] kills game among the residents there, for up to [meat] of meat: each other kind,
+     * grown and young, as it is common there, by its weight and how catchable it is ([catchable], as [game] counts it),
+     * at most [RESIDENT_KILL_MOST] of that game in a week; what it cannot
      * eat of a kill is left as carrion. Returns what it ate.
      */
     private fun huntResidents(k: Int, p: Int, meat: KgM2, killedSoFar: FloatArray): KgM2 {
@@ -300,11 +300,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         var total = 0f
         // (Weights in kg per km2, as the numbers are kept.)
         val wA = FloatArray(kinds.size); val wY = FloatArray(kinds.size)
+        // (Each kind by how catchable it is there, grown and young, as [game] counts it.)
         for ((j, s) in kinds.withIndex()) {
-            if (j == k || s.carnivore) continue
+            if (j == k || adults[j][p] + young[j][p] <= 0f) continue
             val ym = YOUNG_WEIGHT * s.massKg
-            wA[j] = adults[j][p] * s.massKg * hunter.preySize(s.massKg)
-            wY[j] = young[j][p] * ym * hunter.preySize(ym)
+            wA[j] = adults[j][p] * s.massKg * catchable(hunter, s, s.massKg, p)
+            wY[j] = young[j][p] * ym * catchable(hunter, s, ym, p)
             total += wA[j] + wY[j]
         }
         if (total <= 0f) return KgM2.ZERO
@@ -551,23 +552,54 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val d = s.diet
         val plants = d.grass + d.browse + d.fruit + d.roots; val animal = d.meat + d.smallPrey + d.carrion
         if (plants + animal <= 0f) return 0f
-        val kg = (d.meat * (preyNow?.get(slot(s))?.get(p) ?: preyFor(s, p)) + d.smallPrey * small.smallPreyKg(p) + d.carrion * KgM2(small.carrion[p]).perKm2.v) / animal.coerceAtLeast(1e-6f)
+        val kg = (d.meat * (preyNow?.get(slot(s))?.get(p) ?: game(s, p)) + d.smallPrey * small.smallPreyKg(p) + d.carrion * KgM2(small.carrion[p]).perKm2.v) / animal.coerceAtLeast(1e-6f)
         return (animal * kg * Thresholds.FOOD_HALF / PREY_HALF + plants * foodFor(s, p)) / (plants + animal)
     }
 
-    /** Game a resident hunter [s] takes at place [p], kg per km²: the residents of its prey's size ([huntResidents]). */
-    private fun preyFor(s: Species, p: Int): Float {
+    /** Mean moonlight over this week's nights, 0 (new moon) to 1 (full): stalkers hunt by the dark. */
+    var moon = 0.5f
+
+    /**
+     * The resident game hunter [s] sees at place [p], kg per km²: every other kind there, grown and young (at
+     * [YOUNG_WEIGHT]), by its weight and how catchable it is ([catchable]). Resident hunters and the groups count it alike.
+     */
+    fun game(s: Species, p: Int): Float {
         var v = 0f
         for ((j, ps) in kinds.withIndex()) {
-            if (ps.carnivore) continue
-            v += adults[j][p] * ps.massKg * s.preySize(ps.massKg)
-            v += young[j][p] * YOUNG_WEIGHT * ps.massKg * s.preySize(YOUNG_WEIGHT * ps.massKg)
+            if (ps === s) continue
+            val a = adults[j][p]; val y = young[j][p]
+            if (a + y <= 0f) continue
+            val ym = YOUNG_WEIGHT * ps.massKg
+            v += a * ps.massKg * catchable(s, ps, ps.massKg, p) + y * ym * catchable(s, ps, ym, p)
         }
         return v
     }
 
+    /**
+     * How catchable an animal of kind [ps] weighing [massKg] (grown, or young) is for hunter [s] at place [p] this week,
+     * 0..1: its size against what the hunter takes ([Species.preySize]), defence, refuge in broken ground, small prey
+     * hiding in thick cover, and for stalkers, dark nights.
+     */
+    fun catchable(s: Species, ps: Species, massKg: Float, p: Int): Float =
+        (s.preySize(massKg) * (1f - ps.defence) * closingIn(s, ps, massKg, p)).coerceIn(0f, 1f)
 
-    /** The game each resident hunter takes at each place ([preyFor]) while the residents move; null otherwise. */
+    private fun closingIn(s: Species, ps: Species, massKg: Float, p: Int): Float {
+        // Shelter: crags, dens, thickets and trees, as the prey uses them; small prey hide in any cover.
+        // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
+        // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
+        val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * Niches.shelter(ps, p, land)
+        // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
+        val hide = 1f - HIDING * land.plants.cover(p) * (1f - s.stalking) * max(0f, 1f - massKg / HIDING_KG)
+        // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
+        val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
+        // A courser must run its quarry down; a stalker gets close unseen and needs no speed.
+        val speed = s.stalking + (1f - s.stalking) * min(1f, s.speedKmh / ps.speedKmh)
+        // And it needs room to run: in thick woods and scrub a chase ends at the first tangle.
+        val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(p)
+        return refuge * hide * dark * speed * room
+    }
+
+    /** The game each resident hunter takes at each place ([game]) while the residents move; null otherwise. */
     @Transient private var preyNow: Array<FloatArray?>? = null
 
     /** How much fear of hunters puts kind [s] off place [p], 0..1: none for the hunters themselves. */
@@ -630,7 +662,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             Profile.part("residents: weighing places") { fillArrive(it, moving) }
             if (moving) {
                 // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
-                preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n).also { v -> IntStream.range(0, n).parallel().forEach { p -> v[p] = preyFor(kinds[k], p) } } else null }
+                preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n).also { v -> IntStream.range(0, n).parallel().forEach { p -> v[p] = game(kinds[k], p) } } else null }
                 Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
                 Profile.part("residents: spreading to neighbouring hexes") { spill(it) }
                 preyNow = null
@@ -652,6 +684,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             Profile.time("sense of direction") { bearings.update(date.month) }
             if (date.month == 3) shiftBreeding()
         }
+        moon = date.meanMoonlight(days).toFloat()
         stepWater(weather)
     }
 
