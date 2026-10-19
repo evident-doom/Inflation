@@ -688,7 +688,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         sleepOrWake(weather)
         // (The week's kill rates are made afresh here: the odds worked out from last week's are forgotten.)
         killOdds = AtomicReferenceArray(Catalogue.all.size)
+        // (Where the food came from, tallied on each core apart and added into [fedFrom] after.)
+        val tallies = java.util.concurrent.ConcurrentLinkedQueue<DoubleArray>()
+        val tally = ThreadLocal.withInitial { DoubleArray(kinds.size * FED).also { tallies.add(it) } }
         IntStream.range(0, n).parallel().forEach { p ->
+            val ff = tally.get()
             // How much each kind eats of poor forage depends on its gut (see [gutFill]).
             val quality = land.plants.nourishment(p)
             val need = FloatArray(kinds.size); val each = FloatArray(kinds.size)
@@ -909,9 +913,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     }
                     val heads = adults[k][p] + 0.5f * young[k][p]
                     if (heads > 0f) {
-                        val ff = fedFrom[k]
-                        ff[Fed.PLANTS].add((min(1f, got[k]) * ps * heads).toDouble()); ff[Fed.STRAW].add((strawPart * ps * heads).toDouble())
-                        ff[Fed.ANIMAL].add((min(1f, animal) * (1f - ps) * heads).toDouble()); ff[Fed.HEADS].add(heads.toDouble())
+                        val i = k * FED
+                        ff[i + Fed.PLANTS.ordinal] += (min(1f, got[k]) * ps * heads).toDouble(); ff[i + Fed.STRAW.ordinal] += (strawPart * ps * heads).toDouble()
+                        ff[i + Fed.ANIMAL.ordinal] += (min(1f, animal) * (1f - ps) * heads).toDouble(); ff[i + Fed.HEADS.ordinal] += heads.toDouble()
                     }
                     // (Animal food beyond its share makes up for plants that fell short.)
                     ((got[k] + strawPart) * ps + animal * (1f - ps)).coerceIn(0f, 1f)
@@ -920,7 +924,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val r = reserve[k]
                 if (!sleeping) {
                     if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days)
-                        val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) fedFrom[k][Fed.RESERVES].add((draw / days * heads).toDouble()) }
+                        val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) ff[k * FED + Fed.RESERVES.ordinal] += (draw / days * heads).toDouble() }
                     else r[p] = min(s.maxFatDays, r[p] + FAT_EFFICIENCY * surplus[k] * days)
                 }
                 fed[k][p] = f
@@ -949,6 +953,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // Rooting churns the ground: kg of roots dug per km2 a day.
             land.plants.rooting[p] = dug * 1e6f / days
         }
+        for (t in tallies) for (k in kinds.indices) for (f in 0 until FED) fedFrom[k][f].add(t[k * FED + f])
     }
 
     private fun breedAndDie(weather: Weather, date: Date) {
@@ -1643,6 +1648,7 @@ enum class Stuck { HEADS, STUCK, AT_EDGE, PEAK }
 
 /** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, straw, prey and carrion, reserves; and the animals counted. */
 enum class Fed { PLANTS, STRAW, ANIMAL, RESERVES, HEADS }
+private val FED = Fed.entries.size
 @Suppress("NOTHING_TO_INLINE") inline operator fun Array<DoubleAdder>.get(f: Fed) = this[f.ordinal]
 
 /** Shares of a kind's animals that die this week of fire, flood, and deep snow or ash (see [HexFauna.calamities]). */
