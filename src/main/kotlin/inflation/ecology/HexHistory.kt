@@ -209,16 +209,8 @@ class HexHistory {
         }
     }
 
-    private var biomes: IntArray? = null
     /** The kind of country most of place [p] is. */
-    private fun biomeOf(sim: HexSim, p: Int): Int {
-        val b = biomes ?: IntArray(sim.land.n) { q ->
-            val counts = IntArray(Biome.entries.size)
-            for (c in sim.hw.placeCells[q]) counts[sim.world.biome[c].ordinal]++
-            counts.indices.maxBy { counts[it] }
-        }.also { biomes = it }
-        return b[p]
-    }
+    private fun biomeOf(sim: HexSim, p: Int): Int = sim.hw.placeBiome[p]
 
     /** How the weeks are grouped: by week, month or year. */
     enum class Period(val label: String) { WEEK("week"), MONTH("month"), YEAR("year") }

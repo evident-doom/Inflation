@@ -20,11 +20,7 @@ fun main(args: Array<String>) {
     repeat(4) { sim.step() }
     val hw = sim.hw; val hex = sim.hex; val land = sim.land; val fauna = sim.fauna; val sl = fauna.small
     val n = fauna.n; val nh = hex.size
-    val biomeOf = IntArray(n) { pl ->
-        val c = IntArray(Biome.entries.size)
-        for (cell in hw.placeCells[pl]) c[sim.world.biome[cell].ordinal]++
-        c.indices.maxBy { c[it] }
-    }
+    val biomeOf = hw.placeBiome
     // Every non-human kind, residents first and then the group kinds, by name; kg per hex, and heads x fed per hex for the hunters.
     val names = (fauna.kinds.map { it.name } + sim.groups.kinds.filter { !it.human }.map { it.name }).distinct()
     val idx = names.withIndex().associate { it.value to it.index }

@@ -956,13 +956,7 @@ class HexGroups(
     /** A herd's size as small (0: under its kind's unit), middling (1: up to three units) or large (2), for comparing them. */
     internal fun sizeClass(g: HexGroup) = (g.size.toFloat() / unitSize(g.species)).let { if (it < 1f) 0 else if (it < 3f) 1 else 2 }
     /** The main kind of country of each place. */
-    internal val biomeOfPlace: IntArray by lazy {
-        IntArray(land.n) { pl ->
-            val c = IntArray(Biome.entries.size)
-            for (cell in hw.placeCells[pl]) c[hw.world.biome[cell].ordinal]++
-            c.indices.maxBy { c[it] }
-        }
-    }
+    internal val biomeOfPlace: IntArray get() = hw.placeBiome
     /** How many of its kind's usual bands a herd is (1 or more). */
     internal fun bandsIn(g: HexGroup) = max(1f, g.size.toFloat() / g.species.groupSize)
     /** A kind's usual group as an agent: herds move as units of [HERD_UNIT] of their usual bands. */
