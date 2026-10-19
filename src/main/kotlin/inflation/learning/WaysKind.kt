@@ -4,8 +4,9 @@ import inflation.ecology.HexGroups
 import java.io.File
 
 /**
- * The ways a learned network can set for the week, one entry each: bands' ways ([inflation.ecology.BandWays]), herds'
- * and packs' ([inflation.ecology.AnimalWays]). Each names its file in a networks directory, its config key, the
+ * The ways a learned network can set for the week, one entry each: bands' ways ([inflation.ecology.BandWays]) and
+ * packs' ([inflation.ecology.AnimalWays]); herds' stay in the list until retraining, though no herds live as groups
+ * now to take them. Each names its file in a networks directory, its config key, the
  * inputs and outputs its network is saved with, and where a run takes it; the programs that load, train, check or
  * keep ways go through this list instead of spelling them out.
  */
@@ -38,7 +39,7 @@ enum class WaysKind(
     fun set(groups: HexGroups, net: Mlp) {
         when (this) {
             BANDS -> groups.ways = NetWays(net)
-            HERDS -> groups.herdWays = NetAnimalWays(net)
+            HERDS -> {} // no herds to set them for
             HUNTERS -> groups.hunterWays = NetAnimalWays(net)
         }
     }

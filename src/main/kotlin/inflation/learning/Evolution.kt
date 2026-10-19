@@ -59,11 +59,11 @@ class EvolutionStrategy(val pairs: Int, val sigma: Float) {
  * the network round-robin, and each variant is scored by the person-weeks its bands live, per
  * person at the start. It starts from the scaffold (a network of zeros chooses exactly as it does).
  *
- * With --role herds or --role hunters it evolves the herds' or the packs' ways instead ([AnimalWay],
- * in herd-ways.mlp or hunter-ways.mlp), each variant scored by the head-weeks its groups live per head
- * at the start, averaged over the kinds of the role (so the many jackals do not outweigh the few lions).
+ * With --role hunters it evolves the packs' ways instead ([AnimalWay], in hunter-ways.mlp), each variant
+ * scored by the head-weeks its groups live per head at the start, averaged over the kinds of packs (so the
+ * many jackals do not outweigh the few lions).
  *
- * Usage: hex-evolve-ways [--role bands|herds|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--nets DIR]
+ * Usage: hex-evolve-ways [--role bands|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--nets DIR]
  *
  * Config keys: `evolveWays.sigma` (default 0.05), `evolveWays.rate` (0.02) and `evolveWays.hidden` (16).
  *
@@ -73,9 +73,9 @@ class EvolutionStrategy(val pairs: Int, val sigma: Float) {
 object HexEvolveWays {
     @JvmStatic
     fun main(args: Array<String>) {
-        val a = Args(args, "hex-evolve-ways [--role bands|herds|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--nets DIR]")
+        val a = Args(args, "hex-evolve-ways [--role bands|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--nets DIR]")
         val out = a.file("--out") ?: File("hex-ways")
-        val role = requireNotNull(WaysKind.named(a.string("--role") ?: WaysKind.BANDS.label)) { "--role is bands, herds or hunters" }
+        val role = requireNotNull(WaysKind.named(a.string("--role") ?: WaysKind.BANDS.label)?.takeIf { it != WaysKind.HERDS }) { "--role is bands or hunters" }
         val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(81L, 82L, 83L, 84L, 85L, 86L, 87L, 88L)
         val size = a.int("--size", 600)
         val years = a.int("--years", 5)
@@ -127,7 +127,7 @@ class WaysEvolution(private val role: WaysKind, private val movers: List<SharedM
         }
     }
 
-    /** One small world with all the animals for [years], each band (or herd, or pack, by the role) on one of [variants]; see [dealt]. */
+    /** One small world with all the animals for [years], each band (or pack, by the role) on one of [variants]; see [dealt]. */
     /** Each variant's [fitness] on one world, and a [note] on how the world went. */
     class Result(val fitness: DoubleArray, val note: String)
 
@@ -143,11 +143,9 @@ class WaysEvolution(private val role: WaysKind, private val movers: List<SharedM
             val (fitness, _) = dealt(run, Random(cfg.seed), variants.size, steps) { it.species == people }
             return Result(fitness, "seed ${cfg.seed}: people $start->${run.groups.count(people)}")
         }
-        val hunters = role == WaysKind.HUNTERS
         val nets = variants.map { NetAnimalWays(it) }
-        val ways = AnimalWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
-        if (hunters) run.groups.hunterWays = ways else run.groups.herdWays = ways
-        val (fitness, started) = dealt(run, Random(cfg.seed), variants.size, steps) { !it.species.human && it.species.carnivore == hunters }
+        run.groups.hunterWays = AnimalWays { g, inp, o -> nets[g.tag.coerceIn(0, nets.size - 1)].choose(g, inp, o) }
+        val (fitness, started) = dealt(run, Random(cfg.seed), variants.size, steps) { !it.species.human }
         return Result(fitness, "seed ${cfg.seed}: " + started.entries.joinToString(", ") { (s, st) -> "${s.name} ${st.sum().toInt()}->${run.groups.count(s)}" })
     }
 }

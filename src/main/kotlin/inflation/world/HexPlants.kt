@@ -170,13 +170,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * on the ground ([HOOF_KPA]); strides lengthen with size as legs do ([STRIDE_M] at 50 kg, as the cube root of mass).
      * (Grown shrubs and trees stand above the hooves and are walked round: only their seedlings are trodden, see [step].)
      */
-    fun tread(p: Int, heads: Float, massKg: Float, km: Float, herd: Boolean = false) {
+    fun tread(p: Int, heads: Float, massKg: Float, km: Float) {
         if (heads <= 0f || km <= 0f) return
         val feetM2 = massKg * 9.81f / (HOOF_KPA * 1000f)
         val strideM = STRIDE_M * Math.cbrt(massKg / 50.0).toFloat()
         val m2 = heads * km * 1000f / strideM * feetM2
         trodden[p] += m2
-        shrubBook?.let { it[if (herd) ShrubPart.entries.size else ShrubPart.entries.size + 1].add(m2.toDouble()) }
+        shrubBook?.let { it[ShrubPart.entries.size].add(m2.toDouble()) }
     }
 
     /** Browse at [p], kg/m². (Never below nothing: worlds saved before [eatBrowse] kept its floor may hold shoots a rounding below it.) */
@@ -187,7 +187,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * summed over the map.
      */
     @delegate:Transient val shrubBook: Array<java.util.concurrent.atomic.DoubleAdder>? by lazy {
-        if (inflation.Config.flag("shrubDiag", false)) Array(ShrubPart.entries.size + 2) { java.util.concurrent.atomic.DoubleAdder() } else null }
+        if (inflation.Config.flag("shrubDiag", false)) Array(ShrubPart.entries.size + 1) { java.util.concurrent.atomic.DoubleAdder() } else null }
     private fun shrubNote(part: ShrubPart, p: Int, before: Float) { shrubBook?.let { it[part.ordinal].add(((shrub[p] - before) * land.areaM2[p]).toDouble()) } }
 
     /** Eats up to [want] of the browse at [p], shrubs and trees alike; what was eaten comes off the plants too. */

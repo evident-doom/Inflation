@@ -4,11 +4,8 @@ import inflation.Args
 import inflation.ecology.Fed
 import inflation.ecology.get
 import inflation.ecology.HexFauna
-import inflation.ecology.HexFood
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
-import inflation.ecology.Lifeway
-import inflation.ecology.walkCost
 import inflation.learning.LearnedModel
 import inflation.run.TestWorlds
 import inflation.world.Date
@@ -21,13 +18,11 @@ import inflation.world.WorldConfig
  * - drinking water: the share of the land with lasting water (river, fresh lake, spring) within an easy
  *   walk, the mean walk to it, and the share that is humid country (where no springs are placed) with
  *   none; then week by week the share with water and the walk to it;
- * - forage: standing grass and browse, how green, what the residents and herds could take a week, what
- *   they took, and what was left, with the plant-eaters there, residents and herds apart, and the kinds;
+ * - forage: standing grass and browse, how green, what the residents could take a week, what they took,
+ *   and what was left, with the plant-eaters there and the kinds;
  * - wild boar: month by month their heads, how well fed, how far over their usual density, what fed them
  *   (plants, straw, animal food, reserves) and the roots and fruit where they stand; and how well fed by
- *   how crowded;
- * - herds going hungry (fed under a half) against those fed, by class: their share, size, what keeps
- *   them off the food, their walking, and the herds and residents crowding the same place.
+ *   how crowded.
  *
  * Usage: hex-anomaly-check (--world NAME | --seed N [--width KM] [--height KM]) [--weeks N]
  */
@@ -69,24 +64,17 @@ fun main(args: Array<String>) {
     val km2W = DoubleArray(nc); val waterW = DoubleArray(nc); val walkW = DoubleArray(nc)
     val herbW = DoubleArray(nc); val shrubW = DoubleArray(nc); val greenW = DoubleArray(nc); val palW = DoubleArray(nc)
     val canW = DoubleArray(nc); val tookW = DoubleArray(nc); val leftW = DoubleArray(nc)
-    val resKgW = DoubleArray(nc); val herdKgW = DoubleArray(nc)
+    val resKgW = DoubleArray(nc)
     val kindsKg = Array(nc) { HashMap<String, Double>() }
     // Wild boar, by month.
     val bHeads = DoubleArray(12); val bFed = DoubleArray(12); val bOver = DoubleArray(12); val bRoots = DoubleArray(12); val bFruit = DoubleArray(12)
     val bFrom = Array(4) { DoubleArray(12) }; val bWeeks = IntArray(12)
     val byCrowd = DoubleArray(6); val byCrowdFed = DoubleArray(6)
     val bStart = if (boar >= 0) fauna.count(boar) else 0.0
-    // Herds, hungry (0) and fed (1), by class.
-    val gN = Array(2) { DoubleArray(nc) }; val gHeads = Array(2) { DoubleArray(nc) }; val gSnow = Array(2) { DoubleArray(nc) }
-    val gAccess = Array(2) { DoubleArray(nc) }; val gTether = Array(2) { DoubleArray(nc) }; val gQual = Array(2) { DoubleArray(nc) }
-    val gWalk = Array(2) { DoubleArray(nc) }; val gCrowd = Array(2) { DoubleArray(nc) }; val gRes = Array(2) { DoubleArray(nc) }
-    val gLeft = Array(2) { DoubleArray(nc) }; val gKinds = Array(nc) { HashMap<String, Double>() }
 
     repeat(weeks) {
         sim.step()
         val w = sim.weather; val m = w.date.month
-        val herdKgAt = DoubleArray(n)
-        for (g in sim.groups.groups) if (g.alive && g.species.lifeway == Lifeway.HERD) herdKgAt[g.place.i] += g.size * g.species.massKg.toDouble()
         for (p in 0 until n) {
             val c = pc[p]; if (c < 0) continue
             val ar = land.areaKm2[p].toDouble()
@@ -104,10 +92,7 @@ fun main(args: Array<String>) {
                 val kg = (fauna.adults[k][p] + fauna.young[k][p]) * ar * s.massKg
                 res += kg; if (kg > 0) kindsKg[c].merge(s.name, kg, Double::plus)
             }
-            resKgW[c] += res; herdKgW[c] += herdKgAt[p]
-        }
-        for (g in sim.groups.groups) if (g.alive && g.species.lifeway == Lifeway.HERD) {
-            val c = pc[g.place.i]; if (c >= 0) kindsKg[c].merge("${g.species.name} (herds)", g.size * g.species.massKg.toDouble(), Double::plus)
+            resKgW[c] += res
         }
         if (boar >= 0) {
             val s = fauna.kinds[boar]; val usual = HexFauna.usualDensity(s)
@@ -123,29 +108,14 @@ fun main(args: Array<String>) {
             val ff = fauna.fedFrom[boar]; val heads = ff[Fed.HEADS].sumThenReset().coerceAtLeast(1e-9)
             for ((i, f) in listOf(Fed.PLANTS, Fed.STRAW, Fed.ANIMAL, Fed.RESERVES).withIndex()) bFrom[i][m] += ff[f].sumThenReset() / heads
         }
-        // Herds, after they ate.
-        val headsAt = DoubleArray(n)
-        for (g in sim.groups.groups) if (g.alive && g.species.lifeway == Lifeway.HERD) headsAt[g.place.i] += g.size.toDouble()
-        for (g in sim.groups.groups) {
-            if (!g.alive || g.species.lifeway != Lifeway.HERD) continue
-            val p = g.place.i; val c = pc[p]; if (c < 0) continue
-            val i = if (g.fed < 0.5f) 0 else 1; val s = g.species
-            gN[i][c]++; gHeads[i][c] += g.size
-            if (w.snowpack[p] > s.snowLimitMm) gSnow[i][c]++
-            gAccess[i][c] += HexFood.access(s, land.crag[p]); gTether[i][c] += fauna.tether(s, p); gQual[i][c] += land.plants.nourishment(p)
-            gWalk[i][c] += sim.groups.walkCost(g); gCrowd[i][c] += headsAt[p] / land.areaKm2[p]
-            var res = 0.0; for ((k, r) in fauna.kinds.withIndex()) if (!r.carnivore) res += (fauna.adults[k][p] + fauna.young[k][p]) * r.massKg
-            gRes[i][c] += res; gLeft[i][c] += fauna.grazeLeft[p] + fauna.browseLeft[p]
-            if (i == 0) gKinds[c].merge(s.name, 1.0, Double::plus)
-        }
     }
 
     println("\nweek by week: drinking water (share within reach), walk to it km; forage g/m²: standing grass and herbs, shrubs, green share, palatable;")
-    println("  what could be taken a week, what was taken, what was left; plant-eaters kg/km², residents + herds")
+    println("  what could be taken a week, what was taken, what was left; plant-eaters kg/km²")
     for (c in 0 until nc) if (km2W[c] > 0) { val a0 = km2W[c]
-        println("%-13s water %.2f walk %5.1f | herb %6.0f shrub %6.0f green %.2f palatable %.2f | could %5.1f took %7.3f left %5.1f | residents %6.0f herds %6.0f".format(names[c],
+        println("%-13s water %.2f walk %5.1f | herb %6.0f shrub %6.0f green %.2f palatable %.2f | could %5.1f took %7.3f left %5.1f | residents %6.0f".format(names[c],
             waterW[c] / a0, walkW[c] / a0, 1000 * herbW[c] / a0, 1000 * shrubW[c] / a0, greenW[c] / a0, palW[c] / a0,
-            1000 * canW[c] / a0, 1000 * tookW[c] / a0, 1000 * leftW[c] / a0, resKgW[c] / a0, herdKgW[c] / a0))
+            1000 * canW[c] / a0, 1000 * tookW[c] / a0, 1000 * leftW[c] / a0, resKgW[c] / a0))
         val all = kindsKg[c].values.sum()
         println("%13s by weight: ".format("") + kindsKg[c].entries.sortedByDescending { it.value }.take(7).joinToString(", ") { "%s %.0f%%".format(it.key, pct(it.value, all)) })
     }
@@ -158,16 +128,6 @@ fun main(args: Array<String>) {
                 1000 * bRoots[m] / h, 1000 * bFruit[m] / h, bFrom[0][m] / k, bFrom[1][m] / k, bFrom[2][m] / k, bFrom[3][m] / k)) }
         val lab = listOf("<0.5", "0.5-1", "1-2", "2-4", "4-8", ">8")
         println("fed by density against usual: " + lab.indices.joinToString(", ") { b -> "%s x: %.0f%% of heads fed %.2f".format(lab[b], pct(byCrowd[b], byCrowd.sum()), byCrowdFed[b] / byCrowd[b].coerceAtLeast(1e-9)) })
-    }
-
-    println("\nherds hungry (fed < 0.5) against fed, by class: groups a week, mean size; snowed share, access (crags), tether (water), quality,")
-    println("  walking cost; herd heads per km² in the same place; resident plant-eaters kg/km² there; forage left g/m²")
-    for (c in 0 until nc) for (i in 0..1) if (gN[i][c] > 0) { val k = gN[i][c]
-        println("%-13s %-6s %6.1f x %5.0f  snowed %.2f access %.2f tether %.2f quality %.2f walk %.2f  herds %6.1f/km2  residents %6.0f  left %5.1f".format(
-            if (i == 0 || gN[0][c] <= 0) names[c] else "", if (i == 0) "hungry" else "fed", k / weeks, gHeads[i][c] / k, gSnow[i][c] / k, gAccess[i][c] / k, gTether[i][c] / k,
-            gQual[i][c] / k, gWalk[i][c] / k, gCrowd[i][c] / k, gRes[i][c] / k, 1000 * gLeft[i][c] / k))
-        if (i == 1 && gKinds[c].isNotEmpty()) { val all = gKinds[c].values.sum()
-            println("%13s hungry kinds: ".format("") + gKinds[c].entries.sortedByDescending { it.value }.take(6).joinToString(", ") { "%s %.0f%%".format(it.key, pct(it.value, all)) }) }
     }
 }
 

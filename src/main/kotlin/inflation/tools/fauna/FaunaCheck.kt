@@ -18,7 +18,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
     private val movement = MovementTally(sim)
     private val people = PeopleTally(sim, stepsPerYear)
     private val swings = LocalSwings(sim, stepsPerYear)
-    private val diagnostics = Diagnostics(sim, options.cfg.daysPerStep)
+    private val diagnostics = Diagnostics(sim)
     private val history = HexHistory()
     /** Time spent in the steps themselves, ns. */
     private var stepNs = 0L
@@ -84,9 +84,6 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         hunting.printHunting()
         hunting.printHuntersFood()
         hunting.printPeoplesHides()
-        hunting.printTriesOnHerds()
-        hunting.printGathering()
-        hunting.printHerdSafety()
         movement.printSeasons()
         census.printChoices()
         census.printHuntersFamilies()
@@ -115,8 +112,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         swings.print()
         census.printFoodUnevenness()
         census.printSkillsAndCereals(hunting.grainReapedLastYear)
-        deaths.printHerdDeathsBySize(stepsPerYear)
-        census.printKindByKind(hunting.lastYear, movement.movedKm, stepsPerYear)
+        census.printKindByKind(movement.movedKm)
         census.printBandsByCountry(hunting.lastYear, stepsPerYear)
         census.printIslands()
         deaths.printRunDeaths()

@@ -10,7 +10,7 @@ import kotlin.math.min
  * Paths: how worn the way is from each hex to each of its six neighbours (index h * 6 + side),
  * 0..1. Every group that goes that way through the country (not just shifting to the next hex)
  * wears it, the heavier and more numerous the more; plants grow back over it, the faster the
- * greener the ground. Worn paths make the going easier, the more so in broken country, so herds
+ * greener the ground. Worn paths make the going easier, the more so in broken country, so packs
  * and people keep to them: they gather at the easy crossings, passes and fords, and there hunters
  * wait.
  */

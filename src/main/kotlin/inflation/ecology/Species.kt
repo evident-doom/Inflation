@@ -181,8 +181,8 @@ class Species(
     internal val shelterArray: Array<Niches.Shelter> = shelters.toTypedArray()
     /** Mostly eats animals. */
     val carnivore: Boolean get() = diet.meat + diet.smallPrey + diet.carrion > 0.5f
-    /** What kind of group it lives in: a band of people, a pack of hunters or a herd of plant-eaters. */
-    val lifeway: Lifeway get() = if (human) Lifeway.BAND else if (carnivore) Lifeway.PACK else Lifeway.HERD
+    /** What kind of group it lives in, for the kinds that live in groups: a band of people or a pack of hunters. */
+    val lifeway: Lifeway get() = if (human) Lifeway.BAND else Lifeway.PACK
     /** Hunts in packs: a meat-eater that is not people. */
     val pack: Boolean get() = carnivore && !human
     /**
@@ -261,4 +261,4 @@ object Allometry {
 }
 
 /** The kinds of group a species lives in (see [Species.lifeway]); not the learning [inflation.learning.Role]. */
-enum class Lifeway { HERD, PACK, BAND }
+enum class Lifeway { PACK, BAND }

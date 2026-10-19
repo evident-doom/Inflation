@@ -12,7 +12,7 @@ class HexAnimalWaysTest {
 
     private fun stateAfter(world: World, steps: Int, ways: AnimalWays?): ByteArray {
         val sim = HexSim(world)
-        sim.groups.herdWays = ways; sim.groups.hunterWays = ways
+        sim.groups.hunterWays = ways
         repeat(steps) { sim.step() }
         val f = File.createTempFile("hexsim", ".hexs")
         try {
@@ -22,7 +22,7 @@ class HexAnimalWaysTest {
     }
 
     @Test
-    fun `herds and packs whose ways are all 0 do as the hand-written ways do`() {
+    fun `packs whose ways are all 0 do as the hand-written ways do`() {
         val world = World.generate(cfg)
         val a = stateAfter(world, 30, null)
         val b = stateAfter(world, 30, AnimalWays { _, _, out -> out.fill(0f) })

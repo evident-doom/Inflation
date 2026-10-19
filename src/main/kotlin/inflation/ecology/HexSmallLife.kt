@@ -138,7 +138,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Scratch: litter the runoff washed off each place this week, kg; organic matter floods laid on each, kg/m² (see [HexHydrology.carrySilt]). */
     @Transient private val washedKg = FloatArray(n)
     @Transient val laidKgM2 = FloatArray(n)
-    /** Dung dropped this week by the herds and packs, kg/m²: it goes to the litter. */
+    /** Dung dropped this week by the animals, kg/m²: it goes to the litter. */
     val dung = FloatArray(n)
     /** Small animals that died this week in each place, kg/km²: they go to the litter. */
     private val smallDead = FloatArray(n)
@@ -835,7 +835,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * tortoises not at all (the shell: only the young of the year, whose shells are still soft), and
      * flying birds only as far as they are caught on the ground ([FLIGHT_REACH]). Rooting beasts
      * ([SmallHunt.ROOT]: boar, bears) catch none of the grown, only what is in the nest. People ([SmallHunt.PEOPLE], and
-     * the hunting groups of herds and packs) reach all, with snares, nets and digging sticks.
+     * the hunting packs) reach all, with snares, nets and digging sticks.
      */
     fun reach(style: SmallHunt, prey: SmallPrey, p: Int): Float = when (style) {
         SmallHunt.PEOPLE -> 1f
@@ -930,7 +930,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val herpLedger = Array(HerpLedger.SIZE) { FloatArray(n) }
     /**
      * Reptiles and amphibians taken by hunters since the ledger was cleared, kg/km², by who took
-     * them: the resident kind of that index, or (at [TAKER_GROUPS]) herds' and packs' hunters and
+     * them: the resident kind of that index, or (at [TAKER_GROUPS]) the hunting packs and
      * people.
      */
     val herpTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
@@ -1344,7 +1344,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         const val EAGLE_HALF = 1f
         /** Share of the difference with its neighbours a small animal population evens out in a month. */
         const val SPREAD = 0.2f
-        /** Share of what herds and packs eat that comes back as dung. */
+        /** Share of what animals eat that comes back as dung. */
         const val DUNG = 0.5f
         private val CHUKAR_AT = BIRDS.indexOf(CHUKAR)
         private val ROCK_DOVE_AT = BIRDS.indexOf(ROCK_DOVE)

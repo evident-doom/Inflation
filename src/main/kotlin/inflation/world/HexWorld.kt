@@ -9,7 +9,7 @@ import kotlin.math.max
  * country (biome shares), and the water (rivers, springs within reach, a coast).
  *
  * Height bands let a hex hold both a valley floor and a summer pasture: what grows, how cold it is
- * and where the snow lies are kept per band, so herds can move up and down within a hex as well as
+ * and where the snow lies are kept per band, so animals can move up and down within a hex as well as
  * between hexes.
  */
 class HexWorld(val world: World, val hex: HexMap) {
@@ -78,7 +78,7 @@ class HexWorld(val world: World, val hex: HexMap) {
 
     // ---------------------------------------------------------------- places: the height bands of each hex
 
-    /** The places the simulation keeps weather, plants and herds for: each height band of each hex that has land in it. */
+    /** The places the simulation keeps weather, plants and animals for: each height band of each hex that has land in it. */
     val placeHex: IntArray
     val placeBand: IntArray
     /** The fine cells of each place. */

@@ -196,7 +196,7 @@ class HexGeography(private val hw: HexWorld) {
         for ((i, c) in components { !sea(it) }.withIndex()) for (h in c) massOf[h] = i
         // Of the narrow parts, those at least as long as the width they are judged at; one running between two
         // broad stretches, or water between two land masses each with a long shore on it, is a neck (an isthmus, a strait), not a peninsula or
-        // bay. Land is judged at two widths, the ground one place draws on and a herd's range ([RANGE_KM]); a part
+        // bay. Land is judged at two widths, the ground one place draws on and a range ([RANGE_KM]); a part
         // found the same at both is one feature.
         val seen = HashSet<List<Int>>()
         for (widthKm in doubleArrayOf(GATHER_KM, RANGE_KM)) {

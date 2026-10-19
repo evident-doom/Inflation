@@ -7,7 +7,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Picks small worlds that push herds to migrate: the ones where the land that feeds them in one
+ * Picks small worlds that push plant-eaters to move with the seasons: the ones where the land that feeds them in one
  * season starves them in another, and better land lies within a few days' walk. For each land
  * sample (every [STEP_KM] km) and month, forage is how wet the month is against the evaporation it
  * could bear (rain over potential evaporation, at most 1), and nothing while the mean is under 5 °C;

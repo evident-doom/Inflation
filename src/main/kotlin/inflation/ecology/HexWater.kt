@@ -36,7 +36,7 @@ import java.util.stream.IntStream
  *   (on the shelf) and monk seals (along the coast) eating fish, sharks living mostly on fish and
  *   now and then a seal, porpoise or dolphin. Each breeds in its season as it eats and spreads to
  *   the sea around, whales far. Sea-bird colonies on cliff coasts fish within 40 km.
- * - Crocodiles in warm rivers and lakes, as a danger to herds that drink there ([crocodileRisk]).
+ * - Crocodiles in warm rivers and lakes, as a danger to the animals that drink there ([crocodileRisk]).
  *
  * Units: plankton and nutrients g/m², fish and animals kg/km² of water.
  */
@@ -264,7 +264,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         if (coldest > CROC_COLDEST && water) 1f else 0f
     }
 
-    /** Yearly share of the young of herds drinking at place [p] taken by crocodiles; nothing in the cold months. */
+    /** Yearly share of the young of animals drinking at place [p] taken by crocodiles; nothing in the cold months. */
     fun crocodileRisk(p: Int, weather: Weather): Float {
         val h = hw.placeHex[p]
         if (crocodiles[h] <= 0f || weather.temperature[p] < 16f) return 0f
@@ -771,7 +771,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val RESETTLE_KM = 200.0
         const val COLONY_SPACING_KM = 25.0
         const val BIRD_BREED = 0.4f
-        /** Crocodiles: coldest month above which they live, °C; yearly share of drinking herds' young they take. */
+        /** Crocodiles: coldest month above which they live, °C; yearly share of drinking animals' young they take. */
         const val CROC_COLDEST = 12f
         const val CROC_RATE = 0.1f
     }

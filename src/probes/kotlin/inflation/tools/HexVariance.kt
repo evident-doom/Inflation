@@ -187,7 +187,7 @@ fun main(args: Array<String>) {
     line("resident kg/km²", placeMean { p -> ks.sumOf { k -> (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * fauna.kinds[k].massKg } })
     val byHeads = ks.sortedByDescending { k -> (0 until land.n).sumOf { p -> fauna.adults[k][p].toDouble() * land.areaKm2[p] } }
     for (k in byHeads.take(8)) line("${fauna.kinds[k].name}/km²", placeMean { p -> fauna.adults[k][p].toDouble() })
-    // Groups (herds, packs, bands) standing in each hex, by body mass.
+    // Groups (packs, bands) standing in each hex, by body mass.
     val groupKg = DoubleArray(H)
     for (g in sim.groups.groups) { val p = g.place.i; if (p >= 0) groupKg[hw.placeHex[p]] += (g.adults + g.young).toDouble() * g.species.massKg }
     line("group kg in hex", groupKg)

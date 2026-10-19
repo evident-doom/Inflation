@@ -78,8 +78,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 
 | Feature | Hex |
 |---|---|
-| Resident kinds | yes, as densities per height band; jackal and lynx are resident hunters, and onager lives both ways (resident, gathering into herds for its round) |
-| Migratory kinds as herds | yes |
+| Resident kinds | yes, as densities per height band: every plant-eater, the migratory kinds too, and jackal and lynx as resident hunters |
 | Choosing where to go each week | yes (own rule, learnable) |
 | Routes over passes, climbers and walkers | yes (graded borders) |
 | Snow making travel harder | yes |
@@ -90,7 +89,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Crowding disease | yes; outbreaks too (start where a kind is crowded, spread and burn out: `HexFauna.outbreak`) |
 | Snow hiding grass | yes; deaths in deep snow no |
 | Cold and heat (coat) | yes (coat grows in autumn, moulted in spring) |
-| Fat reserves | yes (herds; autumn fattening; bears' autumn condition) |
+| Fat reserves | yes (residents; autumn fattening; bears' autumn condition) |
 | Hibernation (bears) | yes |
 | Breeding season shifting to the food | yes |
 | Thirst and water | yes |
@@ -119,7 +118,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 |---|---|
 | Bands as groups, camp choice (game, plant food, water, a safe spot) | yes |
 | Gathering fruit, nuts, roots and grass seed over the week's walk | yes |
-| Hunting resident game and herds; snares and nets; fishing and shellfish | yes |
+| Hunting resident game; snares and nets; fishing and shellfish | yes |
 | Larder (dried meat, stored plant food), caches at old camps | yes |
 | Season memory, news of good ground and food gifts when bands meet | yes |
 | Skills learned by practice and forgotten unused | yes (`Skill.kt`: about 34 variants in 24 kinds of work, among them tracking, stalking, butchery, tending, healing and lore) |
@@ -146,7 +145,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 
 | Feature | Hex |
 |---|---|
-| Learnable choice of where to go | yes: one mover per role (herds, hunters, people), trained by PPO (`HexPpo`, `PpoTrainer`) |
+| Learnable choice of where to go | yes: one mover per role (hunters, people; the herds' role is kept in the layout), trained by PPO (`HexPpo`, `PpoTrainer`) |
 | Copying the hand-written behaviour, evolution | yes: imitation is PPO's warm start; evolution remains for the ways (`HexEvolveWays`) |
 | Learned bands | yes: bands' ways by PPO (`WaysPpo`) or evolution |
 

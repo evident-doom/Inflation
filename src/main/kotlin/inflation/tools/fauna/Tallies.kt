@@ -1,6 +1,5 @@
 package inflation.tools.fauna
 
-import inflation.ecology.groundOfHerds
 import inflation.ecology.Tally
 import inflation.ecology.Catalogue
 import inflation.ecology.Thresholds
@@ -23,14 +22,12 @@ import inflation.ecology.hexOf
 import inflation.ecology.m2
 import inflation.world.Date
 
-/** Deaths and births by "kind:cause" over the run, from the model's weekly ledgers; and herds' head-weeks by size. */
+/** Deaths and births by "kind:cause" over the run, from the model's weekly ledgers. */
 class DeathTally(private val sim: HexSim) {
-    /** Deaths over the run by "kind:cause" (births as "kind:+born", herd sizes as "herd size N:cause"). */
+    /** Deaths over the run by "kind:cause" (births as "kind:+born"). */
     val causes = TreeMap<String, Double>()
     /** [causes] as it stood when this year began. */
     private var before: Map<String, Double> = emptyMap()
-    /** Herds' head-weeks by size (small, middling, large), to set their deaths against. */
-    private val herdHeadWeeks = DoubleArray(3)
 
     fun startYear() { before = causes.toMap() }
 
@@ -40,8 +37,6 @@ class DeathTally(private val sim: HexSim) {
         for ((key, v) in groups.stats.deaths) causes.merge(key, v.toDouble(), Double::plus)
         for ((key, v) in groups.stats.kills) causes.merge(Tally.of(key, Tally.HUNTED), v.toDouble(), Double::plus)
         for ((key, v) in groups.stats.births) causes.merge(Tally.of(key, Tally.BORN), v.toDouble(), Double::plus)
-        for ((key, v) in groups.stats.hunting) if (key.startsWith(Tally.HERD_SIZE)) causes.merge(key, v.toDouble(), Double::plus)
-        for (gr in groups.groups) if (gr.alive && !gr.species.carnivore) herdHeadWeeks[groups.sizeClass(gr)] += gr.size.toDouble()
     }
 
     /** What [key] came to this year. */
@@ -55,25 +50,13 @@ class DeathTally(private val sim: HexSim) {
         })
     }
 
-    /** This year's deaths of the resident herds, all kinds together, by cause. */
+    /** This year's deaths of the residents, all kinds together, by cause. */
     fun printResidentDeathsThisYear() {
         val residentNames = sim.fauna.kinds.map { it.name }.toSet()
         val year = HashMap<String, Double>()
         for ((key, v) in causes) if (Tally.kindOf(key) in residentNames) year.merge(Tally.whatOf(key), v - (before[key] ?: 0.0), Double::plus)
         println("     resident deaths this year: " + year.entries.sortedByDescending { it.value }.filter { it.value >= 1.0 }
             .joinToString(", ") { "%s %.0f".format(it.key, it.value) })
-    }
-
-    /** Small against large herds: yearly deaths per animal, by cause. */
-    fun printHerdDeathsBySize(stepsPerYear: Int) {
-        val names = listOf("small (under a unit)", "middling (1-3 units)", "large (over 3 units)")
-        println("herds' yearly deaths per animal by size (share of head-weeks): " + (0..2).joinToString("; ") { c ->
-            val years = herdHeadWeeks[c] / stepsPerYear
-            val keys = causes.keys.filter { it.startsWith(Tally.herdSize(c, "")) }
-            "%s %.0f%%: ".format(names[c], 100 * herdHeadWeeks[c] / herdHeadWeeks.sum().coerceAtLeast(1.0)) +
-                keys.sortedByDescending { causes[it] }.joinToString(", ") { k -> "%s %.3f".format(k.substringAfter(':'),
-                    causes.getValue(k) / years.coerceAtLeast(1e-9)) }
-        })
     }
 
     fun printRunDeaths() {
@@ -100,51 +83,13 @@ class HuntTally(private val sim: HexSim) {
     var grainReapedLastYear = 0.0; private set
     private var grainReapedNow = 0.0
 
-    /** For the kinds that live both ways, this year: head-weeks as herds and spread, and the residents' hunters' kills of each. */
-    private val headWeeks = HashMap<String, Double>()
-    private val residentsKilled = HashMap<String, Double>()
-    /** The same: head-weeks times the residents' hunters' kg against all the plant-eaters' kg where each head is (see [printHerdSafety]). */
-    private val pressureMet = HashMap<String, Double>()
-
-    fun startYear() { year.clear(); fedSum.clear(); groupWeeks.clear(); headWeeks.clear(); residentsKilled.clear(); pressureMet.clear() }
+    fun startYear() { year.clear(); fedSum.clear(); groupWeeks.clear() }
 
     fun week() {
         val groups = sim.groups
         grainReapedNow += (groups.stats.hunting[Tally.of(Catalogue.HUMAN, WeekStats.GRAIN_REAPED)] ?: 0) / 1000.0
         for ((key, v) in groups.stats.hunting) year.merge(key, v, Int::plus)
         for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
-        for (g in groups.groups) if (g.alive && g.species in Catalogue.gathering) groupWeeks.merge("herds of ${g.species.name}", 1, Int::plus)
-        val fauna = sim.fauna
-        // (The residents' hunters' kg per kg of plant-eaters, residents and herds, at each place: what one head there
-        // meets of them, as the hunters share their kills out by weight.)
-        val land = sim.land; val n = land.n
-        val pressure = DoubleArray(n)
-        val herdsAt = groups.groundOfHerds()
-        for (p in 0 until n) {
-            var hunters = 0.0; var prey = 0.0
-            for ((j, s) in fauna.kinds.withIndex()) {
-                val kg = (fauna.adults[j][p] + 0.3 * fauna.young[j][p]) * s.massKg
-                if (s in Catalogue.residentHunters) hunters += kg else if (!s.carnivore) prey += kg
-            }
-            herdsAt[p]?.let { for (at in it) prey += (at.g.adults + 0.3 * at.g.young) * at.share / land.areaKm2[p] * at.g.species.massKg }
-            pressure[p] = if (prey > 0.0) hunters / prey else 0.0
-        }
-        for (s in Catalogue.gathering) {
-            val k = fauna.slot(s); if (k < 0) continue
-            var spread = 0.0
-            for (p in 0 until n) spread += (fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p] * pressure[p]
-            pressureMet.merge("${s.name} spread", spread, Double::plus)
-        }
-        for ((p, list) in herdsAt) for (at in list) if (at.g.alive && at.g.species in Catalogue.gathering)
-            pressureMet.merge("${at.g.species.name} herds", at.g.size * at.share * pressure[p], Double::plus)
-        for (s in Catalogue.gathering) {
-            val k = fauna.slot(s); if (k < 0) continue
-            headWeeks.merge("${s.name} herds", groups.count(s).toDouble(), Double::plus)
-            headWeeks.merge("${s.name} spread", fauna.count(k), Double::plus)
-            val inHerds = (groups.lostToResidents[s] ?: 0).toDouble()
-            residentsKilled.merge("${s.name} herds", inHerds, Double::plus)
-            residentsKilled.merge("${s.name} spread", fauna.deaths[Tally.of(s, DeathCause.RESIDENT_HUNTERS)] ?: 0.0, Double::plus)
-        }
         for (g in groups.groups) if (g.alive && g.species.carnivore) {
             fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus)
             groupWeeks.merge(g.species.name, 1, Int::plus)
@@ -158,88 +103,19 @@ class HuntTally(private val sim: HexSim) {
 
     /** How the hunting went, per hunting party per week. */
     fun printHunting() {
-        println("     hunting, per party a week (chases / herds that saw it first / kills from herds / kills of residents / fed): " +
+        println("     hunting, per party a week (kills of residents / fed): " +
             sim.groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gw = (groupWeeks[s.name] ?: 0).coerceAtLeast(1).toDouble()
-            fun v(k: String) = (year[Tally.of(s, k)] ?: 0) / gw
-            "%s %.2f / %.2f / %.2f / %.2f / %.2f".format(s.name, v(Tally.CHASES), v(Tally.SAW_FIRST), v(Tally.KILLS_FROM_HERDS),
-                v(Tally.KILLS_OF_RESIDENTS), (fedSum[s.name] ?: 0.0) / gw)
+            "%s %.2f / %.2f".format(s.name, (year[Tally.of(s, Tally.KILLS_OF_RESIDENTS)] ?: 0) / gw, (fedSum[s.name] ?: 0.0) / gw)
         })
     }
 
-    /** Each hunting kind's tries on herds this year, by herd kind, and how many hunters the prey killed. */
-    fun printTriesOnHerds() {
-        println("     hunters' tries on herds (kind: herd tries / hunters killed): " + sim.groups.kinds.filter { it.carnivore }.joinToString("; ") { s ->
-            val prefix = Tally.of(s, Tally.TRIES_ON)
-            s.name + ": " + year.entries.filter { it.key.startsWith(prefix) }.sortedByDescending { it.value }.joinToString(", ") { (k, n) ->
-                val prey = k.removePrefix(prefix)
-                "%s %d / %d".format(prey, n, year[Tally.of(s, Tally.HURT_BY + prey)] ?: 0)
-            } + " (let pass: %d rare, %d not worth it)".format(year["${s.name}:herds let pass"] ?: 0, year["${s.name}:herds not worth it"] ?: 0)
-        })
-    }
-
-    /** For the kinds that live both ways: herds gathered and scattered this year (heads), herd-weeks, and heads now in herds and spread. */
-    fun printGathering() {
-        val fauna = sim.fauna; val groups = sim.groups
-        println("     gathering kinds (this year: herds gathered (heads) / scattered (heads), heads joined / settled on the way, herd-weeks; now: heads in herds / spread): " +
-            Catalogue.gathering.filter { fauna.slot(it) >= 0 }.joinToString("; ") { s ->
-                fun t(what: String) = year[Tally.of(s, what)] ?: 0
-                "%s %d (%d) / %d (%d), %d / %d, %d; %d / %.0f".format(s.name, t(Tally.GATHERED), t(Tally.HEADS_GATHERED), t(Tally.SCATTERED), t(Tally.HEADS_SCATTERED),
-                    t(Tally.HEADS_JOINED), t(Tally.HEADS_SETTLED),
-                    groupWeeks["herds of ${s.name}"] ?: 0, groups.count(s), fauna.count(fauna.slot(s)))
-            })
-    }
-
-    /**
-     * For the kinds that live both ways: what the hunters took of them this year as herds and as residents, per head a
-     * year (hunting groups + the residents' hunters), to set the safety a herd gives against living spread.
-     */
-    fun printHerdSafety() {
-        val weeks = Date.DAYS_PER_YEAR / sim.cfg.daysPerStep.toDouble()
-        println("     hunted per head a year, gathering kinds (in herds: by groups + by resident hunters / spread: the same): " +
-            Catalogue.gathering.filter { sim.fauna.slot(it) >= 0 }.joinToString("; ") { s ->
-                fun rate(form: String, groupKills: String): String {
-                    val hw = (headWeeks["${s.name} $form"] ?: 0.0) / weeks
-                    if (hw <= 0.0) return "-"
-                    val byGroups = (year[Tally.of(s, groupKills)] ?: 0) / hw; val byResidents = (residentsKilled["${s.name} $form"] ?: 0.0) / hw
-                    return "%.3f (%.3f + %.3f)".format(byGroups + byResidents, byGroups, byResidents)
-                }
-                "%s %s / %s".format(s.name, rate("herds", Tally.KILLED_IN_HERDS), rate("spread", Tally.KILLED_SPREAD))
-            })
-        println("     residents' hunters' kg per kg of plant-eaters where each head is, gathering kinds (in herds / spread): " +
-            Catalogue.gathering.filter { sim.fauna.slot(it) >= 0 }.joinToString("; ") { s ->
-                fun met(form: String): String { val hw = headWeeks["${s.name} $form"] ?: 0.0
-                    return if (hw > 0.0) "%.4f".format((pressureMet["${s.name} $form"] ?: 0.0) / hw) else "-" }
-                "%s %s / %s".format(s.name, met("herds"), met("spread"))
-            })
-        val fauna = sim.fauna
-        println("     residents' hunters' take per kg in their size range, per hunt, gathering kinds (in herds / spread): " +
-            Catalogue.gathering.filter { fauna.slot(it) >= 0 }.joinToString("; ") { s ->
-                val h = fauna.huntSeen[fauna.slot(s)]
-                fun r(kg: inflation.ecology.HexFauna.HuntSeen, taken: inflation.ecology.HexFauna.HuntSeen) =
-                    if (h[kg.ordinal].sum() > 0.0) "%.4f".format(h[taken.ordinal].sum() / h[kg.ordinal].sum()) else "-"
-                "%s %s / %s".format(s.name, r(inflation.ecology.HexFauna.HuntSeen.HERDS_KG, inflation.ecology.HexFauna.HuntSeen.HERDS_TAKEN),
-                    r(inflation.ecology.HexFauna.HuntSeen.SPREAD_KG, inflation.ecology.HexFauna.HuntSeen.SPREAD_TAKEN))
-            })
-        for (row in fauna.huntSeen) for (a in row) a.reset()
-        println("     young share now, gathering kinds (in herds / spread): " +
-            Catalogue.gathering.filter { fauna.slot(it) >= 0 }.joinToString("; ") { s ->
-                val k = fauna.slot(s)
-                var hy = 0.0; var ha = 0.0
-                for (g in sim.groups.groups) if (g.alive && g.species == s) { hy += g.young; ha += g.adults }
-                var ry = 0.0; var ra = 0.0
-                for (p in 0 until sim.land.n) { ry += fauna.young[k][p] * sim.land.areaKm2[p]; ra += fauna.adults[k][p] * sim.land.areaKm2[p] }
-                fun sh(y: Double, a: Double) = if (y + a > 0.0) "%.2f".format(y / (y + a)) else "-"
-                "%s %s / %s".format(s.name, sh(hy, ha), sh(ry, ra))
-            })
-    }
-
-    /** Where people's hides came from this year: kg a person from herds, resident game and small pelts. */
+    /** Where people's hides came from this year: kg a person from resident game and small pelts. */
     fun printPeoplesHides() {
         val heads = sim.groups.groups.filter { it.alive && it.species.human }.sumOf { it.size }.coerceAtLeast(1)
         fun kg(source: String) = (year[Tally.hide(source)] ?: 0) / 1000.0 / heads
-        println("     people's hides (kg a person this year: herds / resident game / small pelts): %.2f / %.2f / %.2f"
-            .format(kg("herds"), kg("residents"), kg("small pelts")))
+        println("     people's hides (kg a person this year: resident game / small pelts): %.2f / %.2f"
+            .format(kg("residents"), kg("small pelts")))
     }
 
     /**
@@ -256,37 +132,23 @@ class HuntTally(private val sim: HexSim) {
     }
 }
 
-/** How far groups go: km moved this year by kind, and where each herd is in January against July. */
+/** How far groups go: km moved this year by kind; and where each resident kind is in January against July. */
 class MovementTally(private val sim: HexSim) {
     val movedKm = HashMap<Species, Double>()
-    private val janHex = HashMap<Int, Int>()
-    private val julyKm = HashMap<String, ArrayList<Double>>()
-    /** Head-weeks of each herd kind (and of people, under "people") by month and [CELL_KM] cell, this year and last. */
-    private var cells = HashMap<String, Array<HashMap<Long, Double>>>()
-    private var cellsLastYear = HashMap<String, Array<HashMap<Long, Double>>>()
     /** Each resident kind's heads by hex in the year's first week, and its heads-weighted mean height then (m). */
     private var janResidents: Array<DoubleArray>? = null
     private var janHeight = DoubleArray(0)
     /** Each resident kind's January to July: the share of its heads in other hexes, in other [CELL_KM] cells, and its mean heights. */
     private val residentsMoved = HashMap<String, DoubleArray>()
 
-    fun startYear() { julyKm.clear(); cellsLastYear = cells; cells = HashMap(); residentsMoved.clear() }
+    fun startYear() { residentsMoved.clear() }
 
     fun week(w: Int) {
-        val groups = sim.groups; val hw = sim.hw; val hex = sim.hex
+        val groups = sim.groups; val hex = sim.hex
         if (w == 0) movedKm.clear()
         for (gr in groups.groups) if (gr.alive && gr.path.size > 1) movedKm.merge(gr.species, (gr.path.size - 1) * hex.hexKm, Double::plus)
         val date = sim.weather.date
-        for (g in groups.groups) if (g.alive && (!g.species.carnivore || g.species.human)) {
-            val (x, y) = hex.centreKm(hw.placeHex[g.place])
-            val cell = (x / CELL_KM).toLong() * 100_000 + (y / CELL_KM).toLong()
-            cells.getOrPut(g.species.name) { Array(12) { HashMap() } }[date.month].merge(cell, g.size.toDouble(), Double::plus)
-        }
         if (date.dayOfMonth <= sim.cfg.daysPerStep) {
-            if (date.month == 0) for (g in groups.groups) if (g.alive && !g.species.carnivore) janHex[g.id] = hw.placeHex[g.place]
-            if (date.month == 6) for (g in groups.groups) if (g.alive && !g.species.carnivore) janHex[g.id]?.let {
-                julyKm.getOrPut(g.species.name) { ArrayList() } += hex.distanceKm(it, hw.placeHex[g.place])
-            }
             if (date.month == 0) residentsByHex().let { (byHex, height) -> janResidents = byHex; janHeight = height }
             if (date.month == 6) janResidents?.let { jan -> compareResidents(jan, residentsByHex()) }
         }
@@ -328,56 +190,14 @@ class MovementTally(private val sim: HexSim) {
         }
     }
 
-    /** How far the herds are in July from where they were in January, and how far apart the places they remember for the two are. */
+    /** How far the residents are in July from where they were in January. */
     fun printSeasons() {
-        val groups = sim.groups; val hw = sim.hw
-        if (julyKm.isNotEmpty()) println("     herds' January to July (mean km / share over 50 km): " + julyKm.entries.joinToString(", ") { (k, v) ->
-            "%s %.0f / %.0f%%".format(k, v.average(), 100.0 * v.count { it > 50.0 } / v.size) })
-        println("     herds' remembered January and July places apart (mean km): " + groups.kinds.filter { !it.carnivore }.joinToString(", ") { s ->
-            val d = groups.groups.filter { it.alive && it.species == s && it.seasonPlace[0] >= 0 && it.seasonPlace[6] >= 0 }
-                .map { sim.hex.distanceKm(hw.placeHex[it.seasonPlace[0]], hw.placeHex[it.seasonPlace[6]]) }
-            "%s %.0f".format(s.name, if (d.isEmpty()) 0.0 else d.average())
-        })
         if (residentsMoved.isNotEmpty()) println("     residents' January to July (share of heads in other hexes / other ${CELL_KM.toInt()} km cells, mean height m): " +
             residentsMoved.entries.joinToString(", ") { (k, v) -> "%s %.0f%% / %.0f%%, %.0f to %.0f".format(k, 100 * v[0], 100 * v[1], v[2], v[3]) })
-        printPredictable()
-    }
-
-    /**
-     * How well last year foretells where each herd kind is this year, by [CELL_KM] cells: the correlation of its
-     * head-weeks over the cells in the same month of the two years (the mean over months), against the same for
-     * the month six months off (what knowing only where the kind lives would give); and the share of people's
-     * head-weeks in cells where a herd stood that month.
-     */
-    private fun printPredictable() {
-        if (cellsLastYear.isEmpty()) return
-        val kinds = cells.keys.filter { it != "people" && it in cellsLastYear }.sorted()
-        println("     herds foretold by last year (r same month / r six months off, by ${CELL_KM.toInt()} km cells): " + kinds.joinToString(", ") { k ->
-            val now = cells.getValue(k); val before = cellsLastYear.getValue(k)
-            "%s %.2f / %.2f".format(k, (0 until 12).map { correlation(now[it], before[it]) }.average(),
-                (0 until 12).map { correlation(now[it], before[(it + 6) % 12]) }.average())
-        })
-        val people = cells["people"] ?: return
-        val herded = (0 until 12).sumOf { m -> people[m].entries.sumOf { (c, v) -> if (kinds.any { (cells.getValue(it)[m][c] ?: 0.0) > 0.0 }) v else 0.0 } }
-        val all = (0 until 12).sumOf { m -> people[m].values.sum() }.coerceAtLeast(1.0)
-        val cellsWithHerds = (0 until 12).sumOf { m -> kinds.flatMap { cells.getValue(it)[m].keys }.toSet().size }
-        val cellsWithAny = (0 until 12).sumOf { m -> (kinds.flatMap { cells.getValue(it)[m].keys } + people[m].keys).toSet().size }.coerceAtLeast(1)
-        println("     people where herds were that month: %.0f%% of their head-weeks (herds in %.0f%% of the cells either used)"
-            .format(100 * herded / all, 100.0 * cellsWithHerds / cellsWithAny))
-    }
-
-    private fun correlation(a: Map<Long, Double>, b: Map<Long, Double>): Double {
-        val keys = (a.keys + b.keys).toList()
-        if (keys.size < 3) return 0.0
-        val x = keys.map { a[it] ?: 0.0 }; val y = keys.map { b[it] ?: 0.0 }
-        val mx = x.average(); val my = y.average()
-        val sxy = x.indices.sumOf { (x[it] - mx) * (y[it] - my) }
-        val sx = x.sumOf { (it - mx) * (it - mx) }; val sy = y.sumOf { (it - my) * (it - my) }
-        return if (sx > 0 && sy > 0) sxy / kotlin.math.sqrt(sx * sy) else 0.0
     }
 
     companion object {
-        /** Cell size for where herds are, km: about a band's reach in a few days. */
+        /** Cell size for where residents are, km: about a band's reach in a few days. */
         const val CELL_KM = 50.0
     }
 }

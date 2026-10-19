@@ -10,7 +10,6 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     private fun f(name: String, default: Float) = read("t.$name")?.toFloat() ?: default
     private fun d(name: String, default: Double) = read("t.$name")?.toDouble() ?: default
     private fun i(name: String, default: Int) = read("t.$name")?.toInt() ?: default
-    private fun b(name: String, default: Boolean) = read("t.$name")?.toBooleanStrict() ?: default
 
     /** Outbreaks starting among people, against [inflation.ecology.HexFauna.OUTBREAK_START]. */
     val peopleOutbreak = f("peopleOutbreak", 1f)
@@ -32,8 +31,6 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     val settledFertility = f("settledFertility", 1f)
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
-    /** Weeks between a content herd's weighing of its places ([inflation.ecology.CONTENT_WEEKS]). */
-    val contentWeeks = i("contentWeeks", inflation.ecology.CONTENT_WEEKS)
 
     // Plants.
     /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory). */
@@ -62,7 +59,7 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     /** Fires started per km² per year in hot, dry, fuel-rich ground. */
     val ignitionsPerKm2Year = f("ignitions", 0.01f)
 
-    // Animals kept as residents.
+    // Plant-eaters and the hunters that live as residents.
     /**
      * Residents: how many times their usual numbers can each hold a breeding range. At 1.5 roe deer level off at
      * about 20-25 a km² of their forest, the high end of what is seen.
@@ -70,17 +67,10 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     val breedSpacing = f("breedSpacing", 1.5f)
     /**
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about), each move taking what
-     * that many weeks' would ([inflation.ecology.HexFauna.spill]). Every week: with no herds to carry them, residents are
-     * the ones that follow the seasons, and a fortnight's wait is too coarse for that.
+     * that many weeks' would ([inflation.ecology.HexFauna.spill]). Every week: residents follow the seasons themselves,
+     * and a fortnight's wait is too coarse for that.
      */
     val residentMoveWeeks = i("residentMoveWeeks", 1).also { require(it >= 1) { "t.residentMoveWeeks is $it: residents move at most every week" } }
-    /**
-     * Whether plant-eaters also live as herds (true), gathering where their place fails them and settling back where it
-     * does not ([inflation.ecology.HexGroups.leaveAhead]); or only as residents (false), any herds there are, from a
-     * saved world or newcomers, spread as residents over the ground they graze the week they are found
-     * ([inflation.ecology.HexGroups.toResidents]). Packs and people keep their groups either way.
-     */
-    val plantEaterHerds = b("plantEaterHerds", false)
     /**
      * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
      * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).
@@ -99,21 +89,11 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     val rodentDeath = f("rodentDeath", 1.2f)
 
     // Groups' choices of where to go.
-    /** Hunters, kg per km², at which they halve how good a place is for a herd in its kind's sense of better country ([inflation.ecology.HexGroups.herdQuality]). */
-    val huntersHalfKg = f("huntersHalf", 1f)
     /** How strongly a group follows its sense of better country, per reach moved along it. */
     val bearingPull = f("bearingPull", 0.5f)
     /** Country an animal knows around it, km; how fast the draw of a place fades with distance, km (see [inflation.ecology.HexBearings]). */
     val nearKm = d("nearKm", 60.0)
     val fadeKm = d("fadeKm", 50.0)
-    /**
-     * Herds' heading (see [inflation.ecology.HexGroup.headE]): share of last week's kept; weight of the way it actually went
-     * against its sense of better country in bending it; and how strongly it draws the next week's choice
-     * (as the bearing's [bearingPull]): small persistent nudges that add up to a migration.
-     */
-    val headingKeep = f("headingKeep", 0.95f)
-    val headingMoved = f("headingMoved", 0.5f)
-    val headingPull = f("headingPull", 2f)
     /**
      * Packs tied to their dens: months from the births a pack with young hunts near its den; how near, km. Not
      * measured: wolves and hyenas keep to dens for two to three months, lions to their cubs' lairs about as long.
@@ -121,26 +101,13 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     val denMonths = i("denMonths", 3)
     val denKm = f("denKm", 15f)
 
-    // Yearly rounds, herds' and bands' rites (see [inflation.ecology.ROUNDS]).
-    /** How strongly a herd's round draws, as a season's place of that quality would. */
-    val roundStrength = f("roundStrength", 1f)
-    /** How strongly a herd's round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
+    // Bands' yearly rounds, their rites (see [inflation.ecology.ROUNDS]).
+    /** How strongly a round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
     val roundNetPull = f("roundNetPull", 1.5f)
     /** How strongly a round draws the hand-written choice: per unit of progress toward its place this month (a full week's going toward it). */
     val roundPull = f("roundPull", 1.5f)
-    /** Within this of its round's place this month, km, a herd has arrived and grazes as it likes (half a range across). */
+    /** Within this of its round's place this month, km, a band has arrived and goes about it as it likes (half a range across). */
     val roundArrivedKm = d("roundArrived", 50.0)
-    /** Days of a week a herd far behind its round spends trekking on (the rest grazing). */
-    val roundTrekDays = f("roundTrekDays", 4f)
-    /**
-     * Rounds kept by inheritance: chance an offshoot changes one month's place of its round; chance it gives its round up, or
-     * takes one up; share of herds that start with a round when the rounds are first grown (the rest keep to their country,
-     * and the two ways compete); what a km of the round costs against the quality of a month's grazing (0..1).
-     */
-    val roundDrift = f("roundDrift", 0.3f)
-    val roundSwitch = f("roundSwitch", 0.05f)
-    val roundStartShare = f("roundStart", 0.5f)
-    val roundKmCost = d("roundKmCost", 0.002)
     /**
      * The widest hold on its rites a founding band can have: each band holds to the rites by which it keeps its round,
      * by lineage, as its traditions are. A well-fed band feels a hold under 1 hardly at all (the round's pull grows with

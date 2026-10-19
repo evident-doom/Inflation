@@ -7,7 +7,7 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class DrawsTest {
-    /** The mean of many draws lies within four standard errors of what is expected, at the sizes herds draw at. */
+    /** The mean of many draws lies within four standard errors of what is expected, at the sizes groups draw at. */
     @Test
     fun binomialMeansAreUnbiased() {
         val r = Random(1)

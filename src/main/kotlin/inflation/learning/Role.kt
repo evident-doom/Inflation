@@ -4,9 +4,10 @@ import inflation.ecology.Species
 import java.io.File
 
 /**
- * The learned networks, by role: one for the herds, one for the hunters and one for people. (Prey and
- * hunters learn apart, so that what makes a hunter better and what makes its prey better do not pull at
- * the same weights; within a role, kinds share what they learn.) Lists of networks go in this order.
+ * The learned networks, by role: one for the herds (kept until retraining, though no herds live as groups
+ * now), one for the hunters and one for people. (Prey and hunters learn apart, so that what makes a hunter
+ * better and what makes its prey better do not pull at the same weights; within a role, kinds share what
+ * they learn.) Lists of networks go in this order.
  */
 enum class Role {
     HERDS, HUNTERS, PEOPLE;

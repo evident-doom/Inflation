@@ -17,7 +17,7 @@ import kotlin.math.abs
 /**
  * Settled worlds kept ready for short tests: three seeds of the full map (and one small map for checking that code runs), each run
  * for some years and saved, so a test of a change starts from a world past its first years' swings
- * (the herds' slow climb from their start numbers, the plants finding their level) and needs only the
+ * (the animals' slow climb from their start numbers, the plants finding their level) and needs only the
  * years the change itself takes to show. They live in ~/.inflation/test-worlds/NAME: state.bin (the
  * saved world), about.properties (how and when it was made) and settle.csv (the history of its settling).
  *
@@ -178,45 +178,10 @@ object TestWorlds {
             lines += "%-24s ".format(k.substringAfter('/').take(24)) + cells.joinToString(" | ") + " | " + way
         }
         val n = worlds.size * replicates
-        lines += migrationReport(runs, worlds)
         lines += "-> $same key numbers moved the same way in all $n pairs, $mixed were mixed (a mixed one is not shown to change by this test; a number the change does not touch goes one way in all $n pairs by chance %.0f%% of the time)".format(100 * 2 * Math.pow(0.5, n.toDouble()))
         File(out, "ab-report.txt").writeText(lines.joinToString("\n", postfix = "\n"))
         println(lines.joinToString("\n"))
         println("(written to ${File(out, "ab-report.txt")})")
-    }
-
-    /**
-     * The migratory herds in the last whole year, base -> variant (means over the replicates) with the
-     * range of the paired differences: how far their mean height swings over the months (highest month's
-     * against lowest, m), how far their share above 1000 m swings (points), and how far a herd stands
-     * from where it stood half a year before (km, the year's mean). Empty for runs recorded before these
-     * numbers were.
-     */
-    fun migrationReport(runs: Map<String, List<Pair<Run, Run>>>, worlds: List<String>): List<String> {
-        val first = runs.values.first().first().first
-        val kinds = first.allKeys.mapNotNull { HexHistory.Key.migrationKind(it) }.distinct()
-        if (kinds.isEmpty()) return emptyList()
-        val lines = ArrayList<String>()
-        lines += ""
-        lines += "migration in the last whole year, base -> variant (mean over replicates) [range of the paired differences]"
-        lines += "%-34s ".format("") + worlds.joinToString(" | ") { "%-32s".format(it) }
-        fun swing(m: DoubleArray) = m.filter { !it.isNaN() }.let { if (it.size < 2) Double.NaN else it.max() - it.min() }
-        val measures = listOf<Pair<String, (Run, String) -> Double>>(
-            "height swing m" to { r, k -> swing(r.monthly(HexHistory.Key.migration(k, HexHistory.Migration.MEAN_HEIGHT_M), r.years.last())) },
-            "above 1000 m swing pts" to { r, k -> 100 * swing(r.monthly(HexHistory.Key.migration(k, HexHistory.Migration.SHARE_ABOVE_1000_M), r.years.last())) },
-            "km from half a year" to { r, k -> r.yearly(HexHistory.Key.migration(k, HexHistory.Migration.KM_FROM_HALF_A_YEAR), r.years.last()) },
-        )
-        for (k in kinds) for ((label, f) in measures) {
-            val cells = worlds.map { w ->
-                val pairs = runs.getValue(w).map { (b, v) -> f(b, k) to f(v, k) }.filter { !it.first.isNaN() && !it.second.isNaN() }
-                if (pairs.isEmpty()) "%-32s".format("-") else {
-                    val d = pairs.map { it.second - it.first }
-                    "%-32s".format("%s -> %s [%s, %s]".format(fmt(pairs.map { it.first }.average()), fmt(pairs.map { it.second }.average()), fmt(d.min()), fmt(d.max())))
-                }
-            }
-            lines += "%-34s ".format("$k, $label".take(34)) + cells.joinToString(" | ")
-        }
-        return lines
     }
 
     // ---- how well a smaller world tracks the full map
@@ -235,13 +200,6 @@ object TestWorlds {
 
         /** Every series recorded. */
         val allKeys: Set<String> get() = h.series.keys
-        /** Each month's mean of [key] in [year] (NaN for a month not in it). */
-        fun monthly(key: String, year: Int): DoubleArray {
-            val s = h.series[key] ?: return DoubleArray(12) { Double.NaN }
-            val sum = DoubleArray(12); val c = IntArray(12)
-            for (i in rows(year)) { val v = s[i]; if (!v.isNaN()) { val m = h.month[i].toInt(); sum[m] += v; c[m]++ } }
-            return DoubleArray(12) { if (c[it] == 0) Double.NaN else sum[it] / c[it] }
-        }
         fun yearly(key: String, year: Int): Double {
             val s = h.series[key] ?: return Double.NaN
             val v = rows(year).map { s[it].toDouble() }.filter { !it.isNaN() }

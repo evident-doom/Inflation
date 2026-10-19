@@ -50,10 +50,7 @@ class CultureAndMeetingsTest {
     }
 
     @Test
-    fun `food values without a band are the plain ones, and big prey fights back harder against a small party`() {
+    fun `food values without a band are the plain ones`() {
         assertEquals(MEAT_SHARE, meatShare(null)); assertEquals(RAW_SEED, seedValue(null))
-        val prey = Catalogue.all.filter { it.defence > 0f }.maxBy { it.massKg }
-        assertTrue(fightBack(prey, 50f) > fightBack(prey, 5000f))
-        assertTrue(fightBack(prey, 1f) <= 2 * FIGHT_BACK * prey.defence + 1e-6f)
     }
 }

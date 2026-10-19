@@ -12,8 +12,8 @@ import inflation.world.WorldConfig
 class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 8f) {
     companion object {
         /**
-         * The most of a kind's choices that are recorded, and so drawn by chance instead of the best: herds
-         * live in a few hundred groups, and with every move drawn they wander off their country and dwindle.
+         * The most of a kind's choices that are recorded, and so drawn by chance instead of the best: a kind
+         * in a few hundred groups, with every move drawn, wanders off its country and dwindles.
          */
         const val MAX_SHARE = 0.1f
     }
@@ -21,7 +21,7 @@ class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 8f) {
 
 /**
  * Hand-picked maps (seed and centre latitude) to play and check on, in turn (e.g. those hex-pick-world
- * finds push herds hardest to migrate); empty for fresh worlds every round.
+ * finds push plant-eaters hardest to move with the seasons); empty for fresh worlds every round.
  */
 class Maps(val maps: List<Pair<Long, Double>> = emptyList()) {
     fun isEmpty() = maps.isEmpty()
@@ -55,7 +55,7 @@ class PpoOptions(
     val checkOnMaps: Boolean,
     /**
      * How many rounds a training world lives before a fresh one takes its place (0: until it goes badly
-     * off the rails, so that the networks learn in worlds that have run long, where what bands and herds
+     * off the rails, so that the networks learn in worlds that have run long, where what bands and packs
      * did compounds; 1: fresh every round).
      */
     val worldRounds: Int,

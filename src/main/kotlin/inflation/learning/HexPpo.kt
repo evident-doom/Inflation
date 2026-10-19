@@ -3,7 +3,6 @@ package inflation.learning
 import inflation.run.freshSim
 import inflation.ecology.HexSim
 import inflation.ecology.Catalogue
-import inflation.ecology.GATHER_KM
 import inflation.Config
 import inflation.ecology.HexFeatures
 import inflation.ecology.Temperament
@@ -56,7 +55,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
     /** What the group's temperament [temper] pulls it toward a candidate place with [features] (see [Temperament.pull]): added to the network's score, as to the hand-written one. */
     fun pull(temper: FloatArray?, features: FloatArray): Float =
         (if (temper == null) 0f else Temperament.pull(temper, features[HexFeatures.HUNTERS], features[HexFeatures.REMEMBERED], features[HexFeatures.STAYS], features[HexFeatures.CROWDING])) +
-            // A herd's yearly round draws it on outside the network, as tradition does, so that learning does not unlearn it.
+            // A band's yearly round draws it on outside the network, as tradition does, so that learning does not unlearn it.
             inflation.Tuning.config.roundNetPull * features.getOrElse(HexFeatures.ON_ROUND) { 0f }
 
     /** How many numbers of the band's own view ([Band.state]) it reads after the kind's part: [WAYS_IN] for people, 0 for animals. */
@@ -247,13 +246,13 @@ class Versus<T>(val learned: T, val hand: T)
 
 /**
  * Learns where to go by proximal policy optimisation, from every recorded choice: one network for
- * the herds, one for the hunters (kinds within each told apart by their traits and a learned
- * identity), one for people. Each
+ * the hunters (kinds told apart by their traits and a learned identity), one for people (the herds'
+ * network is kept, untrained, until retraining, though no herds live as groups now). Each
  * round, fresh small worlds with all the animals and people run for a while with the current
  * networks choosing by chance as they score; a share of the choices of every kind is recorded (the
  * same number a year of each kind, however common it is), and what became of the group over the
  * following weeks is its return. Each kind is judged against its own average, and counts the same
- * in the update as every other kind, so the common herds do not drown out the rare hunters. Every
+ * in the update as every other kind, so the common hunters do not drown out the rare ones. Every
  * few rounds each role's network plays against the hand-written behaviour on fixed fresh worlds
  * (the other roles hand-written), reported per kind with its spread over the worlds; and the ecosystem
  * check ([EcoCheck]) keeps each role's new network only when the whole holds up with it (in `kept/`).
@@ -273,17 +272,8 @@ object HexPpo {
      */
     const val PEOPLE_HORIZON = 13
     const val PEOPLE_DISCOUNT = 0.98f
-    /**
-     * What a migratory herd's choice earns, on top of its members' fate, for where they stand at the end of its
-     * horizon: up to this much, reached once they are [MIGRATION_KM] from where they chose (key ppo.migrationWeight).
-     * About what a twentieth more of its members living earns, so living stays first; it is what the ecosystem
-     * check also asks of the herds, so the networks learn to move rather than only being stopped from settling.
-     */
-    val MIGRATION_WEIGHT = Config.float("ppo.migrationWeight", 0.05f)
     /** The fewest animals of a kind its tenfold growth is measured from: a kind may grow from a few groups to this tenfold before the world counts as off the rails. */
     const val GROWTH_FLOOR = 10_000
-    /** The distance at which the migration bonus is whole: where a herd may scatter into the land ([GATHER_KM]). */
-    const val MIGRATION_KM = GATHER_KM
     const val CLIP = 0.2f
     /**
      * Parts each batch of learning is split into, to be worked on all cores; the same on every machine,
@@ -428,13 +418,6 @@ object HexPpo {
         var derailed: String? = null; private set
         private val startNumbers = HashMap<Species, Int>()
         private fun numbersByKind(): Map<Species, Int> = run.groups.groups.filter { it.alive }.groupingBy { it.species }.fold(0) { a, g -> a + g.size }
-        /** The migration bonus of choice [c] judged over [horizon] weeks ([MIGRATION_WEIGHT]); 0 where its group was not seen. */
-        private fun migration(c: Choice, horizon: Int): Float {
-            val a = outcomes.where(c.groupId, c.week); val b = outcomes.where(c.groupId, c.week + horizon)
-            if (a < 0 || b < 0) return 0f
-            return MIGRATION_WEIGHT * min(1.0, run.groups.hw.hex.distanceKm(a, b) / MIGRATION_KM).toFloat()
-        }
-
         private fun checkRails() {
             val now = numbersByKind()
             if (startNumbers.isEmpty()) { startNumbers.putAll(now); return }
@@ -474,7 +457,7 @@ object HexPpo {
                     setRates()
                     census("year %d%s: %s".format(week / stepsPerYear, if (week <= burnSteps) " (settling)" else "", kinds.joinToString(", ") { s -> "${s.name} ${run.groups.count(s)}" }))
                 }
-                outcomes.record(week, run.groups.groups, run.groups.merged) { g -> run.groups.hw.placeHex[g.place.i] }
+                outcomes.record(week, run.groups.groups, run.groups.merged)
             }
             val out = ArrayList<Choice>()
             val waiting = ArrayList<Choice>()
@@ -496,11 +479,8 @@ object HexPpo {
                     if (k <= boot) part += d * m else tail += d
                     d *= discount
                 }
-                // (A migratory herd's choice is also judged by how far its members went in the half year, as the check judges the herds:
-                // for those of them still living, so that going far is never worth dying on the way.)
-                val went = if (c.kind in Catalogue.migratory) migration(c, horizon) * min(1f, own[horizon - 1] / c.size.coerceAtLeast(1).toFloat()) else 0f
-                c.ret = sum / norm + went
-                c.part = part / norm + went
+                c.ret = sum / norm
+                c.part = part / norm
                 c.boot = own[boot - 1] / c.size.coerceAtLeast(1).toFloat() * tail / norm
                 if (!c.ret.isFinite() || !c.part.isFinite() || !c.boot.isFinite()) { NonFinite.note(c.kind, "return"); continue }
                 out += c

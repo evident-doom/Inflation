@@ -84,7 +84,7 @@ import inflation.ecology.m2
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,
- * the herds and hunters as dots walking hex to hex along the ways they took each week, and one
+ * the packs and bands as marks walking hex to hex along the ways they took each week, and one
  * resident kind's density as a tint over the hexes.
  *
  * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
@@ -135,17 +135,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     @Volatile private var stepsPerSecond = 2
 
     /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...; from where it was drawn last), its size. */
-    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean,
-                        val both: BothWays? = null)
-    /**
-     * For a herd of a kind that also lives spread out: what it did with the residents this week ([state]) and its kind's
-     * pull where it stands (east, south; 0..1).
-     */
-    private class BothWays(val state: HerdState, val pullE: Float, val pullS: Float)
-    private enum class HerdState(val label: String, val colour: Color) {
-        FORMED("condensed this week", Color(1f, 0.9f, 0.1f)), JOINING("taking in residents", Color(0.2f, 0.9f, 0.3f)),
-        SETTLING("leaving a band settled", Color(1f, 0.55f, 0.1f)), MOVING("neither", Color(0.85f, 0.85f, 0.85f))
-    }
+    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean)
     /** A resident kind's spill last week, by hex (see [inflation.ecology.HexFauna.flowOf]): its slot, the net way east and south, head/km². */
     private class Flow(val kind: Int, val east: FloatArray, val south: FloatArray)
     @Volatile private var flowShown: Flow? = null
@@ -169,10 +159,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val heightBox = JCheckBox("Up/down", false)
     /** Rivers by this week's flow (see [RiverOverlay]); unticked, no rivers are drawn. */
     private val riversBox = JCheckBox("River flows", true)
-    private val herdsBox = JCheckBox("Herds", true)
     private val huntersBox = JCheckBox("Hunters", true)
     private val peopleBox = JCheckBox("People", true)
-    /** Paths worn by herds, packs and bands, drawn hex to hex, darker and wider the more worn. */
+    /** Paths worn by packs and bands, drawn hex to hex, darker and wider the more worn. */
     private val pathsBox = JCheckBox("Paths", true)
     /** The names of the great features of the country (see [HexGeography]), written over the map. */
     private val namesBox = JCheckBox("Names", false)
@@ -200,12 +189,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     }
     /** Whose sense of direction to draw as arrows: a resident kind or a kind living in groups. */
     private val pullChoice by lazy { JComboBox(arrayOf("(no sense of direction)") + kindNames().map { "pull: $it" }.toTypedArray()) }
-    /**
-     * The resident kinds and the kinds in groups, by name; a kind that lives both ways is named twice, so its two
-     * entries say which is which.
-     */
-    private fun kindNames() = fauna.kinds.map { if (it in groups.kinds) "${it.name} (spread)" else it.name } +
-        groups.kinds.map { if (it in fauna.kinds) "${it.name} (herds)" else it.name }
+    /** The resident kinds and the kinds in groups, by name. */
+    private fun kindNames() = fauna.kinds.map { it.name } + groups.kinds.map { it.name }
     /** Where each group was drawn at the end of the last move, km. */
     private val lastDrawn = HashMap<Int, Pair<Float, Float>>()
     @Volatile private var shown = emptyList<Shown>()
@@ -214,10 +199,10 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val date = JLabel()
     /**
      * The kinds and their numbers along the bottom, as buttons: pressing one shows where that kind is
-     * (its density over the hexes, and only its herds or packs drawn); pressing it again shows all.
+     * (its density over the hexes, and only its packs or bands drawn); pressing it again shows all.
      */
     private val kindButtons = ArrayList<JToggleButton>()
-    /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in herds and packs. */
+    /** Which kind's numbers to tint the hexes by: any resident kind, or any kind in packs and bands. */
     @Volatile private var onlyKind: Species? = null
     /**
      * Life in the water to show as a tint: fish of the sea and lakes, river fish, shellfish, and each kind of sea
@@ -266,7 +251,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         modeChoice.addActionListener { map.repaint() }; causeChoice.addActionListener { map.repaint(); if (picked >= 0) inspect(picked) }
         windBox.addActionListener { map.repaint() }
         riversBox.addActionListener { rivers.visible = riversBox.isSelected; map.repaint() }
-        herdsBox.addActionListener { map.repaint() }
         huntersBox.addActionListener { map.repaint() }
         peopleBox.addActionListener { map.repaint() }
         pathsBox.addActionListener { map.repaint() }
@@ -282,7 +266,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         bar.add(residentChoice)
         bar.add(flowBox)
         bar.add(heightBox)
-        bar.add(herdsBox)
         bar.add(huntersBox)
         bar.add(peopleBox)
         bar.add(pathsBox)
@@ -311,14 +294,12 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         load?.let { f -> commands += { loadWorld(f) } }
         // Every kind's button in view: as many rows as the window's width needs.
         val bottom = JPanel(WrapLayout(FlowLayout.LEFT, 4, 2))
-        // (One button a kind: a kind that lives both ways shows its residents' density and only its herds drawn.)
+        // (One button a kind.)
         val all = fauna.kinds + groups.kinds
         for ((i, s) in all.withIndex()) {
-            if (i >= fauna.kinds.size && s in fauna.kinds) continue
             val b = JToggleButton(s.name); b.margin = Insets(1, 4, 1, 4)
-            b.toolTipText = if (s in fauna.kinds && s in groups.kinds) "${s.name}: lives spread over the land and in herds; the button counts the spread ones, then the herded ones and their herds (shown as the spread ones' density, and only its herds drawn)"
-                else if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)"
-                else "${s.name}: lives in herds or packs (shown as its density, and only its groups drawn)"
+            b.toolTipText = if (i < fauna.kinds.size) "${s.name}: lives spread over the land (shown as its density)"
+                else "${s.name}: lives in packs or bands (shown as its density, and only its groups drawn)"
             b.addActionListener {
                 for (o in kindButtons) if (o !== b) o.isSelected = false
                 onlyKind = if (b.isSelected && s in groups.kinds) s else null
@@ -376,24 +357,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         control.weekDone()
     }
 
-    /** What a herd of a kind that lives both ways is doing with the residents, for drawing it; null for any other group. */
-    private fun bothWays(g: inflation.ecology.HexGroup): BothWays? {
-        val s = g.species
-        if (s !in Catalogue.gathering || s.carnivore) return null
-        val state = when {
-            g.id !in lastDrawn && g.formedAt >= 0 -> HerdState.FORMED
-            g.settled > 0 -> HerdState.SETTLING
-            g.joined > 0 -> HerdState.JOINING
-            else -> HerdState.MOVING
-        }
-        val h = hw.placeHex[g.place]
-        val k = groups.kinds.indexOf(s)
-        return BothWays(state, if (k >= 0) groups.bearings.east[k][h] else 0f, if (k >= 0) groups.bearings.south[k][h] else 0f)
-    }
-
     /** The model: learned networks where given ([nets], [waysFile], see [LearnedModel]), else the hand-written choices. */
     private fun useNetworks() {
-        LearnedModel.apply(groups, nets, waysFile, Config.string("herdWays"), Config.string("hunterWays")) { println(it) }
+        LearnedModel.apply(groups, nets, waysFile, Config.string("hunterWays")) { println(it) }
     }
 
     private fun snapshot() {
@@ -418,7 +384,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             pts += end.first; pts += end.second
             // How well it is doing: fed last week and its reserves.
             val health = (0.5f * g.fed + 0.5f * g.fat / g.species.maxFatDays.coerceAtLeast(1f)).coerceIn(0f, 1f)
-            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size, health, g.band?.atHome == true, bothWays(g))
+            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size, health, g.band?.atHome == true)
             lastDrawn[g.id] = end
         }
         shown = list
@@ -437,13 +403,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         // (The texts are made here, on the simulation's thread, from the world as the week left it.)
         val dateText = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
         val all = fauna.kinds + groups.kinds
-        val herded = { s: Species -> "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}" }
-        val kindTexts = all.withIndex().filter { (i, s) -> i < fauna.kinds.size || s !in fauna.kinds }.map { (i, s) ->
-            "${s.name} " + when {
-                i >= fauna.kinds.size -> herded(s)
-                s in groups.kinds -> "%.0f, ".format(fauna.count(i)) + herded(s)
-                else -> "%.0f".format(fauna.count(i))
-            }
+        val kindTexts = all.withIndex().map { (i, s) ->
+            "${s.name} " + if (i >= fauna.kinds.size) "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}"
+                else "%.0f".format(fauna.count(i))
         }
         SwingUtilities.invokeLater {
             date.text = dateText
@@ -731,7 +693,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 g.font = font
                 legends += MapLegend("Names", "The great features of the country, each named once: rivers (main stems, the greater flow keeping the name), " +
                     "their valleys and floodplains, lakes, and stretches of mountains, hills, forest, woods, steppe, desert and marsh larger than the ground one place draws on; " +
-                    "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on, or than a herd's range). The larger the feature, the larger its name; a name is written only where it fits along its river or across its country.", note = features.summary(),
+                    "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on, or than a range). The larger the feature, the larger its name; a name is written only where it fits along its river or across its country.", note = features.summary(),
                     swatches = HexGeography.Kind.entries.map { MapLegend.Swatch(featureColour(it), it.label) })
             }
             // The hex being inspected.
@@ -741,7 +703,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             // The groups, each part of the way along the hexes it walked this week; at the end of the
             // week those sharing a hex stand side by side in a small ring around its centre.
             val t = min(1f, frame.toFloat() / frames)
-            var bothShown = false
             for (s in shown) {
                 val sp = Catalogue.all[s.kind]
                 // The group followed in the follow window: a yellow ring.
@@ -752,7 +713,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     g.drawOval(sx(fx) - 9, sy(fy) - 9, 18, 18)
                     g.stroke = BasicStroke(1f)
                 }
-                if (if (sp.human) !peopleBox.isSelected else if (s.carnivore) !huntersBox.isSelected else !herdsBox.isSelected) continue
+                if (if (sp.human) !peopleBox.isSelected else !huntersBox.isSelected) continue
                 if (onlyKind != null && sp != onlyKind) continue
                 val w = s.way
                 val (x, y) = along(w, t)
@@ -772,33 +733,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                         g.color = Color(1f, 1f, 1f, a); g.fillPolygon(intArrayOf(px, px + 5, px, px - 5), intArrayOf(py - 5, py, py + 5, py), 4)
                         g.color = Color(0.1f, 0.3f, 0.95f, a); g.fillPolygon(intArrayOf(px, px + 3, px, px - 3), intArrayOf(py - 3, py, py + 3, py), 4)
                     }
-                } else if (s.carnivore) {
+                } else {
                     // Hunters fade as they starve.
                     val a = 0.25f + 0.75f * s.health
                     g.color = Color(1f, 1f, 1f, a); g.fillRect(sx(x) - 3, sy(y) - 3, 7, 7)
                     g.color = Color(0.82f, 0.06f, 0.06f, a); g.fillRect(sx(x) - 2, sy(y) - 2, 5, 5)
-                } else {
-                    // A herd of a kind that also lives spread out: its kind's pull where it stands, and a ring for what it did.
-                    s.both?.let { b ->
-                        val st = hypot(b.pullE, b.pullS)
-                        if (st > 0.02f) {
-                            val len = (min(1f, st * 2f) * hex.hexKm * 1.5).toFloat()
-                            val x1 = sx(x + b.pullE / st * len); val y1 = sy(y + b.pullS / st * len)
-                            g.color = Color(1f, 0.85f, 0.1f, 0.9f); g.drawLine(sx(x), sy(y), x1, y1)
-                            val ang = atan2((y1 - sy(y)).toDouble(), (x1 - sx(x)).toDouble())
-                            for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 4 * cos(ang + sgn * 0.5)).toInt(), (y1 - 4 * sin(ang + sgn * 0.5)).toInt())
-                        }
-                        g.color = b.state.colour; g.stroke = BasicStroke(2f); g.drawOval(sx(x) - 6, sy(y) - 6, 12, 12); g.stroke = BasicStroke(1f)
-                        bothShown = true
-                    }
-                    g.color = Color(0x101010); g.fillOval(sx(x) - 3, sy(y) - 3, 7, 7)
-                    g.color = Color(KIND_COLOURS[sp.index % KIND_COLOURS.size]); g.fillOval(sx(x) - 2, sy(y) - 2, 5, 5)
                 }
             }
-            if (bothShown) legends += MapLegend("Herds that also live spread out", "Herds of the kinds that live both as residents and as herds: " +
-                "a ring for what the herd did this week (condensed out of the unfed residents, took in hungry residents and young males, or left a band settled " +
-                "where the land had room) and a yellow arrow for its kind's pull where it stands.",
-                note = "arrow: its kind's pull", swatches = HerdState.entries.map { MapLegend.Swatch(it.colour, it.label) })
             // What the tints' colours mean, in the top right corner.
             MapLegend.draw(g, legends, width)
         }
@@ -942,7 +883,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             Measure.EAGLES -> "full where every range is held" to floatArrayOf(0f, 0.5f, 1f)
             Measure.CARRION -> "full at 20 kg/km²" to floatArrayOf(0f, 10f, 20f)
             Measure.RESIDENTS -> "full at 20 head/km²" to floatArrayOf(0f, 10f, 20f)
-            Measure.HERD_PRESSURE -> "full at 1, where a herd forms" to floatArrayOf(0f, 0.5f, 1f)
             else -> return null
         }
         for (h in values.indices) { val v = values[h]; if (!v.isNaN()) out[h] = fixedColourOf(tint, v) }
@@ -974,11 +914,10 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         Measure.EAGLES -> rgba(0.3f, 0.2f, 0.1f, (0.05f + 0.6f * v))
         Measure.CARRION -> rgba(0.4f, 0.1f, 0.4f, (0.1f + 0.7f * min(1f, v / 20f)))
         Measure.RESIDENTS -> rgba(1f, 0.1f, 0.6f, (0.05f + 0.7f * min(1f, v / 20f)))
-        Measure.HERD_PRESSURE -> if (v < 0.05f) null else if (v >= 1f) rgba(1f, 0.1f, 0.05f, 0.8f) else rgba(1f, 0.6f, 0.1f, 0.1f + 0.6f * v)
         else -> null
     }
 
-    /** Fills the side panel with what is in hex [h]: its ground, weather, plants, resident herds and borders, and the groups standing in it. */
+    /** Fills the side panel with what is in hex [h]: its ground, weather, plants, residents and borders, and the groups standing in it. */
     private fun inspect(h: Int) = worldLock.whileStill { inspectNow(h) }
 
     private fun inspectNow(h: Int) {
@@ -1000,7 +939,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 sl.insects[p], sl.biting[p], sl.rodents[p], sl.herps[p], sl.pollinators[p], sl.litter[p], sl.organicMatter[p]))
             val res = fauna.kinds.indices.filter { fauna.adults[it][p] + fauna.young[it][p] > 0.01f }
                 .joinToString(", ") { "%s %.1f".format(fauna.kinds[it].name, fauna.adults[it][p] + fauna.young[it][p]) }
-            if (res.isNotEmpty()) sb.appendLine("   resident herds per km²: $res")
+            if (res.isNotEmpty()) sb.appendLine("   residents per km²: $res")
         }
         // Everything living here, in head counts for the whole hex.
         var totalArea = 0f
@@ -1017,9 +956,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val gs = groups.groups.filter { it.alive && hw.placeHex[it.place] == h }
         sb.appendLine("country: " + describe(h))
         sb.appendLine("in the hex (%.0f km²):".format(totalArea))
-        sb.appendLine("   resident herds: " + fauna.kinds.indices.filter { residents[it] >= 0.5 }
+        sb.appendLine("   residents: " + fauna.kinds.indices.filter { residents[it] >= 0.5 }
             .joinToString(", ") { "%s %.0f".format(fauna.kinds[it].name, residents[it]) }.ifEmpty { "none" })
-        sb.appendLine("   herds and packs: " + gs.groupBy { it.species }.entries
+        sb.appendLine("   packs and bands: " + gs.groupBy { it.species }.entries
             .joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
         sb.appendLine("   forage (grass and browse) %.0f t, rodents and reptiles %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
         sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.hydro.meanFlow[h], land.hydro.flow[h]))
@@ -1086,7 +1025,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 .ifEmpty { "none" })
             sb.appendLine("goods: " + Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it]) })
         }
-        if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat from herds met this week %.0f kg".format(
+        if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat taken from other hunters this week %.0f kg".format(
             if (!g.home.none) g.home.toString() else "none", g.meatMet))
         else {
             val months = (0 until Date.MONTHS_PER_YEAR).filter { g.seasonPlace[it] >= 0 }
@@ -1156,7 +1095,5 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             HexRoutes.Kind.MOUTH -> Color(1f, 0.55f, 0.1f)
             else -> Color(0.5f, 0.35f, 0.2f)
         }
-        private val KIND_COLOURS = intArrayOf(0xf0e060, 0xa0e070, 0x70d0f0, 0xf0a050, 0xe070e0, 0x90f0c0, 0xffffff, 0xc0a0ff, 0xffc0c0,
-            0x80ffff, 0xffd080, 0xb0ff80, 0xff8080, 0x80b0ff, 0xd0d0d0, 0xa0ffa0, 0xffa0ff, 0xc0c060)
     }
 }

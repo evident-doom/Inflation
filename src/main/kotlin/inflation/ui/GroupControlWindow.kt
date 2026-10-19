@@ -102,7 +102,7 @@ class GroupControlWindow(
     private fun stepHere() { playerWeek = true; requestStep() }
     /** After the player's week runs, let the next week run up to the group's choice. */
     @Volatile private var startNext = false
-    /** The player's pinned ways, by output (NaN: the model's), for the kind of group followed: a band's or a herd's or pack's. */
+    /** The player's pinned ways, by output (NaN: the model's), for the kind of group followed: a band's or a pack's. */
     @Volatile private var pins = FloatArray(0)
     private var pinsFor = -1
 
@@ -428,8 +428,8 @@ class GroupControlWindow(
     private var waysFor = -1
     private fun buildWays(d: MoveDecision) {
         val band = d.group.band != null
-        val names = if (band) wayNames() else if (d.group.species.carnivore) Schema.HUNTER_WAYS_OUT else Schema.HERD_WAYS_OUT
-        val key = if (band) 2 else if (d.group.species.carnivore) 1 else 0
+        val names = if (band) wayNames() else Schema.HUNTER_WAYS_OUT
+        val key = if (band) 2 else 1
         if (waysFor != key) {
             waysFor = key
             waysPanel.removeAll()

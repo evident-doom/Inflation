@@ -110,9 +110,10 @@ object HexSnapshot {
      * and plant-eaters live only as residents (Tuning.plantEaterHerds), their herds spread as residents; and a resident
      * mother bears a year's young once, wherever she walks ([HexFauna.bred]), a week's share of her season by its days, and
      * a place is worth its births to movers whatever its calendar.
+     * 3.0: plant-eaters live only as residents; the groups are the hunters and people.
      */
-    const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 16
+    const val MODEL_MAJOR = 3
+    const val MODEL_MINOR = 0
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

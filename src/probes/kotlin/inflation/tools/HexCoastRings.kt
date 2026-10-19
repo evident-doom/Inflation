@@ -66,7 +66,7 @@ fun main(args: Array<String>) {
         println("%2d%s | %8.0f | %6.1f | %8.0f | %8.0f | %8.0f | %5.1f | %7.0f | %.3f | %.2f | %.3f / %.3f".format(rr, if (rr == 12) "+" else " ", km2,
             1000.0 * heads / km2,
             mean { _, p -> groups.campValue(human, p).toDouble() },
-            mean { _, p -> (groups.preyHere(human, p) + groups.herdPrey(human, p)).toDouble() },
+            mean { _, p -> groups.preyHere(human, p).toDouble() },
             mean { _, p -> ((run.fauna.food.fruit[p] + run.fauna.food.roots[p] + run.fauna.food.seeds[p]) * 1e6f *
                 inflation.ecology.PLANT_FOOD_WEIGHT).toDouble() },
             mean { _, p -> land.drink.peopleWaterKm(p).toDouble() },

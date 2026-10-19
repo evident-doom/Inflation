@@ -70,10 +70,10 @@ class GroupControlTest {
     }
 
     @Test
-    fun `a herd can be steered too`() {
+    fun `a pack can be steered too`() {
         val sim = HexSim(world)
-        val herd = sim.groups.groups.first { !it.species.carnivore }
-        sim.groups.watched = herd.id
+        val pack = sim.groups.groups.first { !it.species.human }
+        sim.groups.watched = pack.id
         var places = IntArray(0); var chosen = -1; var way = IntArray(0)
         sim.groups.control = object : GroupControl {
             override fun move(d: MoveDecision): Int {
@@ -82,12 +82,12 @@ class GroupControlTest {
                 way = d.paths[chosen]
                 return chosen
             }
-            override fun ways(g: HexGroup, out: FloatArray) { out[AnimalWay.FATTEN] = -10f }
+            override fun ways(g: HexGroup, out: FloatArray) { out[AnimalWay.SETTLE] = -10f }
         }
         sim.step()
         assertTrue(places.size > 1, "it had a choice")
         // (It sets off on the way chosen; a meeting on the way may stop it short.)
-        assertTrue(herd.path.isNotEmpty() && way.copyOf(herd.path.size).contentEquals(herd.path), "path ${herd.path.toList()} along ${way.toList()}")
-        assertTrue(herd.will[AnimalWay.FATTEN] < 0.01f)
+        assertTrue(pack.path.isNotEmpty() && way.copyOf(pack.path.size).contentEquals(pack.path), "path ${pack.path.toList()} along ${way.toList()}")
+        assertTrue(pack.will[AnimalWay.SETTLE] < 0.01f)
     }
 }
