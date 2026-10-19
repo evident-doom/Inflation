@@ -876,17 +876,40 @@ internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
     val p = g.place
     val want = HEARTH_WOOD * days * g.size
     val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]
-    val rate = FUEL_A_DAY * hands * min(1f, (tree + shrub) / 3f)
-    if (want <= 0f || rate <= 0f) { b.hearthWood = if (want <= 0f) 1f else 0f; return 0f }
-    val spent = min(want / rate, FUEL_MOST * days)
-    val got = spent * rate
-    b.hearthWood = got / want
+    val cover = woodCover(p.i)
+    if (want <= 0f || cover <= 0f) { b.hearthWood = if (want <= 0f) 1f else 0f; return 0f }
+    val perHand = g.size.toFloat() / hands
+    val spent = fuelShare(cover, perHand) * days
+    b.hearthWood = hearthShare(cover, perHand)
+    val got = b.hearthWood * want
     val m2 = land.m2(p)
     val burnt = land.plants.consume(p.i, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2)).v +
         land.plants.consume(p.i, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2)).v
     land.books?.flow(Books.Stuff.MATTER, "burnt", -burnt * m2.toDouble())
     return spent
 }
+
+/** How thickly dead wood lies about place [p], 0 (none) to 1 (trees or scrub thick enough to fetch [FUEL_A_DAY] a person-day). */
+internal fun HexGroups.woodCover(p: Int) = min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)
+
+/**
+ * The share of its hands' days a band gives to the hearth's firewood at wood cover [cover] ([woodCover]), [perHand]
+ * mouths to each hand that fetches it: what the hearth wants, but never more than [FUEL_MOST] ([fetchFuel], and the
+ * camp's worth in [HexGroups.campFactor]).
+ */
+internal fun fuelShare(cover: Float, perHand: Float) = if (cover <= 0f) 0f else min(FUEL_MOST, HEARTH_WOOD * perHand / (FUEL_A_DAY * cover))
+
+/** The share of the hearth's want those days ([fuelShare]) bring in: its fire burns only as far as that goes ([Band.hearthWood]). */
+internal fun hearthShare(cover: Float, perHand: Float) =
+    if (perHand <= 0f) 1f else if (cover <= 0f) 0f else min(1f, fuelShare(cover, perHand) * FUEL_A_DAY * cover / (HEARTH_WOOD * perHand))
+
+/**
+ * What keeping warm takes of group [g]'s week's need at [t] °C in [month], with band [b]'s fire [fire] and at its house
+ * or not ([home]): more in the cold it feels through its clothes, fire and shelter, and more again for raw meals where
+ * there is no fire ([RAW_COST]). The week's own ([HexGroup.warmth]) and a place weighed ahead ([HexGroups.drain]) alike.
+ */
+internal fun warmthNeed(s: Species, b: Band?, t: Float, fire: Float, home: Boolean, month: Int, tuning: Tuning) =
+    if (b == null) coldNeed(s, t, month, tuning) else coldNeed(s, b.feels(t, fire, home), month, tuning) * (1f + RAW_COST * (1f - fire))
 
 /**
  * The work [b]'s customs ask of it this week, from [time] (person-days) after the firewood: keeping the camp clean
@@ -1338,7 +1361,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[x.SPARE_DAYS] = b.spareDays / max(1f, g.adults * days.toFloat())
     // Its camp's ground: how long it has gone short of water, the wood for its fire, the cover about it, the snow.
     into[x.DAYS_DRY] = min(1f, g.dry / g.species.daysWithoutWater)
-    into[x.FIREWOOD] = min(1f, (land.plants.tree[g.place] + land.plants.shrub[g.place]) / 3f)
+    into[x.FIREWOOD] = woodCover(g.place.i)
     into[x.COVER] = land.plants.cover(g.place)
     into[x.SNOW] = min(1f, weather.snowpack[g.place] / g.species.snowLimitMm)
     // Its health: the sick with each illness, the wounded and lamed, its old; and those beasts took lately.
@@ -1386,8 +1409,7 @@ val BAND_INPUT_NAMES: List<String> get() = BandInputs.names
  * people networks to choose by: worked out once, before any band moves.
  */
 internal fun HexGroups.fillBandStates(weather: Weather) {
-    bandIndex.clear()
-    for (g in groups) if (g.alive && g.band != null) bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    indexBands()
     val list = groups.filter { it.alive && it.band != null }
     IntStream.range(0, list.size).parallel().forEach { k ->
         val g = list[k]; val b = g.band!!
@@ -1398,6 +1420,12 @@ internal fun HexGroups.fillBandStates(weather: Weather) {
 }
 
 /** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [STORE_AIM_DAYS], every tool alike). */
+/** Files every living band under the hex it is in now ([HexGroups.bandIndex]), for [bandInputs]' bands about. */
+internal fun HexGroups.indexBands() {
+    bandIndex.clear()
+    for (g in groups) if (g.alive && g.band != null) bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+}
+
 internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
     val b = g.band ?: return
     bandInputs(g, weather, inputs)

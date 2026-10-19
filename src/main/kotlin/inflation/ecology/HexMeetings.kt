@@ -96,6 +96,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     val hunters = groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
     // Bands first set their ways for the week.
+    // (Where the bands about it stand now, after this week's moves, as its own place is.)
+    if (ways != null || control != null) indexBands()
     if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
     if (ways == null) controlledWays()?.let { w -> hunters.firstOrNull { it.id == watched && it.band != null }?.let { setWays(it, weather, w, inputs, out) } }
@@ -133,6 +135,16 @@ internal fun HexGroups.hunt(weather: Weather) {
 }
 
 /**
+ * The hands [g] forages with: its grown, less a band's scouts (who range ahead instead), lookouts and adults kept back
+ * with the children beyond the usual.
+ */
+internal fun forageHands(g: HexGroup): Int {
+    val band = g.band
+    return max(1, (g.adults * (band?.ableShare ?: 1f) * (1f - (band?.scoutShare ?: 0f)) *
+        (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
+}
+
+/**
  * A party's week, as optimal foraging: along its way it meets big game, small game, carrion (if it
  * eats it), plant food (if it eats plants) and, for bands, fish, each at a rate set by how much there
  * is, how much ground it searches for that kind of food, and how likely a meeting ends in a meal (its
@@ -151,10 +163,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val band = g.band
     // (Its own stream of chance, so that regions can be worked at once.)
     val rnd = kotlin.random.Random(g.id * 1_000_003L + weather.date.absoluteDay)
-    // (A band's scouts range ahead instead of foraging.)
-    // (Lookouts, and adults kept back with the children beyond the usual, do not gather or hunt.)
-    val hands = max(1, (g.adults * (band?.ableShare ?: 1f) * (1f - (band?.scoutShare ?: 0f)) *
-        (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
+    val hands = forageHands(g)
     // A band splits: its hunters go after big game, searching all the days they are out, while the rest
     // gather, fish and snare (see [HUNTERS_SHARE]); an animal's party forages as one.
     val hunt = band?.let { huntersShare(it) } ?: 1f
