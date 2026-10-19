@@ -1152,14 +1152,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * and the plant-eaters' young to a grown one and fat ([moverYoung], [moverFat]).
      */
     private fun fillArrive(weather: Weather, moving: Boolean) {
-        val outs = ThreadLocal.withInitial { FloatArray(HZ_COUNT) }
         for (k in kinds.indices) {
             val s = kinds[k]
             val odds = arrive[k]
-            if (!moving) { IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, outs.get()) }; continue }
+            if (!moving) { IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, scratch.get().outs) }; continue }
             if (room[k] == null) {
                 IntStream.range(0, n).parallel().forEach { p ->
-                    odds[p] = arriveOdds(k, p, weather, outs.get()); worth[k][p] = worthOrNothing(appeal(k, p, weather)) }
+                    odds[p] = arriveOdds(k, p, weather, scratch.get().outs); worth[k][p] = worthOrNothing(appeal(k, p, weather)) }
                 continue
             }
             // (Those that move are the kind as it is: its young to its grown, and the fat its grown carry, all over.)
@@ -1169,7 +1168,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val youngPerGrown = if (grown > 0.0) (little / grown).toFloat() else 0f
             val carried = if (grown > 0.0) (fatDays / grown).toFloat() else 0.5f * s.maxFatDays
             moverYoung[k] = youngPerGrown; moverFat[k] = carried
-            IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, outs.get()) }
+            IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, scratch.get().outs) }
         }
     }
 
@@ -1552,9 +1551,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (The grown times the share of their season of births they have had: [bred] goes with them.)
         val bk = bred[k]; val gb = FloatArray(n) { p -> bk[p] * ga[p] }
         val food = FloatArray(n)
-        val tools = ThreadLocal.withInitial { DryPantry() to Bites() }
-        IntStream.range(0, n).parallel().forEach { p -> val (d, b) = tools.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, d, b) }
-        val outs = ThreadLocal.withInitial { FloatArray(HZ_COUNT) }; val partsOf = ThreadLocal.withInitial { FloatArray(GROWTH_PARTS) }
+        IntStream.range(0, n).parallel().forEach { p -> val t = scratch.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, t.pantry, t.bites) }
         val v = worth[k]
         // Drawn on by where they remember the kind fares best from the next month on ([SeasonalMemory]): set off now for
         // ground that will be good by the time they get there.
@@ -1575,8 +1572,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val fixed = WeekFixed(n)
         // (A year of this week at a place, at [heads] there: how they would fare there, before what they remember.)
         fun weigh(p: Int, heads: Float): Float {
-            if (!fixed.done[p]) fix(k, p, weather, outs.get(), fixed)
-            return placeWorth(k, p, fixed, heads, food[p], partsOf.get())
+            val t = scratch.get()
+            if (!fixed.done[p]) fix(k, p, weather, t.outs, fixed)
+            return placeWorth(k, p, fixed, heads, food[p], t.parts)
         }
         // (Only the places the kind is at and those next to them are weighed, as it comes to them: no other can matter yet.)
         val weighed = BooleanArray(n); v.fill(0f)
@@ -1830,7 +1828,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Share of [s] that drown swimming [gapKm] of open water: by the groups' rule, the nearer the strait to all it can swim, the more. */
     private fun drownRisk(s: Species, gapKm: Float) = min(1f, Hazards.drowning(s, gapKm))
 
+    /** One thread's working arrays for weighing places ([fillArrive], [flow]): every use fills what it reads first. */
+    private class Scratch {
+        val outs = FloatArray(HZ_COUNT); val parts = FloatArray(GROWTH_PARTS); val pantry = DryPantry(); val bites = Bites()
+    }
+
     companion object {
+        /** Each thread's [Scratch], made once for the run rather than afresh for every kind every week. */
+        private val scratch = ThreadLocal.withInitial { Scratch() }
+
         /** Where [growthParts] puts each part. */
         const val GROWTH_BORN = 0; const val GROWTH_GROWN_DIE = 1; const val GROWTH_YOUNG_DIE = 2; const val GROWTH_FED = 3; const val GROWTH_PROTEIN = 4; const val GROWTH_PARTS = 5
         /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */
