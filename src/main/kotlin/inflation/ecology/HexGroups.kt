@@ -506,6 +506,11 @@ class HexGroups(
         val predatorKg = FloatArray(n)
         for (g in groups) if (g.alive && g.species.carnivore) predatorKg[g.place] += g.size * g.species.massKg
         Profile.part("spreading out: herds' grazing map") { fillGrazed(); noteGround(planGround) { g -> grazingRange(g) } }
+        // (The herds' heads in each place as they have arrived, not as the week began: weighing again, a herd counts
+        // the others where they are now, and itself out of the place it has come to.)
+        val herdSlots = kinds.indices.filter { !kinds[it].carnivore }
+        for (k in herdSlots) headsHere[k].fill(0)
+        for (g in groups) if (g.alive && !g.species.carnivore) headsHere[kindSlot[g.species.index]][g.place] += g.size
         val herds = groups.indices.filter { groups[it].alive && !groups[it].species.carnivore }
             .sortedWith(compareByDescending<Int> { groups[it].days.lastOrNull() ?: 0f }.thenBy { it })
         var moved = 0
@@ -516,6 +521,7 @@ class HexGroups(
             val plan = Profile.part("spreading out: weighing again") { plan(g, weather, weather.date, predatorKg, shift = true) }
             if (plan.place == g.place) continue
             onGround(g, -1f)
+            headsHere[kindSlot[g.species.index]][g.place] -= g.size; headsHere[kindSlot[g.species.index]][plan.place] += g.size
             g.place = plan.place; g.path = g.path + plan.path.copyOfRange(1, plan.path.size); g.days = timetable(g.species, g.path)
             onGround(g, 1f)
             crossWater(g, plan.path)
@@ -1616,6 +1622,8 @@ class HexGroups(
         if (stock <= 0f || wantKg <= 0f) return 0f
         val share = min(1f, stock * m2 / (wantKg * RANGE_NEED))
         val want = wantKg * share / m2
+        // (Where next to nothing is left, fruit dwindled to a trace, what it would ask for is too small to tell from none.)
+        if (want <= 0f) return 0f
         // (The other herds' week's need on this ground, kg per m², shared out over what is there.)
         val others = max(0f, herdWantKg[h] - ownShare(c, h) * g.dailyNeedKg * days) / (hex.areaKm2.toFloat() * 1e6f)
         val left = (1f - others / stock).coerceIn(0f, 1f)
