@@ -121,7 +121,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     }
     val (near, far) = hunters.partition { g ->
         val end = hw.placeHex[g.place]
-        g.path.all { h -> hex.distanceKm(end, h) + hex.hexKm < HUNT_FINE_KM / 2 }
+        // (Its hunting ground reaches a hex beyond its way, see [huntGround].)
+        g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM / 2 }
     }
     work(near, HUNT_FINE_KM)
     work(far, HUNT_BLOCK_KM)
@@ -234,29 +235,76 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val fuelDays = if (band != null) gs.fetchFuel(g, band, hands) else 0f
     val workDays = gs.days - fuelDays
     val spareYoung = band?.holds(Tradition.TABOO_YOUNG) == true
-    // The odds a meeting with each kind ends in a kill, in each place on the way (they do not change within the week).
+    // The ground its hunters search for game this week, and how much of each place (see [huntGround]).
+    val ground = gs.huntGround(g, sweep * g.path.size.coerceAtLeast(1) * sqrt(hunt))
+    // The odds a meeting with each kind ends in a kill, in each place of that ground (they do not change within the week).
     val nk = gs.fauna.kinds.size
-    val odds = FloatArray(g.path.size * nk)
+    val odds = FloatArray(ground.size * nk)
     // (And the stalks a kill takes, on average: one over the share of them that end in one.)
-    val stalks = FloatArray(g.path.size * nk)
+    val stalks = FloatArray(ground.size * nk)
     // (And the bands of each kind it comes on for each animal there, unseen: for its search image.)
-    val met = FloatArray(g.path.size * nk)
-    // (The game worth stalking at each step of the way, the kinds with odds of a kill in the order they are offered:
-    // the [j]th step's are [gameAt] from [gameFrom] j to [gameFrom] j + 1, each its index into [odds].)
-    val gameFrom = IntArray(g.path.size + 1); val gameAt = IntArray(g.path.size * nk); var games = 0
+    val met = FloatArray(ground.size * nk)
+    // (The game worth stalking in each place of the ground, the kinds with odds of a kill in the order they are offered:
+    // the [j]th place's are [gameAt] from [gameFrom] j to [gameFrom] j + 1, each its index into [odds].)
+    val gameFrom = IntArray(ground.size + 1); val gameAt = IntArray(ground.size * nk); var games = 0
     val today = weather.date.absoluteDay.toDouble()
     // (The share of the week it searched before it was fed.)
     var searched = 0f
     val haul = Haul()
 }
 
-/** [forage]'s odds of a kill of each kind present at each step of [w]'s way, and the game worth stalking there. */
+/**
+ * The ground hunting party [g] searches for game this week with [km2] of search (see [searchKm2]): the places on its
+ * way, each its share of the search as far as the place goes; and where a place is too small for its share (a lion's
+ * week sweeps several hexes' worth), the rest spread evenly over the places it can cross into about its way, each as
+ * far as it goes. (A party ranges round where it goes, not only through it; what is left over after that is the same
+ * ground searched again, which finds no more game.) The places nearest in height to its own.
+ */
+internal fun HexGroups.huntGround(g: HexGroup, km2: Float): HuntGround {
+    val path = g.path; val area = land.areaKm2
+    val places = ArrayList<Int>(path.size + 6); val swept = ArrayList<Float>(path.size + 6)
+    val share = km2 / path.size.coerceAtLeast(1)
+    var over = 0f
+    for (h in path) {
+        val p = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
+        val i = places.indexOf(p)
+        val had = if (i >= 0) swept[i] else 0f
+        val s = min(area[p], had + share)
+        over += had + share - s
+        if (i >= 0) swept[i] = s else { places += p; swept += s }
+    }
+    val onWay = places.size
+    if (over > 0f) {
+        val cross = hex.crossings[Catalogue.travel(g.species).ordinal]
+        for (h in path) for (d in 0 until 6) {
+            val nh = hex.neighbour(h, d); if (nh < 0 || !cross[h * 6 + d].isFinite() || nh in path) continue
+            val q = hw.placeNear(g.place.i, nh).takeIf { it >= 0 } ?: continue
+            if (q !in places) { places += q; swept += 0f }
+        }
+        // (Evenly over the places about, those too small for their share filled and the rest shared again among the others.)
+        var open = places.size - onWay
+        while (over > 1e-3f && open > 0) {
+            val each = over / open; open = 0
+            for (i in onWay until places.size) {
+                val room = area[places[i]] - swept[i]; if (room <= 0f) continue
+                val s = min(room, each); swept[i] += s; over -= s
+                if (s < room) open++
+            }
+        }
+    }
+    return HuntGround(places.toIntArray(), swept.toFloatArray())
+}
+
+/** The places of a hunting party's week's ground ([huntGround]), and the km² of each it searches. */
+internal class HuntGround(val place: IntArray, val km2: FloatArray) { val size get() = place.size }
+
+/** [forage]'s odds of a kill of each kind present in each place of [w]'s hunting ground, and the game worth stalking there. */
 private fun HexGroups.huntingOdds(w: ForageWeek) {
     val g = w.g; val nk = w.nk
     val adults = fauna.adults; val young = fauna.young
-    for ((j, h) in g.path.withIndex()) {
+    for (j in 0 until w.ground.size) {
         w.gameFrom[j] = w.games
-        val p = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
+        val p = w.ground.place[j]
         for (k in 0 until nk) {
             if (adults[k][p] + young[k][p] <= 0f) continue
             val ps = fauna.kinds[k]
@@ -264,7 +312,7 @@ private fun HexGroups.huntingOdds(w: ForageWeek) {
             if (!(w.odds[j * nk + k] <= 0f)) w.gameAt[w.games++] = j * nk + k
         }
     }
-    w.gameFrom[g.path.size] = w.games
+    w.gameFrom[w.ground.size] = w.games
 }
 
 /** The foods [forage] offers a party in one pass, and its pick of them. */
@@ -320,12 +368,10 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     o.m = 0
     // (What a kill is worth to it: see below. Its butchers' skill grows with each kill, so once a pass.)
     val credit = creditShare(band); val most = (1f + SURPLUS_EAT) * w.wantAll
-    for ((j, h) in g.path.withIndex()) {
-        val p = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
-        val area = land.areaKm2[p]
-        val swept = min(area, sweep)
-        // (A band's hunters fan out over less of it than the whole band would, as for a smaller party: see [searchKm2].)
-        val huntSwept = if (band != null) min(area, sweep * sqrt(w.hunt)) else swept
+    // Big game over its hunting ground. (A band's hunters fan out over less of it than the whole band would, as for a
+    // smaller party: see [searchKm2] and [ForageWeek.ground].)
+    for (j in 0 until w.ground.size) {
+        val p = w.ground.place[j]; val huntSwept = w.ground.km2[j]
         for (c in w.gameFrom[j] until w.gameFrom[j + 1]) {
             val i = w.gameAt[c]; val k = i - j * nk
             val dens = adults[k][p] + young[k][p]
@@ -336,6 +382,12 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // (Each kill also costs the stalks and chases that failed before it.)
             offer(w, o, Food.BIG_GAME, k, p, dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats)
         }
+    }
+    // The rest along its way.
+    for (h in g.path) {
+        val p = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
+        val area = land.areaKm2[p]
+        val swept = min(area, sweep)
         val small = this.small
         offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area, w.smallSweep) * w.smallCatch / days, 1f, w.smallDays)
         if (w.d.carrion > 0f) {
@@ -415,7 +467,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
     val g = w.g; val s = w.s; val band = w.band; val weather = w.weather; val wantAll = w.wantAll
     val meat = w.meat; val smallGot = w.smallGot; val scraps = w.scraps; val plants = w.plants; val fish = w.fish
     // The resident bands it came on while it searched count towards its search image.
-    if (w.searched > 0f) countResidentsMet(g, w.sweep, w.met, w.searched, w.today)
+    if (w.searched > 0f) countResidentsMet(g, w.ground, w.met, w.searched, w.today)
     if (band != null) practise(g, band, meat > g.meatMet, smallGot, plants, fish)
     var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
     note(g) {
@@ -685,13 +737,13 @@ private fun HexGroups.residentOdds(g: HexGroup, ps: Species, p: Int, weather: We
     stalks[i] = 1f / success.coerceIn(1e-3f, 1f)
 }
 
-/** [forage]'s count of the resident bands [g] came on unseen ([met] per animal, by path step and kind) in the [searched] share of its week. */
-private fun HexGroups.countResidentsMet(g: HexGroup, sweep: Float, met: FloatArray, searched: Float, today: Double) {
+/** [forage]'s count of the resident bands [g] came on unseen ([met] per animal, by place of its hunting [ground] and kind) in the [searched] share of its week. */
+private fun HexGroups.countResidentsMet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, today: Double) {
     val nk = fauna.kinds.size
     val counts = FloatArray(Catalogue.all.size)
-    for ((j, h) in g.path.withIndex()) {
-        val p = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
-        val swept = min(land.areaKm2[p], sweep)
+    for (j in 0 until ground.size) {
+        val p = ground.place[j]
+        val swept = ground.km2[j]
         for (k in 0 until nk) counts[fauna.kinds[k].index] += (fauna.adults[k][p] + fauna.young[k][p]) * swept * met[j * nk + k] * searched
         if (HUNT_DIAG) for (k in 0 until nk) { val ps = fauna.kinds[k]
             diag(ps, "resident bands met", (fauna.adults[k][p] + fauna.young[k][p]) * swept * (0.5f + 0.5f * Niches.overlap(g.species, ps)) / ps.groupSize * searched) }
