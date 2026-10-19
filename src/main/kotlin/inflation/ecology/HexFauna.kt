@@ -1507,7 +1507,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * they came from, only as many come as would bring it down to them (as a straight line between it as it is and with
      * all of them would have it). The food does not move: what a place feeds is what those there ate and the food left
      * uneaten ([spareHeads]), shared among however many there are. Asleep, they stay. Adds the heads that came to each
-     * place to [arrived], the km they walked to [walkedKm] (a hex's border crossing; between bands of a hex, none), and
+     * place to [arrived], the km they walked to [walkedKm] (a hex's border crossing, and the height they climbed as level km, see [climbKm]), and
      * the drowned to [drowned]; leaves what each place is worth at the end in [worth] (where the kind is and next to it;
      * elsewhere nothing); gives the heads drowned.
      */
