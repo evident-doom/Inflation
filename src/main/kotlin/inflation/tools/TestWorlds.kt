@@ -4,7 +4,6 @@ import inflation.Config
 import inflation.ecology.HexHistory
 import inflation.run.TestWorlds
 import inflation.run.gitCommit
-import inflation.world.WorldCache
 import java.io.File
 import java.util.Properties
 
@@ -78,7 +77,7 @@ private fun build(e: TestWorlds.Entry, years: Int, commit: String = gitCommit())
     val p = Properties()
     p["name"] = e.name; p["seed"] = "${e.seed}"; p["widthKm"] = "${e.widthKm}"; p["heightKm"] = "${e.heightKm}"
     p["years"] = "$years"; p["commit"] = commit; p["built"] = java.time.LocalDateTime.now().withNano(0).toString()
-    p["worldKey"] = "%016x".format(WorldCache.key(e.config)); p["config"] = Config.set("")
+    p["worldKey"] = e.worldKey; p["config"] = Config.set("")
     p["landKm2"] = "%.0f".format(area); p["buildSeconds"] = "%.0f".format(seconds)
     p["secondsPerYear"] = "%.1f".format(seconds / years)
     e.about.writer().use { p.store(it, "test world ${e.name}, written by testWorld build") }
