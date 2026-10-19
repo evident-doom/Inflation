@@ -1787,7 +1787,8 @@ class HexGroups(
      */
     private fun foreseeFed(c: PlanContext, p: Int, h: Int, d: Float): Float {
         val g = c.g; val s = g.species
-        val wantKg = g.dailyNeedKg * days * (1f + WALK_COST * d / days)
+        // (And the walking to graze the range it would have there, see [rangeWalkCost].)
+        val wantKg = g.dailyNeedKg * days * (1f + WALK_COST * d / days + rangeWalkCost(grazingRange(g, p)))
         val m2 = land.areaKm2[p] * 1e6f
         val food = fauna.food
         val stock = fauna.grazeLeft[p] + fauna.browseLeft[p] + food.fruit[p] + food.roots[p]
