@@ -541,10 +541,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     /** The share of kind [s]'s residents at place [p], fed [fed], that thirst kills in a week there: none where they can drink. */
     fun thirstAt(s: Species, p: Int, fed: Float): Float =
-        if (s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
+        if (s.maxWaterKm.isFinite() || land.drink.animalWater(p) >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
         else Hazards.thirst(s, Hazards.dryDays(s, days, fed, land.plants.green[p]))
 
-    fun tether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.water[p], land.drink.waterKm[p])
+    fun tether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.animalWater(p), land.drink.animalWaterKm(p))
 
     /** [tether] in an ordinary year: from the lasting water around, not this week's. */
     fun usualTether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p],
@@ -1264,7 +1264,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Whether [s] can drink at place [p]: water there, or within half its days without water's going (see [Hazards.fetchKm]). */
     private fun drinks(s: Species, p: Int) =
-        s.maxWaterKm.isFinite() || land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)
+        s.maxWaterKm.isFinite() || land.drink.animalWater(p) >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)
 
     /** What a place is worth to a kind for moving there: nothing when below nothing or not a number (see [shiftBands], [spill]). */
     private fun worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w else 0f
