@@ -38,7 +38,7 @@ object Summary {
         val g = world.grid
         val weather = Weather(g, world.climate, world.config, world.elevation)
         val days = IntArray(g.size)
-        repeat(Date.DAYS_PER_YEAR / world.config.daysPerStep * years) {
+        repeat(world.config.stepsPerYear * years) {
             weather.step()
             for (i in 0 until g.size) if (weather.snowpack[i] >= 5f) days[i] += world.config.daysPerStep
         }

@@ -10,7 +10,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The plants of the places of [HexLand], as the fine [Vegetation] grows them on the averages of each band's cells:
+ * The plants of the places of [HexLand], on the averages of each band's cells (begun from the fine [Vegetation]'s rules, since gone further):
  * herbs, shrubs and trees grow towards ceilings set by recent moisture, warmth and soil; trees shade the rest;
  * seed comes from the place itself and its neighbours (the bands above and below in the hex, the same heights
  * in the hexes around); frost, floods, ash and fire set them back. Grazing, browsing, rooting, trampling and
@@ -241,8 +241,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // of hot, dry summers. Where summers are cool the sward is perennial: deep roots keep it growing until the
             // soil is a quarter full, it browns as the soil dries further and greens again with the next rain, without
             // curing for the year.
-            val rained = t >= 0f && weather.precipitation[p] > 0f
-            val soaked = t >= 0f && weather.precipitation[p] >= GERMINATION_MM
+            val rained = weather.rain(p) > 0f
+            val soaked = weather.rain(p) >= GERMINATION_MM
             val wasCured = cured[p]
             if (season > 0f && water0 < 0.5f) cured[p] = true else if ((rained && water0 >= 0.5f) || soaked) cured[p] = false
             if (wasCured && !cured[p]) grassAge[p] = 0f

@@ -1,7 +1,6 @@
 package inflation.tools
 
 import inflation.Args
-import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexMap
 import inflation.world.HexWorld
@@ -39,7 +38,7 @@ fun main(args: Array<String>) {
     val ash = FloatArray(world.grid.size)
     val hexWeather = Weather(hw.weatherPlaces(cfg), cfg)
     val land = HexLand(hw, cfg.seed)
-    val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
+    val steps = years * cfg.stepsPerYear
     var nsF = 0L; var nsC = 0L
     var burnedF = 0.0; var burnedC = 0.0
     val main = IntArray(hw.hex.size) { -1 }

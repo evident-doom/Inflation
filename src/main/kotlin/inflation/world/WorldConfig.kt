@@ -57,6 +57,9 @@ data class WorldConfig(
         require(30 % daysPerStep == 0 || daysPerStep % 30 == 0) { "daysPerStep must divide a 30-day month" }
     }
 
+    /** Steps in a year of [Date.DAYS_PER_YEAR] days. */
+    val stepsPerYear: Int get() = Date.DAYS_PER_YEAR / daysPerStep
+
     val width: Int get() = (widthKm / cellKm).toInt()
     val height: Int get() = (heightKm / cellKm).toInt()
 

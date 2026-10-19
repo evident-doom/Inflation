@@ -8,7 +8,6 @@ import inflation.world.WorldConfig
 import java.io.File
 import java.util.Properties
 import kotlin.math.ln
-import inflation.world.Date
 import inflation.world.WorldCache
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
@@ -226,7 +225,7 @@ object TestWorlds {
     class Run(file: File) {
         val name = file.name
         private val h = HexHistory.readCsv(file)
-        private val weeksPerYear = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
+        private val weeksPerYear = WorldConfig().stepsPerYear
         /** The whole years recorded, 1 for the first; a year cut short at the end is left out. */
         val years: List<Int> = (1..h.weeks / weeksPerYear).toList()
         init { require(years.isNotEmpty()) { "$file holds less than a year" } }

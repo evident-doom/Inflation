@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.Tuning
 import inflation.Config
 
+import inflation.world.Climate
 import inflation.world.HexWorld
 import kotlin.math.max
 import kotlin.math.min
@@ -106,7 +107,7 @@ class HexBearings(
                 val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]
                 if (len(dx, dy) > CLIMATE_KM) continue
                 // Sea-level temperature, so that the mountains do not hide the lie of the land.
-                val t = meanT[q] + 6.5e-3 * hw.elevationM[q]
+                val t = meanT[q] + Climate.LAPSE_RATE * hw.elevationM[q]
                 sxx += dx * dx; sxy += dx * dy; syy += dy * dy; sxt += dx * t; syt += dy * t
             }
             val det = sxx * syy - sxy * sxy

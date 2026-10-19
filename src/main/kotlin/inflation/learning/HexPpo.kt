@@ -10,7 +10,6 @@ import inflation.ecology.Temperament
 import inflation.ecology.HexGroup
 import inflation.ecology.HexPolicy
 import inflation.ecology.Species
-import inflation.world.Date
 import inflation.world.WorldConfig
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -328,7 +327,7 @@ object HexPpo {
         val shown = (0 until worlds).toList().parallelStream().map { w ->
             val run = freshSim(maps.world(40_000L + w, size, w), kinds)
             val kept = ConcurrentLinkedQueue<Shown>()
-            val stepsPerYear = Date.DAYS_PER_YEAR / (WorldConfig().daysPerStep)
+            val stepsPerYear = WorldConfig().stepsPerYear
             val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, sampling.perKindYear.toFloat() / (n * stepsPerYear)) }
             for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b, rnd ->
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
@@ -390,7 +389,7 @@ object HexPpo {
 
     /** One world for [years] with the networks choosing by chance; the recorded choices with their returns. */
     fun play(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): List<Choice> {
-        val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep
+        val steps = years * cfg.stepsPerYear
         return Player(cfg, kinds, steps).play(steps, models, null)
     }
 
@@ -411,7 +410,7 @@ object HexPpo {
         private val record = ConcurrentLinkedQueue<Choice>()
         /** Choices whose outcome is not yet all seen. */
         private val pending = ArrayList<Choice>()
-        private val stepsPerYear = Date.DAYS_PER_YEAR / cfg.daysPerStep
+        private val stepsPerYear = cfg.stepsPerYear
         // The same number of choices a year of each kind, however many groups it has.
         private val rates = HashMap<Species, Float>()
         private var waysRate = 0f
@@ -552,7 +551,7 @@ object HexPpo {
         val run = freshSim(cfg, kinds)
         setUp(run)
         val score = RunScore(run, kinds)
-        repeat(years * Date.DAYS_PER_YEAR / cfg.daysPerStep) { run.step(); score.afterStep(run) }
+        repeat(years * cfg.stepsPerYear) { run.step(); score.afterStep(run) }
         return score.value()
     }
 }

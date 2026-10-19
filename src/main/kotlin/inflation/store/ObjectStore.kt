@@ -29,7 +29,8 @@ class Named<T : Any>(val type: Class<T>, private val name: (T) -> String, val fi
     fun nameOf(v: Any): String = name(v as T)
 }
 
-private val fieldCache = HashMap<Class<*>, List<Field>>()
+/** (Concurrent: worlds are built and saved on several threads at once, as in training rounds.) */
+private val fieldCache = java.util.concurrent.ConcurrentHashMap<Class<*>, List<Field>>()
 internal fun fields(c: Class<*>): List<Field> = fieldCache.getOrPut(c) {
     val out = ArrayList<Field>()
     var k: Class<*>? = c

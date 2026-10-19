@@ -1,6 +1,5 @@
 package inflation.tools
 
-import inflation.world.Date
 import inflation.world.HexHydrology
 import inflation.world.HexLand
 import inflation.world.HexMap
@@ -41,7 +40,7 @@ fun main(args: Array<String>) {
         100 * (0 until n).filter { cls[it] == c }.sumOf { (land.drink.nearSpring[it] * land.areaKm2[it]).toDouble() } /
             (0 until n).filter { cls[it] == c }.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0)))
     for ((c, r) in rivers.withIndex()) println("%-22s hexes %d".format(r.first, rcls.count { it == c }))
-    val stepsY = Date.DAYS_PER_YEAR / cfg.daysPerStep
+    val stepsY = cfg.stepsPerYear
     fun stock() = (0 until n).sumOf { (land.hydro.groundwater[it] * land.areaKm2[it]).toDouble() }
     val stock0 = stock()
     var landNs = 0L

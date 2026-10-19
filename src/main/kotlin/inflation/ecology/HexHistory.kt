@@ -3,7 +3,6 @@ package inflation.ecology
 import inflation.Stocks
 import inflation.world.Biome
 import java.io.File
-import inflation.world.Date
 import inflation.world.WorldConfig
 
 /**
@@ -237,7 +236,7 @@ class HexHistory {
 
     companion object {
         /** Half a year in weeks (steps). */
-        val HALF_YEAR_WEEKS = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep / 2
+        val HALF_YEAR_WEEKS = WorldConfig().stepsPerYear / 2
 
         fun readCsv(file: File): HexHistory {
             val h = HexHistory()

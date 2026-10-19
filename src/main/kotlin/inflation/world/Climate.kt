@@ -106,9 +106,17 @@ class Climate(
 
         /** Mean air temperature at sea level, °C, at latitude [l] on [day], [cont] 0 on the coast to 1 far inland. */
         fun seaLevelTemp(l: Double, day: Double, cont: Double): Double {
-            val amplitude = 6.5 + 0.35 * (l - 31.0) + 7.0 * cont
-            return 21.0 - 0.65 * (l - 31.0) + amplitude * cos(2 * PI * (day - WARMEST_DAY) / 360)
+            val amplitude = coastAmplitude(l) + 7.0 * cont
+            return coastMean(l) + amplitude * seasonCos(day)
         }
+
+        /** The coast's yearly mean air temperature at sea level, °C, at latitude [l]. */
+        private fun coastMean(l: Double) = 21.0 - 0.65 * (l - 31.0)
+        /** How far the coast's air swings either side of [coastMean] through the year, °C, at latitude [l]. */
+        private fun coastAmplitude(l: Double) = 6.5 + 0.35 * (l - 31.0)
+
+        /** Where [day] of the year stands in the seasons: 1 on the [WARMEST_DAY], -1 half a year off. */
+        fun seasonCos(day: Double) = cos(2 * PI * (day - WARMEST_DAY) / Date.DAYS_PER_YEAR)
 
         /** Fu's (1981) form of the Budyko curve: evaporation as a share of rain, from the dryness ([pet] / rain). */
         private fun fu(dryness: Double) = 1 + dryness - (1 + dryness.pow(2.6)).pow(1 / 2.6)
@@ -164,9 +172,7 @@ class Climate(
         /** Sea surface temperature, °C, at latitude [l] on [day]: the coastal air's, damped and delayed by [SEA_HEAT_DAYS]. */
         fun seaSurfaceTemp(l: Double, day: Double): Double {
             val wt = 2 * PI / 360 * SEA_HEAT_DAYS
-            val mean = 21.0 - 0.65 * (l - 31.0)
-            val amplitude = 6.5 + 0.35 * (l - 31.0)
-            return mean + amplitude / hypot(1.0, wt) * cos(2 * PI * (day - WARMEST_DAY) / 360 - kotlin.math.atan(wt))
+            return coastMean(l) + coastAmplitude(l) / hypot(1.0, wt) * cos(2 * PI * (day - WARMEST_DAY) / Date.DAYS_PER_YEAR - kotlin.math.atan(wt))
         }
 
         /** Specific humidity of saturated air at [t] °C at sea-level pressure, kg/kg. */
@@ -214,7 +220,7 @@ class Climate(
             }
             for (m in 0 until 12) {
                 val day = m * 30 + 15.0
-                val season = cos(2 * PI * (day - WARMEST_DAY) / 360)
+                val season = seasonCos(day)
                 val jet = winds.jetLatitude(season)
                 // The moisture of air that has been over the sea a long time, mm of water in the column.
                 val w0 = FloatArray(ch) { y -> (SEA_HUMIDITY * saturatedVapour(seaLevelTemp(rowLat[y], day, 0.0)) * VAPOUR_HEIGHT_M / 1000).toFloat() }
