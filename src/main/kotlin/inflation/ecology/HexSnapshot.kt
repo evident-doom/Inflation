@@ -105,9 +105,12 @@ object HexSnapshot {
      * they would come to with a band of them added over the ground a band ranges in a day, not over the place's own; and
      * walking residents count those that came to a place this move, its food shared among them all, as many staying as
      * find it, with them there, no worse than walking on.
+     * 2.16: no plant-eater herds unless t.herds; residents flow towards better country as well as spreading out, and move
+     * between height bands faster; a place's worth to movers counts its births as if in season (not by the calendar); and
+     * residents remember how they fared at each place in each month ([HexFauna.faredByMonth]) and move by that too.
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 15
+    const val MODEL_MINOR = 16
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

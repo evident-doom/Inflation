@@ -231,6 +231,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * ([growth]); for the resident hunters, its [appeal]. Never below nothing nor past reckoning ([worthOrNothing]).
      */
     @Transient internal val worth = Array(kinds.size) { FloatArray(n) }
+    /**
+     * Each kind's memory of how it fared at each place in each month of the year (place × 12 + month): what the place was
+     * worth to it then ([worth], before the memory's own draw is mixed in), kept as a running mean over the years, learnt
+     * fast where many of the kind stand and slowly where none do ([remember]). Below nothing until first reckoned.
+     */
+    val faredByMonth = Array(kinds.size) { FloatArray(n * 12) { -1f } }
+    /** What each kind remembers of the coming weeks, spread over the ground about ([recall]); and the month it was recalled for. */
+    @Transient private val recalled = Array(kinds.size) { FloatArray(n) }
+    @Transient private val recalledFor = IntArray(kinds.size) { -1 }
     /** Of each kind as it moves this week ([fillArrive]): its young to a grown one, and the fat days its grown carry, all over. */
     @Transient private val moverYoung = FloatArray(kinds.size)
     @Transient private val moverFat = FloatArray(kinds.size)
@@ -1125,6 +1134,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (room[k] == null) {
                 IntStream.range(0, n).parallel().forEach { p ->
                     odds[p] = arriveOdds(k, p, weather, outs.get()); w[p] = worthOrNothing(appeal(k, p, weather)) }
+                remember(k, weather.date.month)
                 continue
             }
             // (Those that move are the kind as it is: its young to its grown, and the fat its grown carry, all over.)
@@ -1141,7 +1151,52 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 odds[p] = o
                 w[p] = if (o.isNaN()) 0f else worthOrNothing(growth(k, p, weather, out, youngPerGrown, carried, stepsPerYear))
             }
+            remember(k, weather.date.month)
         }
+    }
+
+    /**
+     * Kind [k]'s memory of [month] takes in what each place is worth to it this week ([worth]), and the worth it moves by
+     * becomes this week's mixed with what it remembers of this month and the next about it ([recall]): so it sets off for
+     * where it fared best at this time of year before, ahead of the season, and pours along the same ways year by year.
+     * Learnt at [MEMORY_SEEN] a week where the kind stands at its usual numbers or more, at [MEMORY_UNSEEN] where none do.
+     */
+    private fun remember(k: Int, month: Int) {
+        val s = kinds[k]; val w = worth[k]; val fm = faredByMonth[k]
+        val usual = usualDensity(s); val weeks = tuning.residentMoveWeeks
+        for (p in 0 until n) {
+            val i = p * 12 + month
+            if (fm[i] < 0f) { fm[i] = w[p]; continue }
+            val seen = ((adults[k][p] + young[k][p]) / usual).coerceIn(0f, 1f)
+            val rate = (MEMORY_SEEN * seen + MEMORY_UNSEEN * (1f - seen)).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
+            fm[i] += (w[p] - fm[i]) * rate
+        }
+        if (recalledFor[k] != month) { recall(k, month); recalledFor[k] = month }
+        val r = recalled[k]
+        for (p in 0 until n) if (w[p] > 0f) w[p] = (1f - MEMORY_PULL) * w[p] + MEMORY_PULL * r[p]
+    }
+
+    /**
+     * What kind [k] remembers of [month] and the next at each place, spread over the ground about it: each place as good
+     * as the best remembered within a week's going ([hopsFor]), less [RECALL_KEEP] a hex for the way there, so the
+     * remembered pasture up the valley draws them hex by hex up it, not only from next door.
+     */
+    private fun recall(k: Int, month: Int) {
+        val fm = faredByMonth[k]; val next = (month + 1) % 12
+        var f = FloatArray(n) { p -> listOf(fm[p * 12 + month], fm[p * 12 + next]).filter { it >= 0f }.let { if (it.isEmpty()) 0f else it.average().toFloat() } }
+        repeat(hopsFor(kinds[k]).coerceIn(2, 8)) {
+            val g = f.copyOf()
+            for (p in 0 until n) {
+                val h = hw.placeHex[p]; val b = hw.placeBand[p]
+                for (d in 0 until 6) {
+                    val nh = hex.neighbour(h, d); if (nh < 0) continue
+                    for (db in -1..1) { val bb = b + db; if (bb !in 0 until HexWorld.BANDS_M.size) continue
+                        val q = hw.placeOf[bb][nh]; if (q >= 0 && f[q] * RECALL_KEEP > g[p]) g[p] = f[q] * RECALL_KEEP }
+                }
+            }
+            f = g
+        }
+        f.copyInto(recalled[k])
     }
 
     /**
@@ -1156,7 +1211,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun growth(k: Int, p: Int, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float, stepsPerYear: Float,
                        f: Float = room[k]?.get(p) ?: fed[k][p]): Float {
         val parts = FloatArray(GROWTH_PARTS)
-        growthParts(k, p, weather, out, youngPerGrown, carried, parts, f)
+        // (Born as if the place were in its birth season: the young it would raise there, by its food, not by the calendar,
+        // which differs from place to place as the births drift and would draw them to wherever the season is on.)
+        growthParts(k, p, weather, out, youngPerGrown, carried, parts, f, anySeason = true)
         val head = 1f + youngPerGrown
         val stepsInSeason = kinds[k].birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
         val dying = ((parts[GROWTH_GROWN_DIE] + youngPerGrown * parts[GROWTH_YOUNG_DIE]) / head).coerceIn(0f, 1f)
@@ -1170,10 +1227,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * ([GROWTH_FED], [GROWTH_PROTEIN]).
      */
     internal fun growthParts(k: Int, p: Int, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float, parts: FloatArray?,
-                             f: Float = room[k]?.get(p) ?: fed[k][p]): Float {
+                             f: Float = room[k]?.get(p) ?: fed[k][p], anySeason: Boolean = false): Float {
         val s = kinds[k]
         val protein = forageProtein(s, p)
-        val inSeason = monthsFrom(birthStart[k][p].toInt(), weather.date.month) < s.birthMonths
+        val inSeason = anySeason || monthsFrom(birthStart[k][p].toInt(), weather.date.month) < s.birthMonths
         val born = if (!inSeason) 0f else {
             val due = dueYoung(k, adults[k][p] + young[k][p] + arrivingKm2(k), protein, s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat())
             0.5f * due * breeding(s, due, carried, f, days)
@@ -1772,6 +1829,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val FEAR_KEEP = 0.7f
         /** Weekly share moving between bands at full advantage. */
         const val BAND_SHIFT = 0.5f
+        /**
+         * Seasonal memory ([remember]): a week's learning where the kind stands at its usual numbers (about 0.3 of a month's
+         * memory renewed a year), and where none of it stands; how much of the worth it moves by is what it remembers; the
+         * share of a remembered place's worth kept a hex of the way to it ([recall]).
+         */
+        const val MEMORY_SEEN = 0.07f
+        const val MEMORY_UNSEEN = 0.01f
+        const val MEMORY_PULL = 0.5f
+        const val RECALL_KEEP = 0.97f
         /** Weekly share spilling to neighbouring hexes anyway, and more when hungry. */
         const val SPILL_BASE = 0.005f
         const val SPILL_HUNGER = 0.1f
