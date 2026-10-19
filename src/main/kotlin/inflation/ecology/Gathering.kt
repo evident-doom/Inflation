@@ -348,8 +348,12 @@ const val SCATTERED = -2
 private fun HexGroups.spread(g: HexGroup, k: Int, adults: Int, young: Int) {
     val about = placesWithin(g.place.i, g.species.dailyTravelKm.toDouble())
     val weights = FloatArray(about.size) { startWeight(g.species, about[it], now = true) }
-    val total = weights.sum()
     val size = adults + young
+    // (A place whose share would bring fewer than count as any ([HexFauna.EXTINCT]) gets none: as after births and deaths
+    // and the spill, else they would feed and die there as fractions too small to reckon with.)
+    val all = weights.sum()
+    if (all > 0f) for (i in weights.indices) if (size * weights[i] / all / land.areaKm2[about[i]] < HexFauna.EXTINCT) weights[i] = 0f
+    val total = weights.sum()
     for ((i, p) in (if (total > 0f) about else listOf(g.place.i)).withIndex()) {
         val share = if (total > 0f) weights[i] / total else 1f
         if (share <= 0f) continue
