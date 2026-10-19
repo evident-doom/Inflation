@@ -539,11 +539,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * two graze out from water and back, and leave the far country to those that live on the water
      * in their food (gazelle, oryx, camels). Kinds bound to water (hippos) use only what lies by it.
      */
-    /** The share of kind [s]'s residents at place [p], fed [fed], that thirst kills in a week there: none where they can drink. */
-    fun thirstAt(s: Species, p: Int, fed: Float): Float =
-        if (s.maxWaterKm.isFinite() || land.drink.animalWater(p) >= Thresholds.WET || land.drink.waterKm[p] <= Hazards.fetchKm(s)) 0f
-        else Hazards.thirst(s, Hazards.dryDays(s, days, fed, land.plants.green[p]))
-
     fun tether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.animalWater(p), land.drink.animalWaterKm(p))
 
     /** [tether] in an ordinary year: from the lasting water around, not this week's. */
@@ -1090,7 +1085,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // lean season binds, and then hunger and sickness together hold them.
         val crowd = heads / (CROWDED * usual[k])
         out[HZ_CROWD] = crowd
-        out[HZ_DISEASE] = DISEASE * crowd * crowd * years * (1f + MALNOURISHED * (1f - fed)) + outbreakDeaths(s, p)
+        out[HZ_DISEASE] = Hazards.crowdDisease(crowd, fed, years) + outbreakDeaths(s, p)
         val (fireA, floodA, snowA) = calamities(s, p, weather, false)
         val (fireY, floodY, snowY) = calamities(s, p, weather, true)
         out[HZ_FIRE_A] = fireA; out[HZ_FLOOD_A] = floodA; out[HZ_SNOW_A] = if (sleeping) 0f else snowA
@@ -1508,7 +1503,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Share of [s] that drown swimming [gapKm] of open water: by the groups' rule, the nearer the strait to all it can swim, the more. */
-    private fun drownRisk(s: Species, gapKm: Float) = min(1f, DROWN * gapKm / Catalogue.swimKm(s).coerceAtLeast(1f))
+    private fun drownRisk(s: Species, gapKm: Float) = min(1f, Hazards.drowning(s, gapKm))
 
     companion object {
         /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */
