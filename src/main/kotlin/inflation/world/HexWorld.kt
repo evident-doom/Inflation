@@ -104,7 +104,7 @@ class HexWorld(val world: World, val hex: HexMap) {
         val lists = HashMap<Long, ArrayList<Int>>()
         for (i in 0 until grid.size) {
             if (world.isSea[i] || world.water.isLake(i)) continue
-            val b = BANDS_M.indexOfLast { world.elevation[i] >= it }.coerceAtLeast(0)
+            val b = bandAt(i)
             lists.getOrPut(hex.owner[i].toLong() * BANDS_M.size + b) { ArrayList() } += i
         }
         val keys = lists.keys.sorted()
@@ -115,6 +115,12 @@ class HexWorld(val world: World, val hex: HexMap) {
         placesIn = Array(size) { h -> placeOf.map { it[h] }.filter { it >= 0 }.toIntArray() }
         placeElevationM = FloatArray(keys.size) { p -> (placeCells[p].sumOf { world.elevation[it].toDouble() } / placeCells[p].size).toFloat() }
     }
+
+    /** The height band fine cell [i] falls in. */
+    private fun bandAt(i: Int) = BANDS_M.indexOfLast { world.elevation[i] >= it }.coerceAtLeast(0)
+
+    /** The place fine cell [i] lies in, or -1 for sea and lake. */
+    fun placeAt(i: Int): Int = if (world.isSea[i] || world.water.isLake(i)) -1 else placeOf[bandAt(i)][hex.owner[i]]
 
     /** Normal temperature of place [p] in month [m], °C: its hex's, corrected for the band's height. */
     fun placeTemp(p: Int, m: Int): Float = temp[m][placeHex[p]] - Climate.LAPSE_RATE.toFloat() * (placeElevationM[p] - elevationM[placeHex[p]])
