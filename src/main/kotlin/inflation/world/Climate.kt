@@ -268,7 +268,7 @@ class Climate(
                             // Air lifted over high ground holds less; what it cannot hold rains out.
                             var left = min(wet * keep + (1 - sea[c]) * gain[c] * days, wSat[c].toDouble())
                             if (sea[c] < 1) { val cv = convection(left, w0[y].toDouble(), groundT[c].toDouble(), elev[c].toDouble(),
-                                petC[c] / 30.0, seaLevelTemp(rowLat[y], day, 0.0), rising[y])
+                                petC[c] / 30.0, seaLevelTemp(rowLat[y], day, 0.0), rising[y], m, rowLat[y])
                                 left -= (1 - sea[c]) * min(left, cv * days) }
                             rain[c] = ((wet + (1 - sea[c]) * gain[c] * days - left) / days * 30).toFloat()
                             q[c] = left.toFloat()
@@ -293,6 +293,8 @@ class Climate(
 
         /** Probe only (not for merge): the storms off, for the base arm. */
         private val NO_STORMS = System.getenv("PROBE_NO_STORMS") != null
+        /** Probe only: the free air of the first try (the sea's warmth less the lapse rate, dried where it sinks). */
+        private val OLD_FREE_AIR = System.getenv("PROBE_OLD_FREE_AIR") != null
         /** Depth of the air the sun stirs over land by afternoon, m (about 1-2 km in summer). */
         const val BOUNDARY_LAYER_M = 1500.0
         /** Share of the air around it a rising cloud mixes in per metre (deep cumulus: about 0.2-1 per km, de Rooy et al. 2013). */
@@ -344,7 +346,7 @@ class Climate(
          * Afternoons differ from day to day ([DAILY_TEMP_SD_C], [DAILY_MOISTURE_SD]), so the month's showers are the mean
          * over that spread of days: a few days storm before the mean day would.
          */
-        private fun convection(column: Double, seaColumn: Double, t: Double, z: Double, petDay: Double, seaTemp: Double, rising: Double): Double {
+        private fun convection(column: Double, seaColumn: Double, t: Double, z: Double, petDay: Double, seaTemp: Double, rising: Double, m: Int, lat: Double): Double {
             if (NO_STORMS || petDay <= 0 || column <= 0) return 0.0
             val density = airDensity(t, z)
             val q = min(min(column, seaColumn) / VAPOUR_HEIGHT_M, saturatedVapour(t) / 1000) / density
@@ -358,9 +360,15 @@ class Climate(
             val mix = ENTRAINMENT_PER_M * dz
             while (level < max(CLOUD_TOP_M, z + BOUNDARY_LAYER_M + 1000)) {
                 level += dz
-                val tf = seaTemp - LAPSE_RATE * level
-                val saturated = saturatedQ(tf, level)
-                val qf = rising * SEA_HUMIDITY * saturated + (1 - rising) * min(saturated, saturatedQ(tf - LAPSE_RATE * SINKING_M, level + SINKING_M))
+                val tf: Double; val qf: Double; val saturated: Double
+                if (OLD_FREE_AIR) {
+                    tf = seaTemp - LAPSE_RATE * level
+                    saturated = saturatedQ(tf, level)
+                    qf = rising * SEA_HUMIDITY * saturated + (1 - rising) * min(saturated, saturatedQ(tf - LAPSE_RATE * SINKING_M, level + SINKING_M))
+                } else {
+                    val air = DoubleArray(2).also { FreeAir.at(m, lat, level, it) }
+                    tf = air[0]; saturated = saturatedQ(tf, level); qf = min(air[1], saturated)
+                }
                 a *= 1 - mix
                 b = b * (1 - mix) + mix * staticEnergy(tf, level, qf)
                 need = max(need, (staticEnergy(tf, level, saturated) - b) / a)

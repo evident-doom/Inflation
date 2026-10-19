@@ -37,4 +37,12 @@ fun main(args: Array<String>) {
         row(">800 m, ridge (+300 over 15km)", high.filter { elev[it] - local[it] > 300 })
         row(">800 m, valley (-300)", high.filter { elev[it] - local[it] < -300 })
     }
+    println("June-August rain by 3° band, mm/month: 0-500 m | 1000-1500 m | 1500-2500 m | over 2500 m")
+    var band = Math.floor(c.latitude.max() / 3) * 3
+    while (band >= Math.floor(c.latitude.min() / 3) * 3) {
+        val inBand = landCells.filter { val l = c.latitude[g.y(it)]; l >= band && l < band + 3 }
+        fun m(lo: Float, hi: Float): String { val cs = inBand.filter { elev[it] >= lo && elev[it] < hi }; return if (cs.size < 200) "    -" else "%5.1f".format(cs.map { jja[it].toDouble() }.average()) }
+        println("  %2.0f-%2.0f°N: %s | %s | %s | %s".format(band, band + 3, m(0f, 500f), m(1000f, 1500f), m(1500f, 2500f), m(2500f, 9000f)))
+        band -= 3
+    }
 }
