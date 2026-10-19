@@ -121,6 +121,8 @@ class HexGroups(
     @Transient internal val leaveTo = HashMap<Species, IntArray>()
     /** By gathering kind, by hex: the safest place far off this week, as far as asked for (see [farthest]). */
     @Transient internal val safestFar = HashMap<Species, IntArray>()
+    /** By gathering kind: the steps to the hexes [farthest] looks over, from a hex in an even row and an odd one. */
+    @Transient internal val farRing = HashMap<Species, Array<IntArray>>()
     /** For [gather] and [scatter]: the hexes within so many steps of each hex, by the steps, worked out when first asked for. */
     @Transient internal val gatherGround = HashMap<Int, Array<IntArray?>>()
     /** The land hexes a herd's animals stand on about each hex, by kind and hex ([groundShares]). */
