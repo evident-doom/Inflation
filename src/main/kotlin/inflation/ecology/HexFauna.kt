@@ -540,11 +540,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * Food for [s] in place [p] from its diet, as standing plants, kg/m²: grass from herbs, and the
-     * browse (shoots), fruit and roots stocks (counted as the standing plants that would give as much
-     * in a week); less on cliffs it cannot climb.
-     */
-    /**
      * What place [p] offers kind [s] to live on, on [foodFor]'s scale: its plant food, and for the residents' hunters
      * the game, small prey and carrion there too, each by its share of the diet. (Game counts as plant food would
      * where it is [PREY_HALF] kg per km² against [Thresholds.FOOD_HALF], so that both weigh alike in the kind's bearings.)
@@ -576,6 +571,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** How much fear of hunters puts kind [s] off place [p], 0..1: none for the hunters themselves. */
     private fun shy(s: Species, p: Int) = if (s.carnivore) 0f else afraid(p)
 
+    /**
+     * Food for [s] in place [p] from its diet, as standing plants, kg/m²: grass from herbs, and the
+     * browse (shoots), fruit and roots stocks (counted as the standing plants that would give as much
+     * in a week); less on cliffs it cannot climb.
+     */
     fun foodFor(s: Species, p: Int): Float {
         val d = s.diet
         val total = d.grass + d.browse + d.fruit + d.roots
@@ -1164,18 +1164,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return adultShare(out)
     }
 
-    /**
-     * The neighbouring place kind [k]'s residents at place [p] would walk to down the slope of [odds] (the share that
-     * would die at each place in a week, NaN where they cannot stay): of the places across each border it can cross into
-     * the six hexes about, in its band or the one above or below (the ground [spill] weighs), the one with the lowest
-     * odds below [than]; -1 where none is lower. The one rule for which way the land slopes for a kind.
-     */
-    internal fun safestNeighbour(k: Int, p: Int, odds: FloatArray, than: Float): Int {
-        var best = -1; var bestOdds = than
-        neighbourPlaces(k, p) { q -> if (odds[q] < bestOdds) { bestOdds = odds[q]; best = q } }
-        return best
-    }
-
     /** Each place kind [k]'s residents at place [p] can walk to in a step: across each border it can cross into the six hexes about, in its band or the one above or below. */
     private inline fun neighbourPlaces(k: Int, p: Int, f: (Int) -> Unit) {
         val t = stepPlaces[travel[k].ordinal]
@@ -1205,36 +1193,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             }
             from[n] = m
             StepPlaces(from, to.copyOf(m))
-        }
-    }
-
-    /**
-     * Where the slope of [odds] leads kind [k] from each place, stepping a neighbour a week to the safest
-     * ([safestNeighbour]) while it is safer: the place it ends at ([Slope.end]), the weeks it takes ([Slope.steps]), and
-     * the shares that would die on the way, a week at each place before the end, summed ([Slope.cost]). Worked out only
-     * for the places asked about, and those on their way, each once.
-     */
-    internal fun slope(k: Int, odds: FloatArray) = Slope(k, odds)
-
-    /** Where the slope leads from each place ([slope]). */
-    internal inner class Slope(private val k: Int, private val odds: FloatArray) {
-        private val endOf = IntArray(n) { -1 }; private val stepsOf = IntArray(n); private val costOf = FloatArray(n)
-        private val path = IntArray(n)
-
-        fun end(p: Int): Int { resolve(p); return endOf[p] }
-        fun steps(p: Int): Int { resolve(p); return stepsOf[p] }
-        fun cost(p: Int): Float { resolve(p); return costOf[p] }
-
-        private fun resolve(p0: Int) {
-            if (endOf[p0] >= 0) return
-            // (Down the slope until a place already worked out or the bottom; then back up, adding each place's week.)
-            var len = 0; var p = p0
-            while (endOf[p] < 0) {
-                val next = if (odds[p].isNaN()) -1 else safestNeighbour(k, p, odds, odds[p])
-                if (next < 0) { endOf[p] = p; stepsOf[p] = 0; costOf[p] = 0f; break }
-                path[len++] = p; p = next
-            }
-            while (len > 0) { val q = path[--len]; endOf[q] = endOf[p]; stepsOf[q] = stepsOf[p] + 1; costOf[q] = costOf[p] + odds[q]; p = q }
         }
     }
 
@@ -1761,9 +1719,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun drownRisk(s: Species, gapKm: Float) = min(1f, Hazards.drowning(s, gapKm))
 
     companion object {
-        /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */
         /** Where [growthParts] puts each part. */
         const val GROWTH_BORN = 0; const val GROWTH_GROWN_DIE = 1; const val GROWTH_YOUNG_DIE = 2; const val GROWTH_FED = 3; const val GROWTH_PROTEIN = 4; const val GROWTH_PARTS = 5
+        /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */
         const val HZ_HUNGER = 0; const val HZ_COLD = 1; const val HZ_THIRST = 2; const val HZ_DISEASE = 3
         const val HZ_FIRE_A = 4; const val HZ_FLOOD_A = 5; const val HZ_SNOW_A = 6
         const val HZ_FIRE_Y = 7; const val HZ_FLOOD_Y = 8; const val HZ_SNOW_Y = 9; const val HZ_CROWD = 10
