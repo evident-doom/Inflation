@@ -471,16 +471,16 @@ private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, got
     // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
     val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
     val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
-    // (A band with salt salts what it cures: salt cures in any weather.)
-    val salt = band.goods[Material.SALT]
-    val salting = if (salt > 0f) band.skill(Skill.STORE) else 0f
+    // (A band that knows salting and has salt salts what it cures: salt cures in any weather.)
+    val salt = if (band.knowsSkill[Skill.SALTING]) band.goods[Material.SALT] else 0f
+    val salting = if (salt > 0f) band.skill(Skill.SALTING) else 0f
     val dryRate = max(max(sun, smoke), salting)
     // (As much of it as the band chooses to.)
     val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
     if (dried > 0f) {
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
-        g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (smoke > sun) Skill.SMOKING else Skill.STORE)
+        g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (salting >= max(sun, smoke)) Skill.SALTING else if (smoke > sun) Skill.SMOKING else Skill.STORE)
     }
     // What time is left is for making and mending (see [bandWeek]).
     val time = BandTime(spareDays * hands)
