@@ -1563,6 +1563,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // remember of the year from the next month on: the best ground a month's going reaches draws them along the first
         // step towards it, by all it is better than staying ([routeGain]).
         val step = routeStep[k]!!; val boost = routeGain[k]!!.let { g -> FloatArray(n) { p -> exp(g[p]) } }
+        // (At the arrival, only the share of the route's gain the crowding check trusts: [inflation.Tuning.residentRouteTrust].)
+        val trusted = routeGain[k]!!.let { g -> FloatArray(n) { p -> exp(tuning.residentRouteTrust * g[p]) } }
         val weeksLeft = max(1f, (Date.DAYS_PER_MONTH - weather.date.dayOfMonth + 1) / days.toFloat())
         // (Those on the route weigh a month at a place, as the route's gain is a month's: this week's lot kept up a month.)
         val toMonth = (Date.DAYS_PER_MONTH / days.toFloat()) / weeksLeft
@@ -1636,7 +1638,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     // (Those following the memory's route weigh where they come against where they left less what it promises.)
                     val g = gaps[i]; if (g > 0f) {
                         val q = ways.to[i]; val m = go * g / sum; coming[q] += m
-                        if (i == step[p]) { routed[q] += m; routedFrom[q] += m * month(here) / boost[p] } else fromWorth[q] += m * here
+                        if (i == step[p]) { routed[q] += m; routedFrom[q] += m * month(here) / trusted[p] } else fromWorth[q] += m * here
                     }
                 }
             }
