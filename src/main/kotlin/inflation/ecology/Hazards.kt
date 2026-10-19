@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.HexDrinkingWater
 import kotlin.math.max
 import kotlin.math.min
 
@@ -17,6 +18,18 @@ object Hazards {
 
     /** How far an animal of [s] goes to water and back as often as it must: a kind that can go days without drinking can live as many half-days' going from it. */
     fun fetchKm(s: Species) = 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
+
+    /**
+     * Whether [s] can drink at place [p] of [drink], the one rule for residents and groups: where there is water (for
+     * animals, soft snow too), or where water is within its going ([fetchKm]); a kind that keeps to the water's edge
+     * ([Species.maxWaterKm], kept there by its range) always can. People carry water home in skins, gourds and ostrich
+     * eggshells: anywhere within the day's round will do; and they dig for it in a dry bed where the water lies near
+     * ([HexDrinkingWater.dug]).
+     */
+    fun canDrink(drink: HexDrinkingWater, s: Species, p: Int): Boolean {
+        if (s.human) { val fetch = s.dailyTravelKm; return drink.water[p] >= Thresholds.WET || drink.waterKm[p] <= fetch || drink.mustDig(p, fetch) }
+        return s.maxWaterKm.isFinite() || drink.animalWater(p) >= Thresholds.WET || drink.waterKm[p] <= fetchKm(s)
+    }
 
     /** The days of [days] an animal of [s] goes dry away from water, eased by the water in its food: plant-eaters' from [green] food, hunters' from the body water of what they ate ([fed]). */
     fun dryDays(s: Species, days: Int, fed: Float, green: Float) = days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) fed else 0.5f + 0.5f * green))
