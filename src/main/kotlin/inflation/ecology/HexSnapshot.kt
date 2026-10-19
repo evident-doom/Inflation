@@ -84,10 +84,12 @@ object HexSnapshot {
      * 2.6: animals eat soft lying snow for water (HexDrinkingWater.snowWater); rain on snow ices it over until fresh snow.
      * 2.7: the summer high reaches north only to about 46 °N (fronts more often in the north's summer), and air over hot
      * inland ground holds more before it rains out on slopes.
-     * 2.8: hooves no longer take grown shrubs; they kill the seedlings of shrubs and trees on the ground they step on (HexPlants.tread).
+     * 2.8: residents move every second week (Tuning.residentMoveWeeks), and their animals under 1% of usual numbers at a
+     * place gather into the next thin place (Tuning.residentFloor).
+     * 2.9: hooves no longer take grown shrubs; they kill the seedlings of shrubs and trees on the ground they step on (HexPlants.tread).
      */
     const val MODEL_MAJOR = 2
-    const val MODEL_MINOR = 8
+    const val MODEL_MINOR = 9
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
