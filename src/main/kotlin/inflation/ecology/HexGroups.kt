@@ -747,13 +747,15 @@ class HexGroups(
     }
 
     /**
-     * The features of place [p] (in hex [h]) for [g]'s choice this week, into [f] (cleared): what a learned
-     * policy sees of it ([Feature]). The rest are worked out in [planInner] as the hand-written score weighs them.
+     * The features of place [p] (in hex [h], [d] km of going away) for the group weighing its places in [c], into [f]
+     * (cleared): what a learned policy sees of it ([Feature]). The rest are worked out in [planInner] as the hand-written
+     * score weighs them, as are [prey], [crowded], [hunters], the km [toGoal], the [pull], and how far [beyond] its ground
+     * and under [foreign] marks the hex is.
      */
-    private fun fillFeatures(f: FloatArray, t: PlaceTerms, g: HexGroup, p: Place, h: Hex, here: Hex, month: Int, prey: Float, crowded: Float, hunters: Float, d: Float,
-                             reach: Float, goal: Int, fromHere: Double, toGoal: Double, goalQ: Float, onRound: Boolean, roundStrength: Float, season: Double,
-                             restless: Boolean, pull: Float, beyond: Float, foreign: Float, weather: Weather, date: Date) {
-        val s = g.species
+    private fun fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTerms, p: Place, h: Hex, d: Float, toGoal: Double, pull: Float, beyond: Float,
+                             foreign: Float, prey: Float, crowded: Float, hunters: Float) {
+        val g = c.g; val s = g.species; val here = c.here; val month = c.month; val reach = c.reach; val goal = c.goal
+        val fromHere = c.fromHere; val weather = c.weather; val date = c.date
         // (The herds' slots, [Feature.HERDS_ABOUT], [Feature.KEEPS_HEADING] and [Feature.FORAGE_QUALITY], stay 0: kept for the
         // networks' layout until they are trained again.)
         // What the place offers it, as the baseline weighs it: game, and for bands plant food and a safe camp.
@@ -788,14 +790,14 @@ class HexGroups(
         f[Feature.SAME_HEX] = if (h == here) 1f else 0f
         if (goal >= 0) {
             f[Feature.TOWARD_BEARING] = if (fromHere > hex.hexKm) ((fromHere - toGoal) / fromHere).toFloat().coerceIn(-1f, 1f) else 0f
-            f[Feature.SEASON_PLACE] = (goalQ - g.fed).coerceIn(-1f, 1f)
+            f[Feature.SEASON_PLACE] = (c.goalQ - g.fed).coerceIn(-1f, 1f)
             // (On its round, how far the place takes it on toward the round's place this month: see [SharedMover.pull].)
-            if (onRound) f[Feature.ON_ROUND] = f[Feature.TOWARD_BEARING] * roundStrength
+            if (c.onRound) f[Feature.ON_ROUND] = f[Feature.TOWARD_BEARING] * c.roundStrength
         }
         f[Feature.FED] = g.fed
         f[Feature.FAT] = g.fat / s.maxFatDays.coerceAtLeast(1f)
-        f[Feature.SEASON_SIN] = sin(season).toFloat(); f[Feature.SEASON_COS] = cos(season).toFloat()
-        f[Feature.RESTLESS] = if (restless) 1f else 0f
+        f[Feature.SEASON_SIN] = sin(c.season).toFloat(); f[Feature.SEASON_COS] = cos(c.season).toFloat()
+        f[Feature.RESTLESS] = if (c.restless) 1f else 0f
         f[Feature.WATER_DISTANCE] = min(3f, t.waterKm / s.dailyTravelKm)
         f[Feature.DAYS_DRY] = min(2f, g.dry / s.daysWithoutWater)
         f[Feature.PULL] = pull
@@ -914,7 +916,7 @@ class HexGroups(
         val pullKm = reach.toDouble().coerceAtLeast(hex.hexKm)
         // (A band keeps off the known homes of bands it is not close to: those hexes, once for the week.)
         val keepOff = g.band?.let { b -> b.knownHomes.entries.filter { b.tie(it.key) <= 0f }.map { it.value }.toIntArray() }
-        val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, onRound, roundStrength, fromHere, reach, thirsty, keepOff, weather, date)
+        val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, onRound, roundStrength, fromHere, reach, thirsty, restless, season, keepOff, weather, date)
         for (ri in 0 until reached.size) {
             val h = Hex(reached[ri])
             val d = dist[h]
@@ -951,8 +953,7 @@ class HexGroups(
                     val nc = candPlaces.size
                     if (nc == candFeats.size) candFeats += FloatArray(Feature.SIZE)
                     val f = candFeats[nc].also { it.fill(0f) }
-                    fillFeatures(f, t, g, p, h, here, month, prey, crowded, hunters, d, reach, goal, fromHere, toGoal, goalQ, onRound, roundStrength, season,
-                        restless, pull, beyond, foreign, weather, date)
+                    fillFeatures(f, c, t, p, h, d, toGoal, pull, beyond, foreign, prey, crowded, hunters)
                     if (nc == buf.candScores.size) buf.candScores = buf.candScores.copyOf(2 * nc)
                     candPlaces += p.i; buf.candScores[nc] = score
                     if (policy != null) continue
@@ -1045,7 +1046,9 @@ class HexGroups(
 
     /** What a group weighing its places this week brings to each of them: worked out once in [planInner], read by [scorePlace]. */
     private class PlanContext(val g: HexGroup, val kind: Int, val here: Hex, val sensed: IntArray, val month: Int, val goal: Int, val goalQ: Float,
-        val onRound: Boolean, val roundStrength: Float, val fromHere: Double, val reach: Float, val thirsty: Boolean, val keepOff: IntArray?,
+        val onRound: Boolean, val roundStrength: Float, val fromHere: Double, val reach: Float, val thirsty: Boolean, val restless: Boolean,
+        /** The time of year as an angle, 0 at the year's start ([Date.START_DAY]). */
+        val season: Double, val keepOff: IntArray?,
         val weather: Weather, val date: Date) {
         /** Reused for each place it weighs: see [deathsAt]. */
         val odds = Odds()
