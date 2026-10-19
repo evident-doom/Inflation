@@ -49,9 +49,10 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
     private inline fun within(h: Int, km: Double, f: (Int) -> Unit) {
         val r = (km / (hex.hexKm * 0.86)).toInt() + 1
         val col = h % hex.cols; val row = h / hex.cols
+        val cx = centreX; val cy = centreY
         for (rr in max(0, row - r)..min(hex.rows - 1, row + r)) for (cc in max(0, col - r - 1)..min(hex.cols - 1, col + r + 1)) {
             val q = rr * hex.cols + cc
-            val dx = centreX[q] - centreX[h]; val dy = centreY[q] - centreY[h]
+            val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]
             if (dx * dx + dy * dy <= km * km) f(q)
         }
     }

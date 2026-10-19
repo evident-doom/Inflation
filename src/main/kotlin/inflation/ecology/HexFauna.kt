@@ -1152,14 +1152,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * and the plant-eaters' young to a grown one and fat ([moverYoung], [moverFat]).
      */
     private fun fillArrive(weather: Weather, moving: Boolean) {
-        val outs = ThreadLocal.withInitial { FloatArray(HZ_COUNT) }
         for (k in kinds.indices) {
             val s = kinds[k]
             val odds = arrive[k]
-            if (!moving) { IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, outs.get()) }; continue }
+            if (!moving) { IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, scratch.get().outs) }; continue }
             if (room[k] == null) {
                 IntStream.range(0, n).parallel().forEach { p ->
-                    odds[p] = arriveOdds(k, p, weather, outs.get()); worth[k][p] = worthOrNothing(appeal(k, p, weather)) }
+                    odds[p] = arriveOdds(k, p, weather, scratch.get().outs); worth[k][p] = worthOrNothing(appeal(k, p, weather)) }
                 continue
             }
             // (Those that move are the kind as it is: its young to its grown, and the fat its grown carry, all over.)
@@ -1169,7 +1168,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val youngPerGrown = if (grown > 0.0) (little / grown).toFloat() else 0f
             val carried = if (grown > 0.0) (fatDays / grown).toFloat() else 0.5f * s.maxFatDays
             moverYoung[k] = youngPerGrown; moverFat[k] = carried
-            IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, outs.get()) }
+            IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, scratch.get().outs) }
         }
     }
 
@@ -1345,9 +1344,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val share = (BAND_SHIFT * gain).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
                 if (!(share > 0f)) continue
                 val ma = a[from] * share * land.areaKm2[from]; val my = y[from] * share * land.areaKm2[from]
-                bred[k][to] = mixed(bred[k][to], a[to] * land.areaKm2[to], bred[k][from], ma)
                 a[from] -= ma / land.areaKm2[from]; y[from] -= my / land.areaKm2[from]
-                a[to] += ma / land.areaKm2[to]; y[to] += my / land.areaKm2[to]
+                settle(k, to, ma, my, bred[k][from])
                 // (Those that climbed pay for it out of their fat, as for a walk, see [climbKm].)
                 val heads = (a[to] + y[to]) * land.areaKm2[to]
                 if (heads > 0f) reserve[k][to] = max(0f, reserve[k][to] - WALK_COST * climbKm(k, from, to) * (ma + my) / heads)
@@ -1368,6 +1366,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient val flowEast = FloatArray(hex.size)
     @Transient val flowSouth = FloatArray(hex.size)
     @Transient val flowOut = FloatArray(hex.size)
+
+    /** Adds [heads] going from hex [h] to hex [to] to the flow arrows ([flowEast], [flowSouth], [flowOut]). */
+    private fun recordFlow(h: Int, to: Int, heads: Float) {
+        val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(to)
+        flowEast[h] += heads * (x1 - x0).toFloat(); flowSouth[h] += heads * (y1 - y0).toFloat(); flowOut[h] += heads
+    }
 
     /** The straits from each hex: the hexes across ([seaLinks]) and the km of open water to each ([seaGaps]); set by the groups (see [HexGroups.seaLinks]). */
     @Transient var seaLinks: Lazy<Array<IntArray>>? = null
@@ -1500,10 +1504,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 moveA[q] += ga; moveY[q] += gy
                 cameA[q] += ga; cameBred[q] += ga * bk[p]
                 arrived[q] += ga + gy; walkedKm[q] += (ga + gy) * (hex.hexKm.toFloat() + climbKm(k, p, q))
-                if (flow) {
-                    val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
-                    flowEast[h] += (ga + gy) * (x1 - x0).toFloat(); flowSouth[h] += (ga + gy) * (y1 - y0).toFloat(); flowOut[h] += ga + gy
-                }
+                if (flow) recordFlow(h, hw.placeHex[q], ga + gy)
             }
         }
         countStuck(k, weekHeads, weekStuck, weekEdge)
@@ -1516,6 +1517,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** The share of their season of births ([bred]) of [there] grown that had had [was] and [came] that had had [had], together. */
+    /**
+     * Adds [grown] and [youngHeads] heads of kind [k] to place [to], the grown with [had] of their season of births had
+     * ([bred], mixed in by heads, [mixed]).
+     */
+    private fun settle(k: Int, to: Int, grown: Float, youngHeads: Float, had: Float) {
+        val a = adults[k]; val area = land.areaKm2[to]
+        bred[k][to] = mixed(bred[k][to], a[to] * area, had, grown)
+        a[to] += grown / area; young[k][to] += youngHeads / area
+    }
+
     private fun mixed(was: Float, there: Float, had: Float, came: Float) =
         if (there + came > 0f) ((was * there + had * came) / (there + came)).coerceIn(0f, 1f) else was
 
@@ -1552,9 +1563,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (The grown times the share of their season of births they have had: [bred] goes with them.)
         val bk = bred[k]; val gb = FloatArray(n) { p -> bk[p] * ga[p] }
         val food = FloatArray(n)
-        val tools = ThreadLocal.withInitial { DryPantry() to Bites() }
-        IntStream.range(0, n).parallel().forEach { p -> val (d, b) = tools.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, d, b) }
-        val outs = ThreadLocal.withInitial { FloatArray(HZ_COUNT) }; val partsOf = ThreadLocal.withInitial { FloatArray(GROWTH_PARTS) }
+        IntStream.range(0, n).parallel().forEach { p -> val t = scratch.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, t.pantry, t.bites) }
         val v = worth[k]
         // Drawn on by where they remember the kind fares best from the next month on ([SeasonalMemory]): set off now for
         // ground that will be good by the time they get there.
@@ -1575,8 +1584,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val fixed = WeekFixed(n)
         // (A year of this week at a place, at [heads] there: how they would fare there, before what they remember.)
         fun weigh(p: Int, heads: Float): Float {
-            if (!fixed.done[p]) fix(k, p, weather, outs.get(), fixed)
-            return placeWorth(k, p, fixed, heads, food[p], partsOf.get())
+            val t = scratch.get()
+            if (!fixed.done[p]) fix(k, p, weather, t.outs, fixed)
+            return placeWorth(k, p, fixed, heads, food[p], t.parts)
         }
         // (Only the places the kind is at and those next to them are weighed, as it comes to them: no other can matter yet.)
         val weighed = BooleanArray(n); v.fill(0f)
@@ -1684,10 +1694,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     ga[q] += mA - lostA; gy[q] += mY - lostY; gb[q] += (mA - lostA) * hadBred
                     arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (km + climbKm(k, p, q))
                     changed[q] = true
-                    if (record && hw.placeHex[q] != h) {
-                        val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(hw.placeHex[q])
-                        flowEast[h] += m * (x1 - x0).toFloat(); flowSouth[h] += m * (y1 - y0).toFloat(); flowOut[h] += m
-                    }
+                    if (record && hw.placeHex[q] != h) recordFlow(h, hw.placeHex[q], m)
                 }
                 ga[p] = max(0f, ga[p] - left * (1f - youngShare)); gy[p] = max(0f, gy[p] - left * youngShare); changed[p] = true
                 gb[p] = max(0f, gb[p] - left * (1f - youngShare) * hadBred)
@@ -1821,8 +1828,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             neighbourPlaces(k, p) { q -> val dq = a[q] + y[q]; if (dq < floor && dq * area[q] > most && drinks(s, q)) { most = dq * area[q]; to = q } }
             if (to < 0) continue
             val ga = a[p] * area[p]; val gy = y[p] * area[p]
-            bred[k][to] = mixed(bred[k][to], a[to] * area[to], bred[k][p], ga)
-            a[to] += ga / area[to]; y[to] += gy / area[to]; a[p] = 0f; y[p] = 0f
+            settle(k, to, ga, gy, bred[k][p]); a[p] = 0f; y[p] = 0f
             arrived[to] += ga + gy; walkedKm[to] += (ga + gy) * (hex.hexKm.toFloat() + climbKm(k, p, to))
         }
     }
@@ -1830,7 +1836,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Share of [s] that drown swimming [gapKm] of open water: by the groups' rule, the nearer the strait to all it can swim, the more. */
     private fun drownRisk(s: Species, gapKm: Float) = min(1f, Hazards.drowning(s, gapKm))
 
+    /** One thread's working arrays for weighing places ([fillArrive], [flow]): every use fills what it reads first. */
+    private class Scratch {
+        val outs = FloatArray(HZ_COUNT); val parts = FloatArray(GROWTH_PARTS); val pantry = DryPantry(); val bites = Bites()
+    }
+
     companion object {
+        /** Each thread's [Scratch], made once for the run rather than afresh for every kind every week. */
+        private val scratch = ThreadLocal.withInitial { Scratch() }
+
         /** Where [growthParts] puts each part. */
         const val GROWTH_BORN = 0; const val GROWTH_GROWN_DIE = 1; const val GROWTH_YOUNG_DIE = 2; const val GROWTH_FED = 3; const val GROWTH_PROTEIN = 4; const val GROWTH_PARTS = 5
         /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */
