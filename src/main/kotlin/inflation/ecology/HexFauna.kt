@@ -27,6 +27,7 @@ import inflation.world.Weather
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReferenceArray
@@ -180,6 +181,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * one measure the residents' drift and the groups' leaving and settling ([HexGroups.leaveAhead]) weigh places by.
      */
     @Transient internal val arrive = Array(kinds.size) { FloatArray(n) }
+    /**
+     * For the kinds that live only as residents, whose [arrive] only their own moving reads: whether it is worked out at
+     * each place this week (where they are, at first; the rest as the walkers come to it, see [knowAround]), and the
+     * heads per km² it was weighed by, as they stood before the moving.
+     */
+    @Transient private val arriveKnown = Array(kinds.size) { if (kinds[it] in Catalogue.gathering) null else BooleanArray(n) }
+    @Transient private val headsBefore = Array(kinds.size) { if (kinds[it] in Catalogue.gathering) null else FloatArray(n) }
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
     /**
@@ -640,12 +648,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         Phase("residents: grazing") { graze(it) },
         Phase("residents: births, deaths") { breedAndDie(it, it.date) },
         Phase("residents: moving") {
+            // (They move every [Tuning.residentMoveWeeks] weeks; the groups weigh the odds of the kinds that gather every week.)
+            val moves = (it.date.absoluteDay / days) % tuning.residentMoveWeeks == 0L
             // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
-            preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n).also { v -> IntStream.range(0, n).parallel().forEach { p -> v[p] = preyFor(kinds[k], p) } } else null }
+            if (moves) preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n).also { v -> IntStream.range(0, n).parallel().forEach { p -> v[p] = preyFor(kinds[k], p) } } else null }
             // (The odds are weighed once, before the bands shift: the shift and the spill both go by them.)
-            Profile.part("residents: weighing places") { fillArrive(it) }
-            Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
-            Profile.part("residents: spreading to neighbouring hexes") { spill(it) }
+            Profile.part("residents: weighing places") { fillArrive(it, moves) }
+            if (moves) {
+                Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
+                Profile.part("residents: spreading to neighbouring hexes") { spill(it) }
+            }
             preyNow = null
         },
         Phase("soil and small life") { small.step(it, carcassKg) },
@@ -1115,13 +1127,41 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return adultShare(out)
     }
 
-    /** Fills [arrive] for every kind, from this week's [room] and the residents where they now are. */
-    private fun fillArrive(weather: Weather) {
+    /**
+     * Fills [arrive] from this week's [room] and the residents where they now are: everywhere for the kinds that gather
+     * (the groups weigh them far and wide); for the rest, only in a week they [moves], and there only at the hexes they are
+     * in, the ground shifting between the bands weighs; the walkers weigh the rest as they come ([knowAround]).
+     */
+    private fun fillArrive(weather: Weather, moves: Boolean) {
         val outs = ThreadLocal.withInitial { FloatArray(HZ_COUNT) }
+        val bands = HexWorld.BANDS_M.size
         for (k in kinds.indices) {
             val band = kinds[k].maxGroupSize.toFloat(); val odds = arrive[k]
-            IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, band, weather, outs.get()) }
+            val known = arriveKnown[k]; val before = headsBefore[k]
+            if (known == null || before == null) {
+                IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, band, weather, outs.get()) }
+                continue
+            }
+            if (!moves) continue
+            val a = adults[k]; val y = young[k]
+            known.fill(false)
+            for (p in 0 until n) before[p] = a[p] + y[p]
+            val at = IntArray(n); var m = 0
+            for (h in 0 until hex.size) {
+                var lived = false
+                for (b in 0 until bands) { val q = hw.placeOf[b][h]; if (q >= 0 && before[q] > 0f) lived = true }
+                if (lived) for (b in 0 until bands) { val q = hw.placeOf[b][h]; if (q >= 0) at[m++] = q }
+            }
+            IntStream.range(0, m).parallel().forEach { i -> val p = at[i]; odds[p] = arriveAt(k, p, band, weather, before[p], outs.get()); known[p] = true }
         }
+    }
+
+    /** Works out [arrive] for kind [k] at place [p] and the places a step from it, where not yet worked out this week (see [fillArrive]). */
+    private fun knowAround(k: Int, p: Int, weather: Weather, out: FloatArray) {
+        val known = arriveKnown[k] ?: return; val before = headsBefore[k] ?: return
+        val odds = arrive[k]; val band = kinds[k].maxGroupSize.toFloat()
+        if (!known[p]) { odds[p] = arriveAt(k, p, band, weather, before[p], out); known[p] = true }
+        neighbourPlaces(k, p) { q -> if (!known[q]) { odds[q] = arriveAt(k, q, band, weather, before[q], out); known[q] = true } }
     }
 
     /**
@@ -1129,12 +1169,16 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * as far as the food left uneaten there ([room]) feeds them (a hunter, as well as the residents there were fed),
      * with water to drink; NaN where there is none, a place no one can stay at.
      */
-    internal fun arriveOdds(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray): Float {
+    internal fun arriveOdds(k: Int, p: Int, band: Float, weather: Weather, out: FloatArray): Float =
+        arriveAt(k, p, band, weather, adults[k][p] + young[k][p], out)
+
+    /** [arriveOdds] with [heads] of the kind per km² there. */
+    private fun arriveAt(k: Int, p: Int, band: Float, weather: Weather, heads: Float, out: FloatArray): Float {
         val s = kinds[k]
         if (!drinks(s, p)) return Float.NaN
         val area = land.areaKm2[p]
         val f = room[k]?.let { min(1f, it[p] * area / band) } ?: fed[k][p]
-        hazards(k, p, weather, weather.date.month, f, 0f, adults[k][p] + young[k][p] + band / area, out)
+        hazards(k, p, weather, weather.date.month, f, 0f, heads + band / area, out)
         return adultShare(out)
     }
 
@@ -1237,9 +1281,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * How good a place is for kind [k] this week: food per head, its ground, water within reach, the weather against
      * its comfort, deep snow, fear, and the share that would live through the week's fire and plague there.
      */
-    internal fun appeal(k: Int, p: Int, weather: Weather): Float {
+    internal fun appeal(k: Int, p: Int, weather: Weather, heads: Float = adults[k][p] + young[k][p]): Float {
         val s = kinds[k]
-        val heads = adults[k][p] + young[k][p]
         // Weather now, and as far as the kind senses it, what is coming.
         val m = weather.date.month
         val discomfort = ((1f - s.foresight) * s.discomfortC(feltC(s, p, weather.temperature[p]), m) +
@@ -1277,6 +1320,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     private fun shiftBands(weather: Weather) {
         val bands = HexWorld.BANDS_M.size
+        // (Moving every few weeks, a move takes the share those weeks' would have.)
+        val weeks = tuning.residentMoveWeeks
         // Each kind on its own core: the kinds' numbers are kept apart.
         kinds.indices.toList().parallelStream().forEach { k ->
             val a = adults[k]; val y = young[k]
@@ -1304,7 +1349,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     if (!(arrive[k][to] <= (if (to == hi) ol else oh))) continue
                     gain = (max(al, ah) - min(al, ah)) / max(al, ah)
                 }
-                val share = BAND_SHIFT * gain
+                val share = (BAND_SHIFT * gain).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
                 if (!(share > 0f)) continue
                 val ma = a[from] * share * land.areaKm2[from]; val my = y[from] * share * land.areaKm2[from]
                 a[from] -= ma / land.areaKm2[from]; y[from] -= my / land.areaKm2[from]
@@ -1344,12 +1389,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // (The heads that came, and the km they walked to come: what the walk costs their fat.)
             val arrived = FloatArray(n); val walkedKm = FloatArray(n)
             // Those still walking after the first hex, by where they stand: grown, young, and km walked (summed over heads).
-            val hops = if (room[k] != null) hopsFor(s) else 1
+            // (Moving every few weeks, a move takes the share those weeks' would have, and the walkers walk as far.)
+            val weeks = tuning.residentMoveWeeks
+            val hops = if (room[k] != null) hopsFor(s, weeks) else 1
             val walkA = FloatArray(n); val walkY = FloatArray(n); val walkKm = FloatArray(n)
             // What each place is worth to the kind this week, as it is worth to those moving up and down the slopes
-            // (worked out once a place, for every neighbour that weighs it).
-            val worthOf = FloatArray(n)
-            IntStream.range(0, n).parallel().forEach { q -> worthOf[q] = worthOrNothing(appeal(k, q, weather)) }
+            // (worked out once a place, for every neighbour that weighs it): where they are and a step from there on all
+            // cores, the rest as the swimmers and walkers come to it ([worthAt]), by their numbers before any left.
+            val heads0 = FloatArray(n) { a[it] + y[it] }
+            val worthOf = FloatArray(n) { Float.NaN }
+            val at = BooleanArray(n)
+            for (p in 0 until n) if (heads0[p] > 0f) { at[p] = true; neighbourPlaces(k, p) { at[it] = true } }
+            val weigh = IntArray(at.count { it }).also { var m = 0; for (p in 0 until n) if (at[p]) it[m++] = p }
+            IntStream.range(0, weigh.size).parallel().forEach { i -> val q = weigh[i]; worthOf[q] = worthOrNothing(appeal(k, q, weather, heads0[q])) }
             val dk = dry[k]
             var weekHeads = 0.0; var weekStuck = 0.0; var weekEdge = 0.0
             val flow = flowOf == k
@@ -1399,7 +1451,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     for (i in to.indices) { val nh = to[i]; val gapKm = gaps[i]
                         if (gapKm > swim) continue; val q = hw.placeOf[b][nh].takeIf { it >= 0 } ?: continue
                         // (Weighed by those that would reach the far shore: the strait drowns some, as it does groups.)
-                        val wq = SEA_SPILL * (1f - gapKm / swim) * (1f - drownRisk(s, gapKm)) * land.areaKm2[q] * (worthOf[q] + 1e-4f)
+                        val wq = SEA_SPILL * (1f - gapKm / swim) * (1f - drownRisk(s, gapKm)) * land.areaKm2[q] * (worthAt(k, q, weather, worthOf, heads0) + 1e-4f)
                         if (wq > seaW) { seaW = wq; seaTo = q; seaGapKm = gapKm } }
                 }
                 val here = if (thirst > 0f && !drinks(s, p)) worthOf[p] * (1f - thirst) else worthOf[p]
@@ -1409,7 +1461,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (total <= 0f) continue
                 // (And the more so the better the country next door is than here: as the seasons turn, they follow the fresh pasture.)
                 val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
-                val go = min(0.5f, leave + SPILL_BETTER * better)
+                val go = min(0.5f, leave + SPILL_BETTER * better).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
                 val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]
                 if (seaTo >= 0) {
                     val share = seaW / (total + seaW)
@@ -1443,7 +1495,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             stuck[k].let { it[Stuck.HEADS.ordinal] += weekHeads; it[Stuck.STUCK.ordinal] += weekStuck; it[Stuck.AT_EDGE.ordinal] += weekEdge
                 if (weekHeads > 0.0) it[Stuck.PEAK.ordinal] = max(it[Stuck.PEAK.ordinal], weekStuck / weekHeads) }
             for (p in 0 until n) { a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p]) }
-            if (hops > 1) walkOn(k, hops, worthOf, walkA, walkY, walkKm, arrived, walkedKm)
+            if (hops > 1) walkOn(k, hops, weather, worthOf, heads0, walkA, walkY, walkKm, arrived, walkedKm)
+            gatherThin(k, arrived, walkedKm)
             // (A place left with too few to count, by those leaving or the few that came, has none: as after births and deaths,
             // they go to the soil with the drowned. Else they would feed and die there as fractions too small to reckon with.)
             for (p in 0 until n) if (a[p] + y[p] > 0f && a[p] + y[p] < EXTINCT) { drowned[k][p] += a[p] + y[p] * YOUNG_WEIGHT; a[p] = 0f; y[p] = 0f }
@@ -1467,7 +1520,35 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * (Its usual going is how far it ranges in a day; a resident that sets off for better country can make at least
      * that much headway, so this is the lower bound of what it could cover.)
      */
-    internal fun hopsFor(s: Species) = max(1, (s.dailyTravelKm * days / hex.hexKm).toInt())
+    internal fun hopsFor(s: Species, weeks: Int = 1) = max(1, (s.dailyTravelKm * days * weeks / hex.hexKm).toInt())
+
+    /** [worth] of place [q] to kind [k], worked out by [heads] there if not yet ([spill]). */
+    private fun worthAt(k: Int, q: Int, weather: Weather, worth: FloatArray, heads: FloatArray): Float {
+        if (worth[q].isNaN()) worth[q] = worthOrNothing(appeal(k, q, weather, heads[q]))
+        return worth[q]
+    }
+
+    /**
+     * Kind [k]'s animals too thinly spread to keep apart (under [inflation.Tuning.residentFloor] of its usual numbers at a
+     * place) gather a step to the neighbouring place that holds the most of its thinly spread animals, where they can
+     * stay: so the thin edge of a kind keeps together in fewer places, spreading still as the most of it does. Adds those
+     * that came, and the km they walked, to [arrived] and [walkedKm].
+     */
+    private fun gatherThin(k: Int, arrived: FloatArray, walkedKm: FloatArray) {
+        val floor = tuning.residentFloor * usual[k]
+        if (!(floor > 0f)) return
+        val s = kinds[k]; val a = adults[k]; val y = young[k]; val area = land.areaKm2
+        for (p in 0 until n) {
+            val d = a[p] + y[p]
+            if (!(d > 0f) || d >= floor) continue
+            var to = -1; var most = d * area[p]
+            neighbourPlaces(k, p) { q -> val dq = a[q] + y[q]; if (dq < floor && dq * area[q] > most && drinks(s, q)) { most = dq * area[q]; to = q } }
+            if (to < 0) continue
+            val ga = a[p] * area[p]; val gy = y[p] * area[p]
+            a[to] += ga / area[to]; y[to] += gy / area[to]; a[p] = 0f; y[p] = 0f
+            arrived[to] += ga + gy; walkedKm[to] += (ga + gy) * hex.hexKm.toFloat()
+        }
+    }
 
     /**
      * The walkers of kind [k] ([spill]'s, who left their place and have crossed into the next hex) walk on, a step at a
@@ -1476,8 +1557,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * food left uneaten is reckoned ([room]). Adds the heads that came to each place to [arrived] and the km they walked
      * to [walkedKm].
      */
-    private fun walkOn(k: Int, hops: Int, worth: FloatArray, walkA: FloatArray, walkY: FloatArray, walkKm: FloatArray,
-                       arrived: FloatArray, walkedKm: FloatArray) {
+    private fun walkOn(k: Int, hops: Int, weather: Weather, worth: FloatArray, heads0: FloatArray, walkA: FloatArray, walkY: FloatArray,
+                       walkKm: FloatArray, arrived: FloatArray, walkedKm: FloatArray) {
+        val out = FloatArray(HZ_COUNT)
         val a = adults[k]; val y = young[k]
         val area = land.areaKm2
         val odds = arrive[k]
@@ -1490,7 +1572,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             for (q in 0 until n) {
                 val heads = wA[q] + wY[q]
                 if (!(heads > 0f)) continue
-                if (next[q] == -2) next[q] = walkStep(k, q, odds, worth)
+                if (next[q] == -2) {
+                    knowAround(k, q, weather, out)
+                    worthAt(k, q, weather, worth, heads0); neighbourPlaces(k, q) { worthAt(k, it, weather, worth, heads0) }
+                    next[q] = walkStep(k, q, odds, worth)
+                }
                 val r = next[q]
                 if (r < 0) {
                     a[q] += wA[q] / area[q]; y[q] += wY[q] / area[q]; arrived[q] += heads; walkedKm[q] += wK[q]
