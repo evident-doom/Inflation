@@ -155,15 +155,15 @@ class HexHistory {
         val groups = sim.groups; val hunting = groups.stats.hunting
         for (s in groups.kinds) if (s.carnivore) {
             fun v(k: String) = (hunting[k] ?: 0).toDouble()
-            val asked = v(Tally.diet(s, "asked"))
-            if (asked > 0) put(Key.hunters(s.name, Hunters.FED), ((v(Tally.diet(s, "meat")) + v(Tally.diet(s, "small prey")) + v(Tally.diet(s, "carrion")) +
-                v(Tally.diet(s, "plants"))) / asked).toFloat())
-            put(Key.hunters(s.name, Hunters.KILLS), v(Tally.of(s, Tally.KILLS_OF_RESIDENTS)).toFloat())
+            val asked = v(Tally.diet(s, Tally.DietPart.ASKED))
+            if (asked > 0) put(Key.hunters(s.name, Hunters.FED), ((v(Tally.diet(s, Tally.DietPart.MEAT)) + v(Tally.diet(s, Tally.DietPart.SMALL_PREY)) + v(Tally.diet(s, Tally.DietPart.CARRION)) +
+                v(Tally.diet(s, Tally.DietPart.PLANTS))) / asked).toFloat())
+            put(Key.hunters(s.name, Hunters.KILLS), v(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS)).toFloat())
             if (!s.human) holdingGround(groups, s)?.let { put(Key.hunters(s.name, Hunters.HOLDING), it.toFloat()) }
         }
         peopleWays(groups)?.let { by -> for (w in PeopleWay.entries) if (!by[w.ordinal].isNaN()) put(Key.people(w), by[w.ordinal].toFloat()) }
-        val meat = (hunting[Tally.of(Catalogue.HUMAN, WeekStats.MEAT_EATEN)] ?: 0).toDouble()
-        val food = meat + (hunting[Tally.of(Catalogue.HUMAN, WeekStats.PLANTS_EATEN)] ?: 0)
+        val meat = (hunting[Tally.of(Catalogue.HUMAN, Tally.OfKind.MEAT_EATEN)] ?: 0).toDouble()
+        val food = meat + (hunting[Tally.of(Catalogue.HUMAN, Tally.OfKind.PLANTS_EATEN)] ?: 0)
         if (food > 0) put(Key.people(PeopleWay.GAME), (meat / food).toFloat())
     }
 
