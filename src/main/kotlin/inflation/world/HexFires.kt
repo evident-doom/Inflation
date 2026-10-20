@@ -6,6 +6,9 @@ import inflation.HASH_C
 import inflation.mix64
 import inflation.unitOf
 import inflation.Config
+import inflation.ecology.Place
+import inflation.ecology.get
+import inflation.ecology.set
 
 import kotlin.math.exp
 import kotlin.math.max
@@ -19,14 +22,14 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     /** Fires this step: the place each started in and the km² it burned. */
     val fires = ArrayList<Fire>()
 
-    private fun fuel(p: Int) = (plants.herb[p] + 0.5f * plants.shrub[p]) * (1f - 0.8f * (1f - exp(-plants.grazing[p] / GRAZE_SCALE)))
+    private fun fuel(p: Place) = (plants.herb[p] + 0.5f * plants.shrub[p]) * (1f - 0.8f * (1f - exp(-plants.grazing[p] / GRAZE_SCALE)))
 
-    private fun canBurn(p: Int, weather: Weather) =
+    private fun canBurn(p: Place, weather: Weather) =
         hydro.flood[p] <= 0f && fuel(p) >= 0.2f && hydro.soil[p] / hydro.soilCap[p] < 0.3f && weather.temperature[p] > 15f && weather.precipitation[p] < 5f
 
     /** Fires people have set, to be lit next step. */
-    private val lit = java.util.concurrent.ConcurrentLinkedQueue<Int>()
-    fun ignite(p: Int) { lit += p }
+    private val lit = java.util.concurrent.ConcurrentLinkedQueue<Place>()
+    fun ignite(p: Place) { lit += p }
 
     /**
      * Fires: started by lightning and sparks in hot, dry, fuel-rich places (more often the bigger the
@@ -36,23 +39,25 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     internal fun spread(weather: Weather, years: Float) {
         burning.fill(0f)
         fires.clear()
-        val set = HashSet<Int>()
+        val set = HashSet<Place>()
         while (true) set += lit.poll() ?: break
-        for (p in 0 until n) {
+        for (i in 0 until n) {
+            val p = Place(i)
             if (burning[p] > 0f || !canBurn(p, weather)) continue
             val heat = ((weather.temperature[p] - 15f) / 20f).coerceIn(0f, 1f)
             val chance = tuning.ignitionsPerKm2Year * land.areaKm2[p] * years * min(1f, fuel(p) / 1.5f) * heat
             if (p !in set && hash(p, 0) >= chance) continue
             var km2 = 0f
-            val queue = ArrayDeque<Int>(); queue += p
+            val queue = ArrayDeque<Place>(); queue += p
             burning[p] = burnShare(p); km2 += burning[p] * land.areaKm2[p]
             val farKm = SPREAD_KM_PER_DAY * days
             while (queue.isNotEmpty()) {
                 val c = queue.removeFirst()
                 val (cx, cy) = hex.centreKm(hw.placeHex[c])
-                val u = weather.windEast(c); val v = weather.windSouth(c)
+                val u = weather.windEast(c.i); val v = weather.windSouth(c.i)
                 val speed = kotlin.math.hypot(u, v)
-                for (nb in land.neighbours[c]) {
+                for (j in land.neighbours[c.i]) {
+                    val nb = Place(j)
                     if (burning[nb] > 0f || !canBurn(nb, weather)) continue
                     if (hex.distanceKm(hw.placeHex[p], hw.placeHex[nb]) > farKm) continue
                     val (nx, ny) = hex.centreKm(hw.placeHex[nb])
@@ -60,29 +65,29 @@ class HexFires(land: HexLand) : HexLandPart(land) {
                     val len = kotlin.math.hypot(dx, dy)
                     val along = if (speed > 0.1f && len > 0f) (dx * u + dy * v) / (speed * len) else 0f
                     val wind = 0.2f + 0.4f * min(1f, speed / 8f) * along
-                    if (hash(nb, c) >= wind * burning[c] * min(1f, fuel(nb))) continue
+                    if (hash(nb, c.i) >= wind * burning[c] * min(1f, fuel(nb))) continue
                     burning[nb] = burnShare(nb); km2 += burning[nb] * land.areaKm2[nb]; queue += nb
                 }
             }
-            fires += Fire(p, km2)
+            fires += Fire(p.i, km2)
         }
     }
 
     /** Share of place [p] a fire burns: most of a place thick with dry grass, a little of a sparse one. */
-    private fun burnShare(p: Int) = (0.1f + 0.6f * min(1f, fuel(p) / 1.5f)).coerceAtMost(0.7f)
+    private fun burnShare(p: Place) = (0.1f + 0.6f * min(1f, fuel(p) / 1.5f)).coerceAtMost(0.7f)
 
-    internal fun burn(p: Int, share: Float): Float {
-        val before = plants.biomass(p)
+    internal fun burn(p: Place, share: Float): Float {
+        val before = plants.biomass(p.i)
         plants.herb[p] *= 1f - 0.9f * share; plants.shrub[p] *= 1f - 0.8f * share; plants.tree[p] *= 1f - 0.3f * share
         // (What burnt of the grass grows back as new leaf.)
         plants.grassAge[p] *= 1f - 0.9f * share
         burnt[p] = max(burnt[p], share)
         plants.fertility[p] = min(1f, plants.fertility[p] + 0.01f * share)
-        return before - plants.biomass(p)
+        return before - plants.biomass(p.i)
     }
 
-    private fun hash(p: Int, salt: Int): Float {
-        return unitOf(mix64(land.seed * HASH_A + plants.stepCount * HASH_A + p * HASH_B + salt * HASH_C))
+    private fun hash(p: Place, salt: Int): Float {
+        return unitOf(mix64(land.seed * HASH_A + plants.stepCount * HASH_A + p.i * HASH_B + salt * HASH_C))
     }
 
     companion object {
