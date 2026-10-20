@@ -837,7 +837,7 @@ private inline fun HexGroups.eachResidentManEater(p: Int, each: (Species, Float)
 internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Int, pressure: Float): Float {
     if (pressure <= 0f) return 0f
     val h = hw.placeHex[p]
-    val cover = 0.5f + land.plants.cover(p)
+    val cover = 0.5f + land.plants.cover(Place(p))
     val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
     val spread = b.gatherRange * b.gatherRange

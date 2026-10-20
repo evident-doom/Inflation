@@ -237,7 +237,7 @@ class HexHistory {
         for (p in 0 until n) biomeArea[biomeOf(sim, p)] += area[p].toDouble()
         put(Key.LAND_AREA, biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
-        for (p in 0 until n) plants[biomeOf(sim, p)] += (land.plants.biomass(p) * area[p]).toDouble()
+        for (p in 0 until n) plants[biomeOf(sim, p)] += (land.plants.biomass(Place(p)) * area[p]).toDouble()
         val heads = HashMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) {
             val a = heads.getOrPut(s.name) { DoubleArray(Biome.entries.size) }

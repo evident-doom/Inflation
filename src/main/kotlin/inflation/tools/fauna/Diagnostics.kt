@@ -51,7 +51,7 @@ class Diagnostics(private val sim: HexSim) {
     private fun shrubs(book: Array<java.util.concurrent.atomic.DoubleAdder>) {
         val p = land.plants
         var stand = 0.0; var cap = 0.0
-        for (i in 0 until hw.placeHex.size) { stand += p.shrub[i] * land.areaM2[i].toDouble(); cap += p.ceiling(inflation.world.LifeForm.SHRUB, i) * land.areaM2[i].toDouble() }
+        for (i in 0 until hw.placeHex.size) { stand += p.shrub[i] * land.areaM2[i].toDouble(); cap += p.ceiling(inflation.world.LifeForm.SHRUB, inflation.ecology.Place(i)) * land.areaM2[i].toDouble() }
         println("   shrubDiag %s (tonnes over the map): standing %.4g, ceiling %.4g".format(weather.date, stand / 1000, cap / 1000))
         for ((i, name) in inflation.world.HexPlants.SHRUB_PARTS.withIndex()) println("      %-50s %+.4g".format(name, book[i].sumThenReset() / 1000))
         val n = inflation.world.HexPlants.SHRUB_PARTS.size
@@ -77,7 +77,7 @@ class Diagnostics(private val sim: HexSim) {
         return "resident game %.0f kg/km², young per pack %.1f, holding ground %.0f%%, cover %.2f, water %.1f km, band %.1f".format(
             mean { g -> fauna.kinds.indices.sumOf { k -> ((fauna.adults[k][g.place] + fauna.young[k][g.place]) * fauna.kinds[k].massKg).toDouble() } },
             mean { it.young.toDouble() }, 100.0 * l.count { !it.home.none } / l.size,
-            mean { land.plants.cover(it.place.i).toDouble() }, mean { land.drink.waterKm[it.place.i].toDouble() }, mean { hw.placeBand[it.place.i].toDouble() }) +
+            mean { land.plants.cover(it.place).toDouble() }, mean { land.drink.waterKm[it.place.i].toDouble() }, mean { hw.placeBand[it.place.i].toDouble() }) +
             ", %.0f m, %.1f °C, fed %.2f, larder %.0f days, size %.0f, path %.1f hexes, days without water %.1f".format(
                 mean { hw.placeElevationM[it.place].toDouble() }, mean { weather.temperature[it.place].toDouble() },
                 mean { it.fed.toDouble() }, mean { (it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f)).toDouble() }, mean { it.size.toDouble() },

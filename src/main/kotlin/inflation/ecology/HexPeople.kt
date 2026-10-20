@@ -760,7 +760,7 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
     var lookKm = 0f
     for (h in g.path) {
         val q = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
-        lookKm = max(lookKm, land.bestViewKm[q] * sight(q, weather) / (1f - SIGHT_COVER * land.plants.cover(q)).coerceAtLeast(0.1f))
+        lookKm = max(lookKm, land.bestViewKm[q] * sight(q, weather) / (1f - SIGHT_COVER * land.plants.cover(Place(q))).coerceAtLeast(0.1f))
     }
     val scouts = b.scoutShare * g.adults
     val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
@@ -879,8 +879,8 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, pe
         val cover = min(1f, woody / 3f)
         val wood = gd[Material.WOOD]
         val took = gather(Material.WOOD, 2f * people * cover, FUEL_A_DAY * cover)
-        gd[Material.WOOD] = wood + land.plants.consume(p.i, LifeForm.TREE, Kg(took * tree / woody).perM2(m2)).over(m2).v +
-            land.plants.consume(p.i, LifeForm.SHRUB, Kg(took * shrub / woody).perM2(m2)).over(m2).v
+        gd[Material.WOOD] = wood + land.plants.consume(p, LifeForm.TREE, Kg(took * tree / woody).perM2(m2)).over(m2).v +
+            land.plants.consume(p, LifeForm.SHRUB, Kg(took * shrub / woody).perM2(m2)).over(m2).v
     }
     val resin = gather(Material.RESIN, 0.05f * people * min(1f, tree / 3f), RESIN_A_DAY)
     land.books?.leak(Books.Stuff.MATTER, "resin, not taken from the trees", resin.toDouble())
@@ -889,8 +889,8 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, pe
     if (green > 0f) {
         val fibre = gd[Material.FIBRE]
         val took = gather(Material.FIBRE, people * min(1f, (herb + shrub) / 0.5f + 2f * land.waterlogged[p]), FIBRE_A_DAY)
-        gd[Material.FIBRE] = fibre + land.plants.consume(p.i, LifeForm.HERB, Kg(took * herb / green).perM2(m2)).over(m2).v +
-            land.plants.consume(p.i, LifeForm.SHRUB, Kg(took * shrub / green).perM2(m2)).over(m2).v
+        gd[Material.FIBRE] = fibre + land.plants.consume(p, LifeForm.HERB, Kg(took * herb / green).perM2(m2)).over(m2).v +
+            land.plants.consume(p, LifeForm.SHRUB, Kg(took * shrub / green).perM2(m2)).over(m2).v
     }
     // Shells on the shore, for beads.
     if (hw.coast[h]) gather(Material.SHELL, SHELL_A_WEEK * people, SHELL_A_DAY)
@@ -918,8 +918,8 @@ internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
     b.hearthWood = hearthShare(cover, perHand)
     val got = b.hearthWood * want
     val m2 = land.m2(p)
-    val burnt = land.plants.consume(p.i, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2)).v +
-        land.plants.consume(p.i, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2)).v
+    val burnt = land.plants.consume(p, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2)).v +
+        land.plants.consume(p, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2)).v
     land.books?.flow(Books.Stuff.MATTER, "burnt", -burnt * m2.toDouble())
     return spent
 }
@@ -1730,8 +1730,8 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         // Grazing round the camp.
         val need = land.spread(p, Kg(n * s.dailyIntakeKg * days))
         val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
-        val got = land.plants.consume(p.i, LifeForm.HERB, min(need * d.grass / total, KgM2(land.palatable[p] * land.plants.herb[p] * 0.1f))) +
-            land.plants.eatBrowse(p.i, need * d.browse / total)
+        val got = land.plants.consume(p, LifeForm.HERB, min(need * d.grass / total, KgM2(land.palatable[p] * land.plants.herb[p] * 0.1f))) +
+            land.plants.eatBrowse(p, need * d.browse / total)
         val fed = if (need.v > 0f) min(1f, got / need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
