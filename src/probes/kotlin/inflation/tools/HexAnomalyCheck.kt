@@ -21,7 +21,7 @@ import inflation.world.WorldConfig
  * - forage: standing grass and browse, how green, what the residents could take a week, what they took,
  *   and what was left, with the plant-eaters there and the kinds;
  * - wild boar: month by month their heads, how well fed, how far over their usual density, what fed them
- *   (plants, straw, animal food, reserves) and the roots and fruit where they stand; and how well fed by
+ *   (plants, animal food, reserves) and the roots and fruit where they stand; and how well fed by
  *   how crowded.
  *
  * Usage: hex-anomaly-check (--world NAME | --seed N [--width KM] [--height KM]) [--weeks N]
@@ -68,7 +68,7 @@ fun main(args: Array<String>) {
     val kindsKg = Array(nc) { HashMap<String, Double>() }
     // Wild boar, by month.
     val bHeads = DoubleArray(12); val bFed = DoubleArray(12); val bOver = DoubleArray(12); val bRoots = DoubleArray(12); val bFruit = DoubleArray(12)
-    val bFrom = Array(4) { DoubleArray(12) }; val bWeeks = IntArray(12)
+    val bFrom = Array(3) { DoubleArray(12) }; val bWeeks = IntArray(12)
     val byCrowd = DoubleArray(6); val byCrowdFed = DoubleArray(6)
     val bStart = if (boar >= 0) fauna.count(boar) else 0.0
 
@@ -106,7 +106,7 @@ fun main(args: Array<String>) {
                 byCrowd[b] += hd; byCrowdFed[b] += hd * fauna.fed[boar][p]
             }
             val ff = fauna.fedFrom[boar]; val heads = ff[Fed.HEADS].sumThenReset().coerceAtLeast(1e-9)
-            for ((i, f) in listOf(Fed.PLANTS, Fed.STRAW, Fed.ANIMAL, Fed.RESERVES).withIndex()) bFrom[i][m] += ff[f].sumThenReset() / heads
+            for ((i, f) in listOf(Fed.PLANTS, Fed.ANIMAL, Fed.RESERVES).withIndex()) bFrom[i][m] += ff[f].sumThenReset() / heads
         }
     }
 
@@ -122,10 +122,10 @@ fun main(args: Array<String>) {
 
     if (boar >= 0) {
         println("\nwild boar: %.0f at the start, %.0f at the end".format(bStart, fauna.count(boar)))
-        println("month   heads   fed  x usual  roots g/m2 fruit g/m2 | fed from: plants straw animal reserves")
+        println("month   heads   fed  x usual  roots g/m2 fruit g/m2 | fed from: plants animal reserves")
         for (m in 0 until 12) if (bWeeks[m] > 0 && bHeads[m] > 0) { val h = bHeads[m]; val k = bWeeks[m]
-            println("%5d %8.0f  %.2f  %6.2f  %9.1f %9.1f | %.2f %.2f %.2f %.2f".format(m + 1, h / k, bFed[m] / h, bOver[m] / h,
-                1000 * bRoots[m] / h, 1000 * bFruit[m] / h, bFrom[0][m] / k, bFrom[1][m] / k, bFrom[2][m] / k, bFrom[3][m] / k)) }
+            println("%5d %8.0f  %.2f  %6.2f  %9.1f %9.1f | %.2f %.2f %.2f".format(m + 1, h / k, bFed[m] / h, bOver[m] / h,
+                1000 * bRoots[m] / h, 1000 * bFruit[m] / h, bFrom[0][m] / k, bFrom[1][m] / k, bFrom[2][m] / k)) }
         val lab = listOf("<0.5", "0.5-1", "1-2", "2-4", "4-8", ">8")
         println("fed by density against usual: " + lab.indices.joinToString(", ") { b -> "%s x: %.0f%% of heads fed %.2f".format(lab[b], pct(byCrowd[b], byCrowd.sum()), byCrowdFed[b] / byCrowd[b].coerceAtLeast(1e-9)) })
     }
