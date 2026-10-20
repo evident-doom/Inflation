@@ -1019,14 +1019,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val youngOdds = youngSum.coerceIn(0f, 0.95f)
                 val da = a[p] * adultOdds; val dy = y[p] * youngOdds
                 if (heads != null && grew != null) {
-                    // What they remember of the ground is what the ground and its seasons do to them: the young their food
+                    // What they remember of the ground is what the ground and its seasons do to them (study arm: deaths only, no births): the young their food
                     // let them bear, and the deaths of hunger, thirst, cold, snow, fire and flood (the young's hunger, thirst
                     // and cold the harder, as they are booked, and their want of protein). Not the hunters, the eagles and
                     // crocodiles, or crowd sickness: those are not what the kind's ways were shaped by.
                     val grownEnv = (hunger + cold + thirst + snowA + fireA + floodA).coerceIn(0f, 0.9f)
                     val youngEnv = (1.5f * (hunger + cold + thirst) + snowY + fireY + floodY + starved).coerceIn(0f, 0.95f)
                     heads[p] = (a[p] + y[p]) * area
-                    grew[p] = (ln((a[p] + y[p]) / before.toDouble()) + ln(1.0 - (a[p] * grownEnv + y[p] * youngEnv) / (a[p] + y[p]))).toFloat()
+                    grew[p] = (ln(1.0 - (a[p] * grownEnv + y[p] * youngEnv) / (a[p] + y[p]))).toFloat()
                 }
                 // (The causes are booked as shares of the deaths that happen: where the odds are capped, each cause is cut alike.)
                 val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
