@@ -11,19 +11,11 @@ import inflation.ecology.Catalogue
 import inflation.ecology.HexGroup
 import inflation.world.WorldConfig
 import java.io.File
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.ln
-import kotlin.math.sqrt
 import kotlin.random.Random
 import inflation.ecology.AnimalWay
 
-/** A standard normal draw (Box-Muller). */
-internal fun gaussian(rnd: Random): Float {
-    var u: Double
-    do u = rnd.nextDouble() while (u <= 1e-12)
-    return (sqrt(-2.0 * ln(u)) * cos(2.0 * PI * rnd.nextDouble())).toFloat()
-}
+/** A standard normal draw, as a float (see [inflation.gaussian]). */
+internal fun gaussian(rnd: Random): Float = inflation.gaussian(rnd).toFloat()
 
 /**
  * Evolution strategies with mirrored noise: each generation a network is tried as [pairs] pairs of

@@ -32,6 +32,7 @@ import kotlin.math.abs
  * template a band starts from; it then remembers where it actually fared better.
  */
 internal fun HexGroups.inheritSeasons(g: HexGroup) {
+    val b = g.band ?: return
     val s = g.species
     val here = hw.placeHex[g.place]
     val (hx, hy) = hex.centreKm(here)
@@ -72,11 +73,11 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
                 (1f + SEASON_DISTANCE * dist.toFloat())
             if (score > bestScore) { bestScore = score; best = p }
         }
-        g.seasonPlace[m] = best; g.seasonQ[m] = bestScore
+        b.seasonPlace[m] = best; b.seasonQ[m] = bestScore
         top = max(top, bestScore)
     }
     // What the forebears knew is trusted until the band learns better (see [remember]).
-    if (top > 0f) for (m in 0 until 12) g.seasonQ[m] = 1f
+    if (top > 0f) for (m in 0 until 12) b.seasonQ[m] = 1f
 }
 
 /** Where an animal's food at a place comes from, kg per m² asked for and got: eaten from its stocks ([HexFauna.graze]), or only reckoned on ([DryPantry]). */
@@ -261,7 +262,6 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
     g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) } } }
-    g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
     return n
 }
 
@@ -782,15 +782,15 @@ internal fun HexGroups.remember(date: Date) {
     val week = stepOf(date)
     for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place.i], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place.i), week, stepsPerYear)
     for (g in groups) {
-        if (g.species.pack) continue
+        val b = g.band ?: continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,
         // and a clearly better place takes its place.
         val fared = g.fed * (1f - g.deathOdds).pow(weeksAMonth)
-        if (g.seasonPlace[m] < 0) { g.seasonPlace[m] = g.place.i; g.seasonQ[m] = fared }
-        else if (g.seasonPlace[m] == g.place.i) g.seasonQ[m] += 0.3f * (fared - g.seasonQ[m])
+        if (b.seasonPlace[m] < 0) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
+        else if (b.seasonPlace[m] == g.place.i) b.seasonQ[m] += 0.3f * (fared - b.seasonQ[m])
         else {
-            g.seasonQ[m] *= MEMORY_FADE
-            if (fared > g.seasonQ[m] + 0.1f) { g.seasonPlace[m] = g.place.i; g.seasonQ[m] = fared }
+            b.seasonQ[m] *= MEMORY_FADE
+            if (fared > b.seasonQ[m] + 0.1f) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
         }
     }
 }
@@ -812,11 +812,7 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
         val v = w * heads * k.massKg / hexKm2
         pressure += v; if (v > worstP) { worstP = v; worst = k }
     }
-    for ((ki, k) in fauna.kinds.withIndex()) {
-        val w = k.takesPeople; if (w <= 0f) continue
-        val v = w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg
-        pressure += v; if (v > worstP) { worstP = v; worst = k }
-    }
+    eachResidentManEater(p.i) { k, v -> pressure += v; if (v > worstP) { worstP = v; worst = k } }
     if (pressure <= 0f) return Stalking.NONE
     // (Where one was taken the band remembers the danger.)
     return Stalking(stalkRate(g, b, p.i, pressure), worst)
@@ -825,8 +821,16 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
 /** The man-eaters' flesh in resident animals at place [p], kg/km², weighted by how readily each takes people ([Species.takesPeople]). */
 internal fun HexGroups.residentManEaters(p: Int): Float {
     var v = 0f
-    for ((ki, k) in fauna.kinds.withIndex()) { val w = k.takesPeople; if (w > 0f) v += w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg }
+    eachResidentManEater(p) { _, f -> v += f }
     return v
+}
+
+/** Calls [each] with every resident kind that takes people at place [p] and its flesh there, kg/km², weighted by [Species.takesPeople]. */
+private inline fun HexGroups.eachResidentManEater(p: Int, each: (Species, Float) -> Unit) {
+    for ((ki, k) in fauna.kinds.withIndex()) {
+        val w = k.takesPeople; if (w <= 0f) continue
+        each(k, w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg)
+    }
 }
 
 /** The yearly-scaled share of band [b] (group [g]) beasts of prey would take a week camped at place [p], where their flesh is [pressure] kg/km² (see [stalkedBy]). */
