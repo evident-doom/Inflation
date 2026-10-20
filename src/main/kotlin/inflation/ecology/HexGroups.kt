@@ -1032,11 +1032,11 @@ class HexGroups(
      */
     private fun tellNotANumber(c: PlanContext, t: PlaceTerms?, p: Place, h: Hex, d: Float, prey: Float, crowded: Float, fed: Float, drowning: Float, alive: Float) {
         if (notANumber.incrementAndGet() > 20) return
-        val g = c.g; val s = g.species; val b = g.band
+        val g = c.g; val s = g.species
         val deaths = deathsAt(c, p, h, fed)
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         val causes = StringBuilder()
-        placeHazards(g, p.i, c.weather, fed, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false) { cause, a, y ->
+        foreseenHazards(g, p.i, c.weather, fed, thirst) { cause, a, y ->
             if (a != 0f || y != 0f) causes.append(" ").append(cause).append(" ").append(a).append("/").append(y) }
         val terms = t?.let { "food value %s discomfort %s drain %s suits %s water %s km".format(placeValue[c.kind][p], it.discomfort, it.drain, it.suitsLn, it.waterKm) } ?: "not kept"
         println("not a number: ${s.name} #${g.id} of ${g.size} (${g.adults} grown, ${g.young} young, odds of dying ${g.deathOdds}, fed ${g.fed}) at place ${p.i}, " +
@@ -1119,7 +1119,7 @@ class HexGroups(
         val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         val odds = c.odds.also { it.adult = 0f; it.young = 0f }
-        placeHazards(g, p.i, weather, fed, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false, odds)
+        foreseenHazards(g, p.i, weather, fed, thirst, odds)
         var adult = odds.adult; var young = odds.young
         if (b != null) {
             val venom = venomOdds(s, p.i, weather)

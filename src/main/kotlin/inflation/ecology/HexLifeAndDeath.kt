@@ -242,8 +242,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
                 if (b.exposure(t) > 0f) {
                     fun add(k: String, v: Float) = stats.hunting.merge(Tally.bandsIn(c, "cold $k"), (10f * v).roundToInt(), Int::plus)
                     add("weeks", 1f); add("short", b.exposure(t)); add("air", EXPOSURE_C - t)
-                    add("clothes", PROTECT_CLOTHES * b.has(Tool.CLOTHES) * b.clothesFit()); add("fire", PROTECT_FIRE * b.fire)
-                    add("shelter", max(PROTECT_SHELTER * b.shelter, if (b.atHome) PROTECT_HOUSE * b.house else 0f))
+                    add("clothes", b.clothesCover()); add("fire", PROTECT_FIRE * b.fire); add("shelter", b.roofCover(b.atHome))
                 }
             }
         }
@@ -273,8 +272,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
             land.burials[g.place] += o.deaths.toFloat()
             // Ornaments go into the grave with them: the more a band has, the richer its graves.
-            g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths); val ex = if (b.ornaments > 0f) b.exotic / b.ornaments else 0f
-                b.ornaments -= goods; b.exotic -= goods * ex; land.graveGoods[g.place] += goods }
+            g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths)
+                b.takeOrnaments(goods); land.graveGoods[g.place] += goods }
         }
         o.split?.let { c -> born += splitOff(g, c.adults, c.young) } // a young pack has no ground yet
         if (o.leavers > 0) {
@@ -601,6 +600,15 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: 
     into.add(DeathCause.DISEASE.label, sick, sick); into.add(DeathCause.OUTBREAK.label, plague, plague)
     into.add(DeathCause.FIRE.label, fireA, fireY); into.add(DeathCause.FLOOD.label, floodA, floodY); into.add(DeathCause.SNOW.label, snowA, snowY)
     into.add(DeathCause.CROCODILES.label, 0f, croc); into.add(DeathCause.EAGLES.label, 0f, eagle)
+}
+
+/**
+ * [placeHazards] as [g] foresees them at place [p], weighing it: no everyday sickness, and its band's fire and house as they
+ * would be there.
+ */
+internal fun HexGroups.foreseenHazards(g: HexGroup, p: Int, weather: Weather, fed: Float, thirst: Float, into: HazardSink) {
+    val b = g.band
+    placeHazards(g, p, weather, fed, thirst, 0f, b?.let { fireAt(g, it, p) } ?: 0f, b?.let { atHouse(it, p) } ?: false, into)
 }
 
 /** Vipers and scorpions, out in the warm months: the odds for people at place [p] this week. */

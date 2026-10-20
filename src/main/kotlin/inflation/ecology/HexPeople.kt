@@ -223,6 +223,13 @@ class Band(kinds: Int) {
      */
     var ornaments = 0f
     var exotic = 0f
+    /** Takes [n] of its ornaments, shell among them in its share; returns the shell ones taken. */
+    fun takeOrnaments(n: Float): Float {
+        val share = if (ornaments > 0f) exotic / ornaments else 0f
+        val shell = n * share
+        ornaments -= n; exotic -= shell
+        return shell
+    }
     /**
      * Animals it keeps by its camp, by kind of the residents ([HexFauna.kinds] index): young
      * taken in the hunt and raised, and their offspring; and how tame each kind has grown under it
@@ -599,8 +606,11 @@ class Band(kinds: Int) {
     fun exposure(t: Float) = exposure(t, fire, atHome)
     /** [exposure] with a fire of [fire] and at its house or not ([home]). */
     fun exposure(t: Float, fire: Float, home: Boolean) =
-        (EXPOSURE_C - t - PROTECT_CLOTHES * has(Tool.CLOTHES) * clothesFit() - PROTECT_FIRE * fire -
-            max(PROTECT_SHELTER * shelter, if (home) PROTECT_HOUSE * house else 0f)).coerceAtLeast(0f)
+        (EXPOSURE_C - t - clothesCover() - PROTECT_FIRE * fire - roofCover(home)).coerceAtLeast(0f)
+    /** The cold its clothes keep off ([exposure]), °C. */
+    fun clothesCover() = PROTECT_CLOTHES * has(Tool.CLOTHES) * clothesFit()
+    /** The cold its shelter, or its house if at home ([home]), keeps off ([exposure]), °C. */
+    fun roofCover(home: Boolean) = max(PROTECT_SHELTER * shelter, if (home) PROTECT_HOUSE * house else 0f)
 
     companion object {
         /**
