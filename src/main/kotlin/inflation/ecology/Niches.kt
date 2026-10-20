@@ -36,14 +36,14 @@ object Niches {
      * burrows of broken ground, the thickets and forest (cover), the trees (canopy), the reeds and water
  * it can take to, as it uses them.
      */
-    fun shelter(s: Species, p: Int, land: HexLand): Float {
+    fun shelter(s: Species, p: Place, land: HexLand): Float {
         var best = 0f
         for (u in s.shelterArray) best = maxOf(best, when (u) {
             Shelter.CRAG -> land.cragShelter[p]
             // Dens: burrows in broken ground, and best of all caves.
             Shelter.DEN -> maxOf(land.denShelter[p], land.caves[p])
-            Shelter.THICKET -> land.plants.cover(Place(p))
-            Shelter.TREE -> land.plants.canopy(Place(p))
+            Shelter.THICKET -> land.plants.cover(Place(p.i))
+            Shelter.TREE -> land.plants.canopy(Place(p.i))
             // Reed beds, marsh and deep water: those that swim or wade take to it.
             Shelter.WATER -> min(1f, land.floodShare[p] + 0.5f * (land.drink.nearRiver[p] + land.drink.nearLake[p]))
         })

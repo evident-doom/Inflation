@@ -177,13 +177,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Marsh, bog and floodplain, where ducks and geese feed. */
     @Transient private val waterfowl = FloatArray(n) { p -> min(1f, wetland[p] + land.floodShare[p]) }
     /** The year's mean temperature and rain at each place. */
-    @Transient private val meanTemp = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(p, it) }.average().toFloat() }
+    @Transient private val meanTemp = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(Place(p), it) }.average().toFloat() }
     @Transient private val annualRain = FloatArray(n) { p -> (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat() }
     /**
      * The warmth, °C, at which the plant-eating insects of each place start to grow: about 10 °C,
      * lower where summers are cool and the insects are adapted to them.
      */
-    @Transient private val insectFrom = FloatArray(n) { p -> ((0 until 12).maxOf { hw.placeTemp(p, it) } - 12f).coerceIn(INSECT_FROM_MIN_C, INSECT_FROM_C) }
+    @Transient private val insectFrom = FloatArray(n) { p -> ((0 until 12).maxOf { hw.placeTemp(Place(p), it) } - 12f).coerceIn(INSECT_FROM_MIN_C, INSECT_FROM_C) }
 
     init {
         for (p in land.places) {

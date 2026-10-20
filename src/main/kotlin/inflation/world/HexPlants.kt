@@ -22,9 +22,9 @@ import kotlin.math.min
  */
 class HexPlants(land: HexLand) : HexLandPart(land) {
     /** Degree-days above 5 °C a place has in a normal year, and so far this year (from the winter solstice). */
-    @Transient val annualGdd = FloatArray(n) { p -> (0 until 12).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
+    @Transient val annualGdd = FloatArray(n) { p -> (0 until 12).sumOf { m -> (max(0f, hw.placeTemp(Place(p), m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
     val gdd = FloatArray(n) { p ->
-        (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
+        (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(Place(p), m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
     }
     val herb = FloatArray(n); val shrub = FloatArray(n); val tree = FloatArray(n)
     val moisture = FloatArray(n) { p -> (mean(p) { world.climate.aridity(it) } / 1.5f).coerceIn(0f, 1f) }
@@ -64,7 +64,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * Each place's warmest month, °C (normal); and from it how plants there are adapted: the warmth at which they start to grow
      * and over which they reach full growth, °C, and the share of the sward that is perennial.
      */
-    @Transient private val warmest = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
+    @Transient private val warmest = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(Place(p), it) } }
     @Transient private val growFrom = FloatArray(n) { p -> (warmest[p] - 20f).coerceIn(-2f, tuning.growFromC) }
     @Transient private val growSpan = FloatArray(n) { p -> (warmest[p] - 6f).coerceIn(6f, tuning.growSpanC) }
     @Transient val perennialShare = FloatArray(n) { p -> ((PERENNIAL_FULL_C + 4f - warmest[p]) / 4f).coerceIn(0f, 1f) }
@@ -101,7 +101,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * up ripens on. Grazing and fire keep a sward leafy: what is eaten or burnt grows back as new leaf.
      */
     val grassAge = FloatArray(n) { p ->
-        (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(p, m)) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
+        (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(Place(p), m)) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
     }
     /** How ripe the grass of place [p] is, 0..1: leafy at 0, gone to stem and seed at 1 (see [grassAge]). */
     fun maturity(p: Place) = ((grassAge[p] - LEAFY_DD) / (RIPE_DD - LEAFY_DD)).coerceIn(0f, 1f)

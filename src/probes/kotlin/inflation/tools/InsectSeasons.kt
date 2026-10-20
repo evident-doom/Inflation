@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Place
 import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
@@ -17,10 +18,10 @@ fun main(args: Array<String>) {
     val run = freshSim(cfg, Catalogue.learned)
     System.err.println("world built in %.0f s".format((System.nanoTime() - t0) / 1e9))
     val land = run.land; val hw = run.hw; val n = land.n; val sl = run.fauna.small
-    val meanT = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(p, it) }.average().toFloat() }
+    val meanT = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(Place(p), it) }.average().toFloat() }
     val rain = FloatArray(n) { p -> (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat() }
-    val tmin = FloatArray(n) { p -> (0 until 12).minOf { hw.placeTemp(p, it) } }
-    val tmax = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
+    val tmin = FloatArray(n) { p -> (0 until 12).minOf { hw.placeTemp(Place(p), it) } }
+    val tmax = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(Place(p), it) } }
     val classes = ClimateClass.entries.map { "${it.label} (${it.bounds})" }
     fun cls(p: Int): Int = if (land.plants.biomass(inflation.ecology.Place(p)) <= 0f) -1 else ClimateClass.of(meanT[p], rain[p]).ordinal
     val c = IntArray(n) { cls(it) }

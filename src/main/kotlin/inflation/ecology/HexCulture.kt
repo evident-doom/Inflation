@@ -337,7 +337,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
 internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): Pair<Float, Float> {
     val p = o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
-    val seen = (sight(p.i, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
+    val seen = (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
     val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]

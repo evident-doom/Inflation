@@ -61,7 +61,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
         var best = -1; var bestScore = 0f
         for (i in 0 until count) {
             val p = near[i]
-            val t = hw.placeTemp(p, m)
+            val t = hw.placeTemp(Place(p), m)
             val h = hw.placeHex[p]
             val grow = ((t - 2f) / 13f).coerceIn(0f, 1f) * (hw.precip[m][h] / hw.pet[m][h].coerceAtLeast(1f)).coerceIn(0.1f, 1f)
             val discomfort = s.discomfortC(t, m) / 10f

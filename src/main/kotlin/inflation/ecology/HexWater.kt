@@ -265,7 +265,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Yearly share of the young of animals drinking at place [p] taken by crocodiles; nothing in the cold months. */
-    fun crocodileRisk(p: Int, weather: Weather): Float {
+    fun crocodileRisk(p: Place, weather: Weather): Float {
         val h = hw.placeHex[p]
         if (crocodiles[h] <= 0f || weather.temperature[p] < 16f) return 0f
         return CROC_RATE * min(1f, land.drink.nearRiver[p] + land.drink.nearLake[p])

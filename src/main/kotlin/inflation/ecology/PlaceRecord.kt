@@ -21,7 +21,7 @@ class PlaceRecord(val n: Int, kinds: Int) {
     val bonesGone = FloatArray(n)
     val organicGone = FloatArray(n)
 
-    internal fun resident(k: Int, p: Int, c: Cause, kg: Float) { residents[k][p * Cause.entries.size + c.ordinal] += kg }
+    internal fun resident(k: Int, p: Place, c: Cause, kg: Float) { residents[k][p.i * Cause.entries.size + c.ordinal] += kg }
 
     internal fun foldResidents() {
         val m = Cause.entries.size

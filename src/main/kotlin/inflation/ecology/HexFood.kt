@@ -58,7 +58,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         val rain = rainShare * (0 until 12).sumOf { land.hw.precip[it][h].toDouble() }.toFloat()
         val winter = rainShare * ((0..2).sumOf { land.hw.precip[it][h].toDouble() }.toFloat() + land.hw.precip[11][h])
         val summer = rainShare * (5..7).sumOf { land.hw.precip[it][h].toDouble() }.toFloat()
-        val warmth = dT + (0 until 12).map { land.hw.placeTemp(p.i, it) }.average().toFloat()
+        val warmth = dT + (0 until 12).map { land.hw.placeTemp(p, it) }.average().toFloat()
         // Winter rain and summer drought, 250-800 mm, mild; best on broken hill country.
         val climate = (if (rain in 250f..800f) 1f else 0f) * ((winter - summer) / rain.coerceAtLeast(1f) * 2f).coerceIn(0f, 1f) *
             (if (warmth in 10f..22f) 1f else 0f)
