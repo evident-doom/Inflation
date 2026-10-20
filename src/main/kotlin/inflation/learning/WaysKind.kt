@@ -1,5 +1,7 @@
 package inflation.learning
 
+import inflation.Config
+
 import inflation.ecology.HexGroups
 import java.io.File
 
@@ -15,12 +17,12 @@ enum class WaysKind(
     /** Its network's file in a networks directory. */
     val file: String,
     /** The config key that gives its network's file instead ([LearnedModel]). */
-    val configKey: String,
+    val configKey: Config.Key,
     /** Whose ways, as the log says it. */
     val whose: String,
 ) {
-    BANDS("bands", "ways.mlp", "ways", "bands'"),
-    HUNTERS("hunters", "hunter-ways.mlp", "hunterWays", "packs'");
+    BANDS("bands", "ways.mlp", Config.Key.WAYS, "bands'"),
+    HUNTERS("hunters", "hunter-ways.mlp", Config.Key.HUNTER_WAYS, "packs'");
 
     /** The names of its network's inputs. */
     val inNames: List<String> get() = if (this == BANDS) Schema.WAYS_IN else Schema.ANIMAL_WAYS_IN

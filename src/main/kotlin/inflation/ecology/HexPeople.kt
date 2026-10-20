@@ -1213,7 +1213,7 @@ const val DOGS_PER_ADULT = 0.3f
 const val DOG_HUNT = 0.2f
 const val DOG_GUARD = 0.5f
 /** Taming is off unless asked for (taming=true). */
-val TAMING = Config.flag("taming", false)
+val TAMING = Config.flag(Config.Key.TAMING, false)
 /** How strongly people's camps draw bold animals of kinds that follow people (refuse, scraps, warmth). */
 const val CAMP_LURE = 0.3f
 

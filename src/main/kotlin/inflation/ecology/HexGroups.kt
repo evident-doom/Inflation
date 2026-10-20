@@ -65,7 +65,7 @@ class HexGroups(
      * The kinds that live as groups: the hunters other than the residents' ([Catalogue.residentHunters]), and people (plant-eaters
      * live only as residents). For comparison runs, people=false leaves people out.
      */
-    @Transient val kinds = (kindsHere ?: Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag("people", true)) })
+    @Transient val kinds = (kindsHere ?: Catalogue.predators.filter { it !in Catalogue.residentHunters && (!it.human || Config.flag(Config.Key.PEOPLE, true)) })
         .also { k -> require(k.all { it.carnivore }) { "plant-eaters live only as residents, not as groups: ${k.filter { !it.carnivore }.joinToString { it.name }}" } }
     /** Each kind's sense of where better country lies: prey, its ground, water, and the climate this month. */
     val bearings by lazy {

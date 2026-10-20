@@ -5,10 +5,10 @@ import java.io.File
 import java.util.Properties
 
 /** The run's own config (the keys of [base], by default the file this run read), with [over] set on top. */
-fun configWith(over: Map<String, String>, base: File? = Config.source): Properties {
+fun configWith(over: Map<Config.Key, String>, base: File? = Config.source): Properties {
     val p = Properties()
     base?.let { f -> f.reader().use { p.load(it) } }
-    for ((k, v) in over) p[k] = v
+    for ((k, v) in over) p[k.key] = v
     return p
 }
 

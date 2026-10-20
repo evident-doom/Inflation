@@ -804,7 +804,7 @@ enum class Food(val label: String) {
     SEED("grass seed"), FINDS("small finds"), FISH("fish"), GRAIN("grain")
 }
 
-private val FORAGE_DIAG = Config.string("forageDiag")
+private val FORAGE_DIAG = Config.string(Config.Key.FORAGE_DIAG)
 
 /**
  * Whether group [g]'s week is one of the [share] sampled for the forage diagnostic: drawn from a hash of the group

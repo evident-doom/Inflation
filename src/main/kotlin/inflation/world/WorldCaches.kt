@@ -85,7 +85,7 @@ object WorldCache {
     val dir = File(System.getProperty("user.home"), ".inflation/world-cache")
 
     fun load(cfg: WorldConfig, log: (String) -> Unit = {}): World {
-        if (!Config.flag("worldCache", true)) return World.generate(cfg, log = log)
+        if (!Config.flag(Config.Key.WORLD_CACHE, true)) return World.generate(cfg, log = log)
         // (The land and its rocks, the slow part, kept apart: changing the climate makes only the rest again.)
         return kept(File(dir, "world-%016x.bin".format(key(cfg))), WORLD_MAGIC, "world", log) { World.generate(cfg, LandformCache.load(cfg, log), log) }
     }
@@ -110,7 +110,7 @@ object LandformCache {
     private val PARTS = listOf("Tectonics", "Volcan", "Geology", "Erosion", "Hydrology", "Drainage", "Noise", "Grid", "FloatHeap", "Rock", "World", "Landform", "Plate")
 
     fun load(cfg: WorldConfig, log: (String) -> Unit = {}): Landform {
-        if (!Config.flag("landformCache", true)) return World.landform(cfg, log)
+        if (!Config.flag(Config.Key.LANDFORM_CACHE, true)) return World.landform(cfg, log)
         return kept(File(dir, "landform-%016x.bin".format(key(cfg))), MAGIC, "land and its rocks", log) { World.landform(cfg, log) }
     }
 

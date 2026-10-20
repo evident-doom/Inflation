@@ -34,7 +34,7 @@ import kotlin.math.abs
 fun main(args: Array<String>) {
     val a = Args(args, "hex-choice-effect [--seed N] [--size KM] [--variants A,B]")
     val seed = a.long("--seed", 91L); val size = a.int("--size", 600)
-    val warm = Config.int("choiceWarmWeeks", 60); val noise = Config.float("choiceNoise", 0f)
+    val warm = Config.int(Config.Key.CHOICE_WARM_WEEKS, 60); val noise = Config.float(Config.Key.CHOICE_NOISE, 0f)
     val variants = a.string("--variants")?.let { listOf("base") + it.split(",") }
         ?: listOf("base", "base-again", "move-1wk", "move-52wk", "ways-1wk", "ways-52wk")
     a.done()
