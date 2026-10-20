@@ -58,7 +58,7 @@ fun main(args: Array<String>) {
                 if (forPeople < minPeople[p]) minPeople[p] = forPeople
                 if (land.drink.waterKm[p] > maxKm[p]) maxKm[p] = land.drink.waterKm[p]
                 if (cls[p] >= 0) rain[cls[p]] += weather.precipitation[p] * land.areaKm2[p]
-                if (land.drink.nearSpring[p] > 0f) { val h = hw.placeHex[p]; sMin[h] = minOf(sMin[h], land.hydro.springFlow(p)) }
+                if (land.drink.nearSpring[p] > 0f) { val h = hw.placeHex[p]; sMin[h] = minOf(sMin[h], land.hydro.springFlow(inflation.ecology.Place(p))) }
             }
             for (h in 0 until hw.hex.size) if (rcls[h] >= 0) {
                 val r = land.hydro.flow[h] / land.hydro.meanFlow[h]
@@ -89,7 +89,7 @@ fun main(args: Array<String>) {
             if (dry.isNotEmpty()) println(
                 "  %-20s   where people find none: by a stream bed %.0f%% of places (mean share %.2f); water table %.0f m down (median)".format(
                 "", 100.0 * dry.count { land.drink.nearRiver[it] > 0f } / dry.size, dry.map { land.drink.nearRiver[it].toDouble() }.average(),
-                dry.map { land.hydro.waterTableM(it) }.sorted()[dry.size / 2]))
+                dry.map { land.hydro.waterTableM(inflation.ecology.Place(it)) }.sorted()[dry.size / 2]))
         }
         for ((c, r) in rivers.withIndex()) {
             val hs = (0 until hw.hex.size).filter { rcls[it] == c }; if (hs.isEmpty()) continue

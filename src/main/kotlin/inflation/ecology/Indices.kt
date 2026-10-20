@@ -18,11 +18,33 @@ package inflation.ecology
     companion object { val NONE = Hex(-1) }
 }
 
+/** All [n] places in order, for `for (p in places)`: [PlaceIter.next] is not generic, so no [Place] is boxed. */
+class PlaceRange(private val n: Int) { operator fun iterator() = PlaceIter(n) }
+class PlaceIter(private val n: Int) {
+    private var i = 0
+    operator fun hasNext() = i < n
+    operator fun next() = Place(i++)
+}
+/** The places of one hex, for `for (p in hw.placeList(h))`. */
+@JvmInline value class PlaceList(private val a: IntArray) {
+    operator fun iterator() = PlaceListIter(a)
+    val size get() = a.size
+}
+class PlaceListIter(private val a: IntArray) {
+    private var j = 0
+    operator fun hasNext() = j < a.size
+    operator fun next() = Place(a[j++])
+}
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeList(h: Int) = PlaceList(placesOf(h))
+@Suppress("NOTHING_TO_INLINE") inline operator fun DoubleArray.get(p: Place) = this[p.i]
+@Suppress("NOTHING_TO_INLINE") inline operator fun DoubleArray.set(p: Place, v: Double) { this[p.i] = v }
+
 @Suppress("NOTHING_TO_INLINE") inline operator fun FloatArray.get(p: Place) = this[p.i]
 @Suppress("NOTHING_TO_INLINE") inline operator fun FloatArray.set(p: Place, v: Float) { this[p.i] = v }
 @Suppress("NOTHING_TO_INLINE") inline operator fun IntArray.get(p: Place) = this[p.i]
 @Suppress("NOTHING_TO_INLINE") inline operator fun IntArray.set(p: Place, v: Int) { this[p.i] = v }
 @Suppress("NOTHING_TO_INLINE") inline operator fun BooleanArray.get(p: Place) = this[p.i]
+@Suppress("NOTHING_TO_INLINE") inline operator fun BooleanArray.set(p: Place, v: Boolean) { this[p.i] = v }
 @Suppress("NOTHING_TO_INLINE") inline operator fun ShortArray.get(p: Place) = this[p.i]
 @Suppress("NOTHING_TO_INLINE") inline operator fun FloatArray.get(h: Hex) = this[h.i]
 @Suppress("NOTHING_TO_INLINE") inline operator fun FloatArray.set(h: Hex, v: Float) { this[h.i] = v }

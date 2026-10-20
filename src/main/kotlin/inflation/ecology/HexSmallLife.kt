@@ -346,7 +346,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         litterfallBook?.add(land.plants.litterfall[p] * m2)
         dung[p] = 0f; smallDead[p] = 0f
         // In sodden soil the rot runs short of air and slows (see [ANAEROBIC]): marsh, flooded and waterlogged valley floors build up peat and muck.
-        val airless = 1f - (1f - ANAEROBIC) * land.hydro.saturated(p)
+        val airless = 1f - (1f - ANAEROBIC) * land.hydro.saturated(Place(p))
         val decomposed = litter[p] * min(1f, 1.2f * warm * wet * airless * years)
         litter[p] -= decomposed
         val humusGone = 0.05f * airless * years * organicMatter[p]
