@@ -415,7 +415,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place.i, weather, g.fed, g.protein, thirst, sick, band?.fire ?: 0f, band?.atHome ?: false) { c, a, y -> hazards += Hazard(c, a, y) }
-    g.spent = Hazards.spentAfter(g.spent, g.fed, days)
+    g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     hazards.addAll(listOf(
         Hazard(DeathCause.HOMELESS.label, homeless, homeless),
         Hazard(DeathCause.CAMP_FOULING.label, 0f, fouled), Hazard(DeathCause.SNAKES.label, venom, venom), Hazard(DeathCause.INBREEDING.label, 0f, inbred),

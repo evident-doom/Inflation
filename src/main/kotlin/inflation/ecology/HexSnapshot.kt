@@ -137,9 +137,10 @@ object HexSnapshot {
      * 4.8: hunger kills as the body's protein runs out once the fat is spent ([Hazards.hunger], [Hazards.starveDays]):
      * residents and groups count the days of it they have burnt ([HexFauna.spent], [HexGroup.spent]), any shortfall past
      * the fat burns it, and food beyond need wins it back; residents carry their fat and their burnt body when they move.
+     * 4.9: plant-eaters short of food spend less, up to [Hazards.LEAN_ECONOMY] of their need, before they burn their body.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 8
+    const val MODEL_MINOR = 9
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

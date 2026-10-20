@@ -1011,7 +1011,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (drinks(s, p)) dk[p] = 0f
                 else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
                 hazards(k, p, weather, date.month, f[p], dk[p], a[p] + y[p], hz)
-                spent[k][p] = Hazards.spentAfter(spent[k][p], f[p], days)
+                spent[k][p] = Hazards.spentAfter(s, spent[k][p], f[p], days)
                 val hunger = hz[HZ_HUNGER]; val cold = hz[HZ_COLD]; val heat = hz[HZ_HEAT]; val thirst = hz[HZ_THIRST]; val disease = hz[HZ_DISEASE]
                 val crowd = hz[HZ_CROWD]
                 // Where they are crowded, now and then a plague breaks out among them.

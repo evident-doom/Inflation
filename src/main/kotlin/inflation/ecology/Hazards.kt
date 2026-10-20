@@ -19,13 +19,26 @@ object Hazards {
      * an animal dies when it has burnt what carries it ([starveDays]), some sooner and some later ([starvedShare]).
      */
     fun hunger(s: Species, spent: Float, fed: Float, days: Int): Float {
-        val before = starvedShare(s, spent); val after = starvedShare(s, spentAfter(spent, fed, days))
+        val before = starvedShare(s, spent); val after = starvedShare(s, spentAfter(s, spent, fed, days))
         return if (after > before) min(1f, (after - before) / max(1e-6f, 1f - before)) else 0f
     }
 
-    /** The days of its body's protein an animal has burnt after a step of [days] fed [fed] past its fat, having burnt [spent] before. */
-    fun spentAfter(spent: Float, fed: Float, days: Int) =
-        if (fed < WELL_FED) spent + (1f - fed) * days else max(0f, spent - REBUILD * (fed - WELL_FED) / (1f - WELL_FED) * days)
+    /**
+     * The days of its body's protein an animal of [s] has burnt after a step of [days] fed [fed] past its fat, having burnt
+     * [spent] before: what it lacks beyond what it saves by spending less ([economy]).
+     */
+    fun spentAfter(s: Species, spent: Float, fed: Float, days: Int) =
+        if (fed < WELL_FED) spent + max(0f, 1f - economy(s) - fed) * days else max(0f, spent - REBUILD * (fed - WELL_FED) / (1f - WELL_FED) * days)
+
+    /**
+     * The share of its need an animal of [s] short of food saves by spending less: plant-eaters lower their body heat and
+     * their metabolism in the lean season, wild northern ruminants in winter to somewhat more than half the summer's (heart
+     * rate; deeper when food is short: Arnold, "Review: Seasonal differences in the physiology of wild northern ruminants",
+     * Animal 2020), Arabian oryx in the dry summer to half the spring's (field metabolic rate by doubly labelled water,
+     * Williams, Ostrowski, Bedin and Ismail, J Exp Biol 2001). Hunters and people: not in the record here, none.
+     */
+    fun economy(s: Species) = if (s.carnivore || s.human) 0f else LEAN_ECONOMY
+    const val LEAN_ECONOMY = 0.4f
     /**
      * Days of burnt body a fully fed animal wins back a day: what it eats beyond its need when it can ([SURPLUS_EAT]),
      * laid on as fat is ([FAT_EFFICIENCY]); less as it is fed less, none at [WELL_FED].
