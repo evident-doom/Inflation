@@ -177,7 +177,7 @@ class HexGroups(
 
     /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat. */
     internal fun spawn(s: Species, p: Place, unit: Int): HexGroup {
-        val g = HexGroup(nextId++, s, Place(p.i), unit, max(0, unit / 3))
+        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
         g.temper = Temperament.founder(g.id, seedBase)
         g.fat = 0.5f * s.maxFatDays
         return g
@@ -594,7 +594,7 @@ class HexGroups(
      */
     internal fun campFactor(p: Place): Float {
         // Water close to camp: women and children fetch it every day (from a well dug in a dry bed, where water lies near).
-        val w = land.drink.peopleWaterKm(Place(p.i)) / 3f
+        val w = land.drink.peopleWaterKm(p) / 3f
         val fuel = fuelShare(woodCover(p.i), 1f)
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
@@ -1289,7 +1289,7 @@ class HexGroups(
      * people lose to them. Hunters lose nothing to them here, so they do not mind them.
      */
     internal fun bitten(s: Species, p: Place): Float {
-        val h = small.harassment(Place(p.i))
+        val h = small.harassment(p)
         return when {
             h <= 0f -> 0f
             s.human -> HexSmallLife.HARASS_TIME * h / (1f + HexSmallLife.HARASS_TIME * h)
@@ -1331,7 +1331,7 @@ class HexGroups(
     internal fun dietValue(s: Species, p: Place, game: Float): Float {
         // Small game is searched for over a narrower strip than big game, and carrion only by those that eat it.
         val smallWorth = smallCatch(s) * SMALL_SENSE_KM / (s.senseKm * SEARCHING * CATCH)
-        return game + smallWorth * small.smallPreyKg(Place(p.i)) + (if (s.diet.carrion > 0f) KgM2(small.carrion[p]).perKm2.v else 0f)
+        return game + smallWorth * small.smallPreyKg(p) + (if (s.diet.carrion > 0f) KgM2(small.carrion[p]).perKm2.v else 0f)
     }
 
     /** The resident game hunter [s] sees at place [p], kg per km² ([HexFauna.game], as resident hunters count it). */

@@ -689,7 +689,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     out.kg = na * kgEach + ny * young
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
     val leftA = na * leftOver(ps, kgEach, band)
-    small.deposit(DeadPool.CARRION, Place(p.i), KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na, leftA))) / (area * 1e6f)))
+    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na, leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps, kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
@@ -735,7 +735,7 @@ private fun siftDown(a: LongArray, from: Int, m: Int) {
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
 private fun HexGroups.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
     val band = g.band
-    val taken = land.total(Place(p.i), fauna.food.take(fauna.food.grain, Place(p.i), land.spread(Place(p.i), Kg(expected)))).v
+    val taken = land.total(p, fauna.food.take(fauna.food.grain, p, land.spread(p, Kg(expected)))).v
     val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
     out.kg = took; out.mass = taken
     // A sickle takes the ears that hold their grain more than those that shatter at a touch.
@@ -772,7 +772,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Place, expected: Float, ha
     val s = g.species; val band = g.band
     out.busy = 0f
     val stock = when (t) { Food.FRUIT -> fauna.food.fruit; Food.ROOTS -> fauna.food.roots; Food.SEED -> fauna.food.seeds; else -> fauna.food.finds }
-    val taken = land.total(Place(p.i), fauna.food.take(stock, Place(p.i), land.spread(Place(p.i), Kg(expected)))).v
+    val taken = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(expected)))).v
     var took = taken; var mass = taken
     // Raw seed is poorly digested; ground and baked into bread it feeds fully.
     if (t == Food.SEED) took *= seedValue(band)
@@ -784,7 +784,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Place, expected: Float, ha
             var extra = took * band.detoxExtra(land.palatable[p], land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f)
             // (What is leached is more of the plants, bitter before: taken from them, as far as there is any.)
             if (extra > 0f) {
-                val more = land.total(Place(p.i), fauna.food.take(stock, Place(p.i), land.spread(Place(p.i), Kg(extra * taken / took)))).v
+                val more = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(extra * taken / took)))).v
                 extra = more * took / taken; mass += more
             }
             if (extra > 0f) {
@@ -845,7 +845,7 @@ private fun HexGroups.practise(g: HexGroup, band: Band, hunted: Boolean, smallGo
 /** [forage]'s scavenging of [expected] kg at place [p] by [g], over [sweep] km²: what it found, kg. */
 private fun HexGroups.scavenge(g: HexGroup, p: Place, expected: Float, sweep: Float, rnd: kotlin.random.Random): Float {
     val band = g.band
-    val got = small.scavengeIn(Place(p.i), Kg(expected), min(land.areaKm2[p], sweep)).v
+    val got = small.scavengeIn(p, Kg(expected), min(land.areaKm2[p], sweep)).v
     // A band at a carcass may meet its owner: lions or hyenas back at their kill. Driving
     // them off is done with a crowd and a din, but now and then someone is mauled.
     if (band != null && got > 1f) {
@@ -1129,7 +1129,7 @@ internal fun seenFirst(open: Float, clear: Float, band: Band?, ps: Species): Flo
 
 /** [seenFirst]'s parts at place [p] for hunter [s]: how open the ground is to a hunter of its way, and how clear the weather and cover leave the view. */
 private fun HexGroups.openness(s: Species, p: Place, weather: Weather, out: FloatArray) {
-    val cover = land.plants.cover(Place(p.i))
+    val cover = land.plants.cover(p)
     out[0] = VIGILANCE * (1f - cover) * (1f - s.stalking)
     out[1] = 0.5f + 0.5f * sight(p.i, weather) / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
 }

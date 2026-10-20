@@ -525,7 +525,7 @@ private fun HexGroups.woundsWeek(band: Band): Float {
 }
 
 /** Whether a group of [s] can drink at place [p] ([Hazards.canDrink]). */
-internal fun HexGroups.canDrink(s: Species, p: Place) = Hazards.canDrink(land.drink, s, Place(p.i))
+internal fun HexGroups.canDrink(s: Species, p: Place) = Hazards.canDrink(land.drink, s, p)
 
 /** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
 private fun HexGroups.thirstWeek(g: HexGroup): Float {
@@ -837,7 +837,7 @@ private inline fun HexGroups.eachResidentManEater(p: Place, each: (Species, Floa
 internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Place, pressure: Float): Float {
     if (pressure <= 0f) return 0f
     val h = hw.placeHex[p]
-    val cover = 0.5f + land.plants.cover(Place(p.i))
+    val cover = 0.5f + land.plants.cover(p)
     val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
     val spread = b.gatherRange * b.gatherRange
