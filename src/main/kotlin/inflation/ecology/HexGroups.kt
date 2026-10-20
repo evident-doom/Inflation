@@ -610,7 +610,7 @@ class HexGroups(
             val p = g.place
             val dry = land.hydro.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.plants.green[p] < 0.4f
             if (dry && land.plants.herb[p] > 0.3f && land.fire.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) {
-                land.fire.ignite(p.i)
+                land.fire.ignite(p)
                 stats.meeting(Met.BANDS_BURNED_OFF_GRASS)
             }
         }

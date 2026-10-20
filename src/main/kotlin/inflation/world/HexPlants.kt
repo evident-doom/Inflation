@@ -5,6 +5,7 @@ import inflation.StockName
 import inflation.Stocks
 import inflation.KgM2
 import inflation.Tuning
+import inflation.ecology.Place
 
 import kotlin.math.exp
 import kotlin.math.max
@@ -321,7 +322,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val bare = (1f - cover) * (1f - cover)
             if (bare > 0.01f) fertility[p] *= 1f - min(0.5f, EROSION * bare * weather.precipitation[p] / 50f * land.slope[p] / 0.2f * years)
             val sFire = shrub[p]
-            val burned = if (fire.burning[p] > 0f) fire.burn(p, fire.burning[p]) else 0f
+            val burned = if (fire.burning[p] > 0f) fire.burn(Place(p), fire.burning[p]) else 0f
             shrubNote(ShrubPart.FIRE, p, sFire)
             // What the plants lost (died back, weathered, frosted, drowned, smothered: all but the fire's) falls into the
             // litter, and so do the leaves, stems and roots they renew: production beyond the stand's net growth, shed as it is made.
