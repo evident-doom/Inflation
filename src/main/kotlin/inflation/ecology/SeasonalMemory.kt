@@ -144,8 +144,10 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
     }
 
     /** [hexMonth] at each place: how a head of kind [k] would grow in a month there in [month], by what it remembers. */
-    fun monthAt(k: Int, month: Int, fare: FloatArray, seen: FloatArray): FloatArray =
-        hexMonth(k, month, fare, seen).let { here -> FloatArray(n) { p -> here[hw.placeHex[p]] } }
+    fun monthAt(k: Int, month: Int, fare: FloatArray, seen: FloatArray): FloatArray {
+        val t = typeOf(k); val stay = stayOf(k, month, fare, seen)
+        return FloatArray(n) { p -> stay[t[p]] }
+    }
 
     /**
      * For kind [k] moving in a month, by what it remembers of how a head fares at each place in the month after ([after],
