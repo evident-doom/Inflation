@@ -38,14 +38,13 @@ class StrandDiag(private val sim: HexSim, private val file: File) {
                 val n = heads * area
                 val felt = fauna.feltC(s, p, w.temperature[p])
                 val coldC = s.coldC(felt, month); val hotC = s.hotC(felt)
-                val coldShare = if (coldC + hotC > 0f) coldC / (coldC + hotC) else 0f
                 val snowed = w.snowpack[p] > s.snowLimitMm
                 val dryOut = fauna.dry[k][p] > s.daysWithoutWater
                 // (As [HexFauna.breedAndDie] books them: the young die 1.5 times as readily of hunger, cold and thirst.)
                 val ya = a[p] * area; val yy = y[p] * area
                 fun d(x: Float) = ya * x + yy * 1.5f * x
-                val dHunger = d(hz[HexFauna.HZ_HUNGER]); val dCold = d(hz[HexFauna.HZ_COLD] * coldShare)
-                val dHeat = d(hz[HexFauna.HZ_COLD] * (1f - coldShare)); val dThirst = d(hz[HexFauna.HZ_THIRST])
+                val dHunger = d(hz[HexFauna.HZ_HUNGER]); val dCold = d(hz[HexFauna.HZ_COLD])
+                val dHeat = d(hz[HexFauna.HZ_HEAT]); val dThirst = d(hz[HexFauna.HZ_THIRST])
                 val dSnow = ya * hz[HexFauna.HZ_SNOW_A] + yy * hz[HexFauna.HZ_SNOW_Y]
                 val dDisease = (ya + yy) * hz[HexFauna.HZ_DISEASE]; val dHunted = ya * hz[HexFauna.HZ_HUNTED]
                 val all = dHunger + dCold + dHeat + dThirst + dSnow + dDisease + dHunted

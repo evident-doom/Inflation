@@ -126,7 +126,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
 /**
  * How animals of [s] eating diet [d] feed where the forage nourishes [q], asking [want] kg per m² this week, from
  * [pantry]: grass (as far as it gets at it under the snow, [underSnow], see [grassUnderSnow]) and browse as far as the gut fills at that nourishment, fruit and roots, then
- * switching between them for a shortfall, then straw; into [out]. The one rule for the residents' week's grazing
+ * switching between them for a shortfall, then straw (under the snow as the grass); into [out]. The one rule for the residents' week's grazing
  * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.room]).
  */
 internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, access: Float, pantry: Pantry, out: Bites): Bites {
@@ -154,9 +154,10 @@ internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float
     if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, SWITCH * want * d.fruit / total)); gap -= fruit2 }
     if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, SWITCH * want * d.roots / total)); gap -= roots2 }
-    // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
+    // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it: the
+    // standing dead grass, which lies under the snow as the green does ([underSnow]).
     val short = max(0f, gap)
-    val straw = pantry.straw(min(short * HexFauna.GUT_FILL * access, max(0f, room)))
+    val straw = pantry.straw(underSnow * min(short * HexFauna.GUT_FILL * access, max(0f, room)))
     // Grass and browse nourish fully only when green; fruit and roots keep their value.
     val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + min(short, straw * HexFood.roughage(s))
     out.grass = grass; out.browse = browse; out.fruit = fruit; out.roots = roots
@@ -587,7 +588,8 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: 
     // People feel the cold as their clothes allow.
     // Exposure: the unprotected die of the cold within days.
     val exposure = b?.let { min(0.9f, EXPOSURE * it.exposure(t, fire, home) * days / 7f) } ?: 0f
-    val cold = Hazards.cold(s, b?.feels(t, fire, home) ?: t, weather.date.month)
+    val felt = b?.feels(t, fire, home) ?: t
+    val cold = Hazards.cold(s, felt, weather.date.month); val heat = Hazards.heat(s, felt)
     // An outbreak raging where it is kills its share.
     val plague = fauna.outbreakDeaths(s, p)
     // Eagles take the young of the smaller hoofed animals in the open.
@@ -598,6 +600,7 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: 
     // (Young plant-eaters short of protein grow slowly and die more.)
     val starved = if (s.carnivore) 0f else fauna.starvedOdds(protein)
     into.add(DeathCause.HUNGER.label, hunger, 1.5f * hunger); into.add(DeathCause.COLD.label, cold, 1.5f * cold)
+    into.add(DeathCause.HEAT.label, heat, 1.5f * heat)
     into.add(DeathCause.EXPOSURE.label, exposure, 1.5f * exposure); into.add(DeathCause.THIRST.label, thirst, 1.5f * thirst)
     into.add(DeathCause.DISEASE.label, sick, sick); into.add(DeathCause.OUTBREAK.label, plague, plague)
     into.add(DeathCause.FIRE.label, fireA, fireY); into.add(DeathCause.FLOOD.label, floodA, floodY); into.add(DeathCause.SNOW.label, snowA, snowY)

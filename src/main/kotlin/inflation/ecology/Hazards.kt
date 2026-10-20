@@ -14,8 +14,10 @@ object Hazards {
     /** Hunger, for a share [fed] of its wants found last week. */
     fun hunger(fed: Float) = if (fed < HexFauna.HUNGER_FROM) (HexFauna.HUNGER_FROM - fed) * HexFauna.HUNGER_RATE else 0f
 
-    /** The cold or heat [s] feels at [feltC] in [month], beyond what its coat (or clothes) allows. */
-    fun cold(s: Species, feltC: Float, month: Int) = s.discomfortC(feltC, month) / 10f * HexFauna.COLD_DEATHS
+    /** The cold [s] feels at [feltC] in [month], beyond what its coat (or clothes) allows. */
+    fun cold(s: Species, feltC: Float, month: Int) = s.coldC(feltC, month) / 10f * HexFauna.COLD_DEATHS
+    /** The heat [s] feels at [feltC], beyond what it bears: by the same rule as the cold ([cold]), booked on its own. */
+    fun heat(s: Species, feltC: Float) = s.hotC(feltC) / 10f * HexFauna.COLD_DEATHS
 
     /** How far an animal of [s] goes to water and back as often as it must: a kind that can go days without drinking can live as many half-days' going from it. */
     fun fetchKm(s: Species) = 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)

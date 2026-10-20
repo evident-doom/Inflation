@@ -1005,13 +1005,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (drinks(s, p)) dk[p] = 0f
                 else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
                 hazards(k, p, weather, date.month, f[p], dk[p], a[p] + y[p], hz)
-                val hunger = hz[HZ_HUNGER]; val cold = hz[HZ_COLD]; val thirst = hz[HZ_THIRST]; val disease = hz[HZ_DISEASE]
+                val hunger = hz[HZ_HUNGER]; val cold = hz[HZ_COLD]; val heat = hz[HZ_HEAT]; val thirst = hz[HZ_THIRST]; val disease = hz[HZ_DISEASE]
                 val crowd = hz[HZ_CROWD]
                 // Where they are crowded, now and then a plague breaks out among them.
                 if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
                 val fireA = hz[HZ_FIRE_A]; val floodA = hz[HZ_FLOOD_A]; val snowA = hz[HZ_SNOW_A]
                 val fireY = hz[HZ_FIRE_Y]; val floodY = hz[HZ_FLOOD_Y]; val snowY = hz[HZ_SNOW_Y]
-                val adultSum = s.backgroundMortality * years + hunger + cold + thirst + disease + fireA + floodA + snowA
+                val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA
                 val adultOdds = adultSum.coerceIn(0f, 0.9f)
                 val eagle = eagleOdds(s, p); val croc = crocodileOdds(p, weather)
                 val starved = starvedOdds(protein[k][p])
@@ -1032,6 +1032,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 dd[ResidentDeath.AGE] += ca * s.backgroundMortality * years + cy * s.youngMortality * years
                 dd[ResidentDeath.HUNGER] += (ca + 1.5f * cy) * hunger
                 dd[ResidentDeath.COLD] += (ca + 1.5f * cy) * cold
+                dd[ResidentDeath.HEAT] += (ca + 1.5f * cy) * heat
                 dd[ResidentDeath.DISEASE] += (ca + cy) * disease
                 dd[ResidentDeath.EAGLES] += cy * eagle
                 dd[ResidentDeath.FIRE] += ca * fireA + cy * fireY
@@ -1047,7 +1048,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     r.resident(k, p, PlaceRecord.Cause.COLD, (ka + 1.5f * ky) * cold + ka * snowA + ky * snowY)
                     r.resident(k, p, PlaceRecord.Cause.ILLNESS, (ka + ky) * disease)
                     r.resident(k, p, PlaceRecord.Cause.KILLED, ky * (eagle + croc))
-                    r.resident(k, p, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) +
+                    r.resident(k, p, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) + (ka + 1.5f * ky) * heat +
                         ka * (fireA + floodA) + ky * (fireY + floodY))
                 }
                 a[p] -= da; y[p] -= dy
@@ -1090,7 +1091,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (Hunger, cold and heat, and thirst kill residents by the same rules as packs and bands.)
         val sleeping = asleep(k, p)
         out[HZ_HUNGER] = Hazards.hunger(fed)
-        out[HZ_COLD] = if (sleeping) 0f else Hazards.cold(s, feltC(s, p, weather.temperature[p]), month)
+        val felt = feltC(s, p, weather.temperature[p])
+        out[HZ_COLD] = if (sleeping) 0f else Hazards.cold(s, felt, month)
+        out[HZ_HEAT] = if (sleeping) 0f else Hazards.heat(s, felt)
         out[HZ_THIRST] = Hazards.thirst(s, dry)
         // Crowding breeds disease and parasites, far more among the underfed: numbers grow until the
         // lean season binds, and then hunger and sickness together hold them.
@@ -1141,7 +1144,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * deaths, cold and thirst, a raging outbreak, fire, flood and snow, [eagle]s, [croc]odiles and [starved] of protein.
      */
     private fun youngFixed(s: Species, hz: FloatArray, eagle: Float, croc: Float, starved: Float) =
-        s.youngMortality * years + 1.5f * (hz[HZ_COLD] + hz[HZ_THIRST]) + hz[HZ_OUTBREAK] + eagle +
+        s.youngMortality * years + 1.5f * (hz[HZ_COLD] + hz[HZ_HEAT] + hz[HZ_THIRST]) + hz[HZ_OUTBREAK] + eagle +
             hz[HZ_FIRE_Y] + hz[HZ_FLOOD_Y] + hz[HZ_SNOW_Y] + croc + starved
 
     /**
@@ -1149,14 +1152,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * place or how well they are fed: old age, cold, thirst, a raging outbreak, fire, flood, snow and the hunters.
      */
     private fun grownFixed(s: Species, hz: FloatArray) =
-        s.backgroundMortality * years + hz[HZ_COLD] + hz[HZ_THIRST] + hz[HZ_OUTBREAK] + hz[HZ_FIRE_A] + hz[HZ_FLOOD_A] + hz[HZ_SNOW_A] + hz[HZ_HUNTED]
+        s.backgroundMortality * years + hz[HZ_COLD] + hz[HZ_HEAT] + hz[HZ_THIRST] + hz[HZ_OUTBREAK] + hz[HZ_FIRE_A] + hz[HZ_FLOOD_A] + hz[HZ_SNOW_A] + hz[HZ_HUNTED]
 
     /** The share of the young that die short of protein in a step, fed [protein] of their need for it. */
     internal fun starvedOdds(protein: Float) = tuning.youngProteinDeaths * (1f - protein) * years
 
     /** The share of the grown among [out] ([hazards]) that die this week, besides old age. */
     private fun adultShare(out: FloatArray) =
-        out[HZ_HUNGER] + out[HZ_COLD] + out[HZ_THIRST] + out[HZ_DISEASE] + out[HZ_FIRE_A] + out[HZ_FLOOD_A] + out[HZ_SNOW_A] + out[HZ_HUNTED]
+        out[HZ_HUNGER] + out[HZ_COLD] + out[HZ_HEAT] + out[HZ_THIRST] + out[HZ_DISEASE] + out[HZ_FIRE_A] + out[HZ_FLOOD_A] + out[HZ_SNOW_A] + out[HZ_HUNTED]
 
     /**
      * The share of kind [k]'s grown residents at place [p] that would die next week if they stayed ([hazards]): fed as
@@ -1871,12 +1874,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
         /** Where [growthParts] puts each part. */
         const val GROWTH_BORN = 0; const val GROWTH_GROWN_DIE = 1; const val GROWTH_YOUNG_DIE = 2; const val GROWTH_FED = 3; const val GROWTH_PROTEIN = 4; const val GROWTH_PARTS = 5
-        /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; and the hunters' take of the grown. */
+        /** Where [hazards] puts each share: hunger, cold, thirst, disease, the grown's fire, flood and snow, the young's; the crowding; the hunters' take of the grown; and heat. */
         const val HZ_HUNGER = 0; const val HZ_COLD = 1; const val HZ_THIRST = 2; const val HZ_DISEASE = 3
         const val HZ_FIRE_A = 4; const val HZ_FLOOD_A = 5; const val HZ_SNOW_A = 6
         const val HZ_FIRE_Y = 7; const val HZ_FLOOD_Y = 8; const val HZ_SNOW_Y = 9; const val HZ_CROWD = 10
-        const val HZ_HUNTED = 11; const val HZ_OUTBREAK = 12; const val HZ_SICK = 13
-        const val HZ_COUNT = 14
+        const val HZ_HUNTED = 11; const val HZ_OUTBREAK = 12; const val HZ_SICK = 13; const val HZ_HEAT = 14
+        const val HZ_COUNT = 15
         /** Share of the standing plants a week's grazing can take without eating the place bare. */
         const val REACH = 0.01f
         /** How strongly a kind is drawn to the ground it prefers. */
@@ -2009,7 +2012,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
 /** The residents' deaths in a week, by [cause] as the deaths ledger names it. */
 enum class ResidentDeath(val cause: DeathCause) {
-    AGE(DeathCause.AGE), HUNGER(DeathCause.HUNGER), COLD(DeathCause.COLD), DISEASE(DeathCause.DISEASE), EAGLES(DeathCause.EAGLES),
+    AGE(DeathCause.AGE), HUNGER(DeathCause.HUNGER), COLD(DeathCause.COLD), HEAT(DeathCause.HEAT), DISEASE(DeathCause.DISEASE), EAGLES(DeathCause.EAGLES),
     FIRE(DeathCause.FIRE), FLOOD(DeathCause.FLOOD), SNOW(DeathCause.SNOW), CROCODILES(DeathCause.CROCODILES), THIRST(DeathCause.THIRST),
     SHORT_OF_PROTEIN(DeathCause.SHORT_OF_PROTEIN)
 }
