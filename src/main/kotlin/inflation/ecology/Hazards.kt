@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.world.HexDrinkingWater
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 /**
  * The odds of death that residents ([HexFauna]) and groups ([HexGroups]) share, a year's rate each: what
@@ -33,6 +34,24 @@ object Hazards {
 
     /** The days of [days] an animal of [s] goes dry away from water, eased by the water in its food: plant-eaters' from [green] food, hunters' from the body water of what they ate ([fed]). */
     fun dryDays(s: Species, days: Int, fed: Float, green: Float) = days * max(0f, 1f - s.waterFromFood * (if (s.carnivore) fed else 0.5f + 0.5f * green))
+
+    /**
+     * How crowded a kind is at [headsKm2] of its animals per km² (counted over the ground it ranges: a resident's place, a
+     * pack's hex and those round it it ranges into) against its [usualKm2] density ([HexFauna.usualDensity]): 1 at
+     * [HexFauna.CROWDED] times usual, where disease starts to bite ([crowdDisease]). The one measure of crowding for
+     * residents and groups; a place's pull falls as 1 / (1 + this), and a group foresees its share of it as this / (1 + this).
+     */
+    fun crowding(headsKm2: Float, usualKm2: Float) = headsKm2 / (HexFauna.CROWDED * usualKm2)
+
+    /**
+     * Deaths [dying] (a share of [heads] animals in a week) in steps of the chance in a week's deaths: the spread of the
+     * share that dies of so many at the odds they live under ([oddsNow], at least the kind's [background], both a week's
+     * share). A difference within a step is no more than chance. The one way residents and groups weigh a place's deaths.
+     */
+    fun survivalSteps(dying: Float, oddsNow: Float, background: Float, heads: Float): Float {
+        val q = max(oddsNow, background).coerceIn(1e-6f, 0.5f)
+        return dying / sqrt(q * (1f - q) / max(1f, heads))
+    }
 
     /** Sickness from crowding, over [years] (a week's share of a year), at [crowd] times its kind's usual density, fed [fed]: worse when underfed. */
     fun crowdDisease(crowd: Float, fed: Float, years: Float) = HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - fed))

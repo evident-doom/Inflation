@@ -127,9 +127,15 @@ object HexSnapshot {
      * season's weeks), not the rest of the month; the memory's route still weighs a month.
      * 4.5: the memory's route leads to the ground a kind remembers growing best on next month, not the ground best
      * against its own year.
+     * 4.6: residents and groups share one rule each for crowding (heads over the usual density on the ground ranged,
+     * [Hazards.crowding]), for whether a place is clearly worse ([Hazards.survivalSteps]), for reach (tether and biting
+     * insects), for where newcomers start, and for births (a week's share of the season, spaced by crowding: [youngDue],
+     * [seasonShare]); people keep their own births. Resident hunters and the groups count game alike, by how catchable it
+     * is ([HexFauna.game]), and resident hunters kill by it; beasts of prey foresee how fed they would be by the residents'
+     * feeding rule.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 5
+    const val MODEL_MINOR = 6
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

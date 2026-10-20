@@ -50,6 +50,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var luck = 0f
     /** The month its young are born in; -1 until its first week (then its kind's). */
     var birthMonth = -1
+    /** Share of this year's birth season its mothers have borne (as [HexFauna]'s residents keep it). */
+    var bred = 0f
     /** For a pack: its ways this week, 1 the hand-written way (see [AnimalWay]). */
     val will = FloatArray(ANIMAL_WAYS_OUT) { 1f }
     /** For a band: food on hand, kg, by kind ([Store]). */

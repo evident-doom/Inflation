@@ -1,6 +1,8 @@
 package inflation.ecology
 
+import inflation.world.Date
 import inflation.Tuning
+import inflation.monthsFrom
 import inflation.Config
 import inflation.world.Weather
 import kotlin.math.max
@@ -34,6 +36,33 @@ fun breeding(s: Species, young: Float, fat: Float, fed: Float, days: Int): Float
     val cost = young * youngDays(s)
     return if (cost > 0f) min(1f, (spareDays(fed, days) + fat) / cost) else 1f
 }
+
+/**
+ * The young a mother of [s] is due in a step, its [share] of her season ([seasonShare]), among [headsKm2] of her kind
+ * per km² of the ground she ranges, fed [protein] of her need for it: mothers short of protein bear and suckle fewer, and
+ * a mother needs a range of her own to bear and raise her young in (where they crowd beyond [spacing] times their
+ * [usualKm2] numbers, only as many as there are ranges breed). How many she bears of them is [breeding]'s. The one rule
+ * for residents and groups.
+ */
+fun youngDue(s: Species, headsKm2: Float, usualKm2: Float, spacing: Float, protein: Float, share: Float): Float {
+    val ranges = min(1f, spacing * usualKm2 / headsKm2)
+    return ranges * s.youngPerFemale * protein * share
+}
+
+/**
+ * The share of her season a mother of [s] whose season starts in month [start] bears in the step of [days] from [date]:
+ * none out of season; else a step's share of the season ([Date.DAYS_PER_MONTH] days a month, so a month of four or five
+ * weekly steps counts alike), no more than the [left] of it she has not borne this year, and in the season's last step
+ * all she has left. The one rule for residents and groups.
+ */
+fun seasonShare(s: Species, start: Int, left: Float, date: Date, days: Int): Float {
+    if (monthsFrom(start, date.month) >= s.birthMonths) return 0f
+    val last = monthsFrom(start, date.plusDays(days).month) >= s.birthMonths
+    return if (last) left else min(left, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
+}
+
+/** The month a mother of [s] whose season starts in month [start] starts her year again: the middle of the months outside it. */
+fun offSeason(s: Species, start: Int) = (start + s.birthMonths + (12 - s.birthMonths) / 2) % 12
 
 /** Days of reserves a mother of [s] fed [fed] over [days] gives up for [young] young: what her spare food did not build. */
 fun fromReserves(s: Species, young: Float, fed: Float, days: Int) = max(0f, young * youngDays(s) - spareDays(fed, days))

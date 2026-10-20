@@ -301,7 +301,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.parent = g.id
     n.dry = g.dry
     n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn; n.deathOdds = g.deathOdds
-    n.birthMonth = g.birthMonth
+    n.birthMonth = g.birthMonth; n.bred = g.bred
     n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.
     val share = (adults + young).toFloat() / (g.size + adults + young).coerceAtLeast(1)
@@ -352,6 +352,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val s = g.species
     feedOnReserves(g)
     if (g.birthMonth < 0) g.birthMonth = s.birthMonth
+    if (date.month == offSeason(s, g.birthMonth) && date.dayOfMonth <= days) g.bred = 0f
     val inSeason = monthsFrom(g.birthMonth, date.month) < s.birthMonths
     var bornNow = 0
     var bornExpected = 0f
@@ -366,9 +367,16 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val births = if (s.packLitter > 0) {
             if (date.dayOfMonth <= days && date.month == g.birthMonth && !g.home.none) (s.packLitter * breeding(s, s.packLitter.toFloat(), g.fat, g.fed, days) + r.nextFloat()).toInt() else 0
         } else {
-            val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-            val rate = s.youngPerFemale * (if (s.human) g.fed else breeding(s, s.youngPerFemale / stepsInSeason, g.fat, g.fed, days)) * settledFertility(g) * (if (s.human) HUMAN_BIRTHS * tuning.humanBirths else 1f) *
-                (1f + GRANDMOTHERS * help) / stepsInSeason
+            val rate = if (s.human) {
+                val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
+                s.youngPerFemale * g.fed * settledFertility(g) * HUMAN_BIRTHS * tuning.humanBirths * (1f + GRANDMOTHERS * help) / stepsInSeason
+            } else {
+                // (By the residents' rule: a week's share of the season, no more than the mother has left of it, spaced by how crowded her kind is.)
+                val share = seasonShare(s, g.birthMonth, max(0f, 1f - g.bred), date, days)
+                g.bred += share
+                val due = youngDue(s, kinKm2(g, kinNow), HexFauna.usualDensity(s), tuning.breedSpacing, g.protein, share)
+                due * breeding(s, due, g.fat, g.fed, days) * settledFertility(g) * (1f + GRANDMOTHERS * help)
+            }
             bornExpected = mothers * rate
             // (A big litter over a short season is more than one a mother a week: the whole ones, and the rest by chance.)
             val whole = rate.toInt()
@@ -532,7 +540,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
     val s = g.species
     val usual = HexFauna.usualDensity(s)
     // (Hunters by their kind's numbers over the ground they range over, as residents by theirs in their place.)
-    val packs = if (s.human) 0f else packCrowding(g, kinNow, usual)
+    val packs = if (s.human) 0f else Hazards.crowding(kinKm2(g, kinNow), usual)
     val crowdNow = if (s.human) peopleCrowding(g) else packs
     if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years)
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place]
@@ -542,23 +550,21 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
 }
 
 /**
- * How crowded [g]'s kind is about it, against its usual density ([HexFauna.CROWDED] times [usual] is 1): its kind's
- * numbers, its own included, over the ground it ranges over (its hex, and the six round it where its kind's home range
- * reaches beyond one hex), as a resident kind's over its place.
+ * [g]'s kind's heads per km² about it: its numbers, its own included, over the ground it ranges over (its hex, and the
+ * six round it where its kind's home range reaches beyond one hex, [HexGroups.rangesWide]).
  */
-private fun HexGroups.packCrowding(g: HexGroup, kinNow: HashMap<Long, Int>, usual: Float): Float {
+private fun HexGroups.kinKm2(g: HexGroup, kinNow: HashMap<Long, Int>): Float {
     val s = g.species
     val h0 = hw.placeHex[g.place]
     var heads = 0; var hexes = 0
-    val wide = territoryKm(s) > 0.6f * hex.hexKm
-    for (k in -1 until (if (wide) 6 else 0)) {
+    for (k in -1 until (if (rangesWide(s)) 6 else 0)) {
         val q = if (k < 0) h0 else hex.neighbour(h0, k)
         if (q >= 0) {
             heads += kinNow[s.index.toLong() * hex.size + q] ?: 0
             hexes++
         }
     }
-    return heads / (hexes * hex.areaKm2.toFloat()) / (HexFauna.CROWDED * usual)
+    return heads / (hexes * hex.areaKm2.toFloat())
 }
 
 /** One of the week's hazards: its [cause] and the odds it adds that a grown one ([adult]) or a young one ([young]) dies. */
@@ -702,7 +708,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
                 hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM * a.will[AnimalWay.MATE] } ?: continue
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
-            a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f
+            a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.bred = (a.bred + b.bred) / 2f
             if (a.home.none) claimGround(a, b.home)
             b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
@@ -715,7 +721,7 @@ private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
     into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
-    into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat)
+    into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.bred += w * (from.bred - into.bred)
     for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
     // (Its cache is left: no one goes back for it.)
