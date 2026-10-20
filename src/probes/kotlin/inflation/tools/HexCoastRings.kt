@@ -35,7 +35,7 @@ fun main(args: Array<String>) {
     repeat(steps) { w ->
         run.step()
         if (w >= steps - perYear) for (p in 0 until run.land.n) {
-            val c = run.fauna.calamities(human, p, run.weather, true)
+            val c = run.fauna.calamities(human, Place(p), run.weather, true)
             fire[p] += c.fire.toDouble()
             flood[p] += c.flood.toDouble()
         }

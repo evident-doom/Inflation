@@ -72,7 +72,7 @@ class HexGroups(
     /** Each kind's sense of where better country lies: prey, its ground, water, and the climate this month. */
     val bearings by lazy {
         HexBearings(hw, kinds, { s, p, m ->
-            val fit = fauna.monthFit(s, p, m)
+            val fit = fauna.monthFit(s, Place(p), m)
             // The game it can catch there, by weight.
             val prey = huntable[kindSlot[s.index]][p] +
                 if (s.human) KgM2(fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]).perKm2.v * PLANT_FOOD_WEIGHT else 0f
@@ -169,11 +169,11 @@ class HexGroups(
         }
     }
 
-    internal fun foodFor(s: Species, p: Place) = fauna.foodFor(s, p.i)
+    internal fun foodFor(s: Species, p: Place) = fauna.foodFor(s, p)
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */
     private fun startWeights(s: Species) = FloatArray(n) { p -> startWeight(s, Place(p)) }
-    private fun startWeight(s: Species, p: Place) = fauna.startWeight(s, p.i)
+    private fun startWeight(s: Species, p: Place) = fauna.startWeight(s, p)
 
     /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat. */
     internal fun spawn(s: Species, p: Place, unit: Int): HexGroup {
@@ -353,7 +353,7 @@ class HexGroups(
         t.drain = drain(g, p, weather)
         t.aheadC = s.discomfortC(weather.forecastTemp(p.i), date.month)
         t.waterKm = if (s.human) land.drink.peopleWaterKm(p) else land.drink.animalWaterKm(p)
-        t.suitsLn = ln(fauna.suits(s, p.i).coerceAtLeast(1e-3f))
+        t.suitsLn = ln(fauna.suits(s, p).coerceAtLeast(1e-3f))
     }
     /** A growable list of ints, in the order added. */
     internal class IntList {
@@ -523,7 +523,7 @@ class HexGroups(
         usualHuntersKm2 = if (usualHuntersKm2 <= 0f) huntersNow else usualHuntersKm2 + (huntersNow - usualHuntersKm2) / USUAL_MONTHS
         for ((k, s) in kinds.withIndex()) {
             val e = expectHeads[k]
-            val suitArea = IntStream.range(0, n).parallel().mapToDouble { p -> val v = fauna.suits(s, p) * land.areaKm2[p]; e[p] = v; v.toDouble() }.sum()
+            val suitArea = IntStream.range(0, n).parallel().mapToDouble { p -> val v = fauna.suits(s, Place(p)) * land.areaKm2[p]; e[p] = v; v.toDouble() }.sum()
             var heads = 0L; for (p in 0 until n) heads += headsHere[k][p]
             val now = (heads / suitArea.coerceAtLeast(1.0)).toFloat()
             usualDensity[k] = if (usualDensity[k] <= 0f) now else usualDensity[k] + (now - usualDensity[k]) / USUAL_MONTHS
@@ -784,7 +784,7 @@ class HexGroups(
         // the fear of ground where game was killed lately; and a much stronger hunter of another kind holding the place.)
         if (weather.forecastTemp(p.i) < 0f && weather.snowpack[p] + weather.forecastRain(p.i) > s.snowLimitMm) f[Feature.SNOW_AHEAD] = s.foresight
         f[Feature.BURNING] = land.fire.burning[p]
-        f[Feature.KILL_FEAR] = fauna.afraid(p.i)
+        f[Feature.KILL_FEAR] = fauna.afraid(p)
         if (hex.distanceKm(h.i, here.i) <= hex.hexKm * 1.01 && topKind[p] >= 0 && topKind[p] != s.index)
             f[Feature.STRONGER_HUNTER] = min(1f, topStrength[p] / (4f * strength(g)).coerceAtLeast(1e-3f))
         f[Feature.CLIMB] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
@@ -814,7 +814,7 @@ class HexGroups(
         f[Feature.HOUSES] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
         f[Feature.OWN_SIZE] = ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
         f[Feature.LASTING_WATER] = min(1f, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p])
-        f[Feature.SICKNESS] = min(1f, fauna.outbreakDeaths(s, p.i) * 10f)
+        f[Feature.SICKNESS] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
         // The signs of the land, as anyone who looks can read them.
         f[Feature.TREES] = min(1f, land.plants.tree[p] / 10f); f[Feature.SHRUBS] = min(1f, land.plants.shrub[p] / 2f)
         f[Feature.GRASS] = min(1f, land.plants.herb[p] / 0.5f)
@@ -1335,7 +1335,7 @@ class HexGroups(
     }
 
     /** The resident game hunter [s] sees at place [p], kg per km² ([HexFauna.game], as resident hunters count it). */
-    internal fun preyHere(s: Species, p: Place): Float = fauna.game(s, p.i)
+    internal fun preyHere(s: Species, p: Place): Float = fauna.game(s, p)
 
     /** Mean moonlight over this week's nights, 0 (new moon) to 1 (full). */
     internal val moon get() = fauna.moon

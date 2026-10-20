@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Place
 import inflation.Args
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
@@ -51,7 +52,7 @@ fun main(args: Array<String>) {
         for ((i, k) in kinds.withIndex()) for (p in 0 until n) {
             val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble(); if (h <= 0.0) continue
             val b = band(p); last[i] += h
-            heads[i][m][b] += h; die[i][m][b] += h * fauna.stayOdds(k, p, sim.weather, out); fed[i][m][b] += h * fauna.fed[k][p]
+            heads[i][m][b] += h; die[i][m][b] += h * fauna.stayOdds(k, Place(p), sim.weather, out); fed[i][m][b] += h * fauna.fed[k][p]
             yearHeads[i][b] += h; for ((c, z) in causes.withIndex()) byCause[i][b][c] += h * out[z]
         }
         if (w == skip) last.copyInto(first)

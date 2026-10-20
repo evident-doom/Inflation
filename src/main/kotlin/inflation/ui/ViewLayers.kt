@@ -1,5 +1,6 @@
 package inflation.ui
 
+import inflation.ecology.Place
 import inflation.ecology.HexFauna
 import inflation.ecology.get
 import inflation.ecology.HexSim
@@ -176,7 +177,7 @@ internal class ViewLayers(private val sim: HexSim) {
             val d = s.diet; val gb = (d.grass + d.browse).coerceAtLeast(1e-6f)
             hexMean { p ->
                 val grass = grassUnderSnow(s, w.snowpack[p]) * fauna.grazeLeft[p] * d.grass / gb
-                (grass + fauna.browseLeft[p] * d.browse / gb) * HexFood.access(s, land.crag[p]) * fauna.tether(s, p)
+                (grass + fauna.browseLeft[p] * d.browse / gb) * HexFood.access(s, land.crag[p]) * fauna.tether(s, Place(p))
             }
         }
         fun fodderShare(s: Species): Float { val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion

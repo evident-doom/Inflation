@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Place
 import inflation.Args
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
@@ -59,10 +60,10 @@ fun main(args: Array<String>) {
                 if (lo < 0 || hi == lo) continue
                 val nLo = (ad[lo] + yo[lo]) * land.areaKm2[lo].toDouble(); val nHi = (ad[hi] + yo[hi]) * land.areaKm2[hi].toDouble()
                 val n = nLo + nHi; if (n <= 0.0) continue
-                val oLo = fauna.arriveOdds(k, lo, sim.weather, outLo); val oHi = fauna.arriveOdds(k, hi, sim.weather, outHi)
+                val oLo = fauna.arriveOdds(k, Place(lo), sim.weather, outLo); val oHi = fauna.arriveOdds(k, Place(hi), sim.weather, outHi)
                 if (oLo.isNaN() || oHi.isNaN()) continue
-                val gLo = fauna.growthParts(k, lo, sim.weather, outLo, ypg, fat, partsLo)
-                val gHi = fauna.growthParts(k, hi, sim.weather, outHi, ypg, fat, partsHi)
+                val gLo = fauna.growthParts(k, Place(lo), sim.weather, outLo, ypg, fat, partsLo)
+                val gHi = fauna.growthParts(k, Place(hi), sim.weather, outHi, ypg, fat, partsHi)
                 val d = diff[i][m]
                 d[0] += n * (gHi - gLo)
                 for (c in 0 until HexFauna.GROWTH_PARTS) d[1 + c] += n * (partsHi[c] - partsLo[c])
