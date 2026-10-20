@@ -314,6 +314,7 @@ class HexGroups(
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
         /** The place being weighed: what the hand-written score and the features both read of it. */
         val terms = PlaceTerms()
+        val at = PlaceLook()
         /**
          * The places weighed by the hand-written score whose deaths are left till after ([planInner]): each place, its
          * hex, the going there, the game and crowding it knows of there, and its score without its deaths (and with
@@ -747,13 +748,13 @@ class HexGroups(
     }
 
     /**
-     * The features of place [p] (in hex [h], [d] km of going away) for the group weighing its places in [c], into [f]
-     * (cleared): what a learned policy sees of it ([Feature]). The rest are worked out in [planInner] as the hand-written
-     * score weighs them, as are [prey], [crowded], [hunters], the km [toGoal], the [pull], and how far [beyond] its ground
-     * and under [foreign] marks the hex is.
+     * The features of place [p] (in hex [h]) for the group weighing its places in [c], into [f] (cleared): what a learned
+     * policy sees of it ([Feature]). What it knows of the place ([PlanContext.at]) is worked out in [planInner] as the
+     * hand-written score weighs it.
      */
-    private fun fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTerms, p: Place, h: Hex, d: Float, toGoal: Double, pull: Float, beyond: Float,
-                             foreign: Float, prey: Float, crowded: Float, hunters: Float) {
+    private fun fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTerms, p: Place, h: Hex) {
+        val d = c.at.d; val toGoal = c.at.toGoal; val pull = c.at.pull; val beyond = c.at.beyond; val foreign = c.at.foreign
+        val prey = c.at.prey; val crowded = c.at.crowded; val hunters = c.at.hunters
         val g = c.g; val s = g.species; val here = c.here; val month = c.month; val reach = c.reach; val goal = c.goal
         val fromHere = c.fromHere; val weather = c.weather; val date = c.date
         // (The herds' slots, [Feature.HERDS_ABOUT], [Feature.KEEPS_HEADING] and [Feature.FORAGE_QUALITY], stay 0: kept for the
@@ -845,9 +846,6 @@ class HexGroups(
         // What it sees of the others: in its own hex and the six around, which its week's ranging covers.
         // Beyond, it goes by what it expects (see [expect]).
         val sensed = IntArray(7) { if (it == 0) here.i else hex.neighbour(here.i, it - 1) }
-        // (A band reads the beasts of prey about, not other people: those it weighs as bands. Where it has not looked it
-        // expects hunters as thick as they usually are, people among them.)
-        fun huntersKm2(p: Place, h: Hex) = if (h in sensed) (if (s.human) beastKg else predatorKg)[p] / land.areaKm2[p] else usualHuntersKm2
         // How far it will shift its ground this week. Most of a week's walking is within its range
         // (grazing, patrolling); the net shift is a couple of days' going when content, more on a trek
         // when hungry, cold or snowed in. A pack holding ground patrols it; a starving or homeless one roams.
@@ -916,32 +914,38 @@ class HexGroups(
         val pullKm = reach.toDouble().coerceAtLeast(hex.hexKm)
         // (A band keeps off the known homes of bands it is not close to: those hexes, once for the week.)
         val keepOff = g.band?.let { b -> b.knownHomes.entries.filter { b.tie(it.key) <= 0f }.map { it.value }.toIntArray() }
-        val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, onRound, roundStrength, fromHere, reach, thirsty, restless, season, keepOff, weather, date)
+        val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, onRound, roundStrength, fromHere, reach, thirsty, restless, season, keepOff,
+            weather, date, goalHex, predatorKg, buf)
+        val at = c.at
         for (ri in 0 until reached.size) {
             val h = Hex(reached[ri])
             val d = dist[h]
+            at.d = d
             // How far beyond its ground the hex lies (0 within it), and how fresh another pack's mark on it is.
             val beyond = if (s.pack && !g.home.none) (hexKm(h, g.home) / territory - 1.0).toFloat().coerceIn(0f, 2f) else 0f
             val foreign = if (s.pack && h != g.home) scent.foreign(s, h, g.id) else 0f
+            at.beyond = beyond; at.foreign = foreign
             // A pack on its own ground stays on it while fed, and keeps off ground another pack of its kind holds
             // (its choice: the hand-written score weighs these heavily; a learned one sees both, see [HexFeatures]).
-            val offGround = (if (beyond > 0f && (denning || (g.fed >= Thresholds.HUNGRY && !astray))) KEEP_TO_GROUND else 0f) +
+            at.offGround = (if (beyond > 0f && (denning || (g.fed >= Thresholds.HUNGRY && !astray))) KEEP_TO_GROUND else 0f) +
                 (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
-            val toGoal = if (goal >= 0) hexKm(h.i, goalHex) else 0.0
+            at.toGoal = if (goal >= 0) hexKm(h.i, goalHex) else 0.0
             // The open water on the way there, as the share of it a crossing drowns (see [move]): worked out when first wanted.
             var drowning = -1f
             // Better country further off: the way the kind's sense of the land points.
-            val pull = bearings.along(kind, here.i, h.i, pullKm)
+            at.pull = bearings.along(kind, here.i, h.i, pullKm)
             // (Its own kind about there, as it knows it.)
             val kin = kinAround(g, kind, h, sensed)
             val crowded = crowdedBy(s, kin)
+            at.crowded = crowded
             for (pi in hw.placesOf(h.i)) {
                 val p = Place(pi)
                 val prey = knownGame(g, kind, p, h)
                 val fed = foreseenFed(g, prey, kin, crowded)
-                val hunters = huntersKm2(p, h)
+                val hunters = huntersKm2(c, p, h)
+                at.prey = prey; at.fed = fed; at.hunters = hunters
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
-                var score = scorePlace(c, t, p, h, d, toGoal, offGround, pull, prey, crowded, hunters)
+                var score = scorePlace(c, t, p, h)
                 // (Above all, it keeps alive: see below.)
                 val beside = 0.02f * (hashNoise(g.id, p.i) - 0.5f) + temperPull(g, p, h, hunters, crowded)
                 // (Where only the best place is wanted, its deaths are worked out after, best first, see below.)
@@ -949,13 +953,13 @@ class HexGroups(
                 if (drowning < 0f) drowning = crossingDeaths(s, h.i, here.i, via)
                 val alive = score
                 score -= survivalSteps(g, deathsAt(c, p, h, fed) + drowning)
-                if (!score.isFinite()) tellNotANumber(c, t, p, h, d, prey, crowded, fed, drowning, alive)
+                if (!score.isFinite()) tellNotANumber(c, t, p, h, drowning, alive)
                 seen?.add(p.i to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
                     if (nc == candFeats.size) candFeats += FloatArray(Feature.SIZE)
                     val f = candFeats[nc].also { it.fill(0f) }
-                    fillFeatures(f, c, t, p, h, d, toGoal, pull, beyond, foreign, prey, crowded, hunters)
+                    fillFeatures(f, c, t, p, h)
                     if (nc == buf.candScores.size) buf.candScores = buf.candScores.copyOf(2 * nc)
                     candPlaces += p.i; buf.candScores[nc] = score
                     if (policy != null) continue
@@ -978,7 +982,10 @@ class HexGroups(
                 val p = Place(buf.laterPlace[k]); val h = hw.hexOf(p)
                 val total = buf.laterScore[k] - survivalSteps(g, deathsAt(c, p, h, buf.laterFed[k]) +
                     crossingDeaths(s, h.i, here.i, via)) + buf.laterBeside[k]
-                if (!total.isFinite()) tellNotANumber(c, null, p, h, buf.laterD[k], buf.laterPrey[k], Float.NaN, buf.laterFed[k], crossingDeaths(s, h.i, here.i, via), buf.laterScore[k])
+                if (!total.isFinite()) {
+                    at.d = buf.laterD[k]; at.prey = buf.laterPrey[k]; at.crowded = Float.NaN; at.fed = buf.laterFed[k]
+                    tellNotANumber(c, null, p, h, crossingDeaths(s, h.i, here.i, via), buf.laterScore[k])
+                }
                 if (total > bestScore || (total == bestScore && k < bestK)) { bestScore = total; best = p; bestK = k }
             }
         }
@@ -996,30 +1003,49 @@ class HexGroups(
         }
         if (capture) best = Place(askControl(g, weather, date, policy, buf.candPlaces, buf.candFeats, buf.candScores, if (content) g.place.i else best.i, content,
             restless, reach, goal, onRound) { pathTo(it) })
-        if (seen != null && g.id == watched) {
-            fun where(p: Int) = "hex %d at %.0f m".format(hw.placeHex[p], hw.placeElevationM[p])
-            val top = seen.sortedByDescending { it.second }.take(5)
-            watchLog += "weighed %d places%s; went to %s (hand-written score %.2f%s)".format(seen.size, if (restless) ", restless" else "", where(best.i),
-                seen.firstOrNull { it.first == best.i }?.second ?: 0f, if (policy != null) ", chosen by the network" else "")
-            for ((p, score) in top) watchLog += "   %s%s: %.2f".format(where(p), if (p == g.place.i) " (stay)" else "", score)
-        }
-        if (diag && seen != null) {
-            // (The score is the hand-written one before its small noise and the group's temper, as [scorePlace] gives it.)
-            fun parts(p: Place): String {
-                val h = hw.hexOf(p); val hunters = huntersKm2(p, h)
-                val dying = deathsAt(c, p, h, 0f)
-                return "score %.2f: deaths %.4f (%.1f steps) food %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
-                    seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, dying, survivalSteps(g, dying), placeValue[kind][p],
-                    crowdedBy(s, kinAround(g, kind, h, sensed)), hunters,
-                    if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p], dist[h], hexKm(h.i, goalHex))
-            }
-            val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
-                hw.placeNear(g.place.i, h).takeIf { it >= 0 } }?.let { Place(it) }
-            println("plan ${s.name} #${g.id} of ${g.size} month ${date.month + 1}, ${if (restless) "restless" else "content"}, reach %.0f km, weighed %d places: chose ".format(reach, seen.size) +
-                parts(best) + (if (best != g.place) " | stay " + parts(g.place) else "") + (towards?.let { " | toward goal " + parts(it) } ?: ""))
-        }
+        if (seen != null && g.id == watched) logWatched(c, seen, best, policy != null)
+        if (diag && seen != null) printPlanDiag(c, seen, best)
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
         return Plan(best, pathTo(best.i))
+    }
+
+    /**
+     * The hunters [c]'s group expects at place [p] (in hex [h]), kg per km². A band reads the beasts of prey about, not
+     * other people: those it weighs as bands. Where it has not looked it expects hunters as thick as they usually are,
+     * people among them.
+     */
+    private fun huntersKm2(c: PlanContext, p: Place, h: Hex) =
+        if (h in c.sensed) (if (c.g.species.human) beastKg else c.predatorKg)[p] / land.areaKm2[p] else usualHuntersKm2
+
+    /** For the watched group ([watched]): the places it weighed ([seen], with their scores) and where it went ([best]), into [watchLog]. */
+    private fun logWatched(c: PlanContext, seen: List<Pair<Int, Float>>, best: Place, byNetwork: Boolean) {
+        val g = c.g
+        fun where(p: Int) = "hex %d at %.0f m".format(hw.placeHex[p], hw.placeElevationM[p])
+        val top = seen.sortedByDescending { it.second }.take(5)
+        watchLog += "weighed %d places%s; went to %s (hand-written score %.2f%s)".format(seen.size, if (c.restless) ", restless" else "", where(best.i),
+            seen.firstOrNull { it.first == best.i }?.second ?: 0f, if (byNetwork) ", chosen by the network" else "")
+        for ((p, score) in top) watchLog += "   %s%s: %.2f".format(where(p), if (p == g.place.i) " (stay)" else "", score)
+    }
+
+    /**
+     * planDiag=kind: one group's reasons ([c], the places it weighed in [seen]), for the place it chose ([best]), staying
+     * and the best-placed step toward its season's place.
+     */
+    private fun printPlanDiag(c: PlanContext, seen: List<Pair<Int, Float>>, best: Place) {
+        val g = c.g; val s = g.species; val kind = c.kind; val goalHex = c.goalHex; val reached = c.buf.reached
+        // (The score is the hand-written one before its small noise and the group's temper, as [scorePlace] gives it.)
+        fun parts(p: Place): String {
+            val h = hw.hexOf(p); val hunters = huntersKm2(c, p, h)
+            val dying = deathsAt(c, p, h, 0f)
+            return "score %.2f: deaths %.4f (%.1f steps) food %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
+                seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, dying, survivalSteps(g, dying), placeValue[kind][p],
+                crowdedBy(s, kinAround(g, kind, h, c.sensed)), hunters,
+                if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p], c.buf.dist[h], hexKm(h.i, goalHex))
+        }
+        val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
+            hw.placeNear(g.place.i, h).takeIf { it >= 0 } }?.let { Place(it) }
+        println("plan ${s.name} #${g.id} of ${g.size} month ${c.date.month + 1}, ${if (c.restless) "restless" else "content"}, reach %.0f km, weighed %d places: chose ".format(c.reach, seen.size) +
+            parts(best) + (if (best != g.place) " | stay " + parts(g.place) else "") + (towards?.let { " | toward goal " + parts(it) } ?: ""))
     }
 
     /** How many places' hand-written scores have come out not a number this run (see [tellNotANumber]). */
@@ -1028,11 +1054,13 @@ class HexGroups(
     /**
      * Prints the first few places whose hand-written score for [c]'s group came out not a number (NaN or infinite), with
      * the parts it is made of: such a place is never chosen, by the hand-written rules or a network, so nothing else shows
-     * it. [alive] is the score before its deaths; [t] the place's terms (null where they were not kept).
+     * it. [alive] is the score before its deaths, [drowning] the crossing's; [t] the place's terms (null where they were not kept);
+     * the rest as [PlanContext.at] holds them.
      */
-    private fun tellNotANumber(c: PlanContext, t: PlaceTerms?, p: Place, h: Hex, d: Float, prey: Float, crowded: Float, fed: Float, drowning: Float, alive: Float) {
+    private fun tellNotANumber(c: PlanContext, t: PlaceTerms?, p: Place, h: Hex, drowning: Float, alive: Float) {
         if (notANumber.incrementAndGet() > 20) return
         val g = c.g; val s = g.species
+        val d = c.at.d; val prey = c.at.prey; val crowded = c.at.crowded; val fed = c.at.fed
         val deaths = deathsAt(c, p, h, fed)
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         val causes = StringBuilder()
@@ -1045,23 +1073,44 @@ class HexGroups(
             "hazards:$causes; terms: $terms")
     }
 
-    /** What a group weighing its places this week brings to each of them: worked out once in [planInner], read by [scorePlace]. */
+    /**
+     * What a group weighing its places this week brings to each of them: worked out once in [planInner], read by
+     * [scorePlace], [fillFeatures], [deathsAt] and the diagnostics. [buf] is the thread's scratch: the reach search's
+     * hexes and the place being weighed ([at]).
+     */
     private class PlanContext(val g: HexGroup, val kind: Int, val here: Hex, val sensed: IntArray, val month: Int, val goal: Int, val goalQ: Float,
         val onRound: Boolean, val roundStrength: Float, val fromHere: Double, val reach: Float, val thirsty: Boolean, val restless: Boolean,
         /** The time of year as an angle, 0 at the year's start ([Date.START_DAY]). */
         val season: Double, val keepOff: IntArray?,
-        val weather: Weather, val date: Date) {
+        val weather: Weather, val date: Date,
+        /** The hex of its season's place or round ([goal]), else -1. */
+        val goalHex: Int, val predatorKg: FloatArray, val buf: Scratch) {
         /** Reused for each place it weighs: see [deathsAt]. */
         val odds = Odds()
+        /** The place being weighed, as it knows it. */
+        val at get() = buf.at
     }
 
     /**
-     * The hand-written score of place [p] (in hex [h], [d] km of going away) for the group weighing its places in [c]:
+     * What a group knows of the place it is weighing ([PlanContext.at]), filled in by [planInner] hex by hex and place by
+     * place: the going there ([d], km), how far it would then be from its goal ([toGoal], km), how far beyond its own ground
+     * ([beyond]) and how fresh another pack's marks ([foreign]), the cost of leaving its ground ([offGround]), the kind's
+     * sense of better country that way ([pull]), the game it knows of ([prey]), its own kind's crowding ([crowded]),
+     * the hunters about ([hunters], kg per km²) and how fed it foresees it would be ([fed]).
+     */
+    private class PlaceLook {
+        var d = 0f; var toGoal = 0.0; var beyond = 0f; var foreign = 0f; var offGround = 0f; var pull = 0f
+        var prey = 0f; var crowded = 0f; var hunters = 0f; var fed = 0f
+    }
+
+    /**
+     * The hand-written score of place [p] (in hex [h]; what the group knows of it in [PlanContext.at]) for the group weighing its places in [c]:
      * its food or game, crowding and hunters, the cold, heat and flies, its own kind of country, what it senses coming,
      * water, the going, the season's place or round, its bearing, staying, and a band's own pulls.
      */
-    private fun scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h: Hex, d: Float, toGoal: Double, offGround: Float, pull: Float,
-        prey: Float, crowded: Float, hunters: Float): Float {
+    private fun scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h: Hex): Float {
+        val d = c.at.d; val toGoal = c.at.toGoal; val offGround = c.at.offGround; val pull = c.at.pull
+        val prey = c.at.prey; val crowded = c.at.crowded
         val g = c.g; val s = g.species; val kind = c.kind; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
         val goalQ = c.goalQ; val onRound = c.onRound; val roundStrength = c.roundStrength; val fromHere = c.fromHere; val reach = c.reach
         val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather; val date = c.date
