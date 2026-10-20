@@ -15,7 +15,7 @@ import inflation.world.WorldCache
  * little green, and how many heads stand in places their kind barely lives in (the edge it spills
  * into); then the hunger deaths by how much water is within reach, how green the place is, and how
  * many of the kind live there. Hunger deaths are worked out place by place by the residents' rule
- * (see [HexFauna.HUNGER_FROM]).
+ * ([inflation.ecology.Hazards.hunger]).
  *
  * Usage: resident-hunger-check (--world NAME | --seed N [--width KM] [--height KM]) [--years N] [--kinds a,b]
  */
@@ -60,7 +60,7 @@ fun main(args: Array<String>) {
                 val area = land.areaKm2[p]
                 val heads = ((ad + yd) * area).toDouble()
                 val f = fauna.fed[k2][p]
-                val hunger = if (f < HexFauna.HUNGER_FROM) (HexFauna.HUNGER_FROM - f) * HexFauna.HUNGER_RATE else 0f
+                val hunger = inflation.ecology.Hazards.hunger(s, fauna.spent[k2][p], f, cfg.daysPerStep)
                 val died = ((ad + 1.5f * yd) * hunger * area).toDouble()
                 val t = fauna.tether(s, p); val g = land.plants.green[p]
                 val edge = (ad + yd) < 0.01f * usual

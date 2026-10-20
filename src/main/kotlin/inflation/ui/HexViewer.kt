@@ -1088,14 +1088,14 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         if (hw.lake[h] > 0.1f) parts += "%s lake".format(share(hw.lake[h]))
         for ((b, s) in names.take(3)) parts += "%s %s".format(share(s), b.label)
         // Plants over the land, area-weighted over its low and high ground.
-        var a = 0.0; var herb = 0.0; var shrub = 0.0; var tree = 0.0; var green = 0.0; var fruit = 0.0; var straw = 0.0; var snow = 0.0; var burnt = 0.0
+        var a = 0.0; var herb = 0.0; var shrub = 0.0; var tree = 0.0; var green = 0.0; var fruit = 0.0; var snow = 0.0; var burnt = 0.0
         for (p in hw.placesOf(h)) {
             val w = land.areaKm2[p].toDouble(); a += w
             herb += land.plants.herb[p] * w; shrub += land.plants.shrub[p] * w; tree += land.plants.tree[p] * w; green += land.plants.green[p] * w
-            fruit += fauna.food.fruit[p] * w; straw += fauna.food.straw[p] * w; snow += weather.snowpack[p] * w; burnt += land.fire.burnt[p] * w
+            fruit += fauna.food.fruit[p] * w; snow += weather.snowpack[p] * w; burnt += land.fire.burnt[p] * w
         }
         if (a <= 0.0) return parts.joinToString("; ").ifEmpty { "water" }
-        herb /= a; shrub /= a; tree /= a; green /= a; fruit /= a; straw /= a; snow /= a; burnt /= a
+        herb /= a; shrub /= a; tree /= a; green /= a; fruit /= a; snow /= a; burnt /= a
         val grass = when { herb < 0.05 -> "bare or nearly bare ground"; herb < 0.2 -> "thin grass"; herb < 0.5 -> "fair grass"; else -> "thick grass" }
         val scrub = when { shrub < 0.2 -> null; shrub < 1.0 -> "scattered scrub"; else -> "dense scrub" }
         val wood = when { tree < 1.0 -> null; tree < 8.0 -> "open woodland"; else -> "closed forest" }
@@ -1103,7 +1103,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val plants = listOfNotNull(grass, scrub, wood).joinToString(", ") + " ($state)"
         val extras = listOfNotNull(
             if (fruit > 0.0005) "fruit ripe" else null,
-            if (straw > 0.0008) "plenty of standing dry fodder" else if (straw < 0.0002) "little dry fodder" else null,
             if (burnt > 0.1) "lately burnt" else null,
         )
         return (parts + plants + extras).joinToString("; ")

@@ -43,8 +43,8 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Green flush after fire | yes |
 | Grazing removes fire fuel; browsing holds back saplings; lawns | yes |
 | Forage quality (green vs dry) | yes |
-| Separate food pools (roots, mast, fruit, straw) | yes |
-| Roughage value by body size; selective feeders | yes (straw by gut size) |
+| Separate food pools (roots, mast, fruit; straw is the cured grass) | yes |
+| Roughage value by body size; selective feeders | gut type only (switched forage at [Species.fibreDigestion]); body size not |
 | Boar rooting, seed carried by fruit-eaters | yes |
 | Trampling and worn paths, paths easing travel | yes: worn paths ease the going, more so in broken country (`PathWear`) |
 | Soil erosion, soil recovery | yes |

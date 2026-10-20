@@ -52,6 +52,7 @@ object Config {
         PLAN_DIAG("planDiag"),
         FORAGE_DIAG("forageDiag"),
         FOLLOW("follow"),
+        STRAND_DIAG("strandDiag"),
         FED_DIAG("fedDiag"),
         SHRUB_DIAG("shrubDiag"),
         T_HUNT_DIAG("t.huntDiag"),

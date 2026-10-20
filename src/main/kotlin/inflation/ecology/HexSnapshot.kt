@@ -137,9 +137,15 @@ object HexSnapshot {
      * thirst, cold, snow, fire and flood), as a mean over some ten years; half the residents a week set off along its route.
      * 4.8: a hex's low and high ground are the foot and top of one slope: residents crossing into the next hex come to
      * its ground nearest in height to theirs, and gain or lose height within a hex ([HexFauna.neighbourPlaces]).
+     * 4.9: hunger kills as the body's protein runs out once the fat is spent ([Hazards.hunger], [Hazards.starveDays]):
+     * residents and groups count the days of it they have burnt ([HexFauna.spent], [HexGroup.spent]), a shortfall past
+     * the fat and past what plant-eaters save by spending less ([Hazards.economy]) burns it, and food beyond need wins it
+     * back; residents carry their fat and their burnt body when they move. Heat is booked as its own cause of death. Grass
+     * buried under snow is made up with browse to at most (1 + [SWITCH]) times its usual share, as fruit and roots are. The
+     * standing straw is no longer a food of its own: it is the cured grass, grazed as grass.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 8
+    const val MODEL_MINOR = 9
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

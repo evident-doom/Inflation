@@ -141,7 +141,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     )
     val hydro = HexHydrology(this)
     @field:MovedInto(
-        "gdd", "annualGdd", "herb", "shrub", "tree", "straw", "moisture", "warmth", "fertility", "organicFertility", "litterfall", "shrubShoots",
+        "gdd", "annualGdd", "herb", "shrub", "tree", "moisture", "warmth", "fertility", "organicFertility", "litterfall", "shrubShoots",
         "treeShoots", "shootsSet", "browsing", "grazing", "rooting", "animalSeed", "trampling", "green", "hayFallen", "hayFresh", "warmest", "growFrom",
         "growSpan", "perennialShare", "cured", "greenOpen", "greenSeep", "greenWet", "greenShade", "curedShade", "ash", "trails", "treeSeed", "shrubSeed",
         "stepCount",

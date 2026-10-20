@@ -18,7 +18,8 @@ import inflation.ecology.m2
  * - fedDiag=true: four times in the first year, how well each kind is fed where it lives, and why;
  * - follow=KIND: one group of that kind week by week, as the viewer's follow mode does;
  * - shrubDiag=true: each year, the shrubs' kg gained and lost by each process ([inflation.world.HexPlants.shrubBook]),
- *   with the shrubs standing and the most they could grow to ([inflation.world.HexPlants.ceiling]), summed over the map.
+ *   with the shrubs standing and the most they could grow to ([inflation.world.HexPlants.ceiling]), summed over the map;
+ * - strandDiag=FILE: the residents caught by snow, cold, heat and drought, by kind, month and height ([StrandDiag]).
  */
 class Diagnostics(private val sim: HexSim) {
     private val hw = sim.hw
@@ -26,6 +27,7 @@ class Diagnostics(private val sim: HexSim) {
     private val fauna = sim.fauna
     private val groups = sim.groups
     private val weather get() = sim.weather
+    private val strand = Config.string(Config.Key.STRAND_DIAG)?.let { StrandDiag(sim, java.io.File(it)) }
 
     fun beforeStep(y: Int, w: Int) {
         Config.string(Config.Key.HUNT_DIAG)?.let { kinds -> if (w % 13 == 6) for (kind in kinds.split(',')) hunters(w, kind) }
@@ -35,6 +37,7 @@ class Diagnostics(private val sim: HexSim) {
     }
 
     fun afterStep() {
+        strand?.week()
         if (Config.string(Config.Key.FOLLOW) != null && groups.watched >= 0) {
             val g = groups.groups.firstOrNull { it.id == groups.watched }
             println("   follow #%d (%s, %d) %s:".format(groups.watched, g?.species?.name ?: "?", g?.size ?: 0, weather.date))

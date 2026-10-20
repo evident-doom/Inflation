@@ -9,7 +9,6 @@ import inflation.world.LifeForm
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 import inflation.world.Date
 import java.util.stream.IntStream
 
@@ -21,9 +20,8 @@ import java.util.stream.IntStream
  *   the spring's flowers were pollinated for; what is not eaten falls and rots into the litter.
  * - Bulbs, roots and fallen mast that rooting animals dig up: bulbs and roots from the herbs, slow to
  *   replace; the mast is the trees' fruit fallen in autumn, lying on the ground through the winter.
- * - Standing dead grass, stems and twigs: plentiful but poor, the fallback of the lean months; it
- *   builds up over months and is eaten down where herds crowd, so the dry season and the winter set
- *   how many grazers the land carries. Big animals get more from it (Jarman-Bell, see [roughage]).
+ *
+ * (The standing dead grass is not one of them: it is the cured grass, grazed as the grass is, see [HexPlants.nourishment].)
  *
  * Each stock comes off the plants that bear it as it grows, and what is not eaten falls into the litter.
  */
@@ -66,13 +64,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         return CEREAL_MAX * climate * cerealGround[p]
     }
 
-    /** Standing straw: the land's (it burns there). */
-    val straw get() = land.plants.straw
-
     /** Fruit-bearing plants at [p], kg/m²: shrubs and the fruiting share of trees. */
     // (Only the edible kinds bear food people eat, see [HexLand.palatable].)
     private fun bearing(p: Int) = land.palatable[p] * (0.5f * land.plants.shrub[p] + TREE_BEARING * land.plants.tree[p])
-    private fun strawCap(p: Int) = STRAW_SHARE * (land.plants.herb[p] + 0.3f * land.plants.shrub[p])
     private fun rootsCap(p: Int) = ROOTS_SHARE * land.palatable[p] * land.plants.herb[p] + REED_ROOTS * land.waterlogged[p]
 
     private var standYear = -1
@@ -153,13 +147,6 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val spoilt = finds[p] * min(1f, days / FINDS_DAYS)
             small.deposit(DeadPool.LITTER, p, KgM2(spoilt))
             finds[p] = max(0f, finds[p] + grown - spoilt)
-            // Standing dead grass and twigs build up as a small share of the herbs and shrubs and are eaten down.
-            // (The straw is the herbs and shrubs dying back where they stand; it falls into the litter as it weathers.)
-            val toward = days * (strawCap(p) - straw[p]) / STRAW_DAYS
-            if (toward > 0f) {
-                val herbShare = land.plants.herb[p] / (land.plants.herb[p] + 0.3f * land.plants.shrub[p]).coerceAtLeast(1e-9f)
-                straw[p] += (land.plants.consume(p, LifeForm.HERB, KgM2(toward * herbShare)) + land.plants.consume(p, LifeForm.SHRUB, KgM2(toward * (1f - herbShare)))).v
-            } else { val fell = min(straw[p], -toward); straw[p] -= fell; small.deposit(DeadPool.LITTER, p, KgM2(fell)) }
         }
     }
 
@@ -226,19 +213,6 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         const val FINDS_DAYS = 30f
         /** Starchy rhizomes of reed and reedmace in a marsh, kg/m² at their peak. */
         const val REED_ROOTS = 0.01f
-        /** Standing dead grass and twigs, per kg/m² of herbs (and shrubs × 0.3); days to build up again. */
-        const val STRAW_SHARE = 0.0025f
-        const val STRAW_DAYS = 180f
-        /** Nourishment of straw against fresh growth, for a 100 kg animal. */
-        const val ROUGHAGE_VALUE = 0.4f
-
-        /**
-         * How much [s] gets out of straw (the Jarman-Bell principle): a big gut holds food longer and
-         * digests fibre better; aurochs and wild asses live through the lean months on straw that
-         * starves a gazelle.
-         */
-        fun roughage(s: Species) = (ROUGHAGE_VALUE * s.fibreDigestion * (s.massKg / 100f).pow(0.25f)).coerceAtMost(0.75f)
-
         /**
          * Share of a place's food [s] can get at, given the share of it that is crag (slopes over 45%):
          * the crags keep all but the climbers off, which is what leaves the ibex its cliffs; the

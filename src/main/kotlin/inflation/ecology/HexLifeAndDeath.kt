@@ -85,7 +85,6 @@ internal interface Pantry {
     fun browse(kg: Float): Float
     fun fruit(kg: Float): Float
     fun roots(kg: Float): Float
-    fun straw(kg: Float): Float
 }
 
 /**
@@ -93,12 +92,11 @@ internal interface Pantry {
  * off what is there, without eating it.
  */
 internal class DryPantry : Pantry {
-    var reach = 0f; var grass = 0f; var browse = 0f; var fruit = 0f; var roots = 0f; var straw = 0f
+    var reach = 0f; var grass = 0f; var browse = 0f; var fruit = 0f; var roots = 0f
     override fun grass(kg: Float): Float { val t = min(kg, reach * grass); grass -= t; return t }
     override fun browse(kg: Float): Float { val t = min(kg, reach * browse); browse -= t; return t }
     override fun fruit(kg: Float): Float { val t = min(kg, reach * fruit); fruit -= t; return t }
     override fun roots(kg: Float): Float { val t = min(kg, reach * roots); roots -= t; return t }
-    override fun straw(kg: Float): Float { val t = min(kg, straw); straw -= t; return t }
 }
 
 /**
@@ -108,9 +106,9 @@ internal class DryPantry : Pantry {
 internal class Bites {
     var grass = 0f; var browse = 0f; var fruit = 0f; var roots = 0f
     var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
-    var straw = 0f; var short = 0f; var room = 0f; var q = 0f; var got = 0f
+    var short = 0f; var room = 0f; var q = 0f; var got = 0f
     /** All it ate, kg per m². */
-    val eaten get() = grass + grass2 + browse + browse2 + fruit + fruit2 + roots + roots2 + straw
+    val eaten get() = grass + grass2 + browse + browse2 + fruit + fruit2 + roots + roots2
 }
 
 /**
@@ -126,10 +124,11 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
 /**
  * How animals of [s] eating diet [d] feed where the forage nourishes [q], asking [want] kg per m² this week, from
  * [pantry]: grass (as far as it gets at it under the snow, [underSnow], see [grassUnderSnow]) and browse as far as the gut fills at that nourishment, fruit and roots, then
- * switching between them for a shortfall, then straw; into [out]. The one rule for the residents' week's grazing
+ * switching between them for a shortfall; into [out]. The standing straw is the cured grass, eaten as grass at what it
+ * nourishes ([HexPlants.nourishment]). The one rule for the residents' week's grazing
  * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.room]).
  */
-internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, access: Float, pantry: Pantry, out: Bites): Bites {
+internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
     // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
     val fill = gutFill(s, q)
@@ -139,9 +138,9 @@ internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float
     val browse = pantry.browse(want * fill * d.browse / total)
     val fruit = pantry.fruit(want * d.fruit / total)
     val roots = pantry.roots(want * d.roots / total)
-    // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
-    // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
-    // usual share (an ostrich out of fruit season picks more shoots and leaves).
+    // Diet switching: a food that fell short is made up from the others: grass and browse as far as the gut holds,
+    // fruit and roots to at most (1 + SWITCH) times their usual share (an ostrich out of fruit season picks more shoots
+    // and leaves).
     var gap = want - ((grass + browse) * q + fruit + roots)
     var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
     // But the gut holds only so much bulk a day: on poor forage a ruminant cannot make up by eating
@@ -150,25 +149,31 @@ internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float
     var room = max(0f, want * fill / HexFauna.GUT_QREF - (grass + browse))
     // (What it switches to nourishes it as well as its gut digests fibre, [Species.fibreDigestion].)
     val qf = q * s.fibreDigestion
-    if (gap > 0f && d.browse > 0f) { browse2 = pantry.browse(min(gap / qf, room)); gap -= browse2 * qf; room -= browse2 }
+    // (But grass the snow buries is made up with browse to at most (1 + SWITCH) times its usual share, as any food. A
+    // grazer does not turn browser when the snow buries its grass: Przewalski's horses graze all winter in the Gobi, and
+    // the khulan's winter food that looked like shrubs in its hair was mostly grass too: Burnik Sturm et al., J Appl Ecol
+    // 2017, and the DNA barcoding after. Grass that fell short otherwise, eaten out or poor, is still made up as far as
+    // the gut holds: capping that too starved grazers and wild sheep wherever the lean season comes without snow.)
+    val buried = (1f - underSnow) * want * fill * d.grass / total * q
+    if (gap > 0f && d.browse > 0f) {
+        browse2 = pantry.browse(min(min(gap / qf, room), max(0f, gap - buried) / qf + SWITCH * want * fill * d.browse / total))
+        gap -= browse2 * qf; room -= browse2 }
     if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, SWITCH * want * d.fruit / total)); gap -= fruit2 }
     if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, SWITCH * want * d.roots / total)); gap -= roots2 }
-    // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it.
     val short = max(0f, gap)
-    val straw = pantry.straw(min(short * HexFauna.GUT_FILL * access, max(0f, room)))
     // Grass and browse nourish fully only when green; fruit and roots keep their value.
-    val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2 + min(short, straw * HexFood.roughage(s))
+    val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2
     out.grass = grass; out.browse = browse; out.fruit = fruit; out.roots = roots
     out.grass2 = grass2; out.browse2 = browse2; out.fruit2 = fruit2; out.roots2 = roots2
-    out.straw = straw; out.short = short; out.room = room; out.q = q; out.got = got
+    out.short = short; out.room = room; out.q = q; out.got = got
     return out
 }
 
-/** The protein in [b], kg per m², with grass, browse and straw of the protein shares [grass], [browse] and [straw]. */
-internal fun protein(b: Bites, grass: Float, browse: Float, straw: Float): Float =
+/** The protein in [b], kg per m², with grass and browse of the protein shares [grass] and [browse]. */
+internal fun protein(b: Bites, grass: Float, browse: Float): Float =
     (b.grass + b.grass2) * grass + (b.browse + b.browse2) * browse +
-        (b.fruit + b.fruit2 + b.roots + b.roots2) * HexFauna.PROTEIN_FRUIT + b.straw * straw
+        (b.fruit + b.fruit2 + b.roots + b.roots2) * HexFauna.PROTEIN_FRUIT
 
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
@@ -296,6 +301,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     g.memory.copyInto(n.memory)
     n.fed = g.fed
     n.fat = g.fat
+    n.spent = g.spent
     n.tag = g.tag
     n.parent = g.id
     n.dry = g.dry
@@ -413,6 +419,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place.i, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.atHome ?: false) { c, a, y -> hazards += Hazard(c, a, y) }
+    g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     hazards.addAll(listOf(
         Hazard(DeathCause.HOMELESS.label, homeless, homeless),
         Hazard(DeathCause.CAMP_FOULING.label, 0f, fouled), Hazard(DeathCause.SNAKES.label, venom, venom), Hazard(DeathCause.INBREEDING.label, 0f, inbred),
@@ -474,7 +481,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
 private fun HexGroups.feedOnReserves(g: HexGroup) {
     val s = g.species
     if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
-    else g.fat = min(s.maxFatDays, g.fat + FAT_EFFICIENCY * g.surplus)
+    else { val gain = FAT_EFFICIENCY * g.surplus; val back = min(g.spent, gain); g.spent -= back
+        // (What it ate beyond its need wins back the body it burnt before it lays on fat.)
+        g.fat = min(s.maxFatDays, g.fat + gain - back) }
     g.surplus = 0f
 }
 
@@ -583,11 +592,13 @@ internal fun interface HazardSink { fun add(cause: String, adult: Float, young: 
 internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: Float, thirst: Float, sick: Float,
     fire: Float, home: Boolean, into: HazardSink) {
     val s = g.species; val b = g.band; val t = weather.temperature[p]
-    val hunger = Hazards.hunger(fed)
+    // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
+    val hunger = Hazards.hunger(s, g.spent, Hazards.onFat(fed, g.fat, days), days)
     // People feel the cold as their clothes allow.
     // Exposure: the unprotected die of the cold within days.
     val exposure = b?.let { min(0.9f, EXPOSURE * it.exposure(t, fire, home) * days / 7f) } ?: 0f
-    val cold = Hazards.cold(s, b?.feels(t, fire, home) ?: t, weather.date.month)
+    val felt = b?.feels(t, fire, home) ?: t
+    val cold = Hazards.cold(s, felt, weather.date.month); val heat = Hazards.heat(s, felt)
     // An outbreak raging where it is kills its share.
     val plague = fauna.outbreakDeaths(s, p)
     // Eagles take the young of the smaller hoofed animals in the open.
@@ -596,6 +607,7 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: 
     val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
     val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)
     into.add(DeathCause.HUNGER.label, hunger, 1.5f * hunger); into.add(DeathCause.COLD.label, cold, 1.5f * cold)
+    into.add(DeathCause.HEAT.label, heat, 1.5f * heat)
     into.add(DeathCause.EXPOSURE.label, exposure, 1.5f * exposure); into.add(DeathCause.THIRST.label, thirst, 1.5f * thirst)
     into.add(DeathCause.DISEASE.label, sick, sick); into.add(DeathCause.OUTBREAK.label, plague, plague)
     into.add(DeathCause.FIRE.label, fireA, fireY); into.add(DeathCause.FLOOD.label, floodA, floodY); into.add(DeathCause.SNOW.label, snowA, snowY)
@@ -713,7 +725,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
                 hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM * a.will[AnimalWay.MATE] } ?: continue
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
-            a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.bred = (a.bred + b.bred) / 2f
+            a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.spent = (a.spent + b.spent) / 2f; a.bred = (a.bred + b.bred) / 2f
             if (a.home.none) claimGround(a, b.home)
             b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
@@ -726,7 +738,7 @@ private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
     into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
-    into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.bred += w * (from.bred - into.bred)
+    into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.spent += w * (from.spent - into.spent); into.bred += w * (from.bred - into.bred)
     for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
     // (Its cache is left: no one goes back for it.)

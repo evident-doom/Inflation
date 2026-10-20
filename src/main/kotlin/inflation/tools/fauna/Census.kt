@@ -107,10 +107,10 @@ class Census(private val sim: HexSim) {
         println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) +
             fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0),
                 inN[k] / inA.coerceAtLeast(1.0)) })
-        println("     residents fed from (fresh plants / straw / prey and carrion / reserves, shares of need per animal this year): " +
+        println("     residents fed from (fresh plants / prey and carrion / reserves, shares of need per animal this year): " +
             fauna.kinds.indices.joinToString(", ") { k ->
             val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sumThenReset().coerceAtLeast(1e-9)
-            "%s %.2f/%.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sumThenReset() / h, ff[Fed.STRAW].sumThenReset() / h,
+            "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sumThenReset() / h,
                 ff[Fed.ANIMAL].sumThenReset() / h, ff[Fed.RESERVES].sumThenReset() / h)
         })
         println("     residents held hungry with no better place next door (share of head-weeks this year / of those at a closed border / most in one week): " +
