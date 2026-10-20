@@ -207,17 +207,23 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * those there ([forage]) from the food they left uneaten ([spareGrass] and the rest), so poor food feeds them no
      * better than it feeds those already there.
      */
-    private fun fedOnSpare(s: Species, p: Int, heads: Float, each: Float, reach: Float, snowMm: Float, dry: DryPantry, b: Bites): Float {
+    private fun fedOnSpare(s: Species, p: Int, heads: Float, each: Float, reach: Float, snowMm: Float, time: Float, dry: DryPantry, b: Bites): Float {
         val want = heads / land.areaKm2[p] * each
         if (!(want > 0f)) return 1f
         dry.reach = reach; dry.grass = spareGrass[p]; dry.browse = spareBrowse[p]
         dry.fruit = spareFruit[p]; dry.roots = spareRoots[p]
-        return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b).got / want).coerceIn(0f, 1f)
+        return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), time, dry, b).got / want).coerceIn(0f, 1f)
     }
 
     /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week; [room] is this for a band. */
     private fun roomFor(k: Int, p: Int, heads: Float, weather: Weather, dry: DryPantry, b: Bites): Float =
-        fedOnSpare(kinds[k], p, heads, plantWant(k, p, weather), reachOf(kinds[k], p), weather.snowpack[p], dry, b)
+        fedOnSpare(kinds[k], p, heads, plantWant(k, p, weather), reachOf(kinds[k], p), weather.snowpack[p], grazeTime(k, p, weather), dry, b)
+
+    /** Share of its feeding time kind [k] keeps at place [p] this week, the heat of the day rested out ([heatTime]). */
+    private fun grazeTime(k: Int, p: Int, weather: Weather): Float {
+        val s = kinds[k]
+        return heatTime(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning)
+    }
     /**
      * Each kind's share of those coming to each place that would die there in a week
      * ([arriveOdds], NaN where it cannot stay), worked out once a week before the residents move ([fillArrive]): the
@@ -826,11 +832,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val d = s.diet
             val underSnow = grassUnderSnow(s, weather.snowpack[p])
             z.access = avail[k]
-            forage(s, d, quality, want, underSnow, z, b)
+            val time = grazeTime(k, p, weather)
+            forage(s, d, quality, want, underSnow, time, z, b)
             z.got[k] = b.got / want
             var grass3 = 0f; var browse3 = 0f
             if (b.got >= want && reserve[k][p] < s.maxFatDays) {
-                val extra = SURPLUS_EAT * want
+                val extra = SURPLUS_EAT * time * want
                 if (d.grass > 0f) grass3 = z.grass(underSnow * extra / quality * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 if (d.browse > 0f) browse3 = z.browse(extra / quality * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 z.surplus[k] = (grass3 + browse3) * quality / want
@@ -846,7 +853,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         spareRoots[p] = max(0f, z.spareR)
         for ((k, s) in kinds.withIndex()) {
             val r = room[k] ?: continue
-            r[p] = fedOnSpare(s, p, s.maxGroupSize.toFloat(), each[k], avail[k], weather.snowpack[p], z.dry, b)
+            r[p] = fedOnSpare(s, p, s.maxGroupSize.toFloat(), each[k], avail[k], weather.snowpack[p], grazeTime(k, p, weather), z.dry, b)
         }
     }
 

@@ -194,14 +194,26 @@ const val EATING_RATE = 0.15f
 const val SEARCHING = 0.3f
 
 /**
- * A warm-blooded animal outside the air it keeps its warmth in for nothing burns more: below its lower critical
- * temperature to keep warm, above the upper to keep cool ([Species.unneutralC]; where its thermoneutral zone is not
- * measured, only past the cold its coat, or clothes and house, keep off): [COLD_COST] more food for each 10 °C, at
- * most [COLD_MAX] times its need. Below the zone that is near what is measured: heat production 1.1-1.3% more a degree
- * in red deer calves (Semiadi et al. 1996), wild boar's heart rate 1.3-2.8% (Ruf et al. 2023), cattle's needs 1.8%
- * (Ames); above it the same rate is taken, as the cost of panting and sweating is not in the record found.
+ * A warm-blooded animal below the air it keeps its warmth in for nothing burns more to keep warm: below its lower
+ * critical temperature ([Species.lowerCriticalC]; where its thermoneutral zone is not measured, past the cold its
+ * coat, or clothes and house, keep off), [COLD_COST] more food for each 10 °C, at most [COLD_MAX] times its need. Near
+ * what is measured: heat production 1.1-1.3% more a degree in red deer calves (Semiadi et al. 1996), wild boar's heart
+ * rate 1.3-2.8% (Ruf et al. 2023), cattle's needs 1.8% (Ames). (Heat is felt as feeding time lost, [heatTime].)
  */
-fun coldNeed(s: Species, felt: Float, month: Int, tuning: Tuning): Float = min(COLD_MAX, 1f + COLD_COST * tuning.coldCost * s.unneutralC(felt, month) / 10f)
+fun coldNeed(s: Species, felt: Float, month: Int, tuning: Tuning): Float =
+    min(COLD_MAX, 1f + COLD_COST * tuning.coldCost * max(0f, s.lowerCriticalC(month) - felt) / 10f)
+
+/**
+ * Share of its feeding time a plant-eater keeps at [felt] °C in [month]: above its upper critical temperature
+ * ([Species.upperCriticalC]) it rests in the shade through the heat of the day and feeds less, [HEAT_GRAZE] of its
+ * feeding time a degree, so the most it can eat in a week falls however much food there is. Measured: chamois' daylight
+ * foraging 0.8-1% less a degree (Mason et al., Glob Change Biol 2014); higher elsewhere (moose cropping time 17 min a
+ * day less a degree, Belovsky & Jordan 1978; cattle 2.5-3%, Larkin 1954, mixed with the season's forage), and night
+ * feeding makes up part where nights are cool (Semenzato et al., Ecol Lett 2021). review/2026-10-20-heat-grazing-time.md
+ */
+fun heatTime(s: Species, felt: Float, month: Int, tuning: Tuning): Float =
+    max(0f, 1f - HEAT_GRAZE * tuning.heatGraze * max(0f, felt - s.upperCriticalC(month)))
+const val HEAT_GRAZE = 0.01f
 const val COLD_COST = 0.1f
 const val COLD_MAX = 1.6f
 

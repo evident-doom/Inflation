@@ -220,10 +220,8 @@ class Species(
 
     /** Below this, °C, it burns more to keep warm in [month] ([coldNeed]): the low end of [neutralC] with the coat of the month, else of [comfortC]. */
     fun lowerCriticalC(month: Int): Float = neutralC?.let { it.lowSummer + (it.lowWinter - it.lowSummer) * COAT[month] } ?: (comfortC.start - coatC(month))
-    /** Above this, °C, it burns more to keep cool in [month] ([coldNeed]): the high end of [neutralC]; none where that is not measured. */
+    /** Above this, °C, it rests from the heat in [month] and feeds less ([heatTime]): the high end of [neutralC]; none where that is not measured. */
     fun upperCriticalC(month: Int): Float = neutralC?.let { it.highSummer + (it.highWinter - it.highSummer) * COAT[month] } ?: Float.POSITIVE_INFINITY
-    /** Degrees outside the air it keeps its warmth in without cost at [t] °C in [month], either way ([coldNeed]). */
-    fun unneutralC(t: Float, month: Int): Float = max(0f, lowerCriticalC(month) - t) + max(0f, t - upperCriticalC(month))
 
     /** Degrees colder than its coat bears at [t] °C in [month]. */
     fun coldC(t: Float, month: Int): Float = max(0f, comfortC.start - coatC(month) - t)

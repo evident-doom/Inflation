@@ -146,8 +146,9 @@ object HexSnapshot {
      * 4.10: the residents' memory tells ground apart by its country and its height (below 500, 1000, 1500, 2500 m and
      * above), weighs each place by its own ground rather than its hex's, and looks a season ahead; a save's memory by the
      * older kinds of ground is forgotten and learnt again.
-     * 4.11: the food cost of cold, and now of heat, starts at each kind's measured thermoneutral zone
-     * ([Species.neutralC]) where one is known; heat costs food at the cold side's rate per degree (unsourced).
+     * 4.11: the food cost of cold starts at each kind's measured lower critical temperature ([Species.neutralC]) where one
+     * is known; above its upper critical temperature a plant-eater rests from the heat and feeds a share less of its
+     * day ([heatTime]), so the most it can eat in a week falls.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 11

@@ -31,6 +31,8 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
     val settledFertility = f("settledFertility", 1f)
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
+    /** Feeding time plant-eaters lose to the heat, against [inflation.ecology.HEAT_GRAZE]. */
+    val heatGraze = f("heatGraze", 1f)
 
     // Plants.
     /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory). */

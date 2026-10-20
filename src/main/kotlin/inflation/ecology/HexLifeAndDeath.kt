@@ -128,16 +128,17 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
  * nourishes ([HexPlants.nourishment]). The one rule for the residents' week's grazing
  * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.room]).
  */
-internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
+internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, time: Float, pantry: Pantry, out: Bites): Bites {
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
-    // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
-    val fill = gutFill(s, q)
+    // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it. In the heat it feeds
+    // only [time] of its day ([heatTime]), and eats that much less of everything.
+    val fill = gutFill(s, q) * time
     // (As the residents: what it cannot get at is a share of the place's food it cannot reach, not a share
     // of its need it goes without; where food is plenty it still eats its fill.)
     val grass = pantry.grass(underSnow * want * fill * d.grass / total)
     val browse = pantry.browse(want * fill * d.browse / total)
-    val fruit = pantry.fruit(want * d.fruit / total)
-    val roots = pantry.roots(want * d.roots / total)
+    val fruit = pantry.fruit(time * want * d.fruit / total)
+    val roots = pantry.roots(time * want * d.roots / total)
     // Diet switching: a food that fell short is made up from the others: grass and browse as far as the gut holds,
     // fruit and roots to at most (1 + SWITCH) times their usual share (an ostrich out of fruit season picks more shoots
     // and leaves).
@@ -159,8 +160,8 @@ internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float
         browse2 = pantry.browse(min(min(gap / qf, room), max(0f, gap - buried) / qf + SWITCH * want * fill * d.browse / total))
         gap -= browse2 * qf; room -= browse2 }
     if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
-    if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, SWITCH * want * d.fruit / total)); gap -= fruit2 }
-    if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, SWITCH * want * d.roots / total)); gap -= roots2 }
+    if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, time * SWITCH * want * d.fruit / total)); gap -= fruit2 }
+    if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, time * SWITCH * want * d.roots / total)); gap -= roots2 }
     val short = max(0f, gap)
     // Grass and browse nourish fully only when green; fruit and roots keep their value.
     val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2
