@@ -29,13 +29,13 @@ fun main(args: Array<String>) {
     println("at ${sim.weather.date}; draw for month ${next + 1}")
     for (k in f.kinds.indices) {
         if (f.room[k] == null) continue
-        val t = f.seasons.typeOf(k); val fare = f.seasonFare[k]
+        val t = f.seasons.typeOf(k); val fare = f.seasonLived[k]
         val heads = DoubleArray(SeasonalMemory.TYPES)
         for (p in 0 until n) heads[t[p]] += ((f.adults[k][p] + f.young[k][p]) * sim.land.areaKm2[p]).toDouble()
         val top = heads.indices.sortedByDescending { heads[it] }.take(3)
         println(f.kinds[k].name)
         for (i in top) println("  %-24s %-6s %s".format(Biome.entries[i / 3].label, listOf("low", "mid", "high")[i % 3],
-            (0 until 12).joinToString(" ") { mo -> fare[i * 12 + mo].let { if (f.seasonSeen[k][i * 12 + mo] <= 0f) "   -  " else "%6.3f".format(100 * it) } }))
+            (0 until 12).joinToString(" ") { mo -> fare[i * 12 + mo].let { if (f.seasonLivedSeen[k][i * 12 + mo] <= 0f) "   -  " else "%6.3f".format(100 * it) } }))
         val diffs = ArrayList<Float>()
         for (p in 0 until n) { if (f.adults[k][p] + f.young[k][p] <= 0f) continue
             val v = f.routeGainAt(k, p); val h = sim.hw.placeHex[p]

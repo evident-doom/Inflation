@@ -74,15 +74,23 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     /**
      * Residents: the share of a kind's animals at a place that take a step each week along the route their
      * seasonal memory leads to better ground ([inflation.ecology.SeasonalMemory.route]), as far as the crowding ahead
-     * lets them. 1: all of them, too much; 0.3 with none of the route's gain trusted at the arrival ([residentRouteTrust]): trusting it crowded them into disease (storm-1, 5 y: -60..-68% with it, -18% without).
+     * lets them. 1: all of them, too much; 0.5, to see them move (0.3 before).
      */
-    val residentRouteShare = f("residentRouteShare", 0.3f).also { require(it in 0f..1f) { "t.residentRouteShare is $it: a share, 0..1" } }
+    val residentRouteShare = f("residentRouteShare", 0.5f).also { require(it in 0f..1f) { "t.residentRouteShare is $it: a share, 0..1" } }
     /**
      * Residents: how much of what the memory's route promises those on it count when they weigh where they come against
      * where they left ([inflation.ecology.HexFauna.flow]): 1, all of it, so they crowd in until the place is as much
      * worse than where they left as the route gains; 0, none, so they come only while it is no worse than where they left.
+     * 0.5: with a memory of the ground and the seasons alone it costs little (storm-1, 5 y against 0 at a 0.5 share: the
+     * plant-eaters -5%, a sixth more walking; with the memory of all deaths and births it crowded them into disease,
+     * -60..-68% at 1).
      */
-    val residentRouteTrust = f("residentRouteTrust", 0f).also { require(it in 0f..1f) { "t.residentRouteTrust is $it: a share, 0..1" } }
+    val residentRouteTrust = f("residentRouteTrust", 0.5f).also { require(it in 0f..1f) { "t.residentRouteTrust is $it: a share, 0..1" } }
+    /**
+     * Residents' seasonal memory: over about how many years a kind's memory of how its kinds of ground let it live at each
+     * time of year is averaged ([inflation.ecology.SeasonalMemory.learn]): the pattern of many years, not last year's.
+     */
+    val residentMemoryYears = f("residentMemoryYears", 10f).also { require(it >= 1f) { "t.residentMemoryYears is $it: at least a year" } }
     /**
      * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
      * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).

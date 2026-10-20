@@ -35,7 +35,7 @@ fun main(args: Array<String>) {
     println("at ${sim.weather.date}; values for month ${next + 1}; places next to water ${byWater.count { it }} of $n")
     for (k in f.kinds.indices) {
         if (f.kinds[k].name !in names) continue
-        val t = f.seasons.typeOf(k); val stay = f.seasons.stayOf(k, next, f.seasonFare[k], f.seasonSeen[k])
+        val t = f.seasons.typeOf(k); val stay = f.seasons.stayOf(k, next, f.seasonLived[k], f.seasonLivedSeen[k])
         var vw = 0.0; var cw = 0; var vi = 0.0; var ci = 0
         val tw = DoubleArray(SeasonalMemory.TYPES); val ti = DoubleArray(SeasonalMemory.TYPES)
         for (p in 0 until n) { val v = f.routeGainAt(k, p)
@@ -55,6 +55,6 @@ fun main(args: Array<String>) {
         val top = (0 until SeasonalMemory.TYPES).sortedByDescending { tw[it] / cw + ti[it] / ci }.take(10)
         for (i in top) println("  %-24s %-4s next to water %5.1f%%  inland %5.1f%%  month's log survival %.5f  fare %s seen %.0f".format(
             Biome.entries[i / 3].label, listOf("low", "mid", "high")[i % 3], 100 * tw[i] / cw, 100 * ti[i] / ci, stay[i],
-            f.seasonFare[k][i * 12 + next].let { if (f.seasonSeen[k][i * 12 + next] <= 0f) "-" else "%.4f%%".format(100 * it) }, f.seasonSeen[k][i * 12 + next]))
+            f.seasonLived[k][i * 12 + next].let { if (f.seasonLivedSeen[k][i * 12 + next] <= 0f) "-" else "%.4f%%".format(100 * it) }, f.seasonLivedSeen[k][i * 12 + next]))
     }
 }

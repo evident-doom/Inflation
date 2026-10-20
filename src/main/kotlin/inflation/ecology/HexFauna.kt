@@ -355,13 +355,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     val bred = Array(kinds.size) { FloatArray(n) }
     /**
-     * What each plant-eating kind remembers of how it fared on each kind of ground at each time of year ([SeasonalMemory]):
-     * the share that died there in a week, kind of ground × 12 + month; NaN where it has not lived on that ground then.
+     * What each plant-eating kind remembers of how the ground and the weather let it live on each kind of ground at each
+     * time of year ([SeasonalMemory.learn]): the log of the share living through a week there, kind of ground × 12 + month.
      */
-    internal val seasonFare = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
-    /** The head-weeks each of [seasonFare] was learnt from, fading as it does. */
-    internal val seasonSeen = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
-    /** Where the memory draws the plant-eaters ([seasonFare]), and the month each kind's was last worked out for. */
+    internal val seasonLived = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
+    /** The head-weeks each of [seasonLived] was learnt from, fading as it does. (Named anew with what it holds: a save of the old memory, of growth, starts it empty.) */
+    internal val seasonLivedSeen = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
+    /** Where the memory draws the plant-eaters ([seasonLived]), and the month each kind's was last worked out for. */
     @delegate:Transient internal val seasons by lazy { SeasonalMemory(hw, kinds, days) }
     /**
      * For each plant-eating kind this week, by what it remembers of next month ([SeasonalMemory.route]): at each place, the way of the
@@ -978,16 +978,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val grow = years / s.yearsToMaturity
             val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
             val hz = FloatArray(HZ_COUNT)
-            // (What the week was like where they are, for what the plant-eaters remember: heads, the share of them dying, and how they grew.)
+            // (What the week was like where they are, for what the plant-eaters remember: heads, and how the ground and the
+            // weather let them live, [SeasonalMemory.learn].)
             val learning = room[k] != null
-            val heads = if (learning) FloatArray(n) else null; val dying = if (learning) FloatArray(n) else null
-            val grew = if (learning) FloatArray(n) else null
+            val heads = if (learning) FloatArray(n) else null; val lived = if (learning) FloatArray(n) else null
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a mother bears what her food and reserves can build.
                 val share = seasonShare(k, p, date)
-                val before = a[p] + y[p]
                 if (share > 0f) {
                     bred[k][p] += share
                     val due = dueYoung(k, a[p] + y[p], protein[k][p], share)
@@ -1018,12 +1017,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val youngSum = youngSum(s, hz, eagle, croc, starved)
                 val youngOdds = youngSum.coerceIn(0f, 0.95f)
                 val da = a[p] * adultOdds; val dy = y[p] * youngOdds
-                if (heads != null && dying != null && grew != null) {
-                    // (As [placeWorth] weighs a place: the young born, and the grown and the young that die, the hunters' take too.)
-                    val grownDie = (s.backgroundMortality * years + adultShare(hz)).coerceIn(0f, 0.9f)
-                    val youngDie = min(0.95f, youngOdds + huntedOdds(k, p, true))
-                    heads[p] = (a[p] + y[p]) * area; dying[p] = (a[p] * grownDie + y[p] * youngDie) / (a[p] + y[p])
-                    grew[p] = (ln((a[p] + y[p]) / before.toDouble()) + ln(1.0 - dying[p])).toFloat()
+                if (heads != null && lived != null) {
+                    // (The deaths of the ground and the seasons alone: hunger, cold, thirst, snow, fire and flood, the young's
+                    // from bad food too. Not the hunters, disease or crowding, which are not the place's from year to year.)
+                    val grownDie = (hunger + cold + thirst + snowA + fireA + floodA).coerceIn(0f, 0.9f)
+                    val youngDie = (hunger + cold + thirst + snowY + fireY + floodY + starved).coerceIn(0f, 0.95f)
+                    heads[p] = (a[p] + y[p]) * area
+                    lived[p] = ln(1.0 - (a[p] * grownDie + y[p] * youngDie) / (a[p] + y[p])).toFloat()
                 }
                 // (The causes are booked as shares of the deaths that happen: where the odds are capped, each cause is cut alike.)
                 val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
@@ -1058,7 +1058,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
                 if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }
-            if (heads != null && dying != null && grew != null) seasons.learn(k, date.month, heads, dying, grew, seasonFare[k], seasonSeen[k])
+            if (heads != null && lived != null) seasons.learn(k, date.month, heads, lived, seasonLived[k], seasonLivedSeen[k], tuning.residentMemoryYears)
         }
         for (c in carcasses) for (p in 0 until n) carcassKg[p] += c[p]
         land.books?.let { b -> var sum = 0.0; for (p in 0 until n) sum += carcassKg[p]; b.flow(Books.Stuff.MATTER, "carcasses (to the soil)", -sum) }
@@ -1594,7 +1594,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (The route worked out every week, by what it has learnt up to now.)
         val month = weather.date.month
         val st = routeStep[k] ?: IntArray(n).also { routeStep[k] = it }; val gn = routeGain[k] ?: FloatArray(n).also { routeGain[k] = it }
-        Profile.part("residents: seasonal memory, routes") { seasons.route(k, seasons.monthAt(k, (month + 1) % 12, seasonFare[k], seasonSeen[k]), ways, st, gn) }
+        Profile.part("residents: seasonal memory, routes") { seasons.route(k, seasons.monthAt(k, (month + 1) % 12, seasonLived[k], seasonLivedSeen[k]), ways, st, gn) }
         // What they remember of the year from the next month on: the best ground a month's going reaches draws them along
         // the first step towards it, by all it is better than staying ([routeGain]).
         val step = routeStep[k]!!; val boost = routeGain[k]!!.let { g -> FloatArray(n) { p -> exp(g[p]) } }
