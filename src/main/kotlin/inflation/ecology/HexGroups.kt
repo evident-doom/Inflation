@@ -858,8 +858,9 @@ class HexGroups(
         // (Within [inflation.Tuning.roundArrivedKm] of the round's place it has arrived, and goes about it as it likes.)
         val round = roundOf(g, month)?.takeIf { hexKm(here.i, hw.placeHex[it.place]) > tuning.roundArrivedKm }
         val onRound = round != null
-        val goal = round?.place ?: g.seasonPlace[month]
-        val goalQ = if (round != null) max(g.seasonQ[month], round.strength) else g.seasonQ[month]
+        val goal = round?.place ?: g.band?.seasonPlace?.get(month) ?: -1
+        val remembered = g.band?.seasonQ?.get(month) ?: 0f
+        val goalQ = if (round != null) max(remembered, round.strength) else remembered
         val roundStrength = round?.strength ?: 0f
         val goalFar = goal >= 0 && s.human && hexKm(here.i, hw.placeHex[goal]) > 2 * hex.hexKm
         // Far out of its country, it treks.
@@ -1113,9 +1114,9 @@ class HexGroups(
     private fun scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h: Hex): Float {
         val d = c.at.d; val toGoal = c.at.toGoal; val offGround = c.at.offGround; val pull = c.at.pull
         val prey = c.at.prey; val crowded = c.at.crowded
-        val g = c.g; val s = g.species; val kind = c.kind; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
+        val g = c.g; val s = g.species; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
         val goalQ = c.goalQ; val onRound = c.onRound; val roundStrength = c.roundStrength; val fromHere = c.fromHere; val reach = c.reach
-        val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather; val date = c.date
+        val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather
         // Its food or game there, against crowding (see [foodTerm]).
         var score = foodTerm(g, p, h, sensed, prey, crowded)
         // The cold or heat it bears there, and what the place drains from it (the extra food the

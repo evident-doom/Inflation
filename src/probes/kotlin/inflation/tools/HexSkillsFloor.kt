@@ -40,7 +40,6 @@ fun main(args: Array<String>) {
     val marks = listOf(1, 2, 4, 8, 13, 26, 52).filter { it <= weeks }
     val results = listOf(true, false).parallelStream().map { naked ->
         val run = freshSim(cfg, kinds)
-        val land = run.land
         val biomeOf = run.hw.placeBiome
         val start = DoubleArray(Biome.entries.size)
         for (g in run.groups.groups) if (g.alive && g.species == people) {
@@ -51,7 +50,7 @@ fun main(args: Array<String>) {
                 b.plants.fill(0f); b.fire = 0f; b.shelter = 0f; b.known = LongArray(0); b.kit.fill(0f); b.knows.fill(false); b.goods.fill(0f); b.cache.fill(0f)
                 b.house = 0f; b.houseHex = Hex.NONE; b.palisade = 0f; b.ornaments = 0f; b.exotic = 0f
                 g.stores.fill(0f)
-                g.memory.hex.fill(-1); g.seasonPlace.fill(-1)
+                g.memory.hex.fill(-1); g.band?.seasonPlace?.fill(-1)
             }
         }
         val alive = HashMap<Int, DoubleArray>()

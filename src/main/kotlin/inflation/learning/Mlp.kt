@@ -66,7 +66,7 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
     }
 
     /** Runs the network on the input already written to `b.a[0]` and returns the output. */
-    fun forward(b: Buffers): Float = upFrom(1, b)
+    @IgnorableReturnValue fun forward(b: Buffers): Float = upFrom(1, b)
 
     /** Runs the network on the input already written to `b.a[0]`; all its outputs are in `b.a.last()`. */
     fun forwardAll(b: Buffers): FloatArray { forward(b); return b.a.last() }
@@ -121,7 +121,7 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
     fun copy() = Mlp(sizes, w.copyOf())
 
     /** Zeros the last layer's weights and biases, so that the network's output is 0 whatever it reads; returns this. */
-    fun zeroOutputLayer(): Mlp { w.fill(0f, count(sizes.copyOf(sizes.size - 1)), w.size); return this }
+    @IgnorableReturnValue fun zeroOutputLayer(): Mlp { w.fill(0f, count(sizes.copyOf(sizes.size - 1)), w.size); return this }
 
     /** The weights in the order files keep them: each layer unit by unit, its weight on each input in turn, then the biases. */
     private fun unitMajor(): FloatArray {

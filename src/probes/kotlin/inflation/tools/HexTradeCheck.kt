@@ -50,7 +50,7 @@ fun main(args: Array<String>) {
             for (g in run.groups.groups) if (g.alive && g.band != null) home[g.id] = chief(hw.placeHex[g.place])
             repeat(stepsPerYear) {
                 run.step(); score.afterStep(run)
-                for ((key, n) in run.groups.stats.meetings) if (key.endsWith(" given") || key.contains("rite")) given.merge(key, n, Int::plus)
+                for ((key, n) in run.groups.stats.meetings) if (key.text.endsWith(" given") || key.text.contains("rite")) given.merge(key.text, n, Int::plus)
                 for (g in run.groups.groups) if (g.species.human) {
                     if (!g.alive) continue
                     val hm = home[g.id] ?: continue

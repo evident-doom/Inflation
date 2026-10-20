@@ -49,7 +49,7 @@ fun main(args: Array<String>) {
         sim.step()
         val m = sim.weather.date.month
         for ((i, k) in kinds.withIndex()) {
-            val s = fauna.kinds[k]; val ad = fauna.adults[k]; val yo = fauna.young[k]
+            val ad = fauna.adults[k]; val yo = fauna.young[k]
             var grown = 0.0; var little = 0.0; var fatDays = 0.0
             for (p in 0 until land.n) { val area = land.areaKm2[p]; grown += ad[p] * area; little += yo[p] * area; fatDays += fauna.reserve[k][p] * ad[p] * area }
             if (grown <= 0.0) continue

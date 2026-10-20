@@ -28,6 +28,8 @@ import kotlin.math.sqrt
 class HexMap(private val world: World, val hexKm: Double = 10.0) {
     private val grid = world.grid
     private val terrain = world.terrain
+    /** Each thread's [cross] search, made first as the borders are worked out while the map is built. */
+    @Transient private val crossScratch = ThreadLocal.withInitial { CrossScratch(grid.size) }
     /** Distance between the centres of two rows of hexes, km. */
     val rowKm = hexKm * sqrt(3.0) / 2
     /** Area of one hex, km² (√3/2 of [hexKm] squared, [hexKm] being the distance between centres). */
@@ -106,10 +108,11 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         // To axial coordinates (pointy-top), round in cube coordinates, back to odd-row offset.
         val q = (sqrt(3.0) / 3 * xKm - 1.0 / 3 * yKm) / (hexKm / sqrt(3.0))
         val r = (2.0 / 3 * yKm) / (hexKm / sqrt(3.0))
-        var cx = q; var cz = r; var cy = -cx - cz
-        var rx = cx.roundToInt().toDouble(); var ry = cy.roundToInt().toDouble(); var rz = cz.roundToInt().toDouble()
+        val cx = q; val cz = r; val cy = -cx - cz
+        var rx = cx.roundToInt().toDouble(); val ry = cy.roundToInt().toDouble(); var rz = cz.roundToInt().toDouble()
         val dx = abs(rx - cx); val dy = abs(ry - cy); val dz = abs(rz - cz)
-        if (dx > dy && dx > dz) rx = -ry - rz else if (dy > dz) ry = -rx - rz else rz = -rx - ry
+        // (Of the three coordinates the one rounded furthest is made to fit the other two; y is not read, so is left.)
+        if (dx > dy && dx > dz) rx = -ry - rz else if (!(dy > dz)) rz = -rx - ry
         val row = rz.toInt()
         val col = rx.toInt() + (row - (row and 1)) / 2
         return row.coerceIn(0, rows - 1) * cols + col.coerceIn(0, cols - 1)
@@ -207,16 +210,16 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     private fun cross(a: Int, b: Int, d: Int, tr: Travel) {
         val walk = costs[tr.ordinal]
         val from = heart[a]; val to = heart[b]
-        val dist = HashMap<Int, Float>()
-        val via = HashMap<Int, Int>()
-        val q = PriorityQueue<Pair<Float, Int>>(compareBy { it.first })
-        dist[from] = 0f; q += 0f to from
+        val sc = crossScratch.get()
+        val dist = sc.dist; val via = sc.via; val q = sc.heap
+        try {
+        dist[from] = 0f; sc.touch(from); q.push(0f, from)
         val ck = grid.cellKm.toFloat()
         var found = false
-        while (q.isNotEmpty()) {
-            val (dd, i) = q.poll()
+        while (q.size > 0) {
+            val dd = q.peekKey(); val i = q.pop()
             if (i == to) { found = true; break }
-            if (dd > (dist[i] ?: Float.POSITIVE_INFINITY)) continue
+            if (dd > dist[i]) continue
             val xi = grid.x(i); val yi = grid.y(i)
             for (k in 0 until 8) {
                 val nx = xi + DX8[k]; val ny = yi + DY8[k]
@@ -227,18 +230,27 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
                 // No slipping diagonally between two cells of a river or cliff line.
                 if (k >= 4 && (!walk[grid.index(xi + DX8[k], yi)].isFinite() || !walk[grid.index(xi, yi + DY8[k])].isFinite())) continue
                 val nd = dd + (if (k < 4) 1f else 1.4142f) * ck * 0.5f * (walk[i] + walk[j])
-                if (nd < (dist[j] ?: Float.POSITIVE_INFINITY)) { dist[j] = nd; via[j] = i; q += nd to j }
+                if (nd < dist[j]) { if (dist[j] == Float.POSITIVE_INFINITY) sc.touch(j); dist[j] = nd; via[j] = i; q.push(nd, j) }
             }
         }
         if (!found) return
         // Along the way: its highest point.
         var top = world.elevation[to]
         var i = to
-        while (i != from) { top = max(top, world.elevation[i]); i = via.getValue(i) }
-        val e = dist.getValue(to)
+        while (i != from) { top = max(top, world.elevation[i]); i = via[i] }
+        val e = dist[to]
         val back = (d + 3) % 6
         ground[tr.ordinal][a * 6 + d] = e; ground[tr.ordinal][b * 6 + back] = e
         if (tr == Travel.FOOT) { passM[a * 6 + d] = top; passM[b * 6 + back] = top }
+        } finally { sc.reset() }
+    }
+
+    /** One thread's [cross] search: least effort so far per cell (infinite untouched), the way there, and the cells touched. */
+    private class CrossScratch(n: Int) {
+        val dist = FloatArray(n) { Float.POSITIVE_INFINITY }; val via = IntArray(n)
+        val heap = FloatHeap(256); private var touched = IntArray(256); private var count = 0
+        fun touch(i: Int) { if (count == touched.size) touched = touched.copyOf(2 * count); touched[count++] = i }
+        fun reset() { for (k in 0 until count) dist[touched[k]] = Float.POSITIVE_INFINITY; count = 0; heap.clear() }
     }
 
     /**

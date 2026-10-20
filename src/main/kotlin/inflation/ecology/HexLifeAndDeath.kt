@@ -32,6 +32,7 @@ import kotlin.math.abs
  * template a band starts from; it then remembers where it actually fared better.
  */
 internal fun HexGroups.inheritSeasons(g: HexGroup) {
+    val b = g.band ?: return
     val s = g.species
     val here = hw.placeHex[g.place]
     val (hx, hy) = hex.centreKm(here)
@@ -72,11 +73,11 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
                 (1f + SEASON_DISTANCE * dist.toFloat())
             if (score > bestScore) { bestScore = score; best = p }
         }
-        g.seasonPlace[m] = best; g.seasonQ[m] = bestScore
+        b.seasonPlace[m] = best; b.seasonQ[m] = bestScore
         top = max(top, bestScore)
     }
     // What the forebears knew is trusted until the band learns better (see [remember]).
-    if (top > 0f) for (m in 0 until 12) g.seasonQ[m] = 1f
+    if (top > 0f) for (m in 0 until 12) b.seasonQ[m] = 1f
 }
 
 /** Where an animal's food at a place comes from, kg per m² asked for and got: eaten from its stocks ([HexFauna.graze]), or only reckoned on ([DryPantry]). */
@@ -128,7 +129,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
  * nourishes ([HexPlants.nourishment]). The one rule for the residents' week's grazing
  * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.room]).
  */
-internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
+@IgnorableReturnValue internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
     // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
     val fill = gutFill(s, q)
@@ -225,61 +226,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             }
             continue
         }
-        if (o.carrionKg > 0f) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
-        if (o.births > 0) stats.births.merge(s, o.births, Int::plus)
-        note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause.label}" }.ifEmpty { "none" }) }
-        for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
-        fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
-        if (s.human) {
-            val c = Biome.entries[biomeOfPlace[g.place]]
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsDied(c, cause), k, Int::plus)
-            if (o.births > 0) stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BORN), o.births, Int::plus)
-            // And by how well clad the band was: what clothes are worth in lives.
-            g.band?.let { b ->
-                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) Tally.Clad.CLAD else Tally.Clad.POORLY_CLAD
-                stats.hunting.merge(Tally.bandsClad(clad, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsCladDied(clad, cause), k, Int::plus)
-            }
-            // And, in the weeks it was cold through all the cover the band had, what each cover gave.
-            val b = g.band
-            if (b != null) {
-                val t = weather.temperature[g.place]
-                if (b.exposure(t) > 0f) {
-                    fun add(k: Tally.Cold, v: Float) = stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus)
-                    add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, b.exposure(t)); add(Tally.Cold.AIR, EXPOSURE_C - t)
-                    add(Tally.Cold.CLOTHES, b.clothesCover()); add(Tally.Cold.FIRE, PROTECT_FIRE * b.fire); add(Tally.Cold.SHELTER, b.roofCover(b.atHome))
-                }
-            }
-        }
-        if (o.orphans > 0) stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), o.orphans, Int::plus)
-        // Children's deaths apart, for the life tables.
-        if (s.human && o.youngDied > 0) stats.hunting.merge(Tally.of(s, Tally.OfKind.CHILDREN_DIED), o.youngDied, Int::plus)
-        // A band that keeps the old way leaves a camp where someone died.
-        if (s.human && o.deaths > 0) g.band?.let { b ->
-            if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) {
-                b.unlucky = Unlucky(hw.hexOf(g.place), UNLUCKY_WEEKS)
-                note(g) { "left the camp where its dead lie" }
-            }
-        }
-        // A band that buries its dead buries them where it is: its ancestors' place.
-        // For each taken by a beast, others got away hurt.
-        g.band?.let { b ->
-            val taken = o.causes.filter { it.cause.isTakenBy() }.sumOf { it.n }
-            if (taken > 0) {
-                b.wounded(WOUNDED_PER_DEAD * taken, g.adults)
-                b.beastLoss += taken / g.size.coerceAtLeast(1).toFloat()
-            }
-        }
-        // Where a beast took one of them, the band remembers the place as dangerous.
-        if (s.human && o.causes.any { it.cause.isTakenBy() && it.n > 0 })
-            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.danger, 1f)
-        if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
-            g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
-            land.burials[g.place] += o.deaths.toFloat()
-            // Ornaments go into the grave with them: the more a band has, the richer its graves.
-            g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths)
-                b.takeOrnaments(goods); land.graveGoods[g.place] += goods }
-        }
+        bookOutcome(g, o, weather)
+        mournDead(g, o, date)
         o.split?.let { c -> born += splitOff(g, c.adults, c.young) } // a young pack has no ground yet
         if (o.leavers > 0) {
             repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
@@ -314,7 +262,6 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
     g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) } } }
-    g.seasonPlace.copyInto(n.seasonPlace); g.seasonQ.copyInto(n.seasonQ)
     return n
 }
 
@@ -354,6 +301,77 @@ private fun DeathReason.isTakenBy() = this is ByBeast && how == ByBeast.How.TAKE
 
 /** The part that splits off a group: [adults] and [young]. */
 internal class Split(val adults: Int, val young: Int)
+
+/**
+ * Books what group [g]'s week brought ([o]) in the week's tallies and records: its carrion, births and deaths by cause,
+ * and for a band the deaths and births by country, by how well clad it was and in the cold weeks by what each cover gave.
+ */
+private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
+    val s = g.species
+    if (o.carrionKg > 0f) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
+    if (o.births > 0) stats.births.merge(s, o.births, Int::plus)
+    note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause.label}" }.ifEmpty { "none" }) }
+    for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
+    fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
+    if (s.human) {
+        val c = Biome.entries[biomeOfPlace[g.place]]
+        for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsDied(c, cause), k, Int::plus)
+        if (o.births > 0) stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BORN), o.births, Int::plus)
+        // And by how well clad the band was: what clothes are worth in lives.
+        g.band?.let { b ->
+            val clad = if (b.has(Tool.CLOTHES) >= 0.5f) Tally.Clad.CLAD else Tally.Clad.POORLY_CLAD
+            stats.hunting.merge(Tally.bandsClad(clad, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
+            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsCladDied(clad, cause), k, Int::plus)
+        }
+        // And, in the weeks it was cold through all the cover the band had, what each cover gave.
+        val b = g.band
+        if (b != null) {
+            val t = weather.temperature[g.place]
+            if (b.exposure(t) > 0f) {
+                fun add(k: Tally.Cold, v: Float) { stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus) }
+                add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, b.exposure(t)); add(Tally.Cold.AIR, EXPOSURE_C - t)
+                add(Tally.Cold.CLOTHES, b.clothesCover()); add(Tally.Cold.FIRE, PROTECT_FIRE * b.fire); add(Tally.Cold.SHELTER, b.roofCover(b.atHome))
+            }
+        }
+    }
+    if (o.orphans > 0) stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), o.orphans, Int::plus)
+    // Children's deaths apart, for the life tables.
+    if (s.human && o.youngDied > 0) stats.hunting.merge(Tally.of(s, Tally.OfKind.CHILDREN_DIED), o.youngDied, Int::plus)
+}
+
+/**
+ * What a band's dead do to it ([o] is its week): a camp left where someone died, the wounded of a beast's attack, the place
+ * remembered as dangerous or as its dead's, burials and the ornaments that go with them.
+ */
+private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
+    val s = g.species
+    // A band that keeps the old way leaves a camp where someone died.
+    if (s.human && o.deaths > 0) g.band?.let { b ->
+        if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) {
+            b.unlucky = Unlucky(hw.hexOf(g.place), UNLUCKY_WEEKS)
+            note(g) { "left the camp where its dead lie" }
+        }
+    }
+    // A band that buries its dead buries them where it is: its ancestors' place.
+    // For each taken by a beast, others got away hurt.
+    g.band?.let { b ->
+        val taken = o.causes.filter { it.cause.isTakenBy() }.sumOf { it.n }
+        if (taken > 0) {
+            b.wounded(WOUNDED_PER_DEAD * taken, g.adults)
+            b.beastLoss += taken / g.size.coerceAtLeast(1).toFloat()
+        }
+    }
+    // Where a beast took one of them, the band remembers the place as dangerous.
+    if (s.human && o.causes.any { it.cause.isTakenBy() && it.n > 0 })
+        g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.danger, 1f)
+    if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
+        g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
+        land.burials[g.place] += o.deaths.toFloat()
+        // Ornaments go into the grave with them: the more a band has, the richer its graves.
+        g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths)
+            b.takeOrnaments(goods); land.graveGoods[g.place] += goods }
+    }
+}
 
 /** One group's week of feeding on its reserves, births, deaths and growing up; with its own random stream [r]. */
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
@@ -764,15 +782,15 @@ internal fun HexGroups.remember(date: Date) {
     val week = stepOf(date)
     for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place.i], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place.i), week, stepsPerYear)
     for (g in groups) {
-        if (g.species.pack) continue
+        val b = g.band ?: continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,
         // and a clearly better place takes its place.
         val fared = g.fed * (1f - g.deathOdds).pow(weeksAMonth)
-        if (g.seasonPlace[m] < 0) { g.seasonPlace[m] = g.place.i; g.seasonQ[m] = fared }
-        else if (g.seasonPlace[m] == g.place.i) g.seasonQ[m] += 0.3f * (fared - g.seasonQ[m])
+        if (b.seasonPlace[m] < 0) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
+        else if (b.seasonPlace[m] == g.place.i) b.seasonQ[m] += 0.3f * (fared - b.seasonQ[m])
         else {
-            g.seasonQ[m] *= MEMORY_FADE
-            if (fared > g.seasonQ[m] + 0.1f) { g.seasonPlace[m] = g.place.i; g.seasonQ[m] = fared }
+            b.seasonQ[m] *= MEMORY_FADE
+            if (fared > b.seasonQ[m] + 0.1f) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
         }
     }
 }
@@ -794,11 +812,7 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
         val v = w * heads * k.massKg / hexKm2
         pressure += v; if (v > worstP) { worstP = v; worst = k }
     }
-    for ((ki, k) in fauna.kinds.withIndex()) {
-        val w = k.takesPeople; if (w <= 0f) continue
-        val v = w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg
-        pressure += v; if (v > worstP) { worstP = v; worst = k }
-    }
+    eachResidentManEater(p.i) { k, v -> pressure += v; if (v > worstP) { worstP = v; worst = k } }
     if (pressure <= 0f) return Stalking.NONE
     // (Where one was taken the band remembers the danger.)
     return Stalking(stalkRate(g, b, p.i, pressure), worst)
@@ -807,8 +821,16 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
 /** The man-eaters' flesh in resident animals at place [p], kg/km², weighted by how readily each takes people ([Species.takesPeople]). */
 internal fun HexGroups.residentManEaters(p: Int): Float {
     var v = 0f
-    for ((ki, k) in fauna.kinds.withIndex()) { val w = k.takesPeople; if (w > 0f) v += w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg }
+    eachResidentManEater(p) { _, f -> v += f }
     return v
+}
+
+/** Calls [each] with every resident kind that takes people at place [p] and its flesh there, kg/km², weighted by [Species.takesPeople]. */
+private inline fun HexGroups.eachResidentManEater(p: Int, each: (Species, Float) -> Unit) {
+    for ((ki, k) in fauna.kinds.withIndex()) {
+        val w = k.takesPeople; if (w <= 0f) continue
+        each(k, w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg)
+    }
 }
 
 /** The yearly-scaled share of band [b] (group [g]) beasts of prey would take a week camped at place [p], where their flesh is [pressure] kg/km² (see [stalkedBy]). */

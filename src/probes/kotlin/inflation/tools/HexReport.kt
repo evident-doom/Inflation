@@ -103,7 +103,6 @@ fun main(args: Array<String>) {
             .format(tr.name.lowercase(), 100.0 * shut / (shut + es.size), pct(es, .5), pct(es, .9)))
     }
     val rnd = Random(cfg.seed)
-    val g = world.grid
     val ratio = ArrayList<Float>()
     var both = 0; var onlyFine = 0; var onlyHex = 0; var neither = 0
     var tries = 0

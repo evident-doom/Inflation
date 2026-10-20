@@ -1073,16 +1073,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         note(host) { "feasted band #%d with %.0f kg".format(guest.id, meal) }; note(guest) { "was feasted by band #%d".format(host.id) }
     }
     // Word of where the other did better this month.
-    for (m in 0 until 12) {
-        if (b.seasonQ[m] > a.seasonQ[m] + 0.1f && b.seasonPlace[m] >= 0) {
-            a.seasonPlace[m] = b.seasonPlace[m]
-            a.seasonQ[m] = 0.5f * (a.seasonQ[m] + b.seasonQ[m])
-        }
-        else if (a.seasonQ[m] > b.seasonQ[m] + 0.1f && a.seasonPlace[m] >= 0) {
-            b.seasonPlace[m] = a.seasonPlace[m]
-            b.seasonQ[m] = 0.5f * (a.seasonQ[m] + b.seasonQ[m])
-        }
-    }
+    val ab = a.band; val bb = b.band
+    if (ab != null && bb != null) ab.shareSeasons(bb)
 }
 
 /**

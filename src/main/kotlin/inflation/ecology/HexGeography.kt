@@ -62,7 +62,7 @@ class HexGeography(private val hw: HexWorld) {
         name()
     }
 
-    private fun add(kind: Kind, hexes: IntArray, parent: Int = -1): Feature {
+    @IgnorableReturnValue private fun add(kind: Kind, hexes: IntArray, parent: Int = -1): Feature {
         val f = Feature(all.size, kind, hexes, parent); all += f; return f
     }
 

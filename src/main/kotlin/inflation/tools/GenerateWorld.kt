@@ -3,7 +3,7 @@ package inflation.tools
 import inflation.world.*
 import inflation.Args
 import java.io.File
-import kotlin.system.measureTimeMillis
+import kotlin.time.measureTimedValue
 
 /**
  * Generates a world and writes maps and a summary.
@@ -19,8 +19,8 @@ fun main(args: Array<String>) {
     val out = a.file("--out") ?: File("output/world")
     val weatherYears = a.int("--weather-years", 3)
     a.done()
-    lateinit var world: World
-    val ms = measureTimeMillis { world = World.generate(cfg) { println("  $it") } }
+    val (world, took) = measureTimedValue { World.generate(cfg) { println("  $it") } }
+    val ms = took.inWholeMilliseconds
     println("Generated ${cfg.widthKm} x ${cfg.heightKm} km world (seed ${cfg.seed}) in ${ms / 1000.0} s")
     Render.all(world, out)
     val summary = Summary.of(world) + if (weatherYears > 0) Summary.snowCover(world, weatherYears) else ""

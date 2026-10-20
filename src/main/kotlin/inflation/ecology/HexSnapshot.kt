@@ -179,7 +179,7 @@ object HexSnapshot {
     }
 
     /** Loads the state in [file] into [sim], which must be built over the same world (seed and size). Returns the day it was saved on. */
-    fun load(sim: HexSim, file: File): Long {
+    @IgnorableReturnValue fun load(sim: HexSim, file: File): Long {
         DataInputStream(BufferedInputStream(GZIPInputStream(file.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
             require(inp.readInt() == MAGIC) { "$file is not a saved hex world" }
             val version = inp.readInt()

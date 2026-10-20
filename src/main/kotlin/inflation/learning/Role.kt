@@ -17,6 +17,9 @@ enum class Role {
     /** Its network in [dir]. */
     fun file(dir: File) = File(dir, "$label.mlp")
 
+    /** The ways network that goes with it: the bands' for people, the packs' for hunters. */
+    val ways get() = if (this == PEOPLE) WaysKind.BANDS else WaysKind.HUNTERS
+
     /** Its critic in [dir] (see [Critic]). */
     fun criticFile(dir: File) = File(dir, "$label.critic.mlp")
 

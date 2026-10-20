@@ -32,15 +32,15 @@ class BandTime(left: Float) {
     fun noneBelowZero() { left = max(0f, left) }
 
     /** Adds what went to each of [activities] to [census] (tenths of a day). */
-    fun count(census: MutableMap<String, Int>, vararg activities: Activity) {
+    fun count(census: MutableMap<TallyKey, Int>, vararg activities: Activity) {
         for (a in activities) census.merge(Tally.bandTime(a), (spent[a.ordinal] * 10f).roundToInt(), Int::plus)
     }
 
     /** Adds what went to every [Activity] to [census] (tenths of a day), so a new activity needs no list of its own here. */
-    fun countEach(census: MutableMap<String, Int>) = count(census, *Activity.entries.toTypedArray())
+    fun countEach(census: MutableMap<TallyKey, Int>) = count(census, *Activity.entries.toTypedArray())
 
     /** Adds [personDays] to the census under [what]. */
-    fun count(census: MutableMap<String, Int>, what: Tally.TimeTotal, personDays: Float) {
+    fun count(census: MutableMap<TallyKey, Int>, what: Tally.TimeTotal, personDays: Float) {
         census.merge(Tally.bandTime(what), (personDays * 10f).roundToInt(), Int::plus)
     }
 }

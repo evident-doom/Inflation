@@ -527,7 +527,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             val tint = Measure.entries[tintChoice.selectedIndex]
             val legends = ArrayList<MapLegend>()
             if (tint != Measure.NONE) {
-                val rad = hex.hexKm / sqrt(3.0)
                 val mode = ViewLayers.Mode.entries[modeChoice.selectedIndex]
                 val key = layers.key(tint, causeChoice.selectedIndex)
                 val colours = arrayOfNulls<Color>(hex.size)
@@ -584,7 +583,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             // A resident kind's density as a tint over the hexes.
             val r = residentChoice.selectedIndex - 1
             if (r >= 0) {
-                val rad = hex.hexKm / sqrt(3.0)
                 val dens = DoubleArray(hex.size); val area = DoubleArray(hex.size)
                 for (p in 0 until fauna.n) { val h = hw.placeHex[p]; area[h] += land.areaKm2[p].toDouble() }
                 if (r < fauna.kinds.size) for (p in 0 until fauna.n) dens[hw.placeHex[p]] += ((fauna.adults[r][p] + fauna.young[r][p]) *
@@ -1070,8 +1068,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         if (g.band == null) sb.appendLine("holds ground at hex %s; meat taken from other hunters this week %.0f kg".format(
             if (!g.home.none) g.home.toString() else "none", g.meatMet))
         else {
-            val months = (0 until Date.MONTHS_PER_YEAR).filter { g.seasonPlace[it] >= 0 }
-            sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
+            val b = checkNotNull(g.band)
+            val months = (0 until Date.MONTHS_PER_YEAR).filter { b.seasonPlace[it] >= 0 }
+            sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[b.seasonPlace[m]]) })
         }
         if (g.id == groups.watched && followLog.isNotEmpty()) { sb.appendLine(); sb.appendLine("this week:"); sb.appendLine(followLog) }
         groupInfo.text = sb.toString()

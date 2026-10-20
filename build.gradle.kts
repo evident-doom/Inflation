@@ -27,7 +27,7 @@ kotlin {
     jvmToolchain(21)
     target.compilations.getByName("probes").associateWith(target.compilations.getByName("main"))
     // The code compiles clean; keep it so.
-    compilerOptions { allWarningsAsErrors.set(true) }
+    compilerOptions { allWarningsAsErrors.set(true); freeCompilerArgs.addAll("-Wextra", "-Xreturn-value-checker=full") }
 }
 
 application {

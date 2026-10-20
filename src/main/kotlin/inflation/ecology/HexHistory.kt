@@ -157,7 +157,7 @@ class HexHistory {
     private fun recordHunters(sim: HexSim) {
         val groups = sim.groups; val hunting = groups.stats.hunting
         for (s in groups.kinds) if (s.carnivore) {
-            fun v(k: String) = (hunting[k] ?: 0).toDouble()
+            fun v(k: TallyKey) = (hunting[k] ?: 0).toDouble()
             val asked = v(Tally.diet(s, Tally.DietPart.ASKED))
             if (asked > 0) put(Key.hunters(s.name, Hunters.FED), ((v(Tally.diet(s, Tally.DietPart.MEAT)) + v(Tally.diet(s, Tally.DietPart.SMALL_PREY)) + v(Tally.diet(s, Tally.DietPart.CARRION)) +
                 v(Tally.diet(s, Tally.DietPart.PLANTS))) / asked).toFloat())
@@ -174,7 +174,7 @@ class HexHistory {
     fun record(sim: HexSim) = synchronized(this) { recordWeek(sim) }
 
     private fun recordWeek(sim: HexSim) {
-        val fauna = sim.fauna; val groups = sim.groups; val land = sim.land; val hw = sim.hw; val w = sim.weather
+        val fauna = sim.fauna; val groups = sim.groups; val land = sim.land; val w = sim.weather
         year.add(w.date.year.toFloat()); month.add(w.date.month.toFloat())
         val n = land.n
         val area = land.areaKm2
@@ -212,10 +212,10 @@ class HexHistory {
         put(Key.waterLife("zooplankton, g per m²"), wl.zooMean())
         for ((key, v) in wl.fishFlows) put(Key.fishFlow(key), v.toFloat())
         // Deaths, births and kills this week.
-        val deaths = HashMap<String, Double>()
+        val deaths = HashMap<TallyKey, Double>()
         for ((key, v) in fauna.deaths) deaths.merge(key, v, Double::plus)
         for ((key, v) in groups.stats.deaths) deaths.merge(key, v.toDouble(), Double::plus)
-        for ((key, v) in deaths) put(Key.deaths(key.substringBefore(":"), key.substringAfter(":")), v.toFloat())
+        for ((key, v) in deaths) put(Key.deaths(Tally.kindOf(key), Tally.whatOf(key)), v.toFloat())
         for ((s, v) in groups.stats.kills) put(Key.deaths(s.name, Tally.HUNTED), v.toFloat())
         for ((key, v) in groups.stats.hunting) HuntStep.series(key)?.let { put(it, v / 100f) }
         val births = HashMap<String, Double>()

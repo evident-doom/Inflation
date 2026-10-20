@@ -104,7 +104,7 @@ object Config {
     }
 
     /** Every key the code reads: the [Key]s and the tuning keys (those a [Tuning] asks for as it is made). */
-    fun known(): Set<String> = Key.entries.mapTo(HashSet()) { it.key }.also { k -> Tuning { k += it; null } }
+    fun known(): Set<String> = Key.entries.mapTo(HashSet()) { it.key }.also { k -> Tuning { k += it; null }.let { } }
 
     fun string(key: Key): String? = read(key.key)
     fun flag(key: Key, default: Boolean): Boolean = string(key)?.toBooleanStrict() ?: default

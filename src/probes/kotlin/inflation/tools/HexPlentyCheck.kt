@@ -118,7 +118,6 @@ fun main(args: Array<String>) {
             }
         }
         // Residents' hunger, and what keeps them off the food.
-        val w = sim.weather
         for ((k, s) in fauna.kinds.withIndex()) {
             if (s.carnivore) continue
             for (p in 0 until n) {

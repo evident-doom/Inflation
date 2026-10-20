@@ -146,6 +146,9 @@ class Band(kinds: Int) {
     /** How many of its adults are practised in each skill (-1 until first counted), and the week each was last used. */
     val holders = enumFloats<Skill> { -1f }
     val lastUsed = enumInts<Skill>()
+    /** The place it remembers doing best in each month (-1 for none), and how well (0..1). */
+    val seasonPlace = IntArray(12) { -1 }
+    val seasonQ = FloatArray(12)
     /** Share of its people sick with each [Illness] now, and share spared for having had it. */
     val sick = enumFloats<Illness>()
     val immune = enumFloats<Illness> { it.endemic }
@@ -224,7 +227,7 @@ class Band(kinds: Int) {
     var ornaments = 0f
     var exotic = 0f
     /** Takes [n] of its ornaments, shell among them in its share; returns the shell ones taken. */
-    fun takeOrnaments(n: Float): Float {
+    @IgnorableReturnValue fun takeOrnaments(n: Float): Float {
         val share = if (ornaments > 0f) exotic / ornaments else 0f
         val shell = n * share
         ornaments -= n; exotic -= shell
@@ -406,6 +409,20 @@ class Band(kinds: Int) {
      * new band before anything is shared out (its customs drift as they are handed down). Each field's
      * rule is in [CARRY].
      */
+    /** Word between two bands of where each did better this month: the poorer memory takes the better one's place. */
+    fun shareSeasons(o: Band) {
+        for (m in 0 until 12) {
+            if (o.seasonQ[m] > seasonQ[m] + 0.1f && o.seasonPlace[m] >= 0) {
+                seasonPlace[m] = o.seasonPlace[m]
+                seasonQ[m] = 0.5f * (seasonQ[m] + o.seasonQ[m])
+            }
+            else if (seasonQ[m] > o.seasonQ[m] + 0.1f && seasonPlace[m] >= 0) {
+                o.seasonPlace[m] = seasonPlace[m]
+                o.seasonQ[m] = 0.5f * (seasonQ[m] + o.seasonQ[m])
+            }
+        }
+    }
+
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
@@ -419,6 +436,7 @@ class Band(kinds: Int) {
         o.lame = lame
         holders.copyInto(o.holders)
         lastUsed.copyInto(o.lastUsed)
+        seasonPlace.copyInto(o.seasonPlace); seasonQ.copyInto(o.seasonQ)
         o.weeks = weeks
         plants.copyInto(o.plants)
         o.fire = fire
@@ -641,6 +659,30 @@ class Band(kinds: Int) {
 
 }
 
+/** At any camp a band first puts up brush shelters, quickly (and leaves them when it moves on). */
+private fun putUpShelter(b: Band, people: Float, time: BandTime) {
+    if (b.campWeeks == 0) b.shelter = 0f
+    // (A debris hut takes a novice an afternoon, the practised an hour.)
+    val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
+    val shelterAim = min(1f, b.shelterWill)
+    if (b.shelter < shelterAim && time.left > 0f && people > 0f) {
+        val built = min(shelterAim - b.shelter, time.left / shelterDays)
+        b.shelter += built
+        time.spend(Activity.SHELTER, built * shelterDays)
+        b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
+    }
+}
+
+/** A fire through the night burns wood: where there is little, the night goes dark. Returns the wood burnt, kg. */
+private fun burnNightFire(b: Band, people: Float): Float {
+    val wood = b.goods
+    val want = NIGHT_WOOD * people * min(1f, b.nightFire)
+    val got = min(want, wood[Material.WOOD])
+    wood[Material.WOOD] -= got
+    b.nightWood = if (want > 0f) got / want else 1f
+    return got
+}
+
 /**
  * A band's week at camp: it keeps the camp or moves on (leaving what it cannot carry), gathers
  * materials from the country, makes and mends its tools, now and then hits on a new one, and its
@@ -660,23 +702,12 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
     keepHerds(g, b, date)
     val people = g.adults.toFloat()
-    val gd = b.goods
     gatherMaterials(g, b, p, h, people, area, time)
     val living0 = b.livingGoods()
     wearAndInvent(b, years)
     // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
-    // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
-    if (b.campWeeks == 0) b.shelter = 0f
-    // (A debris hut takes a novice an afternoon, the practised an hour.)
-    val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
-    val shelterAim = min(1f, b.shelterWill)
-    if (b.shelter < shelterAim && time.left > 0f && people > 0f) {
-        val built = min(shelterAim - b.shelter, time.left / shelterDays)
-        b.shelter += built
-        time.spend(Activity.SHELTER, built * shelterDays)
-        b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
-    }
+    putUpShelter(b, people, time)
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
     makeTools(b, people, time)
@@ -686,14 +717,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     plotRaid(g, b, weather)
     keepFire(g, b)
     b.fire *= b.hearthWood
-    // A fire through the night burns wood: where there is little, the night goes dark.
-    val nightBurnt = run {
-        val want = NIGHT_WOOD * people * min(1f, b.nightFire)
-        val got = min(want, gd[Material.WOOD])
-        gd[Material.WOOD] -= got
-        b.nightWood = if (want > 0f) got / want else 1f
-        got
-    }
+    val nightBurnt = burnNightFire(b, people)
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
@@ -831,7 +855,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
 private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime) {
     val gd = b.goods
     /** Takes up to [give] kg of [m], as far as the band lacks it and has the time at [perDay] kg a person-day; returns what it took. */
-    fun gather(m: Material, give: Float, perDay: Float): Float {
+    @IgnorableReturnValue fun gather(m: Material, give: Float, perDay: Float): Float {
         val want = min(give, carried(b, m, people) - gd[m])
         if (want <= 0f || time.left <= 0f) return 0f
         val took = min(want, time.left * perDay)

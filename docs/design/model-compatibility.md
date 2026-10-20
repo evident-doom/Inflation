@@ -25,6 +25,6 @@ Networks saved as bare weight matrices stop fitting when a feature or an output 
 
    PPO training carries on from the networks already in its `out` folder (`learning/PpoTrainer.kt`).
 6. **A registry of baselines** (`tools/Baseline.kt`). `runs/baselines/NAME/` holds the networks with their input and output names, the commit, the settings, the seeds and the check's record line. Baselines are never overwritten.
-   - `baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT]`, `baseline list`, `baseline show NAME` (what each network lacks against the current model);
+   - `baseline save NAME FROM_DIR [--ways FILE] [--hunter-ways FILE] [--commit HASH] [--note TEXT]`, `baseline list`, `baseline show NAME` (what each network lacks against the current model);
    - `nets=NAME` in the config file loads one by name.
 7. **A regression suite.** Fixed seeds and maps, run with every baseline and with the hand-written behaviour, comparing the record line. It flags any change in an old network's results that a new mechanic causes.

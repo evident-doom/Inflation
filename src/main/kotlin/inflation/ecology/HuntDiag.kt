@@ -12,9 +12,9 @@ internal enum class HuntStep(val label: String) {
     companion object {
         private const val PREFIX = "diag:"
         /** The hunting-ledger key of step [what] for prey [s]. */
-        fun key(s: Species, what: HuntStep) = "$PREFIX${s.name}:${what.label}"
+        @OptIn(RawKey::class) fun key(s: Species, what: HuntStep) = TallyKey.raw("$PREFIX${s.name}:${what.label}")
         /** The history series of a hunting-ledger [key], or null if it is no hunt step's. */
-        fun series(key: String) = if (key.startsWith(PREFIX)) "hunt diag/" + key.removePrefix(PREFIX).replace(':', '/') else null
+        fun series(key: TallyKey) = key.text.let { k -> if (k.startsWith(PREFIX)) "hunt diag/" + k.removePrefix(PREFIX).replace(':', '/') else null }
     }
 }
 
