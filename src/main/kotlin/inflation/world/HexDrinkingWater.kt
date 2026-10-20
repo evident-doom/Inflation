@@ -2,6 +2,7 @@ package inflation.world
 
 import inflation.ecology.Place
 import inflation.ecology.get
+import inflation.ecology.set
 import kotlin.math.max
 import kotlin.math.min
 
@@ -127,7 +128,7 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
      * the pools and seeps that make water everywhere.
      */
     internal fun step(weather: Weather) {
-        for (p in 0 until n) {
+        for (p in land.places) {
             val h = hw.placeHex[p]
             // The streams within reach are the hex's main river and its creeks (from 0.1 m³/s in a usual
             // year); they shrink with the main river, and a bed holds drinkable pools while a trickle runs.
@@ -147,8 +148,8 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
             val snow = weather.snowpack[p] >= SNOW_EAT_MM
             iced[p] = when {
                 !snow -> 0f
-                weather.snowfall(p) >= SNOW_EAT_MM -> 0f
-                weather.rain(p) >= SNOW_EAT_MM -> 1f
+                weather.snowfall(p.i) >= SNOW_EAT_MM -> 0f
+                weather.rain(p.i) >= SNOW_EAT_MM -> 1f
                 else -> iced[p]
             }
             snowWater[p] = if (snow && iced[p] < 0.5f) 1f else 0f

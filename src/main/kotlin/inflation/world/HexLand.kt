@@ -24,6 +24,8 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     private val grid = world.grid
     private val hex = hw.hex
     val n = hw.placeCells.size
+    /** Every place, in order. */
+    val places get() = inflation.ecology.PlaceRange(n)
     internal val days = world.config.daysPerStep
     internal val stepSeconds = days * 86_400.0
 

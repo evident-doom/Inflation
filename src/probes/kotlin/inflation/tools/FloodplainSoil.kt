@@ -30,7 +30,7 @@ fun main(args: Array<String>) {
     val t0 = System.nanoTime()
     repeat(steps) {
         sim.step()
-        for (p in 0 until n) { laid[p] += small.laidKgM2[p]; sodden[p] += land.hydro.saturated(p) }
+        for (p in 0 until n) { laid[p] += small.laidKgM2[p]; sodden[p] += land.hydro.saturated(inflation.ecology.Place(p)) }
     }
     println("stepped %d years at %.0f ms a step; state at %s".format(years, (System.nanoTime() - t0) / 1e6 / steps.coerceAtLeast(1), sim.weather.date))
     // Dry country: where the soil of the open ground is too dry for more than a thin scatter of trees.
@@ -48,6 +48,6 @@ fun main(args: Array<String>) {
         println("%-8s %-18s %6d %8.0f | %6.3f %6.2f %6.2f | %6.2f %6.2f %6.2f %6.2f | %8.4f %6.3f %6.3f".format(country, name, ps.size, area,
             mean { land.plants.herb[it].toDouble() }, mean { land.plants.shrub[it].toDouble() }, mean { land.plants.tree[it].toDouble() },
             mean { small.litter[it].toDouble() }, mean { small.organicMatter[it].toDouble() }, om[om.size / 10], om[om.size * 9 / 10],
-            mean { laid[it] / years }, mean { sodden[it] / steps.coerceAtLeast(1) }, mean { land.hydro.wetFloor(it).toDouble() }))
+            mean { laid[it] / years }, mean { sodden[it] / steps.coerceAtLeast(1) }, mean { land.hydro.wetFloor(inflation.ecology.Place(it)).toDouble() }))
     }
 }

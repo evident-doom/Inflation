@@ -142,13 +142,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         }
         val open = form.maxBiomass * m * t * soilF * wetFactor
         // The wet valley floor grows on its own soil: moist from the water table and as fertile as its alluvium.
-        val wf = hydro.wetFloor(p); if (wf <= 0f) return open
+        val wf = hydro.wetFloor(Place(p)); if (wf <= 0f) return open
         val floor = form.maxBiomass * t * (0.3f + 0.7f * min(1f, land.floorFertility[p] + organicFertility[p]))
         if (form == LifeForm.HERB) return (1f - wf) * open + wf * floor
         // Woody plants root down to the water table there (the poplar, willow and tamarisk of the gallery
         // forests along rivers in dry country), except where it stands so near the surface that the soil is
         // sodden: there they drown and the floor is wet meadow and reed.
-        val rooted = max(0f, wf - hydro.saturatedFloor(p))
+        val rooted = max(0f, wf - hydro.saturatedFloor(Place(p)))
         return (1f - wf) * open + rooted * floor * wetFactor
     }
 
@@ -255,11 +255,11 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val shadyGrowth = herbGrowth(p, season, hydro.soilShade[p] / hydro.soilCap[p], curedShade[p])
             val openGrowth = (1 - shaded) * sunnyGrowth + shaded * shadyGrowth
             // The seeps grow as long as the ground water flows, whatever the weather brings.
-            val seepGrowth = season * hydro.seeping(p)
+            val seepGrowth = season * hydro.seeping(Place(p))
             // So does the turf of the wet valley floor, as far as the water table under it lies within its roots' reach:
             // when the river falls in a drought, the table under the floodplain falls with it and the meadows brown.
-            val wetShare = hydro.wetFloor(p); val openShare = 1f - HexHydrology.SEEP_SHARE - wetShare
-            val wetGrowth = season * (1f - hydro.floorTableM(p) / HexHydrology.TURF_REACH_M).coerceIn(0f, 1f)
+            val wetShare = hydro.wetFloor(Place(p)); val openShare = 1f - HexHydrology.SEEP_SHARE - wetShare
+            val wetGrowth = season * (1f - hydro.floorTableM(Place(p)) / HexHydrology.TURF_REACH_M).coerceIn(0f, 1f)
             val grassGrowth = openShare * openGrowth + HexHydrology.SEEP_SHARE * seepGrowth + wetShare * wetGrowth
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, when the soil is moist enough to sprout
