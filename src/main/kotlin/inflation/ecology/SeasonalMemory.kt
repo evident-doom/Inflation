@@ -14,7 +14,7 @@ import kotlin.math.min
  * and where it lies in the lie of the land about it (the low, middle or high third of the ground within a month's
  * going, each place's height taken over the ground a week's going about it covers). For each kind of ground and month, [fare] keeps how the kind grew there in a week
  * (log of the young born to a head, and of the share that lived), by the rules it is born and dies by, as those there
- * lived it ([learn]): in the same terms as a place is weighed for the rest of the month ([HexFauna.flow]). From it,
+ * lived it ([learn]): in the terms a place is weighed in ([HexFauna.flow]). From it,
  * [route] finds, from each place, the best ground a month's going reaches by what it remembers of the month after
  * ([monthAt]), and the first step there: so it sets off for ground that will be good by the time it gets there.
  *
@@ -154,28 +154,20 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
     }
 
     /**
-     * For kind [k] in [month], how much better a month on each kind of ground is than a month there on average over the
-     * year, by what it remembers ([stayOf]): the season's part only. What each ground is worth all year round the flow
-     * levels as it is ([HexFauna.flow]); the memory draws them only to ground in its season.
-     */
-    fun seasonOf(k: Int, month: Int, fare: FloatArray, seen: FloatArray): FloatArray {
-        val all = Array(12) { stayOf(k, it, fare, seen) }
-        return FloatArray(TYPES) { i -> all[month][i] - all.sumOf { it[i].toDouble() }.toFloat() / 12f }
-    }
-
-    /**
-     * For kind [k], the season's part of a month's log growth at each hex in [month] by what it remembers ([seasonOf]): a month at a place is a
-     * month on the ground a week's going about it covers, its kinds of ground by their area. NaN where no place is.
+     * For kind [k], a month's log growth at each hex in [month] by what it remembers ([stayOf]): a month at a place is a
+     * month on the ground a week's going about it covers, its kinds of ground by their area. NaN where no place is. The
+     * whole of it, not only how much better than usual the ground is then: ground at its best in its season but poor all
+     * the same led them to worse places than they left.
      */
     private fun hexMonth(k: Int, month: Int, fare: FloatArray, seen: FloatArray): FloatArray {
         val t = typeOf(k)
-        val stay = seasonOf(k, month, fare, seen)
+        val stay = stayOf(k, month, fare, seen)
         val sum = FloatArray(hex.size); val wt = FloatArray(hex.size)
         for (p in 0 until n) { val h = hw.placeHex[p]; sum[h] += area(p) * stay[t[p]]; wt[h] += area(p) }
         return smooth(sum, wt, weekKm(kinds[k]).toDouble())
     }
 
-    /** [hexMonth] at each place: how much better than usual there a head of kind [k] would grow in a month there in [month], by what it remembers. */
+    /** [hexMonth] at each place: how a head of kind [k] would grow in a month there in [month], by what it remembers. */
     fun monthAt(k: Int, month: Int, fare: FloatArray, seen: FloatArray): FloatArray =
         hexMonth(k, month, fare, seen).let { here -> FloatArray(n) { p -> here[hw.placeHex[p]] } }
 
