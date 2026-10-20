@@ -126,6 +126,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val groups = sim.groups
     private val px = 2
     private val ground: BufferedImage = HexPicture.render(world, hex, 0.0, 0.0, cfg.widthKm.toDouble(), cfg.heightKm.toDouble(), px, rivers = false)
+    /** Land in one colour and water in another, with no relief, cover or borders: for seeing what moves over it. */
+    private val plainGround: BufferedImage by lazy { HexPicture.renderPlain(world, cfg.widthKm.toDouble(), cfg.heightKm.toDouble(), px) }
     /** The rivers as they run this week, drawn over the ground (see [RiverOverlay]). */
     private val rivers = RiverOverlay(world, hex, land)
     private val commands = ConcurrentLinkedQueue<() -> Unit>()
@@ -504,7 +506,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
 
         private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            g.drawImage(ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
+            val plain = Measure.entries[tintChoice.selectedIndex] == Measure.LAND_WATER
+            g.drawImage(if (plain) plainGround else ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
             val kmPx = px * scale
             rivers.draw(g, ox, oy, kmPx, width, height)
             fun sx(km: Float) = (ox + km * kmPx).toInt()
@@ -526,7 +529,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             // The chosen measure as a tint over the hexes (see [ViewLayers]), shown as the mode says.
             val tint = Measure.entries[tintChoice.selectedIndex]
             val legends = ArrayList<MapLegend>()
-            if (tint != Measure.NONE) {
+            if (tint.tints) {
                 val mode = ViewLayers.Mode.entries[modeChoice.selectedIndex]
                 val key = layers.key(tint, causeChoice.selectedIndex)
                 val colours = arrayOfNulls<Color>(hex.size)
@@ -1004,7 +1007,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.hydro.meanFlow[h], land.hydro.flow[h]))
         // The tinted measure here: this week, and month by month over the last year.
         val tint = Measure.entries[tintChoice.selectedIndex]
-        if (tint != Measure.NONE) {
+        if (tint.tints) {
             val key = layers.key(tint, causeChoice.selectedIndex)
             layers.now[key]?.get(h)?.takeIf { !it.isNaN() }?.let { v ->
                 sb.appendLine("%s%s: %.3g %s".format(tint.label, causeNote(tint), v, tint.unit))

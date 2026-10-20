@@ -48,7 +48,7 @@ class ViewLayersTest {
         assertTrue(l.now.getValue(all).any { !it.isNaN() && it > 0f }, "some animals died")
         assertTrue(l.now.getValue(ViewLayers.Measure.CARRION_WEEKS.name).any { !it.isNaN() && it > 0f && it < ViewLayers.MAX_WEEKS },
             "carrion clears somewhere")
-        for (m in ViewLayers.Measure.entries) if (m != ViewLayers.Measure.NONE) assertNotNull(l.now[l.key(m, 0)], "${m.name} worked out")
+        for (m in ViewLayers.Measure.entries) if (m.tints) assertNotNull(l.now[l.key(m, 0)], "${m.name} worked out")
         println("weeks to clear carrion (median of hexes with any): " +
             l.now.getValue(ViewLayers.Measure.CARRION_WEEKS.name).filter { !it.isNaN() && it > 0f }.sorted().let { it[it.size / 2] })
         println("hunters per 100 kg prey (median): " +

@@ -22,7 +22,7 @@ import kotlin.math.min
 internal class ViewLayers(private val sim: HexSim) {
     /** A measure to tint by: its name in the list, its unit, the colour it is shaded in, and whether it can go below 0. */
     enum class Measure(val label: String, val unit: String, val r: Float, val g: Float, val b: Float, val signed: Boolean = false) {
-        NONE("Ground only", "", 0f, 0f, 0f),
+        NONE("Ground only", "", 0f, 0f, 0f), LAND_WATER("Land and water only", "", 0f, 0f, 0f),
         TEMPERATURE("Temperature", "°C", 1f, 0.4f, 0.1f, signed = true), SNOW("Snow lying", "mm", 1f, 1f, 1f),
         RAIN("Rain this week", "mm", 0.1f, 0.3f, 1f),
         GREEN("Green forage", "share green", 0.1f, 0.9f, 0.1f), FORAGE("Grass and browse", "kg/m²", 0.1f, 0.7f, 0.1f),
@@ -42,6 +42,8 @@ internal class ViewLayers(private val sim: HexSim) {
         HUNGRY_BY_PLENTY("Hungry next to plenty", "grazers short /km² x kg/m² they could eat within 2 hexes", 1f, 0.2f, 0.8f),
         CARRION_WEEKS("Weeks to clear: carrion", "weeks", 0.4f, 0.1f, 0.4f), LITTER_WEEKS("Weeks to clear: litter", "weeks", 0.45f, 0.3f, 0.1f),
         BONES_WEEKS("Weeks to clear: bones", "weeks", 0.8f, 0.8f, 0.7f), ORGANIC_WEEKS("Weeks to clear: soil organic matter", "weeks", 0.35f, 0.2f, 0.05f);
+        /** Whether the measure tints the hexes: the two plain ground views do not. */
+        val tints get() = this != NONE && this != LAND_WATER
         val byCause get() = this == DEATHS || this == PEOPLE_DEATHS
         val weeks get() = this == CARRION_WEEKS || this == LITTER_WEEKS || this == BONES_WEEKS || this == ORGANIC_WEEKS
     }
@@ -57,7 +59,7 @@ internal class ViewLayers(private val sim: HexSim) {
 
     /** The keys a measure is kept under: one, or one per cause and one for all causes together. */
     fun key(m: Measure, cause: Int) = if (m.byCause) "${m.name}/$cause" else m.name
-    private val keys = Measure.entries.filter { it != Measure.NONE }
+    private val keys = Measure.entries.filter { it.tints }
         .flatMap { m -> if (m.byCause) (0..PlaceRecord.Cause.entries.size).map { key(m, it) } else listOf(m.name) }
 
     /** This week's value of each measure, per hex. */

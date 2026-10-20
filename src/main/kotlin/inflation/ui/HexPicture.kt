@@ -113,6 +113,18 @@ object HexPicture {
         return img
     }
 
+    /** The [wKm] × [hKm] km from the north-west corner at [px] pixels per km with only land (grey-green) and water (blue, sea and lakes): no relief, cover, rivers or borders. */
+    fun renderPlain(world: World, wKm: Double, hKm: Double, px: Int): BufferedImage {
+        val g = world.grid
+        val ck = g.cellKm
+        val img = BufferedImage((min(wKm, g.width * ck) * px).toInt(), (min(hKm, g.height * ck) * px).toInt(), BufferedImage.TYPE_INT_RGB)
+        for (py in 0 until img.height) for (pxi in 0 until img.width) {
+            val i = g.index(((pxi.toDouble() / px) / ck).toInt().coerceIn(0, g.width - 1), ((py.toDouble() / px) / ck).toInt().coerceIn(0, g.height - 1))
+            img.setRGB(pxi, py, if (world.isSea[i] || world.water.isLake(i)) 0x30506e else 0x8a9a74)
+        }
+        return img
+    }
+
     private fun cellColour(world: World, x: Int, y: Int): Int {
         val g = world.grid
         val i = g.index(x, y)
