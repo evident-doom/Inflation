@@ -839,8 +839,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
         if (hw.hexOf(b.cachePlace) == h) {
             val room = max(0f, carryKg(g, b) - g.larder)
             val take = min(b.cacheKg, room)
-            val share = if (b.cacheKg > 0f) take / b.cacheKg else 0f
-            for (i in Store.entries) { val x = b.cache[i] * share; b.cache[i] -= x; addFood(g.stores, g.storeKgPer, i, x, x * b.cacheKgPer[i]) }
+            b.takeFromCache(g, take)
             if (take > 0f) stats.meeting(Met.BANDS_BACK_AT_A_CACHE)
         }
         if (b.cacheKg < 1f) dropCache(b)
@@ -1170,6 +1169,12 @@ internal fun HexGroups.dropCache(b: Band) {
 private val ROTS = setOf(Material.WOOD, Material.HIDE, Material.BONE, Material.SINEW, Material.FIBRE, Material.RESIN)
 /** The kg of [b]'s goods that came from living things (those that rot), for the books. */
 internal fun Band.livingGoods(): Float { var sum = 0f; for (m in ROTS) sum += goods[m]; return sum }
+/** Moves [kg] of the cache (in the same mix of stores) into [to]'s stores. */
+internal fun Band.takeFromCache(to: HexGroup, kg: Float) {
+    val share = if (cacheKg > 0f) kg / cacheKg else 0f
+    for (i in Store.entries) { val x = cache[i] * share; cache[i] -= x; addFood(to.stores, to.storeKgPer, i, x, x * cacheKgPer[i]) }
+}
+
 /** The kg [Band.cache] weighs (see [addFood]). */
 internal fun Band.cacheMass() = massOf(cache, cacheKgPer)
 
@@ -1542,8 +1547,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
                 val room = max(0f, carryKg(g, b) - g.larder)
                 val take = min(ob.cacheKg * min(1f, takeShare), room)
                 if (take <= 0f) continue
-                val share = take / ob.cacheKg
-                for (i in Store.entries) { val x = ob.cache[i] * share; ob.cache[i] -= x; addFood(g.stores, g.storeKgPer, i, x, x * ob.cacheKgPer[i]) }
+                ob.takeFromCache(g, take)
                 ob.befriend(g.id, -TIE_RAID * 0.5f); ob.grudge[b.mainLineage()] += 0.5f * GRUDGE
                 stats.meeting(Met.CACHES_ROBBED)
                 note(g) { "found and took %.0f kg from band #%d's cache".format(take, o.id) }; note(o) { "its cache was robbed by band #%d".format(g.id) }
