@@ -21,6 +21,8 @@ internal class FloatHeap(capacity: Int) {
 
     fun peekKey(): Float = keys[0]
 
+    fun clear() { size = 0 }
+
     fun pop(): Int {
         val top = vals[0]
         val k = keys[--size]; val v = vals[size]
