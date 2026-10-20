@@ -30,11 +30,11 @@ class HerpRegions(run: HexSim) {
     /** Each place's [ClimateClass] ordinal, or -1 where nothing grows. */
     val classOf = IntArray(n) { p ->
         val hw = run.hw
-        if (land.plants.biomass(p) <= 0f) -1
+        if (land.plants.biomass(inflation.ecology.Place(p)) <= 0f) -1
         else ClimateClass.of((0 until 12).map { hw.placeTemp(p, it) }.average().toFloat(),
             (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat()).ordinal
     }
-    val forest = BooleanArray(n) { p -> land.plants.canopy(p) > 0.5f }
+    val forest = BooleanArray(n) { p -> land.plants.canopy(inflation.ecology.Place(p)) > 0.5f }
     val classArea = DoubleArray(ClimateClass.entries.size)
     /** Land in the open [0] and under forest [1]. */
     val forestArea = DoubleArray(2)

@@ -65,10 +65,6 @@ class PlaceListIter(private val a: IntArray) {
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.spread(p: Place, kg: inflation.Kg) = spread(p.i, kg)
 /** All of [x] over place [p]. */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.total(p: Place, x: inflation.KgM2) = total(p.i, x)
-/** Shrub and tree cover of place [p], 0..1. */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexPlants.cover(p: Place) = cover(p.i)
-/** Tree canopy of place [p], 0..1. */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexPlants.canopy(p: Place) = canopy(p.i)
 /** The place in hex [h] nearest in height to place [p] ([Place.NONE] if the hex has no land). */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeNear(p: Place, h: Hex) = Place(placeNear(p.i, h.i))
 /** As above, for a hex index kept as a plain int. */

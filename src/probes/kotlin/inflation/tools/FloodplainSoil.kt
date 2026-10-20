@@ -39,7 +39,7 @@ fun main(args: Array<String>) {
     println("%-8s %-18s %6s %8s | %6s %6s %6s | %6s %6s %6s %6s | %8s %6s %6s".format("country", "places", "n", "km²",
         "herb", "shrub", "tree", "litter", "OM", "OM p10", "OM p90", "silt/yr", "sodden", "wetFl"))
     for ((country, isDry) in listOf("dry" to true, "wet" to false)) for ((name, r) in bins) {
-        val ps = (0 until n).filter { land.plants.biomass(it) > 0f && dry[it] == isDry && land.floodShare[it] in r &&
+        val ps = (0 until n).filter { land.plants.biomass(inflation.ecology.Place(it)) > 0f && dry[it] == isDry && land.floodShare[it] in r &&
             (r.endInclusive > 0f || land.floodShare[it] == 0f) }
         if (ps.isEmpty()) continue
         val area = ps.sumOf { land.areaKm2[it].toDouble() }

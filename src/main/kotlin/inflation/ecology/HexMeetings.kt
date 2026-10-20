@@ -1129,7 +1129,7 @@ internal fun seenFirst(open: Float, clear: Float, band: Band?, ps: Species): Flo
 
 /** [seenFirst]'s parts at place [p] for hunter [s]: how open the ground is to a hunter of its way, and how clear the weather and cover leave the view. */
 private fun HexGroups.openness(s: Species, p: Int, weather: Weather, out: FloatArray) {
-    val cover = land.plants.cover(p)
+    val cover = land.plants.cover(Place(p))
     out[0] = VIGILANCE * (1f - cover) * (1f - s.stalking)
     out[1] = 0.5f + 0.5f * sight(p, weather) / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
 }

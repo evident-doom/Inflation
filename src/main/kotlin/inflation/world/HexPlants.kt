@@ -6,6 +6,8 @@ import inflation.Stocks
 import inflation.KgM2
 import inflation.Tuning
 import inflation.ecology.Place
+import inflation.ecology.get
+import inflation.ecology.set
 
 import kotlin.math.exp
 import kotlin.math.max
@@ -67,14 +69,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     @Transient private val growSpan = FloatArray(n) { p -> (warmest[p] - 6f).coerceIn(6f, tuning.growSpanC) }
     @Transient val perennialShare = FloatArray(n) { p -> ((PERENNIAL_FULL_C + 4f - warmest[p]) / 4f).coerceIn(0f, 1f) }
     /** How far the warmth [t], °C, lets the plants of place [p] grow, 0..1, as they are adapted to it. */
-    fun growthWarmth(p: Int, t: Float) = ((t - growFrom[p]) / growSpan[p]).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
+    fun growthWarmth(p: Place, t: Float) = ((t - growFrom[p]) / growSpan[p]).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
     /**
      * How fast the grass of place [p] grows, 0..1, at warmth [season] (see [growthWarmth]) with the soil
      * [wet] (its water against what it holds), the annuals of it [cured] or not: the annuals grow with the
      * soil's water to where plants take it unstressed and not at all once cured; the perennials, by their
      * deep roots, until the soil is a quarter full; mixed as the place's sward is.
      */
-    fun herbGrowth(p: Int, season: Float, wet: Float, cured: Boolean): Float {
+    fun herbGrowth(p: Place, season: Float, wet: Float, cured: Boolean): Float {
         val annual = if (cured) 0f else season * (wet / HexHydrology.UNSTRESSED).coerceIn(0f, 1f)
         val perennial = season * (wet / PERENNIAL_UNSTRESSED).coerceIn(0f, 1f)
         return (1f - perennialShare[p]) * annual + perennialShare[p] * perennial
@@ -102,12 +104,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(p, m)) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
     }
     /** How ripe the grass of place [p] is, 0..1: leafy at 0, gone to stem and seed at 1 (see [grassAge]). */
-    fun maturity(p: Int) = ((grassAge[p] - LEAFY_DD) / (RIPE_DD - LEAFY_DD)).coerceIn(0f, 1f)
+    fun maturity(p: Place) = ((grassAge[p] - LEAFY_DD) / (RIPE_DD - LEAFY_DD)).coerceIn(0f, 1f)
     /** How much of the forage in place [p] is fresh, leafy growth, 0..1: the green part of it, less as it ripens. */
-    fun leafy(p: Int) = green[p] * (1f - maturity(p))
+    fun leafy(p: Place) = green[p] * (1f - maturity(p))
 
     /** Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when dry, dormant or ripe. */
-    fun nourishment(p: Int) = tuning.dryValue + (1f - tuning.dryValue) * leafy(p)
+    fun nourishment(p: Place) = tuning.dryValue + (1f - tuning.dryValue) * leafy(p)
 
     /** Volcanic ash lying on each place, mm (set from the eruptions each week). */
     val ash = FloatArray(n)
@@ -118,7 +120,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     internal var stepCount = 0
 
     init {
-        for (p in 0 until n) {
+        for (p in land.places) {
             herb[p] = ceiling(LifeForm.HERB, p) * 0.8f
             shrub[p] = ceiling(LifeForm.SHRUB, p) * 0.8f
             tree[p] = ceiling(LifeForm.TREE, p) * 0.8f
@@ -126,12 +128,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         seedSources()
     }
 
-    fun biomass(p: Int) = herb[p] + shrub[p] + tree[p]
-    fun canopy(p: Int) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
+    fun biomass(p: Place) = herb[p] + shrub[p] + tree[p]
+    fun canopy(p: Place) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
     /** Cover to hide in at place [p], 0..1: scrub and forest. */
-    fun cover(p: Int) = min(1f, shrub[p] / 2f + canopy(p))
+    fun cover(p: Place) = min(1f, shrub[p] / 2f + canopy(p))
 
-    fun ceiling(form: LifeForm, p: Int): Float {
+    fun ceiling(form: LifeForm, p: Place): Float {
         val m = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
         val t = ((warmth[p] - form.warmthMin) / (form.warmthFull - form.warmthMin)).coerceIn(0f, 1f)
         val soilF = 0.3f + 0.7f * min(1f, fertility[p] + organicFertility[p])
@@ -142,18 +144,18 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         }
         val open = form.maxBiomass * m * t * soilF * wetFactor
         // The wet valley floor grows on its own soil: moist from the water table and as fertile as its alluvium.
-        val wf = hydro.wetFloor(Place(p)); if (wf <= 0f) return open
+        val wf = hydro.wetFloor(p); if (wf <= 0f) return open
         val floor = form.maxBiomass * t * (0.3f + 0.7f * min(1f, land.floorFertility[p] + organicFertility[p]))
         if (form == LifeForm.HERB) return (1f - wf) * open + wf * floor
         // Woody plants root down to the water table there (the poplar, willow and tamarisk of the gallery
         // forests along rivers in dry country), except where it stands so near the surface that the soil is
         // sodden: there they drown and the floor is wet meadow and reed.
-        val rooted = max(0f, wf - hydro.saturatedFloor(Place(p)))
+        val rooted = max(0f, wf - hydro.saturatedFloor(p))
         return (1f - wf) * open + rooted * floor * wetFactor
     }
 
     /** Takes up to [want] of the plants of [form] at [p]; returns what was taken. */
-    fun consume(p: Int, form: LifeForm, want: KgM2, shrubPart: ShrubPart = ShrubPart.TAKEN_OTHERWISE): KgM2 {
+    fun consume(p: Place, form: LifeForm, want: KgM2, shrubPart: ShrubPart = ShrubPart.TAKEN_OTHERWISE): KgM2 {
         val b = when (form) { LifeForm.HERB -> herb; LifeForm.SHRUB -> shrub; LifeForm.TREE -> tree }
         val taken = min(b[p], max(0f, want.v)); val before = b[p]; b[p] -= taken
         if (form == LifeForm.SHRUB) shrubNote(shrubPart, p, before)
@@ -162,7 +164,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         return KgM2(taken)
     }
 
-    fun trample(p: Int, intensity: Float) { trampling[p] += intensity }
+    fun trample(p: Place, intensity: Float) { trampling[p] += intensity }
 
     /**
      * Records [km] walked at place [p] by [heads] animals of [massKg] each: the ground their feet come down on, m². Each
@@ -170,7 +172,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * on the ground ([HOOF_KPA]); strides lengthen with size as legs do ([STRIDE_M] at 50 kg, as the cube root of mass).
      * (Grown shrubs and trees stand above the hooves and are walked round: only their seedlings are trodden, see [step].)
      */
-    fun tread(p: Int, heads: Float, massKg: Float, km: Float) {
+    fun tread(p: Place, heads: Float, massKg: Float, km: Float) {
         if (heads <= 0f || km <= 0f) return
         val feetM2 = massKg * 9.81f / (HOOF_KPA * 1000f)
         val strideM = STRIDE_M * Math.cbrt(massKg / 50.0).toFloat()
@@ -180,7 +182,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     /** Browse at [p], kg/m². (Never below nothing: worlds saved before [eatBrowse] kept its floor may hold shoots a rounding below it.) */
-    fun browse(p: Int) = max(0f, shrubShoots[p]) + max(0f, treeShoots[p])
+    fun browse(p: Place) = max(0f, shrubShoots[p]) + max(0f, treeShoots[p])
 
     /**
      * For shrubDiag=true (a report): the shrubs' kg gained or lost by each process ([SHRUB_PARTS]) since it was last read,
@@ -188,10 +190,10 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      */
     @delegate:Transient val shrubBook: Array<java.util.concurrent.atomic.DoubleAdder>? by lazy {
         if (inflation.Config.flag(inflation.Config.Key.SHRUB_DIAG, false)) Array(ShrubPart.entries.size + 1) { java.util.concurrent.atomic.DoubleAdder() } else null }
-    private fun shrubNote(part: ShrubPart, p: Int, before: Float) { shrubBook?.let { it[part.ordinal].add(((shrub[p] - before) * land.areaM2[p]).toDouble()) } }
+    private fun shrubNote(part: ShrubPart, p: Place, before: Float) { shrubBook?.let { it[part.ordinal].add(((shrub[p] - before) * land.areaM2[p]).toDouble()) } }
 
     /** Eats up to [want] of the browse at [p], shrubs and trees alike; what was eaten comes off the plants too. */
-    fun eatBrowse(p: Int, want: KgM2): KgM2 {
+    fun eatBrowse(p: Place, want: KgM2): KgM2 {
         val all = browse(p)
         if (all <= 0f || want.v <= 0f) return KgM2.ZERO
         val x = min(want.v, all)
@@ -202,7 +204,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     internal fun step(weather: Weather) {
-        for (p in 0 until n) {
+        for (p in land.places) {
             if (weather.date.month == 0 && weather.date.dayOfMonth <= days) { gdd[p] = 0f; grassAge[p] = 0f }
             gdd[p] += max(0f, weather.temperature[p] - 5f) * days
         }
@@ -210,7 +212,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val memory = 1 - exp(-days / 360f)
         if (stepCount++ % 5 == 0) seedSources()
         if (!shootsSet) {
-            for (p in 0 until n) {
+            for (p in land.places) {
                 shrubShoots[p] = land.palatable[p] * SHRUB_RENEWAL * shrub[p]
                 treeShoots[p] = land.palatable[p] * TREE_IN_REACH * TREE_RENEWAL * tree[p]
             }
@@ -223,7 +225,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val books = land.books
         val grewBook = books?.adder(Books.Stuff.MATTER, "plants grew"); val burntBook = books?.adder(Books.Stuff.MATTER, "burnt")
         val fellBook = books?.adder(Books.Stuff.MATTER, "litterfall (to the litter)")
-        java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+            val p = Place(i)
             val before = biomass(p)
             var grew = 0f
             val t = weather.temperature[p]
@@ -241,8 +244,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // of hot, dry summers. Where summers are cool the sward is perennial: deep roots keep it growing until the
             // soil is a quarter full, it browns as the soil dries further and greens again with the next rain, without
             // curing for the year.
-            val rained = weather.rain(p) > 0f
-            val soaked = weather.rain(p) >= GERMINATION_MM
+            val rained = weather.rain(p.i) > 0f
+            val soaked = weather.rain(p.i) >= GERMINATION_MM
             val wasCured = cured[p]
             if (season > 0f && water0 < 0.5f) cured[p] = true else if ((rained && water0 >= 0.5f) || soaked) cured[p] = false
             if (wasCured && !cured[p]) grassAge[p] = 0f
@@ -255,11 +258,11 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val shadyGrowth = herbGrowth(p, season, hydro.soilShade[p] / hydro.soilCap[p], curedShade[p])
             val openGrowth = (1 - shaded) * sunnyGrowth + shaded * shadyGrowth
             // The seeps grow as long as the ground water flows, whatever the weather brings.
-            val seepGrowth = season * hydro.seeping(Place(p))
+            val seepGrowth = season * hydro.seeping(p)
             // So does the turf of the wet valley floor, as far as the water table under it lies within its roots' reach:
             // when the river falls in a drought, the table under the floodplain falls with it and the meadows brown.
-            val wetShare = hydro.wetFloor(Place(p)); val openShare = 1f - HexHydrology.SEEP_SHARE - wetShare
-            val wetGrowth = season * (1f - hydro.floorTableM(Place(p)) / HexHydrology.TURF_REACH_M).coerceIn(0f, 1f)
+            val wetShare = hydro.wetFloor(p); val openShare = 1f - HexHydrology.SEEP_SHARE - wetShare
+            val wetGrowth = season * (1f - hydro.floorTableM(p) / HexHydrology.TURF_REACH_M).coerceIn(0f, 1f)
             val grassGrowth = openShare * openGrowth + HexHydrology.SEEP_SHARE * seepGrowth + wetShare * wetGrowth
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, when the soil is moist enough to sprout
@@ -322,7 +325,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val bare = (1f - cover) * (1f - cover)
             if (bare > 0.01f) fertility[p] *= 1f - min(0.5f, EROSION * bare * weather.precipitation[p] / 50f * land.slope[p] / 0.2f * years)
             val sFire = shrub[p]
-            val burned = if (fire.burning[p] > 0f) fire.burn(Place(p), fire.burning[p]) else 0f
+            val burned = if (fire.burning[p] > 0f) fire.burn(p, fire.burning[p]) else 0f
             shrubNote(ShrubPart.FIRE, p, sFire)
             // What the plants lost (died back, weathered, frosted, drowned, smothered: all but the fire's) falls into the
             // litter, and so do the leaves, stems and roots they renew: production beyond the stand's net growth, shed as it is made.
@@ -340,7 +343,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     /** Frost kills back what its form cannot stand at [t] °C, and floods drown what grows on the floodplain share of place [p]. */
-    private fun frostAndFlood(p: Int, t: Float) {
+    private fun frostAndFlood(p: Place, t: Float) {
         if (t < LifeForm.HERB.frostKill) herb[p] *= 0.3f
         if (t < LifeForm.SHRUB.frostKill) { val s0 = shrub[p]; shrub[p] *= 0.3f; shrubNote(ShrubPart.FROST, p, s0) }
         if (t < LifeForm.TREE.frostKill) tree[p] *= 0.3f
@@ -351,7 +354,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     /** Trampling, spread over place [p]: a herd beats down a share of it, wearing trails that fade over [years] where none walk. */
-    private fun trample(p: Int, years: Float, fellBook: java.util.concurrent.atomic.DoubleAdder?) {
+    private fun trample(p: Place, years: Float, fellBook: java.util.concurrent.atomic.DoubleAdder?) {
         val tr = trampling[p] / land.areaKm2[p]
         if (tr > 0f) {
             val h0 = herb[p]; val s0 = shrub[p]
@@ -368,7 +371,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * (With [crowns], kg/m², of the stand lost lately that its roots will grow back: it grows as from the whole stand.)
      * Returns what grew, kg/m² (what dies back above the ceiling is not counted against it: it falls into the litter).
      */
-    private fun grow(form: LifeForm, b: FloatArray, p: Int, time: Float, seedRain: Float, capFactor: Float = 1f, crowns: Float = 0f): Float {
+    private fun grow(form: LifeForm, b: FloatArray, p: Place, time: Float, seedRain: Float, capFactor: Float = 1f, crowns: Float = 0f): Float {
         val cap = ceiling(form, p) * capFactor
         val v = b[p]; val base = v + crowns
         if (v < cap) b[p] = v + form.growthPerYear * time * (base + seedRain * cap * 0.05f) * (1 - v / cap.coerceAtLeast(1e-6f))

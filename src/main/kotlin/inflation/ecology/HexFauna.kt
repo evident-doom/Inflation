@@ -171,7 +171,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun grassProtein(p: Int): Float {
         // (Cured grass is leached toward straw as it weathers, see [HexPlants.hayFresh].)
         val dry = tuning.proteinStraw + (tuning.proteinDryGrass - tuning.proteinStraw) * land.plants.hayFresh[p]
-        return dry + (1f - dry) * land.plants.leafy(p)
+        return dry + (1f - dry) * land.plants.leafy(Place(p))
     }
     fun browseProtein(p: Int) = PROTEIN_DRY_BROWSE + (1f - PROTEIN_DRY_BROWSE) * land.plants.green[p]
     /** How well a diet with [share] of fresh growth's protein meets a mother's and a growing young's need, 0..1. */
@@ -212,7 +212,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (!(want > 0f)) return 1f
         dry.reach = reach; dry.grass = spareGrass[p]; dry.browse = spareBrowse[p]
         dry.fruit = spareFruit[p]; dry.roots = spareRoots[p]
-        return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b).got / want).coerceIn(0f, 1f)
+        return (forage(s, s.diet, land.plants.nourishment(Place(p)), want, grassUnderSnow(s, snowMm), dry, b).got / want).coerceIn(0f, 1f)
     }
 
     /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week; [room] is this for a band. */
@@ -545,7 +545,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     fun suits(s: Species, p: Int): Float {
         val h = s.habitat
-        val cover = land.plants.cover(p)
+        val cover = land.plants.cover(Place(p))
         val wet = land.floodShare[p]
         if (h.rugged == 0f) return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f)))
         // (The ground it likes is a share of the place: the valley floors of a rough hex for a plains kind,
@@ -629,13 +629,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
         val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * Niches.shelter(ps, p, land)
         // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
-        val hide = 1f - HIDING * land.plants.cover(p) * (1f - s.stalking) * max(0f, 1f - massKg / HIDING_KG)
+        val hide = 1f - HIDING * land.plants.cover(Place(p)) * (1f - s.stalking) * max(0f, 1f - massKg / HIDING_KG)
         // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
         val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
         // A courser must run its quarry down; a stalker gets close unseen and needs no speed.
         val speed = s.stalking + (1f - s.stalking) * min(1f, s.speedKmh / ps.speedKmh)
         // And it needs room to run: in thick woods and scrub a chase ends at the first tangle.
-        val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(p)
+        val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(Place(p))
         return refuge * hide * dark * speed * room
     }
 
@@ -655,7 +655,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val total = d.grass + d.browse + d.fruit + d.roots
         if (total <= 0f) return 0f
         val plants = land.palatable[p] * d.grass * land.plants.herb[p] +
-            (d.browse * land.plants.browse(p) + d.fruit * food.fruit[p] + d.roots * food.roots[p]) / REACH
+            (d.browse * land.plants.browse(Place(p)) + d.fruit * food.fruit[p] + d.roots * food.roots[p]) / REACH
         return plants / total * HexFood.access(s, land.crag[p])
     }
 
@@ -760,7 +760,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // until the rains. Supply against demand:
             val reach = REACH
             // (Only the edible share of the plants, see [HexLand.palatable].)
-            val grass = reach * land.palatable[p] * land.plants.herb[p]; val browse = land.plants.browse(p)
+            val grass = reach * land.palatable[p] * land.plants.herb[p]; val browse = land.plants.browse(Place(p))
             // (Browse is the shoots the shrubs and trees put out within reach, see [HexPlants.shrubShoots].)
             eatPlants(p, weather, grass, browse, z)
             feedKinds(p, weather, z, tally.get())
@@ -803,7 +803,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * eats more grass and browse and lays the surplus on.
      */
     private fun eatPlants(p: Int, weather: Weather, grass: Float, browse: Float, z: Grazing) {
-        val quality = land.plants.nourishment(p)
+        val quality = land.plants.nourishment(Place(p))
         val need = z.need; val each = z.each; val avail = z.avail
         for ((k, s) in kinds.withIndex()) {
             killRate[k]?.set(p, 0f)
@@ -967,17 +967,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB)
         val dug = food.take(food.roots, p, KgM2(z.eatR)).v
         val ate = food.take(food.fruit, p, KgM2(z.eatF)).v
-        val eaten = land.plants.consume(p, LifeForm.HERB, KgM2(eatG)).v +
-            land.plants.eatBrowse(p, KgM2(eatB)).v +
+        val eaten = land.plants.consume(Place(p), LifeForm.HERB, KgM2(eatG)).v +
+            land.plants.eatBrowse(Place(p), KgM2(eatB)).v +
             ate + dug
         // Fruit-eaters drop the seed where they go: shrubs and trees come up away from any parent.
         land.plants.animalSeed[p] = min(1f, land.plants.animalSeed[p] * SEED_KEEP + ate * 1e6f / SEED_KG)
         // Their feet beat down the plants and wear paths: tonnes of animal going about the place.
         var tonnes = 0f
         for ((k, s) in kinds.withIndex()) tonnes += (adults[k][p] + young[k][p]) * s.massKg / 1000f
-        land.plants.trample(p, RESIDENT_TRAMPLE * tonnes * land.areaKm2[p])
+        land.plants.trample(Place(p), RESIDENT_TRAMPLE * tonnes * land.areaKm2[p])
         // (And their going about it each day steps on the ground: see [HexPlants.tread]. Heads are per km².)
-        for ((k, s) in kinds.withIndex()) land.plants.tread(p, (adults[k][p] + young[k][p]) * land.areaKm2[p], s.massKg, s.dailyTravelKm * days)
+        for ((k, s) in kinds.withIndex()) land.plants.tread(Place(p), (adults[k][p] + young[k][p]) * land.areaKm2[p], s.massKg, s.dailyTravelKm * days)
         small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * eaten))
         if (ateBook != null) { val m2 = land.areaM2[p].toDouble(); ateBook!!.add(-eaten * m2); droppedBook!!.add(HexSmallLife.DUNG * eaten * m2) }
         land.plants.grazing[p] = eatG * 1e6f / days; land.plants.browsing[p] = eatB * 1e6f / days
@@ -1352,7 +1352,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (plants <= 0f) 1f else 1f - d.grass * (1f - grassUnderSnow(s, weather.snowpack[p])) / plants }
         // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
         // protein: so they go up to the green high pasture in summer and down for the winter.)
-        val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
+        val fresh = if (s.carnivore) 1f else land.plants.nourishment(Place(p)) * forageProtein(s, p)
         return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * shy(s, p)) *
             (1f - land.fire.burning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
             (1f + Hazards.crowding(heads, usual[k])) / (1f + discomfort)

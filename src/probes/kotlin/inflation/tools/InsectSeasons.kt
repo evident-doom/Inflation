@@ -22,7 +22,7 @@ fun main(args: Array<String>) {
     val tmin = FloatArray(n) { p -> (0 until 12).minOf { hw.placeTemp(p, it) } }
     val tmax = FloatArray(n) { p -> (0 until 12).maxOf { hw.placeTemp(p, it) } }
     val classes = ClimateClass.entries.map { "${it.label} (${it.bounds})" }
-    fun cls(p: Int): Int = if (land.plants.biomass(p) <= 0f) -1 else ClimateClass.of(meanT[p], rain[p]).ordinal
+    fun cls(p: Int): Int = if (land.plants.biomass(inflation.ecology.Place(p)) <= 0f) -1 else ClimateClass.of(meanT[p], rain[p]).ordinal
     val c = IntArray(n) { cls(it) }
     val q = listOf("temp C", "soil mm", "herb kg/m2", "green 0..1", "empty <10 share", "insects kg/km2", "dormant kg/km2", "biting", "herps",
         "rodents", "pollinators")

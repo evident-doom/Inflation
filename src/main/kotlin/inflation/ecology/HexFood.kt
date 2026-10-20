@@ -100,19 +100,19 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val shrubBears = 0.5f * land.plants.shrub[p]; val treeBears = TREE_BEARING * land.plants.tree[p]
             val fromShrub = if (shrubBears + treeBears > 0f) shrubBears / (shrubBears + treeBears) else 1f
             val newFruit = days * ripe
-            val bore = if (newFruit > 0f) (land.plants.consume(p, LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
-                land.plants.consume(p, LifeForm.TREE, KgM2(newFruit * (1f - fromShrub)))).v else 0f
+            val bore = if (newFruit > 0f) (land.plants.consume(Place(p), LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
+                land.plants.consume(Place(p), LifeForm.TREE, KgM2(newFruit * (1f - fromShrub)))).v else 0f
             fruit[p] = max(0f, fruit[p] + bore - fallen)
             small.deposit(DeadPool.LITTER, p, KgM2(fallen * fromShrub))
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
             val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.plants.herb[p] / SEED_DAYS else 0f
             val shed = seeds[p] * min(1f, days / SEED_DAYS)
-            seeds[p] = max(0f, seeds[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * ripeSeed)).v - shed)
+            seeds[p] = max(0f, seeds[p] + land.plants.consume(Place(p), LifeForm.HERB, KgM2(days * ripeSeed)).v - shed)
             small.deposit(DeadPool.LITTER, p, KgM2(shed))
             // (Roots and bulbs fill from the plants above them; old ones rot into the litter.)
             val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
             val rotted = roots[p] * min(1f, days / ROOTS_DAYS)
-            roots[p] = max(0f, roots[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v + fallen * (1f - fromShrub) - rotted)
+            roots[p] = max(0f, roots[p] + land.plants.consume(Place(p), LifeForm.HERB, KgM2(days * r)).v + fallen * (1f - fromShrub) - rotted)
             small.deposit(DeadPool.LITTER, p, KgM2(rotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
@@ -121,7 +121,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                 val advance = max(0f, weather.temperature[p] - 5f) * days / land.plants.annualGdd[p].coerceAtLeast(1f)
                 val inWindow = (min(season, SEED_TO) - max(season - advance, SEED_FROM)).coerceAtLeast(0f)
                 if (inWindow > 0f) {
-                    val ripe = land.plants.consume(p, LifeForm.HERB,
+                    val ripe = land.plants.consume(Place(p), LifeForm.HERB,
                         KgM2((GRAIN_SHARE * cereal[p] * land.plants.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM))).v
                     grain[p] += ripe
                     ripenedNow[p] += ripe
@@ -143,7 +143,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val eggs = if (month in 3..5) EGGS * small.birds[p] / 1e6f else 0f
             val snails = if (month in 0..4) SNAILS * land.plants.herb[p] * land.plants.moisture[p] else 0f
             val made = (honey + truffles + snails) * days
-            val grown = land.plants.consume(p, LifeForm.HERB, KgM2(made)).v + eggs * days
+            val grown = land.plants.consume(Place(p), LifeForm.HERB, KgM2(made)).v + eggs * days
             if (eggs > 0f) land.books?.leak(Books.Stuff.MATTER, "eggs, not taken from the birds", (eggs * days * land.areaM2[p]).toDouble())
             val spoilt = finds[p] * min(1f, days / FINDS_DAYS)
             small.deposit(DeadPool.LITTER, p, KgM2(spoilt))

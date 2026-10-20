@@ -235,7 +235,7 @@ const val CLIMB_J_PER_KG_M = 33f
 fun HexGroups.sight(p: Int, weather: Weather): Float {
     val wet = 1f / (1f + weather.precipitation[p] / SIGHT_RAIN_MM)
     val haze = if (weather.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
-    return wet * haze * (1f - SIGHT_COVER * land.plants.cover(p))
+    return wet * haze * (1f - SIGHT_COVER * land.plants.cover(Place(p)))
 }
 const val SIGHT_RAIN_MM = 60f
 const val SIGHT_HAZE_C = 32f

@@ -32,7 +32,7 @@ fun main(args: Array<String>) {
         // Appeal's factors, high place vs bottom band of the same hex: fare, fresh, suits, tether, the rest (fear, fire, plague, crowding, discomfort, snow); and heads on high places they cannot stay at (odds NaN).
         val fH = DoubleArray(5); val fL = DoubleArray(5); var nanHeads = 0.0
         fun factors(q: Int): FloatArray {
-            val fare = fauna.fareFor(s, q); val fresh = land.plants.nourishment(q) * fauna.forageProtein(s, q)
+            val fare = fauna.fareFor(s, q); val fresh = land.plants.nourishment(inflation.ecology.Place(q)) * fauna.forageProtein(s, q)
             val suits = fauna.suits(s, q); val teth = fauna.tether(s, q)
             return floatArrayOf(fare, fresh, suits, teth, fauna.appeal(k, q, weather) / (fare * fresh * suits * teth))
         }
