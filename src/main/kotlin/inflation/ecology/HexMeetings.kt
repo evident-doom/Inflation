@@ -62,7 +62,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     // (What a party killed this week before the last of it died lies where it fell: the meat of it, a beast's need being
     // counted in the whole weight of its kills, see [creditShare].)
     for (g in groups) if (!g.alive && g.meatMet > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.meatMet * meatShare(g.band) / creditShare(g.band))); g.meatMet = 0f }
-    val hunters = groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)
+    val hunters = groups.filter { it.alive }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
     // Bands first set their ways for the week.
     // (Where the bands about it stand now, after this week's moves, as its own place is.)
@@ -1203,7 +1203,7 @@ internal fun HexGroups.mark() {
     for (m in scent.marks.values) for (i in m.indices) m[i] *= MARK_KEEP
     for (g in groups) {
         val s = g.species
-        if (!g.alive || !s.carnivore || s.human || g.home.none) continue
+        if (!g.alive || s.human || g.home.none) continue
         val m = scent.marks.getOrPut(s.index) { FloatArray(hex.size) }
         val who = scent.markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
         for (h in g.path) {

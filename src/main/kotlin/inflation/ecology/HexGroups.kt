@@ -263,7 +263,7 @@ class HexGroups(
             manEaterKm2[hw.placeHex[g.place]] += g.species.takesPeople * g.size * g.species.massKg / hex.areaKm2.toFloat()
         // The strongest hunting party in each place, and its kind: weaker hunters keep out of its way.
         topStrength.fill(0f); topKind.fill(-1)
-        for (g in groups) if (g.alive && g.species.carnivore) {
+        for (g in groups) if (g.alive) {
             val st = strength(g)
             if (st > topStrength[g.place]) { topStrength[g.place] = st; topKind[g.place] = g.species.index }
         }
@@ -495,7 +495,7 @@ class HexGroups(
     /** Fills [into] with the kg of the groups' beasts of prey at each place, people with them or not. */
     private fun beastsKg(into: FloatArray, people: Boolean) {
         into.fill(0f)
-        for (g in groups) if (g.alive && g.species.carnivore && (people || !g.species.human)) into[g.place] += g.size * g.species.massKg
+        for (g in groups) if (g.alive && (people || !g.species.human)) into[g.place] += g.size * g.species.massKg
     }
 
     /** Each kind's slot in [kinds], by its [Species.index]; -1 for a kind not kept in groups. */
@@ -782,7 +782,7 @@ class HexGroups(
         if (weather.forecastTemp(p.i) < 0f && weather.snowpack[p] + weather.forecastRain(p.i) > s.snowLimitMm) f[Feature.SNOW_AHEAD] = s.foresight
         f[Feature.BURNING] = land.fire.burning[p]
         f[Feature.KILL_FEAR] = fauna.afraid(p.i)
-        if (s.carnivore && hex.distanceKm(h.i, here.i) <= hex.hexKm * 1.01 && topKind[p] >= 0 && topKind[p] != s.index)
+        if (hex.distanceKm(h.i, here.i) <= hex.hexKm * 1.01 && topKind[p] >= 0 && topKind[p] != s.index)
             f[Feature.STRONGER_HUNTER] = min(1f, topStrength[p] / (4f * strength(g)).coerceAtLeast(1e-3f))
         f[Feature.CLIMB] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
         f[Feature.EFFORT] = (d / reach.coerceAtLeast(1f)).coerceIn(0f, 1f)
@@ -1036,12 +1036,12 @@ class HexGroups(
         val deaths = deathsAt(c, p, h, fed)
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         val causes = StringBuilder()
-        placeHazards(g, p.i, c.weather, fed, g.protein, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false) { cause, a, y ->
+        placeHazards(g, p.i, c.weather, fed, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false) { cause, a, y ->
             if (a != 0f || y != 0f) causes.append(" ").append(cause).append(" ").append(a).append("/").append(y) }
         val terms = t?.let { "food value %s discomfort %s drain %s suits %s water %s km".format(placeValue[c.kind][p], it.discomfort, it.drain, it.suitsLn, it.waterKm) } ?: "not kept"
         println("not a number: ${s.name} #${g.id} of ${g.size} (${g.adults} grown, ${g.young} young, odds of dying ${g.deathOdds}, fed ${g.fed}) at place ${p.i}, " +
             "$d km of going: score before deaths $alive, deaths $deaths, drowning $drowning, steps ${survivalSteps(g, deaths + drowning)}; " +
-            "foreseen fed $fed, protein ${g.protein}, thirst $thirst, crowded $crowded, prey $prey; " +
+            "foreseen fed $fed, thirst $thirst, crowded $crowded, prey $prey; " +
             "hazards:$causes; terms: $terms")
     }
 
@@ -1104,7 +1104,7 @@ class HexGroups(
         if (TAMING && s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(peopleSlot, p, h, sensed) / 25f)
         g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed) }
         // A hungry pack gives up ground it has hunted out lately and looks further afield.
-        if (s.carnivore && g.fed < Thresholds.HUNGRY && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
+        if (g.fed < Thresholds.HUNGRY && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
         return score
     }
 
@@ -1119,7 +1119,7 @@ class HexGroups(
         val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         val odds = c.odds.also { it.adult = 0f; it.young = 0f }
-        placeHazards(g, p.i, weather, fed, g.protein, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false, odds)
+        placeHazards(g, p.i, weather, fed, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false, odds)
         var adult = odds.adult; var young = odds.young
         if (b != null) {
             val venom = venomOdds(s, p.i, weather)

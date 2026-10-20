@@ -709,7 +709,6 @@ object Catalogue {
     val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN, LYNX)
     /** Kinds added after the predators (with later ids, so the others keep their indices). */
     private val laterHerbivores = listOf(ARGALI)
-    val herbivores = firstHerbivores + laterHerbivores
 
     /**
      * Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges.
