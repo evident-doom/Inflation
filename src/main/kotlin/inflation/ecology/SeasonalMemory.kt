@@ -15,8 +15,8 @@ import kotlin.math.min
  * wherever it lies, while the high third of rolling lowland and of a mountain range do not. For each kind of ground and month, [fare] keeps how the kind grew there in a week
  * (log of the young born to a head, and of the share that lived), by the rules it is born and dies by, as those there
  * lived it ([learn]): in the terms a place is weighed in ([HexFauna.flow]). From it,
- * [route] finds, from each place, the best ground a month's going reaches by what it remembers of the month after
- * ([monthAt]), and the first step there: so it sets off for ground that will be good by the time it gets there.
+ * [route] finds, from each place, the best ground a month's going reaches by what it remembers of a season ahead
+ * ([monthAt], [LEAD_MONTHS]), and the first step there: so it sets off for ground that will be good by the time it gets there.
  *
  * Its cost is the world's: what it remembers is last years', and where a year goes otherwise the animals walk into
  * what it brings; and they learn only from what their kind lived through, so ground it has not stood on is
@@ -221,6 +221,14 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
          * height reports cut them). Snow lies, summers dry and the growing season shortens with height.
          */
         val HEIGHTS = floatArrayOf(500f, 1000f, 1500f, 2500f)
+        /**
+         * How far ahead the route looks, months: a season. Snow and the late-winter hunger on high ground come in
+         * February to April, and a step into ground no worse than where they are can be taken only while the high ground is
+         * still good; a month's lead found the low ground no better until too late (storm worlds, 2026-10-20). Three months
+         * ahead, with each place weighed by its own height, moved them a little more and earlier at no cost in numbers
+         * (5 years, storm-1); six months ahead did no better.
+         */
+        const val LEAD_MONTHS = 3
         /** Kinds of ground: each country at each height. */
         val TYPES = Biome.entries.size * (HEIGHTS.size + 1)
     }
