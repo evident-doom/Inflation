@@ -6,6 +6,7 @@ import inflation.ecology.Catalogue
 import inflation.ecology.HexHistory
 import inflation.ecology.HexHistory.Key
 import inflation.ecology.HexSim
+import inflation.ecology.HexWater
 import inflation.world.WorldConfig
 import java.lang.reflect.Modifier
 import kotlin.math.abs
@@ -341,7 +342,7 @@ object Nominal {
     }
 
     /** Series that may go below zero. */
-    private fun signed(k: String) = k == Key.TEMPERATURE || k == Key.fishFlow("drift (net)")
+    private fun signed(k: String) = k == Key.TEMPERATURE || k == Key.fishFlow(HexWater.DRIFT_FLOW)
     /** Series recorded every week from their first. */
     private fun always(k: String) = Key.animalKind(k) != null || Key.isBiomass(k) || Key.isWeather(k) || Key.isSmallLife(k) || Key.isWaterLife(k) || k == Key.LAND_AREA
 

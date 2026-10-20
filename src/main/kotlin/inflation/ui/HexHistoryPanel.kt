@@ -272,7 +272,7 @@ fun main(args: Array<String>) {
         val h = HexHistory.readCsv(File(words[0]))
         val p = HexHistoryPanel(h, live = false)
         val keys = words.drop(1)
-        p.selectForPicture(keys, stackedBands = keys.any { it.startsWith("deaths/") })
+        p.selectForPicture(keys, stackedBands = keys.any { HexHistory.Key.isDeaths(it) })
         p.setSize(1250, 650); p.doLayout()
         val img = java.awt.image.BufferedImage(1250, 650, java.awt.image.BufferedImage.TYPE_INT_RGB)
         val g = img.createGraphics(); g.color = Color.WHITE; g.fillRect(0, 0, 1250, 650)

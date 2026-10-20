@@ -226,7 +226,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             continue
         }
         if (o.carrionKg > 0f) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
-        if (o.births > 0) stats.births.merge(s.name, o.births, Int::plus)
+        if (o.births > 0) stats.births.merge(s, o.births, Int::plus)
         note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause.label}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
         fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }

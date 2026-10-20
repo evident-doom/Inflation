@@ -3,6 +3,7 @@ package inflation.tools.fauna
 import inflation.StockName
 import inflation.Stocks
 import inflation.ecology.Activity
+import inflation.ecology.Catalogue
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
 import inflation.ecology.HexGeography
@@ -125,7 +126,7 @@ class Census(private val sim: HexSim) {
         fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps ->
             ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
         fun both(f: (Int) -> Double) = arrayOf(mean(f, true), mean(f, false))
-        val roe = fauna.kinds.indexOfFirst { it.name == "roe deer" }
+        val roe = fauna.kinds.indexOf(Catalogue.ROE_DEER)
         val forage = both { (land.palatable[it] * (land.plants.herb[it] + land.plants.shrub[it])).toDouble() }
         val green = both { land.plants.green[it].toDouble() }
         val roeFed = if (roe >= 0) both { fauna.fed[roe][it].toDouble() } else arrayOf(0.0, 0.0)

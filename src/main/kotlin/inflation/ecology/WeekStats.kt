@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.DoubleAdder
  * (Concurrent and sorted: hunting runs region by region on all cores.)
  */
 class WeekStats {
-    /** Kills this week by prey kind. */
-    val kills = ConcurrentSkipListMap<String, Int>()
+    /** Kills this week by prey kind (in order of name, as the reports list them). */
+    val kills = ConcurrentSkipListMap<Species, Int>(BY_NAME)
     /** Meetings this week by kind of meeting. */
     val meetings = ConcurrentSkipListMap<String, Int>()
     /** Deaths this week by "kind:cause". */
@@ -24,7 +24,7 @@ class WeekStats {
     /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
     @Transient val childDeaths = ConcurrentHashMap<String, DoubleAdder>()
     /** Young born this week by kind. */
-    val births = TreeMap<String, Int>()
+    val births = TreeMap<Species, Int>(BY_NAME)
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
     val residentDeaths = TreeMap<String, Double>()
 
@@ -35,6 +35,8 @@ class WeekStats {
 
     /** Starts a new week (the children's ledger runs on until read). */
     fun clear() { kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
+
+    private companion object { val BY_NAME = compareBy<Species> { it.name } }
 
 }
 

@@ -691,11 +691,11 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     val leftA = na * leftOver(ps, kgEach, band)
     small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na, leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
-    stats.kills.merge(ps.name, kills1, Int::plus)
+    stats.kills.merge(ps, kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
     fauna.killed(p, Kg(kills1 * ps.massKg))
     stats.hunting.merge(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1, Int::plus)
-    diag(ps, "resident kills", kills1.toFloat())
+    diag(ps, HuntStep.RESIDENT_KILLS, kills1.toFloat())
     return kills1
 }
 
@@ -757,9 +757,9 @@ private fun HexGroups.countResidentsMet(g: HexGroup, ground: HuntGround, met: Fl
         val swept = ground.km2[j]
         for (k in 0 until nk) counts[fauna.kinds[k].index] += (fauna.adults[k][p] + fauna.young[k][p]) * swept * met[j * nk + k] * searched
         if (HUNT_DIAG) for (k in 0 until nk) { val ps = fauna.kinds[k]
-            diag(ps, "resident bands met", (fauna.adults[k][p] + fauna.young[k][p]) * swept * (0.5f + 0.5f * Niches.overlap(g.species, ps)) / ps.groupSize * searched) }
+            diag(ps, HuntStep.RESIDENT_BANDS_MET, (fauna.adults[k][p] + fauna.young[k][p]) * swept * (0.5f + 0.5f * Niches.overlap(g.species, ps)) / ps.groupSize * searched) }
     }
-    if (HUNT_DIAG) for (k in 0 until nk) diag(fauna.kinds[k], "resident bands met unseen", counts[fauna.kinds[k].index])
+    if (HUNT_DIAG) for (k in 0 until nk) diag(fauna.kinds[k], HuntStep.RESIDENT_BANDS_MET_UNSEEN, counts[fauna.kinds[k].index])
     g.metGame(counts, today)
 }
 

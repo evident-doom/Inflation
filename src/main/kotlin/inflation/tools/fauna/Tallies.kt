@@ -36,8 +36,8 @@ class DeathTally(private val sim: HexSim) {
         val fauna = sim.fauna; val groups = sim.groups
         for ((key, v) in fauna.deaths) causes.merge(key, v, Double::plus)
         for ((key, v) in groups.stats.deaths) causes.merge(key, v.toDouble(), Double::plus)
-        for ((key, v) in groups.stats.kills) causes.merge(Tally.of(key, Tally.HUNTED), v.toDouble(), Double::plus)
-        for ((key, v) in groups.stats.births) causes.merge(Tally.of(key, Tally.BORN), v.toDouble(), Double::plus)
+        for ((s, v) in groups.stats.kills) causes.merge(Tally.of(s.name, Tally.HUNTED), v.toDouble(), Double::plus)
+        for ((s, v) in groups.stats.births) causes.merge(Tally.of(s.name, Tally.BORN), v.toDouble(), Double::plus)
     }
 
     /** What [key] came to this year. */

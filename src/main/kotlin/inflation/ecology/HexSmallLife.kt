@@ -5,6 +5,7 @@ import inflation.KgKm2
 import inflation.KgM2
 import inflation.StockName
 import inflation.min
+import inflation.world.Biome
 import inflation.world.HexPlants
 import inflation.wrapMonth
 import inflation.HASH_A
@@ -17,6 +18,7 @@ import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.LifeForm
 import inflation.world.Weather
+import java.util.EnumSet
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -171,7 +173,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     private fun ateM2(p: Int, kgM2: Float) { ateBook?.add(-kgM2 * land.areaM2[p].toDouble()) }
     @Transient private var crowdLeak: DoubleAdder? = null
     /** Share of each place that is wetland, where biting insects breed. */
-    @Transient val wetland = FloatArray(n) { p -> hw.placeCells[p].count { val b = hw.world.biome[it]; b.name in WETLANDS }.toFloat() / hw.placeCells[p].size }
+    @Transient val wetland = FloatArray(n) { p -> hw.placeCells[p].count { val b = hw.world.biome[it]; b in WETLANDS }.toFloat() / hw.placeCells[p].size }
     /** Marsh, bog and floodplain, where ducks and geese feed. */
     @Transient private val waterfowl = FloatArray(n) { p -> min(1f, wetland[p] + land.floodShare[p]) }
     /** The year's mean temperature and rain at each place. */
@@ -1158,7 +1160,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     }
 
     companion object {
-        val WETLANDS = setOf("MARSH", "SWAMP_FOREST", "BOG", "SALT_MARSH", "MANGROVE")
+        val WETLANDS = EnumSet.of(Biome.MARSH, Biome.SWAMP_FOREST, Biome.BOG, Biome.SALT_MARSH, Biome.MANGROVE)
         /** Share of rodents and of hares a fire kills where it burns all of a place (the rest bolt). Not measured. */
         const val RODENTS_BURNT = 0.5f
         const val HARES_BURNT = 0.3f

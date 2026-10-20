@@ -69,6 +69,7 @@ class HexHistory {
         fun deaths(kind: String, cause: String) = "$DEATHS$kind/$cause"
         /** The kind a [deaths] key is about, or null for any other key. */
         fun deathsKind(key: String) = if (key.startsWith(DEATHS)) key.split('/')[1] else null
+        fun isDeaths(key: String) = key.startsWith(DEATHS)
         /** Young of [kind] born in the week. */
         fun births(kind: String) = BIRTHS + kind
         /** Animals of [kind] killed by hunters in the week. */
@@ -96,7 +97,7 @@ class HexHistory {
         /** What a [hunters] key measures, or null for any other key. */
         fun huntersOf(key: String) = if (key.startsWith(HUNTERS)) Hunters.entries.firstOrNull { key.endsWith("/" + it.label) } else null
         /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
-        fun isFlow(key: String) = key.startsWith(DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN ||
+        fun isFlow(key: String) = isDeaths(key) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN ||
             huntersOf(key) == Hunters.KILLS
     }
 
@@ -209,19 +210,19 @@ class HexHistory {
         put(Key.waterLife("fish, tonnes"), wl.fishTonnes()); put(Key.waterLife("river fish, tonnes"), wl.riverFishTonnes())
         put(Key.waterLife("shellfish, tonnes"), wl.shellfishTonnes()); put(Key.waterLife("sea birds"), wl.colonyBirds.sum())
         put(Key.waterLife("zooplankton, g per m²"), wl.zooMean())
-        for ((key, v) in wl.fishFlows) if (!key.startsWith("hungry")) put(Key.fishFlow(key), v.toFloat())
+        for ((key, v) in wl.fishFlows) put(Key.fishFlow(key), v.toFloat())
         // Deaths, births and kills this week.
         val deaths = HashMap<String, Double>()
         for ((key, v) in fauna.deaths) deaths.merge(key, v, Double::plus)
         for ((key, v) in groups.stats.deaths) deaths.merge(key, v.toDouble(), Double::plus)
         for ((key, v) in deaths) put(Key.deaths(key.substringBefore(":"), key.substringAfter(":")), v.toFloat())
-        for ((key, v) in groups.stats.kills) put(Key.deaths(key, "hunted"), v.toFloat())
-        for ((key, v) in groups.stats.hunting) if (key.startsWith("diag:")) put("hunt diag/" + key.removePrefix("diag:").replace(':', '/'), v / 100f)
+        for ((s, v) in groups.stats.kills) put(Key.deaths(s.name, Tally.HUNTED), v.toFloat())
+        for ((key, v) in groups.stats.hunting) HuntStep.series(key)?.let { put(it, v / 100f) }
         val births = HashMap<String, Double>()
-        for ((key, v) in groups.stats.births) births.merge(key, v.toDouble(), Double::plus)
+        for ((s, v) in groups.stats.births) births.merge(s.name, v.toDouble(), Double::plus)
         for ((k, s) in fauna.kinds.withIndex()) if (fauna.bornThisWeek[k] > 0.0) births.merge(s.name, fauna.bornThisWeek[k], Double::plus)
         for ((key, v) in births) put(Key.births(key), v.toFloat())
-        for ((key, v) in groups.stats.kills) put(Key.kills(key), v.toFloat())
+        for ((s, v) in groups.stats.kills) put(Key.kills(s.name), v.toFloat())
         recordHunters(sim)
         // Weather, means over the land.
         val total = area.sum()
