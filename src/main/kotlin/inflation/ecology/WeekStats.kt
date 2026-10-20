@@ -29,11 +29,67 @@ class WeekStats {
     val residentDeaths = TreeMap<String, Double>()
 
     /** Counts [n] more of [what] in [meetings]. */
-    fun meeting(what: String, n: Int = 1) { meetings.merge(what, n, Int::plus) }
+    fun meeting(what: Met, n: Int = 1) { meetings.merge(what.label, n, Int::plus) }
+    /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
+    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetings.merge(what.key(of), n, Int::plus) }
 
     /** Starts a new week (the children's ledger runs on until read). */
     fun clear() { kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
 
+}
+
+/** What the week's [meetings][WeekStats.meetings] count, each under its [label]. */
+enum class Met(val label: String) {
+    BANDS_BACK_AT_A_CACHE("bands back at a cache"),
+    BANDS_BUILT_HOUSES("bands built houses"),
+    BANDS_BUILT_PALISADES("bands built palisades"),
+    BANDS_BURNED_OFF_GRASS("bands burned off grass"),
+    BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
+    BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
+    BANDS_LET_A_RITE_GO("bands let a rite go"),
+    BANDS_MADE_AN_APPOINTMENT("bands made an appointment"),
+    BANDS_MAULED_AT_A_CARCASS("bands mauled at a carcass"),
+    BANDS_MET("bands met"),
+    BANDS_SOWED("bands sowed"),
+    BANDS_TOLD_OF_COUNTRY("bands told of country"),
+    BANDS_TOLD_OF_ROUTES("bands told of routes"),
+    BANDS_TOOK_UP_A_RITE("bands took up a rite"),
+    BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
+    BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),
+    CACHES_ROBBED("caches robbed"),
+    FAVOURS_HELD_BACK("favours held back"),
+    FAVOURS_RETURNED("favours returned"),
+    FEASTS("feasts"),
+    FEASTS_WITH_BEER("feasts with beer"),
+    FOOD_GIVEN("food given"),
+    HUNGRY_BANDS_CHOSE_TO_MOVE("hungry bands chose to move"),
+    HUNGRY_BANDS_CHOSE_TO_STAY("hungry bands chose to stay"),
+    HUNGRY_BANDS_FED_BY_KIN("hungry bands fed by kin"),
+    HUNTERS_OF_OTHER_KINDS("hunters of other kinds"),
+    KEPT_ANIMALS_CULLED("kept animals culled"),
+    KILL_STOLEN("kill stolen"),
+    LARDERS_RAIDED("larders raided"),
+    ORNAMENTS_GIVEN("ornaments given"),
+    PACK_GAVE_WAY("pack gave way"),
+    PACKS_FOUGHT("packs fought"),
+    RAIDED_BANDS_SLIPPED_AWAY("raided bands slipped away"),
+    RAIDS("raids"),
+    RAIDS_ON_HOMES("raids on homes"),
+    RAIDS_SET_OUT("raids set out"),
+    RIVAL_PACKS("rival packs"),
+    SLIPPED_AWAY("slipped away"),
+    SMALL_BANDS_JOINED_KIN("small bands joined kin"),
+    YOUNG_ANIMALS_KEPT("young animals kept"),
+    YOUNG_HUNTERS_LEFT_THEIR_PACK("young hunters left their pack");
+
+    /** Meetings of something named (a kind, a skill, a tool, a custom, a good), keyed [before] its name [after]. */
+    enum class Of(val before: String, val after: String = "") {
+        NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
+        LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
+        TURNED_BACK_BY("bands turned back by ");
+
+        fun key(of: String) = before + of + after
+    }
 }
 
 /**

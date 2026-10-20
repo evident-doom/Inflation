@@ -163,7 +163,7 @@ class HexGroups(
                 claimGround(g, Hex(hw.placeHex[p]))
                 groups += g
             }
-            stats.meeting("newcomers: ${s.name}", NEWCOMERS)
+            stats.meeting(Met.Of.NEWCOMERS, s.name, NEWCOMERS)
         }
     }
 
@@ -285,7 +285,7 @@ class HexGroups(
         }
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < Thresholds.HUNGRY)
-                stats.meeting(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move")
+                stats.meeting(if (paths[k]!!.size <= 1) Met.HUNGRY_BANDS_CHOSE_TO_STAY else Met.HUNGRY_BANDS_CHOSE_TO_MOVE)
             g.climbedM = max(0f, hw.placeElevationM[choice[k]] - hw.placeElevationM[g.place.i])
             g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             crossWater(g, g.path)
@@ -302,7 +302,7 @@ class HexGroups(
             // (The drowned wash up on the far shore.)
             small.deposit(DeadPool.CARRION, g.place, Kg((lostA + HexFauna.YOUNG_WEIGHT * lostY) * g.species.massKg))
             if (lostA + lostY > 0) stats.deaths.merge(Tally.of(g.species, DeathCause.DROWNED_CROSSING), lostA + lostY, Int::plus)
-            stats.meeting("sea crossings: ${g.species.name}")
+            stats.meeting(Met.Of.SEA_CROSSINGS, g.species.name)
         }
     }
 
@@ -609,7 +609,7 @@ class HexGroups(
             val dry = land.hydro.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.plants.green[p] < 0.4f
             if (dry && land.plants.herb[p] > 0.3f && land.fire.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) {
                 land.fire.ignite(p.i)
-                stats.meeting("bands burned off grass")
+                stats.meeting(Met.BANDS_BURNED_OFF_GRASS)
             }
         }
     }
