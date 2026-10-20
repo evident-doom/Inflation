@@ -390,6 +390,22 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient private val routeStep = arrayOfNulls<IntArray>(kinds.size)
     @Transient private val routeGain = arrayOfNulls<FloatArray>(kinds.size)
 
+    /**
+     * For the viewer: what the flow weighs place [p] at for kind [k], as a month's log growth (a year's, [placeWorth], taken
+     * to a month as the route's gain is); NaN where the flow did not weigh it this week (the kind is not there nor next to it).
+     */
+    internal fun flowScoreAt(k: FaunaKind, p: Place): Float {
+        val w = worth[k][p]
+        return if (w > 0f) ln(w) * Date.DAYS_PER_MONTH / Date.DAYS_PER_YEAR else Float.NaN
+    }
+
+    /**
+     * For the viewer: what kind [k]'s seasonal memory rates each place in [month], as a month's log growth ([SeasonalMemory.monthAt]):
+     * the route weighs the month [SeasonalMemory.LEAD_MONTHS] ahead.
+     */
+    internal fun memoryScores(k: FaunaKind, month: Int): FloatArray =
+        memoryOf(k).let { (fare, seen) -> seasons.monthAt(k.i, month % 12, fare, seen) }
+
     /** For the viewer: the place resident kind [k] at place [p] steps to along its memory's route this week (-1: none), and how much the route gains ([routeGain], log). */
     internal fun routeTo(k: FaunaKind, p: Place): Int { val i = routeStep[k]?.get(p) ?: -1; return if (i < 0) -1 else flowWays[k].to[i] }
     internal fun routeGainAt(k: FaunaKind, p: Place): Float = routeGain[k]?.get(p) ?: 0f
