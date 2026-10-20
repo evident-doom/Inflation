@@ -29,6 +29,7 @@ import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.sign
 import kotlin.math.sqrt
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
@@ -110,6 +111,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * (`month * 2`). Where the moving itself takes a kind up or down, apart from births and deaths by height.
      */
     @Transient val climbed = Array(kinds.size) { DoubleArray(24) }
+    @Transient val PROBE = DoubleArray(kinds.size * 12 * 2 * 4)
+    @Transient val PROBE2 = DoubleArray(kinds.size * 12 * 4 * 4)
+    @Transient val PROBE3 = DoubleArray(kinds.size * 12 * 4 * 4)
+    @Transient val PROBE5 = DoubleArray(kinds.size * 12 * 2)
+    @Transient val PROBE6 = DoubleArray(kinds.size * 12 * 3)
+    @Transient val PROBE7 = DoubleArray(kinds.size * 12 * 4)
+    @Transient val routedIn = Array(kinds.size) { FloatArray(hw.placeHex.size) }
     /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
      * away from ground where its kind has been killed (the landscape of fear).
@@ -1027,6 +1035,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val youngSum = youngSum(s, hz, eagle, croc, starved)
                 val youngOdds = youngSum.coerceIn(0f, 0.95f)
                 val da = a[p] * adultOdds; val dy = y[p] * youngOdds
+                run { val hh = ((a[p] + y[p]) * land.areaKm2[p]).toDouble(); val i = (k * 12 + date.month) * 4
+                    synchronized(PROBE7) { PROBE7[i] += hh; PROBE7[i + 1] += hh * crowd; PROBE7[i + 2] += hh * disease; PROBE7[i + 3] += hh * ((a[p] + y[p]) / usual[k]) } }
+                run { val area = land.areaKm2[p]; val hh = (a[p] + y[p]) * area; if (hh > 0f) {
+                    val c = if (routedIn[k][p] > 0.1f * hh) 1 else 0; val i = ((k * 12 + date.month) * 2 + c) * 4
+                    synchronized(PROBE) { PROBE[i] += hh.toDouble(); PROBE[i + 1] += (a[p] * hunger * area).toDouble(); PROBE[i + 2] += (f[p] * hh).toDouble(); PROBE[i + 3] += (hw.placeElevationM[p] * hh).toDouble() } } }
                 if (heads != null && grew != null) {
                     // What they remember of the ground is what the ground and its seasons do to them: the young their food
                     // let them bear, and the deaths of hunger, thirst, cold, snow, fire and flood (the young's hunger, thirst
@@ -1036,6 +1049,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val youngEnv = (1.5f * (hunger + cold + thirst) + snowY + fireY + floodY + starved).coerceIn(0f, 0.95f)
                     heads[p] = (a[p] + y[p]) * area
                     grew[p] = (ln((a[p] + y[p]) / before.toDouble()) + ln(1.0 - (a[p] * grownEnv + y[p] * youngEnv) / (a[p] + y[p]))).toFloat()
+                    run { val e = hw.placeElevationM[p]; val b = if (e < 500f) 0 else if (e < 1000f) 1 else if (e < 1500f) 2 else 3
+                        val i = ((k * 12 + date.month) * 4 + b) * 4; val hh = heads[p].toDouble()
+                        synchronized(PROBE2) { PROBE2[i] += hh; PROBE2[i + 1] += hh * ln((a[p] + y[p]) / before.toDouble()); PROBE2[i + 2] += hh * ln(1.0 - (a[p] * grownEnv + y[p] * youngEnv) / (a[p] + y[p])); PROBE2[i + 3] += hh * birthStart[k][p] } }
                 }
                 // (The causes are booked as shares of the deaths that happen: where the odds are capped, each cause is cut alike.)
                 val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
@@ -1457,6 +1473,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val heads = (a[p] + y[p]) * land.areaKm2[p]
                 if (heads > 0f) reserve[k][p] = max(0f, reserve[k][p] - WALK_COST * walkedKm[p] / heads)
             }
+            run { var w = 0.0; var h = 0.0; for (p in 0 until n) { w += walkedKm[p]; h += (a[p] + y[p]) * land.areaKm2[p] }
+                val i = (k * 12 + weather.date.month) * 2; PROBE5[i] += WALK_COST * w; PROBE5[i + 1] += h }
         }
         // (The drowned, counted kind by kind, go to the soil with the week's other carcasses.)
         var drownedKg = 0.0
@@ -1619,6 +1637,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (Its ways fetched once: they are looked up in the innermost loops.)
         val ways = flowWays[k]
         val climbedNow = climbed[k]; val monthNow = weather.date.month
+        val rin = routedIn[k]; for (p in 0 until n) rin[p] *= 0.75f
+        var culledBefore = 0.0; var headsBefore = 0.0
+        for (p in 0 until n) { val hh = (a[p] * land.areaKm2[p]).toDouble(); if (hh > 0.0) { culledBefore += hh * Hazards.starvedShare(s, spent[k][p]); headsBefore += hh } }
         // Heads at each place, grown and young; and the food there, in heads it feeds fully: those there, as fed as they were, and the food left uneaten.
         val ga = FloatArray(n) { p -> a[p] * area[p] }; val gy = FloatArray(n) { p -> y[p] * area[p] }
         // (The grown times the share of their season of births they have had: [bred] goes with them.)
@@ -1633,7 +1654,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (The route worked out every week, by what it has learnt up to now.)
         val month = weather.date.month
         val st = routeStep[k] ?: IntArray(n).also { routeStep[k] = it }; val gn = routeGain[k] ?: FloatArray(n).also { routeGain[k] = it }
-        Profile.part("residents: seasonal memory, routes") { seasons.route(k, seasons.monthAt(k, (month + 1) % 12, seasonFare[k], seasonSeen[k]), ways, st, gn) }
+        val afterP = seasons.monthAt(k, (month + 1) % 12, seasonFare[k], seasonSeen[k])
+        Profile.part("residents: seasonal memory, routes") { seasons.route(k, afterP, ways, st, gn) }
+        run { val P3 = PROBE3; for (p in 0 until n) { val hh = (a[p] + y[p]) * land.areaKm2[p]; if (!(hh > 0f)) continue
+            val e = hw.placeElevationM[p]; val b = if (e < 500f) 0 else if (e < 1000f) 1 else if (e < 1500f) 2 else 3
+            val i = ((k * 12 + month) * 4 + b) * 4; val w = st[p]
+            P3[i] += hh.toDouble(); P3[i + 1] += hh * afterP[p].toDouble(); P3[i + 2] += hh * gn[p].toDouble()
+            if (w >= 0) { val q = ways.to[w]; P3[i + 3] += hh * sign(hw.placeElevationM[q] - e).toDouble() } } }
         // What they remember of the year from the next month on: the best ground a month's going reaches draws them along
         // the first step towards it, by all it is better than staying ([routeGain]).
         val step = routeStep[k]!!; val boost = routeGain[k]!!.let { g -> FloatArray(n) { p -> exp(g[p]) } }
@@ -1760,6 +1787,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (km + climbKm(k, p, q))
                     changed[q] = true
                     if (record && hw.placeHex[q] != h) recordFlow(h, hw.placeHex[q], m)
+                    if (i == step[p]) rin[q] += m - lostA - lostY
                     climbedNow[monthNow * 2 + (if (i == step[p]) 1 else 0)] += (m - lostA - lostY).toDouble() * (hw.placeElevationM[q] - hw.placeElevationM[p])
                 }
                 ga[p] = max(0f, ga[p] - left * (1f - youngShare)); gy[p] = max(0f, gy[p] - left * youngShare); changed[p] = true
@@ -1774,6 +1802,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         countStuck(k, weekHeads, weekStuck, weekEdge)
         for (p in 0 until n) { a[p] = max(0f, ga[p] / area[p]); y[p] = max(0f, gy[p] / area[p]); if (ga[p] > 0f) { bk[p] = (gb[p] / ga[p]).coerceIn(0f, 1f)
             fk[p] = (gf[p] / ga[p]).coerceIn(0f, kinds[k].maxFatDays); sk[p] = max(0f, gs[p] / ga[p]) } }
+        run { var after = 0.0; var hh = 0.0; for (p in 0 until n) { val x = (a[p] * land.areaKm2[p]).toDouble(); if (x > 0.0) { after += x * Hazards.starvedShare(s, sk[p]); hh += x } }
+            val i = (k * 12 + monthNow) * 3; synchronized(PROBE6) { PROBE6[i] += culledBefore - after; PROBE6[i + 1] += headsBefore; PROBE6[i + 2] += culledBefore } }
         return drownedHeads
     }
 

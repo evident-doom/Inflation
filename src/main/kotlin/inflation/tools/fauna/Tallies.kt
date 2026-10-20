@@ -223,6 +223,39 @@ class MovementTally(private val sim: HexSim) {
         if (adultHeight.any { h -> h.any { !it.isNaN() } }) println("     residents' adults' mean height by month, January to December (m): " +
             sim.fauna.kinds.indices.filter { k -> adultHeight[k].any { !it.isNaN() } }.joinToString("; ") { k ->
                 sim.fauna.kinds[k].name + " " + adultHeight[k].joinToString(" ") { if (it.isNaN()) "-" else "%.0f".format(it) } })
+        run { val f = sim.fauna; val P = f.PROBE
+            for (k in f.kinds.indices) { val nm = f.kinds[k].name; if (nm !in setOf("mouflon", "argali", "hartebeest", "ibex", "wild horse")) continue
+                for (c in 0..1) println("     PROBE $nm " + (if (c == 1) "routed" else "other ") + " Jan..Dec share%/hunger%wk/fed/height: " + (0 until 12).joinToString(" ") { m ->
+                    val i = ((k * 12 + m) * 2 + c) * 4; val t = P[((k * 12 + m) * 2) * 4] + P[((k * 12 + m) * 2 + 1) * 4]
+                    if (P[i] > 0.0) "%.0f/%.2f/%.2f/%.0f".format(100 * P[i] / t, 100 * P[i + 1] / P[i], P[i + 2] / P[i], P[i + 3] / P[i]) else "-" }) }
+            P.fill(0.0)
+            val Q = f.PROBE2
+            for (k in f.kinds.indices) { val nm = f.kinds[k].name; if (nm !in setOf("mouflon", "argali", "hartebeest", "ibex", "red deer", "wild horse")) continue
+                for (b in 0 until 4) println("     PROBE2 $nm band$b Jan..Dec heads%/births%wk/env%wk/birthStart: " + (0 until 12).joinToString(" ") { m ->
+                    val i = ((k * 12 + m) * 4 + b) * 4; val t = (0 until 4).sumOf { Q[((k * 12 + m) * 4 + it) * 4] }
+                    if (Q[i] > 0.0) "%.0f/%.2f/%.2f/%.1f".format(100 * Q[i] / t, 100 * Q[i + 1] / Q[i], 100 * Q[i + 2] / Q[i], Q[i + 3] / Q[i]) else "-" }) }
+            Q.fill(0.0)
+            val R = f.PROBE3
+            for (k in f.kinds.indices) { val nm = f.kinds[k].name; if (nm !in setOf("mouflon", "argali", "hartebeest", "ibex", "red deer", "wild horse")) continue
+                for (b in 0 until 4) println("     PROBE3 $nm band$b Jan..Dec memory-next-month%/gain%/up-minus-down: " + (0 until 12).joinToString(" ") { m ->
+                    val i = ((k * 12 + m) * 4 + b) * 4
+                    if (R[i] > 0.0) "%.1f/%.1f/%+.2f".format(100 * R[i + 1] / R[i], 100 * R[i + 2] / R[i], R[i + 3] / R[i]) else "-" }) }
+            R.fill(0.0)
+            val W = f.PROBE5
+            for (k in f.kinds.indices) { val nm = f.kinds[k].name; if (nm !in setOf("mouflon", "argali", "hartebeest", "ibex", "red deer", "oryx")) continue
+                println("     PROBE5 $nm walk days of food a head, Jan..Dec (year %.1f): ".format((0 until 12).sumOf { m -> if (W[(k * 12 + m) * 2 + 1] > 0.0) W[(k * 12 + m) * 2] / W[(k * 12 + m) * 2 + 1] else 0.0 }) +
+                    (0 until 12).joinToString(" ") { m -> val i = (k * 12 + m) * 2; if (W[i + 1] > 0.0) "%.2f".format(W[i] / W[i + 1]) else "-" }) }
+            W.fill(0.0)
+            val V = f.PROBE6
+            for (k in f.kinds.indices) { val nm = f.kinds[k].name; if (nm !in setOf("mouflon", "argali", "hartebeest", "ibex", "red deer", "oryx")) continue
+                println("     PROBE6 $nm starved share forgiven by moving %/wk, and starved share before %, Jan..Dec: " +
+                    (0 until 12).joinToString(" ") { m -> val i = (k * 12 + m) * 3; if (V[i + 1] > 0.0) "%.2f/%.1f".format(100 * V[i] / V[i + 1], 100 * V[i + 2] / V[i + 1]) else "-" }) }
+            V.fill(0.0)
+            val C = f.PROBE7
+            for (k in f.kinds.indices) { val nm = f.kinds[k].name; if (nm !in setOf("mouflon", "argali", "hartebeest", "ibex", "red deer", "oryx")) continue
+                println("     PROBE7 $nm crowd/disease%wk/density-over-usual felt, Jan..Dec: " +
+                    (0 until 12).joinToString(" ") { m -> val i = (k * 12 + m) * 4; if (C[i] > 0.0) "%.2f/%.2f/%.2f".format(C[i + 1] / C[i], 100 * C[i + 2] / C[i], C[i + 3] / C[i]) else "-" }) }
+            C.fill(0.0) }
         val climbed = sim.fauna.climbed
         if (climbed.any { c -> c.any { it != 0.0 } }) println("     residents' climb by their moving, January to December (m a head in the month, on the memory's route / the rest): " +
             sim.fauna.kinds.indices.filter { k -> climbed[k].any { it != 0.0 } }.joinToString("; ") { k ->
