@@ -24,16 +24,6 @@ internal fun HexGroups.restless(g: HexGroup, weather: Weather, thirsty: Boolean,
 }
 
 /**
- * How often a group of [s] content where it is weighs its places, weeks (by turns; the other weeks it keeps to its ground).
- * Packs every other week. Bands choosing by a network every week, [BAND_CONTENT_WEEKS]; the hand-written bands every other week, so that they
- * stay the baseline learned bands are judged against.
- */
-internal fun HexGroups.contentEvery(s: Species): Int = when (s.lifeway) {
-    Lifeway.BAND -> if (policies[s] != null) BAND_CONTENT_WEEKS else 2
-    Lifeway.PACK -> 2
-}
-
-/**
  * What place [p] is worth to kind [s] this week, before crowding, hunters and the going. A pack: the game it may expect there, as its diet
  * values it. A band: the game it expects, small game and carrion as for a pack, and the plant food, as good camping ground ([campFactor]).
  * (Where they see or read sign, by what they find: see [knownGame].)

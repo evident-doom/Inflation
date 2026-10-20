@@ -122,11 +122,6 @@ const val COVER_GOING = 0.5f
 const val RING_REACH = 0.15f
 /** How much the old, the sick and the lamed slow a band's going (all of it so: this share slower). */
 const val WEAK_SLOW = 0.6f
-/**
- * A content band choosing by a network weighs its places one week in this many: every week, as everything a
- * band does is its choice (hand-written bands: every other week).
- */
-const val BAND_CONTENT_WEEKS = 1
 /** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
 const val HUNT_BLOCK_KM = 300f
 /** Parties that kept near home this week are worked in squares this wide, km (see [hunt]). */
@@ -136,8 +131,6 @@ const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */
 const val SHELTER_EFFECT = 0.7f
 const val AVOID_SKILL = 0.6f
-/** How well fed a group must be to keep to its ground without weighing where else to go (every other week). */
-const val CONTENT = 0.95f
 /** People: plant food counted against game by weight (it is easier to come by, but not all is worth gathering); how much a safe camp site adds. */
 const val PLANT_FOOD_WEIGHT = 0.5f
 const val CAMP_SAFETY = 0.5f

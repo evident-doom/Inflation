@@ -164,7 +164,7 @@ class Census(private val sim: HexSim) {
 
     /** How often each kind's groups weighed their choices, and how often that came to moving (clears the counts). */
     fun printChoices() {
-        println("     choices a week per group (kept to ground unweighed / weighed and stayed / moved): " + groups.kinds.joinToString(", ") { s ->
+        println("     choices a week per group (unused / weighed and stayed / moved): " + groups.kinds.joinToString(", ") { s ->
             val c = IntArray(3) { groups.planCounts.getAndSet(s.index * 3 + it, 0) }
             val all = c.sum().coerceAtLeast(1)
             "%s %.0f/%.0f/%.0f%%".format(s.name, 100.0 * c[0] / all, 100.0 * c[1] / all, 100.0 * c[2] / all)

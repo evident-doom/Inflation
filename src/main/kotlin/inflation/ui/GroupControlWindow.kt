@@ -85,6 +85,10 @@ class GroupControlWindow(
     private val requestStep: () -> Unit,
     /** Whether the overview is running weeks on its own. */
     private val running: () -> Boolean,
+    /** The overview's Run/Pause button pressed, its weeks per second, and setting it (the time controls here are linked to those). */
+    private val toggleRun: () -> Unit,
+    private val speed: () -> Int,
+    private val setSpeed: (Int) -> Unit,
 ) : GroupControl {
     private val groups = sim.groups
     private val hex = sim.hex
@@ -112,6 +116,8 @@ class GroupControlWindow(
     /** The groups it saw about it when it last chose (to show where they went). */
     @Volatile private var seenBefore = emptySet<Int>()
     private val next = JButton("Next step")
+    private val run = JButton("Run")
+    private val speedSlider = JSlider(1, 10, 2)
     private val title = JLabel(" ")
     private val note = JLabel(" ")
     private val status = text()
@@ -157,7 +163,10 @@ class GroupControlWindow(
         tabs.addTab("Last week", JScrollPane(lastWeek))
 
         val bar = JPanel(BorderLayout())
-        val buttons = JPanel(); buttons.add(handsOff); buttons.add(reset); buttons.add(next)
+        run.toolTipText = "Same as the overview's Run/Pause: weeks run on their own, the model deciding for the followed group"
+        speedSlider.addChangeListener { setSpeed(speedSlider.value) }
+        run.addActionListener { toggleRun() }
+        val buttons = JPanel(); buttons.add(handsOff); buttons.add(reset); buttons.add(next); buttons.add(run); buttons.add(JLabel("weeks/s")); buttons.add(speedSlider)
         bar.add(note, BorderLayout.CENTER); bar.add(buttons, BorderLayout.EAST)
         val left = JPanel(BorderLayout()); left.add(map, BorderLayout.CENTER)
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, tabs).apply { resizeWeight = 0.5 }
@@ -201,6 +210,12 @@ class GroupControlWindow(
     }
 
     val isOpen get() = frame.isVisible
+
+    /** The overview's time controls changed: show their state here. */
+    fun syncTime() = SwingUtilities.invokeLater {
+        run.text = if (running()) "Pause" else "Run"
+        if (speedSlider.value != speed()) speedSlider.value = speed()
+    }
 
     /** The group followed changed (or follow ended): any waiting choice goes to the model, and the pins are dropped. */
     fun followChanged() {
@@ -348,8 +363,7 @@ class GroupControlWindow(
         sb.appendLine("in its hex: " + with.joinToString(", ") { "%s #%d (%d)".format(it.species.name, it.id, it.size) }.ifEmpty { "no other group" })
         if (d != null && d.group.id == g.id) {
             sb.appendLine()
-            sb.appendLine(if (d.content) "content where it is: the model keeps it here this week"
-                else if (d.restless) "restless (hungry, thirsty, astray, or due somewhere): it will go far" else "weighing where to graze or camp")
+            sb.appendLine(if (d.restless) "restless (hungry, thirsty, astray, or due somewhere): it will go far" else "weighing where to graze or camp")
             sb.appendLine("it can reach %d places, within %.0f km of effort".format(d.places.size, d.reachKm))
             if (d.goal >= 0) sb.appendLine("%s draws it to %s, %.0f km off".format(if (d.onRound) "its round" else "its memory of the season", where(d.goal),
                 hex.distanceKm(hw.placeHex[g.place], hw.placeHex[d.goal])))
