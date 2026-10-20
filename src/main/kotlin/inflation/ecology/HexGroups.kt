@@ -656,8 +656,8 @@ class HexGroups(
     /** A kind's usual group as an agent. */
     internal fun unitSize(s: Species) = s.groupSize
 
-    /** Choices made in planning, by kind: kept to its ground without weighing (content), weighed and stayed, weighed and moved. */
-    val planCounts = AtomicIntegerArray(64 * 3)
+    /** Choices made in planning, by kind: weighed and stayed, weighed and moved. */
+    val planCounts = AtomicIntegerArray(64 * 2)
 
 
     /** Strongest hunting party in each place last week, and its kind's index (-1 for none). */
@@ -865,24 +865,12 @@ class HexGroups(
         val goalFar = goal >= 0 && s.human && hexKm(here.i, hw.placeHex[goal]) > 2 * hex.hexKm
         // Far out of its country, it treks.
         val astray = bearings.strength(kindSlot[s.index], here.i) > ASTRAY
-        // Any group weighs its places where what the place drains from it (the cold, the flies) is worse,
-        // by more than a step's going costs, than at the next place over: relief lies a step away. (It
-        // looks about, but does not trek for it: its usual week's going reaches the next place.)
-        val relief = drain(g, g.place, weather) - leastDrainNear(g, here.i, weather) > WALK_COST * hex.hexKm.toFloat() / days
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
         val dueSoon = g.band?.let { b -> b.appointment.let { ap -> ap != null && ap.hex != here && monthsFrom(month, ap.month) <= 1 } ||
             b.unluckyHex == here || b.raid != null } ?: false
         val restless = restless(g, weather, thirsty, astray, dueSoon, onRound, goalFar)
-        // A group content where it is (fed, watered, comfortable, in its country) keeps to its ground
-        // this week without weighing the alternatives: every other week, by turns.
-        // (How often depends on its way of life: see [contentEvery].)
-        val every = contentEvery(s)
-        // (A followed group under the player's hand weighs its places every week, to show them; content, the model keeps it where it is.)
+        // Every group weighs its places every week, content or not. (A followed group under the player's hand: every place it weighed is wanted, to show them.)
         val capture = control != null && g.id == watched
-        val content = !restless && !relief && g.fed >= CONTENT && (date.absoluteDay / days + g.id) % every != 0L
-        if (content && !capture) {
-            planCounts.incrementAndGet(s.index * 3); return Plan(g.place, intArrayOf(here.i))
-        }
         // (A band goes at the pace of its slowest: the old, the sick and the lamed hold it back.)
         val weak = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS * (1f - WEAK_SLOW * weak) *
@@ -1004,11 +992,11 @@ class HexGroups(
             while (true) { chain += h; if (h == here.i) break; h = via[h].takeIf { it >= 0 } ?: break }
             chain.reverse(); return chain.toIntArray()
         }
-        if (capture) best = Place(askControl(g, weather, date, policy, buf.candPlaces, buf.candFeats, buf.candScores, if (content) g.place.i else best.i, content,
+        if (capture) best = Place(askControl(g, weather, date, policy, buf.candPlaces, buf.candFeats, buf.candScores, best.i,
             restless, reach, goal, onRound) { pathTo(it) })
         if (seen != null && g.id == watched) logWatched(c, seen, best, policy != null)
         if (diag && seen != null) printPlanDiag(c, seen, best)
-        planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
+        planCounts.incrementAndGet(s.index * 2 + (if (best == g.place) 0 else 1))
         return Plan(best, pathTo(best.i))
     }
 
@@ -1271,18 +1259,6 @@ class HexGroups(
 
     /** Whether band [b] camped at place [p] would be at its house. */
     internal fun atHouse(b: Band, p: Place) = b.houseHex.i == hw.placeHex[p] && b.house > 0.05f
-
-    /** The least [drain] at the places next to hex [here] (at the height nearest the group's). */
-    private fun leastDrainNear(g: HexGroup, here: Int, weather: Weather): Float {
-        var least = Float.MAX_VALUE
-        for (k in 0 until 6) {
-            val q = hex.neighbour(here, k)
-            if (q < 0) continue
-            val p = hw.placeNear(g.place, Hex(q))
-            if (!p.none) least = min(least, drain(g, p, weather))
-        }
-        return if (least == Float.MAX_VALUE) drain(g, g.place, weather) else least
-    }
 
     /**
      * What the biting insects at [p] cost a group of kind [s] this week, as a share of the working time

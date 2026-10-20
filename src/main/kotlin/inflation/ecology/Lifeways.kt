@@ -4,13 +4,13 @@ import inflation.world.Weather
 
 /*
  * What differs between the two ways groups live ([Lifeway]) when they choose where to go: when a group is
- * restless, how often a content one weighs its places, what a place is worth to it, and how its food there
+ * restless, what a place is worth to it, and how its food there
  * counts in the hand-written score. Each rule is written once per lifeway here, so that a pack's and a
  * band's way of choosing can be read side by side; [HexGroups.planInner] asks them once per group.
  */
 
 /**
- * Whether [g] is restless this week: it ranges as far as it can, and weighs its places whether content or not.
+ * Whether [g] is restless this week: it ranges as far as it can.
  * A pack when hungry, without ground of its own, thirsty or astray; a band when hungry, thirsty, astray, due
  * somewhere soon, behind its round, or ill at ease where it is (the cold or heat as its clothes, fire and shelter leave it).
  */
@@ -21,16 +21,6 @@ internal fun HexGroups.restless(g: HexGroup, weather: Weather, thirsty: Boolean,
             (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: 0f) > 0.5f
         Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home.none || thirsty || astray
     }
-}
-
-/**
- * How often a group of [s] content where it is weighs its places, weeks (by turns; the other weeks it keeps to its ground).
- * Packs every other week. Bands choosing by a network every week, [BAND_CONTENT_WEEKS]; the hand-written bands every other week, so that they
- * stay the baseline learned bands are judged against.
- */
-internal fun HexGroups.contentEvery(s: Species): Int = when (s.lifeway) {
-    Lifeway.BAND -> if (policies[s] != null) BAND_CONTENT_WEEKS else 2
-    Lifeway.PACK -> 2
 }
 
 /**

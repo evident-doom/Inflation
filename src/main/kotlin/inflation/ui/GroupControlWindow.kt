@@ -83,9 +83,11 @@ class GroupControlWindow(
     private val world: WorldLock,
     /** Lets one more week run (on the simulation's thread). */
     private val requestStep: () -> Unit,
-    /** Whether the overview is running weeks on its own. */
-    private val running: () -> Boolean,
+    /** The overview's time controls (Run/Pause, Step, speed), shown here too and linked. */
+    private val time: TimeControls,
 ) : GroupControl {
+    /** Whether the overview is running weeks on its own. */
+    private fun running() = time.running
     private val groups = sim.groups
     private val hex = sim.hex
     private val hw = sim.hw
@@ -135,6 +137,8 @@ class GroupControlWindow(
         next.toolTipText = "Go with the picks shown (yours where you changed them, else the model's) and run the week"
         next.font = next.font.deriveFont(Font.BOLD, 14f)
         next.addActionListener { nextStep() }
+        // (Run, Pause or the speed changed in either window: the note here says who decides.)
+        time.onChange { if (isOpen) refresh() }
         handsOff.addActionListener { if (handsOff.isSelected) release() else startIfIdle(); refresh() }
         reset.toolTipText = "Drop your changes this week: back to the model's place and ways"
         reset.addActionListener { decision?.let { pick = it.model }; pins = FloatArray(pins.size) { Float.NaN }; refresh() }
@@ -157,7 +161,7 @@ class GroupControlWindow(
         tabs.addTab("Last week", JScrollPane(lastWeek))
 
         val bar = JPanel(BorderLayout())
-        val buttons = JPanel(); buttons.add(handsOff); buttons.add(reset); buttons.add(next)
+        val buttons = JPanel(); buttons.add(time.panel()); buttons.add(handsOff); buttons.add(reset); buttons.add(next)
         bar.add(note, BorderLayout.CENTER); bar.add(buttons, BorderLayout.EAST)
         val left = JPanel(BorderLayout()); left.add(map, BorderLayout.CENTER)
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, tabs).apply { resizeWeight = 0.5 }
@@ -286,7 +290,7 @@ class GroupControlWindow(
         note.text = when {
             groups.watched < 0 -> "  Follow a group in the overview (tick Follow, or pick a band in the list) to take its controls."
             g == null -> "  The group followed is gone (died out or joined another). Pick another in the overview and press Follow…."
-            running() -> "  The overview is running: the model decides. Pause it there, then use Next step here to play."
+            running() -> "  The overview is running: the model decides. Pause it (here or in the overview), then use Next step to play."
             w -> "  Choose where it goes (click the map or the list) and set its ways; Next step runs the week."
             handsOff.isSelected -> "  The model decides; the choices shown are the ones it made."
             else -> "  Running…"
@@ -348,8 +352,7 @@ class GroupControlWindow(
         sb.appendLine("in its hex: " + with.joinToString(", ") { "%s #%d (%d)".format(it.species.name, it.id, it.size) }.ifEmpty { "no other group" })
         if (d != null && d.group.id == g.id) {
             sb.appendLine()
-            sb.appendLine(if (d.content) "content where it is: the model keeps it here this week"
-                else if (d.restless) "restless (hungry, thirsty, astray, or due somewhere): it will go far" else "weighing where to graze or camp")
+            sb.appendLine(if (d.restless) "restless (hungry, thirsty, astray, or due somewhere): it will go far" else "weighing where to graze or camp")
             sb.appendLine("it can reach %d places, within %.0f km of effort".format(d.places.size, d.reachKm))
             if (d.goal >= 0) sb.appendLine("%s draws it to %s, %.0f km off".format(if (d.onRound) "its round" else "its memory of the season", where(d.goal),
                 hex.distanceKm(hw.placeHex[g.place], hw.placeHex[d.goal])))

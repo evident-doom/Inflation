@@ -148,9 +148,11 @@ object HexSnapshot {
      * older kinds of ground is forgotten and learnt again.
      * 4.11: the residents' seasonal memory and its route are gone (it moved no animals worth the cost): the flow weighs places
      * as it did before 4.2, by what the places are worth now.
+     * 4.12: every group weighs its places every week; the packs, herds and hand-written bands that were content no longer
+     * keep to their ground every other week without weighing.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 11
+    const val MODEL_MINOR = 12
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

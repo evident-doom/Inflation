@@ -28,11 +28,9 @@ class MoveDecision(
     val handScores: FloatArray,
     val netScores: FloatArray?,
     val paths: Array<IntArray>,
-    /** The model's pick (an index into [places]); whether a learned network chose it; whether the group was content (the model keeps it
-     * where it is without weighing). */
+    /** The model's pick (an index into [places]); whether a learned network chose it. */
     val model: Int,
     val learned: Boolean,
-    val content: Boolean,
     val restless: Boolean,
     val reachKm: Float,
     /** The place its round or its memory of the season draws it to (-1 none), and whether it is on its round. */
@@ -52,7 +50,7 @@ private val HAND_WRITTEN_ANIMAL_WAYS = AnimalWays { _, _, out -> out.fill(0f) }
 /** Asks [control] where the followed group [g] goes, among the candidates weighed in [HexGroups.plan]; returns the place. */
 internal fun HexGroups.askControl(
     g: HexGroup, weather: Weather, date: Date, policy: HexPolicy?, cand: HexGroups.IntList, feats: ArrayList<FloatArray>, hand: FloatArray,
-    modelPlace: Int, content: Boolean, restless: Boolean, reach: Float, goal: Int, onRound: Boolean, pathTo: (Int) -> IntArray,
+    modelPlace: Int, restless: Boolean, reach: Float, goal: Int, onRound: Boolean, pathTo: (Int) -> IntArray,
 ): Int {
     val ctl = control ?: return modelPlace
     val n = cand.size
@@ -73,7 +71,7 @@ internal fun HexGroups.askControl(
         val w = hunterWays
         out = FloatArray(ANIMAL_WAYS_OUT); (w ?: HAND_WRITTEN_ANIMAL_WAYS).choose(g, knows.copyOf(), out); learnedWays = w != null
     }
-    val d = MoveDecision(g, date, places, features, scores, net, Array(n) { pathTo(places[it]) }, model, policy != null, content, restless, reach, goal,
+    val d = MoveDecision(g, date, places, features, scores, net, Array(n) { pathTo(places[it]) }, model, policy != null, restless, reach, goal,
         onRound, knows, out, learnedWays)
     val pick = ctl.move(d).takeIf { it in 0 until n } ?: model
     // A pack's ways were set before it chose (bands set theirs as they forage): the player's pins take hold now.
