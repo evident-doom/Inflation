@@ -1021,9 +1021,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         if (gb.tie(taker.id) < 0.3f || gb.ornaments < 1f) continue
         val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
         if (gift <= 0f) continue
-        val exoticShare = gb.exotic / gb.ornaments
-        gb.ornaments -= gift; gb.exotic -= gift * exoticShare
-        tb.ornaments += gift; tb.exotic += gift * exoticShare
+        val shell = gb.takeOrnaments(gift)
+        tb.ornaments += gift; tb.exotic += shell
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         stats.meeting("ornaments given")
     }
