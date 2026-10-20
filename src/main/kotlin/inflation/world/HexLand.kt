@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.ecology.Hex
 import inflation.Books
 import inflation.ecology.Phase
 import inflation.ecology.runPhases
@@ -118,11 +119,11 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     @Transient val neighbours: Array<IntArray> = Array(n) { p ->
         val h = hw.placeHex[p]
         val out = ArrayList<Int>()
-        for (q in hw.placesOf(h)) if (q != p) out += q
+        for (q in hw.placesOf(Hex(h))) if (q != p) out += q
         for (d in 0 until 6) {
             val nh = hex.neighbour(h, d)
             if (nh < 0) continue
-            for (q in hw.placesOf(nh)) out += q
+            for (q in hw.placesOf(Hex(nh))) out += q
         }
         out.toIntArray()
     }

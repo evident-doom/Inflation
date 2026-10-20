@@ -86,8 +86,8 @@ class HexSim(
     private fun fallingAsh() {
         for (p in 0 until land.n) if (land.plants.ash[p] > 0f) land.plants.ash[p] = if (land.plants.ash[p] < 0.05f) 0f else land.plants.ash[p] * ashKeep
         val now = eruptions.step(weather.date, cfg.daysPerStep, wind = { c ->
-            val p = hw.firstPlaceIn(hex.owner[c])
-            if (p < 0) 1f to 0f else weather.windEast(p) to weather.windSouth(p)
+            val p = hw.firstPlaceIn(Hex(hex.owner[c]))
+            if (p.none) 1f to 0f else weather.windEast(p.i) to weather.windSouth(p.i)
         }) { c, mm -> val p = cellPlace[c]; if (p >= 0) land.plants.ash[p] += mm / hw.placeCells[p].size }
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
     }

@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Hex
 import inflation.ecology.FaunaKind
 import inflation.ecology.Place
 import inflation.tools.fauna.FaunaCheckOptions
@@ -52,14 +53,14 @@ fun main(args: Array<String>) {
                 hiHeads += heads; hiSnow += heads * sp; hiFed += heads * f[p]
                 hiT += heads * fauna.feltC(s, Place(p), weather.temperature[p])
                 hiAp += heads * fauna.appeal(FaunaKind(k), Place(p), weather); hiOdds += heads * fauna.arrive[k][p]
-                val low = hw.firstPlaceIn(hw.placeHex[p])
+                val low = hw.firstPlaceIn(Hex(hw.placeHex[p]))
                 if (fauna.arrive[k][p].isNaN()) nanHeads += heads
-                if (low >= 0 && low != p) {
+                if (!low.none && low.i != p) {
                     hiLowN += heads
-                    val fh = factors(p); val fl = factors(low)
+                    val fh = factors(p); val fl = factors(low.i)
                     for (i in 0 until 5) { fH[i] += heads * fh[i]; fL[i] += heads * fl[i] }
-                    hiApLow += heads * fauna.appeal(FaunaKind(k), Place(low), weather)
-                    hiOddsLow += heads * fauna.arrive[k][low].let { if (it.isNaN()) 1f else it }
+                    hiApLow += heads * fauna.appeal(FaunaKind(k), Place(low.i), weather)
+                    hiOddsLow += heads * fauna.arrive[k][low.i].let { if (it.isNaN()) 1f else it }
                 }
             }
         }

@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Hex
 import inflation.world.Biome
 import inflation.world.HexWorld
 import kotlin.math.min
@@ -22,7 +23,7 @@ object HexWorldPicture {
             val (cx, cy) = hex.centreKm(h)
             val xs = IntArray(6) { ((cx + r * cos(Math.PI / 6 + it * Math.PI / 3)) * pxPerKm).toInt() }
             val ys = IntArray(6) { ((cy + r * sin(Math.PI / 6 + it * Math.PI / 3)) * pxPerKm).toInt() }
-            val b = mainBiome(h)
+            val b = mainBiome(Hex(h))
             val colour = when {
                 b == null || land[h] < 0.5f -> if (sea[h] >= lake[h]) Biome.OCEAN.rgb else Biome.LAKE.rgb
                 else -> {

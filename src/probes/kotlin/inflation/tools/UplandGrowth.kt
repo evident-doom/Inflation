@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Hex
 import inflation.ecology.FaunaKind
 import inflation.ecology.disease
 import inflation.ecology.EnumFloats
@@ -62,19 +63,19 @@ fun main(args: Array<String>) {
             if (grown <= 0.0) continue
             val ypg = (little / grown).toFloat(); val fat = (fatDays / grown).toFloat()
             for (h in 0 until hex.size) {
-                val lo = hw.placeIn(HexWorld.LOW, h); val hi = hw.placeIn(HexWorld.HIGH, h)
-                if (lo < 0 || hi == lo) continue
-                val nLo = (ad[lo] + yo[lo]) * land.areaKm2[lo].toDouble(); val nHi = (ad[hi] + yo[hi]) * land.areaKm2[hi].toDouble()
+                val lo = hw.placeIn(HexWorld.LOW, Hex(h)); val hi = hw.placeIn(HexWorld.HIGH, Hex(h))
+                if (lo.none || hi == lo) continue
+                val nLo = (ad[lo.i] + yo[lo.i]) * land.areaKm2[lo.i].toDouble(); val nHi = (ad[hi.i] + yo[hi.i]) * land.areaKm2[hi.i].toDouble()
                 val n = nLo + nHi; if (n <= 0.0) continue
-                val oLo = fauna.arriveOdds(FaunaKind(k), Place(lo), sim.weather, outLo); val oHi = fauna.arriveOdds(FaunaKind(k), Place(hi), sim.weather, outHi)
+                val oLo = fauna.arriveOdds(FaunaKind(k), Place(lo.i), sim.weather, outLo); val oHi = fauna.arriveOdds(FaunaKind(k), Place(hi.i), sim.weather, outHi)
                 if (oLo.isNaN() || oHi.isNaN()) continue
-                val gLo = fauna.growthParts(FaunaKind(k), Place(lo), sim.weather, outLo, ypg, fat, partsLo)
-                val gHi = fauna.growthParts(FaunaKind(k), Place(hi), sim.weather, outHi, ypg, fat, partsHi)
+                val gLo = fauna.growthParts(FaunaKind(k), Place(lo.i), sim.weather, outLo, ypg, fat, partsLo)
+                val gHi = fauna.growthParts(FaunaKind(k), Place(hi.i), sim.weather, outHi, ypg, fat, partsHi)
                 val d = diff[i][m]
                 d[0] += n * (gHi - gLo)
                 for (c in Growth.entries) d[1 + c.ordinal] += n * (partsHi[c] - partsLo[c])
                 for ((j, e) in hz.withIndex()) d[1 + Growth.entries.size + j] += n * (e.second(outHi) - e.second(outLo))
-                d[cols.size - 2] += n * land.areaKm2[hi]; d[cols.size - 1] += n * land.areaKm2[lo]
+                d[cols.size - 2] += n * land.areaKm2[hi.i]; d[cols.size - 1] += n * land.areaKm2[lo.i]
                 heads[i][m] += n; high[i][m] += nHi
             }
         }

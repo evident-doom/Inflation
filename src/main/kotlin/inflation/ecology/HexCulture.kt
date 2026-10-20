@@ -533,15 +533,15 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
         if (mem.hex[i] < 0) continue
         val month = mem.season[i] * 3 + 1
-        if (mem.dead[i] >= APPOINT_MIN) consider(hw.firstPlaceIn(mem.hex[i]), month, mem.dead[i])
-        if (mem.met[i] >= APPOINT_MIN) consider(hw.firstPlaceIn(mem.hex[i]), month, 0.5f * mem.met[i])
+        if (mem.dead[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(Hex(mem.hex[i]))).i, month, mem.dead[i])
+        if (mem.met[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(Hex(mem.hex[i]))).i, month, 0.5f * mem.met[i])
     }
     val here = hw.placeHex[g.place]; val month = weather.date.month
     for (h in routes.landmarks) {
         val k = routes.kind(h)
         if ((k != HexRoutes.Kind.PASS && k != HexRoutes.Kind.WATER && k != HexRoutes.Kind.END) || !b.knows(h)) continue
         val km = hex.distanceKm(here, h)
-        if (km > REMEMBERED_KM) consider(hw.firstPlaceIn(h), month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
+        if (km > REMEMBERED_KM) consider((hw.firstPlaceIn(Hex(h))).i, month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
     }
     // (Where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
     for (m in TRADED) {
@@ -549,7 +549,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         if (want <= 0f) continue
         for (h in materialSources.getValue(m)) if (b.knows(h)) {
             val km = hex.distanceKm(here, h)
-            if (km > tuning.roundArrivedKm) consider(hw.firstPlaceIn(h), month, APPOINT_MIN * SOURCE_RITE * want)
+            if (km > tuning.roundArrivedKm) consider((hw.firstPlaceIn(Hex(h))).i, month, APPOINT_MIN * SOURCE_RITE * want)
         }
     }
     if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; stats.meeting(Met.BANDS_TOOK_UP_A_RITE) }

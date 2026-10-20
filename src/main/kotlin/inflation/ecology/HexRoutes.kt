@@ -78,7 +78,7 @@ class HexRoutes(private val g: HexGroups) {
         for (h in 0 until hex.size) if (hex.heart[h] >= 0) note(h, Kind.PEAK, hex.highM[h])
         // Springs and oases, from the fine cells.
         val drink = g.land.drink
-        fun dry(h: Int) = g.hw.placesOf(h).all { p -> drink.nearRiver[p] <= 0f && drink.nearLake[p] <= 0f }
+        fun dry(h: Int) = g.hw.placesOf(Hex(h)).all { p -> drink.nearRiver[p] <= 0f && drink.nearLake[p] <= 0f }
         for (i in 0 until grid.size) if (!world.isSea[i] && (drink.spring[i] || drink.oasis[i]) && dry(hex.owner[i])) found.getValue(Kind.SPRING).merge(hex.owner[i], 1f, Float::plus)
         // Where rivers meet, and come to the sea: from the fine cells' flow.
         val inflows = ByteArray(grid.size)
@@ -127,8 +127,8 @@ class HexRoutes(private val g: HexGroups) {
     fun build() {
         Arrays.fill(landmark, 0); Arrays.fill(onRoute, false); Arrays.fill(placeOf, -1); legs.clear(); legsAt.clear()
         val hw = g.hw; val land = g.land
-        fun rug(h: Int) = hw.firstPlaceIn(h).takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f
-        fun water(h: Int) = hw.firstPlaceIn(h).let { it >= 0 && land.drink.waterKmMean[it] <= WATER_LANDMARK_KM }
+        fun rug(h: Int) = hw.firstPlaceIn(Hex(h)).takeIf { !it.none }?.let { land.ruggedness[it] } ?: 0f
+        fun water(h: Int) = hw.firstPlaceIn(Hex(h)).let { !it.none && land.drink.waterKmMean[it] <= WATER_LANDMARK_KM }
         // A pass: the way through broken country, rougher all round than where the path goes.
         fun pass(h: Int): Boolean {
             var round = 0f; var k = 0

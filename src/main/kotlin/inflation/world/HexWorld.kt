@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.ecology.Hex
 import inflation.ecology.Place
 import inflation.ecology.get
 import kotlin.math.abs
@@ -164,24 +165,24 @@ class HexWorld(val world: World, val hex: HexMap) {
     }
 
     /** The place in hex [h] nearest in height to place [p]: its low or high ground, whichever lies nearer; -1 if the hex has no land. */
-    fun placeNear(p: Int, h: Int): Int {
+    fun placeNear(p: Place, h: Hex): Place {
         val lo = low[h]; val hi = high[h]
-        if (lo == hi) return lo
+        if (lo == hi) return Place(lo)
         val e = placeElevationM[p]
-        return if (abs(e - placeElevationM[lo]) <= abs(e - placeElevationM[hi])) lo else hi
+        return Place(if (abs(e - placeElevationM[lo]) <= abs(e - placeElevationM[hi])) lo else hi)
     }
 
     /** Hex [h]'s low ([LOW]) or high ([HIGH]) ground; its only place where it is not split; -1 if it has no land. */
-    fun placeIn(band: Int, h: Int): Int = if (band == HIGH) high[h] else low[h]
+    fun placeIn(band: Int, h: Hex): Place = Place(if (band == HIGH) high[h] else low[h])
 
     /** The places of hex [h], the low first. */
-    fun placesOf(h: Int): IntArray = placesIn[h]
+    fun placesOf(h: Hex): IntArray = placesIn[h]
 
     /** Hex [h]'s low ground (its only place where it is not split), or -1 if it has no land. */
-    fun firstPlaceIn(h: Int): Int = low[h]
+    fun firstPlaceIn(h: Hex): Place = Place(low[h])
 
     /** The kind of country covering most of the land of hex [h], or null if it has no land. */
-    fun mainBiome(h: Int): Biome? = if (land[h] == 0f) null else Biome.entries.maxBy { biome[it.ordinal][h] }
+    fun mainBiome(h: Hex): Biome? = if (land[h] == 0f) null else Biome.entries.maxBy { biome[it.ordinal][h] }
 
     companion object {
         /** A hex's low and high ground (see [placeBand]); how many places a hex can have. */

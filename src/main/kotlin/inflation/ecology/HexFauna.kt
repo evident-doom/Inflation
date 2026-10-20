@@ -158,7 +158,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 for (d in 0 until 6) {
                     val q = hex.neighbour(h, d); if (q < 0) continue
                     val here = groupHeads[si][q] > 0 ||
-                        (!k.none && hw.placesOf(q).any { p -> adults[k][p] + young[k][p] > 0.01f })
+                        (!k.none && hw.placesOf(Hex(q)).any { p -> adults[k][p] + young[k][p] > 0.01f })
                     if (here) o[q] = min(1f, max(o[q], OUTBREAK_SPREAD * old[h]))
                 }
             }
@@ -1341,7 +1341,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 for (d in 0 until 6) {
                     val nh = hex.neighbour(h, d)
                     if (nh < 0 || !cross[h * 6 + d].isFinite()) continue
-                    val q = hw.placeNear(p, nh); if (q.none) continue
+                    val q = hw.placeNear(p, Hex(nh)); if (q.none) continue
                     if (m == to.size) to = to.copyOf(2 * m); to[m++] = q.i
                 }
             }
@@ -1403,8 +1403,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (room[k] != null) return@forEach
             val a = adults[k]; val y = young[k]
             for (h in 0 until hex.size) {
-                val lo = hw.placeIn(HexWorld.LOW, h); val hi = hw.placeIn(HexWorld.HIGH, h)
-                if (lo < 0 || hi == lo) continue
+                val lo = hw.placeIn(HexWorld.LOW, Hex(h)); val hi = hw.placeIn(HexWorld.HIGH, Hex(h))
+                if (lo.none || hi == lo) continue
                 if (a[lo] + y[lo] <= 0f && a[hi] + y[hi] <= 0f) continue
                 // (A place worth less than nothing, or past reckoning, counts as nothing: else the gain
                 // passes 1, the share can take more than the place holds and leave it below nothing,
@@ -1416,14 +1416,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val band = kinds[k].maxGroupSize.toFloat(); val background = kinds[k].backgroundMortality * years
                 val from: Int; val to: Int; val gain: Float
                 if (a[lo] + y[lo] > 0f && (oh.isFinite() && (ol.isInfinite() || clearlyWorse(ol, oh, band, background)))) {
-                    from = lo; to = hi; gain = if (ol.isInfinite()) 1f else (ol - oh) / ol
+                    from = lo.i; to = hi.i; gain = if (ol.isInfinite()) 1f else (ol - oh) / ol
                 } else if (a[hi] + y[hi] > 0f && (ol.isFinite() && (oh.isInfinite() || clearlyWorse(oh, ol, band, background)))) {
-                    from = hi; to = lo; gain = if (oh.isInfinite()) 1f else (oh - ol) / oh
+                    from = hi.i; to = lo.i; gain = if (oh.isInfinite()) 1f else (oh - ol) / oh
                 } else {
                     val al = worth[k][lo]; val ah = worth[k][hi]
                     if (al <= 0f && ah <= 0f) continue
-                    if (ah > al) { from = lo; to = hi } else { from = hi; to = lo }
-                    if (!(arrive[k][to] <= (if (to == hi) ol else oh))) continue
+                    if (ah > al) { from = lo.i; to = hi.i } else { from = hi.i; to = lo.i }
+                    if (!(arrive[k][to] <= (if (to == hi.i) ol else oh))) continue
                     gain = (max(al, ah) - min(al, ah)) / max(al, ah)
                 }
                 val share = (BAND_SHIFT * gain).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
@@ -1538,7 +1538,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (!e.isFinite()) { closed = true; continue }
                 val ease = hex.hexKm.toFloat() / e
                 val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k.i, h, nh, hex.hexKm))
-                val q = hw.placeNear(p, nh); if (q.none) continue
+                val q = hw.placeNear(p, Hex(nh)); if (q.none) continue
                 // (The thirsty shun country where they could not drink, the more the thirstier: as groups head for water.)
                 val worth = if (thirst > 0f && !drinks(s, q)) worthOf[q] * (1f - thirst) else worthOf[q]
                 if (worth > best) best = worth
@@ -1552,7 +1552,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (swim > 0f && linksTo != null && gapsTo != null) {
                 val to = linksTo[h]; val gaps = gapsTo[h]
                 for (i in to.indices) { val nh = to[i]; val gapKm = gaps[i]
-                    if (gapKm > swim) continue; val q = hw.placeNear(p, nh).takeIf { !it.none } ?: continue
+                    if (gapKm > swim) continue; val q = hw.placeNear(p, Hex(nh)).takeIf { !it.none } ?: continue
                     // (Weighed by those that would reach the far shore: the strait drowns some, as it does groups.)
                     val wq = SEA_SPILL * (1f - gapKm / swim) * (1f - drownRisk(s, gapKm)) * land.areaKm2[q] * (worthOf[q] + 1e-4f)
                     if (wq > seaW) { seaW = wq; seaTo = q.i; seaGapKm = gapKm } }
@@ -1833,17 +1833,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             for (p in land.places) {
                 from[p] = to.size
                 val h = hw.placeHex[p]
-                for (q in hw.placesOf(h)) if (q != p.i) way(q, 1f, 0f, 1f)
+                for (q in hw.placesOf(Hex(h))) if (q != p.i) way(q, 1f, 0f, 1f)
                 for (d in 0 until 6) {
                     val nh = hex.neighbour(h, d); if (nh < 0) continue
                     val e = cross[h * 6 + d]; if (!e.isFinite()) continue
-                    val q = hw.placeNear(p, nh); if (!q.none) way(q.i, min(1f, hex.hexKm.toFloat() / e), e, 1f)
+                    val q = hw.placeNear(p, Hex(nh)); if (!q.none) way(q.i, min(1f, hex.hexKm.toFloat() / e), e, 1f)
                 }
                 if (swim > 0f && links != null && gaps != null) {
                     val across = links[h]; val gapKm = gaps[h]
                     for (i in across.indices) {
                         if (gapKm[i] > swim) continue
-                        val q = hw.placeNear(p, across[i]); if (q.none) continue
+                        val q = hw.placeNear(p, Hex(across[i])); if (q.none) continue
                         way(q.i, SEA_SPILL * (1f - gapKm[i] / swim), gapKm[i], 1f - drownRisk(s, gapKm[i]))
                     }
                 }

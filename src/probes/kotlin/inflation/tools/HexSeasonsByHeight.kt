@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Hex
 import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
@@ -45,8 +46,8 @@ fun main(args: Array<String>) {
         val m = run.weather.date.month
         val cured = land.plants.cured
         for (kk in run.fauna.kinds.indices) for (h in 0 until run.hex.size) {
-            val lo = hw.placeIn(HexWorld.LOW, h); val hi = hw.placeIn(HexWorld.HIGH, h); if (lo < 0 || hi == lo) continue
-            val al = run.fauna.worth[kk][lo]; val ah = run.fauna.worth[kk][hi]
+            val lo = hw.placeIn(HexWorld.LOW, Hex(h)); val hi = hw.placeIn(HexWorld.HIGH, Hex(h)); if (lo.none || hi == lo) continue
+            val al = run.fauna.worth[kk][lo.i]; val ah = run.fauna.worth[kk][hi.i]
             if (al > 0f && ah > 0f) { ratioSum[kk][m] += ln((ah / al).toDouble()); ratioN[kk][m]++ }
         }
         for (p in 0 until n) {

@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Hex
 import inflation.ecology.FaunaKind
 import inflation.ecology.Place
 import inflation.Args
@@ -46,9 +47,9 @@ fun main(args: Array<String>) {
         for (p in 0 until n) {
             if (f.adults[k][p] + f.young[k][p] <= 0f) continue
             val h = hw.placeHex[p]
-            for (d in 0 until 6) { val nh = hex.neighbour(h, d); if (nh < 0) continue; val q = hw.placeNear(p, nh); if (q < 0) continue
-                dg += kotlin.math.abs(f.routeGainAt(FaunaKind(k), Place(p)) - f.routeGainAt(FaunaKind(k), Place(q)))
-                val w0 = f.worth[k][p]; val w1 = f.worth[k][q]; if (w0 > 0f && w1 > 0f) wg += kotlin.math.abs(w1 - w0) / kotlin.math.max(w0, w1) }
+            for (d in 0 until 6) { val nh = hex.neighbour(h, d); if (nh < 0) continue; val q = hw.placeNear(Place(p), Hex(nh)); if (q.none) continue
+                dg += kotlin.math.abs(f.routeGainAt(FaunaKind(k), Place(p)) - f.routeGainAt(FaunaKind(k), Place(q.i)))
+                val w0 = f.worth[k][p]; val w1 = f.worth[k][q.i]; if (w0 > 0f && w1 > 0f) wg += kotlin.math.abs(w1 - w0) / kotlin.math.max(w0, w1) }
         }
         dg.sort(); wg.sort()
         fun pc(l: List<Float>, x: Double) = if (l.isEmpty()) Float.NaN else l[(l.size * x).toInt().coerceAtMost(l.size - 1)]
