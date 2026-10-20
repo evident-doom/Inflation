@@ -2,7 +2,6 @@ package inflation.ui
 
 import inflation.ecology.Hex
 import inflation.ecology.FaunaKind
-import inflation.ecology.SeasonalMemory
 import inflation.ecology.Place
 import inflation.learning.LearnedModel
 import inflation.Args
@@ -144,18 +143,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** A resident kind's spill last week, by hex (see [inflation.ecology.HexFauna.flowOf]): its slot, the net way east and south, head/km². */
     private class Flow(val kind: Int, val east: FloatArray, val south: FloatArray)
     @Volatile private var flowShown: Flow? = null
-    /** Where the chosen plant-eater's seasonal memory pulls it from each hex for the coming month ([inflation.ecology.SeasonalMemory]), as a [Flow] of log worth per hex. */
-    @Volatile private var pullShown: Flow? = null
-    /**
-     * The chosen plant-eater's two scorings of each hex, as a month's log growth: [now] the flow's weighing of its places
-     * this week (NaN where it is not weighed), [memory] its seasonal memory's rating of the month it is looking at
-     * ([SeasonalMemory.LEAD_MONTHS] ahead) and [memoryNow] of this month, with the month's number it looks at.
-     */
-    private class Scores(val kind: Int, val ahead: Int, val now: FloatArray, val memory: FloatArray, val memoryNow: FloatArray)
-    @Volatile private var scoresShown: Scores? = null
-    /** Tints the hexes by the chosen plant-eater's scoring: the flow's now, its memory's, or the memory's less the flow's. */
-    private val scoreChoice = JComboBox(arrayOf("Scores: off", "Scores: place now", "Scores: memory ahead", "Scores: memory less now"))
-
     /** What the hexes are tinted by, worked out each week and kept month by month (see [ViewLayers]). */
     private val layers = ViewLayers(sim)
     private val tintChoice = JComboBox(Measure.entries.map { it.label }.toTypedArray())
@@ -173,8 +160,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val flowBox = JCheckBox("Resident flow", true)
     /** Tints the chosen resident kind by how high up its hexes it stands, not by its numbers. */
     private val heightBox = JCheckBox("Up/down", false)
-    /** The chosen plant-eater's pull by its seasonal memory, as arrows (see [pullShown]). */
-    private val pullBox = JCheckBox("Memory pull", true)
     /** Rivers by this week's flow (see [RiverOverlay]); unticked, no rivers are drawn. */
     private val riversBox = JCheckBox("River flows", true)
     private val huntersBox = JCheckBox("Hunters", true)
@@ -261,8 +246,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         }
         flowBox.addActionListener { map.repaint() }
         heightBox.addActionListener { map.repaint() }
-        pullBox.addActionListener { map.repaint() }
-        scoreChoice.addActionListener { map.repaint() }
         tintChoice.addActionListener {
             causeChoice.isEnabled = Measure.entries[tintChoice.selectedIndex].byCause
             map.repaint()
@@ -286,8 +269,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         bar.add(residentChoice)
         bar.add(flowBox)
         bar.add(heightBox)
-        bar.add(pullBox)
-        bar.add(scoreChoice)
         bar.add(huntersBox)
         bar.add(peopleBox)
         bar.add(pathsBox)
@@ -418,36 +399,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             Flow(fk, FloatArray(hex.size) { if (area[it] > 0) (fauna.flowEast[it] / hex.hexKm / area[it]).toFloat() else 0f },
                 FloatArray(hex.size) { if (area[it] > 0) (fauna.flowSouth[it] / hex.hexKm / area[it]).toFloat() else 0f })
         }
-        // Its seasonal memory's pull, as the residents follow it this week: from each hex, the first step of the route
-        // from its place that gains most ([HexFauna.routeTo]), as long as all that route gains.
-        scoresShown = if (fk < 0 || fauna.room[fk] == null) null else {
-            val ahead = (weather.date.month + SeasonalMemory.LEAD_MONTHS) % 12
-            val mem = fauna.memoryScores(FaunaKind(fk), ahead); val memNow = fauna.memoryScores(FaunaKind(fk), weather.date.month)
-            val area = DoubleArray(hex.size); val cur = DoubleArray(hex.size); val curArea = DoubleArray(hex.size)
-            val m = DoubleArray(hex.size); val mn = DoubleArray(hex.size)
-            for (p in 0 until fauna.n) {
-                val h = hw.placeHex[p]; val a = land.areaKm2[p].toDouble()
-                area[h] += a; m[h] += a * mem[p]; mn[h] += a * memNow[p]
-                val c = fauna.flowScoreAt(FaunaKind(fk), Place(p)); if (!c.isNaN()) { cur[h] += a * c; curArea[h] += a }
-            }
-            Scores(fk, ahead, FloatArray(hex.size) { if (curArea[it] > 0) (cur[it] / curArea[it]).toFloat() else Float.NaN },
-                FloatArray(hex.size) { if (area[it] > 0) (m[it] / area[it]).toFloat() else Float.NaN },
-                FloatArray(hex.size) { if (area[it] > 0) (mn[it] / area[it]).toFloat() else Float.NaN })
-        }
-        pullShown = if (fk < 0 || fauna.room[fk] == null) null else {
-            val east = FloatArray(hex.size); val south = FloatArray(hex.size); val most = FloatArray(hex.size)
-            for (p in 0 until fauna.n) {
-                // (Only where the kind lives: nobody is drawn along a route from ground it is not on.)
-                if (!(fauna.adults[fk][p] + fauna.young[fk][p] > 0f)) continue
-                val h = hw.placeHex[p]; val g = fauna.routeGainAt(FaunaKind(fk), Place(p)); if (!(g > most[h])) continue
-                val q = fauna.routeTo(FaunaKind(fk), Place(p)); if (q < 0) continue
-                val to = hw.placeHex[q]; most[h] = g
-                if (to == h) { east[h] = 0f; south[h] = 0f; continue }
-                val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(to)
-                east[h] = (g * (x1 - x0) / hex.hexKm).toFloat(); south[h] = (g * (y1 - y0) / hex.hexKm).toFloat()
-            }
-            Flow(fk, east, south)
-        }
         // Following a group (in the follow window): the week's log, for the panel when that group is picked.
         followLog = if (groups.watched >= 0) groups.watchLog.joinToString("\n") else ""
         SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
@@ -522,30 +473,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
          * the highest's; [dens] its heads in each hex), so that moving up and down the slopes within a hex shows; NaN for
          * hexes with one band, left clear.
          */
-        /** The tint of each hex by the chosen plant-eater's [scoresShown] as the box says (null for a hex with none), and its legend; null when not shown. */
-        private fun scoreLayer(r: Int): Pair<Array<Color?>, MapLegend>? {
-            val sc = scoresShown
-            if (scoreChoice.selectedIndex <= 0 || sc == null || sc.kind != r) return null
-            val diff = scoreChoice.selectedIndex == 3
-            val v = FloatArray(hex.size) { h -> when (scoreChoice.selectedIndex) {
-                1 -> sc.now[h]; 2 -> sc.memory[h]; else -> if (sc.now[h].isNaN() || sc.memory[h].isNaN()) Float.NaN else sc.memory[h] - sc.now[h] } }
-            val mags = v.filter { !it.isNaN() }.map { abs(it) }.sorted()
-            val top = (if (mags.isEmpty()) 0f else mags[(mags.size * 0.95).toInt().coerceAtMost(mags.size - 1)]).coerceAtLeast(1e-6f)
-            // (Signed, blue for the lowest to orange for the highest; full at the strongest twentieth.)
-            fun colour(x: Float): Color { val t = (x / top).coerceIn(-1f, 1f)
-                return if (t >= 0f) Color(1f, 0.55f + 0.2f * (1f - t), 0.15f + 0.6f * (1f - t), 0.3f + 0.5f * t)
-                else Color(0.2f + 0.6f * (1f + t), 0.4f + 0.4f * (1f + t), 1f, 0.3f - 0.5f * t) }
-            val what = arrayOf("", "the flow's weighing of each place now", "what the memory rates each place for ${monthName(sc.ahead)}, the month the route looks at",
-                "the memory's rating for ${monthName(sc.ahead)} less the flow's weighing now, where the flow weighed it")[scoreChoice.selectedIndex]
-            val legend = MapLegend(scoreChoice.selectedItem.toString().removePrefix("Scores: ").replaceFirstChar { it.uppercase() },
-                "A month's log growth of the chosen plant-eater: $what. Mean over the hex's places by area, orange the higher; " +
-                    (if (diff) "orange where the memory rates a place above what it is weighed at now" else "blue the lower") + "; clear where none.",
-                { x -> colour((x * 2f - 1f) * top) },
-                listOf(0f to "-" + MapLegend.num(top * 100) + "%", 0.5f to "0", 1f to "+" + MapLegend.num(top * 100) + "%"),
-                "a month's growth, % (full at the strongest twentieth of hexes)")
-            return Array(hex.size) { h -> if (v[h].isNaN()) null else colour(v[h]) } to legend
-        }
-
         private fun upDown(r: Int, dens: DoubleArray): FloatArray {
             val lo = FloatArray(hex.size) { Float.MAX_VALUE }; val hi = FloatArray(hex.size) { -Float.MAX_VALUE }
             val sum = DoubleArray(hex.size)
@@ -677,11 +604,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 }
                 }
             }
-            // The chosen plant-eater's scoring of each hex: the flow's weighing now, the memory's, or their difference.
-            scoreLayer(r)?.let { (colours, legend) ->
-                legends += legend
-                for (h in 0 until hex.size) { val c = colours[h]; if (c != null && onScreen(h)) hexagon(h, c) }
-            }
             // The chosen resident kind's movement last week: an arrow from each hex the way its animals went on balance,
             // longer and brighter the more went (against the busiest twentieth of hexes).
             val flow = flowShown
@@ -708,32 +630,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 legends += MapLegend("Resident flow", "Resident flow: where the chosen resident kind's animals went last week on balance, an arrow from each hex the " +
                     "net way they spilled to the hexes about it, longer and brighter the more went (full at the busiest twentieth of hexes).",
                     note = "net head/km² a week; full at " + MapLegend.num(top))
-            }
-            // The chosen plant-eater's seasonal memory: an arrow from each hex the way it pulls them for the coming month.
-            val pull = pullShown
-            if (pullBox.isSelected && pull != null && pull.kind == r) {
-                val every = max(1, (1.5 / scale).toInt())
-                val mags = (0 until hex.size).map { hypot(pull.east[it], pull.south[it]) }.filter { it > 0f }.sorted()
-                val top = (if (mags.isEmpty()) 0f else mags[(mags.size * 0.95).toInt().coerceAtMost(mags.size - 1)]).coerceAtLeast(1e-9f)
-                for (h in 0 until hex.size) {
-                    val col = h % hex.cols; val row = h / hex.cols
-                    if (col % every != 0 || row % every != 0 || !onScreen(h, every + 1)) continue
-                    val u = pull.east[h]; val v = pull.south[h]
-                    val m = hypot(u, v); if (m < 0.05f * top) continue
-                    val x = min(1f, m / top)
-                    val (cx, cy) = hex.centreKm(h)
-                    val len = (x * hex.hexKm * every * 0.8).toFloat()
-                    val x0 = sx(cx.toFloat()); val y0 = sy(cy.toFloat())
-                    val x1 = sx(cx.toFloat() + u / m * len); val y1 = sy(cy.toFloat() + v / m * len)
-                    g.color = Color(1f, 0.75f, 0.2f, 0.35f + 0.65f * x)
-                    g.drawLine(x0, y0, x1, y1)
-                    val ang = atan2((y1 - y0).toDouble(), (x1 - x0).toDouble())
-                    for (sgn in intArrayOf(-1, 1)) g.drawLine(x1, y1, (x1 - 5 * cos(ang + sgn * 0.5)).toInt(), (y1 - 5 * sin(ang + sgn * 0.5)).toInt())
-                }
-                legends += MapLegend("Memory pull", "Memory pull: the route the chosen plant-eater's seasonal memory leads its residents along this week, " +
-                    "from each hex the first step towards the best ground a month's going reaches, longer and brighter the more that ground gains over " +
-                    "staying (full at the strongest twentieth of hexes). Empty until the kind has lived a year with the memory.",
-                    note = "gain over staying (log), full at " + MapLegend.num(top * 100) + "%")
             }
             // Paths: hex centre to hex centre, each pair once, darker and wider the more worn.
             if (pathsBox.isSelected) {
@@ -1023,8 +919,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         else -> null
     }
 
-    private fun monthName(m: Int) = java.time.Month.of(m + 1).getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH)
-
     /** Fills the side panel with what is in hex [h]: its ground, weather, plants, residents and borders, and the groups standing in it. */
     private fun inspect(h: Int) = worldLock.whileStill { inspectNow(h) }
 
@@ -1081,11 +975,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     layers.plenty[h]))
             if (tint.byCause) sb.appendLine("   by cause: " + PlaceRecord.Cause.entries.joinToString(", ") { c ->
                 "%s %.3g".format(c.label, layers.now[layers.key(tint, c.ordinal)]?.get(h) ?: 0f) })
-        }
-        scoresShown?.let { sc ->
-            if (!sc.now[h].isNaN() || !sc.memory[h].isNaN()) sb.appendLine("%s's scores, a month's growth %%: place now %s, memory for this month %.1f, memory for %s %.1f (the route's look-ahead)%s".format(
-                fauna.kinds[sc.kind].name, if (sc.now[h].isNaN()) "-" else "%.1f".format(100 * sc.now[h]), 100 * sc.memoryNow[h], monthName(sc.ahead), 100 * sc.memory[h],
-                if (sc.now[h].isNaN()) "" else "; memory less now %.1f".format(100 * (sc.memory[h] - sc.now[h]))))
         }
         sb.append("borders (on foot, ground + water):")
         val dirs = arrayOf("E", "SE", "SW", "W", "NW", "NE")

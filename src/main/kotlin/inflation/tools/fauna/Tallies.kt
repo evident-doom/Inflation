@@ -225,10 +225,10 @@ class MovementTally(private val sim: HexSim) {
             sim.fauna.kinds.indices.filter { k -> adultHeight[k].any { !it.isNaN() } }.joinToString("; ") { k ->
                 sim.fauna.kinds[k].name + " " + adultHeight[k].joinToString(" ") { if (it.isNaN()) "-" else "%.0f".format(it) } })
         val climbed = sim.fauna.climbed
-        if (climbed.any { c -> c.any { it != 0.0 } }) println("     residents' climb by their moving, January to December (m a head in the month, on the memory's route / the rest): " +
+        if (climbed.any { c -> c.any { it != 0.0 } }) println("     residents' climb by their moving, January to December (m a head in the month): " +
             sim.fauna.kinds.indices.filter { k -> climbed[k].any { it != 0.0 } }.joinToString("; ") { k ->
                 sim.fauna.kinds[k].name + " " + (0 until 12).joinToString(" ") { m -> val h = monthHeads[k][m]
-                    if (h > 0.0) "%+.0f/%+.0f".format(climbed[k][m * 2 + 1] / h, climbed[k][m * 2] / h) else "-" } })
+                    if (h > 0.0) "%+.0f".format(climbed[k][m] / h) else "-" } })
     }
 
     companion object {

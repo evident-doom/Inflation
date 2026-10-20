@@ -118,7 +118,7 @@ object HexSnapshot {
      * 4.1: a hunting party's search no longer stops at the places on its way: what they are too small for is spread over
      * the places about its way ([HexGroups.huntGround]).
      * 4.2: plant-eating residents remember how their kind grew on each kind of ground (country and the third of the lie
-     * of the land) in each month ([SeasonalMemory]), and a share of them take a step a week along the route to the
+     * of the land) in each month (the seasonal memory), and a share of them take a step a week along the route to the
      * ground a month's going reaches that is best next month for its season; a place is weighed by births and deaths
      * alike over the rest of the month.
      * 4.3: the memory's route crosses only borders a week's going crosses, and as few step along it as the border is hard
@@ -146,9 +146,11 @@ object HexSnapshot {
      * 4.10: the residents' memory tells ground apart by its country and its height (below 500, 1000, 1500, 2500 m and
      * above), weighs each place by its own ground rather than its hex's, and looks a season ahead; a save's memory by the
      * older kinds of ground is forgotten and learnt again.
+     * 4.11: the residents' seasonal memory and its route are gone (it moved no animals worth the cost): the flow weighs places
+     * as it did before 4.2, by what the places are worth now.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 10
+    const val MODEL_MINOR = 11
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
