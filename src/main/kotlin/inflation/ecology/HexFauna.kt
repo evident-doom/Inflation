@@ -499,7 +499,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * in better-fed months for the mothers and the young (the birth month and the two after it).
      */
     private fun shiftBreeding() {
-        for ((k, s) in kinds.withIndex()) {
+        for (k in kinds.indices) {
             val fm = fedByMonth[k]; val start = birthStart[k]
             for (p in 0 until n) {
                 if (adults[k][p] <= 0f) continue
@@ -936,7 +936,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val moreMeat = min(more, most * d.meat - gotMeat)
                 if (moreMeat > 0f) { val x = huntResidents(k, p, KgM2(moreMeat * avail[k]), killedSoFar).v; surplus[k] += x / needAll; more -= x }
                 val moreSmall = min(more, most * d.smallPrey - gotSmall)
-                if (moreSmall > 0f) { val x = smallFood(k, p, KgM2(moreSmall * avail[k]), weather).v; surplus[k] += x / needAll; more -= x
+                if (moreSmall > 0f) { val x = smallFood(k, p, KgM2(moreSmall * avail[k]), weather).v; surplus[k] += x / needAll
                     ateBook?.add(-x * land.areaM2[p].toDouble()) }
             }
             animal = (gotMeat + gotSmall + gotCarrion) / animalNeed
@@ -976,7 +976,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     private fun breedAndDie(weather: Weather, date: Date) {
-        val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
         val dead = Array(kinds.size) { DoubleArray(ResidentDeath.entries.size) }
         bornThisWeek.fill(0.0)
         // Each kind on its own core, with its own carcasses, added up after.
@@ -1251,7 +1250,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * their need for protein would be ([GROWTH_FED], [GROWTH_PROTEIN]). Fed [f], among [heads] of its kind per km² (by
      * default, those there and a band come).
      */
-    internal fun growthParts(k: Int, p: Int, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float, parts: FloatArray?,
+    @IgnorableReturnValue internal fun growthParts(k: Int, p: Int, weather: Weather, out: FloatArray, youngPerGrown: Float, carried: Float, parts: FloatArray?,
                              f: Float = room[k]?.get(p) ?: fed[k][p], heads: Float = adults[k][p] + young[k][p] + arrivingKm2(k)): Float {
         val s = kinds[k]
         val protein = forageProtein(s, p)
@@ -1264,7 +1263,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * the young [huntedYoung], and the forage's [protein]) and what does as animals come and go: fed [f], among [heads]
      * of its kind per km², hunger and the sickness of crowding, and the young its mothers would bear.
      */
-    private fun growthOf(k: Int, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
+    @IgnorableReturnValue private fun growthOf(k: Int, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                          carried: Float, f: Float, heads: Float, parts: FloatArray?): Float {
         val s = kinds[k]
         val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)

@@ -39,7 +39,7 @@ fun main(args: Array<String>) {
     val rain = DoubleArray(g.size); val normal = DoubleArray(g.size)
     val logSum = DoubleArray(g.size); val logSq = DoubleArray(g.size)
     val counts = Array(4) { IntArray(Regime.entries.size) }
-    var saved = mutableSetOf<Regime>()
+    val saved = mutableSetOf<Regime>()
     repeat(steps) {
         val month = weather.date.month
         val share = cfg.daysPerStep.toDouble() / Date.DAYS_PER_MONTH

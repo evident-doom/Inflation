@@ -204,7 +204,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /** Rivers: distance up from the sea and cascades, down the network from the mouths; the first river fish. */
     private fun walkRivers() {
         val byDist = (0 until size).filter { land.hydro.meanFlow[it] >= RiverClass.STREAM.minDischarge && hw.land[it] > 0f }
-        fun up(h: Int): Float {
+        @IgnorableReturnValue fun up(h: Int): Float {
             if (mouth[h] != -1 || upKm[h] < 0f) return upKm[h]
             upKm[h] = -1f // being worked out
             val d = land.hydro.down[h]

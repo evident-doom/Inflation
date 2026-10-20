@@ -129,7 +129,7 @@ object WaysPpo {
     fun rate(bands: Int, stepsPerYear: Int) = if (bands == 0) 0f else min(1f, PER_YEAR.toFloat() * SEASON / (bands * stepsPerYear))
 
     /** One round of learning from [cs] (with their returns); a line saying how it went. */
-    fun learn(st: State, cs: List<WaysChoice>, round: Int): String {
+    @IgnorableReturnValue fun learn(st: State, cs: List<WaysChoice>, round: Int): String {
         if (cs.isEmpty()) return "ways: no draws"
         val critic = st.critic
         // ---- the critic: least squares toward the returns seen

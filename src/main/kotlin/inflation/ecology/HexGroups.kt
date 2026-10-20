@@ -1114,9 +1114,9 @@ class HexGroups(
     private fun scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h: Hex): Float {
         val d = c.at.d; val toGoal = c.at.toGoal; val offGround = c.at.offGround; val pull = c.at.pull
         val prey = c.at.prey; val crowded = c.at.crowded
-        val g = c.g; val s = g.species; val kind = c.kind; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
+        val g = c.g; val s = g.species; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
         val goalQ = c.goalQ; val onRound = c.onRound; val roundStrength = c.roundStrength; val fromHere = c.fromHere; val reach = c.reach
-        val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather; val date = c.date
+        val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather
         // Its food or game there, against crowding (see [foodTerm]).
         var score = foodTerm(g, p, h, sensed, prey, crowded)
         // The cold or heat it bears there, and what the place drains from it (the extra food the

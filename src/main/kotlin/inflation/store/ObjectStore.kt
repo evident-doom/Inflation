@@ -310,7 +310,7 @@ internal class Restorer {
     /** An object of [c], made without its constructor if it needs arguments; its fields are then filled from the save. */
     private fun blank(c: Class<*>): Any {
         // A class that can be made without arguments gets its fields' defaults (so fields added since the save are set).
-        runCatching { return c.getDeclaredConstructor().also { it.isAccessible = true }.newInstance() }
+        try { return c.getDeclaredConstructor().also { it.isAccessible = true }.newInstance() } catch (_: Throwable) {}
         val rf = sun.reflect.ReflectionFactory.getReflectionFactory()
         return rf.newConstructorForSerialization(c, Any::class.java.getDeclaredConstructor()).newInstance()
     }

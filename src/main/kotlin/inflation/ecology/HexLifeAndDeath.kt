@@ -129,7 +129,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
  * nourishes ([HexPlants.nourishment]). The one rule for the residents' week's grazing
  * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.room]).
  */
-internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
+@IgnorableReturnValue internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
     // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
     val fill = gutFill(s, q)
@@ -328,7 +328,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
         if (b != null) {
             val t = weather.temperature[g.place]
             if (b.exposure(t) > 0f) {
-                fun add(k: Tally.Cold, v: Float) = stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus)
+                fun add(k: Tally.Cold, v: Float) { stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus) }
                 add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, b.exposure(t)); add(Tally.Cold.AIR, EXPOSURE_C - t)
                 add(Tally.Cold.CLOTHES, b.clothesCover()); add(Tally.Cold.FIRE, PROTECT_FIRE * b.fire); add(Tally.Cold.SHELTER, b.roofCover(b.atHome))
             }

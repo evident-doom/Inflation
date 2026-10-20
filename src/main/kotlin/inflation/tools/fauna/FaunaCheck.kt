@@ -43,8 +43,8 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         println("     climate fit: " + census.fit())
         val groups = sim.groups
         run {
-            val t0 = System.nanoTime(); groups.bearings.month
-            val t1 = System.nanoTime(); groups.bearings.update(0); fauna.bearings.update(0)
+            val t0 = System.nanoTime(); val bearings = groups.bearings
+            val t1 = System.nanoTime(); bearings.update(0); fauna.bearings.update(0)
             println("sense of direction: setting up %.0f ms, a month's update for all kinds %.0f ms".format((t1 - t0) / 1e6, (System.nanoTime() - t1) / 1e6))
         }
         println("     matter: " + census.budget())

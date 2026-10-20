@@ -527,7 +527,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             val tint = Measure.entries[tintChoice.selectedIndex]
             val legends = ArrayList<MapLegend>()
             if (tint != Measure.NONE) {
-                val rad = hex.hexKm / sqrt(3.0)
                 val mode = ViewLayers.Mode.entries[modeChoice.selectedIndex]
                 val key = layers.key(tint, causeChoice.selectedIndex)
                 val colours = arrayOfNulls<Color>(hex.size)
@@ -584,7 +583,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             // A resident kind's density as a tint over the hexes.
             val r = residentChoice.selectedIndex - 1
             if (r >= 0) {
-                val rad = hex.hexKm / sqrt(3.0)
                 val dens = DoubleArray(hex.size); val area = DoubleArray(hex.size)
                 for (p in 0 until fauna.n) { val h = hw.placeHex[p]; area[h] += land.areaKm2[p].toDouble() }
                 if (r < fauna.kinds.size) for (p in 0 until fauna.n) dens[hw.placeHex[p]] += ((fauna.adults[r][p] + fauna.young[r][p]) *

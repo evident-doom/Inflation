@@ -79,7 +79,6 @@ object HexPicture {
         }
         // Hex outlines, faint, and every border coloured by what it takes to cross on foot.
         val r = hex.hexKm / sqrt(3.0)
-        val foot = hex.crossings[HexMap.Travel.FOOT.ordinal]
         for (a in 0 until hex.size) {
             val (cx, cy) = hex.centreKm(a)
             if (cx < x0 - hex.hexKm || cx > x0 + w + hex.hexKm || cy < y0 - hex.hexKm || cy > y0 + h + hex.hexKm) continue
