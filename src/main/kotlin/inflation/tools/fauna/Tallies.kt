@@ -140,8 +140,19 @@ class MovementTally(private val sim: HexSim) {
     private var janHeight = DoubleArray(0)
     /** Each resident kind's January to July: the share of its heads in other hexes, in other [CELL_KM] cells, and its mean heights. */
     private val residentsMoved = HashMap<String, DoubleArray>()
+    /**
+     * Each resident kind's adults' heads-weighted mean height (m) in each month's first week. Adults only: the young born in
+     * spring, more on some ground than other, would move the mean without any animal moving.
+     */
+    private var adultHeight = Array(sim.fauna.kinds.size) { DoubleArray(12) { Double.NaN } }
 
-    fun startYear() { residentsMoved.clear() }
+    /** Each resident kind's heads in each month's first week, for the height the flow took them per head ([HexFauna.climbed]). */
+    private var monthHeads = Array(sim.fauna.kinds.size) { DoubleArray(12) }
+
+    fun startYear() {
+        residentsMoved.clear(); adultHeight = Array(sim.fauna.kinds.size) { DoubleArray(12) { Double.NaN } }
+        monthHeads = Array(sim.fauna.kinds.size) { DoubleArray(12) }; for (c in sim.fauna.climbed) c.fill(0.0)
+    }
 
     fun week(w: Int) {
         val groups = sim.groups; val hex = sim.hex
@@ -151,6 +162,21 @@ class MovementTally(private val sim: HexSim) {
         if (date.dayOfMonth <= sim.cfg.daysPerStep) {
             if (date.month == 0) residentsByHex().let { (byHex, height) -> janResidents = byHex; janHeight = height }
             if (date.month == 6) janResidents?.let { jan -> compareResidents(jan, residentsByHex()) }
+            adultHeights(date.month)
+        }
+    }
+
+    private fun adultHeights(month: Int) {
+        val fauna = sim.fauna; val hw = sim.hw; val land = sim.land
+        for (k in fauna.kinds.indices) {
+            var m = 0.0; var heads = 0.0
+            var all = 0.0
+            for (p in 0 until fauna.n) {
+                val v = (fauna.adults[k][p] * land.areaKm2[p]).toDouble(); m += v * hw.placeElevationM[p]; heads += v
+                all += v + fauna.young[k][p] * land.areaKm2[p]
+            }
+            adultHeight[k][month] = if (heads > 0.0) m / heads else Double.NaN
+            monthHeads[k][month] = all
         }
     }
 
@@ -194,6 +220,14 @@ class MovementTally(private val sim: HexSim) {
     fun printSeasons() {
         if (residentsMoved.isNotEmpty()) println("     residents' January to July (share of heads in other hexes / other ${CELL_KM.toInt()} km cells, mean height m): " +
             residentsMoved.entries.joinToString(", ") { (k, v) -> "%s %.0f%% / %.0f%%, %.0f to %.0f".format(k, 100 * v[0], 100 * v[1], v[2], v[3]) })
+        if (adultHeight.any { h -> h.any { !it.isNaN() } }) println("     residents' adults' mean height by month, January to December (m): " +
+            sim.fauna.kinds.indices.filter { k -> adultHeight[k].any { !it.isNaN() } }.joinToString("; ") { k ->
+                sim.fauna.kinds[k].name + " " + adultHeight[k].joinToString(" ") { if (it.isNaN()) "-" else "%.0f".format(it) } })
+        val climbed = sim.fauna.climbed
+        if (climbed.any { c -> c.any { it != 0.0 } }) println("     residents' climb by their moving, January to December (m a head in the month, on the memory's route / the rest): " +
+            sim.fauna.kinds.indices.filter { k -> climbed[k].any { it != 0.0 } }.joinToString("; ") { k ->
+                sim.fauna.kinds[k].name + " " + (0 until 12).joinToString(" ") { m -> val h = monthHeads[k][m]
+                    if (h > 0.0) "%+.0f/%+.0f".format(climbed[k][m * 2 + 1] / h, climbed[k][m * 2] / h) else "-" } })
     }
 
     companion object {

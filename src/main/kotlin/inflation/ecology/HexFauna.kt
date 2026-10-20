@@ -105,6 +105,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     @Transient val stuck = Array(kinds.size) { DoubleArray(Stuck.entries.size) }
     /**
+     * For the check, since last read: each resident kind's heads that moved by the flow ([flow]) times the height they
+     * climbed (m, down negative), by month, those on the memory's route (`month * 2 + 1`) apart from the rest
+     * (`month * 2`). Where the moving itself takes a kind up or down, apart from births and deaths by height.
+     */
+    @Transient val climbed = Array(kinds.size) { DoubleArray(24) }
+    /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
      * away from ground where its kind has been killed (the landscape of fear).
      */
@@ -1598,6 +1604,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val passes = hopsFor(s, tuning.residentMoveWeeks)
         // (Its ways fetched once: they are looked up in the innermost loops.)
         val ways = flowWays[k]
+        val climbedNow = climbed[k]; val monthNow = weather.date.month
         // Heads at each place, grown and young; and the food there, in heads it feeds fully: those there, as fed as they were, and the food left uneaten.
         val ga = FloatArray(n) { p -> a[p] * area[p] }; val gy = FloatArray(n) { p -> y[p] * area[p] }
         // (The grown times the share of their season of births they have had: [bred] goes with them.)
@@ -1735,6 +1742,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (km + climbKm(k, p, q))
                     changed[q] = true
                     if (record && hw.placeHex[q] != h) recordFlow(h, hw.placeHex[q], m)
+                    climbedNow[monthNow * 2 + (if (i == step[p]) 1 else 0)] += (m - lostA - lostY).toDouble() * (hw.placeElevationM[q] - hw.placeElevationM[p])
                 }
                 ga[p] = max(0f, ga[p] - left * (1f - youngShare)); gy[p] = max(0f, gy[p] - left * youngShare); changed[p] = true
                 gb[p] = max(0f, gb[p] - left * (1f - youngShare) * hadBred)
