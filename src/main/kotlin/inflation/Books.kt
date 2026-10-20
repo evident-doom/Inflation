@@ -117,26 +117,94 @@ class Books {
  */
 class Stock(val stuff: Books.Stuff, val name: String, val arrays: List<Any>, val group: String?, val sum: () -> Double)
 
+/**
+ * The names of the stocks and wider pools the model keeps, as the books, the history ("biomass/NAME") and the checks
+ * read them. Each kind's own animals are a stock of their own beside these ([Stocks.ofKind]), and so is each kind of
+ * bird ([Stocks.perKm2] by its table's name).
+ */
+enum class StockName(val label: String) {
+    PLANTS("plants"),
+    SMALL_ANIMALS("small animals"),
+    RESIDENT_ANIMALS("resident animals"),
+    GROUPS("packs and bands"),
+    SNOW("snow"),
+    SOIL_WATER("soil water"),
+    GROUND_WATER("ground water"),
+    LAKES("lakes"),
+    BED_SANDS("bed sands"),
+    HERBS("herbs"),
+    SHRUBS("shrubs"),
+    TREES("trees"),
+    FRUIT("fruit"),
+    GRASS_SEED("grass seed"),
+    SMALL_FINDS("small finds"),
+    ROOTS("roots"),
+    GRAIN("grain"),
+    SOWN_SEED("sown seed"),
+    LITTER("litter"),
+    SOIL_ORGANIC_MATTER("soil organic matter"),
+    CARRION("carrion"),
+    BONES("bones"),
+    DUNG("dung"),
+    SMALL_DEAD("small dead"),
+    SOIL_ANIMALS("soil animals"),
+    INSECTS("insects"),
+    INSECTS_WAITING("insects waiting"),
+    BITING_INSECTS("biting insects"),
+    BITING_INSECTS_WAITING("biting insects waiting"),
+    RODENTS("rodents"),
+    REPTILES_AND_AMPHIBIANS("reptiles and amphibians"),
+    POLLINATORS("pollinators"),
+    POLLINATORS_WAITING("pollinators waiting"),
+    HARES("hares"),
+    HYRAX("hyrax"),
+    TORTOISES("tortoises"),
+    FOXES("foxes"),
+    OWLS("owls"),
+    LOCUSTS("locusts"),
+    MIGRANT_BIRDS_AWAY("migrant birds away"),
+    HUNTERS_MEAT_IN_HAND("hunters' meat in hand"),
+    BANDS_FOOD("bands' food"),
+    BANDS_CACHES("bands' caches"),
+    BANDS_KEPT_ANIMALS("bands' kept animals"),
+    BANDS_GOODS("bands' goods of living things");
+
+    override fun toString() = label
+
+    companion object {
+        private val BY_LABEL = entries.associateBy { it.label }
+        /** The stock or pool named [label], or null for a kind's own stock or a bird's. */
+        fun of(label: String) = BY_LABEL[label]
+    }
+}
+
+/** How a kind's own stock lives: its residents or its groups, named "resident roe deer", "group wolf". */
+enum class KindStock(val prefix: String) {
+    RESIDENT("resident "), GROUP("group ");
+
+    fun of(s: inflation.ecology.Species) = prefix + s.name
+    companion object {
+        /** Whether a stock or pool [name] is one kind's own. */
+        fun isKind(name: String) = entries.any { name.startsWith(it.prefix) }
+    }
+}
+
 /** Every stock of water and matter in the model, as each part names its own: what the books audit and the reports read. */
 class Stocks {
     val list = ArrayList<Stock>()
     private var group: String? = null
     /** A stock of [stuff], [name]d, summed by [sum] from the tables [arrays]. */
-    fun add(stuff: Books.Stuff, name: String, vararg arrays: Any, sum: () -> Double) { list += Stock(stuff, name, arrays.toList(), group, sum) }
+    fun add(stuff: Books.Stuff, name: StockName, vararg arrays: Any, sum: () -> Double) = add(stuff, name.label, *arrays, sum = sum)
+    /** Kind [s]'s own animals, living as [how] says. */
+    fun ofKind(how: KindStock, s: inflation.ecology.Species, vararg arrays: Any, sum: () -> Double) = add(Books.Stuff.MATTER, how.of(s), *arrays, sum = sum)
+    private fun add(stuff: Books.Stuff, name: String, vararg arrays: Any, sum: () -> Double) { list += Stock(stuff, name, arrays.toList(), group, sum) }
     /** Matter in kg/m² by place, [name]d, over places of [m2] square metres. */
-    fun perM2(name: String, a: FloatArray, m2: FloatArray) = add(Books.Stuff.MATTER, name, a) { var s = 0.0; for (p in a.indices) s += a[p] * m2[p].toDouble(); s }
-    /** Matter in kg/km² by place, [name]d, over places of [km2] square km. */
-    fun perKm2(name: String, a: FloatArray, km2: FloatArray) = add(Books.Stuff.MATTER, name, a) { var s = 0.0; for (p in a.indices) s += a[p] * km2[p].toDouble(); s }
+    fun perM2(name: StockName, a: FloatArray, m2: FloatArray) = add(Books.Stuff.MATTER, name, a) { var s = 0.0; for (p in a.indices) s += a[p] * m2[p].toDouble(); s }
+    /** Matter in kg/km² by place, [name]d (or named by its table, as each kind of bird), over places of [km2] square km. */
+    fun perKm2(name: StockName, a: FloatArray, km2: FloatArray) = perKm2(name.label, a, km2)
+    fun perKm2(tableName: String, a: FloatArray, km2: FloatArray) = add(Books.Stuff.MATTER, tableName, a) { var s = 0.0; for (p in a.indices) s += a[p] * km2[p].toDouble(); s }
     /** The stocks [block] adds, counted also in the wider pool [name]. */
-    fun within(name: String, block: () -> Unit) { group = name; try { block() } finally { group = null } }
-
-    companion object {
-        /** The wider pools ([within]), by the names the books, the history and the checks read them by. */
-        const val PLANTS = "plants"
-        const val SMALL_ANIMALS = "small animals"
-        const val RESIDENT_ANIMALS = "resident animals"
-        const val GROUPS = "packs and bands"
-    }
+    fun within(name: StockName, block: () -> Unit) { group = name.label; try { block() } finally { group = null } }
 
     /** The matter in each stock and in each wider pool, thousand tonnes, in the order listed. */
     fun matter(): LinkedHashMap<String, Double> {

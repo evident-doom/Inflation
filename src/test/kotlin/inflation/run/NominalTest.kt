@@ -1,5 +1,6 @@
 package inflation.run
 
+import inflation.StockName
 import inflation.ecology.HexHistory
 import inflation.ecology.HexHistory.Key
 import inflation.ecology.HexSim
@@ -15,7 +16,7 @@ class NominalTest {
     /** A history of three years: a steady kind, plants and the land, and the [extra] series each week, with [change] applied to its series. */
     private fun history(extra: Map<String, Float> = emptyMap(), change: (Map<String, HexHistory.FloatList>) -> Unit = {}): HexHistory {
         val h = HexHistory()
-        val series = (mapOf(Key.animals("roe deer") to 1000f, Key.biomass("plants") to 5e6f, Key.LAND_AREA to 1e6f, Key.TEMPERATURE to 10f, Key.RAIN to 10f) + extra)
+        val series = (mapOf(Key.animals("roe deer") to 1000f, Key.biomass(StockName.PLANTS) to 5e6f, Key.LAND_AREA to 1e6f, Key.TEMPERATURE to 10f, Key.RAIN to 10f) + extra)
             .mapValues { (k, v) -> HexHistory.FloatList().also { s -> h.series[k] = s; repeat(weeks) { s.add(v) } } }
         repeat(weeks) { h.year.add((it / WorldConfig().stepsPerYear).toFloat()); h.month.add((it % 60 / 5).toFloat()) }
         change(series)
@@ -32,12 +33,12 @@ class NominalTest {
     fun `a kind gone, matter below zero and a number that is not one are found`() {
         val r = Nominal.history(history { s ->
             s.getValue(Key.animals("roe deer")).add(0f)
-            s.getValue(Key.biomass("plants")).add(-1f)
+            s.getValue(Key.biomass(StockName.PLANTS)).add(-1f)
             s.getValue(Key.TEMPERATURE).add(Float.POSITIVE_INFINITY)
             for (k in listOf(Key.LAND_AREA, Key.RAIN)) s.getValue(k).add(s.getValue(k)[0])
         }.also { it.year.add(3f); it.month.add(0f) })
         val what = r.findings.map { it.what }.toSet()
-        assertTrue(Key.animals("roe deer") in what && Key.biomass("plants") in what && Key.TEMPERATURE in what, r.report())
+        assertTrue(Key.animals("roe deer") in what && Key.biomass(StockName.PLANTS) in what && Key.TEMPERATURE in what, r.report())
     }
 
     @Test

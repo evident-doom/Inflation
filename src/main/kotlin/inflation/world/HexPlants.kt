@@ -1,6 +1,7 @@
 package inflation.world
 
 import inflation.Books
+import inflation.StockName
 import inflation.Stocks
 import inflation.KgM2
 import inflation.Tuning
@@ -368,7 +369,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
 
     /** Names the plants' stocks: herbs, shrubs and trees. */
     internal fun listStocks(stocks: Stocks) {
-        stocks.within(Stocks.PLANTS) { for ((name, a) in listOf("herbs" to herb, "shrubs" to shrub, "trees" to tree)) stocks.perM2(name, a, land.areaM2) }
+        stocks.within(StockName.PLANTS) { for ((name, a) in listOf(StockName.HERBS to herb, StockName.SHRUBS to shrub, StockName.TREES to tree)) stocks.perM2(name, a, land.areaM2) }
     }
 
     /** Seed for trees and shrubs: from the place itself, and half as much from its neighbours. */

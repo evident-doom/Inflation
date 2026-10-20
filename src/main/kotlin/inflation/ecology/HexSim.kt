@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.Books
+import inflation.StockName
 import inflation.Stocks
 import inflation.Tuning
 import inflation.world.Eruptions
@@ -46,7 +47,7 @@ class HexSim(
     /** Every stock of water and matter in the model, as each part names them (the books start from them as the first step finds them, after a save is loaded). */
     fun stocks(): Stocks = Stocks().also { s ->
         val n = land.n
-        s.add(Books.Stuff.WATER, "snow", weather.snowpack) { var sum = 0.0; for (p in 0 until n) sum += weather.snowpack[p] / 1000.0 * land.areaM2[p]; sum }
+        s.add(Books.Stuff.WATER, StockName.SNOW, weather.snowpack) { var sum = 0.0; for (p in 0 until n) sum += weather.snowpack[p] / 1000.0 * land.areaM2[p]; sum }
         land.hydro.listStocks(s)
         land.plants.listStocks(s)
         fauna.listStocks(s)

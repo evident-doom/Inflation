@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.StockName
 import inflation.Stocks
 import inflation.world.Biome
 import java.io.File
@@ -58,6 +59,7 @@ class HexHistory {
         fun animalKind(key: String) = if (key.startsWith(ANIMALS)) key.removePrefix(ANIMALS) else null
         /** Thousand tonnes in the pool or stock [name]. */
         fun biomass(name: String) = BIOMASS + name
+        fun biomass(name: StockName) = biomass(name.label)
         fun isBiomass(key: String) = key.startsWith(BIOMASS)
         fun isWeather(key: String) = key.startsWith(WEATHER)
         /** How well fed the plant-eaters of [kind] were, 0 to 1, by heads. */

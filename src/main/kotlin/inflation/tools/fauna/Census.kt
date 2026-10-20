@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.StockName
 import inflation.Stocks
 import inflation.ecology.Activity
 import inflation.ecology.DeathCause
@@ -66,9 +67,9 @@ class Census(private val sim: HexSim) {
     /** Where the matter is: each pool over the whole map, thousand tonnes (as the books count it). */
     fun budget(): String {
         val m = stocks.matter()
-        fun v(name: String) = m[name] ?: 0.0
+        fun v(name: StockName) = m[name.label] ?: 0.0
         return "plants %.0f, litter %.0f, soil organic %.0f, carrion %.2f, small animals %.2f, resident animals %.2f, packs and bands %.2f (thousand t)".format(
-            v(Stocks.PLANTS), v("litter"), v("soil organic matter"), v("carrion"), v(Stocks.SMALL_ANIMALS), v(Stocks.RESIDENT_ANIMALS), v(Stocks.GROUPS))
+            v(StockName.PLANTS), v(StockName.LITTER), v(StockName.SOIL_ORGANIC_MATTER), v(StockName.CARRION), v(StockName.SMALL_ANIMALS), v(StockName.RESIDENT_ANIMALS), v(StockName.GROUPS))
     }
 
     /** By kind of country: its share of the land, forage, resident animals, hunters and people, per 1000 km². */
