@@ -139,9 +139,8 @@ internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float
     val browse = pantry.browse(want * fill * d.browse / total)
     val fruit = pantry.fruit(want * d.fruit / total)
     val roots = pantry.roots(want * d.roots / total)
-    // Diet switching: a food that fell short is made up from the others: grass and browse as far as the
-    // gut holds (a wild ass short of grass eats shrubs), fruit and roots to at most (1 + SWITCH) times their
-    // usual share (an ostrich out of fruit season picks more shoots and leaves).
+    // Diet switching: a food that fell short is made up from the others, each to at most (1 + SWITCH) times its
+    // usual share (an ostrich out of fruit season picks more shoots and leaves), grass and browse as far as the gut holds.
     var gap = want - ((grass + browse) * q + fruit + roots)
     var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
     // But the gut holds only so much bulk a day: on poor forage a ruminant cannot make up by eating
@@ -150,8 +149,12 @@ internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float
     var room = max(0f, want * fill / HexFauna.GUT_QREF - (grass + browse))
     // (What it switches to nourishes it as well as its gut digests fibre, [Species.fibreDigestion].)
     val qf = q * s.fibreDigestion
-    if (gap > 0f && d.browse > 0f) { browse2 = pantry.browse(min(gap / qf, room)); gap -= browse2 * qf; room -= browse2 }
-    if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
+    // (And no further than any food: to at most (1 + SWITCH) times its usual share. A grazer does not turn browser when the
+    // snow buries its grass: Przewalski's horses graze all winter in the Gobi, and the khulan's winter food that looked
+    // like shrubs in its hair was mostly grass too: Burnik Sturm et al., J Appl Ecol 2017, and the DNA barcoding after.)
+    if (gap > 0f && d.browse > 0f) { browse2 = pantry.browse(min(min(gap / qf, room), SWITCH * want * fill * d.browse / total)); gap -= browse2 * qf; room -= browse2 }
+    if (gap > 0f && d.grass > 0f && underSnow > 0f) {
+        grass2 = pantry.grass(underSnow * min(min(gap / qf, room), SWITCH * want * fill * d.grass / total)); gap -= grass2 * qf; room -= grass2 }
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, SWITCH * want * d.fruit / total)); gap -= fruit2 }
     if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, SWITCH * want * d.roots / total)); gap -= roots2 }
     // What grass and browse could not give, straw makes up as far as there is any, at what its gut gets out of it: the

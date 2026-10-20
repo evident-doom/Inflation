@@ -141,7 +141,8 @@ object HexSnapshot {
      * residents and groups count the days of it they have burnt ([HexFauna.spent], [HexGroup.spent]), a shortfall past
      * the fat and past what plant-eaters save by spending less ([Hazards.economy]) burns it, and food beyond need wins it
      * back; residents carry their fat and their burnt body when they move. Straw lies under the snow as the green grass
-     * does; heat is booked as its own cause of death.
+     * does; heat is booked as its own cause of death. Grass and browse are switched between, as fruit and roots are, to at
+     * most (1 + [SWITCH]) times their usual share.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 9
