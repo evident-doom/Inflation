@@ -11,8 +11,8 @@ import kotlin.math.min
 /**
  * What the plant-eating residents remember of how their kind fared at each time of year on each kind of ground, and
  * where that draws them ([HexFauna.flow]). Not a place on the map but a kind of place ([typeOf]): its country (biome)
- * and where it lies in the lie of the land about it (the low, middle or high third of the ground within a month's
- * going, each place's height taken over the ground a week's going about it covers). For each kind of ground and month, [fare] keeps how the kind grew there in a week
+ * and its height ([HEIGHTS]): ground at the same height has much the same seasons, its snow and its summer drought,
+ * wherever it lies, while the high third of rolling lowland and of a mountain range do not. For each kind of ground and month, [fare] keeps how the kind grew there in a week
  * (log of the young born to a head, and of the share that lived), by the rules it is born and dies by, as those there
  * lived it ([learn]): in the terms a place is weighed in ([HexFauna.flow]). From it,
  * [route] finds, from each place, the best ground a month's going reaches by what it remembers of the month after
@@ -80,40 +80,17 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
         return FloatArray(hex.size) { h -> if (placesOf[h].isNotEmpty() && w[h] > 0f) s[h] / w[h] else Float.NaN }
     }
 
-    /**
-     * For kind [s], each hex's third of the lie of the land, low (0), middle (1) or high (2): its height, as the mean of the
-     * ground a week's going about it covers, among the hexes within a month's going, by theirs the same way. So a whole
-     * upland counts as high and a valley through it as low, not each hex against the next.
-     */
-    private val reliefByKind = HashMap<Pair<Int, Int>, ByteArray>()
-    private fun relief(s: Species): ByteArray {
-        val key = weekKm(s).toInt() to monthKm(s).toInt()
-        synchronized(reliefByKind) { reliefByKind[key] }?.let { return it }
-        val sum = FloatArray(hex.size); val wt = FloatArray(hex.size)
-        for (p in 0 until n) { val h = hw.placeHex[p]; sum[h] += area(p) * hw.placeElevationM[p]; wt[h] += area(p) }
-        val height = smooth(sum, wt, weekKm(s).toDouble())
-        val out = ByteArray(hex.size)
-        IntStream.range(0, hex.size).parallel().forEach { h ->
-            if (height[h].isNaN()) return@forEach
-            var lower = 0; var all = 0
-            within(h, monthKm(s).toDouble()) { q -> if (!height[q].isNaN()) { all++; if (height[q] < height[h]) lower++ } }
-            out[h] = min(2, 3 * lower / max(1, all)).toByte()
-        }
-        synchronized(reliefByKind) { reliefByKind[key] = out }
-        return out
-    }
-
     /** How far kind [s] goes in a week at its usual going, km: the ground it uses about a place. */
     private fun weekKm(s: Species) = s.dailyTravelKm * days
 
     /** How far kind [s] goes in a month at its usual going, km. */
     private fun monthKm(s: Species) = s.dailyTravelKm * Date.DAYS_PER_MONTH
 
-    /** The kind of ground each place is to kind [k]: its country and the third of the lie of the land about it, `biome * 3 + third`. */
-    private val types = arrayOfNulls<IntArray>(kinds.size)
-    fun typeOf(k: Int): IntArray = types[k] ?: synchronized(types) {
-        types[k] ?: relief(kinds[k]).let { rel -> IntArray(n) { p -> biomeOf[p] * 3 + rel[hw.placeHex[p]] } }.also { types[k] = it }
+    /** The kind of ground each place is: its country and its height ([HEIGHTS]), `biome * heights + height`. The same for every kind. */
+    private val types: IntArray by lazy {
+        IntArray(n) { p -> val e = hw.placeElevationM[p]; biomeOf[p] * (HEIGHTS.size + 1) + HEIGHTS.count { e >= it } }
     }
+    fun typeOf(@Suppress("UNUSED_PARAMETER") k: Int): IntArray = types
 
     /**
      * Adds a week of kind [k]'s life in [month] to what it remembers in [fare] (its kinds of ground × 12 months, none yet
@@ -237,7 +214,12 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
     private val routeWays = java.util.concurrent.ConcurrentHashMap<Int, RouteWays>()
 
     companion object {
-        /** Kinds of ground: each country by the low, middle and high third of the lie of the land. */
-        val TYPES = Biome.entries.size * 3
+        /**
+         * The heights a kind of ground is told apart by, m: below 500, to 1000, 1500 and 2500, and above (as the residents'
+         * height reports cut them). Snow lies, summers dry and the growing season shortens with height.
+         */
+        val HEIGHTS = floatArrayOf(500f, 1000f, 1500f, 2500f)
+        /** Kinds of ground: each country at each height. */
+        val TYPES = Biome.entries.size * (HEIGHTS.size + 1)
     }
 }
