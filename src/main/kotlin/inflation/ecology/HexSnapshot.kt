@@ -141,7 +141,7 @@ object HexSnapshot {
      * residents and groups count the days of it they have burnt ([HexFauna.spent], [HexGroup.spent]), a shortfall past
      * the fat and past what plant-eaters save by spending less ([Hazards.economy]) burns it, and food beyond need wins it
      * back; residents carry their fat and their burnt body when they move. Heat is booked as its own cause of death. Grass
-     * and browse are switched between, as fruit and roots are, to at most (1 + [SWITCH]) times their usual share. The
+     * buried under snow is made up with browse to at most (1 + [SWITCH]) times its usual share, as fruit and roots are. The
      * standing straw is no longer a food of its own: it is the cured grass, grazed as grass.
      */
     const val MODEL_MAJOR = 4
