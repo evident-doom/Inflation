@@ -1064,7 +1064,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         perM2("litter", litter); perM2("soil organic matter", organicMatter); perM2("carrion", carrion); perM2("bones", bones); perM2("dung", dung)
         perKm2("small dead", smallDead); perKm2("soil animals", soilAnimals)
         // (The small animals on the land, as against those in the soil and the migrants away.)
-        stocks.within("small animals") {
+        stocks.within(Stocks.SMALL_ANIMALS) {
             perKm2("insects", insects); perKm2("insects waiting", dormantInsects)
             perKm2("biting insects", biting); perKm2("biting insects waiting", dormantBiting); perKm2("rodents", rodents); perKm2("reptiles and amphibians", herps)
             perKm2("pollinators", pollinators); perKm2("pollinators waiting", dormantPollinators); perKm2("hares", hares); perKm2("hyrax", hyrax)
