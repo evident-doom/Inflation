@@ -89,7 +89,7 @@ internal fun HexGroups.hunt(weather: Weather) {
                 for (g in squares[i].value) {
                     val s = g.species
                     // The ground it searches this week, shared over the hexes it passed.
-                    val sweep = searchKm2(g, g.place.i, weather) / g.path.size.coerceAtLeast(1)
+                    val sweep = searchKm2(g, g.place, weather) / g.path.size.coerceAtLeast(1)
                     Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
                 }
             }
@@ -482,7 +482,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
     var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
     note(g) {
         "foraged for %.0f kg wanted: meat %.0f (%.0f taken from other hunters), small game %.0f, carrion %.0f, plants %.0f, fish %.0f; busy %.1f of %d days; sight %.2f of a clear day in the open%s".format(
-            wantAll, meat, g.meatMet, smallGot, scraps, plants, fish, w.busy, days, sight(g.place.i, weather),
+            wantAll, meat, g.meatMet, smallGot, scraps, plants, fish, w.busy, days, sight(g.place, weather),
             if (band != null) "; %.0f%% of adults scouting".format(100 * band.scoutShare) else "")
     }
     if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.003f, 2)) System.err.println(
@@ -1100,7 +1100,7 @@ internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Place): Boolea
     val s = g.species; val o = other.species
     if (s == o || strength(other) <= 2f * strength(g)) return false
     val first = s.senseKm / (s.senseKm + o.senseKm)
-    val chance = AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p.i, land)
+    val chance = AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p, land)
     return rnd.nextFloat() < min(0.9f, chance)
 }
 
@@ -1131,7 +1131,7 @@ internal fun seenFirst(open: Float, clear: Float, band: Band?, ps: Species): Flo
 private fun HexGroups.openness(s: Species, p: Place, weather: Weather, out: FloatArray) {
     val cover = land.plants.cover(p)
     out[0] = VIGILANCE * (1f - cover) * (1f - s.stalking)
-    out[1] = 0.5f + 0.5f * sight(p.i, weather) / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
+    out[1] = 0.5f + 0.5f * sight(p, weather) / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
 }
 
 /**
@@ -1165,7 +1165,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
-    val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place.i, land)) * strong.will[AnimalWay.KILL]
+    val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land)) * strong.will[AnimalWay.KILL]
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
         weak.young--

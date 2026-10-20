@@ -235,7 +235,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             // Evaporation follows the week's heat against the month's normal (about 6% a degree) and the sun on the
             // slopes; plants draw at full rate until the soil is half dry, then less as it dries (the same stress their
             // growth feels). The sunny and the shaded slopes each keep their own soil water.
-            val heat = exp(0.06f * (t - hw.placeTemp(p.i, m))).coerceIn(0.3f, 3f)
+            val heat = exp(0.06f * (t - hw.placeTemp(p, m))).coerceIn(0.3f, 3f)
             fun bucket(water: Float, sun: Float): Float {
                 val et = min(water, land.pet[m][p] * sun * share * heat * min(1f, water / (UNSTRESSED * soilCap[p])))
                 return water - et

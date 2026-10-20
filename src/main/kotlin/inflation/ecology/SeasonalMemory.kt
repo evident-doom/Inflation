@@ -44,7 +44,7 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
         Array(hex.size) { lists[it].toIntArray() }
     }
     /** Each place's ground, in fine cells (equal areas). */
-    private fun area(p: Int) = hw.placeCells[p].size.toFloat()
+    private fun area(p: Place) = hw.placeCells[p.i].size.toFloat()
 
     /**
      * Calls [f] with each hex within [km] of hex [h], centre to centre (land or not; [h] too).
@@ -139,7 +139,7 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
         val t = typeOf(k)
         val stay = stayOf(k, month, fare, seen)
         val sum = FloatArray(hex.size); val wt = FloatArray(hex.size)
-        for (p in 0 until n) { val h = hw.placeHex[p]; sum[h] += area(p) * stay[t[p]]; wt[h] += area(p) }
+        for (p in 0 until n) { val h = hw.placeHex[p]; sum[h] += area(Place(p)) * stay[t[p]]; wt[h] += area(Place(p)) }
         return smooth(sum, wt, weekKm(kinds[k]).toDouble())
     }
 

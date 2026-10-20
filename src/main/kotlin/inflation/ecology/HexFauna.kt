@@ -66,7 +66,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val waterC = FloatArray(n) { Float.NaN }
     /** [waterC]'s normal for each month and place, from the month's normal air temperatures. */
     @delegate:Transient private val waterNormalC by lazy {
-        val byPlace = Array(n) { p -> laggedNormals { m -> hw.placeTemp(p, m) } }
+        val byPlace = Array(n) { p -> laggedNormals { m -> hw.placeTemp(Place(p), m) } }
         Array(12) { m -> FloatArray(n) { p -> byPlace[p][m] } }
     }
 
@@ -474,7 +474,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** [feltC] in month [m] of an ordinary year, from the normals. */
     fun feltNormalC(s: Species, p: Place, m: Int): Float =
-        if (s.maxWaterKm.isInfinite()) hw.placeTemp(p.i, m) else refugeC(s, hw.placeTemp(p.i, m), waterNormalC[m][p], usualTether(s, p))
+        if (s.maxWaterKm.isInfinite()) hw.placeTemp(p, m) else refugeC(s, hw.placeTemp(p, m), waterNormalC[m][p], usualTether(s, p))
 
     private fun refugeC(s: Species, t: Float, water: Float, share: Float): Float =
         if (water.isNaN() || water <= 0f || water <= t) t else t + share * (water - t)
@@ -628,7 +628,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // Shelter: crags, dens, thickets and trees, as the prey uses them; small prey hide in any cover.
         // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
         // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
-        val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * Niches.shelter(ps, p.i, land)
+        val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * Niches.shelter(ps, p, land)
         // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
         val hide = 1f - HIDING * land.plants.cover(p) * (1f - s.stalking) * max(0f, 1f - massKg / HIDING_KG)
         // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
@@ -1105,12 +1105,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         dd[ResidentDeath.SHORT_OF_PROTEIN] += cy * starved
         record?.let { r ->
             val ka = ca * s.massKg; val ky = cy * s.massKg
-            r.resident(k.i, p.i, PlaceRecord.Cause.HUNGER, (ka + 1.5f * ky) * hunger)
-            r.resident(k.i, p.i, PlaceRecord.Cause.THIRST, (ka + 1.5f * ky) * thirst)
-            r.resident(k.i, p.i, PlaceRecord.Cause.COLD, (ka + 1.5f * ky) * cold + ka * snowA + ky * snowY)
-            r.resident(k.i, p.i, PlaceRecord.Cause.ILLNESS, (ka + ky) * disease)
-            r.resident(k.i, p.i, PlaceRecord.Cause.KILLED, ky * (eagle + croc))
-            r.resident(k.i, p.i, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) +
+            r.resident(k.i, p, PlaceRecord.Cause.HUNGER, (ka + 1.5f * ky) * hunger)
+            r.resident(k.i, p, PlaceRecord.Cause.THIRST, (ka + 1.5f * ky) * thirst)
+            r.resident(k.i, p, PlaceRecord.Cause.COLD, (ka + 1.5f * ky) * cold + ka * snowA + ky * snowY)
+            r.resident(k.i, p, PlaceRecord.Cause.ILLNESS, (ka + ky) * disease)
+            r.resident(k.i, p, PlaceRecord.Cause.KILLED, ky * (eagle + croc))
+            r.resident(k.i, p, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) +
                 (ka + 1.5f * ky) * heat + ka * (fireA + floodA) + ky * (fireY + floodY))
         }
     }
@@ -1164,7 +1164,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     internal fun eagleOdds(s: Species, p: Place) = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
 
     /** Crocodiles take the young that come down to warm rivers and lakes to drink: the share at [p] they take in a step. */
-    internal fun crocodileOdds(p: Place, weather: Weather) = water.crocodileRisk(p.i, weather) * years
+    internal fun crocodileOdds(p: Place, weather: Weather) = water.crocodileRisk(p, weather) * years
 
     /**
      * The odds, summed before any cap, that one of [s]'s young dies in a step besides the hunters' take: their usual deaths, the [hazards] in [hz]

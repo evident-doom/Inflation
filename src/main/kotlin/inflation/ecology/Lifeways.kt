@@ -38,9 +38,9 @@ internal fun HexGroups.contentEvery(s: Species): Int = when (s.lifeway) {
  * values it. A band: the game it expects, small game and carrion as for a pack, and the plant food, as good camping ground ([campFactor]).
  * (Where they see or read sign, by what they find: see [knownGame].)
  */
-internal fun HexGroups.lifewayValue(s: Species, p: Int): Float = when (s.lifeway) {
-    Lifeway.BAND -> dietValue(s, Place(p), preyHere(s, Place(p))) * campFactor(Place(p)) + campPlants(Place(p))
-    Lifeway.PACK -> dietValue(s, Place(p), preyHere(s, Place(p)))
+internal fun HexGroups.lifewayValue(s: Species, p: Place): Float = when (s.lifeway) {
+    Lifeway.BAND -> dietValue(s, Place(p.i), preyHere(s, Place(p.i))) * campFactor(Place(p.i)) + campPlants(Place(p.i))
+    Lifeway.PACK -> dietValue(s, Place(p.i), preyHere(s, Place(p.i)))
 }
 
 /**

@@ -234,16 +234,16 @@ class HexHistory {
         put(Key.SOIL_WATER, mean { land.hydro.soil[it] })
         // By kind of country: its area, plants per km² and head counts (and the whole land's area, to set worlds of other sizes beside each other).
         val biomeArea = DoubleArray(Biome.entries.size)
-        for (p in 0 until n) biomeArea[biomeOf(sim, p)] += area[p].toDouble()
+        for (p in 0 until n) biomeArea[biomeOf(sim, Place(p))] += area[p].toDouble()
         put(Key.LAND_AREA, biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
-        for (p in 0 until n) plants[biomeOf(sim, p)] += (land.plants.biomass(Place(p)) * area[p]).toDouble()
+        for (p in 0 until n) plants[biomeOf(sim, Place(p))] += (land.plants.biomass(Place(p)) * area[p]).toDouble()
         val heads = HashMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) {
             val a = heads.getOrPut(s.name) { DoubleArray(Biome.entries.size) }
-            for (p in 0 until n) a[biomeOf(sim, p)] += ((fauna.adults[k][p] + fauna.young[k][p]) * area[p]).toDouble()
+            for (p in 0 until n) a[biomeOf(sim, Place(p))] += ((fauna.adults[k][p] + fauna.young[k][p]) * area[p]).toDouble()
         }
-        for (g in groups.groups) if (g.alive) heads.getOrPut(g.species.name) { DoubleArray(Biome.entries.size) }[biomeOf(sim, g.place.i)] += g.size.toDouble()
+        for (g in groups.groups) if (g.alive) heads.getOrPut(g.species.name) { DoubleArray(Biome.entries.size) }[biomeOf(sim, g.place)] += g.size.toDouble()
         for (b in Biome.entries) {
             if (biomeArea[b.ordinal] <= 0.0) continue
             put(Key.biome(b, Key.AREA), biomeArea[b.ordinal].toFloat())
@@ -255,7 +255,7 @@ class HexHistory {
     }
 
     /** The kind of country most of place [p] is. */
-    private fun biomeOf(sim: HexSim, p: Int): Int = sim.hw.placeBiome[p]
+    private fun biomeOf(sim: HexSim, p: Place): Int = sim.hw.placeBiome[p]
 
     /** How the weeks are grouped: by week, month or year. */
     enum class Period(val label: String) { WEEK("week"), MONTH("month"), YEAR("year") }

@@ -509,7 +509,7 @@ class HexGroups(
         for (g in groups) if (g.alive) headsHere[kindSlot[g.species.index]][g.place] += g.size
         // (What may be expected changes slowly: it is reckoned once a month.)
         if (month != expectMonth) { expect(predatorKg); expectMonth = month }
-        IntStream.range(0, n).parallel().forEach { p -> for ((k, s) in kinds.withIndex()) placeValue[k][p] = lifewayValue(s, p) }
+        IntStream.range(0, n).parallel().forEach { p -> for ((k, s) in kinds.withIndex()) placeValue[k][p] = lifewayValue(s, Place(p)) }
     }
 
     /**
@@ -595,7 +595,7 @@ class HexGroups(
     internal fun campFactor(p: Place): Float {
         // Water close to camp: women and children fetch it every day (from a well dug in a dry bed, where water lies near).
         val w = land.drink.peopleWaterKm(p) / 3f
-        val fuel = fuelShare(woodCover(p.i), 1f)
+        val fuel = fuelShare(woodCover(p), 1f)
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
     internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]).perKm2.v * PLANT_FOOD_WEIGHT * campFactor(p)
@@ -1181,8 +1181,8 @@ class HexGroups(
             // where people crowd), and the fouling of a camp kept on: weeks camped there go on if it stays, else start afresh.
             val campWeeks = if (p == g.place) b.campWeeks + 1 else 0
             val crowd = peopleCrowding(g, h.i); val t = weather.temperature[p]; val healed = healedShare(b)
-            adult += illnessAhead(b, p.i, t, crowd, campWeeks, healed, false)
-            young += illnessAhead(b, p.i, t, crowd, campWeeks, healed, true) + campFouling(g, campWeeks) * years
+            adult += illnessAhead(b, p, t, crowd, campWeeks, healed, false)
+            young += illnessAhead(b, p, t, crowd, campWeeks, healed, true) + campFouling(g, campWeeks) * years
             // What it would catch of the bands it sees gathered there (a feast draws bands together, and the cough with them).
             if (h in c.sensed && peopleSlot >= 0) {
                 val stays = p == g.place
@@ -1266,7 +1266,7 @@ class HexGroups(
     internal fun fireAt(g: HexGroup, b: Band, p: Place): Float {
         if (p == g.place) return b.fire
         val lit = if (b.hearthWood > 0f) min(1f, b.fire / b.hearthWood) else 1f
-        return lit * hearthShare(woodCover(p.i), g.size.toFloat() / forageHands(g))
+        return lit * hearthShare(woodCover(p), g.size.toFloat() / forageHands(g))
     }
 
     /** Whether band [b] camped at place [p] would be at its house. */

@@ -760,7 +760,7 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
     var lookKm = 0f
     for (h in g.path) {
         val q = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
-        lookKm = max(lookKm, land.bestViewKm[q] * sight(q, weather) / (1f - SIGHT_COVER * land.plants.cover(Place(q))).coerceAtLeast(0.1f))
+        lookKm = max(lookKm, land.bestViewKm[q] * sight(Place(q), weather) / (1f - SIGHT_COVER * land.plants.cover(Place(q))).coerceAtLeast(0.1f))
     }
     val scouts = b.scoutShare * g.adults
     val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
@@ -911,7 +911,7 @@ internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
     val p = g.place
     val want = HEARTH_WOOD * days * g.size
     val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]
-    val cover = woodCover(p.i)
+    val cover = woodCover(p)
     if (want <= 0f || cover <= 0f) { b.hearthWood = if (want <= 0f) 1f else 0f; return 0f }
     val perHand = g.size.toFloat() / hands
     val spent = fuelShare(cover, perHand) * days
@@ -925,7 +925,7 @@ internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
 }
 
 /** How thickly dead wood lies about place [p], 0 (none) to 1 (trees or scrub thick enough to fetch [FUEL_A_DAY] a person-day). */
-internal fun HexGroups.woodCover(p: Int) = min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)
+internal fun HexGroups.woodCover(p: Place) = min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)
 
 /**
  * The share of its hands' days a band gives to the hearth's firewood at wood cover [cover] ([woodCover]), [perHand]
@@ -1409,7 +1409,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[x.SPARE_DAYS] = b.spareDays / max(1f, g.adults * days.toFloat())
     // Its camp's ground: how long it has gone short of water, the wood for its fire, the cover about it, the snow.
     into[x.DAYS_DRY] = min(1f, g.dry / g.species.daysWithoutWater)
-    into[x.FIREWOOD] = woodCover(g.place.i)
+    into[x.FIREWOOD] = woodCover(g.place)
     into[x.COVER] = land.plants.cover(g.place)
     into[x.SNOW] = min(1f, weather.snowpack[g.place] / g.species.snowLimitMm)
     // Its health: the sick with each illness, the wounded and lamed, its old; and those beasts took lately.
@@ -1540,7 +1540,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
             for (o in owners) {
                 val ob = o.band ?: continue
                 if (o === g || b.tie(o.id) > 0.3f || ob.cacheKg <= 1f) continue
-                if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace.i, weather) * (1f + b.scoutShare * 5f)) continue
+                if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace, weather) * (1f + b.scoutShare * 5f)) continue
                 // (Found, it is the band's choice whether to take from it.)
                 if (rnd.nextFloat() >= min(1f, b.robWill)) continue
                 val takeShare = CACHE_TAKE * max(1f, b.robWill)

@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.ecology.Place
+import inflation.ecology.get
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -141,7 +143,7 @@ class HexWorld(val world: World, val hex: HexMap) {
     fun placeAt(i: Int): Int = if (world.isSea[i] || world.water.isLake(i)) -1 else if (bandAt(i) == HIGH) high[hex.owner[i]] else low[hex.owner[i]]
 
     /** Normal temperature of place [p] in month [m], °C: its hex's, corrected for the place's height. */
-    fun placeTemp(p: Int, m: Int): Float = temp[m][placeHex[p]] - Climate.LAPSE_RATE.toFloat() * (placeElevationM[p] - elevationM[placeHex[p]])
+    fun placeTemp(p: Place, m: Int): Float = temp[m][placeHex[p]] - Climate.LAPSE_RATE.toFloat() * (placeElevationM[p] - elevationM[placeHex[p]])
 
     /** The places as the weather sees them: the mean position, normals and wind exposure of each place's cells. */
     fun weatherPlaces(cfg: WorldConfig): Weather.Places {
