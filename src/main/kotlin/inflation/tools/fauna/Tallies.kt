@@ -220,6 +220,19 @@ class MovementTally(private val sim: HexSim) {
 
     /** How far the residents are in July from where they were in January. */
     fun printSeasons() {
+        // Study (not for merge): those that stepped along the memory's route, over about three months after, where they
+        // went against where they left (per 100 heads a year; fed as a mean).
+        run { val f = sim.fauna; val C = inflation.ecology.HexFauna.MOVER_CAUSES; val names = listOf("hunger", "cold+heat", "thirst", "disease", "snow/fire/flood", "hunters' odds", "all deaths", "fed")
+            val weeks = 365.0 / 7.0
+            for (k in f.kinds.indices) { val t = f.moverTally[k]; val w = (0 until 12).sumOf { t[it * (2 * C + 1) + 2 * C] }; if (!(w > 0.0)) continue
+                fun part(ms: IntRange, x: Int, there: Boolean): Double { var a = 0.0; var h = 0.0
+                    for (m in ms) { val b = m * (2 * C + 1); a += t[b + x + (if (there) 0 else C)]; h += t[b + 2 * C] }
+                    return if (h > 0.0) a / h * (if (x == C - 1) 1.0 else 100 * weeks) else Double.NaN }
+                println("     MOVERS ${f.kinds[k].name} (%.0f head-weeks) went/left: ".format(w) + (0 until C).joinToString(", ") { x ->
+                    names[x] + " %.2f/%.2f".format(part(0..11, x, true), part(0..11, x, false)) } +
+                    "; all deaths by quarter Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec: " + listOf(0..2, 3..5, 6..8, 9..11).joinToString(" ") { q ->
+                        "%.1f/%.1f".format(part(q, C - 2, true), part(q, C - 2, false)) })
+                t.fill(0.0) } }
         if (residentsMoved.isNotEmpty()) println("     residents' January to July (share of heads in other hexes / other ${CELL_KM.toInt()} km cells, mean height m): " +
             residentsMoved.entries.joinToString(", ") { (k, v) -> "%s %.0f%% / %.0f%%, %.0f to %.0f".format(k, 100 * v[0], 100 * v[1], v[2], v[3]) })
         if (adultHeight.any { h -> h.any { !it.isNaN() } }) println("     residents' adults' mean height by month, January to December (m): " +

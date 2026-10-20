@@ -113,6 +113,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     @Transient val climbed = Array(kinds.size) { DoubleArray(24) }
     /**
+     * Study (not for merge): heads that stepped along each way of the memory's route lately (fading by a 13th a week,
+     * about three months), and, for them, each week's odds of each [MOVER_CAUSES] where they went against where they left.
+     */
+    @Transient private val routeCohort = arrayOfNulls<FloatArray>(kinds.size)
+    @Transient private val placeOdds = Array(kinds.size) { FloatArray(n * MOVER_CAUSES) }
+    /** Kind × month × (cause: there, here) × [MOVER_CAUSES], and the cohort's head-weeks: × 12 at the end. */
+    @Transient val moverTally = Array(kinds.size) { DoubleArray(12 * (2 * MOVER_CAUSES + 1)) }
+    /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
      * away from ground where its kind has been killed (the landscape of fear).
      */
@@ -1003,7 +1011,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val heads = if (learning) FloatArray(n) else null
             val grew = if (learning) FloatArray(n) else null
             for (p in 0 until n) {
-                if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
+                if (a[p] + y[p] <= 0f) { dk[p] = 0f; placeOdds[k][p * MOVER_CAUSES] = Float.NaN; continue }
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a mother bears what her food and reserves can build.
                 val share = seasonShare(k, p, date)
@@ -1039,6 +1047,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val youngSum = youngSum(s, hz, eagle, croc, starved)
                 val youngOdds = youngSum.coerceIn(0f, 0.95f)
                 val da = a[p] * adultOdds; val dy = y[p] * youngOdds
+                run { val o = placeOdds[k]; val b = p * MOVER_CAUSES; val all = a[p] + y[p]
+                    o[b] = hunger; o[b + 1] = cold + heat; o[b + 2] = thirst; o[b + 3] = disease; o[b + 4] = snowA + fireA + floodA
+                    o[b + 5] = hz[HZ_HUNTED]; o[b + 6] = (da + dy) / max(1e-12f, all); o[b + 7] = f[p] }
                 if (heads != null && grew != null) {
                     // What they remember of the ground is what the ground and its seasons do to them: the young their food
                     // let them bear, and the deaths of hunger, thirst, cold, snow, fire and flood (the young's hunger, thirst
@@ -1062,6 +1073,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }
             if (heads != null && grew != null) memoryOf(k).let { (fare, seen) -> seasons.learn(k, date.month, heads, grew, fare, seen) }
+            routeCohort[k]?.let { c -> val w = flowWays[k]; val o = placeOdds[k]; val t = moverTally[k]; val base = date.month * (2 * MOVER_CAUSES + 1)
+                for (p in 0 until n) for (i in w.from[p] until w.from[p + 1]) { val h = c[i]; if (!(h > 0f)) continue; val q = w.to[i]
+                    c[i] = h * (12f / 13f); if (o[q * MOVER_CAUSES].isNaN() || o[p * MOVER_CAUSES].isNaN()) continue
+                    for (x in 0 until MOVER_CAUSES) { t[base + x] += h * o[q * MOVER_CAUSES + x]; t[base + MOVER_CAUSES + x] += h * o[p * MOVER_CAUSES + x] }
+                    t[base + 2 * MOVER_CAUSES] += h.toDouble() } }
         }
         for (c in carcasses) for (p in 0 until n) carcassKg[p] += c[p]
         land.books?.let { b -> var sum = 0.0; for (p in 0 until n) sum += carcassKg[p]; b.flow(Books.Stuff.MATTER, "carcasses (to the soil)", -sum) }
@@ -1773,6 +1789,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (km + climbKm(k, p, q))
                     changed[q] = true
                     if (record && hw.placeHex[q] != h) recordFlow(h, hw.placeHex[q], m)
+                    if (i == step[p]) (routeCohort[k] ?: FloatArray(ways.to.size).also { routeCohort[k] = it })[i] += m - lostA - lostY
                     climbedNow[monthNow * 2 + (if (i == step[p]) 1 else 0)] += (m - lostA - lostY).toDouble() * (hw.placeElevationM[q] - hw.placeElevationM[p])
                 }
                 ga[p] = max(0f, ga[p] - left * (1f - youngShare)); gy[p] = max(0f, gy[p] - left * youngShare); changed[p] = true
@@ -1932,6 +1949,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val HZ_HUNGER = 0; const val HZ_COLD = 1; const val HZ_THIRST = 2; const val HZ_DISEASE = 3
         const val HZ_FIRE_A = 4; const val HZ_FLOOD_A = 5; const val HZ_SNOW_A = 6
         const val HZ_FIRE_Y = 7; const val HZ_FLOOD_Y = 8; const val HZ_SNOW_Y = 9; const val HZ_CROWD = 10
+        /** Study: hunger, cold and heat, thirst, disease, snow fire and flood, hunters' odds, all deaths, fed. */
+        const val MOVER_CAUSES = 8
         const val HZ_HUNTED = 11; const val HZ_OUTBREAK = 12; const val HZ_SICK = 13; const val HZ_HEAT = 14
         const val HZ_COUNT = 15
         /** Share of the standing plants a week's grazing can take without eating the place bare. */
