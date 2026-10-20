@@ -518,7 +518,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         }
         stats.hunting.merge(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt(), Int::plus)
         stats.hunting.merge(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt(), Int::plus)
-        keepAndSpoil(g, band, got, plantKg, w.workDays, w.busy, w.hands, w.fuelDays, pelts, weather)
+        keepAndSpoil(w, got, plantKg, pelts)
         spare = 0f; meatEaten = ateMeat
     }
     // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
@@ -586,9 +586,9 @@ private fun HexGroups.bookForage(b: Books, band: Band?, meatEaten: Float, rest: 
  * ([hands] of them, [workDays] less the [busy] days foraging) dry fresh meat and fish, the small game's skins are kept,
  * and the stores spoil, what rots going to carrion where the band is.
  */
-private fun HexGroups.keepAndSpoil(g: HexGroup, band: Band, got: FloatArray, gotKg: FloatArray, workDays: Float, busy: Float, hands: Int, fuelDays: Float, pelts: Float,
-    weather: Weather) {
-    val s = g.species
+private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatArray, pelts: Float) {
+    val g = w.g; val s = w.s; val band = checkNotNull(w.band); val weather = w.weather
+    val workDays = w.workDays; val busy = w.busy; val hands = w.hands; val fuelDays = w.fuelDays
     // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
     for (st in Store.entries) addFood(g.stores, g.storeKgPer, st, got[st.ordinal], gotKg[st.ordinal])
     // Digging soaks and drawing their water takes time where that is the only water (see [HexDrinkingWater.mustDig]).
