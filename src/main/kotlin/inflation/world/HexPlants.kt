@@ -315,13 +315,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
                 shrubNote(ShrubPart.ASH, p, sAsh)
                 fertility[p] = min(1f, fertility[p] + ASH_FERTILITY * ash[p] * years)
             }
-            if (t < LifeForm.HERB.frostKill) herb[p] *= 0.3f
-            if (t < LifeForm.SHRUB.frostKill) { val s0 = shrub[p]; shrub[p] *= 0.3f; shrubNote(ShrubPart.FROST, p, s0) }
-            if (t < LifeForm.TREE.frostKill) tree[p] *= 0.3f
-            // Floods drown what grows on the floodplain share of the place.
-            val f = hydro.flood[p]; val fs = land.floodShare[p]
-            if (f > 1f) { val s0 = shrub[p]; herb[p] *= 1f - 0.5f * fs; shrub[p] *= 1f - 0.1f * fs; shrubNote(ShrubPart.FLOOD, p, s0) }
-            if (f > 3f) tree[p] *= 1f - 0.03f * fs
+            frostAndFlood(p, t)
             fertility[p] += (land.soilFertility[p] - fertility[p]) * years / SOIL_RECOVERY_YEARS
             val cover = min(1f, herb[p] / 0.3f + shrub[p] + canopy(p))
             val bare = (1f - cover) * (1f - cover)
@@ -338,20 +332,35 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
                 val m2 = land.areaM2[p].toDouble()
                 grewBook!!.add((grew + turnover) * m2); burntBook!!.add(-burned * m2); fellBook!!.add(-litterfall[p] * m2)
             }
-            // Trampling, spread over the place: a herd beats down a share of it.
-            val tr = trampling[p] / land.areaKm2[p]
-            if (tr > 0f) {
-                val h0 = herb[p]; val s0 = shrub[p]
-                herb[p] *= exp(-tuning.trampleHerb * tr)
-                val beaten = h0 - herb[p] + s0 - shrub[p]
-                // (What is beaten down falls into the litter.)
-                litterfall[p] += beaten; fellBook?.add(-beaten * land.areaM2[p].toDouble())
-                trails[p] = min(1f, trails[p] + TRAIL_WEAR * tr * (1f - trails[p]))
-                trampling[p] = 0f
-            } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - TRAIL_FADE * years)
+            trample(p, years, fellBook)
             // The young growth matures as it grows, over [FLUSH_WEEKS] of full growth; the black scar itself fades over years.
             if (fire.burnt[p] > 0f) fire.burnt[p] = max(0f, fire.burnt[p] * exp(-sprout * days / (7f * FLUSH_WEEKS)) - 0.4f * years)
         }
+    }
+
+    /** Frost kills back what its form cannot stand at [t] °C, and floods drown what grows on the floodplain share of place [p]. */
+    private fun frostAndFlood(p: Int, t: Float) {
+        if (t < LifeForm.HERB.frostKill) herb[p] *= 0.3f
+        if (t < LifeForm.SHRUB.frostKill) { val s0 = shrub[p]; shrub[p] *= 0.3f; shrubNote(ShrubPart.FROST, p, s0) }
+        if (t < LifeForm.TREE.frostKill) tree[p] *= 0.3f
+        // Floods drown what grows on the floodplain share of the place.
+        val f = hydro.flood[p]; val fs = land.floodShare[p]
+        if (f > 1f) { val s0 = shrub[p]; herb[p] *= 1f - 0.5f * fs; shrub[p] *= 1f - 0.1f * fs; shrubNote(ShrubPart.FLOOD, p, s0) }
+        if (f > 3f) tree[p] *= 1f - 0.03f * fs
+    }
+
+    /** Trampling, spread over place [p]: a herd beats down a share of it, wearing trails that fade over [years] where none walk. */
+    private fun trample(p: Int, years: Float, fellBook: java.util.concurrent.atomic.DoubleAdder?) {
+        val tr = trampling[p] / land.areaKm2[p]
+        if (tr > 0f) {
+            val h0 = herb[p]; val s0 = shrub[p]
+            herb[p] *= exp(-tuning.trampleHerb * tr)
+            val beaten = h0 - herb[p] + s0 - shrub[p]
+            // (What is beaten down falls into the litter.)
+            litterfall[p] += beaten; fellBook?.add(-beaten * land.areaM2[p].toDouble())
+            trails[p] = min(1f, trails[p] + TRAIL_WEAR * tr * (1f - trails[p]))
+            trampling[p] = 0f
+        } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - TRAIL_FADE * years)
     }
 
     /**
