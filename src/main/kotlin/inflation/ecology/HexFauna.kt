@@ -1031,28 +1031,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // (The causes are booked as shares of the deaths that happen: where the odds are capped, each cause is cut alike.)
                 val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
                 val cy = if (youngSum > 0f) y[p] * youngOdds / youngSum * area else 0f
-                val dd = dead[k]
-                dd[ResidentDeath.AGE] += ca * s.backgroundMortality * years + cy * s.youngMortality * years
-                dd[ResidentDeath.HUNGER] += (ca + 1.5f * cy) * hunger
-                dd[ResidentDeath.COLD] += (ca + 1.5f * cy) * cold
-                dd[ResidentDeath.DISEASE] += (ca + cy) * disease
-                dd[ResidentDeath.EAGLES] += cy * eagle
-                dd[ResidentDeath.FIRE] += ca * fireA + cy * fireY
-                dd[ResidentDeath.FLOOD] += ca * floodA + cy * floodY
-                dd[ResidentDeath.SNOW] += ca * snowA + cy * snowY
-                dd[ResidentDeath.CROCODILES] += cy * croc
-                dd[ResidentDeath.THIRST] += (ca + 1.5f * cy) * thirst
-                dd[ResidentDeath.SHORT_OF_PROTEIN] += cy * starved
-                record?.let { r ->
-                    val ka = ca * s.massKg; val ky = cy * s.massKg
-                    r.resident(k, p, PlaceRecord.Cause.HUNGER, (ka + 1.5f * ky) * hunger)
-                    r.resident(k, p, PlaceRecord.Cause.THIRST, (ka + 1.5f * ky) * thirst)
-                    r.resident(k, p, PlaceRecord.Cause.COLD, (ka + 1.5f * ky) * cold + ka * snowA + ky * snowY)
-                    r.resident(k, p, PlaceRecord.Cause.ILLNESS, (ka + ky) * disease)
-                    r.resident(k, p, PlaceRecord.Cause.KILLED, ky * (eagle + croc))
-                    r.resident(k, p, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) +
-                        ka * (fireA + floodA) + ky * (fireY + floodY))
-                }
+                bookDeaths(k, p, ca, cy, hz, eagle, croc, starved, dead[k])
                 a[p] -= da; y[p] -= dy
                 carcassKg[p] += (da + 0.3f * dy) * area * s.massKg
                 // Growing up.
@@ -1078,6 +1057,39 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 sum
             }
             for (c in ResidentDeath.entries) deaths[Tally.of(s, c.cause)] = dead[k][c]
+        }
+    }
+
+    /**
+     * Books kind [k]'s deaths at place [p] by cause into [dd] (heads) and the place record (kg): [ca] and [cy] the
+     * grown and young heads dying per unit of odds ([breedAndDie]), [hz] the week's [hazards], and the young's
+     * [eagle], [croc]odile and [starved] odds.
+     */
+    private fun bookDeaths(k: Int, p: Int, ca: Float, cy: Float, hz: FloatArray, eagle: Float, croc: Float, starved: Float, dd: DoubleArray) {
+        val s = kinds[k]
+        val hunger = hz[HZ_HUNGER]; val cold = hz[HZ_COLD]; val thirst = hz[HZ_THIRST]; val disease = hz[HZ_DISEASE]
+        val fireA = hz[HZ_FIRE_A]; val floodA = hz[HZ_FLOOD_A]; val snowA = hz[HZ_SNOW_A]
+        val fireY = hz[HZ_FIRE_Y]; val floodY = hz[HZ_FLOOD_Y]; val snowY = hz[HZ_SNOW_Y]
+        dd[ResidentDeath.AGE] += ca * s.backgroundMortality * years + cy * s.youngMortality * years
+        dd[ResidentDeath.HUNGER] += (ca + 1.5f * cy) * hunger
+        dd[ResidentDeath.COLD] += (ca + 1.5f * cy) * cold
+        dd[ResidentDeath.DISEASE] += (ca + cy) * disease
+        dd[ResidentDeath.EAGLES] += cy * eagle
+        dd[ResidentDeath.FIRE] += ca * fireA + cy * fireY
+        dd[ResidentDeath.FLOOD] += ca * floodA + cy * floodY
+        dd[ResidentDeath.SNOW] += ca * snowA + cy * snowY
+        dd[ResidentDeath.CROCODILES] += cy * croc
+        dd[ResidentDeath.THIRST] += (ca + 1.5f * cy) * thirst
+        dd[ResidentDeath.SHORT_OF_PROTEIN] += cy * starved
+        record?.let { r ->
+            val ka = ca * s.massKg; val ky = cy * s.massKg
+            r.resident(k, p, PlaceRecord.Cause.HUNGER, (ka + 1.5f * ky) * hunger)
+            r.resident(k, p, PlaceRecord.Cause.THIRST, (ka + 1.5f * ky) * thirst)
+            r.resident(k, p, PlaceRecord.Cause.COLD, (ka + 1.5f * ky) * cold + ka * snowA + ky * snowY)
+            r.resident(k, p, PlaceRecord.Cause.ILLNESS, (ka + ky) * disease)
+            r.resident(k, p, PlaceRecord.Cause.KILLED, ky * (eagle + croc))
+            r.resident(k, p, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) +
+                ka * (fireA + floodA) + ky * (fireY + floodY))
         }
     }
 
