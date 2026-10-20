@@ -1062,7 +1062,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it]) })
             sb.appendLine("elders %d; children inbred %.3f; descent mostly lineage %d".format(b.elders, b.inbred, b.mainLineage()))
             if (b.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") {
-                "%.0f %s".format(it.value, if (Catalogue.all[it.index].name == "wolf") "dogs" else "tame " + Catalogue.all[it.index].name) })
+                "%.0f %s".format(it.value, if (Catalogue.all[it.index] == Catalogue.WOLF) "dogs" else "tame " + Catalogue.all[it.index].name) })
             sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
                 .ifEmpty { "none" })
             sb.appendLine("goods: " + Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it]) })

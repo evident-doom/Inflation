@@ -386,7 +386,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         // Shoals come inshore to spawn and feed in spring and early summer, and go back out in autumn.
         if (month in 3..6) shoal(true) else if (month in 8..10) shoal(false)
         nesting = month in NESTING
-        fishFlows["drift (net)"] = (fishTonnes() - before).toDouble()
+        fishFlows[DRIFT_FLOW] = (fishTonnes() - before).toDouble()
         for ((key, a) in flowAdders) { val v = a.sumThenReset(); if (v != 0.0) fishFlows.merge(key, v, Double::plus) }
         // Fish come back up the rivers from below, but not past a cascade.
         for (h in 0 until size) {
@@ -682,6 +682,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     enum class SeaFood { PLANKTON, FISH, PREY }
 
     companion object {
+        /** The fish flow that is the week's net change of the sea and lake fish, and so may be negative. */
+        const val DRIFT_FLOW = "drift (net)"
         val SEA = listOf(
             SeaKind("fin whale", 50_000f, SeaFood.PLANKTON, 0.015f, 100f, 0, 2, 0.4f, 0.03f, 1f, 800f),
             SeaKind("dolphin", 80f, SeaFood.FISH, 0.05f, 60f, 6, 3, 0.4f, 0.06f, 0.7f, 15f),

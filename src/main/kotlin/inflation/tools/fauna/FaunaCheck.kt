@@ -105,7 +105,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
                 println("     saved the world to $it (%.1f s, %.0f MB)".format((System.nanoTime() - t0) / 1e9, it.length() / 1e6))
             }
         }
-        println("     this week: kills " + groups.stats.kills.entries.joinToString(", ") { "${it.key} ${it.value}" } + " | meetings " +
+        println("     this week: kills " + groups.stats.kills.entries.joinToString(", ") { "${it.key.name} ${it.value}" } + " | meetings " +
             groups.stats.meetings.entries.joinToString(", ") { "${it.key} ${it.value}" })
     }
 
