@@ -122,7 +122,6 @@ class StringKeysTest {
         "ecology/HexCulture.kt" to (1 to "a place or -1, kept in an Int list of the places held"),
         "ecology/HexMeetings.kt" to (2 to "the places a group swept, kept in an Int array of the week's sweep"),
         "world/Weather.kt" to (2 to "the weather serves the fine grid and the places: one index type would be wrong"),
-        "world/HexWorld.kt" to (1 to "the world's own lookups between places and hexes, on Int arrays"),
         "world/HexHydrology.kt" to (2 to "the glacier flow's places in a hex's Int list"),
         "world/HexLand.kt" to (2 to "mean over a place's cells, used by the array initialisers"),
     ), "places as Int parameters", "Take a Place (ecology/Indices.kt)", "ecology", "world")
