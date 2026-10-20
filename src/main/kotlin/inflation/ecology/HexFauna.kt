@@ -362,7 +362,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** The head-weeks each of [seasonFare] was learnt from, fading as it does. */
     internal val seasonSeen = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
     /** Where the memory draws the plant-eaters ([seasonFare]), and the month each kind's was last worked out for. */
-    @delegate:Transient internal val seasons by lazy { SeasonalMemory(hw, kinds, days) }
+    @delegate:Transient internal val seasons by lazy { SeasonalMemory(hw, kinds, days, tuning.residentMemoryYears) }
     /**
      * For each plant-eating kind this week, by what it remembers of next month ([SeasonalMemory.route]): at each place, the way of the
      * first step towards the best ground a month's going reaches (-1: none better), and how much better (log); worked

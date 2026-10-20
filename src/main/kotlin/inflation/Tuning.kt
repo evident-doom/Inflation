@@ -84,6 +84,12 @@ class Tuning(private val read: (String) -> String? = Config::string) {
      */
     val residentRouteTrust = f("residentRouteTrust", 0f).also { require(it in 0f..1f) { "t.residentRouteTrust is $it: a share, 0..1" } }
     /**
+     * Residents: how many years, roughly, a kind's seasonal memory of its ground is a mean over
+     * ([inflation.ecology.SeasonalMemory.learn]); the share of it kept a year is 1 - 1/years. 10: a kind's ways are
+     * shaped over many generations, and one bad year does not change them (Olli).
+     */
+    val residentMemoryYears = i("residentMemoryYears", 10).also { require(it >= 2) { "t.residentMemoryYears is $it: at least 2" } }
+    /**
      * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
      * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).
      * 0: none. For the step's cost: fewer places hold each kind.
