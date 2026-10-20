@@ -759,8 +759,8 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
     // its scouts range further still.
     var lookKm = 0f
     for (h in g.path) {
-        val q = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
-        lookKm = max(lookKm, land.bestViewKm[q] * sight(Place(q), weather) / (1f - SIGHT_COVER * land.plants.cover(Place(q))).coerceAtLeast(0.1f))
+        val q = hw.placeNear(g.place, Hex(h)).takeIf { !it.none } ?: continue
+        lookKm = max(lookKm, land.bestViewKm[q] * sight(Place(q.i), weather) / (1f - SIGHT_COVER * land.plants.cover(Place(q.i))).coerceAtLeast(0.1f))
     }
     val scouts = b.scoutShare * g.adults
     val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
@@ -864,7 +864,7 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, pe
     // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
     // along the way (poorer stone anywhere), wood and resin where there are trees, fibre from grass,
     // scrub and reeds; hides, bone and sinew from the big game it killed.
-    fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.placeNear(p.i, q).takeIf { it >= 0 }?.let { a[it] } ?: 0f } ?: 0f)
+    fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.placeNear(p, Hex(q)).takeIf { !it.none }?.let { a[it] } ?: 0f } ?: 0f)
     val stone = alongTheWay(land.stone)
     // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED].)
     gather(Material.STONE, people * 0.8f * min(1f, 5f * stone), STONE_A_DAY)

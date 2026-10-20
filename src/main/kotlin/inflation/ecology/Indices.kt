@@ -40,7 +40,7 @@ class PlaceListIter(private val a: IntArray) {
     operator fun hasNext() = j < a.size
     operator fun next() = Place(a[j++])
 }
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeList(h: Int) = PlaceList(placesOf(h))
+@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeList(h: Hex) = PlaceList(placesOf(h))
 @Suppress("NOTHING_TO_INLINE") inline operator fun DoubleArray.get(p: Place) = this[p.i]
 @Suppress("NOTHING_TO_INLINE") inline operator fun DoubleArray.set(p: Place, v: Double) { this[p.i] = v }
 
@@ -57,14 +57,10 @@ class PlaceListIter(private val a: IntArray) {
 @Suppress("NOTHING_TO_INLINE") inline operator fun IntArray.set(h: Hex, v: Int) { this[h.i] = v }
 @Suppress("NOTHING_TO_INLINE") inline operator fun BooleanArray.get(h: Hex) = this[h.i]
 @Suppress("NOTHING_TO_INLINE") inline operator fun ShortArray.get(h: Hex) = this[h.i]
+@Suppress("NOTHING_TO_INLINE") inline operator fun <T> Array<T>.get(h: Hex) = this[h.i]
+@Suppress("NOTHING_TO_INLINE") inline operator fun <T> List<T>.get(h: Hex) = this[h.i]
 /** Whether hex [h] is among [hexes] (hex indices). */
 @Suppress("NOTHING_TO_INLINE") inline operator fun IntArray.contains(h: Hex) = contains(h.i)
 
 /** The hex place [p] lies in. */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.hexOf(p: Place) = Hex(placeHex[p.i])
-/** Hex [h]'s low or high ground, its only place where it is not split ([Place.NONE] if it has no land). */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeIn(band: Int, h: Hex) = Place(placeIn(band, h.i))
-/** The place in hex [h] nearest in height to place [p] ([Place.NONE] if the hex has no land). */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeNear(p: Place, h: Hex) = Place(placeNear(p.i, h.i))
-/** As above, for a hex index kept as a plain int. */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeNear(p: Place, h: Int) = Place(placeNear(p.i, h))

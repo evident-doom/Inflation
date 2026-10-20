@@ -413,10 +413,10 @@ class HexGroups(
                 if (nh < 0 || hex.heart[nh] < 0) continue
                 // Lying snow makes the going harder: about twice the effort in 15 cm, more in deeper. (Read at the height
                 // it walks at: in the next hex, the ground nearest the low or high ground of this one it keeps to.)
-                val np = hw.placeIn(band, h).let { if (it >= 0) hw.placeNear(it, nh) else hw.placeIn(band, nh) }
-                val snowMm = if (np >= 0) weather.snowpack[np] else 0f
+                val np = hw.placeIn(band, Hex(h)).let { if (!it.none) hw.placeNear(it, Hex(nh)) else hw.placeIn(band, Hex(nh)) }
+                val snowMm = if (!np.none) weather.snowpack[np] else 0f
                 // A worn path makes the going easier, the more so where the country is broken.
-                val worn = wear.paths[h * 6 + k] * PATH_EASE * (0.5f + (if (np >= 0) land.ruggedness[np] else 0f))
+                val worn = wear.paths[h * 6 + k] * PATH_EASE * (0.5f + (if (!np.none) land.ruggedness[np] else 0f))
                 out[h * 6 + k] = cross[h * 6 + k] * (1f + snowMm / SNOW_EFFORT_MM) * (1f - min(0.7f, worn))
             }
         }
@@ -906,7 +906,7 @@ class HexGroups(
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
         // hungry pack ranges wider: up to three times that after weeks of hunger.
-        val homeValue = if (!g.home.none) placeValue[kind][hw.placeNear(g.place.i, g.home.i).takeIf { it >= 0 } ?: g.place.i] else PREY_HALF
+        val homeValue = if (!g.home.none) placeValue[kind][hw.placeNear(g.place, g.home).takeIf { !it.none }?.i ?: g.place.i] else PREY_HALF
         // (A pack with young in the den, from its births for [inflation.Tuning.denMonths], hunts only
         // within [inflation.Tuning.denKm] of its home, however hungry: it cannot follow game that moves on.)
         val denning = s.pack && !g.home.none && g.young > 0 && monthsFrom(g.birthMonth, month) < tuning.denMonths
@@ -941,7 +941,7 @@ class HexGroups(
             val kin = kinAround(g, kind, h, sensed)
             val crowded = crowdedBy(s, kin)
             at.crowded = crowded
-            for (pi in hw.placesOf(h.i)) {
+            for (pi in hw.placesOf(h)) {
                 val p = Place(pi)
                 val prey = knownGame(g, kind, p, h)
                 val fed = foreseenFed(g, prey, kin, crowded)
@@ -1046,7 +1046,7 @@ class HexGroups(
                 if (s.human) land.drink.peopleWaterKm(p) else land.drink.waterKm[p], c.buf.dist[h], hexKm(h.i, goalHex))
         }
         val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
-            hw.placeNear(g.place.i, h).takeIf { it >= 0 } }?.let { Place(it) }
+            hw.placeNear(g.place, Hex(h)).takeIf { !it.none } }?.let { Place(it.i) }
         println("plan ${s.name} #${g.id} of ${g.size} month ${c.date.month + 1}, ${if (c.restless) "restless" else "content"}, reach %.0f km, weighed %d places: chose ".format(c.reach, seen.size) +
             parts(best) + (if (best != g.place) " | stay " + parts(g.place) else "") + (towards?.let { " | toward goal " + parts(it) } ?: ""))
     }
@@ -1278,8 +1278,8 @@ class HexGroups(
         for (k in 0 until 6) {
             val q = hex.neighbour(here, k)
             if (q < 0) continue
-            val p = hw.placeNear(g.place.i, q)
-            if (p >= 0) least = min(least, drain(g, Place(p), weather))
+            val p = hw.placeNear(g.place, Hex(q))
+            if (!p.none) least = min(least, drain(g, p, weather))
         }
         return if (least == Float.MAX_VALUE) drain(g, g.place, weather) else least
     }
@@ -1308,7 +1308,7 @@ class HexGroups(
         for (d in -1 until (if (rangesWide(s)) 6 else 0)) {
             val q = if (d < 0) h.i else hex.neighbour(h.i, d)
             if (q < 0) continue
-            for (pp in hw.placesOf(q)) { heads += knownHeads(kind, Place(pp), Hex(q), sensed); area += land.areaKm2[pp] }
+            for (pp in hw.placesOf(Hex(q))) { heads += knownHeads(kind, Place(pp), Hex(q), sensed); area += land.areaKm2[pp] }
             if (q == own) heads -= g.size
         }
         return if (area > 0f) (max(0f, heads) + g.size) / area else 0f

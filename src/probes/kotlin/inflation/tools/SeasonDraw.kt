@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Hex
 import inflation.ecology.FaunaKind
 import inflation.ecology.Place
 import inflation.Args
@@ -41,7 +42,7 @@ fun main(args: Array<String>) {
         val diffs = ArrayList<Float>()
         for (p in 0 until n) { if (f.adults[k][p] + f.young[k][p] <= 0f) continue
             val v = f.routeGainAt(FaunaKind(k), Place(p)); val h = sim.hw.placeHex[p]
-            for (d in 0 until 6) { val nh = sim.hex.neighbour(h, d); if (nh < 0) continue; val q = sim.hw.placeNear(p, nh); if (q >= 0) diffs += abs(v - f.routeGainAt(FaunaKind(k), Place(q))) } }
+            for (d in 0 until 6) { val nh = sim.hex.neighbour(h, d); if (nh < 0) continue; val q = sim.hw.placeNear(Place(p), Hex(nh)); if (!q.none) diffs += abs(v - f.routeGainAt(FaunaKind(k), Place(q.i))) } }
         diffs.sort()
         if (diffs.isNotEmpty()) println("  draw gap to neighbours (log): median %.5f, 90%% %.5f, max %.5f".format(diffs[diffs.size / 2], diffs[(diffs.size * 9) / 10], diffs.last()))
     }

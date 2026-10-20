@@ -186,14 +186,14 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val seedDays = SEED_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry /
         (1f + (band?.sickleGain(gs.tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
-    val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> gs.hw.placeNear(g.place.i, h).takeIf { it >= 0 } }
+    val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> gs.hw.placeNear(g.place, Hex(h)).takeIf { !it.none }?.i }
         .ifEmpty { listOf(g.place.i) } else listOf(g.place.i)
     // A band's gatherers also work the country round its camp, the further the more: a camp where
     // woodland, valley and plain meet has more kinds of food within a day's walk than one in the
     // middle of any one of them. (Each hex round gives a share of what the camp's own does.)
     val roundCamp: List<Int> = if (band != null) { val h0 = gs.hw.placeHex[g.place]
         (0 until 6).mapNotNull { d ->
-            gs.hex.neighbour(h0, d).takeIf { it >= 0 }?.let { gs.hw.placeNear(g.place.i, it) }?.takeIf { it >= 0 && it !in gatherAt }
+            gs.hex.neighbour(h0, d).takeIf { it >= 0 }?.let { gs.hw.placeNear(g.place, Hex(it)) }?.takeIf { !it.none && it.i !in gatherAt }?.i
         } } else emptyList()
     val roundShare = (band?.let { RING_REACH * it.gatherRange } ?: 0f)
     // (Which of the band's parties takes each food, [Offers.who]: its share of the hands.)
@@ -247,20 +247,20 @@ internal fun HexGroups.huntGround(g: HexGroup, km2: Float): HuntGround {
     val share = km2 / path.size.coerceAtLeast(1)
     var over = 0f
     for (h in path) {
-        val p = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
-        val i = indexOf(p)
+        val p = hw.placeNear(g.place, Hex(h)).takeIf { !it.none } ?: continue
+        val i = indexOf(p.i)
         val had = if (i >= 0) swept[i] else 0f
         val s = min(area[p], had + share)
         over += had + share - s
-        if (i >= 0) swept[i] = s else add(p, s)
+        if (i >= 0) swept[i] = s else add(p.i, s)
     }
     val onWay = m
     if (over > 0f) {
         val cross = hex.crossings[Catalogue.travel(g.species).ordinal]
         for (h in path) for (d in 0 until 6) {
             val nh = hex.neighbour(h, d); if (nh < 0 || !cross[h * 6 + d].isFinite() || nh in path) continue
-            val q = hw.placeNear(g.place.i, nh).takeIf { it >= 0 } ?: continue
-            if (indexOf(q) < 0) add(q, 0f)
+            val q = hw.placeNear(g.place, Hex(nh)).takeIf { !it.none } ?: continue
+            if (indexOf(q.i) < 0) add(q.i, 0f)
         }
         // (Evenly over the places about, those too small for their share filled and the rest shared again among the others.)
         var open = m - onWay
@@ -395,18 +395,18 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     }
     // The rest along its way.
     for (h in g.path) {
-        val p = hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: continue
+        val p = hw.placeNear(g.place, Hex(h)).takeIf { !it.none } ?: continue
         val area = land.areaKm2[p]
         val swept = min(area, sweep)
         val small = this.small
-        offer(w, o, Food.SMALL_GAME, 0, Place(p), small.smallPreyKg(Place(p)) * min(area, w.smallSweep) * w.smallCatch / days, 1f, w.smallDays)
+        offer(w, o, Food.SMALL_GAME, 0, Place(p.i), small.smallPreyKg(Place(p.i)) * min(area, w.smallSweep) * w.smallCatch / days, 1f, w.smallDays)
         if (w.d.carrion > 0f) {
             // (At most half of what lies on the ground searched: the rest is not found in time, or others get it;
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
             // that much: a wolf or a band comes on a carcass now and then, not every week.)
             val found = CARRION_FOUND * min(1f, w.d.carrion / SCAVENGER_CARRION)
-            offer(w, o, Food.CARRION, 0, Place(p), KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, w.eats)
-            if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, Place(p), KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
+            offer(w, o, Food.CARRION, 0, Place(p.i), KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, w.eats)
+            if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, Place(p.i), KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
         }
     }
     // (The ground it walked, then the country round its camp, which holds none of it.)
@@ -967,7 +967,7 @@ internal fun HexGroups.meet(weather: Weather) {
         // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
         // hours, and neither slip away first. (How often they run into each other while both are there,
         // for the share of the time each is in it.)
-        val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
+        val p = hw.placeNear(a.place, Hex(h)).takeIf { !it.none } ?: a.place
         val met = poisson(encounters(a, b, p, e.span), rnd)
         if (met == 0) continue
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meeting(Met.SLIPPED_AWAY); continue }
@@ -981,7 +981,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val i = max(0, stop[k])
         val h = g.path[i]
         g.path = g.path.copyOf(i + 1); g.days = g.days.copyOf(i + 1)
-        g.place = Place(hw.placeNear(g.place.i, h).takeIf { it >= 0 } ?: g.place.i)
+        g.place = hw.placeNear(g.place, Hex(h)).takeIf { !it.none } ?: g.place
     }
     Profile.lap("meetings: settling them", mt)
 }

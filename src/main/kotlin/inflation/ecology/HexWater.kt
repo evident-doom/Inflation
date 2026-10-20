@@ -189,9 +189,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     val q = hex.neighbour(h, d)
                     if (q < 0 || hw.land[q] <= 0f) continue
                     val (qx, qy) = hex.centreKm(q); e += cx - qx; s += cy - qy
-                    if (windPlace[h] < 0) windPlace[h] = hw.firstPlaceIn(q)
+                    if (windPlace[h] < 0) windPlace[h] = (hw.firstPlaceIn(Hex(q))).i
                 }
-                if (hw.land[h] > 0f && windPlace[h] < 0) windPlace[h] = hw.firstPlaceIn(h)
+                if (hw.land[h] > 0f && windPlace[h] < 0) windPlace[h] = (hw.firstPlaceIn(Hex(h))).i
                 val len = hypot(e, s)
                 if (len > 0) { offE[h] = (e / len).toFloat(); offS[h] = (s / len).toFloat() }
             }
@@ -229,12 +229,12 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val blocks = HashMap<Long, Int>()
         for (h in 0 until size) {
             if (!hw.coast[h] || hw.land[h] <= 0f) continue
-            val p = hw.firstPlaceIn(h).takeIf { it >= 0 } ?: continue
+            val p = hw.firstPlaceIn(Hex(h)).takeIf { !it.none } ?: continue
             if (land.ruggedness[p] < 0.3f) continue
             val (x, y) = hex.centreKm(h)
             val key = (x / COLONY_SPACING_KM).toLong() * 100000 + (y / COLONY_SPACING_KM).toLong()
             val best = blocks[key]
-            val pb = best?.let { b -> hw.firstPlaceIn(b).takeIf { it >= 0 } }
+            val pb = best?.let { b -> hw.firstPlaceIn(Hex(b)).takeIf { !it.none } }
             if (best == null || pb == null || land.ruggedness[p] > land.ruggedness[pb]) blocks[key] = h
         }
         for (c in blocks.values.sorted()) {
@@ -367,9 +367,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     // Food wanted, kg over the hex, and what the litter can give.
                     val want = change / FISH_EFFICIENCY * landKm2h
                     var litterKg = 0.0
-                    for (p in hw.placesOf(h)) litterKg += small.litter[p] * land.areaKm2[p] * 1e6
+                    for (p in hw.placesOf(Hex(h))) litterKg += small.litter[p] * land.areaKm2[p] * 1e6
                     val ate = min(want, 0.5f * litterKg.toFloat())
-                    if (ate > 0f) for (p in hw.placesOf(h)) {
+                    if (ate > 0f) for (p in hw.placesOf(Hex(h))) {
                         run { val l0 = small.litter[p]; small.litter[p] *= 1f - ate / litterKg.toFloat()
                             land.books?.flow(Books.Stuff.MATTER, "to and from the water life", (small.litter[p] - l0) * land.areaM2[p].toDouble()) }
                     }
@@ -591,9 +591,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /** Leaves [kg] of dead fish on the banks of hex [h]: carrion on its places, by their area. */
     private fun bankCarrion(h: Int, kg: Float) {
         var area = 0f
-        for (p in hw.placesOf(h)) area += land.areaKm2[p]
+        for (p in hw.placesOf(Hex(h))) area += land.areaKm2[p]
         if (area <= 0f) return
-        for (p in hw.placesOf(h)) small.deposit(DeadPool.CARRION, Place(p), KgM2(kg / area / 1e6f))
+        for (p in hw.placesOf(Hex(h))) small.deposit(DeadPool.CARRION, Place(p), KgM2(kg / area / 1e6f))
         land.books?.flow(Books.Stuff.MATTER, "to and from the water life", kg.toDouble())
     }
     fun fishTonnes() = fish.indices.sumOf { (fish[it] * waterKm2[it]).toDouble() }.toFloat() / 1000f

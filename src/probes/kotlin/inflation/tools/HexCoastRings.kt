@@ -56,11 +56,11 @@ fun main(args: Array<String>) {
     for (g in groups.groups) if (g.alive && g.species.human) people.merge(hw.placeHex[g.place], g.size, Int::plus)
     println("ring (hexes from the sea) | land km² | people per 1000 km² | camp value | game | plants | water km (people) | fish+shellfish kg/week | marsh share | safe-camp ground | child deaths a year in floods / fires")
     for (rr in 1..12) {
-        val hs = (0 until hex.size).filter { (ring[it] == rr || (rr == 12 && ring[it] >= 12)) && hw.firstPlaceIn(it) >= 0 }
+        val hs = (0 until hex.size).filter { (ring[it] == rr || (rr == 12 && ring[it] >= 12)) && !hw.firstPlaceIn(Hex(it)).none }
         if (hs.isEmpty()) continue
-        val ps = hs.map { hw.firstPlaceIn(it) }
+        val ps = hs.map { hw.firstPlaceIn(Hex(it)) }
         val km2 = ps.sumOf { land.areaKm2[it].toDouble() }
-        fun mean(f: (Int, Int) -> Double) = hs.indices.sumOf { i -> f(hs[i], ps[i]) * land.areaKm2[ps[i]] } / km2
+        fun mean(f: (Int, Int) -> Double) = hs.indices.sumOf { i -> f(hs[i], (ps[i]).i) * land.areaKm2[ps[i]] } / km2
         val heads = hs.sumOf { people[it] ?: 0 }
         println("%2d%s | %8.0f | %6.1f | %8.0f | %8.0f | %8.0f | %5.1f | %7.0f | %.3f | %.2f | %.3f / %.3f".format(rr, if (rr == 12) "+" else " ", km2,
             1000.0 * heads / km2,

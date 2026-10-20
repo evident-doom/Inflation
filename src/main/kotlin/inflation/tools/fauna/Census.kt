@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Hex
 import inflation.StockName
 import inflation.Stocks
 import inflation.ecology.Activity
@@ -139,7 +140,7 @@ class Census(private val sim: HexSim) {
     /** Paths: how many ways are worn, and whether they gather where the going is hard (broken ground, rivers). */
     fun printPaths() {
         val worn = (0 until hex.size).filter { groups.wear.at(it) > 0.3f }
-        val rug = { h: Int -> hw.firstPlaceIn(h).takeIf { it >= 0 }?.let { land.ruggedness[it] } ?: 0f }
+        val rug = { h: Int -> hw.firstPlaceIn(Hex(h)).takeIf { !it.none }?.let { land.ruggedness[it] } ?: 0f }
         val landHexes = (0 until hex.size).filter { hw.land[it] > 0.5f }
         println("     paths: %d hexes with a worn path (%.1f%% of land); ruggedness where worn %.2f against %.2f overall; mean wear %.3f".format(
             worn.size, 100.0 * worn.size / landHexes.size.coerceAtLeast(1), worn.map { rug(it).toDouble() }.average().takeIf { !it.isNaN() } ?: 0.0,
