@@ -1,3 +1,5 @@
+@file:OptIn(RawKey::class)
+
 package inflation.ecology
 
 import inflation.world.Biome
@@ -6,8 +8,29 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.atomic.DoubleAdder
 
+/** Marks a function that makes a [TallyKey] from free text: outside the [Tally] builders, a use must opt in, and so shows in review. */
+@RequiresOptIn("Builds a tally key from free text; use a typed builder of Tally instead", RequiresOptIn.Level.ERROR)
+@Retention(AnnotationRetention.BINARY)
+annotation class RawKey
+
 /**
- * The week's tallies, by free-form key: what the reports and checks read back. The model never reads them. One
+ * A key of the week's ledgers ([WeekStats]). Only the [Tally] builders (and [Met]) make one, so a writer cannot
+ * add, nor a reader ask for, a key typed by hand. It prints and sorts as its [text], as the string keys did.
+ */
+@JvmInline
+value class TallyKey private constructor(val text: String) : Comparable<TallyKey> {
+    override fun compareTo(other: TallyKey) = text.compareTo(other.text)
+    override fun toString() = text
+    /** Whether this key starts with [prefix] (a builder for all of a kind's, or a country's, tallies). */
+    fun startsWith(prefix: TallyKey) = text.startsWith(prefix.text)
+
+    companion object {
+        @RawKey fun raw(text: String) = TallyKey(text)
+    }
+}
+
+/**
+ * The week's tallies, by typed key ([TallyKey]): what the reports and checks read back. The model never reads them. One
  * ledger for the whole step, kept by the land and cleared once as the week starts ([inflation.ecology.HexSim.step]),
  * so a tally written in any phase lasts until the reports read it.
  * (Concurrent and sorted: hunting runs region by region on all cores.)
@@ -16,22 +39,22 @@ class WeekStats {
     /** Kills this week by prey kind (in order of name, as the reports list them). */
     val kills = ConcurrentSkipListMap<Species, Int>(BY_NAME)
     /** Meetings this week by kind of meeting. */
-    val meetings = ConcurrentSkipListMap<String, Int>()
+    val meetings = ConcurrentSkipListMap<TallyKey, Int>()
     /** Deaths this week by "kind:cause". */
-    val deaths = ConcurrentSkipListMap<String, Int>()
+    val deaths = ConcurrentSkipListMap<TallyKey, Int>()
     /** This week's hunting and feeding tallies by kind, as [Tally] keys them: kills of residents, diets, bands' food and time. */
-    val hunting = ConcurrentSkipListMap<String, Int>()
+    val hunting = ConcurrentSkipListMap<TallyKey, Int>()
     /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
     @Transient val childDeaths = ConcurrentHashMap<String, DoubleAdder>()
     /** Young born this week by kind. */
     val births = TreeMap<Species, Int>(BY_NAME)
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
-    val residentDeaths = TreeMap<String, Double>()
+    val residentDeaths = TreeMap<TallyKey, Double>()
 
     /** Counts [n] more of [what] in [meetings]. */
-    fun meeting(what: Met, n: Int = 1) { meetings.merge(what.label, n, Int::plus) }
+    fun meeting(what: Met, n: Int = 1) { meetings.merge(what.key, n, Int::plus) }
     /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
-    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetings.merge(what.key(of), n, Int::plus) }
+    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetings.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
 
     /** Starts a new week (the children's ledger runs on until read). */
     fun clear() { kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
@@ -84,6 +107,9 @@ enum class Met(val label: String) {
     YOUNG_ANIMALS_KEPT("young animals kept"),
     YOUNG_HUNTERS_LEFT_THEIR_PACK("young hunters left their pack");
 
+    /** Its key in [WeekStats.meetings]. */
+    val key = TallyKey.raw(label)
+
     /** Meetings of something named (a kind, a skill, a tool, a custom, a good), keyed [before] its name [after]. */
     enum class Of(val before: String, val after: String = "") {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
@@ -108,10 +134,10 @@ object Tally {
     /** A death of kind [s] of [cause]. */
     fun of(s: Species, cause: DeathCause) = of(s.name, cause.label)
     /** A tally of the kind named [kind]: [what] (the kills, kept by prey name). */
-    fun of(kind: String, what: String) = "$kind:$what"
+    fun of(kind: String, what: String) = TallyKey.raw("$kind:$what")
     /** The kind a tally is of, and what it counts. */
-    fun kindOf(key: String) = key.substringBefore(':')
-    fun whatOf(key: String) = key.substringAfter(':')
+    fun kindOf(key: TallyKey) = key.text.substringBefore(':')
+    fun whatOf(key: TallyKey) = key.text.substringAfter(':')
     /** Births and kills among the run's deaths ([inflation.tools.fauna.DeathTally]). */
     const val BORN = "+born"
     const val HUNTED = "hunted"
@@ -145,10 +171,10 @@ object Tally {
     /** Bands' deaths of [cause] by the kind of country they are in; [bandsDied] (country) starts all of them. */
     fun bandsDied(country: Biome, cause: DeathReason) = bandsIn(country, "$DIED_OF${cause.label}")
     fun bandsDied(country: Biome) = bandsIn(country, DIED_OF)
-    private fun bandsIn(country: Biome, what: String) = "$BANDS_IN${country.label}:$what"
+    private fun bandsIn(country: Biome, what: String) = TallyKey.raw("$BANDS_IN${country.label}:$what")
     /** The country of a [bandsIn] key counting [what], or null if it is another key. */
-    fun bandsCountry(key: String, what: Bands): Biome? =
-        if (key.startsWith(BANDS_IN) && key.endsWith(":${what.label}")) BIOME_BY_LABEL[key.removePrefix(BANDS_IN).removeSuffix(":${what.label}")] else null
+    fun bandsCountry(key: TallyKey, what: Bands): Biome? = key.text.let { k ->
+        if (k.startsWith(BANDS_IN) && k.endsWith(":${what.label}")) BIOME_BY_LABEL[k.removePrefix(BANDS_IN).removeSuffix(":${what.label}")] else null }
     private const val BANDS_IN = "bands in "
     // (Here, not on Biome: a change there would change the world key.)
     private val BIOME_BY_LABEL by lazy { Biome.entries.associateBy { it.label } }
@@ -156,22 +182,22 @@ object Tally {
     /** How a band is clad: [CLAD], a kit of clothes of at least half. */
     enum class Clad(val label: String) { CLAD("clad"), POORLY_CLAD("poorly clad") }
     /** Bands' tallies by how they are clad. */
-    fun bandsClad(clad: Clad, what: Bands) = "bands ${clad.label}:${what.label}"
+    fun bandsClad(clad: Clad, what: Bands) = TallyKey.raw("bands ${clad.label}:${what.label}")
     /** Bands' deaths of [cause] by how they are clad; [bandsCladDied] (clad) starts all of them. */
-    fun bandsCladDied(clad: Clad, cause: DeathReason) = bandsCladDied(clad) + cause.label
-    fun bandsCladDied(clad: Clad) = "bands ${clad.label}:$DIED_OF"
+    fun bandsCladDied(clad: Clad, cause: DeathReason) = TallyKey.raw(bandsCladDied(clad).text + cause.label)
+    fun bandsCladDied(clad: Clad) = TallyKey.raw("bands ${clad.label}:$DIED_OF")
     /** The cause of a death in a [bandsDied] or [bandsCladDied] key. */
-    fun diedOf(key: String) = key.substringAfter(DIED_OF)
+    fun diedOf(key: TallyKey) = key.text.substringAfter(DIED_OF)
     private const val DIED_OF = "died of "
 
     /** How bands spent their hands' days, tenths of a day: on each [Activity], and in all or left over. */
     fun bandTime(a: Activity) = bandTime(a.label)
     fun bandTime(t: TimeTotal) = bandTime(t.label)
-    private fun bandTime(what: String) = "band time:$what"
+    private fun bandTime(what: String) = TallyKey.raw("band time:$what")
     enum class TimeTotal(val label: String) { ALL("all"), LEFT("left") }
 
     /** Where people's hides came from. */
     enum class HideSource(val label: String) { RESIDENTS("residents"), SMALL_PELTS("small pelts") }
     /** Hide people got from [source], grams. */
-    fun hide(source: HideSource) = "people hide:${source.label}"
+    fun hide(source: HideSource) = TallyKey.raw("people hide:${source.label}")
 }

@@ -9,6 +9,7 @@ import inflation.ecology.Tally
 import inflation.ecology.HexGeography
 import inflation.ecology.Fed
 import inflation.ecology.HexFauna
+import inflation.ecology.TallyKey
 import inflation.ecology.get
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
@@ -274,7 +275,7 @@ class Census(private val sim: HexSim) {
     }
 
     /** Bands by kind of country over the last year ([lastYear]'s tallies): how many, how they fed and on what, how they lived and died. */
-    fun printBandsByCountry(lastYear: Map<String, Int>, stepsPerYear: Int) {
+    fun printBandsByCountry(lastYear: Map<TallyKey, Int>, stepsPerYear: Int) {
         fun weeks(c: Biome) = lastYear[Tally.bandsIn(c, Tally.Bands.BAND_WEEKS)] ?: 0
         val cs = lastYear.keys.mapNotNull { Tally.bandsCountry(it, Tally.Bands.BAND_WEEKS) }.sortedByDescending { weeks(it) }
         val allWeeks = cs.sumOf { weeks(it).toDouble() }.coerceAtLeast(1.0)
