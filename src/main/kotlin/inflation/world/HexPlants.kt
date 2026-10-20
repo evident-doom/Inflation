@@ -185,7 +185,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * summed over the map.
      */
     @delegate:Transient val shrubBook: Array<java.util.concurrent.atomic.DoubleAdder>? by lazy {
-        if (inflation.Config.flag("shrubDiag", false)) Array(ShrubPart.entries.size + 1) { java.util.concurrent.atomic.DoubleAdder() } else null }
+        if (inflation.Config.flag(inflation.Config.Key.SHRUB_DIAG, false)) Array(ShrubPart.entries.size + 1) { java.util.concurrent.atomic.DoubleAdder() } else null }
     private fun shrubNote(part: ShrubPart, p: Int, before: Float) { shrubBook?.let { it[part.ordinal].add(((shrub[p] - before) * land.areaM2[p]).toDouble()) } }
 
     /** Eats up to [want] of the browse at [p], shrubs and trees alike; what was eaten comes off the plants too. */

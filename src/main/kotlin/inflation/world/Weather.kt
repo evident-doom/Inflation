@@ -379,7 +379,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
      * climateShock=startYear,years,degrees,rainShare (for example 20,1200,-4,0.7): the
      * temperature offset and the share of the rain, now; nothing when unset.
      */
-    private val shockSpec = Config.string("climateShock")?.split(",")?.map { it.trim().toDouble() }
+    private val shockSpec = Config.string(Config.Key.CLIMATE_SHOCK)?.split(",")?.map { it.trim().toDouble() }
     fun shock(): Pair<Float, Float> {
         val s = shockSpec ?: return 0f to 1f
         val (start, years, dT, rain) = s

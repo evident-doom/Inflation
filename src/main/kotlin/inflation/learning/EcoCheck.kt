@@ -27,11 +27,11 @@ import java.util.concurrent.Executors
  * - its own members fare better: the role's kinds number more in the last whole year.
  */
 class EcoCheck(private val out: File) {
-    private val world = TestWorlds.named(Config.string("ppo.checkWorld") ?: "lake-1")
-    private val years = Config.int("ppo.checkYears", 5)
-    private val replicates = Config.int("ppo.checkReplicates", 2)
+    private val world = TestWorlds.named(Config.string(Config.Key.PPO_CHECK_WORLD) ?: "lake-1")
+    private val years = Config.int(Config.Key.PPO_CHECK_YEARS, 5)
+    private val replicates = Config.int(Config.Key.PPO_CHECK_REPLICATES, 2)
     // (Daemon threads: a run that ends is not kept alive by its check's pool.)
-    private val pool = Executors.newFixedThreadPool(Config.int("ppo.checkParallel", 10)) { r -> Thread(r, "eco-check").also { it.isDaemon = true } }
+    private val pool = Executors.newFixedThreadPool(Config.int(Config.Key.PPO_CHECK_PARALLEL, 10)) { r -> Thread(r, "eco-check").also { it.isDaemon = true } }
     /** The networks each role plays with outside training, and that the new ones are judged against. */
     val kept = File(out, "kept")
 
@@ -50,7 +50,7 @@ class EcoCheck(private val out: File) {
             for ((r, src) in from) copyRoles(src, armDir, listOf(r))
             // The training's own config (its model keys judge the networks as they were trained), with this arm's networks.
             val cfg = File(armDir, "check.properties")
-            val keys = configWith(mapOf("nets" to armDir.absoluteFile.invariantSeparatorsPath, WaysKind.BANDS.configKey to File(armDir, WaysKind.BANDS.file).absoluteFile.invariantSeparatorsPath))
+            val keys = configWith(mapOf(Config.Key.NETS to armDir.absoluteFile.invariantSeparatorsPath, WaysKind.BANDS.configKey to File(armDir, WaysKind.BANDS.file).absoluteFile.invariantSeparatorsPath))
             cfg.writer().use { keys.store(it, "check arm $name, written by the training's ecosystem check") }
             (0 until replicates).map { r -> pool.submit<File> { runOne(cfg, armDir, r) } }
         }.mapValues { (_, fs) -> fs.map { TestWorlds.Run(it.get()) } }
@@ -59,7 +59,7 @@ class EcoCheck(private val out: File) {
 
     private fun runOne(cfg: File, armDir: File, r: Int): File {
         val history = File(armDir, "r$r.csv")
-        val p = startFaunaCheck(cfg, "-Xmx${Config.int("ppo.checkHeapGb", 12)}g",
+        val p = startFaunaCheck(cfg, "-Xmx${Config.int(Config.Key.PPO_CHECK_HEAP_GB, 12)}g",
             listOf("--world", world.name, "--years", "$years", "--replicate", "$r", "--history", history.path), File(armDir, "r$r.txt"))
         require(p.waitFor() == 0) { "check run failed: see ${File(armDir, "r$r.txt")}" }
         return history

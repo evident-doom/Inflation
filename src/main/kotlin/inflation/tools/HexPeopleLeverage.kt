@@ -28,7 +28,7 @@ import kotlin.math.abs
 fun main(args: Array<String>) {
     val a = Args(args, "hex-people-leverage [--seeds A,B] [--size KM] [--years N]")
     val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(91L); val size = a.int("--size", 600); val years = a.int("--years", 3)
-    val tests = Config.string("leverageTests") ?: "all"
+    val tests = Config.string(Config.Key.LEVERAGE_TESTS) ?: "all"
     require(tests in setOf("all", "moves", "ways")) { "leverageTests=$tests: all, moves or ways" }
     val moves = tests != "ways"; val ways = tests != "moves"
     a.done()

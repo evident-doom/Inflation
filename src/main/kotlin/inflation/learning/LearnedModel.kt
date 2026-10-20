@@ -16,7 +16,7 @@ import java.io.File
 object LearnedModel {
     /** Sets [groups]' choices from the config's keys, saying with [log] what it loaded. */
     fun fromConfig(groups: HexGroups, log: (String) -> Unit) =
-        apply(groups, Config.string("nets"), Config.string(WaysKind.BANDS.configKey), Config.string(WaysKind.HUNTERS.configKey), log)
+        apply(groups, Config.string(Config.Key.NETS), Config.string(WaysKind.BANDS.configKey), Config.string(WaysKind.HUNTERS.configKey), log)
 
     fun apply(groups: HexGroups, nets: String?, ways: String?, hunterWays: String?, log: (String) -> Unit) {
         val dir = nets?.let { baselineDir(it) }

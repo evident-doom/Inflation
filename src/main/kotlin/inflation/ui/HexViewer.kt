@@ -98,7 +98,7 @@ fun main(args: Array<String>) {
     val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
     val load = a.file("--load")
     a.done()
-    val nets = Config.string("nets"); val ways = Config.string("ways")
+    val nets = Config.string(Config.Key.NETS); val ways = Config.string(Config.Key.WAYS)
     val frame = JFrame("Hex world, seed ${cfg.seed}")
     val status = JLabel("Generating the world…")
     frame.contentPane.add(status)
@@ -365,7 +365,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
 
     /** The model: learned networks where given ([nets], [waysFile], see [LearnedModel]), else the hand-written choices. */
     private fun useNetworks() {
-        LearnedModel.apply(groups, nets, waysFile, Config.string("hunterWays")) { println(it) }
+        LearnedModel.apply(groups, nets, waysFile, Config.string(Config.Key.HUNTER_WAYS)) { println(it) }
     }
 
     private fun snapshot() {

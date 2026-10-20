@@ -27,18 +27,18 @@ class Diagnostics(private val sim: HexSim) {
     private val fauna = sim.fauna
     private val groups = sim.groups
     private val weather get() = sim.weather
-    private val strand = Config.string("strandDiag")?.let { StrandDiag(sim, java.io.File(it)) }
+    private val strand = Config.string(Config.Key.STRAND_DIAG)?.let { StrandDiag(sim, java.io.File(it)) }
 
     fun beforeStep(y: Int, w: Int) {
-        Config.string("huntDiag")?.let { kinds -> if (w % 13 == 6) for (kind in kinds.split(',')) hunters(w, kind) }
-        if (Config.flag("fedDiag", false) && y == 1 && w % 13 == 6) fed(w)
-        Config.string("follow")?.let { kind -> if (groups.groups.none { it.id == groups.watched && it.alive }) groups.watched =
+        Config.string(Config.Key.HUNT_DIAG)?.let { kinds -> if (w % 13 == 6) for (kind in kinds.split(',')) hunters(w, kind) }
+        if (Config.flag(Config.Key.FED_DIAG, false) && y == 1 && w % 13 == 6) fed(w)
+        Config.string(Config.Key.FOLLOW)?.let { kind -> if (groups.groups.none { it.id == groups.watched && it.alive }) groups.watched =
             groups.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
     }
 
     fun afterStep() {
         strand?.week()
-        if (Config.string("follow") != null && groups.watched >= 0) {
+        if (Config.string(Config.Key.FOLLOW) != null && groups.watched >= 0) {
             val g = groups.groups.firstOrNull { it.id == groups.watched }
             println("   follow #%d (%s, %d) %s:".format(groups.watched, g?.species?.name ?: "?", g?.size ?: 0, weather.date))
             for (l in groups.watchLog) println("      $l")
