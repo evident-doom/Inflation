@@ -20,6 +20,8 @@ import inflation.ecology.get
 import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.Place
+import inflation.ecology.FaunaKind
+import inflation.ecology.SeasonalMemory
 import inflation.ecology.hexOf
 import inflation.world.Date
 
@@ -150,6 +152,44 @@ class MovementTally(private val sim: HexSim) {
     /** Each resident kind's heads in each month's first week, for the height the flow took them per head ([HexFauna.climbed]). */
     private var monthHeads = Array(sim.fauna.kinds.size) { DoubleArray(12) }
 
+    /**
+     * STUDY (not for merge): by kind, month and height band (below 500, 1000, 1500, 2500 m, above), the heads, the route's
+     * gain weighted by heads, the share of heads whose place gains over 0.01, the same gain over all land places there
+     * (empty or not), and the share of that ground the kind has never learnt in the month.
+     */
+    private val pull = Array(sim.fauna.kinds.size) { Array(12) { DoubleArray(PULL_FIELDS * 5) } }
+
+    private fun pullByHeight(month: Int) {
+        val fauna = sim.fauna; val hw = sim.hw; val land = sim.land
+        for (k in fauna.kinds.indices) {
+            if (fauna.room[k] == null) continue
+            val seen = fauna.seasonSeen[k]; val t = fauna.seasons.typeOf(k)
+            val a = pull[k][month]
+            for (p in 0 until fauna.n) {
+                val b = SeasonalMemory.HEIGHTS.count { hw.placeElevationM[p] >= it }
+                val g = fauna.routeGainAt(FaunaKind(k), Place(p)).toDouble(); val km2 = land.areaKm2[p].toDouble()
+                val h = (fauna.adults[k][p] + fauna.young[k][p]) * km2
+                val o = b * PULL_FIELDS
+                a[o] += h; a[o + 1] += h * g; if (g > 0.01) a[o + 2] += h
+                a[o + 3] += km2; a[o + 4] += km2 * g
+                if (seen[t[p] * 12 + month] <= 0f) a[o + 5] += km2
+            }
+        }
+    }
+
+    fun printPull() {
+        for (k in sim.fauna.kinds.indices) {
+            if (sim.fauna.room[k] == null || pull[k].all { m -> m.all { it == 0.0 } }) continue
+            println("     memory pull by height band, ${sim.fauna.kinds[k].name} (per month, per band <500/<1000/<1500/<2500/above: heads share %, mean gain per head x1000, heads with gain>0.01 %, mean gain on all ground x1000, ground never learnt %):")
+            for (m in 0 until 12) {
+                val a = pull[k][m]; val all = (0 until 5).sumOf { a[it * PULL_FIELDS] }.coerceAtLeast(1e-9)
+                println("       month ${m + 1}: " + (0 until 5).joinToString(" | ") { b -> val o = b * PULL_FIELDS; val h = a[o]
+                    "%.0f %s %s %s %.0f".format(100 * h / all, if (h > 0) "%.1f".format(1000 * a[o + 1] / h) else "-", if (h > 0) "%.0f".format(100 * a[o + 2] / h) else "-",
+                        if (a[o + 3] > 0) "%.1f".format(1000 * a[o + 4] / a[o + 3]) else "-", if (a[o + 3] > 0) 100 * a[o + 5] / a[o + 3] else 0.0) })
+            }
+        }
+    }
+
     fun startYear() {
         residentsMoved.clear(); adultHeight = Array(sim.fauna.kinds.size) { DoubleArray(12) { Double.NaN } }
         monthHeads = Array(sim.fauna.kinds.size) { DoubleArray(12) }; for (c in sim.fauna.climbed) c.fill(0.0)
@@ -163,7 +203,7 @@ class MovementTally(private val sim: HexSim) {
         if (date.dayOfMonth <= sim.cfg.daysPerStep) {
             if (date.month == 0) residentsByHex().let { (byHex, height) -> janResidents = byHex; janHeight = height }
             if (date.month == 6) janResidents?.let { jan -> compareResidents(jan, residentsByHex()) }
-            adultHeights(date.month)
+            adultHeights(date.month); pullByHeight(date.month)
         }
     }
 
@@ -219,6 +259,7 @@ class MovementTally(private val sim: HexSim) {
 
     /** How far the residents are in July from where they were in January. */
     fun printSeasons() {
+        printPull()
         if (residentsMoved.isNotEmpty()) println("     residents' January to July (share of heads in other hexes / other ${CELL_KM.toInt()} km cells, mean height m): " +
             residentsMoved.entries.joinToString(", ") { (k, v) -> "%s %.0f%% / %.0f%%, %.0f to %.0f".format(k, 100 * v[0], 100 * v[1], v[2], v[3]) })
         if (adultHeight.any { h -> h.any { !it.isNaN() } }) println("     residents' adults' mean height by month, January to December (m): " +
@@ -232,6 +273,7 @@ class MovementTally(private val sim: HexSim) {
     }
 
     companion object {
+        private const val PULL_FIELDS = 6
         /** Cell size for where residents are, km: about a band's reach in a few days. */
         const val CELL_KM = 50.0
     }
