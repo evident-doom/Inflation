@@ -5,6 +5,8 @@ import inflation.ecology.Phase
 import inflation.ecology.runPhases
 import inflation.ecology.WeekStats
 import inflation.Tuning
+import inflation.ecology.Place
+import inflation.ecology.get
 import inflation.Config
 import inflation.Kg
 import inflation.KgM2
@@ -34,11 +36,11 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     /** Area of each place, km², and m². */
     @Transient val areaKm2 = FloatArray(n) { (hw.placeCells[it].size * grid.cellKm * grid.cellKm).toFloat() }
     /** Place [p]'s area, m². */
-    fun m2(p: Int) = areaKm2[p] * 1e6f
+    fun m2(p: Place) = areaKm2[p] * 1e6f
     /** [kg] spread over place [p]. */
-    fun spread(p: Int, kg: Kg) = KgM2(kg.v / m2(p))
+    fun spread(p: Place, kg: Kg) = KgM2(kg.v / m2(p))
     /** All of [x] over place [p]. */
-    fun total(p: Int, x: KgM2) = Kg(x.v * m2(p))
+    fun total(p: Place, x: KgM2) = Kg(x.v * m2(p))
     @Transient internal val areaM2 = FloatArray(n) { (areaKm2[it] * 1e6).toFloat() }
     internal fun mean(p: Int, f: (Int) -> Float): Float { val cs = hw.placeCells[p]; var s = 0.0; for (i in cs) s += f(i); return (s / cs.size).toFloat() }
     @Transient internal val soilFertility = FloatArray(n) { p -> mean(p) { world.soilFertility[it] } }

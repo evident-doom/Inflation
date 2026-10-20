@@ -59,12 +59,6 @@ class PlaceListIter(private val a: IntArray) {
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.hexOf(p: Place) = Hex(placeHex[p.i])
 /** Hex [h]'s low or high ground, its only place where it is not split ([Place.NONE] if it has no land). */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeIn(band: Int, h: Hex) = Place(placeIn(band, h.i))
-/** Area of place [p], m². */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.m2(p: Place) = m2(p.i)
-/** [kg] spread over place [p]. */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.spread(p: Place, kg: inflation.Kg) = spread(p.i, kg)
-/** All of [x] over place [p]. */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexLand.total(p: Place, x: inflation.KgM2) = total(p.i, x)
 /** The place in hex [h] nearest in height to place [p] ([Place.NONE] if the hex has no land). */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeNear(p: Place, h: Hex) = Place(placeNear(p.i, h.i))
 /** As above, for a hex index kept as a plain int. */

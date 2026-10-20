@@ -11,7 +11,6 @@ import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.Hex
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 
 /**
  * What the land offers people by how far it lies from the sea: land hexes in rings by their
@@ -69,7 +68,7 @@ fun main(args: Array<String>) {
             mean { _, p -> groups.preyHere(human, p).toDouble() },
             mean { _, p -> ((run.fauna.food.fruit[p] + run.fauna.food.roots[p] + run.fauna.food.seeds[p]) * 1e6f *
                 inflation.ecology.PLANT_FOOD_WEIGHT).toDouble() },
-            mean { _, p -> land.drink.peopleWaterKm(inflation.ecology.Place(p)).toDouble() },
+            mean { _, p -> land.drink.peopleWaterKm(Place(p)).toDouble() },
             mean { h, _ -> run.fauna.water.fishWithin(h, 1f).toDouble() },
             mean { _, p -> land.waterlogged[p].toDouble() },
             mean { _, p -> land.bestDefence[p].toDouble() }, mean { _, p -> flood[p] }, mean { _, p -> fire[p] }))

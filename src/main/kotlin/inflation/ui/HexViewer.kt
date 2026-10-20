@@ -80,7 +80,6 @@ import inflation.ecology.get
 import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,

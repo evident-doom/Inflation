@@ -10,7 +10,6 @@ import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 
 /**
  * The extra lines a fauna check prints when the config asks for them:
@@ -51,7 +50,7 @@ class Diagnostics(private val sim: HexSim) {
     private fun shrubs(book: Array<java.util.concurrent.atomic.DoubleAdder>) {
         val p = land.plants
         var stand = 0.0; var cap = 0.0
-        for (i in 0 until hw.placeHex.size) { stand += p.shrub[i] * land.areaM2[i].toDouble(); cap += p.ceiling(inflation.world.LifeForm.SHRUB, inflation.ecology.Place(i)) * land.areaM2[i].toDouble() }
+        for (i in 0 until hw.placeHex.size) { stand += p.shrub[i] * land.areaM2[i].toDouble(); cap += p.ceiling(inflation.world.LifeForm.SHRUB, Place(i)) * land.areaM2[i].toDouble() }
         println("   shrubDiag %s (tonnes over the map): standing %.4g, ceiling %.4g".format(weather.date, stand / 1000, cap / 1000))
         for ((i, name) in inflation.world.HexPlants.SHRUB_PARTS.withIndex()) println("      %-50s %+.4g".format(name, book[i].sumThenReset() / 1000))
         val n = inflation.world.HexPlants.SHRUB_PARTS.size

@@ -422,13 +422,13 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
         val eats = w.eats
         val pickQ = (w.pickDays - eats) * slow + eats; val seedQ = (w.seedDays - eats) * slow + eats
-        offer(w, o, Food.FRUIT, 0, q, land.total(q, KgM2(reach * fauna.food.fruit[q])).v / days, 1f, pickQ)
-        offer(w, o, Food.ROOTS, 0, q, land.total(q, KgM2(reach * fauna.food.roots[q])).v / days, 1f, ROOT_DIGGING * pickQ)
-        offer(w, o, Food.FINDS, 0, q, land.total(q, KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ)
+        offer(w, o, Food.FRUIT, 0, q, land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, pickQ)
+        offer(w, o, Food.ROOTS, 0, q, land.total(Place(q), KgM2(reach * fauna.food.roots[q])).v / days, 1f, ROOT_DIGGING * pickQ)
+        offer(w, o, Food.FINDS, 0, q, land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ)
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
-        offer(w, o, Food.SEED, 0, q, land.total(q, KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.seeds[q])).v / days, 1f, seedQ)
+        offer(w, o, Food.SEED, 0, q, land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.seeds[q])).v / days, 1f, seedQ)
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        offer(w, o, Food.GRAIN, 0, q, land.total(q, KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.grain[q])).v / days, 1f, seedQ)
+        offer(w, o, Food.GRAIN, 0, q, land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.grain[q])).v / days, 1f, seedQ)
     }
     // Bands fish the river, the lake or the sea shore by their camp.
     if (band != null) {
@@ -735,7 +735,7 @@ private fun siftDown(a: LongArray, from: Int, m: Int) {
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
 private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float, out: Haul) {
     val band = g.band
-    val taken = land.total(p, fauna.food.take(fauna.food.grain, p, land.spread(p, Kg(expected)))).v
+    val taken = land.total(Place(p), fauna.food.take(fauna.food.grain, p, land.spread(Place(p), Kg(expected)))).v
     val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
     out.kg = took; out.mass = taken
     // A sickle takes the ears that hold their grain more than those that shatter at a touch.
@@ -772,7 +772,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
     val s = g.species; val band = g.band
     out.busy = 0f
     val stock = when (t) { Food.FRUIT -> fauna.food.fruit; Food.ROOTS -> fauna.food.roots; Food.SEED -> fauna.food.seeds; else -> fauna.food.finds }
-    val taken = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(expected)))).v
+    val taken = land.total(Place(p), fauna.food.take(stock, p, land.spread(Place(p), Kg(expected)))).v
     var took = taken; var mass = taken
     // Raw seed is poorly digested; ground and baked into bread it feeds fully.
     if (t == Food.SEED) took *= seedValue(band)
@@ -784,7 +784,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
             var extra = took * band.detoxExtra(land.palatable[p], land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f)
             // (What is leached is more of the plants, bitter before: taken from them, as far as there is any.)
             if (extra > 0f) {
-                val more = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(extra * taken / took)))).v
+                val more = land.total(Place(p), fauna.food.take(stock, p, land.spread(Place(p), Kg(extra * taken / took)))).v
                 extra = more * took / taken; mass += more
             }
             if (extra > 0f) {

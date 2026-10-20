@@ -60,7 +60,6 @@ import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 
 /**
  * The group controls of follow mode: a window beside the overview map that shows the followed group

@@ -19,7 +19,6 @@ import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 
 /**
  * What trade does (with rounds on for the rites at the sources): where good stone, salt
