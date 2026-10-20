@@ -28,9 +28,9 @@ class PlaceRecord(val n: Int, kinds: Int) {
         for (r in residents) for (p in 0 until n) for (c in 0 until m) { val v = r[p * m + c]; if (v != 0f) { animalKg[c][p] += v; r[p * m + c] = 0f } }
     }
 
-    /** A death of a group's member, under the cause the week's outcome named it by ([DeathCause], or a beast's or a killer's name). */
-    internal fun group(s: Species, p: Place, cause: String, k: Int) {
-        val c = DeathCause.byLabel(cause)?.shown ?: if (cause.startsWith(DeathCause.TAKEN_BY) || cause.contains(DeathCause.KILLED_BY)) Cause.KILLED else cause(cause)
+    /** A death of a group's member, under the cause the week's outcome put it down to. */
+    internal fun group(s: Species, p: Place, cause: DeathReason, k: Int) {
+        val c = cause.shown
         if (s.human) people[c.ordinal][p] += k.toFloat() else animalKg[c.ordinal][p] += k * s.massKg
     }
 
@@ -38,22 +38,5 @@ class PlaceRecord(val n: Int, kinds: Int) {
         for (a in animalKg) a.fill(0f)
         for (a in people) a.fill(0f)
         carrionGone.fill(0f); litterGone.fill(0f); bonesGone.fill(0f); organicGone.fill(0f)
-    }
-
-    companion object {
-        /** The cause a death named [name] falls under, by the words in it (the residents' deaths are named in free text). */
-        fun cause(name: String): Cause {
-            val s = name.lowercase()
-            return when {
-                "hunger" in s || "starv" in s || "orphan" in s -> Cause.HUNGER
-                "thirst" in s -> Cause.THIRST
-                "cold" in s || "snow" in s || "freez" in s || "exposure" in s -> Cause.COLD
-                "taken by" in s || "killed" in s || "hunted" in s || "raid" in s || "rival" in s || "fought" in s || "eagle" in s ||
-                    "crocodile" in s || "hunters" in s -> Cause.KILLED
-                "illness" in s || "disease" in s || "fever" in s || "plague" in s || "sick" in s || "worm" in s || "outbreak" in s ||
-                    "crowd" in s || "foul" in s || "flux" in s || "cough" in s -> Cause.ILLNESS
-                else -> Cause.OTHER
-            }
-        }
     }
 }

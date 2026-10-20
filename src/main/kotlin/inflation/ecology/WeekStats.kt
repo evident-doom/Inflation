@@ -99,8 +99,10 @@ enum class Met(val label: String) {
 object Tally {
     /** A [hunting][WeekStats.hunting] tally of kind [s]: [what]. */
     fun of(s: Species, what: OfKind) = of(s.name, what.label)
-    /** A death of kind [s] put down to [cause] (a [DeathCause]'s label, an illness's, or "taken by lion" and its kin). */
-    fun of(s: Species, cause: String) = of(s.name, cause)
+    /** A death of kind [s] put down to [cause]. */
+    fun of(s: Species, cause: DeathReason) = of(s.name, cause.label)
+    /** The start of every tally of kind [s] (to find them all by). */
+    fun of(s: Species) = of(s.name, "")
     /** A death of kind [s] of [cause]. */
     fun of(s: Species, cause: DeathCause) = of(s.name, cause.label)
     /** A tally of the kind named [kind]: [what] (the kills, kept by prey name). */
@@ -138,8 +140,9 @@ object Tally {
     /** Bands' tallies by the kind of country they are in. */
     fun bandsIn(country: Biome, what: Bands) = bandsIn(country, what.label)
     fun bandsIn(country: Biome, cold: Cold) = bandsIn(country, "cold ${cold.label}")
-    /** Bands' deaths of [cause] by the kind of country they are in ("" for all of them, as a prefix). */
-    fun bandsDied(country: Biome, cause: String) = bandsIn(country, "$DIED_OF$cause")
+    /** Bands' deaths of [cause] by the kind of country they are in; [bandsDied] (country) starts all of them. */
+    fun bandsDied(country: Biome, cause: DeathReason) = bandsIn(country, "$DIED_OF${cause.label}")
+    fun bandsDied(country: Biome) = bandsIn(country, DIED_OF)
     private fun bandsIn(country: Biome, what: String) = "$BANDS_IN${country.label}:$what"
     /** The country of a [bandsIn] key counting [what], or null if it is another key. */
     fun bandsCountry(key: String, what: Bands): Biome? =
@@ -152,8 +155,9 @@ object Tally {
     enum class Clad(val label: String) { CLAD("clad"), POORLY_CLAD("poorly clad") }
     /** Bands' tallies by how they are clad. */
     fun bandsClad(clad: Clad, what: Bands) = "bands ${clad.label}:${what.label}"
-    /** Bands' deaths of [cause] by how they are clad ("" for all of them, as a prefix). */
-    fun bandsCladDied(clad: Clad, cause: String) = "bands ${clad.label}:$DIED_OF$cause"
+    /** Bands' deaths of [cause] by how they are clad; [bandsCladDied] (clad) starts all of them. */
+    fun bandsCladDied(clad: Clad, cause: DeathReason) = bandsCladDied(clad) + cause.label
+    fun bandsCladDied(clad: Clad) = "bands ${clad.label}:$DIED_OF"
     /** The cause of a death in a [bandsDied] or [bandsCladDied] key. */
     fun diedOf(key: String) = key.substringAfter(DIED_OF)
     private const val DIED_OF = "died of "

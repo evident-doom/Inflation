@@ -1,10 +1,21 @@
 package inflation.ecology
 
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * What a death is put down to: one of the [DeathCause]s, an [Illness], or a beast of another kind ([ByBeast]). The
+ * tallies key it by its [label] ("kind:label", see [Tally]), and the place record files it under [shown].
+ */
+sealed interface DeathReason {
+    val label: String
+    val shown: PlaceRecord.Cause
+}
+
 /**
  * What a group's deaths are put down to in the week's tallies ([WeekStats.deaths], keyed "kind:cause"). The reports
- * print these labels and parse them back, and a band reacts to [TAKEN_BY], so each is written here once.
+ * print these labels and parse them back, so each is written here once.
  */
-enum class DeathCause(val label: String, val shown: PlaceRecord.Cause) {
+enum class DeathCause(override val label: String, override val shown: PlaceRecord.Cause) : DeathReason {
     OTHER("other", PlaceRecord.Cause.OTHER), AGE("age", PlaceRecord.Cause.OTHER), HUNGER("hunger", PlaceRecord.Cause.HUNGER), COLD("cold", PlaceRecord.Cause.COLD), HEAT("heat", PlaceRecord.Cause.OTHER),
     EXPOSURE("exposure", PlaceRecord.Cause.COLD), THIRST("thirst", PlaceRecord.Cause.THIRST), DISEASE("disease", PlaceRecord.Cause.ILLNESS),
     OUTBREAK("outbreak", PlaceRecord.Cause.ILLNESS), FIRE("fire", PlaceRecord.Cause.OTHER), FLOOD("flood", PlaceRecord.Cause.OTHER),
@@ -18,17 +29,25 @@ enum class DeathCause(val label: String, val shown: PlaceRecord.Cause) {
     RESIDENT_HUNTERS("resident hunters", PlaceRecord.Cause.KILLED);
 
     override fun toString() = label
+}
+
+/**
+ * A death to a beast of another kind: [how] it came, [by] which kind ("taken by lion", "killed by wolf"). One instance
+ * for each pair ([of]), so that it keys a map by identity, as an enum does.
+ */
+class ByBeast private constructor(val how: How, val by: Species) : DeathReason {
+    enum class How(val words: String) {
+        /** A beast of prey that stalked a band. */
+        TAKEN_BY("taken by"),
+        /** A fight between kinds, and the young killed in one. */
+        KILLED_BY("killed by"), YOUNG_KILLED_BY("young killed by"),
+    }
+    override val label = "${how.words} ${by.name}"
+    override val shown get() = PlaceRecord.Cause.KILLED
+    override fun toString() = label
 
     companion object {
-        /** Prefix of a death to a beast of prey that stalked a band ("taken by lion"). */
-        const val TAKEN_BY = "taken by"
-        /** Prefix of a death in a fight between kinds ("killed by wolf"). */
-        const val KILLED_BY = "killed by"
-        fun takenBy(stalker: String) = "$TAKEN_BY $stalker"
-        fun killedBy(killer: String) = "$KILLED_BY $killer"
-        fun youngKilledBy(killer: String) = "young $KILLED_BY $killer"
-        /** The cause labelled [label], if it is one of these (not one of the "taken by" or "killed by" kinds). */
-        fun byLabel(label: String): DeathCause? = BY_LABEL[label]
-        private val BY_LABEL by lazy { entries.associateBy { it.label } }
+        private val made = ConcurrentHashMap<Int, ByBeast>()
+        fun of(how: How, by: Species): ByBeast = made.computeIfAbsent(how.ordinal * 65536 + by.index) { ByBeast(how, by) }
     }
 }

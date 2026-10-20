@@ -227,7 +227,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         if (o.carrionKg > 0f) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
         if (o.births > 0) stats.births.merge(s.name, o.births, Int::plus)
-        note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause}" }.ifEmpty { "none" }) }
+        note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause.label}" }.ifEmpty { "none" }) }
         for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
         fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
         if (s.human) {
@@ -264,14 +264,14 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // A band that buries its dead buries them where it is: its ancestors' place.
         // For each taken by a beast, others got away hurt.
         g.band?.let { b ->
-            val taken = o.causes.filter { it.cause.startsWith(DeathCause.TAKEN_BY) }.sumOf { it.n }
+            val taken = o.causes.filter { it.cause.isTakenBy() }.sumOf { it.n }
             if (taken > 0) {
                 b.wounded(WOUNDED_PER_DEAD * taken, g.adults)
                 b.beastLoss += taken / g.size.coerceAtLeast(1).toFloat()
             }
         }
         // Where a beast took one of them, the band remembers the place as dangerous.
-        if (s.human && o.causes.any { it.cause.startsWith(DeathCause.TAKEN_BY) && it.n > 0 })
+        if (s.human && o.causes.any { it.cause.isTakenBy() && it.n > 0 })
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.danger, 1f)
         if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
             g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
@@ -347,7 +347,10 @@ internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, v
     val split: Split?, val youngDied: Int = 0, val leavers: Int = 0)
 
 /** [n] of a group died of [cause] this week. */
-internal data class Died(val cause: String, val n: Int)
+internal data class Died(val cause: DeathReason, val n: Int)
+
+/** Whether this is a death to a beast of prey that stalked the band. */
+private fun DeathReason.isTakenBy() = this is ByBeast && how == ByBeast.How.TAKEN_BY
 
 /** The part that splits off a group: [adults] and [young]. */
 internal class Split(val adults: Int, val young: Int)
@@ -416,16 +419,17 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val homeless = if (s.pack && g.home.none) DISPERSAL_DEATHS * years else 0f
     // Every hazard of the week, once: its cause and the odds it adds for a grown one and for a young one.
     val hazards = arrayListOf(
-        Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
+        Hazard(DeathCause.OTHER, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place.i, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.atHome ?: false) { c, a, y -> hazards += Hazard(c, a, y) }
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
-    hazards.addAll(listOf(
-        Hazard(DeathCause.HOMELESS.label, homeless, homeless),
-        Hazard(DeathCause.CAMP_FOULING.label, 0f, fouled), Hazard(DeathCause.SNAKES.label, venom, venom), Hazard(DeathCause.INBREEDING.label, 0f, inbred),
-        Hazard(DeathCause.takenBy(stalker), stalked, YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked),
-        Hazard(DeathCause.WOUNDS.label, festered, 0f)))
-    ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it.label, a[it], a[it] * it.young) }
+    // (No beast to blame, none taken: a hazard of none weighs nothing in sharing the deaths, and is left out.)
+    hazards.addAll(listOfNotNull(
+        Hazard(DeathCause.HOMELESS, homeless, homeless),
+        Hazard(DeathCause.CAMP_FOULING, 0f, fouled), Hazard(DeathCause.SNAKES, venom, venom), Hazard(DeathCause.INBREEDING, 0f, inbred),
+        stalker?.let { Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked, YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked) },
+        Hazard(DeathCause.WOUNDS, festered, 0f)))
+    ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it, a[it], a[it] * it.young) }
     // The elders' care spares some of the young.
     val spared = 1f - ELDER_CARE * help
     var adultSum = 0f; var youngSum = 0f
@@ -434,7 +438,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     g.deathOdds = adultOdds
     val youngOdds = (youngSum * spared).coerceIn(0f, 0.95f)
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
-        stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
+        stats.childDeaths.computeIfAbsent(h.cause.label) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
     val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
     // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
     val diedExpected = g.adults * adultOdds + g.young * youngOdds +
@@ -454,7 +458,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     var carrion = (da + oldAge + 0.3f * dy) * s.massKg
     // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
     val causes = shareDeaths(hazards, da, dy, r)
-    if (oldAge > 0) causes += Died(DeathCause.OLD_AGE.label, oldAge)
+    if (oldAge > 0) causes += Died(DeathCause.OLD_AGE, oldAge)
     val grown = growUp(g, r)
     land.books?.adder(Books.Stuff.MATTER, "groups born and grew up")?.add(((HexFauna.YOUNG_WEIGHT * bornNow + (1f - HexFauna.YOUNG_WEIGHT) * grown) * s.massKg).toDouble())
     if (g.adults == 0) {
@@ -577,10 +581,10 @@ private fun HexGroups.kinKm2(g: HexGroup, kinNow: HashMap<Long, Int>): Float {
 }
 
 /** One of the week's hazards: its [cause] and the odds it adds that a grown one ([adult]) or a young one ([young]) dies. */
-private class Hazard(val cause: String, val adult: Float, val young: Float)
+private class Hazard(val cause: DeathReason, val adult: Float, val young: Float)
 
 /** Where the week's hazards go as they are reckoned: each cause, and the odds it adds for a grown one and for a young one. */
-internal fun interface HazardSink { fun add(cause: String, adult: Float, young: Float) }
+internal fun interface HazardSink { fun add(cause: DeathCause, adult: Float, young: Float) }
 
 /**
  * The week's hazards to [g] that come of the place it is in ([p]) and how it fares there, into [into]: hunger at [fed],
@@ -606,12 +610,12 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: 
     val (fireA, floodA, snowA) = fauna.calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
     val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)
-    into.add(DeathCause.HUNGER.label, hunger, 1.5f * hunger); into.add(DeathCause.COLD.label, cold, 1.5f * cold)
-    into.add(DeathCause.HEAT.label, heat, 1.5f * heat)
-    into.add(DeathCause.EXPOSURE.label, exposure, 1.5f * exposure); into.add(DeathCause.THIRST.label, thirst, 1.5f * thirst)
-    into.add(DeathCause.DISEASE.label, sick, sick); into.add(DeathCause.OUTBREAK.label, plague, plague)
-    into.add(DeathCause.FIRE.label, fireA, fireY); into.add(DeathCause.FLOOD.label, floodA, floodY); into.add(DeathCause.SNOW.label, snowA, snowY)
-    into.add(DeathCause.CROCODILES.label, 0f, croc); into.add(DeathCause.EAGLES.label, 0f, eagle)
+    into.add(DeathCause.HUNGER, hunger, 1.5f * hunger); into.add(DeathCause.COLD, cold, 1.5f * cold)
+    into.add(DeathCause.HEAT, heat, 1.5f * heat)
+    into.add(DeathCause.EXPOSURE, exposure, 1.5f * exposure); into.add(DeathCause.THIRST, thirst, 1.5f * thirst)
+    into.add(DeathCause.DISEASE, sick, sick); into.add(DeathCause.OUTBREAK, plague, plague)
+    into.add(DeathCause.FIRE, fireA, fireY); into.add(DeathCause.FLOOD, floodA, floodY); into.add(DeathCause.SNOW, snowA, snowY)
+    into.add(DeathCause.CROCODILES, 0f, croc); into.add(DeathCause.EAGLES, 0f, eagle)
 }
 
 /**
@@ -628,7 +632,7 @@ internal fun HexGroups.venomOdds(s: Species, p: Int, weather: Weather) = if (s.h
 
 /** The week's deaths, [adults] and [young], shared among the [hazards] by how much each weighed for them (drawn from [r]); what is left over is "other". */
 private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int, r: Random): ArrayList<Died> {
-    val died = LinkedHashMap<String, Int>()
+    val died = LinkedHashMap<DeathReason, Int>()
     for ((n, ofYoung) in listOf(adults to false, young to true)) {
         var left = n; var weight = 0f
         for (h in hazards) weight += if (ofYoung) h.young else h.adult
@@ -639,7 +643,7 @@ private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int
             if (k > 0) died.merge(h.cause, k, Int::plus)
             left -= k; weight -= w
         }
-        if (left > 0) died.merge(DeathCause.OTHER.label, left, Int::plus)
+        if (left > 0) died.merge(DeathCause.OTHER, left, Int::plus)
     }
     return died.entries.mapTo(ArrayList()) { Died(it.key, it.value) }
 }
@@ -783,17 +787,17 @@ internal fun HexGroups.remember(date: Date) {
 internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int>): Stalking {
     val h = hw.placeHex[g.place]; val p = g.place
     val hexKm2 = hex.areaKm2.toFloat()
-    var pressure = 0f; var worst = ""; var worstP = 0f
+    var pressure = 0f; var worst: Species? = null; var worstP = 0f
     for (k in kinds) {
         val w = k.takesPeople; if (w <= 0f) continue
         val heads = kinNow[k.index.toLong() * hex.size + h] ?: continue
         val v = w * heads * k.massKg / hexKm2
-        pressure += v; if (v > worstP) { worstP = v; worst = k.name }
+        pressure += v; if (v > worstP) { worstP = v; worst = k }
     }
     for ((ki, k) in fauna.kinds.withIndex()) {
         val w = k.takesPeople; if (w <= 0f) continue
         val v = w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg
-        pressure += v; if (v > worstP) { worstP = v; worst = k.name }
+        pressure += v; if (v > worstP) { worstP = v; worst = k }
     }
     if (pressure <= 0f) return Stalking.NONE
     // (Where one was taken the band remembers the danger.)
@@ -821,9 +825,9 @@ internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Int, pressure: Float):
     return STALKED * pressure / (pressure + STALKED_HALF) * cover * guard * company * sign * spread * (1f + 0.5f * AMBUSH * wear.at(h)) * years
 }
 
-/** A band's [rate] of loss to beasts of prey (yearly-scaled share) and the beast most to blame, [by] ("" when none). */
-data class Stalking(val rate: Float, val by: String) {
-    companion object { val NONE = Stalking(0f, "") }
+/** A band's [rate] of loss to beasts of prey (yearly-scaled share) and the beast most to blame, [by] (null when none). */
+data class Stalking(val rate: Float, val by: Species?) {
+    companion object { val NONE = Stalking(0f, null) }
 }
 
 /**

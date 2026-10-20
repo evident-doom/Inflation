@@ -1210,7 +1210,7 @@ class HexGroups(
     /** The odds of the hazards at a place, summed ([deathsAt]). */
     private class Odds : HazardSink {
         var adult = 0f; var young = 0f
-        override fun add(cause: String, adult: Float, young: Float) { this.adult += adult; this.young += young }
+        override fun add(cause: DeathCause, adult: Float, young: Float) { this.adult += adult; this.young += young }
     }
 
     /**
