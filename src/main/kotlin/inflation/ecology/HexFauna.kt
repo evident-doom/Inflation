@@ -95,7 +95,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * animals counted, so that each over the last is the share of a full need met that way: indexed by
      * [Fed.PLANTS], [Fed.ANIMAL], [Fed.RESERVES] and [Fed.HEADS].
      */
-    val fedFrom = Array(kinds.size) { Array(Fed.entries.size) { DoubleAdder() } }
+    @Transient val fedFrom = Array(kinds.size) { Array(Fed.entries.size) { DoubleAdder() } }
     /**
      * For the check, since last read, counted on the weeks the residents move ([Tuning.residentMoveWeeks]): each kind's
      * resident heads summed over those weeks ([Stuck.HEADS]); those hungry (fed under [STUCK_FED]) with no neighbouring
