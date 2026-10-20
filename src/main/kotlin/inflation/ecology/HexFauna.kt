@@ -1659,7 +1659,76 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val record = flowOf == k
         if (record) { flowEast.fill(0f); flowSouth.fill(0f); flowOut.fill(0f) }
         var weekHeads = 0.0; var weekStuck = 0.0; var weekEdge = 0.0; var drownedHeads = 0.0
+        // (Where the route is worth taking from each place, as they stand: how much better a month at its step's place is.)
+        fun routeGap(p: Int): Float {
+            val r = step[p]; if (r < 0 || !(ga[p] + gy[p] > 0f) || asleep(k, p)) return 0f
+            return gapTo(month(v[p]), month(v[ways.to[r]] * ways.keep[r]) * boost[p], ways.ease[r])
+        }
+        // The week's first step along the memory's route ([inflation.Tuning.residentRouteShare]), taken place by place from
+        // the route's ends back towards where it starts: a place's walkers come to the place ahead once those there have
+        // themselves stepped on, so a whole stretch of route moves a step together and the crowding is weighed where it
+        // ends, not at every place behind those walking ahead. The places a step from an end first, then those two steps
+        // from it, and so on; the places of each such step all at once.
+        val swept = BooleanArray(n)
+        fun routeSweep() {
+            // (How many steps along the route each place is from where it ends, by the places the route is worth taking from.)
+            val depth = IntArray(n)
+            fun depthOf(p: Int): Int {
+                if (depth[p] != 0) return max(depth[p], 1)
+                depth[p] = -1  // (On the way: a route led back on itself ends here.)
+                val q = ways.to[step[p]]
+                val d = if (step[q] >= 0 && depth[q] != -1 && routeGap(q) > 0f) depthOf(q) + 1 else 1
+                depth[p] = d; return d
+            }
+            var deepest = 0
+            for (p in 0 until n) if (routeGap(p) > 0f) deepest = max(deepest, depthOf(p)) else depth[p] = 0
+            val goes = FloatArray(n)
+            val byLevel = Array(deepest + 1) { ArrayList<Int>() }
+            for (p in 0 until n) if (depth[p] > 0) byLevel[depth[p]].add(p)
+            for (level in 1..deepest) {
+                val from = byLevel[level]
+                // Those that would come to each place from this step back, and a month's worth where they left less what the route promises.
+                val toes = HashSet<Int>()
+                for (p in from) {
+                    goes[p] = 0f
+                    val r = step[p]; if (!(routeGap(p) > 0f)) continue
+                    val q = ways.to[r]
+                    goes[p] = tuning.residentRouteShare * ways.ease[r] * (ga[p] + gy[p])
+                    if (toes.add(q)) { routed[q] = 0f; routedFrom[q] = 0f }
+                    routed[q] += goes[p]; routedFrom[q] += goes[p] * month(v[p]) / trusted[p]
+                }
+                // As many come as keep a month there no worse than where they left less the route's gain, and as far as the food feeds them all.
+                val tos = toes.toIntArray()
+                IntStream.range(0, tos.size).parallel().forEach { i -> val q = tos[i]
+                    val r = routed[q]; val now = v[q]; val all = weigh(q, ga[q] + gy[q] + r)
+                    val up = if (month(all) < routedFrom[q] / r && month(now) > month(all)) ((month(now) - routedFrom[q] / r) / (month(now) - month(all))).coerceIn(0f, 1f) else 1f
+                    takeRouted[q] = min(up, ((food[q] - ga[q] - gy[q]) / r).coerceIn(0f, 1f))
+                }
+                for (p in from) {
+                    if (!(goes[p] > 0f)) continue
+                    swept[p] = true
+                    val r = step[p]; val q = ways.to[r]
+                    val heads = ga[p] + gy[p]; val m = goes[p] * takeRouted[q]; if (!(m > 0f)) continue
+                    val youngShare = gy[p] / heads; val hadBred = if (ga[p] > 0f) gb[p] / ga[p] else 0f
+                    val mY = m * youngShare; val mA = m - mY
+                    val risk = 1f - ways.keep[r]
+                    val lostA = mA * risk; val lostY = mY * min(1f, 2f * risk)
+                    if (lostA + lostY > 0f) { drowned[q] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble() }
+                    ga[q] += mA - lostA; gy[q] += mY - lostY; gb[q] += (mA - lostA) * hadBred
+                    arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (ways.km[r] + climbKm(k, p, q))
+                    if (record && hw.placeHex[q] != hw.placeHex[p]) recordFlow(hw.placeHex[p], hw.placeHex[q], m)
+                    climbedNow[monthNow * 2 + 1] += (m - lostA - lostY).toDouble() * (hw.placeElevationM[q] - hw.placeElevationM[p])
+                    ga[p] = max(0f, ga[p] - mA); gy[p] = max(0f, gy[p] - mY); gb[p] = max(0f, gb[p] - mA * hadBred)
+                }
+                // (Each place left and come to weighed again, and those next to the places come to, as yet unweighed.)
+                val moved = (from.filter { swept[it] } + tos.toList()).distinct().toIntArray()
+                IntStream.range(0, moved.size).parallel().forEach { i -> val p = moved[i]; v[p] = weigh(p, ga[p] + gy[p]) }
+                for (q in tos) if (ga[q] + gy[q] > 0f) markNear(q)
+                weighMarked()
+            }
+        }
         for (pass in 0 until passes) {
+            if (pass == 0) routeSweep()
             // Each place's leavers, from the places as they stand.
             IntStream.range(0, n).parallel().forEach { p ->
                 share[p] = 0f; gapSum[p] = 0f
@@ -1672,15 +1741,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     if (g > 0f) { sum += g; if (g > most) most = g }
                 }
                 share[p] = FLOW_STEP * most; gapSum[p] = sum
-                // Where the memory's route leads somewhere better than staying, a share of them take a step along it each
-                // week, the week's first ([inflation.Tuning.residentRouteShare]), as far as the crowding ahead lets them
-                // ([take]), the fewer the harder the border it crosses (its ease, as for the rest of the flow); the rest of the
-                // week's going is spent about where they are.
-                val r = if (pass == 0) step[p] else -1
-                if (r >= 0 && gaps[r] > 0f) {
-                    for (i in ways.from[p] until ways.from[p + 1]) if (i != r) gaps[i] = 0f
-                    share[p] = max(share[p], tuning.residentRouteShare * ways.ease[r]); gapSum[p] = gaps[r]
-                }
+                // (Those that took the route's step this week ([routeSweep]) spend the rest of its first going about where they are.)
+                if (pass == 0 && swept[p]) { share[p] = 0f; gapSum[p] = 0f }
             }
             if (pass == 0) for (p in 0 until n) {
                 val heads = ga[p] + gy[p]; if (!(heads > 0f)) continue
