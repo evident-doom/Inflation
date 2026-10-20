@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.Kg
 import inflation.KgKm2
 import inflation.KgM2
+import inflation.StockName
 import inflation.min
 import inflation.world.HexPlants
 import inflation.wrapMonth
@@ -1059,19 +1060,19 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
 
     /** Names the soil's and the small animals' stocks. */
     internal fun listStocks(stocks: Stocks) {
-        fun perM2(name: String, a: FloatArray) = stocks.perM2(name, a, land.areaM2)
-        fun perKm2(name: String, a: FloatArray) = stocks.perKm2(name, a, land.areaKm2)
-        perM2("litter", litter); perM2("soil organic matter", organicMatter); perM2("carrion", carrion); perM2("bones", bones); perM2("dung", dung)
-        perKm2("small dead", smallDead); perKm2("soil animals", soilAnimals)
+        fun perM2(name: StockName, a: FloatArray) = stocks.perM2(name, a, land.areaM2)
+        fun perKm2(name: StockName, a: FloatArray) = stocks.perKm2(name, a, land.areaKm2)
+        perM2(StockName.LITTER, litter); perM2(StockName.SOIL_ORGANIC_MATTER, organicMatter); perM2(StockName.CARRION, carrion); perM2(StockName.BONES, bones); perM2(StockName.DUNG, dung)
+        perKm2(StockName.SMALL_DEAD, smallDead); perKm2(StockName.SOIL_ANIMALS, soilAnimals)
         // (The small animals on the land, as against those in the soil and the migrants away.)
-        stocks.within(Stocks.SMALL_ANIMALS) {
-            perKm2("insects", insects); perKm2("insects waiting", dormantInsects)
-            perKm2("biting insects", biting); perKm2("biting insects waiting", dormantBiting); perKm2("rodents", rodents); perKm2("reptiles and amphibians", herps)
-            perKm2("pollinators", pollinators); perKm2("pollinators waiting", dormantPollinators); perKm2("hares", hares); perKm2("hyrax", hyrax)
-            perKm2("tortoises", tortoises); perKm2("foxes", foxes); perKm2("owls", owls); perKm2("locusts", locusts)
-            for (k in BIRDS.indices) perKm2(BIRDS[k].name, bird[k])
+        stocks.within(StockName.SMALL_ANIMALS) {
+            perKm2(StockName.INSECTS, insects); perKm2(StockName.INSECTS_WAITING, dormantInsects)
+            perKm2(StockName.BITING_INSECTS, biting); perKm2(StockName.BITING_INSECTS_WAITING, dormantBiting); perKm2(StockName.RODENTS, rodents); perKm2(StockName.REPTILES_AND_AMPHIBIANS, herps)
+            perKm2(StockName.POLLINATORS, pollinators); perKm2(StockName.POLLINATORS_WAITING, dormantPollinators); perKm2(StockName.HARES, hares); perKm2(StockName.HYRAX, hyrax)
+            perKm2(StockName.TORTOISES, tortoises); perKm2(StockName.FOXES, foxes); perKm2(StockName.OWLS, owls); perKm2(StockName.LOCUSTS, locusts)
+            for (k in BIRDS.indices) stocks.perKm2(BIRDS[k].name, bird[k], land.areaKm2)
         }
-        stocks.add(Books.Stuff.MATTER, "migrant birds away", away, waiting) { away.sum() + waiting.sum() }
+        stocks.add(Books.Stuff.MATTER, StockName.MIGRANT_BIRDS_AWAY, away, waiting) { away.sum() + waiting.sum() }
     }
 
     /** Takes up to [want] of carrion in place [p]; returns what was taken. */

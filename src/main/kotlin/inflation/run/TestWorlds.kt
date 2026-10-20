@@ -1,6 +1,7 @@
 package inflation.run
 
 import inflation.Config
+import inflation.StockName
 import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
@@ -239,7 +240,7 @@ object TestWorlds {
         }
     }
 
-    private val KEY_NUMBERS = listOf("herbs", "shrubs", "trees", "small animals").map { HexHistory.Key.biomass(it) }.toSet() + HexHistory.Key.TEMPERATURE + HexHistory.Key.RAIN
+    private val KEY_NUMBERS = listOf(StockName.HERBS, StockName.SHRUBS, StockName.TREES, StockName.SMALL_ANIMALS).map { HexHistory.Key.biomass(it) }.toSet() + HexHistory.Key.TEMPERATURE + HexHistory.Key.RAIN
     private fun isKey(k: String) = HexHistory.Key.animalKind(k) != null || k in KEY_NUMBERS
 
     /** The change a variant made against its base in the last whole year, %. */

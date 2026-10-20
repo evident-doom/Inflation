@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.KindStock
+import inflation.StockName
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 import inflation.Stocks
@@ -196,15 +198,15 @@ class HexGroups(
      * animals and the goods that come from living things (wood, fibre, resin, hide, bone, sinew).
      */
     internal fun listStocks(stocks: Stocks) {
-        stocks.within(Stocks.GROUPS) { for (s in kinds) stocks.add(Books.Stuff.MATTER, "group ${s.name}") {
+        stocks.within(StockName.GROUPS) { for (s in kinds) stocks.ofKind(KindStock.GROUP, s) {
             var sum = 0.0; for (g in groups) if (g.alive && g.species == s) sum += (g.adults + HexFauna.YOUNG_WEIGHT * g.young) * s.massKg.toDouble(); sum } }
-        stocks.add(Books.Stuff.MATTER, "hunters' meat in hand") {
+        stocks.add(Books.Stuff.MATTER, StockName.HUNTERS_MEAT_IN_HAND) {
             var sum = 0.0; for (g in groups) if (g.meatMet > 0f && !g.meatSpent) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble(); sum }
         fun bands(f: (Band) -> Double) = run { var sum = 0.0; for (g in groups) if (g.alive) g.band?.let { sum += f(it) }; sum }
-        stocks.add(Books.Stuff.MATTER, "bands' food") { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += massOf(g.stores, g.storeKgPer); sum }
-        stocks.add(Books.Stuff.MATTER, "bands' caches") { bands { it.cacheMass().toDouble() } }
-        stocks.add(Books.Stuff.MATTER, "bands' kept animals") { bands { b -> var sum = 0.0; for (k in b.herd.indices) sum += b.herd[k] * fauna.kinds[k].massKg; sum } }
-        stocks.add(Books.Stuff.MATTER, "bands' goods of living things") { bands { it.livingGoods().toDouble() } }
+        stocks.add(Books.Stuff.MATTER, StockName.BANDS_FOOD) { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += massOf(g.stores, g.storeKgPer); sum }
+        stocks.add(Books.Stuff.MATTER, StockName.BANDS_CACHES) { bands { it.cacheMass().toDouble() } }
+        stocks.add(Books.Stuff.MATTER, StockName.BANDS_KEPT_ANIMALS) { bands { b -> var sum = 0.0; for (k in b.herd.indices) sum += b.herd[k] * fauna.kinds[k].massKg; sum } }
+        stocks.add(Books.Stuff.MATTER, StockName.BANDS_GOODS) { bands { it.livingGoods().toDouble() } }
     }
 
     /** The groups' part of the week, in order. */

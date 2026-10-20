@@ -1,6 +1,7 @@
 package inflation.run
 
-import inflation.Stocks
+import inflation.KindStock
+import inflation.StockName
 import inflation.ecology.Catalogue
 import inflation.ecology.HexHistory
 import inflation.ecology.HexHistory.Key
@@ -133,10 +134,10 @@ object Nominal {
      * growing half a wet one's (Knapp & Smith 2001; Sala et al. 1988).
      */
     val STOCKS = mapOf(
-        "plants" to Drift(rise = 1.1, fall = 1.1, run = 1.5, floor = 1.0), "trees" to Drift(rise = 1.1, fall = 1.1, run = 1.5, floor = 1.0),
-        "soil organic matter" to Drift(rise = 1.05, fall = 1.05, run = 1.5, floor = 1.0),
-        "litter" to Drift(rise = 1.25, fall = 1.25, run = 2.0, floor = 1.0), "soil animals" to Drift(rise = 1.25, fall = 1.25, run = 2.0, floor = 1.0),
-        "shrubs" to Drift(rise = 1.25, fall = 1.25, run = 2.0, floor = 1.0), "herbs" to Drift(rise = 2.0, fall = 2.0, run = 3.0, floor = 1.0),
+        StockName.PLANTS to Drift(rise = 1.1, fall = 1.1, run = 1.5, floor = 1.0), StockName.TREES to Drift(rise = 1.1, fall = 1.1, run = 1.5, floor = 1.0),
+        StockName.SOIL_ORGANIC_MATTER to Drift(rise = 1.05, fall = 1.05, run = 1.5, floor = 1.0),
+        StockName.LITTER to Drift(rise = 1.25, fall = 1.25, run = 2.0, floor = 1.0), StockName.SOIL_ANIMALS to Drift(rise = 1.25, fall = 1.25, run = 2.0, floor = 1.0),
+        StockName.SHRUBS to Drift(rise = 1.25, fall = 1.25, run = 2.0, floor = 1.0), StockName.HERBS to Drift(rise = 2.0, fall = 2.0, run = 3.0, floor = 1.0),
     )
     /**
      * Every other pool of matter (thousand tonnes), of small life (tonnes or heads) and of water life: insects and
@@ -259,10 +260,11 @@ object Nominal {
                 Key.isBiomass(k) -> {
                     val name = k.substringAfter('/')
                     // (A kind's residents and groups are judged by its head count: one living the other way for a while is no fault.)
-                    if (name.startsWith("resident ") || name.startsWith("group ")) continue
+                    if (KindStock.isKind(name)) continue
+                    val stock = StockName.of(name)
                     // (Fast pools may empty for a year, as the locusts between plagues; the slow stocks may not.)
-                    drift(t, k, years, ::yearly, STOCKS[name] ?: POOLS, gone = name in STOCKS)
-                    if (name == "plants" && area > 0) eachYear(PLANTS_MIN_KG_M2, PLANTS_MAX_KG_M2, "kg/m² of plants over the land", 1 / area)
+                    drift(t, k, years, ::yearly, STOCKS[stock] ?: POOLS, gone = stock in STOCKS)
+                    if (stock == StockName.PLANTS && area > 0) eachYear(PLANTS_MIN_KG_M2, PLANTS_MAX_KG_M2, "kg/m² of plants over the land", 1 / area)
                 }
                 Key.isSmallLife(k) || Key.isWaterLife(k) -> drift(t, k, years, ::yearly, SMALL_AND_WATER_LIFE, gone = true)
                 Key.peopleWay(k) != null -> { weekly(0.0, 1.0, ""); eachYear(PEOPLE_MIN.getValue(Key.peopleWay(k)!!), 1.0, "of the bands over the year") }
@@ -313,7 +315,7 @@ object Nominal {
         }
         // All big animals over the land, from the books' pools (thousand tonnes over km² is kt/km², times 1000 for t/km²).
         if (area > 0) {
-            val pools = listOf(Key.biomass(Stocks.RESIDENT_ANIMALS), Key.biomass(Stocks.GROUPS)).filter { it in h.series }
+            val pools = listOf(Key.biomass(StockName.RESIDENT_ANIMALS), Key.biomass(StockName.GROUPS)).filter { it in h.series }
             if (pools.isNotEmpty()) for (y in 0 until years) {
                 val tKm2 = pools.sumOf { yearly(it, y).let { v -> if (v.isNaN()) 0.0 else v } } * 1000 / area
                 val most = animalsMaxTKm2(yearly(Key.RAIN, y))

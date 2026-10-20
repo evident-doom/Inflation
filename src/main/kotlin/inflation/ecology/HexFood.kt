@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.StockName
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 import inflation.Stocks
@@ -152,7 +153,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
 
     /** Names the food stocks: fruit, grass seed, small finds, roots, grain and sown seed. */
     internal fun listStocks(stocks: Stocks) {
-        for ((name, a) in listOf("fruit" to fruit, "grass seed" to seeds, "small finds" to finds, "roots" to roots, "grain" to grain, "sown seed" to field))
+        for ((name, a) in listOf(StockName.FRUIT to fruit, StockName.GRASS_SEED to seeds, StockName.SMALL_FINDS to finds, StockName.ROOTS to roots, StockName.GRAIN to grain, StockName.SOWN_SEED to field))
             stocks.perM2(name, a, land.areaM2)
     }
 

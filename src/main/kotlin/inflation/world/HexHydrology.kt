@@ -1,6 +1,7 @@
 package inflation.world
 
 import inflation.Books
+import inflation.StockName
 import inflation.Stocks
 
 import kotlin.math.exp
@@ -411,10 +412,10 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
 
     /** Names the water's stocks: the soil, the ground water, the lakes and the water in the bed sands. */
     internal fun listStocks(stocks: Stocks) {
-        stocks.add(Books.Stuff.WATER, "soil water", soil, soilShade) { var s = 0.0; for (p in 0 until n) s += ((1 - land.slopeShade[p]) * soil[p] + land.slopeShade[p] * soilShade[p]) / 1000.0 * land.areaM2[p]; s }
-        stocks.add(Books.Stuff.WATER, "ground water", groundwater) { var s = 0.0; for (p in 0 until n) s += groundwater[p] / 1000.0 * land.areaM2[p]; s }
-        stocks.add(Books.Stuff.WATER, "lakes", lakeM3) { lakeM3.sum() }
-        stocks.add(Books.Stuff.WATER, "bed sands", drink.sand) { var s = 0.0; for (p in 0 until n) s += drink.sand[p] * HexDrinkingWater.SAND_M * HexDrinkingWater.SAND_YIELD * drink.bedM2[p].toDouble(); s }
+        stocks.add(Books.Stuff.WATER, StockName.SOIL_WATER, soil, soilShade) { var s = 0.0; for (p in 0 until n) s += ((1 - land.slopeShade[p]) * soil[p] + land.slopeShade[p] * soilShade[p]) / 1000.0 * land.areaM2[p]; s }
+        stocks.add(Books.Stuff.WATER, StockName.GROUND_WATER, groundwater) { var s = 0.0; for (p in 0 until n) s += groundwater[p] / 1000.0 * land.areaM2[p]; s }
+        stocks.add(Books.Stuff.WATER, StockName.LAKES, lakeM3) { lakeM3.sum() }
+        stocks.add(Books.Stuff.WATER, StockName.BED_SANDS, drink.sand) { var s = 0.0; for (p in 0 until n) s += drink.sand[p] * HexDrinkingWater.SAND_M * HexDrinkingWater.SAND_YIELD * drink.bedM2[p].toDouble(); s }
     }
 
     /** Depth of the water table under the valley floor of place [p], m: at the surface when its aquifer is full. */
