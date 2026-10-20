@@ -70,6 +70,13 @@ class Species(
     val birthMonths: Int,
     /** Young per adult female per year in good condition. */
     val youngPerFemale: Float,
+    /**
+     * Days from birth to weaning, the mother suckling her young over them ([milkNeed]); 0: its young are not suckled. From
+     * AnAge (de Magalhaes & Costa 2009) where it gives them; else Animal Diversity Web (ibex, wild boar, aurochs as cattle),
+     * the Deer Initiative (roe), DeerNZ's fawning-to-weaning dates (red deer, about 90), the San Diego Zoo (Przewalski's
+     * horse) and the species' Wikipedia accounts (wild goat, mouflon).
+     */
+    val weaningDays: Int = 0,
     val yearsToMaturity: Float,
     /** Adult mortality per year from causes not modelled (age, accident, disease); predation and hunger are modelled. */
     val backgroundMortality: Float,

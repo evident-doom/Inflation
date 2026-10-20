@@ -191,8 +191,20 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun plantWant(k: Int, p: Int, weather: Weather): Float {
         val s = kinds[k]
         return if (asleep(k, p)) 0f else s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
-            days / 1e6f * plantShare(s)
+            days / 1e6f * plantShare(s) * (1f + suckling(k, p))
     }
+
+    /**
+     * How much more than their own need the residents of kind [k] at place [p] eat a head this week for their mothers'
+     * milk ([milkNeed]): half the grown are mothers, of the heads the young counting as half.
+     */
+    private fun suckling(k: Int, p: Int): Float {
+        val milk = milkThisWeek[k]; if (milk <= 0f) return 0f
+        val a = adults[k][p]; val heads = a + 0.5f * young[k][p]
+        return if (heads > 0f) milk * 0.5f * a / heads else milk * 0.5f
+    }
+    /** [milkNeed] for each kind this week, worked out as the week begins ([newWeek]). */
+    @Transient private val milkThisWeek = FloatArray(kinds.size)
 
     /** How much of the food at place [p] kind [s] can get at: cliffs keep all but climbers off some of it, a kind that must drink often uses only the ground within reach of water, and biting insects cost it feeding time ([unbitten]). */
     private fun reachOf(s: Species, p: Int) = HexFood.access(s, land.crag[p]) * tether(s, p) * unbitten(p)
@@ -703,6 +715,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val books = land.books
         ateBook = books?.adder(Books.Stuff.MATTER, "eaten"); droppedBook = books?.adder(Books.Stuff.MATTER, "dung and frass")
         for (p in 0 until n) fear[p] *= FEAR_KEEP
+        for ((k, s) in kinds.withIndex()) milkThisWeek[k] = milkNeed(s, date.dayOfYear)
         Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
         carcassKg.fill(0f)
         if (bearings.month != date.month) {

@@ -24,6 +24,30 @@ const val NEWBORN_SHARE = 0.08f
 /** A newborn of [s], in days of its mother's food: what she gives of her reserves or her food to bear it. */
 fun youngDays(s: Species) = NEWBORN_SHARE * s.massKg / s.dailyIntakeKg
 
+/**
+ * A suckling mother's food need beyond her own as she starts to suckle: lactating red deer hinds need nearly twice the
+ * energy of dry ones (DeerNZ, Deer Fact: feeding hinds and fawns), and the cost of lactation, not of gestation, is what
+ * a mother's later breeding and survival pay for (Clutton-Brock et al. 1989, Nature 337: 260). It falls off to none by
+ * weaning ([Species.weaningDays]), evenly (the shape unsourced).
+ */
+const val MILK_PEAK = 1f
+
+/**
+ * How much more than her own need a mother of [s] eats on [dayOfYear] to suckle her young ([MILK_PEAK]), averaged over
+ * the mothers of a birth season ([Species.birthMonth], [Species.birthMonths]) whose births fall evenly over it: none
+ * outside the season and the weaning after it.
+ */
+fun milkNeed(s: Species, dayOfYear: Int): Float {
+    if (s.weaningDays <= 0) return 0f
+    val start = s.birthMonth * Date.DAYS_PER_MONTH; val season = s.birthMonths * Date.DAYS_PER_MONTH
+    var sum = 0f
+    for (i in 0 until season) {
+        val age = Math.floorMod(dayOfYear - (start + i), Date.DAYS_PER_YEAR)
+        if (age < s.weaningDays) sum += 1f - age / s.weaningDays.toFloat()
+    }
+    return MILK_PEAK * sum / season
+}
+
 /** What a mother of [s] fed [fed] over [days] can give her young of the week's food: what she ate above the hunger line, days of food. */
 fun spareDays(fed: Float, days: Int) = max(0f, fed - HexFauna.HUNGER_FROM) * days
 
