@@ -85,10 +85,8 @@ class GroupControlWindow(
     private val requestStep: () -> Unit,
     /** Whether the overview is running weeks on its own. */
     private val running: () -> Boolean,
-    /** The overview's Run/Pause button pressed, its weeks per second, and setting it (the time controls here are linked to those). */
+    /** The overview's Run/Pause button pressed; the time controls here are linked to it. */
     private val toggleRun: () -> Unit,
-    private val speed: () -> Int,
-    private val setSpeed: (Int) -> Unit,
 ) : GroupControl {
     private val groups = sim.groups
     private val hex = sim.hex
@@ -117,7 +115,6 @@ class GroupControlWindow(
     @Volatile private var seenBefore = emptySet<Int>()
     private val next = JButton("Next step")
     private val run = JButton("Run")
-    private val speedSlider = JSlider(1, 10, 2)
     private val title = JLabel(" ")
     private val note = JLabel(" ")
     private val status = text()
@@ -164,9 +161,8 @@ class GroupControlWindow(
 
         val bar = JPanel(BorderLayout())
         run.toolTipText = "Same as the overview's Run/Pause: weeks run on their own, the model deciding for the followed group"
-        speedSlider.addChangeListener { setSpeed(speedSlider.value) }
         run.addActionListener { toggleRun() }
-        val buttons = JPanel(); buttons.add(handsOff); buttons.add(reset); buttons.add(next); buttons.add(run); buttons.add(JLabel("weeks/s")); buttons.add(speedSlider)
+        val buttons = JPanel(); buttons.add(handsOff); buttons.add(reset); buttons.add(next); buttons.add(run)
         bar.add(note, BorderLayout.CENTER); bar.add(buttons, BorderLayout.EAST)
         val left = JPanel(BorderLayout()); left.add(map, BorderLayout.CENTER)
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, tabs).apply { resizeWeight = 0.5 }
@@ -214,7 +210,6 @@ class GroupControlWindow(
     /** The overview's time controls changed: show their state here. */
     fun syncTime() = SwingUtilities.invokeLater {
         run.text = if (running()) "Pause" else "Run"
-        if (speedSlider.value != speed()) speedSlider.value = speed()
     }
 
     /** The group followed changed (or follow ended): any waiting choice goes to the model, and the pins are dropped. */

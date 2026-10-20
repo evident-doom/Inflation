@@ -175,7 +175,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
     private val control by lazy {
         GroupControlWindow(sim, ground, px, rivers, worldLock, requestStep = { commands += { advance() } }, running = { running },
-            toggleRun = { runButton.doClick() }, speed = { stepsPerSecond }, setSpeed = { speedSlider.value = it })
+            toggleRun = { runButton.doClick() })
     }
 
     /**
