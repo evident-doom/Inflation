@@ -133,6 +133,12 @@ class Species(
     val comfortC: ClosedFloatingPointRange<Float> = -10f..30f,
     /** Grows a winter coat in the cold months, worth about 10 °C of cold, shed in spring. */
     val winterCoat: Boolean = false,
+    /**
+     * Where it is measured, the air it keeps warm or cool in without burning more ([Neutral], [coldNeed]): narrower
+     * than what it bears ([comfortC]), past which the cold and the heat kill. Null where nothing is measured: it then
+     * burns more only past [comfortC], and only in the cold.
+     */
+    val neutralC: Neutral? = null,
     /** Top running speed, km/h: in a chase, a courser must outrun its prey; a stalker needs only surprise. */
     val speedKmh: Float = 60f,
     /** Keeps within this distance of drinking water, km (hippos graze at night near their river). */
@@ -212,6 +218,13 @@ class Species(
         return (preyUpTo - r) / (preyUpTo - preyPreferredUpTo)
     }
 
+    /** Below this, °C, it burns more to keep warm in [month] ([coldNeed]): the low end of [neutralC] with the coat of the month, else of [comfortC]. */
+    fun lowerCriticalC(month: Int): Float = neutralC?.let { it.lowSummer + (it.lowWinter - it.lowSummer) * COAT[month] } ?: (comfortC.start - coatC(month))
+    /** Above this, °C, it burns more to keep cool in [month] ([coldNeed]): the high end of [neutralC]; none where that is not measured. */
+    fun upperCriticalC(month: Int): Float = neutralC?.let { it.highSummer + (it.highWinter - it.highSummer) * COAT[month] } ?: Float.POSITIVE_INFINITY
+    /** Degrees outside the air it keeps its warmth in without cost at [t] °C in [month], either way ([coldNeed]). */
+    fun unneutralC(t: Float, month: Int): Float = max(0f, lowerCriticalC(month) - t) + max(0f, t - upperCriticalC(month))
+
     /** Degrees colder than its coat bears at [t] °C in [month]. */
     fun coldC(t: Float, month: Int): Float = max(0f, comfortC.start - coatC(month) - t)
     /** Degrees hotter than it bears at [t] °C. */
@@ -262,3 +275,9 @@ object Allometry {
 
 /** The kinds of group a species lives in (see [Species.lifeway]); not the learning [inflation.learning.Role]. */
 enum class Lifeway { PACK, BAND }
+
+/**
+ * The thermoneutral zone, °C, in the summer coat and the full winter coat (between, by how far the coat has grown in): the
+ * lower and upper critical temperatures in still air, past which an animal burns more to keep its warmth ([coldNeed]).
+ */
+data class Neutral(val lowSummer: Float, val lowWinter: Float, val highSummer: Float, val highWinter: Float)

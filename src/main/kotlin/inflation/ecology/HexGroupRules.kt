@@ -194,11 +194,14 @@ const val EATING_RATE = 0.15f
 const val SEARCHING = 0.3f
 
 /**
- * A warm-blooded animal below its comfortable range burns more to keep warm: [COLD_COST] more food
- * for each 10 °C of cold it feels beyond what its coat (or clothes and house) keeps off, at most
- * [COLD_MAX] times its need.
+ * A warm-blooded animal outside the air it keeps its warmth in for nothing burns more: below its lower critical
+ * temperature to keep warm, above the upper to keep cool ([Species.unneutralC]; where its thermoneutral zone is not
+ * measured, only past the cold its coat, or clothes and house, keep off): [COLD_COST] more food for each 10 °C, at
+ * most [COLD_MAX] times its need. Below the zone that is near what is measured: heat production 1.1-1.3% more a degree
+ * in red deer calves (Semiadi et al. 1996), wild boar's heart rate 1.3-2.8% (Ruf et al. 2023), cattle's needs 1.8%
+ * (Ames); above it the same rate is taken, as the cost of panting and sweating is not in the record found.
  */
-fun coldNeed(s: Species, felt: Float, month: Int, tuning: Tuning): Float = min(COLD_MAX, 1f + COLD_COST * tuning.coldCost * s.coldC(felt, month) / 10f)
+fun coldNeed(s: Species, felt: Float, month: Int, tuning: Tuning): Float = min(COLD_MAX, 1f + COLD_COST * tuning.coldCost * s.unneutralC(felt, month) / 10f)
 const val COLD_COST = 0.1f
 const val COLD_MAX = 1.6f
 

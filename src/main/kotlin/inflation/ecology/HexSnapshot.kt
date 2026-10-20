@@ -146,9 +146,11 @@ object HexSnapshot {
      * 4.10: the residents' memory tells ground apart by its country and its height (below 500, 1000, 1500, 2500 m and
      * above), weighs each place by its own ground rather than its hex's, and looks a season ahead; a save's memory by the
      * older kinds of ground is forgotten and learnt again.
+     * 4.11: the food cost of cold, and now of heat, starts at each kind's measured thermoneutral zone
+     * ([Species.neutralC]) where one is known; heat costs food at the cold side's rate per degree (unsourced).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 10
+    const val MODEL_MINOR = 11
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

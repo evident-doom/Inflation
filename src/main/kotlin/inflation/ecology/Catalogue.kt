@@ -57,6 +57,8 @@ object Catalogue {
         backgroundMortality = 0.07f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 125f,
         products = Products(meat = 12f, fat = 0.5f, hide = 1.5f, bone = 3f, sinew = 0.2f, hornOrAntler = 0.3f),
         comfortC = -8f..29f, winterCoat = true,
+        // Thermoneutral zone of mule deer (no measures for this deer found): 9..23.5 °C in summer, -19..2.5 °C in winter, still air (Parker and Robbins 1984, via Parker and Gillingham 1990).
+        neutralC = Neutral(9f, -19f, 23.5f, 2.5f),
         speedKmh = 70f,
         domestication = floatArrayOf(0.4f, 0.6f, 0.1f, 0.3f, 0.1f, 0.1f),
         habitat = Habitat(cover = 0.6f),
@@ -76,6 +78,8 @@ object Catalogue {
         backgroundMortality = 0.1f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 150f,
         products = Products(meat = 32f, fat = 2f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 2f),
         comfortC = -5f..35f, winterCoat = true,
+        // Thermoneutral zone of mule deer (no measures for this deer found): 9..23.5 °C in summer, -19..2.5 °C in winter, still air (Parker and Robbins 1984, via Parker and Gillingham 1990).
+        neutralC = Neutral(9f, -19f, 23.5f, 2.5f),
         speedKmh = 65f,
         domestication = floatArrayOf(0.5f, 0.5f, 0.4f, 0.4f, 0.3f, 0.4f), // kept in parks, never domesticated
         habitat = Habitat(cover = 0.3f),
@@ -96,6 +100,8 @@ object Catalogue {
         backgroundMortality = 0.08f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 180f,
         products = Products(meat = 75f, fat = 6f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 5f),
         comfortC = -12f..29f, winterCoat = true,
+        // Thermoneutral zone of mule deer (no measures for this deer found): 9..23.5 °C in summer, -19..2.5 °C in winter, still air (Parker and Robbins 1984, via Parker and Gillingham 1990).
+        neutralC = Neutral(9f, -19f, 23.5f, 2.5f),
         speedKmh = 60f,
         domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.3f, 0.2f, 0.3f),
         habitat = Habitat(cover = 0.5f, rugged = 0.2f),
@@ -117,6 +123,8 @@ object Catalogue {
         backgroundMortality = 0.1f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 80f,
         products = Products(meat = 21f, fat = 1.5f, hide = 3f, bone = 5.5f, sinew = 0.4f, hornOrAntler = 4f),
         comfortC = 0f..38f, winterCoat = true,
+        // Thermoneutral zone of domestic goats, 9..30 °C (season not given; taken as the summer coat, the winter's by the coat's 10 °C), compiled by Riek and Geiser 2013 from Holmes and Moore 1981.
+        neutralC = Neutral(9f, -1f, 30f, 20f),
         speedKmh = 55f,
         foresight = 0.5f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.4f, 0.4f, 0.4f, 0.6f), // its cousin became the goat
@@ -141,6 +149,8 @@ object Catalogue {
         snowLimitMm = 110f,
         products = Products(meat = 45f, fat = 8f, hide = 5f, bone = 9f, sinew = 0.5f, hornOrAntler = 0.5f),
         comfortC = -8f..34f, winterCoat = true,
+        // Thermoneutral zone of wild boar in an outdoor enclosure in Austria: about 6..24 °C in June-October, 0..7 °C in December-May (Ruf et al. 2023, heart rate).
+        neutralC = Neutral(6f, 0f, 24f, 7f),
         speedKmh = 45f,
         foresight = 0.5f,
         domestication = floatArrayOf(0.9f, 0.9f, 0.8f, 0.4f, 0.6f, 0.6f), // became the pig
@@ -164,6 +174,8 @@ object Catalogue {
         backgroundMortality = 0.06f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 200f,
         products = Products(meat = 370f, fat = 40f, hide = 40f, bone = 80f, sinew = 4f, hornOrAntler = 6f),
         comfortC = -12f..33f, winterCoat = true,
+        // Thermoneutral zone of cattle: lower critical temperature 15 °C in the summer coat, 0 °C in a normal winter coat (Ames, Kansas State University); upper 25 °C (Berman et al. 1985), the winter's by the coat's 10 °C.
+        neutralC = Neutral(15f, 0f, 25f, 15f),
         speedKmh = 50f,
         foresight = 0.6f,
         domestication = floatArrayOf(0.8f, 0.5f, 0.7f, 0.2f, 0.4f, 0.9f), // became cattle
@@ -185,6 +197,8 @@ object Catalogue {
         backgroundMortality = 0.05f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 150f,
         products = Products(meat = 110f, fat = 8f, hide = 15f, bone = 25f, sinew = 2f),
         comfortC = -8f..38f, winterCoat = true,
+        // Thermoneutral zone of horses: 5..25 °C in a climate chamber (Morgan 1998); unclipped, cold-adapted horses down to -15 °C in winter (McBride et al. 1985, via Cymbaluk and Christison 1990); the winter's top by the coat's 10 °C.
+        neutralC = Neutral(5f, -15f, 25f, 15f),
         speedKmh = 70f,
         foresight = 0.7f,
         domestication = floatArrayOf(0.7f, 0.4f, 0.3f, 0.1f, 0.2f, 0.4f), // too wild to tame; the donkey came from Africa
@@ -430,6 +444,8 @@ object Catalogue {
         backgroundMortality = 0.07f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 250f,
         products = Products(meat = 200f, fat = 15f, hide = 25f, bone = 45f, sinew = 3f, hornOrAntler = 15f),
         comfortC = -30f..17f, winterCoat = true,
+        // Moose burn more to keep cool above 14 °C in summer and -5 °C in winter (Renecker and Hudson 1986); the cold end is not measured, so stays where it bears the cold.
+        neutralC = Neutral(-30f, -40f, 14f, -5f),
         speedKmh = 55f,
         domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.4f, 0.3f, 0.1f),
         habitat = Habitat(cover = 0.6f, rugged = -0.2f, wet = 0.8f),
@@ -455,6 +471,8 @@ object Catalogue {
         backgroundMortality = 0.1f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 100f,
         products = Products(meat = 18f, fat = 1.5f, hide = 3f, bone = 5f, sinew = 0.4f, hornOrAntler = 3f),
         comfortC = -15f..35f, winterCoat = true,
+        // Thermoneutral zone of domestic goats, 9..30 °C (season not given; taken as the summer coat, the winter's by the coat's 10 °C), compiled by Riek and Geiser 2013 from Holmes and Moore 1981.
+        neutralC = Neutral(9f, -1f, 30f, 20f),
         speedKmh = 50f,
         foresight = 0.6f,
         domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f), // became the goat
@@ -481,6 +499,8 @@ object Catalogue {
         backgroundMortality = 0.06f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 125f,
         products = Products(meat = 140f, fat = 10f, hide = 18f, bone = 30f, sinew = 2f),
         comfortC = -25f..30f, winterCoat = true,
+        // Thermoneutral zone of horses: 5..25 °C in a climate chamber (Morgan 1998); unclipped, cold-adapted horses down to -15 °C in winter (McBride et al. 1985, via Cymbaluk and Christison 1990); the winter's top by the coat's 10 °C.
+        neutralC = Neutral(5f, -15f, 25f, 15f),
         speedKmh = 70f,
         foresight = 0.6f,
         domestication = floatArrayOf(0.8f, 0.5f, 0.6f, 0.5f, 0.6f, 0.8f), // became the horse
@@ -505,6 +525,8 @@ object Catalogue {
         backgroundMortality = 0.12f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 80f,
         products = Products(meat = 18f, fat = 2f, hide = 3f, bone = 5f, sinew = 0.3f, hornOrAntler = 2f),
         comfortC = -15f..32f, winterCoat = true,
+        // Thermoneutral zone of domestic sheep, 9..20 °C (fleece not given; taken as the summer coat, the winter's by the coat's 10 °C), compiled by Riek and Geiser 2013 (SCA 1990).
+        neutralC = Neutral(9f, -1f, 20f, 10f),
         speedKmh = 55f,
         foresight = 0.5f,
         domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f), // became the sheep
@@ -530,6 +552,8 @@ object Catalogue {
         backgroundMortality = 0.1f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 100f,
         products = Products(meat = 45f, fat = 5f, hide = 6f, bone = 12f, sinew = 0.8f, hornOrAntler = 8f),
         comfortC = -30f..25f, winterCoat = true,
+        // Thermoneutral zone: summer as domestic sheep's, 9..20 °C (SCA 1990, via Riek and Geiser 2013); in winter down to -20 °C as Dall sheep's (Riek and Geiser 2013, a compiled estimate), the top by the coat's 10 °C.
+        neutralC = Neutral(9f, -20f, 20f, 10f),
         speedKmh = 60f,
         foresight = 0.6f,
         domestication = floatArrayOf(0.5f, 0.4f, 0.5f, 0.4f, 0.4f, 0.5f),
@@ -623,6 +647,8 @@ object Catalogue {
         backgroundMortality = 0.05f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 40f,
         products = Products(meat = 200f, fat = 40f, hide = 30f, bone = 50f, sinew = 3f),
         comfortC = 5f..48f,
+        // Thermoneutral zone 10..40 °C, from a heat-transfer model of calves and bulls in a climate chamber (Samara and Al-Haidary 2014).
+        neutralC = Neutral(10f, 10f, 40f, 40f),
         speedKmh = 60f,
         foresight = 0.7f,
         domestication = floatArrayOf(0.7f, 0.3f, 0.5f, 0.6f, 0.6f, 0.7f), // became the camel
