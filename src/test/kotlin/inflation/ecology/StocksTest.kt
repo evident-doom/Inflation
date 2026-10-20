@@ -74,7 +74,7 @@ class StocksTest {
             "HexPlants.rooting", "HexPlants.trampling", "HexPlants.trodden", "HexSmallLife.washedKg", "HexSmallLife.laidKgM2", "HexSmallLife.leaving",
             "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexFauna.groupKilled",
             // The week's food left uneaten, a reading of the plants' stocks, not one of its own.
-            "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareRoots", "HexFauna.spareStraw",
+            "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareRoots",
             // Shares, states and memories, 0..1 or days or degrees.
             "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture",
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",

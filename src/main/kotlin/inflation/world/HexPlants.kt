@@ -23,8 +23,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(p, m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
     }
     val herb = FloatArray(n); val shrub = FloatArray(n); val tree = FloatArray(n)
-    /** Standing dead grass and stems, kg/m² (built up in HexFood), eaten in the lean months, and fuel for fires. */
-    val straw = FloatArray(n)
     val moisture = FloatArray(n) { p -> (mean(p) { world.climate.aridity(it) } / 1.5f).coerceIn(0f, 1f) }
     private val warmth = FloatArray(n) { p -> mean(p) { world.climate.warmestMonthTemp(it) } }
     val fertility = land.soilFertility.copyOf()
@@ -327,7 +325,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val cover = min(1f, herb[p] / 0.3f + shrub[p] + canopy(p))
             val bare = (1f - cover) * (1f - cover)
             if (bare > 0.01f) fertility[p] *= 1f - min(0.5f, EROSION * bare * weather.precipitation[p] / 50f * land.slope[p] / 0.2f * years)
-            val straw0 = straw[p]
             val sFire = shrub[p]
             val burned = if (fire.burning[p] > 0f) fire.burn(p, fire.burning[p]) else 0f
             shrubNote(ShrubPart.FIRE, p, sFire)
@@ -338,7 +335,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             litterfall[p] = lost + turnover
             if (books != null) {
                 val m2 = land.areaM2[p].toDouble()
-                grewBook!!.add((grew + turnover) * m2); burntBook!!.add(-(burned + straw0 - straw[p]) * m2); fellBook!!.add(-litterfall[p] * m2)
+                grewBook!!.add((grew + turnover) * m2); burntBook!!.add(-burned * m2); fellBook!!.add(-litterfall[p] * m2)
             }
             // Trampling, spread over the place: a herd beats down a share of it.
             val tr = trampling[p] / land.areaKm2[p]
@@ -369,10 +366,9 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         return max(0f, b[p] - v)
     }
 
-    /** Names the plants' stocks: herbs, shrubs, trees and the standing straw. */
+    /** Names the plants' stocks: herbs, shrubs and trees. */
     internal fun listStocks(stocks: Stocks) {
         stocks.within(Stocks.PLANTS) { for ((name, a) in listOf("herbs" to herb, "shrubs" to shrub, "trees" to tree)) stocks.perM2(name, a, land.areaM2) }
-        stocks.perM2("straw", straw, land.areaM2)
     }
 
     /** Seed for trees and shrubs: from the place itself, and half as much from its neighbours. */

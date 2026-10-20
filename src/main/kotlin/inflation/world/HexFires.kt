@@ -19,7 +19,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     /** Fires this step: the place each started in and the km² it burned. */
     val fires = ArrayList<Fire>()
 
-    private fun fuel(p: Int) = plants.straw[p] + (plants.herb[p] + 0.5f * plants.shrub[p]) * (1f - 0.8f * (1f - exp(-plants.grazing[p] / GRAZE_SCALE)))
+    private fun fuel(p: Int) = (plants.herb[p] + 0.5f * plants.shrub[p]) * (1f - 0.8f * (1f - exp(-plants.grazing[p] / GRAZE_SCALE)))
 
     private fun canBurn(p: Int, weather: Weather) =
         hydro.flood[p] <= 0f && fuel(p) >= 0.2f && hydro.soil[p] / hydro.soilCap[p] < 0.3f && weather.temperature[p] > 15f && weather.precipitation[p] < 5f
@@ -76,7 +76,6 @@ class HexFires(land: HexLand) : HexLandPart(land) {
         plants.herb[p] *= 1f - 0.9f * share; plants.shrub[p] *= 1f - 0.8f * share; plants.tree[p] *= 1f - 0.3f * share
         // (What burnt of the grass grows back as new leaf.)
         plants.grassAge[p] *= 1f - 0.9f * share
-        plants.straw[p] *= 1f - share
         burnt[p] = max(burnt[p], share)
         plants.fertility[p] = min(1f, plants.fertility[p] + 0.01f * share)
         return before - plants.biomass(p)

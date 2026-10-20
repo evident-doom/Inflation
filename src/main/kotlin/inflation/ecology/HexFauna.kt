@@ -91,9 +91,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val protein = Array(kinds.size) { FloatArray(n) { 1f } }
     /**
      * For the check: where each kind's food came from, summed over its animals since last read (fresh
-     * grass, browse, fruit and roots; standing straw; small prey and carrion; its reserves), and the
+     * grass, browse, fruit and roots; small prey and carrion; its reserves), and the
      * animals counted, so that each over the last is the share of a full need met that way: indexed by
-     * [Fed.PLANTS], [Fed.STRAW], [Fed.ANIMAL], [Fed.RESERVES] and [Fed.HEADS].
+     * [Fed.PLANTS], [Fed.ANIMAL], [Fed.RESERVES] and [Fed.HEADS].
      */
     val fedFrom = Array(kinds.size) { Array(Fed.entries.size) { DoubleAdder() } }
     /**
@@ -181,12 +181,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * every kind has eaten, as far as the kind can get at it (cliffs, the walk to water, biting insects); see [arriveOdds].
      */
     @Transient internal val room: Array<FloatArray?> = Array(kinds.size) { if (!kinds[it].carnivore) FloatArray(n) else null }
-    /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit, roots and straw ([room], [roomFor]). */
+    /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit and roots ([room], [roomFor]). */
     @Transient private val spareGrass = FloatArray(n)
     @Transient private val spareBrowse = FloatArray(n)
     @Transient private val spareFruit = FloatArray(n)
     @Transient private val spareRoots = FloatArray(n)
-    @Transient private val spareStraw = FloatArray(n)
 
     /** The plants an animal of kind [k] at place [p] wants this week, kg per m² for one animal per km²: none asleep, more in the cold ([coldNeed]). */
     private fun plantWant(k: Int, p: Int, weather: Weather): Float {
@@ -210,8 +209,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val want = heads / land.areaKm2[p] * each
         if (!(want > 0f)) return 1f
         dry.reach = reach; dry.grass = spareGrass[p]; dry.browse = spareBrowse[p]
-        dry.fruit = spareFruit[p]; dry.roots = spareRoots[p]; dry.straw = spareStraw[p]
-        return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), reach, dry, b).got / want).coerceIn(0f, 1f)
+        dry.fruit = spareFruit[p]; dry.roots = spareRoots[p]
+        return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b).got / want).coerceIn(0f, 1f)
     }
 
     /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week; [room] is this for a band. */
@@ -391,7 +390,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val spent = Array(kinds.size) { FloatArray(n) }
     /** Life in the sea, lakes and rivers. */
     val water = HexWater(hw, land, days, small)
-    /** Fruit, roots and straw as stocks. */
+    /** Fruit and roots as stocks. */
     val food = HexFood(land, small, days)
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
     val carcassKg = FloatArray(n)
@@ -733,8 +732,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * Every kind takes its share of the place's grass, browse, fruit and roots, in proportion to
-     * what each wants and can get at (cliffs keep all but climbers off part of it); a shortfall of
-     * grass and browse is made up from the standing straw, at what each kind's gut gets out of it.
+     * what each wants and can get at (cliffs keep all but climbers off part of it). The standing straw is the
+     * cured grass, grazed as grass ([HexPlants.nourishment], [grassProtein]).
      */
     private fun graze(weather: Weather) {
         sleepOrWake(weather)
@@ -768,28 +767,27 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // How much of the place's food each kind can get at: cliffs keep all but climbers off some of
         // it, and far from water a kind that must drink often uses only the ground within reach of it.
         val avail = FloatArray(nk)
-        // (Of each kind's need: what it got of plants, and of straw; what it ate beyond, laid on.)
-        val got = FloatArray(nk); val strawShare = FloatArray(nk); val surplus = FloatArray(nk)
-        // (What each kind ate this week, kg per m2, and the protein in it: fresh growth full, cured grass and straw
+        // (Of each kind's need: what it got of plants; what it ate beyond, laid on.)
+        val got = FloatArray(nk); val surplus = FloatArray(nk)
+        // (What each kind ate this week, kg per m2, and the protein in it: fresh growth full, cured grass
         // little; see [proteinMet]. What it ate to fatten is left out.)
         val ateKg = FloatArray(nk); val proteinKg = FloatArray(nk)
-        var spareG = 0f; var spareB = 0f; var spareF = 0f; var spareR = 0f; var spareS = 0f
+        var spareG = 0f; var spareB = 0f; var spareF = 0f; var spareR = 0f
         // (The share of the food the kind eating now can get at.)
         var access = 0f
-        var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f; var eatS = 0f
+        var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f
         val b = Bites(); val dry = DryPantry()
         override fun grass(kg: Float): Float { val t = min(kg, access * spareG); spareG -= t; return t }
         override fun browse(kg: Float): Float { val t = min(kg, access * spareB); spareB -= t; return t }
         override fun fruit(kg: Float): Float { val t = min(kg, access * spareF); spareF -= t; return t }
         override fun roots(kg: Float): Float { val t = min(kg, access * spareR); spareR -= t; return t }
-        override fun straw(kg: Float): Float { val t = min(kg, spareS); spareS -= t; return t }
     }
 
     /**
      * [graze]'s plants at place [p] ([grass] and [browse] of them within reach), into [z]: each kind in turn by body mass
      * eats by the one feeding rule ([forage]), as far as it can get at what the bigger ones left: where food is short the
      * bigger kinds drive the smaller off it (a hippo or an aurochs gives way to nothing smaller). What fell short it makes
-     * up from the other foods (diet switching), then with the standing straw; with food to spare and reserves short, it
+     * up from the other foods (diet switching); with food to spare and reserves short, it
      * eats more grass and browse and lays the surplus on.
      */
     private fun eatPlants(p: Int, weather: Weather, grass: Float, browse: Float, z: Grazing) {
@@ -806,7 +804,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // (Biting insects harassing them cost them feeding time.)
             avail[k] = reachOf(s, p)
         }
-        z.spareG = grass; z.spareB = browse; z.spareF = food.fruit[p]; z.spareR = food.roots[p]; z.spareS = food.straw[p]
+        z.spareG = grass; z.spareB = browse; z.spareF = food.fruit[p]; z.spareR = food.roots[p]
         val b = z.b
         val gp = grassProtein(p); val bp = browseProtein(p)
         for (k in byMass) {
@@ -816,9 +814,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val d = s.diet
             val underSnow = grassUnderSnow(s, weather.snowpack[p])
             z.access = avail[k]
-            forage(s, d, quality, want, underSnow, avail[k], z, b)
-            val strawGot = min(b.short, b.straw * HexFood.roughage(s))
-            z.got[k] = (b.got - strawGot) / want; z.strawShare[k] = strawGot / want
+            forage(s, d, quality, want, underSnow, z, b)
+            z.got[k] = b.got / want
             var grass3 = 0f; var browse3 = 0f
             if (b.got >= want && reserve[k][p] < s.maxFatDays) {
                 val extra = SURPLUS_EAT * want
@@ -827,14 +824,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 z.surplus[k] = (grass3 + browse3) * quality / want
             }
             z.eatG += b.grass + b.grass2 + grass3; z.eatB += b.browse + b.browse2 + browse3
-            z.eatF += b.fruit + b.fruit2; z.eatR += b.roots + b.roots2; z.eatS += b.straw
-            z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, gp, bp, tuning.proteinStraw)
+            z.eatF += b.fruit + b.fruit2; z.eatR += b.roots + b.roots2
+            z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, gp, bp)
         }
         // How well a band of each plant-eater coming here would be fed on what is left, eating by the same rule ([forage]):
-        // its diet, switching and the straw as far as its gut holds them, so poor food feeds it no better than it feeds
+        // its diet and switching as far as its gut holds them, so poor food feeds it no better than it feeds
         // those already here.
         spareGrass[p] = max(0f, z.spareG); spareBrowse[p] = max(0f, z.spareB); spareFruit[p] = max(0f, z.spareF)
-        spareRoots[p] = max(0f, z.spareR); spareStraw[p] = max(0f, z.spareS)
+        spareRoots[p] = max(0f, z.spareR)
         for ((k, s) in kinds.withIndex()) {
             val r = room[k] ?: continue
             r[p] = fedOnSpare(s, p, s.maxGroupSize.toFloat(), each[k], avail[k], weather.snowpack[p], z.dry, b)
@@ -848,8 +845,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     private fun feedKinds(p: Int, weather: Weather, z: Grazing, ff: DoubleArray) {
         for ((k, s) in kinds.withIndex()) {
-            val strawPart = z.strawShare[k]
-            // (And how rich in protein all it ate was, straw included; animal food is rich in it.)
+            // (And how rich in protein all it ate was; animal food is rich in it.)
             val eaten = z.ateKg[k]
             if (eaten > 0f) {
                 val ps = plantShare(s)
@@ -868,11 +864,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val heads = adults[k][p] + 0.5f * young[k][p]
                 if (heads > 0f) {
                     val i = k * FED
-                    ff[i + Fed.PLANTS.ordinal] += (min(1f, z.got[k]) * ps * heads).toDouble(); ff[i + Fed.STRAW.ordinal] += (strawPart * ps * heads).toDouble()
+                    ff[i + Fed.PLANTS.ordinal] += (min(1f, z.got[k]) * ps * heads).toDouble()
                     ff[i + Fed.ANIMAL.ordinal] += (min(1f, animal) * (1f - ps) * heads).toDouble(); ff[i + Fed.HEADS.ordinal] += heads.toDouble()
                 }
                 // (Animal food beyond its share makes up for plants that fell short.)
-                ((z.got[k] + strawPart) * ps + animal * (1f - ps)).coerceIn(0f, 1f)
+                (z.got[k] * ps + animal * (1f - ps)).coerceIn(0f, 1f)
             }
             // Reserves carry them through lean weeks; they are laid on from what was eaten beyond need.
             val r = reserve[k]
@@ -907,7 +903,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (ps < 1f && needAll > 0f) {
             val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
             val animalNeed = needAll * (1f - ps)
-            val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k] - z.strawShare[k]) else 0f
+            val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k]) else 0f
             // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
             // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
             var gotCarrion = if (d.carrion > 0f) small.scavenge(p, KgM2(min(animalNeed + plantGap, 0.5f * small.carrion[p]))).v else 0f
@@ -961,7 +957,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val ate = food.take(food.fruit, p, KgM2(z.eatF)).v
         val eaten = land.plants.consume(p, LifeForm.HERB, KgM2(eatG)).v +
             land.plants.eatBrowse(p, KgM2(eatB)).v +
-            ate + dug + food.take(food.straw, p, KgM2(z.eatS)).v
+            ate + dug
         // Fruit-eaters drop the seed where they go: shrubs and trees come up away from any parent.
         land.plants.animalSeed[p] = min(1f, land.plants.animalSeed[p] * SEED_KEEP + ate * 1e6f / SEED_KG)
         // Their feet beat down the plants and wear paths: tonnes of animal going about the place.
@@ -1934,9 +1930,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         /** For the check only ([stuck]): fed below this counts as hungry. */
         const val STUCK_FED = 0.8f
         /**
-         * Protein in forage, against fresh growth: cured grass and straw keep some of their energy but
-         * lose most of their protein (about 4% crude protein against 16% green, though grazers pick the
-         * best of it and get about 6%; 3% of straw); browse keeps more
+         * Protein in forage, against fresh growth: cured grass keeps some of its energy but loses most
+         * of its protein (about 4% crude protein against 16% green, though grazers pick the best of it
+         * and get about 6%; 3% once leached to straw); browse keeps more
          * (shoots and leaves of shrubs, about 10%); fruit, nuts and roots are middling. A diet at
          * [PROTEIN_NEED] of fresh growth's protein meets a mother's and a growing young's need (7 to 8%
          * crude protein); below it births fall and the young die more, by [inflation.Tuning.youngProteinDeaths] a year
@@ -2067,8 +2063,8 @@ enum class ResidentDeath(val cause: DeathCause) {
 /** Residents held hungry where they are ([HexFauna.stuck]). */
 enum class Stuck { HEADS, STUCK, AT_EDGE, PEAK }
 
-/** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, straw, prey and carrion, reserves; and the animals counted. */
-enum class Fed { PLANTS, STRAW, ANIMAL, RESERVES, HEADS }
+/** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, prey and carrion, reserves; and the animals counted. */
+enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS }
 private val FED = Fed.entries.size
 @Suppress("NOTHING_TO_INLINE") inline operator fun Array<DoubleAdder>.get(f: Fed) = this[f.ordinal]
 

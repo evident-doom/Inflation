@@ -25,7 +25,7 @@ package inflation
     companion object { val ZERO = Kg(0f) }
 }
 
-/** Mass per area, kg/m²: the plants, their food (fruit, roots, seed, straw), carrion, bones, litter. */
+/** Mass per area, kg/m²: the plants, their food (fruit, roots, seed), carrion, bones, litter. */
 @JvmInline value class KgM2(val v: Float) {
     inline operator fun plus(o: KgM2) = KgM2(v + o.v)
     inline operator fun minus(o: KgM2) = KgM2(v - o.v)
