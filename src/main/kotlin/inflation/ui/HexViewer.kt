@@ -1070,8 +1070,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         if (g.band == null) sb.appendLine("holds ground at hex %s; meat taken from other hunters this week %.0f kg".format(
             if (!g.home.none) g.home.toString() else "none", g.meatMet))
         else {
-            val months = (0 until Date.MONTHS_PER_YEAR).filter { g.seasonPlace[it] >= 0 }
-            sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[g.seasonPlace[m]]) })
+            val b = checkNotNull(g.band)
+            val months = (0 until Date.MONTHS_PER_YEAR).filter { b.seasonPlace[it] >= 0 }
+            sb.appendLine("remembered places by month: " + months.joinToString(" ") { m -> "%d:%.0fm".format(m + 1, hw.placeElevationM[b.seasonPlace[m]]) })
         }
         if (g.id == groups.watched && followLog.isNotEmpty()) { sb.appendLine(); sb.appendLine("this week:"); sb.appendLine(followLog) }
         groupInfo.text = sb.toString()

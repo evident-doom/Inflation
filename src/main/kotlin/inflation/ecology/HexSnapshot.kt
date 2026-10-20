@@ -145,7 +145,7 @@ object HexSnapshot {
      * standing straw is no longer a food of its own: it is the cured grass, grazed as grass.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 9
+    const val MODEL_MINOR = 10
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

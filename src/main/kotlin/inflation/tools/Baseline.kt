@@ -14,11 +14,11 @@ import java.io.File
  * The registry of baselines: trained networks kept, frozen and named, to compare later changes
  * against and to continue training from (see docs/design/model-compatibility.md). A baseline lives in
  * runs/baselines/NAME: the role networks (hunters and people, each with its .identity and
- * .names), the bands' ways network if there is one, and info.txt (when it was kept, from what, the
+ * .names), the bands' and packs' ways networks if there are any, and info.txt (when it was kept, from what, the
  * commit it was trained at, and a note: settings, seeds and the check's record line).
  *
  * Usage:
- *   baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT]
+ *   baseline save NAME FROM_DIR [--ways FILE] [--hunter-ways FILE] [--commit HASH] [--note TEXT]
  *   baseline list
  *   baseline show NAME      (loads each network into today's model, by name, and says what it lacks)
  */
@@ -27,8 +27,8 @@ fun main(args: Array<String>) {
     when (args.getOrNull(0)) {
         "save" -> {
             val name = args[1]; val from = File(args[2])
-            val a = Args(args.copyOfRange(3, args.size), "baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT]")
-            val ways = a.file("--ways"); val commit = a.string("--commit") ?: gitCommit(); val note = a.string("--note") ?: ""
+            val a = Args(args.copyOfRange(3, args.size), "baseline save NAME FROM_DIR [--ways FILE] [--hunter-ways FILE] [--commit HASH] [--note TEXT]")
+            val ways = a.file("--ways"); val hunterWays = a.file("--hunter-ways"); val commit = a.string("--commit") ?: gitCommit(); val note = a.string("--note") ?: ""
             a.done()
             val dir = File(root, name)
             require(!dir.exists()) { "baseline $name exists already: baselines are kept as they are" }
@@ -38,8 +38,8 @@ fun main(args: Array<String>) {
                 // Loaded and saved again, so it carries its names.
                 SharedMover.load(f).save(r.file(dir))
             }
-            ways?.let { WaysKind.BANDS.save(WaysKind.BANDS.load(it), File(dir, WaysKind.BANDS.file)) }
-            File(dir, "info.txt").writeText("kept ${java.time.LocalDateTime.now()}\nfrom ${from.path}${ways?.let { " and ${it.path}" } ?: ""}\ncommit $commit\n$note\n")
+            for ((k, f) in listOf(WaysKind.BANDS to ways, WaysKind.HUNTERS to hunterWays)) f?.let { k.save(k.load(it), File(dir, k.file)) }
+            File(dir, "info.txt").writeText("kept ${java.time.LocalDateTime.now()}\nfrom ${from.path}${listOfNotNull(ways, hunterWays).joinToString("") { " and ${it.path}" }}\ncommit $commit\n$note\n")
             println("kept baseline $name in $dir")
         }
         "list" -> root.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name }?.forEach { d ->
@@ -54,7 +54,7 @@ fun main(args: Array<String>) {
             }
             for (k in WaysKind.entries) File(dir, k.file).takeIf { it.exists() }?.let { report("${k.label}' ways", it, k.inNames, k.outNames) }
         }
-        else -> println("usage: baseline save NAME FROM_DIR [--ways FILE] [--commit HASH] [--note TEXT] | baseline list | baseline show NAME")
+        else -> println("usage: baseline save NAME FROM_DIR [--ways FILE] [--hunter-ways FILE] [--commit HASH] [--note TEXT] | baseline list | baseline show NAME")
     }
 }
 

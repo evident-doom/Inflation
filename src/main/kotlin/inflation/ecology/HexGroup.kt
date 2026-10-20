@@ -25,9 +25,6 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     @Transient var meatSpent = true
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
-    /** For a band: the place it remembers doing best in each month, and how well (0..1). */
-    val seasonPlace = IntArray(12) { -1 }
-    val seasonQ = FloatArray(12)
     /** Days since it last drank. */
     var dry = 0f
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */

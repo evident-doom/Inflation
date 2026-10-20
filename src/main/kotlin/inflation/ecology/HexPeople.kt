@@ -146,6 +146,9 @@ class Band(kinds: Int) {
     /** How many of its adults are practised in each skill (-1 until first counted), and the week each was last used. */
     val holders = enumFloats<Skill> { -1f }
     val lastUsed = enumInts<Skill>()
+    /** The place it remembers doing best in each month (-1 for none), and how well (0..1). */
+    val seasonPlace = IntArray(12) { -1 }
+    val seasonQ = FloatArray(12)
     /** Share of its people sick with each [Illness] now, and share spared for having had it. */
     val sick = enumFloats<Illness>()
     val immune = enumFloats<Illness> { it.endemic }
@@ -406,6 +409,20 @@ class Band(kinds: Int) {
      * new band before anything is shared out (its customs drift as they are handed down). Each field's
      * rule is in [CARRY].
      */
+    /** Word between two bands of where each did better this month: the poorer memory takes the better one's place. */
+    fun shareSeasons(o: Band) {
+        for (m in 0 until 12) {
+            if (o.seasonQ[m] > seasonQ[m] + 0.1f && o.seasonPlace[m] >= 0) {
+                seasonPlace[m] = o.seasonPlace[m]
+                seasonQ[m] = 0.5f * (seasonQ[m] + o.seasonQ[m])
+            }
+            else if (seasonQ[m] > o.seasonQ[m] + 0.1f && seasonPlace[m] >= 0) {
+                o.seasonPlace[m] = seasonPlace[m]
+                o.seasonQ[m] = 0.5f * (seasonQ[m] + o.seasonQ[m])
+            }
+        }
+    }
+
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
@@ -419,6 +436,7 @@ class Band(kinds: Int) {
         o.lame = lame
         holders.copyInto(o.holders)
         lastUsed.copyInto(o.lastUsed)
+        seasonPlace.copyInto(o.seasonPlace); seasonQ.copyInto(o.seasonQ)
         o.weeks = weeks
         plants.copyInto(o.plants)
         o.fire = fire

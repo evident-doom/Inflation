@@ -50,7 +50,9 @@ class EcoCheck(private val out: File) {
             for ((r, src) in from) copyRoles(src, armDir, listOf(r))
             // The training's own config (its model keys judge the networks as they were trained), with this arm's networks.
             val cfg = File(armDir, "check.properties")
-            val keys = configWith(mapOf(Config.Key.NETS to armDir.absoluteFile.invariantSeparatorsPath, WaysKind.BANDS.configKey to File(armDir, WaysKind.BANDS.file).absoluteFile.invariantSeparatorsPath))
+            val keys = configWith(mapOf(Config.Key.NETS to armDir.absoluteFile.invariantSeparatorsPath, WaysKind.BANDS.configKey to File(armDir, WaysKind.BANDS.file).absoluteFile.invariantSeparatorsPath) +
+                // (A hunters' ways network, if the training has one, is the arm's too, not the training config's.)
+                if (File(armDir, WaysKind.HUNTERS.file).exists()) mapOf(WaysKind.HUNTERS.configKey to File(armDir, WaysKind.HUNTERS.file).absoluteFile.invariantSeparatorsPath) else emptyMap())
             cfg.writer().use { keys.store(it, "check arm $name, written by the training's ecosystem check") }
             (0 until replicates).map { r -> pool.submit<File> { runOne(cfg, armDir, r) } }
         }.mapValues { (_, fs) -> fs.map { TestWorlds.Run(it.get()) } }
@@ -124,11 +126,11 @@ class EcoCheck(private val out: File) {
         /** Kinds fewer than this on average with the old networks are reported but do not fail the ecosystem (Olli's choice: rare kinds need tuning of their own). */
         const val RARE = 200.0
 
-        /** Copies [roles]' networks, with their side files (and for people, the bands' ways), from [from] to [to]. */
+        /** Copies [roles]' networks, with their side files and their ways networks (bands' for people, packs' for hunters), from [from] to [to]. */
         fun copyRoles(from: File, to: File, roles: Collection<Role>) {
             to.mkdirs()
             for (r in roles) {
-                val prefixes = listOf(r.label + ".mlp") + if (r == Role.PEOPLE) listOf(WaysKind.BANDS.file) else emptyList()
+                val prefixes = listOf(r.label + ".mlp", r.ways.file)
                 from.listFiles()?.filter { f -> f.isFile && prefixes.any { f.name.startsWith(it) } }?.forEach { it.copyTo(File(to, it.name), overwrite = true) }
             }
         }

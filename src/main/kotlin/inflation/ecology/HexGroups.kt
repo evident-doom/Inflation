@@ -858,8 +858,9 @@ class HexGroups(
         // (Within [inflation.Tuning.roundArrivedKm] of the round's place it has arrived, and goes about it as it likes.)
         val round = roundOf(g, month)?.takeIf { hexKm(here.i, hw.placeHex[it.place]) > tuning.roundArrivedKm }
         val onRound = round != null
-        val goal = round?.place ?: g.seasonPlace[month]
-        val goalQ = if (round != null) max(g.seasonQ[month], round.strength) else g.seasonQ[month]
+        val goal = round?.place ?: g.band?.seasonPlace?.get(month) ?: -1
+        val remembered = g.band?.seasonQ?.get(month) ?: 0f
+        val goalQ = if (round != null) max(remembered, round.strength) else remembered
         val roundStrength = round?.strength ?: 0f
         val goalFar = goal >= 0 && s.human && hexKm(here.i, hw.placeHex[goal]) > 2 * hex.hexKm
         // Far out of its country, it treks.
