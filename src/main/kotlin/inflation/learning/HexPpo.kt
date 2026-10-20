@@ -228,7 +228,7 @@ object NonFinite {
     }
 
     /** What has been counted since the last call, most first ("" if nothing), and the counts cleared. */
-    fun take(): String {
+    @IgnorableReturnValue fun take(): String {
         val now = counts.keys.toList().map { it to (counts.remove(it)?.get() ?: 0L) }.filter { it.second > 0 }
         return now.sortedByDescending { it.second }.joinToString(", ") { "${it.first} ${it.second}" }
     }

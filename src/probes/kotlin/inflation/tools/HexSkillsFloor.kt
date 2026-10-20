@@ -40,7 +40,6 @@ fun main(args: Array<String>) {
     val marks = listOf(1, 2, 4, 8, 13, 26, 52).filter { it <= weeks }
     val results = listOf(true, false).parallelStream().map { naked ->
         val run = freshSim(cfg, kinds)
-        val land = run.land
         val biomeOf = run.hw.placeBiome
         val start = DoubleArray(Biome.entries.size)
         for (g in run.groups.groups) if (g.alive && g.species == people) {

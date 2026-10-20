@@ -68,7 +68,7 @@ class MlpTest {
         for (i in m.w.indices) m.w[i] += 0.2f * (Random(i).nextFloat() - 0.5f)
         val x = floatArrayOf(0.3f, -0.8f, 0.5f, 0f, 1.1f); val dOut = floatArrayOf(1f, -0.5f)
         fun loss(): Double { val b = m.buffers(); x.copyInto(b.a[0]); val y = m.forwardAll(b); return (dOut[0] * y[0] + dOut[1] * y[1]).toDouble() }
-        val b = m.buffers(); x.copyInto(b.a[0]); m.forwardAll(b)
+        val b = m.buffers(); x.copyInto(b.a[0]); m.forward(b)
         val grad = FloatArray(m.w.size); val dIn = FloatArray(5); m.backwardAll(b, dOut, grad, dIn)
         val h = 1e-2f
         for (i in m.w.indices) {

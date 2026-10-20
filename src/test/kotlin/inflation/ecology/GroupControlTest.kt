@@ -74,7 +74,7 @@ class GroupControlTest {
         val sim = HexSim(world)
         val pack = sim.groups.groups.first { !it.species.human }
         sim.groups.watched = pack.id
-        var places = IntArray(0); var chosen = -1; var way = IntArray(0)
+        var places = IntArray(0); var chosen: Int; var way = IntArray(0)
         sim.groups.control = object : GroupControl {
             override fun move(d: MoveDecision): Int {
                 places = d.places

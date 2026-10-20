@@ -224,7 +224,7 @@ class Band(kinds: Int) {
     var ornaments = 0f
     var exotic = 0f
     /** Takes [n] of its ornaments, shell among them in its share; returns the shell ones taken. */
-    fun takeOrnaments(n: Float): Float {
+    @IgnorableReturnValue fun takeOrnaments(n: Float): Float {
         val share = if (ornaments > 0f) exotic / ornaments else 0f
         val shell = n * share
         ornaments -= n; exotic -= shell
@@ -684,7 +684,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
     keepHerds(g, b, date)
     val people = g.adults.toFloat()
-    val gd = b.goods
     gatherMaterials(g, b, p, h, people, area, time)
     val living0 = b.livingGoods()
     wearAndInvent(b, years)
@@ -838,7 +837,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
 private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime) {
     val gd = b.goods
     /** Takes up to [give] kg of [m], as far as the band lacks it and has the time at [perDay] kg a person-day; returns what it took. */
-    fun gather(m: Material, give: Float, perDay: Float): Float {
+    @IgnorableReturnValue fun gather(m: Material, give: Float, perDay: Float): Float {
         val want = min(give, carried(b, m, people) - gd[m])
         if (want <= 0f || time.left <= 0f) return 0f
         val took = min(want, time.left * perDay)

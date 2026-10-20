@@ -10,61 +10,109 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Keeps string keys from coming back (see review/2026-10-20-keeping-string-keys-out.md): a map keyed by text, or a
- * key matched by its text in the model, is a place where a writer and a reader can drift apart with nothing failing.
- * The ones there are on purpose are counted here per file with why; a new one fails until it is typed or listed.
+ * Keeps dynamic-style code from coming back (see review/2026-10-20-keeping-string-keys-out.md and
+ * review/2026-10-20-dynamic-style.md): a map keyed by text, a key matched by its text, a `!!`, a cast, an `Any` or
+ * a reflective call is a place where the compiler cannot tell a right use from a wrong one. The ones there are on
+ * purpose are counted here per file with why; a new one fails until it is typed or listed.
+ * (Comment lines and imports are not counted.)
  */
 class StringKeysTest {
     private val root = File("src/main/kotlin/inflation")
 
-    /** Count of [pattern] in each file under [dirs] (paths relative to [root]). */
+    private fun code(f: File) = f.readLines().filterNot { l -> l.trim().let { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") || it.startsWith("import ") } }.joinToString("\n")
+
+    /** Count of [pattern] in the code of each file under [dirs] (paths relative to [root]). */
     private fun counts(pattern: Regex, vararg dirs: String): Map<String, Int> =
         dirs.flatMap { d -> File(root, d).walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }.distinct()
-            .associate { f -> f.relativeTo(root).invariantSeparatorsPath to pattern.findAll(f.readText()).count() }.filterValues { it > 0 }
+            .associate { f -> f.relativeTo(root).invariantSeparatorsPath to pattern.findAll(code(f)).count() }.filterValues { it > 0 }
 
-    private fun check(found: Map<String, Int>, allowed: Map<String, Pair<Int, String>>, what: String) {
+    private fun check(pattern: String, allowed: Map<String, Pair<Int, String>>, what: String, hint: String, vararg dirs: String) {
+        val found = counts(Regex(pattern), *dirs)
         val wrong = (found.keys + allowed.keys).filter { (found[it] ?: 0) != (allowed[it]?.first ?: 0) }.sorted()
         assertTrue(wrong.isEmpty(), "$what: count changed in " + wrong.joinToString { "$it (found ${found[it] ?: 0}, listed ${allowed[it]?.first ?: 0})" } +
-            ". Type the new key (an enum, Species, TallyKey...), or list it here with why it must be text.")
+            ". $hint, or list it here with why it must stay.")
     }
 
     @Test
-    fun `no new maps keyed by text`() {
-        val maps = Regex("""(?:Map|SkipListMap|HashMap|TreeMap)<String,""")
-        check(counts(maps, "."), mapOf(
-            "Books.kt" to (7 to "flow names, matter by stock name and part: printed by the books, never read back by key"),
-            "store/ObjectStore.kt" to (2 to "field names of saved objects, from reflection"),
-            "ui/ViewLayers.kt" to (5 to "the viewer's layer names, shown as text"),
-            "tools/fauna/Tallies.kt" to (4 to "causes and readers' sums by the text after the kind, for printing"),
-            "tools/HexBandLuck.kt" to (1 to "people's deaths by cause, for printing"),
-            "ecology/WeekStats.kt" to (1 to "children's expected deaths by cause label, for printing"),
-            "ecology/HexWater.kt" to (2 to "fish flows by name, printed and put in the history whole"),
-            "ecology/Catalogue.kt" to (1 to "settled densities by kind name, read from a properties file"),
-            "ecology/HexPeople.kt" to (1 to "Band fields by name, checked by BandCarryTest"),
-            "ecology/BandCarry.kt" to (2 to "Band fields by name, checked by BandCarryTest"),
-            "ecology/Profile.kt" to (3 to "phase timings by phase name"),
-            "ecology/HexHistory.kt" to (5 to "history series: the CSV columns are text"),
-            "run/TestWorlds.kt" to (1 to "runs by test-world name, user input"),
-            "run/Nominal.kt" to (1 to "history series grouped by kind name, as the CSV columns name them"),
-            "learning/Critic.kt" to (2 to "each kind's return scale by kind name, saved with the net"),
-            "learning/EcoCheck.kt" to (1 to "test runs by world name, user input"),
-            "learning/HexPpo.kt" to (1 to "non-finite net outputs by kind and what, for the round log"),
-        ), "maps keyed by String")
-    }
+    fun `no new maps keyed by text`() = check("""(?:Map|SkipListMap|HashMap|TreeMap)<String,""", mapOf(
+        "Books.kt" to (7 to "flow names, matter by stock name and part: printed by the books, never read back by key"),
+        "store/ObjectStore.kt" to (2 to "field names of saved objects, from reflection"),
+        "ui/ViewLayers.kt" to (5 to "the viewer's layer names, shown as text"),
+        "tools/fauna/Tallies.kt" to (4 to "causes and readers' sums by the text after the kind, for printing"),
+        "tools/HexBandLuck.kt" to (1 to "people's deaths by cause, for printing"),
+        "ecology/WeekStats.kt" to (1 to "children's expected deaths by cause label, for printing"),
+        "ecology/HexWater.kt" to (2 to "fish flows by name, printed and put in the history whole"),
+        "ecology/Catalogue.kt" to (1 to "settled densities by kind name, read from a properties file"),
+        "ecology/HexPeople.kt" to (1 to "Band fields by name, checked by BandCarryTest"),
+        "ecology/BandCarry.kt" to (2 to "Band fields by name, checked by BandCarryTest"),
+        "ecology/Profile.kt" to (3 to "phase timings by phase name"),
+        "ecology/HexHistory.kt" to (5 to "history series: the CSV columns are text"),
+        "run/TestWorlds.kt" to (1 to "runs by test-world name, user input"),
+        "run/Nominal.kt" to (1 to "history series grouped by kind name, as the CSV columns name them"),
+        "learning/Critic.kt" to (2 to "each kind's return scale by kind name, saved with the net"),
+        "learning/EcoCheck.kt" to (1 to "test runs by world name, user input"),
+        "learning/HexPpo.kt" to (1 to "non-finite net outputs by kind and what, for the round log"),
+    ), "maps keyed by String", "Type the new key (an enum, Species, TallyKey...)", ".")
 
     @Test
-    fun `the model matches no keys by their text`() {
-        val matching = Regex("""\.(?:startsWith|endsWith|substringAfter|substringBefore|removePrefix|removeSuffix)\(""")
-        check(counts(matching, "ecology", "world"), mapOf(
-            "ecology/HexHistory.kt" to (17 to "history series by prefix: the CSV columns are text (reports only)"),
-            "ecology/WeekStats.kt" to (8 to "the Tally builders' own parsing"),
-            "ecology/HuntDiag.kt" to (2 to "the hunt steps' own prefix"),
-            "ecology/HexSnapshot.kt" to (2 to "class names when saving"),
-            "ecology/HexGeography.kt" to (1 to "a name for a landmark"),
-            "world/FreeAir.kt" to (1 to "comment lines of a data file"),
-            "world/WorldCaches.kt" to (6 to "class and file names for the world key"),
-        ), "matching by text in ecology/ and world/")
-    }
+    fun `the model matches no keys by their text`() = check("""\.(?:startsWith|endsWith|substringAfter|substringBefore|removePrefix|removeSuffix)\(""", mapOf(
+        "ecology/HexHistory.kt" to (17 to "history series by prefix: the CSV columns are text (reports only)"),
+        "ecology/WeekStats.kt" to (8 to "the Tally builders' own parsing"),
+        "ecology/HuntDiag.kt" to (2 to "the hunt steps' own prefix"),
+        "ecology/HexSnapshot.kt" to (2 to "class names when saving"),
+        "ecology/HexGeography.kt" to (1 to "a name for a landmark"),
+        "world/FreeAir.kt" to (1 to "comment lines of a data file"),
+        "world/WorldCaches.kt" to (6 to "class and file names for the world key"),
+    ), "matching by text in ecology/ and world/", "Type the key", "ecology", "world")
+
+    @Test
+    fun `no new non-null assertions`() = check("""!!""", mapOf(
+        "ecology/HexCulture.kt" to (5 to "a band of a people group: the caller has chosen people"),
+        "ecology/HexFauna.kt" to (7 to "audit books set when the audit is on and tested just before; the route tables of a kind that has routes"),
+        "ecology/HexGeography.kt" to (1 to "the cover of a core, set while building"),
+        "ecology/HexGroups.kt" to (4 to "the path and time of a group that chose to move; the reach cache merge"),
+        "ecology/HexLifeAndDeath.kt" to (5 to "a band of a people group: the caller has chosen people"),
+        "ecology/HexPeople.kt" to (2 to "a band of a people group: the caller has chosen people"),
+        "ecology/HexSmallLife.kt" to (1 to "the months a bird is present: set for the kinds that follow insects"),
+        "learning/PpoTrainer.kt" to (1 to "a player is made for every world before the round"),
+        "run/Nominal.kt" to (3 to "the kind or way of a series key already tested as that sort of key"),
+        "tools/HexChoiceEffect.kt" to (1 to "a map entry tested just before"),
+        "tools/fauna/Census.kt" to (3 to "the band of a people group in a report"),
+        "tools/fauna/Tallies.kt" to (5 to "the band of a people group in a report"),
+        "ui/GroupControlWindow.kt" to (1 to "Map.merge of a non-null value"),
+        "ui/WrapLayout.kt" to (1 to "Swing's parent chain"),
+        "world/FreeAir.kt" to (1 to "a resource that ships in the jar"),
+        "world/HexPlants.kt" to (3 to "audit books set when the audit is on and tested just before"),
+    ), "`!!`", "Make the type say it (a non-null field, a smart cast, a typed accessor)", ".")
+
+    @Test
+    fun `no casts in the model`() = check("""\bas\s+[A-Z]""", mapOf(
+        "store/ObjectStore.kt" to (7 to "saves are by field name and runtime type: the one reflective store"),
+        "ui/HexHistoryPanel.kt" to (7 to "Swing's tree and component API"),
+        "ui/HexViewer.kt" to (2 to "Swing's caret API"),
+        "ui/WorldLock.kt" to (1 to "Swing's Graphics"),
+        "world/WorldCaches.kt" to (1 to "the cache reader returns what it is asked for"),
+    ), "casts", "Use a typed value or a sealed type", ".")
+
+    @Test
+    fun `no new Any`() = check("""(?::\s*Any\??\b|<Any\??>|vararg \w+: Any)""", mapOf(
+        "Books.kt" to (4 to "the stock registry takes the tables it sums, of several array types, only for the audit"),
+        "run/Nominal.kt" to (1 to "walks a part's tables by reflection"),
+        "store/ObjectStore.kt" to (14 to "saves are by field name and runtime type"),
+        "ui/GroupControlWindow.kt" to (1 to "Swing's table model"),
+        "ui/HexHistoryPanel.kt" to (1 to "Swing's tree nodes"),
+        "world/WorldCaches.kt" to (1 to "the cache reader"),
+    ), "`Any`", "Give it a type", ".")
+
+    @Test
+    fun `no new reflection`() = check("""java\.lang\.reflect|::class\.java|getDeclaredField|\.declaredFields|Class\.forName|javaClass""", mapOf(
+        "ecology/Catalogue.kt" to (1 to "the kinds' list, read from the file's own object"),
+        "ecology/HexSnapshot.kt" to (19 to "saves are by field name: the order and roster checks"),
+        "run/Nominal.kt" to (4 to "lists a part's tables for the check"),
+        "store/ObjectStore.kt" to (46 to "saves are by field name and runtime type"),
+        "world/FreeAir.kt" to (1 to "a resource that ships in the jar"),
+        "world/WorldCaches.kt" to (2 to "the jar's resources and the cache reader"),
+    ), "reflection", "Use a typed interface", ".")
 
     @Test
     fun `key labels are each their own`() {

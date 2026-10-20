@@ -108,10 +108,11 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         // To axial coordinates (pointy-top), round in cube coordinates, back to odd-row offset.
         val q = (sqrt(3.0) / 3 * xKm - 1.0 / 3 * yKm) / (hexKm / sqrt(3.0))
         val r = (2.0 / 3 * yKm) / (hexKm / sqrt(3.0))
-        var cx = q; var cz = r; var cy = -cx - cz
-        var rx = cx.roundToInt().toDouble(); var ry = cy.roundToInt().toDouble(); var rz = cz.roundToInt().toDouble()
+        val cx = q; val cz = r; val cy = -cx - cz
+        var rx = cx.roundToInt().toDouble(); val ry = cy.roundToInt().toDouble(); var rz = cz.roundToInt().toDouble()
         val dx = abs(rx - cx); val dy = abs(ry - cy); val dz = abs(rz - cz)
-        if (dx > dy && dx > dz) rx = -ry - rz else if (dy > dz) ry = -rx - rz else rz = -rx - ry
+        // (Of the three coordinates the one rounded furthest is made to fit the other two; y is not read, so is left.)
+        if (dx > dy && dx > dz) rx = -ry - rz else if (!(dy > dz)) rz = -rx - ry
         val row = rz.toInt()
         val col = rx.toInt() + (row - (row and 1)) / 2
         return row.coerceIn(0, rows - 1) * cols + col.coerceIn(0, cols - 1)

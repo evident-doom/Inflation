@@ -174,7 +174,7 @@ class HexHistory {
     fun record(sim: HexSim) = synchronized(this) { recordWeek(sim) }
 
     private fun recordWeek(sim: HexSim) {
-        val fauna = sim.fauna; val groups = sim.groups; val land = sim.land; val hw = sim.hw; val w = sim.weather
+        val fauna = sim.fauna; val groups = sim.groups; val land = sim.land; val w = sim.weather
         year.add(w.date.year.toFloat()); month.add(w.date.month.toFloat())
         val n = land.n
         val area = land.areaKm2

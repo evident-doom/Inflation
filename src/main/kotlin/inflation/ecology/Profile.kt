@@ -43,7 +43,7 @@ object Profile {
     private val parts = ConcurrentHashMap<String, LongAdder>()
     private val partOrder = CopyOnWriteArrayList<String>()
     fun mark(): Long = if (FINE) System.nanoTime() else 0L
-    fun lap(name: String, since: Long): Long {
+    @IgnorableReturnValue fun lap(name: String, since: Long): Long {
         if (!FINE) return 0L
         val now = System.nanoTime()
         parts.computeIfAbsent(name) { partOrder += it; LongAdder() }.add(now - since)
