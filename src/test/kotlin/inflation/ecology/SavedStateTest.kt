@@ -55,6 +55,9 @@ class SavedStateTest {
         // (Snow lies on this world's hills only some winter weeks, and the walk to water and residents' days without it
         // change only in a dry spell: the year may begin and end in April with no snow, the same water and none gone dry.)
         "weather.snowpack", "weather.snowSun", "weather.snowShade", "land.drink.snowWater", "land.drink.waterKm", "fauna.dry",
+        // (Soil fertility moves only with ash from a fire or the wash off bare slopes: grazed at their settled numbers from
+        // the start, this world's plants may give neither in its first year.)
+        "land.plants.fertility",
     )
 
     @Test

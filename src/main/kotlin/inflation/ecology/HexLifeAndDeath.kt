@@ -278,7 +278,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         o.split?.let { c -> born += splitOff(g, c.adults, c.young) } // a young pack has no ground yet
         if (o.leavers > 0) {
             repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
-            stats.meetings.merge("young hunters left their pack", o.leavers, Int::plus)
+            stats.meeting("young hunters left their pack", o.leavers)
         }
     }
     groups += born
@@ -698,7 +698,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         }
         val o = best ?: continue
         joinBand(o, g, stepOf(date))
-        stats.meetings.merge("small bands joined kin", 1, Int::plus)
+        stats.meeting("small bands joined kin")
     }
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
     // the pair holds the ground of the one that had any.

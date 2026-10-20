@@ -186,7 +186,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
     fun showsSickness(x: Band) = x.sick.sum() > SICK_SHOWS
     if ((showsSickness(bandB) && rnd.nextFloat() < bandA.shunSick) || (showsSickness(bandA) && rnd.nextFloat() < bandB.shunSick)) {
-        stats.meetings.merge("bands kept away from the sick", 1, Int::plus)
+        stats.meeting("bands kept away from the sick")
         return false
     }
     // Meeting in peace makes them a little closer; how close they are colours the rest.
@@ -205,7 +205,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     val (lo, hi) = if (doing(a) < doing(b)) bandA to bandB else bandB to bandA
     for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {
         lo.traditions[t] = hi.holds(t)
-        stats.meetings.merge("band took ${if (hi.holds(t)) "up" else "leave of"} ${t.name.lowercase()}", 1, Int::plus)
+        stats.meeting("band took ${if (hi.holds(t)) "up" else "leave of"} ${t.name.lowercase()}")
     }
     riteMeet(lo, hi, u)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
@@ -218,7 +218,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry * (0.5f + close)) {
         marryOut(a, bandA, b, bandB)
         bandA.befriend(b.id, TIE_MARRY); bandB.befriend(a.id, TIE_MARRY)
-        stats.meetings.merge("bands exchanged partners", 1, Int::plus)
+        stats.meeting("bands exchanged partners")
     }
     return false
 }
@@ -236,10 +236,10 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         if (r == TOLD_RINGS) break
         ring = hex.nextRing(ring, seen)
     }
-    stats.meetings.merge("bands told of country", 1, Int::plus)
+    stats.meeting("bands told of country")
     // And of the ways they know further off: landmarks, and the legs between those they know.
     val toldWays = routes.tell(bandA, bandB, h0) + routes.tell(bandB, bandA, h0)
-    if (toldWays > 0) stats.meetings.merge("bands told of routes", 1, Int::plus)
+    if (toldWays > 0) stats.meeting("bands told of routes")
     // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
     // takes up the other's (the more they are close, the likelier).
     val wk = stepOf(weather.date); val sMeet = PlaceMemory.seasonOf(weather.date.month)
@@ -264,7 +264,7 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         val ours = if (!bx.appointHex.none) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
         if (theirs > ours && rnd.nextFloat() < u * (0.3f + 0.7f * max(0f, bx.tie(y.id)))) {
             bx.appointment = by.appointment
-            stats.meetings.merge("bands took up another's appointment", 1, Int::plus)
+            stats.meeting("bands took up another's appointment")
         }
     }
     adopt(a, bandA, b, bandB); adopt(b, bandB, a, bandA)
@@ -300,13 +300,13 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
  * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry.
  */
 internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather) {
-    stats.meetings.merge(if (planned) "raids on homes" else "raids", 1, Int::plus)
+    stats.meeting(if (planned) "raids on homes" else "raids")
     note(g) { "raided band #%d%s".format(o.id, if (planned) " at its home" else "") }; note(o) { "was raided by band #%d".format(g.id) }
     ob.sinceRaided = 0
     // The mobile slip away (and lose some of their stores).
     if (!ob.atHome && rnd.nextFloat() < FLEE) {
         val t = 0.3f * RAID_TAKE * o.larder; moveFood(o, g, t)
-        stats.meetings.merge("raided bands slipped away", 1, Int::plus)
+        stats.meeting("raided bands slipped away")
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
     }
@@ -322,7 +322,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         small.deposit(DeadPool.CARRION, who.place, Kg(lost * who.species.massKg))
     }
     // The stronger side carries off food; the raided remember.
-    if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t); stats.meetings.merge("larders raided", 1, Int::plus) }
+    if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t); stats.meeting("larders raided") }
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
@@ -440,7 +440,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
         // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
         g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
         helped(o, g, gift)
-        stats.meetings.merge("hungry bands fed by kin", 1, Int::plus)
+        stats.meeting("hungry bands fed by kin")
     }
 }
 
@@ -466,7 +466,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
         }
         if (best >= 0) {
             b.appointment = Appointment(Hex(mem.hex[best]), mem.season[best] * 3 + 1)
-            stats.meetings.merge("bands made an appointment", 1, Int::plus)
+            stats.meeting("bands made an appointment")
         }
     }
     // Ties fade unless renewed.
@@ -489,7 +489,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
         val held = b.holds(t)
         if (rnd.nextFloat() < (if (held) DROP else TAKE_UP) * years) {
             b.traditions[t] = !held
-            stats.meetings.merge("band ${if (held) "dropped" else "took up"} ${t.name.lowercase()}", 1, Int::plus)
+            stats.meeting("band ${if (held) "dropped" else "took up"} ${t.name.lowercase()}")
         }
     }
 }
@@ -517,7 +517,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     val keep = if (b.holds(Tradition.ORAL_TRADITION)) 0.5f else 1f
     for (m in 0 until 12) if (b.rite[m] >= 0 && rnd.nextFloat() < RITE_FORGET * keep * years) {
         b.rite[m] = -1
-        stats.meetings.merge("bands let a rite go", 1, Int::plus)
+        stats.meeting("bands let a rite go")
     }
     if (b.rite.count { it >= 0 } >= RITE_SITES || rnd.nextFloat() >= years) return
     val held = b.rite.toHashSet()
@@ -552,7 +552,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
             if (km > tuning.roundArrivedKm) consider(hw.firstPlaceIn(h), month, APPOINT_MIN * SOURCE_RITE * want)
         }
     }
-    if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; stats.meetings.merge("bands took up a rite", 1, Int::plus) }
+    if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; stats.meeting("bands took up a rite") }
 }
 
 /**
@@ -589,7 +589,7 @@ internal fun HexGroups.riteMeet(lo: Band, hi: Band, u: Float) {
     if (!ROUNDS) return
     for (m in 0 until 12) if (hi.rite[m] >= 0 && lo.rite[m] < 0 && lo.rite.count { it >= 0 } < RITE_SITES && hi.rite[m] !in lo.rite &&
         rnd.nextFloat() < COPY_TRADITION * u) {
-        lo.rite[m] = hi.rite[m]; stats.meetings.merge("bands took up another's rite", 1, Int::plus)
+        lo.rite[m] = hi.rite[m]; stats.meeting("bands took up another's rite")
     }
     lo.riteStrength += COPY_TRADITION * u * (hi.riteStrength - lo.riteStrength)
 }
@@ -624,6 +624,6 @@ internal fun HexGroups.given(giver: HexGroup, taker: HexGroup, chosen: Float, ne
     if (due <= 0f) return chosen
     val gift = max(chosen, due * gb.repayWill.coerceIn(0f, 1f))
     if (gift < due) taker.band?.befriend(giver.id, -TIE_GIFT * (due - gift) / due)
-    stats.meetings.merge(if (gift < due) "favours held back" else "favours returned", 1, Int::plus)
+    stats.meeting(if (gift < due) "favours held back" else "favours returned")
     return gift
 }
