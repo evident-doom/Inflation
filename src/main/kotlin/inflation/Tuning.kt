@@ -74,9 +74,9 @@ class Tuning(private val read: (String) -> String? = Config::string) {
     /**
      * Residents: the share of a kind's animals at a place that take a step each week along the route their
      * seasonal memory leads to better ground ([inflation.ecology.SeasonalMemory.route]), as far as the crowding ahead
-     * lets them. 1: all of them, too much; 0.3 with none of the route's gain trusted at the arrival ([residentRouteTrust]): trusting it crowded them into disease (storm-1, 5 y: -60..-68% with it, -18% without).
+     * lets them. 1: all of them, too much; 0.5 (Olli, for movement), with none of the route's gain trusted at the arrival ([residentRouteTrust]): trusting it walked them onto worse ground.
      */
-    val residentRouteShare = f("residentRouteShare", 0.3f).also { require(it in 0f..1f) { "t.residentRouteShare is $it: a share, 0..1" } }
+    val residentRouteShare = f("residentRouteShare", 0.5f).also { require(it in 0f..1f) { "t.residentRouteShare is $it: a share, 0..1" } }
     /**
      * Residents: how much of what the memory's route promises those on it count when they weigh where they come against
      * where they left ([inflation.ecology.HexFauna.flow]): 1, all of it, so they crowd in until the place is as much

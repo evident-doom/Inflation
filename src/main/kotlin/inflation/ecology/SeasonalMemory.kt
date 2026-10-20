@@ -26,7 +26,8 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
     private val n = hw.placeHex.size
     private val hex = hw.hex
     private val weeksPerMonth = Date.DAYS_PER_MONTH / days.toFloat()
-    private val stepsPerYear = Date.DAYS_PER_YEAR / days.toFloat()
+    /** The share of what it remembers of a month kept each week of that month it learns again ([learn]). */
+    private val keepAWeek = Math.pow(1.0 - 1.0 / YEARS, 1.0 / weeksPerMonth)
 
     /** The main country of each place. */
     private val biomeOf: IntArray by lazy {
@@ -114,23 +115,19 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
 
     /**
      * Adds a week of kind [k]'s life in [month] to what it remembers in [fare] (its kinds of ground × 12 months, none yet
-     * where [seen] is 0), with the head-weeks it has learnt each from in [seen]: for each kind of ground, how its [heads]
-     * there (in head counts at each place) grew in the week ([grew], log), of which the share [dying] died. Each is the
-     * mean of the weeks the kind lived there by their heads, the old fading as those that remember them die: at the rate the kind died this week
-     * over a year, spread over the weeks of the month.
+     * where [seen] is 0), with the head-weeks it has learnt each from in [seen]: for each kind of ground, how the ground let
+     * its [heads] there (in head counts at each place) grow in the week ([grew], log). Each is the mean of the weeks the kind
+     * lived there by their heads over [YEARS] years or so, the older the less: the ways of a kind are shaped over many
+     * generations, and one bad year does not change them.
      */
-    fun learn(k: Int, month: Int, heads: FloatArray, dying: FloatArray, grew: FloatArray, fare: FloatArray, seen: FloatArray) {
+    fun learn(k: Int, month: Int, heads: FloatArray, grew: FloatArray, fare: FloatArray, seen: FloatArray) {
         val t = typeOf(k)
         val h = DoubleArray(TYPES); val d = DoubleArray(TYPES)
-        var allH = 0.0; var allD = 0.0
-        for (p in 0 until n) { val x = heads[p]; if (!(x > 0f)) continue; h[t[p]] += x; d[t[p]] += x * grew[p]; allH += x; allD += x * dying[p] }
-        if (!(allH > 0.0)) return
-        val yearGone = 1.0 - Math.pow(1.0 - (allD / allH).coerceIn(0.0, 0.9), stepsPerYear.toDouble())
-        val keep = Math.pow(1.0 - yearGone, 1.0 / weeksPerMonth)
+        for (p in 0 until n) { val x = heads[p]; if (!(x > 0f)) continue; h[t[p]] += x; d[t[p]] += x * grew[p] }
         for (i in 0 until TYPES) {
             if (!(h[i] > 0.0)) continue
             val j = i * 12 + month
-            val old = seen[j] * keep
+            val old = seen[j] * keepAWeek
             fare[j] = ((fare[j] * old + d[i]) / (old + h[i])).toFloat()
             seen[j] = (old + h[i]).toFloat()
         }
@@ -240,5 +237,7 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
     companion object {
         /** Kinds of ground: each country by the low, middle and high third of the lie of the land. */
         val TYPES = Biome.entries.size * 3
+        /** How many years a kind's memory of its ground is a mean over, roughly: the share of it kept a year is 1 - 1/YEARS. */
+        const val YEARS = 10
     }
 }

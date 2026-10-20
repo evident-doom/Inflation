@@ -133,9 +133,11 @@ object HexSnapshot {
      * [seasonShare]); people keep their own births. Resident hunters and the groups count game alike, by how catchable it
      * is ([HexFauna.game]), and resident hunters kill by it; beasts of prey foresee how fed they would be by the residents'
      * feeding rule.
+     * 4.7: the memory learns only what the ground and its weather do to a kind (births by its food; deaths of hunger,
+     * thirst, cold, snow, fire and flood), as a mean over some ten years; half the residents a week set off along its route.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 6
+    const val MODEL_MINOR = 7
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
