@@ -130,6 +130,14 @@ class Stocks {
     /** The stocks [block] adds, counted also in the wider pool [name]. */
     fun within(name: String, block: () -> Unit) { group = name; try { block() } finally { group = null } }
 
+    companion object {
+        /** The wider pools ([within]), by the names the books, the history and the checks read them by. */
+        const val PLANTS = "plants"
+        const val SMALL_ANIMALS = "small animals"
+        const val RESIDENT_ANIMALS = "resident animals"
+        const val GROUPS = "packs and bands"
+    }
+
     /** The matter in each stock and in each wider pool, thousand tonnes, in the order listed. */
     fun matter(): LinkedHashMap<String, Double> {
         val out = LinkedHashMap<String, Double>(); val pools = LinkedHashMap<String, Double>()

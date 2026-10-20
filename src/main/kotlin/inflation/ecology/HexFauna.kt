@@ -709,7 +709,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Names the residents' stocks (the young at [YOUNG_WEIGHT] of a grown animal), with the food stocks and the small life. */
     internal fun listStocks(stocks: Stocks) {
-        stocks.within("resident animals") { for ((k, s) in kinds.withIndex())
+        stocks.within(Stocks.RESIDENT_ANIMALS) { for ((k, s) in kinds.withIndex())
             stocks.add(Books.Stuff.MATTER, "resident ${s.name}", adults[k], young[k]) { var sum = 0.0; for (p in 0 until n) sum += (adults[k][p] + YOUNG_WEIGHT * young[k][p]) * land.areaKm2[p] * s.massKg.toDouble(); sum } }
         food.listStocks(stocks)
         small.listStocks(stocks)

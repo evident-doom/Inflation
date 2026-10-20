@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Stocks
 import inflation.world.World
 import inflation.world.WorldConfig
 import java.lang.reflect.Modifier
@@ -49,7 +50,7 @@ class StocksTest {
         val sim = HexSim(World.generate(cfg))
         val stocks = sim.stocks()
         val m = stocks.matter()
-        for (pool in listOf("plants", "small animals", "resident animals", "packs and bands")) {
+        for (pool in listOf(Stocks.PLANTS, Stocks.SMALL_ANIMALS, Stocks.RESIDENT_ANIMALS, Stocks.GROUPS)) {
             val parts = stocks.list.filter { it.group == pool }
             assertTrue(parts.isNotEmpty(), "no stocks in $pool")
             assertEquals(parts.sumOf { it.sum() } / 1e6, m.getValue(pool), 1e-9 * (1 + m.getValue(pool)))
