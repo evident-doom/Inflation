@@ -660,7 +660,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         ate(p, got)
         if (b0 > 0f && eB > 0f) young[Nest.BIRDS][p] = max(0f, young[Nest.BIRDS][p] - (b0 - birdSum(p)) * min(1f, young[Nest.BIRDS][p] / (eB * b0)))
         if (r0 > 0f) young[Nest.RODENTS][p] *= rodents[p] / r0; if (ha0 > 0f) young[Nest.HARES][p] *= hares[p] / ha0
-        noteTaken(p, TAKER_FOXES, r0, ha0, hy0, b0)
+        noteTaken(p, Taker.FOXES, r0, ha0, hy0, b0)
         val fed = if (need > 0f) got / need else 1f
         // A litter of four to six a year, born in spring: over the three months, six times the stock a year.
         // Owls and small hawks eat about a fifth of their weight a day, mostly rodents.
@@ -669,7 +669,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             if (owls[p] <= 0f && r > 0f) owls[p] = OWL_SEED * r
             val needO = owls[p] * OWL_INTAKE * days
             val gotO = min(0.5f * r, needO * r / (r + OWL_HALF))
-            if (gotO > 0f) { rodents[p] -= gotO; preyTakenBy[Prey.RODENTS][TAKER_OWLS][p] += gotO; ate(p, gotO) }
+            if (gotO > 0f) { rodents[p] -= gotO; preyTakenBy[Prey.RODENTS][Taker.OWLS][p] += gotO; ate(p, gotO) }
             val fedO = if (needO > 0f) gotO / needO else 1f
             owls[p] = logistic(p, owls[p], if (month in 3..5) 3f * fedO else 0f, 0.3f + 0.8f * (1f - fedO), 0.02f * r)
         }
@@ -689,7 +689,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         val r0 = rodents[p]; val ha0 = hares[p]; val hy0 = hyrax[p]; val b0 = birdSum(p)
         val got = scavenged + takeSwitching(p, min(0.5f * prey, left * prey / (prey + EAGLE_HALF)), 0.5f, eaglePrey)
         ate(p, got)
-        noteTaken(p, TAKER_EAGLES, r0, ha0, hy0, b0)
+        noteTaken(p, Taker.EAGLES, r0, ha0, hy0, b0)
         // Fawns and kids make up much of what the small game does not.
         val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
         eagles[p] = logistic(p, eagles[p], if (month in 4..6) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p],
@@ -863,7 +863,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * of all; and the scattered insects that are out (plant-eaters and pollinators) as far as a
      * vertebrate hunting by sight can pick them up ([INSECT_CATCH]). Returns what was caught.
      */
-    fun catchSmall(p: Place, want: KgKm2, weather: Weather, most: Float = 0.5f, who: Int = TAKER_GROUPS, style: SmallHunt = SmallHunt.PEOPLE): KgKm2 {
+    fun catchSmall(p: Place, want: KgKm2, weather: Weather, most: Float = 0.5f, who: Taker = Taker.GROUPS, style: SmallHunt = SmallHunt.PEOPLE): KgKm2 {
         val t = weather.temperature[p]
         val herpsOut = herpsActive(t, land.hydro.soil[p])
         val tortOut = t in 14f..33f
@@ -896,9 +896,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         tookYoung(Nest.RODENTS, r0, rodents[p], eR); tookYoung(Nest.HARES, ha0, hares[p], eHa); tookYoung(Nest.HYRAX, hy0, hyrax[p], eHy)
         tookYoung(Nest.BIRDS, b0, birdSum(p), eB); tookYoung(Nest.HERPS, h0, herps[p], eH); tookYoung(Nest.TORTOISES, t0, tortoises[p], eT)
         herpLedger[HerpLedger.HUNTED][p] += h0 - herps[p]
-        herpTakenBy[min(who, TAKER_GROUPS)][p] += h0 - herps[p]
-        tortLedger[TortLedger.HUNTED][p] += t0 - tortoises[p]; tortTakenBy[min(who, TAKER_GROUPS)][p] += t0 - tortoises[p]
-        noteTaken(p, min(who, TAKER_GROUPS), r0, ha0, hy0, b0)
+        herpTakenBy[who.atMostGroups][p] += h0 - herps[p]
+        tortLedger[TortLedger.HUNTED][p] += t0 - tortoises[p]; tortTakenBy[who.atMostGroups][p] += t0 - tortoises[p]
+        noteTaken(p, who.atMostGroups, r0, ha0, hy0, b0)
         return KgKm2(took)
     }
 
@@ -933,23 +933,23 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val herpLedger = Array(HerpLedger.SIZE) { FloatArray(n) }
     /**
      * Reptiles and amphibians taken by hunters since the ledger was cleared, kg/km², by who took
-     * them: the resident kind of that index, or (at [TAKER_GROUPS]) the hunting packs and
+     * them: the resident kind of that index, or (at [Taker.GROUPS]) the hunting packs and
      * people.
      */
-    val herpTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
+    val herpTakenBy = Array(Taker.KINDS_AND_GROUPS) { FloatArray(n) }
     /**
      * The same for tortoises (for checks), kg/km² unless said: 0 grown, 1 died, 2 died of crowding, 3 taken by
      * hunters, 4 burnt; 5 days out in the breeding months, 6 days out; and taken by who, as [herpTakenBy].
      */
     val tortLedger = Array(TortLedger.SIZE) { FloatArray(n) }
-    val tortTakenBy = Array(TAKER_GROUPS + 1) { FloatArray(n) }
+    val tortTakenBy = Array(Taker.KINDS_AND_GROUPS) { FloatArray(n) }
     /**
      * Rodents, hares, hyrax and birds (0..3) taken since cleared, kg/km², by who took them: as [herpTakenBy],
-     * and foxes and wildcats ([TAKER_FOXES]), eagles ([TAKER_EAGLES]), owls ([TAKER_OWLS]). For checks.
+     * and foxes and wildcats ([Taker.FOXES]), eagles ([Taker.EAGLES]), owls ([Taker.OWLS]). For checks.
      */
-    val preyTakenBy = Array(Prey.SIZE) { Array(TAKER_OWLS + 1) { FloatArray(n) } }
+    val preyTakenBy = Array(Prey.SIZE) { Array(Taker.ALL) { FloatArray(n) } }
     private fun birdSum(p: Place): Float { var all = 0f; for (b in bird) all += b[p]; return all }
-    private fun noteTaken(p: Place, who: Int, r0: Float, ha0: Float, hy0: Float, b0: Float) {
+    private fun noteTaken(p: Place, who: Taker, r0: Float, ha0: Float, hy0: Float, b0: Float) {
         val t = preyTakenBy
         t[Prey.RODENTS][who][p] += r0 - rodents[p]
         t[Prey.HARES][who][p] += ha0 - hares[p]
@@ -1233,11 +1233,6 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
          * on the nest; the rest fly. An estimate.
          */
         const val FLIGHT_REACH = 0.2f
-        /** The [herpTakenBy] slot of hunting groups and people (resident kinds take the slots below it). */
-        const val TAKER_GROUPS = 40
-        const val TAKER_FOXES = 41
-        const val TAKER_EAGLES = 42
-        const val TAKER_OWLS = 43
         /**
          * Plant-eating insects: the warmth at which they start to grow (the usual lower threshold for
          * development, about 10 °C, down to about 5 °C in cool-summer insects), and the warmth above it

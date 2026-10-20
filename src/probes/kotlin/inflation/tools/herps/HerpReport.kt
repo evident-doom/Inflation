@@ -1,5 +1,6 @@
 package inflation.tools.herps
 
+import inflation.ecology.Taker
 import inflation.ecology.HexSim
 import inflation.ecology.BirdLedger
 import inflation.ecology.HerpLedger
@@ -29,10 +30,10 @@ class HerpReport(run: HexSim, private val regions: HerpRegions, private val t: H
 
     /** Who [i] is, of the takers in a takenBy ledger. */
     private fun takerName(i: Int) = when (i) {
-        HexSmallLife.TAKER_GROUPS -> "groups and people"
-        HexSmallLife.TAKER_FOXES -> "foxes"
-        HexSmallLife.TAKER_EAGLES -> "eagles"
-        HexSmallLife.TAKER_OWLS -> "owls"
+        Taker.GROUPS.i -> "groups and people"
+        Taker.FOXES.i -> "foxes"
+        Taker.EAGLES.i -> "eagles"
+        Taker.OWLS.i -> "owls"
         else -> names.getOrElse(i) { "kind $i" }
     }
 
