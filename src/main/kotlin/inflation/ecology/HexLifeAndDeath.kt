@@ -53,7 +53,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     // (How far each lies, the same every month.)
     val distOf = DoubleArray(count) { i -> val (cx, cy) = hex.centreKm(hw.placeHex[near[i]]); hypot(cx - hx, cy - hy) / reachKm }
     // (And its forage, ground and water, the same every month as the forebears reckon them.)
-    val foodOf = FloatArray(count) { foodFor(s, near[it]) }
+    val foodOf = FloatArray(count) { foodFor(s, Place(near[it])) }
     val suitsOf = FloatArray(count) { fauna.suits(s, near[it]) }
     val tetherOf = FloatArray(count) { fauna.usualTether(s, near[it]) }
     var top = 0f
@@ -420,7 +420,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val festered = if (band != null) woundsWeek(band) else 0f
     // Beasts of prey about: now and then one takes a gatherer, a child or an old one alone.
     val (stalked, stalker) = if (band != null) stalkedBy(g, band, kinNow) else Stalking.NONE
-    val venom = venomOdds(s, g.place.i, weather)
+    val venom = venomOdds(s, g.place, weather)
     // Children of a closed band are inbred; medicine saves some of the sick and wounded.
     val inbred = if (band != null) INBREEDING_DEATHS * band.inbred * years else 0f
     // (Healers save some of the sick and wounded, the more the more they know.)
@@ -439,7 +439,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val hazards = arrayListOf(
         Hazard(DeathCause.OTHER, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
-    placeHazards(g, g.place.i, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.atHome ?: false) { c, a, y -> hazards += Hazard(c, a, y) }
+    placeHazards(g, g.place, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.atHome ?: false) { c, a, y -> hazards += Hazard(c, a, y) }
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     // (No beast to blame, none taken: a hazard of none weighs nothing in sharing the deaths, and is left out.)
     hazards.addAll(listOfNotNull(
@@ -525,22 +525,22 @@ private fun HexGroups.woundsWeek(band: Band): Float {
 }
 
 /** Whether a group of [s] can drink at place [p] ([Hazards.canDrink]). */
-internal fun HexGroups.canDrink(s: Species, p: Int) = Hazards.canDrink(land.drink, s, Place(p))
+internal fun HexGroups.canDrink(s: Species, p: Place) = Hazards.canDrink(land.drink, s, Place(p.i))
 
 /** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
 private fun HexGroups.thirstWeek(g: HexGroup): Float {
-    g.dry = dryAfter(g, g.place.i, g.fed)
-    return thirstOdds(g, g.place.i, g.dry)
+    g.dry = dryAfter(g, g.place, g.fed)
+    return thirstOdds(g, g.place, g.dry)
 }
 
 /** Days [g] would have gone without water by the end of the week at place [p], fed [fed]: none where it can drink. */
-internal fun HexGroups.dryAfter(g: HexGroup, p: Int, fed: Float): Float =
+internal fun HexGroups.dryAfter(g: HexGroup, p: Place, fed: Float): Float =
     if (canDrink(g.species, p)) 0f
     // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
     else g.dry + Hazards.dryDays(g.species, days, fed, land.plants.green[p])
 
 /** The share of [g] that dies of thirst at place [p], [dry] days without water. */
-internal fun HexGroups.thirstOdds(g: HexGroup, p: Int, dry: Float): Float {
+internal fun HexGroups.thirstOdds(g: HexGroup, p: Place, dry: Float): Float {
     val s = g.species
     // (People carry water in skins and know every spring: they suffer far less from it than animals.)
     // (Strangers to the country do not know its springs.)
@@ -611,7 +611,7 @@ internal fun interface HazardSink { fun add(cause: DeathCause, adult: Float, you
  * and eagles. The one rule for the week's deaths ([liveWeek]) and for those a group foresees
  * at a place it weighs ([HexGroups.deathsAt]).
  */
-internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: Float, thirst: Float, sick: Float,
+internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, sick: Float,
     fire: Float, home: Boolean, into: HazardSink) {
     val s = g.species; val b = g.band; val t = weather.temperature[p]
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
@@ -622,12 +622,12 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: 
     val felt = b?.feels(t, fire, home) ?: t
     val cold = Hazards.cold(s, felt, weather.date.month); val heat = Hazards.heat(s, felt)
     // An outbreak raging where it is kills its share.
-    val plague = fauna.outbreakDeaths(s, p)
+    val plague = fauna.outbreakDeaths(s, p.i)
     // Eagles take the young of the smaller hoofed animals in the open.
-    val eagle = if (s.human) 0f else fauna.eagleOdds(s, p)
-    val (fireA, floodA, snowA) = fauna.calamities(s, p, weather, false)
-    val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
-    val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)
+    val eagle = if (s.human) 0f else fauna.eagleOdds(s, p.i)
+    val (fireA, floodA, snowA) = fauna.calamities(s, p.i, weather, false)
+    val (fireY, floodY, snowY) = fauna.calamities(s, p.i, weather, true)
+    val croc = if (s.human) 0f else fauna.crocodileOdds(p.i, weather)
     into.add(DeathCause.HUNGER, hunger, 1.5f * hunger); into.add(DeathCause.COLD, cold, 1.5f * cold)
     into.add(DeathCause.HEAT, heat, 1.5f * heat)
     into.add(DeathCause.EXPOSURE, exposure, 1.5f * exposure); into.add(DeathCause.THIRST, thirst, 1.5f * thirst)
@@ -640,13 +640,13 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: 
  * [placeHazards] as [g] foresees them at place [p], weighing it: no everyday sickness, and its band's fire and house as they
  * would be there.
  */
-internal fun HexGroups.foreseenHazards(g: HexGroup, p: Int, weather: Weather, fed: Float, thirst: Float, into: HazardSink) {
+internal fun HexGroups.foreseenHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, into: HazardSink) {
     val b = g.band
     placeHazards(g, p, weather, fed, thirst, 0f, b?.let { fireAt(g, it, p) } ?: 0f, b?.let { atHouse(it, p) } ?: false, into)
 }
 
 /** Vipers and scorpions, out in the warm months: the odds for people at place [p] this week. */
-internal fun HexGroups.venomOdds(s: Species, p: Int, weather: Weather) = if (s.human && weather.temperature[p] > 18f) VENOM * years else 0f
+internal fun HexGroups.venomOdds(s: Species, p: Place, weather: Weather) = if (s.human && weather.temperature[p] > 18f) VENOM * years else 0f
 
 /** The week's deaths, [adults] and [young], shared among the [hazards] by how much each weighed for them (drawn from [r]); what is left over is "other". */
 private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int, r: Random): ArrayList<Died> {
@@ -812,21 +812,21 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
         val v = w * heads * k.massKg / hexKm2
         pressure += v; if (v > worstP) { worstP = v; worst = k }
     }
-    eachResidentManEater(p.i) { k, v -> pressure += v; if (v > worstP) { worstP = v; worst = k } }
+    eachResidentManEater(p) { k, v -> pressure += v; if (v > worstP) { worstP = v; worst = k } }
     if (pressure <= 0f) return Stalking.NONE
     // (Where one was taken the band remembers the danger.)
-    return Stalking(stalkRate(g, b, p.i, pressure), worst)
+    return Stalking(stalkRate(g, b, p, pressure), worst)
 }
 
 /** The man-eaters' flesh in resident animals at place [p], kg/km², weighted by how readily each takes people ([Species.takesPeople]). */
-internal fun HexGroups.residentManEaters(p: Int): Float {
+internal fun HexGroups.residentManEaters(p: Place): Float {
     var v = 0f
     eachResidentManEater(p) { _, f -> v += f }
     return v
 }
 
 /** Calls [each] with every resident kind that takes people at place [p] and its flesh there, kg/km², weighted by [Species.takesPeople]. */
-private inline fun HexGroups.eachResidentManEater(p: Int, each: (Species, Float) -> Unit) {
+private inline fun HexGroups.eachResidentManEater(p: Place, each: (Species, Float) -> Unit) {
     for ((ki, k) in fauna.kinds.withIndex()) {
         val w = k.takesPeople; if (w <= 0f) continue
         each(k, w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg)
@@ -834,10 +834,10 @@ private inline fun HexGroups.eachResidentManEater(p: Int, each: (Species, Float)
 }
 
 /** The yearly-scaled share of band [b] (group [g]) beasts of prey would take a week camped at place [p], where their flesh is [pressure] kg/km² (see [stalkedBy]). */
-internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Int, pressure: Float): Float {
+internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Place, pressure: Float): Float {
     if (pressure <= 0f) return 0f
     val h = hw.placeHex[p]
-    val cover = 0.5f + land.plants.cover(Place(p))
+    val cover = 0.5f + land.plants.cover(Place(p.i))
     val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
     val spread = b.gatherRange * b.gatherRange
