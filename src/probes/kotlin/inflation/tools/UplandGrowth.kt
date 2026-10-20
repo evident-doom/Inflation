@@ -1,5 +1,10 @@
 package inflation.tools
 
+import inflation.ecology.disease
+import inflation.ecology.EnumFloats
+import inflation.ecology.Danger
+import inflation.ecology.Growth
+import inflation.ecology.enumFloats
 import inflation.ecology.Place
 import inflation.Args
 import inflation.ecology.HexFauna
@@ -37,14 +42,14 @@ fun main(args: Array<String>) {
     val kinds = names.mapNotNull { name -> fauna.kinds.indexOfFirst { it.name == name }.takeIf { it >= 0 && fauna.room[it] != null } }
 
     // What is weighed, higher band against lower: growth, its parts, then the grown's hazards.
-    val hz = listOf("hunger" to HexFauna.HZ_HUNGER, "cold" to HexFauna.HZ_COLD, "thirst" to HexFauna.HZ_THIRST,
-        "disease" to HexFauna.HZ_DISEASE, "crowd" to HexFauna.HZ_CROWD, "snow" to HexFauna.HZ_SNOW_A, "fire" to HexFauna.HZ_FIRE_A, "hunted" to HexFauna.HZ_HUNTED)
+    val hz = listOf<Pair<String, (EnumFloats<Danger>) -> Float>>("hunger" to { it[Danger.HUNGER] }, "cold" to { it[Danger.COLD] }, "thirst" to { it[Danger.THIRST] },
+        "disease" to { it.disease() }, "crowd" to { it[Danger.CROWD] }, "snow" to { it[Danger.SNOW_A] }, "fire" to { it[Danger.FIRE_A] }, "hunted" to { it[Danger.HUNTED] })
     val cols = listOf("growth", "born", "grown die", "young die", "fed", "protein") + hz.map { it.first } + listOf("km2 here", "km2")
     // [kind][month][column]: heads-weighted sums of high minus low; [kind][month]: heads, heads in the higher band.
     val diff = Array(kinds.size) { Array(12) { DoubleArray(cols.size) } }
     val heads = Array(kinds.size) { DoubleArray(12) }; val high = Array(kinds.size) { DoubleArray(12) }
-    val outLo = FloatArray(HexFauna.HZ_COUNT); val outHi = FloatArray(HexFauna.HZ_COUNT)
-    val partsLo = FloatArray(HexFauna.GROWTH_PARTS); val partsHi = FloatArray(HexFauna.GROWTH_PARTS)
+    val outLo = enumFloats<Danger>(); val outHi = enumFloats<Danger>()
+    val partsLo = enumFloats<Growth>(); val partsHi = enumFloats<Growth>()
 
     for (w in 0 until weeks) {
         sim.step()
@@ -66,8 +71,8 @@ fun main(args: Array<String>) {
                 val gHi = fauna.growthParts(k, Place(hi), sim.weather, outHi, ypg, fat, partsHi)
                 val d = diff[i][m]
                 d[0] += n * (gHi - gLo)
-                for (c in 0 until HexFauna.GROWTH_PARTS) d[1 + c] += n * (partsHi[c] - partsLo[c])
-                for ((j, e) in hz.withIndex()) d[1 + HexFauna.GROWTH_PARTS + j] += n * (outHi[e.second] - outLo[e.second])
+                for (c in Growth.entries) d[1 + c.ordinal] += n * (partsHi[c] - partsLo[c])
+                for ((j, e) in hz.withIndex()) d[1 + Growth.entries.size + j] += n * (e.second(outHi) - e.second(outLo))
                 d[cols.size - 2] += n * land.areaKm2[hi]; d[cols.size - 1] += n * land.areaKm2[lo]
                 heads[i][m] += n; high[i][m] += nHi
             }
