@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
  * review/2026-10-20-dynamic-style.md): a map keyed by text, a key matched by its text, a `!!`, a cast, an `Any` or
  * a reflective call is a place where the compiler cannot tell a right use from a wrong one. The ones there are on
  * purpose are counted here per file with why; a new one fails until it is typed or listed.
- * (Comment lines and imports are not counted.)
+ * (Comment lines and imports are not counted.) Places go as `Place`, hexes as `Hex`, resident kinds as `FaunaKind`: a parameter named `p` or `q` that is a plain `Int` fails here too.
  */
 class StringKeysTest {
     private val root = File("src/main/kotlin/inflation")
@@ -113,6 +113,19 @@ class StringKeysTest {
         "world/FreeAir.kt" to (1 to "a resource that ships in the jar"),
         "world/WorldCaches.kt" to (2 to "the jar's resources and the cache reader"),
     ), "reflection", "Use a typed interface", ".")
+
+    @Test
+    fun `places are passed as Place, not as Int`() = check("""[(, ][pq]: Int\b""", mapOf(
+        "ecology/HexFauna.kt" to (2 to "the resident flow tables are Int arrays: a neighbour's index and one way of a flow"),
+        "ecology/HexWater.kt" to (2 to "the fish stocks are kept per hex: q is a hex index here (a Hex type is not applied there yet)"),
+        "ecology/HexGroups.kt" to (2 to "pathTo walks the hexes on Int arrays; where() is a debug text"),
+        "ecology/HexCulture.kt" to (1 to "a place or -1, kept in an Int list of the places held"),
+        "ecology/HexMeetings.kt" to (2 to "the places a group swept, kept in an Int array of the week's sweep"),
+        "world/Weather.kt" to (2 to "the weather serves the fine grid and the places: one index type would be wrong"),
+        "world/HexWorld.kt" to (1 to "the world's own lookups between places and hexes, on Int arrays"),
+        "world/HexHydrology.kt" to (2 to "the glacier flow's places in a hex's Int list"),
+        "world/HexLand.kt" to (2 to "mean over a place's cells, used by the array initialisers"),
+    ), "places as Int parameters", "Take a Place (ecology/Indices.kt)", "ecology", "world")
 
     @Test
     fun `key labels are each their own`() {
