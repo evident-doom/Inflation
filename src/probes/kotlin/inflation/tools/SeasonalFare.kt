@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.FaunaKind
 import inflation.ecology.enumFloats
 import inflation.ecology.disease
 import inflation.ecology.EnumFloats
@@ -56,7 +57,7 @@ fun main(args: Array<String>) {
         for ((i, k) in kinds.withIndex()) for (p in 0 until n) {
             val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble(); if (h <= 0.0) continue
             val b = band(p); last[i] += h
-            heads[i][m][b] += h; die[i][m][b] += h * fauna.stayOdds(k, Place(p), sim.weather, out); fed[i][m][b] += h * fauna.fed[k][p]
+            heads[i][m][b] += h; die[i][m][b] += h * fauna.stayOdds(FaunaKind(k), Place(p), sim.weather, out); fed[i][m][b] += h * fauna.fed[k][p]
             yearHeads[i][b] += h; for ((c, z) in causes.withIndex()) byCause[i][b][c] += h * z(out)
         }
         if (w == skip) last.copyInto(first)

@@ -57,7 +57,7 @@ fun main(args: Array<String>) {
             val season = ((t - land.tuning.growFromC) / land.tuning.growSpanC).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
             val water0 = (wet / HexHydrology.UNSTRESSED).coerceIn(0f, 1f)
             val v = doubleArrayOf(*watchKinds.map { s ->
-                val kk = run.fauna.slot(s); (run.fauna.adults[kk][p] + run.fauna.young[kk][p]).toDouble() }.toDoubleArray(),
+                val kk = run.fauna.slot(s); (run.fauna.adults[kk.i][p] + run.fauna.young[kk.i][p]).toDouble() }.toDoubleArray(),
                 (pet[m][p] * cfg.daysPerStep / Date.DAYS_PER_MONTH).toDouble(), land.hydro.soilCap[p].toDouble(), t.toDouble(),
                 run.weather.precipitation[p].toDouble(), run.weather.snowpack[p].toDouble(), run.weather.meltwater[p].toDouble(),
                 wet.toDouble(), season.toDouble(), water0.toDouble(), if (cured[p]) 1.0 else 0.0,
