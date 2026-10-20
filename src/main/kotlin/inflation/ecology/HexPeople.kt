@@ -316,8 +316,7 @@ class Band(kinds: Int) {
      * return, and lapses only when the other band is gone (see [helped]).
      */
     val favours = HashMap<Int, Float>()
-    /** Favours band [other] owes it (0 if none), and that it owes [other]. */
-    fun owedBy(other: Int) = max(0f, favours[other] ?: 0f)
+    /** Favours it owes band [other] (0 if none). */
     fun owesTo(other: Int) = max(0f, -(favours[other] ?: 0f))
     /** Its choices: how fully it returns the favours it owes when a band it owes is hungry (1 the scaffold's: as far as the other's need goes; 0 not at all). */
     val repayWill get() = will[BandWay.REPAYING]

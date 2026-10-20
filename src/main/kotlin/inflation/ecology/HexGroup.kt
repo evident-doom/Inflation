@@ -40,8 +40,6 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var mergedSize = -1
     /** The group it merged into, the step it did (else -1): for following what became of its members. Not saved: read in the same step. */
     @Transient var mergedInto = -1
-    /** How well its diet meets its need for protein, 0..1: in full for hunters and people, whose meat is rich in it. */
-    var protein = 1f
     /**
      * A band's luck in its own week's births and deaths, summed since it began: born less died as
      * drawn, against as expected from the week's odds (for training, which judges people by what
