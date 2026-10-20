@@ -641,6 +641,30 @@ class Band(kinds: Int) {
 
 }
 
+/** At any camp a band first puts up brush shelters, quickly (and leaves them when it moves on). */
+private fun putUpShelter(b: Band, people: Float, time: BandTime) {
+    if (b.campWeeks == 0) b.shelter = 0f
+    // (A debris hut takes a novice an afternoon, the practised an hour.)
+    val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
+    val shelterAim = min(1f, b.shelterWill)
+    if (b.shelter < shelterAim && time.left > 0f && people > 0f) {
+        val built = min(shelterAim - b.shelter, time.left / shelterDays)
+        b.shelter += built
+        time.spend(Activity.SHELTER, built * shelterDays)
+        b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
+    }
+}
+
+/** A fire through the night burns wood: where there is little, the night goes dark. Returns the wood burnt, kg. */
+private fun burnNightFire(b: Band, people: Float): Float {
+    val wood = b.goods
+    val want = NIGHT_WOOD * people * min(1f, b.nightFire)
+    val got = min(want, wood[Material.WOOD])
+    wood[Material.WOOD] -= got
+    b.nightWood = if (want > 0f) got / want else 1f
+    return got
+}
+
 /**
  * A band's week at camp: it keeps the camp or moves on (leaving what it cannot carry), gathers
  * materials from the country, makes and mends its tools, now and then hits on a new one, and its
@@ -666,17 +690,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     wearAndInvent(b, years)
     // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
-    // At any camp it first puts up brush shelters, quickly (and leaves them when it moves on).
-    if (b.campWeeks == 0) b.shelter = 0f
-    // (A debris hut takes a novice an afternoon, the practised an hour.)
-    val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
-    val shelterAim = min(1f, b.shelterWill)
-    if (b.shelter < shelterAim && time.left > 0f && people > 0f) {
-        val built = min(shelterAim - b.shelter, time.left / shelterDays)
-        b.shelter += built
-        time.spend(Activity.SHELTER, built * shelterDays)
-        b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
-    }
+    putUpShelter(b, people, time)
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
     makeTools(b, people, time)
@@ -686,14 +700,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     plotRaid(g, b, weather)
     keepFire(g, b)
     b.fire *= b.hearthWood
-    // A fire through the night burns wood: where there is little, the night goes dark.
-    val nightBurnt = run {
-        val want = NIGHT_WOOD * people * min(1f, b.nightFire)
-        val got = min(want, gd[Material.WOOD])
-        gd[Material.WOOD] -= got
-        b.nightWood = if (want > 0f) got / want else 1f
-        got
-    }
+    val nightBurnt = burnNightFire(b, people)
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
