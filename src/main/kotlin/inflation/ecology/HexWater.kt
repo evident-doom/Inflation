@@ -593,7 +593,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         var area = 0f
         for (p in hw.placesOf(h)) area += land.areaKm2[p]
         if (area <= 0f) return
-        for (p in hw.placesOf(h)) small.deposit(DeadPool.CARRION, p, KgM2(kg / area / 1e6f))
+        for (p in hw.placesOf(h)) small.deposit(DeadPool.CARRION, Place(p), KgM2(kg / area / 1e6f))
         land.books?.flow(Books.Stuff.MATTER, "to and from the water life", kg.toDouble())
     }
     fun fishTonnes() = fish.indices.sumOf { (fish[it] * waterKm2[it]).toDouble() }.toFloat() / 1000f

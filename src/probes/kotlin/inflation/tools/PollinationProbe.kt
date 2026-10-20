@@ -36,13 +36,13 @@ fun main(args: Array<String>) {
             for (p in 0 until land.n) {
                 val t = third(p); val a = land.areaKm2[p].toDouble()
                 val bear = land.palatable[p] * (0.5f * land.plants.shrub[p] + 0.05f * land.plants.tree[p]) * min(1f, land.plants.moisture[p] / 0.5f) * a
-                w[t] += bear; ws[t] += bear * sl.fruitSet(p); if (sl.pollination[p] < 0.9f) low[t] += bear
+                w[t] += bear; ws[t] += bear * sl.fruitSet(inflation.ecology.Place(p)); if (sl.pollination[p] < 0.9f) low[t] += bear
                 po[t] += sl.pollinators[p] * a; area[t] += a
             }
             fun tonnes(f: FloatArray) = (0 until land.n).sumOf { (f[it] * land.areaKm2[it]).toDouble() } / 1000
             val kinds = HexSmallLife.BIRDS.indices.joinToString(" ") { "%s %.0f".format(HexSmallLife.BIRDS[it].name.replace(' ', '_'), tonnes(sl.bird[it])) }
             val hz = DoubleArray(3); val hzA = DoubleArray(3)
-            for (p in 0 until land.n) { val t = third(p); val a = land.areaKm2[p].toDouble(); hz[t] += sl.harassment(p) * a; hzA[t] += a }
+            for (p in 0 until land.n) { val t = third(p); val a = land.areaKm2[p].toDouble(); hz[t] += sl.harassment(inflation.ecology.Place(p)) * a; hzA[t] += a }
             println("      harassment by biting insects N/M/S %.3f %.3f %.3f".format(hz[0] / hzA[0], hz[1] / hzA[1], hz[2] / hzA[2]))
             println("      t: insects %.0f, pollinators %.0f, biting %.0f, herps %.0f, foxes %.0f | birds %s".format(tonnes(sl.insects), tonnes(sl.pollinators),
                 tonnes(sl.biting), tonnes(sl.herps), tonnes(sl.foxes), kinds))

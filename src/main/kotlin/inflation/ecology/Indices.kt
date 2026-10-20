@@ -25,6 +25,11 @@ class PlaceIter(private val n: Int) {
     operator fun hasNext() = i < n
     operator fun next() = Place(i++)
 }
+/** A float per place, from [init]: `perPlace(n) { p -> ... }`. */
+inline fun perPlace(n: Int, init: (Place) -> Float) = FloatArray(n) { init(Place(it)) }
+/** [body] for each place index of the stream, as a [Place]. */
+inline fun java.util.stream.IntStream.forEachPlace(crossinline body: (Place) -> Unit) = forEach { body(Place(it)) }
+
 /** The places of one hex, for `for (p in hw.placeList(h))`. */
 @JvmInline value class PlaceList(private val a: IntArray) {
     operator fun iterator() = PlaceListIter(a)
