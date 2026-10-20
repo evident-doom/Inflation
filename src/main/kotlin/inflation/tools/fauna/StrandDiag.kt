@@ -1,5 +1,8 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Danger
+import inflation.ecology.enumFloats
+import inflation.ecology.disease
 import inflation.ecology.Place
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
@@ -26,7 +29,7 @@ class StrandDiag(private val sim: HexSim, private val file: File) {
     fun week() {
         val w = sim.weather
         val month = w.date.month
-        val hz = FloatArray(HexFauna.HZ_COUNT)
+        val hz = enumFloats<Danger>()
         for ((k, s) in kinds.withIndex()) {
             val a = fauna.adults[k]; val y = fauna.young[k]
             for (p in 0 until fauna.n) {
@@ -44,10 +47,10 @@ class StrandDiag(private val sim: HexSim, private val file: File) {
                 // (As [HexFauna.breedAndDie] books them: the young die 1.5 times as readily of hunger, cold and thirst.)
                 val ya = a[p] * area; val yy = y[p] * area
                 fun d(x: Float) = ya * x + yy * 1.5f * x
-                val dHunger = d(hz[HexFauna.HZ_HUNGER]); val dCold = d(hz[HexFauna.HZ_COLD])
-                val dHeat = d(hz[HexFauna.HZ_HEAT]); val dThirst = d(hz[HexFauna.HZ_THIRST])
-                val dSnow = ya * hz[HexFauna.HZ_SNOW_A] + yy * hz[HexFauna.HZ_SNOW_Y]
-                val dDisease = (ya + yy) * hz[HexFauna.HZ_DISEASE]; val dHunted = ya * hz[HexFauna.HZ_HUNTED]
+                val dHunger = d(hz[Danger.HUNGER]); val dCold = d(hz[Danger.COLD])
+                val dHeat = d(hz[Danger.HEAT]); val dThirst = d(hz[Danger.THIRST])
+                val dSnow = ya * hz[Danger.SNOW_A] + yy * hz[Danger.SNOW_Y]
+                val dDisease = (ya + yy) * hz.disease(); val dHunted = ya * hz[Danger.HUNTED]
                 val all = dHunger + dCold + dHeat + dThirst + dSnow + dDisease + dHunted
                 r[0] += n; r[1] += n * fauna.fed[k][p]
                 if (snowed) { r[2] += n; r[7] += n * fauna.fed[k][p]; r[15] += all }

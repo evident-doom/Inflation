@@ -1,5 +1,9 @@
 package inflation.tools
 
+import inflation.ecology.Danger
+import inflation.ecology.Growth
+import inflation.ecology.enumFloats
+import inflation.ecology.disease
 import inflation.ecology.Place
 import inflation.Args
 import inflation.ecology.HexFauna
@@ -41,7 +45,7 @@ fun main(args: Array<String>) {
     val piles = Array(kinds.size) { IntArray(12) }; val weeksIn = IntArray(12)
     val before = Array(kinds.size) { FloatArray(n) }
     val born = Array(kinds.size) { FloatArray(n) }; val die = Array(kinds.size) { FloatArray(n) }
-    val out = FloatArray(HexFauna.HZ_COUNT); val parts = FloatArray(HexFauna.GROWTH_PARTS)
+    val out = enumFloats<Danger>(); val parts = enumFloats<Growth>()
 
     for (w in 0 until weeks) {
         // The week before: heads at each place, and the births and deaths a newcomer would see there as it stands.
@@ -54,7 +58,7 @@ fun main(args: Array<String>) {
                 before[i][p] = (ad[p] + yo[p]) * land.areaKm2[p]
                 if (before[i][p] <= 0f || fauna.arriveOdds(k, Place(p), sim.weather, out).isNaN()) { born[i][p] = 0f; die[i][p] = 0f; continue }
                 fauna.growthParts(k, Place(p), sim.weather, out, ypg, fat, parts)
-                born[i][p] = parts[HexFauna.GROWTH_BORN]; die[i][p] = parts[HexFauna.GROWTH_GROWN_DIE]
+                born[i][p] = parts[Growth.BORN]; die[i][p] = parts[Growth.GROWN_DIE]
             }
         }
         sim.step()
@@ -65,11 +69,11 @@ fun main(args: Array<String>) {
                 val h = (ad[p] + yo[p]) * land.areaKm2[p].toDouble()
                 if (h <= 0.0) continue
                 if (fauna.stayOdds(k, Place(p), sim.weather, out).isNaN()) continue
-                val pile = out[HexFauna.HZ_CROWD] >= 2f
+                val pile = out[Danger.CROWD] >= 2f
                 if (pile) piles[i][m]++
                 val v = doubleArrayOf(h, h / before[i][p].coerceAtLeast(1e-3f), land.areaKm2[p].toDouble(), hw.placeBand[p].toDouble(),
                     fauna.fed[k][p].toDouble(), fauna.room[k]!![p].toDouble(), fauna.protein[k][p].toDouble(), fauna.worth[k][p].toDouble(),
-                    born[i][p].toDouble(), die[i][p].toDouble(), out[HexFauna.HZ_DISEASE].toDouble(), fauna.outbreakDeaths(s, Place(p)).toDouble())
+                    born[i][p].toDouble(), die[i][p].toDouble(), out.disease().toDouble(), fauna.outbreakDeaths(s, Place(p)).toDouble())
                 for (g in if (pile) intArrayOf(0, 1) else intArrayOf(1)) {
                     val row = sums[i][m][g]
                     row[0] += h

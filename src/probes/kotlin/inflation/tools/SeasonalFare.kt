@@ -1,5 +1,9 @@
 package inflation.tools
 
+import inflation.ecology.enumFloats
+import inflation.ecology.disease
+import inflation.ecology.EnumFloats
+import inflation.ecology.Danger
 import inflation.ecology.Place
 import inflation.Args
 import inflation.ecology.HexFauna
@@ -39,10 +43,10 @@ fun main(args: Array<String>) {
     val heads = Array(kinds.size) { Array(12) { DoubleArray(nb) } }; val die = Array(kinds.size) { Array(12) { DoubleArray(nb) } }
     val fed = Array(kinds.size) { Array(12) { DoubleArray(nb) } }
     // [kind][band][cause]: heads-weighted weekly shares over the counted weeks, by cause.
-    val causes = intArrayOf(HexFauna.HZ_HUNGER, HexFauna.HZ_COLD, HexFauna.HZ_THIRST, HexFauna.HZ_DISEASE, HexFauna.HZ_SNOW_A, HexFauna.HZ_HUNTED)
+    val causes = listOf<(EnumFloats<Danger>) -> Float>({ it[Danger.HUNGER] }, { it[Danger.COLD] }, { it[Danger.THIRST] }, { it.disease() }, { it[Danger.SNOW_A] }, { it[Danger.HUNTED] })
     val causeNames = listOf("hunger", "cold", "thirst", "disease", "snow", "hunted")
     val byCause = Array(kinds.size) { Array(nb) { DoubleArray(causes.size) } }; val yearHeads = Array(kinds.size) { DoubleArray(nb) }
-    val out = FloatArray(32)
+    val out = enumFloats<Danger>()
     val first = DoubleArray(kinds.size); val last = DoubleArray(kinds.size)
     for (w in 0 until weeks) {
         sim.step()
@@ -53,7 +57,7 @@ fun main(args: Array<String>) {
             val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble(); if (h <= 0.0) continue
             val b = band(p); last[i] += h
             heads[i][m][b] += h; die[i][m][b] += h * fauna.stayOdds(k, Place(p), sim.weather, out); fed[i][m][b] += h * fauna.fed[k][p]
-            yearHeads[i][b] += h; for ((c, z) in causes.withIndex()) byCause[i][b][c] += h * out[z]
+            yearHeads[i][b] += h; for ((c, z) in causes.withIndex()) byCause[i][b][c] += h * z(out)
         }
         if (w == skip) last.copyInto(first)
     }

@@ -1,5 +1,8 @@
 package inflation.tools
 
+import inflation.ecology.Danger
+import inflation.ecology.enumFloats
+import inflation.ecology.disease
 import inflation.ecology.Place
 import inflation.Args
 import inflation.ecology.HexFauna
@@ -38,7 +41,7 @@ fun main(args: Array<String>) {
     // [kind][month][column]: heads in each bin, and heads times the week's disease share; [kind][month]: heads.
     val sums = Array(kinds.size) { Array(12) { DoubleArray(cols.size) } }
     val heads = Array(kinds.size) { DoubleArray(12) }
-    val out = FloatArray(HexFauna.HZ_COUNT)
+    val out = enumFloats<Danger>()
 
     for (w in 0 until weeks) {
         sim.step()
@@ -49,9 +52,9 @@ fun main(args: Array<String>) {
                 val h = (ad[p] + yo[p]) * land.areaKm2[p].toDouble()
                 if (h <= 0.0) continue
                 if (fauna.stayOdds(k, Place(p), sim.weather, out).isNaN()) continue
-                val crowd = out[HexFauna.HZ_CROWD]
+                val crowd = out[Danger.CROWD]
                 var bin = 0; while (bin < edges.size && crowd >= edges[bin]) bin++
-                sums[i][m][bin] += h; sums[i][m][cols.size - 1] += h * out[HexFauna.HZ_DISEASE]
+                sums[i][m][bin] += h; sums[i][m][cols.size - 1] += h * out.disease()
                 heads[i][m] += h
             }
         }
