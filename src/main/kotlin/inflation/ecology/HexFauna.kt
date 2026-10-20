@@ -569,7 +569,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * two graze out from water and back, and leave the far country to those that live on the water
      * in their food (gazelle, oryx, camels). Kinds bound to water (hippos) use only what lies by it.
      */
-    fun tether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.animalWater(p), land.drink.animalWaterKm(p))
+    fun tether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.animalWater(Place(p)), land.drink.animalWaterKm(Place(p)))
 
     /** [tether] in an ordinary year: from the lasting water around, not this week's. */
     fun usualTether(s: Species, p: Int): Float = tetherAt(s, p, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p],
@@ -1368,7 +1368,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Whether [s] can drink at place [p] ([Hazards.canDrink]). */
-    private fun drinks(s: Species, p: Int) = Hazards.canDrink(land.drink, s, p)
+    private fun drinks(s: Species, p: Int) = Hazards.canDrink(land.drink, s, Place(p))
 
     /** What a place is worth to a kind for moving there: nothing when below nothing or not a number (see [shiftBands], [spill]). */
     private fun worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w else 0f

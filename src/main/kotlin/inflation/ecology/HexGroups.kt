@@ -352,7 +352,7 @@ class HexGroups(
         t.discomfort = discomfort(s, p.i, weather)
         t.drain = drain(g, p.i, weather)
         t.aheadC = s.discomfortC(weather.forecastTemp(p.i), date.month)
-        t.waterKm = if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.animalWaterKm(p.i)
+        t.waterKm = if (s.human) land.drink.peopleWaterKm(p) else land.drink.animalWaterKm(p)
         t.suitsLn = ln(fauna.suits(s, p.i).coerceAtLeast(1e-3f))
     }
     /** A growable list of ints, in the order added. */
@@ -594,7 +594,7 @@ class HexGroups(
      */
     internal fun campFactor(p: Int): Float {
         // Water close to camp: women and children fetch it every day (from a well dug in a dry bed, where water lies near).
-        val w = land.drink.peopleWaterKm(p) / 3f
+        val w = land.drink.peopleWaterKm(Place(p)) / 3f
         val fuel = fuelShare(woodCover(p), 1f)
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
@@ -1043,7 +1043,7 @@ class HexGroups(
             return "score %.2f: deaths %.4f (%.1f steps) food %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
                 seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, dying, survivalSteps(g, dying), placeValue[kind][p],
                 crowdedBy(s, kinAround(g, kind, h, c.sensed)), hunters,
-                if (s.human) land.drink.peopleWaterKm(p.i) else land.drink.waterKm[p], c.buf.dist[h], hexKm(h.i, goalHex))
+                if (s.human) land.drink.peopleWaterKm(p) else land.drink.waterKm[p], c.buf.dist[h], hexKm(h.i, goalHex))
         }
         val towards = (0 until reached.size).map { reached[it] }.minByOrNull { hexKm(it, goalHex) }?.let { h ->
             hw.placeNear(g.place.i, h).takeIf { it >= 0 } }?.let { Place(it) }
