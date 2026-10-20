@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.world.HexDrinkingWater
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 /**
@@ -11,8 +12,48 @@ import kotlin.math.sqrt
  * feeds in (how fed, the warmth it feels, its days without water) is its own.
  */
 object Hazards {
-    /** Hunger, for a share [fed] of its wants found last week. */
-    fun hunger(fed: Float) = if (fed < HexFauna.HUNGER_FROM) (HexFauna.HUNGER_FROM - fed) * HexFauna.HUNGER_RATE else 0f
+    /**
+     * Hunger: the share of animals of [s] that die in a step of [days], fed a share [fed] of their wants with their fat
+     * drawn on ([onFat]), having burnt [spent] days of their body's protein before it. Below [WELL_FED] they would have drawn
+     * on their fat for the rest, so it is gone: what they still lack they burn of their body's protein ([spentAfter]), and
+     * an animal dies when it has burnt what carries it ([starveDays]), some sooner and some later ([starvedShare]).
+     */
+    fun hunger(s: Species, spent: Float, fed: Float, days: Int): Float {
+        val before = starvedShare(s, spent); val after = starvedShare(s, spentAfter(spent, fed, days))
+        return if (after > before) min(1f, (after - before) / max(1e-6f, 1f - before)) else 0f
+    }
+
+    /** The days of its body's protein an animal has burnt after a step of [days] fed [fed] past its fat, having burnt [spent] before. */
+    fun spentAfter(spent: Float, fed: Float, days: Int) =
+        if (fed < WELL_FED) spent + (1f - fed) * days else max(0f, spent - REBUILD * (fed - WELL_FED) / (1f - WELL_FED) * days)
+    /**
+     * Days of burnt body a fully fed animal wins back a day: what it eats beyond its need when it can ([SURPLUS_EAT]),
+     * laid on as fat is ([FAT_EFFICIENCY]); less as it is fed less, none at [WELL_FED].
+     */
+    val REBUILD = SURPLUS_EAT * FAT_EFFICIENCY
+
+    /** How well fed an animal is over a step of [days] fed [fed], with [fat] days of fat to draw on below [WELL_FED] (as the week's feeding draws on it). */
+    fun onFat(fed: Float, fat: Float, days: Int) = if (fed < WELL_FED) min(1f, fed + min(fat, (1f - fed) * days) / days) else fed
+
+    /**
+     * The share of animals of [s] dead of hunger once they have burnt [spent] days of their body's protein: none until
+     * the first reach the end of theirs, all by [STARVE_SPREAD] past [starveDays], evenly between. (How evenly the end comes
+     * among animals in a herd is not in the record: the spread is a stand-in.)
+     */
+    fun starvedShare(s: Species, spent: Float) = ((spent / starveDays(s) - 1f + STARVE_SPREAD) / (2f * STARVE_SPREAD)).coerceIn(0f, 1f)
+    const val STARVE_SPREAD = 0.5f
+
+    /**
+     * How long an animal of [s] lives on its body's protein once its fat is spent, days of going without food: the last
+     * phase of a fast, a few days in rats (0.3 kg) and two to three weeks in penguins, which are made for fasting (Cherel,
+     * Robin and Le Maho, review "Relationships between nutrient storage and nutrient utilisation in long-term fasting
+     * birds and mammals", Acta XX Congressus Internationalis Ornithologici, Durban). Scaled with body mass as the protein
+     * carried (as M) over its burning (as M^0.75): a roe deer 12 days, a red deer 18, a horse 22, an aurochs 28.
+     */
+    fun starveDays(s: Species) = STARVE_DAYS * (s.massKg / STARVE_KG).pow(0.25f)
+    /** A rat's last phase of a fast, days, and its weight, kg: "a few days" (see [starveDays]). */
+    const val STARVE_DAYS = 4f
+    const val STARVE_KG = 0.3f
 
     /** The cold [s] feels at [feltC] in [month], beyond what its coat (or clothes) allows. */
     fun cold(s: Species, feltC: Float, month: Int) = s.coldC(feltC, month) / 10f * HexFauna.COLD_DEATHS

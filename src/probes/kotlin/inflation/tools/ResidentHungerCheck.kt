@@ -60,7 +60,7 @@ fun main(args: Array<String>) {
                 val area = land.areaKm2[p]
                 val heads = ((ad + yd) * area).toDouble()
                 val f = fauna.fed[k2][p]
-                val hunger = inflation.ecology.Hazards.hunger(f)
+                val hunger = inflation.ecology.Hazards.hunger(s, fauna.spent[k2][p], f, cfg.daysPerStep)
                 val died = ((ad + 1.5f * yd) * hunger * area).toDouble()
                 val t = fauna.tether(s, p); val g = land.plants.green[p]
                 val edge = (ad + yd) < 0.01f * usual

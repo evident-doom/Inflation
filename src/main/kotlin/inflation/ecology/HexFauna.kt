@@ -235,6 +235,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Of each plant-eating kind as it moves this week ([fillArrive]): its young to a grown one, and the fat days its grown carry, all over. */
     @Transient private val moverYoung = FloatArray(kinds.size)
     @Transient private val moverFat = FloatArray(kinds.size)
+    @Transient private val moverSpent = FloatArray(kinds.size)
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     private val huntedByResidents = Array(kinds.size) { FloatArray(n) }
     /**
@@ -380,6 +381,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private val autumnFed = Array(kinds.size) { FloatArray(n) { 0.8f } }
     /** Days each kind has gone without water in each place, as a group keeps them (see [HexGroup.dry]): they mount week to week until it drinks. */
     val dry = Array(kinds.size) { FloatArray(n) }
+    /** Days of their body's protein each kind's grown at each place have burnt, their fat spent ([Hazards.hunger]); won back before fat. */
+    val spent = Array(kinds.size) { FloatArray(n) }
     /** Life in the sea, lakes and rivers. */
     val water = HexWater(hw, land, days, small)
     /** Fruit, roots and straw as stocks. */
@@ -870,7 +873,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (!sleeping) {
                 if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days)
                     val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) ff[k * FED + Fed.RESERVES.ordinal] += (draw / days * heads).toDouble() }
-                else r[p] = min(s.maxFatDays, r[p] + FAT_EFFICIENCY * z.surplus[k] * days)
+                else { var gain = FAT_EFFICIENCY * z.surplus[k] * days
+                    // (What they ate beyond their need wins back the body they burnt before it lays on fat.)
+                    val back = min(spent[k][p], gain); spent[k][p] -= back; gain -= back
+                    r[p] = min(s.maxFatDays, r[p] + gain) }
             }
             fed[k][p] = f
             val fm = fedByMonth[k]; val i = p * 12 + weather.date.month
@@ -1005,6 +1011,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (drinks(s, p)) dk[p] = 0f
                 else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
                 hazards(k, p, weather, date.month, f[p], dk[p], a[p] + y[p], hz)
+                spent[k][p] = Hazards.spentAfter(spent[k][p], f[p], days)
                 val hunger = hz[HZ_HUNGER]; val cold = hz[HZ_COLD]; val heat = hz[HZ_HEAT]; val thirst = hz[HZ_THIRST]; val disease = hz[HZ_DISEASE]
                 val crowd = hz[HZ_CROWD]
                 // Where they are crowded, now and then a plague breaks out among them.
@@ -1086,11 +1093,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * ([huntedOdds]). The one rule residents die by ([breedAndDie], which takes the hunters' kills as they make
      * them) and weigh a place to stay or leave by ([stayOdds], [arriveOdds]).
      */
-    internal fun hazards(k: Int, p: Int, weather: Weather, month: Int, fed: Float, dry: Float, heads: Float, out: FloatArray) {
+    internal fun hazards(k: Int, p: Int, weather: Weather, month: Int, fed: Float, dry: Float, heads: Float, out: FloatArray, spentBefore: Float = spent[k][p]) {
         val s = kinds[k]
         // (Hunger, cold and heat, and thirst kill residents by the same rules as packs and bands.)
         val sleeping = asleep(k, p)
-        out[HZ_HUNGER] = Hazards.hunger(fed)
+        out[HZ_HUNGER] = Hazards.hunger(s, spentBefore, fed, days)
         val felt = feltC(s, p, weather.temperature[p])
         out[HZ_COLD] = if (sleeping) 0f else Hazards.cold(s, felt, month)
         out[HZ_HEAT] = if (sleeping) 0f else Hazards.heat(s, felt)
@@ -1190,11 +1197,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             }
             // (Those that move are the kind as it is: its young to its grown, and the fat its grown carry, all over.)
             val a = adults[k]; val y = young[k]; val fat = reserve[k]
-            var grown = 0.0; var little = 0.0; var fatDays = 0.0
-            for (p in 0 until n) { val area = land.areaKm2[p]; grown += a[p] * area; little += y[p] * area; fatDays += fat[p] * a[p] * area }
+            var grown = 0.0; var little = 0.0; var fatDays = 0.0; var spentDays = 0.0
+            for (p in 0 until n) { val area = land.areaKm2[p]; grown += a[p] * area; little += y[p] * area; fatDays += fat[p] * a[p] * area
+                spentDays += spent[k][p] * a[p] * area }
             val youngPerGrown = if (grown > 0.0) (little / grown).toFloat() else 0f
             val carried = if (grown > 0.0) (fatDays / grown).toFloat() else 0.5f * s.maxFatDays
-            moverYoung[k] = youngPerGrown; moverFat[k] = carried
+            moverYoung[k] = youngPerGrown; moverFat[k] = carried; moverSpent[k] = if (grown > 0.0) (spentDays / grown).toFloat() else 0f
             IntStream.range(0, n).parallel().forEach { p -> odds[p] = arriveOdds(k, p, weather, scratch.get().outs) }
         }
     }
@@ -1240,7 +1248,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun growthOf(k: Int, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                          carried: Float, f: Float, heads: Float, parts: FloatArray?): Float {
         val s = kinds[k]
-        val hunger = Hazards.hunger(f); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
+        val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
         val due = dueYoung(k, heads, protein, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
         val born = 0.5f * due * breeding(s, due, carried, f, days)
         val grownDie = (grownFixed + hunger + sick).coerceIn(0f, 0.9f)
@@ -1260,7 +1268,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     internal fun arriveOdds(k: Int, p: Int, weather: Weather, out: FloatArray, f: Float = room[k]?.get(p) ?: fed[k][p]): Float {
         val s = kinds[k]
         if (!drinks(s, p)) return Float.NaN
-        hazards(k, p, weather, weather.date.month, f, 0f, adults[k][p] + young[k][p] + arrivingKm2(k), out)
+        // (They come with the fat and the burnt body of their kind as it moves, [moverFat] and [moverSpent].)
+        hazards(k, p, weather, weather.date.month, Hazards.onFat(f, moverFat[k], days), 0f, adults[k][p] + young[k][p] + arrivingKm2(k), out, moverSpent[k])
         return adultShare(out)
     }
 
@@ -1372,7 +1381,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (!(share > 0f)) continue
                 val ma = a[from] * share * land.areaKm2[from]; val my = y[from] * share * land.areaKm2[from]
                 a[from] -= ma / land.areaKm2[from]; y[from] -= my / land.areaKm2[from]
-                settle(k, to, ma, my, bred[k][from])
+                settle(k, to, ma, my, from)
                 // (Those that climbed pay for it out of their fat, as for a walk, see [climbKm].)
                 val heads = (a[to] + y[to]) * land.areaKm2[to]
                 if (heads > 0f) reserve[k][to] = max(0f, reserve[k][to] - WALK_COST * climbKm(k, from, to) * (ma + my) / heads)
@@ -1448,6 +1457,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val moveA = FloatArray(n); val moveY = FloatArray(n)
         // (The grown that came, times the share of their season of births they had had: [bred] goes with them.)
         val cameBred = FloatArray(n); val cameA = FloatArray(n); val bk = bred[k]
+        val cameFat = FloatArray(n); val cameSpent = FloatArray(n); val fk = reserve[k]; val sk = spent[k]
         // (Moving every few weeks, a move takes the share those weeks' would have.)
         val weeks = tuning.residentMoveWeeks
         // What each place is worth to the kind this week, as it is worth to those moving up and down the slopes.
@@ -1521,6 +1531,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 moveA[seaTo] += goA * share - lostA
                 moveY[seaTo] += goY * share - lostY
                 cameA[seaTo] += goA * share - lostA; cameBred[seaTo] += (goA * share - lostA) * bk[p]
+                cameFat[seaTo] += (goA * share - lostA) * fk[p]; cameSpent[seaTo] += (goA * share - lostA) * sk[p]
                 drowned[seaTo] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble()
             }
             moveA[p] -= goA; moveY[p] -= goY
@@ -1529,7 +1540,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val q = wq[i]
                 val ga = goA * ws[i] / total; val gy = goY * ws[i] / total
                 moveA[q] += ga; moveY[q] += gy
-                cameA[q] += ga; cameBred[q] += ga * bk[p]
+                cameA[q] += ga; cameBred[q] += ga * bk[p]; cameFat[q] += ga * fk[p]; cameSpent[q] += ga * sk[p]
                 arrived[q] += ga + gy; walkedKm[q] += (ga + gy) * (hex.hexKm.toFloat() + climbKm(k, p, q))
                 if (flow) recordFlow(h, hw.placeHex[q], ga + gy)
             }
@@ -1537,25 +1548,29 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         countStuck(k, weekHeads, weekStuck, weekEdge)
         for (p in 0 until n) {
             // (Those that stayed are those there less those that left: the grown that came are all in moveA.)
-            if (cameA[p] > 0f) bk[p] = mixed(bk[p], max(0f, a[p] * land.areaKm2[p] + moveA[p] - cameA[p]), cameBred[p] / cameA[p], cameA[p])
+            if (cameA[p] > 0f) { val stayed = max(0f, a[p] * land.areaKm2[p] + moveA[p] - cameA[p])
+                bk[p] = mixed(bk[p], stayed, cameBred[p] / cameA[p], cameA[p]).coerceIn(0f, 1f)
+                fk[p] = mixed(fk[p], stayed, cameFat[p] / cameA[p], cameA[p]); sk[p] = mixed(sk[p], stayed, cameSpent[p] / cameA[p], cameA[p]) }
             a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p])
         }
         return drownedHeads
     }
 
-    /** The share of their season of births ([bred]) of [there] grown that had had [was] and [came] that had had [had], together. */
     /**
-     * Adds [grown] and [youngHeads] heads of kind [k] to place [to], the grown with [had] of their season of births had
-     * ([bred], mixed in by heads, [mixed]).
+     * Adds [grown] and [youngHeads] heads of kind [k] to place [to] from place [from], the grown with what they carry from
+     * there (their season of births had, [bred]; their fat, [reserve]; their body burnt, [spent]), mixed in by heads ([mixed]).
      */
-    private fun settle(k: Int, to: Int, grown: Float, youngHeads: Float, had: Float) {
+    private fun settle(k: Int, to: Int, grown: Float, youngHeads: Float, from: Int) {
         val a = adults[k]; val area = land.areaKm2[to]
-        bred[k][to] = mixed(bred[k][to], a[to] * area, had, grown)
+        bred[k][to] = mixed(bred[k][to], a[to] * area, bred[k][from], grown).coerceIn(0f, 1f)
+        reserve[k][to] = mixed(reserve[k][to], a[to] * area, reserve[k][from], grown)
+        spent[k][to] = mixed(spent[k][to], a[to] * area, spent[k][from], grown)
         a[to] += grown / area; young[k][to] += youngHeads / area
     }
 
+    /** A per-head number of [there] grown that had [was] and [came] that had [had], together. */
     private fun mixed(was: Float, there: Float, had: Float, came: Float) =
-        if (there + came > 0f) ((was * there + had * came) / (there + came)).coerceIn(0f, 1f) else was
+        if (there + came > 0f) (was * there + had * came) / (there + came) else was
 
     /** Adds a move's heads of kind [k], those hungry with nowhere better to go, and of them those at a closed border, to [stuck]. */
     private fun countStuck(k: Int, heads: Double, stuckHeads: Double, atEdge: Double) {
@@ -1589,6 +1604,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val ga = FloatArray(n) { p -> a[p] * area[p] }; val gy = FloatArray(n) { p -> y[p] * area[p] }
         // (The grown times the share of their season of births they have had: [bred] goes with them.)
         val bk = bred[k]; val gb = FloatArray(n) { p -> bk[p] * ga[p] }
+        // (The grown carry their fat and their burnt body with them, as their season's births, [carry].)
+        val fk = reserve[k]; val sk = spent[k]; val gf = FloatArray(n) { p -> fk[p] * ga[p] }; val gs = FloatArray(n) { p -> sk[p] * ga[p] }
         val food = FloatArray(n)
         IntStream.range(0, n).parallel().forEach { p -> val t = scratch.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, t.pantry, t.bites) }
         val v = worth[k]
@@ -1700,12 +1717,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // They go: from the places as they stood at the pass's start (those come this pass walk on next pass).
             changed.fill(false)
             for (q in 0 until n) exact[q] = take[q] >= 1f && takeRouted[q] >= 1f && coming[q] > 0f && !(share[q] > 0f)
-            val startA = ga.copyOf(); val startY = gy.copyOf(); val startB = gb.copyOf()
+            val startA = ga.copyOf(); val startY = gy.copyOf(); val startB = gb.copyOf(); val startF = gf.copyOf(); val startS = gs.copyOf()
             for (p in 0 until n) {
                 if (!(share[p] > 0f)) continue
                 val heads = startA[p] + startY[p]; val sum = gapSum[p]
                 val youngShare = startY[p] / heads; val goAll = share[p] * heads
                 val hadBred = if (startA[p] > 0f) startB[p] / startA[p] else 0f
+                val hadFat = if (startA[p] > 0f) startF[p] / startA[p] else 0f; val hadSpent = if (startA[p] > 0f) startS[p] / startA[p] else 0f
                 val h = hw.placeHex[p]
                 var left = 0f
                 for (i in ways.from[p] until ways.from[p + 1]) {
@@ -1719,12 +1737,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     val lostA = mA * risk; val lostY = mY * min(1f, 2f * risk)
                     if (lostA + lostY > 0f) { drowned[q] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble(); exact[q] = false }
                     ga[q] += mA - lostA; gy[q] += mY - lostY; gb[q] += (mA - lostA) * hadBred
+                    gf[q] += (mA - lostA) * hadFat; gs[q] += (mA - lostA) * hadSpent
                     arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (km + climbKm(k, p, q))
                     changed[q] = true
                     if (record && hw.placeHex[q] != h) recordFlow(h, hw.placeHex[q], m)
                 }
                 ga[p] = max(0f, ga[p] - left * (1f - youngShare)); gy[p] = max(0f, gy[p] - left * youngShare); changed[p] = true
                 gb[p] = max(0f, gb[p] - left * (1f - youngShare) * hadBred)
+                gf[p] = max(0f, gf[p] - left * (1f - youngShare) * hadFat); gs[p] = max(0f, gs[p] - left * (1f - youngShare) * hadSpent)
             }
             IntStream.range(0, n).parallel().forEach { p -> if (changed[p]) v[p] = if (exact[p]) full[p] else weigh(p, ga[p] + gy[p]) }
             // (And the places next to those newly come to, as yet unweighed.)
@@ -1732,7 +1752,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             weighMarked()
         }
         countStuck(k, weekHeads, weekStuck, weekEdge)
-        for (p in 0 until n) { a[p] = max(0f, ga[p] / area[p]); y[p] = max(0f, gy[p] / area[p]); if (ga[p] > 0f) bk[p] = (gb[p] / ga[p]).coerceIn(0f, 1f) }
+        for (p in 0 until n) { a[p] = max(0f, ga[p] / area[p]); y[p] = max(0f, gy[p] / area[p]); if (ga[p] > 0f) { bk[p] = (gb[p] / ga[p]).coerceIn(0f, 1f)
+            fk[p] = (gf[p] / ga[p]).coerceIn(0f, kinds[k].maxFatDays); sk[p] = max(0f, gs[p] / ga[p]) } }
         return drownedHeads
     }
 
@@ -1855,7 +1876,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             neighbourPlaces(k, p) { q -> val dq = a[q] + y[q]; if (dq < floor && dq * area[q] > most && drinks(s, q)) { most = dq * area[q]; to = q } }
             if (to < 0) continue
             val ga = a[p] * area[p]; val gy = y[p] * area[p]
-            settle(k, to, ga, gy, bred[k][p]); a[p] = 0f; y[p] = 0f
+            settle(k, to, ga, gy, p); a[p] = 0f; y[p] = 0f
             arrived[to] += ga + gy; walkedKm[to] += (ga + gy) * (hex.hexKm.toFloat() + climbKm(k, p, to))
         }
     }

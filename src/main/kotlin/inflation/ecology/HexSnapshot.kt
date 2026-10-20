@@ -134,9 +134,12 @@ object HexSnapshot {
      * is ([HexFauna.game]), and resident hunters kill by it; beasts of prey foresee how fed they would be by the residents'
      * feeding rule.
      * 4.7: straw lies under the snow as the green grass does; heat is booked as its own cause of death.
+     * 4.8: hunger kills as the body's protein runs out once the fat is spent ([Hazards.hunger], [Hazards.starveDays]):
+     * residents and groups count the days of it they have burnt ([HexFauna.spent], [HexGroup.spent]), any shortfall past
+     * the fat burns it, and food beyond need wins it back; residents carry their fat and their burnt body when they move.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 7
+    const val MODEL_MINOR = 8
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

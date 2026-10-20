@@ -298,6 +298,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     g.memory.copyInto(n.memory)
     n.fed = g.fed
     n.fat = g.fat
+    n.spent = g.spent
     n.tag = g.tag
     n.parent = g.id
     n.dry = g.dry
@@ -414,6 +415,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         Hazard(DeathCause.OTHER.label, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place.i, weather, g.fed, g.protein, thirst, sick, band?.fire ?: 0f, band?.atHome ?: false) { c, a, y -> hazards += Hazard(c, a, y) }
+    g.spent = Hazards.spentAfter(g.spent, g.fed, days)
     hazards.addAll(listOf(
         Hazard(DeathCause.HOMELESS.label, homeless, homeless),
         Hazard(DeathCause.CAMP_FOULING.label, 0f, fouled), Hazard(DeathCause.SNAKES.label, venom, venom), Hazard(DeathCause.INBREEDING.label, 0f, inbred),
@@ -475,7 +477,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
 private fun HexGroups.feedOnReserves(g: HexGroup) {
     val s = g.species
     if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
-    else g.fat = min(s.maxFatDays, g.fat + FAT_EFFICIENCY * g.surplus)
+    else { val gain = FAT_EFFICIENCY * g.surplus; val back = min(g.spent, gain); g.spent -= back
+        // (What it ate beyond its need wins back the body it burnt before it lays on fat.)
+        g.fat = min(s.maxFatDays, g.fat + gain - back) }
     g.surplus = 0f
 }
 
@@ -584,7 +588,8 @@ internal fun interface HazardSink { fun add(cause: String, adult: Float, young: 
 internal fun HexGroups.placeHazards(g: HexGroup, p: Int, weather: Weather, fed: Float, protein: Float, thirst: Float, sick: Float,
     fire: Float, home: Boolean, into: HazardSink) {
     val s = g.species; val b = g.band; val t = weather.temperature[p]
-    val hunger = Hazards.hunger(fed)
+    // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
+    val hunger = Hazards.hunger(s, g.spent, Hazards.onFat(fed, g.fat, days), days)
     // People feel the cold as their clothes allow.
     // Exposure: the unprotected die of the cold within days.
     val exposure = b?.let { min(0.9f, EXPOSURE * it.exposure(t, fire, home) * days / 7f) } ?: 0f
@@ -711,7 +716,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
                 hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM * a.will[AnimalWay.MATE] } ?: continue
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
-            a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.bred = (a.bred + b.bred) / 2f
+            a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.spent = (a.spent + b.spent) / 2f; a.bred = (a.bred + b.bred) / 2f
             if (a.home.none) claimGround(a, b.home)
             b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
@@ -724,7 +729,7 @@ private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
     into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
-    into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.bred += w * (from.bred - into.bred)
+    into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.spent += w * (from.spent - into.spent); into.bred += w * (from.bred - into.bred)
     for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
     // (Its cache is left: no one goes back for it.)
