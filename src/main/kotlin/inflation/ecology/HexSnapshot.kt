@@ -133,14 +133,18 @@ object HexSnapshot {
      * [seasonShare]); people keep their own births. Resident hunters and the groups count game alike, by how catchable it
      * is ([HexFauna.game]), and resident hunters kill by it; beasts of prey foresee how fed they would be by the residents'
      * feeding rule.
-     * 4.7: hunger kills as the body's protein runs out once the fat is spent ([Hazards.hunger], [Hazards.starveDays]):
+     * 4.7: the memory learns only what the ground and its weather do to a kind (births by its food; deaths of hunger,
+     * thirst, cold, snow, fire and flood), as a mean over some ten years; half the residents a week set off along its route.
+     * 4.8: a hex's low and high ground are the foot and top of one slope: residents crossing into the next hex come to
+     * its ground nearest in height to theirs, and gain or lose height within a hex ([HexFauna.neighbourPlaces]).
+     * 4.9: hunger kills as the body's protein runs out once the fat is spent ([Hazards.hunger], [Hazards.starveDays]):
      * residents and groups count the days of it they have burnt ([HexFauna.spent], [HexGroup.spent]), a shortfall past
      * the fat and past what plant-eaters save by spending less ([Hazards.economy]) burns it, and food beyond need wins it
      * back; residents carry their fat and their burnt body when they move. Straw lies under the snow as the green grass
      * does; heat is booked as its own cause of death.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 7
+    const val MODEL_MINOR = 9
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

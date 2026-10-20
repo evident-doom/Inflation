@@ -73,7 +73,7 @@ One step is 6 days (5 steps per month), configurable in `WorldConfig`.
 Every choice a group makes (where to go each week, and its ways: effort on each food, stores,
 what to make) has a hand-written rule, and can instead be made by a small network (`Mlp`, plain
 Kotlin, no dependencies). There are move networks by role (`Role`): one for the hunters and one
-for people (the herds' role keeps its place in the layout, with no groups to move); kinds within a
+for people; kinds within a
 role share it and are told apart by their traits and a learned identity. Bands' ways have a network of their own (`ways.mlp`).
 
 - `HexPpo` trains them by proximal policy optimisation: each round, training worlds with all the

@@ -67,7 +67,7 @@ class EvolutionStrategy(val pairs: Int, val sigma: Float) {
  *
  * Config keys: `evolveWays.sigma` (default 0.05), `evolveWays.rate` (0.02) and `evolveWays.hidden` (16).
  *
- * With --nets, every kind moves by the learned role networks in DIR (herds.mlp, hunters.mlp,
+ * With --nets, every kind moves by the learned role networks in DIR (hunters.mlp and
  * people.mlp, each with its .identity, as [HexPpo] writes them) instead of the hand-written choices.
  */
 object HexEvolveWays {
@@ -75,7 +75,7 @@ object HexEvolveWays {
     fun main(args: Array<String>) {
         val a = Args(args, "hex-evolve-ways [--role bands|hunters] [--out DIR] [--seeds 1,2,..] [--size KM] [--years N] [--gens N] [--pairs N] [--nets DIR]")
         val out = a.file("--out") ?: File("hex-ways")
-        val role = requireNotNull(WaysKind.named(a.string("--role") ?: WaysKind.BANDS.label)?.takeIf { it != WaysKind.HERDS }) { "--role is bands or hunters" }
+        val role = requireNotNull(WaysKind.named(a.string("--role") ?: WaysKind.BANDS.label)) { "--role is bands or hunters" }
         val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(81L, 82L, 83L, 84L, 85L, 86L, 87L, 88L)
         val size = a.int("--size", 600)
         val years = a.int("--years", 5)
@@ -133,7 +133,7 @@ class WaysEvolution(private val role: WaysKind, private val movers: List<SharedM
 
     fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Result {
         val run = freshSim(cfg, Catalogue.learned.distinct())
-        movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.all) run.groups.policies[s] = ps[Role.of(s).ordinal] }
+        movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.learned) run.groups.policies[s] = ps[Role.of(s).ordinal] }
         val steps = years * cfg.stepsPerYear
         if (role == WaysKind.BANDS) {
             val people = Catalogue.HUMAN

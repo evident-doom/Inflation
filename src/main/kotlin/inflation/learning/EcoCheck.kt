@@ -18,9 +18,9 @@ import java.util.concurrent.Executors
  * The test world ([Config] key `ppo.checkWorld`, default lake-1) runs from its settled state for
  * `ppo.checkYears` years (default 5), its weather drawn `ppo.checkReplicates` ways (default 2), each
  * way with: every role's new network ("new"); every role's kept one ("kept"); and, for each role, its
- * kept network with the others' new ("kept herds" and so on). The runs are their own processes, beside
+ * kept network with the others' new ("kept hunters" and so on). The runs are their own processes, beside
  * the training, each under the training's own config with only the networks changed. A role's new network is kept when, set against its kept one with the others' new (all
- * new against "kept herds" and so on, so that only that role's network differs):
+ * new against "kept hunters" and so on, so that only that role's network differs):
  * - the ecosystem holds: no kind's numbers in the last whole year fall more than [FALL] below in every
  *   weather alike (a fall in one weather only is chance), no kind present is gone in every weather, and
  *   there are not fewer people in every weather; and
@@ -38,7 +38,7 @@ class EcoCheck(private val out: File) {
     class Verdict(val round: Int, val roles: Map<Role, Boolean>, val lines: List<String>)
 
     /** The kept networks start as the ones the run starts from. */
-    fun init() { if (!File(kept, Role.HERDS.file(kept).name).exists()) copyRoles(out, kept, Role.entries) }
+    fun init() { if (!File(kept, Role.HUNTERS.file(kept).name).exists()) copyRoles(out, kept, Role.entries) }
 
     /** Checks the networks in [candidate] (a copy of round [round]'s, counted from 0) against the kept ones, beside the training. */
     fun start(round: Int, candidate: File): CompletableFuture<Verdict> = CompletableFuture.supplyAsync {

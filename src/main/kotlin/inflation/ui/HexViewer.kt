@@ -135,7 +135,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     @Volatile private var stepsPerSecond = 2
 
     /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...; from where it was drawn last), its size. */
-    private class Shown(val id: Int, val kind: Int, val carnivore: Boolean, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean)
+    private class Shown(val id: Int, val kind: Int, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean)
     /** A resident kind's spill last week, by hex (see [inflation.ecology.HexFauna.flowOf]): its slot, the net way east and south, head/km². */
     private class Flow(val kind: Int, val east: FloatArray, val south: FloatArray)
     @Volatile private var flowShown: Flow? = null
@@ -390,7 +390,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             pts += end.first; pts += end.second
             // How well it is doing: fed last week and its reserves.
             val health = (0.5f * g.fed + 0.5f * g.fat / g.species.maxFatDays.coerceAtLeast(1f)).coerceIn(0f, 1f)
-            list += Shown(g.id, g.species.index, g.species.carnivore, pts.toFloatArray(), g.size, health, g.band?.atHome == true)
+            list += Shown(g.id, g.species.index, pts.toFloatArray(), g.size, health, g.band?.atHome == true)
             lastDrawn[g.id] = end
         }
         shown = list
@@ -1067,7 +1067,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 .ifEmpty { "none" })
             sb.appendLine("goods: " + Material.entries.joinToString(", ") { "%s %.0f kg".format(it.name.lowercase(), b.goods[it]) })
         }
-        if (s.carnivore && g.band == null) sb.appendLine("holds ground at hex %s; meat taken from other hunters this week %.0f kg".format(
+        if (g.band == null) sb.appendLine("holds ground at hex %s; meat taken from other hunters this week %.0f kg".format(
             if (!g.home.none) g.home.toString() else "none", g.meatMet))
         else {
             val months = (0 until Date.MONTHS_PER_YEAR).filter { g.seasonPlace[it] >= 0 }

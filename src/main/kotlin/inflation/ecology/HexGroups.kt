@@ -163,7 +163,7 @@ class HexGroups(
                 claimGround(g, Hex(hw.placeHex[p]))
                 groups += g
             }
-            stats.meetings.merge("newcomers: ${s.name}", NEWCOMERS, Int::plus)
+            stats.meeting("newcomers: ${s.name}", NEWCOMERS)
         }
     }
 
@@ -196,7 +196,7 @@ class HexGroups(
      * animals and the goods that come from living things (wood, fibre, resin, hide, bone, sinew).
      */
     internal fun listStocks(stocks: Stocks) {
-        stocks.within("packs and bands") { for (s in kinds) stocks.add(Books.Stuff.MATTER, "group ${s.name}") {
+        stocks.within(Stocks.GROUPS) { for (s in kinds) stocks.add(Books.Stuff.MATTER, "group ${s.name}") {
             var sum = 0.0; for (g in groups) if (g.alive && g.species == s) sum += (g.adults + HexFauna.YOUNG_WEIGHT * g.young) * s.massKg.toDouble(); sum } }
         stocks.add(Books.Stuff.MATTER, "hunters' meat in hand") {
             var sum = 0.0; for (g in groups) if (g.meatMet > 0f && !g.meatSpent) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble(); sum }
@@ -263,7 +263,7 @@ class HexGroups(
             manEaterKm2[hw.placeHex[g.place]] += g.species.takesPeople * g.size * g.species.massKg / hex.areaKm2.toFloat()
         // The strongest hunting party in each place, and its kind: weaker hunters keep out of its way.
         topStrength.fill(0f); topKind.fill(-1)
-        for (g in groups) if (g.alive && g.species.carnivore) {
+        for (g in groups) if (g.alive) {
             val st = strength(g)
             if (st > topStrength[g.place]) { topStrength[g.place] = st; topKind[g.place] = g.species.index }
         }
@@ -285,7 +285,7 @@ class HexGroups(
         }
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < Thresholds.HUNGRY)
-                stats.meetings.merge(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move", 1, Int::plus)
+                stats.meeting(if (paths[k]!!.size <= 1) "hungry bands chose to stay" else "hungry bands chose to move")
             g.climbedM = max(0f, hw.placeElevationM[choice[k]] - hw.placeElevationM[g.place.i])
             g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             crossWater(g, g.path)
@@ -302,7 +302,7 @@ class HexGroups(
             // (The drowned wash up on the far shore.)
             small.deposit(DeadPool.CARRION, g.place, Kg((lostA + HexFauna.YOUNG_WEIGHT * lostY) * g.species.massKg))
             if (lostA + lostY > 0) stats.deaths.merge(Tally.of(g.species, DeathCause.DROWNED_CROSSING), lostA + lostY, Int::plus)
-            stats.meetings.merge("sea crossings: ${g.species.name}", 1, Int::plus)
+            stats.meeting("sea crossings: ${g.species.name}")
         }
     }
 
@@ -495,7 +495,7 @@ class HexGroups(
     /** Fills [into] with the kg of the groups' beasts of prey at each place, people with them or not. */
     private fun beastsKg(into: FloatArray, people: Boolean) {
         into.fill(0f)
-        for (g in groups) if (g.alive && g.species.carnivore && (people || !g.species.human)) into[g.place] += g.size * g.species.massKg
+        for (g in groups) if (g.alive && (people || !g.species.human)) into[g.place] += g.size * g.species.massKg
     }
 
     /** Each kind's slot in [kinds], by its [Species.index]; -1 for a kind not kept in groups. */
@@ -608,7 +608,7 @@ class HexGroups(
             val dry = land.hydro.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.plants.green[p] < 0.4f
             if (dry && land.plants.herb[p] > 0.3f && land.fire.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) {
                 land.fire.ignite(p.i)
-                stats.meetings.merge("bands burned off grass", 1, Int::plus)
+                stats.meeting("bands burned off grass")
             }
         }
     }
@@ -782,7 +782,7 @@ class HexGroups(
         if (weather.forecastTemp(p.i) < 0f && weather.snowpack[p] + weather.forecastRain(p.i) > s.snowLimitMm) f[Feature.SNOW_AHEAD] = s.foresight
         f[Feature.BURNING] = land.fire.burning[p]
         f[Feature.KILL_FEAR] = fauna.afraid(p.i)
-        if (s.carnivore && hex.distanceKm(h.i, here.i) <= hex.hexKm * 1.01 && topKind[p] >= 0 && topKind[p] != s.index)
+        if (hex.distanceKm(h.i, here.i) <= hex.hexKm * 1.01 && topKind[p] >= 0 && topKind[p] != s.index)
             f[Feature.STRONGER_HUNTER] = min(1f, topStrength[p] / (4f * strength(g)).coerceAtLeast(1e-3f))
         f[Feature.CLIMB] = ((hw.placeElevationM[p] - hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
         f[Feature.EFFORT] = (d / reach.coerceAtLeast(1f)).coerceIn(0f, 1f)
@@ -1032,16 +1032,16 @@ class HexGroups(
      */
     private fun tellNotANumber(c: PlanContext, t: PlaceTerms?, p: Place, h: Hex, d: Float, prey: Float, crowded: Float, fed: Float, drowning: Float, alive: Float) {
         if (notANumber.incrementAndGet() > 20) return
-        val g = c.g; val s = g.species; val b = g.band
+        val g = c.g; val s = g.species
         val deaths = deathsAt(c, p, h, fed)
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         val causes = StringBuilder()
-        placeHazards(g, p.i, c.weather, fed, g.protein, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false) { cause, a, y ->
+        foreseenHazards(g, p.i, c.weather, fed, thirst) { cause, a, y ->
             if (a != 0f || y != 0f) causes.append(" ").append(cause).append(" ").append(a).append("/").append(y) }
         val terms = t?.let { "food value %s discomfort %s drain %s suits %s water %s km".format(placeValue[c.kind][p], it.discomfort, it.drain, it.suitsLn, it.waterKm) } ?: "not kept"
         println("not a number: ${s.name} #${g.id} of ${g.size} (${g.adults} grown, ${g.young} young, odds of dying ${g.deathOdds}, fed ${g.fed}) at place ${p.i}, " +
             "$d km of going: score before deaths $alive, deaths $deaths, drowning $drowning, steps ${survivalSteps(g, deaths + drowning)}; " +
-            "foreseen fed $fed, protein ${g.protein}, thirst $thirst, crowded $crowded, prey $prey; " +
+            "foreseen fed $fed, thirst $thirst, crowded $crowded, prey $prey; " +
             "hazards:$causes; terms: $terms")
     }
 
@@ -1104,7 +1104,7 @@ class HexGroups(
         if (TAMING && s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(peopleSlot, p, h, sensed) / 25f)
         g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed) }
         // A hungry pack gives up ground it has hunted out lately and looks further afield.
-        if (s.carnivore && g.fed < Thresholds.HUNGRY && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
+        if (g.fed < Thresholds.HUNGRY && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
         return score
     }
 
@@ -1119,7 +1119,7 @@ class HexGroups(
         val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
         val thirst = thirstOdds(g, p.i, dryAfter(g, p.i, fed))
         val odds = c.odds.also { it.adult = 0f; it.young = 0f }
-        placeHazards(g, p.i, weather, fed, g.protein, thirst, 0f, b?.let { fireAt(g, it, p.i) } ?: 0f, b?.let { atHouse(it, p.i) } ?: false, odds)
+        foreseenHazards(g, p.i, weather, fed, thirst, odds)
         var adult = odds.adult; var young = odds.young
         if (b != null) {
             val venom = venomOdds(s, p.i, weather)

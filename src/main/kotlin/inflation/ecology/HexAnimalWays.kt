@@ -22,23 +22,10 @@ val ANIMAL_WAYS_IN = AnimalInputs.size
 const val ANIMAL_WAYS_OUT = 6
 
 /**
- * What each output means, by role. Each is read through `2 / (1 + e^-x)`: 1 (the hand-written way) at
- * an output of 0, from never (0) to twice as readily (2).
+ * What each output means. Each is read through `2 / (1 + e^-x)`: 1 (the hand-written way) at an output of 0, from
+ * never (0) to twice as readily (2).
  */
 object AnimalWay {
-    // Herds' (kept for the layout until retraining: no herds live as groups now).
-    /** How big it lets itself grow before it splits, and how big a herd it joins: against its kind's (and its own leaning's) size. */
-    const val HERD_SIZE = 0
-    /** How much it leans to grass, browse, and fruit and roots, against its kind's diet. */
-    const val GRASS = 1
-    const val BROWSE = 2
-    const val FRUIT = 3
-    /** How much more it eats to lay on reserves when there is food to spare. */
-    const val FATTEN = 4
-    /** Its births: under 1 a month earlier this year, over 1 a month later, when far enough from 1; near 1 they drift towards the
-     * months it fed best in, as they always did. */
-    const val BIRTHS = 5
-    // Hunters.
     /** How long it kept on chasing herds it met (kept for the layout until retraining: there are no herds to chase). */
     const val CHASE = 0
     /** How readily it robs a weaker hunter of another kind of its kill. */
@@ -53,10 +40,6 @@ object AnimalWay {
     const val SETTLE = 5
 
     /** Each way's name, by its slot, as a learned network's `.names` file records it (the strings must not change). */
-    val HERD_NAMES: List<String> = arrayOfNulls<String>(ANIMAL_WAYS_OUT).also {
-        it[HERD_SIZE] = "herd size"; it[GRASS] = "grass"; it[BROWSE] = "browse"; it[FRUIT] = "fruit and roots"; it[FATTEN] = "fattening"
-        it[BIRTHS] = "births earlier or later"
-    }.mapIndexed { k, n -> requireNotNull(n) { "herd way $k has no name" } }
     val HUNTER_NAMES: List<String> = arrayOfNulls<String>(ANIMAL_WAYS_OUT).also {
         it[CHASE] = "chasing"; it[STEAL] = "stealing kills"; it[KILL] = "killing other hunters"; it[FIGHT] = "fighting rivals"; it[MATE] = "seeking a mate"
         it[SETTLE] = "settling"

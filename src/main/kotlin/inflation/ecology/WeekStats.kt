@@ -27,6 +27,9 @@ class WeekStats {
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
     val residentDeaths = TreeMap<String, Double>()
 
+    /** Counts [n] more of [what] in [meetings]. */
+    fun meeting(what: String, n: Int = 1) { meetings.merge(what, n, Int::plus) }
+
     /** Starts a new week (the children's ledger runs on until read). */
     fun clear() { kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
 

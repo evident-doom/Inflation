@@ -62,7 +62,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     // (What a party killed this week before the last of it died lies where it fell: the meat of it, a beast's need being
     // counted in the whole weight of its kills, see [creditShare].)
     for (g in groups) if (!g.alive && g.meatMet > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.meatMet * meatShare(g.band) / creditShare(g.band))); g.meatMet = 0f }
-    val hunters = groups.filter { it.alive && it.species.carnivore }.shuffled(rnd)
+    val hunters = groups.filter { it.alive }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
     // Bands first set their ways for the week.
     // (Where the bands about it stand now, after this week's moves, as its own place is.)
@@ -679,7 +679,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
         if (kept > 0) {
             band.herd[k] += kept; ny -= kept
             fauna.young[k][p] = max(0f, fauna.young[k][p] - kept / area)
-            stats.meetings.merge("young animals kept", kept, Int::plus)
+            stats.meeting("young animals kept", kept)
         }
     }
     fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
@@ -852,7 +852,7 @@ private fun HexGroups.scavenge(g: HexGroup, p: Int, expected: Float, sweep: Floa
         val beasts = monthBeastKg[p] / land.areaKm2[p]
         if (rnd.nextFloat() < SCAVENGE_RISK * beasts / (beasts + 3f)) {
             band.wounded(1f, g.adults)
-            stats.meetings.merge("bands mauled at a carcass", 1, Int::plus)
+            stats.meeting("bands mauled at a carcass")
         }
     }
     return got
@@ -970,7 +970,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
         val met = poisson(encounters(a, b, p, e.span), rnd)
         if (met == 0) continue
-        if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meetings.merge("slipped away", 1, Int::plus); continue }
+        if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meeting("slipped away"); continue }
         if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { bandsMeet(a, b, weather) }
         else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
         else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
@@ -991,7 +991,7 @@ internal fun HexGroups.meet(weather: Weather) {
  * and a band that is going hungry is given a share of the other's larder.
  */
 internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
-    stats.meetings.merge("bands met", 1, Int::plus)
+    stats.meeting("bands met")
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
     if (meetingEndsInRaid(a, b, weather)) return
@@ -1010,7 +1010,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         moveFood(rich, poor, gift)
         poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
         helped(rich, poor, gift)
-        stats.meetings.merge("food given", 1, Int::plus)
+        stats.meeting("food given")
         note(rich) { "gave %.0f kg of food to hungry band #%d".format(gift, poor.id) }
         note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }
         }
@@ -1021,11 +1021,10 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         if (gb.tie(taker.id) < 0.3f || gb.ornaments < 1f) continue
         val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
         if (gift <= 0f) continue
-        val exoticShare = gb.exotic / gb.ornaments
-        gb.ornaments -= gift; gb.exotic -= gift * exoticShare
-        tb.ornaments += gift; tb.exotic += gift * exoticShare
+        val shell = gb.takeOrnaments(gift)
+        tb.ornaments += gift; tb.exotic += shell
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
-        stats.meetings.merge("ornaments given", 1, Int::plus)
+        stats.meeting("ornaments given")
     }
     // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
@@ -1042,7 +1041,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
             val gift = min(spare, lack) * min(1f, gb.giveWill)
             gb.goods[m] -= gift; tb.goods[m] += gift
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
-            stats.meetings.merge("${m.name.lowercase()} given", 1, Int::plus)
+            stats.meeting("${m.name.lowercase()} given")
         }
         if (useful <= 0f) continue
         tb.befriend(giver.id, TIE_USEFUL * useful); gb.befriend(taker.id, 0.5f * TIE_USEFUL * useful)
@@ -1065,12 +1064,12 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         val grain = host.stores[Store.SEED]
         val beer = if (hb.has(Tool.BASKET) > 0.5f && hb.has(Tool.GRINDER) > 0.2f) min(0.2f * grain, BEER_KG * guest.size) else 0f
         if (beer > 0f) {
-            host.stores[Store.SEED] -= beer; stats.meetings.merge("feasts with beer", 1, Int::plus)
+            host.stores[Store.SEED] -= beer; stats.meeting("feasts with beer")
             land.books?.flow(Books.Stuff.MATTER, "eaten", -(beer * host.storeKgPer[Store.SEED]).toDouble())
         }
         val warmth = 1f + BEER_TIES * min(1f, beer / (BEER_KG * guest.size).coerceAtLeast(1e-3f))
         guest.band?.befriend(host.id, TIE_FEAST * warmth); hb.befriend(guest.id, 0.5f * TIE_FEAST * warmth)
-        stats.meetings.merge("feasts", 1, Int::plus)
+        stats.meeting("feasts")
         note(host) { "feasted band #%d with %.0f kg".format(guest.id, meal) }; note(guest) { "was feasted by band #%d".format(host.id) }
     }
     // Word of where the other did better this month.
@@ -1155,7 +1154,7 @@ internal fun killChance(catchable: Float, edge: Float): Float = CATCH * SURPRISE
  * a much stronger party now and then kills one of the other.
  */
 internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Int, stop: IntArray) {
-    stats.meetings.merge("hunters of other kinds", 1, Int::plus)
+    stats.meeting("hunters of other kinds")
     val sa = strength(a) * (if (a.home.i == h) HOME_ADVANTAGE else 1f)
     val sb = strength(b) * (if (b.home.i == h) HOME_ADVANTAGE else 1f)
     val aStrong = sa >= sb
@@ -1169,7 +1168,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         val taken = 0.7f * weak.meatMet
         weak.meatMet -= taken; strong.meatMet += taken
         bookKill(strong, taken, 0f, 0f); bookKill(weak, -taken, 0f, 0f)
-        stats.meetings.merge("kill stolen", 1, Int::plus)
+        stats.meeting("kill stolen")
     }
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
@@ -1190,7 +1189,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         stats.deaths.merge(Tally.of(weak.species, DeathCause.killedBy(strong.species.name)), 1, Int::plus)
     }
     stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back
-    if (weak.band != null) stats.meetings.merge("bands turned back by ${strong.species.name}", 1, Int::plus)
+    if (weak.band != null) stats.meeting("bands turned back by ${strong.species.name}")
 }
 
 /**
@@ -1203,7 +1202,7 @@ internal fun HexGroups.mark() {
     for (m in scent.marks.values) for (i in m.indices) m[i] *= MARK_KEEP
     for (g in groups) {
         val s = g.species
-        if (!g.alive || !s.carnivore || s.human || g.home.none) continue
+        if (!g.alive || s.human || g.home.none) continue
         val m = scent.marks.getOrPut(s.index) { FloatArray(hex.size) }
         val who = scent.markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
         for (h in g.path) {
@@ -1220,17 +1219,17 @@ internal fun HexGroups.mark() {
  * and the loser gives up the ground.
  */
 internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Int, stop: IntArray) {
-    stats.meetings.merge("rival packs", 1, Int::plus)
+    stats.meeting("rival packs")
     val sa = a.adults * (if (a.home.i == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home.i == h) HOME_ADVANTAGE else 1f)
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
     // (How much stronger the other has to be before the weaker gives way is the weaker's choice.)
     if (ratio > FIGHT_RATIO * (if (sa < sb) a else b).will[AnimalWay.FIGHT]) {
         // The weaker gives way: back the way it came.
         if (sa < sb) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
-        stats.meetings.merge("pack gave way", 1, Int::plus)
+        stats.meeting("pack gave way")
         return
     }
-    stats.meetings.merge("packs fought", 1, Int::plus)
+    stats.meeting("packs fought")
     val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
     if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) {
         adultsDied(loser, 1, rnd)

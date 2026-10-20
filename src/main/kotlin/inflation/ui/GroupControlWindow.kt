@@ -252,8 +252,8 @@ class GroupControlWindow(
 
     override fun move(d: MoveDecision): Int {
         val roleSize = if (d.group.band != null) WAYS_OUT else ANIMAL_WAYS_OUT
-        val role = if (d.group.band != null) 2 else if (d.group.species.carnivore) 1 else 0
-        if (pins.size != roleSize || pinsFor != d.group.id * 3 + role) { pins = FloatArray(roleSize) { Float.NaN }; pinsFor = d.group.id * 3 + role }
+        val role = if (d.group.band != null) 1 else 0
+        if (pins.size != roleSize || pinsFor != d.group.id * 2 + role) { pins = FloatArray(roleSize) { Float.NaN }; pinsFor = d.group.id * 2 + role }
         pick = d.model
         // (The groups it saw last time it chose, so that those that left can be shown going.)
         decision?.let { old -> if (old.group.id == d.group.id) seenBefore = nearIds(hw.placeHex[old.group.place]) }
@@ -343,7 +343,7 @@ class GroupControlWindow(
             sb.appendLine("knows %d hexes; knows the homes of %d bands".format((0 until hex.size).count { b.knows(it) }, b.knownHomes.size))
             b.raid?.let { sb.appendLine("set on a raid at hex %d".format(it.hex.i)) }
             b.appointment?.let { sb.appendLine("meets others at hex %d in month %d".format(it.hex.i, it.month + 1)) }
-        } else if (s.carnivore) sb.appendLine(if (!g.home.none) "holds ground about hex %d".format(g.home.i) else "holds no ground")
+        } else sb.appendLine(if (!g.home.none) "holds ground about hex %d".format(g.home.i) else "holds no ground")
         val here = hw.placeHex[g.place]
         val with = groups.groups.filter { it.alive && it !== g && hw.placeHex[it.place] == here }
         sb.appendLine("in its hex: " + with.joinToString(", ") { "%s #%d (%d)".format(it.species.name, it.id, it.size) }.ifEmpty { "no other group" })
@@ -646,17 +646,11 @@ class GroupControlWindow(
                         g.color = Color(0.1f, 0.3f, 0.95f, alpha)
                         g.fillPolygon(intArrayOf(ox, ox + big / 2, ox, ox - big / 2), intArrayOf(oy - big / 2, oy, oy + big / 2, oy), 4)
                     }
-                    o.species.carnivore -> {
+                    else -> {
                         g.color = ring
                         g.fillRect(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2)
                         g.color = Color(0.82f, 0.06f, 0.06f, alpha)
                         g.fillRect(ox - big / 2, oy - big / 2, big, big)
-                    }
-                    else -> {
-                        g.color = if (o === grp) ring else Color(0f, 0f, 0f, alpha)
-                        g.fillOval(ox - big / 2 - 1, oy - big / 2 - 1, big + 2, big + 2)
-                        g.color = Color(0.9f, 0.9f, 0.6f, alpha)
-                        g.fillOval(ox - big / 2, oy - big / 2, big, big)
                     }
                 }
                 if (o !== grp) {

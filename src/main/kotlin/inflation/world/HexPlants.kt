@@ -371,7 +371,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
 
     /** Names the plants' stocks: herbs, shrubs, trees and the standing straw. */
     internal fun listStocks(stocks: Stocks) {
-        stocks.within("plants") { for ((name, a) in listOf("herbs" to herb, "shrubs" to shrub, "trees" to tree)) stocks.perM2(name, a, land.areaM2) }
+        stocks.within(Stocks.PLANTS) { for ((name, a) in listOf("herbs" to herb, "shrubs" to shrub, "trees" to tree)) stocks.perM2(name, a, land.areaM2) }
         stocks.perM2("straw", straw, land.areaM2)
     }
 

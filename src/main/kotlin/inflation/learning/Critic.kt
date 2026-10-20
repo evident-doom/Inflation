@@ -111,9 +111,12 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap()
         fun here(c: Choice) = c.inputs.indices.firstOrNull { c.inputs[it].getOrElse(HexFeatures.STAYS) { 0f } > 0.5f } ?: 0
         fun here(features: Array<FloatArray>) = features.indices.firstOrNull { features[it].getOrElse(HexFeatures.STAYS) { 0f } > 0.5f } ?: 0
 
-        /** [g]'s own state for the critic, at [season] (0..1 through the year). */
+        /**
+         * [g]'s own state for the critic, at [season] (0..1 through the year). Its protein slot is always 1: every group
+         * eats meat, rich in it (the slot keeps the critic's layout until the next retraining).
+         */
         fun groupState(g: HexGroup, season: Float) = floatArrayOf(
-            ln(max(1, g.size).toFloat()) / 5f, g.young.toFloat() / max(1, g.size), g.fed, g.fat, g.protein,
+            ln(max(1, g.size).toFloat()) / 5f, g.young.toFloat() / max(1, g.size), g.fed, g.fat, 1f,
             sin(2f * PI.toFloat() * season), cos(2f * PI.toFloat() * season))
 
         private fun names(model: SharedMover) = (if (model.band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN) + GROUP_IN
