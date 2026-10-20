@@ -39,8 +39,8 @@ internal fun HexGroups.contentEvery(s: Species): Int = when (s.lifeway) {
  * (Where they see or read sign, by what they find: see [knownGame].)
  */
 internal fun HexGroups.lifewayValue(s: Species, p: Int): Float = when (s.lifeway) {
-    Lifeway.BAND -> dietValue(s, p, preyHere(s, p)) * campFactor(p) + campPlants(p)
-    Lifeway.PACK -> dietValue(s, p, preyHere(s, p))
+    Lifeway.BAND -> dietValue(s, Place(p), preyHere(s, Place(p))) * campFactor(Place(p)) + campPlants(Place(p))
+    Lifeway.PACK -> dietValue(s, Place(p), preyHere(s, Place(p)))
 }
 
 /**
