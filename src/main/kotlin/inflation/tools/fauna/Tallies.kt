@@ -232,7 +232,10 @@ class MovementTally(private val sim: HexSim) {
                     names[x] + " %.2f/%.2f".format(part(0..11, x, true), part(0..11, x, false)) } +
                     "; all deaths by quarter Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec: " + listOf(0..2, 3..5, 6..8, 9..11).joinToString(" ") { q ->
                         "%.1f/%.1f".format(part(q, C - 2, true), part(q, C - 2, false)) })
-                t.fill(0.0) } }
+                t.fill(0.0) }
+            println("     MISSED season of births at the season's end, share of grown: " + f.kinds.indices.filter { f.missedSeason[it][1] > 0.0 }.joinToString(", ") { k ->
+                "%s %.1f%%".format(f.kinds[k].name, 100 * f.missedSeason[k][0] / f.missedSeason[k][1]) })
+            for (m in f.missedSeason) m.fill(0.0) }
         if (residentsMoved.isNotEmpty()) println("     residents' January to July (share of heads in other hexes / other ${CELL_KM.toInt()} km cells, mean height m): " +
             residentsMoved.entries.joinToString(", ") { (k, v) -> "%s %.0f%% / %.0f%%, %.0f to %.0f".format(k, 100 * v[0], 100 * v[1], v[2], v[3]) })
         if (adultHeight.any { h -> h.any { !it.isNaN() } }) println("     residents' adults' mean height by month, January to December (m): " +

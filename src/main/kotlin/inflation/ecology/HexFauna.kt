@@ -119,6 +119,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient private val routeCohort = arrayOfNulls<FloatArray>(kinds.size)
     @Transient private val placeOdds = Array(kinds.size) { FloatArray(n * MOVER_CAUSES) }
     /** Kind × month × (cause: there, here) × [MOVER_CAUSES], and the cohort's head-weeks: × 12 at the end. */
+    /** Study: grown at the season's end that had not had their season of births, and all grown then, by kind. */
+    @Transient val missedSeason = Array(kinds.size) { DoubleArray(2) }
     @Transient val moverTally = Array(kinds.size) { DoubleArray(12 * (2 * MOVER_CAUSES + 1)) }
     /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
@@ -727,7 +729,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
             if (date.month == 0) newcomers(date)
-            for ((k, s) in kinds.withIndex()) if (offSeason(s) == date.month) bred[k].fill(0f)
+            for ((k, s) in kinds.withIndex()) if (offSeason(s) == date.month) {
+                run { var miss = 0.0; var all = 0.0; for (p in 0 until n) { val x = (adults[k][p] * land.areaKm2[p]).toDouble(); all += x; miss += x * (1f - bred[k][p]) }
+                    missedSeason[k][0] += miss; missedSeason[k][1] += all }
+                bred[k].fill(0f)
+            }
             Profile.time("sense of direction") { bearings.update(date.month) }
             if (date.month == 3) shiftBreeding()
         }
