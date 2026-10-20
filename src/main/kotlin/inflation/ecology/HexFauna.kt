@@ -109,10 +109,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient val stuck = Array(kinds.size) { DoubleArray(Stuck.entries.size) }
     /**
      * For the check, since last read: each resident kind's heads that moved by the flow ([flow]) times the height they
-     * climbed (m, down negative), by month, those on the memory's route (`month * 2 + 1`) apart from the rest
-     * (`month * 2`). Where the moving itself takes a kind up or down, apart from births and deaths by height.
+     * climbed (m, down negative), by month. Where the moving itself takes a kind up or down, apart from births and deaths by height.
      */
-    @Transient val climbed = Array(kinds.size) { DoubleArray(24) }
+    @Transient val climbed = Array(kinds.size) { DoubleArray(12) }
     /**
      * Fear in each place: kg of game killed there lately per km², fading over a few weeks. Game keeps
      * away from ground where its kind has been killed (the landscape of fear).
@@ -363,52 +362,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * starts again in the kind's [offSeason].
      */
     val bred = Array(kinds.size) { FloatArray(n) }
-    /**
-     * What each plant-eating kind remembers of how it fared on each kind of ground at each time of year ([SeasonalMemory]):
-     * the share that died there in a week, kind of ground × 12 + month; NaN where it has not lived on that ground then.
-     */
-    internal val seasonFare = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
-    /** The head-weeks each of [seasonFare] was learnt from, fading as it does. */
-    internal val seasonSeen = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
-    /**
-     * Kind [k]'s memory ([seasonFare], [seasonSeen]): forgotten, to be learnt again, where a save holds it by other kinds
-     * of ground than [SeasonalMemory.TYPES] (a save from before 4.10).
-     */
-    private fun memoryOf(k: FaunaKind): Pair<FloatArray, FloatArray> {
-        if (seasonFare[k].size != SeasonalMemory.TYPES * 12) synchronized(seasonFare) {
-            if (seasonFare[k].size != SeasonalMemory.TYPES * 12) { seasonSeen[k] = FloatArray(SeasonalMemory.TYPES * 12); seasonFare[k] = FloatArray(SeasonalMemory.TYPES * 12) }
-        }
-        return seasonFare[k] to seasonSeen[k]
-    }
-    /** Where the memory draws the plant-eaters ([seasonFare]), and the month each kind's was last worked out for. */
-    @delegate:Transient internal val seasons by lazy { SeasonalMemory(hw, kinds, days, tuning.residentMemoryYears) }
-    /**
-     * For each plant-eating kind this week, by what it remembers of a season ahead ([SeasonalMemory.route]): at each place, the way of the
-     * first step towards the best ground a month's going reaches (-1: none better), and how much better (log); worked
-     * out each week.
-     */
-    @Transient private val routeStep = arrayOfNulls<IntArray>(kinds.size)
-    @Transient private val routeGain = arrayOfNulls<FloatArray>(kinds.size)
-
-    /**
-     * For the viewer: what the flow weighs place [p] at for kind [k], as a month's log growth (a year's, [placeWorth], taken
-     * to a month as the route's gain is); NaN where the flow did not weigh it this week (the kind is not there nor next to it).
-     */
-    internal fun flowScoreAt(k: FaunaKind, p: Place): Float {
-        val w = worth[k][p]
-        return if (w > 0f) ln(w) * Date.DAYS_PER_MONTH / Date.DAYS_PER_YEAR else Float.NaN
-    }
-
-    /**
-     * For the viewer: what kind [k]'s seasonal memory rates each place in [month], as a month's log growth ([SeasonalMemory.monthAt]):
-     * the route weighs the month [SeasonalMemory.LEAD_MONTHS] ahead.
-     */
-    internal fun memoryScores(k: FaunaKind, month: Int): FloatArray =
-        memoryOf(k).let { (fare, seen) -> seasons.monthAt(k.i, month % 12, fare, seen) }
-
-    /** For the viewer: the place resident kind [k] at place [p] steps to along its memory's route this week (-1: none), and how much the route gains ([routeGain], log). */
-    internal fun routeTo(k: FaunaKind, p: Place): Int { val i = routeStep[k]?.get(p) ?: -1; return if (i < 0) -1 else flowWays[k].to[i] }
-    internal fun routeGainAt(k: FaunaKind, p: Place): Float = routeGain[k]?.get(p) ?: 0f
     /** Days of food each kind carries as fat in each place. */
     val reserve = Array(kinds.size) { k -> FloatArray(n) { 0.5f * kinds[k].maxFatDays } }
     /** For kinds that sleep through the winter: how well fed they went to sleep, 0..1. */
@@ -1014,16 +967,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val grow = years / s.yearsToMaturity
             val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
             val hz = enumFloats<Danger>()
-            // (What the week was like where they are, for what the plant-eaters remember: heads, and how the ground let them grow.)
-            val learning = room[k] != null
-            val heads = if (learning) FloatArray(n) else null
-            val grew = if (learning) FloatArray(n) else null
             for (p in land.places) {
                 if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
                 val area = land.areaKm2[p]
                 // Births: half the adults are mothers; a mother bears what her food and reserves can build.
                 val share = seasonShare(k, p, date)
-                val before = a[p] + y[p]
                 if (share > 0f) {
                     bred[k][p] += share
                     val due = dueYoung(k, a[p] + y[p], protein[k][p], share)
@@ -1047,7 +995,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Where they are crowded, now and then a plague breaks out among them.
                 if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
                 val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
-                val fireY = hz[Danger.FIRE_Y]; val floodY = hz[Danger.FLOOD_Y]; val snowY = hz[Danger.SNOW_Y]
                 val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA
                 val adultOdds = adultSum.coerceIn(0f, 0.9f)
                 val eagle = eagleOdds(s, p); val croc = crocodileOdds(p, weather)
@@ -1055,16 +1002,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val youngSum = youngSum(s, hz, eagle, croc, starved)
                 val youngOdds = youngSum.coerceIn(0f, 0.95f)
                 val da = a[p] * adultOdds; val dy = y[p] * youngOdds
-                if (heads != null && grew != null) {
-                    // What they remember of the ground is what the ground and its seasons do to them: the young their food
-                    // let them bear, and the deaths of hunger, thirst, cold, snow, fire and flood (the young's hunger, thirst
-                    // and cold the harder, as they are booked, and their want of protein). Not the hunters, the eagles and
-                    // crocodiles, or crowd sickness: those are not what the kind's ways were shaped by.
-                    val grownEnv = (hunger + cold + thirst + snowA + fireA + floodA).coerceIn(0f, 0.9f)
-                    val youngEnv = (1.5f * (hunger + cold + thirst) + snowY + fireY + floodY + starved).coerceIn(0f, 0.95f)
-                    heads[p] = (a[p] + y[p]) * area
-                    grew[p] = (ln((a[p] + y[p]) / before.toDouble()) + ln(1.0 - (a[p] * grownEnv + y[p] * youngEnv) / (a[p] + y[p]))).toFloat()
-                }
                 // (The causes are booked as shares of the deaths that happen: where the odds are capped, each cause is cut alike.)
                 val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
                 val cy = if (youngSum > 0f) y[p] * youngOdds / youngSum * area else 0f
@@ -1077,7 +1014,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
                 if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }
-            if (heads != null && grew != null) memoryOf(k).let { (fare, seen) -> seasons.learn(k.i, date.month, heads, grew, fare, seen) }
         }
         for (c in carcasses) for (p in land.places) carcassKg[p] += c[p]
         land.books?.let { b -> var sum = 0.0; for (p in land.places) sum += carcassKg[p]; b.flow(Books.Stuff.MATTER, "carcasses (to the soil)", -sum) }
@@ -1655,22 +1591,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val food = FloatArray(n)
         IntStream.range(0, n).parallel().forEachPlace { p -> val t = scratch.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, t.pantry, t.bites) }
         val v = worth[k]
-        // Drawn on by where they remember the kind fares best a season ahead ([SeasonalMemory.LEAD_MONTHS]): set off now
-        // for ground that will be good by the time they get there.
-        // (The route worked out every week, by what it has learnt up to now.)
-        val month = weather.date.month
-        val st = routeStep[k] ?: IntArray(n).also { routeStep[k] = it }; val gn = routeGain[k] ?: FloatArray(n).also { routeGain[k] = it }
-        val memory = memoryOf(k)
-        Profile.part("residents: seasonal memory, routes") { seasons.route(k.i, seasons.monthAt(k.i, (month + SeasonalMemory.LEAD_MONTHS) % 12, memory.first, memory.second), ways, st, gn) }
-        // What they remember of the season ahead: the best ground a month's going reaches draws them along
-        // the first step towards it, by all it is better than staying ([routeGain]).
-        val step = routeStep[k]!!; val boost = routeGain[k]!!.let { g -> FloatArray(n) { p -> exp(g[p]) } }
-        // (At the arrival, only the share of the route's gain the crowding check trusts: [inflation.Tuning.residentRouteTrust].)
-        val trusted = routeGain[k]!!.let { g -> FloatArray(n) { p -> exp(tuning.residentRouteTrust * g[p]) } }
-        // (Those on the route weigh a month at a place, as the route's gain is a month's: a year of this week's lot taken
-        // to a month.)
-        val toMonth = (Date.DAYS_PER_MONTH / days.toFloat()) / (Date.DAYS_PER_YEAR / days.toFloat())
-        fun month(x: Float) = x.toDouble().pow(toMonth.toDouble()).toFloat()
         // (What does not change at a place within the week is worked out once, as the place is first weighed.)
         val fixed = WeekFixed(n)
         // (A year of this week at a place, at [heads] there: how they would fare there, before what they remember.)
@@ -1694,9 +1614,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val coming = FloatArray(n)     // heads that would come to each place this pass
         val fromWorth = FloatArray(n)  // their heads times the worth of the places they would come from
         val take = FloatArray(n)       // the share of those coming that come
-        val routed = FloatArray(n)     // of those coming, those on the memory's route
-        val takeRouted = FloatArray(n) // the share of those on the route that come
-        val routedFrom = FloatArray(n) // their heads times a month's worth where they left, less the route's gain
         val full = FloatArray(n)       // what each place would be worth with all of them come
         val changed = BooleanArray(n)
         val exact = BooleanArray(n)    // places whose worth now is [full]: all came, none left, none drowned
@@ -1711,20 +1628,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val here = v[p]; var most = 0f; var sum = 0f
                 for (i in ways.from[p] until ways.from[p.i + 1]) {
                     val q = ways.to[i]
-                    val g = if (i == step[p]) gapTo(month(here), month(v[q] * ways.keep[i]) * boost[p], ways.ease[i]) else gapTo(here, v[q] * ways.keep[i], ways.ease[i])
+                    val g = gapTo(here, v[q] * ways.keep[i], ways.ease[i])
                     gaps[i] = g
                     if (g > 0f) { sum += g; if (g > most) most = g }
                 }
                 share[p] = FLOW_STEP * most; gapSum[p] = sum
-                // Where the memory's route leads somewhere better than staying, a share of them take a step along it each
-                // week, the week's first ([inflation.Tuning.residentRouteShare]), as far as the crowding ahead lets them
-                // ([take]), the fewer the harder the border it crosses (its ease, as for the rest of the flow); the rest of the
-                // week's going is spent about where they are.
-                val r = if (pass == 0) step[p] else -1
-                if (r >= 0 && gaps[r] > 0f) {
-                    for (i in ways.from[p] until ways.from[p.i + 1]) if (i != r) gaps[i] = 0f
-                    share[p] = max(share[p], tuning.residentRouteShare * ways.ease[r]); gapSum[p] = gaps[r]
-                }
             }
             if (pass == 0) for (p in land.places) {
                 val heads = ga[p] + gy[p]; if (!(heads > 0f)) continue
@@ -1732,17 +1640,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (fed[k][p] < STUCK_FED && share[p] <= 0f) { weekStuck += heads; if (atClosedBorder(k, p)) weekEdge += heads }
             }
             // Those that would come to each place, and the worth of the places they would leave.
-            coming.fill(0f); fromWorth.fill(0f); routed.fill(0f); routedFrom.fill(0f)
+            coming.fill(0f); fromWorth.fill(0f)
             var any = false
             for (p in land.places) {
                 if (!(share[p] > 0f)) continue
                 any = true
                 val go = share[p] * (ga[p] + gy[p]); val here = v[p]; val sum = gapSum[p]
                 for (i in ways.from[p] until ways.from[p.i + 1]) {
-                    // (Those following the memory's route weigh where they come against where they left less what it promises.)
                     val g = gaps[i]; if (g > 0f) {
-                        val q = ways.to[i]; val m = go * g / sum; coming[q] += m
-                        if (i == step[p]) { routed[q] += m; routedFrom[q] += m * month(here) / trusted[p] } else fromWorth[q] += m * here
+                        val q = ways.to[i]; val m = go * g / sum; coming[q] += m; fromWorth[q] += m * here
                     }
                 }
             }
@@ -1751,19 +1657,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             IntStream.range(0, n).parallel().forEach { q ->
                 take[q] = 1f
                 val c = coming[q]; if (!(c > 0f)) return@forEach
-                val r = routed[q]; val now = v[q]
+                val now = v[q]
                 val all = weigh(Place(q), ga[q] + gy[q] + c); full[q] = all
                 fun upTo(from: Float, now: Float, all: Float) = if (all < from && now > all) ((now - from) / (now - all)).coerceIn(0f, 1f) else 1f
-                if (c > r) take[q] = upTo(fromWorth[q] / (c - r), now, all)
-                // Those on the route come as long as a month there at the numbers come is worth no less than a month where
-                // they left less what the route gains in the month (the crowding and the gain over the same time), and only
-                // as far as the food there feeds them all fully: they go for what the ground will give them.
-                takeRouted[q] = if (r > 0f) min(upTo(routedFrom[q] / r, month(now), month(all)),
-                    ((food[q] - ga[q] - gy[q] - (c - r) * take[q]) / r).coerceIn(0f, 1f)) else 1f
+                take[q] = upTo(fromWorth[q] / c, now, all)
             }
             // They go: from the places as they stood at the pass's start (those come this pass walk on next pass).
             changed.fill(false)
-            for (q in 0 until n) exact[q] = take[q] >= 1f && takeRouted[q] >= 1f && coming[q] > 0f && !(share[q] > 0f)
+            for (q in 0 until n) exact[q] = take[q] >= 1f && coming[q] > 0f && !(share[q] > 0f)
             val startA = ga.copyOf(); val startY = gy.copyOf(); val startB = gb.copyOf(); val startF = gf.copyOf(); val startS = gs.copyOf()
             for (p in land.places) {
                 if (!(share[p] > 0f)) continue
@@ -1776,7 +1677,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 for (i in ways.from[p] until ways.from[p.i + 1]) {
                     val g = gaps[i]; if (!(g > 0f)) continue
                     val q = ways.to[i]; val km = ways.km[i]; val keep = ways.keep[i]
-                    val m = goAll * g / sum * (if (i == step[p]) takeRouted[q] else take[q]); if (!(m > 0f)) continue
+                    val m = goAll * g / sum * take[q]; if (!(m > 0f)) continue
                     left += m
                     val mY = m * youngShare; val mA = m - mY
                     // (A strait drowns some: the young the more, as in [spillHunters]; they wash up on the far shore.)
@@ -1788,7 +1689,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (km + climbKm(k, p, Place(q)))
                     changed[q] = true
                     if (record && hw.placeHex[q] != h) recordFlow(h, hw.placeHex[q], m)
-                    climbedNow[monthNow * 2 + (if (i == step[p]) 1 else 0)] += (m - lostA - lostY).toDouble() * (hw.placeElevationM[q] - hw.placeElevationM[p])
+                    climbedNow[monthNow] += (m - lostA - lostY).toDouble() * (hw.placeElevationM[q] - hw.placeElevationM[p])
                 }
                 ga[p] = max(0f, ga[p] - left * (1f - youngShare)); gy[p] = max(0f, gy[p] - left * youngShare); changed[p] = true
                 gb[p] = max(0f, gb[p] - left * (1f - youngShare) * hadBred)

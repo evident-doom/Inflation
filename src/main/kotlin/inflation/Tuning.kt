@@ -72,27 +72,6 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
      */
     val residentMoveWeeks = i("residentMoveWeeks", 1).also { require(it >= 1) { "t.residentMoveWeeks is $it: residents move at most every week" } }
     /**
-     * Residents: the share of a kind's animals at a place that take a step each week along the route their
-     * seasonal memory leads to better ground ([inflation.ecology.SeasonalMemory.route]), as far as the crowding ahead
-     * lets them. 0 (Olli): none set off by a fixed share; the route's gain still draws them as the rest of the flow does,
-     * the more the better it is. A fixed share sent half of them each week after gains mostly under 0.1% a month and
-     * crowded them onto the same remembered ground: 20-29% fewer plant-eaters over 10 years on the storm worlds. None of
-     * the route's gain is trusted at the arrival ([residentRouteTrust]): trusting it walked them onto worse ground.
-     */
-    val residentRouteShare = f("residentRouteShare", 0f).also { require(it in 0f..1f) { "t.residentRouteShare is $it: a share, 0..1" } }
-    /**
-     * Residents: how much of what the memory's route promises those on it count when they weigh where they come against
-     * where they left ([inflation.ecology.HexFauna.flow]): 1, all of it, so they crowd in until the place is as much
-     * worse than where they left as the route gains; 0, none, so they come only while it is no worse than where they left.
-     */
-    val residentRouteTrust = f("residentRouteTrust", 0f).also { require(it in 0f..1f) { "t.residentRouteTrust is $it: a share, 0..1" } }
-    /**
-     * Residents: how many years, roughly, a kind's seasonal memory of its ground is a mean over
-     * ([inflation.ecology.SeasonalMemory.learn]); the share of it kept a year is 1 - 1/years. 10: a kind's ways are
-     * shaped over many generations, and one bad year does not change them (Olli).
-     */
-    val residentMemoryYears = i("residentMemoryYears", 10).also { require(it >= 2) { "t.residentMemoryYears is $it: at least 2" } }
-    /**
      * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
      * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).
      * 0: none. For the step's cost: fewer places hold each kind.

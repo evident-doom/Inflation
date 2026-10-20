@@ -68,7 +68,7 @@ class StringKeysTest {
     @Test
     fun `no new non-null assertions`() = check("""!!""", mapOf(
         "ecology/HexCulture.kt" to (5 to "a band of a people group: the caller has chosen people"),
-        "ecology/HexFauna.kt" to (7 to "audit books set when the audit is on and tested just before; the route tables of a kind that has routes"),
+        "ecology/HexFauna.kt" to (4 to "audit books set when the audit is on and tested just before"),
         "ecology/HexGeography.kt" to (1 to "the cover of a core, set while building"),
         "ecology/HexGroups.kt" to (4 to "the path and time of a group that chose to move; the reach cache merge"),
         "ecology/HexLifeAndDeath.kt" to (5 to "a band of a people group: the caller has chosen people"),
