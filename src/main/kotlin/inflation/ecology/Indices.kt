@@ -47,8 +47,6 @@ package inflation.ecology
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexPlants.cover(p: Place) = cover(p.i)
 /** Tree canopy of place [p], 0..1. */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexPlants.canopy(p: Place) = canopy(p.i)
-/** Whether water at place [p] must be dug for, fetching up to [fetchKm]. */
-@Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexDrinkingWater.mustDig(p: Place, fetchKm: Float) = mustDig(p.i, fetchKm)
 /** The place in hex [h] nearest in height to place [p] ([Place.NONE] if the hex has no land). */
 @Suppress("NOTHING_TO_INLINE") inline fun inflation.world.HexWorld.placeNear(p: Place, h: Hex) = Place(placeNear(p.i, h.i))
 /** As above, for a hex index kept as a plain int. */

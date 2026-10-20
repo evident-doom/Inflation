@@ -525,7 +525,7 @@ private fun HexGroups.woundsWeek(band: Band): Float {
 }
 
 /** Whether a group of [s] can drink at place [p] ([Hazards.canDrink]). */
-internal fun HexGroups.canDrink(s: Species, p: Int) = Hazards.canDrink(land.drink, s, p)
+internal fun HexGroups.canDrink(s: Species, p: Int) = Hazards.canDrink(land.drink, s, Place(p))
 
 /** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
 private fun HexGroups.thirstWeek(g: HexGroup): Float {

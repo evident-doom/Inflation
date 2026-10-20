@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.ecology.Place
+import inflation.ecology.get
 import kotlin.math.max
 import kotlin.math.min
 
@@ -47,14 +49,14 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
     val iced = FloatArray(n)
 
     /** Share of place [p] within an easy walk of water an animal can drink this week: running or standing, or soft snow. */
-    fun animalWater(p: Int) = max(water[p], snowWater[p])
+    fun animalWater(p: Place) = max(water[p], snowWater[p])
     /** How far an animal at [p] goes for water this week, km: none where it eats the snow. */
-    fun animalWaterKm(p: Int) = if (snowWater[p] > 0f) 0f else waterKm[p]
+    fun animalWaterKm(p: Place) = if (snowWater[p] > 0f) 0f else waterKm[p]
 
     /** Whether people at [p] with water within [fetchKm] only by digging must dig for it this week. */
-    fun mustDig(p: Int, fetchKm: Float) = water[p] < 0.05f && waterKm[p] > fetchKm && dug[p] >= 0.05f
+    fun mustDig(p: Place, fetchKm: Float) = water[p] < 0.05f && waterKm[p] > fetchKm && dug[p] >= 0.05f
     /** How far people at [p] have to go for water, km: no way at all where they can dig for it. */
-    fun peopleWaterKm(p: Int) = if (water[p] < 0.05f && dug[p] >= 0.05f) 0f else waterKm[p]
+    fun peopleWaterKm(p: Place) = if (water[p] < 0.05f && dug[p] >= 0.05f) 0f else waterKm[p]
 
     /**
      * How far from a salt lake's water (or a desert sea) its salt crusts reach, km; how dry a shore must be (rain against
