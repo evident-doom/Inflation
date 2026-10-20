@@ -143,6 +143,9 @@ object HexSnapshot {
      * back; residents carry their fat and their burnt body when they move. Heat is booked as its own cause of death. Grass
      * buried under snow is made up with browse to at most (1 + [SWITCH]) times its usual share, as fruit and roots are. The
      * standing straw is no longer a food of its own: it is the cured grass, grazed as grass.
+     * 4.10: the residents' memory tells ground apart by its country and its height (below 500, 1000, 1500, 2500 m and
+     * above), weighs each place by its own ground rather than its hex's, and looks a season ahead; a save's memory by the
+     * older kinds of ground is forgotten and learnt again.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 10

@@ -369,10 +369,20 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     internal val seasonFare = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
     /** The head-weeks each of [seasonFare] was learnt from, fading as it does. */
     internal val seasonSeen = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
+    /**
+     * Kind [k]'s memory ([seasonFare], [seasonSeen]): forgotten, to be learnt again, where a save holds it by other kinds
+     * of ground than [SeasonalMemory.TYPES] (a save from before 4.10).
+     */
+    private fun memoryOf(k: Int): Pair<FloatArray, FloatArray> {
+        if (seasonFare[k].size != SeasonalMemory.TYPES * 12) synchronized(seasonFare) {
+            if (seasonFare[k].size != SeasonalMemory.TYPES * 12) { seasonSeen[k] = FloatArray(SeasonalMemory.TYPES * 12); seasonFare[k] = FloatArray(SeasonalMemory.TYPES * 12) }
+        }
+        return seasonFare[k] to seasonSeen[k]
+    }
     /** Where the memory draws the plant-eaters ([seasonFare]), and the month each kind's was last worked out for. */
     @delegate:Transient internal val seasons by lazy { SeasonalMemory(hw, kinds, days, tuning.residentMemoryYears) }
     /**
-     * For each plant-eating kind this week, by what it remembers of next month ([SeasonalMemory.route]): at each place, the way of the
+     * For each plant-eating kind this week, by what it remembers of a season ahead ([SeasonalMemory.route]): at each place, the way of the
      * first step towards the best ground a month's going reaches (-1: none better), and how much better (log); worked
      * out each week.
      */
@@ -1050,7 +1060,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
                 if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }
-            if (heads != null && grew != null) seasons.learn(k, date.month, heads, grew, seasonFare[k], seasonSeen[k])
+            if (heads != null && grew != null) memoryOf(k).let { (fare, seen) -> seasons.learn(k, date.month, heads, grew, fare, seen) }
         }
         for (c in carcasses) for (p in 0 until n) carcassKg[p] += c[p]
         land.books?.let { b -> var sum = 0.0; for (p in 0 until n) sum += carcassKg[p]; b.flow(Books.Stuff.MATTER, "carcasses (to the soil)", -sum) }
@@ -1629,13 +1639,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val food = FloatArray(n)
         IntStream.range(0, n).parallel().forEach { p -> val t = scratch.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, t.pantry, t.bites) }
         val v = worth[k]
-        // Drawn on by where they remember the kind fares best from the next month on ([SeasonalMemory]): set off now for
-        // ground that will be good by the time they get there.
+        // Drawn on by where they remember the kind fares best a season ahead ([SeasonalMemory.LEAD_MONTHS]): set off now
+        // for ground that will be good by the time they get there.
         // (The route worked out every week, by what it has learnt up to now.)
         val month = weather.date.month
         val st = routeStep[k] ?: IntArray(n).also { routeStep[k] = it }; val gn = routeGain[k] ?: FloatArray(n).also { routeGain[k] = it }
-        Profile.part("residents: seasonal memory, routes") { seasons.route(k, seasons.monthAt(k, (month + 1) % 12, seasonFare[k], seasonSeen[k]), ways, st, gn) }
-        // What they remember of the year from the next month on: the best ground a month's going reaches draws them along
+        val memory = memoryOf(k)
+        Profile.part("residents: seasonal memory, routes") { seasons.route(k, seasons.monthAt(k, (month + SeasonalMemory.LEAD_MONTHS) % 12, memory.first, memory.second), ways, st, gn) }
+        // What they remember of the season ahead: the best ground a month's going reaches draws them along
         // the first step towards it, by all it is better than staying ([routeGain]).
         val step = routeStep[k]!!; val boost = routeGain[k]!!.let { g -> FloatArray(n) { p -> exp(g[p]) } }
         // (At the arrival, only the share of the route's gain the crowding check trusts: [inflation.Tuning.residentRouteTrust].)
