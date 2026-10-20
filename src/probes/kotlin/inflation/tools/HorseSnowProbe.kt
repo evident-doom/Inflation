@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Place
 import inflation.tools.fauna.FaunaCheckOptions
 import inflation.world.HexWorld
 
@@ -32,9 +33,9 @@ fun main(args: Array<String>) {
         // Appeal's factors, high place vs bottom band of the same hex: fare, fresh, suits, tether, the rest (fear, fire, plague, crowding, discomfort, snow); and heads on high places they cannot stay at (odds NaN).
         val fH = DoubleArray(5); val fL = DoubleArray(5); var nanHeads = 0.0
         fun factors(q: Int): FloatArray {
-            val fare = fauna.fareFor(s, q); val fresh = land.plants.nourishment(inflation.ecology.Place(q)) * fauna.forageProtein(s, q)
-            val suits = fauna.suits(s, q); val teth = fauna.tether(s, q)
-            return floatArrayOf(fare, fresh, suits, teth, fauna.appeal(k, q, weather) / (fare * fresh * suits * teth))
+            val fare = fauna.fareFor(s, Place(q)); val fresh = land.plants.nourishment(inflation.ecology.Place(q)) * fauna.forageProtein(s, Place(q))
+            val suits = fauna.suits(s, Place(q)); val teth = fauna.tether(s, Place(q))
+            return floatArrayOf(fare, fresh, suits, teth, fauna.appeal(k, Place(q), weather) / (fare * fresh * suits * teth))
         }
         for (p in 0 until n) {
             val heads = ((a[p] + y[p]) * land.areaKm2[p]).toDouble()
@@ -48,15 +49,15 @@ fun main(args: Array<String>) {
             if (m < 500f) { loHeads += heads; loFed += heads * f[p] }
             if (m >= 1500f) {
                 hiHeads += heads; hiSnow += heads * sp; hiFed += heads * f[p]
-                hiT += heads * fauna.feltC(s, p, weather.temperature[p])
-                hiAp += heads * fauna.appeal(k, p, weather); hiOdds += heads * fauna.arrive[k][p]
+                hiT += heads * fauna.feltC(s, Place(p), weather.temperature[p])
+                hiAp += heads * fauna.appeal(k, Place(p), weather); hiOdds += heads * fauna.arrive[k][p]
                 val low = hw.firstPlaceIn(hw.placeHex[p])
                 if (fauna.arrive[k][p].isNaN()) nanHeads += heads
                 if (low >= 0 && low != p) {
                     hiLowN += heads
                     val fh = factors(p); val fl = factors(low)
                     for (i in 0 until 5) { fH[i] += heads * fh[i]; fL[i] += heads * fl[i] }
-                    hiApLow += heads * fauna.appeal(k, low, weather)
+                    hiApLow += heads * fauna.appeal(k, Place(low), weather)
                     hiOddsLow += heads * fauna.arrive[k][low].let { if (it.isNaN()) 1f else it }
                 }
             }

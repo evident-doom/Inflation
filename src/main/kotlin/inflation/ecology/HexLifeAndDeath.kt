@@ -54,8 +54,8 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     val distOf = DoubleArray(count) { i -> val (cx, cy) = hex.centreKm(hw.placeHex[near[i]]); hypot(cx - hx, cy - hy) / reachKm }
     // (And its forage, ground and water, the same every month as the forebears reckon them.)
     val foodOf = FloatArray(count) { foodFor(s, Place(near[it])) }
-    val suitsOf = FloatArray(count) { fauna.suits(s, near[it]) }
-    val tetherOf = FloatArray(count) { fauna.usualTether(s, near[it]) }
+    val suitsOf = FloatArray(count) { fauna.suits(s, Place(near[it])) }
+    val tetherOf = FloatArray(count) { fauna.usualTether(s, Place(near[it])) }
     var top = 0f
     for (m in 0 until 12) {
         var best = -1; var bestScore = 0f
@@ -432,7 +432,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val thirst = thirstWeek(g)
     // Where its kind is crowded, an outbreak may break out.
     val sick = sicknessWeek(g, weather, kinNow, r)
-    val disease = fauna.outbreakDeaths(s, g.place.i) + sick
+    val disease = fauna.outbreakDeaths(s, g.place) + sick
     // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
     val homeless = if (s.pack && g.home.none) DISPERSAL_DEATHS * years else 0f
     // Every hazard of the week, once: its cause and the odds it adds for a grown one and for a young one.
@@ -622,12 +622,12 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed
     val felt = b?.feels(t, fire, home) ?: t
     val cold = Hazards.cold(s, felt, weather.date.month); val heat = Hazards.heat(s, felt)
     // An outbreak raging where it is kills its share.
-    val plague = fauna.outbreakDeaths(s, p.i)
+    val plague = fauna.outbreakDeaths(s, p)
     // Eagles take the young of the smaller hoofed animals in the open.
-    val eagle = if (s.human) 0f else fauna.eagleOdds(s, p.i)
-    val (fireA, floodA, snowA) = fauna.calamities(s, p.i, weather, false)
-    val (fireY, floodY, snowY) = fauna.calamities(s, p.i, weather, true)
-    val croc = if (s.human) 0f else fauna.crocodileOdds(p.i, weather)
+    val eagle = if (s.human) 0f else fauna.eagleOdds(s, p)
+    val (fireA, floodA, snowA) = fauna.calamities(s, p, weather, false)
+    val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
+    val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)
     into.add(DeathCause.HUNGER, hunger, 1.5f * hunger); into.add(DeathCause.COLD, cold, 1.5f * cold)
     into.add(DeathCause.HEAT, heat, 1.5f * heat)
     into.add(DeathCause.EXPOSURE, exposure, 1.5f * exposure); into.add(DeathCause.THIRST, thirst, 1.5f * thirst)
@@ -780,7 +780,7 @@ internal fun HexGroups.remember(date: Date) {
     val weeksAMonth = stepsPerYear / 12f
     // Every group remembers where it was this week and how it fared there.
     val week = stepOf(date)
-    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place.i], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place.i), week, stepsPerYear)
+    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place.i], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place), week, stepsPerYear)
     for (g in groups) {
         val b = g.band ?: continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,

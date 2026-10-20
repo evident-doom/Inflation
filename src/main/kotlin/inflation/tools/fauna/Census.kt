@@ -51,14 +51,14 @@ class Census(private val sim: HexSim) {
     fun fit() = groups.kinds.joinToString(", ") { s ->
         val gs = groups.groups.filter { it.alive && it.species == s }
         val heads = gs.sumOf { it.size }.coerceAtLeast(1)
-        "%s %.2f".format(s.name, gs.sumOf { it.size * fauna.monthFit(s, it.place.i, weather.date.month).toDouble() } / heads)
+        "%s %.2f".format(s.name, gs.sumOf { it.size * fauna.monthFit(s, it.place, weather.date.month).toDouble() } / heads)
     }
 
     /** How much of the land each kind's climate suits at all, and how strongly its groups feel drawn elsewhere. */
     fun drawn() = groups.kinds.withIndex().joinToString(", ") { (k, s) ->
         val gs = groups.groups.filter { it.alive && it.species == s }
         val pull = gs.sumOf { groups.bearings.strength(k, hw.placeHex[it.place]).toDouble() } / gs.size.coerceAtLeast(1)
-        val good = (0 until fauna.n).sumOf { p -> if (fauna.climateSuits(s, p) > 0.8f) land.areaKm2[p].toDouble() else 0.0 } / land.areaKm2.sum()
+        val good = (0 until fauna.n).sumOf { p -> if (fauna.climateSuits(s, Place(p)) > 0.8f) land.areaKm2[p].toDouble() else 0.0 } / land.areaKm2.sum()
         "%s %.0f%% / %.2f".format(s.name, 100 * good, pull)
     }
 

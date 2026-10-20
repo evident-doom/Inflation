@@ -50,7 +50,7 @@ internal fun tieBreak(id: Int, other: Int, day: Long): Long {
 }
 
 /** How catchable prey [ps] is for hunter [s] in place [p], 0..1, this week ([HexFauna.catchable], as resident hunters reckon it too). */
-internal fun HexGroups.catchable(s: Species, ps: Species, p: Place): Float = fauna.catchable(s, ps, ps.massKg, p.i)
+internal fun HexGroups.catchable(s: Species, ps: Species, p: Place): Float = fauna.catchable(s, ps, ps.massKg, p)
 
 /**
  * Hunters (and bands) feed along their way: the resident game of every place they passed, small game,
@@ -693,7 +693,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps, kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
-    fauna.killed(p.i, Kg(kills1 * ps.massKg))
+    fauna.killed(p, Kg(kills1 * ps.massKg))
     stats.hunting.merge(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1, Int::plus)
     diag(ps, HuntStep.RESIDENT_KILLS, kills1.toFloat())
     return kills1

@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Place
 import inflation.Args
 import inflation.ecology.HexSim
 import inflation.ecology.SeasonalMemory
@@ -38,14 +39,14 @@ fun main(args: Array<String>) {
         val t = f.seasons.typeOf(k); val stay = f.seasons.stayOf(k, next, f.seasonFare[k], f.seasonSeen[k])
         var vw = 0.0; var cw = 0; var vi = 0.0; var ci = 0
         val tw = DoubleArray(SeasonalMemory.TYPES); val ti = DoubleArray(SeasonalMemory.TYPES)
-        for (p in 0 until n) { val v = f.routeGainAt(k, p)
+        for (p in 0 until n) { val v = f.routeGainAt(k, Place(p))
             if (byWater[p]) { vw += v; cw++; tw[t[p]]++ } else { vi += v; ci++; ti[t[p]]++ } }
         val dg = ArrayList<Float>(); val wg = ArrayList<Float>()
         for (p in 0 until n) {
             if (f.adults[k][p] + f.young[k][p] <= 0f) continue
             val h = hw.placeHex[p]
             for (d in 0 until 6) { val nh = hex.neighbour(h, d); if (nh < 0) continue; val q = hw.placeNear(p, nh); if (q < 0) continue
-                dg += kotlin.math.abs(f.routeGainAt(k, p) - f.routeGainAt(k, q))
+                dg += kotlin.math.abs(f.routeGainAt(k, Place(p)) - f.routeGainAt(k, Place(q)))
                 val w0 = f.worth[k][p]; val w1 = f.worth[k][q]; if (w0 > 0f && w1 > 0f) wg += kotlin.math.abs(w1 - w0) / kotlin.math.max(w0, w1) }
         }
         dg.sort(); wg.sort()

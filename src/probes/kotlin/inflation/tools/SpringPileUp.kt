@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Place
 import inflation.Args
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
@@ -51,8 +52,8 @@ fun main(args: Array<String>) {
             val ypg = if (grown > 0.0) (little / grown).toFloat() else 0f; val fat = if (grown > 0.0) (fatDays / grown).toFloat() else 0f
             for (p in 0 until n) {
                 before[i][p] = (ad[p] + yo[p]) * land.areaKm2[p]
-                if (before[i][p] <= 0f || fauna.arriveOdds(k, p, sim.weather, out).isNaN()) { born[i][p] = 0f; die[i][p] = 0f; continue }
-                fauna.growthParts(k, p, sim.weather, out, ypg, fat, parts)
+                if (before[i][p] <= 0f || fauna.arriveOdds(k, Place(p), sim.weather, out).isNaN()) { born[i][p] = 0f; die[i][p] = 0f; continue }
+                fauna.growthParts(k, Place(p), sim.weather, out, ypg, fat, parts)
                 born[i][p] = parts[HexFauna.GROWTH_BORN]; die[i][p] = parts[HexFauna.GROWTH_GROWN_DIE]
             }
         }
@@ -63,12 +64,12 @@ fun main(args: Array<String>) {
             for (p in 0 until n) {
                 val h = (ad[p] + yo[p]) * land.areaKm2[p].toDouble()
                 if (h <= 0.0) continue
-                if (fauna.stayOdds(k, p, sim.weather, out).isNaN()) continue
+                if (fauna.stayOdds(k, Place(p), sim.weather, out).isNaN()) continue
                 val pile = out[HexFauna.HZ_CROWD] >= 2f
                 if (pile) piles[i][m]++
                 val v = doubleArrayOf(h, h / before[i][p].coerceAtLeast(1e-3f), land.areaKm2[p].toDouble(), hw.placeBand[p].toDouble(),
                     fauna.fed[k][p].toDouble(), fauna.room[k]!![p].toDouble(), fauna.protein[k][p].toDouble(), fauna.worth[k][p].toDouble(),
-                    born[i][p].toDouble(), die[i][p].toDouble(), out[HexFauna.HZ_DISEASE].toDouble(), fauna.outbreakDeaths(s, p).toDouble())
+                    born[i][p].toDouble(), die[i][p].toDouble(), out[HexFauna.HZ_DISEASE].toDouble(), fauna.outbreakDeaths(s, Place(p)).toDouble())
                 for (g in if (pile) intArrayOf(0, 1) else intArrayOf(1)) {
                     val row = sums[i][m][g]
                     row[0] += h

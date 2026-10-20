@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Place
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
 import java.io.File
@@ -32,11 +33,11 @@ class StrandDiag(private val sim: HexSim, private val file: File) {
                 val heads = a[p] + y[p]
                 if (heads <= 0f) continue
                 val area = sim.land.areaKm2[p]
-                fauna.hazards(k, p, w, month, fauna.fed[k][p], fauna.dry[k][p], heads, hz)
+                fauna.hazards(k, Place(p), w, month, fauna.fed[k][p], fauna.dry[k][p], heads, hz)
                 val c = classes.count { hw.placeElevationM[p] >= it }
                 val r = acc[k][month][c]
                 val n = heads * area
-                val felt = fauna.feltC(s, p, w.temperature[p])
+                val felt = fauna.feltC(s, Place(p), w.temperature[p])
                 val coldC = s.coldC(felt, month); val hotC = s.hotC(felt)
                 val snowed = w.snowpack[p] > s.snowLimitMm
                 val dryOut = fauna.dry[k][p] > s.daysWithoutWater

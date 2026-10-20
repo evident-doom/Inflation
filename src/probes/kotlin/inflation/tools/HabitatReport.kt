@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.Place
 import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.Biome
@@ -31,10 +32,10 @@ fun main(args: Array<String>) {
     for (s in fauna.kinds + sim.groups.kinds) {
         val good = DoubleArray(Biome.entries.size)
         for (p in 0 until n) {
-            val climate = fauna.climateSuits(s, p) > 0.8f
-            val ground = fauna.suits(s, p) >= 0.8f
-            val water = fauna.usualTether(s, p) > 0.5f
-            val food = s.carnivore || fauna.foodFor(s, p) > 0.1f
+            val climate = fauna.climateSuits(s, Place(p)) > 0.8f
+            val ground = fauna.suits(s, Place(p)) >= 0.8f
+            val water = fauna.usualTether(s, Place(p)) > 0.5f
+            val food = s.carnivore || fauna.foodFor(s, Place(p)) > 0.1f
             if (climate && ground && water && food) good[biomeOf[p]] += land.areaKm2[p].toDouble()
         }
         val sum = good.sum()
