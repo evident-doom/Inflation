@@ -231,11 +231,12 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         val pNow = climate.monthlyPrecip[m]
         val stepShare = days.toFloat() / Date.DAYS_PER_MONTH
         val s = season(date)
+        val regimes = winds.at(s)
         java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
             val x = cx(i); val y = cy(i)
             val lat = places.latitude[i]
             val here = if (lat < upcomingHighEdge) Regime.SUMMER_HIGH else upcomingRegime
-            val warmth = (winds.warmth(here, s) - winds.meanWarmth(s, lat) - volcanicCooling).toFloat()
+            val warmth = (winds.warmth(here, s) - regimes.meanWarmth(lat) - volcanicCooling).toFloat()
             nextTemp[i] = tNow[i] * (1 - f) + tNext[i] * f + sample(tempAnomaly, x, y) + sample(tempShock, x, y) + warmth
             val wind = here.storminess * winds.rainFactor(i, sample(nextU, x, y), sample(nextV, x, y)) / norm[i]
             // Rain comes in storms: a week is wet or dry, the wetter the month the likelier wet, and wet

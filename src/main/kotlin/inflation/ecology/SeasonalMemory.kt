@@ -14,7 +14,7 @@ import kotlin.math.min
  * and where it lies in the lie of the land about it (the low, middle or high third of the ground within a month's
  * going, each place's height taken over the ground a week's going about it covers). For each kind of ground and month, [fare] keeps how the kind grew there in a week
  * (log of the young born to a head, and of the share that lived), by the rules it is born and dies by, as those there
- * lived it ([learn]): in the same terms as a place is weighed for the rest of the month ([HexFauna.flow]). From it,
+ * lived it ([learn]): in the terms a place is weighed in ([HexFauna.flow]). From it,
  * [route] finds, from each place, the best ground a month's going reaches by what it remembers of the month after
  * ([monthAt]), and the first step there: so it sets off for ground that will be good by the time it gets there.
  *
@@ -49,9 +49,10 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
     private inline fun within(h: Int, km: Double, f: (Int) -> Unit) {
         val r = (km / (hex.hexKm * 0.86)).toInt() + 1
         val col = h % hex.cols; val row = h / hex.cols
+        val cx = centreX; val cy = centreY
         for (rr in max(0, row - r)..min(hex.rows - 1, row + r)) for (cc in max(0, col - r - 1)..min(hex.cols - 1, col + r + 1)) {
             val q = rr * hex.cols + cc
-            val dx = centreX[q] - centreX[h]; val dy = centreY[q] - centreY[h]
+            val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]
             if (dx * dx + dy * dy <= km * km) f(q)
         }
     }
@@ -153,28 +154,20 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
     }
 
     /**
-     * For kind [k] in [month], how much better a month on each kind of ground is than a month there on average over the
-     * year, by what it remembers ([stayOf]): the season's part only. What each ground is worth all year round the flow
-     * levels as it is ([HexFauna.flow]); the memory draws them only to ground in its season.
-     */
-    fun seasonOf(k: Int, month: Int, fare: FloatArray, seen: FloatArray): FloatArray {
-        val all = Array(12) { stayOf(k, it, fare, seen) }
-        return FloatArray(TYPES) { i -> all[month][i] - all.sumOf { it[i].toDouble() }.toFloat() / 12f }
-    }
-
-    /**
-     * For kind [k], the season's part of a month's log growth at each hex in [month] by what it remembers ([seasonOf]): a month at a place is a
-     * month on the ground a week's going about it covers, its kinds of ground by their area. NaN where no place is.
+     * For kind [k], a month's log growth at each hex in [month] by what it remembers ([stayOf]): a month at a place is a
+     * month on the ground a week's going about it covers, its kinds of ground by their area. NaN where no place is. The
+     * whole of it, not only how much better than usual the ground is then: ground at its best in its season but poor all
+     * the same led them to worse places than they left.
      */
     private fun hexMonth(k: Int, month: Int, fare: FloatArray, seen: FloatArray): FloatArray {
         val t = typeOf(k)
-        val stay = seasonOf(k, month, fare, seen)
+        val stay = stayOf(k, month, fare, seen)
         val sum = FloatArray(hex.size); val wt = FloatArray(hex.size)
         for (p in 0 until n) { val h = hw.placeHex[p]; sum[h] += area(p) * stay[t[p]]; wt[h] += area(p) }
         return smooth(sum, wt, weekKm(kinds[k]).toDouble())
     }
 
-    /** [hexMonth] at each place: how much better than usual there a head of kind [k] would grow in a month there in [month], by what it remembers. */
+    /** [hexMonth] at each place: how a head of kind [k] would grow in a month there in [month], by what it remembers. */
     fun monthAt(k: Int, month: Int, fare: FloatArray, seen: FloatArray): FloatArray =
         hexMonth(k, month, fare, seen).let { here -> FloatArray(n) { p -> here[hw.placeHex[p]] } }
 
@@ -186,32 +179,63 @@ internal class SeasonalMemory(private val hw: HexWorld, private val kinds: List<
      */
     fun route(k: Int, after: FloatArray, ways: HexFauna.FlowWays, step: IntArray, gain: FloatArray) {
         val s = kinds[k]
-        val lnKeep = keeps.getOrPut(k) { FloatArray(ways.keep.size) { ln(ways.keep[it]) } }
+        val r = routeWays.getOrPut(k) { RouteWays(ways, weekKm(s)) }
         var best = after.copyOf(); var hops = IntArray(n); var via = IntArray(n) { -1 }
         var best2 = FloatArray(n); var hops2 = IntArray(n); var via2 = IntArray(n)
-        val passes = max(1, (monthKm(s) / hex.hexKm).toInt()); val reach = weekKm(s)
+        // (Each pass weighs again only the places whose own or a neighbour's best, steps or way changed in the last: the
+        // others would come out as they are.)
+        var dirty = ByteArray(n) { 1 }; var next = ByteArray(n)
+        val passes = max(1, (monthKm(s) / hex.hexKm).toInt())
         for (pass in 0 until passes) {
-            val b0 = best; val h0 = hops; val v0 = via; val b1 = best2; val h1 = hops2; val v1 = via2
+            val b0 = best; val h0 = hops; val v0 = via; val b1 = best2; val h1 = hops2; val v1 = via2; val d0 = dirty; val d1 = next
+            System.arraycopy(b0, 0, b1, 0, n); System.arraycopy(h0, 0, h1, 0, n); System.arraycopy(v0, 0, v1, 0, n)
+            d1.fill(0)
             val moved = IntStream.range(0, n).parallel().map { p ->
+                if (d0[p].toInt() == 0) return@map 0
                 var b = b0[p]; var h = h0[p]; var w = v0[p]
-                for (i in ways.from[p] until ways.from[p + 1]) {
-                    // (Only across borders a week's going crosses: past them a way is all but closed, [HexFauna.FlowWays.km].)
-                    if (ways.km[i] > reach) continue
-                    val q = ways.to[i]; val x = b0[q] + lnKeep[i]
+                for (j in r.from[p] until r.from[p + 1]) {
+                    val q = r.to[j]; val x = b0[q] + r.lnKeep[j]
                     // (The better, or as good by fewer steps.)
-                    if (x > b || (x == b && w >= 0 && h0[q] + 1 < h)) { b = x; h = h0[q] + 1; w = i }
+                    if (x > b || (x == b && w >= 0 && h0[q] + 1 < h)) { b = x; h = h0[q] + 1; w = r.way[j] }
                 }
                 b1[p] = b; h1[p] = h; v1[p] = w
+                if (b != b0[p] || h != h0[p] || w != v0[p]) { d1[p] = 1; for (j in r.backFrom[p] until r.backFrom[p + 1]) d1[r.back[j]] = 1 }
                 if (b != b0[p] || w != v0[p]) 1 else 0
             }.sum()
-            best = b1; hops = h1; via = v1; best2 = b0; hops2 = h0; via2 = v0
+            best = b1; hops = h1; via = v1; best2 = b0; hops2 = h0; via2 = v0; dirty = d1; next = d0
             if (moved == 0) break
         }
         for (p in 0 until n) { step[p] = via[p]; gain[p] = best[p] - after[p] }
     }
 
-    /** The log of the share that lives through each step of each kind's ways, worked out once. */
-    private val keeps = java.util.concurrent.ConcurrentHashMap<Int, FloatArray>()
+    /**
+     * A kind's [HexFauna.FlowWays] as its routes take them: only across borders a week's going ([reachKm]) crosses (past
+     * them a way is all but closed, [HexFauna.FlowWays.km]), each with the log of the share that lives through it and its
+     * index among all the ways ([way]); and the other way about, for each place the places with a way to it ([back]).
+     */
+    private class RouteWays(ways: HexFauna.FlowWays, reachKm: Float) {
+        val from: IntArray; val to: IntArray; val lnKeep: FloatArray; val way: IntArray
+        val backFrom: IntArray; val back: IntArray
+        init {
+            val n = ways.from.size - 1
+            val kept = (0 until ways.to.size).filter { ways.km[it] <= reachKm }
+            from = IntArray(n + 1); to = IntArray(kept.size); lnKeep = FloatArray(kept.size); way = IntArray(kept.size)
+            var j = 0
+            for (p in 0 until n) {
+                from[p] = j
+                for (i in ways.from[p] until ways.from[p + 1]) if (ways.km[i] <= reachKm) { to[j] = ways.to[i]; lnKeep[j] = ln(ways.keep[i]); way[j] = i; j++ }
+            }
+            from[n] = j
+            backFrom = IntArray(n + 1)
+            for (q in to) backFrom[q + 1]++
+            for (q in 0 until n) backFrom[q + 1] += backFrom[q]
+            back = IntArray(to.size); val fill = backFrom.copyOf()
+            for (p in 0 until n) for (i in from[p] until from[p + 1]) back[fill[to[i]]++] = p
+        }
+    }
+
+    /** Each kind's ways as its routes take them, worked out once. */
+    private val routeWays = java.util.concurrent.ConcurrentHashMap<Int, RouteWays>()
 
     companion object {
         /** Kinds of ground: each country by the low, middle and high third of the lie of the land. */
