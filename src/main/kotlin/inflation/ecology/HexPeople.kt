@@ -710,7 +710,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     if (!b.houseHex.none && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
     // Counted once every chore has had its time, so that what the census shows as left is what is left.
     time.countEach(stats.hunting)
-    time.count(stats.hunting, "left", time.left)
+    time.count(stats.hunting, Tally.TimeTotal.LEFT, time.left)
     b.spareDays = max(0f, time.left)
     // (The wood burnt through the night goes to the air; what went into tools, houses, palisades and ornaments
     // is not kept as matter, and they do not go back to the ground as they wear: a known leak.)
