@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.FaunaKind
 import inflation.Args
 import inflation.ecology.Fed
 import inflation.ecology.get
@@ -70,7 +71,7 @@ fun main(args: Array<String>) {
     val bHeads = DoubleArray(12); val bFed = DoubleArray(12); val bOver = DoubleArray(12); val bRoots = DoubleArray(12); val bFruit = DoubleArray(12)
     val bFrom = Array(3) { DoubleArray(12) }; val bWeeks = IntArray(12)
     val byCrowd = DoubleArray(6); val byCrowdFed = DoubleArray(6)
-    val bStart = if (boar >= 0) fauna.count(boar) else 0.0
+    val bStart = if (boar >= 0) fauna.count(FaunaKind(boar)) else 0.0
 
     repeat(weeks) {
         sim.step()
@@ -121,7 +122,7 @@ fun main(args: Array<String>) {
     }
 
     if (boar >= 0) {
-        println("\nwild boar: %.0f at the start, %.0f at the end".format(bStart, fauna.count(boar)))
+        println("\nwild boar: %.0f at the start, %.0f at the end".format(bStart, fauna.count(FaunaKind(boar))))
         println("month   heads   fed  x usual  roots g/m2 fruit g/m2 | fed from: plants animal reserves")
         for (m in 0 until 12) if (bWeeks[m] > 0 && bHeads[m] > 0) { val h = bHeads[m]; val k = bWeeks[m]
             println("%5d %8.0f  %.2f  %6.2f  %9.1f %9.1f | %.2f %.2f %.2f".format(m + 1, h / k, bFed[m] / h, bOver[m] / h,

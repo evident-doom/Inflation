@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.FaunaKind
 import inflation.ecology.Danger
 import inflation.ecology.enumFloats
 import inflation.ecology.disease
@@ -51,7 +52,7 @@ fun main(args: Array<String>) {
             for (p in 0 until land.n) {
                 val h = (ad[p] + yo[p]) * land.areaKm2[p].toDouble()
                 if (h <= 0.0) continue
-                if (fauna.stayOdds(k, Place(p), sim.weather, out).isNaN()) continue
+                if (fauna.stayOdds(FaunaKind(k), Place(p), sim.weather, out).isNaN()) continue
                 val crowd = out[Danger.CROWD]
                 var bin = 0; while (bin < edges.size && crowd >= edges[bin]) bin++
                 sums[i][m][bin] += h; sums[i][m][cols.size - 1] += h * out.disease()

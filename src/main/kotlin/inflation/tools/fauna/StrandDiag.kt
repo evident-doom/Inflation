@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.FaunaKind
 import inflation.ecology.Danger
 import inflation.ecology.enumFloats
 import inflation.ecology.disease
@@ -36,7 +37,7 @@ class StrandDiag(private val sim: HexSim, private val file: File) {
                 val heads = a[p] + y[p]
                 if (heads <= 0f) continue
                 val area = sim.land.areaKm2[p]
-                fauna.hazards(k, Place(p), w, month, fauna.fed[k][p], fauna.dry[k][p], heads, hz)
+                fauna.hazards(FaunaKind(k), Place(p), w, month, fauna.fed[k][p], fauna.dry[k][p], heads, hz)
                 val c = classes.count { hw.placeElevationM[p] >= it }
                 val r = acc[k][month][c]
                 val n = heads * area

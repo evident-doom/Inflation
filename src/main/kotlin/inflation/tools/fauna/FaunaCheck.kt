@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.FaunaKind
 import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
@@ -39,7 +40,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
     private fun printStart() {
         val fauna = sim.fauna
         println("year " + fauna.kinds.joinToString("") { "%11s".format(it.name.take(10)) })
-        println("   0 " + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
+        println("   0 " + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(FaunaKind(it))) })
         println("     climate fit: " + census.fit())
         val groups = sim.groups
         run {
@@ -66,7 +67,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
 
     private fun yearEnd(y: Int) {
         val fauna = sim.fauna; val groups = sim.groups
-        println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(it)) })
+        println("%4d ".format(y) + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(FaunaKind(it))) })
         println("     small life: " + fauna.small.summary())
         println("     water life: " + fauna.water.summary())
         println("     sea and lake fish this week, t: " +

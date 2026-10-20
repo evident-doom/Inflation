@@ -180,7 +180,7 @@ class HexHistory {
         val area = land.areaKm2
         // Animals.
         val animals = LinkedHashMap<String, Double>()
-        for ((k, s) in fauna.kinds.withIndex()) animals.merge(s.name, fauna.count(k), Double::plus)
+        for ((k, s) in fauna.kinds.withIndex()) animals.merge(s.name, fauna.count(FaunaKind(k)), Double::plus)
         for (s in groups.kinds) animals.merge(s.name, groups.count(s).toDouble(), Double::plus)
         for ((name, v) in animals) put(Key.animals(name), v.toFloat())
         // How well fed each plant-eating kind was this week, by heads.

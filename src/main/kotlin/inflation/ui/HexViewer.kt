@@ -1,5 +1,6 @@
 package inflation.ui
 
+import inflation.ecology.FaunaKind
 import inflation.ecology.Place
 import inflation.learning.LearnedModel
 import inflation.Args
@@ -407,8 +408,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         pullShown = if (fk < 0 || fauna.room[fk] == null) null else {
             val east = FloatArray(hex.size); val south = FloatArray(hex.size); val most = FloatArray(hex.size)
             for (p in 0 until fauna.n) {
-                val h = hw.placeHex[p]; val g = fauna.routeGainAt(fk, Place(p)); if (!(g > most[h])) continue
-                val q = fauna.routeTo(fk, Place(p)); if (q < 0) continue
+                val h = hw.placeHex[p]; val g = fauna.routeGainAt(FaunaKind(fk), Place(p)); if (!(g > most[h])) continue
+                val q = fauna.routeTo(FaunaKind(fk), Place(p)); if (q < 0) continue
                 val to = hw.placeHex[q]; most[h] = g
                 if (to == h) { east[h] = 0f; south[h] = 0f; continue }
                 val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(to)
@@ -425,7 +426,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val all = fauna.kinds + groups.kinds
         val kindTexts = all.withIndex().map { (i, s) ->
             "${s.name} " + if (i >= fauna.kinds.size) "${groups.count(s)} in ${groups.groups.count { it.alive && it.species == s }}"
-                else "%.0f".format(fauna.count(i))
+                else "%.0f".format(fauna.count(FaunaKind(i)))
         }
         SwingUtilities.invokeLater {
             date.text = dateText
