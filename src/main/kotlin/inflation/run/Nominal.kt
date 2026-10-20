@@ -1,5 +1,6 @@
 package inflation.run
 
+import inflation.Stocks
 import inflation.ecology.Catalogue
 import inflation.ecology.HexHistory
 import inflation.ecology.HexHistory.Key
@@ -62,7 +63,7 @@ object Nominal {
     const val PLANTS_MIN_KG_M2 = 1.0; const val PLANTS_MAX_KG_M2 = 20.0
     const val BIOME_PLANTS_MAX_KG_M2 = 60.0
     /**
-     * All big animals (residents, herds, packs and bands) over the land, t/km², at most what the land's rain carries:
+     * All big animals (residents, packs and bands) over the land, t/km², at most what the land's rain carries:
      * large herbivores' biomass in African savannas rises with the rain as log10(kg/km²) = 1.685 log10(mm) - 0.537
      * (Coe, Cumming & Phillipson 1976), some 14 t/km² at 600 mm; the richest of all are no richer (the runs: 0.8–1.9).
      */
@@ -239,7 +240,7 @@ object Nominal {
                     t.check(hi - lo <= AREA_DRIFT * hi, k) { "changed from %s to %s km² over the run".format(fmt(lo), fmt(hi)) }
                 }
                 Key.biomeWhat(k) == Key.PLANTS -> weekly(0.0, BIOME_PLANTS_MAX_KG_M2, "kg/m²")
-                // (The herds' own series: dropped with the herds, if they go.)
+                // (Each kind's numbers.)
                 Key.animalKind(k) != null -> {
                     val kind = Key.animalKind(k)!!
                     val d = animals(kind)
@@ -312,7 +313,7 @@ object Nominal {
         }
         // All big animals over the land, from the books' pools (thousand tonnes over km² is kt/km², times 1000 for t/km²).
         if (area > 0) {
-            val pools = listOf(Key.biomass("resident animals"), Key.biomass("herds, packs and bands")).filter { it in h.series }
+            val pools = listOf(Key.biomass(Stocks.RESIDENT_ANIMALS), Key.biomass(Stocks.GROUPS)).filter { it in h.series }
             if (pools.isNotEmpty()) for (y in 0 until years) {
                 val tKm2 = pools.sumOf { yearly(it, y).let { v -> if (v.isNaN()) 0.0 else v } } * 1000 / area
                 val most = animalsMaxTKm2(yearly(Key.RAIN, y))
