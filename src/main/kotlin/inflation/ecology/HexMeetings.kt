@@ -367,7 +367,7 @@ private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Int, r
     if (rr <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && w.gatherers <= 0f)) return
     // (Biting insects slow people at whatever they do out there; fish are offered by hex, so the
     // camp's place stands for the water they fish.)
-    val hh = if (band != null) h * (1f + HexSmallLife.HARASS_TIME * small.harassment(if (t == Food.FISH) w.g.place.i else p)) else h
+    val hh = if (band != null) h * (1f + HexSmallLife.HARASS_TIME * small.harassment(Place(if (t == Food.FISH) w.g.place.i else p))) else h
     o.add(t, k, p, rr, e, hh, if (band != null && t != Food.BIG_GAME) 1 else 0)
 }
 
@@ -399,7 +399,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val area = land.areaKm2[p]
         val swept = min(area, sweep)
         val small = this.small
-        offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area, w.smallSweep) * w.smallCatch / days, 1f, w.smallDays)
+        offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(Place(p)) * min(area, w.smallSweep) * w.smallCatch / days, 1f, w.smallDays)
         if (w.d.carrion > 0f) {
             // (At most half of what lies on the ground searched: the rest is not found in time, or others get it;
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
@@ -453,9 +453,9 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 w.busy += kills1 * o.time[i] * w.party[0]
                 w.meat += haul.kg
             }
-            Food.SMALL_GAME -> w.smallGot += small.catchSmallIn(p, Kg(expected), min(land.areaKm2[p], w.smallSweep), w.weather).v
+            Food.SMALL_GAME -> w.smallGot += small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep), w.weather).v
             Food.CARRION -> w.scraps += scavenge(g, p, expected, w.sweep, w.rnd)
-            Food.BONES -> w.scraps += small.crackBonesIn(p, Kg(expected), min(land.areaKm2[p], w.sweep)).v
+            Food.BONES -> w.scraps += small.crackBonesIn(Place(p), Kg(expected), min(land.areaKm2[p], w.sweep)).v
             Food.FRUIT, Food.ROOTS, Food.SEED, Food.FINDS -> {
                 gather(g, o.type[i], p, expected, w.hands, haul)
                 if (haul.busy > 0f) w.busy += haul.busy
@@ -689,7 +689,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Int, expected: Float, kgE
     out.kg = na * kgEach + ny * young
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
     val leftA = na * leftOver(ps, kgEach, band)
-    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na, leftA))) / (area * 1e6f)))
+    small.deposit(DeadPool.CARRION, Place(p), KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na, leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps, kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
@@ -735,7 +735,7 @@ private fun siftDown(a: LongArray, from: Int, m: Int) {
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
 private fun HexGroups.reap(g: HexGroup, p: Int, expected: Float, out: Haul) {
     val band = g.band
-    val taken = land.total(Place(p), fauna.food.take(fauna.food.grain, p, land.spread(Place(p), Kg(expected)))).v
+    val taken = land.total(Place(p), fauna.food.take(fauna.food.grain, Place(p), land.spread(Place(p), Kg(expected)))).v
     val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
     out.kg = took; out.mass = taken
     // A sickle takes the ears that hold their grain more than those that shatter at a touch.
@@ -772,7 +772,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
     val s = g.species; val band = g.band
     out.busy = 0f
     val stock = when (t) { Food.FRUIT -> fauna.food.fruit; Food.ROOTS -> fauna.food.roots; Food.SEED -> fauna.food.seeds; else -> fauna.food.finds }
-    val taken = land.total(Place(p), fauna.food.take(stock, p, land.spread(Place(p), Kg(expected)))).v
+    val taken = land.total(Place(p), fauna.food.take(stock, Place(p), land.spread(Place(p), Kg(expected)))).v
     var took = taken; var mass = taken
     // Raw seed is poorly digested; ground and baked into bread it feeds fully.
     if (t == Food.SEED) took *= seedValue(band)
@@ -784,7 +784,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Int, expected: Float, hand
             var extra = took * band.detoxExtra(land.palatable[p], land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f)
             // (What is leached is more of the plants, bitter before: taken from them, as far as there is any.)
             if (extra > 0f) {
-                val more = land.total(Place(p), fauna.food.take(stock, p, land.spread(Place(p), Kg(extra * taken / took)))).v
+                val more = land.total(Place(p), fauna.food.take(stock, Place(p), land.spread(Place(p), Kg(extra * taken / took)))).v
                 extra = more * took / taken; mass += more
             }
             if (extra > 0f) {
@@ -845,7 +845,7 @@ private fun HexGroups.practise(g: HexGroup, band: Band, hunted: Boolean, smallGo
 /** [forage]'s scavenging of [expected] kg at place [p] by [g], over [sweep] km²: what it found, kg. */
 private fun HexGroups.scavenge(g: HexGroup, p: Int, expected: Float, sweep: Float, rnd: kotlin.random.Random): Float {
     val band = g.band
-    val got = small.scavengeIn(p, Kg(expected), min(land.areaKm2[p], sweep)).v
+    val got = small.scavengeIn(Place(p), Kg(expected), min(land.areaKm2[p], sweep)).v
     // A band at a carcass may meet its owner: lions or hyenas back at their kill. Driving
     // them off is done with a crowd and a din, but now and then someone is mauled.
     if (band != null && got > 1f) {

@@ -46,10 +46,10 @@ class HerpTally(private val run: HexSim, private val regions: HerpRegions, val y
     private val flowsBefore = DoubleArray(MonthFlow.SIZE)
     /** Capacities as at the start: tortoises by class, each kind of bird over the map (kg). */
     val tortCapacity = DoubleArray(classes).also {
-        for (p in 0 until n) if (regions.classOf[p] >= 0) it[regions.classOf[p]] += (sl.tortoiseCapacity(p) * land.areaKm2[p]).toDouble()
+        for (p in 0 until n) if (regions.classOf[p] >= 0) it[regions.classOf[p]] += (sl.tortoiseCapacity(inflation.ecology.Place(p)) * land.areaKm2[p]).toDouble()
     }
     val birdCapacity = DoubleArray(nb).also {
-        for (k in 0 until nb) for (p in 0 until n) if (regions.classOf[p] >= 0) it[k] += (sl.birdCapacityAt(k, p) * land.areaKm2[p]).toDouble()
+        for (k in 0 until nb) for (p in 0 until n) if (regions.classOf[p] >= 0) it[k] += (sl.birdCapacityAt(k, inflation.ecology.Place(p)) * land.areaKm2[p]).toDouble()
     }
     private val boar = run.fauna.kinds.indexOfFirst { it.name == "wild boar" }
     val song = HexSmallLife.BIRDS.indexOf(HexSmallLife.SONGBIRDS)

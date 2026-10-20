@@ -1289,7 +1289,7 @@ class HexGroups(
      * people lose to them. Hunters lose nothing to them here, so they do not mind them.
      */
     internal fun bitten(s: Species, p: Int): Float {
-        val h = small.harassment(p)
+        val h = small.harassment(Place(p))
         return when {
             h <= 0f -> 0f
             s.human -> HexSmallLife.HARASS_TIME * h / (1f + HexSmallLife.HARASS_TIME * h)
@@ -1331,7 +1331,7 @@ class HexGroups(
     internal fun dietValue(s: Species, p: Int, game: Float): Float {
         // Small game is searched for over a narrower strip than big game, and carrion only by those that eat it.
         val smallWorth = smallCatch(s) * SMALL_SENSE_KM / (s.senseKm * SEARCHING * CATCH)
-        return game + smallWorth * small.smallPreyKg(p) + (if (s.diet.carrion > 0f) KgM2(small.carrion[p]).perKm2.v else 0f)
+        return game + smallWorth * small.smallPreyKg(Place(p)) + (if (s.diet.carrion > 0f) KgM2(small.carrion[p]).perKm2.v else 0f)
     }
 
     /** The resident game hunter [s] sees at place [p], kg per km² ([HexFauna.game], as resident hunters count it). */

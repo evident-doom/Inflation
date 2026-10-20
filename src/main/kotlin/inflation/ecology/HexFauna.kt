@@ -199,7 +199,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** How much of the food at place [p] kind [s] can get at: cliffs keep all but climbers off some of it, a kind that must drink often uses only the ground within reach of water, and biting insects cost it feeding time ([unbitten]). */
     private fun reachOf(s: Species, p: Int) = HexFood.access(s, land.crag[p]) * tether(s, p) * unbitten(p)
     /** The share of its feeding time biting insects leave an animal at place [p]: the part of [reachOf] that is not the ground. */
-    private fun unbitten(p: Int) = 1f - HexSmallLife.HARASS_FEED * small.harassment(p)
+    private fun unbitten(p: Int) = 1f - HexSmallLife.HARASS_FEED * small.harassment(Place(p))
 
     /**
      * How well [heads] of kind [s] coming to place [p] together would be fed there, 0..1 of their need: wanting [each] a
@@ -291,8 +291,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun smallFood(k: Int, p: Int, want: KgM2, weather: Weather): KgM2 {
         if (want.v <= 0f) return KgM2.ZERO
         val roots = kinds[k].diet.roots > 0f
-        val dug = if (roots) small.digGrubs(p, want.perKm2).perM2 else KgM2.ZERO
-        return dug + small.catchSmall(p, (want - dug).perKm2, weather, who = k, style = if (roots) SmallHunt.ROOT else SmallHunt.STALK).perM2
+        val dug = if (roots) small.digGrubs(Place(p), want.perKm2).perM2 else KgM2.ZERO
+        return dug + small.catchSmall(Place(p), (want - dug).perKm2, weather, who = k, style = if (roots) SmallHunt.ROOT else SmallHunt.STALK).perM2
     }
 
     /**
@@ -333,7 +333,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             adults[j][p] = max(0f, adults[j][p] - fromA / s.massKg)
             young[j][p] = max(0f, young[j][p] - fromY / (YOUNG_WEIGHT * s.massKg))
             huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * land.areaKm2[p]
-            small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
+            small.deposit(DeadPool.CARRION, Place(p), KgKm2(kg * (1f - MEAT_SHARE)).perM2)
             ate += KgKm2(kg).perM2
             ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
         }
@@ -592,7 +592,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val d = s.diet
         val plants = d.grass + d.browse + d.fruit + d.roots; val animal = d.meat + d.smallPrey + d.carrion
         if (plants + animal <= 0f) return 0f
-        val kg = (d.meat * (preyNow?.get(slot(s))?.get(p) ?: game(s, p)) + d.smallPrey * small.smallPreyKg(p) + d.carrion * KgM2(small.carrion[p]).perKm2.v) / animal.coerceAtLeast(1e-6f)
+        val kg = (d.meat * (preyNow?.get(slot(s))?.get(p) ?: game(s, p)) + d.smallPrey * small.smallPreyKg(Place(p)) + d.carrion * KgM2(small.carrion[p]).perKm2.v) / animal.coerceAtLeast(1e-6f)
         return (animal * kg * Thresholds.FOOD_HALF / PREY_HALF + plants * foodFor(s, p)) / (plants + animal)
     }
 
@@ -918,7 +918,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k]) else 0f
             // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
             // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
-            var gotCarrion = if (d.carrion > 0f) small.scavenge(p, KgM2(min(animalNeed + plantGap, 0.5f * small.carrion[p]))).v else 0f
+            var gotCarrion = if (d.carrion > 0f) small.scavenge(Place(p), KgM2(min(animalNeed + plantGap, 0.5f * small.carrion[p]))).v else 0f
             var left = animalNeed + plantGap - gotCarrion
             val killedSoFar = FloatArray(1)
             var gotMeat = if (left > 0f) huntResidents(k, p, KgM2(min(left, needAll * d.meat / all) * avail[k]), killedSoFar).v else 0f
@@ -935,7 +935,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val x = when (food) {
                     AnimalFood.MEAT -> min(gap, most * d.meat - gotMeat).let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), killedSoFar).v else 0f }
                     AnimalFood.SMALL_PREY -> min(gap, most * d.smallPrey - gotSmall).let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
-                    AnimalFood.CARRION -> min(gap, most * d.carrion - gotCarrion).let { if (it > 0f) small.scavenge(p, KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
+                    AnimalFood.CARRION -> min(gap, most * d.carrion - gotCarrion).let { if (it > 0f) small.scavenge(Place(p), KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
                 }
                 when (food) { AnimalFood.MEAT -> gotMeat += x; AnimalFood.SMALL_PREY -> gotSmall += x; AnimalFood.CARRION -> gotCarrion += x }
                 gap -= x
@@ -950,7 +950,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                     ateBook?.add(-x * land.areaM2[p].toDouble()) }
             }
             animal = (gotMeat + gotSmall + gotCarrion) / animalNeed
-            small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)))
+            small.deposit(DeadPool.DUNG, Place(p), KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)))
             if (ateBook != null) { val m2 = land.areaM2[p].toDouble()
                 ateBook!!.add(-(gotSmall + gotCarrion) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion) * m2) }
         }
@@ -965,8 +965,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val eatG = z.eatG; val eatB = z.eatB
         // What is left of the week's grazing and browsing ([grazeLeft]).
         grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB)
-        val dug = food.take(food.roots, p, KgM2(z.eatR)).v
-        val ate = food.take(food.fruit, p, KgM2(z.eatF)).v
+        val dug = food.take(food.roots, Place(p), KgM2(z.eatR)).v
+        val ate = food.take(food.fruit, Place(p), KgM2(z.eatF)).v
         val eaten = land.plants.consume(Place(p), LifeForm.HERB, KgM2(eatG)).v +
             land.plants.eatBrowse(Place(p), KgM2(eatB)).v +
             ate + dug
@@ -978,7 +978,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         land.plants.trample(Place(p), RESIDENT_TRAMPLE * tonnes * land.areaKm2[p])
         // (And their going about it each day steps on the ground: see [HexPlants.tread]. Heads are per km².)
         for ((k, s) in kinds.withIndex()) land.plants.tread(Place(p), (adults[k][p] + young[k][p]) * land.areaKm2[p], s.massKg, s.dailyTravelKm * days)
-        small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * eaten))
+        small.deposit(DeadPool.DUNG, Place(p), KgM2(HexSmallLife.DUNG * eaten))
         if (ateBook != null) { val m2 = land.areaM2[p].toDouble(); ateBook!!.add(-eaten * m2); droppedBook!!.add(HexSmallLife.DUNG * eaten * m2) }
         land.plants.grazing[p] = eatG * 1e6f / days; land.plants.browsing[p] = eatB * 1e6f / days
         // Rooting churns the ground: kg of roots dug per km2 a day.
@@ -1161,7 +1161,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun seasonShare(k: Int, p: Int, date: Date) = seasonShare(kinds[k], birthStart[k][p].toInt(), max(0f, 1f - bred[k][p]), date, days)
 
     /** Eagles take the young of the smaller hoofed animals in the open: the share of [s]'s young at [p] they take in a step. */
-    internal fun eagleOdds(s: Species, p: Int) = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+    internal fun eagleOdds(s: Species, p: Int) = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(Place(p)) * years else 0f
 
     /** Crocodiles take the young that come down to warm rivers and lakes to drink: the share at [p] they take in a step. */
     internal fun crocodileOdds(p: Int, weather: Weather) = water.crocodileRisk(p, weather) * years
