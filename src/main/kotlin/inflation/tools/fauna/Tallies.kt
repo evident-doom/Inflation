@@ -87,7 +87,7 @@ class HuntTally(private val sim: HexSim) {
 
     fun week() {
         val groups = sim.groups
-        grainReapedNow += (groups.stats.hunting[Tally.of(Catalogue.HUMAN, WeekStats.GRAIN_REAPED)] ?: 0) / 1000.0
+        grainReapedNow += (groups.stats.hunting[Tally.of(Catalogue.HUMAN, Tally.OfKind.GRAIN_REAPED)] ?: 0) / 1000.0
         for ((key, v) in groups.stats.hunting) year.merge(key, v, Int::plus)
         for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
         for (g in groups.groups) if (g.alive && g.species.carnivore) {
@@ -106,16 +106,16 @@ class HuntTally(private val sim: HexSim) {
         println("     hunting, per party a week (kills of residents / fed): " +
             sim.groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gw = (groupWeeks[s.name] ?: 0).coerceAtLeast(1).toDouble()
-            "%s %.2f / %.2f".format(s.name, (year[Tally.of(s, Tally.KILLS_OF_RESIDENTS)] ?: 0) / gw, (fedSum[s.name] ?: 0.0) / gw)
+            "%s %.2f / %.2f".format(s.name, (year[Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS)] ?: 0) / gw, (fedSum[s.name] ?: 0.0) / gw)
         })
     }
 
     /** Where people's hides came from this year: kg a person from resident game and small pelts. */
     fun printPeoplesHides() {
         val heads = sim.groups.groups.filter { it.alive && it.species.human }.sumOf { it.size }.coerceAtLeast(1)
-        fun kg(source: String) = (year[Tally.hide(source)] ?: 0) / 1000.0 / heads
+        fun kg(source: Tally.HideSource) = (year[Tally.hide(source)] ?: 0) / 1000.0 / heads
         println("     people's hides (kg a person this year: resident game / small pelts): %.2f / %.2f"
-            .format(kg("residents"), kg("small pelts")))
+            .format(kg(Tally.HideSource.RESIDENTS), kg(Tally.HideSource.SMALL_PELTS)))
     }
 
     /**
@@ -125,9 +125,9 @@ class HuntTally(private val sim: HexSim) {
     fun printHuntersFood() {
         println("     hunters' food (meat / small prey / carrion / plants, as shares of what they need): " +
             sim.groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
-            val asked = (year[Tally.diet(s, "asked")] ?: 0).toDouble().coerceAtLeast(1.0)
-            fun part(k: String) = 100.0 * (year[Tally.diet(s, k)] ?: 0) / asked
-            "%s %.0f/%.0f/%.0f/%.0f%%".format(s.name, part("meat"), part("small prey"), part("carrion"), part("plants"))
+            val asked = (year[Tally.diet(s, Tally.DietPart.ASKED)] ?: 0).toDouble().coerceAtLeast(1.0)
+            fun part(k: Tally.DietPart) = 100.0 * (year[Tally.diet(s, k)] ?: 0) / asked
+            "%s %.0f/%.0f/%.0f/%.0f%%".format(s.name, part(Tally.DietPart.MEAT), part(Tally.DietPart.SMALL_PREY), part(Tally.DietPart.CARRION), part(Tally.DietPart.PLANTS))
         })
     }
 }
@@ -372,12 +372,12 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         fun yearly(cause: String) = deaths.thisYear(Tally.of(Catalogue.HUMAN, cause))
         val causes = deaths.causes
         val died = causes.keys.filter { it.startsWith(Tally.of(Catalogue.HUMAN, "")) && !it.endsWith(Tally.BORN) && !it.endsWith(":" + Tally.HUNTED) }.sumOf { yearly(Tally.whatOf(it)) }
-        val childDied = (hunting.year[Tally.of(Catalogue.HUMAN, WeekStats.CHILDREN_DIED)] ?: 0).toDouble()
+        val childDied = (hunting.year[Tally.of(Catalogue.HUMAN, Tally.OfKind.CHILDREN_DIED)] ?: 0).toDouble()
         val children = childWeeks / weeks; val adults = adultWeeks / weeks
         val childQ = childDied / children.coerceAtLeast(1.0)
         val adultQ = ((died - childDied).coerceAtLeast(0.0)) / adults.coerceAtLeast(1.0)
-        val meat = (hunting.year[Tally.of(Catalogue.HUMAN, WeekStats.MEAT_EATEN)] ?: 0).toDouble()
-        val plants = (hunting.year[Tally.of(Catalogue.HUMAN, WeekStats.PLANTS_EATEN)] ?: 0).toDouble()
+        val meat = (hunting.year[Tally.of(Catalogue.HUMAN, Tally.OfKind.MEAT_EATEN)] ?: 0).toDouble()
+        val plants = (hunting.year[Tally.of(Catalogue.HUMAN, Tally.OfKind.PLANTS_EATEN)] ?: 0).toDouble()
         val violent = yearly(DeathCause.RAIDS.label) +
             causes.keys.filter { it.startsWith(Tally.of(Catalogue.HUMAN, DeathCause.KILLED_BY)) }.sumOf { yearly(Tally.whatOf(it)) }
         val bandsSeen = walked.size.coerceAtLeast(1)

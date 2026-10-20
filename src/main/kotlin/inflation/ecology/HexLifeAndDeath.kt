@@ -226,29 +226,29 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
         fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
         if (s.human) {
-            val c = Biome.entries[biomeOfPlace[g.place]].name.lowercase().replace('_', ' ')
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsIn(c, Tally.diedOf(cause)), k, Int::plus)
-            if (o.births > 0) stats.hunting.merge(Tally.bandsIn(c, "born"), o.births, Int::plus)
+            val c = Biome.entries[biomeOfPlace[g.place]]
+            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsDied(c, cause), k, Int::plus)
+            if (o.births > 0) stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BORN), o.births, Int::plus)
             // And by how well clad the band was: what clothes are worth in lives.
             g.band?.let { b ->
-                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) Tally.CLAD else Tally.POORLY_CLAD
-                stats.hunting.merge(Tally.bandsClad(clad, "people-weeks"), g.size, Int::plus)
-                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsClad(clad, Tally.diedOf(cause)), k, Int::plus)
+                val clad = if (b.has(Tool.CLOTHES) >= 0.5f) Tally.Clad.CLAD else Tally.Clad.POORLY_CLAD
+                stats.hunting.merge(Tally.bandsClad(clad, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
+                for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsCladDied(clad, cause), k, Int::plus)
             }
             // And, in the weeks it was cold through all the cover the band had, what each cover gave.
             val b = g.band
             if (b != null) {
                 val t = weather.temperature[g.place]
                 if (b.exposure(t) > 0f) {
-                    fun add(k: String, v: Float) = stats.hunting.merge(Tally.bandsIn(c, "cold $k"), (10f * v).roundToInt(), Int::plus)
-                    add("weeks", 1f); add("short", b.exposure(t)); add("air", EXPOSURE_C - t)
-                    add("clothes", b.clothesCover()); add("fire", PROTECT_FIRE * b.fire); add("shelter", b.roofCover(b.atHome))
+                    fun add(k: Tally.Cold, v: Float) = stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus)
+                    add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, b.exposure(t)); add(Tally.Cold.AIR, EXPOSURE_C - t)
+                    add(Tally.Cold.CLOTHES, b.clothesCover()); add(Tally.Cold.FIRE, PROTECT_FIRE * b.fire); add(Tally.Cold.SHELTER, b.roofCover(b.atHome))
                 }
             }
         }
         if (o.orphans > 0) stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), o.orphans, Int::plus)
         // Children's deaths apart, for the life tables.
-        if (s.human && o.youngDied > 0) stats.hunting.merge(Tally.of(s, WeekStats.CHILDREN_DIED), o.youngDied, Int::plus)
+        if (s.human && o.youngDied > 0) stats.hunting.merge(Tally.of(s, Tally.OfKind.CHILDREN_DIED), o.youngDied, Int::plus)
         // A band that keeps the old way leaves a camp where someone died.
         if (s.human && o.deaths > 0) g.band?.let { b ->
             if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) {

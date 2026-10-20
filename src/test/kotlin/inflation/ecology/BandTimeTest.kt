@@ -13,7 +13,7 @@ class BandTimeTest {
         assertEquals(0f, t.left)
         val census = HashMap<String, Int>()
         t.count(census, Activity.FOOD, Activity.TOOLS, Activity.DRYING, Activity.SKINS)
-        t.count(census, "left", t.left)
+        t.count(census, Tally.TimeTotal.LEFT, t.left)
         assertEquals(mapOf("band time:food" to 300, "band time:tools" to 50, "band time:drying" to 50, "band time:skins" to 0, "band time:left" to 0), census)
     }
 }
