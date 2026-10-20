@@ -198,7 +198,8 @@ const val SEARCHING = 0.3f
  * critical temperature ([Species.lowerCriticalC]; where its thermoneutral zone is not measured, past the cold its
  * coat, or clothes and house, keep off), [COLD_COST] more food for each 10 °C, at most [COLD_MAX] times its need. Near
  * what is measured: heat production 1.1-1.3% more a degree in red deer calves (Semiadi et al. 1996), wild boar's heart
- * rate 1.3-2.8% (Ruf et al. 2023), cattle's needs 1.8% (Ames). (Heat is felt as feeding time lost, [heatTime].)
+ * rate 1.3-2.8% (Ruf et al. 2023), cattle's needs 1.8% (Ames): 1.8% a degree is taken, in the middle of that range
+ * (it was 1%, below all three). (Heat is felt as feeding time lost, [heatTime].)
  */
 fun coldNeed(s: Species, felt: Float, month: Int, tuning: Tuning): Float =
     min(COLD_MAX, 1f + COLD_COST * tuning.coldCost * max(0f, s.lowerCriticalC(month) - felt) / 10f)
@@ -214,7 +215,7 @@ fun coldNeed(s: Species, felt: Float, month: Int, tuning: Tuning): Float =
 fun heatTime(s: Species, felt: Float, month: Int, tuning: Tuning): Float =
     max(0f, 1f - HEAT_GRAZE * tuning.heatGraze * max(0f, felt - s.upperCriticalC(month)))
 const val HEAT_GRAZE = 0.01f
-const val COLD_COST = 0.1f
+const val COLD_COST = 0.18f
 const val COLD_MAX = 1.6f
 
 /**
