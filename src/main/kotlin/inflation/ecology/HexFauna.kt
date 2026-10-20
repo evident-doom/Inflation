@@ -362,7 +362,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** The head-weeks each of [seasonFare] was learnt from, fading as it does. */
     internal val seasonSeen = Array(kinds.size) { FloatArray(SeasonalMemory.TYPES * 12) }
     /** Where the memory draws the plant-eaters ([seasonFare]), and the month each kind's was last worked out for. */
-    @delegate:Transient internal val seasons by lazy { SeasonalMemory(hw, kinds, days) }
+    @delegate:Transient internal val seasons by lazy { SeasonalMemory(hw, kinds, days, tuning.residentMemoryYears) }
     /**
      * For each plant-eating kind this week, by what it remembers of next month ([SeasonalMemory.route]): at each place, the way of the
      * first step towards the best ground a month's going reaches (-1: none better), and how much better (log); worked
@@ -709,7 +709,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Names the residents' stocks (the young at [YOUNG_WEIGHT] of a grown animal), with the food stocks and the small life. */
     internal fun listStocks(stocks: Stocks) {
-        stocks.within("resident animals") { for ((k, s) in kinds.withIndex())
+        stocks.within(Stocks.RESIDENT_ANIMALS) { for ((k, s) in kinds.withIndex())
             stocks.add(Books.Stuff.MATTER, "resident ${s.name}", adults[k], young[k]) { var sum = 0.0; for (p in 0 until n) sum += (adults[k][p] + YOUNG_WEIGHT * young[k][p]) * land.areaKm2[p] * s.massKg.toDouble(); sum } }
         food.listStocks(stocks)
         small.listStocks(stocks)
@@ -978,9 +978,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val grow = years / s.yearsToMaturity
             val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
             val hz = FloatArray(HZ_COUNT)
-            // (What the week was like where they are, for what the plant-eaters remember: heads, the share of them dying, and how they grew.)
+            // (What the week was like where they are, for what the plant-eaters remember: heads, and how the ground let them grow.)
             val learning = room[k] != null
-            val heads = if (learning) FloatArray(n) else null; val dying = if (learning) FloatArray(n) else null
+            val heads = if (learning) FloatArray(n) else null
             val grew = if (learning) FloatArray(n) else null
             for (p in 0 until n) {
                 if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
@@ -1018,12 +1018,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val youngSum = youngSum(s, hz, eagle, croc, starved)
                 val youngOdds = youngSum.coerceIn(0f, 0.95f)
                 val da = a[p] * adultOdds; val dy = y[p] * youngOdds
-                if (heads != null && dying != null && grew != null) {
-                    // (As [placeWorth] weighs a place: the young born, and the grown and the young that die, the hunters' take too.)
-                    val grownDie = (s.backgroundMortality * years + adultShare(hz)).coerceIn(0f, 0.9f)
-                    val youngDie = min(0.95f, youngOdds + huntedOdds(k, p, true))
-                    heads[p] = (a[p] + y[p]) * area; dying[p] = (a[p] * grownDie + y[p] * youngDie) / (a[p] + y[p])
-                    grew[p] = (ln((a[p] + y[p]) / before.toDouble()) + ln(1.0 - dying[p])).toFloat()
+                if (heads != null && grew != null) {
+                    // What they remember of the ground is what the ground and its seasons do to them: the young their food
+                    // let them bear, and the deaths of hunger, thirst, cold, snow, fire and flood (the young's hunger, thirst
+                    // and cold the harder, as they are booked, and their want of protein). Not the hunters, the eagles and
+                    // crocodiles, or crowd sickness: those are not what the kind's ways were shaped by.
+                    val grownEnv = (hunger + cold + thirst + snowA + fireA + floodA).coerceIn(0f, 0.9f)
+                    val youngEnv = (1.5f * (hunger + cold + thirst) + snowY + fireY + floodY + starved).coerceIn(0f, 0.95f)
+                    heads[p] = (a[p] + y[p]) * area
+                    grew[p] = (ln((a[p] + y[p]) / before.toDouble()) + ln(1.0 - (a[p] * grownEnv + y[p] * youngEnv) / (a[p] + y[p]))).toFloat()
                 }
                 // (The causes are booked as shares of the deaths that happen: where the odds are capped, each cause is cut alike.)
                 val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
@@ -1058,7 +1061,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
                 if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }
-            if (heads != null && dying != null && grew != null) seasons.learn(k, date.month, heads, dying, grew, seasonFare[k], seasonSeen[k])
+            if (heads != null && grew != null) seasons.learn(k, date.month, heads, grew, seasonFare[k], seasonSeen[k])
         }
         for (c in carcasses) for (p in 0 until n) carcassKg[p] += c[p]
         land.books?.let { b -> var sum = 0.0; for (p in 0 until n) sum += carcassKg[p]; b.flow(Books.Stuff.MATTER, "carcasses (to the soil)", -sum) }

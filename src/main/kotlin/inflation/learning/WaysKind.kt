@@ -5,8 +5,7 @@ import java.io.File
 
 /**
  * The ways a learned network can set for the week, one entry each: bands' ways ([inflation.ecology.BandWays]) and
- * packs' ([inflation.ecology.AnimalWays]); herds' stay in the list until retraining, though no herds live as groups
- * now to take them. Each names its file in a networks directory, its config key, the
+ * packs' ([inflation.ecology.AnimalWays]). Each names its file in a networks directory, its config key, the
  * inputs and outputs its network is saved with, and where a run takes it; the programs that load, train, check or
  * keep ways go through this list instead of spelling them out.
  */
@@ -21,13 +20,12 @@ enum class WaysKind(
     val whose: String,
 ) {
     BANDS("bands", "ways.mlp", "ways", "bands'"),
-    HERDS("herds", "herd-ways.mlp", "herdWays", "herds'"),
     HUNTERS("hunters", "hunter-ways.mlp", "hunterWays", "packs'");
 
     /** The names of its network's inputs. */
     val inNames: List<String> get() = if (this == BANDS) Schema.WAYS_IN else Schema.ANIMAL_WAYS_IN
     /** The names of its network's outputs. */
-    val outNames: List<String> get() = when (this) { BANDS -> Schema.WAYS_OUT; HERDS -> Schema.HERD_WAYS_OUT; HUNTERS -> Schema.HUNTER_WAYS_OUT }
+    val outNames: List<String> get() = if (this == BANDS) Schema.WAYS_OUT else Schema.HUNTER_WAYS_OUT
 
     /** Its network in [f], fitted to today's inputs and outputs by name ([Schema.load]). */
     fun load(f: File): Mlp = Schema.load(f, inNames, outNames)
@@ -39,7 +37,6 @@ enum class WaysKind(
     fun set(groups: HexGroups, net: Mlp) {
         when (this) {
             BANDS -> groups.ways = NetWays(net)
-            HERDS -> {} // no herds to set them for
             HUNTERS -> groups.hunterWays = NetAnimalWays(net)
         }
     }

@@ -247,8 +247,7 @@ class Versus<T>(val learned: T, val hand: T)
 
 /**
  * Learns where to go by proximal policy optimisation, from every recorded choice: one network for
- * the hunters (kinds told apart by their traits and a learned identity), one for people (the herds'
- * network is kept, untrained, until retraining, though no herds live as groups now). Each
+ * the hunters (kinds told apart by their traits and a learned identity), one for people. Each
  * round, fresh small worlds with all the animals and people run for a while with the current
  * networks choosing by chance as they score; a share of the choices of every kind is recorded (the
  * same number a year of each kind, however common it is), and what became of the group over the

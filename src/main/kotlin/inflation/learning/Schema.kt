@@ -35,9 +35,8 @@ object Schema {
     val WAYS_IN: List<String> get() = inflation.ecology.BAND_INPUT_NAMES
     val WAYS_OUT: List<String> get() = inflation.ecology.WAYS_OUT_NAMES
 
-    /** A pack's view of itself ([inflation.ecology.ANIMAL_INPUT_NAMES]); a herd's ways (kept until retraining) and a pack's ([AnimalWay]). */
+    /** A pack's view of itself ([inflation.ecology.ANIMAL_INPUT_NAMES]) and its ways ([AnimalWay]). */
     val ANIMAL_WAYS_IN: List<String> get() = inflation.ecology.ANIMAL_INPUT_NAMES
-    val HERD_WAYS_OUT get() = AnimalWay.HERD_NAMES
     val HUNTER_WAYS_OUT get() = AnimalWay.HUNTER_NAMES
 
     fun namesFile(f: File) = File(f.path + ".names")

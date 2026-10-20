@@ -13,7 +13,7 @@ import java.io.File
 /**
  * The registry of baselines: trained networks kept, frozen and named, to compare later changes
  * against and to continue training from (see docs/design/model-compatibility.md). A baseline lives in
- * runs/baselines/NAME: the role networks (herds, hunters, people, each with its .identity and
+ * runs/baselines/NAME: the role networks (hunters and people, each with its .identity and
  * .names), the bands' ways network if there is one, and info.txt (when it was kept, from what, the
  * commit it was trained at, and a note: settings, seeds and the check's record line).
  *

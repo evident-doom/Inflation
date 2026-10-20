@@ -24,7 +24,7 @@ class PpoTrainer(private val o: PpoOptions) {
     private val out = o.out.also { it.mkdirs() }
     private val kinds = Catalogue.learned
     private val files = Role.entries.map { it.file(out) }
-    private val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(o.hidden, Random(7L + i), if (Role.entries[i] == Role.PEOPLE) WAYS_IN else 0) }
+    private val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(o.hidden, Random(FIRST_SEED + Role.entries[i].ordinal), if (Role.entries[i] == Role.PEOPLE) WAYS_IN else 0) }
         .also { ms -> for ((i, r) in Role.entries.withIndex()) o.residual[r]?.let { ms[i].residual = it } }
     /** A model's two optimisers: for its network's weights and for its kinds' identity vectors. */
     private class Adams(val net: Adam, val identity: Adam)
@@ -227,5 +227,10 @@ class PpoTrainer(private val o: PpoOptions) {
             }
         }
         return gradW to gradId
+    }
+
+    companion object {
+        /** Fresh networks' first seed, by role ordinal (as when the herds' role came first). */
+        const val FIRST_SEED = 8L
     }
 }
