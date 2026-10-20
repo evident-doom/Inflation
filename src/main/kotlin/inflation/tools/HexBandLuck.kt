@@ -39,9 +39,9 @@ fun main(args: Array<String>) {
     val people = Tally.of(Catalogue.HUMAN)
     for (w in 0 until weeks) {
         sim.step()
-        fedByKin += gs.stats.meetings[Met.HUNGRY_BANDS_FED_BY_KIN.label] ?: 0
-        returned += gs.stats.meetings[Met.FAVOURS_RETURNED.label] ?: 0; heldBack += gs.stats.meetings[Met.FAVOURS_HELD_BACK.label] ?: 0
-        for ((k, n) in gs.stats.deaths) if (k.startsWith(people)) deaths.merge(k.removePrefix(people), n.toLong(), Long::plus)
+        fedByKin += gs.stats.meetings[Met.HUNGRY_BANDS_FED_BY_KIN.key] ?: 0
+        returned += gs.stats.meetings[Met.FAVOURS_RETURNED.key] ?: 0; heldBack += gs.stats.meetings[Met.FAVOURS_HELD_BACK.key] ?: 0
+        for ((k, n) in gs.stats.deaths) if (k.startsWith(people)) deaths.merge(Tally.whatOf(k), n.toLong(), Long::plus)
         val bands = gs.groups.filter { it.alive && it.band != null }
         val hexOf = IntArray(bands.size) { sim.hw.placeHex[bands[it].place.i] }
         val week = bands.map { it.dailyNeedKg * sim.cfg.daysPerStep }
