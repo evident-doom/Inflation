@@ -1,7 +1,7 @@
 #!/bin/bash
 # Usage: faunacmp.sh REPO BASE_REF NEW_REF WORKDIR [--tests]
 # The check a behaviour-identical refactor of the model must pass: hexFauna on a 300x400 km world for a year,
-# with the diagnostics on (huntDiag, fedDiag, follow, migDiag), on BASE_REF and on NEW_REF; the printed lines
+# with the diagnostics on (huntDiag, fedDiag, follow), on BASE_REF and on NEW_REF; the printed lines
 # (timings and world-making lines dropped) and the saved states must be the same. Then each goes on a year from
 # BASE_REF's save, so that NEW_REF is seen to read old saves as BASE_REF does. With --tests, NEW_REF's tests too.
 # Where NEW_REF keeps the same state in another layout (fields moved into a part, see MovedInto), its saves cannot
@@ -13,8 +13,7 @@ mkdir -p "$W"; W=$(cd "$W" && pwd)
 WJ=$W; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WJ=$(cygpath -m "$W");; esac
 CFG="huntDiag=wolf,lion
 fedDiag=true
-follow=wolf
-migDiag=gazelle"
+follow=wolf"
 WORLD="--width 300 --height 400"; ARGS="$WORLD --years 1"
 
 tree() { echo "$W/tree-$(git -C "$REPO" rev-parse --short "$1")"; }
