@@ -11,9 +11,9 @@ class BandTimeTest {
         t.spend(Activity.TOOLS, 4f); t.spend(Activity.TOOLS, 1f)
         t.spendAtMost(Activity.DRYING, 8f)
         assertEquals(0f, t.left)
-        val census = HashMap<String, Int>()
+        val census = HashMap<TallyKey, Int>()
         t.count(census, Activity.FOOD, Activity.TOOLS, Activity.DRYING, Activity.SKINS)
         t.count(census, Tally.TimeTotal.LEFT, t.left)
-        assertEquals(mapOf("band time:food" to 300, "band time:tools" to 50, "band time:drying" to 50, "band time:skins" to 0, "band time:left" to 0), census)
+        assertEquals(mapOf("band time:food" to 300, "band time:tools" to 50, "band time:drying" to 50, "band time:skins" to 0, "band time:left" to 0), census.mapKeys { it.key.text })
     }
 }
