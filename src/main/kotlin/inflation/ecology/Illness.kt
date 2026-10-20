@@ -12,13 +12,15 @@ import kotlin.math.min
  * it are spared (years); [endemic] is the share spared when the world begins (people have lived with
  * these sicknesses for ages: the first year is not a plague year).
  */
-enum class Illness(val label: String, val weeks: Float, val deadly: Float, val young: Float, val contagion: Float, val immuneYears: Float, val endemic: Float) {
+enum class Illness(override val label: String, val weeks: Float, val deadly: Float, val young: Float, val contagion: Float, val immuneYears: Float, val endemic: Float) : DeathReason {
     /** Dysentery and its kin: fouled water and long-kept camps, worst in the warm months and in crowds. */
     FLUX("the flux", 3f, 0.03f, 3f, 0.25f, 2f, 0.4f),
     /** Malaria: carried by the mosquitoes about the camp in the warm months; not caught from one another. */
     MARSH_FEVER("marsh fever", 6f, 0.04f, 3f, 0f, 4f, 0.3f),
     /** A virulent cough that runs from band to band, worst in winter and at gatherings, and can empty a camp. */
-    COUGH("the cough", 4f, 0.08f, 2f, 0.6f, 20f, 0.6f),
+    COUGH("the cough", 4f, 0.08f, 2f, 0.6f, 20f, 0.6f);
+
+    override val shown get() = PlaceRecord.Cause.ILLNESS
 }
 
 /**

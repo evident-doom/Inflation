@@ -2,8 +2,10 @@ package inflation.tools
 
 import inflation.run.TestWorlds
 import inflation.Args
+import inflation.ecology.DeathCause
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
+import inflation.ecology.Tally
 import inflation.world.Date
 import inflation.world.WorldConfig
 import inflation.ecology.HexSnapshot
@@ -53,7 +55,7 @@ fun main(args: Array<String>) {
             val s = fauna.kinds[k2]; val a = acc[k2]!!
             val usual = HexFauna.usualDensity(s)
             a.weeks[m]++
-            a.hungerReported += fauna.deaths["${s.name}:hunger"] ?: 0.0
+            a.hungerReported += fauna.deaths[Tally.of(s, DeathCause.HUNGER)] ?: 0.0
             for (p in 0 until n) {
                 val ad = fauna.adults[k2][p]; val yd = fauna.young[k2][p]
                 if (ad + yd <= 0f) continue
