@@ -13,7 +13,6 @@ import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.Hex
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 
 /**
  * What bands' rites do (run once as is, once with rounds=false, same seeds): each year, how far a

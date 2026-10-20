@@ -13,7 +13,6 @@ import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 
 /**
  * How much hexes differ from their neighbours: whether the map's fields (warmth, rain, soil,

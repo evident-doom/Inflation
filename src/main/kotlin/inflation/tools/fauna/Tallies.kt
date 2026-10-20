@@ -21,7 +21,6 @@ import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 import inflation.world.Date
 
 /** Deaths and births by "kind:cause" over the run, from the model's weekly ledgers. */

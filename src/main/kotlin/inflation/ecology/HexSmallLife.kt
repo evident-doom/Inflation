@@ -355,7 +355,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         rotBook?.add(-(0.7f * decomposed + humusGone) * m2)
         // Water running off over the ground washes some of the litter away into the streams (see [WASH_PER_MM]).
         val washed = litter[p] * min(0.5f, WASH_PER_MM * land.hydro.runoffMm[p])
-        litter[p] -= washed; washedKg[p] = washed * land.m2(p)
+        litter[p] -= washed; washedKg[p] = washed * land.m2(Place(p))
         land.plants.organicFertility[p] = 0.3f * organicMatter[p] / (organicMatter[p] + 4f)
         val soilDied = soilAnimals[p] * min(1f, SOIL_DEATHS * years)
         soilGrewLeak?.add(SOIL_YIELD * decomposed * m2); soilDiedLeak?.add(-soilDied / 1e6 * m2)
@@ -370,7 +370,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             record?.let { it.carrionGone[p] += gone }
             if (carrion[p] < 1e-9f) carrion[p] = 0f
         }
-        carrion[p] += land.spread(p, Kg(carcassKg[p])).v
+        carrion[p] += land.spread(Place(p), Kg(carcassKg[p])).v
         carcassBook?.add(carcassKg[p].toDouble())
         // Bones weather away over a couple of years into the soil.
         if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b; record?.let { it.bonesGone[p] += b } }
@@ -757,7 +757,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var got = 0f
             for (q in vultureReach[k]) {
                 if (got >= need) break
-                if (carrion[q] > 0f) { val m2 = land.m2(q); got += scavenge(q, Kg(need - got).perM2(m2)).over(m2).v }
+                if (carrion[q] > 0f) { val m2 = land.m2(Place(q)); got += scavenge(q, Kg(need - got).perM2(m2)).over(m2).v }
             }
             ateBook?.add(-got.toDouble())
             val fed = if (need > 0f) min(1f, got / need) else 1f
@@ -1026,7 +1026,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         when (pool) { DeadPool.CARRION -> carrion[p] += kgM2.v; DeadPool.LITTER -> litter[p] += kgM2.v; DeadPool.DUNG -> dung[p] += kgM2.v }
     }
     /** Lays [kg] of dead matter into [pool] at place [p], spread over the place. */
-    fun deposit(pool: DeadPool, p: Int, kg: Kg) = deposit(pool, p, land.spread(p, kg))
+    fun deposit(pool: DeadPool, p: Int, kg: Kg) = deposit(pool, p, land.spread(Place(p), kg))
     fun deposit(pool: DeadPool, p: Place, kgM2: KgM2) = deposit(pool, p.i, kgM2)
     fun deposit(pool: DeadPool, p: Place, kg: Kg) = deposit(pool, p.i, kg)
 

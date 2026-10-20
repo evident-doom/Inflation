@@ -25,7 +25,6 @@ import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's

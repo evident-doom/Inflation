@@ -9,7 +9,6 @@ import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.Hex
 import inflation.ecology.hexOf
-import inflation.ecology.m2
 
 /**
  * Whether the groups follow their kind's sense of better country (the pull the viewer draws as yellow
