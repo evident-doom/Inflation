@@ -39,7 +39,7 @@ object Profile {
      * it (so a part inside a loop over places run on every core counts every core's time). Use as
      * `var t = Profile.mark(); ...; t = Profile.lap("part", t)`.
      */
-    val FINE = Config.string("profile") == "fine"
+    val FINE = Config.string(Config.Key.PROFILE) == "fine"
     private val parts = ConcurrentHashMap<String, LongAdder>()
     private val partOrder = CopyOnWriteArrayList<String>()
     fun mark(): Long = if (FINE) System.nanoTime() else 0L

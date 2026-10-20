@@ -157,7 +157,7 @@ const val PREY_HALF = 200f
 /** Pull of the season's remembered place, and of staying where one is. */
 const val SEASON_PULL = 1.0f
 /** For tracing: the kind whose groups' reasons the plan prints (planDiag=kind). */
-val PLAN_DIAG: String? = Config.string("planDiag")
+val PLAN_DIAG: String? = Config.string(Config.Key.PLAN_DIAG)
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
 const val ASTRAY = 0.5f
 /** How far a band's inherited seasonal places may lie from where it starts, km. */
@@ -326,7 +326,7 @@ const val SCAVENGER_CARRION = 0.5f
 
 
 /** Bands' yearly rounds and rites (see [roundOf]): on unless rounds=false (their strengths in [inflation.Tuning]). */
-val ROUNDS = Config.flag("rounds", true)
+val ROUNDS = Config.flag(Config.Key.ROUNDS, true)
 
 /** Months over which a group's sense of how thick each kind usually is follows the change (about a year). */
 const val USUAL_MONTHS = 12f

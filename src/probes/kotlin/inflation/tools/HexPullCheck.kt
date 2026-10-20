@@ -93,7 +93,7 @@ fun main(args: Array<String>) {
         }
     }
     println("pull check: %d years, the last measured, in %.0f s; %s".format(options.years, (System.nanoTime() - t0) / 1e9,
-        if (inflation.Config.string("nets") != null) "learned networks (nets=${inflation.Config.string("nets")})" else "hand-written choices"))
+        if (inflation.Config.string(inflation.Config.Key.NETS) != null) "learned networks (nets=${inflation.Config.string(inflation.Config.Key.NETS)})" else "hand-written choices"))
     println("cosine: 1 along the pull, 0 across it or at random, -1 against; pulls under $minPull left out of cosines and km along")
     fun ratio(x: DoubleArray, n: DoubleArray, m: Int, fmt: String) = if (n[m] > 0) fmt.format(x[m] / n[m]) else "     -"
     fun yr(x: DoubleArray, n: DoubleArray, fmt: String) = if (n.sum() > 0) fmt.format(x.sum() / n.sum()) else "     -"

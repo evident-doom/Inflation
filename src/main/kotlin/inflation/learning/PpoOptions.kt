@@ -90,9 +90,9 @@ class PpoOptions(
                 height = height,
                 years = a.int("--years", 2),
                 rounds = a.int("--rounds", 1000),
-                hidden = Config.int("ppo.hidden", 48),
-                rate = Config.float("ppo.rate", 3e-4f),
-                residual = Config.string("ppo.residual")?.split(",")?.associate { r -> val (n, v) = r.split(":"); Role.named(n) to v.toFloat() } ?: emptyMap(),
+                hidden = Config.int(Config.Key.PPO_HIDDEN, 48),
+                rate = Config.float(Config.Key.PPO_RATE, 3e-4f),
+                residual = Config.string(Config.Key.PPO_RESIDUAL)?.split(",")?.associate { r -> val (n, v) = r.split(":"); Role.named(n) to v.toFloat() } ?: emptyMap(),
                 checkEvery = a.int("--check", 5),
                 checkSeeds = a.int("--check-seeds", 12),
                 checkOnMaps = a.flag("--check-on-maps"),
@@ -102,7 +102,7 @@ class PpoOptions(
                 fixedRounds = fixedRounds,
                 burnYears = a.int("--burn-in", 1),
                 learnWays = !a.flag("--no-ways"),
-                sampling = Sampling(Config.int("ppo.perKind", default.perKindYear), Config.float("ppo.peopleChoices", default.peopleChoices)),
+                sampling = Sampling(Config.int(Config.Key.PPO_PER_KIND, default.perKindYear), Config.float(Config.Key.PPO_PEOPLE_CHOICES, default.peopleChoices)),
                 maps = Maps(a.string("--maps")?.split(",")?.map { m -> val (s, l) = m.split(":"); s.toLong() to l.toDouble() } ?: emptyList()),
             )
             a.done()

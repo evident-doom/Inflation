@@ -64,9 +64,9 @@ class FaunaCheckOptions(
             val replicate = a.long("--replicate", 0L)
             a.done()
             // Every kind spread evenly over the land at the start (uniformStart=true), instead of by its country.
-            val uniform = Config.flag("uniformStart", false)
+            val uniform = Config.flag(Config.Key.UNIFORM_START, false)
             // The world's centre latitude (latitude=DEGREES), as the training maps set it; a test world keeps its own.
-            if (testWorld == null) Config.string("latitude")?.let { cfg = cfg.copy(centreLatitude = it.toDouble()) }
+            if (testWorld == null) Config.string(Config.Key.LATITUDE)?.let { cfg = cfg.copy(centreLatitude = it.toDouble()) }
             return FaunaCheckOptions(cfg, years, uniform, historyFile, saveFile, loadFile, replicate, testWorld)
         }
     }

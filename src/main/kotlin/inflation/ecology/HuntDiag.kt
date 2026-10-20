@@ -3,7 +3,7 @@ package inflation.ecology
 import kotlin.math.roundToInt
 
 /** Diagnostic (t.huntDiag): counts each step of the hunt by prey kind, into the history ("hunt diag/KIND/STEP"). */
-internal val HUNT_DIAG = inflation.Config.flag("t.huntDiag", false)
+internal val HUNT_DIAG = inflation.Config.flag(inflation.Config.Key.T_HUNT_DIAG, false)
 
 /** Adds [n] to the hunt-step count [what] for prey [s] (kept in hundredths, see [HexHistory]). */
 internal fun HexGroups.diag(s: Species, what: String, n: Float) {

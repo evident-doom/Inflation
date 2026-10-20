@@ -80,9 +80,9 @@ object HexEvolveWays {
         val size = a.int("--size", 600)
         val years = a.int("--years", 5)
         val gens = a.int("--gens", 1000)
-        val es = EvolutionStrategy(a.int("--pairs", 8), Config.float("evolveWays.sigma", 0.05f))
-        val rate = Config.float("evolveWays.rate", 0.02f)
-        val hidden = Config.int("evolveWays.hidden", 16)
+        val es = EvolutionStrategy(a.int("--pairs", 8), Config.float(Config.Key.EVOLVE_WAYS_SIGMA, 0.05f))
+        val rate = Config.float(Config.Key.EVOLVE_WAYS_RATE, 0.02f)
+        val hidden = Config.int(Config.Key.EVOLVE_WAYS_HIDDEN, 16)
         val movers = a.file("--nets")?.let { dir -> Role.entries.map { SharedMover.load(it.file(dir).also { f -> require(f.exists()) { "no $f" } }) } }
         a.done()
         WaysEvolution(role, movers).run(out, seeds, size, years, gens, es, rate, hidden)

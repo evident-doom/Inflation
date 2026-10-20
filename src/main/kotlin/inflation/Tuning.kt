@@ -6,7 +6,7 @@ package inflation
  * (`HexLand.tuning`), so that a test can build another. The first group are multipliers on an existing parameter
  * (1 leaves it as it is); the rest are the parameters themselves.
  */
-class Tuning(private val read: (String) -> String? = Config::string) {
+class Tuning(private val read: (String) -> String? = Config::tuning) {
     private fun f(name: String, default: Float) = read("t.$name")?.toFloat() ?: default
     private fun d(name: String, default: Double) = read("t.$name")?.toDouble() ?: default
     private fun i(name: String, default: Int) = read("t.$name")?.toInt() ?: default

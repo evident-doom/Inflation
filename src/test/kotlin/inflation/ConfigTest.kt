@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 /** Reads one key, so that the config is loaded in a fresh JVM with the switches the test gives it. */
 object ConfigProbe {
-    @JvmStatic fun main(args: Array<String>) { println(Config.string("people") ?: "-") }
+    @JvmStatic fun main(args: Array<String>) { println(Config.string(Config.Key.PEOPLE) ?: "-") }
 }
 
 class ConfigTest {
@@ -59,29 +59,39 @@ class ConfigTest {
     }
 
     @Test
-    fun `a tuning key the run never reads is named as it ends`() {
+    fun `a key the code does not read stops the run at once`() {
         val f = File.createTempFile("inflation", ".properties")
         try {
-            f.writeText("people=false\nt.headingKep=0.9\n")
+            f.writeText("net=runs/x\n")
             val (code, out) = probe(emptyList(), f)
-            assertEquals(0, code, out)
-            assertTrue("never read" in out && "t.headingKep" in out, out)
+            assertNotEquals(0, code)
+            assertTrue("does not read" in out && "net" in out, out)
         } finally { f.delete() }
     }
 
-    /** Every tuning key the code reads (switches and names too), with its default where that is written as a number: "t.name" to "1.5", or to null. */
+    @Test
+    fun `every other key is listed in the example config`() {
+        val listed = File("config.example.properties").readLines().mapNotNull { Regex("""^#?([\w.]+)=""").find(it.trim())?.groupValues?.get(1) }.toSet()
+        assertEquals(emptyList(), Config.Key.entries.map { it.key }.filter { it !in listed }, "keys the code reads that config.example.properties does not list")
+        assertEquals(emptyList(), listed.filter { it !in Config.known() }.sorted(), "keys config.example.properties lists that the code does not read")
+    }
+
+    @Test
+    fun `a tuning key the run never reads is named as it ends`() {
+        val f = File.createTempFile("inflation", ".properties")
+        try {
+            f.writeText("people=false\nt.saltKeep=0.9\n")
+            val (code, out) = probe(emptyList(), f)
+            assertEquals(0, code, out)
+            assertTrue("never read" in out && "t.saltKeep" in out, out)
+        } finally { f.delete() }
+    }
+
+    /** Every tuning key the code reads ([Config.known]), with its default where [Tuning] writes it as a number: "t.name" to "1.5", or to null. */
     private fun keysInCode(): Map<String, String?> {
-        val read = Regex("""Config\.(?:float|double|int)\("(t\.\w+)",\s*([^)]+)\)""")
         val tuning = Regex("""\b[fdib]\("(\w+)",\s*([^)]+)\)""")
-        val switch = Regex("""Config\.(?:flag|string)\("(t\.\w+)"""")
-        val out = HashMap<String, String>()
-        for (file in File("src/main/kotlin").walkTopDown().filter { it.name.endsWith(".kt") }) {
-            val text = file.readText()
-            for (m in read.findAll(text)) out[m.groupValues[1]] = m.groupValues[2]
-            for (m in switch.findAll(text)) out[m.groupValues[1]] = ""
-            if (file.name == "Tuning.kt") for (m in tuning.findAll(text)) out["t." + m.groupValues[1]] = m.groupValues[2]
-        }
-        return out.mapValues { (_, d) -> d.trim().removeSuffix("f").toDoubleOrNull()?.toString() }
+        val defaults = tuning.findAll(File("src/main/kotlin/inflation/Tuning.kt").readText()).associate { "t." + it.groupValues[1] to it.groupValues[2] }
+        return Config.known().filter { it.startsWith("t.") }.associateWith { defaults[it]?.trim()?.removeSuffix("f")?.toDoubleOrNull()?.toString() }
     }
 
     @Test

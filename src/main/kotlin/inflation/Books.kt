@@ -103,7 +103,7 @@ class Books {
 
     companion object {
         /** Whether the books are kept in this run (config key audit). */
-        @JvmField val ON: Boolean = Config.flag("audit", false)
+        @JvmField val ON: Boolean = Config.flag(Config.Key.AUDIT, false)
         private const val LEAK = "leak: "
         /** The known leak of float stocks: a bite under half a float's step off a big stock leaves it as it was. */
         const val ROUNDING = "bites lost to float rounding"
