@@ -5,6 +5,9 @@ import inflation.world.WorldConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import inflation.learning.Mlp
+import inflation.learning.Schema
+import kotlin.random.Random
 
 /** Each group's view of itself fills every slot it names, and a band's ways at zero are the scaffold's. */
 class InputSlotsTest {
@@ -38,5 +41,28 @@ class InputSlotsTest {
         assertEquals(fresh.storeAim, b.storeAim)
         assertTrue(b.makeFirst.a.contentEquals(fresh.makeFirst.a), "make first")
         assertEquals(fresh.scoutShare, b.scoutShare); assertEquals(fresh.shunSick, b.shunSick)
+    }
+
+    @Test
+    fun `the ecosystem slots are in range and a net trained without them ignores them`() {
+        val sim = HexSim(World.generate(cfg))
+        repeat(6) { sim.step() }
+        val band = sim.groups.groups.first { it.alive && it.band != null }
+        val x = BandInputs
+        val into = FloatArray(WAYS_IN)
+        sim.groups.bandInputs(band, sim.weather, into)
+        val eco = (x.NEAR_RIVER until WAYS_IN)
+        for (i in eco) assertTrue(into[i] in -1f..1f, "${BAND_INPUT_NAMES[i]} = ${into[i]}")
+        assertEquals(BAND_INPUT_NAMES.size, BAND_INPUT_NAMES.toSet().size, "names are unique")
+        // A net saved with the names before the ecosystem slots chooses the same whatever they hold.
+        val oldNames = BAND_INPUT_NAMES.subList(0, x.NEAR_RIVER)
+        val old = Mlp.random(intArrayOf(oldNames.size, 6, 3), Random(4))
+        val outs = listOf("a", "b", "c")
+        val fitted = Schema.fit(old, oldNames, outs, BAND_INPUT_NAMES, outs)
+        fun run(net: Mlp, v: FloatArray): FloatArray { val b = net.buffers(); v.copyInto(b.a[0]); return net.forwardAll(b).copyOf() }
+        val before = run(old, into.copyOf(oldNames.size))
+        assertTrue(before.contentEquals(run(fitted, into)), "old net unchanged")
+        val shouted = into.copyOf().also { for (i in eco) it[i] = 1f }
+        assertTrue(before.contentEquals(run(fitted, shouted)), "old net blind to the ecosystem")
     }
 }

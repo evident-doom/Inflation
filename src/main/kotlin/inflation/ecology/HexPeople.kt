@@ -1447,6 +1447,52 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     // Its customs, and its temperament.
     for (t in Tradition.entries) into[x.CUSTOMS + t.ordinal] = if (b.holds(t)) 1f else 0f
     for (k in 0 until Temperament.AXES) into[x.TEMPER + k] = g.temper.getOrElse(k) { 0f }
+    ecosystemInputs(g, b, into)
+}
+
+/** The size classes of beasts of prey a band tells apart, by weight against a person's: under half, up to twice, more. */
+enum class BeastClass(val label: String, val fromKg: Float) {
+    SMALL("small", 0f), MIDDLING("middling", 0.5f * HUMAN_KG), LARGE("large", 2f * HUMAN_KG);
+    companion object { fun of(kg: Float) = entries.last { kg >= it.fromKg } }
+}
+private val HUMAN_KG get() = Catalogue.HUMAN.massKg
+
+/**
+ * What the ground about a band's camp holds, for its ways: the water and the fish in it, the plants and the food they bear,
+ * the game, small game and carrion, how the game is changing, and the beasts of prey by size. Food is read as weeks of the
+ * band's need that a week's search or gathering would bring in, x / (1 + x). All from the places' own arrays.
+ */
+private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
+    val x = BandInputs
+    val p = g.place; val s = g.species
+    val h = hw.placeHex[p]
+    val drink = land.drink
+    into[x.NEAR_RIVER] = drink.nearRiver[p]; into[x.NEAR_LAKE] = drink.nearLake[p]; into[x.NEAR_SPRING] = drink.nearSpring[p]
+    into[x.ON_COAST] = if (hw.coast[h]) 1f else 0f
+    into[x.WATERLOGGED] = min(1f, land.waterlogged[p])
+    into[x.TREES] = min(1f, land.plants.tree[p] / 10f); into[x.SHRUBS] = min(1f, land.plants.shrub[p] / 2f); into[x.GRASS] = min(1f, land.plants.herb[p] / 0.5f)
+    val need = (g.dailyNeedKg * days).coerceAtLeast(1f)
+    fun weeks(kg: Float) = (kg / need).let { it / (1f + it) }
+    into[x.FISH] = weeks(fauna.water.fishWithin(h, b.fishing()))
+    // Plants: what its gatherers would strip from the camp's own ground in a week (as in [forage]).
+    val food = fauna.food
+    val pick = min(0.9f, b.gatherShare(false, tuning) * b.gatherRange)
+    val reap = min(0.9f, b.gatherShare(true, tuning) * b.gatherRange)
+    into[x.FRUIT] = weeks(land.total(p, KgM2(pick * food.fruit[p])).v)
+    into[x.ROOTS] = weeks(land.total(p, KgM2(pick * food.roots[p])).v)
+    into[x.SEED] = weeks(land.total(p, KgM2(reap * food.seeds[p])).v)
+    // Game: what it could catch in a week of searching its swept ground, as its move scores it.
+    val swept = sweptKm2(s) * CATCH
+    into[x.GAME] = weeks(preyHere(s, p) * swept)
+    into[x.SMALL_GAME] = weeks(small.smallPreyKg(p) * swept)
+    into[x.CARRION] = weeks(KgM2(small.carrion[p]).perKm2.v * swept)
+    into[x.GAME_TREND] = gameTrend(p)
+    val sign = b.skill(Skill.TRACK)
+    for (c in BeastClass.entries) {
+        val beasts = monthBeastClassKg[c.ordinal][p] / land.areaKm2[p]
+        into[x.PREDATORS + c.ordinal] = SIGN_GUESS + sign * (beasts / (beasts + 3f) - SIGN_GUESS)
+    }
+    into[x.ELEVATION] = (hw.placeElevationM[p] / 3000f).coerceIn(0f, 1f)
 }
 
 /** The name of each of [bandInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */
