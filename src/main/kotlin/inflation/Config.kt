@@ -25,7 +25,6 @@ object Config {
         LATITUDE("latitude"),
         BASELINES("baselines"),
         ROUNDS("rounds"),
-        TAMING("taming"),
         PEOPLE("people"),
         CLIMATE_SHOCK("climateShock"),
         UNIFORM_START("uniformStart"),
@@ -69,10 +68,10 @@ object Config {
     }
 
     /** Old switches and the key that now sets them, where it is not the bare name (keys say what is on, not what is off). */
-    private val RENAMED = mapOf("rounds" to "rounds=true", "taming" to "taming=true", "noPeople" to "people=false", "noWorldCache" to "worldCache=false",
+    private val RENAMED = mapOf("rounds" to "rounds=true", "noPeople" to "people=false", "noWorldCache" to "worldCache=false",
         "noLandformCache" to "landformCache=false")
     /** Old switches that are gone: their setting is now the code's. */
-    private val GONE = setOf("trade", "t.noGifts", "t.noSourceRites", "noHerding", "t.noDenning", "t.herdRanges", "t.noProtein",
+    private val GONE = setOf("trade", "taming", "t.noGifts", "t.noSourceRites", "noHerding", "t.noDenning", "t.herdRanges", "t.noProtein",
         "t.noGreenBearing", "noBearings", "t.bandContentWeeks", "t.spanFloor", "t.ambush", "migrantUnit", "migrantStart", "sizeByLeaning",
         "newcomers", "catalogueStart", "t.roundCue", "t.roundSpread", "t.roundFollowGreen", "t.supersense", "t.superTop", "t.superKm",
         "t.superLure", "t.scoutKm", "t.scoutChance", "t.scoutMargin", "t.plateauKm", "t.plateauM", "t.plantEaterHerds", "t.formSwap",

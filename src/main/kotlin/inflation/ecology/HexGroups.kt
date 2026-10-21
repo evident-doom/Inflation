@@ -1195,7 +1195,7 @@ class HexGroups(
         score += tuning.bearingPull * pull
         if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
         // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
-        if (TAMING && s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(peopleSlot, p, h, sensed) / 25f)
+        if (s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(peopleSlot, p, h, sensed) / 25f)
         g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed) }
         // A hungry pack gives up ground it has hunted out lately and looks further afield.
         if (g.fed < Thresholds.HUNGRY && (h == here || h in g.recent)) score -= HUNGRY_LEAVE

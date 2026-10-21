@@ -153,9 +153,14 @@ object HexSnapshot {
      * 4.13: six of the bands' ways lose their caps: shelters are built up to twice as warm, caches dug with up to twice the
      * care (time against beasts and finders), the sick shunned at half the will (half the time at the default), feasting and
      * appointments as keen as the will for bands that hold the custom, and gatherers keeping near walk less.
+     * 4.14: bands gather wood and good stone as far as their time and the country allow, up to what they want to carry and
+     * stack, not a few kg a week: a band that keeps its camp long enough to build ([houseAfterWeeks]) gathers the timber and
+     * stone for houses (it stacked them after 4 weeks before, which the caps made moot).
+     * Dogs are always on (taming is no longer a switch), and a band sows at a camp it has kept long enough to build at, not
+     * only at home.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 13
+    const val MODEL_MINOR = 14
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

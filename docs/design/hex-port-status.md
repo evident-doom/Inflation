@@ -110,7 +110,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Stealing kills | yes |
 | Extra deaths for packs without ground | yes |
 | Small prey, scavenging | yes |
-| Following people's camps | partly: bold animals of kinds that follow people are drawn to camps and tallied for taming, behind `taming=true` |
+| Following people's camps | partly: bold animals of kinds that follow people are drawn to camps and tallied for taming |
 
 ## People
 
@@ -135,7 +135,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Burning off, camp fires against lions and hyenas, defensible camps | yes |
 | Knowing the country (walked, seen, told of by bands understood), forgetting far country | yes |
 | Sharing on demand: hungry bands fed by better-stocked bands nearby | yes |
-| Camp followers growing bold, pups taken, dogs kept (hunting, guarding) | yes, behind `taming=true` in the config (off by default) |
+| Camp followers growing bold, pups taken, dogs kept (hunting, guarding) | yes |
 | Firewood, worn routes, scouting, land claims, ornaments and renown, gatherings | yes (firewood fetched for the hearth and the night fire; routes and landmarks in `HexRoutes`; scouting and gatherings as band ways) |
 | Middens, task groups | no (middens only as part of keeping camp clean) |
 | Keeping herd animals, tending plants | partly: keeping young animals and sowing are band ways; `TENDING` is a skill |
