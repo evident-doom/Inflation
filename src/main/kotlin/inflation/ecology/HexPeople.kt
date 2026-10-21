@@ -703,7 +703,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // its materials, then to making and mending.
     val time = BandTime(b.spareDays)
     campAndCache(g, b, p, h, weather, date, time)
-    if (TAMING) keepAnimals(g, b) else b.dogShare = 0f
+    keepAnimals(g, b)
     keepHerds(g, b, date)
     val people = g.adults.toFloat()
     gatherMaterials(g, b, p, h, people, area, time)
@@ -732,7 +732,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.atHome = b.houseHex == h && b.house > 0.05f
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
     makeOrnaments(b, people, time)
-    // In autumn a band at home sows a share of its stored grain on its home ground: a plot that ripens
+    // In autumn a band at home, or long at its camp, sows a share of its stored grain there: a plot that ripens
     // next summer to several times as much, of the kind of ears it sowed.
     sowGrain(g, b, p, date, time)
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
@@ -1110,9 +1110,12 @@ private fun HexGroups.makeOrnaments(b: Band, people: Float, time: BandTime) {
     }
 }
 
-/** In autumn [g]'s band at home sows a share of its stored grain on its home ground, in the [time] days to spare. */
+/**
+ * In autumn [g]'s band, at home or at a camp it has kept long enough to build at ([houseAfterWeeks]), sows a share of its stored
+ * grain there, in the [time] days to spare. (A band that then moves on leaves the plot to whoever comes by.)
+ */
 private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time: BandTime) {
-    if (b.atHome && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f && time.left > 0f) {
+    if ((b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f && time.left > 0f) {
         val stock = g.stores[Store.SEED]
         val sow = minOf(stock * SOW_SHARE * b.sowWill, time.left / SOW_DAYS_PER_KG)
         dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, time.left / SOW_DAYS_PER_KG))
@@ -1283,8 +1286,6 @@ const val DOG_DEATHS = 0.1f
 const val DOGS_PER_ADULT = 0.3f
 const val DOG_HUNT = 0.2f
 const val DOG_GUARD = 0.5f
-/** Taming is off unless asked for (taming=true). */
-val TAMING = Config.flag(Config.Key.TAMING, false)
 /** How strongly people's camps draw bold animals of kinds that follow people (refuse, scraps, warmth). */
 const val CAMP_LURE = 0.3f
 

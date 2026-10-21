@@ -156,6 +156,8 @@ object HexSnapshot {
      * 4.14: bands gather wood and good stone as far as their time and the country allow, up to what they want to carry and
      * stack, not a few kg a week: a band that keeps its camp long enough to build ([houseAfterWeeks]) gathers the timber and
      * stone for houses (it stacked them after 4 weeks before, which the caps made moot).
+     * Dogs are always on (taming is no longer a switch), and a band sows at a camp it has kept long enough to build at, not
+     * only at home.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 14

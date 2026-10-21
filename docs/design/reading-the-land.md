@@ -46,5 +46,5 @@ Each starts at the hand-written default (an output of 0), so the model's lethali
 - **Scavenging:** carcass signs lead to kills that can be stolen from lions and hyenas: meat, at a risk. Bands eat carrion they come on when foraging.
 - **Watering holes:** herds come to drink, so waiting there is good hunting, and also where predators wait. Hunters, people among them, meet more game where worn paths funnel it, at fords, passes and water (`AMBUSH`).
 - **Predators' leavings:** following vultures to a kill.
-- **Dogs:** they warn and guard, and later hunt. Dogs are behind `taming=true`.
+- **Dogs:** they warn and guard, and later hunt.
 - **Fire drives and burning:** burnt ground greens and draws herds. Burning off is a band way.
