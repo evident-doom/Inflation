@@ -1450,16 +1450,15 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     ecosystemInputs(g, b, into)
 }
 
-/** The size classes of beasts of prey a band tells apart, by weight against a person's: under half, up to twice, more. */
-enum class BeastClass(val label: String, val fromKg: Float) {
-    SMALL("small", 0f), MIDDLING("middling", 0.5f * HUMAN_KG), LARGE("large", 2f * HUMAN_KG);
-    companion object { fun of(kg: Float) = entries.last { kg >= it.fromKg } }
+/** The beasts of prey a band tells apart: those that take people ([Species.takesPeople], from the catalogue) and those that do not. */
+enum class BeastClass(val label: String) {
+    OTHERS("that leave people"), TAKERS("that take people");
+    companion object { fun of(s: Species) = if (s.takesPeople > 0f) TAKERS else OTHERS }
 }
-private val HUMAN_KG get() = Catalogue.HUMAN.massKg
 
 /**
  * What the ground about a band's camp holds, for its ways: the water and the fish in it, the plants and the food they bear,
- * the game, small game and carrion, how the game is changing, and the beasts of prey by size. Food is read as weeks of the
+ * the game, small game and carrion, how the game is changing, and the beasts of prey by whether they take people. Food is read as weeks of the
  * band's need that a week's search or gathering would bring in, x / (1 + x). All from the places' own arrays.
  */
 private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {

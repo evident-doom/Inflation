@@ -88,7 +88,7 @@ class HexGroups(
      * sign (made afresh after a load).
      */
     @delegate:Transient internal val monthBeastKg by lazy { FloatArray(n).also { beastsKg(it, people = false) } }
-    /** [monthBeastKg] by size class ([BeastClass]), for the bands' view of the beasts about. */
+    /** [monthBeastKg] by [BeastClass], for the bands' view of the beasts about. */
     @delegate:Transient internal val monthBeastClassKg by lazy { Array(BeastClass.entries.size) { FloatArray(n) }.also { beastClassKg(it) } }
     /** What the people kind's [huntable] was a month ago, and whether it is known (not after a load, until the next month). */
     @delegate:Transient private val peopleGameBefore by lazy { FloatArray(n) }
@@ -513,7 +513,7 @@ class HexGroups(
 
     private fun beastClassKg(into: Array<FloatArray>) {
         for (a in into) a.fill(0f)
-        for (g in groups) if (g.alive && !g.species.human) into[BeastClass.of(g.species.massKg).ordinal][g.place] += g.size * g.species.massKg
+        for (g in groups) if (g.alive && !g.species.human) into[BeastClass.of(g.species).ordinal][g.place] += g.size * g.species.massKg
     }
 
     /** How the game people can take at [p] has changed over the last month, -1 (all gone) to 1 (all new): their [huntable] against a month ago. */
