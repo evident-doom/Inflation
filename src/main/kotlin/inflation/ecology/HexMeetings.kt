@@ -1080,7 +1080,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         // (Feasting is its choice: by its custom, unless its will leads it away from it.)
         val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
         dialUse?.amount(DialSite.FEASTING, hb.feastWill, keen, hb.byCustom(hb.holds(Tradition.FEASTS), 1f),
-            cut = hb.feastWill - 1f + (if (hb.holds(Tradition.FEASTS)) 1f else 0f) !in 0f..1f)
+            cut = keen == 0f && hb.feastWill > 0f)
         if (keen <= 0f) continue
         val spare = host.larder - hb.storeAim * host.dailyNeedKg
         dialUse?.amount(DialSite.STORE_HOST, hb.storeAim / STORE_AIM_DAYS, max(0f, spare), max(0f, host.larder - STORE_AIM_DAYS * host.dailyNeedKg))
