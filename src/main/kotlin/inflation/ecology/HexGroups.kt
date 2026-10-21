@@ -326,6 +326,13 @@ class HexGroups(
         val reached = IntList(); val queue = LongHeap()
         /** The candidates weighed for a policy: places, their features (arrays reused from week to week), hand-written scores. */
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
+        /** For a band, every place weighed ([exploreChoice]): the place, its whole hand-written score, and the survival steps it would cost. */
+        val explPlaces = IntList(); var explScores = FloatArray(64); var explDeaths = FloatArray(64)
+        fun explore(p: Place, score: Float, deaths: Float) {
+            val k = explPlaces.size
+            if (k == explScores.size) { explScores = explScores.copyOf(2 * k); explDeaths = explDeaths.copyOf(2 * k) }
+            explPlaces += p.i; explScores[k] = score; explDeaths[k] = deaths
+        }
         /** The place being weighed: what the hand-written score and the features both read of it. */
         val terms = PlaceTerms()
         val at = PlaceLook()
@@ -918,8 +925,10 @@ class HexGroups(
         val seen = if (g.id == watched || diag) ArrayList<Pair<Int, Float>>() else null
         val candPlaces = buf.candPlaces; candPlaces.clear(); val candFeats = buf.candFeats
         // (Every place's whole score is wanted for a network, for capture and for a watched group; else only the best.)
-        val wantAll = seen != null || policy != null || capture
-        buf.laterPlace.clear()
+        // (A band draws its place by its will to explore, from every place it weighs, see [exploreChoice].)
+        val explores = g.band != null && !capture && policy?.samples != true
+        val wantAll = seen != null || policy != null || capture || explores
+        buf.laterPlace.clear(); buf.explPlaces.clear()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
         // hungry pack ranges wider: up to three times that after weeks of hunger.
@@ -974,6 +983,7 @@ class HexGroups(
                 val alive = score
                 score -= survivalSteps(g, deathsAt(c, p, h, fed) + drowning)
                 if (!score.isFinite()) tellNotANumber(c, t, p, h, drowning, alive)
+                if (explores) buf.explore(p, score + beside, alive - score)
                 seen?.add(p.i to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
@@ -1014,6 +1024,7 @@ class HexGroups(
             val nc = candPlaces.size
             best = Place(candPlaces[policy.choose(g, Array(nc) { candFeats[it] }, buf.candScores.copyOf(nc), policyRandom(g.id, date.absoluteDay))])
         }
+        if (explores) best = explored(g, policy, buf, best, date)
         lap("choosing: network")
         // The hexes passed on the way to [p], by the cheapest chain.
         fun pathTo(p: Int): IntArray {
@@ -1027,6 +1038,20 @@ class HexGroups(
         if (diag && seen != null) printPlanDiag(c, seen, best)
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
         return Plan(best, pathTo(best.i))
+    }
+
+    /**
+     * Where band [g] goes by its will to explore ([exploreChoice]), of the places weighed in [buf]: scored by its [policy]'s
+     * scores (the network's), or without one by the hand-written; [best] where the scores alone would send it.
+     */
+    private fun explored(g: HexGroup, policy: HexPolicy?, buf: Scratch, best: Place, date: Date): Place {
+        val n = buf.explPlaces.size
+        val b = g.band ?: return best
+        if (n == 0) return best
+        val scores = if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) ?: return best
+        val stays = (0 until n).firstOrNull { buf.explPlaces[it] == g.place.i } ?: -1
+        val k = exploreChoice(g, b.explore, n, scores, buf.explDeaths, stays, if (policy == null) HAND_SCORE_UNIT else 1f, date.absoluteDay)
+        return if (k < 0) best else Place(buf.explPlaces[k])
     }
 
     /**

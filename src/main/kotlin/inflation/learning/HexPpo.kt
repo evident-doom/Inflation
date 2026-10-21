@@ -194,6 +194,7 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
         return taken
     }
+    override val samples get() = record != null
     override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
         val state = g.band?.state; val temper = g.temper
         val net = mover.netScores(g.species, features, state, temper, scratch.get())
