@@ -865,7 +865,7 @@ class HexGroups(
         f[Feature.BEYOND_OWN_GROUND] = beyond; f[Feature.OTHERS_MARKS] = foreign
         // The fish and shellfish a band could take there, with its skill, against its need (the
         // shore and the river are plain to see; how rich they are, less so where it is a stranger).
-        f[Feature.FISH] = g.band?.let { b -> min(2f, fauna.water.fishWithin(h.i, b.fishing()) / (g.size * s.dailyIntakeKg * days).coerceAtLeast(1f)) *
+        f[Feature.FISH] = g.band?.let { b -> min(2f, fauna.water.fishWithin(h.i, b.fishing()) * Nourishment.FISH * s.needScale / (g.size * s.dailyIntakeKg * days).coerceAtLeast(1f)) *
             (if (b.knows(h.i)) 1f else 0.5f) } ?: 0f
         // What it remembers of this hex: in this season, or failing that in any.
         val mem = g.memory
@@ -1250,7 +1250,7 @@ class HexGroups(
         val s = g.species
         if (s.human) return (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f)
         val needKg = s.dailyIntakeKg * g.warmth * days * (g.adults + 0.5f * g.young) / max(1, g.size)
-        return min(1f, HexFauna.RESIDENT_KILL_MOST * prey / max(1e-6f, kinKm2 * needKg))
+        return min(1f, HexFauna.RESIDENT_KILL_MOST * prey * Nourishment.PREY * s.needScale / max(1e-6f, kinKm2 * needKg))
     }
 
     /** The odds of the hazards at a place, summed ([deathsAt]). */

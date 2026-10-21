@@ -1768,10 +1768,15 @@ const val OCHRE_A_WEEK = 0.3f
 const val TAN_OCHRE = 0.2f
 const val TANNED_WEAR = 0.5f
 /**
- * Salt a person living wholly on plant food needs in a week, kg (a few grams a day, more in the heat); how much
- * less good their food does them wholly without it is [inflation.Tuning.saltLack].
+ * Sodium a person needs a day, kg: the 23 mg a day the Yanomami pass, the least of any people measured (INTERSALT, BMJ
+ * 1988; Mancilha-Carvalho et al., J Hum Hypertens 1989: 0.9 mmol a day, healthy and with low blood pressure, on a
+ * mostly plant diet and no salt). How much less good their food does them wholly without it is [inflation.Tuning.saltLack].
  */
-const val SALT_A_PERSON_WEEK = 0.05f
+const val SODIUM_A_PERSON_DAY = 23e-6f
+/** Sodium in a kg of meat or fish, kg: raw deer 51 mg/100 g (USDA SR "game meat, deer, raw"), freshwater fish about 50. */
+const val SODIUM_PER_KG_MEAT = 0.51e-3f
+/** Sodium's share of salt by weight (Na in NaCl). */
+const val SALT_SODIUM = 0.393f
 /** Salt to cure a kilo of meat or fish, kg (how much less salted meat and fish spoil: [inflation.Tuning.saltKeep]). */
 const val SALT_PER_KG = 0.1f
 
@@ -1841,7 +1846,9 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         if (n > most) {
             val cull = n - most
             n = most
-            addFood(g.stores, g.storeKgPer, Store.FRESH, cull * s.massKg * MEAT_SHARE, cull * s.massKg * MEAT_SHARE)
+            // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT].)
+            val culled = cull * s.massKg * MEAT_SHARE
+            addFood(g.stores, g.storeKgPer, Store.FRESH, culled * Nourishment.MEAT * g.species.needScale, culled)
             small.deposit(DeadPool.CARRION, p, Kg(cull * s.massKg * (1f - MEAT_SHARE)))
             stats.meeting(Met.KEPT_ANIMALS_CULLED)
         }

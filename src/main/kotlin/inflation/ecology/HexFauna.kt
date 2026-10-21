@@ -800,10 +800,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             z.got[k] = b.got / want
             var grass3 = 0f; var browse3 = 0f
             if (b.got >= want && reserve[k][p] < s.maxFatDays) {
-                val extra = SURPLUS_EAT * want
+                // (In energy, as [forage] works: see [Species.needScale].)
+                val extra = SURPLUS_EAT * want / s.needScale
                 if (d.grass > 0f) grass3 = z.grass(underSnow * extra / quality * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
                 if (d.browse > 0f) browse3 = z.browse(extra / quality * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
-                z.surplus[k] = (grass3 + browse3) * quality / want
+                z.surplus[k] = (grass3 + browse3) * quality * s.needScale / want
             }
             z.eatG += b.grass + b.grass2 + grass3; z.eatB += b.browse + b.browse2 + browse3
             z.eatF += b.fruit + b.fruit2; z.eatR += b.roots + b.roots2
@@ -881,7 +882,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val s = kinds[k]; val avail = z.avail; val surplus = z.surplus
         var animal = 0f
         val needAll = (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
-            days / 1e6f // all of the diet, kg per m2
+            days / 1e6f / (Nourishment.PREY * s.needScale) // all of the diet, in kg of prey per m2 that would feed it ([Nourishment.PREY])
         if (ps < 1f && needAll > 0f) {
             val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
             val animalNeed = needAll * (1f - ps)

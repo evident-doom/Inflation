@@ -158,9 +158,14 @@ object HexSnapshot {
      * stone for houses (it stacked them after 4 weeks before, which the caps made moot).
      * Dogs are always on (taming is no longer a switch), and a band sows at a camp it has kept long enough to build at, not
      * only at home.
+     * 4.15: food feeds by its energy ([Nourishment]), one unit for every kind: bands choose foods by energy a day of handling
+     * and count dry fruit, roots and seed at some 2-3 times a kg of meat; mixed feeders' plant food feeds them more and
+     * their animal food less than a kg each (pure plant-eaters and hunters as before, but for fruit); people's stores hold
+     * food at what it feeds. People's salt need is the sodium their meat and fish fall short of (the Yanomami's 23 mg a
+     * day), not a share of plant food eaten.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 14
+    const val MODEL_MINOR = 15
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
