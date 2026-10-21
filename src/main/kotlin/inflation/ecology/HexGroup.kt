@@ -103,6 +103,8 @@ fun interface HexPolicy {
     fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int
     /** How it scores each candidate, higher the likelier it goes there; null if it does not tell (only asked for a followed group, see [GroupControl]). */
     fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray? = null
+    /** Whether it draws its choices by chance itself (a policy recording choices to learn from): then a band's will to explore leaves them be. */
+    val samples: Boolean get() = false
 }
 
 /**

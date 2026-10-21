@@ -40,6 +40,7 @@ enum class DialSite(val label: String, val dial: Int) {
     NIGHT_FIRE_GUARD("beasts: the night fire guards", BandWay.NIGHT_FIRE.slot),
     SHUN_SICK("meetings: keeping away from the sick", BandWay.SHUNNING_THE_SICK.slot),
     EXPLORE_SCORE("place choice (hand-written score): strange country", BandWay.EXPLORING.slot),
+    EXPLORE_MOVE("place choice: the place drawn", BandWay.EXPLORING.slot),
     GIVE_VISIT("kin visits: share given", BandWay.GIVING.slot),
     GIVE_MEETING("meetings: food given to the hungry", BandWay.GIVING.slot),
     GIVE_ORNAMENTS("meetings: ornaments given", BandWay.GIVING.slot),
