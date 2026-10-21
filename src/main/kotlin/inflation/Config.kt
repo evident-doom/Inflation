@@ -58,6 +58,7 @@ object Config {
         FOLLOW("follow"),
         STRAND_DIAG("strandDiag"),
         WAYS_LOG("waysLog"),
+        WAYS_FORCE("waysForce"),
         FED_DIAG("fedDiag"),
         SHRUB_DIAG("shrubDiag"),
         T_HUNT_DIAG("t.huntDiag"),
