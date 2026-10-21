@@ -27,7 +27,7 @@ class LearnedWays(val net: Mlp, val logStd: FloatArray) {
     fun copy() = LearnedWays(net.copy(), logStd.copyOf())
 
     fun save(file: File) {
-        Schema.save(net, file, Schema.WAYS_IN, Schema.WAYS_OUT)
+        Schema.save(net, file, Schema.WAYS_IN, Schema.WAYS_OUT, Role.PEOPLE.net)
         File(file.path + ".std").writeText(logStd.joinToString(" ") { exp(it).toString() } + "\n")
     }
 

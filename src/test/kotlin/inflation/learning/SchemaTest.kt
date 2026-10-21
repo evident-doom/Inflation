@@ -117,3 +117,34 @@ class SchemaTest {
         assertEquals(Food.GRAIN.ordinal, FOOD_TYPES)
     }
 }
+
+class NetVersionTest {
+    @Test
+    fun aSavedNetCarriesItsRolesVersionAndOneWithoutIsNone() {
+        val dir = java.nio.file.Files.createTempDirectory("netversion").toFile()
+        val net = Mlp.random(intArrayOf(2, 3, 1), Random(1))
+        val f = java.io.File(dir, "a.mlp"); val g = java.io.File(dir, "b.mlp")
+        Schema.save(net, f, listOf("a", "b"), listOf("o"), Role.PEOPLE.net)
+        Schema.save(net, g, listOf("a", "b"), listOf("o"))
+        assertEquals(Role.PEOPLE.net, Schema.versionOf(f))
+        assertEquals(NetVersion.NONE, Schema.versionOf(g))
+        assertEquals(NetVersion.NONE, Schema.versionOf(java.io.File(dir, "missing.mlp")))
+        assertEquals(listOf("a", "b"), Schema.load(f, listOf("a", "b"), listOf("o")).let { listOf("a", "b") })
+        dir.deleteRecursively()
+    }
+
+    @Test
+    fun aRoleWhoseKeptNetsWereSavedUnderAnotherMajorIsToldApart() {
+        val dir = java.nio.file.Files.createTempDirectory("netmajor").toFile()
+        val net = Mlp.random(intArrayOf(2, 3, 1), Random(1))
+        val f = Role.HUNTERS.file(dir)
+        Schema.save(net, f, listOf("a", "b"), listOf("o"), Role.HUNTERS.net)
+        assertEquals(false, Role.HUNTERS.netMajorChanged(dir))
+        Schema.save(net, f, listOf("a", "b"), listOf("o"), NetVersion(Role.HUNTERS.net.major - 1, 0))
+        assertEquals(true, Role.HUNTERS.netMajorChanged(dir))
+        Schema.save(net, f, listOf("a", "b"), listOf("o"))
+        assertEquals(true, Role.HUNTERS.netMajorChanged(dir))
+        assertEquals(false, Role.PEOPLE.netMajorChanged(dir))
+        dir.deleteRecursively()
+    }
+}
