@@ -112,6 +112,9 @@ class EcoCheck(private val out: File) {
             lines += "check round %d %s: own kinds %.0f with the new network against %.0f with the kept one (%+.1f%%), the others new; ecosystem %s -> %s".format(
                 round + 1, r, withNew, withKept, if (withKept > 0) 100 * (withNew / withKept - 1) else 0.0,
                 if (why.isEmpty()) "holds" else "fails: " + why.joinToString(", "), if (better && why.isEmpty()) "kept" else "not kept")
+            // (A role's ways network is tried and kept with it, never alone: its decision is the role's.)
+            lines += "check round %d %s %s ways network (%s): %s, decided with the %s network above".format(
+                round + 1, r, r.ways.whose, r.ways.file, if (better && why.isEmpty()) "kept" else "not kept", r)
             better && why.isEmpty()
         }
         return Verdict(round, roles, lines)
