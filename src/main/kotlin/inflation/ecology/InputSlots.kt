@@ -37,6 +37,15 @@ object BandInputs : InputSlots() {
     val OWED = one("favours owed to it"); val OWES = one("favours it owes")
     val CUSTOMS = block(Tradition.entries.map { "custom:${it.name.lowercase()}" })
     val TEMPER = block(Temperament.NAMES.map { "temper:$it" })
+    // The ecosystem about its camp (names appended, so that nets trained before them give them no weight): the water and
+    // what it holds, the plants and their food, the game, and the beasts of prey by whether they take people.
+    val NEAR_RIVER = one("near river"); val NEAR_LAKE = one("near lake"); val NEAR_SPRING = one("near spring"); val ON_COAST = one("on the coast")
+    val FISH = one("fish and shellfish within reach"); val WATERLOGGED = one("waterlogged")
+    val TREES = one("trees"); val SHRUBS = one("shrubs"); val GRASS = one("grass")
+    val FRUIT = one("plant food:fruit"); val ROOTS = one("plant food:roots"); val SEED = one("plant food:seed")
+    val GAME = one("game within reach"); val SMALL_GAME = one("small game"); val CARRION = one("carrion"); val GAME_TREND = one("game trend")
+    val PREDATORS = block(BeastClass.entries.map { "beasts of prey:${it.label}" })
+    val ELEVATION = one("elevation")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */

@@ -88,6 +88,12 @@ class HexGroups(
      * sign (made afresh after a load).
      */
     @delegate:Transient internal val monthBeastKg by lazy { FloatArray(n).also { beastsKg(it, people = false) } }
+    /** [monthBeastKg] by [BeastClass], for the bands' view of the beasts about. */
+    @delegate:Transient internal val monthBeastClassKg by lazy { Array(BeastClass.entries.size) { FloatArray(n) }.also { beastClassKg(it) } }
+    /** What the people kind's [huntable] was a month ago, and whether it is known (not after a load, until the next month). */
+    @delegate:Transient private val peopleGameBefore by lazy { FloatArray(n) }
+    @Transient private var gameBeforeKnown = false
+    @Transient private var huntableFilled = false
     /** People sick of each catching illness in each place as the week's choosing begins (heads × share sick). */
     @delegate:Transient private val sickPeople by lazy { Array(Illness.entries.size) { FloatArray(n) } }
     /** The beasts of prey in each place as the week's choosing begins, kg (the hunters other than people). */
@@ -253,7 +259,11 @@ class HexGroups(
         }
         if (bearings.month != date.month) {
             beastsKg(monthBeastKg, people = false)
+            beastClassKg(monthBeastClassKg)
+            val people = kindSlot[Catalogue.HUMAN.index]
+            if (people >= 0) { huntable[people].copyInto(peopleGameBefore); gameBeforeKnown = huntableFilled }
             IntStream.range(0, n).parallel().forEach { p -> for ((k, s) in kinds.withIndex()) huntable[k][p] = dietValue(s, Place(p), preyHere(s, Place(p))) }
+            huntableFilled = true
             Profile.time("sense of direction") { bearings.update(date.month) }
         }
         val predatorKg = FloatArray(n).also { beastsKg(it, people = true) }
@@ -499,6 +509,19 @@ class HexGroups(
     private fun beastsKg(into: FloatArray, people: Boolean) {
         into.fill(0f)
         for (g in groups) if (g.alive && (people || !g.species.human)) into[g.place] += g.size * g.species.massKg
+    }
+
+    private fun beastClassKg(into: Array<FloatArray>) {
+        for (a in into) a.fill(0f)
+        for (g in groups) if (g.alive && !g.species.human) into[BeastClass.of(g.species).ordinal][g.place] += g.size * g.species.massKg
+    }
+
+    /** How the game people can take at [p] has changed over the last month, -1 (all gone) to 1 (all new): their [huntable] against a month ago. */
+    internal fun gameTrend(p: Place): Float {
+        val people = kindSlot[Catalogue.HUMAN.index]
+        if (!gameBeforeKnown || people < 0) return 0f
+        val now = huntable[people][p]; val before = peopleGameBefore[p]
+        return if (now + before > 0f) (now - before) / (now + before) else 0f
     }
 
     /** Each kind's slot in [kinds], by its [Species.index]; -1 for a kind not kept in groups. */
