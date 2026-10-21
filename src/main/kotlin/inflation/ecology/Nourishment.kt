@@ -32,6 +32,28 @@ object Nourishment {
     /** Small finds, eggs, insects, honey: about 150 kcal/100 g as a guess at the mix (eggs 143, honey 304); no source for the mix. */
     const val FINDS = 0.6f
 
+    /** Fat rendered from bones (grease) or marrow: 9 kcal/g (Atwater's factor for fat). */
+    const val GREASE = 9000f / UNIT_KCAL
+
+    /*
+     * The share of each food's energy that is protein (4 kcal/g). Lean wild meat: raw deer 23 g protein in 120 kcal
+     * (USDA SR "game meat, deer, raw"), rabbit 22 g in 114: three quarters. Freshwater fish 0.56-0.88 (USDA SR carp, trout,
+     * pike). Wild fruit a few per cent (USDA SR blackberries 13%, figs 4%); roots some 8% (potato 10%, wild tubers less);
+     * grain some 15% (wheat 13 g in 340 kcal). Small finds a guess at eggs (33%), insects (half) and honey (none).
+     */
+    const val PROTEIN_MEAT = 0.75f
+    const val PROTEIN_FISH = 0.7f
+    const val PROTEIN_FRUIT = 0.06f
+    const val PROTEIN_ROOTS = 0.08f
+    const val PROTEIN_GRAIN = 0.15f
+    const val PROTEIN_FINDS = 0.3f
+    /**
+     * The most of people's need protein can meet: the liver makes urea from only so much a day, and lean meat eaten beyond
+     * that feeds by its fat alone ("rabbit starvation"; Speth & Spielmann 1983). Hunter-gatherers' diets hold 19-35% of
+     * their energy as protein (Cordain et al. 2000); the physiological ceiling is put at 30-41% (secondary review).
+     */
+    const val PROTEIN_MOST = 0.35f
+
     /**
      * People's need, units a day: a Hadza adult spends some 2,250 kcal a day (Pontzer et al. 2012: men 2,649, women
      * 1,877), below the allometric rule's 1.6 units for 55 kg.

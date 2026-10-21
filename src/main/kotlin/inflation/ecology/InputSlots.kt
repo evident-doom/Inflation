@@ -46,6 +46,8 @@ object BandInputs : InputSlots() {
     val GAME = one("game within reach"); val SMALL_GAME = one("small game"); val CARRION = one("carrion"); val GAME_TREND = one("game trend")
     val PREDATORS = block(BeastClass.entries.map { "beasts of prey:${it.label}" })
     val ELEVATION = one("elevation")
+    // Of the protein it ate last week, the share that went to waste beyond what protein can feed ([Band.leanLost]).
+    val LEAN_LOST = one("lean food wasted")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */

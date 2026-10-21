@@ -184,6 +184,8 @@ class Band(kinds: Int) {
     val fine = enumFloats<Tool> { if (it == Tool.CLOTHES) 0f else 1f }
     /** Of its dried meat and fish, the share salted (with trade on). */
     var salted = 0f
+    /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
+    var leanLost = 0f
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0
@@ -1378,14 +1380,17 @@ internal fun eatStores(g: HexGroup, value: Float): Float {
 
 /**
  * Food on hand, by how it keeps: fresh meat and fish rot in days (faster in the heat), dried meat
- * and fish keep for months, fruit for a week or two, roots for some weeks, seed and nuts for a year.
- * [lostWeekly] is the share lost a week (fresh meat: see [spoil]); [meat] whether it counts as meat.
+ * and fish keep for months, fruit for a week or two, roots for some weeks, seed and nuts for a year, rendered grease
+ * sealed in guts or bladders for months (its rate a guess).
+ * [lostWeekly] is the share lost a week (fresh meat: see [spoil]); [meat] whether it counts as meat (for its salt);
+ * [protein] the share of its energy that is protein (fresh and dried meat and fish at meat's; small finds kept with fruit).
  */
-enum class Store(val lostWeekly: Float, val meat: Boolean) {
-    FRESH(0f, true), DRIED(0.01f, true), FRUIT(0.1f, false), ROOTS(0.03f, false), SEED(0.005f, false)
+enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float) {
+    FRESH(0f, true, Nourishment.PROTEIN_MEAT), DRIED(0.01f, true, Nourishment.PROTEIN_MEAT), FRUIT(0.1f, false, Nourishment.PROTEIN_FRUIT),
+    ROOTS(0.03f, false, Nourishment.PROTEIN_ROOTS), SEED(0.005f, false, Nourishment.PROTEIN_GRAIN), GREASE(0.01f, false, 0f)
 }
 /** The order a band eats its food in: what spoils first, first. */
-val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED)
+val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED, Store.GREASE)
 /** The scaffold's store: days of food a band aims to keep; share of the gap it works to close a week. */
 const val STORE_AIM_DAYS = 30f
 const val STORE_FILL = 0.25f
@@ -1554,6 +1559,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
         into[x.PREDATORS + c.ordinal] = SIGN_GUESS + sign * (beasts / (beasts + 3f) - SIGN_GUESS)
     }
     into[x.ELEVATION] = (hw.placeElevationM[p] / 3000f).coerceIn(0f, 1f)
+    into[x.LEAN_LOST] = b.leanLost
 }
 
 /** The name of each of [bandInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */

@@ -166,9 +166,13 @@ object HexSnapshot {
      * each food by its will to keep it (at the scaffold's 1, as it would eat it).
      * A band's place memory keeps how richly good stone, salt, ochre and shells were to be had where it went (and as other
      * bands tell it), and its learned mover sees what it lacks remembered at a place and the way toward the best of it.
+     * 4.16: protein feeds people only up to 35% of their need ([Nourishment.PROTEIN_MOST]): a band eats lean food to that
+     * ceiling, then plant food and grease, and lean food beyond it feeds by its fat alone; it weighs lean food in its choice by
+     * the share of its protein that went to waste the week before ([Band.leanLost], also a ways input). A band that knows
+     * stone boiling renders grease from the bones it comes on ([greaseOf]), kept as a store of its own ([Store.GREASE]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 15
+    const val MODEL_MINOR = 16
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
