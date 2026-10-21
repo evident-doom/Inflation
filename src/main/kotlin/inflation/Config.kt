@@ -45,6 +45,7 @@ object Config {
         PPO_CHECK_REPLICATES("ppo.checkReplicates"),
         PPO_CHECK_PARALLEL("ppo.checkParallel"),
         PPO_CHECK_HEAP_GB("ppo.checkHeapGb"),
+        PPO_HUNTER_PEOPLE_VETO("ppo.hunterPeopleVeto"),
         EVOLVE_WAYS_SIGMA("evolveWays.sigma"),
         EVOLVE_WAYS_RATE("evolveWays.rate"),
         EVOLVE_WAYS_HIDDEN("evolveWays.hidden"),
