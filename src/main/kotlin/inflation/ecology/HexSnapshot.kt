@@ -150,9 +150,12 @@ object HexSnapshot {
      * as it did before 4.2, by what the places are worth now.
      * 4.12: a band draws its place by its will to explore ([exploreChoice]) instead of taking the best: at the scaffold's 1 as
      * its network draws while learning, and its place scores lower the keener it is.
+     * 4.13: six of the bands' ways lose their caps: shelters are built up to twice as warm, caches dug with up to twice the
+     * care (time against beasts and finders), the sick shunned at half the will (half the time at the default), feasting and
+     * appointments as keen as the will for bands that hold the custom, and gatherers keeping near walk less.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 12
+    const val MODEL_MINOR = 13
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

@@ -261,7 +261,7 @@ class Band(kinds: Int) {
     val gatherRange get() = will[BandWay.GATHERING_RANGE]
     val childWatch get() = will[BandWay.WATCHING_CHILDREN]
     val nightFire get() = will[BandWay.NIGHT_FIRE]
-    val shunSick get() = (will[BandWay.SHUNNING_THE_SICK] - 1f).coerceAtLeast(0f)
+    val shunSick get() = 0.5f * will[BandWay.SHUNNING_THE_SICK]
     /** How keen it is to go into country it does not know (1: the usual wariness of strange ground; 2: drawn to it). */
     val explore get() = will[BandWay.EXPLORING]
     /** The fire as it guards the camp at night: kept only as faithfully as the band chooses. */
@@ -295,8 +295,11 @@ class Band(kinds: Int) {
     val feastWill get() = will[BandWay.FEASTING]
     val appointWill get() = will[BandWay.APPOINTMENTS]
     val burnWill get() = will[BandWay.BURNING_OFF]
-    /** Whether it acts on a custom: by the custom at its will's default (1), and away from it as its will goes towards 0 or 2. */
-    fun byCustom(holds: Boolean, will: Float) = (will - 1f + (if (holds) 1f else 0f)).coerceIn(0f, 1f)
+    /**
+     * How keenly it acts on a custom: a band that holds it as its will (1 at the default, twice as much at 2, not at all at 0),
+     * one that does not only as far as its will goes above the default.
+     */
+    fun byCustom(holds: Boolean, will: Float) = max(0f, will - (if (holds) 0f else 1f))
 
     /** Whether it holds hex [h] as its own: its houses, its dead, its appointment place. */
     fun claims(h: Hex, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
@@ -664,7 +667,8 @@ private fun putUpShelter(b: Band, people: Float, time: BandTime) {
     if (b.campWeeks == 0) b.shelter = 0f
     // (A debris hut takes a novice an afternoon, the practised an hour.)
     val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
-    val shelterAim = min(1f, b.shelterWill)
+    // (Above the default it builds sturdier: thatched thicker and banked with earth, warmer as it took longer.)
+    val shelterAim = b.shelterWill
     if (b.shelter < shelterAim && time.left > 0f && people > 0f) {
         val built = min(shelterAim - b.shelter, time.left / shelterDays)
         b.shelter += built
@@ -707,7 +711,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     wearAndInvent(b, years)
     // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
-    dialUse?.amount(DialSite.SHELTERS, b.shelterWill, min(1f, b.shelterWill), 1f, cut = b.shelterWill > 1f)
+    dialUse?.amount(DialSite.SHELTERS, b.shelterWill, b.shelterWill, 1f)
     putUpShelter(b, people, time)
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
@@ -779,6 +783,13 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
     }
 }
 
+/**
+ * How much care band [b] takes over its caches, 1 at its will's default and up to 2: a cache dug with more care takes as much
+ * more time a kg, and as much less of it is dug up by beasts or found by other bands. (Read from its will now, not as it was
+ * when the cache was dug; ways change slowly. The proportions are a choice: no source sets them.)
+ */
+internal fun cacheCare(b: Band) = max(1f, b.cacheWill)
+
 /** What [g]'s band can carry, kg: its adults' loads, more with baskets and bags. */
 private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
 
@@ -796,12 +807,16 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
             val total = g.larder
             if (total > carry) {
                 // (It chooses how much of what it cannot carry to cache, as far as its time to dig and cover the pits goes;
-                // the rest is left where it lies.)
+                // the rest is left where it lies. Above the default it caches all of it with more care, see [cacheCare]:
+                // the pits deeper and better hidden, at as much more time for each kg.)
                 val left = 1f - carry / total
                 val leftKg = Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
-                val cached = min(min(1f, b.cacheWill), if (leftKg > 0f) max(0f, time.left) * CACHE_KG_A_DAY / leftKg else 0f)
-                dialUse?.amount(DialSite.CACHING, b.cacheWill, cached, min(1f, if (leftKg > 0f) max(0f, time.left) * CACHE_KG_A_DAY / leftKg else 0f), cut = b.cacheWill > 1f)
-                time.spend(Activity.CACHING, cached * leftKg / CACHE_KG_A_DAY)
+                val care = cacheCare(b)
+                fun cachedAt(will: Float, care: Float) =
+                    min(min(1f, will), if (leftKg > 0f) max(0f, time.left) * CACHE_KG_A_DAY / care / leftKg else 0f)
+                val cached = cachedAt(b.cacheWill, care)
+                dialUse?.amount(DialSite.CACHING, b.cacheWill, cached * care, cachedAt(1f, 1f))
+                time.spend(Activity.CACHING, cached * leftKg * care / CACHE_KG_A_DAY)
                 if (cached > 0f) dropCache(b)
                 var abandoned = 0f
                 for (i in Store.entries) {
@@ -827,7 +842,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
             val cp = b.cachePlace
             val diggers = small.rodents[cp] / CACHE_RODENTS_HALF + small.foxes[cp] / CACHE_FOXES_HALF +
                 cacheDiggers.sumOf { (fauna.adults[it][cp] / 0.5f).toDouble() }.toFloat()
-            val dug = min(0.5f, CACHE_DUG * min(1f, diggers) * years)
+            val dug = min(0.5f, CACHE_DUG * min(1f, diggers) * years) / cacheCare(b)
             if (dug > 0f) {
                 var lost = 0f
                 for (i in Store.entries) {
@@ -1605,8 +1620,8 @@ internal fun HexGroups.robCaches(weather: Weather) {
             for (o in owners) {
                 val ob = o.band ?: continue
                 if (o === g || b.tie(o.id) > 0.3f || ob.cacheKg <= 1f) continue
-                if (!drawn(DialSite.SCOUTS_FIND_CACHE, b.will[BandWay.SCOUTS], rnd.nextFloat(), CACHE_FIND * sight(ob.cachePlace, weather) * (1f + b.scoutShare * 5f))
-                    { CACHE_FIND * sight(ob.cachePlace, weather) * (1f + SCOUT_SHARE * 5f) }) continue
+                if (!drawn(DialSite.SCOUTS_FIND_CACHE, b.will[BandWay.SCOUTS], rnd.nextFloat(), CACHE_FIND * sight(ob.cachePlace, weather) * (1f + b.scoutShare * 5f) / cacheCare(ob))
+                    { CACHE_FIND * sight(ob.cachePlace, weather) * (1f + SCOUT_SHARE * 5f) / cacheCare(ob) }) continue
                 // (Found, it is the band's choice whether to take from it.)
                 if (!drawn(DialSite.ROB_TAKE, b.robWill, rnd.nextFloat(), min(1f, b.robWill), cut = b.robWill > 1f) { 1f }) continue
                 val takeShare = CACHE_TAKE * max(1f, b.robWill)

@@ -20,9 +20,11 @@ fun HexGroup.violations(): List<String> {
     check("kit ${b.kit.a.toList()}", b.kit.a.allIn(0f, 1.0001f))
     check("make of its tools ${b.fine.a.toList()}", b.fine.a.allIn(0f, 1.0001f))
     check("skills ${b.skills.a.toList()}", b.skills.a.allIn(0f, Float.MAX_VALUE))
-    for ((name, v) in listOf("house" to b.house, "palisade" to b.palisade, "shelter" to b.shelter, "hurt" to b.hurt, "lame" to b.lame,
+    for ((name, v) in listOf("house" to b.house, "palisade" to b.palisade, "hurt" to b.hurt, "lame" to b.lame,
         "night wood" to b.nightWood))
         check("$name $v", v.isFinite() && v in 0f..1.0001f)
+    // (A shelter is built up to the band's will for it, at most twice the default's.)
+    check("shelter ${b.shelter}", b.shelter.isFinite() && b.shelter in 0f..2.0001f)
     for (i in Illness.entries) check("$i: sick ${b.sick[i]}, immune ${b.immune[i]}",
         b.sick[i] >= 0f && b.immune[i] >= 0f && b.sick[i] + b.immune[i] <= 1.0001f)
     check("spare days ${b.spareDays}", b.spareDays.isFinite() && b.spareDays >= 0f)

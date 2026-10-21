@@ -204,9 +204,9 @@ const val COLD_MAX = 1.6f
 fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * max(0, g.path.size - 1) * hex.hexKm.toFloat() / days *
     // (People pushing through thick woods and scrub go slower and tire more than in the open.)
     (if (g.species.human) 1f + COVER_GOING * land.plants.cover(g.place) else 1f) +
-    // (Gatherers going further than usual walk the difference out and back each day.)
-    (g.band?.let { b -> (if (b.gatherRange > 1f) WALK_COST * GATHER_WALK_KM * (b.gatherRange - 1f) * 0.5f else 0f)
-        .also { v -> dialUse?.amount(DialSite.GATHER_WALK, b.gatherRange, v, 0f, cut = b.gatherRange < 1f) } } ?: 0f) +
+    // (Gatherers going further than usual walk the difference out and back each day; keeping nearer, they walk less.)
+    (g.band?.let { b -> (WALK_COST * GATHER_WALK_KM * (b.gatherRange - 1f) * 0.5f)
+        .also { v -> dialUse?.amount(DialSite.GATHER_WALK, b.gatherRange, v, 0f) } } ?: 0f) +
     // (And the height it gained on the way costs as the level walk it equals, see [climbKmPerM].)
     WALK_COST * climbKmPerM(g.species.massKg) * g.climbedM / days
 const val WALK_COST = 0.011f

@@ -185,8 +185,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     if (raid(a, bandA, b, bandB, u, weather) || raid(b, bandB, a, bandA, u, weather)) return true
     // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
     fun showsSickness(x: Band) = x.sick.sum() > SICK_SHOWS
-    fun shuns(x: Band) = drawn(DialSite.SHUN_SICK, x.will[BandWay.SHUNNING_THE_SICK], rnd.nextFloat(), x.shunSick,
-        cut = x.will[BandWay.SHUNNING_THE_SICK] < 1f) { 0f }
+    fun shuns(x: Band) = drawn(DialSite.SHUN_SICK, x.will[BandWay.SHUNNING_THE_SICK], rnd.nextFloat(), x.shunSick) { 0.5f }
     if ((showsSickness(bandB) && shuns(bandA)) || (showsSickness(bandA) && shuns(bandB))) {
         stats.meeting(Met.BANDS_KEPT_AWAY_FROM_THE_SICK)
         return false
@@ -463,7 +462,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     // most bands, in the season it fared best there.
     if (b.appointHex.none &&
         drawn(DialSite.APPOINTMENTS, b.appointWill, rnd.nextFloat(), years * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill),
-            cut = b.appointWill - 1f + (if (b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS)) 1f else 0f) !in 0f..1f)
+            cut = b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill) == 0f && b.appointWill > 0f)
             { years * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), 1f) }) {
         val mem = g.memory
         var best = -1; var bestScore = 0f
