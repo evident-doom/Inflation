@@ -23,7 +23,9 @@ import kotlin.math.abs
  * that, no learner can gain much by it.
  *
  * Usage: hex-people-leverage [--seeds A,B] [--size KM] [--years N]
- * Config key leverageTests: all (default), moves (only the moves) or ways (only the ways).
+ * Config keys: leverageTests: all (default), moves (only the moves) or ways (only the ways). leverageWayValues (default none): values,
+ * as multiples of the scaffold's (0.5,1,1.5), to hold each way at for every band in place of the network outputs -2 and +2; leverageWays
+ * (default all): the numbers of the ways to test (numbered from 0 in the order of the network's outputs, comma-separated).
  */
 fun main(args: Array<String>) {
     val a = Args(args, "hex-people-leverage [--seeds A,B] [--size KM] [--years N]")
@@ -31,22 +33,29 @@ fun main(args: Array<String>) {
     val tests = Config.string(Config.Key.LEVERAGE_TESTS) ?: "all"
     require(tests in setOf("all", "moves", "ways")) { "leverageTests=$tests: all, moves or ways" }
     val moves = tests != "ways"; val ways = tests != "moves"
+    val values = Config.string(Config.Key.LEVERAGE_WAY_VALUES)?.split(',')?.map { it.trim().toFloat() }
+    val tested = Config.string(Config.Key.LEVERAGE_WAYS)?.split(',')?.map { it.trim().toInt() } ?: (0 until WAYS_OUT).toList()
+    require(tested.all { it in 0 until WAYS_OUT }) { "leverageWays=$tested: the ways are numbered 0..${WAYS_OUT - 1}" }
     a.done()
     val kinds = Catalogue.learned
     val names = Schema.WAYS_OUT
+    /** One trial: a name, and the way held (-1: none) at the network output [held] for every band. */
+    class Trial(val name: String, val way: Int = -1, val held: Float = 0f, val label: String = name)
     val configs = buildList {
-        add("hand"); add("nudge")
-        if (moves) { add("random"); add("worst"); add("stay") }
-        if (ways) for (j in 0 until WAYS_OUT) { add("way-$j"); add("way+$j") }
+        add(Trial("hand")); add(Trial("nudge"))
+        if (moves) { add(Trial("random")); add(Trial("worst")); add(Trial("stay")) }
+        if (ways) for (j in tested) {
+            if (values == null) { add(Trial("way-$j", j, -2f, "${names[j]} low")); add(Trial("way+$j", j, 2f, "${names[j]} high")) }
+            else for (v in values) add(Trial("way$j@$v", j, forcedWayOutput(v), "${names[j]} x$v"))
+        }
     }
-    fun label(c: String) = if (c.startsWith("way")) "${names[c.substring(4).toInt()]} ${if (c[3] == '-') "low" else "high"}" else c
     val jobs = seeds.flatMap { s -> configs.map { s to it } }
     val done = AtomicInteger()
     val r = jobs.parallelStream().map { (seed, c) ->
         val cfg = WorldConfig(seed = seed, widthKm = size, heightKm = size)
         val score = HexPpo.score(cfg, years, kinds) { run ->
             for (s in kinds) if (s.human) run.groups.policies[s] = HexPolicy { _, f, b, rnd ->
-                when (c) {
+                when (c.name) {
                     "stay" -> f.indices.firstOrNull { f[it].getOrElse(HexFeatures.STAYS) { 0f } > 0.5f } ?: b.indices.maxBy { b[it] }
                     "random" -> rnd.nextInt(f.size)
                     "worst" -> b.indices.minBy { b[it] }
@@ -54,21 +63,19 @@ fun main(args: Array<String>) {
                 }
             }
             run.groups.ways = BandWays { _, _, out ->
-                when {
-                    c == "nudge" -> for (i in 0 until WAYS_OUT) out[i] = 0.01f
-                    c.startsWith("way") -> out[c.substring(4).toInt()] = if (c[3] == '-') -2f else 2f
-                }
+                if (c.name == "nudge") for (i in 0 until WAYS_OUT) out[i] = 0.01f
+                else if (c.way >= 0) out[c.way] = c.held
             }
         }[Catalogue.HUMAN] ?: 0.0
         System.err.println("  ${done.incrementAndGet()}/${jobs.size}")
         Triple(seed, c, score)
     }.toList()
-    fun of(seed: Long, c: String) = r.first { it.first == seed && it.second == c }.third
+    fun of(seed: Long, c: Trial) = r.first { it.first == seed && it.second === c }.third
     println("people's score against the hand-written moves and scaffold ways, $size km, $years years, seeds $seeds (per seed, then mean):")
     val rows = configs.drop(1).map { c ->
-        val rel = seeds.map { s -> 100 * (of(s, c) / of(s, "hand") - 1) }
+        val rel = seeds.map { s -> 100 * (of(s, c) / of(s, configs[0]) - 1) }
         Triple(c, rel, rel.average())
     }
-    for ((c, rel, m) in rows.sortedByDescending { abs(it.third) }) println("%-28s %+6.2f%%   (%s)".format(label(c), m,
+    for ((c, rel, m) in rows.sortedByDescending { abs(it.third) }) println("%-28s %+6.2f%%   (%s)".format(c.label, m,
         rel.joinToString(" ") { "%+.2f".format(it) }))
 }
