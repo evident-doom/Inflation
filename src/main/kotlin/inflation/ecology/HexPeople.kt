@@ -882,24 +882,25 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, pe
         gd[m] += took; time.spend(Activity.MATERIALS, took / perDay)
         return took
     }
-    // What the country gives in a week, kg per adult: good stone where flint or obsidian crops out
+    // What the country gives, as far as the band's time goes: good stone where flint or obsidian crops out
     // along the way (poorer stone anywhere), wood and resin where there are trees, fibre from grass,
     // scrub and reeds; hides, bone and sinew from the big game it killed.
     fun alongTheWay(a: FloatArray) = max(a[p], g.path.maxOfOrNull { q -> hw.placeNear(p, Hex(q)).takeIf { !it.none }?.let { a[it] } ?: 0f } ?: 0f)
     val stone = alongTheWay(land.stone)
-    // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED].)
-    gather(Material.STONE, people * 0.8f * min(1f, 5f * stone), STONE_A_DAY)
+    // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED]. It takes as much as it wants
+    // and has the time for, slower where little crops out.)
+    if (stone > 0f) gather(Material.STONE, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * stone))
     // Salt scraped from a dry lake bed or pan along the way, and a little from the shore; ochre dug where it crops out.
     gather(Material.SALT, people * (SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)) + if (hw.coast[h]) SEA_SALT_A_WEEK else 0f), SALT_A_DAY)
     gather(Material.OCHRE, people * OCHRE_A_WEEK * min(1f, 5f * alongTheWay(land.ochre)), OCHRE_A_DAY)
     // (Wood and fibre are what the plants give up: from the trees and the scrub, and the grass and scrub, each by its share.
-    // Wood comes as slowly as firewood does, by how thick the trees and scrub stand.)
+    // Wood comes as slowly as firewood does, by how thick the trees and scrub stand, as much as it wants and has the time for.)
     val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]; val herb = land.plants.herb[p]
     val woody = tree + shrub
     if (woody > 0f) {
         val cover = min(1f, woody / 3f)
         val wood = gd[Material.WOOD]
-        val took = gather(Material.WOOD, 2f * people * cover, FUEL_A_DAY * cover)
+        val took = gather(Material.WOOD, Float.MAX_VALUE, FUEL_A_DAY * cover)
         gd[Material.WOOD] = wood + land.plants.consume(p, LifeForm.TREE, Kg(took * tree / woody).perM2(m2)).over(m2).v +
             land.plants.consume(p, LifeForm.SHRUB, Kg(took * shrub / woody).perM2(m2)).over(m2).v
     }
@@ -917,11 +918,17 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, pe
     if (hw.coast[h]) gather(Material.SHELL, SHELL_A_WEEK * people, SHELL_A_DAY)
 }
 
-/** What [b] carries of [m] at most, kg: its share of the goods a person carries, and at a camp it keeps, building stone and timber stacked beyond that. */
-private fun carried(b: Band, m: Material, people: Float): Float {
-    val stack = if (m == Material.STONE || m == Material.WOOD) (if (b.campWeeks >= 4) HOUSE_STONE + HOUSE_WOOD else 0f) else 0f
+/**
+ * What [b] carries of [m] at most, kg: its share of the goods a person carries, and at a camp it has kept long enough to build
+ * at ([houseAfterWeeks]), building stone and timber stacked beyond that.
+ */
+private fun HexGroups.carried(b: Band, m: Material, people: Float): Float {
+    val stack = if (m == Material.STONE || m == Material.WOOD) (if (b.campWeeks >= houseAfterWeeks(b)) HOUSE_STONE + HOUSE_WOOD else 0f) else 0f
     return (GOODS_PER_PERSON + stack) * people
 }
+
+/** Weeks [b] keeps a camp before it builds houses there: sooner the keener it is ([BandWay.HOUSES]). */
+internal fun HexGroups.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f)
 
 /**
  * The hearth's firewood for the week, fetched by [hands] before they forage: dead wood from the trees and scrub
@@ -1058,12 +1065,12 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people:
     if (!b.houseHex.none && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
     // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
     dialUse?.let { u -> if (time.left > 0f && people > 0f && g.fed >= 0.9f) {
-        val longEnough = b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f)
+        val longEnough = b.campWeeks >= houseAfterWeeks(b)
         val stocked = g.larder >= 0.5f * b.storeAim * g.dailyNeedKg
         u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear && stocked, cut = b.houseWill < 0.1f)
         u.choice(DialSite.STORE_HOUSES, b.storeAim / STORE_AIM_DAYS, longEnough && stocked, longEnough && g.larder >= 0.5f * STORE_AIM_DAYS * g.dailyNeedKg)
     } }
-    if (b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f) && time.left > 0f && people > 0f && g.fed >= 0.9f &&
+    if (b.campWeeks >= houseAfterWeeks(b) && time.left > 0f && people > 0f && g.fed >= 0.9f &&
         g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
         if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
         if (b.houseHex == h && b.house < 1f) {
