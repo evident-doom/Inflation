@@ -42,7 +42,6 @@ import javax.swing.JTextArea
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.JSlider
 import javax.swing.SwingUtilities
 import javax.swing.Timer
 import kotlin.math.hypot
@@ -136,7 +135,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** Held by the simulation's thread while it changes the world; the windows read it only when it stands still. */
     private val worldLock = WorldLock()
     @Volatile private var running = false
-    @Volatile private var stepsPerSecond = 2
+    private val stepsPerSecond = 2
 
     /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...; from where it was drawn last), its size. */
     private class Shown(val id: Int, val kind: Int, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean)
@@ -228,7 +227,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     }
     /** The time controls, shared with the follow window (see [GroupControlWindow.syncTime]). */
     private val runButton = JButton("Run")
-    private val speedSlider = JSlider(1, 10, stepsPerSecond)
     private val groupList = DefaultListModel<String>()
     private val groupView = JList(groupList)
     private val groupInfo = JTextArea(12, 40).apply {
@@ -243,7 +241,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val run = runButton
         run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver(); control.syncTime() }
         val step = JButton("Step"); step.addActionListener { control.overviewTakesOver(); commands += { advance() } }
-        val speed = speedSlider; speed.addChangeListener { stepsPerSecond = speed.value; control.syncTime() }
         residentChoice.addActionListener {
             // (Its spill is recorded from the next week on.)
             val r = residentChoice.selectedIndex - 1
@@ -267,8 +264,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         pullChoice.addActionListener { map.repaint() }
         bar.add(run)
         bar.add(step)
-        bar.add(JLabel("weeks/s"))
-        bar.add(speed)
         bar.add(tintChoice)
         bar.add(modeChoice)
         bar.add(causeChoice)
