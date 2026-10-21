@@ -20,6 +20,7 @@ import inflation.ecology.hexOf
  *   with the shrubs standing and the most they could grow to ([inflation.world.HexPlants.ceiling]), summed over the map;
  * - strandDiag=FILE: the residents caught by snow, cold, heat and drought, by kind, month and height ([StrandDiag]).
  * - waysLog=FILE: each band's week, with the numbers it knew of itself and the ways its network set, as CSV ([WaysLog]).
+ * - waysForce=WAY:VALUE,...: those ways held at those multiples of the scaffold's for every band, whatever the network sets ([WaysForce]).
  */
 class Diagnostics(private val sim: HexSim) {
     private val hw = sim.hw
@@ -28,7 +29,11 @@ class Diagnostics(private val sim: HexSim) {
     private val groups = sim.groups
     private val weather get() = sim.weather
     private val strand = Config.string(Config.Key.STRAND_DIAG)?.let { StrandDiag(sim, java.io.File(it)) }
-    init { Config.string(Config.Key.WAYS_LOG)?.let { WaysLog(sim, java.io.File(it)) } }
+    // (The forcing first, so that the log shows the ways as they were held.)
+    init {
+        Config.string(Config.Key.WAYS_FORCE)?.let { WaysForce(sim, it) }
+        Config.string(Config.Key.WAYS_LOG)?.let { WaysLog(sim, java.io.File(it)) }
+    }
 
     fun beforeStep(y: Int, w: Int) {
         Config.string(Config.Key.HUNT_DIAG)?.let { kinds -> if (w % 13 == 6) for (kind in kinds.split(',')) hunters(w, kind) }
