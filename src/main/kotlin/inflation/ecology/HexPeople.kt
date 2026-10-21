@@ -707,6 +707,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     wearAndInvent(b, years)
     // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
+    dialUse?.amount(DialSite.SHELTERS, b.shelterWill, min(1f, b.shelterWill), 1f, cut = b.shelterWill > 1f)
     putUpShelter(b, people, time)
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
@@ -717,7 +718,9 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     plotRaid(g, b, weather)
     keepFire(g, b)
     b.fire *= b.hearthWood
+    val woodBefore = b.goods[Material.WOOD]
     val nightBurnt = burnNightFire(b, people)
+    dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people, woodBefore), cut = b.nightFire > 1f)
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
@@ -763,7 +766,9 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
         lookKm = max(lookKm, land.bestViewKm[q] * sight(Place(q.i), weather) / (1f - SIGHT_COVER * land.plants.cover(Place(q.i))).coerceAtLeast(0.1f))
     }
     val scouts = b.scoutShare * g.adults
-    val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
+    fun scoutRings(scouts: Float) = if (scouts >= 2f) SCOUT_RINGS else if (scouts >= 1f) SCOUT_RINGS / 2 else 0
+    val rings = min(SIGHT_RINGS, max(1, (lookKm / hex.hexKm).toInt())) + scoutRings(scouts)
+    dialUse?.amount(DialSite.SCOUTS_TOLD, b.will[BandWay.SCOUTS], scoutRings(scouts).toFloat(), scoutRings(SCOUT_SHARE * g.adults).toFloat())
     // (Every hex within [rings] of the way walked, found ring by ring from the whole path at once.)
     val seen = HashSet<Int>()
     var ring: List<Int> = g.path.filter { seen.add(it) }
@@ -795,6 +800,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
                 val left = 1f - carry / total
                 val leftKg = Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
                 val cached = min(min(1f, b.cacheWill), if (leftKg > 0f) max(0f, time.left) * CACHE_KG_A_DAY / leftKg else 0f)
+                dialUse?.amount(DialSite.CACHING, b.cacheWill, cached, min(1f, if (leftKg > 0f) max(0f, time.left) * CACHE_KG_A_DAY / leftKg else 0f), cut = b.cacheWill > 1f)
                 time.spend(Activity.CACHING, cached * leftKg / CACHE_KG_A_DAY)
                 if (cached > 0f) dropCache(b)
                 var abandoned = 0f
@@ -994,6 +1000,11 @@ private fun HexGroups.wearAndInvent(b: Band, years: Float) {
 private fun HexGroups.makeTools(b: Band, people: Float, time: BandTime) {
     val gd = b.goods
     val order = Tool.entries.filter { b.knows[it] && b.kit[it] < 1f }.sortedByDescending { b.makeFirst[it] * (1f - b.kit[it]) }
+    dialUse?.let { u -> if (order.size > 1) {
+        val order1 = Tool.entries.filter { b.knows[it] && b.kit[it] < 1f }.sortedByDescending { 1f - b.kit[it] }
+        // (Counted under the tool it put first: whether the order differs from the scaffold's, most worn first.)
+        u.choice(DialSite.MAKE_FIRST, b.makeFirst[order[0]], order != order1, false, dial = MAKE_FIRST_SLOT + order[0].ordinal)
+    } }
     for (t in order) {
         if (time.left <= 0f || people <= 0f) break
         val way = b.makeWay(t)
@@ -1031,6 +1042,12 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people:
     val gd = b.goods
     if (!b.houseHex.none && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
     // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
+    dialUse?.let { u -> if (time.left > 0f && people > 0f && g.fed >= 0.9f) {
+        val longEnough = b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f)
+        val stocked = g.larder >= 0.5f * b.storeAim * g.dailyNeedKg
+        u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear && stocked, cut = b.houseWill < 0.1f)
+        u.choice(DialSite.STORE_HOUSES, b.storeAim / STORE_AIM_DAYS, longEnough && stocked, longEnough && g.larder >= 0.5f * STORE_AIM_DAYS * g.dailyNeedKg)
+    } }
     if (b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f) && time.left > 0f && people > 0f && g.fed >= 0.9f &&
         g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
         if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
@@ -1076,6 +1093,7 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time:
     if (b.atHome && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f && time.left > 0f) {
         val stock = g.stores[Store.SEED]
         val sow = minOf(stock * SOW_SHARE * b.sowWill, time.left / SOW_DAYS_PER_KG)
+        dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, time.left / SOW_DAYS_PER_KG))
         if (sow > 0.1f) {
             g.stores[Store.SEED] -= sow; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
             val food = fauna.food
@@ -1092,6 +1110,8 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time:
 /** A palisade round the houses of [b], at home and raided in the last year, as far as the [time] days and its timber go. */
 private fun HexGroups.buildPalisade(b: Band, people: Float, time: BandTime) {
     val gd = b.goods
+    if (b.atHome && b.palisade < 1f && time.left > 0f && people > 0f)
+        dialUse?.choice(DialSite.PALISADES, b.fortifyWill, b.sinceRaided < stepsPerYear * b.fortifyWill, b.sinceRaided < stepsPerYear)
     if (b.atHome && b.sinceRaided < stepsPerYear * b.fortifyWill && b.palisade < 1f && time.left > 0f && people > 0f) {
         val built = minOf(1f - b.palisade, time.left / (PALISADE_DAYS * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
         gd[Material.WOOD] -= built * PALISADE_WOOD * people; b.palisade += built; time.spend(Activity.PALISADE, built * PALISADE_DAYS * people)
@@ -1139,7 +1159,7 @@ private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
         val bold = boldness(o)
         o.bold = bold + BOLD_DRIFT * (1f - bold)
         val tameable = s.domestication.average().toFloat()
-        if (o.young > 0 && rnd.nextFloat() < TAME * b.keepWill * bold * tameable * years) {
+        if (o.young > 0 && drawn(DialSite.KEEP_TAME, b.keepWill, rnd.nextFloat(), TAME * b.keepWill * bold * tameable * years) { TAME * bold * tameable * years }) {
             o.young--
             b.kept[s.index] += 1f
             stats.meeting(Met.Of.TOOK_A_PUP, s.name)
@@ -1585,10 +1605,12 @@ internal fun HexGroups.robCaches(weather: Weather) {
             for (o in owners) {
                 val ob = o.band ?: continue
                 if (o === g || b.tie(o.id) > 0.3f || ob.cacheKg <= 1f) continue
-                if (rnd.nextFloat() >= CACHE_FIND * sight(ob.cachePlace, weather) * (1f + b.scoutShare * 5f)) continue
+                if (!drawn(DialSite.SCOUTS_FIND_CACHE, b.will[BandWay.SCOUTS], rnd.nextFloat(), CACHE_FIND * sight(ob.cachePlace, weather) * (1f + b.scoutShare * 5f))
+                    { CACHE_FIND * sight(ob.cachePlace, weather) * (1f + SCOUT_SHARE * 5f) }) continue
                 // (Found, it is the band's choice whether to take from it.)
-                if (rnd.nextFloat() >= min(1f, b.robWill)) continue
+                if (!drawn(DialSite.ROB_TAKE, b.robWill, rnd.nextFloat(), min(1f, b.robWill), cut = b.robWill > 1f) { 1f }) continue
                 val takeShare = CACHE_TAKE * max(1f, b.robWill)
+                dialUse?.amount(DialSite.ROB_SHARE, b.robWill, takeShare, CACHE_TAKE, cut = b.robWill < 1f)
                 val room = max(0f, carryKg(g, b) - g.larder)
                 val take = min(ob.cacheKg * min(1f, takeShare), room)
                 if (take <= 0f) continue
@@ -1618,6 +1640,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         return
     }
     val hungry = g.fed < RAID_HUNGER * b.raidWill.coerceAtMost(1.6f)
+    dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER, cut = b.raidWill > 1.6f)
     val within = ArrayList<Int>()
     for ((id, h) in b.knownHomes) {
         if (b.tie(id) > 0f) continue
@@ -1625,7 +1648,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         if (!hungry && !feud) continue
         if (hexKm(here, Hex(h)) <= RAID_RANGE_KM) within += id
     }
-    if (within.isNotEmpty() && rnd.nextFloat() < RAID_PLOT * b.raidWill * days / 7f) {
+    if (within.isNotEmpty() && drawn(DialSite.RAIDS_PLOT, b.raidWill, rnd.nextFloat(), RAID_PLOT * b.raidWill * days / 7f) { RAID_PLOT * days / 7f }) {
         // Above all it keeps alive: it falls on the home where it would lose fewest of its own (the defenders as it
         // knows them, at home behind their works; see [raidStrengths]); of homes about as safe (within a step of its
         // score, see [survivalSteps]), the nearest.

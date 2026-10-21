@@ -68,6 +68,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     // (Where the bands about it stand now, after this week's moves, as its own place is.)
     if (ways != null || control != null) indexBands()
     if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
+    dialUse?.let { u -> for (g in hunters) if (g.band != null) u.bandWeeks.increment() }
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
     if (ways == null) controlledWays()?.let { w -> hunters.firstOrNull { it.id == watched && it.band != null }?.let { setWays(it, weather, w, inputs, out) } }
     // Then region by region on all cores: the map is cut into squares coloured like a chessboard of four
@@ -110,8 +111,19 @@ internal fun HexGroups.hunt(weather: Weather) {
  */
 internal fun forageHands(g: HexGroup): Int {
     val band = g.band
-    return max(1, (g.adults * (band?.ableShare ?: 1f) * (1f - (band?.scoutShare ?: 0f)) *
-        (1f - CHILD_WATCH_HANDS * ((band?.childWatch ?: 1f) - 1f)).coerceIn(0.5f, 1.2f)).toInt())
+    return forageHands(g, band?.scoutShare ?: 0f, band?.childWatch ?: 1f)
+}
+
+/** [forageHands] with scouts [scouts] (a share of its adults) and its way of watching its children [watch]. */
+private fun forageHands(g: HexGroup, scouts: Float, watch: Float): Int = max(1, (g.adults * (g.band?.ableShare ?: 1f) * (1f - scouts) *
+    (1f - CHILD_WATCH_HANDS * (watch - 1f)).coerceIn(0.5f, 1.2f)).toInt())
+
+/** Counts in [u] how band [b]'s scouts and its watching its children set the [hands] it forages with ([forageHands]). */
+private fun countHands(u: DialUse, g: HexGroup, b: Band, hands: Int) {
+    val watch = b.childWatch
+    u.amount(DialSite.SCOUTS_HANDS, b.will[BandWay.SCOUTS], hands.toFloat(), forageHands(g, SCOUT_SHARE, watch).toFloat())
+    val raw = 1f - CHILD_WATCH_HANDS * (watch - 1f)
+    u.amount(DialSite.CHILDREN_HANDS, watch, hands.toFloat(), forageHands(g, b.scoutShare, 1f).toFloat(), cut = raw < 0.5f || raw > 1.2f)
 }
 
 /**
@@ -164,10 +176,11 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val band = g.band
     // (Its own stream of chance, so that regions can be worked at once.)
     val rnd = kotlin.random.Random(g.id * 1_000_003L + weather.date.absoluteDay)
-    val hands = forageHands(g)
+    val hands = forageHands(g).also { h -> gs.dialUse?.let { u -> band?.let { b -> countHands(u, g, b, h) } } }
     // A band splits: its hunters go after big game, searching all the days they are out, while the rest
     // gather, fish and snare (see [HUNTERS_SHARE]); an animal's party forages as one.
-    val hunt = band?.let { huntersShare(it) } ?: 1f
+    val hunt = band?.let { b -> huntersShare(b).also { v -> gs.dialUse?.amount(DialSite.HUNTERS_SHARE, b.effort[Food.BIG_GAME.ordinal], v,
+        HUNTERS_SHARE.coerceIn(0f, 1f), cut = HUNTERS_SHARE * b.effort[Food.BIG_GAME.ordinal] > 1f) } } ?: 1f
     val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
     // (Walking costs food, see [walkCost].)
     val wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
@@ -195,14 +208,14 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
         (0 until 6).mapNotNull { d ->
             gs.hex.neighbour(h0, d).takeIf { it >= 0 }?.let { gs.hw.placeNear(g.place, Hex(it)) }?.takeIf { !it.none && it.i !in gatherAt }?.i
         } } else emptyList()
-    val roundShare = (band?.let { RING_REACH * it.gatherRange } ?: 0f)
+    val roundShare = (band?.let { b -> (RING_REACH * b.gatherRange).also { v -> gs.dialUse?.amount(DialSite.GATHER_RING, b.gatherRange, v, RING_REACH) } } ?: 0f)
     // (Which of the band's parties takes each food, [Offers.who]: its share of the hands.)
     val party = floatArrayOf(hunt, 1f - hunt)
     // What it has got: meat (the meat it took in its meetings with it), small game, carrion and bones, plants, fish.
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
-    val aim = wantAll + (band?.let { gs.storeWork(g, it) } ?: 0f)
+    val aim = wantAll + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
     val plantKind = FloatArray(Store.entries.size)
     // (And what it weighs, which grinding, cooking and leaching do not change: see [addFood].)
     val plantKg = FloatArray(Store.entries.size)
@@ -364,6 +377,8 @@ private class Offers(n: Int) {
 private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float) {
     val band = w.band
     val rr = if (band != null && t != Food.BIG_GAME) r * band.effort[when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal] else r
+    if (band != null && t != Food.BIG_GAME && r > 0f) dialUse?.let { u -> val f = when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal
+        u.amount(DialSite.EFFORT_RATE, band.effort[f], rr, r, dial = f) }
     if (rr <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && w.gatherers <= 0f)) return
     // (Biting insects slow people at whatever they do out there; fish are offered by hex, so the
     // camp's place stands for the water they fish.)
@@ -417,7 +432,9 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // (On strange ground people find little of it.)
         val knowHere = band?.let { plantKnow(it, Hex(hw.placeHex[q])) } ?: 1f
         // (Gatherers who go further from camp cover more of the ground.)
-        val reach = band?.let { min(0.9f, it.gatherShare(false, tuning) * knowHere * it.gatherRange) * part } ?: min(1f, w.smallSweep * g.path.size / land.areaKm2[q])
+        val reach = band?.let { b -> (min(0.9f, b.gatherShare(false, tuning) * knowHere * b.gatherRange) * part).also { v -> dialUse?.amount(DialSite.GATHER_REACH,
+            b.gatherRange, v, min(0.9f, b.gatherShare(false, tuning) * knowHere) * part, cut = b.gatherShare(false, tuning) * knowHere * b.gatherRange > 0.9f) } }
+            ?: min(1f, w.smallSweep * g.path.size / land.areaKm2[q])
         // (The unskilled, and strangers to its plants, are slow at it.)
         val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
         val eats = w.eats
@@ -602,6 +619,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatA
     val dryRate = max(max(sun, smoke), salting)
     // (As much of it as the band chooses to.)
     val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
+    dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], spareDays * hands * dryRate / DRY_DAYS_PER_KG), cut = band.dryWill > 1f)
     if (dried > 0f) {
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
@@ -676,6 +694,8 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     // A band at home may keep young it catches, to raise by its camp.
     if (band != null && band.atHome && ny > 0 && k < band.herd.size) {
         val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
+        dialUse?.amount(DialSite.KEEP_CAPTURE, band.keepWill, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()),
+            min(1f, CAPTURE * ps.domestication.average().toFloat()), cut = CAPTURE * band.keepWill * ps.domestication.average().toFloat() > 1f)
         if (kept > 0) {
             band.herd[k] += kept; ny -= kept
             fauna.young[k][p] = max(0f, fauna.young[k][p] - kept / area)
@@ -1003,6 +1023,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     if (poor.fed < (if (sharing) 0.9f else 0.8f) && rich.larder > 0f) {
         // (As much as the giver chooses to give.)
         val chosen = min(0.9f, BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close) * (rich.band?.giveWill ?: 1f)) * rich.larder
+        rich.band?.let { rb -> dialUse?.amount(DialSite.GIVE_MEETING, rb.giveWill, chosen, min(0.9f, BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close)) * rich.larder,
+            cut = BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close) * rb.giveWill > 0.9f) }
         // (And no less than the favours it owes the poor band, as fully as it returns them.)
         val week = poor.dailyNeedKg * days
         val gift = given(rich, poor, chosen, (1f - poor.fed) * week + week)
@@ -1020,6 +1042,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
         if (gb.tie(taker.id) < 0.3f || gb.ornaments < 1f) continue
         val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
+        dialUse?.amount(DialSite.GIVE_ORNAMENTS, gb.giveWill, gift, min(1f, ORNAMENT_GIFT) * gb.ornaments, cut = ORNAMENT_GIFT * gb.giveWill > 1f)
         if (gift <= 0f) continue
         val shell = gb.takeOrnaments(gift)
         tb.ornaments += gift; tb.exotic += shell
@@ -1039,6 +1062,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
             val lack = KEEP_YEARS * need * taker.adults - tb.goods[m]
             if (spare <= 0f || lack <= 0f) continue
             val gift = min(spare, lack) * min(1f, gb.giveWill)
+            dialUse?.amount(DialSite.GIVE_SPARE, gb.giveWill, gift, min(spare, lack), cut = gb.giveWill > 1f)
             gb.goods[m] -= gift; tb.goods[m] += gift
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
             stats.meeting(Met.Of.GIVEN, m.name.lowercase())
@@ -1055,8 +1079,11 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         val hb = host.band ?: continue
         // (Feasting is its choice: by its custom, unless its will leads it away from it.)
         val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
+        dialUse?.amount(DialSite.FEASTING, hb.feastWill, keen, hb.byCustom(hb.holds(Tradition.FEASTS), 1f),
+            cut = hb.feastWill - 1f + (if (hb.holds(Tradition.FEASTS)) 1f else 0f) !in 0f..1f)
         if (keen <= 0f) continue
         val spare = host.larder - hb.storeAim * host.dailyNeedKg
+        dialUse?.amount(DialSite.STORE_HOST, hb.storeAim / STORE_AIM_DAYS, max(0f, spare), max(0f, host.larder - STORE_AIM_DAYS * host.dailyNeedKg))
         if (spare <= 0f) continue
         val meal = min(spare, FEAST_KG * guest.size * keen)
         moveFood(host, guest, meal)
@@ -1114,8 +1141,19 @@ internal fun HexGroups.storeWork(g: HexGroup, band: Band) = if (band.worn()) sto
  * What band [g] works this week to lay by towards the stores it aims to keep (its choice), kg: a share
  * of what it lacks. (A band holding to demand sharing stores less: what it lays by is asked of it.)
  */
-internal fun storeWant(g: HexGroup, band: Band) =
-    max(0f, band.storeAim * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg - g.larder) * STORE_FILL
+internal fun storeWant(g: HexGroup, band: Band) = storeWant(g, band, band.storeAim)
+
+/** [storeWant] were its store aim [aimDays]. */
+private fun storeWant(g: HexGroup, band: Band, aimDays: Float) =
+    max(0f, aimDays * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg - g.larder) * STORE_FILL
+
+/** Counts in [u] how band [b]'s store aim and its mending first set the food [work] it works to lay by ([storeWork]). */
+private fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {
+    val worn = b.worn()
+    val mendAt1 = if (worn) storeWant(g, b) * (1f - 1f) else storeWant(g, b)
+    u.amount(DialSite.STORE_WANT, b.storeAim / STORE_AIM_DAYS, work, if (worn) storeWant(g, b, STORE_AIM_DAYS) * (1f - b.mendFirst) else storeWant(g, b, STORE_AIM_DAYS))
+    if (worn) u.amount(DialSite.MENDING_FIRST, b.will[BandWay.MENDING_FIRST], work, mendAt1, cut = b.will[BandWay.MENDING_FIRST] > 1f)
+}
 
 /**
  * The odds that game of kind [ps] sees the hunters first and keeps out of their way: likelier in the [open] (the less

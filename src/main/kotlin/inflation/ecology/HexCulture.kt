@@ -185,7 +185,9 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     if (raid(a, bandA, b, bandB, u, weather) || raid(b, bandB, a, bandA, u, weather)) return true
     // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
     fun showsSickness(x: Band) = x.sick.sum() > SICK_SHOWS
-    if ((showsSickness(bandB) && rnd.nextFloat() < bandA.shunSick) || (showsSickness(bandA) && rnd.nextFloat() < bandB.shunSick)) {
+    fun shuns(x: Band) = drawn(DialSite.SHUN_SICK, x.will[BandWay.SHUNNING_THE_SICK], rnd.nextFloat(), x.shunSick,
+        cut = x.will[BandWay.SHUNNING_THE_SICK] < 1f) { 0f }
+    if ((showsSickness(bandB) && shuns(bandA)) || (showsSickness(bandA) && shuns(bandB))) {
         stats.meeting(Met.BANDS_KEPT_AWAY_FROM_THE_SICK)
         return false
     }
@@ -289,7 +291,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     val chance = RAID * b.raidWill * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage)) *
         (1f - TIE_PEACE * max(0f, b.tie(o.id))) *
         (1f + stranger + CUSTOMS_HOSTILITY * otherWays)
-    if (rnd.nextFloat() >= chance) return false
+    if (!drawn(DialSite.RAIDS_MEETING, b.raidWill, rnd.nextFloat(), chance) { chance / b.raidWill.coerceAtLeast(1e-6f) }) return false
     fight(g, b, o, ob, planned = false, weather)
     return true
 }
@@ -338,6 +340,8 @@ internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned
     val p = o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
     val seen = (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
+    if (planned) dialUse?.amount(DialSite.SCOUTS_SEEN, ob.will[BandWay.SCOUTS], seen, (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * SCOUT_SHARE)).coerceIn(0f, 1f),
+        cut = sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare) > 1f)
     val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]
@@ -429,6 +433,8 @@ internal fun HexGroups.visitKin(weather: Weather) {
         val o = best ?: continue
         // (How much the band visited gives is its choice; and it owes the favours it owes.)
         val share = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f) * o.band!!.giveWill)
+        o.band?.let { ob -> val base = BAND_GIFT * (if (ob.holds(Tradition.SHARING)) 2f else 1f)
+            dialUse?.amount(DialSite.GIVE_VISIT, ob.giveWill, share, min(0.9f, base), cut = base * ob.giveWill > 0.9f) }
         val week = g.dailyNeedKg * days
         val need = (1f - g.fed) * week + week
         val gift = given(o, g, min(share * o.larder, need), need)
@@ -456,7 +462,9 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.
     if (b.appointHex.none &&
-        rnd.nextFloat() < years * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill)) {
+        drawn(DialSite.APPOINTMENTS, b.appointWill, rnd.nextFloat(), years * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), b.appointWill),
+            cut = b.appointWill - 1f + (if (b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS)) 1f else 0f) !in 0f..1f)
+            { years * b.byCustom(b.holds(Tradition.BURIAL) || b.holds(Tradition.FEASTS), 1f) }) {
         val mem = g.memory
         var best = -1; var bestScore = 0f
         for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
@@ -623,6 +631,7 @@ internal fun HexGroups.given(giver: HexGroup, taker: HexGroup, chosen: Float, ne
     val due = min(gb.owesTo(taker.id) * FAVOUR_DAYS * taker.dailyNeedKg, min(0.9f * giver.larder, need))
     if (due <= 0f) return chosen
     val gift = max(chosen, due * gb.repayWill.coerceIn(0f, 1f))
+    dialUse?.amount(DialSite.REPAYING, gb.repayWill, gift, max(chosen, due), cut = gb.repayWill > 1f)
     if (gift < due) taker.band?.befriend(giver.id, -TIE_GIFT * (due - gift) / due)
     stats.meeting(if (gift < due) Met.FAVOURS_HELD_BACK else Met.FAVOURS_RETURNED)
     return gift

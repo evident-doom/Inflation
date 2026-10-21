@@ -1,6 +1,8 @@
 package inflation.tools.fauna
 
 import inflation.ecology.Thresholds
+import inflation.ecology.DialUse
+import inflation.ecology.WAYS_OUT_NAMES
 import inflation.Config
 import inflation.ecology.HexFood
 import inflation.ecology.HexGroup
@@ -21,6 +23,7 @@ import inflation.ecology.hexOf
  * - strandDiag=FILE: the residents caught by snow, cold, heat and drought, by kind, month and height ([StrandDiag]).
  * - waysLog=FILE: each band's week, with the numbers it knew of itself and the ways its network set, as CSV ([WaysLog]).
  * - waysForce=WAY:VALUE,...: those ways held at those multiples of the scaffold's for every band, whatever the network sets ([WaysForce]).
+ * - dialUse=FILE: how the bands' ways acted where the model reads them, counted over the run and written to FILE as it ends ([DialUse]).
  */
 class Diagnostics(private val sim: HexSim) {
     private val hw = sim.hw
@@ -33,6 +36,10 @@ class Diagnostics(private val sim: HexSim) {
     init {
         Config.string(Config.Key.WAYS_FORCE)?.let { WaysForce(sim, it) }
         Config.string(Config.Key.WAYS_LOG)?.let { WaysLog(sim, java.io.File(it)) }
+        Config.string(Config.Key.DIAL_USE)?.let { file ->
+            val use = DialUse().also { sim.groups.dialUse = it }
+            Runtime.getRuntime().addShutdownHook(Thread { java.io.File(file).writeText(use.report(WAYS_OUT_NAMES)) })
+        }
     }
 
     fun beforeStep(y: Int, w: Int) {
