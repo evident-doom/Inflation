@@ -445,7 +445,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     hazards.addAll(listOfNotNull(
         Hazard(DeathCause.HOMELESS, homeless, homeless),
         Hazard(DeathCause.CAMP_FOULING, 0f, fouled), Hazard(DeathCause.SNAKES, venom, venom), Hazard(DeathCause.INBREEDING, 0f, inbred),
-        stalker?.let { Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked, YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked) },
+        stalker?.let { Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked, YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked)
+            .also { band?.let { b -> dialUse?.amount(DialSite.CHILDREN_TAKEN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked,
+                cut = b.childWatch < 0.25f) } } },
         Hazard(DeathCause.WOUNDS, festered, 0f)))
     ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it, a[it], a[it] * it.young) }
     // The elders' care spares some of the young.
@@ -515,6 +517,7 @@ private fun HexGroups.feedOnReserves(g: HexGroup) {
  */
 private fun HexGroups.woundsWeek(band: Band): Float {
     val care = 0.5f * band.medicine + 0.5f * band.skill(Skill.HERBS)
+    dialUse?.amount(DialSite.GATHER_MISHAPS, band.gatherRange, min(1f, band.hurt + MISHAPS * band.gatherRange * years), min(1f, band.hurt + MISHAPS * years))
     band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * years)
     val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
     val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f
@@ -841,6 +844,14 @@ internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Place, pressure: Float
     val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
     val spread = b.gatherRange * b.gatherRange
+    dialUse?.let { u ->
+        val dogs = 1f - DOGS_GUARD * min(1f, b.dogShare)
+        u.amount(DialSite.NIGHT_FIRE_GUARD, b.nightFire, guard, (1f - FIRE_GUARD * b.fire * b.nightWood) * dogs * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare)),
+            cut = b.nightFire > 1f)
+        u.amount(DialSite.SCOUTS_GUARD, b.will[BandWay.SCOUTS], guard, (1f - FIRE_GUARD * b.nightGuard) * dogs * (1f - LOOKOUTS_GUARD * min(1f, 10f * SCOUT_SHARE)),
+            cut = 10f * b.scoutShare > 1f)
+        u.amount(DialSite.GATHER_SPREAD, b.gatherRange, spread, 1f)
+    }
     val company = (STALKED_BAND / max(1, g.size).toFloat()).coerceIn(0.5f, 2f).pow(0.3f)
     val sign = b.lapse(Skill.TRACK).pow(0.5f)
     // (Beasts lie up by the paths people and game use: a camp on a busy way is the more dangerous.)

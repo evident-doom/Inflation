@@ -59,6 +59,7 @@ object Config {
         STRAND_DIAG("strandDiag"),
         WAYS_LOG("waysLog"),
         WAYS_FORCE("waysForce"),
+        DIAL_USE("dialUse"),
         FED_DIAG("fedDiag"),
         SHRUB_DIAG("shrubDiag"),
         T_HUNT_DIAG("t.huntDiag"),

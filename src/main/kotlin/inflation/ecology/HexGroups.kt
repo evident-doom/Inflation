@@ -104,6 +104,8 @@ class HexGroups(
     val policies = HashMap<Species, HexPolicy>()
     /** How bands set their ways each week; null for the scaffold's. Not saved: what drives a run is set by the config (ways=), not carried in a save. */
     @Transient var ways: BandWays? = null
+    /** Counts how the bands' ways act (dialUse=FILE, see [DialUse]); null: not counted. Not saved. */
+    @Transient var dialUse: DialUse? = null
     /** How packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var hunterWays: AnimalWays? = null
     /** This week's tallies ([HexLand.stats]). */
@@ -590,6 +592,8 @@ class HexGroups(
             if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f)
         }
         // A band with food enough to feast others is drawn to where other bands are (gatherings).
+        if (peopleSlot >= 0 && b.holds(Tradition.FEASTS))
+            dialUse?.choice(DialSite.STORE_FEAST, b.storeAim / STORE_AIM_DAYS, g.larder > b.storeAim * g.dailyNeedKg, g.larder > STORE_AIM_DAYS * g.dailyNeedKg)
         if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {
             val others = knownHeads(peopleSlot, p, h, sensed) - (if (p == g.place) g.size else 0)
             if (others > 0f) score += GATHER_PULL * min(1f, others / GATHER_HEADS)
@@ -597,6 +601,7 @@ class HexGroups(
         // Bands keep to country they know; what lies beyond they know only as a sense of better land.
         // Strange country puts a band off, unless it is out to explore (then it draws it on).
         if (!b.knows(h.i)) score -= UNKNOWN_COUNTRY * (2f - b.explore)
+        if (!b.knows(h.i)) dialUse?.amount(DialSite.EXPLORE_SCORE, b.explore, UNKNOWN_COUNTRY * (2f - b.explore), UNKNOWN_COUNTRY)
         return score
     }
 
@@ -632,7 +637,8 @@ class HexGroups(
             if (!g.alive || !g.species.human) continue
             val p = g.place
             val dry = land.hydro.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.plants.green[p] < 0.4f
-            if (dry && land.plants.herb[p] > 0.3f && land.fire.burnt[p] < 0.1f && rnd.nextFloat() < BURN_OFF * (g.band?.burnWill ?: 1f)) {
+            if (dry && land.plants.herb[p] > 0.3f && land.fire.burnt[p] < 0.1f &&
+                drawn(DialSite.BURNING_OFF, g.band?.burnWill ?: 1f, rnd.nextFloat(), BURN_OFF * (g.band?.burnWill ?: 1f)) { BURN_OFF }) {
                 land.fire.ignite(p)
                 stats.meeting(Met.BANDS_BURNED_OFF_GRASS)
             }
@@ -1188,6 +1194,7 @@ class HexGroups(
             val venom = venomOdds(s, p, weather)
             val stalked = stalkRate(g, b, p, residentManEaters(p) + (if (h in c.sensed) manEaterKm2[h.i] else 0f))
             adult += venom + stalked; young += venom + YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked
+            dialUse?.amount(DialSite.CHILDREN_PLAN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked, cut = b.childWatch < 0.25f)
             // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough
             // where people crowd), and the fouling of a camp kept on: weeks camped there go on if it stays, else start afresh.
             val campWeeks = if (p == g.place) b.campWeeks + 1 else 0
