@@ -42,7 +42,6 @@ import javax.swing.JTextArea
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.JSlider
 import javax.swing.SwingUtilities
 import javax.swing.Timer
 import kotlin.math.hypot
@@ -136,7 +135,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** Held by the simulation's thread while it changes the world; the windows read it only when it stands still. */
     private val worldLock = WorldLock()
     @Volatile private var running = false
-    @Volatile private var stepsPerSecond = 2
+    private val stepsPerSecond = 2
 
     /** What is drawn: per group its id, kind, the way it walked (km, x0 y0 x1 y1 ...; from where it was drawn last), its size. */
     private class Shown(val id: Int, val kind: Int, val way: FloatArray, val size: Int, val health: Float, val atHome: Boolean)
@@ -173,7 +172,10 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     @Volatile private var followLog = ""
 
     /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
-    private val control by lazy { GroupControlWindow(sim, ground, px, rivers, worldLock, requestStep = { commands += { advance() } }, running = { running }) }
+    private val control by lazy {
+        GroupControlWindow(sim, ground, px, rivers, worldLock, requestStep = { commands += { advance() } }, running = { running },
+            toggleRun = { runButton.doClick() })
+    }
 
     /**
      * The place whose weather stands for hex [h]: its own low ground, or for a sea or lake hex the
@@ -223,6 +225,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         isEditable = false; (caret as DefaultCaret).updatePolicy = DefaultCaret.NEVER_UPDATE
         font = Font(Font.MONOSPACED, Font.PLAIN, 12)
     }
+    /** The time controls, shared with the follow window (see [GroupControlWindow.syncTime]). */
+    private val runButton = JButton("Run")
     private val groupList = DefaultListModel<String>()
     private val groupView = JList(groupList)
     private val groupInfo = JTextArea(12, 40).apply {
@@ -234,10 +238,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     init {
         val bar = JPanel()
         // (The time controls here take over from the follow window: a week waiting there for the player goes on with the picks shown.)
-        val run = JButton("Run")
-        run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver() }
+        val run = runButton
+        run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver(); control.syncTime() }
         val step = JButton("Step"); step.addActionListener { control.overviewTakesOver(); commands += { advance() } }
-        val speed = JSlider(1, 10, stepsPerSecond); speed.addChangeListener { stepsPerSecond = speed.value }
         residentChoice.addActionListener {
             // (Its spill is recorded from the next week on.)
             val r = residentChoice.selectedIndex - 1
@@ -261,8 +264,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         pullChoice.addActionListener { map.repaint() }
         bar.add(run)
         bar.add(step)
-        bar.add(JLabel("weeks/s"))
-        bar.add(speed)
         bar.add(tintChoice)
         bar.add(modeChoice)
         bar.add(causeChoice)
