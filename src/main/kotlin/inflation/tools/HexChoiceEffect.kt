@@ -29,14 +29,21 @@ import kotlin.math.abs
  * Usage: hex-choice-effect [--seed N] [--size KM] [--variants A,B]
  * Config keys: choiceWarmWeeks (default 60), the week the choice is forced; choiceNoise (default 0): from the
  * week after the forced one, every band takes a random place other than the best with that chance, and draws
- * its ways as in training, each week (the noise training plays under).
+ * its ways as in training, each week (the noise training plays under). choiceWay (default none; the number of a way, from 0, in the
+ * order of the network's outputs) with choiceWayValue (default 1, a multiple of the scaffold's, between 0 and 2): the variants
+ * force-1wk and force-52wk hold that one way at that value, the other ways at the scaffold's, for the forced half of the
+ * bands, for the one week or for the year; they are the variants run by default then, beside the base's two.
  */
 fun main(args: Array<String>) {
     val a = Args(args, "hex-choice-effect [--seed N] [--size KM] [--variants A,B]")
     val seed = a.long("--seed", 91L); val size = a.int("--size", 600)
     val warm = Config.int(Config.Key.CHOICE_WARM_WEEKS, 60); val noise = Config.float(Config.Key.CHOICE_NOISE, 0f)
+    val forceWay = Config.int(Config.Key.CHOICE_WAY, -1)
+    require(forceWay < WAYS_OUT) { "choiceWay=$forceWay: the ways are numbered 0..${WAYS_OUT - 1}" }
+    val forceOutput = if (forceWay >= 0) forcedWayOutput(Config.float(Config.Key.CHOICE_WAY_VALUE, 1f)) else 0f
     val variants = a.string("--variants")?.let { listOf("base") + it.split(",") }
-        ?: listOf("base", "base-again", "move-1wk", "move-52wk", "ways-1wk", "ways-52wk")
+        ?: if (forceWay >= 0) listOf("base", "base-again", "force-1wk", "force-52wk")
+        else listOf("base", "base-again", "move-1wk", "move-52wk", "ways-1wk", "ways-52wk")
     a.done()
     val horizon = 52; val discount = HexPpo.PEOPLE_DISCOUNT
     val kinds = Catalogue.learned
@@ -68,6 +75,7 @@ fun main(args: Array<String>) {
             val p = perturbed(g.id)
             if (p && week == warm && variant == "ways-1wk") waysDraw(g.id, 1).also { draws[g.id] = it }.copyInto(out)
             else if (p && week in warm until warm + horizon && variant == "ways-52wk") waysDraw(g.id, 2).also { draws[g.id] = it }.copyInto(out)
+            else if (p && forceWay >= 0 && (week == warm && variant == "force-1wk" || week in warm until warm + horizon && variant == "force-52wk")) out[forceWay] = forceOutput
             else if (week > warm && noise > 0f) waysDraw(g.id, 1000L + week).copyInto(out)
         }
         val size0 = HashMap<Int, Int>(); val luck0 = HashMap<Int, Float>()
