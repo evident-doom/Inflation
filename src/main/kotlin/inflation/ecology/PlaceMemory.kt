@@ -2,8 +2,8 @@ package inflation.ecology
 
 /**
  * What a group remembers of places it has been to (or, for bands, been told of): for each a hex and
- * a season (a quarter of the year), how well it fed there, the water, how dangerous it was, and when
- * it was last there. A few slots; the least worth keeping (long unvisited and poor) gives way to a
+ * a season (a quarter of the year), how well it fed there, the water, how dangerous it was, when
+ * it was last there, and for bands the rarer materials it found there ([found]). A few slots; the least worth keeping (long unvisited and poor) gives way to a
  * new place. The storage is engineered; what to make of it is for the choosing networks to learn
  * (see [HexFeatures]): the hand-written behaviour does not read it.
  */
@@ -19,6 +19,11 @@ class PlaceMemory {
     /** Its dead buried there (a band's ancestors), and how many bands it has met there. */
     val dead = FloatArray(MEMORY_SLOTS)
     val met = FloatArray(MEMORY_SLOTS)
+    /** How richly each of the rarer materials ([RARE]) crops out there, 0..1, by slot then material (0: none, or not a band). */
+    val found = FloatArray(MEMORY_SLOTS * RARE.size)
+
+    /** What it remembers finding of rare material [k] (index in [RARE]) in slot [i]. */
+    fun foundAt(i: Int, k: Int) = found[i * RARE.size + k]
 
     /** Of all seasons at hex [h]: its dead buried there, and bands met there. */
     fun deadAt(h: Hex): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h.i) s += dead[i]; return s }
@@ -37,12 +42,14 @@ class PlaceMemory {
      * Records this week ([week], a step, [perYear] of them to a year) at hex [h] in season [s]: blended into what it
      * remembered there, or into a new slot.
      */
-    fun record(h: Int, s: Int, fedNow: Float, waterNow: Float, dangerNow: Float, week: Int, perYear: Float, ownVisit: Boolean = true, trust: Float = 1f) {
+    fun record(h: Int, s: Int, fedNow: Float, waterNow: Float, dangerNow: Float, week: Int, perYear: Float, ownVisit: Boolean = true, trust: Float = 1f,
+        finds: FloatArray? = null, findsAt: Int = 0) {
         var i = find(h, s)
         if (i >= 0) {
             val w = if (ownVisit) 0.5f else 0.2f * trust
             if (!ownVisit && own[i]) return // its own memory outweighs hearsay
             fed[i] += w * (fedNow - fed[i]); water[i] += w * (waterNow - water[i]); danger[i] += w * (dangerNow - danger[i])
+            if (finds != null) finds.copyInto(found, i * RARE.size, findsAt, findsAt + RARE.size)
             if (ownVisit) { lastWeek[i] = week; own[i] = true }
             return
         }
@@ -55,22 +62,26 @@ class PlaceMemory {
             if (keep < worst) { worst = keep; i = k }
         }
         hex[i] = h; season[i] = s; fed[i] = fedNow * (if (ownVisit) 1f else trust); water[i] = waterNow; danger[i] = dangerNow; dead[i] = 0f; met[i] = 0f
+        if (finds != null) finds.copyInto(found, i * RARE.size, findsAt, findsAt + RARE.size) else found.fill(0f, i * RARE.size, (i + 1) * RARE.size)
         lastWeek[i] = if (ownVisit) week else week - (perYear / 2f).toInt(); own[i] = ownVisit
     }
 
     fun copyInto(o: PlaceMemory) {
         hex.copyInto(o.hex); season.copyInto(o.season); fed.copyInto(o.fed); water.copyInto(o.water)
         danger.copyInto(o.danger); lastWeek.copyInto(o.lastWeek); own.copyInto(o.own); dead.copyInto(o.dead); met.copyInto(o.met)
+        found.copyInto(o.found)
     }
 
-    /** Takes in what [o] remembers that it does not, as hearsay worth [trust]. */
+    /** Takes in what [o] remembers that it does not, as hearsay worth [trust] (where it found the rarer materials as told). */
     fun hear(o: PlaceMemory, week: Int, perYear: Float, trust: Float) {
         for (k in 0 until MEMORY_SLOTS) if (o.hex[k] >= 0 && o.own[k]) record(o.hex[k], o.season[k], o.fed[k], o.water[k], o.danger[k], week,
-            perYear, ownVisit = false, trust = trust)
+            perYear, ownVisit = false, trust = trust, finds = o.found, findsAt = k * RARE.size)
     }
 
     companion object {
         const val MEMORY_SLOTS = 16
+        /** The rarer materials a band remembers where it found: those that crop out only here and there, and shells on the shore. */
+        val RARE = listOf(Material.STONE, Material.SALT, Material.OCHRE, Material.SHELL)
         fun seasonOf(month: Int) = month / 3
     }
 }

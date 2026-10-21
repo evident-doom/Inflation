@@ -164,6 +164,8 @@ object HexSnapshot {
      * food at what it feeds. People's salt need is the sodium their meat and fish fall short of (the Yanomami's 23 mg a
      * day), not a share of plant food eaten. Four new ways choose what a band lays by ([Band.storeWill]): its store work weighs
      * each food by its will to keep it (at the scaffold's 1, as it would eat it).
+     * A band's place memory keeps how richly good stone, salt, ochre and shells were to be had where it went (and as other
+     * bands tell it), and its learned mover sees what it lacks remembered at a place and the way toward the best of it.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 15

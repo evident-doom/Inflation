@@ -786,7 +786,15 @@ internal fun HexGroups.remember(date: Date) {
     val weeksAMonth = stepsPerYear / 12f
     // Every group remembers where it was this week and how it fared there.
     val week = stepOf(date)
-    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place.i], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place), week, stepsPerYear)
+    // (A band also what it found there of the rarer materials: how richly each crops out, as its gathering goes by it.)
+    val finds = FloatArray(PlaceMemory.RARE.size)
+    for (g in groups) if (g.alive) {
+        val h = hw.placeHex[g.place.i]
+        if (g.band != null) for ((k, mat) in PlaceMemory.RARE.withIndex())
+            finds[k] = mat.deposit?.let { min(1f, 5f * it(land)[g.place.i]) } ?: (if (hw.coast[h]) 1f else 0f)
+        g.memory.record(h, PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place), week, stepsPerYear,
+            finds = if (g.band != null) finds else null)
+    }
     for (g in groups) {
         val b = g.band ?: continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,

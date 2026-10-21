@@ -932,6 +932,9 @@ private fun HexGroups.carried(b: Band, m: Material, people: Float): Float {
     return (GOODS_PER_PERSON + stack) * people
 }
 
+/** How far [g]'s band [b] lacks [m]: 1 with none of it, 0 with all it carries ([carried]). */
+internal fun HexGroups.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f - b.goods[m] / carried(b, m, g.adults.toFloat()).coerceAtLeast(1e-3f))
+
 /** Weeks [b] keeps a camp before it builds houses there: sooner the keener it is ([BandWay.HOUSES]). */
 internal fun HexGroups.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f)
 
