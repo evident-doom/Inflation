@@ -57,6 +57,7 @@ enum class DialSite(val label: String, val dial: Int) {
     BURNING_OFF("fire: burning off dry grass", BandWay.BURNING_OFF.slot),
     REPAYING("favours: returned when due", BandWay.REPAYING.slot),
     MENDING_FIRST("stores: held back to mend first", BandWay.MENDING_FIRST.slot),
+    STORING("stores: what each food is weighed at for laying by", -1),
 }
 
 /**

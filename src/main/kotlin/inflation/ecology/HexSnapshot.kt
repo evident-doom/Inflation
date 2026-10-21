@@ -162,7 +162,8 @@ object HexSnapshot {
      * and count dry fruit, roots and seed at some 2-3 times a kg of meat; mixed feeders' plant food feeds them more and
      * their animal food less than a kg each (pure plant-eaters and hunters as before, but for fruit); people's stores hold
      * food at what it feeds. People's salt need is the sodium their meat and fish fall short of (the Yanomami's 23 mg a
-     * day), not a share of plant food eaten.
+     * day), not a share of plant food eaten. Four new ways choose what a band lays by ([Band.storeWill]): its store work weighs
+     * each food by its will to keep it (at the scaffold's 1, as it would eat it).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 15

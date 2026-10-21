@@ -296,6 +296,11 @@ class Band(kinds: Int) {
     val appointWill get() = will[BandWay.APPOINTMENTS]
     val burnWill get() = will[BandWay.BURNING_OFF]
     /**
+     * How keenly it lays food [t] by when it works for its stores (1 the scaffold's, as it would eat it; 0 none of its store
+     * work for it, 2 twice as keen): weighed against what else it could gather, what rots and how soon is for it to learn.
+     */
+    fun storeWill(t: Food) = will[storeWay(t)]
+    /**
      * How keenly it acts on a custom: a band that holds it as its will (1 at the default, twice as much at 2, not at all at 0),
      * one that does not only as far as its will goes above the default.
      */
@@ -1422,9 +1427,20 @@ enum class BandWay(val label: String) {
     APPOINTMENTS("appointments"),
     BURNING_OFF("burning off"),
     REPAYING("repaying"),
-    MENDING_FIRST("mending first");
+    MENDING_FIRST("mending first"),
+    STORING_MEAT("storing: meat and fish"),
+    STORING_FRUIT("storing: fruit and finds"),
+    STORING_ROOTS("storing: roots"),
+    STORING_SEED("storing: seed and grain");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
+}
+/** The way that sets how keenly a band lays food [t] by ([Band.storeWill]). */
+fun storeWay(t: Food) = when (t) {
+    Food.BIG_GAME, Food.SMALL_GAME, Food.CARRION, Food.BONES, Food.FISH -> BandWay.STORING_MEAT
+    Food.FRUIT, Food.FINDS -> BandWay.STORING_FRUIT
+    Food.ROOTS -> BandWay.STORING_ROOTS
+    Food.SEED, Food.GRAIN -> BandWay.STORING_SEED
 }
 val WAYS_OUT = MAKE_FIRST_SLOT + Tool.entries.size + BandWay.entries.size
 /** The name of each of a band's ways, in order ([setWays]), as a learned network's `.names` file records them (the strings must not change). */
