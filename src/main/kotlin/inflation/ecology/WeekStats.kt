@@ -158,6 +158,8 @@ object Tally {
         /** Food wanted, and got of meat (with small game and carrion), plants and fish, kg. */
         ASKED("asked"), MEAT("meat"), PLANTS("plants"), FISH("fish"),
         BAND_WEEKS("band-weeks"), PEOPLE_WEEKS("people-weeks"), BORN("born"),
+        /** Deaths foreseen a year ahead ([HexGroup.foreseen]): people-weeks times the share foreseen to die, thousandths. */
+        FORESEEN("foreseen deaths, 1/1000"),
         /** The hearth fire fed by the firewood got, and the days spent fetching it, % summed over band-weeks. */
         HEARTH("hearth, %"), FUEL_DAYS("fuel days, %"),
     }

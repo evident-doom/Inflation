@@ -45,6 +45,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      * their choices made likely, not by chance; animals keep 0).
      */
     var luck = 0f
+    /** A band's foreseen survival: the share of its people alive a year ahead as it stands ([foreseenSurvival]); 1 for animals. */
+    var foreseen = 1f
     /** The month its young are born in; -1 until its first week (then its kind's). */
     var birthMonth = -1
     /** Share of this year's birth season its mothers have borne (as [HexFauna]'s residents keep it). */

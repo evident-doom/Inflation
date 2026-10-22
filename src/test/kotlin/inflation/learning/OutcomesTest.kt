@@ -55,4 +55,19 @@ class OutcomesTest {
         o.record(1, listOf(band), emptyList())
         assertEquals(20f, o.own(1, 0, 1)[0], 1e-4f)
     }
+
+    @Test
+    fun `members are foreseen as the groups they are in foresee`() {
+        val o = Outcomes()
+        val band = HexGroup(1, Catalogue.HUMAN, inflation.ecology.Place(0), 20, 0).also { it.foreseen = 0.9f }
+        o.record(0, listOf(band), emptyList())
+        // Week 1: 10 split off into a band foreseeing worse.
+        band.adults -= 10; band.foreseen = 0.8f
+        val off = HexGroup(2, Catalogue.HUMAN, inflation.ecology.Place(0), 10, 0).also { it.parent = band.id; it.foreseen = 0.5f }
+        o.record(1, listOf(band, off), emptyList())
+        val fore = FloatArray(1)
+        assertEquals(20f, o.own(1, 0, 1, fore)[0], 1e-4f)
+        assertEquals(10f * 0.8f + 10f * 0.5f, fore[0], 1e-4f)
+        assertEquals(0.9f, o.foreseen(1, 0), 1e-6f)
+    }
 }

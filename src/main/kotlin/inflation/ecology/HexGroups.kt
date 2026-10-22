@@ -246,6 +246,7 @@ class HexGroups(
             newcomers(it.date)
         },
         Phase("groups: remembering places") { remember(it.date) },
+        Phase("groups: foreseeing") { foresee(it) },
     )
 
     /**

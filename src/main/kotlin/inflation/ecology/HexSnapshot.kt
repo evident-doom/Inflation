@@ -211,9 +211,10 @@ object HexSnapshot {
      * 4.33: the brown bear takes people a fifth as readily ([Species.takesPeople] 0.4 to 0.08; main's 4.18, merged with the
      * above).
      * 4.34: hunting, tracking and stalking are learned (and forgotten) at about a ninth of the old rate ([HUNTING_PRACTICE]).
+     * 4.35: fishing is learned as quickly as snaring and gathering ([Skill.complexity] 0.5, was 1.5).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 34
+    const val MODEL_MINOR = 35
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

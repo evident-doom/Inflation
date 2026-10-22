@@ -144,8 +144,15 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
         SHOWING -> 0.3f
         else -> 0.2f
     }
+    /**
+     * How hard it is to learn: practice closes the gap to mastery the slower the higher. Fishing is among the quick ones:
+     * among the Meriam, children's returns at line and spear fishing show no significant rise with age beyond what comes
+     * of growing, while shellfish collecting, easy to learn, rises with size and strength (Bliege Bird and Bird 2002,
+     * "Constraints of knowing or constraints of growing?", Human Nature 13: 239-267). Hunting is slow besides
+     * ([HUNTING_PRACTICE]).
+     */
     val complexity: Float get() = when (this) {
-        GATHER, FIRE, ROASTING, STORE, SMALL_GAME, MIDWIFERY -> 0.5f
+        GATHER, FIRE, ROASTING, STORE, SMALL_GAME, FISH, MIDWIFERY -> 0.5f
         BLADES, MICROLITHS, MUDBRICK, HERBS, SEALING, PIT_HOUSE -> 3f
         else -> 1.5f
     }

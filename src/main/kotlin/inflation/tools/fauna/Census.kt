@@ -284,10 +284,11 @@ class Census(private val sim: HexSim) {
             val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS) + v(Tally.Bands.FISH)
             "%s %.0f%%: %.0f%%, %.0f/%.0f/%.0f%%".format(c.label, 100 * v(Tally.Bands.BAND_WEEKS) / allWeeks, 100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0),
                 100 * v(Tally.Bands.MEAT) / got.coerceAtLeast(1.0), 100 * v(Tally.Bands.PLANTS) / got.coerceAtLeast(1.0), 100 * v(Tally.Bands.FISH) / got.coerceAtLeast(1.0)) })
-        println("bands by kind of country, last year (births / deaths per person a year; main causes): " + cs.joinToString(", ") { c ->
+        println("bands by kind of country, last year (births / deaths per person a year, foreseen deaths a year ahead as the weeks went; main causes): " + cs.joinToString(", ") { c ->
             val years = (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() / stepsPerYear
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsDied(c)) }.mapKeys { Tally.diedOf(it.key) }
-            "%s %.3f / %.3f (%s)".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.BORN)] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9),
+            val foreseen = (lastYear[Tally.bandsIn(c, Tally.Bands.FORESEEN)] ?: 0) / 1000.0 / (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
+            "%s %.3f / %.3f, foreseen %.3f (%s)".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.BORN)] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9), foreseen,
                 died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
         run {
             val all = (lastYear[Tally.bandTime(Tally.TimeTotal.ALL)] ?: 0).toDouble().coerceAtLeast(1.0)
