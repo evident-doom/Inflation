@@ -22,7 +22,7 @@ class BodyHeatTest {
     }
 
     @Test
-    fun `each lesser means helps a little: clothes, fire, shelter with its bedding, a house, and dry and still air`() {
+    fun `each lesser means helps a little, clothes, fire, shelter with its bedding, a house, and dry and still air`() {
         // (Mild enough that shivering makes up for all of it, so that each means shows in the food.)
         val cold = air(5f, windMs = 2f, wet = 0.3f)
         val base = BodyHeat.week(cold, cover(2f), 7).extra
