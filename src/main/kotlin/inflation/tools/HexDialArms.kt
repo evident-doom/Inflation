@@ -82,6 +82,15 @@ fun main(args: Array<String>) {
         for ((n, d, e) in rows.sortedByDescending { abs(it.second / it.third) }.take(20)) println("  %-34s %+.5f +- %.5f  t %+.1f".format(n, d, e, d / e))
         val shown = rows.count { abs(it.second / it.third) > 2 }
         println("  arms with |t| > 2: $shown of ${rows.size} (about ${(rows.size * 0.05).toInt()} would by chance alone)")
+        // The control is one small arm: its own chance in the mean moves every comparison the same way. The other arms against their own
+        // mean, and how far their means spread beyond what the bands' spread inside the arms gives (about 1 if no way matters).
+        val others = arms.drop(1).map { a -> a.bands.map { ret(it, h) } }
+        val means = others.map { mean(it) }; val grand = mean(means)
+        val within = others.sumOf { r -> r.sumOf { (it - mean(r)) * (it - mean(r)) } } / max(1, others.sumOf { it.size - 1 })
+        val spread = means.sumOf { (it - grand) * (it - grand) } / max(1, means.size - 1)
+        val offGrand = arms.drop(1).indices.count { i -> abs(means[i] - grand) / sqrt(within / others[i].size) > 2 }
+        println("  against the other arms' mean instead (control %+.5f from it): arms with |t| > 2: %d of %d; the arms' means spread %.2f times what the bands' spread inside the arms gives (1: no way matters)"
+            .format(mean(control.bands.map { ret(it, h) }) - grand, offGrand, rows.size, sqrt(spread / (within / per))))
         val quiet = tested.filter { j -> rows.filter { it.first.startsWith(names[j] + " x") }.all { abs(it.second / it.third) < 1 } }
         println("  ways with every arm under 1 standard error: ${quiet.joinToString(", ") { names[it] }.ifEmpty { "none" }}")
     }
