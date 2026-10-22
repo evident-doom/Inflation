@@ -48,6 +48,11 @@ object BandInputs : InputSlots() {
     val ELEVATION = one("elevation")
     // Of the protein it ate last week, the share that went to waste beyond what protein can feed ([Band.leanLost]).
     val LEAN_LOST = one("lean food wasted")
+    // What it has to build with and how: the goods it holds (kg against what a person carries), how well it knows each
+    // way of building, and the houses and palisade where it is now.
+    val GOODS = block(Material.entries.map { "goods:${it.name.lowercase()}" })
+    val BUILDING = block(Skill.BUILDING_WAYS.map { "building:${it.name.lowercase()}" })
+    val HOUSE_HERE = one("houses here"); val PALISADE_HERE = one("palisade here")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */

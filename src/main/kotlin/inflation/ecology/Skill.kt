@@ -187,5 +187,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
         fun of(d: Domain) = byDomain[d.ordinal]
         /** The ways of getting food, in the order the bands' ways networks read them. */
         val FORAGING = listOf(GATHER, SMALL_GAME, FISH, HUNT, STORE)
+        /** The ways of building houses ([HexGroups.buildHouse]). */
+        val BUILDING_WAYS = listOf(STONE_FOOTING, PIT_HOUSE, MUDBRICK)
     }
 }

@@ -1560,6 +1560,11 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     }
     into[x.ELEVATION] = (hw.placeElevationM[p] / 3000f).coerceIn(0f, 1f)
     into[x.LEAN_LOST] = b.leanLost
+    val adults = max(1, g.adults) * GOODS_PER_PERSON
+    for (m in Material.entries) into[x.GOODS + m.ordinal] = b.goods[m] / adults
+    for ((k, w) in Skill.BUILDING_WAYS.withIndex()) into[x.BUILDING + k] = if (b.knowsSkill[w]) b.skill(w) else 0f
+    val here = hw.placeHex[g.place] == b.houseHex.i
+    into[x.HOUSE_HERE] = if (here) b.house else 0f; into[x.PALISADE_HERE] = if (here) b.palisade else 0f
 }
 
 /** The name of each of [bandInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */
