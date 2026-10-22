@@ -23,7 +23,8 @@ import java.util.concurrent.Executors
  * new against "kept hunters" and so on, so that only that role's network differs):
  * - the ecosystem holds: no kind's numbers in the last whole year fall more than [FALL] below in every
  *   weather alike (a fall in one weather only is chance), no kind present is gone in every weather, and
- *   there are not fewer people in every weather; and
+ *   there are not fewer people in every weather (for the hunters' network, only if `ppo.hunterPeopleVeto`
+ *   is true, as it is by default; a run that sets it false lets a hunters network through that costs people); and
  * - its own members fare better: the role's kinds number more in the last whole year.
  *
  * Except that a role whose networks changed net major version ([NetVersion]) since the kept ones were saved has its new
@@ -33,6 +34,8 @@ class EcoCheck(private val out: File) {
     private val world = TestWorlds.named(Config.string(Config.Key.PPO_CHECK_WORLD) ?: "lake-1")
     private val years = Config.int(Config.Key.PPO_CHECK_YEARS, 5)
     private val replicates = Config.int(Config.Key.PPO_CHECK_REPLICATES, 2)
+    /** Whether fewer people in every weather keeps the hunters' new network out (it always does for the people's). */
+    private val hunterPeopleVeto = Config.flag(Config.Key.PPO_HUNTER_PEOPLE_VETO, true)
     // (Daemon threads: a run that ends is not kept alive by its check's pool.)
     private val pool = Executors.newFixedThreadPool(Config.int(Config.Key.PPO_CHECK_PARALLEL, 10)) { r -> Thread(r, "eco-check").also { it.isDaemon = true } }
     /** The networks each role plays with outside training, and that the new ones are judged against. */
@@ -107,14 +110,18 @@ class EcoCheck(private val out: File) {
             new.joinToString(", ") { it.nominal.brief() }, kept.joinToString(", ") { it.nominal.brief() })
         val roles = Role.entries.associateWith { r ->
             val alone = runs.getValue("kept-$r")
-            val why = fails(new, alone, kinds)
+            val failed = fails(new, alone, kinds)
+            // (Fewer people is not held against the hunters' network when ppo.hunterPeopleVeto is false; the log says so.)
+            val peopleIgnored = r == Role.HUNTERS && !hunterPeopleVeto && "fewer people" in failed
+            val why = if (peopleIgnored) failed - "fewer people" else failed
             val own = Catalogue.learned.filter { Role.of(it) == r }.map { it.name }
             val withNew = own.sumOf { lastYears(new, HexHistory.Key.animals(it)).average() }
             val withKept = own.sumOf { lastYears(alone, HexHistory.Key.animals(it)).average() }
             val better = withNew > withKept
             lines += "check round %d %s: own kinds %.0f with the new network against %.0f with the kept one (%+.1f%%), the others new; ecosystem %s -> %s".format(
                 round + 1, r, withNew, withKept, if (withKept > 0) 100 * (withNew / withKept - 1) else 0.0,
-                if (why.isEmpty()) "holds" else "fails: " + why.joinToString(", "), if (better && why.isEmpty()) "kept" else "not kept")
+                (if (why.isEmpty()) "holds" else "fails: " + why.joinToString(", ")) + if (peopleIgnored) " (fewer people not held against hunters)" else "",
+                if (better && why.isEmpty()) "kept" else "not kept")
             // (A role's ways network is tried and kept with it, never alone: its decision is the role's.)
             lines += "check round %d %s %s ways network (%s): %s, decided with the %s network above".format(
                 round + 1, r, r.ways.whose, r.ways.file, if (better && why.isEmpty()) "kept" else "not kept", r)
