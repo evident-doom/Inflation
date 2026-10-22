@@ -196,9 +196,11 @@ object HexSnapshot {
      * 4.27: what bands build serves nothing till it first stands whole (houses shelter, a palisade guards, only once done; a
      * finished one then serves as far as it stands as it weathers and is mended); the ways net reads the houses and palisade
      * begun and not finished where it is. (Saved houses and palisades load as not finished.)
+     * 4.28: a band's days at rest take less food than days at work (REST_SAVES): the week's want falls with the days its
+     * plan leaves to no activity.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 27
+    const val MODEL_MINOR = 28
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

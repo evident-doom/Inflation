@@ -185,7 +185,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
  * soaks for water, where that is the only water, come off first. Then what it needs to live through the week (food for the
  * week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
- * leaves. Then it fetches the hearth's firewood in the days the plan gives it.
+ * leaves, and its days take less food than days at work ([REST_SAVES]). Then it fetches the hearth's firewood in the days
+ * the plan gives it.
  */
 private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
@@ -202,6 +203,9 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     choreAsks(g, b, w.weather.date, asks)
     // (The band weighs the asks against each other by its ways: see [timeWay].)
     time.plan(needs, asks, FloatArray(asks.size) { i -> timeWay(Activity.entries[i])?.let { b.will[it] } ?: 1f })
+    // The days no activity asks for are spent at rest, which takes less food than a day at work ([REST_SAVES]).
+    val rested = REST_SAVES * time.unheld * w.s.dailyIntakeKg
+    w.wantAll -= rested; w.aim -= rested
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a.ordinal] > 0f) bind[a.ordinal] += 1f
         if (g.path.size > 1) bind[Binding.MOVES] += 1f
@@ -232,8 +236,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val hunt = band?.let { b -> huntersShare(b).also { v -> gs.dialUse?.amount(DialSite.HUNTERS_SHARE, b.effort[Food.BIG_GAME.ordinal], v,
         HUNTERS_SHARE.coerceIn(0f, 1f), cut = HUNTERS_SHARE * b.effort[Food.BIG_GAME.ordinal] > 1f) } } ?: 1f
     val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
-    // (Walking costs food, see [walkCost].)
-    val wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
+    // (Walking costs food, see [walkCost]; a band's days at rest take less, see [planWeek].)
+    var wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
@@ -289,7 +293,7 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     var fed = g.meatMet * feeds(Food.BIG_GAME)
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
-    val aim = wantAll + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
+    var aim = wantAll + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
     // What it weighs a kg of each food at in its choice: what it feeds, the part of the week's work that is for the stores
     // weighed by its will to lay that food by (its choice, [Band.storeWill]: what keeps, how long, and against what
     // lean season is for it to learn).

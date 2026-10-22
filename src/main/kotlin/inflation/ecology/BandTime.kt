@@ -33,6 +33,9 @@ class BandTime(left: Float) {
     var short = false
         private set
 
+    /** Person-days held for no activity: the week's rest, as planned. */
+    val unheld get() = max(0f, left - held.sum())
+
     /** Person-days [a] may take now: what is held for it, and what is held for no one. */
     fun leftFor(a: Activity) = max(0f, left - held.sum() + held[a.ordinal])
 

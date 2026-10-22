@@ -42,6 +42,17 @@ class BandTimeTest {
     }
 
     @Test
+    fun `the days no activity asks for are the week's rest`() {
+        val time = BandTime(10f)
+        val asks = FloatArray(Activity.entries.size)
+        asks[Activity.FOOD.ordinal] = 3f; asks[Activity.TOOLS.ordinal] = 2f
+        time.plan(FloatArray(asks.size), asks)
+        assertEquals(5f, time.unheld, 1e-3f)
+        time.spend(Activity.FOOD, 1f)
+        assertEquals(5f, time.unheld, 1e-3f)
+    }
+
+    @Test
     fun `what a band needs to live through the week comes before the rest`() {
         val time = BandTime(10f)
         val needs = FloatArray(Activity.entries.size); val asks = FloatArray(Activity.entries.size)
