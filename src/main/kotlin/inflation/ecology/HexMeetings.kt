@@ -436,11 +436,24 @@ private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place,
  */
 private fun HexGroups.splitDays(w: ForageWeek, o: Offers) {
     val band = checkNotNull(w.band)
-    var at1 = 0f; var asked = 0f
-    for (t in 0 until FOOD_TYPES) { if (t == Food.BIG_GAME.ordinal) continue; at1 += w.demand[t]; asked += w.demand[t] * band.effort[t] }
-    if (at1 <= 0f || asked <= 0f) return
-    val mean = asked / at1
+    val mean = meanEffort(w.demand, band.effort)
+    if (mean <= 0f) return
     for (i in 0 until o.m) if (o.who[i] == 1) o.rate[i] /= mean
+}
+
+/**
+ * The mean of [effort] over the gatherers' foods, each weighed by the days it would [demand] at the scaffold's efforts
+ * (big game is the hunters', not counted); 0 where no food asks any. A food that asks for no end of days, because there are
+ * no gatherers' hands to take them (infinite), takes none of theirs and is left out.
+ */
+internal fun meanEffort(demand: FloatArray, effort: FloatArray): Float {
+    var at1 = 0f; var asked = 0f
+    for (t in 0 until FOOD_TYPES) {
+        if (t == Food.BIG_GAME.ordinal || !demand[t].isFinite()) continue
+        at1 += demand[t]; asked += demand[t] * effort[t]
+    }
+    val mean = asked / at1
+    return if (at1 > 0f && mean.isFinite() && mean > 0f) mean else 0f
 }
 
 /** [forage]'s foods on offer to [w]'s party in a pass, into [o]: along its way, round its camp and, for a band, in the water by it. */
