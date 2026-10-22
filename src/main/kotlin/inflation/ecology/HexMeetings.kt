@@ -187,15 +187,15 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
  * at rest, take less food than days foraging; fetching wood and materials, more ([Activity.restSaves]). Its want falls by
  * that; what it forages for does not (it learns how hard its week was only as it goes).
  */
-private fun HexGroups.restedDays(w: ForageWeek, time: BandTime) {
-    // (The working time lost to the cold and to hunger is spent idle at camp, as rest: see [Sisu].)
-    var savedDays = (time.unheld + time.heldFor(Activity.FOOD) + lostDays(w)) * Activity.LEISURE.restSaves
-    for (a in Activity.entries) if (a != Activity.FOOD) savedDays += time.heldFor(a) * a.restSaves
+private fun restedDays(w: ForageWeek, time: BandTime) {
+    // (The working time lost to the cold and hunger, in what was spent and in what is held, is spent idle, as rest: see [Sisu].)
+    var savedDays = (time.unheld + time.heldFor(Activity.FOOD) + time.lost) * Activity.LEISURE.restSaves
+    for (a in Activity.entries) if (a != Activity.FOOD) {
+        val idle = time.heldFor(a) * (1f - time.pace(a))
+        savedDays += (time.heldFor(a) - idle) * a.restSaves + idle * Activity.LEISURE.restSaves
+    }
     w.wantAll -= savedDays * w.s.dailyIntakeKg
 }
-
-/** The person-days of [w]'s band's week lost to the cold and to hunger ([Band.pace]). */
-private fun HexGroups.lostDays(w: ForageWeek) = days * w.hands.toFloat() * (1f - checkNotNull(w.band).pace)
 
 /**
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
@@ -207,8 +207,8 @@ private fun HexGroups.lostDays(w: ForageWeek) = days * w.hands.toFloat() * (1f -
  */
 private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
-    // (Of its people's days, those the cold and hunger leave for work: see [Sisu].)
-    val time = BandTime(days * hands.toFloat() * b.pace)
+    // (Its work goes the slower, the colder and hungrier its people: see [Sisu].)
+    val time = BandTime(days * hands.toFloat(), b.paces())
     // (Digging soaks and drawing their water, see [HexDrinkingWater.mustDig]: counted with the food.)
     if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) time.spend(Activity.FOOD, HexDrinkingWater.DIG_SHARE * days * hands)
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
@@ -851,7 +851,6 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatA
     band.spareDays = max(0f, time.left)
     band.week = time
     time.count(stats.hunting, Tally.TimeTotal.ALL, days * w.hands.toFloat())
-    time.count(stats.hunting, Tally.TimeTotal.LOST, lostDays(w))
     // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
     // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
     val home = if (band.atHome) band.house else 0f

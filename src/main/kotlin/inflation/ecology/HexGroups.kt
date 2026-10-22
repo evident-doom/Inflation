@@ -266,7 +266,7 @@ class HexGroups(
             if (b == null) { g.warmth = warmthNeed(g.species, null, g.place, weather, 0f, 0f); continue }
             val w = b.warmth(airAt(g.place, weather), b.fire, b.homeShelter(), days)
             g.warmth = warmthNeed(w, b.fire)
-            b.coldPace = w.pace
+            b.coldPace = w.pace; b.campPace = w.campPace
             b.hungerPace = Sisu.hungerPace(g.species, g.spent, b.sisu)
         }
         if (bearings.month != date.month) {

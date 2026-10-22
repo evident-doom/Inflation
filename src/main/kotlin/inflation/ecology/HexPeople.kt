@@ -247,11 +247,21 @@ class Band(kinds: Int) {
      * at the price of the heat debt and the food it costs. Its lineage's, a little changed at each split.
      */
     var sisu = 0.5f
-    /** The share of its working time its people work this week for the cold ([Warmth.pace]) and for hunger ([Sisu.hungerPace]), set as the week starts. */
+    /**
+     * The share of its working time its people work this week for the cold, out in the weather ([Warmth.pace]) and at their
+     * crafts at camp ([Warmth.campPace]), and for hunger ([Sisu.hungerPace]); set as the week starts.
+     */
     @Transient var coldPace = 1f
+    @Transient var campPace = 1f
     @Transient var hungerPace = 1f
-    /** The share of its people's working time that is work this week ([Sisu]). */
-    val pace get() = coldPace * hungerPace
+    /** The share of its people's time at work [where] that is work this week ([Sisu]). */
+    fun paceAt(where: Workplace) = when (where) {
+        Workplace.OUT -> coldPace * hungerPace
+        Workplace.CAMP -> campPace * hungerPace
+        Workplace.NONE -> 1f
+    }
+    /** [paceAt] each [Activity]'s workplace, by its ordinal (for [BandTime]). */
+    fun paces() = FloatArray(Activity.entries.size) { paceAt(Activity.entries[it].where) }
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0
@@ -722,9 +732,9 @@ class Band(kinds: Int) {
     /** How far houses shelter it where it is: its home's, at home. */
     fun homeShelter() = if (atHome) house else 0f
     /** How much warmer than [t] °C outside its houses keep: by their hearths and the people in them, and the ground's warmth through sunken walls. */
-    fun houseWarmC(t: Float) = HOUSE_C + homeEarth * max(0f, homeGroundC - t)
+    fun houseWarmC(t: Float, fire: Float = 1f) = HOUSE_C * fire + homeEarth * max(0f, homeGroundC - t)
     /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]). */
-    fun cover(t: Float, fire: Float, home: Float) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t))
+    fun cover(t: Float, fire: Float, home: Float) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t, fire))
     /**
      * Its week of [days] in [air] with a fire of [fire] and houses sheltering it as far as [home], by its people's body heat
      * ([BodyHeat]): the food keeping warm takes, and the deaths of exposure. Fur clothes, robes at night, a fire, a shelter
@@ -813,7 +823,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val area = land.m2(p)
     // The days its week's plan gives each chore ([planWeek]) go first to caching what it leaves at a camp, then to gathering
     // what it lacks of its materials, then to making and mending; what a chore leaves is free for those after it.
-    val time = b.week ?: BandTime(b.spareDays)
+    val time = b.week ?: BandTime(b.spareDays, b.paces())
     b.week = null
     campAndCache(g, b, p, h, weather, date, time)
     time.release(Activity.CACHING)
@@ -871,6 +881,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.spend(Activity.LEISURE, time.left)
     time.countEach(stats.hunting)
     time.count(stats.hunting, Tally.TimeTotal.LEFT, time.left)
+    time.count(stats.hunting, Tally.TimeTotal.LOST, time.lost)
     // (The wood burnt through the night goes to the air; what went into tools, houses, palisades and ornaments
     // is not kept as matter, and they do not go back to the ground as they wear: a known leak.)
     land.books?.let { bk ->
@@ -1940,7 +1951,10 @@ const val CACHE_TAKE = 0.6f
  * Stone and timber for one person's share of a stone-footed house, kg; person-days for one person's share of a brush
  * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a whole brush shelter keeps
  * those in it, by their own warmth, °C (an estimate; what else it does against the cold: [BodyHeat]); how much warmer a house
- * keeps than the air, by its hearth and the people in it (an estimate).
+ * keeps its air than the air outside with its hearth fire kept, °C: 10 °C on the mean over two winters in two reconstructed
+ * Viking Age houses of wattle and daub with a central hearth, the side facing the fire warmer still (Christensen 2013,
+ * "Living Conditions and Indoor Air Quality in a Reconstructed Viking House", EXARC Journal 2013/3). Those beside the
+ * hearth are warmed by it besides, as at a camp ([BodyHeat.FIRE_CAMP_C]).
  */
 const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
@@ -1948,7 +1962,7 @@ const val SHELTER_DAYS = 0.1f
 const val SHELTER_C = 3f
 const val HOUSE_AFTER_YEARS = 0.5f
 const val HOUSE_DECAY = 0.3f
-const val HOUSE_C = 8f
+const val HOUSE_C = 10f
 const val PIT_KEEP = 0.5f
 const val MICE = 0.01f
 const val HOUSE_DEFENCE = 0.5f

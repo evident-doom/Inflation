@@ -57,10 +57,11 @@ class Cover(val clothesClo: Float, val fire: Float, val shelter: Float, val home
 /**
  * A week's cold for a band, from its body heat ([BodyHeat.week]): the share more food its people eat to make the heat they
  * lose beyond what their day's work and rest make ([extra]); the share of them it kills, of exposure ([odds]); the
- * worst heat debt of a day, beyond what the body bears, Wh per m² of skin ([debt]); and the share of its working hours it
- * works, the rest spent warming up by the fire ([pace], 1 when the work keeps it warm).
+ * worst heat debt of a day, beyond what the body bears, Wh per m² of skin ([debt]); the share of its working hours out in
+ * the weather it works, the rest spent warming up ([pace], 1 when the work keeps it warm); and the share of its hours of
+ * crafts at camp or at home its hands can work ([campPace]).
  */
-class Warmth(val extra: Float, val odds: Float, val debt: Float, val pace: Float = 1f)
+class Warmth(val extra: Float, val odds: Float, val debt: Float, val pace: Float = 1f, val campPace: Float = 1f)
 
 /**
  * People's body heat in the cold: the heat balance of ISO 11079:2007 (Annex A, as the required clothing insulation IREQ is
@@ -90,13 +91,13 @@ object BodyHeat {
         val house = day(air, cover, house = true, sisu)
         val h = min(1f, cover.home)
         return week(DayHeat(h * house.extra + (1f - h) * open.extra, h * house.share + (1f - h) * open.share,
-            h * house.debt + (1f - h) * open.debt, h * house.pace + (1f - h) * open.pace), days)
+            h * house.debt + (1f - h) * open.debt, h * house.pace + (1f - h) * open.pace, h * house.campPace + (1f - h) * open.campPace), days)
     }
 
-    private fun week(d: DayHeat, days: Int) = Warmth(d.extra, 1f - (1f - d.share).pow(days), d.debt, d.pace)
+    private fun week(d: DayHeat, days: Int) = Warmth(d.extra, 1f - (1f - d.share).pow(days), d.debt, d.pace, d.campPace)
 
-    /** One day's heat: the extra food a share of the day's need, the share that die of it, the worst debt, and the share of the working hours worked. */
-    private class DayHeat(val extra: Float, val share: Float, val debt: Float, val pace: Float)
+    /** One day's heat: the extra food a share of the day's need, the share that die of it, the worst debt, and the share of the working hours worked out and at camp. */
+    private class DayHeat(val extra: Float, val share: Float, val debt: Float, val pace: Float, val campPace: Float)
 
     /**
      * One day's heat ([BodyHeat]). Where the work out in the weather cools the body faster than shivering makes up, people
@@ -104,7 +105,11 @@ object BodyHeat {
      * shivering as hard as they can keep up): those breaks are working time lost. People who persevere ([sisu]) break off
      * less, and carry the cooling as heat debt instead, at the risk of exposure: at 1 they work through, at 0 they warm up
      * whenever they must. Where even the camp does not warm them, every hour out at work deepens the debt faster than one by
-     * the fire: those who do not persevere stay in. (The hands'
+     * the fire: those who do not persevere stay in.
+     *
+     * Crafts at camp (or, at home, in the houses: [Workplace.CAMP]) need hands that can work: where even the camp, or the
+     * house, cools people sitting at a craft faster than shivering makes up, their hands go numb and the crafts stop,
+     * however they persevere; a house's still, warm air keeps them going where an open camp would not. (The hands'
      * cold is not in it: dexterity falls once the fingers cool below about 20 °C, steeply below 15 °C, Wiggen et al. 2011,
      * Industrial Health 49: 443, after Heus et al. 1995; the fingers' temperature is not reckoned here.)
      */
@@ -120,8 +125,9 @@ object BodyHeat {
         val bed = if (house) BED_R else BED_R * c.shelter
         val nightClo = c.clothesClo * (1f + NIGHT_COVER)
         val ground = if (air.snow) min(0f, air.meanC) else air.meanC
-        val campC = air.meanC + warmer + (if (house) 0f else FIRE_CAMP_C * c.fire)
-        val sleepC = air.nightC + warmer + (if (house) 0f else FIRE_SLEEP_C * c.fire)
+        // (A house's hearth warms its air, [Cover.houseWarmC]; those beside it, at a camp or in a house, it warms besides.)
+        val campC = air.meanC + warmer + FIRE_CAMP_C * c.fire
+        val sleepC = air.nightC + warmer + FIRE_SLEEP_C * c.fire
         val lCamp = loss(camp, campC, inWind, 0f, c.clothesClo, inWet)
         val lSleep = loss(rest, sleepC, inWind, 0f, nightClo, inWet) * (1f - LYING_CONTACT) + breath(rest, sleepC) * LYING_CONTACT +
             LYING_CONTACT * (skinC(rest) - ground) / (CONTACT_R + bed + if (air.snow) SNOW_R else SOIL_R)
@@ -133,6 +139,10 @@ object BodyHeat {
         val warming = camp + shiverMost - lCamp
         val breaks = if (chill > 0f) (1f - sisu.coerceIn(0f, 1f)) * (if (warming > 0f) chill / (chill + warming) else 1f) else 0f
         val atWork = work * (1f - breaks) + camp * breaks
+        // (Crafts: sitting at the camp's, or the house's, air and wind.)
+        val craft = Activity.TOOLS.par * rest
+        val craftChill = max(0f, loss(craft, campC, inWind, 0f, c.clothesClo, inWet) - craft - shiverMost)
+        val campPace = if (craftChill > 0f) 0f else 1f
         // The day in order: the evening about camp, the night, the morning, the work; heat lost beyond what it makes and can
         // shiver up is stored as debt, made good again while it makes more than it loses.
         var stored = 0f; var worst = 0f; var shivered = 0f
@@ -147,7 +157,7 @@ object BodyHeat {
         part(atWork, lWork * (1f - breaks) + lCamp * breaks, WORK_H)
         val made = rest * SLEEP_H + camp * campH + atWork * WORK_H
         val debt = max(0f, -worst - QLIM)
-        return DayHeat(shivered / made, lethal(debt), debt, 1f - breaks)
+        return DayHeat(shivered / made, lethal(debt), debt, 1f - breaks, campPace)
     }
 
     /**

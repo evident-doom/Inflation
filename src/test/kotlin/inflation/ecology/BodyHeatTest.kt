@@ -76,4 +76,12 @@ class BodyHeatTest {
         assertTrue(kids.all { it in 0f..1f })
         assertTrue(kotlin.math.abs(kids.average() - 0.5) < 0.05, "offshoots keep their parent's, a little changed")
     }
+
+    @Test
+    fun `in deep cold crafts stop at an open camp but go on in a house by its hearth`() {
+        val deep = air(-15f, windMs = 6f, wet = 0.5f)
+        assertEquals(0f, BodyHeat.week(deep, cover(1f, fire = 1f, shelter = 1f), 7, sisu = 1f).campPace, "numb hands, however they persevere")
+        assertEquals(1f, BodyHeat.week(deep, cover(1f, fire = 1f, shelter = 1f, home = 1f), 7, sisu = 0f).campPace)
+        assertEquals(1f, BodyHeat.week(air(10f), cover(1f, fire = 1f, shelter = 1f), 7, sisu = 0f).campPace)
+    }
 }
