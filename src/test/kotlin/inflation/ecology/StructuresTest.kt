@@ -26,10 +26,10 @@ class StructuresTest {
         assertTrue(earthGain(Skill.PIT_HOUSE) > earthGain(Skill.STONE_FOOTING) && earthGain(Skill.STONE_FOOTING) > 0f)
         val b = Band(1)
         b.homeGroundC = 10f
-        val flat = b.feels(-10f, 0f, 1f)
+        val flat = b.houseWarmC(-10f)
         b.homeEarth = earthGain(Skill.PIT_HOUSE)
-        assertEquals(flat + 20f * earthGain(Skill.PIT_HOUSE), b.feels(-10f, 0f, 1f), 1e-4f)
+        assertEquals(flat + 20f * earthGain(Skill.PIT_HOUSE), b.houseWarmC(-10f), 1e-4f)
         // (Warmer than the ground, the earth brings nothing.)
-        assertEquals(b.feels(12f, 0f, 1f), Band(1).also { it.homeGroundC = 10f }.feels(12f, 0f, 1f))
+        assertEquals(b.houseWarmC(12f), Band(1).also { it.homeGroundC = 10f }.houseWarmC(12f))
     }
 }

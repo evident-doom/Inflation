@@ -188,8 +188,8 @@ const val SEARCHING = 0.3f
 
 /**
  * A warm-blooded animal below its comfortable range burns more to keep warm: [COLD_COST] more food
- * for each 10 °C of cold it feels beyond what its coat (or clothes and house) keeps off, at most
- * [COLD_MAX] times its need.
+ * for each 10 °C of cold it feels beyond what its coat keeps off, at most [COLD_MAX] times its need.
+ * (People's, by their body heat: [BodyHeat].)
  */
 fun coldNeed(s: Species, felt: Float, month: Int, tuning: Tuning): Float = min(COLD_MAX, 1f + COLD_COST * tuning.coldCost * s.coldC(felt, month) / 10f)
 const val COLD_COST = 0.1f

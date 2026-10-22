@@ -118,32 +118,32 @@ private fun HexGroups.raiseSavedHouses() {
 }
 
 /**
- * The lives a year houses would save for each of [g]'s grown people camped at place [p], whole and sheltering them all,
- * against none: the deaths of cold and exposure they would avert month by month at the place's usual temperatures
- * ([Weather.usualTemperature]), by the same rules as the week's deaths ([placeHazards]), with its band's clothes and fire.
+ * The lives a year houses would save for each of [b]'s grown people camped at place [p], whole and sheltering them all,
+ * against none: the deaths of exposure they would avert month by month at the place's usual temperatures
+ * ([Weather.usualTemperature]; the wind, rain and snow as this week's there), by the same rules as the week's deaths
+ * ([placeHazards]), with its band's clothes, fire and shelters.
  */
-internal fun HexGroups.houseLivesAYear(g: HexGroup, b: Band, p: Place, weather: Weather): Float {
-    val s = g.species; val fire = b.fire
+internal fun HexGroups.houseLivesAYear(b: Band, p: Place, weather: Weather): Float {
+    val fire = b.fire
     var saved = 0f
     for (m in 0 until Date.MONTHS_PER_YEAR) {
-        val t = weather.usualTemperature(m, p)
-        fun week(home: Float) = min(0.9f, EXPOSURE * b.exposure(t, fire, home)) + Hazards.cold(s, b.feels(t, fire, home), m)
-        saved += (week(0f) - week(1f)) * Date.DAYS_PER_YEAR / 7f / Date.MONTHS_PER_YEAR
+        val air = airAt(p, weather, weather.usualTemperature(m, p))
+        saved += (b.warmth(air, fire, 0f, 7).odds - b.warmth(air, fire, 1f, 7).odds) * Date.DAYS_PER_YEAR / 7f / Date.MONTHS_PER_YEAR
     }
     return max(0f, saved)
 }
 
 /**
  * The food a year houses would save each of [g]'s grown people camped at place [p], whole and sheltering them all, against
- * none, kg: what keeping warm takes of the day's need month by month at the place's usual temperatures ([warmthNeed]),
- * with its band's clothes and fire.
+ * none, kg: what keeping warm takes of the day's need month by month at the place's usual temperatures ([warmthNeed]; the
+ * wind, rain and snow as this week's there), with its band's clothes, fire and shelters.
  */
 internal fun HexGroups.houseFoodAYear(g: HexGroup, b: Band, p: Place, weather: Weather): Float {
     val s = g.species; val fire = b.fire
     var saved = 0f
     for (m in 0 until Date.MONTHS_PER_YEAR) {
         val t = weather.usualTemperature(m, p)
-        saved += (warmthNeed(s, b, t, fire, 0f, m, tuning) - warmthNeed(s, b, t, fire, 1f, m, tuning)) * s.dailyIntakeKg * Date.DAYS_PER_YEAR / Date.MONTHS_PER_YEAR
+        saved += (warmthNeed(s, b, p, weather, fire, 0f, t) - warmthNeed(s, b, p, weather, fire, 1f, t)) * s.dailyIntakeKg * Date.DAYS_PER_YEAR / Date.MONTHS_PER_YEAR
     }
     return max(0f, saved)
 }

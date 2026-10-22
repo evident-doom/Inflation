@@ -339,20 +339,21 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     /**
      * Finished houses by how they were built (by the room they give), the bands that know each way, and for the bands at home
-     * this week: how many feel colder than the 15 °C [Band.feels] stops at, and how much the ground's warmth through sunken
-     * walls adds on average (whether the designs differ where bands live).
+     * this week: how much more food keeping warm takes them ([Band.warmth]) and how many ran into heat debt, and how much the
+     * ground's warmth through sunken walls adds on average (whether the designs differ where bands live).
      */
     private fun designs(bands: List<HexGroup>, bs: List<Band>): String {
         val room = DoubleArray(Skill.entries.size)
         for (s in sim.groups.built) if (s.kind == Built.HOUSES && s.done) room[s.design.coerceAtLeast(0)] += (s.built * s.size).toDouble()
         val all = room.sum().coerceAtLeast(1e-9)
-        val t = sim.weather.temperature
-        val home = bands.mapNotNull { g -> g.band?.takeIf { it.atHome }?.let { b -> t[g.place.i] to b } }
+        val groups = sim.groups; val weather = sim.weather
+        val home = bands.mapNotNull { g -> g.band?.takeIf { it.atHome }?.let { b -> Triple(weather.temperature[g.place.i], b, b.warmth(groups.airAt(g.place, weather), b.fire, b.homeShelter(), groups.days)) } }
         return " | finished houses by design " + Skill.BUILDING_WAYS.joinToString(", ") { w -> "%s %.0f%%".format(w.name.lowercase(), 100.0 * room[w.ordinal] / all) } +
             " (%.0f places of room); known by ".format(room.sum()) + Skill.BUILDING_WAYS.joinToString(", ") { w ->
                 "%s %.0f%%".format(w.name.lowercase(), 100.0 * bs.count { it.knowsSkill[w] } / bs.size.coerceAtLeast(1)) } +
-            " | at home %d: felt below 15 °C %.0f%%, the ground's warmth adds %.2f °C".format(home.size,
-                100.0 * home.count { (c, b) -> b.feels(c) < 15f } / home.size.coerceAtLeast(1),
+            " | at home %d: keeping warm takes %.0f%% more food, in heat debt %.0f%%, the ground's warmth adds %.2f °C".format(home.size,
+                100.0 * (home.map { it.third.extra.toDouble() }.average().takeIf { it.isFinite() } ?: 0.0),
+                100.0 * home.count { it.third.debt > 0f } / home.size.coerceAtLeast(1),
                 home.map { (c, b) -> (b.homeShelter() * b.homeEarth * maxOf(0f, b.homeGroundC - c)).toDouble() }.average().takeIf { it.isFinite() } ?: 0.0) +
             worth(bands)
     }
@@ -363,7 +364,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
      */
     private fun worth(bands: List<HexGroup>): String {
         val groups = sim.groups; val weather = sim.weather
-        val lives = bands.mapNotNull { g -> g.band?.let { b -> groups.houseLivesAYear(g, b, g.place, weather).toDouble() } }
+        val lives = bands.mapNotNull { g -> g.band?.let { b -> groups.houseLivesAYear(b, g.place, weather).toDouble() } }
         val food = bands.mapNotNull { g -> g.band?.let { b -> groups.houseFoodAYear(g, b, g.place, weather).toDouble() } }
         val need = bands.firstOrNull()?.species?.dailyIntakeKg?.times(Date.DAYS_PER_YEAR)?.toDouble() ?: 1.0
         fun List<Double>.mean() = if (isEmpty()) 0.0 else average()

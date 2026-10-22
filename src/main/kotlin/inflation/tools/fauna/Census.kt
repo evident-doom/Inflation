@@ -303,11 +303,11 @@ class Census(private val sim: HexSim) {
         println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
             val w = weeks(c).toDouble().coerceAtLeast(1.0)
             "%s %.0f%% / %.0f%%".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.HEARTH)] ?: 0) / w, (lastYear[Tally.bandsIn(c, Tally.Bands.FUEL_DAYS)] ?: 0) / w) })
-        println("bands by kind of country, last year, in weeks colder than their cover (share of band-weeks: °C short = air below 10 °C less clothes, fire, shelter): " +
+        println("bands by kind of country, last year, in weeks the cold ran them into heat debt through their cover (share of band-weeks: worst debt Wh/m² beyond the bearable; night air °C, clothes clo, fire, shelter or house): " +
             cs.filter { (lastYear[Tally.bandsIn(it, Tally.Cold.WEEKS)] ?: 0) > 0 }.joinToString(", ") { c ->
                 fun v(k: Tally.Cold) = (lastYear[Tally.bandsIn(c, k)] ?: 0).toDouble()
                 val n = v(Tally.Cold.WEEKS).coerceAtLeast(1.0)
-                "%s %.0f%%: %.1f = %.1f - %.1f - %.1f - %.1f".format(c.label, 10 * 100 * v(Tally.Cold.WEEKS) / (10 * weeks(c)).coerceAtLeast(1) / 10,
+                "%s %.0f%%: %.0f; %.1f, %.1f, %.1f, %.1f".format(c.label, 10 * 100 * v(Tally.Cold.WEEKS) / (10 * weeks(c)).coerceAtLeast(1) / 10,
                     v(Tally.Cold.SHORT) / n, v(Tally.Cold.AIR) / n, v(Tally.Cold.CLOTHES) / n, v(Tally.Cold.FIRE) / n, v(Tally.Cold.SHELTER) / n) })
     }
 

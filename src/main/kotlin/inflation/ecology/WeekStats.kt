@@ -162,10 +162,10 @@ object Tally {
         HEARTH("hearth, %"), FUEL_DAYS("fuel days, %"),
     }
     /**
-     * In the weeks colder than all the cover a band had ([WEEKS], tenths), what it was short by and how much each
-     * cover gave, tenths of a °C.
+     * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt
+     * of a day beyond the bearable, Wh/m², the night's air, °C, its clothes, clo, its fire and its shelter or house, all tenths.
      */
-    enum class Cold(val label: String) { WEEKS("weeks"), SHORT("short"), AIR("air"), CLOTHES("clothes"), FIRE("fire"), SHELTER("shelter") }
+    enum class Cold(val label: String) { WEEKS("weeks"), SHORT("debt"), AIR("night air"), CLOTHES("clothes"), FIRE("fire"), SHELTER("shelter") }
     /** Bands' tallies by the kind of country they are in. */
     fun bandsIn(country: Biome, what: Bands) = bandsIn(country, what.label)
     fun bandsIn(country: Biome, cold: Cold) = bandsIn(country, "cold ${cold.label}")

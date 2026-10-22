@@ -109,8 +109,13 @@ internal fun huntersShare(band: Band) = (HUNTERS_SHARE * band.effort[Food.BIG_GA
 const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */
 const val GATHER_SHARE = 0.5f
-/** Degrees of cold that full clothes take off, against the half-clothed bands start with. */
-const val CLOTHES_C = 10f
+/**
+ * The insulation of a whole kit of furs and hides sewn by a master, clo (an estimate: no measured clo of skin clothing was
+ * found; caribou-skin outfits held skin warmth as well as modern expedition clothing in trials, Climate Research 5: 83-90,
+ * 1995, and Hill et al. 2020, Arctic 73(1), and heavy modern cold-weather ensembles run about 3 clo). Bands start with half
+ * a kit, sewn by novices: about 1 clo.
+ */
+const val CLOTHES_CLO = 3f
 /** Yearly chance a band hits on a tool it does not know, where it has use for it; chance a band that meets one that knows a tool learns it. */
 const val INVENT = 0.002f
 const val TEACH = 0.2f
@@ -680,30 +685,21 @@ class Band(kinds: Int) {
     fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.ref) / skill(s)
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
-    /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
-    fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
-    /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    fun feels(t: Float) = feels(t, fire, homeShelter())
+    /** The insulation of the clothes its people wear by day, clo: a whole kit at [CLOTHES_CLO], as well sewn as its hands sew. */
+    fun clothesClo() = CLOTHES_CLO * has(Tool.CLOTHES) * skill(Skill.SEWING)
     /** How far houses shelter it where it is: its home's, at home. */
     fun homeShelter() = if (atHome) house else 0f
-    /** [feels] with a fire of [fire] and houses sheltering it as far as [home]: as it would camped elsewhere. */
-    fun feels(t: Float, fire: Float, home: Float) =
-        if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire +
-            max(SHELTER_C * shelter, HOUSE_C * home + home * homeEarth * max(0f, homeGroundC - t))) else t
-
+    /** How much warmer than [t] °C outside its houses keep: by their hearths and the people in them, and the ground's warmth through sunken walls. */
+    fun houseWarmC(t: Float) = HOUSE_C + homeEarth * max(0f, homeGroundC - t)
+    /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]). */
+    fun cover(t: Float, fire: Float, home: Float) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t))
     /**
-     * How far below what people can bear the cold at [t] °C (the week's mean) takes the band, °C: full
-     * fur clothes, a fire and a shelter or house keep people alive in deep cold; the naked die of
-     * exposure in a night of a few degrees above freezing, wet and windy.
+     * Its week of [days] in [air] with a fire of [fire] and houses sheltering it as far as [home], by its people's body heat
+     * ([BodyHeat]): the food keeping warm takes, and the deaths of exposure. Fur clothes, robes at night, a fire, a shelter
+     * with its bedding or a house keep people alive in deep cold; the naked die of exposure in a night a few degrees above
+     * freezing, wet and windy.
      */
-    fun exposure(t: Float) = exposure(t, fire, homeShelter())
-    /** [exposure] with a fire of [fire] and houses sheltering it as far as [home]. */
-    fun exposure(t: Float, fire: Float, home: Float) =
-        (EXPOSURE_C - t - clothesCover() - PROTECT_FIRE * fire - roofCover(home)).coerceAtLeast(0f)
-    /** The cold its clothes keep off ([exposure]), °C. */
-    fun clothesCover() = PROTECT_CLOTHES * has(Tool.CLOTHES) * clothesFit()
-    /** The cold its shelter, or houses sheltering it as far as [home], keep off ([exposure]), °C. */
-    fun roofCover(home: Float) = max(PROTECT_SHELTER * shelter, PROTECT_HOUSE * home)
+    fun warmth(air: Air, fire: Float, home: Float, days: Int) = BodyHeat.week(air, cover(air.meanC, fire, home), days)
 
     companion object {
         /**
@@ -1165,12 +1161,14 @@ internal fun hearthShare(cover: Float, perHand: Float) =
     if (perHand <= 0f) 1f else if (cover <= 0f) 0f else min(1f, fuelShare(cover, perHand) * FUEL_A_DAY * cover / (HEARTH_WOOD * perHand))
 
 /**
- * What keeping warm takes of group [g]'s week's need at [t] °C in [month], with band [b]'s fire [fire] and at its house
- * or not ([home]): more in the cold it feels through its clothes, fire and shelter, and more again for raw meals where
- * there is no fire ([RAW_COST]). The week's own ([HexGroup.warmth]) and a place weighed ahead ([HexGroups.drain]) alike.
+ * What keeping warm takes of a group of kind [s]'s week's need at place [p], at [t] °C (the week's own unless given): an
+ * animal's by the cold it feels through its coat ([coldNeed]); band [b]'s by its people's body heat ([Band.warmth]) with a
+ * fire of [fire] and at its house or not ([home]), and more again for raw meals where there is no fire ([RAW_COST]). The
+ * week's own ([HexGroup.warmth]) and a place weighed ahead ([HexGroups.drain]) alike.
  */
-internal fun warmthNeed(s: Species, b: Band?, t: Float, fire: Float, home: Float, month: Int, tuning: Tuning) =
-    if (b == null) coldNeed(s, t, month, tuning) else coldNeed(s, b.feels(t, fire, home), month, tuning) * (1f + RAW_COST * (1f - fire))
+internal fun HexGroups.warmthNeed(s: Species, b: Band?, p: Place, weather: Weather, fire: Float, home: Float, t: Float = weather.temperature[p]) =
+    if (b == null) coldNeed(s, t, weather.date.month, tuning)
+    else (1f + tuning.coldCost * b.warmth(airAt(p, weather, t), fire, home, days).extra) * (1f + RAW_COST * (1f - fire))
 
 /**
  * The work [b]'s customs ask of it this week, from [time] (person-days) after the firewood: keeping the camp clean
@@ -1895,7 +1893,9 @@ const val CACHE_FIND = 0.15f
 const val CACHE_TAKE = 0.6f
 /**
  * Stone and timber for one person's share of a stone-footed house, kg; person-days for one person's share of a brush
- * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a brush shelter keeps, °C.
+ * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a whole brush shelter keeps
+ * those in it, by their own warmth, °C (an estimate; what else it does against the cold: [BodyHeat]); how much warmer a house
+ * keeps than the air, by its hearth and the people in it (an estimate).
  */
 const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
@@ -2190,24 +2190,12 @@ private fun HexGroups.keepFire(g: HexGroup, b: Band) {
 /**
  * Survival floors: each foraging skill's success untrained against a master's (gathering the obvious
  * fruit and shellfish is easy; a novice's snares and lines catch little; big game falls to the
- * practised); a novice's daily chance to get a fire going, and how fast trying teaches it; what a fire
- * adds to the felt warmth, °C; how much more food raw meals take for the same energy.
+ * practised); a novice's daily chance to get a fire going, and how fast trying teaches it (what a fire does
+ * against the cold: [BodyHeat]); how much more food raw meals take for the same energy.
  */
 const val FIRE_FLOOR = 0.1f
 const val FIRE_PRACTICE = 0.1f
-const val FIRE_C = 3f
 const val RAW_COST = 0.3f
-/**
- * Exposure: the week's mean temperature below which people unprotected start to die (nights near
- * freezing); the degrees full clothes, a fire, a brush shelter and a house each keep off; the share of
- * people dying each week for each degree below.
- */
-const val EXPOSURE_C = 10f
-const val PROTECT_CLOTHES = 30f
-const val PROTECT_FIRE = 12f
-const val PROTECT_SHELTER = 5f
-const val PROTECT_HOUSE = 10f
-const val EXPOSURE = 0.05f
 /** Share of the way to knowing a kind of country's plants a week's gathering there goes; the least a stranger finds of what a local would. */
 const val PLANT_LEARN = 0.05f
 const val PLANT_FLOOR = 0.1f

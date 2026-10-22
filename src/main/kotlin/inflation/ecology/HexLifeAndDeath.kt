@@ -328,14 +328,15 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.hunting.merge(Tally.bandsClad(clad, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsCladDied(clad, cause), k, Int::plus)
         }
-        // And, in the weeks it was cold through all the cover the band had, what each cover gave.
+        // And, in the weeks the cold ran its people into heat debt through all the cover the band had, what it was and had.
         val b = g.band
         if (b != null) {
-            val t = weather.temperature[g.place]
-            if (b.exposure(t) > 0f) {
+            val air = airAt(g.place, weather)
+            val w = b.warmth(air, b.fire, b.homeShelter(), days)
+            if (w.debt > 0f) {
                 fun add(k: Tally.Cold, v: Float) { stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus) }
-                add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, b.exposure(t)); add(Tally.Cold.AIR, EXPOSURE_C - t)
-                add(Tally.Cold.CLOTHES, b.clothesCover()); add(Tally.Cold.FIRE, PROTECT_FIRE * b.fire); add(Tally.Cold.SHELTER, b.roofCover(b.homeShelter()))
+                add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, w.debt); add(Tally.Cold.AIR, air.nightC)
+                add(Tally.Cold.CLOTHES, b.clothesClo()); add(Tally.Cold.FIRE, b.fire); add(Tally.Cold.SHELTER, max(b.shelter, b.homeShelter()))
             }
         }
     }
@@ -615,7 +616,8 @@ internal fun interface HazardSink { fun add(cause: DeathCause, adult: Float, you
 
 /**
  * The week's hazards to [g] that come of the place it is in ([p]) and how it fares there, into [into]: hunger at [fed],
- * the cold past its coat (or clothes, a fire of [fire] and houses sheltering it as far as [home]), exposure, thirst at [thirst] and its
+ * the cold past its coat (people's, exposure past what their body heat bears: [Band.warmth], with a fire of [fire] and houses
+ * sheltering them as far as [home]), the heat, thirst at [thirst] and its
  * kind's everyday sickness at [sick], an outbreak raging there, fire, flood and deep snow, crocodiles at the water
  * and eagles. The one rule for the week's deaths ([liveWeek]) and for those a group foresees
  * at a place it weighs ([HexGroups.deathsAt]).
@@ -625,11 +627,10 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed
     val s = g.species; val b = g.band; val t = weather.temperature[p]
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
     val hunger = Hazards.hunger(s, g.spent, Hazards.onFat(fed, g.fat, days), days)
-    // People feel the cold as their clothes allow.
-    // Exposure: the unprotected die of the cold within days.
-    val exposure = b?.let { min(0.9f, EXPOSURE * it.exposure(t, fire, home) * days / 7f) } ?: 0f
-    val felt = b?.feels(t, fire, home) ?: t
-    val cold = Hazards.cold(s, felt, weather.date.month); val heat = Hazards.heat(s, felt)
+    // People keep warm as their body heat allows, through their clothes, fire, shelter and houses: past what they can
+    // shiver up, they die of exposure. Animals feel the cold through their coats.
+    val exposure = b?.warmth(airAt(p, weather), fire, home, days)?.odds ?: 0f
+    val cold = if (b != null) 0f else Hazards.cold(s, t, weather.date.month); val heat = Hazards.heat(s, t)
     // An outbreak raging where it is kills its share.
     val plague = fauna.outbreakDeaths(s, p)
     // Eagles take the young of the smaller hoofed animals in the open.
@@ -682,11 +683,10 @@ private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int
  * worth of a house ([Band.houseLives], [Band.houseFood]) a person a year, over about a year. Changes nothing else.
  */
 private fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather) {
-    val s = g.species; val t = weather.temperature[g.place]; val m = weather.date.month; val fire = b.fire; val now = b.homeShelter()
-    fun odds(home: Float) = min(0.9f, EXPOSURE * b.exposure(t, fire, home) * days / 7f) + Hazards.cold(s, b.feels(t, fire, home), m)
-    val d = max(0f, odds(now) - odds(1f))
+    val s = g.species; val fire = b.fire; val now = b.homeShelter(); val air = airAt(g.place, weather)
+    val d = max(0f, b.warmth(air, fire, now, days).odds - b.warmth(air, fire, 1f, days).odds)
     b.houseLivesWeek += g.adults * d + g.young * min(1f, 1.5f * d)
-    b.houseFoodWeek += max(0f, warmthNeed(s, b, t, fire, now, m, tuning) - warmthNeed(s, b, t, fire, 1f, m, tuning)) * g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f) * days
+    b.houseFoodWeek += max(0f, warmthNeed(s, b, g.place, weather, fire, now) - warmthNeed(s, b, g.place, weather, fire, 1f)) * g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f) * days
     val people = max(1, g.size).toFloat(); val k = 1f / stepsPerYear
     b.houseLives += k * (b.houseLivesWeek / people * stepsPerYear - b.houseLives)
     b.houseFood += k * (b.houseFoodWeek / people * stepsPerYear - b.houseFood)

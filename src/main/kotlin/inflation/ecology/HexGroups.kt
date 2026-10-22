@@ -256,12 +256,11 @@ class HexGroups(
         watchLog.clear()
         fauna.moon = date.meanMoonlight(days).toFloat()
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
-        // through their clothes and, at home, their houses).
+        // by their body heat, through their clothes, fire, shelters and, at home, their houses).
         // (Raw meals give less: a band without fire needs more food for the same strength.)
         for (g in groups) if (g.alive) {
-            val t = weather.temperature[g.place]
             val b = g.band
-            g.warmth = warmthNeed(g.species, b, t, b?.fire ?: 0f, b?.homeShelter() ?: 0f, date.month, tuning)
+            g.warmth = warmthNeed(g.species, b, g.place, weather, b?.fire ?: 0f, b?.homeShelter() ?: 0f)
         }
         if (bearings.month != date.month) {
             beastsKg(monthBeastKg, people = false)
@@ -1333,7 +1332,18 @@ class HexGroups(
     internal fun drain(g: HexGroup, p: Place, weather: Weather): Float {
         val s = g.species; val t = weather.temperature[p]
         val b = g.band
-        return warmthNeed(s, b, t, b?.let { fireAt(g, it, p) } ?: 0f, if (b != null) houseAt(g, p) else 0f, weather.date.month, tuning) - 1f + bitten(s, p)
+        return warmthNeed(s, b, p, weather, b?.let { fireAt(g, it, p) } ?: 0f, if (b != null) houseAt(g, p) else 0f, t) - 1f + bitten(s, p)
+    }
+
+    /**
+     * The week's weather at place [p] as people's body heat meets it ([BodyHeat]), at [t] °C: the swing between night and day
+     * under a sky as cloudy as the week's rain and snow make it, the wind at a person's height (less in woods and thickets), the
+     * rain that wets clothes, and whether snow lies.
+     */
+    internal fun airAt(p: Place, weather: Weather, t: Float = weather.temperature[p]): Air {
+        val snow = weather.snowpack[p] > BodyHeat.SNOW_LIES_MM
+        val wind = hypot(weather.windEast(p.i), weather.windSouth(p.i)) * BodyHeat.BODY_WIND * (1f - BodyHeat.FOREST_CALM * land.plants.cover(p))
+        return Air(t, Air.swingC(Air.opaque(weather.precipitation[p] / days), snow), wind, Air.wet(weather.rain(p.i), days), snow)
     }
 
     /**
