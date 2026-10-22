@@ -169,7 +169,11 @@ object WaysPpo {
             }
         }
         val stds = ways.logStd.map { exp(it) }
-        return "ways %d draws, critic explains %.2f%s, clipped %.2f, spread %.3f (%.3f..%.3f)".format(cs.size, explained, if (explained < 0.0) " (judged against the average)" else "", clippedShare / seen.coerceAtLeast(1), stds.average(), stds.min(), stds.max())
+        // (An output nothing is learnt about drifts to the widest spread: those at the widest, and how many at the narrowest.)
+        val wide = stds.indices.filter { stds[it] >= 0.95f * LearnedWays.MAX_STD }
+        val narrow = stds.count { it <= 1.05f * LearnedWays.MIN_STD }
+        val wideNames = wide.take(5).joinToString(", ") { Schema.WAYS_OUT[it] } + if (wide.size > 5) ", ..." else ""
+        return "ways %d draws, critic explains %.2f%s, clipped %.2f, spread %.3f (%.3f..%.3f), %d at the widest (%s), %d at the narrowest".format(cs.size, explained, if (explained < 0.0) " (judged against the average)" else "", clippedShare / seen.coerceAtLeast(1), stds.average(), stds.min(), stds.max(), wide.size, wideNames, narrow)
     }
 
     /** The clipped surrogate's gradient over [part], to be minimised: for the network's weights, the log-spreads, and how many draws were clipped. */
