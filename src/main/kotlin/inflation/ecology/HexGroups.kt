@@ -1056,6 +1056,12 @@ class HexGroups(
         }
         if (capture) best = Place(askControl(g, weather, date, policy, buf.candPlaces, buf.candFeats, buf.candScores, best.i,
             restless, reach, goal, onRound) { pathTo(it) })
+        // (A band's ways read how its mover saw the place it goes to: see [HexGroup.plan].)
+        if (g.band != null) {
+            var k = -1
+            if (policy != null) for (i in 0 until candPlaces.size) if (candPlaces[i] == best.i) { k = i; break }
+            g.plan = if (k >= 0) policy?.planned(g, candFeats[k]) else null
+        }
         if (seen != null && g.id == watched) logWatched(c, seen, best, policy != null)
         if (diag && seen != null) printPlanDiag(c, seen, best)
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))

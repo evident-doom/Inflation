@@ -70,6 +70,19 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         if (band > 0) { into.fill(0f, INPUTS, inputs); state?.copyInto(into, INPUTS, 0, min(state.size, band)) }
     }
 
+    /** The size of its last hidden layer: what a band's ways read of the place it chose ([plan]). */
+    val trunk get() = net.sizes[net.sizes.size - 2]
+
+    /**
+     * How it sees candidate place [features] for a group of kind [s] with temperament [temper] and view of itself [state]: its last
+     * hidden layer on that input, written whole into [input] (as [fill] does), run in [b].
+     */
+    fun plan(s: Species, features: FloatArray, state: FloatArray?, temper: FloatArray?, input: FloatArray, b: Mlp.Buffers): FloatArray {
+        fill(s, features, state, input, temper)
+        input.copyInto(b.a[0]); net.forward(b)
+        return b.a[net.sizes.size - 2].copyOf()
+    }
+
     /** Per-thread room for [netScores]. */
     inner class Scratch {
         val b = net.buffers()
@@ -154,7 +167,10 @@ open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: 
  * Where a band stood in week [week] before it moved, as the critic reads it ([at]): the state its week's plan, the move and the
  * ways set after it, is judged from (see [WaysChoice]).
  */
-class Standing(val week: Int, val at: Probe)
+class Standing(val week: Int, val at: Probe) {
+    /** The mover's whole input for the place it then chose ([SharedMover.plan]), for its ways' learning to train the mover through. */
+    @Volatile var plan: FloatArray? = null
+}
 
 /** Chooses with a [SharedMover], recording a share of its choices in [record] (null: the best, not sampled). */
 class MoverPolicy(private val mover: SharedMover, private val record: ConcurrentLinkedQueue<Choice>?, private val rate: (Species) -> Float, private val week: () -> Int,
@@ -205,6 +221,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         return taken
     }
     override val samples get() = record != null
+    override fun planned(g: HexGroup, chosen: FloatArray): FloatArray? {
+        if (g.band == null || mover.band == 0) return null
+        val input = FloatArray(mover.inputs)
+        val trunk = mover.plan(g.species, chosen, g.band?.state, g.temper, input, scratch.get().b)
+        standing?.get(g.id)?.let { if (it.week == week()) it.plan = input }
+        return trunk
+    }
     override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
         val state = g.band?.state; val temper = g.temper
         val net = mover.netScores(g.species, features, state, temper, scratch.get())

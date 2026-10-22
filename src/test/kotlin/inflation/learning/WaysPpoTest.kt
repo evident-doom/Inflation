@@ -55,6 +55,52 @@ class WaysPpoTest {
     }
 
     @Test
+    fun `ways saved before they read the mover choose as they did, whatever its units hold`() {
+        val old = LearnedWays.fresh(16, Random(1)).also { for (i in it.net.w.indices) it.net.w[i] += 0.05f * (Random(i).nextFloat() - 0.5f) }
+        val dir = Files.createTempDirectory("ways").toFile()
+        val f = java.io.File(dir, "ways.mlp"); old.save(f)
+        val merged = LearnedWays.loadOrNew(f, 16, 8)
+        assertEquals(8, merged.plan)
+        val x = FloatArray(WAYS_IN) { Random(3).nextFloat() }
+        val into = FloatArray(WAYS_IN + 8)
+        waysInput(x, FloatArray(8) { 0.9f - 0.2f * it }, into)
+        val b = merged.net.buffers(); into.copyInto(b.a[0])
+        assertEquals(middle(old, x).toList(), merged.net.forwardAll(b).toList())
+        // Saved again, it keeps the mover's units by name.
+        merged.save(f); assertEquals(8, Schema.planOf(f)); assertEquals(8, WaysKind.BANDS.load(f).sizes[0] - WAYS_IN)
+        dir.deleteRecursively()
+    }
+
+    @Test
+    fun `ways learning trains the mover beneath it, through the units it reads`() {
+        val mover = SharedMover.random(8, Random(2), WAYS_IN)
+        val dir = Files.createTempDirectory("ways").toFile()
+        val st = WaysPpo.State(dir, 16, 1e-2f, mover.trunk, mover.net.w.size)
+        // (Some weight on the mover's units, so that the ways' learning reaches it.)
+        for (i in st.ways.net.w.indices) st.ways.net.w[i] += 0.05f * (Random(i).nextFloat() - 0.5f)
+        val rnd = Random(4)
+        val x = FloatArray(WAYS_IN) { rnd.nextFloat() }
+        val at = Probe(FloatArray(HexFeatures.SIZE), x, null, FloatArray(Critic.GROUP))
+        val input = FloatArray(mover.inputs) { rnd.nextFloat() - 0.5f }
+        // (The middle the ways give now, reading the mover's units: what the draws are made about.)
+        val mb = mover.net.buffers(); input.copyInto(mb.a[0]); mover.net.forward(mb)
+        val whole = FloatArray(WAYS_IN + mover.trunk).also { x.copyInto(it); mb.a[2].copyInto(it, WAYS_IN) }
+        val mu = middle(st.ways, whole)
+        val cs = (0 until 200).map { k ->
+            val a = mu.copyOf(); a[0] += if (k % 2 == 0) 0.3f else -0.3f
+            val logp = (0 until WAYS_OUT).sumOf { i -> val z = (a[i] - mu[i]) / kotlin.math.exp(st.ways.logStd[i]); (-0.5f * z * z - st.ways.logStd[i]).toDouble() }.toFloat()
+            WaysChoice(Catalogue.HUMAN, k, 20, 0, at, FloatArray(WAYS_IN + mover.trunk).also { x.copyInto(it) }, a, logp, input).also { it.advantage = if (k % 2 == 0) 1f else -1f }
+        }
+        val before = mover.net.w.copyOf()
+        WaysPpo.learn(st, cs, 0, 0.0, mover)
+        assertTrue(before.indices.any { before[it] != mover.net.w[it] }, "mover unchanged")
+        // Its output layer, which the ways do not read, stays as it was.
+        val firstOut = Mlp.count(mover.net.sizes.copyOf(mover.net.sizes.size - 1))
+        assertEquals(before.copyOfRange(firstOut, before.size).toList(), mover.net.w.copyOfRange(firstOut, before.size).toList())
+        dir.deleteRecursively()
+    }
+
+    @Test
     fun `a band keeps its draw of ways for a season, and it is recorded once`() {
         val w = LearnedWays.fresh(16, Random(1))
         val record = java.util.concurrent.ConcurrentLinkedQueue<Choice>()

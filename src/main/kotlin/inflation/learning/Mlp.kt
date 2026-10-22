@@ -101,8 +101,19 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
         backprop(b, grad, dInput)
     }
 
-    private fun backprop(b: Buffers, grad: FloatArray, dInput: FloatArray?) {
-        for (l in sizes.size - 1 downTo 1) {
+    /**
+     * Adds to [grad] the gradient of hidden layer [l]'s activations, each times its [dAct], after a [forward] on [b]: the layers
+     * below it learning for another network that reads that layer.
+     */
+    fun backwardFrom(l: Int, b: Buffers, dAct: FloatArray, grad: FloatArray) {
+        require(l in 1 until sizes.size - 1) { "layer $l is not a hidden layer" }
+        val a = b.a[l]; val d = b.d[l]
+        for (i in 0 until sizes[l]) d[i] = dAct[i] * (1f - a[i] * a[i])
+        backprop(b, grad, null, l)
+    }
+
+    private fun backprop(b: Buffers, grad: FloatArray, dInput: FloatArray?, top: Int = sizes.size - 1) {
+        for (l in top downTo 1) {
             val nIn = sizes[l - 1]; val nOut = sizes[l]
             val x = b.a[l - 1]; val dy = b.d[l]
             val dx = if (l > 1) b.d[l - 1] else dInput
