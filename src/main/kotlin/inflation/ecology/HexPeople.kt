@@ -110,12 +110,14 @@ const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */
 const val GATHER_SHARE = 0.5f
 /**
- * The insulation of a whole kit of furs and hides sewn by a master, clo (an estimate: no measured clo of skin clothing was
- * found; caribou-skin outfits held skin warmth as well as modern expedition clothing in trials, Climate Research 5: 83-90,
- * 1995, and Hill et al. 2020, Arctic 73(1), and heavy modern cold-weather ensembles run about 3 clo). Bands start with half
- * a kit, sewn by novices: about 1 clo.
+ * The insulation of a whole kit of furs and hides sewn by a master, clo: half of a heavy modern cold-weather ensemble's
+ * about 3 clo, since hides wrapped and sewn by hand leave gaps at the neck, wrists and feet and lack layered underwear,
+ * hoods, mittens and boots (a judgement, Olli 2026-10-22; no measured clo of skin clothing was found: the Inuit's tailored
+ * caribou-skin outfits held skin warmth as well as modern expedition clothing, Climate Research 5: 83-90, 1995, and Hill
+ * et al. 2020, Arctic 73(1), but those are the most refined skin clothing known). Bands start with half a kit, sewn by
+ * novices: about 0.5 clo.
  */
-const val CLOTHES_CLO = 3f
+const val CLOTHES_CLO = 1.5f
 /** Yearly chance a band hits on a tool it does not know, where it has use for it; chance a band that meets one that knows a tool learns it. */
 const val INVENT = 0.002f
 const val TEACH = 0.2f

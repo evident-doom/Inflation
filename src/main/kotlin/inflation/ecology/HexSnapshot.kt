@@ -207,7 +207,7 @@ object HexSnapshot {
      * bedding; shivering costs food and the debt past it kills of exposure, in place of the felt-temperature rule.
      * 4.32: fishing is practised with a fish spear or basket traps as well as nets, snaring with a bow as well as nets
      * ([Band.toolsFor]); bands keep where their food came from over a year ([Band.foodFrom]) and how fish paid
-     * ([Band.fishPull]), and a band split off keeps its parent's running worths.
+     * ([Band.fishPull]), and a band split off keeps its parent's running worths. Clothes half as warm ([CLOTHES_CLO] 1.5).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 32
