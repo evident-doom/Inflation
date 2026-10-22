@@ -247,7 +247,8 @@ object Catalogue {
         activity = floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
         shelters = setOf(Niches.Shelter.DEN, Niches.Shelter.THICKET),
         swimKm = 10f,
-        takesPeople = 0.4f,
+        // a fifth of the lion's weight (was 0.4): bears took 358 of 100,000 person-years, lions 57; no Natufian or Hiwi bear kills known (review/2026-10-22-predators-megafauna.md)
+        takesPeople = 0.08f,
     )
 
     /**

@@ -208,9 +208,11 @@ object HexSnapshot {
      * 4.32: fishing is practised with a fish spear or basket traps as well as nets, snaring with a bow as well as nets
      * ([Band.toolsFor]); bands keep where their food came from over a year ([Band.foodFrom]) and how fish paid
      * ([Band.fishPull]), and a band split off keeps its parent's running worths. Clothes half as warm ([CLOTHES_CLO] 1.5).
+     * 4.33: the brown bear takes people a fifth as readily ([Species.takesPeople] 0.4 to 0.08; main's 4.18, merged with the
+     * above).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 32
+    const val MODEL_MINOR = 33
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
