@@ -205,9 +205,12 @@ object HexSnapshot {
      * 4.31: people's cold by their body heat ([BodyHeat], ISO 11079's heat balance) through a day asleep, about camp and at
      * work: night and day, wind, rain, the ground under a sleeper; shelters break the wind, keep the rain off and carry
      * bedding; shivering costs food and the debt past it kills of exposure, in place of the felt-temperature rule.
+     * 4.32: fishing is practised with a fish spear or basket traps as well as nets, snaring with a bow as well as nets
+     * ([Band.toolsFor]); bands keep where their food came from over a year ([Band.foodFrom]) and how fish paid
+     * ([Band.fishPull]), and a band split off keeps its parent's running worths.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 31
+    const val MODEL_MINOR = 32
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

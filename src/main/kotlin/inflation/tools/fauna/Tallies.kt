@@ -9,6 +9,7 @@ import inflation.ecology.DeathCause
 import inflation.ecology.WeekStats
 import inflation.ecology.Band
 import inflation.ecology.Built
+import inflation.ecology.FoodFrom
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
@@ -302,6 +303,29 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         if (bands.isEmpty()) return
         val bs = bands.map { it.band!! }
         println("     bands: " + skillsAndKit(bands, bs) + houses(bands, bs) + goods(bands, bs) + gatherings(bands, bs))
+        println("     bands by fish within reach of their camp, thirds from least to most: " + fishing(bands))
+    }
+
+    /**
+     * Bands in thirds by the fish within reach of their camps ([HexWater.fishWithin] at full skill, kg a week): the fish, their
+     * skills at fishing, small game and hunting, their nets, where their food came from over about a year ([Band.foodFrom],
+     * kg a person a day), and how fish paid against the least their gatherers took up ([Band.fishPull]). Whether bands where
+     * fish is plenty specialise in it.
+     */
+    private fun fishing(bands: List<HexGroup>): String {
+        val water = sim.groups.fauna.water; val hw = sim.hw
+        val sorted = bands.mapNotNull { g -> g.band?.let { b -> water.fishWithin(hw.placeHex[g.place]) to b } }.sortedBy { it.first }
+        val n = sorted.size
+        return (0 until 3).joinToString(" | ") { k ->
+            val third = sorted.subList(k * n / 3, (k + 1) * n / 3)
+            if (third.isEmpty()) "none" else {
+                fun mean(f: (Band) -> Float) = third.map { f(it.second).toDouble() }.average()
+                "fish %.0f kg/wk: skill fish %.2f, small game %.2f, hunt %.2f, nets %.2f; food a person a day %s; fish pull %.2f".format(
+                    third.map { it.first.toDouble() }.average(), mean { it.skills[Skill.FISH] }, mean { it.skills[Skill.SMALL_GAME] },
+                    mean { it.skills[Skill.HUNT] }, mean { it.kit[Tool.NET] },
+                    FoodFrom.entries.joinToString(", ") { f -> "%s %.2f".format(f.label, mean { it.foodFrom[f.ordinal] }) }, mean { it.fishPull })
+            }
+        }
     }
 
     private fun skillsAndKit(bands: List<HexGroup>, bs: List<Band>): String {
