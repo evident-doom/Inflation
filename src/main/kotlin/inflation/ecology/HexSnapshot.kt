@@ -210,9 +210,10 @@ object HexSnapshot {
      * ([Band.fishPull]), and a band split off keeps its parent's running worths. Clothes half as warm ([CLOTHES_CLO] 1.5).
      * 4.33: the brown bear takes people a fifth as readily ([Species.takesPeople] 0.4 to 0.08; main's 4.18, merged with the
      * above).
+     * 4.34: hunting, tracking and stalking are learned (and forgotten) at about a ninth of the old rate ([HUNTING_PRACTICE]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 33
+    const val MODEL_MINOR = 34
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
