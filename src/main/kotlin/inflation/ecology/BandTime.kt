@@ -26,6 +26,7 @@ class BandTime(left: Float) {
         private set
     private val spent = FloatArray(Activity.entries.size)
     private val held = FloatArray(Activity.entries.size)
+    private val heldAtOne = FloatArray(Activity.entries.size)
     /** What each activity asked for this week, person-days (none before a [plan]). */
     val asked = FloatArray(Activity.entries.size)
 
@@ -57,10 +58,16 @@ class BandTime(left: Float) {
      */
     fun plan(needs: FloatArray, asks: FloatArray, weights: FloatArray? = null) {
         for (i in asked.indices) asked[i] = needs[i] + asks[i]
-        val first = shareOut(needs, FloatArray(needs.size) { 1f }, max(0f, left))
-        val then = shareOut(asks, weights ?: FloatArray(asks.size) { 1f }, max(0f, left - first.sum()))
-        for (i in held.indices) held[i] = first[i] + then[i]
+        val ones = FloatArray(needs.size) { 1f }
+        val first = shareOut(needs, ones, max(0f, left))
+        val then = shareOut(asks, weights ?: ones, max(0f, left - first.sum()))
+        if (weights != null) shareOut(asks, ones, max(0f, left - first.sum())).forEachIndexed { i, d -> heldAtOne[i] = first[i] + d }
+        for (i in held.indices) { held[i] = first[i] + then[i]; if (weights == null) heldAtOne[i] = held[i] }
     }
+
+    /** Person-days the [plan] held for [a], and would have held were every weight 1 (for counting the weights' use, [DialUse]). */
+    fun heldFor(a: Activity) = held[a.ordinal]
+    fun heldAtOneFor(a: Activity) = heldAtOne[a.ordinal]
 
     /** Adds what went to each of [activities] to [census] (tenths of a day). */
     fun count(census: MutableMap<TallyKey, Int>, vararg activities: Activity) {

@@ -951,6 +951,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
         if (!b.campPlace.none) {
             // (Some goods are taken first: see [mendingKg].)
             val carry = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
+            dialUse?.amount(DialSite.CARRY_LOADS, carryLoads(b), carryKg(g, b) * carryLoads(b), carryKg(g, b))
             val total = g.larder
             if (total > carry) {
                 // (It chooses how much of what it cannot carry to cache, as far as its time to dig and cover the pits goes;
