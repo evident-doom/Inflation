@@ -15,6 +15,18 @@ dependencies {
 }
 
 /**
+ * Nothing runs or tests in a Claude Code cloud container (Olli 2026-10-22); the same check as inflation.CloudGuard,
+ * which every run also makes when Config starts. GitHub Actions is let through: CI builds cloud-written changes.
+ */
+fun failInCloudContainer() {
+    val cloud = System.getenv("GITHUB_ACTIONS") != "true" && (System.getenv("CLAUDE_CODE_REMOTE") == "true" ||
+        !System.getenv("CLAUDE_CODE_CONTAINER_ID").isNullOrBlank() || File("/root/.ccr").isDirectory)
+    if (cloud) throw GradleException("Use local pc instead")
+}
+tasks.withType<JavaExec>().configureEach { doFirst { failInCloudContainer() } }
+tasks.withType<Test>().configureEach { doFirst { failInCloudContainer() } }
+
+/**
  * Probes: programs that answered one question about the model (src/probes), kept runnable with runTool and
  * their own tasks but apart from the model and the maintained tools. They see the model's internals.
  */
