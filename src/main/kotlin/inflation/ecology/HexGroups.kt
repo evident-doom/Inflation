@@ -1204,8 +1204,9 @@ class HexGroups(
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need, the height gained as the level walk it equals (see [walkCost]).
         score -= WALK_COST * (d + climbKmPerM(s.massKg) * max(0f, hw.placeElevationM[p.i] - hw.placeElevationM[g.place.i])) / days
-        // A band moving camp loses the days the walk takes from its week's work, beyond those it had to spare.
-        g.band?.let { b -> score -= max(0f, moveDays(g, d) - b.spareDays / forageHands(g)) / days }
+        // A band moving camp loses the days the walk takes from its week's work, beyond those it had to spare; the new camp
+        // pays them back over the weeks it will keep it (as foragers weigh travel time against a patch's stay).
+        g.band?.let { b -> score -= max(0f, moveDays(g, d) - b.spareDays / forageHands(g)) / (days * b.stayWeeks) }
         // (Above all, it keeps alive: its deaths there are weighed against all this by the caller, see [planInner].)
         // Bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && s.human) {

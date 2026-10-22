@@ -188,9 +188,11 @@ object HexSnapshot {
      * for each load past the first ([carryLoads]).
      * 4.23: the people's ways net sets how many loads a band carries on a move ([BandWay.CARRY_LOADS]) and how it weighs each
      * activity's ask for days against the others' when the week is short ([timeWay]); at the scaffold's 1 as in 4.22.
+     * 4.24: a band weighing where to camp spreads the walk's days beyond its spare ones over the weeks it lately keeps a camp
+     * ([Band.stayWeeks]), not one week: a better camp pays the walk back for as long as the band stays.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 23
+    const val MODEL_MINOR = 24
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

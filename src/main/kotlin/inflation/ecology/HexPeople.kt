@@ -122,6 +122,12 @@ const val TEACH = 0.2f
 const val WALK_KMH = 4f
 const val CHILD_PACE = 0.74f
 const val MOVE_HOURS = 6f
+/**
+ * Weeks a band expects to keep a camp before it has kept any (foragers moved camp some 5 to 60 times a year, Kelly 1995,
+ * from memory: about 4 weeks a camp near the middle), and the share of the gap each move closes in its running mean.
+ */
+const val STAY_WEEKS_START = 4f
+const val STAY_LEARN = 0.2f
 
 /** Share of [g]'s people who hold it back on the move: the old, the hurt and lamed, the sick. */
 internal fun weakShare(g: HexGroup) = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
@@ -219,6 +225,8 @@ class Band(kinds: Int) {
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0
+    /** Weeks it has lately kept a camp before moving on, a running mean ([STAY_LEARN]): over how long a move pays back its walk. */
+    var stayWeeks = STAY_WEEKS_START
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()
@@ -954,6 +962,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
                 if (abandoned > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(abandoned))
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
+            b.stayWeeks += STAY_LEARN * (b.campWeeks + 1 - b.stayWeeks)
             // Its goods take what room its loads have left after the food; the rest is left at the old camp, each kind
             // alike (and goes back to the ground).
             val goods = b.goods.sum()
