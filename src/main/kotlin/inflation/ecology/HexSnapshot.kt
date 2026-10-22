@@ -200,9 +200,11 @@ object HexSnapshot {
      * the week's want falls with the days its plan gives to lighter work and leaves to rest, and rises with wood fetched.
      * 4.29: house designs differ beyond their cost: a sunken one brings the ground's year-round warmth in ([earthGain]), a
      * mudbrick one wears in the rain ([MUD_EROSION]); and the bands' ways weigh their keenness on each design ([buildWay]).
+     * 4.30: the food rest saves comes off what a band eats only, once its foraging has taken the days it took, not off what
+     * it forages for ([restedDays]): cutting the forage aim too left bands short (10 y storm, 4.28 -6..-8.5% people).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 29
+    const val MODEL_MINOR = 30
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

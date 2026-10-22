@@ -344,14 +344,14 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         val room = DoubleArray(Skill.entries.size)
         for (s in sim.groups.built) if (s.kind == Built.HOUSES && s.done) room[s.design.coerceAtLeast(0)] += (s.built * s.size).toDouble()
         val all = room.sum().coerceAtLeast(1e-9)
-        val home = bands.filter { it.band!!.atHome }
         val t = sim.weather.temperature
+        val home = bands.mapNotNull { g -> g.band?.takeIf { it.atHome }?.let { b -> t[g.place.i] to b } }
         return " | finished houses by design " + Skill.BUILDING_WAYS.joinToString(", ") { w -> "%s %.0f%%".format(w.name.lowercase(), 100.0 * room[w.ordinal] / all) } +
             " (%.0f places of room); known by ".format(room.sum()) + Skill.BUILDING_WAYS.joinToString(", ") { w ->
                 "%s %.0f%%".format(w.name.lowercase(), 100.0 * bs.count { it.knowsSkill[w] } / bs.size.coerceAtLeast(1)) } +
             " | at home %d: felt below 15 °C %.0f%%, the ground's warmth adds %.2f °C".format(home.size,
-                100.0 * home.count { it.band!!.feels(t[it.place.i]) < 15f } / home.size.coerceAtLeast(1),
-                home.map { val b = it.band!!; (b.homeShelter() * b.homeEarth * maxOf(0f, b.homeGroundC - t[it.place.i])).toDouble() }.average().takeIf { it.isFinite() } ?: 0.0)
+                100.0 * home.count { (c, b) -> b.feels(c) < 15f } / home.size.coerceAtLeast(1),
+                home.map { (c, b) -> (b.homeShelter() * b.homeEarth * maxOf(0f, b.homeGroundC - c)).toDouble() }.average().takeIf { it.isFinite() } ?: 0.0)
     }
 
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
