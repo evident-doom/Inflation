@@ -977,12 +977,12 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
             // Its goods: what mending needs first, then the rest in what room its loads have left after the food, each
             // kind alike; what does not fit is left at the old camp (and goes back to the ground).
             val people = g.adults.toFloat()
-            val spare = Material.entries.filter { it in ROTS }.sumOf { m -> max(0f, b.goods[m] - mendingKg(b, m, people)).toDouble() }.toFloat()
+            val spare = Material.entries.sumOf { m -> max(0f, b.goods[m] - mendingKg(b, m, people)).toDouble() }.toFloat()
             val room = max(0f, carry - g.larder)
             if (spare > room) {
                 val left = 1f - room / spare
                 var rots = 0f
-                for (m in Material.entries.filter { it in ROTS }) { val x = max(0f, b.goods[m] - mendingKg(b, m, people)) * left; b.goods[m] -= x; if (m in ROTS) rots += x }
+                for (m in Material.entries) { val x = max(0f, b.goods[m] - mendingKg(b, m, people)) * left; b.goods[m] -= x; if (m in ROTS) rots += x }
                 if (rots > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(rots))
             }
         }
