@@ -13,6 +13,7 @@ import inflation.ecology.HexSim
 import inflation.ecology.Skill
 import inflation.ecology.Species
 import inflation.ecology.Tool
+import inflation.ecology.Material
 import inflation.ecology.Tradition
 import inflation.ecology.boldness
 import java.util.TreeMap
@@ -332,10 +333,14 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                     100.0 * inRain.count { it.band!!.house >= Thresholds.HOUSE_STANDING } / inRain.size.coerceAtLeast(1), inRain.size) }
     }
 
-    /** Kept herds, ornaments and shell, grave goods. */
+    /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
     private fun goods(bands: List<HexGroup>, bs: List<Band>): String {
         val hw = sim.hw; val land = sim.land; val fauna = sim.fauna
-        return " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { it.herd.size > k && it.herd[k] >= 1f } }.joinToString(", ") { k ->
+        val adults = bands.sumOf { it.adults }.coerceAtLeast(1).toDouble()
+        return " | held an adult: food %.1f kg, goods %.1f kg (".format(bands.sumOf { it.larder.toDouble() } / adults,
+                bs.sumOf { it.goods.sum().toDouble() } / adults) +
+            Material.entries.joinToString(", ") { m -> "%s %.1f".format(m.name.lowercase(), bs.sumOf { it.goods[m].toDouble() } / adults) } + ")" +
+            " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { it.herd.size > k && it.herd[k] >= 1f } }.joinToString(", ") { k ->
                 val keepers = bs.filter { it.herd.size > k && it.herd[k] >= 1f }
                 "%s %.0f head in %d bands (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { it.herd[k].toDouble() }, keepers.size,
                     keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
