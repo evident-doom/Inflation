@@ -85,6 +85,7 @@ object Config {
     val source: File?
 
     init {
+        CloudGuard.check()
         val named = System.getProperty("hex.config")
         source = if (named == "none") null else named?.let { File(it) } ?: File("inflation.properties").takeIf { it.isFile }
         if (source != null) {
