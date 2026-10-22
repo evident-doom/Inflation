@@ -8,6 +8,7 @@ import inflation.ecology.Thresholds
 import inflation.ecology.DeathCause
 import inflation.ecology.WeekStats
 import inflation.ecology.Band
+import inflation.ecology.Built
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
@@ -330,7 +331,27 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             " | with houses by yearly rain: " + listOf(0f to 300f, 300f to 600f, 600f to 1e9f).joinToString(", ") { (lo, hi) ->
                 val inRain = bands.filter { val h = hw.placeHex[it.place]; val r = (0 until 12).sumOf { m -> hw.precip[m][h].toDouble() }; r >= lo && r < hi }
                 "%s %.0f%% of %d".format(if (hi > 1e8f) ">600 mm" else "%.0f-%.0f mm".format(lo, hi),
-                    100.0 * inRain.count { it.band!!.house >= Thresholds.HOUSE_STANDING } / inRain.size.coerceAtLeast(1), inRain.size) }
+                    100.0 * inRain.count { it.band!!.house >= Thresholds.HOUSE_STANDING } / inRain.size.coerceAtLeast(1), inRain.size) } +
+            designs(bands, bs)
+    }
+
+    /**
+     * Finished houses by how they were built (by the room they give), the bands that know each way, and for the bands at home
+     * this week: how many feel colder than the 15 °C [Band.feels] stops at, and how much the ground's warmth through sunken
+     * walls adds on average (whether the designs differ where bands live).
+     */
+    private fun designs(bands: List<HexGroup>, bs: List<Band>): String {
+        val room = DoubleArray(Skill.entries.size)
+        for (s in sim.groups.built) if (s.kind == Built.HOUSES && s.done) room[s.design.coerceAtLeast(0)] += (s.built * s.size).toDouble()
+        val all = room.sum().coerceAtLeast(1e-9)
+        val home = bands.filter { it.band!!.atHome }
+        val t = sim.weather.temperature
+        return " | finished houses by design " + Skill.BUILDING_WAYS.joinToString(", ") { w -> "%s %.0f%%".format(w.name.lowercase(), 100.0 * room[w.ordinal] / all) } +
+            " (%.0f places of room); known by ".format(room.sum()) + Skill.BUILDING_WAYS.joinToString(", ") { w ->
+                "%s %.0f%%".format(w.name.lowercase(), 100.0 * bs.count { it.knowsSkill[w] } / bs.size.coerceAtLeast(1)) } +
+            " | at home %d: felt below 15 °C %.0f%%, the ground's warmth adds %.2f °C".format(home.size,
+                100.0 * home.count { it.band!!.feels(t[it.place.i]) < 15f } / home.size.coerceAtLeast(1),
+                home.map { val b = it.band!!; (b.homeShelter() * b.homeEarth * maxOf(0f, b.homeGroundC - t[it.place.i])).toDouble() }.average().takeIf { it.isFinite() } ?: 0.0)
     }
 
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
