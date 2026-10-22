@@ -164,9 +164,6 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             planWeek(w, daysFor(need), daysFor(left) - daysFor(need))
         }
         val time = w.time
-        // (Short of the week's food, it gives up its leisure to eat: survival first.)
-        if (time != null && intake > 0f && w.fed < w.wantAll)
-            time.borrow(Activity.FOOD, Activity.LEISURE, min(days.toFloat(), (w.wantAll - w.fed) / intake) * w.hands - time.leftFor(Activity.FOOD))
         var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
         if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
         val busy0 = w.busy
@@ -185,9 +182,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
 /**
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
  * wants this week, [storeDays] more to lay by what it aims to keep. What it needs to live through the week comes first
- * (food for the week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores, its
- * chores, and its leisure, [LEISURE_SHARE] of the week), shared out when it comes to more than the days left
- * ([BandTime.plan]). Digging soaks for water, where that is the only water, comes off first. Then it fetches the hearth's
+ * (food for the week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores and
+ * its chores), shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing yet: it
+ * is what the week leaves, till it has uses of its own. Digging soaks for water, where that is the only water, comes off first. Then it fetches the hearth's
  * firewood in the days the plan gives it.
  */
 private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
@@ -200,7 +197,6 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     needs[Activity.FIREWOOD.ordinal] = fuelAsk(g, hands)
     val asks = FloatArray(Activity.entries.size)
     asks[Activity.FOOD.ordinal] = storeDays * hands
-    asks[Activity.LEISURE.ordinal] = LEISURE_SHARE * days * hands
     choreAsks(g, b, w.weather.date, asks)
     time.plan(needs, asks)
     val fuel = needs[Activity.FIREWOOD.ordinal]

@@ -176,9 +176,9 @@ object HexSnapshot {
      * they weather away while nobody does, and a band building at its camp builds for those of its people the houses there do
      * not shelter. Houses a band may use draw it wherever they are (home pull), and shelter it in what it foresees of a place.
      * A band's houses in a world saved before are raised where they stood.
-     * 4.19: a band plans its week's time ([BandTime.plan]): food, firewood, each chore and its leisure ([LEISURE_SHARE]) ask
-     * for days, shared out when they come to more than the week; each chore works in the days it was given and what one
-     * leaves is free for those after it; a band short of the week's food gives up leisure to eat.
+     * 4.19: a band plans its week's time ([BandTime.plan]): food and firewood for the week first, then the stores and each
+     * chore ask for days, shared out when they come to more than what is left; each chore works in the days it was given
+     * and what one leaves is free for those after it. Leisure is what the week leaves.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 19

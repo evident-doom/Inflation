@@ -41,12 +41,6 @@ class BandTime(left: Float) {
     /** Counts [personDays] as gone to [a] before this stretch began (the time foraging took, worked out apart). */
     fun took(a: Activity, personDays: Float) { spent[a.ordinal] += personDays }
 
-    /** Moves up to [personDays] of what is held for [from] to [a]: a hungry band gives up its leisure to eat. */
-    fun borrow(a: Activity, from: Activity, personDays: Float) {
-        val d = min(max(0f, personDays), held[from.ordinal])
-        held[from.ordinal] -= d; held[a.ordinal] += d
-    }
-
     /** What is still held for [a] after its turn is free for the activities after it. */
     fun release(a: Activity) { held[a.ordinal] = 0f }
 
@@ -99,8 +93,3 @@ class BandTime(left: Float) {
     }
 }
 
-/**
- * A band's leisure, as a share of its hands' week: Agta foragers had about 30 hours of daylight leisure in a week's 84
- * daylight hours (Dyble et al. 2019, 359 people in ten camps, sampled 6am to 6pm over two years).
- */
-const val LEISURE_SHARE = 30f / 84f
