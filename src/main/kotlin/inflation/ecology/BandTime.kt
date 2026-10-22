@@ -4,11 +4,32 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** The kinds of work that take a band's time, each by its line in the census of band time ([Tally.bandTime]); and its leisure. */
-enum class Activity(val label: String) {
-    FIREWOOD("firewood"), FOOD("food"), DRYING("drying"), SKINS("skins"), SHELTER("shelter"), CUSTOMS("customs"),
-    TRAINING("training"), TOOLS("tools"), HOUSES("houses"), ORNAMENTS("ornaments"), SOWING("sowing"), PALISADE("palisade"), MATERIALS("materials"), CACHING("caching"),
-    MOVING("moving"), LEISURE("leisure"),
+/**
+ * The kinds of work that take a band's time, each by its line in the census of band time ([Tally.bandTime]); and its leisure.
+ * [par]: how hard it is, as the energy it takes over the resting rate while it goes on (a physical activity ratio, FAO/WHO/UNU
+ * 2004, Human energy requirements, table 5.1: collecting water or wood 4.4; planting, weeding, gathering 4.1; domestic chores
+ * by hand 2.3; light leisure 1.4, sitting 1.5). Foraging and hunting are taken as gathering, building and digging as planting
+ * and weeding, fetching materials as collecting wood, crafts, skins and the customs' cleaning and nursing as domestic chores;
+ * moving camp as gathering, its walking costed apart ([walkCost]). These pairings are estimates.
+ */
+enum class Activity(val label: String, val par: Float) {
+    FIREWOOD("firewood", 4.4f), FOOD("food", 4.1f), DRYING("drying", 2.3f), SKINS("skins", 2.3f), SHELTER("shelter", 4.1f), CUSTOMS("customs", 2.3f),
+    TRAINING("training", 2.3f), TOOLS("tools", 2.3f), HOUSES("houses", 4.1f), ORNAMENTS("ornaments", 2.3f), SOWING("sowing", 4.1f), PALISADE("palisade", 4.1f),
+    MATERIALS("materials", 4.4f), CACHING("caching", 4.1f), MOVING("moving", 4.1f), LEISURE("leisure", 1.45f);
+
+    /**
+     * The share of a grown person's daily need ([Species.dailyIntakeKg], taken as a day of foraging's) a day of this saves
+     * against a day of foraging, as its day's average over the resting rate: 8 h asleep (1.0), [WORK_HOURS] at [par], the rest
+     * about camp (1.45, between light leisure and sitting). A day foraging comes to 1.96 (Hadza adults spend about 1.8-2.3
+     * times the resting rate a day, Pontzer et al. 2012); a day at rest to 1.30, saving 0.34; a day of crafts saves 0.23.
+     * Below 0 for harder work (fetching wood or materials).
+     */
+    val restSaves: Float get() = 1f - dayRate(par) / dayRate(FOOD.par)
+
+    private companion object {
+        const val WORK_HOURS = 6f
+        fun dayRate(par: Float) = (8f * 1f + WORK_HOURS * par + (24f - 8f - WORK_HOURS) * 1.45f) / 24f
+    }
 }
 
 /**

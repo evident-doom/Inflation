@@ -122,16 +122,6 @@ const val TEACH = 0.2f
 const val WALK_KMH = 4f
 const val CHILD_PACE = 0.74f
 const val MOVE_HOURS = 6f
-
-/**
- * The share of a grown person's daily need a day at rest saves against a day at work (the need, [Species.dailyIntakeKg],
- * taken as a working day's). A working day: 8 h asleep at the resting rate, 6 h of work (as [MOVE_HOURS]) at about 3 times
- * it, 10 h about camp at about 1.5: on average 1.71 times the resting rate; a day at rest, 16 h about camp: 1.33 (activity
- * factors as in FAO/WHO/UNU 2004, Human energy requirements; the factors quoted from memory, to be checked against the
- * tables). 1 - 1.33 / 1.71 = 0.22. Hadza adults' daily expenditure, at about 1.8-2.3 times the resting rate (Pontzer et al.
- * 2012), is of the working day's order.
- */
-const val REST_SAVES = 0.22f
 /**
  * Weeks a band expects to keep a camp before it has kept any (foragers moved camp some 5 to 60 times a year, Kelly 1995,
  * from memory: about 4 weeks a camp near the middle), and the share of the gap each move closes in its running mean.

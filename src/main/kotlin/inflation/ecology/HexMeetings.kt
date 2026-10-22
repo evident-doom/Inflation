@@ -185,7 +185,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
  * soaks for water, where that is the only water, come off first. Then what it needs to live through the week (food for the
  * week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
- * leaves, and its days take less food than days at work ([REST_SAVES]). Then it fetches the hearth's firewood in the days
+ * leaves; lighter work and rest take less food than days foraging ([Activity.restSaves]). Then it fetches the hearth's firewood in the days
  * the plan gives it.
  */
 private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
@@ -203,8 +203,11 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     choreAsks(g, b, w.weather.date, asks)
     // (The band weighs the asks against each other by its ways: see [timeWay].)
     time.plan(needs, asks, FloatArray(asks.size) { i -> timeWay(Activity.entries[i])?.let { b.will[it] } ?: 1f })
-    // The days no activity asks for are spent at rest, which takes less food than a day at work ([REST_SAVES]).
-    val rested = REST_SAVES * time.unheld * w.s.dailyIntakeKg
+    // Days of lighter work, and the days no activity asks for, spent at rest, take less food than days foraging; fetching wood
+    // and materials, more ([Activity.restSaves]).
+    var savedDays = time.unheld * Activity.LEISURE.restSaves
+    for (a in Activity.entries) savedDays += time.heldFor(a) * a.restSaves
+    val rested = savedDays * w.s.dailyIntakeKg
     w.wantAll -= rested; w.aim -= rested
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a.ordinal] > 0f) bind[a.ordinal] += 1f

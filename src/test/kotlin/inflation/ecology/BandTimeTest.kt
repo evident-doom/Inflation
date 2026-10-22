@@ -42,6 +42,14 @@ class BandTimeTest {
     }
 
     @Test
+    fun `a day takes food by how hard its work is, against a day foraging`() {
+        assertEquals(0f, Activity.FOOD.restSaves, 1e-6f)
+        assertEquals(0.34f, Activity.LEISURE.restSaves, 0.01f)
+        assertTrue(Activity.TOOLS.restSaves in 0.1f..0.3f)
+        assertTrue(Activity.FIREWOOD.restSaves < 0f)
+    }
+
+    @Test
     fun `the days no activity asks for are the week's rest`() {
         val time = BandTime(10f)
         val asks = FloatArray(Activity.entries.size)

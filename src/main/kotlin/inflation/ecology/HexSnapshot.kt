@@ -196,8 +196,8 @@ object HexSnapshot {
      * 4.27: what bands build serves nothing till it first stands whole (houses shelter, a palisade guards, only once done; a
      * finished one then serves as far as it stands as it weathers and is mended); the ways net reads the houses and palisade
      * begun and not finished where it is. (Saved houses and palisades load as not finished.)
-     * 4.28: a band's days at rest take less food than days at work (REST_SAVES): the week's want falls with the days its
-     * plan leaves to no activity.
+     * 4.28: a band's days take food by how hard their work is ([Activity.restSaves], from FAO/WHO/UNU 2004 activity ratios):
+     * the week's want falls with the days its plan gives to lighter work and leaves to rest, and rises with wood fetched.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 28
