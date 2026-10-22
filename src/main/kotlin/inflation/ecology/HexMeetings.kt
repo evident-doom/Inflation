@@ -834,6 +834,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatA
     // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
     // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
     val home = if (band.atHome) band.house else 0f
+    band.houseFoodWeek += keepWorth(g, band, home)
     // (Pits sealed with clay and plaster keep the mice out.)
     var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer)
     val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
@@ -1056,6 +1057,21 @@ private fun diagSampled(g: HexGroup, weather: Weather, share: Float, salt: Int) 
 internal fun HexGroups.driedKeep(band: Band): Float {
     val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
     return smoked * (1f - tuning.saltKeep * band.salted)
+}
+
+/**
+ * The food a whole house would have kept from spoiling in [g]'s stores this week against the houses it has ([home]), less what
+ * mice would have taken from its pits: kg of need, by [spoil]'s rates and the mice's. For [Band.houseFood].
+ */
+internal fun HexGroups.keepWorth(g: HexGroup, b: Band, home: Float): Float {
+    val more = 1f - home
+    if (more <= 0f) return 0f
+    var kept = 0f
+    for (st in Store.entries) if (st != Store.FRESH)
+        kept += g.stores[st] * min(1f, st.lostWeekly * (if (st == Store.DRIED) driedKeep(b) else 1f) * days / 7f) * PIT_KEEP * more
+    val sealed = if (b.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * b.skill(Skill.SEALING) else 1f
+    for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) kept -= g.stores[st] * MICE * sealed * more * days / 7f
+    return kept
 }
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost (weighed at [kgPer] for each kg of worth). */

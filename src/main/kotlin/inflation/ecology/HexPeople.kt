@@ -231,6 +231,16 @@ class Band(kinds: Int) {
     var campWeeks = 0
     /** Weeks it has lately kept a camp before moving on, a running mean ([STAY_LEARN]): over how long a move pays back its walk. */
     var stayWeeks = STAY_WEEKS_START
+    /**
+     * What a whole house would have been worth to it where it was, a person a year, as it lived its weeks (a running mean over
+     * about a year, [houseWorthWeek]): the lives it would have saved (cold, exposure, raids) and the food, kg of need (keeping
+     * warm, stores kept from spoiling, less to raiders, less to mice taken off). What a band weighs a house by.
+     */
+    var houseLives = 0f
+    var houseFood = 0f
+    /** This week's share of them so far, not yet a person's: lives and kg ([houseWorthWeek]). */
+    var houseLivesWeek = 0f
+    var houseFoodWeek = 0f
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()

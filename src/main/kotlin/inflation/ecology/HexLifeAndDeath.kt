@@ -445,6 +445,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         Hazard(DeathCause.OTHER, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.homeShelter() ?: 0f) { c, a, y -> hazards += Hazard(c, a, y) }
+    band?.let { houseWorthWeek(g, it, weather) }
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     // (No beast to blame, none taken: a hazard of none weighs nothing in sharing the deaths, and is left out.)
     hazards.addAll(listOfNotNull(
@@ -672,6 +673,24 @@ private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int
         if (left > 0) died.merge(DeathCause.OTHER, left, Int::plus)
     }
     return died.entries.mapTo(ArrayList()) { Died(it.key, it.value) }
+}
+
+/**
+ * What a whole house where [g]'s band is would have done for it this week, against the houses it has, by the week's own rules
+ * ([placeHazards], [warmthNeed]): the cold and exposure deaths it would have averted and the food keeping warm takes that it
+ * would have saved; with what its stores and raids added this week ([keepWorth], [raidWorth]), folded into the band's running
+ * worth of a house ([Band.houseLives], [Band.houseFood]) a person a year, over about a year. Changes nothing else.
+ */
+private fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather) {
+    val s = g.species; val t = weather.temperature[g.place]; val m = weather.date.month; val fire = b.fire; val now = b.homeShelter()
+    fun odds(home: Float) = min(0.9f, EXPOSURE * b.exposure(t, fire, home) * days / 7f) + Hazards.cold(s, b.feels(t, fire, home), m)
+    val d = max(0f, odds(now) - odds(1f))
+    b.houseLivesWeek += g.adults * d + g.young * min(1f, 1.5f * d)
+    b.houseFoodWeek += max(0f, warmthNeed(s, b, t, fire, now, m, tuning) - warmthNeed(s, b, t, fire, 1f, m, tuning)) * g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f) * days
+    val people = max(1, g.size).toFloat(); val k = 1f / stepsPerYear
+    b.houseLives += k * (b.houseLivesWeek / people * stepsPerYear - b.houseLives)
+    b.houseFood += k * (b.houseFoodWeek / people * stepsPerYear - b.houseFood)
+    b.houseLivesWeek = 0f; b.houseFoodWeek = 0f
 }
 
 /** [g]'s young grow up, and in a band the adults age through three spans of adult life, then become elders (drawn from [r]); returns how many young grew up. */

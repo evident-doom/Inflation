@@ -319,6 +319,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         return
     }
     val (sg, so) = raidStrengths(g, o, ob, planned, ob.atHome, weather)
+    raidWorth(o, ob, sg, so)
     // Each side loses some of its people, the more so against the stronger side.
     val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so), rnd)
     val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so), rnd)
@@ -334,6 +335,19 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
+}
+
+/**
+ * What a whole house would have done for [o] (band [ob]) in a raid of strength [sg] on its [so], against the houses it has:
+ * the lives it would have saved and the food it would have kept from the raiders, by [fight]'s rules; for [Band.houseLives]
+ * and [Band.houseFood].
+ */
+private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float) {
+    val works = if (ob.atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
+    val whole = 1f + HOUSE_DEFENCE + (if (ob.atHome) PALISADE_DEFENCE * ob.palisade else 0f)
+    val so1 = so * whole / works
+    ob.houseLivesWeek += max(0f, o.adults * RAID_DEATHS * (sg / (sg + so) - sg / (sg + so1)))
+    if (sg > so && sg <= so1) ob.houseFoodWeek += RAID_TAKE * o.larder
 }
 
 /**

@@ -367,8 +367,11 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         val food = bands.mapNotNull { g -> g.band?.let { b -> groups.houseFoodAYear(g, b, g.place, weather).toDouble() } }
         val need = bands.firstOrNull()?.species?.dailyIntakeKg?.times(Date.DAYS_PER_YEAR)?.toDouble() ?: 1.0
         fun List<Double>.mean() = if (isEmpty()) 0.0 else average()
-        return " | a house would be worth a person a year: lives %.4f, food %.0f kg (%.1f%% of need); bands where it saves a life per 100 person-years or more %.0f%%".format(
-            lives.mean(), food.mean(), 100.0 * food.mean() / need, 100.0 * lives.count { it >= 0.01 } / lives.size.coerceAtLeast(1))
+        val bs = bands.mapNotNull { it.band }
+        val livedLives = bs.map { it.houseLives.toDouble() }; val livedFood = bs.map { it.houseFood.toDouble() }
+        return " | a house would be worth a person a year, at usual temperatures: lives %.4f, food %.0f kg (%.1f%% of need); as the bands lived the year: lives %.4f, food %.0f kg (%.1f%% of need), bands where it saves a life per 100 person-years or more %.0f%%, or 1%% of need %.0f%%".format(
+            lives.mean(), food.mean(), 100.0 * food.mean() / need, livedLives.mean(), livedFood.mean(), 100.0 * livedFood.mean() / need,
+            100.0 * livedLives.count { it >= 0.01 } / bs.size.coerceAtLeast(1), 100.0 * livedFood.count { it >= 0.01 * need } / bs.size.coerceAtLeast(1))
     }
 
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
