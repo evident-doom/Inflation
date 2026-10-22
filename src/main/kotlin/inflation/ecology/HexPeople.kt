@@ -620,25 +620,27 @@ class Band(kinds: Int) {
     /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
     fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
     /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    fun feels(t: Float) = feels(t, fire, atHome)
-    /** [feels] with a fire of [fire] and at its house or not ([home]): as it would camped elsewhere. */
-    fun feels(t: Float, fire: Float, home: Boolean) =
+    fun feels(t: Float) = feels(t, fire, homeShelter())
+    /** How far houses shelter it where it is: its home's, at home. */
+    fun homeShelter() = if (atHome) house else 0f
+    /** [feels] with a fire of [fire] and houses sheltering it as far as [home]: as it would camped elsewhere. */
+    fun feels(t: Float, fire: Float, home: Float) =
         if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire +
-            max(SHELTER_C * shelter, if (home) HOUSE_C * house else 0f)) else t
+            max(SHELTER_C * shelter, HOUSE_C * home)) else t
 
     /**
      * How far below what people can bear the cold at [t] °C (the week's mean) takes the band, °C: full
      * fur clothes, a fire and a shelter or house keep people alive in deep cold; the naked die of
      * exposure in a night of a few degrees above freezing, wet and windy.
      */
-    fun exposure(t: Float) = exposure(t, fire, atHome)
-    /** [exposure] with a fire of [fire] and at its house or not ([home]). */
-    fun exposure(t: Float, fire: Float, home: Boolean) =
+    fun exposure(t: Float) = exposure(t, fire, homeShelter())
+    /** [exposure] with a fire of [fire] and houses sheltering it as far as [home]. */
+    fun exposure(t: Float, fire: Float, home: Float) =
         (EXPOSURE_C - t - clothesCover() - PROTECT_FIRE * fire - roofCover(home)).coerceAtLeast(0f)
     /** The cold its clothes keep off ([exposure]), °C. */
     fun clothesCover() = PROTECT_CLOTHES * has(Tool.CLOTHES) * clothesFit()
-    /** The cold its shelter, or its house if at home ([home]), keeps off ([exposure]), °C. */
-    fun roofCover(home: Boolean) = max(PROTECT_SHELTER * shelter, if (home) PROTECT_HOUSE * house else 0f)
+    /** The cold its shelter, or houses sheltering it as far as [home], keep off ([exposure]), °C. */
+    fun roofCover(home: Float) = max(PROTECT_SHELTER * shelter, PROTECT_HOUSE * home)
 
     companion object {
         /**
@@ -735,7 +737,11 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
-    buildHouse(g, b, p, h, people, years, time)
+    useStructures(g, h.i)
+    buildHouse(g, b, p, h, people, time)
+    // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
+    if (housesAt(g, h.i) > 0.05f) b.houseHex = h
+    b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex.i)
     b.atHome = b.houseHex == h && b.house > 0.05f
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
     makeOrnaments(b, people, time)
@@ -744,8 +750,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     sowGrain(g, b, p, date, time)
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
     // as its time and timber go.
-    buildPalisade(b, people, time)
-    if (!b.houseHex.none && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
+    buildPalisade(g, b, h, people, time)
+    b.palisade = if (b.houseHex.none) 0f else palisadeAt(g, b.houseHex.i)
     // Counted once every chore has had its time, so that what the census shows as left is what is left.
     time.countEach(stats.hunting)
     time.count(stats.hunting, Tally.TimeTotal.LEFT, time.left)
@@ -981,7 +987,7 @@ internal fun hearthShare(cover: Float, perHand: Float) =
  * or not ([home]): more in the cold it feels through its clothes, fire and shelter, and more again for raw meals where
  * there is no fire ([RAW_COST]). The week's own ([HexGroup.warmth]) and a place weighed ahead ([HexGroups.drain]) alike.
  */
-internal fun warmthNeed(s: Species, b: Band?, t: Float, fire: Float, home: Boolean, month: Int, tuning: Tuning) =
+internal fun warmthNeed(s: Species, b: Band?, t: Float, fire: Float, home: Float, month: Int, tuning: Tuning) =
     if (b == null) coldNeed(s, t, month, tuning) else coldNeed(s, b.feels(t, fire, home), month, tuning) * (1f + RAW_COST * (1f - fire))
 
 /**
@@ -1067,12 +1073,12 @@ private fun HexGroups.makeTools(b: Band, people: Float, time: BandTime) {
 }
 
 /**
- * Houses: [g]'s band, having kept its camp a while, builds stone-footed houses there with the
- * [time] days to spare, as far as its stone and timber go; houses it has left weather away.
+ * Houses: [g]'s band, having kept its camp a while, builds stone-footed houses there with the [time] days to spare, as
+ * far as its stone and timber go: houses for those of its [people] the houses there it may use do not shelter. (What it
+ * builds stands in the world, anyone's to use once it leaves: see [Structure].)
  */
-private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, years: Float, time: BandTime) {
+private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, time: BandTime) {
     val gd = b.goods
-    if (!b.houseHex.none && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
     // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
     dialUse?.let { u -> if (time.left > 0f && people > 0f && g.fed >= 0.9f) {
         val longEnough = b.campWeeks >= houseAfterWeeks(b)
@@ -1082,23 +1088,26 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people:
     } }
     if (b.campWeeks >= houseAfterWeeks(b) && time.left > 0f && people > 0f && g.fed >= 0.9f &&
         g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
-        if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
-        if (b.houseHex == h && b.house < 1f) {
-            // It builds the way it knows that its stone, timber and clay go furthest with.
+        val sheltered = housesAt(g, h.i)
+        if (sheltered < 1f) {
+            // It builds the way it knows that its stone, timber and clay go furthest with (or goes on with what it began).
             val clay = land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f
-            val way = listOf(Skill.STONE_FOOTING, Skill.PIT_HOUSE, Skill.MUDBRICK).filter { b.knowsSkill[it] && (it != Skill.MUDBRICK || clay) }
+            val begun = built.firstOrNull { it.kind == Built.HOUSES && it.hex == h.i && it.user == g.id && it.built < 1f }
+            val size = begun?.size ?: (people * (1f - sheltered))
+            val way = begun?.let { Skill.entries[it.design] } ?: Skill.BUILDING_WAYS.filter { b.knowsSkill[it] && (it != Skill.MUDBRICK || clay) }
                 .maxByOrNull { w ->
                     val (st, wd, dd) = houseNeeds(w)
-                    minOf(time.left / (dd * people), gd[Material.STONE] / max(1e-3f, st * people), gd[Material.WOOD] / (wd * people))
+                    minOf(time.left / (dd * size), gd[Material.STONE] / max(1e-3f, st * size), gd[Material.WOOD] / (wd * size))
                 }
                 ?: Skill.STONE_FOOTING
+            val s = begun ?: buildingAt(g, Built.HOUSES, h.i, way.ordinal, size)
             val (stoneEach, woodEach, daysEach) = houseNeeds(way)
-            val daysNow = daysEach * people / b.skill(way) * b.skill(Skill.STONE_FOOTING)
-            var built = min(1f - b.house, time.left / daysNow)
-            built = minOf(built, if (stoneEach > 0f) gd[Material.STONE] / (stoneEach * people) else 1f, gd[Material.WOOD] / (woodEach * people))
+            val daysNow = daysEach * size / b.skill(way) * b.skill(Skill.STONE_FOOTING)
+            var built = min(1f - s.built, time.left / daysNow)
+            built = minOf(built, if (stoneEach > 0f) gd[Material.STONE] / (stoneEach * size) else 1f, gd[Material.WOOD] / (woodEach * size))
             built = max(0f, built)
-            gd[Material.STONE] -= built * stoneEach * people; gd[Material.WOOD] -= built * woodEach * people
-            b.house += built; time.spend(Activity.HOUSES, built * daysNow)
+            gd[Material.STONE] -= built * stoneEach * size; gd[Material.WOOD] -= built * woodEach * size
+            s.built += built; time.spend(Activity.HOUSES, built * daysNow)
             if (built > 0f) b.practise(way)
             if (built > 0f) stats.meeting(Met.BANDS_BUILT_HOUSES)
         }
@@ -1142,14 +1151,15 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time:
     }
 }
 
-/** A palisade round the houses of [b], at home and raided in the last year, as far as the [time] days and its timber go. */
-private fun HexGroups.buildPalisade(b: Band, people: Float, time: BandTime) {
+/** A palisade round the houses at [g]'s band [b]'s camp at hex [h], at home and raided in the last year, as far as the [time] days and its timber go. */
+private fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float, time: BandTime) {
     val gd = b.goods
     if (b.atHome && b.palisade < 1f && time.left > 0f && people > 0f)
         dialUse?.choice(DialSite.PALISADES, b.fortifyWill, b.sinceRaided < stepsPerYear * b.fortifyWill, b.sinceRaided < stepsPerYear)
     if (b.atHome && b.sinceRaided < stepsPerYear * b.fortifyWill && b.palisade < 1f && time.left > 0f && people > 0f) {
-        val built = minOf(1f - b.palisade, time.left / (PALISADE_DAYS * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
-        gd[Material.WOOD] -= built * PALISADE_WOOD * people; b.palisade += built; time.spend(Activity.PALISADE, built * PALISADE_DAYS * people)
+        val s = buildingAt(g, Built.PALISADE, h.i, -1, people)
+        val built = minOf(1f - s.built, time.left / (PALISADE_DAYS * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
+        gd[Material.WOOD] -= built * PALISADE_WOOD * people; s.built += built; time.spend(Activity.PALISADE, built * PALISADE_DAYS * people)
         if (built > 0f) stats.meeting(Met.BANDS_BUILT_PALISADES)
     }
 }

@@ -172,9 +172,13 @@ object HexSnapshot {
      * stone boiling renders grease from the bones it comes on ([greaseOf]), kept as a store of its own ([Store.GREASE]).
      * 4.17: a band's food efforts split its gatherers' days ([splitDays]): an effort above 1 meets its food more and every
      * other gatherers' food less, by the mean effort weighed by the days each would take; at every effort 1 as before.
+     * 4.18: houses and palisades stand in the world ([Structure]), no band's own: any band may use those nobody else is using,
+     * they weather away while nobody does, and a band building at its camp builds for those of its people the houses there do
+     * not shelter. Houses a band may use draw it wherever they are (home pull), and shelter it in what it foresees of a place.
+     * A band's houses in a world saved before are raised where they stood.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 17
+    const val MODEL_MINOR = 18
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

@@ -182,6 +182,7 @@ internal fun protein(b: Bites, grass: Float, browse: Float): Float =
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
+    tendStructures()
     houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
         .associate { it.id to it.band!!.houseHex.i }
     Profile.part("people: camps, tools, culture") {
@@ -333,7 +334,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (b.exposure(t) > 0f) {
                 fun add(k: Tally.Cold, v: Float) { stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus) }
                 add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, b.exposure(t)); add(Tally.Cold.AIR, EXPOSURE_C - t)
-                add(Tally.Cold.CLOTHES, b.clothesCover()); add(Tally.Cold.FIRE, PROTECT_FIRE * b.fire); add(Tally.Cold.SHELTER, b.roofCover(b.atHome))
+                add(Tally.Cold.CLOTHES, b.clothesCover()); add(Tally.Cold.FIRE, PROTECT_FIRE * b.fire); add(Tally.Cold.SHELTER, b.roofCover(b.homeShelter()))
             }
         }
     }
@@ -442,7 +443,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val hazards = arrayListOf(
         Hazard(DeathCause.OTHER, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
-    placeHazards(g, g.place, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.atHome ?: false) { c, a, y -> hazards += Hazard(c, a, y) }
+    placeHazards(g, g.place, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.homeShelter() ?: 0f) { c, a, y -> hazards += Hazard(c, a, y) }
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     // (No beast to blame, none taken: a hazard of none weighs nothing in sharing the deaths, and is left out.)
     hazards.addAll(listOfNotNull(
@@ -612,13 +613,13 @@ internal fun interface HazardSink { fun add(cause: DeathCause, adult: Float, you
 
 /**
  * The week's hazards to [g] that come of the place it is in ([p]) and how it fares there, into [into]: hunger at [fed],
- * the cold past its coat (or clothes, a fire of [fire] and its house if [home]), exposure, thirst at [thirst] and its
+ * the cold past its coat (or clothes, a fire of [fire] and houses sheltering it as far as [home]), exposure, thirst at [thirst] and its
  * kind's everyday sickness at [sick], an outbreak raging there, fire, flood and deep snow, crocodiles at the water
  * and eagles. The one rule for the week's deaths ([liveWeek]) and for those a group foresees
  * at a place it weighs ([HexGroups.deathsAt]).
  */
 internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, sick: Float,
-    fire: Float, home: Boolean, into: HazardSink) {
+    fire: Float, home: Float, into: HazardSink) {
     val s = g.species; val b = g.band; val t = weather.temperature[p]
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
     val hunger = Hazards.hunger(s, g.spent, Hazards.onFat(fed, g.fat, days), days)
@@ -648,7 +649,7 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed
  */
 internal fun HexGroups.foreseenHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, into: HazardSink) {
     val b = g.band
-    placeHazards(g, p, weather, fed, thirst, 0f, b?.let { fireAt(g, it, p) } ?: 0f, b?.let { atHouse(it, p) } ?: false, into)
+    placeHazards(g, p, weather, fed, thirst, 0f, b?.let { fireAt(g, it, p) } ?: 0f, if (b != null) houseAt(g, p) else 0f, into)
 }
 
 /** Vipers and scorpions, out in the warm months: the odds for people at place [p] this week. */

@@ -62,6 +62,10 @@ class HexGroups(
     internal val rnd = Random(seed * 41 + 3)
     internal val seedBase = seed
     val groups = ArrayList<HexGroup>()
+    /** What bands have built that stands in the world ([Structure]): no band's own, any band's to use. */
+    val built = ArrayList<Structure>()
+    /** (Whether a world saved before [built] was kept has had its bands' houses raised in it: see [tendStructures].) */
+    @Transient internal var structuresSeen = false
     internal var nextId = 0
     /**
      * The kinds that live as groups: the hunters other than the residents' ([Catalogue.residentHunters]), and people (plant-eaters
@@ -257,7 +261,7 @@ class HexGroups(
         for (g in groups) if (g.alive) {
             val t = weather.temperature[g.place]
             val b = g.band
-            g.warmth = warmthNeed(g.species, b, t, b?.fire ?: 0f, b?.atHome ?: false, date.month, tuning)
+            g.warmth = warmthNeed(g.species, b, t, b?.fire ?: 0f, b?.homeShelter() ?: 0f, date.month, tuning)
         }
         if (bearings.month != date.month) {
             beastsKg(monthBeastKg, people = false)
@@ -588,8 +592,8 @@ class HexGroups(
         if (pull != 0f) score += APPOINT_PULL * pull
         val dead = g.memory.deadAt(h)
         if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
-        // Its houses draw it home; a camp where someone died lately is shunned by those who leave their dead.
-        if (h == b.houseHex) score += HOME_PULL * b.house
+        // Houses it may use draw it (its own or any left empty); a camp where someone died lately is shunned by those who leave their dead.
+        score += HOME_PULL * housesAt(g, h.i)
         if (h == b.unluckyHex) score -= UNLUCKY
         // It keeps off the known homes of bands it is not close to (unless set on raiding them).
         if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
@@ -847,7 +851,7 @@ class HexGroups(
         // Its ancestors buried here, and how far going here brings it toward its appointment.
         f[Feature.ANCESTORS] = min(1f, g.memory.deadAt(h) / 10f)
         f[Feature.APPOINTMENT] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
-        f[Feature.HOUSES] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
+        f[Feature.HOUSES] = if (g.band != null) housesAt(g, h.i) else 0f
         f[Feature.OWN_SIZE] = ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
         f[Feature.LASTING_WATER] = min(1f, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p])
         f[Feature.SICKNESS] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
@@ -1316,7 +1320,7 @@ class HexGroups(
     internal fun drain(g: HexGroup, p: Place, weather: Weather): Float {
         val s = g.species; val t = weather.temperature[p]
         val b = g.band
-        return warmthNeed(s, b, t, b?.let { fireAt(g, it, p) } ?: 0f, b?.let { atHouse(it, p) } ?: false, weather.date.month, tuning) - 1f + bitten(s, p)
+        return warmthNeed(s, b, t, b?.let { fireAt(g, it, p) } ?: 0f, if (b != null) houseAt(g, p) else 0f, weather.date.month, tuning) - 1f + bitten(s, p)
     }
 
     /**
@@ -1330,8 +1334,8 @@ class HexGroups(
         return lit * hearthShare(woodCover(p), g.size.toFloat() / forageHands(g))
     }
 
-    /** Whether band [b] camped at place [p] would be at its house. */
-    internal fun atHouse(b: Band, p: Place) = b.houseHex.i == hw.placeHex[p] && b.house > 0.05f
+    /** How far [g] camped at place [p] would be sheltered by houses there it may use (0 for none worth the name). */
+    internal fun houseAt(g: HexGroup, p: Place) = housesAt(g, hw.placeHex[p]).takeIf { it > 0.05f } ?: 0f
 
     /**
      * What the biting insects at [p] cost a group of kind [s] this week, as a share of the working time
