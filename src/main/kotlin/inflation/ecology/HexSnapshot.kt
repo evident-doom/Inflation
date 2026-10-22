@@ -178,7 +178,7 @@ object HexSnapshot {
      * A band's houses in a world saved before are raised where they stood.
      * 4.19: a band plans its week's time ([BandTime.plan]): food, firewood, each chore and its leisure ([LEISURE_SHARE]) ask
      * for days, shared out when they come to more than the week; each chore works in the days it was given and what one
-     * leaves is free for those after it. Its food need follows how much of the week it worked ([workNeed]).
+     * leaves is free for those after it; a band short of the week's food gives up leisure to eat.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 19

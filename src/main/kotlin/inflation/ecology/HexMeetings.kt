@@ -227,8 +227,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val hunt = band?.let { b -> huntersShare(b).also { v -> gs.dialUse?.amount(DialSite.HUNTERS_SHARE, b.effort[Food.BIG_GAME.ordinal], v,
         HUNTERS_SHARE.coerceIn(0f, 1f), cut = HUNTERS_SHARE * b.effort[Food.BIG_GAME.ordinal] > 1f) } } ?: 1f
     val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
-    // (Walking costs food, see [walkCost]; so does a band's work beyond its usual, and its rest saves food, see [workNeed].)
-    val wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g)) * (band?.let { workNeed(it.workShare) } ?: 1f)
+    // (Walking costs food, see [walkCost].)
+    val wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.

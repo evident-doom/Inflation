@@ -347,8 +347,6 @@ class Band(kinds: Int) {
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
     var dryAsk = 0f
     var skinAsk = 0f
-    /** The share of its hands' week it worked last week, leisure aside: what its food need is reckoned by ([workNeed]). */
-    var workShare = WORK_USUAL
     /**
      * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small
      * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's. Big game's
@@ -726,8 +724,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val area = land.m2(p)
     // The days its week's plan gives each chore ([planWeek]) go first to caching what it leaves at a camp, then to gathering
     // what it lacks of its materials, then to making and mending; what a chore leaves is free for those after it.
-    val planned = b.week
-    val time = planned ?: BandTime(b.spareDays)
+    val time = b.week ?: BandTime(b.spareDays)
     b.week = null
     campAndCache(g, b, p, h, weather, date, time)
     time.release(Activity.CACHING)
@@ -777,11 +774,9 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // as its time and timber go.
     buildPalisade(g, b, h, people, time)
     b.palisade = if (b.houseHex.none) 0f else palisadeAt(g, b.houseHex.i)
-    // What no chore took is its leisure. (Counted once every chore has had its time.) What it worked sets its food need
-    // next week ([workNeed]).
+    // What no chore took is its leisure. (Counted once every chore has had its time.)
     time.noneBelowZero()
     b.spareDays = time.left
-    if (planned != null && time.total > 0f) b.workShare = (1f - time.left / time.total).coerceIn(0f, 1f)
     time.spend(Activity.LEISURE, time.left)
     time.countEach(stats.hunting)
     time.count(stats.hunting, Tally.TimeTotal.LEFT, time.left)

@@ -104,22 +104,3 @@ class BandTime(left: Float) {
  * daylight hours (Dyble et al. 2019, 359 people in ten camps, sampled 6am to 6pm over two years).
  */
 const val LEISURE_SHARE = 30f / 84f
-
-/** The share of the week Agta adults worked, out of camp and in it (24 and 20 hours of 84 daylight hours; Dyble et al. 2019). */
-const val WORK_USUAL = 44f / 84f
-
-/**
- * Energy a day as a multiple of the basal: Hadza men 2.26, women 1.78 (Pontzer et al. 2012), about 2.0 together; and at
- * rest sitting, 11% above the basal (ibid.).
- */
-const val ACTIVE_PAL = 2.0f
-const val REST_PAL = 1.1f
-
-/**
- * A band's food need against its usual, having worked [workShare] of its week: resting costs [REST_PAL] a day, and the
- * rest of a forager's day's energy ([ACTIVE_PAL]) goes with the work, as much per hour of it, so that a band working as
- * Agta adults did ([WORK_USUAL]) needs what it always did. An upper bound on what work costs and rest saves: leisure is
- * not all sitting, and foragers' total energy use is much as sedentary people's (Pontzer et al. 2012), so the body
- * likely makes up part of a harder week.
- */
-fun workNeed(workShare: Float) = (REST_PAL + (ACTIVE_PAL - REST_PAL) * workShare / WORK_USUAL) / ACTIVE_PAL

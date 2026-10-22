@@ -50,10 +50,4 @@ class BandTimeTest {
         assertEquals(7f, time.leftFor(Activity.FOOD), 1e-3f)
         assertEquals(1f, time.leftFor(Activity.TOOLS), 1e-3f)
     }
-
-    @Test
-    fun `a band working as usual needs what it always did, resting less, working more more`() {
-        assertEquals(1f, workNeed(WORK_USUAL), 1e-5f)
-        assertTrue(workNeed(0f) < 1f && workNeed(1f) > 1f)
-    }
 }
