@@ -198,7 +198,7 @@ object WaysPpo {
         for (c in part) {
             c.x.copyInto(b.a[0])
             val through = mover != null && mb != null && c.plan != null
-            if (through) { c.plan!!.copyInto(mb!!.a[0]); mover!!.net.forward(mb); mb.a[top].copyInto(b.a[0], WAYS_IN) }
+            if (through) { c.plan.copyInto(mb.a[0]); mover.net.forward(mb); mb.a[top].copyInto(b.a[0], WAYS_IN) }
             val mu = ways.net.forwardAll(b)
             var logp = 0f
             for (i in 0 until WAYS_OUT) { val z = (c.a[i] - mu[i]) / exp(ways.logStd[i]); logp += -0.5f * z * z - ways.logStd[i] }
@@ -216,7 +216,7 @@ object WaysPpo {
             if (!through) { ways.net.backwardAll(b, dOut, gradW); continue }
             ways.net.backwardAll(b, dOut, gradW, dIn)
             dIn.copyInto(dTrunk, 0, WAYS_IN)
-            mover!!.net.backwardFrom(top, mb!!, dTrunk, gradM!!)
+            if (gradM != null) mover.net.backwardFrom(top, mb, dTrunk, gradM)
         }
         return Grad(gradW, gradStd, gradM, clippedN)
     }
