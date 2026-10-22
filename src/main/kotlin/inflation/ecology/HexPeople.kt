@@ -24,6 +24,7 @@ import inflation.world.Weather
 import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.sqrt
 import kotlin.math.sin
 
 // What makes bands of people more than a pack: skills learned in practice, tools made from what the
@@ -79,6 +80,13 @@ enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerY
 const val CRAFT_FLOOR = 0.3f
 /** How far one week's use closes the gap to mastery. */
 const val PRACTICE = 0.02f
+/**
+ * Hunting, tracking and stalking are learned over years, not weeks: Kaplan et al. 2000 have Hiwi boys at 16% of the adult
+ * return at 10, 50% at 20 and the peak at 30-35, Ache boys at 25% at 20 and the peak in the mid-30s. At complexity 1.5 this is
+ * about 0.0015 of the gap a week: half way in about 9 years of weekly practice, 90% in about 29. A guess between the two
+ * curves (adults relearning plausibly go faster than the boys of the record); Olli's call. Forgetting slows in step.
+ */
+const val HUNTING_PRACTICE = 0.0022f
 /** Raw materials a band carries, kg per adult of each kind. */
 const val GOODS_PER_PERSON = 20f
 /** Hunting success of a band without spears, against one with them; what bows add against fast quarry. */
@@ -108,12 +116,56 @@ internal fun huntersShare(band: Band) = (HUNTERS_SHARE * band.effort[Food.BIG_GA
 const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */
 const val GATHER_SHARE = 0.5f
-/** Degrees of cold that full clothes take off, against the half-clothed bands start with. */
-const val CLOTHES_C = 10f
+/**
+ * The insulation of a whole kit of furs and hides sewn by a master, clo: half of a heavy modern cold-weather ensemble's
+ * about 3 clo, since hides wrapped and sewn by hand leave gaps at the neck, wrists and feet and lack layered underwear,
+ * hoods, mittens and boots (a judgement, Olli 2026-10-22; no measured clo of skin clothing was found: the Inuit's tailored
+ * caribou-skin outfits held skin warmth as well as modern expedition clothing, Climate Research 5: 83-90, 1995, and Hill
+ * et al. 2020, Arctic 73(1), but those are the most refined skin clothing known). Bands start with half a kit, sewn by
+ * novices: about 0.5 clo.
+ */
+const val CLOTHES_CLO = 1.5f
 /** Yearly chance a band hits on a tool it does not know, where it has use for it; chance a band that meets one that knows a tool learns it. */
 const val INVENT = 0.002f
 const val TEACH = 0.2f
-/** What an adult carries when the camp moves, besides children and gear, kg of food. */
+/**
+ * Moving camp: an unloaded adult's walking pace over rough ground, km/h (on roads people walk about 5); a walking child's
+ * pace against an adult's, as the square root of its leg length (Froude scaling; legs about 0.55 an adult's at six
+ * years); hours a band walks in a day of moving camp (an estimate: no source found).
+ */
+const val WALK_KMH = 4f
+const val CHILD_PACE = 0.74f
+const val MOVE_HOURS = 6f
+/**
+ * Weeks a band expects to keep a camp before it has kept any (foragers moved camp some 5 to 60 times a year, Kelly 1995,
+ * from memory: about 4 weeks a camp near the middle), and the share of the gap each move closes in its running mean.
+ */
+const val STAY_WEEKS_START = 4f
+const val STAY_LEARN = 0.2f
+/** Km of a week's camp move at which the ways' input for it ([BandInputs.MOVE_KM]) is half way to 1. */
+const val MOVE_KM_HALF = 20f
+
+/** Share of [g]'s people who hold it back on the move: the old, the hurt and lamed, the sick. */
+internal fun weakShare(g: HexGroup) = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
+
+/**
+ * Km [g]'s band covers in a day of moving camp: at the pace of its slowest, its adults under their loads ([carriedKg],
+ * [loadedKmh]) or its walking children if it has any, held back by its weak ([weakShare]) and by thick cover where it camps.
+ */
+internal fun HexGroups.campKmADay(g: HexGroup): Float {
+    val b = g.band
+    val adults = if (b != null) loadedKmh(g.species.massKg, carriedKg(g, b)) else WALK_KMH
+    return MOVE_HOURS * min(adults, if (g.young > 0) CHILD_PACE * WALK_KMH else adults) * (1f - WEAK_SLOW * weakShare(g)) /
+        (1f + COVER_GOING * land.plants.cover(g.place))
+}
+
+/** Days [g]'s band takes to move its camp [km], all its people walking (and its adults back for each load past the first): they are not at work. */
+internal fun HexGroups.moveDays(g: HexGroup, km: Float) = km * (g.band?.let { relayWalks(it) } ?: 1f) / campKmADay(g)
+
+/**
+ * What an adult carries in a load when the camp moves, food and goods together, kg: !Kung women carried about 15 kg
+ * besides a child (Lee 1979, from memory: to check).
+ */
 const val CARRY_KG = 15f
 /** Most that settled life with stores raises births (birth spacing about 4 years to under 3). */
 const val SETTLED_FERTILITY = 0.4f
@@ -158,6 +210,8 @@ class Band(kinds: Int) {
      */
     var hurt = 0f
     var lame = 0f
+    /** For the training of its ways: what bound in the season its recorded draw covers (see [Binding]); null where none is recorded. */
+    @Transient var binding: FloatArray? = null
     /** Share of the work its customs ask that it got done last week: a clean camp ([Tradition.HYGIENE]), the sick and hurt nursed ([Tradition.MEDICINE]). */
     var cleaned = 1f
     var nursed = 1f
@@ -189,6 +243,25 @@ class Band(kinds: Int) {
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0
+    /** Weeks it has lately kept a camp before moving on, a running mean ([STAY_LEARN]): over how long a move pays back its walk. */
+    var stayWeeks = STAY_WEEKS_START
+    /**
+     * What a whole house would have been worth to it where it was, a person a year, as it lived its weeks (a running mean over
+     * about a year, [houseWorthWeek]): the lives it would have saved (cold, exposure, raids) and the food, kg of need (keeping
+     * warm, stores kept from spoiling, less to raiders, less to mice taken off). What a band weighs a house by.
+     */
+    var houseLives = 0f
+    var houseFood = 0f
+    /** This week's share of them so far, not yet a person's: lives and kg ([houseWorthWeek]). */
+    var houseLivesWeek = 0f
+    var houseFoodWeek = 0f
+    /** Its food over about a year by where it came from ([FoodFrom]), kg a person a day (a running mean, [HexGroups.recordFood]). */
+    val foodFrom = FloatArray(FoodFrom.entries.size)
+    /**
+     * Over about a year, how its fishing paid against the least paying food its gatherers took up, as fish's yield a day of
+     * handling over itself and that least yield: above 1/2 fish was worth taking up, 0 no fish in reach ([Offers.pull]).
+     */
+    var fishPull = 0f
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()
@@ -213,6 +286,12 @@ class Band(kinds: Int) {
      */
     var houseHex = Hex.NONE
     var house = 0f
+    /**
+     * At home: how far its houses' sunken walls bring the ground's warmth in ([earthGain], over the houses that shelter it), and
+     * the ground's warmth there, the year's mean air temperature, °C. They keep it warmer in the cold the deeper they are sunk.
+     */
+    var homeEarth = 0f
+    var homeGroundC = 0f
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Int>()
     val knownLineage = HashMap<Int, Int>()
@@ -342,6 +421,11 @@ class Band(kinds: Int) {
     val repayWill get() = will[BandWay.REPAYING]
     /** Person-days its people had to spare this week, after getting and keeping food. */
     var spareDays = 0f
+    /** Its week's time, as planned when it foraged ([BandTime]; null till then, and once the week's chores are done). */
+    @Transient var week: BandTime? = null
+    /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
+    var dryAsk = 0f
+    var skinAsk = 0f
     /**
      * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small
      * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's. Big game's
@@ -435,7 +519,8 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
+        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull
         o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
@@ -567,12 +652,14 @@ class Band(kinds: Int) {
     }
     /**
      * How far a band can practise [s] with the tools it has: a hunter without spear or bow, a fisher
-     * without lines and nets, a cook without tight baskets learns little of the craft (a little, at
-     * best, by watching and making do).
+     * without a fish spear, traps or nets, a snarer without cords or a bow for birds, a cook without
+     * tight baskets learns little of the craft (a little, at best, by watching and making do). (Fish are
+     * speared and trapped in baskets and weirs as well as netted; shellfish want no tools at all.)
      */
     fun toolsFor(s: Skill) = when (s) {
         Skill.HUNT, Skill.STALK -> max(TOOLLESS, max(has(Tool.SPEAR), has(Tool.BOW)))
-        Skill.SMALL_GAME, Skill.FISH -> max(TOOLLESS, has(Tool.NET))
+        Skill.FISH -> max(TOOLLESS, max(has(Tool.NET), max(has(Tool.SPEAR), has(Tool.BASKET))))
+        Skill.SMALL_GAME -> max(TOOLLESS, max(has(Tool.NET), has(Tool.BOW)))
         Skill.STONE_BOILING, Skill.LEACHING -> max(TOOLLESS, has(Tool.BASKET))
         else -> 1f
     }
@@ -617,28 +704,21 @@ class Band(kinds: Int) {
     fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.ref) / skill(s)
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
-    /** How well its clothes keep out the cold against a start band's (sewn to fit by skilled hands, better). */
-    fun clothesFit() = skill(Skill.SEWING) / (Skill.SEWING.floor + (1f - Skill.SEWING.floor) * Skill.SEWING.start)
-    /** Temperature as the band feels it at [t] °C: clothes take the edge off the cold. */
-    fun feels(t: Float) = feels(t, fire, atHome)
-    /** [feels] with a fire of [fire] and at its house or not ([home]): as it would camped elsewhere. */
-    fun feels(t: Float, fire: Float, home: Boolean) =
-        if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire +
-            max(SHELTER_C * shelter, if (home) HOUSE_C * house else 0f)) else t
-
+    /** The insulation of the clothes its people wear by day, clo: a whole kit at [CLOTHES_CLO], as well sewn as its hands sew. */
+    fun clothesClo() = CLOTHES_CLO * has(Tool.CLOTHES) * skill(Skill.SEWING)
+    /** How far houses shelter it where it is: its home's, at home. */
+    fun homeShelter() = if (atHome) house else 0f
+    /** How much warmer than [t] °C outside its houses keep: by their hearths and the people in them, and the ground's warmth through sunken walls. */
+    fun houseWarmC(t: Float) = HOUSE_C + homeEarth * max(0f, homeGroundC - t)
+    /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]). */
+    fun cover(t: Float, fire: Float, home: Float) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t))
     /**
-     * How far below what people can bear the cold at [t] °C (the week's mean) takes the band, °C: full
-     * fur clothes, a fire and a shelter or house keep people alive in deep cold; the naked die of
-     * exposure in a night of a few degrees above freezing, wet and windy.
+     * Its week of [days] in [air] with a fire of [fire] and houses sheltering it as far as [home], by its people's body heat
+     * ([BodyHeat]): the food keeping warm takes, and the deaths of exposure. Fur clothes, robes at night, a fire, a shelter
+     * with its bedding or a house keep people alive in deep cold; the naked die of exposure in a night a few degrees above
+     * freezing, wet and windy.
      */
-    fun exposure(t: Float) = exposure(t, fire, atHome)
-    /** [exposure] with a fire of [fire] and at its house or not ([home]). */
-    fun exposure(t: Float, fire: Float, home: Boolean) =
-        (EXPOSURE_C - t - clothesCover() - PROTECT_FIRE * fire - roofCover(home)).coerceAtLeast(0f)
-    /** The cold its clothes keep off ([exposure]), °C. */
-    fun clothesCover() = PROTECT_CLOTHES * has(Tool.CLOTHES) * clothesFit()
-    /** The cold its shelter, or its house if at home ([home]), keeps off ([exposure]), °C. */
-    fun roofCover(home: Boolean) = max(PROTECT_SHELTER * shelter, if (home) PROTECT_HOUSE * house else 0f)
+    fun warmth(air: Air, fire: Float, home: Float, days: Int) = BodyHeat.week(air, cover(air.meanC, fire, home), days)
 
     companion object {
         /**
@@ -669,20 +749,32 @@ class Band(kinds: Int) {
 
 }
 
+/** Where a band's food came from, as [Band.foodFrom] counts it. */
+enum class FoodFrom(val label: String) { PLANTS("plants"), SMALL_GAME("small game"), FISH("fish"), BIG_GAME("big game"), CARRION("carrion") }
+
 /** At any camp a band first puts up brush shelters, quickly (and leaves them when it moves on). */
 private fun putUpShelter(b: Band, people: Float, time: BandTime) {
     if (b.campWeeks == 0) b.shelter = 0f
-    // (A debris hut takes a novice an afternoon, the practised an hour.)
-    val shelterDays = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
-    // (Above the default it builds sturdier: thatched thicker and banked with earth, warmer as it took longer.)
-    val shelterAim = b.shelterWill
-    if (b.shelter < shelterAim && time.left > 0f && people > 0f) {
-        val built = min(shelterAim - b.shelter, time.left / shelterDays)
+    val shelterDays = shelterDays(b, people)
+    val lack = shelterLack(b, moved = false)
+    val left = time.leftFor(Activity.SHELTER)
+    if (lack > 0f && left > 0f && people > 0f) {
+        val built = min(lack, left / shelterDays)
         b.shelter += built
         time.spend(Activity.SHELTER, built * shelterDays)
         b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
     }
+    time.release(Activity.SHELTER)
 }
+
+/** Person-days [b]'s [people] take to put up whole shelters. (A debris hut takes a novice an afternoon, the practised an hour.) */
+private fun shelterDays(b: Band, people: Float) = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
+
+/**
+ * What [b] lacks of the shelter it aims at: none stands at a camp it has just come to ([moved]). (Above the default it
+ * builds sturdier: thatched thicker and banked with earth, warmer as it took longer.)
+ */
+private fun shelterLack(b: Band, moved: Boolean) = max(0f, b.shelterWill - if (moved) 0f else b.shelter)
 
 /** A fire through the night burns wood: where there is little, the night goes dark. Returns the wood burnt, kg. */
 private fun burnNightFire(b: Band, people: Float): Float {
@@ -706,14 +798,17 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val p = g.place
     val h = hw.hexOf(p)
     val area = land.m2(p)
-    // The time the band has to spare goes first to caching what it leaves at a camp, then to gathering what it lacks of
-    // its materials, then to making and mending.
-    val time = BandTime(b.spareDays)
+    // The days its week's plan gives each chore ([planWeek]) go first to caching what it leaves at a camp, then to gathering
+    // what it lacks of its materials, then to making and mending; what a chore leaves is free for those after it.
+    val time = b.week ?: BandTime(b.spareDays)
+    b.week = null
     campAndCache(g, b, p, h, weather, date, time)
+    time.release(Activity.CACHING)
     keepAnimals(g, b)
     keepHerds(g, b, date)
     val people = g.adults.toFloat()
     gatherMaterials(g, b, p, h, people, area, time)
+    time.release(Activity.MATERIALS)
     val living0 = b.livingGoods()
     wearAndInvent(b, years)
     // Making and mending takes the time still to spare, the tools it ranks first first (the
@@ -722,7 +817,9 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     putUpShelter(b, people, time)
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
+    time.release(Activity.TRAINING)
     makeTools(b, people, time)
+    time.release(Activity.TOOLS)
     b.renown *= 1f - RENOWN_FADE * years
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > 1) Unlucky(u.hex, u.weeks - 1) else null }
     b.sinceRaided++
@@ -735,21 +832,32 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
-    buildHouse(g, b, p, h, people, years, time)
+    useStructures(g, h.i)
+    buildHouse(g, b, p, h, people, time)
+    time.release(Activity.HOUSES)
+    // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
+    if (housesAt(g, h.i) > 0.05f) b.houseHex = h
+    b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex.i)
     b.atHome = b.houseHex == h && b.house > 0.05f
+    b.homeEarth = if (b.atHome) earthAt(g, h.i) else 0f
+    b.homeGroundC = if (b.atHome) (0 until Date.MONTHS_PER_YEAR).sumOf { weather.usualTemperature(it, p).toDouble() }.toFloat() / Date.MONTHS_PER_YEAR else 0f
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
     makeOrnaments(b, people, time)
+    time.release(Activity.ORNAMENTS)
     // In autumn a band at home, or long at its camp, sows a share of its stored grain there: a plot that ripens
     // next summer to several times as much, of the kind of ears it sowed.
     sowGrain(g, b, p, date, time)
+    time.release(Activity.SOWING)
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
     // as its time and timber go.
-    buildPalisade(b, people, time)
-    if (!b.houseHex.none && b.houseHex != h) b.palisade = max(0f, b.palisade - HOUSE_DECAY * years)
-    // Counted once every chore has had its time, so that what the census shows as left is what is left.
+    buildPalisade(g, b, h, people, time)
+    b.palisade = if (b.houseHex.none) 0f else palisadeAt(g, b.houseHex.i)
+    // What no chore took is its leisure. (Counted once every chore has had its time.)
+    time.noneBelowZero()
+    b.spareDays = time.left
+    time.spend(Activity.LEISURE, time.left)
     time.countEach(stats.hunting)
     time.count(stats.hunting, Tally.TimeTotal.LEFT, time.left)
-    b.spareDays = max(0f, time.left)
     // (The wood burnt through the night goes to the air; what went into tools, houses, palisades and ornaments
     // is not kept as matter, and they do not go back to the ground as they wear: a known leak.)
     land.books?.let { bk ->
@@ -764,6 +872,33 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Teaching the young keeps the teachers practised; the songs and stories are kept up where the band holds to them.
     if (g.young > 0) b.practise(Skill.SHOWING, 0.08f * PRACTICE)
     b.practise(Skill.LORE, (if (b.holds(Tradition.ORAL_TRADITION)) 0.08f else 0.03f) * PRACTICE)
+}
+
+/**
+ * The person-days [g]'s band [b] would like this week for each of its chores ([BandTime.plan]), into [asks]: each worked
+ * out by the chore's own rules, as things stand when it plans (it moved camp, if it did, but has not yet foraged).
+ * Drying and skinning follow the catch, so they ask what they would have liked last week.
+ */
+internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatArray) {
+    val p = g.place; val h = hw.hexOf(p); val people = g.adults.toFloat()
+    val moved = b.campPlace.none || h != hw.hexOf(b.campPlace)
+    fun ask(a: Activity, days: Float) { asks[a.ordinal] = if (days.isFinite()) max(0f, days) else 0f }
+    if (moved && !b.campPlace.none) ask(Activity.CACHING, min(1f, b.cacheWill) * leftBehindKg(g, b) * cacheCare(b) / CACHE_KG_A_DAY)
+    ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null))
+    ask(Activity.SHELTER, shelterLack(b, moved) * shelterDays(b, people))
+    ask(Activity.CUSTOMS, cleanDays(b, people) + nurseDays(b, people))
+    ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
+    ask(Activity.TOOLS, makeTools(b, people, null))
+    ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS)
+    // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
+    if (!moved) {
+        ask(Activity.HOUSES, buildHouse(g, b, p, h, people, null))
+        if (canSow(g, b, p, date)) ask(Activity.SOWING, g.stores[Store.SEED] * SOW_SHARE * b.sowWill * SOW_DAYS_PER_KG)
+        if (fortifies(b)) ask(Activity.PALISADE,
+            minOf(1f - palisadeAt(g, h.i), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS * people)
+    }
+    ask(Activity.DRYING, b.dryAsk)
+    ask(Activity.SKINS, b.skinAsk)
 }
 
 /** The country [g]'s band comes to know this week: what it walks, and what it sees round about from the high points on its way, its scouts further still. */
@@ -797,8 +932,52 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
  */
 internal fun cacheCare(b: Band) = max(1f, b.cacheWill)
 
-/** What [g]'s band can carry, kg: its adults' loads, more with baskets and bags. */
+/**
+ * The kg of [m] [b]'s [people] take along first on a camp move: what mending the tools they know and take along needs
+ * over the weeks they keep a camp ([Band.stayWeeks]), as each wears ([Tool.wearPerYear]); and of the materials found only
+ * where they crop out (good stone, salt, ochre), what they keep of them ([KEEP_YEARS] of [YEAR_NEED]), since what is left
+ * behind is not to be had again on the way.
+ */
+private fun HexGroups.mendingKg(b: Band, m: Material, people: Float) =
+    people * (b.stayWeeks / stepsPerYear * Tool.entries.sumOf { t -> if (b.knows[t] && !t.heavy) ((t.recipe[m] ?: 0f) * t.wearPerYear).toDouble() else 0.0 }.toFloat() +
+        KEEP_YEARS * YEAR_NEED[m])
+
+/** The kg of goods [g]'s band [b] takes along on a camp move before its food: what it has of what it takes first ([mendingKg]). */
+private fun HexGroups.mendingStockKg(g: HexGroup, b: Band) = Material.entries.sumOf { m -> min(b.goods[m], mendingKg(b, m, g.adults.toFloat())).toDouble() }.toFloat()
+
+/** The kg of its stores [g]'s band [b] cannot carry in its loads ([carryKg], [carryLoads]) beside its mending stock: what it caches or leaves when it moves camp. */
+private fun HexGroups.leftBehindKg(g: HexGroup, b: Band): Float {
+    val total = g.larder
+    val carry = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
+    if (total <= carry) return 0f
+    val left = 1f - carry / total
+    return Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
+}
+
+/** What [g]'s band can carry in one load, kg: its adults' loads, more with baskets and bags. */
 private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
+
+/**
+ * Loads of [carryKg] each of [b]'s adults takes on a camp move, its choice ([BandWay.CARRY_LOADS]): under one, a lighter
+ * load and a faster walk; above one, they carry a load ahead, go back for the next and so on (relays).
+ */
+internal fun carryLoads(b: Band) = b.will[BandWay.CARRY_LOADS]
+
+/** Times [b]'s adults walk the way of a camp move: once, and there and back again for each load past the first. */
+internal fun relayWalks(b: Band) = 1f + 2f * max(0f, carryLoads(b) - 1f)
+
+/** What [g]'s band [b] carries a walker on each leg of a camp move, kg: its food first, then its goods, as far as its loads take them. */
+internal fun carriedKg(g: HexGroup, b: Band) = min(g.larder + b.goods.sum(), carryKg(g, b) * carryLoads(b)) / (max(1, g.adults) * max(1f, carryLoads(b)))
+
+/**
+ * Walking pace of an adult carrying [loadKg], km/h: as fast as costs the same effort as walking unloaded ([WALK_KMH]),
+ * by Pandolf et al. (1977) on level ground, for a body of [massKg] (W): 1.5 W + 2 (W + L) (L / W)^2 + 1.5 (W + L) v^2.
+ */
+internal fun loadedKmh(massKg: Float, loadKg: Float): Float {
+    val v0 = WALK_KMH / 3.6f
+    val wl = massKg + loadKg
+    return 3.6f * sqrt(max(0f, (1.5f * massKg * v0 * v0 - 2f * wl * (loadKg / massKg) * (loadKg / massKg)) / (1.5f * wl)))
+}
 
 /**
  * [g]'s band at its camp in place [p] (hex [h]): moving camp caches what it cannot carry and leaves
@@ -810,17 +989,19 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
         if (!b.campPlace.none) {
-            val carry = carryKg(g, b)
+            // (Some goods are taken first: see [mendingKg].)
+            val carry = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
+            dialUse?.amount(DialSite.CARRY_LOADS, carryLoads(b), carryKg(g, b) * carryLoads(b), carryKg(g, b))
             val total = g.larder
             if (total > carry) {
                 // (It chooses how much of what it cannot carry to cache, as far as its time to dig and cover the pits goes;
                 // the rest is left where it lies. Above the default it caches all of it with more care, see [cacheCare]:
                 // the pits deeper and better hidden, at as much more time for each kg.)
                 val left = 1f - carry / total
-                val leftKg = Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
+                val leftKg = leftBehindKg(g, b)
                 val care = cacheCare(b)
                 fun cachedAt(will: Float, care: Float) =
-                    min(min(1f, will), if (leftKg > 0f) max(0f, time.left) * CACHE_KG_A_DAY / care / leftKg else 0f)
+                    min(min(1f, will), if (leftKg > 0f) time.leftFor(Activity.CACHING) * CACHE_KG_A_DAY / care / leftKg else 0f)
                 val cached = cachedAt(b.cacheWill, care)
                 dialUse?.amount(DialSite.CACHING, b.cacheWill, cached * care, cachedAt(1f, 1f))
                 time.spend(Activity.CACHING, cached * leftKg * care / CACHE_KG_A_DAY)
@@ -836,6 +1017,18 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
                 if (abandoned > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(abandoned))
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
+            b.stayWeeks += STAY_LEARN * (b.campWeeks + 1 - b.stayWeeks)
+            // Its goods: what it takes first ([mendingKg]), then the rest in what room its loads have left after the food, each
+            // kind alike; what does not fit is left at the old camp (and goes back to the ground).
+            val people = g.adults.toFloat()
+            val spare = Material.entries.sumOf { m -> max(0f, b.goods[m] - mendingKg(b, m, people)).toDouble() }.toFloat()
+            val room = max(0f, carry - g.larder)
+            if (spare > room) {
+                val left = 1f - room / spare
+                var rots = 0f
+                for (m in Material.entries) { val x = max(0f, b.goods[m] - mendingKg(b, m, people)) * left; b.goods[m] -= x; if (m in ROTS) rots += x }
+                if (rots > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(rots))
+            }
         }
         b.campWeeks = 0
     } else b.campWeeks++
@@ -877,15 +1070,20 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
 /**
  * What [g]'s band gathers of its materials in a week, into its goods: what the country gives along the way, as far as the
  * band lacks it (up to what it carries, [carried]) and as far as the [time] it has to spare goes, each material at its
- * own rate of gathering.
+ * own rate of gathering. With no [time] it gathers nothing, and returns the person-days it would have liked (else 0).
  */
-private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime) {
+@IgnorableReturnValue
+private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime?): Float {
     val gd = b.goods
+    var asked = 0f
     /** Takes up to [give] kg of [m], as far as the band lacks it and has the time at [perDay] kg a person-day; returns what it took. */
     @IgnorableReturnValue fun gather(m: Material, give: Float, perDay: Float): Float {
         val want = min(give, carried(b, m, people) - gd[m])
-        if (want <= 0f || time.left <= 0f) return 0f
-        val took = min(want, time.left * perDay)
+        if (want <= 0f || perDay <= 0f) return 0f
+        if (time == null) { asked += want / perDay; return 0f }
+        val left = time.leftFor(Activity.MATERIALS)
+        if (left <= 0f) return 0f
+        val took = min(want, left * perDay)
         gd[m] += took; time.spend(Activity.MATERIALS, took / perDay)
         return took
     }
@@ -908,21 +1106,22 @@ private fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, pe
         val cover = min(1f, woody / 3f)
         val wood = gd[Material.WOOD]
         val took = gather(Material.WOOD, Float.MAX_VALUE, FUEL_A_DAY * cover)
-        gd[Material.WOOD] = wood + land.plants.consume(p, LifeForm.TREE, Kg(took * tree / woody).perM2(m2)).over(m2).v +
+        if (took > 0f) gd[Material.WOOD] = wood + land.plants.consume(p, LifeForm.TREE, Kg(took * tree / woody).perM2(m2)).over(m2).v +
             land.plants.consume(p, LifeForm.SHRUB, Kg(took * shrub / woody).perM2(m2)).over(m2).v
     }
     val resin = gather(Material.RESIN, 0.05f * people * min(1f, tree / 3f), RESIN_A_DAY)
-    land.books?.leak(Books.Stuff.MATTER, "resin, not taken from the trees", resin.toDouble())
+    if (resin > 0f) land.books?.leak(Books.Stuff.MATTER, "resin, not taken from the trees", resin.toDouble())
     // (Reeds and rushes in a marsh give the best fibre of all.)
     val green = herb + shrub
     if (green > 0f) {
         val fibre = gd[Material.FIBRE]
         val took = gather(Material.FIBRE, people * min(1f, (herb + shrub) / 0.5f + 2f * land.waterlogged[p]), FIBRE_A_DAY)
-        gd[Material.FIBRE] = fibre + land.plants.consume(p, LifeForm.HERB, Kg(took * herb / green).perM2(m2)).over(m2).v +
+        if (took > 0f) gd[Material.FIBRE] = fibre + land.plants.consume(p, LifeForm.HERB, Kg(took * herb / green).perM2(m2)).over(m2).v +
             land.plants.consume(p, LifeForm.SHRUB, Kg(took * shrub / green).perM2(m2)).over(m2).v
     }
     // Shells on the shore, for beads.
     if (hw.coast[h]) gather(Material.SHELL, SHELL_A_WEEK * people, SHELL_A_DAY)
+    return asked
 }
 
 /**
@@ -943,23 +1142,30 @@ internal fun HexGroups.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerYe
 /**
  * The hearth's firewood for the week, fetched by [hands] before they forage: dead wood from the trees and scrub
  * round the camp, quick to gather where they are thick and slow where they are few, for everyone in the band.
- * A band goes without rather than give more than [FUEL_MOST] of its days to it. Returns the days it took.
+ * A band goes without rather than give more than [FUEL_MOST] of its days to it, and fetches only the [share] of that its
+ * week's plan gives it ([planWeek]). Returns the days it took.
  */
-internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int): Float {
+internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int, share: Float = 1f): Float {
     val p = g.place
     val want = HEARTH_WOOD * days * g.size
     val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]
     val cover = woodCover(p)
     if (want <= 0f || cover <= 0f) { b.hearthWood = if (want <= 0f) 1f else 0f; return 0f }
     val perHand = g.size.toFloat() / hands
-    val spent = fuelShare(cover, perHand) * days
-    b.hearthWood = hearthShare(cover, perHand)
+    val spent = fuelShare(cover, perHand) * days * share
+    b.hearthWood = hearthShare(cover, perHand) * share
     val got = b.hearthWood * want
     val m2 = land.m2(p)
     val burnt = land.plants.consume(p, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2)).v +
         land.plants.consume(p, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2)).v
     land.books?.flow(Books.Stuff.MATTER, "burnt", -burnt * m2.toDouble())
     return spent
+}
+
+/** The person-days [g]'s [hands] would give the hearth's firewood this week ([fetchFuel] with all it asks). */
+internal fun HexGroups.fuelAsk(g: HexGroup, hands: Int): Float {
+    val cover = woodCover(g.place)
+    return if (HEARTH_WOOD * g.size <= 0f || cover <= 0f) 0f else fuelShare(cover, g.size.toFloat() / hands) * days * hands
 }
 
 /** How thickly dead wood lies about place [p], 0 (none) to 1 (trees or scrub thick enough to fetch [FUEL_A_DAY] a person-day). */
@@ -977,12 +1183,14 @@ internal fun hearthShare(cover: Float, perHand: Float) =
     if (perHand <= 0f) 1f else if (cover <= 0f) 0f else min(1f, fuelShare(cover, perHand) * FUEL_A_DAY * cover / (HEARTH_WOOD * perHand))
 
 /**
- * What keeping warm takes of group [g]'s week's need at [t] °C in [month], with band [b]'s fire [fire] and at its house
- * or not ([home]): more in the cold it feels through its clothes, fire and shelter, and more again for raw meals where
- * there is no fire ([RAW_COST]). The week's own ([HexGroup.warmth]) and a place weighed ahead ([HexGroups.drain]) alike.
+ * What keeping warm takes of a group of kind [s]'s week's need at place [p], at [t] °C (the week's own unless given): an
+ * animal's by the cold it feels through its coat ([coldNeed]); band [b]'s by its people's body heat ([Band.warmth]) with a
+ * fire of [fire] and at its house or not ([home]), and more again for raw meals where there is no fire ([RAW_COST]). The
+ * week's own ([HexGroup.warmth]) and a place weighed ahead ([HexGroups.drain]) alike.
  */
-internal fun warmthNeed(s: Species, b: Band?, t: Float, fire: Float, home: Boolean, month: Int, tuning: Tuning) =
-    if (b == null) coldNeed(s, t, month, tuning) else coldNeed(s, b.feels(t, fire, home), month, tuning) * (1f + RAW_COST * (1f - fire))
+internal fun HexGroups.warmthNeed(s: Species, b: Band?, p: Place, weather: Weather, fire: Float, home: Float, t: Float = weather.temperature[p]) =
+    if (b == null) coldNeed(s, t, weather.date.month, tuning)
+    else (1f + tuning.coldCost * b.warmth(airAt(p, weather, t), fire, home, days).extra) * (1f + RAW_COST * (1f - fire))
 
 /**
  * The work [b]'s customs ask of it this week, from [time] (person-days) after the firewood: keeping the camp clean
@@ -990,15 +1198,22 @@ internal fun warmthNeed(s: Species, b: Band?, t: Float, fire: Float, home: Boole
  * goes, and helps only as far as it was done.
  */
 private fun HexGroups.keepCustoms(b: Band, people: Float, time: BandTime) {
-    val clean = if (b.holds(Tradition.HYGIENE)) HYGIENE_DAYS * people * days else 0f
-    b.cleaned = if (clean > 0f) min(1f, time.left / clean) else 1f
+    val clean = cleanDays(b, people)
+    b.cleaned = if (clean > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / clean) else 1f
     time.spend(Activity.CUSTOMS, b.cleaned * clean)
-    val patients = people * (b.hurt + b.sick.sum()).coerceAtMost(1f)
-    val nurse = if (b.holds(Tradition.MEDICINE)) NURSE_DAYS * patients * days else 0f
-    b.nursed = if (nurse > 0f) min(1f, time.left / nurse) else 1f
+    val nurse = nurseDays(b, people)
+    b.nursed = if (nurse > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / nurse) else 1f
     time.spend(Activity.CUSTOMS, b.nursed * nurse)
     time.noneBelowZero()
+    time.release(Activity.CUSTOMS)
 }
+
+/** Person-days [b]'s [people] give a week to keeping clean, if it holds to it. */
+private fun HexGroups.cleanDays(b: Band, people: Float) = if (b.holds(Tradition.HYGIENE)) HYGIENE_DAYS * people * days else 0f
+
+/** Person-days [b] gives a week to nursing its sick and hurt among its [people], if it holds to it. */
+private fun HexGroups.nurseDays(b: Band, people: Float) =
+    if (b.holds(Tradition.MEDICINE)) NURSE_DAYS * people * (b.hurt + b.sick.sum()).coerceAtMost(1f) * days else 0f
 
 /** [b]'s tools wear out in use (slowly lying idle); a band with a use for a tool or practised at a kind of work now and then hits on a new one. */
 private fun HexGroups.wearAndInvent(b: Band, years: Float) {
@@ -1027,23 +1242,27 @@ private fun HexGroups.wearAndInvent(b: Band, years: Float) {
 
 /**
  * Making and mending in the [time] days [b] has to spare: the tools it ranks first first (the
- * scaffold: the most worn), each as far as the time, the scarcest material and the skill allow.
+ * scaffold: the most worn), each as far as the time, the scarcest material and the skill allow. With no [time] it makes
+ * nothing, and returns the person-days it would have liked (else 0).
  */
-private fun HexGroups.makeTools(b: Band, people: Float, time: BandTime) {
-    val gd = b.goods
+@IgnorableReturnValue
+private fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?): Float {
+    val gd = if (time == null) b.goods.copyOf() else b.goods
+    var asked = 0f
     val order = Tool.entries.filter { b.knows[it] && b.kit[it] < 1f }.sortedByDescending { b.makeFirst[it] * (1f - b.kit[it]) }
-    dialUse?.let { u -> if (order.size > 1) {
+    if (time != null) dialUse?.let { u -> if (order.size > 1) {
         val order1 = Tool.entries.filter { b.knows[it] && b.kit[it] < 1f }.sortedByDescending { 1f - b.kit[it] }
         // (Counted under the tool it put first: whether the order differs from the scaffold's, most worn first.)
         u.choice(DialSite.MAKE_FIRST, b.makeFirst[order[0]], order != order1, false, dial = MAKE_FIRST_SLOT + order[0].ordinal)
     } }
     for (t in order) {
-        if (time.left <= 0f || people <= 0f) break
+        val left = time?.leftFor(Activity.TOOLS) ?: Float.MAX_VALUE
+        if (left <= 0f || people <= 0f) break
         val way = b.makeWay(t)
         val daysEach = t.makeDays * people / b.makeSkill(t) // for a whole band's kit
         // (Blades get several times the edge out of a kilo of flint.)
         val stoneUse = if (way == Skill.BLADES || way == Skill.MICROLITHS) BLADE_STONE else 1f
-        var can = min(1f - b.kit[t], time.left / daysEach)
+        var can = min(1f - b.kit[t], left / daysEach)
         fun use(m: Material) = if (m == Material.STONE) stoneUse else 1f
         // (Stone lacking is made up from whatever stone is at hand, and the tool is the poorer
         // for it; clothes are tanned with ochre as far as it goes.)
@@ -1051,6 +1270,7 @@ private fun HexGroups.makeTools(b: Band, people: Float, time: BandTime) {
         for ((m, perPerson) in t.recipe) if (m != made) can = min(can, gd[m] / max(1e-3f, perPerson * use(m) * people))
         if (can <= 0f) continue
         for ((m, perPerson) in t.recipe) if (m != made) gd[m] = max(0f, gd[m] - can * perPerson * use(m) * people)
+        if (time == null) { asked += can * daysEach; continue }
         if (made != null) {
             val want = can * (t.recipe[made] ?: TAN_OCHRE) * use(made) * people
             val good = if (want > 0f) min(1f, gd[made] / want) else 1f
@@ -1064,53 +1284,65 @@ private fun HexGroups.makeTools(b: Band, people: Float, time: BandTime) {
         if (t == Tool.CLOTHES) { b.practise(Skill.SEWING); b.practise(Skill.BONE_TOOLS) }
         if (t.hafted) b.practise(Skill.GLUING)
     }
+    return asked
 }
 
 /**
- * Houses: [g]'s band, having kept its camp a while, builds stone-footed houses there with the
- * [time] days to spare, as far as its stone and timber go; houses it has left weather away.
+ * Houses: [g]'s band, having kept its camp a while, builds stone-footed houses there with the [time] days to spare, as
+ * far as its stone and timber go: houses for those of its [people] the houses there it may use do not shelter. (What it
+ * builds stands in the world, anyone's to use once it leaves: see [Structure].) With no [time] it builds nothing, and
+ * returns the person-days it would have liked (else 0).
  */
-private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, years: Float, time: BandTime) {
+@IgnorableReturnValue
+private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, time: BandTime?): Float {
     val gd = b.goods
-    if (!b.houseHex.none && b.houseHex != h) b.house = max(0f, b.house - HOUSE_DECAY * years)
+    val left = time?.leftFor(Activity.HOUSES) ?: Float.MAX_VALUE
     // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
-    dialUse?.let { u -> if (time.left > 0f && people > 0f && g.fed >= 0.9f) {
+    if (time != null) dialUse?.let { u -> if (left > 0f && people > 0f && g.fed >= 0.9f) {
         val longEnough = b.campWeeks >= houseAfterWeeks(b)
         val stocked = g.larder >= 0.5f * b.storeAim * g.dailyNeedKg
         u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear && stocked, cut = b.houseWill < 0.1f)
         u.choice(DialSite.STORE_HOUSES, b.storeAim / STORE_AIM_DAYS, longEnough && stocked, longEnough && g.larder >= 0.5f * STORE_AIM_DAYS * g.dailyNeedKg)
     } }
-    if (b.campWeeks >= houseAfterWeeks(b) && time.left > 0f && people > 0f && g.fed >= 0.9f &&
-        g.larder >= 0.5f * b.storeAim * g.dailyNeedKg) {
-        if (b.houseHex != h && b.house < 0.2f) { b.houseHex = h; b.house = 0f }
-        if (b.houseHex == h && b.house < 1f) {
-            // It builds the way it knows that its stone, timber and clay go furthest with.
-            val clay = land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f
-            val way = listOf(Skill.STONE_FOOTING, Skill.PIT_HOUSE, Skill.MUDBRICK).filter { b.knowsSkill[it] && (it != Skill.MUDBRICK || clay) }
-                .maxByOrNull { w ->
-                    val (st, wd, dd) = houseNeeds(w)
-                    minOf(time.left / (dd * people), gd[Material.STONE] / max(1e-3f, st * people), gd[Material.WOOD] / (wd * people))
-                }
-                ?: Skill.STONE_FOOTING
-            val (stoneEach, woodEach, daysEach) = houseNeeds(way)
-            val daysNow = daysEach * people / b.skill(way) * b.skill(Skill.STONE_FOOTING)
-            var built = min(1f - b.house, time.left / daysNow)
-            built = minOf(built, if (stoneEach > 0f) gd[Material.STONE] / (stoneEach * people) else 1f, gd[Material.WOOD] / (woodEach * people))
-            built = max(0f, built)
-            gd[Material.STONE] -= built * stoneEach * people; gd[Material.WOOD] -= built * woodEach * people
-            b.house += built; time.spend(Activity.HOUSES, built * daysNow)
-            if (built > 0f) b.practise(way)
-            if (built > 0f) stats.meeting(Met.BANDS_BUILT_HOUSES)
-        }
+    if (b.campWeeks < houseAfterWeeks(b) || left <= 0f || people <= 0f || g.fed < 0.9f || g.larder < 0.5f * b.storeAim * g.dailyNeedKg) return 0f
+    val sheltered = housesAt(g, h.i)
+    if (sheltered >= 1f) return 0f
+    // It builds the way it knows that its stone, timber and clay go furthest with, as keen as it is on each (or goes on with
+    // what it began).
+    val clay = land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f
+    val begun = built.firstOrNull { it.kind == Built.HOUSES && it.hex == h.i && it.user == g.id && it.built < 1f }
+    val size = begun?.size ?: (people * (1f - sheltered))
+    // (Each way weighed by how far this week's stone, timber and days take it, and by the band's keenness on it: [buildWay].)
+    val known = Skill.BUILDING_WAYS.filter { b.knowsSkill[it] && (it != Skill.MUDBRICK || clay) }
+    fun reach(w: Skill): Float {
+        val (st, wd, dd) = houseNeeds(w)
+        return minOf(left / (dd * size), gd[Material.STONE] / max(1e-3f, st * size), gd[Material.WOOD] / (wd * size))
     }
+    val way = begun?.let { Skill.entries[it.design] } ?: known.maxByOrNull { w -> reach(w) * b.will[buildWay(w)] } ?: Skill.STONE_FOOTING
+    if (time != null && begun == null) dialUse?.let { u ->
+        val at1 = known.maxByOrNull { w -> reach(w) } ?: Skill.STONE_FOOTING
+        for (w in known) u.choice(DialSite.BUILD_WAY, b.will[buildWay(w)], way == w, at1 == w, dial = buildWay(w).slot)
+    }
+    val (stoneEach, woodEach, daysEach) = houseNeeds(way)
+    val daysNow = daysEach * size / b.skill(way) * b.skill(Skill.STONE_FOOTING)
+    var built = min(1f - (begun?.built ?: 0f), left / daysNow)
+    built = minOf(built, if (stoneEach > 0f) gd[Material.STONE] / (stoneEach * size) else 1f, gd[Material.WOOD] / (woodEach * size))
+    built = max(0f, built)
+    if (time == null) return built * daysNow
+    val s = begun ?: buildingAt(g, Built.HOUSES, h.i, way.ordinal, size)
+    gd[Material.STONE] -= built * stoneEach * size; gd[Material.WOOD] -= built * woodEach * size
+    buildOn(s, built); time.spend(Activity.HOUSES, built * daysNow)
+    if (built > 0f) b.practise(way)
+    if (built > 0f) stats.meeting(Met.BANDS_BUILT_HOUSES)
+    return 0f
 }
 
 /** Ornaments of shell and bone, made with the [time] days [b] has still to spare. */
 private fun HexGroups.makeOrnaments(b: Band, people: Float, time: BandTime) {
     val gd = b.goods
-    if (time.left > 0f && people > 0f && b.ornaments < ORNAMENTS_PER_PERSON * people) {
-        val stuff = gd[Material.SHELL] / SHELL_EACH + gd[Material.BONE] / BONE_EACH
-        val made = minOf(time.left / ORNAMENT_DAYS, stuff, ORNAMENTS_PER_PERSON * people - b.ornaments).coerceAtLeast(0f)
+    val left = time.leftFor(Activity.ORNAMENTS)
+    if (left > 0f && people > 0f) {
+        val made = min(left / ORNAMENT_DAYS, ornamentsWanted(b, people))
         if (made > 0f) {
             val fromShell = min(made, gd[Material.SHELL] / SHELL_EACH)
             gd[Material.SHELL] = max(0f, gd[Material.SHELL] - fromShell * SHELL_EACH)
@@ -1120,15 +1352,20 @@ private fun HexGroups.makeOrnaments(b: Band, people: Float, time: BandTime) {
     }
 }
 
+/** The ornaments [b] would make for its [people], as far as it lacks them and has shell and bone. */
+private fun ornamentsWanted(b: Band, people: Float) =
+    min(b.goods[Material.SHELL] / SHELL_EACH + b.goods[Material.BONE] / BONE_EACH, ORNAMENTS_PER_PERSON * people - b.ornaments).coerceAtLeast(0f)
+
 /**
  * In autumn [g]'s band, at home or at a camp it has kept long enough to build at ([houseAfterWeeks]), sows a share of its stored
  * grain there, in the [time] days to spare. (A band that then moves on leaves the plot to whoever comes by.)
  */
 private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time: BandTime) {
-    if ((b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f && time.left > 0f) {
+    val left = time.leftFor(Activity.SOWING)
+    if (canSow(g, b, p, date) && left > 0f) {
         val stock = g.stores[Store.SEED]
-        val sow = minOf(stock * SOW_SHARE * b.sowWill, time.left / SOW_DAYS_PER_KG)
-        dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, time.left / SOW_DAYS_PER_KG))
+        val sow = minOf(stock * SOW_SHARE * b.sowWill, left / SOW_DAYS_PER_KG)
+        dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, left / SOW_DAYS_PER_KG))
         if (sow > 0.1f) {
             g.stores[Store.SEED] -= sow; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
             val food = fauna.food
@@ -1142,17 +1379,26 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time:
     }
 }
 
-/** A palisade round the houses of [b], at home and raided in the last year, as far as the [time] days and its timber go. */
-private fun HexGroups.buildPalisade(b: Band, people: Float, time: BandTime) {
+/** Whether [g]'s band [b] sows at place [p] now: in autumn, at home or at a camp it has kept long enough to build at, where grass grain grows. */
+private fun HexGroups.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
+    (b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f
+
+/** A palisade round the houses at [g]'s band [b]'s camp at hex [h], at home and raided in the last year, as far as the [time] days and its timber go. */
+private fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float, time: BandTime) {
     val gd = b.goods
-    if (b.atHome && b.palisade < 1f && time.left > 0f && people > 0f)
+    val left = time.leftFor(Activity.PALISADE)
+    if (b.atHome && b.palisade < 1f && left > 0f && people > 0f)
         dialUse?.choice(DialSite.PALISADES, b.fortifyWill, b.sinceRaided < stepsPerYear * b.fortifyWill, b.sinceRaided < stepsPerYear)
-    if (b.atHome && b.sinceRaided < stepsPerYear * b.fortifyWill && b.palisade < 1f && time.left > 0f && people > 0f) {
-        val built = minOf(1f - b.palisade, time.left / (PALISADE_DAYS * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
-        gd[Material.WOOD] -= built * PALISADE_WOOD * people; b.palisade += built; time.spend(Activity.PALISADE, built * PALISADE_DAYS * people)
+    if (fortifies(b) && left > 0f && people > 0f) {
+        val s = buildingAt(g, Built.PALISADE, h.i, -1, people)
+        val built = minOf(1f - s.built, left / (PALISADE_DAYS * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
+        gd[Material.WOOD] -= built * PALISADE_WOOD * people; buildOn(s, built); time.spend(Activity.PALISADE, built * PALISADE_DAYS * people)
         if (built > 0f) stats.meeting(Met.BANDS_BUILT_PALISADES)
     }
 }
+
+/** Whether [b] rings its houses with a palisade: at home, raided lately (by its will), with the ring not whole. */
+private fun HexGroups.fortifies(b: Band) = b.atHome && b.sinceRaided < stepsPerYear * b.fortifyWill && b.palisade < 1f
 
 /** What [b] cannot carry is left behind at place [p] (and goes back to the ground); at a camp it keeps, it stacks building stone and timber beyond that. */
 private fun HexGroups.leaveExcess(b: Band, p: Place, people: Float, area: Float) {
@@ -1171,7 +1417,9 @@ private fun HexGroups.forget(b: Band) {
     val forgetKnowledge = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET_KNOWLEDGE * 0.4f else FORGET_KNOWLEDGE) * b.lapse(Skill.LORE)
     for (s in Skill.entries) {
         val unused = b.weeks - b.lastUsed[s] > 4
-        b.skills[s] *= 1f - (if (!unused) FORGET_HANDS else if (s.knowledge) forgetKnowledge else FORGET_HANDS * 2f)
+        // A skill learned slowly is also lost slowly, or its level would settle far lower (r / (r + forgetting)).
+        val hands = FORGET_HANDS * minOf(1f, s.practice / PRACTICE)
+        b.skills[s] *= 1f - (if (!unused) hands else if (s.knowledge) forgetKnowledge else hands * 2f)
         // A way no one holds and no one has used for years is lost altogether; so is one whose groundwork is lost.
         if (b.knowsSkill[s] && s.losable && b.holders[s] < 0.5f && b.weeks - b.lastUsed[s] > (if (s.knowledge) LOST_KNOWLEDGE_YEARS else LOST_HANDS_YEARS) * stepsPerYear) {
             b.knowsSkill[s] = false; b.skills[s] = 0f; b.holders[s] = 0f
@@ -1439,9 +1687,50 @@ enum class BandWay(val label: String) {
     STORING_MEAT("storing: meat and fish"),
     STORING_FRUIT("storing: fruit and finds"),
     STORING_ROOTS("storing: roots"),
-    STORING_SEED("storing: seed and grain");
+    STORING_SEED("storing: seed and grain"),
+    /** Loads each adult carries on a camp move ([carryLoads]): under one, lighter and faster; over one, relays. */
+    CARRY_LOADS("carry loads"),
+    /**
+     * How a band weighs each activity's ask for days against the others' when they come to more than its week
+     * ([BandTime.plan]): the less weighed lose their days first.
+     */
+    TIME_STORES("time: laying food by"), TIME_DRYING("time: drying"), TIME_SKINS("time: skins"), TIME_SHELTER("time: shelter"),
+    TIME_CUSTOMS("time: customs"), TIME_TRAINING("time: training"), TIME_TOOLS("time: tools"), TIME_HOUSES("time: houses"),
+    TIME_ORNAMENTS("time: ornaments"), TIME_SOWING("time: sowing"), TIME_PALISADE("time: palisade"), TIME_MATERIALS("time: materials"),
+    TIME_CACHING("time: caching"),
+    /**
+     * How keen it is on each way of building a house it knows ([Skill.BUILDING_WAYS]), against how far its stone, timber and days
+     * take each this week ([buildHouse]): they differ in what they cost and in how warm a sunken one keeps and how a mudbrick one
+     * wears in the rain ([sunkenM], [MUD_EROSION]).
+     */
+    BUILD_STONE_FOOTING("build: stone footing"), BUILD_PIT_HOUSE("build: pit house"), BUILD_MUDBRICK("build: mudbrick");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
+}
+
+/** The way that weighs how keen a band is on building houses [w] (one of [Skill.BUILDING_WAYS]). */
+fun buildWay(w: Skill): BandWay = when (w) {
+    Skill.PIT_HOUSE -> BandWay.BUILD_PIT_HOUSE
+    Skill.MUDBRICK -> BandWay.BUILD_MUDBRICK
+    else -> BandWay.BUILD_STONE_FOOTING
+}
+
+/** The way that weighs [a]'s ask for days ([BandWay.TIME_STORES] and after); none for what comes first (the walk, the week's food and firewood) or is what is left (leisure). */
+fun timeWay(a: Activity): BandWay? = when (a) {
+    Activity.FOOD -> BandWay.TIME_STORES
+    Activity.DRYING -> BandWay.TIME_DRYING
+    Activity.SKINS -> BandWay.TIME_SKINS
+    Activity.SHELTER -> BandWay.TIME_SHELTER
+    Activity.CUSTOMS -> BandWay.TIME_CUSTOMS
+    Activity.TRAINING -> BandWay.TIME_TRAINING
+    Activity.TOOLS -> BandWay.TIME_TOOLS
+    Activity.HOUSES -> BandWay.TIME_HOUSES
+    Activity.ORNAMENTS -> BandWay.TIME_ORNAMENTS
+    Activity.SOWING -> BandWay.TIME_SOWING
+    Activity.PALISADE -> BandWay.TIME_PALISADE
+    Activity.MATERIALS -> BandWay.TIME_MATERIALS
+    Activity.CACHING -> BandWay.TIME_CACHING
+    Activity.FIREWOOD, Activity.MOVING, Activity.LEISURE -> null
 }
 /** The way that sets how keenly a band lays food [t] by ([Band.storeWill]). */
 fun storeWay(t: Food) = when (t) {
@@ -1515,6 +1804,11 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for (t in Tradition.entries) into[x.CUSTOMS + t.ordinal] = if (b.holds(t)) 1f else 0f
     for (k in 0 until Temperament.AXES) into[x.TEMPER + k] = g.temper.getOrElse(k) { 0f }
     ecosystemInputs(g, b, into)
+    // Its people's cold where it stands: what the week's cold would cost in food and lives, and what keeps it off.
+    val air = airAt(g.place, weather); val cold = b.warmth(air, b.fire, b.homeShelter(), days)
+    into[x.COLD_FOOD] = min(1f, cold.extra); into[x.COLD_ODDS] = min(1f, 10f * cold.odds)
+    into[x.WIND] = min(1f, air.windMs / 10f); into[x.WET] = air.wet
+    into[x.FIRE_SHARE] = b.fire; into[x.HOME_SHELTER] = b.homeShelter()
 }
 
 /** The beasts of prey a band tells apart: those that take people ([Species.takesPeople], from the catalogue) and those that do not. */
@@ -1560,6 +1854,15 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     }
     into[x.ELEVATION] = (hw.placeElevationM[p] / 3000f).coerceIn(0f, 1f)
     into[x.LEAN_LOST] = b.leanLost
+    val adults = max(1, g.adults) * GOODS_PER_PERSON
+    for (m in Material.entries) into[x.GOODS + m.ordinal] = b.goods[m] / adults
+    val km = max(0, g.path.size - 1) * hex.hexKm.toFloat()
+    val walk = moveDays(g, km)
+    into[x.MOVE_KM] = km / (km + MOVE_KM_HALF); into[x.MOVE_DAYS] = walk / (walk + days); into[x.LOAD] = carriedKg(g, b) / (CARRY_KG * (1f + BASKET_GAIN))
+    for ((k, w) in Skill.BUILDING_WAYS.withIndex()) into[x.BUILDING + k] = if (b.knowsSkill[w]) b.skill(w) else 0f
+    val here = h == b.houseHex.i
+    into[x.HOUSE_HERE] = if (here) b.house else 0f; into[x.PALISADE_HERE] = if (here) b.palisade else 0f
+    into[x.HOUSES_BEGUN] = housesBegunAt(g, h); into[x.PALISADE_BEGUN] = palisadeBegunAt(g, h)
 }
 
 /** The name of each of [bandInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */
@@ -1619,7 +1922,9 @@ const val CACHE_FIND = 0.15f
 const val CACHE_TAKE = 0.6f
 /**
  * Stone and timber for one person's share of a stone-footed house, kg; person-days for one person's share of a brush
- * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a brush shelter keeps, °C.
+ * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a whole brush shelter keeps
+ * those in it, by their own warmth, °C (an estimate; what else it does against the cold: [BodyHeat]); how much warmer a house
+ * keeps than the air, by its hearth and the people in it (an estimate).
  */
 const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
@@ -1914,24 +2219,12 @@ private fun HexGroups.keepFire(g: HexGroup, b: Band) {
 /**
  * Survival floors: each foraging skill's success untrained against a master's (gathering the obvious
  * fruit and shellfish is easy; a novice's snares and lines catch little; big game falls to the
- * practised); a novice's daily chance to get a fire going, and how fast trying teaches it; what a fire
- * adds to the felt warmth, °C; how much more food raw meals take for the same energy.
+ * practised); a novice's daily chance to get a fire going, and how fast trying teaches it (what a fire does
+ * against the cold: [BodyHeat]); how much more food raw meals take for the same energy.
  */
 const val FIRE_FLOOR = 0.1f
 const val FIRE_PRACTICE = 0.1f
-const val FIRE_C = 3f
 const val RAW_COST = 0.3f
-/**
- * Exposure: the week's mean temperature below which people unprotected start to die (nights near
- * freezing); the degrees full clothes, a fire, a brush shelter and a house each keep off; the share of
- * people dying each week for each degree below.
- */
-const val EXPOSURE_C = 10f
-const val PROTECT_CLOTHES = 30f
-const val PROTECT_FIRE = 12f
-const val PROTECT_SHELTER = 5f
-const val PROTECT_HOUSE = 10f
-const val EXPOSURE = 0.05f
 /** Share of the way to knowing a kind of country's plants a week's gathering there goes; the least a stranger finds of what a local would. */
 const val PLANT_LEARN = 0.05f
 const val PLANT_FLOOR = 0.1f
@@ -1960,6 +2253,33 @@ fun houseNeeds(way: Skill) = when (way) {
     Skill.MUDBRICK -> Triple(0f, HOUSE_WOOD / 2f, HOUSE_DAYS * 1.5f)
     else -> Triple(HOUSE_STONE, HOUSE_WOOD, HOUSE_DAYS)
 }
+
+/**
+ * How deep a house built [way] is sunk into the ground, m: a pit house about a metre, a stone-footed hut half sunk (as the
+ * Natufian houses at Mallaha), a mudbrick house stands on the ground. (Estimates.)
+ */
+fun sunkenM(way: Skill) = when (way) { Skill.PIT_HOUSE -> 1f; Skill.MUDBRICK -> 0f; else -> 0.5f }
+
+/**
+ * The share of the gap between the ground's year-round warmth and the air's that a house built [way] brings inside through its
+ * sunken walls: the year's swing of the soil's warmth falls off with depth as exp(-depth / [SOIL_DAMPING_M]).
+ */
+fun earthGain(way: Skill) = 1f - exp(-sunkenM(way) / SOIL_DAMPING_M)
+
+/**
+ * The depth over which the soil's yearly swing of warmth falls to 1/e, m: sqrt(2 κ / ω) for a moist soil's thermal diffusivity
+ * κ of about 5e-7 m²/s and the year's ω (heat conduction in soil, e.g. Hillel 1998, Environmental Soil Physics; κ an estimate
+ * for a moist loam).
+ */
+const val SOIL_DAMPING_M = 2.2f
+
+/**
+ * Mudbrick walls wear in the rain: mm of wall lost a mm of rain, 28.3 mm over 3 years under 2330 mm of rain on an unprotected
+ * field wall (Reddy and Jagadish, as reported in Heathcote 2002, An investigation into the erodibility of earth wall units,
+ * UTS thesis); and the wall lost at which a house is gone, half a 300 mm wall (an estimate).
+ */
+const val MUD_EROSION = 0.012f
+const val MUD_WALL_MM = 150f
 const val GRUEL_GAIN = 0.2f
 const val LEACH_SHARE = 0.5f
 const val LEACH_DAYS_PER_KG = 0.3f
@@ -1984,11 +2304,10 @@ internal fun HexGroups.trainHolders(g: HexGroup, b: Band, time: BandTime) {
     for (s in Skill.entries) {
         if (!b.knowsSkill[s]) { b.holders[s] = 0f; continue }
         val used = b.weeks - b.lastUsed[s] <= DISUSE_YEARS * stepsPerYear
-        val want = if (used) adults * s.share else 0f
-        if (b.holders[s] < want && time.left > 0f) {
-            // Learning from a holder is quick; working it out alone is slow.
-            val pace = (if (b.holders[s] >= 1f) 1f else SELF_TAUGHT) * b.learning
-            val add = minOf(want - b.holders[s], adults * TRAINED_A_WEEK * pace, time.left / (APPRENTICE_DAYS * s.complexity)).coerceAtLeast(0f)
+        val learners = learners(b, s, adults)
+        val left = time.leftFor(Activity.TRAINING)
+        if (learners > 0f && left > 0f) {
+            val add = min(learners, left / (APPRENTICE_DAYS * s.complexity))
             b.holders[s] += add; time.spend(Activity.TRAINING, add * APPRENTICE_DAYS * s.complexity)
         } else if (!used) b.holders[s] = max(0f, b.holders[s] - SKILL_DROP * b.holders[s])
         b.holders[s] = min(b.holders[s], adults)
@@ -2004,6 +2323,16 @@ internal fun HexGroups.trainHolders(g: HexGroup, b: Band, time: BandTime) {
         if (s.share >= 1f) continue
         b.holders[s] = max(0f, b.holders[s] - over)
     }
+}
+
+/**
+ * The learners of way [s] [b] would bring on this week among its [adults], time allowing: as far as it lacks holders of a
+ * way in use, as fast as they learn. (Learning from a holder is quick; working it out alone is slow.)
+ */
+private fun HexGroups.learners(b: Band, s: Skill, adults: Float): Float {
+    if (!b.knowsSkill[s] || b.weeks - b.lastUsed[s] > DISUSE_YEARS * stepsPerYear) return 0f
+    val pace = (if (b.holders[s] >= 1f) 1f else SELF_TAUGHT) * b.learning
+    return minOf(adults * s.share - b.holders[s], adults * TRAINED_A_WEEK * pace).coerceAtLeast(0f)
 }
 
 /**

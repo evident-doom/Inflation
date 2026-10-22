@@ -612,27 +612,29 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
      * People fishing from hex [h]: the spawning run while it is in the river, the river's fish, fish
      * from lakes and from the sea along the coast (its own water and the water hexes next to it), and
      * shellfish from shallow shores. Takes up to [kg]; returns kg caught. Each source gives at most a
-     * share a week, so a band cannot empty a river.
+     * share a week, so a band cannot empty a river. What people take of each is booked with the week's fish flows
+     * ([PEOPLE_FLOWS], tonnes).
      */
     fun fishFor(h: Int, kg: Float, skill: Float = 1f): Float {
         var left = kg
         val landKm2 = max(1f, hw.land[h] * hexKm2)
         // A week's fishing gets more the more fish there are, levelling off at what the band wants: a
         // stock [search] times what it wants (less for skilled hands) gives it half (Holling).
-        fun take(stock: FloatArray, q: Int, areaKm2: Float, search: Float) {
+        fun take(stock: FloatArray, q: Int, areaKm2: Float, search: Float, flow: String) {
             if (left <= 0f || areaKm2 <= 0f) return
             val s = stock[q] * areaKm2
             if (s <= 0f) return
             val t = min(0.5f * s, left * s / (s + left * search / skill))
             stock[q] -= t / areaKm2; left -= t
+            fishFlows.merge(flow, t / 1000.0, Double::plus)
         }
-        take(run, h, landKm2, RUN_SEARCH)
+        take(run, h, landKm2, RUN_SEARCH, PEOPLE_FLOWS[0])
         // Turtles and their eggs on the beach in the nesting months.
-        if (nesting && shoreKm[h] <= 0f) take(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH)
-        take(riverFish, h, landKm2, RIVER_SEARCH)
+        if (nesting && shoreKm[h] <= 0f) take(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH, PEOPLE_FLOWS[1])
+        take(riverFish, h, landKm2, RIVER_SEARCH, PEOPLE_FLOWS[0])
         for (q in listOf(h) + (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 }) {
-            take(fish, q, waterKm2[q], FISH_SEARCH)
-            take(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH)
+            take(fish, q, waterKm2[q], FISH_SEARCH, PEOPLE_FLOWS[2])
+            take(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH, PEOPLE_FLOWS[3])
         }
         return kg - left
     }
@@ -684,6 +686,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     companion object {
         /** The fish flow that is the week's net change of the sea and lake fish, and so may be negative. */
         const val DRIFT_FLOW = "drift (net)"
+        /** People's catch in [fishFlows]: river fish and the runs, turtles, sea and lake fish, shellfish. */
+        val PEOPLE_FLOWS = listOf("eaten by people: river fish", "eaten by people: turtles", "eaten by people: sea and lake fish", "eaten by people: shellfish")
         val SEA = listOf(
             SeaKind("fin whale", 50_000f, SeaFood.PLANKTON, 0.015f, 100f, 0, 2, 0.4f, 0.03f, 1f, 800f),
             SeaKind("dolphin", 80f, SeaFood.FISH, 0.05f, 60f, 6, 3, 0.4f, 0.06f, 0.7f, 15f),

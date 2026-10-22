@@ -21,6 +21,22 @@ class MlpTest {
     }
 
     @Test
+    fun aHiddenLayersGradientMatchesFiniteDifferences() {
+        // A loss read off hidden layer 2 (sum of c_i * a_i): backwardFrom's gradient against nudging each weight.
+        val m = Mlp.random(intArrayOf(4, 5, 3, 2), Random(5))
+        val x = floatArrayOf(0.3f, -0.7f, 0.5f, 0.1f); val c = floatArrayOf(0.4f, -1.1f, 0.6f)
+        fun loss(): Double { val b = m.buffers(); x.copyInto(b.a[0]); m.forward(b); return (0 until 3).sumOf { (c[it] * b.a[2][it]).toDouble() } }
+        val b = m.buffers(); x.copyInto(b.a[0]); m.forward(b)
+        val grad = FloatArray(m.w.size); m.backwardFrom(2, b, c, grad)
+        val eps = 1e-3f
+        for (i in m.w.indices) {
+            val w0 = m.w[i]
+            m.w[i] = w0 + eps; val up = loss(); m.w[i] = w0 - eps; val down = loss(); m.w[i] = w0
+            assertEquals(((up - down) / (2 * eps)).toFloat(), grad[i], 2e-3f, "weight $i")
+        }
+    }
+
+    @Test
     fun partsComeBackInOrderAndSumAsInTurn() {
         val batch = (0 until 1000).map { it.toFloat() }
         val parts = inParts(batch) { part -> floatArrayOf(part.sum(), part.size.toFloat()) }

@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.Config
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFeatures
 import inflation.ecology.Species
@@ -31,8 +32,8 @@ class PpoTrainer(private val o: PpoOptions) {
     private val adams = models.map { Adams(Adam(it.net.w.size, o.rate), Adam(it.identity.size, o.rate)) }
     /** One critic for each role: what a group's return can be expected to be where it stands. */
     private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.criticFile(out), models[i]) }
-    /** Bands' ways, learned beside their moves (see [WaysPpo]). */
-    private val waysState = if (o.learnWays) WaysPpo.State(out, o.hidden, o.rate) else null
+    /** Bands' ways, learned beside their moves (see [WaysPpo]): a head on the people's mover, reading its last hidden layer and training it. */
+    private val waysState = if (o.learnWays) models[Role.PEOPLE.ordinal].let { m -> WaysPpo.State(out, o.hidden, o.rate, m.trunk, m.net.w.size) } else null
     /** The check of each round's networks against the kept ones (see [EcoCheck]), running beside the training. */
     private val eco = EcoCheck(out)
     private var checking: Pair<CompletableFuture<EcoCheck.Verdict>, File>? = null
@@ -40,6 +41,8 @@ class PpoTrainer(private val o: PpoOptions) {
     private val players = arrayOfNulls<HexPpo.Player>(o.worlds)
     private val steps = o.years * WorldConfig().stepsPerYear
     private val log = RunLog(out, "round")
+    /** Advantages (in spreads of the kind's) are held within this much of none: a few collapses would otherwise decide a round, the spread being set by them. */
+    private val advantageClip = Config.float(Config.Key.PPO_ADVANTAGE_CLIP, 3f).let { if (it <= 0f) Float.MAX_VALUE else it }
 
     fun run() {
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
@@ -65,11 +68,20 @@ class PpoTrainer(private val o: PpoOptions) {
             } else null
             val everything = choices.flatten()
             val waysChoices = everything.filterIsInstance<WaysChoice>()
-            val all = everything.filter { it !is WaysChoice }
+            val valueOnly = everything.filter { it.valueOnly }
+            val all = everything.filter { it !is WaysChoice && !it.valueOnly }
             val stats = StringBuilder()
-            val byKind = judge(all, round, stats)
+            if (valueOnly.isNotEmpty()) stats.append("%d more choices for the critics alone; ".format(valueOnly.size))
+            val waysExplained = judgeWays(waysChoices)
+            val byKind = judge(all, valueOnly, round, stats)
             for (mi in models.indices) learn(mi, all, byKind, round - firstRound, round, stats)
-            waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round)).append("; "); it.save() }
+            waysState?.let { st ->
+                // (The ways train the people's mover beneath them too, unless it is held: then it is saved again.)
+                val pi = Role.PEOPLE.ordinal
+                val held = Role.PEOPLE in o.fixed && round - firstRound < o.fixedRounds
+                stats.append(WaysPpo.learn(st, waysChoices, round, waysExplained, if (held || !o.waysTrainMover) null else models[pi])).append("; "); st.save()
+                if (!held && o.waysTrainMover) models[pi].save(files[pi])
+            }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
             // (What was not a number when the networks chose, if anything: see [NonFinite].)
             val nonFinite = NonFinite.take().takeIf { it.isNotEmpty() }?.let { "; not numbers when choosing: $it" } ?: ""
@@ -119,7 +131,7 @@ class PpoTrainer(private val o: PpoOptions) {
      * not only against its kind's average: much of what befalls a group is its situation and its luck,
      * not the move; then scales it within its kind. Teaches the critics this round's returns. The choices by kind.
      */
-    private fun judge(all: List<Choice>, round: Int, stats: StringBuilder): Map<Species, List<Choice>> {
+    private fun judge(all: List<Choice>, valueOnly: List<Choice>, round: Int, stats: StringBuilder): Map<Species, List<Choice>> {
         val byKind = all.groupBy { it.kind }
         val expected = HashMap<Choice, Float>()
         val judged = HashMap<Choice, Float>()
@@ -131,7 +143,8 @@ class PpoTrainer(private val o: PpoOptions) {
             val t0 = System.nanoTime()
             val explained = critic.explained(model, mine)
             for (c in mine) { expected[c] = critic.value(model, c); judged[c] = critic.target(model, c) }
-            critic.learn(model, mine, round)
+            // (The critic learns too from the groups that took their best, [Choice.valueOnly]: judged, not judging.)
+            critic.learn(model, mine + valueOnly.filter { Role.of(it.kind).ordinal == mi }, round)
             val worst = explained.entries.sortedBy { it.value }.take(3).joinToString(", ") { "%s %.2f".format(it.key.name, it.value) }
             stats.append("%s critic explains %.2f (least: %s), %.0f%% seen again (%.0f s); ".format(Role.entries[mi], explained.values.average(), worst, 100.0 * mine.count { it.probe != null } / mine.size, (System.nanoTime() - t0) / 1e9))
         }
@@ -139,9 +152,28 @@ class PpoTrainer(private val o: PpoOptions) {
             val mean = cs.map { judged.getValue(it).toDouble() }.average().toFloat()
             val gap = cs.associateWith { c -> judged.getValue(c) - (expected[c] ?: mean) }
             val sd = sqrt(gap.values.map { (it * it).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
-            for (c in cs) c.advantage = gap.getValue(c) / sd
+            for (c in cs) c.advantage = (gap.getValue(c) / sd).coerceIn(-advantageClip, advantageClip)
         }
         return byKind
+    }
+
+    /**
+     * Judges the bands' ways draws [cs] by the people's critic as it stands before this round's learning, as their moves are
+     * judged ([judge]): each against what its band could expect where it stood that week before it moved, centred and scaled
+     * among the draws. The share of the spread in their judged returns the critic accounts for.
+     */
+    private fun judgeWays(cs: List<WaysChoice>): Double {
+        if (cs.isEmpty()) return 0.0
+        val model = models[Role.PEOPLE.ordinal]; val critic = critics[Role.PEOPLE.ordinal]
+        val expected = FloatArray(cs.size) { critic.value(model, cs[it]) }
+        val judged = FloatArray(cs.size) { critic.target(model, cs[it]) }
+        val gap = FloatArray(cs.size) { judged[it] - expected[it] }
+        val mean = gap.average().toFloat()
+        val sd = sqrt(gap.map { ((it - mean) * (it - mean)).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
+        for ((k, c) in cs.withIndex()) c.advantage = ((gap[k] - mean) / sd).coerceIn(-advantageClip, advantageClip)
+        val jm = judged.average()
+        val total = judged.sumOf { (it - jm) * (it - jm) }
+        return if (total <= 0.0) 0.0 else 1.0 - gap.sumOf { (it * it).toDouble() } / total
     }
 
     /** A few passes of clipped policy gradient for role [mi], every kind weighing the same; saves its network and critic. [sinceStart]: rounds into this run. */
@@ -178,7 +210,7 @@ class PpoTrainer(private val o: PpoOptions) {
     /**
      * The reference check, reported only: against the hand-written behaviour, one role at a time (the others
      * hand-written, so a role's gain is its own and not the others'), on worlds it has not trained on; then the
-     * bands' learned ways (their middles) against the scaffold's. It shows how far the networks have moved
+     * bands' learned ways (their middles) against the scaffold's, both with the people's learned moves. It shows how far the networks have moved
      * from the hand-written rules, not whether they are better: that is [EcoCheck]'s.
      */
     private fun check(round: Int) {
@@ -193,7 +225,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val c = "check round %d (each role learned alone vs all hand-written, animal-weeks per animal, %d %s worlds: mean change +- its standard error, worlds better): %s".format(round + 1, seeds.size, if (o.checkOnMaps && !o.maps.isEmpty()) "training" else "fresh", parts.joinToString(", "))
         log.check(c)
         waysState?.let { st ->
-            val w = seeds.parallelStream().map { seed -> WaysPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, st.ways) }.toList()
+            val w = seeds.parallelStream().map { seed -> WaysPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, st.ways, models[Role.PEOPLE.ordinal]) }.toList()
             val waysLine = "check round %d ways (learned vs scaffold, people-weeks per person): %s".format(round + 1, HexPpo.compare(w.map { it.learned }, w.map { it.hand }))
             log.check(waysLine)
         }

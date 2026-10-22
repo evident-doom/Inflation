@@ -63,4 +63,22 @@ class MoverPolicyTest {
         assertTrue(record.isEmpty())
         NonFinite.take()
     }
+
+    @Test
+    fun aChoiceNotDrawnCanBeRecordedForTheCriticAloneAndTheBestIsStillTaken() {
+        val mover = SharedMover.random(8, Random(6)).also { it.residual = 1f }
+        val g = HexGroup(4, gazelle, Place(0), 40, 10)
+        val (features, baseline) = places(0, 0f)
+        val plain = MoverPolicy(mover, null, { 0f }, { 0 })
+        val record = ConcurrentLinkedQueue<Choice>()
+        // Never drawn, every one of them recorded for the critic.
+        val policy = MoverPolicy(mover, record, { 0f }, { 0 }, valueRate = { 1f })
+        repeat(20) { i -> assertEquals(plain.choose(g, features, baseline, Random(i)), policy.choose(g, features, baseline, Random(i))) }
+        assertEquals(20, record.size)
+        assertTrue(record.all { it.valueOnly && it.inputs.size == 1 && it.inputs[0][HexFeatures.STAYS] > 0.5f && it.group != null })
+        // None wanted: none recorded.
+        val none = ConcurrentLinkedQueue<Choice>()
+        repeat(20) { i -> assertTrue(MoverPolicy(mover, none, { 0f }, { 0 }).choose(g, features, baseline, Random(i)) in 0 until 4) }
+        assertTrue(none.isEmpty())
+    }
 }

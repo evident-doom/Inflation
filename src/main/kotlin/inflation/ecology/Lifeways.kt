@@ -12,16 +12,24 @@ import inflation.world.Weather
 /**
  * Whether [g] is restless this week: it ranges as far as it can, and weighs its places whether content or not.
  * A pack when hungry, without ground of its own, thirsty or astray; a band when hungry, thirsty, astray, due
- * somewhere soon, behind its round, or ill at ease where it is (the cold or heat as its clothes, fire and shelter leave it).
+ * somewhere soon, behind its round, or ill at ease where it is (in the cold: [coldRestless]; or the heat).
  */
 internal fun HexGroups.restless(g: HexGroup, weather: Weather, thirsty: Boolean, astray: Boolean, dueSoon: Boolean, onRound: Boolean, goalFar: Boolean): Boolean {
     val s = g.species
     return when (s.lifeway) {
         Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon || (onRound && goalFar) ||
-            (g.band?.let { s.discomfortC(it.feels(weather.temperature[g.place]), weather.date.month) / 10f } ?: 0f) > 0.5f
+            (g.band?.let { coldRestless(it.warmth(airAt(g.place, weather), it.fire, it.homeShelter(), days)) } ?: false) ||
+            s.hotC(weather.temperature[g.place]) / 10f > 0.5f
         Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home.none || thirsty || astray
     }
 }
+
+/**
+ * Whether a band's week in the cold, as its clothes, fire, shelter and house leave it ([Band.warmth]), sets it looking for
+ * better: when keeping warm takes [COLD_RESTLESS] more food or more, or the cold kills (both estimates).
+ */
+private fun coldRestless(w: Warmth) = w.extra >= COLD_RESTLESS || w.odds > 0f
+const val COLD_RESTLESS = 0.25f
 
 /**
  * What place [p] is worth to kind [s] this week, before crowding, hunters and the going. A pack: the game it may expect there, as its diet

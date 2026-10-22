@@ -27,7 +27,7 @@ Each row is a skill. It has variants by tool or material, and constants of the m
 | **Keeping food** | drying and smoking | racks, fire | `DRY_DAYS_PER_KG` |
 | | storage | pits, caches, baskets, skins, stone bins, plaster, pots | `PIT_KEEP`, `MICE`, `CACHE_SPOIL`, `CACHE_FIND`, `STORE_FILL` |
 | **Water** | finding and carrying water | skins, gourds, eggshells, wells | `HUMAN_THIRST` |
-| **Shelter and warmth** | clothing | wrapped hide, sewn and fitted (needles), footwear; tanning | `CLOTHES_C`, `PROTECT_CLOTHES` |
+| **Shelter and warmth** | clothing | wrapped hide, sewn and fitted (needles), footwear; tanning | `CLOTHES_CLO`, `BodyHeat` |
 | | building | windbreak, debris hut, pit house, stone-footed hut, mudbrick | `SHELTER_*`, `HOUSE_*` |
 | | fortifying | brush, palisade, ditch, wall | `PALISADE_*` |
 | **Moving** | carrying | bags, baskets, carrying frames, dogs, boats | `CARRY_KG`, `GOODS_PER_PERSON` |
