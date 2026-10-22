@@ -26,6 +26,9 @@ import java.util.concurrent.Executors
  *   there are not fewer people in every weather (for the hunters' network, only if `ppo.hunterPeopleVeto`
  *   is true, as it is by default; a run that sets it false lets a hunters network through that costs people); and
  * - its own members fare better: the role's kinds number more in the last whole year.
+ *
+ * Except that a role whose networks changed net major version ([NetVersion]) since the kept ones were saved has its new
+ * network kept without the comparison: it is the baseline the later rounds are judged against.
  */
 class EcoCheck(private val out: File) {
     private val world = TestWorlds.named(Config.string(Config.Key.PPO_CHECK_WORLD) ?: "lake-1")
@@ -122,7 +125,11 @@ class EcoCheck(private val out: File) {
             // (A role's ways network is tried and kept with it, never alone: its decision is the role's.)
             lines += "check round %d %s %s ways network (%s): %s, decided with the %s network above".format(
                 round + 1, r, r.ways.whose, r.ways.file, if (better && why.isEmpty()) "kept" else "not kept", r)
-            better && why.isEmpty()
+            // A new net major version has no earlier version to be judged against: the first network trained under it is the baseline.
+            val baseline = r.netMajorChanged(this.kept)
+            if (baseline) lines += "check round %d %s: net major version %d (the kept network has %s): the new network is the baseline, kept whatever the comparison above".format(
+                round + 1, r, r.net.major, Schema.versionOf(r.file(this.kept)).let { "${it.major}.${it.minor}".takeIf { _ -> it != NetVersion.NONE } ?: "none" })
+            baseline || (better && why.isEmpty())
         }
         return Verdict(round, roles, lines)
     }

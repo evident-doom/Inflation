@@ -24,6 +24,9 @@ enum class WaysKind(
     BANDS("bands", "ways.mlp", Config.Key.WAYS, "bands'"),
     HUNTERS("hunters", "hunter-ways.mlp", Config.Key.HUNTER_WAYS, "packs'");
 
+    /** The role whose networks it goes with. */
+    val role get() = if (this == BANDS) Role.PEOPLE else Role.HUNTERS
+
     /** The names of its network's inputs. */
     val inNames: List<String> get() = if (this == BANDS) Schema.WAYS_IN else Schema.ANIMAL_WAYS_IN
     /** The names of its network's outputs. */
@@ -33,7 +36,7 @@ enum class WaysKind(
     fun load(f: File): Mlp = Schema.load(f, inNames, outNames)
 
     /** Saves [net] to [f] with its inputs' and outputs' names. */
-    fun save(net: Mlp, f: File) = Schema.save(net, f, inNames, outNames)
+    fun save(net: Mlp, f: File) = Schema.save(net, f, inNames, outNames, role.net)
 
     /** Sets [groups]' ways of this kind by [net]. */
     fun set(groups: HexGroups, net: Mlp) {

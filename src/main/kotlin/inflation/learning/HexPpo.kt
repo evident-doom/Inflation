@@ -101,7 +101,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
     fun copy() = SharedMover(net.copy(), identity.copyOf())
 
     fun save(file: File) {
-        Schema.save(net, file, if (band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT)
+        Schema.save(net, file, if (band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT, (if (band > 0) Role.PEOPLE else Role.HUNTERS).net)
         File(file.path + ".residual").let { if (residual != 0f) it.writeText(residual.toString()) else it.delete() }
         File(file.path + ".identity").writeText(identity.joinToString(" ") + "\n")
     }

@@ -7,6 +7,17 @@ import inflation.ecology.Band
 import inflation.ecology.Temperament
 
 /**
+ * The version of a role's networks, kept apart from the model's ([inflation.ecology.HexSnapshot.MODEL_MAJOR]).
+ * Raise [major] by hand ([Role.net]) when the role's networks change structure (inputs, outputs, what an output means):
+ * the training then takes the first network trained under the new major as the role's baseline and keeps it whatever
+ * it scores against the earlier version ([EcoCheck]). [minor] is for changes that leave the networks' meaning alone;
+ * the training treats them as before.
+ */
+data class NetVersion(val major: Int, val minor: Int) {
+    companion object { val NONE = NetVersion(0, 0) }
+}
+
+/**
  * What each input and output of a learned network means, by name, so that networks trained on an
  * older model keep working as features and choices are added (see docs/design/model-compatibility.md).
  *
@@ -41,11 +52,21 @@ object Schema {
 
     fun namesFile(f: File) = File(f.path + ".names")
 
-    /** Saves [net] with the names of its inputs and outputs. */
-    fun save(net: Mlp, file: File, inputs: List<String>, outputs: List<String>) {
+    /**
+     * Saves [net] with the names of its inputs and outputs and, if given, the net [version] it was trained under
+     * (third line; see [NetVersion]).
+     */
+    fun save(net: Mlp, file: File, inputs: List<String>, outputs: List<String>, version: NetVersion? = null) {
         require(inputs.size == net.sizes.first() && outputs.size == net.sizes.last()) { "names do not fit the network ${net.sizes.toList()}" }
         net.save(file)
-        namesFile(file).writeText(inputs.joinToString("|") + "\n" + outputs.joinToString("|") + "\n")
+        namesFile(file).writeText(inputs.joinToString("|") + "\n" + outputs.joinToString("|") + "\n" + (version?.let { "net ${it.major}.${it.minor}\n" } ?: ""))
+    }
+
+    /** The net version [file] was saved with; [NetVersion.NONE] when it carries none (saved before nets had versions, or not a versioned net). */
+    fun versionOf(file: File): NetVersion {
+        val line = namesFile(file).takeIf { it.exists() }?.readLines()?.getOrNull(2) ?: return NetVersion.NONE
+        val parts = line.removePrefix("net ").split(".")
+        return NetVersion(parts.getOrNull(0)?.toIntOrNull() ?: return NetVersion.NONE, parts.getOrNull(1)?.toIntOrNull() ?: 0)
     }
 
     /**

@@ -105,9 +105,9 @@ class WaysEvolution(private val role: WaysKind, private val movers: List<SharedM
             val fitness = DoubleArray(es.count)
             for (r in results) for (v in 0 until es.count) fitness[v] += r.fitness[v] / results.size
             es.step(centre, eps, fitness, adam)
-            Schema.save(centre, file, inNames, outNames)
+            Schema.save(centre, file, inNames, outNames, role.role.net)
             if (gen % 10 == 9) {
-                Schema.save(centre, File(File(out, "gen${gen + 1}").also { it.mkdirs() }, fileName), inNames, outNames)
+                Schema.save(centre, File(File(out, "gen${gen + 1}").also { it.mkdirs() }, fileName), inNames, outNames, role.role.net)
                 // Against the scaffold on the same fixed worlds: the centre's bands and scaffold bands side by side.
                 val scaffold = centre.copy().zeroOutputLayer()
                 val check = checkSeeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed, widthKm = size, heightKm = size), years, arrayOf(scaffold, centre)).fitness }.toList()

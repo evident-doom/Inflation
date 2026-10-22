@@ -14,6 +14,15 @@ enum class Role {
     /** Its name in files and on the command line. */
     val label = name.lowercase()
 
+    /**
+     * The version of its networks (the mover and the ways network that goes with it): raise the major by hand when
+     * either changes structure (see [NetVersion]). History: 1 = hunters' and people's networks as of model 4.17.
+     */
+    val net get() = if (this == PEOPLE) NetVersion(PEOPLE_MAJOR, 0) else NetVersion(HUNTERS_MAJOR, 0)
+
+    /** Whether the networks of this role in [dir] were saved under another net major version than today's (or none). */
+    fun netMajorChanged(dir: File) = listOf(file(dir), File(dir, ways.file)).filter { it.exists() }.any { Schema.versionOf(it).major != net.major }
+
     /** Its network in [dir]. */
     fun file(dir: File) = File(dir, "$label.mlp")
 
@@ -26,6 +35,9 @@ enum class Role {
     override fun toString() = label
 
     companion object {
+        private const val HUNTERS_MAJOR = 1
+        private const val PEOPLE_MAJOR = 1
+
         /** The role of group kind [s] (every group is a hunter or people). */
         fun of(s: Species) = if (s.human) PEOPLE else HUNTERS
 
