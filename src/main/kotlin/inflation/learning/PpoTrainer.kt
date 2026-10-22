@@ -65,17 +65,19 @@ class PpoTrainer(private val o: PpoOptions) {
             } else null
             val everything = choices.flatten()
             val waysChoices = everything.filterIsInstance<WaysChoice>()
-            val all = everything.filter { it !is WaysChoice }
+            val valueOnly = everything.filter { it.valueOnly }
+            val all = everything.filter { it !is WaysChoice && !it.valueOnly }
             val stats = StringBuilder()
+            if (valueOnly.isNotEmpty()) stats.append("%d more choices for the critics alone; ".format(valueOnly.size))
             val waysExplained = judgeWays(waysChoices)
-            val byKind = judge(all, round, stats)
+            val byKind = judge(all, valueOnly, round, stats)
             for (mi in models.indices) learn(mi, all, byKind, round - firstRound, round, stats)
             waysState?.let { st ->
                 // (The ways train the people's mover beneath them too, unless it is held: then it is saved again.)
                 val pi = Role.PEOPLE.ordinal
                 val held = Role.PEOPLE in o.fixed && round - firstRound < o.fixedRounds
-                stats.append(WaysPpo.learn(st, waysChoices, round, waysExplained, if (held) null else models[pi])).append("; "); st.save()
-                if (!held) models[pi].save(files[pi])
+                stats.append(WaysPpo.learn(st, waysChoices, round, waysExplained, if (held || !o.waysTrainMover) null else models[pi])).append("; "); st.save()
+                if (!held && o.waysTrainMover) models[pi].save(files[pi])
             }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
             // (What was not a number when the networks chose, if anything: see [NonFinite].)
@@ -126,7 +128,7 @@ class PpoTrainer(private val o: PpoOptions) {
      * not only against its kind's average: much of what befalls a group is its situation and its luck,
      * not the move; then scales it within its kind. Teaches the critics this round's returns. The choices by kind.
      */
-    private fun judge(all: List<Choice>, round: Int, stats: StringBuilder): Map<Species, List<Choice>> {
+    private fun judge(all: List<Choice>, valueOnly: List<Choice>, round: Int, stats: StringBuilder): Map<Species, List<Choice>> {
         val byKind = all.groupBy { it.kind }
         val expected = HashMap<Choice, Float>()
         val judged = HashMap<Choice, Float>()
@@ -138,7 +140,8 @@ class PpoTrainer(private val o: PpoOptions) {
             val t0 = System.nanoTime()
             val explained = critic.explained(model, mine)
             for (c in mine) { expected[c] = critic.value(model, c); judged[c] = critic.target(model, c) }
-            critic.learn(model, mine, round)
+            // (The critic learns too from the groups that took their best, [Choice.valueOnly]: judged, not judging.)
+            critic.learn(model, mine + valueOnly.filter { Role.of(it.kind).ordinal == mi }, round)
             val worst = explained.entries.sortedBy { it.value }.take(3).joinToString(", ") { "%s %.2f".format(it.key.name, it.value) }
             stats.append("%s critic explains %.2f (least: %s), %.0f%% seen again (%.0f s); ".format(Role.entries[mi], explained.values.average(), worst, 100.0 * mine.count { it.probe != null } / mine.size, (System.nanoTime() - t0) / 1e9))
         }
