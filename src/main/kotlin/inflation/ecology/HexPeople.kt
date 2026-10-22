@@ -113,6 +113,28 @@ const val CLOTHES_C = 10f
 /** Yearly chance a band hits on a tool it does not know, where it has use for it; chance a band that meets one that knows a tool learns it. */
 const val INVENT = 0.002f
 const val TEACH = 0.2f
+/**
+ * Moving camp: an unloaded adult's walking pace over rough ground, km/h (on roads people walk about 5); a walking child's
+ * pace against an adult's, as the square root of its leg length (Froude scaling; legs about 0.55 an adult's at six
+ * years); hours a band walks in a day of moving camp (an estimate: no source found).
+ */
+const val WALK_KMH = 4f
+const val CHILD_PACE = 0.74f
+const val MOVE_HOURS = 6f
+
+/** Share of [g]'s people who hold it back on the move: the old, the hurt and lamed, the sick. */
+internal fun weakShare(g: HexGroup) = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
+
+/**
+ * Km [g]'s band covers in a day of moving camp: at the pace of its slowest, its walking children if it has any, held back
+ * by its weak ([weakShare]) and by thick cover where it camps.
+ */
+internal fun HexGroups.campKmADay(g: HexGroup) = WALK_KMH * MOVE_HOURS * (if (g.young > 0) CHILD_PACE else 1f) * (1f - WEAK_SLOW * weakShare(g)) /
+    (1f + COVER_GOING * land.plants.cover(g.place))
+
+/** Days [g]'s band takes to move its camp [km], all its people walking: they are not at work. */
+internal fun HexGroups.moveDays(g: HexGroup, km: Float) = km / campKmADay(g)
+
 /** What an adult carries when the camp moves, besides children and gear, kg of food. */
 const val CARRY_KG = 15f
 /** Most that settled life with stores raises births (birth spacing about 4 years to under 3). */

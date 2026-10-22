@@ -922,7 +922,7 @@ class HexGroups(
         // (Every group weighs its places every week.)
         val capture = control != null && g.id == watched
         // (A band goes at the pace of its slowest: the old, the sick and the lamed hold it back.)
-        val weak = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
+        val weak = weakShare(g)
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS * (1f - WEAK_SLOW * weak) *
             (if (s.human) 1f / (1f + COVER_GOING * land.plants.cover(g.place)) else 1f)
         val kind = kindSlot[s.index]
@@ -1204,6 +1204,8 @@ class HexGroups(
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need, the height gained as the level walk it equals (see [walkCost]).
         score -= WALK_COST * (d + climbKmPerM(s.massKg) * max(0f, hw.placeElevationM[p.i] - hw.placeElevationM[g.place.i])) / days
+        // A band moving camp loses the days the walk takes from its week's work, beyond those it had to spare.
+        g.band?.let { b -> score -= max(0f, moveDays(g, d) - b.spareDays / forageHands(g)) / days }
         // (Above all, it keeps alive: its deaths there are weighed against all this by the caller, see [planInner].)
         // Bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && s.human) {

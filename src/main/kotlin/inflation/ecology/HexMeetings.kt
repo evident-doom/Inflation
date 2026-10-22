@@ -181,17 +181,19 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
 
 /**
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
- * wants this week, [storeDays] more to lay by what it aims to keep. What it needs to live through the week comes first
- * (food for the week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores and
- * its chores), shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing yet: it
- * is what the week leaves, till it has uses of its own. Digging soaks for water, where that is the only water, comes off first. Then it fetches the hearth's
- * firewood in the days the plan gives it.
+ * wants this week, [storeDays] more to lay by what it aims to keep. The walk, when it moved camp ([moveDays]), and digging
+ * soaks for water, where that is the only water, come off first. Then what it needs to live through the week (food for the
+ * week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores and its chores),
+ * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
+ * leaves. Then it fetches the hearth's firewood in the days the plan gives it.
  */
 private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
     val time = BandTime(days * hands.toFloat())
     // (Digging soaks and drawing their water, see [HexDrinkingWater.mustDig]: counted with the food.)
     if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) time.spend(Activity.FOOD, HexDrinkingWater.DIG_SHARE * days * hands)
+    // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
+    time.spend(Activity.MOVING, min(days.toFloat(), moveDays(g, max(0, g.path.size - 1) * hex.hexKm.toFloat())) * hands)
     val needs = FloatArray(Activity.entries.size)
     needs[Activity.FOOD.ordinal] = needDays * hands
     needs[Activity.FIREWOOD.ordinal] = fuelAsk(g, hands)

@@ -181,9 +181,11 @@ object HexSnapshot {
      * and what one leaves is free for those after it. Leisure is what the week leaves.
      * 4.20: a band's leisure goes to visits: its ties with friendly bands within a day or two's walk fade the slower the more
      * leisure it had for each of them ([VISIT_SHARE]).
+     * 4.21: moving camp takes days: all a band's people walk, at its walking children's pace, held back by its weak
+     * ([moveDays]); the walk comes off the week first, and a band weighing where to camp counts the days beyond its spare ones.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 20
+    const val MODEL_MINOR = 21
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

@@ -8,7 +8,7 @@ import kotlin.math.roundToInt
 enum class Activity(val label: String) {
     FIREWOOD("firewood"), FOOD("food"), DRYING("drying"), SKINS("skins"), SHELTER("shelter"), CUSTOMS("customs"),
     TRAINING("training"), TOOLS("tools"), HOUSES("houses"), ORNAMENTS("ornaments"), SOWING("sowing"), PALISADE("palisade"), MATERIALS("materials"), CACHING("caching"),
-    LEISURE("leisure"),
+    MOVING("moving"), LEISURE("leisure"),
 }
 
 /**
