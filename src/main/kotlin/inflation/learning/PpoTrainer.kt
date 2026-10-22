@@ -155,11 +155,13 @@ class PpoTrainer(private val o: PpoOptions) {
         val kindsHere = mine.map { it.kind }.distinct()
         val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
         var skipped = 0
+        var clipped = 0L; var seen = 0L
         repeat(4) { epoch ->
             for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
                 val parts = inParts(batch) { part -> gradient(model, part, weight) }
                 val gradW = FloatArray(model.net.w.size); val gradId = FloatArray(model.identity.size)
-                for ((w, id) in parts) { gradW.add(w); gradId.add(id) }
+                for ((w, id, c) in parts) { gradW.add(w); gradId.add(id); if (epoch == 3) clipped += c }
+                if (epoch == 3) seen += batch.size
                 // (A step that is not all numbers would make the network not a number for good: it is left out, and told.)
                 if (!gradW.allFinite() || !gradId.allFinite()) { skipped++; continue }
                 // (Each batch is a share of the whole, so its weights are scaled up to stand for it.)
@@ -169,7 +171,7 @@ class PpoTrainer(private val o: PpoOptions) {
             }
         }
         model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)
-        stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices (%.0f s%s); ".format((System.nanoTime() - t0) / 1e9,
+        stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices (%.0f s, clipped %.2f%s); ".format((System.nanoTime() - t0) / 1e9, clipped.toDouble() / seen.coerceAtLeast(1),
             if (skipped > 0) ", $skipped steps left out: not numbers" else ""))
     }
 
@@ -198,8 +200,9 @@ class PpoTrainer(private val o: PpoOptions) {
     }
 
     /** The clipped surrogate's gradient over [part] (to be minimised), for the network's weights and the identities. */
-    private fun gradient(model: SharedMover, part: List<Choice>, weight: Map<Choice, Float>): Pair<FloatArray, FloatArray> {
+    private fun gradient(model: SharedMover, part: List<Choice>, weight: Map<Choice, Float>): Triple<FloatArray, FloatArray, Int> {
         val gradW = FloatArray(model.net.w.size); val gradId = FloatArray(model.identity.size)
+        var clippedN = 0
         val dIn = FloatArray(model.inputs)
         val bufs = ArrayList<Mlp.Buffers>()
         for (c in part) {
@@ -212,6 +215,7 @@ class PpoTrainer(private val o: PpoOptions) {
             val a = c.advantage
             // The clipped objective passes no gradient once the ratio has moved past the clip in the advantage's direction.
             val clipped = (a > 0f && ratio > 1f + CLIP) || (a < 0f && ratio < 1f - CLIP)
+            if (clipped) clippedN++
             val coef = if (clipped) 0f else a * ratio
             var entropy = 0f; for (q in p) if (q > 0f) entropy -= q * ln(q)
             val w = weight.getValue(c)
@@ -226,7 +230,7 @@ class PpoTrainer(private val o: PpoOptions) {
                 for (e in 0 until SharedMover.IDENTITY) gradId[s.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.SIZE + SharedMover.KIND + e]
             }
         }
-        return gradW to gradId
+        return Triple(gradW, gradId, clippedN)
     }
 
     companion object {

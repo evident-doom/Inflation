@@ -16,7 +16,7 @@ enum class Role {
 
     /**
      * The version of its networks (the mover and the ways network that goes with it): raise the major by hand when
-     * either changes structure (see [NetVersion]). History: 1 = hunters' and people's networks as of model 4.17.
+     * either changes structure (see [NetVersion]). History: 1 = hunters' and people's networks as of model 4.17; people 2 = the bands' ways network with the carry and time outputs (model 4.23).
      */
     val net get() = if (this == PEOPLE) NetVersion(PEOPLE_MAJOR, 0) else NetVersion(HUNTERS_MAJOR, 0)
 
@@ -36,7 +36,7 @@ enum class Role {
 
     companion object {
         private const val HUNTERS_MAJOR = 1
-        private const val PEOPLE_MAJOR = 1
+        private const val PEOPLE_MAJOR = 2
 
         /** The role of group kind [s] (every group is a hunter or people). */
         fun of(s: Species) = if (s.human) PEOPLE else HUNTERS
