@@ -78,7 +78,7 @@ class MoverPolicyTest {
         assertTrue(record.all { it.valueOnly && it.inputs.size == 1 && it.inputs[0][HexFeatures.STAYS] > 0.5f && it.group != null })
         // None wanted: none recorded.
         val none = ConcurrentLinkedQueue<Choice>()
-        repeat(20) { i -> MoverPolicy(mover, none, { 0f }, { 0 }).choose(g, features, baseline, Random(i)) }
+        repeat(20) { i -> assertTrue(MoverPolicy(mover, none, { 0f }, { 0 }).choose(g, features, baseline, Random(i)) in 0 until 4) }
         assertTrue(none.isEmpty())
     }
 }
