@@ -8,13 +8,18 @@ import inflation.ecology.Thresholds
 import inflation.ecology.DeathCause
 import inflation.ecology.WeekStats
 import inflation.ecology.Band
+import inflation.ecology.Built
+import inflation.ecology.FoodFrom
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
 import inflation.ecology.Species
 import inflation.ecology.Tool
+import inflation.ecology.Material
 import inflation.ecology.Tradition
 import inflation.ecology.boldness
+import inflation.ecology.houseFoodAYear
+import inflation.ecology.houseLivesAYear
 import java.util.TreeMap
 import inflation.ecology.get
 import inflation.ecology.set
@@ -298,6 +303,29 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         if (bands.isEmpty()) return
         val bs = bands.map { it.band!! }
         println("     bands: " + skillsAndKit(bands, bs) + houses(bands, bs) + goods(bands, bs) + gatherings(bands, bs))
+        println("     bands by fish within reach of their camp, thirds from least to most: " + fishing(bands))
+    }
+
+    /**
+     * Bands in thirds by the fish within reach of their camps ([HexWater.fishWithin] at full skill, kg a week): the fish, their
+     * skills at fishing, small game and hunting, their nets, where their food came from over about a year ([Band.foodFrom],
+     * kg a person a day), and how fish paid against the least their gatherers took up ([Band.fishPull]). Whether bands where
+     * fish is plenty specialise in it.
+     */
+    private fun fishing(bands: List<HexGroup>): String {
+        val water = sim.groups.fauna.water; val hw = sim.hw
+        val sorted = bands.mapNotNull { g -> g.band?.let { b -> water.fishWithin(hw.placeHex[g.place]) to b } }.sortedBy { it.first }
+        val n = sorted.size
+        return (0 until 3).joinToString(" | ") { k ->
+            val third = sorted.subList(k * n / 3, (k + 1) * n / 3)
+            if (third.isEmpty()) "none" else {
+                fun mean(f: (Band) -> Float) = third.map { f(it.second).toDouble() }.average()
+                "fish %.0f kg/wk: skill fish %.2f, small game %.2f, hunt %.2f, nets %.2f; food a person a day %s; fish pull %.2f".format(
+                    third.map { it.first.toDouble() }.average(), mean { it.skills[Skill.FISH] }, mean { it.skills[Skill.SMALL_GAME] },
+                    mean { it.skills[Skill.HUNT] }, mean { it.kit[Tool.NET] },
+                    FoodFrom.entries.joinToString(", ") { f -> "%s %.2f".format(f.label, mean { it.foodFrom[f.ordinal] }) }, mean { it.fishPull })
+            }
+        }
     }
 
     private fun skillsAndKit(bands: List<HexGroup>, bs: List<Band>): String {
@@ -329,13 +357,56 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             " | with houses by yearly rain: " + listOf(0f to 300f, 300f to 600f, 600f to 1e9f).joinToString(", ") { (lo, hi) ->
                 val inRain = bands.filter { val h = hw.placeHex[it.place]; val r = (0 until 12).sumOf { m -> hw.precip[m][h].toDouble() }; r >= lo && r < hi }
                 "%s %.0f%% of %d".format(if (hi > 1e8f) ">600 mm" else "%.0f-%.0f mm".format(lo, hi),
-                    100.0 * inRain.count { it.band!!.house >= Thresholds.HOUSE_STANDING } / inRain.size.coerceAtLeast(1), inRain.size) }
+                    100.0 * inRain.count { it.band!!.house >= Thresholds.HOUSE_STANDING } / inRain.size.coerceAtLeast(1), inRain.size) } +
+            designs(bands, bs)
     }
 
-    /** Kept herds, ornaments and shell, grave goods. */
+    /**
+     * Finished houses by how they were built (by the room they give), the bands that know each way, and for the bands at home
+     * this week: how much more food keeping warm takes them ([Band.warmth]) and how many ran into heat debt, and how much the
+     * ground's warmth through sunken walls adds on average (whether the designs differ where bands live).
+     */
+    private fun designs(bands: List<HexGroup>, bs: List<Band>): String {
+        val room = DoubleArray(Skill.entries.size)
+        for (s in sim.groups.built) if (s.kind == Built.HOUSES && s.done) room[s.design.coerceAtLeast(0)] += (s.built * s.size).toDouble()
+        val all = room.sum().coerceAtLeast(1e-9)
+        val groups = sim.groups; val weather = sim.weather
+        val home = bands.mapNotNull { g -> g.band?.takeIf { it.atHome }?.let { b -> Triple(weather.temperature[g.place.i], b, b.warmth(groups.airAt(g.place, weather), b.fire, b.homeShelter(), groups.days)) } }
+        return " | finished houses by design " + Skill.BUILDING_WAYS.joinToString(", ") { w -> "%s %.0f%%".format(w.name.lowercase(), 100.0 * room[w.ordinal] / all) } +
+            " (%.0f places of room); known by ".format(room.sum()) + Skill.BUILDING_WAYS.joinToString(", ") { w ->
+                "%s %.0f%%".format(w.name.lowercase(), 100.0 * bs.count { it.knowsSkill[w] } / bs.size.coerceAtLeast(1)) } +
+            " | at home %d: keeping warm takes %.0f%% more food, in heat debt %.0f%%, the ground's warmth adds %.2f °C".format(home.size,
+                100.0 * (home.map { it.third.extra.toDouble() }.average().takeIf { it.isFinite() } ?: 0.0),
+                100.0 * home.count { it.third.debt > 0f } / home.size.coerceAtLeast(1),
+                home.map { (c, b) -> (b.homeShelter() * b.homeEarth * maxOf(0f, b.homeGroundC - c)).toDouble() }.average().takeIf { it.isFinite() } ?: 0.0) +
+            worth(bands)
+    }
+
+    /**
+     * What a whole house would be worth to each band where it is now, a grown person a year, averaged over the bands: the
+     * lives it would save ([houseLivesAYear]) and the food ([houseFoodAYear], also as a share of the year's need).
+     */
+    private fun worth(bands: List<HexGroup>): String {
+        val groups = sim.groups; val weather = sim.weather
+        val lives = bands.mapNotNull { g -> g.band?.let { b -> groups.houseLivesAYear(b, g.place, weather).toDouble() } }
+        val food = bands.mapNotNull { g -> g.band?.let { b -> groups.houseFoodAYear(g, b, g.place, weather).toDouble() } }
+        val need = bands.firstOrNull()?.species?.dailyIntakeKg?.times(Date.DAYS_PER_YEAR)?.toDouble() ?: 1.0
+        fun List<Double>.mean() = if (isEmpty()) 0.0 else average()
+        val bs = bands.mapNotNull { it.band }
+        val livedLives = bs.map { it.houseLives.toDouble() }; val livedFood = bs.map { it.houseFood.toDouble() }
+        return " | a house would be worth a person a year, at usual temperatures: lives %.4f, food %.0f kg (%.1f%% of need); as the bands lived the year: lives %.4f, food %.0f kg (%.1f%% of need), bands where it saves a life per 100 person-years or more %.0f%%, or 1%% of need %.0f%%".format(
+            lives.mean(), food.mean(), 100.0 * food.mean() / need, livedLives.mean(), livedFood.mean(), 100.0 * livedFood.mean() / need,
+            100.0 * livedLives.count { it >= 0.01 } / bs.size.coerceAtLeast(1), 100.0 * livedFood.count { it >= 0.01 * need } / bs.size.coerceAtLeast(1))
+    }
+
+    /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
     private fun goods(bands: List<HexGroup>, bs: List<Band>): String {
         val hw = sim.hw; val land = sim.land; val fauna = sim.fauna
-        return " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { it.herd.size > k && it.herd[k] >= 1f } }.joinToString(", ") { k ->
+        val adults = bands.sumOf { it.adults }.coerceAtLeast(1).toDouble()
+        return " | held an adult: food %.1f kg, goods %.1f kg (".format(bands.sumOf { it.larder.toDouble() } / adults,
+                bs.sumOf { it.goods.sum().toDouble() } / adults) +
+            Material.entries.joinToString(", ") { m -> "%s %.1f".format(m.name.lowercase(), bs.sumOf { it.goods[m].toDouble() } / adults) } + ")" +
+            " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { it.herd.size > k && it.herd[k] >= 1f } }.joinToString(", ") { k ->
                 val keepers = bs.filter { it.herd.size > k && it.herd[k] >= 1f }
                 "%s %.0f head in %d bands (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { it.herd[k].toDouble() }, keepers.size,
                     keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +

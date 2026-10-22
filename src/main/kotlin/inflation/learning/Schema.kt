@@ -45,6 +45,10 @@ object Schema {
     /** A band's view of itself ([inflation.ecology.BAND_INPUT_NAMES]) and its ways ([inflation.ecology.WAYS_OUT_NAMES]). */
     val WAYS_IN: List<String> get() = inflation.ecology.BAND_INPUT_NAMES
     val WAYS_OUT: List<String> get() = inflation.ecology.WAYS_OUT_NAMES
+    /** The bands' ways network's inputs when it reads [plan] units of the people's mover's last hidden layer ([SharedMover.trunk]): the band's view, then those. */
+    fun waysIn(plan: Int): List<String> = WAYS_IN + (0 until plan).map { "plan:$it" }
+    /** How many of the mover's units ([waysIn]) the ways network in [file] was saved reading (0 for one saved before it read any). */
+    fun planOf(file: File): Int = namesFile(file).takeIf { it.exists() }?.readLines()?.firstOrNull()?.split("|")?.count { it.startsWith("plan:") } ?: 0
 
     /** A pack's view of itself ([inflation.ecology.ANIMAL_INPUT_NAMES]) and its ways ([AnimalWay]). */
     val ANIMAL_WAYS_IN: List<String> get() = inflation.ecology.ANIMAL_INPUT_NAMES

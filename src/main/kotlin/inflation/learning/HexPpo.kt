@@ -70,6 +70,19 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         if (band > 0) { into.fill(0f, INPUTS, inputs); state?.copyInto(into, INPUTS, 0, min(state.size, band)) }
     }
 
+    /** The size of its last hidden layer: what a band's ways read of the place it chose ([plan]). */
+    val trunk get() = net.sizes[net.sizes.size - 2]
+
+    /**
+     * How it sees candidate place [features] for a group of kind [s] with temperament [temper] and view of itself [state]: its last
+     * hidden layer on that input, written whole into [input] (as [fill] does), run in [b].
+     */
+    fun plan(s: Species, features: FloatArray, state: FloatArray?, temper: FloatArray?, input: FloatArray, b: Mlp.Buffers): FloatArray {
+        fill(s, features, state, input, temper)
+        input.copyInto(b.a[0]); net.forward(b)
+        return b.a[net.sizes.size - 2].copyOf()
+    }
+
     /** Per-thread room for [netScores]. */
     inner class Scratch {
         val b = net.buffers()
@@ -148,16 +161,33 @@ open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: 
     /** Where the group stood, and how it was, [Critic.boot] weeks on (null if it was not seen choosing then). */
     var probe: Probe? = null
     var advantage = 0f
+    /** Recorded for the critic alone (taken as the best was, not drawn): it judges no move, only teaches what a group in its place can expect. */
+    var valueOnly = false
+}
+
+/**
+ * Where a band stood in week [week] before it moved, as the critic reads it ([at]): the state its week's plan, the move and the
+ * ways set after it, is judged from (see [WaysChoice]).
+ */
+class Standing(val week: Int, val at: Probe) {
+    /** The mover's whole input for the place it then chose ([SharedMover.plan]), for its ways' learning to train the mover through. */
+    @Volatile var plan: FloatArray? = null
 }
 
 /** Chooses with a [SharedMover], recording a share of its choices in [record] (null: the best, not sampled). */
 class MoverPolicy(private val mover: SharedMover, private val record: ConcurrentLinkedQueue<Choice>?, private val rate: (Species) -> Float, private val week: () -> Int,
                   /** Recorded choices waiting to see their group again some weeks on, by group (see [Choice.probe]); null: none wanted. */
-                  private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null, private val season: () -> Float = { 0f }) : HexPolicy {
+                  private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null, private val season: () -> Float = { 0f },
+                  /** Where each band stood when it chose this week, before it moved (see [Standing]); null: not wanted. */
+                  private val standing: ConcurrentHashMap<Int, Standing>? = null,
+                  /** The share of the choices not drawn that are still recorded for the critic to learn from ([Choice.valueOnly]). */
+                  private val valueRate: (Species) -> Float = { 0f }) : HexPolicy {
     private val scratch = ThreadLocal.withInitial { mover.Scratch() }
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
         val n = features.size
         val state = g.band?.state; val temper = g.temper
+        if (standing != null && g.band != null && n > 0)
+            standing[g.id] = Standing(week(), Probe(features[Critic.here(features)].copyOf(HexFeatures.SIZE), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season())))
         if (probes != null) probes[g.id]?.let { waiting -> synchronized(waiting) {
             val w = week()
             val due = waiting.filter { it.week + Critic.boot(it.kind) == w }
@@ -177,9 +207,23 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         for (k in 0 until n) if (scores[k].isFinite() && features[k].allFinite(HexFeatures.SIZE)) weighed++ else {
             NonFinite.note(g.species, features[k], baseline[k], net[k], mover.pull(temper, features[k])); scores[k] = Float.NEGATIVE_INFINITY }
         if (weighed == 0) return Critic.here(features)
-        // Only the choices recorded to learn from are drawn by chance; every other group takes its best, so the
-        // training worlds live as they would with the networks choosing (a world of chance moves goes under).
-        if (record == null || rnd.nextFloat() >= rate(g.species)) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
+        // Only the choices recorded to learn from are drawn by chance here; every other group takes its best (a band then draws
+        // by its will to explore, see [HexGroup.drawn]), so the training worlds live as they would with the networks choosing.
+        if (record == null || rnd.nextFloat() >= rate(g.species)) {
+            var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k
+            // (The groups that take their best still show what a group in their place can expect: the critic learns from a share of them too.)
+            if (record != null && valueRate(g.species) > 0f && rnd.nextFloat() < valueRate(g.species)) {
+                val group = Critic.groupState(g, season())
+                if (temper.allFinite() && state.allFinite() && group.allFinite()) {
+                    val c = Choice(g.species, g.id, g.size, week(), arrayOf(features[Critic.here(features)].copyOf(HexFeatures.SIZE)), 0, 0f)
+                        .also { it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf(); it.group = group; it.valueOnly = true }
+                    record += c
+                    probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
+                }
+            }
+            return best
+        }
+        g.drawn = true
         val p = softmax(scores)
         var u = rnd.nextFloat(); var taken = -1
         for (k in 0 until n) if (p[k] > 0f) { taken = k; u -= p[k]; if (u <= 0f) break }
@@ -194,7 +238,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
         return taken
     }
-    override val samples get() = record != null
+    override fun planned(g: HexGroup, chosen: FloatArray): FloatArray? {
+        if (g.band == null || mover.band == 0) return null
+        val input = FloatArray(mover.inputs)
+        val trunk = mover.plan(g.species, chosen, g.band?.state, g.temper, input, scratch.get().b)
+        standing?.get(g.id)?.let { if (it.week == week()) it.plan = input }
+        return trunk
+    }
     override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
         val state = g.band?.state; val temper = g.temper
         val net = mover.netScores(g.species, features, state, temper, scratch.get())
@@ -404,11 +454,14 @@ object HexPpo {
         private val stepsPerYear = cfg.stepsPerYear
         // The same number of choices a year of each kind, however many groups it has.
         private val rates = HashMap<Species, Float>()
+        private val valueRates = HashMap<Species, Float>()
         private var waysRate = 0f
         /** What became of each group's members, to judge each choice by. */
         private val outcomes = Outcomes()
         /** Recorded choices waiting to see their group again [Critic.boot] weeks on. */
         private val probes = ConcurrentHashMap<Int, MutableList<Choice>>()
+        /** Where each band stood this week before it moved: what its ways draw is judged from. */
+        private val standing = ConcurrentHashMap<Int, Standing>()
         /** Whether it has lived its time (if it has one), or gone badly off the rails: then a fresh world takes its place. */
         val done get() = (lifeSteps > 0 && week >= lifeSteps) || derailed != null
         /**
@@ -438,8 +491,9 @@ object HexPpo {
         // (People, the one kind of their role, get [Sampling.peopleChoices] times as many as each animal kind.)
         private fun setRates() {
             // (Nothing is recorded while a fresh world settles.)
-            if (week < burnSteps) { for (s in kinds) rates[s] = 0f; waysRate = 0f; return }
-            for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(Sampling.MAX_SHARE, sampling.perKindYear * (if (s.human) sampling.peopleChoices else 1f) / (n * stepsPerYear)) }
+            if (week < burnSteps) { for (s in kinds) { rates[s] = 0f; valueRates[s] = 0f }; waysRate = 0f; return }
+            for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(Sampling.MAX_SHARE, sampling.perKindYear * (if (s.human) sampling.peopleChoices else 1f) / (n * stepsPerYear))
+                valueRates[s] = if (s.human) min(Sampling.MAX_VALUE_SHARE, rates.getValue(s) * (sampling.criticTimes - 1f)) else 0f }
             waysRate = WaysPpo.rate(run.groups.groups.count { it.alive && it.band != null }, stepsPerYear)
         }
 
@@ -448,9 +502,10 @@ object HexPpo {
             if (week == 0) { setRates(); checkRails() }
             // A fresh world first settles for [burnSteps] weeks, its choices unrecorded (they come on top of this round's).
             val total = steps + if (week == 0) burnSteps else 0
-            val policies = models.map { MoverPolicy(it, record, { s -> rates[s] ?: 0f }, { week }, probes, { (week % stepsPerYear).toFloat() / stepsPerYear }) }
+            val season = { (week % stepsPerYear).toFloat() / stepsPerYear }
+            val policies = models.mapIndexed { i, m -> MoverPolicy(m, record, { s -> rates[s] ?: 0f }, { week }, probes, season, if (ways != null && i == Role.PEOPLE.ordinal) standing else null, { s -> valueRates[s] ?: 0f }) }
             for (s in kinds) run.groups.policies[s] = policies[role(s)]
-            ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed) }
+            ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed, standing, probes) }
             repeat(if (lifeSteps > 0) min(total, lifeSteps - week) else total) {
                 run.step()
                 week++

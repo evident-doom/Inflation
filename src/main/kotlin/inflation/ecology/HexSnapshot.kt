@@ -172,10 +172,47 @@ object HexSnapshot {
      * stone boiling renders grease from the bones it comes on ([greaseOf]), kept as a store of its own ([Store.GREASE]).
      * 4.17: a band's food efforts split its gatherers' days ([splitDays]): an effort above 1 meets its food more and every
      * other gatherers' food less, by the mean effort weighed by the days each would take; at every effort 1 as before.
-     * 4.18: the brown bear takes people a fifth as readily ([Species.takesPeople] 0.4 to 0.08).
+     * 4.18: houses and palisades stand in the world ([Structure]), no band's own: any band may use those nobody else is using,
+     * they weather away while nobody does, and a band building at its camp builds for those of its people the houses there do
+     * not shelter. Houses a band may use draw it wherever they are (home pull), and shelter it in what it foresees of a place.
+     * A band's houses in a world saved before are raised where they stood.
+     * 4.19: a band plans its week's time ([BandTime.plan]): food and firewood for the week first, then the stores and each
+     * chore ask for days, shared out when they come to more than what is left; each chore works in the days it was given
+     * and what one leaves is free for those after it. Leisure is what the week leaves.
+     * 4.20: a band's leisure goes to visits: its ties with friendly bands within a day or two's walk fade the slower the more
+     * leisure it had for each of them ([VISIT_SHARE]).
+     * 4.21: moving camp takes days: all a band's people walk, at its walking children's pace, held back by its weak
+     * ([moveDays]); the walk comes off the week first, and a band weighing where to camp counts the days beyond its spare ones.
+     * 4.22: a camp move carries food and goods in one load a walker ([CARRY_KG]): food first, goods in what room is left, the
+     * rest of the goods left at the old camp; adults under their loads walk slower ([loadedKmh]); relays walk the way again
+     * for each load past the first ([carryLoads]).
+     * 4.23: the people's ways net sets how many loads a band carries on a move ([BandWay.CARRY_LOADS]) and how it weighs each
+     * activity's ask for days against the others' when the week is short ([timeWay]); at the scaffold's 1 as in 4.22.
+     * 4.24: a band weighing where to camp spreads the walk's days beyond its spare ones over the weeks it lately keeps a camp
+     * ([Band.stayWeeks]), not one week: a better camp pays the walk back for as long as the band stays.
+     * 4.25: a camp move takes first the goods its tools' mending needs over a stay and a year's good stone, salt and ochre
+     * ([mendingKg]), then food, then the rest of its goods in the room left.
+     * 4.26: the bands' ways net reads the week's camp move (its km, the days the walk takes, the load an adult carries).
+     * 4.27: what bands build serves nothing till it first stands whole (houses shelter, a palisade guards, only once done; a
+     * finished one then serves as far as it stands as it weathers and is mended); the ways net reads the houses and palisade
+     * begun and not finished where it is. (Saved houses and palisades load as not finished.)
+     * 4.28: a band's days take food by how hard their work is ([Activity.restSaves], from FAO/WHO/UNU 2004 activity ratios):
+     * the week's want falls with the days its plan gives to lighter work and leaves to rest, and rises with wood fetched.
+     * 4.29: house designs differ beyond their cost: a sunken one brings the ground's year-round warmth in ([earthGain]), a
+     * mudbrick one wears in the rain ([MUD_EROSION]); and the bands' ways weigh their keenness on each design ([buildWay]).
+     * 4.30: the food rest saves comes off what a band eats only, once its foraging has taken the days it took, not off what
+     * it forages for ([restedDays]): cutting the forage aim too left bands short (10 y storm, 4.28 -6..-8.5% people).
+     * 4.31: people's cold by their body heat ([BodyHeat], ISO 11079's heat balance) through a day asleep, about camp and at
+     * work: night and day, wind, rain, the ground under a sleeper; shelters break the wind, keep the rain off and carry
+     * bedding; shivering costs food and the debt past it kills of exposure, in place of the felt-temperature rule.
+     * 4.32: fishing is practised with a fish spear or basket traps as well as nets, snaring with a bow as well as nets
+     * ([Band.toolsFor]); bands keep where their food came from over a year ([Band.foodFrom]) and how fish paid
+     * ([Band.fishPull]), and a band split off keeps its parent's running worths. Clothes half as warm ([CLOTHES_CLO] 1.5).
+     * 4.33: the brown bear takes people a fifth as readily ([Species.takesPeople] 0.4 to 0.08; main's 4.18, merged with the
+     * above).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 18
+    const val MODEL_MINOR = 33
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

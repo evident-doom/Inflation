@@ -32,11 +32,11 @@ enum class WaysKind(
     /** The names of its network's outputs. */
     val outNames: List<String> get() = if (this == BANDS) Schema.WAYS_OUT else Schema.HUNTER_WAYS_OUT
 
-    /** Its network in [f], fitted to today's inputs and outputs by name ([Schema.load]). */
-    fun load(f: File): Mlp = Schema.load(f, inNames, outNames)
+    /** Its network in [f], fitted to today's inputs and outputs by name ([Schema.load]); the bands' reading as many of the mover's units as it was saved with. */
+    fun load(f: File): Mlp = Schema.load(f, if (this == BANDS) Schema.waysIn(Schema.planOf(f)) else inNames, outNames)
 
     /** Saves [net] to [f] with its inputs' and outputs' names. */
-    fun save(net: Mlp, f: File) = Schema.save(net, f, inNames, outNames, role.net)
+    fun save(net: Mlp, f: File) = Schema.save(net, f, if (this == BANDS) Schema.waysIn(net.sizes[0] - inNames.size) else inNames, outNames, role.net)
 
     /** Sets [groups]' ways of this kind by [net]. */
     fun set(groups: HexGroups, net: Mlp) {

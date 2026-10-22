@@ -62,6 +62,10 @@ class HexGroups(
     internal val rnd = Random(seed * 41 + 3)
     internal val seedBase = seed
     val groups = ArrayList<HexGroup>()
+    /** What bands have built that stands in the world ([Structure]): no band's own, any band's to use. */
+    val built = ArrayList<Structure>()
+    /** (Whether a world saved before [built] was kept has had its bands' houses raised in it: see [tendStructures].) */
+    @Transient internal var structuresSeen = false
     internal var nextId = 0
     /**
      * The kinds that live as groups: the hunters other than the residents' ([Catalogue.residentHunters]), and people (plant-eaters
@@ -252,12 +256,11 @@ class HexGroups(
         watchLog.clear()
         fauna.moon = date.meanMoonlight(days).toFloat()
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
-        // through their clothes and, at home, their houses).
+        // by their body heat, through their clothes, fire, shelters and, at home, their houses).
         // (Raw meals give less: a band without fire needs more food for the same strength.)
         for (g in groups) if (g.alive) {
-            val t = weather.temperature[g.place]
             val b = g.band
-            g.warmth = warmthNeed(g.species, b, t, b?.fire ?: 0f, b?.atHome ?: false, date.month, tuning)
+            g.warmth = warmthNeed(g.species, b, g.place, weather, b?.fire ?: 0f, b?.homeShelter() ?: 0f)
         }
         if (bearings.month != date.month) {
             beastsKg(monthBeastKg, people = false)
@@ -588,8 +591,8 @@ class HexGroups(
         if (pull != 0f) score += APPOINT_PULL * pull
         val dead = g.memory.deadAt(h)
         if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
-        // Its houses draw it home; a camp where someone died lately is shunned by those who leave their dead.
-        if (h == b.houseHex) score += HOME_PULL * b.house
+        // Houses it may use draw it (its own or any left empty); a camp where someone died lately is shunned by those who leave their dead.
+        score += HOME_PULL * housesAt(g, h.i)
         if (h == b.unluckyHex) score -= UNLUCKY
         // It keeps off the known homes of bands it is not close to (unless set on raiding them).
         if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
@@ -661,6 +664,8 @@ class HexGroups(
 
     /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
     internal var followersByHex: Map<Int, List<HexGroup>> = emptyMap()
+    /** Each living band's hex by its id, as of this week's camps (for visiting, see [cultureWeek]). */
+    internal var bandHex: Map<Int, Int> = emptyMap()
     /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
     internal var houseOf: Map<Int, Int> = emptyMap()
 
@@ -847,7 +852,7 @@ class HexGroups(
         // Its ancestors buried here, and how far going here brings it toward its appointment.
         f[Feature.ANCESTORS] = min(1f, g.memory.deadAt(h) / 10f)
         f[Feature.APPOINTMENT] = g.band?.let { appointPull(g, it, month, h) } ?: 0f
-        f[Feature.HOUSES] = g.band?.let { if (h == it.houseHex) it.house else 0f } ?: 0f
+        f[Feature.HOUSES] = if (g.band != null) housesAt(g, h.i) else 0f
         f[Feature.OWN_SIZE] = ln(g.size.toFloat().coerceAtLeast(1f) / unitSize(s)) / 2f
         f[Feature.LASTING_WATER] = min(1f, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p])
         f[Feature.SICKNESS] = min(1f, fauna.outbreakDeaths(s, p) * 10f)
@@ -916,7 +921,7 @@ class HexGroups(
         // (Every group weighs its places every week.)
         val capture = control != null && g.id == watched
         // (A band goes at the pace of its slowest: the old, the sick and the lamed hold it back.)
-        val weak = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
+        val weak = weakShare(g)
         val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS * (1f - WEAK_SLOW * weak) *
             (if (s.human) 1f / (1f + COVER_GOING * land.plants.cover(g.place)) else 1f)
         val kind = kindSlot[s.index]
@@ -934,7 +939,7 @@ class HexGroups(
         val candPlaces = buf.candPlaces; candPlaces.clear(); val candFeats = buf.candFeats
         // (Every place's whole score is wanted for a network, for capture and for a watched group; else only the best.)
         // (A band draws its place by its will to explore, from every place it weighs, see [exploreChoice].)
-        val explores = g.band != null && !capture && policy?.samples != true
+        val explores = g.band != null
         val wantAll = seen != null || policy != null || capture || explores
         buf.laterPlace.clear(); buf.explPlaces.clear()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
@@ -1036,11 +1041,13 @@ class HexGroups(
             }
         }
         lap("choosing: weighing places (hand-written score)")
+        g.drawn = false
         if (policy != null && candPlaces.size > 0) {
             val nc = candPlaces.size
             best = Place(candPlaces[policy.choose(g, Array(nc) { candFeats[it] }, buf.candScores.copyOf(nc), policyRandom(g.id, date.absoluteDay))])
         }
-        if (explores) best = explored(g, policy, buf, best, date)
+        // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
+        if (explores && !g.drawn) best = explored(g, policy, buf, best, date)
         lap("choosing: network")
         // The hexes passed on the way to [p], by the cheapest chain.
         fun pathTo(p: Int): IntArray {
@@ -1050,6 +1057,12 @@ class HexGroups(
         }
         if (capture) best = Place(askControl(g, weather, date, policy, buf.candPlaces, buf.candFeats, buf.candScores, best.i,
             restless, reach, goal, onRound) { pathTo(it) })
+        // (A band's ways read how its mover saw the place it goes to: see [HexGroup.plan].)
+        if (g.band != null) {
+            var k = -1
+            if (policy != null) for (i in 0 until candPlaces.size) if (candPlaces[i] == best.i) { k = i; break }
+            g.plan = if (k >= 0) policy?.planned(g, candFeats[k]) else null
+        }
         if (seen != null && g.id == watched) logWatched(c, seen, best, policy != null)
         if (diag && seen != null) printPlanDiag(c, seen, best)
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
@@ -1198,6 +1211,9 @@ class HexGroups(
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         // The going costs food: a share of the week's need, the height gained as the level walk it equals (see [walkCost]).
         score -= WALK_COST * (d + climbKmPerM(s.massKg) * max(0f, hw.placeElevationM[p.i] - hw.placeElevationM[g.place.i])) / days
+        // A band moving camp loses the days the walk takes from its week's work, beyond those it had to spare; the new camp
+        // pays them back over the weeks it will keep it (as foragers weigh travel time against a patch's stay).
+        g.band?.let { b -> score -= max(0f, moveDays(g, d) - b.spareDays / forageHands(g)) / (days * b.stayWeeks) }
         // (Above all, it keeps alive: its deaths there are weighed against all this by the caller, see [planInner].)
         // Bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && s.human) {
@@ -1316,7 +1332,18 @@ class HexGroups(
     internal fun drain(g: HexGroup, p: Place, weather: Weather): Float {
         val s = g.species; val t = weather.temperature[p]
         val b = g.band
-        return warmthNeed(s, b, t, b?.let { fireAt(g, it, p) } ?: 0f, b?.let { atHouse(it, p) } ?: false, weather.date.month, tuning) - 1f + bitten(s, p)
+        return warmthNeed(s, b, p, weather, b?.let { fireAt(g, it, p) } ?: 0f, if (b != null) houseAt(g, p) else 0f, t) - 1f + bitten(s, p)
+    }
+
+    /**
+     * The week's weather at place [p] as people's body heat meets it ([BodyHeat]), at [t] °C: the swing between night and day
+     * under a sky as cloudy as the week's rain and snow make it, the wind at a person's height (less in woods and thickets), the
+     * rain that wets clothes, and whether snow lies.
+     */
+    internal fun airAt(p: Place, weather: Weather, t: Float = weather.temperature[p]): Air {
+        val snow = weather.snowpack[p] > BodyHeat.SNOW_LIES_MM
+        val wind = hypot(weather.windEast(p.i), weather.windSouth(p.i)) * BodyHeat.BODY_WIND * (1f - BodyHeat.FOREST_CALM * land.plants.cover(p))
+        return Air(t, Air.swingC(Air.opaque(weather.precipitation[p] / days), snow), wind, Air.wet(weather.rain(p.i), days), snow)
     }
 
     /**
@@ -1330,8 +1357,8 @@ class HexGroups(
         return lit * hearthShare(woodCover(p), g.size.toFloat() / forageHands(g))
     }
 
-    /** Whether band [b] camped at place [p] would be at its house. */
-    internal fun atHouse(b: Band, p: Place) = b.houseHex.i == hw.placeHex[p] && b.house > 0.05f
+    /** How far [g] camped at place [p] would be sheltered by houses there it may use (0 for none worth the name). */
+    internal fun houseAt(g: HexGroup, p: Place) = housesAt(g, hw.placeHex[p]).takeIf { it > 0.05f } ?: 0f
 
     /**
      * What the biting insects at [p] cost a group of kind [s] this week, as a share of the working time

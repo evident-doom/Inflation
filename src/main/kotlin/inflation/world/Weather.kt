@@ -1,6 +1,7 @@
 package inflation.world
 
 import inflation.Config
+import inflation.ecology.Place
 
 import kotlin.math.PI
 import kotlin.math.cos
@@ -48,6 +49,8 @@ class ClimateEvent(
  * [elevation] gives the terrain the wind meets; without it, rain does not depend on the wind.
  */
 class Weather(@Transient private val places: Places, private val cfg: WorldConfig) {
+    /** The usual mean temperature at place [p] in [month] (0-based), °C: the climate's, not this year's weather. */
+    fun usualTemperature(month: Int, p: Place) = places.monthlyTemp[month][p.i]
     /** Weather on every cell of [grid]; with [elevation] the wind's rain follows the terrain. */
     constructor(grid: Grid, climate: Climate, cfg: WorldConfig, elevation: FloatArray? = null) :
         this(Places.of(grid, climate, cfg, elevation), cfg)

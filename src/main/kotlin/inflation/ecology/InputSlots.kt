@@ -48,6 +48,21 @@ object BandInputs : InputSlots() {
     val ELEVATION = one("elevation")
     // Of the protein it ate last week, the share that went to waste beyond what protein can feed ([Band.leanLost]).
     val LEAN_LOST = one("lean food wasted")
+    // What it has to build with and how: the goods it holds (kg against what a person carries), how well it knows each
+    // way of building, and the houses and palisade where it is now.
+    val GOODS = block(Material.entries.map { "goods:${it.name.lowercase()}" })
+    val BUILDING = block(Skill.BUILDING_WAYS.map { "building:${it.name.lowercase()}" })
+    val HOUSE_HERE = one("houses here"); val PALISADE_HERE = one("palisade here")
+    // This week's move (the ways are set after it, see [hunt]): how far it walked, the days the walk takes all its people, and
+    // what an adult would carry in a load ([carriedKg]), so that its loads and its week are weighed knowing where it went.
+    val MOVE_KM = one("camp move km"); val MOVE_DAYS = one("camp move days"); val LOAD = one("load an adult carries")
+    // What it has begun building here and not finished (houses, as the share of its grown people they would shelter; the
+    // palisade's ring): it serves nothing yet ([Structure.done]), so that the work it holds is seen.
+    val HOUSES_BEGUN = one("houses begun here"); val PALISADE_BEGUN = one("palisade begun here")
+    // Its people's cold this week where it stands, by their body heat ([BodyHeat]): the food keeping warm would take, the odds of dying of
+    // exposure, the wind and wet about the camp, and what it has against them (its fire's share of the week, its houses' shelter).
+    val COLD_FOOD = one("cold: extra food"); val COLD_ODDS = one("cold: exposure odds"); val WIND = one("wind"); val WET = one("wet")
+    val FIRE_SHARE = one("fire share"); val HOME_SHELTER = one("home shelter")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */
