@@ -50,6 +50,8 @@ class SavedStateTest {
         "groups.routes.legWear", "groups.routes.onRoute", "groups.routes.way",
         // (Grave goods need a death in a band that owns ornaments: on this small world a year may or may not see one.)
         "land.graveGoods",
+        // (Burials need a death in a band that keeps the burial tradition: on this small world a year may or may not see one.)
+        "land.burials",
         // (Snow iced over by rain on it: the small test world may see no rain on lying snow in its year.)
         "land.drink.iced",
         // (Snow lies on this world's hills only some winter weeks, and the walk to water and residents' days without it

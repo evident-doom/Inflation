@@ -172,9 +172,10 @@ object HexSnapshot {
      * stone boiling renders grease from the bones it comes on ([greaseOf]), kept as a store of its own ([Store.GREASE]).
      * 4.17: a band's food efforts split its gatherers' days ([splitDays]): an effort above 1 meets its food more and every
      * other gatherers' food less, by the mean effort weighed by the days each would take; at every effort 1 as before.
+     * 4.18: the brown bear takes people a fifth as readily ([Species.takesPeople] 0.4 to 0.08).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 17
+    const val MODEL_MINOR = 18
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
