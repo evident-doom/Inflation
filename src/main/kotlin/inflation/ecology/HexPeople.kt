@@ -117,12 +117,14 @@ const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */
 const val GATHER_SHARE = 0.5f
 /**
- * The insulation of a whole kit of furs and hides sewn by a master, clo (an estimate: no measured clo of skin clothing was
- * found; caribou-skin outfits held skin warmth as well as modern expedition clothing in trials, Climate Research 5: 83-90,
- * 1995, and Hill et al. 2020, Arctic 73(1), and heavy modern cold-weather ensembles run about 3 clo). Bands start with half
- * a kit, sewn by novices: about 1 clo.
+ * The insulation of a whole kit of furs and hides sewn by a master, clo: half of a heavy modern cold-weather ensemble's
+ * about 3 clo, since hides wrapped and sewn by hand leave gaps at the neck, wrists and feet and lack layered underwear,
+ * hoods, mittens and boots (a judgement, Olli 2026-10-22; no measured clo of skin clothing was found: the Inuit's tailored
+ * caribou-skin outfits held skin warmth as well as modern expedition clothing, Climate Research 5: 83-90, 1995, and Hill
+ * et al. 2020, Arctic 73(1), but those are the most refined skin clothing known). Bands start with half a kit, sewn by
+ * novices: about 0.5 clo.
  */
-const val CLOTHES_CLO = 3f
+const val CLOTHES_CLO = 1.5f
 /** Yearly chance a band hits on a tool it does not know, where it has use for it; chance a band that meets one that knows a tool learns it. */
 const val INVENT = 0.002f
 const val TEACH = 0.2f
@@ -253,6 +255,13 @@ class Band(kinds: Int) {
     /** This week's share of them so far, not yet a person's: lives and kg ([houseWorthWeek]). */
     var houseLivesWeek = 0f
     var houseFoodWeek = 0f
+    /** Its food over about a year by where it came from ([FoodFrom]), kg a person a day (a running mean, [HexGroups.recordFood]). */
+    val foodFrom = FloatArray(FoodFrom.entries.size)
+    /**
+     * Over about a year, how its fishing paid against the least paying food its gatherers took up, as fish's yield a day of
+     * handling over itself and that least yield: above 1/2 fish was worth taking up, 0 no fish in reach ([Offers.pull]).
+     */
+    var fishPull = 0f
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()
@@ -511,6 +520,7 @@ class Band(kinds: Int) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull
         o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
@@ -642,12 +652,14 @@ class Band(kinds: Int) {
     }
     /**
      * How far a band can practise [s] with the tools it has: a hunter without spear or bow, a fisher
-     * without lines and nets, a cook without tight baskets learns little of the craft (a little, at
-     * best, by watching and making do).
+     * without a fish spear, traps or nets, a snarer without cords or a bow for birds, a cook without
+     * tight baskets learns little of the craft (a little, at best, by watching and making do). (Fish are
+     * speared and trapped in baskets and weirs as well as netted; shellfish want no tools at all.)
      */
     fun toolsFor(s: Skill) = when (s) {
         Skill.HUNT, Skill.STALK -> max(TOOLLESS, max(has(Tool.SPEAR), has(Tool.BOW)))
-        Skill.SMALL_GAME, Skill.FISH -> max(TOOLLESS, has(Tool.NET))
+        Skill.FISH -> max(TOOLLESS, max(has(Tool.NET), max(has(Tool.SPEAR), has(Tool.BASKET))))
+        Skill.SMALL_GAME -> max(TOOLLESS, max(has(Tool.NET), has(Tool.BOW)))
         Skill.STONE_BOILING, Skill.LEACHING -> max(TOOLLESS, has(Tool.BASKET))
         else -> 1f
     }
@@ -736,6 +748,9 @@ class Band(kinds: Int) {
     }
 
 }
+
+/** Where a band's food came from, as [Band.foodFrom] counts it. */
+enum class FoodFrom(val label: String) { PLANTS("plants"), SMALL_GAME("small game"), FISH("fish"), BIG_GAME("big game"), CARRION("carrion") }
 
 /** At any camp a band first puts up brush shelters, quickly (and leaves them when it moves on). */
 private fun putUpShelter(b: Band, people: Float, time: BandTime) {
