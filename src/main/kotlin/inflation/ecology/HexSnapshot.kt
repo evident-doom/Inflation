@@ -185,10 +185,12 @@ object HexSnapshot {
      * ([moveDays]); the walk comes off the week first, and a band weighing where to camp counts the days beyond its spare ones.
      * 4.22: a camp move carries food and goods in one load a walker ([CARRY_KG]): food first, goods in what room is left, the
      * rest of the goods left at the old camp; adults under their loads walk slower ([loadedKmh]); relays walk the way again
-     * for each load past the first ([carryLoads], one for now).
+     * for each load past the first ([carryLoads]).
+     * 4.23: the people's ways net sets how many loads a band carries on a move ([BandWay.CARRY_LOADS]) and how it weighs each
+     * activity's ask for days against the others' when the week is short ([timeWay]); at the scaffold's 1 as in 4.22.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 22
+    const val MODEL_MINOR = 23
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

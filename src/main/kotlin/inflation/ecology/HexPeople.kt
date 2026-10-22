@@ -138,7 +138,7 @@ internal fun HexGroups.campKmADay(g: HexGroup): Float {
 }
 
 /** Days [g]'s band takes to move its camp [km], all its people walking (and its adults back for each load past the first): they are not at work. */
-internal fun HexGroups.moveDays(g: HexGroup, km: Float) = km * (2f * (g.band?.let { carryLoads(it) } ?: 1f) - 1f) / campKmADay(g)
+internal fun HexGroups.moveDays(g: HexGroup, km: Float) = km * (g.band?.let { relayWalks(it) } ?: 1f) / campKmADay(g)
 
 /**
  * What an adult carries in a load when the camp moves, food and goods together, kg: !Kung women carried about 15 kg
@@ -884,11 +884,12 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
  */
 internal fun cacheCare(b: Band) = max(1f, b.cacheWill)
 
-/** The kg of its stores [g]'s band [b] cannot carry ([carryKg]): what it caches or leaves when it moves camp. */
+/** The kg of its stores [g]'s band [b] cannot carry in its loads ([carryKg], [carryLoads]): what it caches or leaves when it moves camp. */
 private fun leftBehindKg(g: HexGroup, b: Band): Float {
     val total = g.larder
-    if (total <= carryKg(g, b)) return 0f
-    val left = 1f - carryKg(g, b) / total
+    val carry = carryKg(g, b) * carryLoads(b)
+    if (total <= carry) return 0f
+    val left = 1f - carry / total
     return Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
 }
 
@@ -896,14 +897,16 @@ private fun leftBehindKg(g: HexGroup, b: Band): Float {
 private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
 
 /**
- * Loads each of [b]'s adults carries on a camp move: above one, they carry a load ahead, go back for the next and so on
- * (relays), walking the way 2 x loads - 1 times. One for now: how many is a choice the people net is to make.
+ * Loads of [carryKg] each of [b]'s adults takes on a camp move, its choice ([BandWay.CARRY_LOADS]): under one, a lighter
+ * load and a faster walk; above one, they carry a load ahead, go back for the next and so on (relays).
  */
-@Suppress("UNUSED_PARAMETER")
-internal fun carryLoads(b: Band) = 1f
+internal fun carryLoads(b: Band) = b.will[BandWay.CARRY_LOADS]
 
-/** What [g]'s band [b] carries a walker on a camp move, kg: its food first, then its goods, as far as its loads take them. */
-private fun carriedKg(g: HexGroup, b: Band) = min(g.larder + b.goods.sum(), carryKg(g, b) * carryLoads(b)) / (max(1, g.adults) * carryLoads(b))
+/** Times [b]'s adults walk the way of a camp move: once, and there and back again for each load past the first. */
+internal fun relayWalks(b: Band) = 1f + 2f * max(0f, carryLoads(b) - 1f)
+
+/** What [g]'s band [b] carries a walker on each leg of a camp move, kg: its food first, then its goods, as far as its loads take them. */
+private fun carriedKg(g: HexGroup, b: Band) = min(g.larder + b.goods.sum(), carryKg(g, b) * carryLoads(b)) / (max(1, g.adults) * max(1f, carryLoads(b)))
 
 /**
  * Walking pace of an adult carrying [loadKg], km/h: as fast as costs the same effort as walking unloaded ([WALK_KMH]),
@@ -925,7 +928,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
         if (!b.campPlace.none) {
-            val carry = carryKg(g, b)
+            val carry = carryKg(g, b) * carryLoads(b)
             val total = g.larder
             if (total > carry) {
                 // (It chooses how much of what it cannot carry to cache, as far as its time to dig and cover the pits goes;
@@ -1609,9 +1612,37 @@ enum class BandWay(val label: String) {
     STORING_MEAT("storing: meat and fish"),
     STORING_FRUIT("storing: fruit and finds"),
     STORING_ROOTS("storing: roots"),
-    STORING_SEED("storing: seed and grain");
+    STORING_SEED("storing: seed and grain"),
+    /** Loads each adult carries on a camp move ([carryLoads]): under one, lighter and faster; over one, relays. */
+    CARRY_LOADS("carry loads"),
+    /**
+     * How a band weighs each activity's ask for days against the others' when they come to more than its week
+     * ([BandTime.plan]): the less weighed lose their days first.
+     */
+    TIME_STORES("time: laying food by"), TIME_DRYING("time: drying"), TIME_SKINS("time: skins"), TIME_SHELTER("time: shelter"),
+    TIME_CUSTOMS("time: customs"), TIME_TRAINING("time: training"), TIME_TOOLS("time: tools"), TIME_HOUSES("time: houses"),
+    TIME_ORNAMENTS("time: ornaments"), TIME_SOWING("time: sowing"), TIME_PALISADE("time: palisade"), TIME_MATERIALS("time: materials"),
+    TIME_CACHING("time: caching");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
+}
+
+/** The way that weighs [a]'s ask for days ([BandWay.TIME_STORES] and after); none for what comes first (the walk, the week's food and firewood) or is what is left (leisure). */
+fun timeWay(a: Activity): BandWay? = when (a) {
+    Activity.FOOD -> BandWay.TIME_STORES
+    Activity.DRYING -> BandWay.TIME_DRYING
+    Activity.SKINS -> BandWay.TIME_SKINS
+    Activity.SHELTER -> BandWay.TIME_SHELTER
+    Activity.CUSTOMS -> BandWay.TIME_CUSTOMS
+    Activity.TRAINING -> BandWay.TIME_TRAINING
+    Activity.TOOLS -> BandWay.TIME_TOOLS
+    Activity.HOUSES -> BandWay.TIME_HOUSES
+    Activity.ORNAMENTS -> BandWay.TIME_ORNAMENTS
+    Activity.SOWING -> BandWay.TIME_SOWING
+    Activity.PALISADE -> BandWay.TIME_PALISADE
+    Activity.MATERIALS -> BandWay.TIME_MATERIALS
+    Activity.CACHING -> BandWay.TIME_CACHING
+    Activity.FIREWOOD, Activity.MOVING, Activity.LEISURE -> null
 }
 /** The way that sets how keenly a band lays food [t] by ([Band.storeWill]). */
 fun storeWay(t: Food) = when (t) {
