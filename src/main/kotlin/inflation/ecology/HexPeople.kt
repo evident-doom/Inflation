@@ -128,6 +128,8 @@ const val MOVE_HOURS = 6f
  */
 const val STAY_WEEKS_START = 4f
 const val STAY_LEARN = 0.2f
+/** Km of a week's camp move at which the ways' input for it ([BandInputs.MOVE_KM]) is half way to 1. */
+const val MOVE_KM_HALF = 20f
 
 /** Share of [g]'s people who hold it back on the move: the old, the hurt and lamed, the sick. */
 internal fun weakShare(g: HexGroup) = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
@@ -927,7 +929,7 @@ internal fun carryLoads(b: Band) = b.will[BandWay.CARRY_LOADS]
 internal fun relayWalks(b: Band) = 1f + 2f * max(0f, carryLoads(b) - 1f)
 
 /** What [g]'s band [b] carries a walker on each leg of a camp move, kg: its food first, then its goods, as far as its loads take them. */
-private fun carriedKg(g: HexGroup, b: Band) = min(g.larder + b.goods.sum(), carryKg(g, b) * carryLoads(b)) / (max(1, g.adults) * max(1f, carryLoads(b)))
+internal fun carriedKg(g: HexGroup, b: Band) = min(g.larder + b.goods.sum(), carryKg(g, b) * carryLoads(b)) / (max(1, g.adults) * max(1f, carryLoads(b)))
 
 /**
  * Walking pace of an adult carrying [loadKg], km/h: as fast as costs the same effort as walking unloaded ([WALK_KMH]),
@@ -1788,6 +1790,9 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     into[x.LEAN_LOST] = b.leanLost
     val adults = max(1, g.adults) * GOODS_PER_PERSON
     for (m in Material.entries) into[x.GOODS + m.ordinal] = b.goods[m] / adults
+    val km = max(0, g.path.size - 1) * hex.hexKm.toFloat()
+    val walk = moveDays(g, km)
+    into[x.MOVE_KM] = km / (km + MOVE_KM_HALF); into[x.MOVE_DAYS] = walk / (walk + days); into[x.LOAD] = carriedKg(g, b) / (CARRY_KG * (1f + BASKET_GAIN))
     for ((k, w) in Skill.BUILDING_WAYS.withIndex()) into[x.BUILDING + k] = if (b.knowsSkill[w]) b.skill(w) else 0f
     val here = hw.placeHex[g.place] == b.houseHex.i
     into[x.HOUSE_HERE] = if (here) b.house else 0f; into[x.PALISADE_HERE] = if (here) b.palisade else 0f

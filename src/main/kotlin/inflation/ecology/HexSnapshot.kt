@@ -192,9 +192,10 @@ object HexSnapshot {
      * ([Band.stayWeeks]), not one week: a better camp pays the walk back for as long as the band stays.
      * 4.25: a camp move takes first the goods its tools' mending needs over a stay and a year's good stone, salt and ochre
      * ([mendingKg]), then food, then the rest of its goods in the room left.
+     * 4.26: the bands' ways net reads the week's camp move (its km, the days the walk takes, the load an adult carries).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 25
+    const val MODEL_MINOR = 26
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

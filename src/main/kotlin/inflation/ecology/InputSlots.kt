@@ -53,6 +53,9 @@ object BandInputs : InputSlots() {
     val GOODS = block(Material.entries.map { "goods:${it.name.lowercase()}" })
     val BUILDING = block(Skill.BUILDING_WAYS.map { "building:${it.name.lowercase()}" })
     val HOUSE_HERE = one("houses here"); val PALISADE_HERE = one("palisade here")
+    // This week's move (the ways are set after it, see [hunt]): how far it walked, the days the walk takes all its people, and
+    // what an adult would carry in a load ([carriedKg]), so that its loads and its week are weighed knowing where it went.
+    val MOVE_KM = one("camp move km"); val MOVE_DAYS = one("camp move days"); val LOAD = one("load an adult carries")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */
