@@ -80,6 +80,13 @@ enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerY
 const val CRAFT_FLOOR = 0.3f
 /** How far one week's use closes the gap to mastery. */
 const val PRACTICE = 0.02f
+/**
+ * Hunting, tracking and stalking are learned over years, not weeks: Kaplan et al. 2000 have Hiwi boys at 16% of the adult
+ * return at 10, 50% at 20 and the peak at 30-35, Ache boys at 25% at 20 and the peak in the mid-30s. At complexity 1.5 this is
+ * about 0.0015 of the gap a week: half way in about 9 years of weekly practice, 90% in about 29. A guess between the two
+ * curves (adults relearning plausibly go faster than the boys of the record); Olli's call. Forgetting slows in step.
+ */
+const val HUNTING_PRACTICE = 0.0022f
 /** Raw materials a band carries, kg per adult of each kind. */
 const val GOODS_PER_PERSON = 20f
 /** Hunting success of a band without spears, against one with them; what bows add against fast quarry. */
@@ -1395,7 +1402,9 @@ private fun HexGroups.forget(b: Band) {
     val forgetKnowledge = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET_KNOWLEDGE * 0.4f else FORGET_KNOWLEDGE) * b.lapse(Skill.LORE)
     for (s in Skill.entries) {
         val unused = b.weeks - b.lastUsed[s] > 4
-        b.skills[s] *= 1f - (if (!unused) FORGET_HANDS else if (s.knowledge) forgetKnowledge else FORGET_HANDS * 2f)
+        // A skill learned slowly is also lost slowly, or its level would settle far lower (r / (r + forgetting)).
+        val hands = FORGET_HANDS * minOf(1f, s.practice / PRACTICE)
+        b.skills[s] *= 1f - (if (!unused) hands else if (s.knowledge) forgetKnowledge else hands * 2f)
         // A way no one holds and no one has used for years is lost altogether; so is one whose groundwork is lost.
         if (b.knowsSkill[s] && s.losable && b.holders[s] < 0.5f && b.weeks - b.lastUsed[s] > (if (s.knowledge) LOST_KNOWLEDGE_YEARS else LOST_HANDS_YEARS) * stepsPerYear) {
             b.knowsSkill[s] = false; b.skills[s] = 0f; b.holders[s] = 0f
