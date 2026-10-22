@@ -242,6 +242,16 @@ class Band(kinds: Int) {
     var salted = 0f
     /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
     var leanLost = 0f
+    /**
+     * Its perseverance, 0..1 ("sisu"): how far its people keep working when cold and hunger are against them ([Sisu]),
+     * at the price of the heat debt and the food it costs. Its lineage's, a little changed at each split.
+     */
+    var sisu = 0.5f
+    /** The share of its working time its people work this week for the cold ([Warmth.pace]) and for hunger ([Sisu.hungerPace]), set as the week starts. */
+    @Transient var coldPace = 1f
+    @Transient var hungerPace = 1f
+    /** The share of its people's working time that is work this week ([Sisu]). */
+    val pace get() = coldPace * hungerPace
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0
@@ -523,7 +533,7 @@ class Band(kinds: Int) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply)
-        o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided
+        o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
@@ -606,6 +616,7 @@ class Band(kinds: Int) {
         for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
         for (i in b.kept.indices) a.kept[i] += b.kept[i]
         a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
+        a.sisu += w * (b.sisu - a.sisu)
         for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
     }
 
@@ -720,7 +731,7 @@ class Band(kinds: Int) {
      * with its bedding or a house keep people alive in deep cold; the naked die of exposure in a night a few degrees above
      * freezing, wet and windy.
      */
-    fun warmth(air: Air, fire: Float, home: Float, days: Int) = BodyHeat.week(air, cover(air.meanC, fire, home), days)
+    fun warmth(air: Air, fire: Float, home: Float, days: Int) = BodyHeat.week(air, cover(air.meanC, fire, home), days, sisu)
 
     companion object {
         /**
@@ -1192,7 +1203,10 @@ internal fun hearthShare(cover: Float, perHand: Float) =
  */
 internal fun HexGroups.warmthNeed(s: Species, b: Band?, p: Place, weather: Weather, fire: Float, home: Float, t: Float = weather.temperature[p]) =
     if (b == null) coldNeed(s, t, weather.date.month, tuning)
-    else (1f + tuning.coldCost * b.warmth(airAt(p, weather, t), fire, home, days).extra) * (1f + RAW_COST * (1f - fire))
+    else warmthNeed(b.warmth(airAt(p, weather, t), fire, home, days), fire)
+
+/** A band's need for its week's [w] (its body heat) with a fire of [fire]: see [warmthNeed]. */
+internal fun HexGroups.warmthNeed(w: Warmth, fire: Float) = (1f + tuning.coldCost * w.extra) * (1f + RAW_COST * (1f - fire))
 
 /**
  * The work [b]'s customs ask of it this week, from [time] (person-days) after the firewood: keeping the camp clean

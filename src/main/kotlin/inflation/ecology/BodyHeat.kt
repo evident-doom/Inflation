@@ -56,10 +56,11 @@ class Cover(val clothesClo: Float, val fire: Float, val shelter: Float, val home
 
 /**
  * A week's cold for a band, from its body heat ([BodyHeat.week]): the share more food its people eat to make the heat they
- * lose beyond what their day's work and rest make ([extra]); the share of them it kills, of exposure ([odds]); and the
- * worst heat debt of a day, beyond what the body bears, Wh per m² of skin ([debt]).
+ * lose beyond what their day's work and rest make ([extra]); the share of them it kills, of exposure ([odds]); the
+ * worst heat debt of a day, beyond what the body bears, Wh per m² of skin ([debt]); and the share of its working hours it
+ * works, the rest spent warming up by the fire ([pace], 1 when the work keeps it warm).
  */
-class Warmth(val extra: Float, val odds: Float, val debt: Float)
+class Warmth(val extra: Float, val odds: Float, val debt: Float, val pace: Float = 1f)
 
 /**
  * People's body heat in the cold: the heat balance of ISO 11079:2007 (Annex A, as the required clothing insulation IREQ is
@@ -79,22 +80,35 @@ class Warmth(val extra: Float, val odds: Float, val debt: Float)
  * house is still air, dry, warmer by its hearth and the ground's warmth through sunken walls, with beds.
  */
 object BodyHeat {
-    /** A week of [days] at [air] with [cover]: what keeping warm takes and how many it kills. */
-    fun week(air: Air, cover: Cover, days: Int): Warmth {
-        val open = day(air, cover, house = false)
+    /**
+     * A week of [days] at [air] with [cover], for people who work on through the cold as far as their perseverance [sisu]
+     * (0..1, see [day]): what keeping warm takes, how many it kills and how much of their working time they work.
+     */
+    fun week(air: Air, cover: Cover, days: Int, sisu: Float = 1f): Warmth {
+        val open = day(air, cover, house = false, sisu)
         if (cover.home <= 0f) return week(open, days)
-        val house = day(air, cover, house = true)
+        val house = day(air, cover, house = true, sisu)
         val h = min(1f, cover.home)
         return week(DayHeat(h * house.extra + (1f - h) * open.extra, h * house.share + (1f - h) * open.share,
-            h * house.debt + (1f - h) * open.debt), days)
+            h * house.debt + (1f - h) * open.debt, h * house.pace + (1f - h) * open.pace), days)
     }
 
-    private fun week(d: DayHeat, days: Int) = Warmth(d.extra, 1f - (1f - d.share).pow(days), d.debt)
+    private fun week(d: DayHeat, days: Int) = Warmth(d.extra, 1f - (1f - d.share).pow(days), d.debt, d.pace)
 
-    /** One day's heat: the extra food a share of the day's need, the share that die of it, and the worst debt. */
-    private class DayHeat(val extra: Float, val share: Float, val debt: Float)
+    /** One day's heat: the extra food a share of the day's need, the share that die of it, the worst debt, and the share of the working hours worked. */
+    private class DayHeat(val extra: Float, val share: Float, val debt: Float, val pace: Float)
 
-    private fun day(air: Air, c: Cover, house: Boolean): DayHeat {
+    /**
+     * One day's heat ([BodyHeat]). Where the work out in the weather cools the body faster than shivering makes up, people
+     * break off to warm up by the fire at camp, for as long as it takes to win back what the work loses (at the camp's rate,
+     * shivering as hard as they can keep up): those breaks are working time lost. People who persevere ([sisu]) break off
+     * less, and carry the cooling as heat debt instead, at the risk of exposure: at 1 they work through, at 0 they warm up
+     * whenever they must. Where even the camp does not warm them, every hour out at work deepens the debt faster than one by
+     * the fire: those who do not persevere stay in. (The hands'
+     * cold is not in it: dexterity falls once the fingers cool below about 20 °C, steeply below 15 °C, Wiggen et al. 2011,
+     * Industrial Health 49: 443, after Heus et al. 1995; the fingers' temperature is not reckoned here.)
+     */
+    private fun day(air: Air, c: Cover, house: Boolean, sisu: Float): DayHeat {
         val rest = REST_WM2
         val camp = CAMP_PAR * rest
         val work = Activity.FOOD.par * rest
@@ -112,6 +126,13 @@ object BodyHeat {
         val lSleep = loss(rest, sleepC, inWind, 0f, nightClo, inWet) * (1f - LYING_CONTACT) + breath(rest, sleepC) * LYING_CONTACT +
             LYING_CONTACT * (skinC(rest) - ground) / (CONTACT_R + bed + if (air.snow) SNOW_R else SOIL_R)
         val lWork = loss(work, air.dayC, air.windMs, WALK_MS, c.clothesClo, air.wet)
+        // (Breaks to warm up: the share of the working hours spent by the fire so that the hours together lose no more than
+        // shivering makes up, less as people persevere.)
+        val shiverMost = (SUSTAINED - 1f) * rest
+        val chill = max(0f, lWork - work - shiverMost)
+        val warming = camp + shiverMost - lCamp
+        val breaks = if (chill > 0f) (1f - sisu.coerceIn(0f, 1f)) * (if (warming > 0f) chill / (chill + warming) else 1f) else 0f
+        val atWork = work * (1f - breaks) + camp * breaks
         // The day in order: the evening about camp, the night, the morning, the work; heat lost beyond what it makes and can
         // shiver up is stored as debt, made good again while it makes more than it loses.
         var stored = 0f; var worst = 0f; var shivered = 0f
@@ -122,10 +143,11 @@ object BodyHeat {
             worst = min(worst, stored)
         }
         val campH = 24f - SLEEP_H - WORK_H
-        part(camp, lCamp, campH / 2f); part(rest, lSleep, SLEEP_H); part(camp, lCamp, campH / 2f); part(work, lWork, WORK_H)
-        val made = rest * SLEEP_H + camp * campH + work * WORK_H
+        part(camp, lCamp, campH / 2f); part(rest, lSleep, SLEEP_H); part(camp, lCamp, campH / 2f)
+        part(atWork, lWork * (1f - breaks) + lCamp * breaks, WORK_H)
+        val made = rest * SLEEP_H + camp * campH + atWork * WORK_H
         val debt = max(0f, -worst - QLIM)
-        return DayHeat(shivered / made, lethal(debt), debt)
+        return DayHeat(shivered / made, lethal(debt), debt, 1f - breaks)
     }
 
     /**

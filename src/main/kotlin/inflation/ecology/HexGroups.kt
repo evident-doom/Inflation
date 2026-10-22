@@ -137,6 +137,7 @@ class HexGroups(
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
                     val (x, y) = hex.centreKm(hw.placeHex[p])
                     g.band = Band.start(fauna.kinds.size, land.drink.waterKm[p] < 3f, x, y, tuning).also { b ->
+                        b.sisu = Sisu.founder(g.id, seedBase)
                         b.elders = g.adults / 6
                         // The rest of the adults spread over the three spans of adult life.
                         b.ageStage[0] = (g.adults - b.elders) / 3; b.ageStage[1] = (g.adults - b.elders) / 3
@@ -259,9 +260,14 @@ class HexGroups(
         // Keeping warm costs food: each group's need this week, against the cold it feels (people
         // by their body heat, through their clothes, fire, shelters and, at home, their houses).
         // (Raw meals give less: a band without fire needs more food for the same strength.)
+        // (And a band's people work the less, the colder and hungrier they are, as far as they do not persevere: see [Sisu].)
         for (g in groups) if (g.alive) {
             val b = g.band
-            g.warmth = warmthNeed(g.species, b, g.place, weather, b?.fire ?: 0f, b?.homeShelter() ?: 0f)
+            if (b == null) { g.warmth = warmthNeed(g.species, null, g.place, weather, 0f, 0f); continue }
+            val w = b.warmth(airAt(g.place, weather), b.fire, b.homeShelter(), days)
+            g.warmth = warmthNeed(w, b.fire)
+            b.coldPace = w.pace
+            b.hungerPace = Sisu.hungerPace(g.species, g.spent, b.sisu)
         }
         if (bearings.month != date.month) {
             beastsKg(monthBeastKg, people = false)

@@ -284,16 +284,17 @@ class Census(private val sim: HexSim) {
             val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS) + v(Tally.Bands.FISH)
             "%s %.0f%%: %.0f%%, %.0f/%.0f/%.0f%%".format(c.label, 100 * v(Tally.Bands.BAND_WEEKS) / allWeeks, 100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0),
                 100 * v(Tally.Bands.MEAT) / got.coerceAtLeast(1.0), 100 * v(Tally.Bands.PLANTS) / got.coerceAtLeast(1.0), 100 * v(Tally.Bands.FISH) / got.coerceAtLeast(1.0)) })
-        println("bands by kind of country, last year (births / deaths per person a year, foreseen deaths a year ahead as the weeks went; main causes): " + cs.joinToString(", ") { c ->
+        println("bands by kind of country, last year (births / deaths per person a year, foreseen deaths a year ahead as the weeks went, mean perseverance; main causes): " + cs.joinToString(", ") { c ->
             val years = (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() / stepsPerYear
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsDied(c)) }.mapKeys { Tally.diedOf(it.key) }
             val foreseen = (lastYear[Tally.bandsIn(c, Tally.Bands.FORESEEN)] ?: 0) / 1000.0 / (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
-            "%s %.3f / %.3f, foreseen %.3f (%s)".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.BORN)] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9), foreseen,
+            val sisu = (lastYear[Tally.bandsIn(c, Tally.Bands.SISU)] ?: 0) / 1000.0 / (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
+            "%s %.3f / %.3f, foreseen %.3f, perseverance %.2f (%s)".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.BORN)] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9), foreseen, sisu,
                 died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
         run {
             val all = (lastYear[Tally.bandTime(Tally.TimeTotal.ALL)] ?: 0).toDouble().coerceAtLeast(1.0)
             println("bands' time, last year (share of their hands' days): " + (Activity.entries.map { it.label to Tally.bandTime(it) } +
-                (Tally.TimeTotal.LEFT.label to Tally.bandTime(Tally.TimeTotal.LEFT))).joinToString(", ") { (label, key) -> "%s %.0f%%".format(label, 100 * (lastYear[key] ?: 0).toDouble() / all) })
+                (Tally.TimeTotal.LEFT.label to Tally.bandTime(Tally.TimeTotal.LEFT)) + (Tally.TimeTotal.LOST.label to Tally.bandTime(Tally.TimeTotal.LOST))).joinToString(", ") { (label, key) -> "%s %.0f%%".format(label, 100 * (lastYear[key] ?: 0).toDouble() / all) })
         }
         println("bands by clothing, last year (clad: a kit of at least half; share of people-weeks; deaths per person a year, of them of exposure): " + Tally.Clad.entries.joinToString(", ") { c ->
             val years = (lastYear[Tally.bandsClad(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() / stepsPerYear
