@@ -190,9 +190,11 @@ object HexSnapshot {
      * activity's ask for days against the others' when the week is short ([timeWay]); at the scaffold's 1 as in 4.22.
      * 4.24: a band weighing where to camp spreads the walk's days beyond its spare ones over the weeks it lately keeps a camp
      * ([Band.stayWeeks]), not one week: a better camp pays the walk back for as long as the band stays.
+     * 4.25: a camp move takes first the goods its tools' mending needs over a stay ([mendingKg]), then food, then the rest
+     * of its goods in the room left.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 24
+    const val MODEL_MINOR = 25
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
