@@ -17,6 +17,8 @@ import inflation.ecology.Tool
 import inflation.ecology.Material
 import inflation.ecology.Tradition
 import inflation.ecology.boldness
+import inflation.ecology.houseFoodAYear
+import inflation.ecology.houseLivesAYear
 import java.util.TreeMap
 import inflation.ecology.get
 import inflation.ecology.set
@@ -351,7 +353,22 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 "%s %.0f%%".format(w.name.lowercase(), 100.0 * bs.count { it.knowsSkill[w] } / bs.size.coerceAtLeast(1)) } +
             " | at home %d: felt below 15 °C %.0f%%, the ground's warmth adds %.2f °C".format(home.size,
                 100.0 * home.count { (c, b) -> b.feels(c) < 15f } / home.size.coerceAtLeast(1),
-                home.map { (c, b) -> (b.homeShelter() * b.homeEarth * maxOf(0f, b.homeGroundC - c)).toDouble() }.average().takeIf { it.isFinite() } ?: 0.0)
+                home.map { (c, b) -> (b.homeShelter() * b.homeEarth * maxOf(0f, b.homeGroundC - c)).toDouble() }.average().takeIf { it.isFinite() } ?: 0.0) +
+            worth(bands)
+    }
+
+    /**
+     * What a whole house would be worth to each band where it is now, a grown person a year, averaged over the bands: the
+     * lives it would save ([houseLivesAYear]) and the food ([houseFoodAYear], also as a share of the year's need).
+     */
+    private fun worth(bands: List<HexGroup>): String {
+        val groups = sim.groups; val weather = sim.weather
+        val lives = bands.mapNotNull { g -> g.band?.let { b -> groups.houseLivesAYear(g, b, g.place, weather).toDouble() } }
+        val food = bands.mapNotNull { g -> g.band?.let { b -> groups.houseFoodAYear(g, b, g.place, weather).toDouble() } }
+        val need = bands.firstOrNull()?.species?.dailyIntakeKg?.times(Date.DAYS_PER_YEAR)?.toDouble() ?: 1.0
+        fun List<Double>.mean() = if (isEmpty()) 0.0 else average()
+        return " | a house would be worth a person a year: lives %.4f, food %.0f kg (%.1f%% of need); bands where it saves a life per 100 person-years or more %.0f%%".format(
+            lives.mean(), food.mean(), 100.0 * food.mean() / need, 100.0 * lives.count { it >= 0.01 } / lives.size.coerceAtLeast(1))
     }
 
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */

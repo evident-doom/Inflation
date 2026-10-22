@@ -132,3 +132,19 @@ internal fun HexGroups.houseLivesAYear(g: HexGroup, b: Band, p: Place, weather: 
     }
     return max(0f, saved)
 }
+
+/**
+ * The food a year houses would save each of [g]'s grown people camped at place [p], whole and sheltering them all, against
+ * none, kg: what keeping warm takes of the day's need month by month at the place's usual temperatures ([warmthNeed]),
+ * with its band's clothes and fire.
+ */
+internal fun HexGroups.houseFoodAYear(g: HexGroup, b: Band, p: Place, weather: Weather): Float {
+    val s = g.species; val fire = b.fire
+    var saved = 0f
+    for (m in 0 until Date.MONTHS_PER_YEAR) {
+        val t = weather.usualTemperature(m, p)
+        saved += (warmthNeed(s, b, t, fire, 0f, m, tuning) - warmthNeed(s, b, t, fire, 1f, m, tuning)) * s.dailyIntakeKg * Date.DAYS_PER_YEAR / Date.MONTHS_PER_YEAR
+    }
+    return max(0f, saved)
+}
+
