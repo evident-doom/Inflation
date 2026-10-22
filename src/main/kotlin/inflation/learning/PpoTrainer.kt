@@ -67,9 +67,10 @@ class PpoTrainer(private val o: PpoOptions) {
             val waysChoices = everything.filterIsInstance<WaysChoice>()
             val all = everything.filter { it !is WaysChoice }
             val stats = StringBuilder()
+            val waysExplained = judgeWays(waysChoices)
             val byKind = judge(all, round, stats)
             for (mi in models.indices) learn(mi, all, byKind, round - firstRound, round, stats)
-            waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round)).append("; "); it.save() }
+            waysState?.let { stats.append(WaysPpo.learn(it, waysChoices, round, waysExplained)).append("; "); it.save() }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
             // (What was not a number when the networks chose, if anything: see [NonFinite].)
             val nonFinite = NonFinite.take().takeIf { it.isNotEmpty() }?.let { "; not numbers when choosing: $it" } ?: ""
@@ -142,6 +143,25 @@ class PpoTrainer(private val o: PpoOptions) {
             for (c in cs) c.advantage = gap.getValue(c) / sd
         }
         return byKind
+    }
+
+    /**
+     * Judges the bands' ways draws [cs] by the people's critic as it stands before this round's learning, as their moves are
+     * judged ([judge]): each against what its band could expect where it stood that week before it moved, centred and scaled
+     * among the draws. The share of the spread in their judged returns the critic accounts for.
+     */
+    private fun judgeWays(cs: List<WaysChoice>): Double {
+        if (cs.isEmpty()) return 0.0
+        val model = models[Role.PEOPLE.ordinal]; val critic = critics[Role.PEOPLE.ordinal]
+        val expected = FloatArray(cs.size) { critic.value(model, cs[it]) }
+        val judged = FloatArray(cs.size) { critic.target(model, cs[it]) }
+        val gap = FloatArray(cs.size) { judged[it] - expected[it] }
+        val mean = gap.average().toFloat()
+        val sd = sqrt(gap.map { ((it - mean) * (it - mean)).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
+        for ((k, c) in cs.withIndex()) c.advantage = (gap[k] - mean) / sd
+        val jm = judged.average()
+        val total = judged.sumOf { (it - jm) * (it - jm) }
+        return if (total <= 0.0) 0.0 else 1.0 - gap.sumOf { (it * it).toDouble() } / total
     }
 
     /** A few passes of clipped policy gradient for role [mi], every kind weighing the same; saves its network and critic. [sinceStart]: rounds into this run. */

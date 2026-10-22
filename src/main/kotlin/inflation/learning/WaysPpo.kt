@@ -8,12 +8,12 @@ import inflation.ecology.WAYS_IN
 import inflation.ecology.WAYS_OUT
 import inflation.world.WorldConfig
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sqrt
 import kotlin.random.Random
 
 /**
@@ -53,16 +53,25 @@ class LearnedWays(val net: Mlp, val logStd: FloatArray) {
     }
 }
 
-/** One band's ways for a week, as drawn: what it knew of itself, the ways it took and their log-probability. */
-class WaysChoice(kind: Species, groupId: Int, size: Int, week: Int, val x: FloatArray, val a: FloatArray, logp: Float) :
-    Choice(kind, groupId, size, week, arrayOf(x), 0, logp)
+/**
+ * One band's ways for a season, as drawn: what it knew of itself ([x]), the ways it took ([a]) and their log-probability; and
+ * where it stood that week before it moved ([at]), from which the people's critic judges it, as it judges the move (see [WaysPpo]).
+ */
+class WaysChoice(kind: Species, groupId: Int, size: Int, week: Int, at: Probe, val x: FloatArray, val a: FloatArray, logp: Float) :
+    Choice(kind, groupId, size, week, arrayOf(at.features), 0, logp) {
+    init { band = at.band; temper = at.temper; group = at.group }
+}
 
 /**
  * Sets bands' ways with [ways]: drawn about the network's middle while learning (recording a share,
  * [rate], of the draws in [record]), the middle itself otherwise ([record] null). Each band's draw
  * comes from its own stream for the week, so a seed gives the same run.
  */
-class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentLinkedQueue<Choice>?, private val rate: () -> Float, private val week: () -> Int, private val seed: Long) : BandWays {
+class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentLinkedQueue<Choice>?, private val rate: () -> Float, private val week: () -> Int, private val seed: Long,
+                  /** Where each band stood this week before it moved ([MoverPolicy]): a draw is recorded only with it. */
+                  private val standing: ConcurrentHashMap<Int, Standing>? = null,
+                  /** Recorded choices waiting to see their group again ([Choice.probe]), by group. */
+                  private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null) : BandWays {
     private val buffers = ThreadLocal.withInitial { ways.net.buffers() }
     override fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) {
         val b = buffers.get()
@@ -84,16 +93,23 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
             out[i] = mean[i] + exp(ways.logStd[i]) * z
             logp += -0.5f * z * z - ways.logStd[i]
         }
-        if (t % WaysPpo.SEASON == 0) record += WaysChoice(g.species, g.id, g.size, w, inputs.copyOf(), out.copyOf(WAYS_OUT), logp)
+        if (t % WaysPpo.SEASON != 0) return
+        // (A draw is learnt from only where the band was seen choosing its place this week.)
+        val at = standing?.get(g.id)?.takeIf { it.week == w }?.at ?: return
+        val c = WaysChoice(g.species, g.id, g.size, w, at, inputs.copyOf(), out.copyOf(WAYS_OUT), logp)
+        record += c
+        probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
     }
 }
 
 /**
  * Learning the bands' ways by proximal policy optimisation, from the draws [WaysSampler] recorded
- * and the returns [HexPpo.play] gave them (the same as their moves get): a critic learns what
- * return a band can expect from what it knows of itself, and each draw is judged by how much
- * better than that it turned out; then a few passes of clipped policy gradient move each way's
- * middle toward the draws that did better, and its spread narrows or widens as they show.
+ * and the returns [HexPpo.play] gave them (the same as their moves get): each draw is judged by
+ * the people's critic, the one that judges their moves ([PpoTrainer]), against what the band could
+ * expect where it stood that week before it moved, since the move and the ways are one week's plan;
+ * then a few passes of clipped policy gradient move each way's middle toward the draws that did
+ * better, and its spread narrows or widens as they show. (The moves and the draws keep their own
+ * records and ratios: a draw is held for a season, a move made weekly.)
  */
 object WaysPpo {
     /** Ways draws recorded a year in each world (bands are many; a share is enough). */
@@ -101,25 +117,14 @@ object WaysPpo {
     const val CLIP = 0.2f
     /** Pull toward keeping the spreads wide (per way, on its log). */
     const val ENTROPY = 0.002f
-    /** Passes of the critic over each round's draws. */
-    const val CRITIC_EPOCHS = 8
-
-    /** The ways and their critic, as kept in a training directory. */
+    /** The ways, as kept in a training directory. */
     class State(val dir: File, hidden: Int, rate: Float) {
         val file = File(dir, WaysKind.BANDS.file)
-        val criticFile = File(dir, "ways.value.mlp")
         val ways = LearnedWays.loadOrNew(file, hidden)
-        val critic: Mlp = if (criticFile.exists()) Schema.load(criticFile, Schema.WAYS_IN, listOf("value")) else
-            // (A new critic expects every band to hold its numbers until it has learned better.)
-            Mlp.random(intArrayOf(WAYS_IN, hidden, 1), Random(91)).zeroOutputLayer().also { m -> m.w[m.w.size - 1] = 1f }
         val adam = Adam(ways.net.w.size, rate)
         val adamStd = Adam(WAYS_OUT, rate)
-        val adamCritic = Adam(critic.w.size, 1e-3f)
 
-        fun save() {
-            ways.save(file)
-            Schema.save(critic, criticFile, Schema.WAYS_IN, listOf("value"))
-        }
+        fun save() = ways.save(file)
     }
 
     /** Weeks a band keeps one draw of its ways, and over which the draw is judged (as people's moves are, [HexPpo.PEOPLE_HORIZON]). */
@@ -128,32 +133,9 @@ object WaysPpo {
     /** The share of bands' seasonal draws of their ways to record in a world with [bands] bands. */
     fun rate(bands: Int, stepsPerYear: Int) = if (bands == 0) 0f else min(1f, PER_YEAR.toFloat() * SEASON / (bands * stepsPerYear))
 
-    /** One round of learning from [cs] (with their returns); a line saying how it went. */
-    @IgnorableReturnValue fun learn(st: State, cs: List<WaysChoice>, round: Int): String {
+    /** One round of learning from [cs] (with their returns and advantages, judged by the people's critic, which explains [explained] of their returns' spread); a line saying how it went. */
+    @IgnorableReturnValue fun learn(st: State, cs: List<WaysChoice>, round: Int, explained: Double): String {
         if (cs.isEmpty()) return "ways: no draws"
-        val critic = st.critic
-        // ---- the critic: least squares toward the returns seen
-        repeat(CRITIC_EPOCHS) { epoch ->
-            for (batch in cs.shuffled(Random(round * 17L + epoch + 5)).chunked(256)) {
-                val parts = inParts(batch) { part ->
-                    val g = FloatArray(critic.w.size); val b = critic.buffers()
-                    for (c in part) { c.x.copyInto(b.a[0]); val v = critic.forward(b); critic.backward(b, 2f * (v - c.ret) / batch.size, g) }
-                    g
-                }
-                val g = FloatArray(critic.w.size); for (p in parts) g.add(p)
-                st.adamCritic.step(critic.w, g)
-            }
-        }
-        // ---- advantages: against the critic (or, while it explains nothing yet, the average), centred and scaled
-        val cb = critic.buffers()
-        var gap = FloatArray(cs.size) { k -> cs[k].x.copyInto(cb.a[0]); cs[k].ret - critic.forward(cb) }
-        val rets = cs.map { it.ret.toDouble() }; val rm = rets.average()
-        fun spread(x: FloatArray): Double { val m = x.average(); return x.sumOf { (it - m) * (it - m) } }
-        val explained = 1.0 - spread(gap) / rets.sumOf { (it - rm) * (it - rm) }.coerceAtLeast(1e-12)
-        if (explained < 0.0) gap = FloatArray(cs.size) { cs[it].ret - rm.toFloat() }
-        val mean = gap.average().toFloat()
-        val sd = sqrt(gap.map { ((it - mean) * (it - mean)).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
-        for ((k, c) in cs.withIndex()) c.advantage = (gap[k] - mean) / sd
         // ---- clipped policy gradient on the middles and the spreads
         val ways = st.ways
         var clippedShare = 0.0; var seen = 0
@@ -173,7 +155,7 @@ object WaysPpo {
         val wide = stds.indices.filter { stds[it] >= 0.95f * LearnedWays.MAX_STD }
         val narrow = stds.count { it <= 1.05f * LearnedWays.MIN_STD }
         val wideNames = wide.take(5).joinToString(", ") { Schema.WAYS_OUT[it] } + if (wide.size > 5) ", ..." else ""
-        return "ways %d draws, critic explains %.2f%s, clipped %.2f, spread %.3f (%.3f..%.3f), %d at the widest (%s), %d at the narrowest".format(cs.size, explained, if (explained < 0.0) " (judged against the average)" else "", clippedShare / seen.coerceAtLeast(1), stds.average(), stds.min(), stds.max(), wide.size, wideNames, narrow)
+        return "ways %d draws, people's critic explains %.2f, clipped %.2f, spread %.3f (%.3f..%.3f), %d at the widest (%s), %d at the narrowest".format(cs.size, explained, clippedShare / seen.coerceAtLeast(1), stds.average(), stds.min(), stds.max(), wide.size, wideNames, narrow)
     }
 
     /** The clipped surrogate's gradient over [part], to be minimised: for the network's weights, the log-spreads, and how many draws were clipped. */

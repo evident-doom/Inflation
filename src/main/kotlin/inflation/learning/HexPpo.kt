@@ -150,14 +150,24 @@ open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: 
     var advantage = 0f
 }
 
+/**
+ * Where a band stood in week [week] before it moved, as the critic reads it ([at]): the state its week's plan, the move and the
+ * ways set after it, is judged from (see [WaysChoice]).
+ */
+class Standing(val week: Int, val at: Probe)
+
 /** Chooses with a [SharedMover], recording a share of its choices in [record] (null: the best, not sampled). */
 class MoverPolicy(private val mover: SharedMover, private val record: ConcurrentLinkedQueue<Choice>?, private val rate: (Species) -> Float, private val week: () -> Int,
                   /** Recorded choices waiting to see their group again some weeks on, by group (see [Choice.probe]); null: none wanted. */
-                  private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null, private val season: () -> Float = { 0f }) : HexPolicy {
+                  private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null, private val season: () -> Float = { 0f },
+                  /** Where each band stood when it chose this week, before it moved (see [Standing]); null: not wanted. */
+                  private val standing: ConcurrentHashMap<Int, Standing>? = null) : HexPolicy {
     private val scratch = ThreadLocal.withInitial { mover.Scratch() }
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
         val n = features.size
         val state = g.band?.state; val temper = g.temper
+        if (standing != null && g.band != null && n > 0)
+            standing[g.id] = Standing(week(), Probe(features[Critic.here(features)].copyOf(HexFeatures.SIZE), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season())))
         if (probes != null) probes[g.id]?.let { waiting -> synchronized(waiting) {
             val w = week()
             val due = waiting.filter { it.week + Critic.boot(it.kind) == w }
@@ -409,6 +419,8 @@ object HexPpo {
         private val outcomes = Outcomes()
         /** Recorded choices waiting to see their group again [Critic.boot] weeks on. */
         private val probes = ConcurrentHashMap<Int, MutableList<Choice>>()
+        /** Where each band stood this week before it moved: what its ways draw is judged from. */
+        private val standing = ConcurrentHashMap<Int, Standing>()
         /** Whether it has lived its time (if it has one), or gone badly off the rails: then a fresh world takes its place. */
         val done get() = (lifeSteps > 0 && week >= lifeSteps) || derailed != null
         /**
@@ -448,9 +460,10 @@ object HexPpo {
             if (week == 0) { setRates(); checkRails() }
             // A fresh world first settles for [burnSteps] weeks, its choices unrecorded (they come on top of this round's).
             val total = steps + if (week == 0) burnSteps else 0
-            val policies = models.map { MoverPolicy(it, record, { s -> rates[s] ?: 0f }, { week }, probes, { (week % stepsPerYear).toFloat() / stepsPerYear }) }
+            val season = { (week % stepsPerYear).toFloat() / stepsPerYear }
+            val policies = models.mapIndexed { i, m -> MoverPolicy(m, record, { s -> rates[s] ?: 0f }, { week }, probes, season, if (ways != null && i == Role.PEOPLE.ordinal) standing else null) }
             for (s in kinds) run.groups.policies[s] = policies[role(s)]
-            ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed) }
+            ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed, standing, probes) }
             repeat(if (lifeSteps > 0) min(total, lifeSteps - week) else total) {
                 run.step()
                 week++
