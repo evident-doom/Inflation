@@ -192,8 +192,6 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     val time = BandTime(days * hands.toFloat())
     // (Digging soaks and drawing their water, see [HexDrinkingWater.mustDig]: counted with the food.)
     if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) time.spend(Activity.FOOD, HexDrinkingWater.DIG_SHARE * days * hands)
-    // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
-    time.spend(Activity.MOVING, min(days.toFloat(), moveDays(g, max(0, g.path.size - 1) * hex.hexKm.toFloat())) * hands)
     val needs = FloatArray(Activity.entries.size)
     needs[Activity.FOOD.ordinal] = needDays * hands
     needs[Activity.FIREWOOD.ordinal] = fuelAsk(g, hands)
