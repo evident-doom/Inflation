@@ -79,6 +79,11 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      * to read with the rest of the week's plan; null where its moves are hand-written. (Made anew each week before it is read.)
      */
     @Transient var plan: FloatArray? = null
+    /**
+     * Whether its policy drew its place by chance this week (a choice recorded to learn from, see [HexPolicy.choose]): then a band's
+     * will to explore leaves the draw be. (Made anew each week before it is read.)
+     */
+    @Transient var drawn = false
     /** For hunters: meetings with game of each kind ([Species.index]), as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */
     var herdsMet: FloatArray? = null
     var herdsMetOn = 0.0
@@ -108,8 +113,6 @@ fun interface HexPolicy {
     fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int
     /** How it scores each candidate, higher the likelier it goes there; null if it does not tell (only asked for a followed group, see [GroupControl]). */
     fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray? = null
-    /** Whether it draws its choices by chance itself (a policy recording choices to learn from): then a band's will to explore leaves them be. */
-    val samples: Boolean get() = false
     /** How it sees the place [g] goes to this week, described by [chosen] (as in [choose]), for the band's ways to read ([HexGroup.plan]); null if it does not tell. */
     fun planned(g: HexGroup, chosen: FloatArray): FloatArray? = null
 }

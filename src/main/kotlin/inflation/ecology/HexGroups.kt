@@ -940,7 +940,7 @@ class HexGroups(
         val candPlaces = buf.candPlaces; candPlaces.clear(); val candFeats = buf.candFeats
         // (Every place's whole score is wanted for a network, for capture and for a watched group; else only the best.)
         // (A band draws its place by its will to explore, from every place it weighs, see [exploreChoice].)
-        val explores = g.band != null && policy?.samples != true
+        val explores = g.band != null
         val wantAll = seen != null || policy != null || capture || explores
         buf.laterPlace.clear(); buf.explPlaces.clear()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
@@ -1042,11 +1042,13 @@ class HexGroups(
             }
         }
         lap("choosing: weighing places (hand-written score)")
+        g.drawn = false
         if (policy != null && candPlaces.size > 0) {
             val nc = candPlaces.size
             best = Place(candPlaces[policy.choose(g, Array(nc) { candFeats[it] }, buf.candScores.copyOf(nc), policyRandom(g.id, date.absoluteDay))])
         }
-        if (explores) best = explored(g, policy, buf, best, date)
+        // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
+        if (explores && !g.drawn) best = explored(g, policy, buf, best, date)
         lap("choosing: network")
         // The hexes passed on the way to [p], by the cheapest chain.
         fun pathTo(p: Int): IntArray {

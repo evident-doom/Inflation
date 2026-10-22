@@ -202,6 +202,10 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     choreAsks(g, b, w.weather.date, asks)
     // (The band weighs the asks against each other by its ways: see [timeWay].)
     time.plan(needs, asks, FloatArray(asks.size) { i -> timeWay(Activity.entries[i])?.let { b.will[it] } ?: 1f })
+    b.binding?.let { bind ->
+        if (time.short) for (a in Activity.entries) if (asks[a.ordinal] > 0f) bind[a.ordinal] += 1f
+        if (g.path.size > 1) bind[Binding.MOVES] += 1f
+    }
     dialUse?.let { u -> for (a in Activity.entries) timeWay(a)?.let { way ->
         if (asks[a.ordinal] > 0f) u.amount(DialSite.TIME_WEIGHTS, b.will[way], time.heldFor(a), time.heldAtOneFor(a), dial = way.slot) } }
     val fuel = needs[Activity.FIREWOOD.ordinal]

@@ -29,6 +29,9 @@ class BandTime(left: Float) {
     private val heldAtOne = FloatArray(Activity.entries.size)
     /** What each activity asked for this week, person-days (none before a [plan]). */
     val asked = FloatArray(Activity.entries.size)
+    /** Whether the asks beyond what the week needs came to more than the days left for them (false before a [plan]). */
+    var short = false
+        private set
 
     /** Person-days [a] may take now: what is held for it, and what is held for no one. */
     fun leftFor(a: Activity) = max(0f, left - held.sum() + held[a.ordinal])
@@ -60,6 +63,7 @@ class BandTime(left: Float) {
         for (i in asked.indices) asked[i] = needs[i] + asks[i]
         val ones = FloatArray(needs.size) { 1f }
         val first = shareOut(needs, ones, max(0f, left))
+        short = asks.sum() > max(0f, left - first.sum())
         val then = shareOut(asks, weights ?: ones, max(0f, left - first.sum()))
         if (weights != null) shareOut(asks, ones, max(0f, left - first.sum())).forEachIndexed { i, d -> heldAtOne[i] = first[i] + d }
         for (i in held.indices) { held[i] = first[i] + then[i]; if (weights == null) heldAtOne[i] = held[i] }

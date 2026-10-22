@@ -196,6 +196,8 @@ class Band(kinds: Int) {
      */
     var hurt = 0f
     var lame = 0f
+    /** For the training of its ways: what bound in the season its recorded draw covers (see [Binding]); null where none is recorded. */
+    @Transient var binding: FloatArray? = null
     /** Share of the work its customs ask that it got done last week: a clean camp ([Tradition.HYGIENE]), the sick and hurt nursed ([Tradition.MEDICINE]). */
     var cleaned = 1f
     var nursed = 1f

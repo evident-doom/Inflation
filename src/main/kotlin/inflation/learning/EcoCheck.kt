@@ -10,13 +10,14 @@ import inflation.run.startFaunaCheck
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
+import kotlin.math.sqrt
 
 /**
  * The training's check of a round's networks: is the ecosystem as a whole no worse with them, and does
  * each role do better with its new network than with its kept one, the other roles as they now are?
  *
  * The test world ([Config] key `ppo.checkWorld`, default lake-1) runs from its settled state for
- * `ppo.checkYears` years (default 5), its weather drawn `ppo.checkReplicates` ways (default 2), each
+ * `ppo.checkYears` years (default 5), its weather drawn `ppo.checkReplicates` ways (default 3, other ones at each check), each
  * way with: every role's new network ("new"); every role's kept one ("kept"); and, for each role, its
  * kept network with the others' new ("kept hunters" and so on). The runs are their own processes, beside
  * the training, each under the training's own config with only the networks changed. A role's new network is kept when, set against its kept one with the others' new (all
@@ -25,17 +26,20 @@ import java.util.concurrent.Executors
  *   weather alike (a fall in one weather only is chance), no kind present is gone in every weather, and
  *   there are not fewer people in every weather (for the hunters' network, only if `ppo.hunterPeopleVeto`
  *   is true, as it is by default; a run that sets it false lets a hunters network through that costs people); and
- * - its own members fare better: the role's kinds number more in the last whole year.
+ * - its own members fare better: the role's kinds, each counting the same, number more in the last whole year, by more than
+ *   `ppo.keepSigma` (default 1) standard errors of the weathers' differences.
  *
  * Except that a role whose networks changed net major version ([NetVersion]) since the kept ones were saved has its new
- * network kept without the comparison: it is the baseline the later rounds are judged against.
+ * network kept without the comparison (unless a kind is gone in every weather): it is the baseline the later rounds are judged against.
  */
 class EcoCheck(private val out: File) {
     private val world = TestWorlds.named(Config.string(Config.Key.PPO_CHECK_WORLD) ?: "lake-1")
     private val years = Config.int(Config.Key.PPO_CHECK_YEARS, 5)
-    private val replicates = Config.int(Config.Key.PPO_CHECK_REPLICATES, 2)
+    private val replicates = Config.int(Config.Key.PPO_CHECK_REPLICATES, 3)
     /** Whether fewer people in every weather keeps the hunters' new network out (it always does for the people's). */
     private val hunterPeopleVeto = Config.flag(Config.Key.PPO_HUNTER_PEOPLE_VETO, true)
+    /** How many standard errors above none a role's own kinds must stand with the new network to be kept (0: any gain keeps it). */
+    private val keepSigma = Config.float(Config.Key.PPO_KEEP_SIGMA, 1f).toDouble()
     // (Daemon threads: a run that ends is not kept alive by its check's pool.)
     private val pool = Executors.newFixedThreadPool(Config.int(Config.Key.PPO_CHECK_PARALLEL, 10)) { r -> Thread(r, "eco-check").also { it.isDaemon = true } }
     /** The networks each role plays with outside training, and that the new ones are judged against. */
@@ -60,15 +64,16 @@ class EcoCheck(private val out: File) {
                 // (A hunters' ways network, if the training has one, is the arm's too, not the training config's.)
                 if (File(armDir, WaysKind.HUNTERS.file).exists()) mapOf(WaysKind.HUNTERS.configKey to File(armDir, WaysKind.HUNTERS.file).absoluteFile.invariantSeparatorsPath) else emptyMap())
             cfg.writer().use { keys.store(it, "check arm $name, written by the training's ecosystem check") }
-            (0 until replicates).map { r -> pool.submit<File> { runOne(cfg, armDir, r) } }
+            // (Each check meets other weathers, the same in all its arms: the kept network is run again each time, so a series of checks does not climb two weathers' luck.)
+            (0 until replicates).map { r -> pool.submit<File> { runOne(cfg, armDir, r, round * replicates + r) } }
         }.mapValues { (_, fs) -> fs.map { TestWorlds.Run(it.get()) } }
         judge(round, runs)
     }
 
-    private fun runOne(cfg: File, armDir: File, r: Int): File {
+    private fun runOne(cfg: File, armDir: File, r: Int, weather: Int): File {
         val history = File(armDir, "r$r.csv")
         val p = startFaunaCheck(cfg, "-Xmx${Config.int(Config.Key.PPO_CHECK_HEAP_GB, 12)}g",
-            listOf("--world", world.name, "--years", "$years", "--replicate", "$r", "--history", history.path), File(armDir, "r$r.txt"))
+            listOf("--world", world.name, "--years", "$years", "--replicate", "$weather", "--history", history.path), File(armDir, "r$r.txt"))
         require(p.waitFor() == 0) { "check run failed: see ${File(armDir, "r$r.txt")}" }
         return history
     }
@@ -97,6 +102,22 @@ class EcoCheck(private val out: File) {
         return why
     }
 
+    /** The mean relative change of [kinds] with [new] against [old] in each weather (the same weathers in the same order): each kind counts the same, kinds absent with the old network are left out. */
+    private fun changeBy(kinds: List<String>, new: List<TestWorlds.Run>, old: List<TestWorlds.Run>): List<Double> {
+        val n = kinds.map { lastYears(new, HexHistory.Key.animals(it)) }; val o = kinds.map { lastYears(old, HexHistory.Key.animals(it)) }
+        return new.indices.mapNotNull { w ->
+            val rel = kinds.indices.filter { o[it][w] > 0.0 }.map { n[it][w] / o[it][w] - 1.0 }
+            if (rel.isEmpty()) null else rel.average()
+        }
+    }
+
+    /** The standard error of the mean of [x] (0 for fewer than two). */
+    private fun standardError(x: List<Double>): Double {
+        if (x.size < 2) return 0.0
+        val m = x.average()
+        return sqrt(x.sumOf { (it - m) * (it - m) } / (x.size - 1) / x.size)
+    }
+
     private fun judge(round: Int, runs: Map<String, List<TestWorlds.Run>>): Verdict {
         val new = runs.getValue("new"); val kept = runs.getValue("kept")
         val kinds = new.first().allKeys.mapNotNull { HexHistory.Key.animalKind(it) }
@@ -115,21 +136,27 @@ class EcoCheck(private val out: File) {
             val peopleIgnored = r == Role.HUNTERS && !hunterPeopleVeto && "fewer people" in failed
             val why = if (peopleIgnored) failed - "fewer people" else failed
             val own = Catalogue.learned.filter { Role.of(it) == r }.map { it.name }
-            val withNew = own.sumOf { lastYears(new, HexHistory.Key.animals(it)).average() }
-            val withKept = own.sumOf { lastYears(alone, HexHistory.Key.animals(it)).average() }
-            val better = withNew > withKept
-            lines += "check round %d %s: own kinds %.0f with the new network against %.0f with the kept one (%+.1f%%), the others new; ecosystem %s -> %s".format(
-                round + 1, r, withNew, withKept, if (withKept > 0) 100 * (withNew / withKept - 1) else 0.0,
-                (if (why.isEmpty()) "holds" else "fails: " + why.joinToString(", ")) + if (peopleIgnored) " (fewer people not held against hunters)" else "",
-                if (better && why.isEmpty()) "kept" else "not kept")
-            // (A role's ways network is tried and kept with it, never alone: its decision is the role's.)
-            lines += "check round %d %s %s ways network (%s): %s, decided with the %s network above".format(
-                round + 1, r, r.ways.whose, r.ways.file, if (better && why.isEmpty()) "kept" else "not kept", r)
+            // Its own kinds' relative change, weather by weather (each kind counts the same, as in training), and whether the mean beats
+            // its noise: more than [keepSigma] standard errors above none over the weathers.
+            val change = changeBy(own, new, alone)
+            val mean = change.average(); val se = standardError(change)
+            val better = change.isNotEmpty() && mean > 0.0 && mean > keepSigma * se
             // A new net major version has no earlier version to be judged against: the first network trained under it is the baseline.
             val baseline = r.netMajorChanged(this.kept)
-            if (baseline) lines += "check round %d %s: net major version %d (the kept network has %s): the new network is the baseline, kept whatever the comparison above".format(
-                round + 1, r, r.net.major, Schema.versionOf(r.file(this.kept)).let { "${it.major}.${it.minor}".takeIf { _ -> it != NetVersion.NONE } ?: "none" })
-            baseline || (better && why.isEmpty())
+            // (The baseline is kept unless a kind is gone in every weather: that is no longer doing worse, it is a collapse.)
+            val collapsed = why.filter { it.endsWith(" gone") }
+            val keep = if (baseline) collapsed.isEmpty() else better && why.isEmpty()
+            lines += "check round %d %s: own kinds %+.1f%% +- %.1f%% with the new network against the kept one (mean of its kinds' change over %d weathers, needs %.1f standard errors above none), the others new; ecosystem %s -> %s".format(
+                round + 1, r, 100 * mean, 100 * se, change.size, keepSigma,
+                (if (why.isEmpty()) "holds" else "fails: " + why.joinToString(", ")) + if (peopleIgnored) " (fewer people not held against hunters)" else "",
+                if (keep) "kept" else "not kept")
+            // (A role's ways network is tried and kept with it, never alone: its decision is the role's.)
+            lines += "check round %d %s %s ways network (%s): %s, decided with the %s network above".format(
+                round + 1, r, r.ways.whose, r.ways.file, if (keep) "kept" else "not kept", r)
+            if (baseline) lines += "check round %d %s: net major version %d (the kept network has %s): the new network is the baseline, kept whatever the comparison above unless a kind is gone in every weather (%s)".format(
+                round + 1, r, r.net.major, Schema.versionOf(r.file(this.kept)).let { "${it.major}.${it.minor}".takeIf { _ -> it != NetVersion.NONE } ?: "none" },
+                if (collapsed.isEmpty()) "none is" else collapsed.joinToString(", "))
+            keep
         }
         return Verdict(round, roles, lines)
     }

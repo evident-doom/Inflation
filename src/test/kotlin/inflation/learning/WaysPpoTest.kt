@@ -1,5 +1,7 @@
 package inflation.learning
 
+import inflation.ecology.BandWay
+import inflation.ecology.Binding
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFeatures
 import inflation.ecology.WAYS_IN
@@ -52,6 +54,29 @@ class WaysPpoTest {
             assertTrue(sign * m > 0f, "sign $sign: middle of way 0 went to $m")
             dir.deleteRecursively()
         }
+    }
+
+    @Test
+    fun `an output that did not act in its season is neither learnt from nor pulled toward a wide spread`() {
+        val dir = Files.createTempDirectory("ways").toFile()
+        val st = WaysPpo.State(dir, 16, 1e-2f)
+        val rnd = Random(4)
+        val x = FloatArray(WAYS_IN) { rnd.nextFloat() }
+        val at = Probe(FloatArray(HexFeatures.SIZE), x, null, FloatArray(Critic.GROUP))
+        val idle = BandWay.TIME_TOOLS.slot
+        val spreadBefore = st.ways.logStd[idle]
+        val cs = (0 until 400).map { k ->
+            val up = k % 2 == 0
+            val a = FloatArray(WAYS_OUT); a[0] = if (up) 0.3f else -0.3f; a[idle] = a[0]
+            val terms = FloatArray(WAYS_OUT) { i -> val z = a[i] / kotlin.math.exp(st.ways.logStd[i]); -0.5f * z * z - st.ways.logStd[i] }
+            // (No week of the season asked for more than the week had, and none moved camp: the time weights and the loads did not act.)
+            WaysChoice(Catalogue.HUMAN, k, 20, 0, at, x, a, terms.sum()).also { it.terms = terms; it.binding = FloatArray(Binding.SIZE); it.advantage = if (up) 1f else -1f }
+        }
+        WaysPpo.learn(st, cs, 0, 0.0)
+        assertTrue(middle(st.ways, x)[0] > 0f, "the output that acted learnt")
+        assertEquals(0f, middle(st.ways, x)[idle], 0f)
+        assertEquals(spreadBefore, st.ways.logStd[idle], 0f)
+        dir.deleteRecursively()
     }
 
     @Test
