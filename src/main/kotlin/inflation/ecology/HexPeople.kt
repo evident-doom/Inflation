@@ -1287,7 +1287,7 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people:
     if (time == null) return built * daysNow
     val s = begun ?: buildingAt(g, Built.HOUSES, h.i, way.ordinal, size)
     gd[Material.STONE] -= built * stoneEach * size; gd[Material.WOOD] -= built * woodEach * size
-    s.built += built; time.spend(Activity.HOUSES, built * daysNow)
+    buildOn(s, built); time.spend(Activity.HOUSES, built * daysNow)
     if (built > 0f) b.practise(way)
     if (built > 0f) stats.meeting(Met.BANDS_BUILT_HOUSES)
     return 0f
@@ -1348,7 +1348,7 @@ private fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float,
     if (fortifies(b) && left > 0f && people > 0f) {
         val s = buildingAt(g, Built.PALISADE, h.i, -1, people)
         val built = minOf(1f - s.built, left / (PALISADE_DAYS * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
-        gd[Material.WOOD] -= built * PALISADE_WOOD * people; s.built += built; time.spend(Activity.PALISADE, built * PALISADE_DAYS * people)
+        gd[Material.WOOD] -= built * PALISADE_WOOD * people; buildOn(s, built); time.spend(Activity.PALISADE, built * PALISADE_DAYS * people)
         if (built > 0f) stats.meeting(Met.BANDS_BUILT_PALISADES)
     }
 }
@@ -1796,8 +1796,9 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     val walk = moveDays(g, km)
     into[x.MOVE_KM] = km / (km + MOVE_KM_HALF); into[x.MOVE_DAYS] = walk / (walk + days); into[x.LOAD] = carriedKg(g, b) / (CARRY_KG * (1f + BASKET_GAIN))
     for ((k, w) in Skill.BUILDING_WAYS.withIndex()) into[x.BUILDING + k] = if (b.knowsSkill[w]) b.skill(w) else 0f
-    val here = hw.placeHex[g.place] == b.houseHex.i
+    val here = h == b.houseHex.i
     into[x.HOUSE_HERE] = if (here) b.house else 0f; into[x.PALISADE_HERE] = if (here) b.palisade else 0f
+    into[x.HOUSES_BEGUN] = housesBegunAt(g, h); into[x.PALISADE_BEGUN] = palisadeBegunAt(g, h)
 }
 
 /** The name of each of [bandInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */

@@ -193,9 +193,12 @@ object HexSnapshot {
      * 4.25: a camp move takes first the goods its tools' mending needs over a stay and a year's good stone, salt and ochre
      * ([mendingKg]), then food, then the rest of its goods in the room left.
      * 4.26: the bands' ways net reads the week's camp move (its km, the days the walk takes, the load an adult carries).
+     * 4.27: what bands build serves nothing till it first stands whole (houses shelter, a palisade guards, only once done; a
+     * finished one then serves as far as it stands as it weathers and is mended); the ways net reads the houses and palisade
+     * begun and not finished where it is. (Saved houses and palisades load as not finished.)
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 26
+    const val MODEL_MINOR = 27
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

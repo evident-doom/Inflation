@@ -56,6 +56,9 @@ object BandInputs : InputSlots() {
     // This week's move (the ways are set after it, see [hunt]): how far it walked, the days the walk takes all its people, and
     // what an adult would carry in a load ([carriedKg]), so that its loads and its week are weighed knowing where it went.
     val MOVE_KM = one("camp move km"); val MOVE_DAYS = one("camp move days"); val LOAD = one("load an adult carries")
+    // What it has begun building here and not finished (houses, as the share of its grown people they would shelter; the
+    // palisade's ring): it serves nothing yet ([Structure.done]), so that the work it holds is seen.
+    val HOUSES_BEGUN = one("houses begun here"); val PALISADE_BEGUN = one("palisade begun here")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */
