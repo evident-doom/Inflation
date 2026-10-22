@@ -1,6 +1,7 @@
 package inflation.learning
 
 import inflation.ecology.BandWays
+import inflation.ecology.Binding
 import inflation.ecology.Catalogue
 import inflation.ecology.HexGroup
 import inflation.ecology.Species
@@ -71,6 +72,10 @@ class LearnedWays(val net: Mlp, val logStd: FloatArray) {
 class WaysChoice(kind: Species, groupId: Int, size: Int, week: Int, at: Probe, val x: FloatArray, val a: FloatArray, logp: Float, val plan: FloatArray? = null) :
     Choice(kind, groupId, size, week, arrayOf(at.features), 0, logp) {
     init { band = at.band; temper = at.temper; group = at.group }
+    /** The part of [logp] each output gave (their sum); null: not kept, every output counts as a whole. */
+    var terms: FloatArray? = null
+    /** What bound in the season this draw covers, filled in by the band's weeks as they pass (see [Binding]); null: not counted, every output counts. */
+    var binding: FloatArray? = null
 }
 
 /**
@@ -96,18 +101,24 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
         val t = w + g.id % WaysPpo.SEASON
         val season = t / WaysPpo.SEASON
         val rnd = Random(seed * 1_000_003L + g.id * 7_919L + season * 104_729L)
+        // (What binds is counted from the season's first week, for the recorded seasons only.)
+        if (t % WaysPpo.SEASON == 0) g.band?.binding = null
         // Only the bands whose season is recorded to learn from draw their ways by chance; the rest keep to the middle.
         if (rnd.nextFloat() >= rate()) { mean.copyInto(out); return }
         var logp = 0f
+        val terms = FloatArray(WAYS_OUT)
         for (i in 0 until WAYS_OUT) {
             val z = gaussian(rnd)
             out[i] = mean[i] + exp(ways.logStd[i]) * z
-            logp += -0.5f * z * z - ways.logStd[i]
+            terms[i] = -0.5f * z * z - ways.logStd[i]
+            logp += terms[i]
         }
         if (t % WaysPpo.SEASON != 0) return
         // (A draw is learnt from only where the band was seen choosing its place this week.)
         val st = standing?.get(g.id)?.takeIf { it.week == w } ?: return
         val c = WaysChoice(g.species, g.id, g.size, w, st.at, b.a[0].copyOf(), out.copyOf(WAYS_OUT), logp, st.plan)
+        c.terms = terms
+        c.binding = FloatArray(Binding.SIZE).also { g.band?.binding = it }
         record += c
         probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
     }
@@ -164,8 +175,10 @@ object WaysPpo {
                 val parts = inParts(batch) { part -> gradient(ways, trunk, part, 1f / batch.size) }
                 val gradW = FloatArray(ways.net.w.size); val gradStd = FloatArray(WAYS_OUT); var clipped = 0
                 val gradM = trunk?.let { FloatArray(it.net.w.size) }
-                for (g in parts) { gradW.add(g.ways); gradStd.add(g.std); clipped += g.clipped; g.mover?.let { gradM?.add(it) } }
-                for (i in gradStd.indices) gradStd[i] -= ENTROPY
+                val live = IntArray(WAYS_OUT)
+                for (g in parts) { gradW.add(g.ways); gradStd.add(g.std); clipped += g.clipped; g.mover?.let { gradM?.add(it) }; for (i in live.indices) live[i] += g.live[i] }
+                // (Only an output that acted in some draw of the batch is pulled toward a wide spread: one nothing is learnt about would drift there.)
+                for (i in gradStd.indices) if (live[i] > 0) gradStd[i] -= ENTROPY
                 st.adam.step(ways.net.w, gradW); st.adamStd.step(ways.logStd, gradStd)
                 // (A step that is not all numbers would make the mover not a number for good: it is left out.)
                 if (trunk != null && gradM != null && gradM.allFinite()) st.adamMover?.step(trunk.net.w, gradM)
@@ -178,11 +191,18 @@ object WaysPpo {
         val wide = stds.indices.filter { stds[it] >= 0.95f * LearnedWays.MAX_STD }
         val narrow = stds.count { it <= 1.05f * LearnedWays.MIN_STD }
         val wideNames = wide.take(5).joinToString(", ") { Schema.WAYS_OUT[it] } + if (wide.size > 5) ", ..." else ""
-        return "ways %d draws, people's critic explains %.2f, clipped %.2f, spread %.3f (%.3f..%.3f), %d at the widest (%s), %d at the narrowest".format(cs.size, explained, clippedShare / seen.coerceAtLeast(1), stds.average(), stds.min(), stds.max(), wide.size, wideNames, narrow)
+        // (How often the week plan and the camp move acted in a recorded season: an output that never acted learnt nothing.)
+        val counted = cs.mapNotNull { it.binding }
+        val timeActed = counted.count { b -> (0 until Binding.MOVES).any { b[it] > 0f } }
+        val moveActed = counted.count { it[Binding.MOVES] > 0f }
+        val acted = "time weights acted in %.0f%% of draws, carry loads in %.0f%%".format(100.0 * timeActed / counted.size.coerceAtLeast(1), 100.0 * moveActed / counted.size.coerceAtLeast(1))
+        return "ways %d draws, people's critic explains %.2f, clipped %.2f, spread %.3f (%.3f..%.3f), %d at the widest (%s), %d at the narrowest; %s".format(cs.size, explained, clippedShare / seen.coerceAtLeast(1), stds.average(), stds.min(), stds.max(), wide.size, wideNames, narrow, acted)
     }
 
     /** A part's gradient: for the ways' weights, their log-spreads and the mover's weights (null: none trained), and how many draws were clipped. */
-    private class Grad(val ways: FloatArray, val std: FloatArray, val mover: FloatArray?, val clipped: Int)
+    private class Grad(val ways: FloatArray, val std: FloatArray, val mover: FloatArray?, val clipped: Int,
+                       /** For each output, how many of the draws that were not clipped acted on it (see [Binding.acted]). */
+                       val live: IntArray)
 
     /**
      * The clipped surrogate's gradient over [part], to be minimised. With a [mover], each draw reads the mover's last hidden layer
@@ -195,19 +215,29 @@ object WaysPpo {
         val top = mover?.let { it.net.sizes.size - 2 } ?: 0
         val dIn = FloatArray(ways.net.sizes[0]); val dTrunk = FloatArray(ways.plan)
         val dOut = FloatArray(WAYS_OUT); var clippedN = 0
+        val live = IntArray(WAYS_OUT); val acts = BooleanArray(WAYS_OUT)
         for (c in part) {
             c.x.copyInto(b.a[0])
             val through = mover != null && mb != null && c.plan != null
             if (through) { c.plan.copyInto(mb.a[0]); mover.net.forward(mb); mb.a[top].copyInto(b.a[0], WAYS_IN) }
             val mu = ways.net.forwardAll(b)
-            var logp = 0f
-            for (i in 0 until WAYS_OUT) { val z = (c.a[i] - mu[i]) / exp(ways.logStd[i]); logp += -0.5f * z * z - ways.logStd[i] }
-            val ratio = exp(logp - c.logp)
+            // (The outputs that acted in its season are the draw's likelihood; the rest changed nothing the return could show, and are left out of it, as recorded and as now.)
+            var logp = 0f; var was = 0f
+            val terms = c.terms
+            for (i in 0 until WAYS_OUT) {
+                acts[i] = terms == null || Binding.acted(c.binding, i)
+                if (!acts[i]) continue
+                val z = (c.a[i] - mu[i]) / exp(ways.logStd[i]); logp += -0.5f * z * z - ways.logStd[i]
+                if (terms != null) was += terms[i]
+            }
+            val ratio = exp(logp - (if (terms != null) was else c.logp))
             val a = c.advantage
             val clipped = (a > 0f && ratio > 1f + CLIP) || (a < 0f && ratio < 1f - CLIP)
             if (clipped) { clippedN++; continue }
             val coef = a * ratio * w
             for (i in 0 until WAYS_OUT) {
+                if (!acts[i]) { dOut[i] = 0f; continue }
+                live[i]++
                 val s = exp(ways.logStd[i]); val z = (c.a[i] - mu[i]) / s
                 // d log p / d middle = z / s; d log p / d log-spread = z^2 - 1 (minimising, so negated).
                 dOut[i] = -coef * z / s
@@ -218,7 +248,7 @@ object WaysPpo {
             dIn.copyInto(dTrunk, 0, WAYS_IN)
             if (gradM != null) mover.net.backwardFrom(top, mb, dTrunk, gradM)
         }
-        return Grad(gradW, gradStd, gradM, clippedN)
+        return Grad(gradW, gradStd, gradM, clippedN, live)
     }
 
     /**
