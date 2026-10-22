@@ -59,6 +59,10 @@ object BandInputs : InputSlots() {
     // What it has begun building here and not finished (houses, as the share of its grown people they would shelter; the
     // palisade's ring): it serves nothing yet ([Structure.done]), so that the work it holds is seen.
     val HOUSES_BEGUN = one("houses begun here"); val PALISADE_BEGUN = one("palisade begun here")
+    // Its people's cold this week where it stands, by their body heat ([BodyHeat]): the food keeping warm would take, the odds of dying of
+    // exposure, the wind and wet about the camp, and what it has against them (its fire's share of the week, its houses' shelter).
+    val COLD_FOOD = one("cold: extra food"); val COLD_ODDS = one("cold: exposure odds"); val WIND = one("wind"); val WET = one("wet")
+    val FIRE_SHARE = one("fire share"); val HOME_SHELTER = one("home shelter")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */

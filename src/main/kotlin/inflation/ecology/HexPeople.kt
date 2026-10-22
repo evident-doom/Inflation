@@ -1834,6 +1834,11 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     val here = h == b.houseHex.i
     into[x.HOUSE_HERE] = if (here) b.house else 0f; into[x.PALISADE_HERE] = if (here) b.palisade else 0f
     into[x.HOUSES_BEGUN] = housesBegunAt(g, h); into[x.PALISADE_BEGUN] = palisadeBegunAt(g, h)
+    // Its people's cold where it stands: what the week's cold would cost in food and lives, and what keeps it off.
+    val air = airAt(g.place, weather); val cold = b.warmth(air, b.fire, b.homeShelter(), days)
+    into[x.COLD_FOOD] = min(1f, cold.extra); into[x.COLD_ODDS] = min(1f, 10f * cold.odds)
+    into[x.WIND] = min(1f, air.windMs / 10f); into[x.WET] = air.wet
+    into[x.FIRE_SHARE] = b.fire; into[x.HOME_SHELTER] = b.homeShelter()
 }
 
 /** The name of each of [bandInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */
