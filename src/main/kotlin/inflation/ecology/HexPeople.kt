@@ -893,13 +893,16 @@ private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
 internal fun cacheCare(b: Band) = max(1f, b.cacheWill)
 
 /**
- * The kg of [m] [b]'s [people] keep on hand to mend the tools they know and take along over the weeks they keep a camp
- * ([Band.stayWeeks]), as each wears ([Tool.wearPerYear]): what a camp move takes along first.
+ * The kg of [m] [b]'s [people] take along first on a camp move: what mending the tools they know and take along needs
+ * over the weeks they keep a camp ([Band.stayWeeks]), as each wears ([Tool.wearPerYear]); and of the materials found only
+ * where they crop out (good stone, salt, ochre), what they keep of them ([KEEP_YEARS] of [YEAR_NEED]), since what is left
+ * behind is not to be had again on the way.
  */
 private fun HexGroups.mendingKg(b: Band, m: Material, people: Float) =
-    people * b.stayWeeks / stepsPerYear * Tool.entries.sumOf { t -> if (b.knows[t] && !t.heavy) ((t.recipe[m] ?: 0f) * t.wearPerYear).toDouble() else 0.0 }.toFloat()
+    people * (b.stayWeeks / stepsPerYear * Tool.entries.sumOf { t -> if (b.knows[t] && !t.heavy) ((t.recipe[m] ?: 0f) * t.wearPerYear).toDouble() else 0.0 }.toFloat() +
+        KEEP_YEARS * YEAR_NEED[m])
 
-/** The kg of goods [g]'s band [b] takes along on a camp move before its food: what it has of what mending needs ([mendingKg]). */
+/** The kg of goods [g]'s band [b] takes along on a camp move before its food: what it has of what it takes first ([mendingKg]). */
 private fun HexGroups.mendingStockKg(g: HexGroup, b: Band) = Material.entries.sumOf { m -> min(b.goods[m], mendingKg(b, m, g.adults.toFloat())).toDouble() }.toFloat()
 
 /** The kg of its stores [g]'s band [b] cannot carry in its loads ([carryKg], [carryLoads]) beside its mending stock: what it caches or leaves when it moves camp. */
@@ -946,7 +949,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
         // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
         if (!b.campPlace.none) {
-            // (What mending needs is taken first: see [mendingKg].)
+            // (Some goods are taken first: see [mendingKg].)
             val carry = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
             val total = g.larder
             if (total > carry) {
@@ -974,7 +977,7 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
             b.stayWeeks += STAY_LEARN * (b.campWeeks + 1 - b.stayWeeks)
-            // Its goods: what mending needs first, then the rest in what room its loads have left after the food, each
+            // Its goods: what it takes first ([mendingKg]), then the rest in what room its loads have left after the food, each
             // kind alike; what does not fit is left at the old camp (and goes back to the ground).
             val people = g.adults.toFloat()
             val spare = Material.entries.sumOf { m -> max(0f, b.goods[m] - mendingKg(b, m, people)).toDouble() }.toFloat()
