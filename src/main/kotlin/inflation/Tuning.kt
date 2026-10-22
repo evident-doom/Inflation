@@ -121,7 +121,7 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
     val poorStoneEdge = f("poorStoneEdge", 0.75f)
     val poorStoneWear = f("poorStoneWear", 1f)
     /**
-     * How much less good a person's food does them wholly without salt ([inflation.ecology.SALT_A_PERSON_WEEK]). Not measured:
+     * How much less good a person's food does them wholly without sodium ([inflation.ecology.SODIUM_A_PERSON_DAY]). Not measured:
      * salt hunger among farmers and plant gatherers is well known, its toll here a guess.
      */
     val saltLack = f("saltLack", 0.15f)

@@ -123,13 +123,16 @@ internal class Bites {
 internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s.snowLimitMm).coerceIn(0f, 1f)
 
 /**
- * How animals of [s] eating diet [d] feed where the forage nourishes [q], asking [want] kg per m² this week, from
+ * How animals of [s] eating diet [d] feed where the forage nourishes [q], asking [need] kg per m² this week, from
  * [pantry]: grass (as far as it gets at it under the snow, [underSnow], see [grassUnderSnow]) and browse as far as the gut fills at that nourishment, fruit and roots, then
  * switching between them for a shortfall; into [out]. The standing straw is the cured grass, eaten as grass at what it
- * nourishes ([HexPlants.nourishment]). The one rule for the residents' week's grazing
+ * nourishes ([HexPlants.nourishment]). Each food feeds by its energy ([Nourishment]): grass and browse at [q], fruit and roots
+ * at theirs, all by [Species.needScale] in kg of its need ([Bites.got], [Bites.short]). The one rule for the residents' week's grazing
  * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.room]).
  */
-@IgnorableReturnValue internal fun forage(s: Species, d: Diet, q: Float, want: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
+@IgnorableReturnValue internal fun forage(s: Species, d: Diet, q: Float, need: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
+    // (Worked in energy, [Nourishment]'s units: a kg of green forage feeds a unit.)
+    val want = need / s.needScale
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
     // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
     val fill = gutFill(s, q)
@@ -137,12 +140,12 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     // of its need it goes without; where food is plenty it still eats its fill.)
     val grass = pantry.grass(underSnow * want * fill * d.grass / total)
     val browse = pantry.browse(want * fill * d.browse / total)
-    val fruit = pantry.fruit(want * d.fruit / total)
-    val roots = pantry.roots(want * d.roots / total)
+    val fruit = pantry.fruit(want * d.fruit / total / Nourishment.FRUIT)
+    val roots = pantry.roots(want * d.roots / total / Nourishment.ROOTS)
     // Diet switching: a food that fell short is made up from the others: grass and browse as far as the gut holds,
     // fruit and roots to at most (1 + SWITCH) times their usual share (an ostrich out of fruit season picks more shoots
     // and leaves).
-    var gap = want - ((grass + browse) * q + fruit + roots)
+    var gap = want - ((grass + browse) * q + fruit * Nourishment.FRUIT + roots * Nourishment.ROOTS)
     var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var roots2 = 0f
     // But the gut holds only so much bulk a day: on poor forage a ruminant cannot make up by eating
     // more of it (switching shifts what it eats, not how much its gut takes).
@@ -160,11 +163,11 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
         browse2 = pantry.browse(min(min(gap / qf, room), max(0f, gap - buried) / qf + SWITCH * want * fill * d.browse / total))
         gap -= browse2 * qf; room -= browse2 }
     if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
-    if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, SWITCH * want * d.fruit / total)); gap -= fruit2 }
-    if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, SWITCH * want * d.roots / total)); gap -= roots2 }
-    val short = max(0f, gap)
+    if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, SWITCH * want * d.fruit / total) / Nourishment.FRUIT); gap -= fruit2 * Nourishment.FRUIT }
+    if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, SWITCH * want * d.roots / total) / Nourishment.ROOTS); gap -= roots2 * Nourishment.ROOTS }
+    val short = max(0f, gap) * s.needScale
     // Grass and browse nourish fully only when green; fruit and roots keep their value.
-    val got = (grass + browse + grass2 + browse2) * q + fruit + roots + fruit2 + roots2
+    val got = ((grass + browse + grass2 + browse2) * q + (fruit + fruit2) * Nourishment.FRUIT + (roots + roots2) * Nourishment.ROOTS) * s.needScale
     out.grass = grass; out.browse = browse; out.fruit = fruit; out.roots = roots
     out.grass2 = grass2; out.browse2 = browse2; out.fruit2 = fruit2; out.roots2 = roots2
     out.short = short; out.room = room; out.q = q; out.got = got
@@ -783,7 +786,15 @@ internal fun HexGroups.remember(date: Date) {
     val weeksAMonth = stepsPerYear / 12f
     // Every group remembers where it was this week and how it fared there.
     val week = stepOf(date)
-    for (g in groups) if (g.alive) g.memory.record(hw.placeHex[g.place.i], PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place), week, stepsPerYear)
+    // (A band also what it found there of the rarer materials: how richly each crops out, as its gathering goes by it.)
+    val finds = FloatArray(PlaceMemory.RARE.size)
+    for (g in groups) if (g.alive) {
+        val h = hw.placeHex[g.place.i]
+        if (g.band != null) for ((k, mat) in PlaceMemory.RARE.withIndex())
+            finds[k] = mat.deposit?.let { min(1f, 5f * it(land)[g.place.i]) } ?: (if (hw.coast[h]) 1f else 0f)
+        g.memory.record(h, PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place), week, stepsPerYear,
+            finds = if (g.band != null) finds else null)
+    }
     for (g in groups) {
         val b = g.band ?: continue
         // At the remembered place it learns how good it really is; elsewhere the memory fades slowly,

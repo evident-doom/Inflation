@@ -152,6 +152,8 @@ class Species(
     val human: Boolean = false,
     /** Daily food, kg of prey or plant food, where the allometric rule does not fit (people, who cook). */
     val intakeKg: Float = 0f,
+    /** With [intakeKg]: its daily need in [Nourishment]'s units, which [intakeKg] stands for. */
+    val needUnits: Float = 0f,
     /** Hangs about people's camps for scraps and keeps clear of trouble with them: wolves (future dogs), jackals. */
     val followsPeople: Boolean = false,
     /**
@@ -193,6 +195,13 @@ class Species(
     val maxFatDays: Float get() = 9.3f / Allometry.FIELD_OVER_BASAL * massKg.pow(0.44f) * if (hibernates) 4f else 1f
     /** Dry-matter (or meat) intake per adult per day, kg. */
     val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, diet)
+    /**
+     * What a unit of food energy ([Nourishment]) feeds it, in kg of its need ([dailyIntakeKg]): the allometric rule's
+     * need over 0.08 M^0.75 units (1 for a plant-eater, 2.5 for a hunter, between for a mixed feeder), or [intakeKg]
+     * over [needUnits].
+     */
+    val needScale: Float = if (intakeKg > 0f && needUnits > 0f) intakeKg / needUnits
+        else Allometry.dailyIntakeKg(massKg, diet) / (0.08f * massKg.pow(0.75f))
 
     /**
      * How far its coat stretches the cold end in [month] (from the winter solstice), °C: a winter coat

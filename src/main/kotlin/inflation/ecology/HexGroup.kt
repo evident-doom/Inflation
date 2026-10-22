@@ -229,7 +229,14 @@ object HexFeatures {
     const val SNOW_AHEAD = 55
     /** How much stronger another kind's hunting party holding the place is than its own, when it can tell (0 when none is). */
     const val STRONGER_HUNTER = 56
-    const val SIZE = 57
+    /** For a band, the most it remembers finding at the hex of a rarer material it lacks ([PlaceMemory.found] times how far it lacks it; 0 for animals). */
+    const val REMEMBERED_LACKED = 57
+    /**
+     * For a band, how far the place takes it toward where it remembers the most of a rarer material it lacks, times how much
+     * it lacks it (0 with nothing lacked or remembered, or within a hex of it).
+     */
+    const val TOWARD_LACKED = 58
+    const val SIZE = 59
 
     /**
      * Each feature's name, as a learned network's `.names` file records it (see [inflation.learning.Schema]): set by
@@ -293,5 +300,7 @@ object HexFeatures {
         it[BURNING] = "burning"
         it[SNOW_AHEAD] = "snow ahead"
         it[STRONGER_HUNTER] = "stronger hunter"
+        it[REMEMBERED_LACKED] = "remembered lacked"
+        it[TOWARD_LACKED] = "toward lacked"
     }.mapIndexed { k, n -> requireNotNull(n) { "feature $k has no name" } }
 }

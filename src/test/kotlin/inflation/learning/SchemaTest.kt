@@ -94,7 +94,9 @@ class SchemaTest {
             HexFeatures.KILL_FEAR to "kill fear",
             HexFeatures.BURNING to "burning",
             HexFeatures.SNOW_AHEAD to "snow ahead",
-            HexFeatures.STRONGER_HUNTER to "stronger hunter"
+            HexFeatures.STRONGER_HUNTER to "stronger hunter",
+            HexFeatures.REMEMBERED_LACKED to "remembered lacked",
+            HexFeatures.TOWARD_LACKED to "toward lacked"
         )
         assertEquals(HexFeatures.SIZE, named.size)
         for ((slot, name) in named) assertEquals(name, Schema.PLACE[slot], "feature slot $slot")
@@ -107,7 +109,7 @@ class SchemaTest {
         assertEquals(WAYS_OUT, Schema.WAYS_OUT.size)
         for (w in BandWay.entries) assertEquals(w.label, Schema.WAYS_OUT[w.slot], w.name)
         assertEquals("scouts", Schema.WAYS_OUT[FOOD_TYPES + 1 + Tool.entries.size])
-        assertEquals("mending first", Schema.WAYS_OUT.last())
+        assertEquals("storing: seed and grain", Schema.WAYS_OUT.last())
     }
 
     /** A band's effort slots are every kind of food before grain (it goes by grass seed's). */

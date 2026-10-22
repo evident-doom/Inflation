@@ -698,7 +698,7 @@ object Catalogue {
         preyPreferredUpTo = Float.POSITIVE_INFINITY, preyUpTo = Float.POSITIVE_INFINITY,
         startKm2PerAnimal = 40f,
         human = true,
-        intakeKg = 1.6f,
+        intakeKg = 1.6f, needUnits = Nourishment.PEOPLE_NEED,
     )
 
     private val firstHerbivores = listOf(

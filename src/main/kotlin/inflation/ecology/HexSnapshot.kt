@@ -158,9 +158,23 @@ object HexSnapshot {
      * stone for houses (it stacked them after 4 weeks before, which the caps made moot).
      * Dogs are always on (taming is no longer a switch), and a band sows at a camp it has kept long enough to build at, not
      * only at home.
+     * 4.15: food feeds by its energy ([Nourishment]), one unit for every kind: bands choose foods by energy a day of handling
+     * and count dry fruit, roots and seed at some 2-3 times a kg of meat; mixed feeders' plant food feeds them more and
+     * their animal food less than a kg each (pure plant-eaters and hunters as before, but for fruit); people's stores hold
+     * food at what it feeds. People's salt need is the sodium their meat and fish fall short of (the Yanomami's 23 mg a
+     * day), not a share of plant food eaten. Four new ways choose what a band lays by ([Band.storeWill]): its store work weighs
+     * each food by its will to keep it (at the scaffold's 1, as it would eat it).
+     * A band's place memory keeps how richly good stone, salt, ochre and shells were to be had where it went (and as other
+     * bands tell it), and its learned mover sees what it lacks remembered at a place and the way toward the best of it.
+     * 4.16: protein feeds people only up to 35% of their need ([Nourishment.PROTEIN_MOST]): a band eats lean food to that
+     * ceiling, then plant food and grease, and lean food beyond it feeds by its fat alone; it weighs lean food in its choice by
+     * the share of its protein that went to waste the week before ([Band.leanLost], also a ways input). A band that knows
+     * stone boiling renders grease from the bones it comes on ([greaseOf]), kept as a store of its own ([Store.GREASE]).
+     * 4.17: a band's food efforts split its gatherers' days ([splitDays]): an effort above 1 meets its food more and every
+     * other gatherers' food less, by the mean effort weighed by the days each would take; at every effort 1 as before.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 14
+    const val MODEL_MINOR = 17
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

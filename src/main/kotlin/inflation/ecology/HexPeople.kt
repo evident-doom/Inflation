@@ -184,6 +184,8 @@ class Band(kinds: Int) {
     val fine = enumFloats<Tool> { if (it == Tool.CLOTHES) 0f else 1f }
     /** Of its dried meat and fish, the share salted (with trade on). */
     var salted = 0f
+    /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
+    var leanLost = 0f
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0
@@ -295,6 +297,11 @@ class Band(kinds: Int) {
     val feastWill get() = will[BandWay.FEASTING]
     val appointWill get() = will[BandWay.APPOINTMENTS]
     val burnWill get() = will[BandWay.BURNING_OFF]
+    /**
+     * How keenly it lays food [t] by when it works for its stores (1 the scaffold's, as it would eat it; 0 none of its store
+     * work for it, 2 twice as keen): weighed against what else it could gather, what rots and how soon is for it to learn.
+     */
+    fun storeWill(t: Food) = will[storeWay(t)]
     /**
      * How keenly it acts on a custom: a band that holds it as its will (1 at the default, twice as much at 2, not at all at 0),
      * one that does not only as far as its will goes above the default.
@@ -927,6 +934,9 @@ private fun HexGroups.carried(b: Band, m: Material, people: Float): Float {
     return (GOODS_PER_PERSON + stack) * people
 }
 
+/** How far [g]'s band [b] lacks [m]: 1 with none of it, 0 with all it carries ([carried]). */
+internal fun HexGroups.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f - b.goods[m] / carried(b, m, g.adults.toFloat()).coerceAtLeast(1e-3f))
+
 /** Weeks [b] keeps a camp before it builds houses there: sooner the keener it is ([BandWay.HOUSES]). */
 internal fun HexGroups.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f)
 
@@ -1370,14 +1380,17 @@ internal fun eatStores(g: HexGroup, value: Float): Float {
 
 /**
  * Food on hand, by how it keeps: fresh meat and fish rot in days (faster in the heat), dried meat
- * and fish keep for months, fruit for a week or two, roots for some weeks, seed and nuts for a year.
- * [lostWeekly] is the share lost a week (fresh meat: see [spoil]); [meat] whether it counts as meat.
+ * and fish keep for months, fruit for a week or two, roots for some weeks, seed and nuts for a year, rendered grease
+ * sealed in guts or bladders for months (its rate a guess).
+ * [lostWeekly] is the share lost a week (fresh meat: see [spoil]); [meat] whether it counts as meat (for its salt);
+ * [protein] the share of its energy that is protein (fresh and dried meat and fish at meat's; small finds kept with fruit).
  */
-enum class Store(val lostWeekly: Float, val meat: Boolean) {
-    FRESH(0f, true), DRIED(0.01f, true), FRUIT(0.1f, false), ROOTS(0.03f, false), SEED(0.005f, false)
+enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float) {
+    FRESH(0f, true, Nourishment.PROTEIN_MEAT), DRIED(0.01f, true, Nourishment.PROTEIN_MEAT), FRUIT(0.1f, false, Nourishment.PROTEIN_FRUIT),
+    ROOTS(0.03f, false, Nourishment.PROTEIN_ROOTS), SEED(0.005f, false, Nourishment.PROTEIN_GRAIN), GREASE(0.01f, false, 0f)
 }
 /** The order a band eats its food in: what spoils first, first. */
-val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED)
+val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED, Store.GREASE)
 /** The scaffold's store: days of food a band aims to keep; share of the gap it works to close a week. */
 const val STORE_AIM_DAYS = 30f
 const val STORE_FILL = 0.25f
@@ -1422,9 +1435,20 @@ enum class BandWay(val label: String) {
     APPOINTMENTS("appointments"),
     BURNING_OFF("burning off"),
     REPAYING("repaying"),
-    MENDING_FIRST("mending first");
+    MENDING_FIRST("mending first"),
+    STORING_MEAT("storing: meat and fish"),
+    STORING_FRUIT("storing: fruit and finds"),
+    STORING_ROOTS("storing: roots"),
+    STORING_SEED("storing: seed and grain");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
+}
+/** The way that sets how keenly a band lays food [t] by ([Band.storeWill]). */
+fun storeWay(t: Food) = when (t) {
+    Food.BIG_GAME, Food.SMALL_GAME, Food.CARRION, Food.BONES, Food.FISH -> BandWay.STORING_MEAT
+    Food.FRUIT, Food.FINDS -> BandWay.STORING_FRUIT
+    Food.ROOTS -> BandWay.STORING_ROOTS
+    Food.SEED, Food.GRAIN -> BandWay.STORING_SEED
 }
 val WAYS_OUT = MAKE_FIRST_SLOT + Tool.entries.size + BandWay.entries.size
 /** The name of each of a band's ways, in order ([setWays]), as a learned network's `.names` file records them (the strings must not change). */
@@ -1535,6 +1559,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
         into[x.PREDATORS + c.ordinal] = SIGN_GUESS + sign * (beasts / (beasts + 3f) - SIGN_GUESS)
     }
     into[x.ELEVATION] = (hw.placeElevationM[p] / 3000f).coerceIn(0f, 1f)
+    into[x.LEAN_LOST] = b.leanLost
 }
 
 /** The name of each of [bandInputs]' numbers, in order, as a learned network's `.names` file records them (the strings must not change). */
@@ -1768,10 +1793,15 @@ const val OCHRE_A_WEEK = 0.3f
 const val TAN_OCHRE = 0.2f
 const val TANNED_WEAR = 0.5f
 /**
- * Salt a person living wholly on plant food needs in a week, kg (a few grams a day, more in the heat); how much
- * less good their food does them wholly without it is [inflation.Tuning.saltLack].
+ * Sodium a person needs a day, kg: the 23 mg a day the Yanomami pass, the least of any people measured (INTERSALT, BMJ
+ * 1988; Mancilha-Carvalho et al., J Hum Hypertens 1989: 0.9 mmol a day, healthy and with low blood pressure, on a
+ * mostly plant diet and no salt). How much less good their food does them wholly without it is [inflation.Tuning.saltLack].
  */
-const val SALT_A_PERSON_WEEK = 0.05f
+const val SODIUM_A_PERSON_DAY = 23e-6f
+/** Sodium in a kg of meat or fish, kg: raw deer 51 mg/100 g (USDA SR "game meat, deer, raw"), freshwater fish about 50. */
+const val SODIUM_PER_KG_MEAT = 0.51e-3f
+/** Sodium's share of salt by weight (Na in NaCl). */
+const val SALT_SODIUM = 0.393f
 /** Salt to cure a kilo of meat or fish, kg (how much less salted meat and fish spoil: [inflation.Tuning.saltKeep]). */
 const val SALT_PER_KG = 0.1f
 
@@ -1841,7 +1871,9 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         if (n > most) {
             val cull = n - most
             n = most
-            addFood(g.stores, g.storeKgPer, Store.FRESH, cull * s.massKg * MEAT_SHARE, cull * s.massKg * MEAT_SHARE)
+            // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT].)
+            val culled = cull * s.massKg * MEAT_SHARE
+            addFood(g.stores, g.storeKgPer, Store.FRESH, culled * Nourishment.MEAT * g.species.needScale, culled)
             small.deposit(DeadPool.CARRION, p, Kg(cull * s.massKg * (1f - MEAT_SHARE)))
             stats.meeting(Met.KEPT_ANIMALS_CULLED)
         }

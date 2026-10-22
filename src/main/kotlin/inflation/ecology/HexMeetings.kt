@@ -146,16 +146,17 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
     for (pass in 0 until FORAGE_PASSES) {
-        val left = w.aim - (w.meat + w.smallGot + w.scraps + w.plants + w.fish)
+        val left = w.aim - w.fed
         if (left <= 0.01f * w.wantAll) break
         offerFoods(w, o)
+        if (w.band != null) splitDays(w, o)
         o.takeUp()
         note(g) {
             "pass %d: took up %d of %d foods, best first: ".format(pass + 1, o.used, o.m) + (0 until min(o.used, 6)).joinToString(", ") { r -> val i = o.order[r]
                 (if (o.type[i] == Food.BIG_GAME) fauna.kinds[o.kind[i]].name else o.type[i].label) + " %.1f kg/day of work".format(o.profit[i]) }
         }
         // What the week brings at those rates, the parties working side by side, as far as the band wants: it stops when fed.
-        val intake = o.gain[0] / o.spent[0] + o.gain[1] / o.spent[1]
+        val intake = o.fed[0] / o.spent[0] + o.fed[1] / o.spent[1]
         val f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
         if (pass == 0) w.searched = f
         if (FORAGE_DIAG == w.s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
@@ -195,6 +196,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
     // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed.)
     val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    // (A band renders bones' grease where it gathers them: see [greaseOf].)
+    val renderDays = if (band != null) BONE_RENDER_DAYS / gatherers.coerceAtLeast(1e-3f) else 0f
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats
     val seedDays = SEED_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry /
         (1f + (band?.sickleGain(gs.tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
@@ -211,11 +214,46 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val roundShare = (band?.let { b -> (RING_REACH * b.gatherRange).also { v -> gs.dialUse?.amount(DialSite.GATHER_RING, b.gatherRange, v, RING_REACH) } } ?: 0f)
     // (Which of the band's parties takes each food, [Offers.who]: its share of the hands.)
     val party = floatArrayOf(hunt, 1f - hunt)
-    // What it has got: meat (the meat it took in its meetings with it), small game, carrion and bones, plants, fish.
+    // What a kg of each food holds for it, in kg of its need: its energy ([Food.energy]) by the kind's [Species.needScale]
+    // (a band's bones, the grease it renders of them).
+    private val worths = FloatArray(Food.entries.size) { i -> val t = Food.entries[i]
+        s.needScale * when {
+            band == null -> if (t == Food.BIG_GAME) Nourishment.PREY else t.energy
+            t == Food.BONES -> greaseOf(band) * Nourishment.GREASE
+            else -> t.energy
+        } }
+    /** What a kg of [t] holds for it, in kg of its need. */
+    fun worth(t: Food) = worths[t.ordinal]
+    // What it reckons a kg of each feeds it: a band, lean food less the share of its protein that went to waste of late
+    // ([Band.leanLost]: protein feeds people only so far, see [Meal]).
+    private val feedsBy = FloatArray(Food.entries.size) { i -> val t = Food.entries[i]
+        worths[i] * (if (band != null) 1f - band.leanLost * t.protein else 1f) }
+    /** What it reckons a kg of [t] feeds it, in kg of its need. */
+    fun feeds(t: Food) = feedsBy[t.ordinal]
+    // What it has got: meat (the meat it took in its meetings with it), small game, carrion and bones, plants, fish; and what
+    // all of it feeds, in kg of its need (see [worth]).
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
+    // (A band's grease rendered from bones, kg, and what it feeds.)
+    var grease = 0f; var greaseFed = 0f
+    // (Its gatherers' days each food would take at the scaffold's efforts this pass: see [splitDays].)
+    val demand = FloatArray(FOOD_TYPES)
+    var fed = g.meatMet * feeds(Food.BIG_GAME)
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
     val aim = wantAll + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
+    // What it weighs a kg of each food at in its choice: what it feeds, the part of the week's work that is for the stores
+    // weighed by its will to lay that food by (its choice, [Band.storeWill]: what keeps, how long, and against what
+    // lean season is for it to learn).
+    private val weights = FloatArray(Food.entries.size) { i -> val t = Food.entries[i]
+        val toStore = if (band != null && aim > wantAll) (aim - wantAll) / aim else 0f
+        feedsBy[i] * (1f - toStore + toStore * (band?.storeWill(t) ?: 1f)) }
+    /** What it weighs a kg of [t] at in choosing its foods ([Offers.takeUp]). */
+    fun weigh(t: Food) = weights[t.ordinal]
+    init {
+        val u = gs.dialUse
+        if (u != null && band != null && aim > wantAll) for (t in Food.entries)
+            u.amount(DialSite.STORING, band.storeWill(t), weights[t.ordinal], worths[t.ordinal], dial = storeWay(t).slot)
+    }
     val plantKind = FloatArray(Store.entries.size)
     // (And what it weighs, which grinding, cooking and leaching do not change: see [addFood].)
     val plantKg = FloatArray(Store.entries.size)
@@ -331,31 +369,33 @@ private fun HexGroups.huntingOdds(w: ForageWeek) {
 
 /** The foods [forage] offers a party in one pass, and its pick of them. */
 private class Offers(n: Int) {
-    // Each food: its [Food] (big game of [kinds] index k, or another food), place, rate a day, kg each, days each.
+    // Each food: its [Food] (big game of [kinds] index k, or another food), place, rate a day, kg each, what each feeds
+    // (kg of the party's need, see [ForageWeek.worth]), what the party weighs it at ([ForageWeek.weigh]), days each.
     val type = Array(n) { Food.BIG_GAME }; val kind = IntArray(n); val place = IntArray(n)
-    val rate = FloatArray(n); val kg = FloatArray(n); val time = FloatArray(n)
+    val rate = FloatArray(n); val kg = FloatArray(n); val value = FloatArray(n); val weight = FloatArray(n); val time = FloatArray(n)
     // (Which of the band's parties takes each food: 0 the hunters, 1 the gatherers; an animal's is all 0.)
     val who = IntArray(n)
     var m = 0
     val order = IntArray(n); val profit = FloatArray(n); val sortKeys = LongArray(n)
-    // What each party gains and the time it spends on the foods it takes up, and whether it wants no more; the foods
-    // taken up are the first [used] of [order].
-    val gain = FloatArray(2); val spent = FloatArray(2); val full = BooleanArray(2); var used = 0
+    // What each party gains (as it weighs it, and what it feeds) and the time it spends on the foods it takes up, and
+    // whether it wants no more; the foods taken up are the first [used] of [order].
+    val gain = FloatArray(2); val fed = FloatArray(2); val spent = FloatArray(2); val full = BooleanArray(2); var used = 0
 
-    fun add(t: Food, k: Int, p: Place, r: Float, e: Float, h: Float, w: Int) {
-        type[m] = t; kind[m] = k; place[m] = p.i; rate[m] = r; kg[m] = e; time[m] = h; who[m] = w; m++
+    fun add(t: Food, k: Int, p: Place, r: Float, e: Float, v: Float, wt: Float, h: Float, w: Int) {
+        type[m] = t; kind[m] = k; place[m] = p.i; rate[m] = r; kg[m] = e; value[m] = v; weight[m] = wt; time[m] = h; who[m] = w; m++
     }
 
     /**
-     * Takes up the foods best first by kilos a day of handling while they raise each party's own rate (Charnov's rule).
+     * Takes up the foods best first by what the party weighs them at a day of handling while they raise each party's own
+     * rate (Charnov's rule).
      * (Foods worth the same in the order they were offered in. They are drawn best first from a heap, as far as the
      * parties go: each stops at the first food not worth its while, so most are never ranked.)
      */
     fun takeUp() {
-        for (i in 0 until m) profit[i] = kg[i] / time[i]
+        for (i in 0 until m) profit[i] = weight[i] / time[i]
         rankKeys(profit, m, sortKeys)
         heapify(sortKeys, m)
-        gain.fill(0f); spent.fill(1f); full.fill(false); used = 0
+        gain.fill(0f); fed.fill(0f); spent.fill(1f); full.fill(false); used = 0
         // (A party with no food on offer is as good as done.)
         var hunters = 0; for (i in 0 until m) if (who[i] == 0) hunters++
         if (hunters == 0) full[0] = true
@@ -365,7 +405,7 @@ private class Offers(n: Int) {
             val i = (popMin(sortKeys, left--) and 0xffffffffL).toInt(); val w = who[i]
             if (full[w]) continue
             if (profit[i] <= gain[w] / spent[w]) { full[w] = true; continue }
-            gain[w] += rate[i] * kg[i]; spent[w] += rate[i] * time[i]; order[used++] = i
+            gain[w] += rate[i] * weight[i]; fed[w] += rate[i] * value[i]; spent[w] += rate[i] * time[i]; order[used++] = i
         }
     }
 }
@@ -376,6 +416,8 @@ private class Offers(n: Int) {
  */
 private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float) {
     val band = w.band
+    // (What it would ask of the gatherers' days at the scaffold's effort: see [splitDays].)
+    if (band != null && t != Food.BIG_GAME && r > 0f && e > 0f) w.demand[when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal] += r * h
     val rr = if (band != null && t != Food.BIG_GAME) r * band.effort[when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal] else r
     if (band != null && t != Food.BIG_GAME && r > 0f) dialUse?.let { u -> val f = when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal
         u.amount(DialSite.EFFORT_RATE, band.effort[f], rr, r, dial = f) }
@@ -383,14 +425,42 @@ private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place,
     // (Biting insects slow people at whatever they do out there; fish are offered by hex, so the
     // camp's place stands for the water they fish.)
     val hh = if (band != null) h * (1f + HexSmallLife.HARASS_TIME * small.harassment(if (t == Food.FISH) w.g.place else p)) else h
-    o.add(t, k, p, rr, e, hh, if (band != null && t != Food.BIG_GAME) 1 else 0)
+    o.add(t, k, p, rr, e, e * w.feeds(t), e * w.weigh(t), hh, if (band != null && t != Food.BIG_GAME) 1 else 0)
+}
+
+/**
+ * A band's efforts split its gatherers' days between the kinds of food: an effort above 1 searches more for a food, and
+ * so less for the rest. Each effort raises its food's rate of meeting ([offer]); then all the gatherers' foods are met the
+ * less by the mean effort, each food weighed by the days it would take of them at the scaffold's ([ForageWeek.demand]),
+ * so that the days stay a week's. At every effort 1 the week is as it was without them.
+ */
+private fun HexGroups.splitDays(w: ForageWeek, o: Offers) {
+    val band = checkNotNull(w.band)
+    val mean = meanEffort(w.demand, band.effort)
+    if (mean <= 0f) return
+    for (i in 0 until o.m) if (o.who[i] == 1) o.rate[i] /= mean
+}
+
+/**
+ * The mean of [effort] over the gatherers' foods, each weighed by the days it would [demand] at the scaffold's efforts
+ * (big game is the hunters', not counted); 0 where no food asks any. A food that asks for no end of days, because there are
+ * no gatherers' hands to take them (infinite), takes none of theirs and is left out.
+ */
+internal fun meanEffort(demand: FloatArray, effort: FloatArray): Float {
+    var at1 = 0f; var asked = 0f
+    for (t in 0 until FOOD_TYPES) {
+        if (t == Food.BIG_GAME.ordinal || !demand[t].isFinite()) continue
+        at1 += demand[t]; asked += demand[t] * effort[t]
+    }
+    val mean = asked / at1
+    return if (at1 > 0f && mean.isFinite() && mean > 0f) mean else 0f
 }
 
 /** [forage]'s foods on offer to [w]'s party in a pass, into [o]: along its way, round its camp and, for a band, in the water by it. */
 private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     val g = w.g; val band = w.band; val nk = w.nk; val sweep = w.sweep; val days = this.days
     val adults = fauna.adults; val young = fauna.young
-    o.m = 0
+    o.m = 0; w.demand.fill(0f)
     // (What a kill is worth to it: see below. Its butchers' skill grows with each kill, so once a pass.)
     val credit = creditShare(band); val most = (1f + SURPLUS_EAT) * w.wantAll
     // Big game over its hunting ground. (A band's hunters fan out over less of it than the whole band would, as for a
@@ -422,6 +492,8 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             val found = CARRION_FOUND * min(1f, w.d.carrion / SCAVENGER_CARRION)
             offer(w, o, Food.CARRION, 0, Place(p.i), KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, w.eats)
             if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, Place(p.i), KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
+            else if (band != null && w.worth(Food.BONES) > 0f)
+                offer(w, o, Food.BONES, 0, Place(p.i), KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)
         }
     }
     // (The ground it walked, then the country round its camp, which holds none of it.)
@@ -468,20 +540,33 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 val kills1 = huntGame(g, o.kind[i], Place(p), expected, o.kg[i], w.spareYoung, w.rnd, haul)
                 if (kills1 <= 0) continue
                 w.busy += kills1 * o.time[i] * w.party[0]
-                w.meat += haul.kg
+                w.meat += haul.kg; w.fed += haul.kg * w.feeds(Food.BIG_GAME)
             }
-            Food.SMALL_GAME -> w.smallGot += small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep), w.weather).v
-            Food.CARRION -> w.scraps += scavenge(g, Place(p), expected, w.sweep, w.rnd)
-            Food.BONES -> w.scraps += small.crackBonesIn(Place(p), Kg(expected), min(land.areaKm2[p], w.sweep)).v
+            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
+            Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION) }
+            Food.BONES -> small.crackBonesIn(Place(p), Kg(expected), min(land.areaKm2[p], w.sweep)).v.let { kg ->
+                if (band == null) { w.scraps += kg; w.fed += kg * w.worth(Food.BONES) }
+                else if (kg > 0f) {
+                    // (The boiled bone, its grease taken, is thrown out at the camp.)
+                    val grease = kg * greaseOf(band); val fed = kg * w.worth(Food.BONES)
+                    w.grease += grease; w.greaseFed += fed; w.fed += fed
+                    small.deposit(DeadPool.LITTER, Place(p), Kg(kg - grease)); band.practise(Skill.STONE_BOILING)
+                }
+            }
             Food.FRUIT, Food.ROOTS, Food.SEED, Food.FINDS -> {
                 gather(g, o.type[i], Place(p), expected, w.hands, haul)
                 if (haul.busy > 0f) w.busy += haul.busy
-                w.plants += haul.kg
+                val fed = haul.kg * w.worth(o.type[i])
+                w.plants += haul.kg; w.fed += haul.kg * w.feeds(o.type[i])
                 val st = when (o.type[i]) { Food.ROOTS -> Store.ROOTS; Food.SEED -> Store.SEED; else -> Store.FRUIT }.ordinal
-                w.plantKind[st] += haul.kg; w.plantKg[st] += haul.mass
+                w.plantKind[st] += fed; w.plantKg[st] += haul.mass
             }
-            Food.FISH -> w.fish += fauna.water.fishFor(p, expected, band?.fishing() ?: 1f)
-            Food.GRAIN -> { reap(g, Place(p), expected, haul); w.plants += haul.kg; w.plantKind[Store.SEED.ordinal] += haul.kg; w.plantKg[Store.SEED.ordinal] += haul.mass }
+            Food.FISH -> fauna.water.fishFor(p, expected, band?.fishing() ?: 1f).let { w.fish += it; w.fed += it * w.feeds(Food.FISH) }
+            Food.GRAIN -> {
+                reap(g, Place(p), expected, haul)
+                val fed = haul.kg * w.worth(Food.GRAIN)
+                w.plants += haul.kg; w.fed += haul.kg * w.feeds(Food.GRAIN); w.plantKind[Store.SEED.ordinal] += fed; w.plantKg[Store.SEED.ordinal] += haul.mass
+            }
         }
     }
 }
@@ -496,7 +581,11 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
     // The resident bands it came on while it searched count towards its search image.
     if (w.searched > 0f) countResidentsMet(g, w.ground, w.met, w.searched, w.today)
     if (band != null) practise(g, band, meat > g.meatMet, smallGot, plants, fish)
-    var meatEaten = min(meat, max(0f, wantAll - smallGot - scraps - plants - fish))
+    // (All counted at what it feeds, see [ForageWeek.worth]: the meat eaten as far as the rest falls short.)
+    val meatWorth = w.feeds(Food.BIG_GAME); val rest = w.fed - meat * meatWorth
+    // (What its plant food weighs: raw seed weighs more than it feeds, see [gather].)
+    val plantMass = w.plantKg.sum()
+    var meatEaten = min(meat, max(0f, (wantAll - rest) / meatWorth))
     note(g) {
         "foraged for %.0f kg wanted: meat %.0f (%.0f taken from other hunters), small game %.0f, carrion %.0f, plants %.0f, fish %.0f; busy %.1f of %d days; sight %.2f of a clear day in the open%s".format(
             wantAll, meat, g.meatMet, smallGot, scraps, plants, fish, w.busy, days, sight(g.place, weather),
@@ -504,7 +593,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
     }
     if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.003f, 2)) System.err.println(
         "ate ${s.name} want $wantAll meat $meat small $smallGot scraps $scraps plants $plants fish $fish path ${g.path.size}")
-    var eaten = meatEaten + smallGot + scraps + plants + fish
+    var eaten = meatEaten * meatWorth + rest
     tallyForage(w, meatEaten)
     var spare = meat - meatEaten
     if (band != null) {
@@ -512,36 +601,35 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         val got = w.plantKind; val plantKg = w.plantKg
         // (The small game's pelts are set aside as it is caught: they are not food, and go to the skins or the scavengers.)
         val pelts = SMALL_SKIN * smallGot
-        got[Store.FRESH.ordinal] = meat + smallGot - pelts + scraps + fish; plantKg[Store.FRESH.ordinal] = got[Store.FRESH.ordinal]
-        // Eaten in the order it spoils, this week's first, then from the stores.
-        var need = wantAll; var ateMeat = 0f; var ateKg = 0f
-        for (st in EAT_ORDER) {
-            val i = st.ordinal; val e = min(need, got[i])
-            if (e > 0f) { val kg = plantKg[i] * e / got[i]; plantKg[i] -= kg; ateKg += kg }
-            got[i] -= e; need -= e; if (st.meat) ateMeat += e
-        }
-        for (st in EAT_ORDER) { val e = min(need, g.stores[st]); g.stores[st] -= e; need -= e; if (st.meat) ateMeat += e; ateKg += e * g.storeKgPer[st] }
-        eaten = wantAll - need
+        // (Fresh food is kept at what it feeds, with what it weighs, as plant food is: see [ForageWeek.worth].)
+        plantKg[Store.FRESH.ordinal] = meat + smallGot - pelts + scraps + fish
+        got[Store.FRESH.ordinal] = w.worth(Food.BIG_GAME) * meat + w.worth(Food.SMALL_GAME) * (smallGot - pelts) + w.worth(Food.CARRION) * scraps + w.worth(Food.FISH) * fish
+        plantKg[Store.GREASE.ordinal] = w.grease; got[Store.GREASE.ordinal] = w.greaseFed
+        val meal = Meal(wantAll)
+        meal.eat(got, plantKg, g)
+        band.leanLost = meal.leanLost
+        val ateMeat = meal.ateMeat; val ateKg = meal.ateKg; val ateMeatKg = meal.ateMeatKg
+        eaten = wantAll - meal.need
         land.books?.flow(Books.Stuff.MATTER, "eaten", -ateKg.toDouble())
-        // (People living mostly on plant food need salt, which meat and fish carry; short of it,
-        // they are listless and weak, and the food does them the less good.)
+        // (People need sodium, which meat and fish carry and plant food hardly does; what the week's meat falls short of
+        // they make up with salt, and short of that they are listless and weak, and the food does them the less good.)
         if (eaten > 0f) {
-            val plantShare = ((eaten - ateMeat) / eaten).coerceIn(0f, 1f)
-            val want = SALT_A_PERSON_WEEK * plantShare * g.size * days / 7f
-            if (want > 0f) {
-                val had = min(want, band.goods[Material.SALT]); band.goods[Material.SALT] -= had
-                eaten *= 1f - tuning.saltLack * plantShare * (1f - had / want)
+            val need = SODIUM_A_PERSON_DAY * g.size * days
+            val short = max(0f, need - SODIUM_PER_KG_MEAT * ateMeatKg)
+            if (short > 0f) {
+                val had = min(short / SALT_SODIUM, band.goods[Material.SALT]); band.goods[Material.SALT] -= had
+                eaten *= 1f - tuning.saltLack * max(0f, short - had * SALT_SODIUM) / need
             }
         }
         stats.hunting.merge(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt(), Int::plus)
         stats.hunting.merge(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt(), Int::plus)
         keepAndSpoil(w, got, plantKg, pelts)
-        spare = 0f; meatEaten = ateMeat
+        spare = 0f; meatEaten = ateMeatKg
     }
     // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
     if (spare > 0f && g.fat < s.maxFatDays && band == null) {
         val gorge = min(spare, SURPLUS_EAT * wantAll)
-        g.surplus = gorge / g.dailyNeedKg.coerceAtLeast(1e-3f)
+        g.surplus = gorge * meatWorth / g.dailyNeedKg.coerceAtLeast(1e-3f)
         spare -= gorge
         small.deposit(DeadPool.DUNG, g.place, Kg(HexSmallLife.DUNG * gorge))
         land.books?.let { bookEaten(it, gorge * meatShare(null), HexSmallLife.DUNG * gorge) }
@@ -552,26 +640,68 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
     // (A band's meat eaten already holds the small game, scraps and fish it ate; what it stored is not yet eaten.)
     val animalEaten = if (band != null) meatEaten else meatEaten + smallGot + scraps + fish
     small.deposit(DeadPool.DUNG, g.place, Kg(HexSmallLife.DUNG * animalEaten))
-    land.books?.let { bookForage(it, band, meatEaten, smallGot + scraps + plants + fish, fish, spare, HexSmallLife.DUNG * animalEaten) }
+    land.books?.let { bookForage(it, band, meatEaten, smallGot + scraps + plantMass + fish, fish, spare, HexSmallLife.DUNG * animalEaten) }
     // (The meat it took in its meetings is eaten, stored or left by now.)
     g.meatSpent = true
+}
+
+/**
+ * A band's eating of [wantAll] (kg of its need) from the week's food and then its stores, each in the order it spoils. Protein
+ * feeds people only up to [Nourishment.PROTEIN_MOST] of their need: beyond that the liver can make no more of it, and lean
+ * meat feeds by its fat alone ("rabbit starvation"). So it eats lean food first only as far as its protein can feed it, then
+ * plant food and grease, and only when those run out more lean food, for its fat. What it ate is counted as it feeds (the
+ * protein beyond the ceiling not at all), and also by weight; [leanLost] is the share of the protein it ate that went to waste.
+ */
+private class Meal(val wantAll: Float) {
+    var need = wantAll; var ateMeat = 0f; var ateKg = 0f; var ateMeatKg = 0f
+    private var room = Nourishment.PROTEIN_MOST * wantAll; private var protein = 0f; private var lost = 0f
+    val leanLost get() = if (protein > 0f) lost / protein else 0f
+
+    /** Eats [got] (by [Store], kg of need, each weighing [gotKg]) and then [g]'s stores. */
+    fun eat(got: FloatArray, gotKg: FloatArray, g: HexGroup) {
+        for (beyond in 0..1) {
+            for (st in EAT_ORDER) {
+                val i = st.ordinal; if (got[i] <= 0f) continue
+                val kgPer = gotKg[i] / got[i]; val e = take(st, got[i], kgPer, beyond == 1)
+                got[i] -= e; gotKg[i] -= e * kgPer
+            }
+            for (st in EAT_ORDER) g.stores[st] -= take(st, g.stores[st], g.storeKgPer[st], beyond == 1)
+        }
+    }
+
+    /** Eats of [have] of [st] (weighing [kgPer] a kg of need): within the protein ceiling, or [beyond] it; what it ate. */
+    private fun take(st: Store, have: Float, kgPer: Float, beyond: Boolean): Float {
+        val p = st.protein
+        if (have <= 0f || need <= 0f || (beyond && p <= 0f)) return 0f
+        val e = if (!beyond) min(min(need, have), if (p > 0f) max(0f, room) / p else need) else min(have, need / (1f - p))
+        if (e <= 0f) return 0f
+        val fed = if (beyond) e * (1f - p) else e
+        need -= fed; protein += e * p; if (beyond) lost += e * p else room -= e * p
+        ateKg += e * kgPer; if (st.meat) { ateMeat += fed; ateMeatKg += e * kgPer }
+        return e
+    }
 }
 
 /** [forage]'s tallies of [w]'s week: its diet, [meatEaten] of its meat eaten, and for bands how they fared by the kind of country. */
 private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
     val g = w.g; val s = w.s; val band = w.band; val wantAll = w.wantAll
-    val meat = w.meat; val smallGot = w.smallGot; val scraps = w.scraps; val plants = w.plants; val fish = w.fish
+    val meat = w.meat; val smallGot = w.smallGot; val scraps = w.scraps; val fish = w.fish
+    // (Each at what it feeds, in kg of its need as asked: see [ForageWeek.worth].)
+    val meatFed = meatEaten * w.worth(Food.BIG_GAME) + fish * w.worth(Food.FISH)
+    val smallFed = smallGot * w.worth(Food.SMALL_GAME); val scrapsFed = scraps * w.worth(Food.CARRION)
+    val plantsFed = w.plantKind.sum()
     stats.hunting.merge(Tally.diet(s, Tally.DietPart.ASKED), wantAll.toInt(), Int::plus)
-    stats.hunting.merge(Tally.diet(s, Tally.DietPart.MEAT), (meatEaten + fish).toInt(), Int::plus)
-    stats.hunting.merge(Tally.diet(s, Tally.DietPart.SMALL_PREY), smallGot.toInt(), Int::plus)
-    stats.hunting.merge(Tally.diet(s, Tally.DietPart.CARRION), scraps.toInt(), Int::plus)
-    stats.hunting.merge(Tally.diet(s, Tally.DietPart.PLANTS), plants.toInt(), Int::plus)
+    stats.hunting.merge(Tally.diet(s, Tally.DietPart.MEAT), meatFed.toInt(), Int::plus)
+    stats.hunting.merge(Tally.diet(s, Tally.DietPart.SMALL_PREY), smallFed.toInt(), Int::plus)
+    stats.hunting.merge(Tally.diet(s, Tally.DietPart.CARRION), scrapsFed.toInt(), Int::plus)
+    stats.hunting.merge(Tally.diet(s, Tally.DietPart.PLANTS), plantsFed.toInt(), Int::plus)
     // For bands, the same by the kind of country they are in, and how they fared.
     if (band != null) {
         val c = Biome.entries[biomeOfPlace[g.place]]
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat + smallGot + scraps).toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PLANTS), plants.toInt(), Int::plus); stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FISH), fish.toInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + smallFed + scrapsFed).toInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1, Int::plus); stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
@@ -618,8 +748,10 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatA
     val salting = if (salt > 0f) band.skill(Skill.SALTING) else 0f
     val dryRate = max(max(sun, smoke), salting)
     // (As much of it as the band chooses to.)
-    val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG)
-    dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], spareDays * hands * dryRate / DRY_DAYS_PER_KG), cut = band.dryWill > 1f)
+    // (Fresh food is kept at what it feeds; drying takes its time by what it weighs.)
+    val freshKgPer = g.storeKgPer[Store.FRESH].coerceAtLeast(1e-6f)
+    val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG / freshKgPer)
+    dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], spareDays * hands * dryRate / DRY_DAYS_PER_KG / freshKgPer), cut = band.dryWill > 1f)
     if (dried > 0f) {
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
@@ -628,7 +760,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatA
     // What time is left is for making and mending (see [bandWeek]).
     val time = BandTime(spareDays * hands)
     time.took(Activity.FIREWOOD, fuelDays * hands); time.took(Activity.FOOD, (workDays - spareDays) * hands)
-    time.spendAtMost(Activity.DRYING, if (dried > 0f) dried * DRY_DAYS_PER_KG / dryRate else 0f)
+    time.spendAtMost(Activity.DRYING, if (dried > 0f) dried * freshKgPer * DRY_DAYS_PER_KG / dryRate else 0f)
     val unskinned = skinSmallGame(band, time, pelts)
     band.spareDays = time.left
     time.count(stats.hunting, Tally.TimeTotal.ALL, days * hands.toFloat())
@@ -818,11 +950,32 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Place, expected: Float, ha
     out.kg = took; out.mass = mass
 }
 
-/** The kinds of food [forage] offers a party; all but [GRAIN] are also a band's effort slots ([FOOD_TYPES]: grain goes by grass seed's). */
-enum class Food(val label: String) {
-    BIG_GAME("big game"), SMALL_GAME("small game"), CARRION("carrion"), BONES("bones"), FRUIT("fruit"), ROOTS("roots"),
-    SEED("grass seed"), FINDS("small finds"), FISH("fish"), GRAIN("grain")
+/**
+ * The kinds of food [forage] offers a party; all but [GRAIN] are also a band's effort slots ([FOOD_TYPES]: grain goes by grass seed's).
+ * [energy]: what a kg of it as a band takes it (plant food dry, before grinding or cooking) nourishes, in [Nourishment]'s
+ * units. A pack's big game is whole prey ([Nourishment.PREY]); a band's is what its butchers make of it. Bones are reckoned
+ * as prey for the beasts that crack them; a band renders their grease ([greaseOf]). [protein]: the share of that energy
+ * that is protein, which feeds people only so far ([Nourishment.PROTEIN_MOST]).
+ */
+enum class Food(val label: String, val energy: Float, val protein: Float) {
+    BIG_GAME("big game", Nourishment.MEAT, Nourishment.PROTEIN_MEAT), SMALL_GAME("small game", Nourishment.PREY, Nourishment.PROTEIN_MEAT),
+    CARRION("carrion", Nourishment.PREY, Nourishment.PROTEIN_MEAT), BONES("bones", Nourishment.PREY, 0f),
+    FRUIT("fruit", Nourishment.FRUIT, Nourishment.PROTEIN_FRUIT), ROOTS("roots", Nourishment.ROOTS, Nourishment.PROTEIN_ROOTS),
+    SEED("grass seed", Nourishment.GRAIN, Nourishment.PROTEIN_GRAIN), FINDS("small finds", Nourishment.FINDS, Nourishment.PROTEIN_FINDS),
+    FISH("fish", Nourishment.FISH, Nourishment.PROTEIN_FISH), GRAIN("grain", Nourishment.GRAIN, Nourishment.PROTEIN_GRAIN)
 }
+
+/**
+ * The grease a band renders from a kg of bones it gathers, kg: bones smashed small and boiled with hot stones, the fat skimmed
+ * as it rises ([Skill.STONE_BOILING], in tight baskets or hides). Experiments find most of it comes in the first hour of
+ * boiling, and the yield rises with how small the bones are broken (Church & Lyman 2003); the yield a kg here is a guess
+ * (no figure a kg of bone found yet), and so are the days.
+ */
+internal fun greaseOf(band: Band) = if (band.knowsSkill[Skill.STONE_BOILING])
+    GREASE_YIELD * band.skill(Skill.STONE_BOILING) * max(band.has(Tool.BASKET), 0.5f) else 0f
+const val GREASE_YIELD = 0.05f
+/** Person-days to smash and boil a kg of bones for their grease, with the fuel to heat the stones (a guess: "many hours"). */
+const val BONE_RENDER_DAYS = 0.2f
 
 private val FORAGE_DIAG = Config.string(Config.Key.FORAGE_DIAG)
 

@@ -865,7 +865,7 @@ class HexGroups(
         f[Feature.BEYOND_OWN_GROUND] = beyond; f[Feature.OTHERS_MARKS] = foreign
         // The fish and shellfish a band could take there, with its skill, against its need (the
         // shore and the river are plain to see; how rich they are, less so where it is a stranger).
-        f[Feature.FISH] = g.band?.let { b -> min(2f, fauna.water.fishWithin(h.i, b.fishing()) / (g.size * s.dailyIntakeKg * days).coerceAtLeast(1f)) *
+        f[Feature.FISH] = g.band?.let { b -> min(2f, fauna.water.fishWithin(h.i, b.fishing()) * Nourishment.FISH * s.needScale / (g.size * s.dailyIntakeKg * days).coerceAtLeast(1f)) *
             (if (b.knows(h.i)) 1f else 0.5f) } ?: 0f
         // What it remembers of this hex: in this season, or failing that in any.
         val mem = g.memory
@@ -875,6 +875,14 @@ class HexGroups(
             f[Feature.REMEMBERED] = 1f; f[Feature.REMEMBERED_SAME_SEASON] = if (sameSeason) 1f else 0f
             f[Feature.REMEMBERED_FED] = mem.fed[slot]; f[Feature.REMEMBERED_WATER] = mem.water[slot]; f[Feature.REMEMBERED_DANGER] = mem.danger[slot]
             f[Feature.REMEMBERED_AGE] = min(1f, (stepOf(date) - mem.lastWeek[slot]) / stepsPerYear)
+        }
+        // What it remembers finding there that it lacks, and how far the place takes it toward the best of that it knows.
+        c.lacked?.let { lacked ->
+            var most = 0f
+            for (i in 0 until PlaceMemory.MEMORY_SLOTS) if (mem.hex[i] == h.i) for (k in lacked.indices) most = max(most, lacked[k] * mem.foundAt(i, k))
+            f[Feature.REMEMBERED_LACKED] = most
+            if (c.lackedHex >= 0 && c.lackedFrom > hex.hexKm)
+                f[Feature.TOWARD_LACKED] = ((c.lackedFrom - hexKm(h.i, c.lackedHex)) / c.lackedFrom).toFloat().coerceIn(-1f, 1f) * c.lackedQ
         }
     }
 
@@ -943,8 +951,16 @@ class HexGroups(
         val pullKm = reach.toDouble().coerceAtLeast(hex.hexKm)
         // (A band keeps off the known homes of bands it is not close to: those hexes, once for the week.)
         val keepOff = g.band?.let { b -> b.knownHomes.entries.filter { b.tie(it.key) <= 0f }.map { it.value }.toIntArray() }
+        // A band: how far it lacks each of the rarer materials, and the remembered place with the most of what it lacks.
+        val lacked = g.band?.let { b -> FloatArray(PlaceMemory.RARE.size) { k -> lacking(g, b, PlaceMemory.RARE[k]) } }
+        var lackedHex = -1; var lackedQ = 0f
+        if (lacked != null) { val mem = g.memory
+            for (i in 0 until PlaceMemory.MEMORY_SLOTS) if (mem.hex[i] >= 0) for (k in lacked.indices) {
+                val q = lacked[k] * mem.foundAt(i, k)
+                if (q > lackedQ) { lackedQ = q; lackedHex = mem.hex[i] }
+            } }
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, onRound, roundStrength, fromHere, reach, thirsty, restless, season, keepOff,
-            weather, date, goalHex, predatorKg, buf)
+            weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (lackedHex >= 0) hexKm(here.i, lackedHex) else 0.0)
         val at = c.at
         for (ri in 0 until reached.size) {
             val h = Hex(reached[ri])
@@ -1129,7 +1145,9 @@ class HexGroups(
         val season: Double, val keepOff: IntArray?,
         val weather: Weather, val date: Date,
         /** The hex of its season's place or round ([goal]), else -1. */
-        val goalHex: Int, val predatorKg: FloatArray, val buf: Scratch) {
+        val goalHex: Int, val predatorKg: FloatArray, val buf: Scratch,
+        /** For a band, how far it lacks each rarer material ([PlaceMemory.RARE]); the remembered hex with the most of what it lacks, how much, and how far off (km). */
+        val lacked: FloatArray?, val lackedHex: Int, val lackedQ: Float, val lackedFrom: Double) {
         /** Reused for each place it weighs: see [deathsAt]. */
         val odds = Odds()
         /** The place being weighed, as it knows it. */
@@ -1250,7 +1268,7 @@ class HexGroups(
         val s = g.species
         if (s.human) return (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f)
         val needKg = s.dailyIntakeKg * g.warmth * days * (g.adults + 0.5f * g.young) / max(1, g.size)
-        return min(1f, HexFauna.RESIDENT_KILL_MOST * prey / max(1e-6f, kinKm2 * needKg))
+        return min(1f, HexFauna.RESIDENT_KILL_MOST * prey * Nourishment.PREY * s.needScale / max(1e-6f, kinKm2 * needKg))
     }
 
     /** The odds of the hazards at a place, summed ([deathsAt]). */
