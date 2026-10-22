@@ -25,7 +25,7 @@ import kotlin.random.Random
  * except that each arm holds its one way at its value.
  * Config keys: dialArmSize (default 100, bands in each arm; fewer if the world has too few bands for them), dialArmWeeks (default 26, the weeks
  * the ways are held and the return covers), dialArmWays (default all; the numbers of the ways, from 0 in the order of the network's outputs,
- * comma-separated), dialArmValues (default 0.5,1.5; multiples of the scaffold's, between 0 and 2).
+ * comma-separated), dialArmValues (default 0.5,1.5; multiples of the scaffold's, between 0 and 2), dialArmGroups (default false; true: an arm for each group of ways, each band scrambling the group's ways between the values at random).
  *
  * Usage: hex-dial-arms [--world NAME] [--replicate R] [--seed N] [--width KM] [--height KM] [--load FILE]
  */
@@ -38,8 +38,19 @@ fun main(args: Array<String>) {
     require(armSize > 1 && weeks >= 13) { "dialArmSize needs 2 or more bands and dialArmWeeks 13 or more" }
     require(tested.all { it in 0 until WAYS_OUT }) { "dialArmWays=$tested: the ways are numbered 0..${WAYS_OUT - 1}" }
     val names = Schema.WAYS_OUT
-    class Arm(val name: String, val way: Int, val output: Float) { val bands = ArrayList<Int>() }
-    val arms = listOf(Arm("control", -1, 0f)) + tested.flatMap { j -> values.map { v -> Arm("${names[j]} x$v", j, forcedWayOutput(v)) } }
+    /** An arm's ways, each held at one of [outputs] (the network outputs for the values tried): the same one for all its bands, or, if [scramble], one drawn for each band and way. */
+    class Arm(val name: String, val ways: List<Int>, val outputs: List<Float>, val scramble: Boolean = false) {
+        val bands = ArrayList<Int>()
+        fun output(band: Int, way: Int) = if (scramble) outputs[Random(band * 104_729L + way).nextInt(outputs.size)] else outputs[0]
+    }
+    val byGroup = Config.flag(Config.Key.DIAL_ARM_GROUPS, false)
+    val arms = if (byGroup) {
+        // A group is the ways whose names share what comes before the colon (the efforts, the time weights, the tools made first...), the others one group of their own;
+        // its arm scrambles all of them: each band holds each at 0.5 or 1.5 (the values tried), drawn for it alone.
+        val groups = tested.groupBy { j -> names[j].substringBefore(':', "single ways") }
+        listOf(Arm("control", emptyList(), emptyList())) + groups.map { (g, js) -> Arm("$g (${js.size} ways)", js, values.map { forcedWayOutput(it) }, true) } +
+            Arm("all tried (${tested.size} ways)", tested, values.map { forcedWayOutput(it) }, true)
+    } else listOf(Arm("control", emptyList(), emptyList())) + tested.flatMap { j -> values.map { v -> Arm("${names[j]} x$v", listOf(j), listOf(forcedWayOutput(v))) } }
 
     val sim = opts.start()
     val humans = sim.groups.groups.filter { it.alive && it.species.human && it.band != null }
@@ -53,7 +64,7 @@ fun main(args: Array<String>) {
     val base = sim.groups.ways
     sim.groups.ways = BandWays { g, inputs, out ->
         base?.choose(g, inputs, out)
-        armOf[g.id]?.takeIf { it.way >= 0 }?.let { out[it.way] = it.output }
+        armOf[g.id]?.let { a -> for (w in a.ways) out[w] = a.output(g.id, w) }
     }
 
     val outcomes = Outcomes()
@@ -97,7 +108,7 @@ fun main(args: Array<String>) {
         val offGrand = arms.drop(1).indices.count { i -> abs(means[i] - grand) / sqrt(within / others[i].size) > 2 }
         println("  against the other arms' mean instead (control %+.5f from it): arms with |t| > 2: %d of %d; the arms' means spread %.2f times what the bands' spread inside the arms gives (1: no way matters)"
             .format(mean(control.bands.map { ret(it, h) }) - grand, offGrand, rows.size, sqrt(spread / (within / per))))
-        val quiet = tested.filter { j -> rows.filter { it.first.startsWith(names[j] + " x") }.all { abs(it.second / it.third) < 1 } }
+        val quiet = if (byGroup) emptyList() else tested.filter { j -> rows.filter { it.first.startsWith(names[j] + " x") }.all { abs(it.second / it.third) < 1 } }
         println("  ways with every arm under 1 standard error: ${quiet.joinToString(", ") { names[it] }.ifEmpty { "none" }}")
     }
 }
