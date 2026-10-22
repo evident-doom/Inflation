@@ -21,7 +21,8 @@ import kotlin.random.Random
  * control's. A way no arm's return shows is one no learner can learn from by the return.
  *
  * The world is a test world or a saved one, as for hex-fauna-check (`--world NAME`, `--replicate R`, `--seed`, `--width`, `--height`,
- * `--load FILE`); moves are as the config sets them, the bands' ways the scaffold's (the config's learned ways are not used).
+ * `--load FILE`); moves and the bands' ways are as the config sets them (`nets=DIR` for learned networks, else hand-written moves and the scaffold's ways),
+ * except that each arm holds its one way at its value.
  * Config keys: dialArmSize (default 100, bands in each arm; fewer if the world has too few bands for them), dialArmWeeks (default 26, the weeks
  * the ways are held and the return covers), dialArmWays (default all; the numbers of the ways, from 0 in the order of the network's outputs,
  * comma-separated), dialArmValues (default 0.5,1.5; multiples of the scaffold's, between 0 and 2).
@@ -48,7 +49,12 @@ fun main(args: Array<String>) {
     val order = humans.map { it.id }.shuffled(Random(opts.cfg.seed * 31L + 7L))
     for ((i, id) in order.take(per * arms.size).withIndex()) arms[i % arms.size].bands += id
     val armOf = HashMap<Int, Arm>().also { m -> for (a in arms) for (id in a.bands) m[id] = a }
-    sim.groups.ways = BandWays { g, _, out -> armOf[g.id]?.takeIf { it.way >= 0 }?.let { out[it.way] = it.output } }
+    // (The ways are the learned networks' if the config names them (nets=, ways=): each arm then holds its one way at its value in place of the network's.)
+    val base = sim.groups.ways
+    sim.groups.ways = BandWays { g, inputs, out ->
+        base?.choose(g, inputs, out)
+        armOf[g.id]?.takeIf { it.way >= 0 }?.let { out[it.way] = it.output }
+    }
 
     val outcomes = Outcomes()
     val start = humans.associate { it.id to it.size }
