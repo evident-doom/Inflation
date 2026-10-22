@@ -11,6 +11,7 @@ import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.abs
+import kotlin.math.exp
 
 // What passes between bands: words, traditions, partners and grudges. A band's culture is data on
 // the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
@@ -136,6 +137,12 @@ const val TIE_MARRY = 0.3f
 const val TIE_RAID = 0.8f
 const val TIE_FADE = 0.5f
 const val TIE_PEACE = 0.8f
+/**
+ * Share of its hands' week a band gives to leisure at which visits keep a tie with one friendly band near most of the way
+ * from fading (1 - 1/e): visits to more bands share the same leisure. Foragers spend much of their free time visiting
+ * other camps (Lee 1979, Wiessner on hxaro); the rate is an estimate, no time-use figure found.
+ */
+const val VISIT_SHARE = 0.18f
 /** A feast: food set before each guest, kg; days of food a band keeps back for itself beyond its aim before it feasts others. */
 const val FEAST_KG = 3f
 /** How strongly a band with food to feast others is drawn to where other bands are, and the people there at which the draw is full. */
@@ -476,11 +483,17 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
             stats.meeting(Met.BANDS_MADE_AN_APPOINTMENT)
         }
     }
-    // Ties fade unless renewed.
+    // Ties fade unless renewed: by visits to the friendly bands within a day or two's walk, in the band's leisure.
     if (b.ties.isNotEmpty()) {
-        val keep = 1f - TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
+        val fade = TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
+        val here = hw.placeHex[g.place]
+        val near = HashSet<Int>()
+        for ((k, v) in b.ties) if (v > 0f) bandHex[k]?.let { h -> if (hexKm(here, h) <= VISIT_RINGS * hex.hexKm) near += k }
+        val leisure = b.spareDays / (forageHands(g) * days).toFloat()
+        val visited = if (near.isEmpty()) 0f else 1f - exp(-leisure / (VISIT_SHARE * near.size))
+        if (near.isNotEmpty()) stats.meeting(Met.BANDS_VISITED_FRIENDS)
         val it = b.ties.entries.iterator()
-        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * keep); if (abs(e.value) < 0.01f) it.remove() }
+        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - fade * (if (e.key in near) 1f - visited else 1f))); if (abs(e.value) < 0.01f) it.remove() }
     }
     // Country far from where it now lives fades from memory, a share of it a year.
     if (rnd.nextFloat() < years) {

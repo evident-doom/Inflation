@@ -81,6 +81,7 @@ enum class Met(val label: String) {
     BANDS_TOOK_UP_A_RITE("bands took up a rite"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),
+    BANDS_VISITED_FRIENDS("bands visited friends"),
     CACHES_ROBBED("caches robbed"),
     FAVOURS_HELD_BACK("favours held back"),
     FAVOURS_RETURNED("favours returned"),

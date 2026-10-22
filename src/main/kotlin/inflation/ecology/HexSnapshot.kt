@@ -179,9 +179,11 @@ object HexSnapshot {
      * 4.19: a band plans its week's time ([BandTime.plan]): food and firewood for the week first, then the stores and each
      * chore ask for days, shared out when they come to more than what is left; each chore works in the days it was given
      * and what one leaves is free for those after it. Leisure is what the week leaves.
+     * 4.20: a band's leisure goes to visits: its ties with friendly bands within a day or two's walk fade the slower the more
+     * leisure it had for each of them ([VISIT_SHARE]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 19
+    const val MODEL_MINOR = 20
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

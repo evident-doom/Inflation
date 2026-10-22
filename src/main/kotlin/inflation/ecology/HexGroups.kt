@@ -665,6 +665,8 @@ class HexGroups(
 
     /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
     internal var followersByHex: Map<Int, List<HexGroup>> = emptyMap()
+    /** Each living band's hex by its id, as of this week's camps (for visiting, see [cultureWeek]). */
+    internal var bandHex: Map<Int, Int> = emptyMap()
     /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
     internal var houseOf: Map<Int, Int> = emptyMap()
 
