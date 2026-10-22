@@ -1793,6 +1793,11 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for (t in Tradition.entries) into[x.CUSTOMS + t.ordinal] = if (b.holds(t)) 1f else 0f
     for (k in 0 until Temperament.AXES) into[x.TEMPER + k] = g.temper.getOrElse(k) { 0f }
     ecosystemInputs(g, b, into)
+    // Its people's cold where it stands: what the week's cold would cost in food and lives, and what keeps it off.
+    val air = airAt(g.place, weather); val cold = b.warmth(air, b.fire, b.homeShelter(), days)
+    into[x.COLD_FOOD] = min(1f, cold.extra); into[x.COLD_ODDS] = min(1f, 10f * cold.odds)
+    into[x.WIND] = min(1f, air.windMs / 10f); into[x.WET] = air.wet
+    into[x.FIRE_SHARE] = b.fire; into[x.HOME_SHELTER] = b.homeShelter()
 }
 
 /** The beasts of prey a band tells apart: those that take people ([Species.takesPeople], from the catalogue) and those that do not. */

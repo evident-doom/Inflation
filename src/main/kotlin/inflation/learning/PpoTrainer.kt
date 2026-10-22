@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.Config
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFeatures
 import inflation.ecology.Species
@@ -40,6 +41,8 @@ class PpoTrainer(private val o: PpoOptions) {
     private val players = arrayOfNulls<HexPpo.Player>(o.worlds)
     private val steps = o.years * WorldConfig().stepsPerYear
     private val log = RunLog(out, "round")
+    /** Advantages (in spreads of the kind's) are held within this much of none: a few collapses would otherwise decide a round, the spread being set by them. */
+    private val advantageClip = Config.float(Config.Key.PPO_ADVANTAGE_CLIP, 3f).let { if (it <= 0f) Float.MAX_VALUE else it }
 
     fun run() {
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
@@ -149,7 +152,7 @@ class PpoTrainer(private val o: PpoOptions) {
             val mean = cs.map { judged.getValue(it).toDouble() }.average().toFloat()
             val gap = cs.associateWith { c -> judged.getValue(c) - (expected[c] ?: mean) }
             val sd = sqrt(gap.values.map { (it * it).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
-            for (c in cs) c.advantage = gap.getValue(c) / sd
+            for (c in cs) c.advantage = (gap.getValue(c) / sd).coerceIn(-advantageClip, advantageClip)
         }
         return byKind
     }
@@ -167,7 +170,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val gap = FloatArray(cs.size) { judged[it] - expected[it] }
         val mean = gap.average().toFloat()
         val sd = sqrt(gap.map { ((it - mean) * (it - mean)).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
-        for ((k, c) in cs.withIndex()) c.advantage = (gap[k] - mean) / sd
+        for ((k, c) in cs.withIndex()) c.advantage = ((gap[k] - mean) / sd).coerceIn(-advantageClip, advantageClip)
         val jm = judged.average()
         val total = judged.sumOf { (it - jm) * (it - jm) }
         return if (total <= 0.0) 0.0 else 1.0 - gap.sumOf { (it * it).toDouble() } / total
