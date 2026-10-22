@@ -963,16 +963,6 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
             b.stayWeeks += STAY_LEARN * (b.campWeeks + 1 - b.stayWeeks)
-            // Its goods take what room its loads have left after the food; the rest is left at the old camp, each kind
-            // alike (and goes back to the ground).
-            val goods = b.goods.sum()
-            val room = max(0f, carryKg(g, b) * carryLoads(b) - g.larder)
-            if (goods > room) {
-                val left = 1f - room / goods
-                var rots = 0f
-                for (m in Material.entries) { val x = b.goods[m] * left; b.goods[m] -= x; if (m in ROTS) rots += x }
-                if (rots > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(rots))
-            }
         }
         b.campWeeks = 0
     } else b.campWeeks++
