@@ -39,7 +39,7 @@ import java.io.File
  * clothes, fire, shelter, spears, skills, plants, stores, goods) leaves those as they were when stripping the rest.
  */
 fun main(args: Array<String>) {
-    val a = Args(args, "hex-skills-floor-study --world NAME [--replicate R] [--arm naked|usual] [--start-week W] [--weeks N] [--adults N] [--drop N] [--bare-neighbours] [--keep LIST] [--out PREFIX]")
+    val a = Args(args, "hex-skills-floor-study --world NAME [--replicate R] [--arm naked|usual] [--start-week W] [--weeks N] [--adults N] [--drop N] [--bare-neighbours] [--keep LIST] [--lose LIST] [--out PREFIX]")
     val world = a.string("--world") ?: error("--world NAME (a settled test world, e.g. storm-1)")
     val replicate = a.long("--replicate", 1L)
     val naked = (a.string("--arm") ?: "naked") == "naked"
@@ -48,6 +48,8 @@ fun main(args: Array<String>) {
     val adults = a.int("--adults", 0)
     val out = a.string("--out")
     val drop = a.int("--drop", 0)
+    val lose = (a.string("--lose") ?: "").split(',').filter { it.isNotBlank() }.toSet()
+    require(lose.all { it in LOSES }) { "--lose: some of ${LOSES.keys}" }
     val bare = a.flag("--bare-neighbours")
     val keep = (a.string("--keep") ?: "").split(',').filter { it.isNotBlank() }.toSet()
     require(keep.all { it in KEEPS }) { "--keep: some of $KEEPS" }
@@ -82,6 +84,7 @@ fun main(args: Array<String>) {
             g.stores.fill(0f)
             g.memory.hex.fill(-1); g.band?.seasonPlace?.fill(-1)
             kept()
+            for (name in lose) for (sk in LOSES.getValue(name)) { b.skills[sk] = 0f; b.knowsSkill[sk] = sk.known }
         }
     }
     val causes = sortedSetOf<String>()
@@ -157,11 +160,19 @@ fun main(args: Array<String>) {
     }
 }
 
-/** --keep names that keep one skill alone (its level and whether it is known). */
 private val SKILL_KEEPS = mapOf("gather" to Skill.GATHER, "smallgame" to Skill.SMALL_GAME, "fish" to Skill.FISH, "hunt" to Skill.HUNT,
     "store" to Skill.STORE, "cooking" to Skill.ROASTING)
 
 private val KEEPS = setOf("clothes", "fire", "shelter", "spears", "skills", "plants", "stores", "goods") + SKILL_KEEPS.keys
+
+/** --lose names: skills put back to nothing after --keep has restored them (e.g. --keep skills --lose butchery). */
+private val LOSES: Map<String, List<Skill>> = SKILL_KEEPS.mapValues { listOf(it.value) } + mapOf(
+    "butchery" to listOf(Skill.BUTCHER), "tracking" to listOf(Skill.TRACK, Skill.STALK), "care" to listOf(Skill.HERBS, Skill.MIDWIFERY),
+    "crafts" to listOf(Skill.KNAPPING, Skill.WOODWORK, Skill.HIDEWORK, Skill.CORDAGE, Skill.SEWING, Skill.BONE_TOOLS, Skill.GLUING, Skill.PECKING,
+        Skill.BLADES, Skill.MICROLITHS, Skill.STONE_FOOTING),
+    "teaching" to listOf(Skill.SHOWING, Skill.LORE, Skill.TINKER), "fire" to listOf(Skill.FIRE))
+
+/** --keep names that keep one skill alone (its level and whether it is known). */
 
 /** What the stripping of [b] (of group [g]) leaves of the things in [keep]: read before the wipe, the returned function puts them back. */
 private fun keptOf(keep: Set<String>, g: inflation.ecology.HexGroup, b: inflation.ecology.Band): () -> Unit {
