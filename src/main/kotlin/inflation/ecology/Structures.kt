@@ -13,12 +13,14 @@ enum class Built { HOUSES, PALISADE }
  * ([user], the band using it this week, -1 for none), and it weathers away while nobody does. [builder] is the band that
  * began it, kept only as a fact of the bands' dealings. Houses ([Built.HOUSES]) shelter [size] grown people when whole,
  * built in the way [design] (a [Skill]'s ordinal); [built] is how far they stand, 0..1. A palisade's [built] is how much of
- * a ring round the houses at its hex stands.
+ * a ring round the houses at its hex stands. Nothing shelters or guards till it is first [done] (whole); after that it serves
+ * as far as it stands, as it weathers and is mended.
  * (All its fields have defaults, so that a saved one loads.)
  */
 class Structure(var kind: Built = Built.HOUSES, var hex: Int = -1, var design: Int = -1, var builder: Int = -1, var size: Float = 0f) {
     var built = 0f
     var user = -1
+    var done = false
 }
 
 /** Whether [g] may use [s]: nobody else is using it this week. */
@@ -27,15 +29,35 @@ private fun usable(s: Structure, g: HexGroup) = s.user < 0 || s.user == g.id
 /** How far the houses at hex [h] that [g] may use shelter its grown people, 0..1. */
 internal fun HexGroups.housesAt(g: HexGroup, h: Int): Float {
     var room = 0f
-    for (s in built) if (s.kind == Built.HOUSES && s.hex == h && usable(s, g)) room += s.built * s.size
+    for (s in built) if (s.kind == Built.HOUSES && s.hex == h && s.done && usable(s, g)) room += s.built * s.size
+    return min(1f, room / max(1, g.adults))
+}
+
+/** How far the houses begun at hex [h] that [g] may use and that are not yet whole would shelter its grown people, 0..1: what it has to show for its work on them. */
+internal fun HexGroups.housesBegunAt(g: HexGroup, h: Int): Float {
+    var room = 0f
+    for (s in built) if (s.kind == Built.HOUSES && s.hex == h && !s.done && usable(s, g)) room += s.built * s.size
     return min(1f, room / max(1, g.adults))
 }
 
 /** How much of a palisade stands at hex [h] that [g] may use, 0..1. */
 internal fun HexGroups.palisadeAt(g: HexGroup, h: Int): Float {
     var ring = 0f
-    for (s in built) if (s.kind == Built.PALISADE && s.hex == h && usable(s, g)) ring = max(ring, s.built)
+    for (s in built) if (s.kind == Built.PALISADE && s.hex == h && s.done && usable(s, g)) ring = max(ring, s.built)
     return ring
+}
+
+/** How much of a palisade not yet whole stands at hex [h] that [g] may use, 0..1. */
+internal fun HexGroups.palisadeBegunAt(g: HexGroup, h: Int): Float {
+    var ring = 0f
+    for (s in built) if (s.kind == Built.PALISADE && s.hex == h && !s.done && usable(s, g)) ring = max(ring, s.built)
+    return ring
+}
+
+/** [s] built on by [add] (of the whole); it is [Structure.done] once it first stands whole. */
+internal fun buildOn(s: Structure, add: Float) {
+    s.built = min(1f, s.built + add)
+    if (s.built >= 1f - 1e-4f) { s.built = 1f; s.done = true }
 }
 
 /** [g] takes up what stands at hex [h] that nobody else is using this week. */
@@ -74,9 +96,9 @@ private fun HexGroups.raiseSavedHouses() {
         if (!g.alive || b.houseHex.none || built.any { it.builder == g.id }) continue
         val h = b.houseHex.i; val here = hw.placeHex[g.place] == h
         if (b.house > 0f) built += Structure(Built.HOUSES, h, Skill.STONE_FOOTING.ordinal, g.id, g.adults.toFloat()).also {
-            it.built = b.house; if (here) it.user = g.id }
+            it.built = b.house; it.done = true; if (here) it.user = g.id }
         if (b.palisade > 0f) built += Structure(Built.PALISADE, h, -1, g.id, g.adults.toFloat()).also {
-            it.built = b.palisade; if (here) it.user = g.id }
+            it.built = b.palisade; it.done = true; if (here) it.user = g.id }
     }
 }
 
