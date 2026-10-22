@@ -40,6 +40,15 @@ internal fun HexGroups.housesBegunAt(g: HexGroup, h: Int): Float {
     return min(1f, room / max(1, g.adults))
 }
 
+/** How far the houses at hex [h] that [g] may use bring the ground's warmth in ([earthGain]), over the room they give. */
+internal fun HexGroups.earthAt(g: HexGroup, h: Int): Float {
+    var room = 0f; var earth = 0f
+    for (s in built) if (s.kind == Built.HOUSES && s.hex == h && s.done && usable(s, g)) {
+        val r = s.built * s.size; room += r; earth += r * earthGain(Skill.entries[s.design.coerceAtLeast(0)])
+    }
+    return if (room > 0f) earth / room else 0f
+}
+
 /** How much of a palisade stands at hex [h] that [g] may use, 0..1. */
 internal fun HexGroups.palisadeAt(g: HexGroup, h: Int): Float {
     var ring = 0f
@@ -72,9 +81,10 @@ internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Int, design: Int,
 
 /**
  * Once a week, before the bands' own weeks: what a band left (it is no longer at that hex, or dead) is free to anyone, and
- * what nobody uses weathers away ([HOUSE_DECAY] a year), till nothing stands.
+ * what nobody uses weathers away ([HOUSE_DECAY] a year), till nothing stands. Mudbrick wears in the week's [weather]'s rain
+ * besides, used or not ([MUD_EROSION]): the band using it mends it as it would build.
  */
-internal fun HexGroups.tendStructures() {
+internal fun HexGroups.tendStructures(weather: Weather) {
     if (!structuresSeen) { structuresSeen = true; raiseSavedHouses() }
     if (built.isEmpty()) return
     val where = HashMap<Int, Int>()
@@ -82,6 +92,11 @@ internal fun HexGroups.tendStructures() {
     for (s in built) {
         if (s.user >= 0 && where[s.user] != s.hex) s.user = -1
         if (s.user < 0) s.built = max(0f, s.built - HOUSE_DECAY * years)
+        if (s.kind == Built.HOUSES && s.design == Skill.MUDBRICK.ordinal) {
+            val places = hw.placesOf(Hex(s.hex))
+            var rain = 0f; for (p in places) rain += weather.rain(p)
+            if (places.isNotEmpty()) s.built = max(0f, s.built - MUD_EROSION * rain / places.size / MUD_WALL_MM)
+        }
     }
     built.removeAll { it.user < 0 && it.built <= 0f }
 }

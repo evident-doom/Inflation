@@ -183,7 +183,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
     bandHex = groups.filter { it.alive && it.band != null }.associate { it.id to hw.placeHex[it.place] }
-    tendStructures()
+    tendStructures(weather)
     houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
         .associate { it.id to it.band!!.houseHex.i }
     Profile.part("people: camps, tools, culture") {

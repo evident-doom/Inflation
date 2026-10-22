@@ -255,6 +255,12 @@ class Band(kinds: Int) {
      */
     var houseHex = Hex.NONE
     var house = 0f
+    /**
+     * At home: how far its houses' sunken walls bring the ground's warmth in ([earthGain], over the houses that shelter it), and
+     * the ground's warmth there, the year's mean air temperature, °C. They keep it warmer in the cold the deeper they are sunk.
+     */
+    var homeEarth = 0f
+    var homeGroundC = 0f
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Int>()
     val knownLineage = HashMap<Int, Int>()
@@ -482,7 +488,7 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
+        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
         o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
@@ -673,7 +679,7 @@ class Band(kinds: Int) {
     /** [feels] with a fire of [fire] and houses sheltering it as far as [home]: as it would camped elsewhere. */
     fun feels(t: Float, fire: Float, home: Float) =
         if (t < 15f) min(15f, t + CLOTHES_C * (has(Tool.CLOTHES) * clothesFit() - 0.5f) + FIRE_C * fire +
-            max(SHELTER_C * shelter, HOUSE_C * home)) else t
+            max(SHELTER_C * shelter, HOUSE_C * home + home * homeEarth * max(0f, homeGroundC - t))) else t
 
     /**
      * How far below what people can bear the cold at [t] °C (the week's mean) takes the band, °C: full
@@ -805,6 +811,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     if (housesAt(g, h.i) > 0.05f) b.houseHex = h
     b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex.i)
     b.atHome = b.houseHex == h && b.house > 0.05f
+    b.homeEarth = if (b.atHome) earthAt(g, h.i) else 0f
+    b.homeGroundC = if (b.atHome) (0 until Date.MONTHS_PER_YEAR).sumOf { weather.usualTemperature(it, p).toDouble() }.toFloat() / Date.MONTHS_PER_YEAR else 0f
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
     makeOrnaments(b, people, time)
     time.release(Activity.ORNAMENTS)
@@ -1269,16 +1277,22 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people:
     if (b.campWeeks < houseAfterWeeks(b) || left <= 0f || people <= 0f || g.fed < 0.9f || g.larder < 0.5f * b.storeAim * g.dailyNeedKg) return 0f
     val sheltered = housesAt(g, h.i)
     if (sheltered >= 1f) return 0f
-    // It builds the way it knows that its stone, timber and clay go furthest with (or goes on with what it began).
+    // It builds the way it knows that its stone, timber and clay go furthest with, as keen as it is on each (or goes on with
+    // what it began).
     val clay = land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f
     val begun = built.firstOrNull { it.kind == Built.HOUSES && it.hex == h.i && it.user == g.id && it.built < 1f }
     val size = begun?.size ?: (people * (1f - sheltered))
-    val way = begun?.let { Skill.entries[it.design] } ?: Skill.BUILDING_WAYS.filter { b.knowsSkill[it] && (it != Skill.MUDBRICK || clay) }
-        .maxByOrNull { w ->
-            val (st, wd, dd) = houseNeeds(w)
-            minOf(left / (dd * size), gd[Material.STONE] / max(1e-3f, st * size), gd[Material.WOOD] / (wd * size))
-        }
-        ?: Skill.STONE_FOOTING
+    // (Each way weighed by how far this week's stone, timber and days take it, and by the band's keenness on it: [buildWay].)
+    val known = Skill.BUILDING_WAYS.filter { b.knowsSkill[it] && (it != Skill.MUDBRICK || clay) }
+    fun reach(w: Skill): Float {
+        val (st, wd, dd) = houseNeeds(w)
+        return minOf(left / (dd * size), gd[Material.STONE] / max(1e-3f, st * size), gd[Material.WOOD] / (wd * size))
+    }
+    val way = begun?.let { Skill.entries[it.design] } ?: known.maxByOrNull { w -> reach(w) * b.will[buildWay(w)] } ?: Skill.STONE_FOOTING
+    if (time != null && begun == null) dialUse?.let { u ->
+        val at1 = known.maxByOrNull { w -> reach(w) } ?: Skill.STONE_FOOTING
+        for (w in known) u.choice(DialSite.BUILD_WAY, b.will[buildWay(w)], way == w, at1 == w, dial = buildWay(w).slot)
+    }
     val (stoneEach, woodEach, daysEach) = houseNeeds(way)
     val daysNow = daysEach * size / b.skill(way) * b.skill(Skill.STONE_FOOTING)
     var built = min(1f - (begun?.built ?: 0f), left / daysNow)
@@ -1651,9 +1665,22 @@ enum class BandWay(val label: String) {
     TIME_STORES("time: laying food by"), TIME_DRYING("time: drying"), TIME_SKINS("time: skins"), TIME_SHELTER("time: shelter"),
     TIME_CUSTOMS("time: customs"), TIME_TRAINING("time: training"), TIME_TOOLS("time: tools"), TIME_HOUSES("time: houses"),
     TIME_ORNAMENTS("time: ornaments"), TIME_SOWING("time: sowing"), TIME_PALISADE("time: palisade"), TIME_MATERIALS("time: materials"),
-    TIME_CACHING("time: caching");
+    TIME_CACHING("time: caching"),
+    /**
+     * How keen it is on each way of building a house it knows ([Skill.BUILDING_WAYS]), against how far its stone, timber and days
+     * take each this week ([buildHouse]): they differ in what they cost and in how warm a sunken one keeps and how a mudbrick one
+     * wears in the rain ([sunkenM], [MUD_EROSION]).
+     */
+    BUILD_STONE_FOOTING("build: stone footing"), BUILD_PIT_HOUSE("build: pit house"), BUILD_MUDBRICK("build: mudbrick");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
+}
+
+/** The way that weighs how keen a band is on building houses [w] (one of [Skill.BUILDING_WAYS]). */
+fun buildWay(w: Skill): BandWay = when (w) {
+    Skill.PIT_HOUSE -> BandWay.BUILD_PIT_HOUSE
+    Skill.MUDBRICK -> BandWay.BUILD_MUDBRICK
+    else -> BandWay.BUILD_STONE_FOOTING
 }
 
 /** The way that weighs [a]'s ask for days ([BandWay.TIME_STORES] and after); none for what comes first (the walk, the week's food and firewood) or is what is left (leisure). */
@@ -2199,6 +2226,33 @@ fun houseNeeds(way: Skill) = when (way) {
     Skill.MUDBRICK -> Triple(0f, HOUSE_WOOD / 2f, HOUSE_DAYS * 1.5f)
     else -> Triple(HOUSE_STONE, HOUSE_WOOD, HOUSE_DAYS)
 }
+
+/**
+ * How deep a house built [way] is sunk into the ground, m: a pit house about a metre, a stone-footed hut half sunk (as the
+ * Natufian houses at Mallaha), a mudbrick house stands on the ground. (Estimates.)
+ */
+fun sunkenM(way: Skill) = when (way) { Skill.PIT_HOUSE -> 1f; Skill.MUDBRICK -> 0f; else -> 0.5f }
+
+/**
+ * The share of the gap between the ground's year-round warmth and the air's that a house built [way] brings inside through its
+ * sunken walls: the year's swing of the soil's warmth falls off with depth as exp(-depth / [SOIL_DAMPING_M]).
+ */
+fun earthGain(way: Skill) = 1f - exp(-sunkenM(way) / SOIL_DAMPING_M)
+
+/**
+ * The depth over which the soil's yearly swing of warmth falls to 1/e, m: sqrt(2 κ / ω) for a moist soil's thermal diffusivity
+ * κ of about 5e-7 m²/s and the year's ω (heat conduction in soil, e.g. Hillel 1998, Environmental Soil Physics; κ an estimate
+ * for a moist loam).
+ */
+const val SOIL_DAMPING_M = 2.2f
+
+/**
+ * Mudbrick walls wear in the rain: mm of wall lost a mm of rain, 28.3 mm over 3 years under 2330 mm of rain on an unprotected
+ * field wall (Reddy and Jagadish, as reported in Heathcote 2002, An investigation into the erodibility of earth wall units,
+ * UTS thesis); and the wall lost at which a house is gone, half a 300 mm wall (an estimate).
+ */
+const val MUD_EROSION = 0.012f
+const val MUD_WALL_MM = 150f
 const val GRUEL_GAIN = 0.2f
 const val LEACH_SHARE = 0.5f
 const val LEACH_DAYS_PER_KG = 0.3f

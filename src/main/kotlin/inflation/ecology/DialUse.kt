@@ -60,6 +60,7 @@ enum class DialSite(val label: String, val dial: Int) {
     STORING("stores: what each food is weighed at for laying by", -1),
     CARRY_LOADS("camp moves: kg its loads take", BandWay.CARRY_LOADS.slot),
     TIME_WEIGHTS("week plan: days held for each activity", -1),
+    BUILD_WAY("houses: the way a new one is built", -1),
 }
 
 /**

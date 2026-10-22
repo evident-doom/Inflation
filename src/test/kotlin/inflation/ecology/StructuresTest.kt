@@ -19,4 +19,17 @@ class StructuresTest {
         buildOn(s, 0.1f)
         assertTrue(s.done); assertEquals(0.8f, s.built, 1e-6f)
     }
+
+    @Test
+    fun `the deeper a house is sunk the more of the ground's warmth it brings in, in the cold`() {
+        assertEquals(0f, earthGain(Skill.MUDBRICK))
+        assertTrue(earthGain(Skill.PIT_HOUSE) > earthGain(Skill.STONE_FOOTING) && earthGain(Skill.STONE_FOOTING) > 0f)
+        val b = Band(1)
+        b.homeGroundC = 10f
+        val flat = b.feels(-10f, 0f, 1f)
+        b.homeEarth = earthGain(Skill.PIT_HOUSE)
+        assertEquals(flat + 20f * earthGain(Skill.PIT_HOUSE), b.feels(-10f, 0f, 1f), 1e-4f)
+        // (Warmer than the ground, the earth brings nothing.)
+        assertEquals(b.feels(12f, 0f, 1f), Band(1).also { it.homeGroundC = 10f }.feels(12f, 0f, 1f))
+    }
 }

@@ -198,9 +198,11 @@ object HexSnapshot {
      * begun and not finished where it is. (Saved houses and palisades load as not finished.)
      * 4.28: a band's days take food by how hard their work is ([Activity.restSaves], from FAO/WHO/UNU 2004 activity ratios):
      * the week's want falls with the days its plan gives to lighter work and leaves to rest, and rises with wood fetched.
+     * 4.29: house designs differ beyond their cost: a sunken one brings the ground's year-round warmth in ([earthGain]), a
+     * mudbrick one wears in the rain ([MUD_EROSION]); and the bands' ways weigh their keenness on each design ([buildWay]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 28
+    const val MODEL_MINOR = 29
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
