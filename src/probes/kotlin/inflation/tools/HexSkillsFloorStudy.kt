@@ -4,6 +4,7 @@ import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.ecology.Hex
 import inflation.ecology.Skill
+import inflation.ecology.Tool
 import inflation.ecology.contains
 import inflation.ecology.get
 import inflation.ecology.set
@@ -29,10 +30,15 @@ import java.io.File
  * heads, whole population) and PREFIX-bands.csv (each band's start: biome, size, and the week it was gone, -1 = still there).
  *
  * Usage: hex-skills-floor-study --world NAME [--replicate R] [--arm naked|usual] [--start-week W] [--weeks N]
- *        [--adults N] [--out PREFIX]
+ *        [--adults N] [--drop N] [--keep LIST] [--out PREFIX]
+ *
+ * v2 (2026-10-22): --drop N strips only every Nth band (the rest of the world carries on as it is, so a naked band
+ * meets normal neighbours instead of 1,200 naked ones); only the stripped bands are counted, and the by-cause table
+ * is then the whole world's, mostly the intact bands', so read survival and how-well-fed only. --keep LIST (comma list of
+ * clothes, fire, shelter, spears, skills, plants, stores, goods) leaves those as they were when stripping the rest.
  */
 fun main(args: Array<String>) {
-    val a = Args(args, "hex-skills-floor-study --world NAME [--replicate R] [--arm naked|usual] [--start-week W] [--weeks N] [--adults N] [--out PREFIX]")
+    val a = Args(args, "hex-skills-floor-study --world NAME [--replicate R] [--arm naked|usual] [--start-week W] [--weeks N] [--adults N] [--drop N] [--keep LIST] [--out PREFIX]")
     val world = a.string("--world") ?: error("--world NAME (a settled test world, e.g. storm-1)")
     val replicate = a.long("--replicate", 1L)
     val naked = (a.string("--arm") ?: "naked") == "naked"
@@ -40,6 +46,10 @@ fun main(args: Array<String>) {
     val weeks = a.int("--weeks", 52)
     val adults = a.int("--adults", 0)
     val out = a.string("--out")
+    val drop = a.int("--drop", 0)
+    val keeps = listOf("clothes", "fire", "shelter", "spears", "skills", "plants", "stores", "goods")
+    val keep = (a.string("--keep") ?: "").split(',').filter { it.isNotBlank() }.toSet()
+    require(keep.all { it in KEEPS }) { "--keep: some of $keeps" }
     a.done()
 
     val run = FaunaCheckOptions.parse(arrayOf("--world", world, "--replicate", "$replicate")).start()
@@ -52,17 +62,21 @@ fun main(args: Array<String>) {
     val start = DoubleArray(nBiome)
     class Band0(val id: Int, val biome: Int, val size: Int, var gone: Int = -1)
     val bands = ArrayList<Band0>()
+    var seen = 0
     for (g in run.groups.groups) if (g.alive && g.species == people) {
+        if (drop > 0 && seen++ % drop != 0) continue
         if (adults > 0 && g.adults > adults) { g.young = (g.young.toDouble() * adults / g.adults).toInt(); g.adults = adults }
         g.tag = biomeOf[g.place]; start[g.tag] += g.size.toDouble()
         bands += Band0(g.id, g.tag, g.size)
         if (naked) g.band?.let { b ->
+            val kept = keptOf(keep, g, b)
             b.skills.fill(0f)
             for (s in Skill.entries) b.knowsSkill[s] = s.known
             b.plants.fill(0f); b.fire = 0f; b.shelter = 0f; b.known = LongArray(0); b.kit.fill(0f); b.knows.fill(false); b.goods.fill(0f); b.cache.fill(0f)
             b.house = 0f; b.houseHex = Hex.NONE; b.palisade = 0f; b.ornaments = 0f; b.exotic = 0f
             g.stores.fill(0f)
             g.memory.hex.fill(-1); g.band?.seasonPlace?.fill(-1)
+            kept()
         }
     }
     val causes = sortedSetOf<String>()
@@ -71,7 +85,7 @@ fun main(args: Array<String>) {
     for (w in 1..weeks) {
         run.step()
         val now = DoubleArray(nBiome); var all = 0.0; var fedSum = 0.0
-        for (g in run.groups.groups) if (g.alive && g.species == people) {
+        for (g in run.groups.groups) if (g.alive && g.species == people && (drop == 0 || g.tag >= 0)) {
             all += g.size; fedSum += g.fed.toDouble() * g.size
             if (g.tag >= 0) now[g.tag] += g.size.toDouble()
         }
@@ -83,7 +97,7 @@ fun main(args: Array<String>) {
     }
 
     val marks = listOf(1, 2, 4, 8, 13, 26, 52).filter { it <= weeks }
-    println("skills floor study, world $world, replicate $replicate, arm ${if (naked) "naked" else "usual"}, start week $startWeek (${run.weather.date}), adults cap ${if (adults > 0) adults else "none"}")
+    println("skills floor study, world $world, replicate $replicate, arm ${if (naked) "naked" else "usual"}, drop ${if (drop > 0) "1 in $drop" else "all"}, keep ${keep.sorted().ifEmpty { listOf("nothing") }}, start week $startWeek (${run.weather.date}), adults cap ${if (adults > 0) adults else "none"}")
     println("%-24s %7s  ".format("country", "people") + marks.joinToString("  ") { "%5s".format("wk $it") })
     for (b in Biome.entries.indices.sortedByDescending { start[it] }) {
         if (start[b] < 1.0) continue
@@ -114,5 +128,27 @@ fun main(args: Array<String>) {
             f.println("band,biome,size,gone_week")
             for (b in bands) f.println("${b.id},${Biome.entries[b.biome].name.lowercase()},${b.size},${b.gone}")
         }
+    }
+}
+
+private val KEEPS = setOf("clothes", "fire", "shelter", "spears", "skills", "plants", "stores", "goods")
+
+/** What the stripping of [b] (of group [g]) leaves of the things in [keep]: read before the wipe, the returned function puts them back. */
+private fun keptOf(keep: Set<String>, g: inflation.ecology.HexGroup, b: inflation.ecology.Band): () -> Unit {
+    val kit = b.kit.a.copyOf(); val knows = b.knows.a.copyOf(); val skills = b.skills.a.copyOf(); val knowsSkill = b.knowsSkill.a.copyOf()
+    val goods = b.goods.a.copyOf(); val cache = b.cache.a.copyOf(); val plants = b.plants.a.copyOf(); val stores = g.stores.a.copyOf()
+    val fire = b.fire; val shelter = b.shelter
+    return {
+        if ("clothes" in keep) { b.kit[Tool.CLOTHES] = kit[Tool.CLOTHES.ordinal]; b.knows[Tool.CLOTHES] = knows[Tool.CLOTHES.ordinal] }
+        if ("spears" in keep) {
+            b.kit[Tool.SPEAR] = kit[Tool.SPEAR.ordinal]; b.knows[Tool.SPEAR] = knows[Tool.SPEAR.ordinal]
+            b.skills[Skill.HUNT] = skills[Skill.HUNT.ordinal]; b.knowsSkill[Skill.HUNT] = knowsSkill[Skill.HUNT.ordinal]
+        }
+        if ("fire" in keep) { b.fire = fire; b.skills[Skill.FIRE] = skills[Skill.FIRE.ordinal]; b.knowsSkill[Skill.FIRE] = knowsSkill[Skill.FIRE.ordinal] }
+        if ("shelter" in keep) b.shelter = shelter
+        if ("skills" in keep) { skills.copyInto(b.skills.a); knowsSkill.copyInto(b.knowsSkill.a) }
+        if ("plants" in keep) plants.copyInto(b.plants.a)
+        if ("stores" in keep) stores.copyInto(g.stores.a)
+        if ("goods" in keep) { kit.copyInto(b.kit.a); knows.copyInto(b.knows.a); goods.copyInto(b.goods.a); cache.copyInto(b.cache.a) }
     }
 }
