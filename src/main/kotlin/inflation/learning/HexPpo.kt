@@ -203,9 +203,10 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         for (k in 0 until n) if (scores[k].isFinite() && features[k].allFinite(HexFeatures.SIZE)) weighed++ else {
             NonFinite.note(g.species, features[k], baseline[k], net[k], mover.pull(temper, features[k])); scores[k] = Float.NEGATIVE_INFINITY }
         if (weighed == 0) return Critic.here(features)
-        // Only the choices recorded to learn from are drawn by chance; every other group takes its best, so the
-        // training worlds live as they would with the networks choosing (a world of chance moves goes under).
+        // Only the choices recorded to learn from are drawn by chance here; every other group takes its best (a band then draws
+        // by its will to explore, see [HexGroup.drawn]), so the training worlds live as they would with the networks choosing.
         if (record == null || rnd.nextFloat() >= rate(g.species)) { var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k; return best }
+        g.drawn = true
         val p = softmax(scores)
         var u = rnd.nextFloat(); var taken = -1
         for (k in 0 until n) if (p[k] > 0f) { taken = k; u -= p[k]; if (u <= 0f) break }
@@ -220,7 +221,6 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
         return taken
     }
-    override val samples get() = record != null
     override fun planned(g: HexGroup, chosen: FloatArray): FloatArray? {
         if (g.band == null || mover.band == 0) return null
         val input = FloatArray(mover.inputs)
