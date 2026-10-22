@@ -49,9 +49,8 @@ fun main(args: Array<String>) {
     val out = a.string("--out")
     val drop = a.int("--drop", 0)
     val bare = a.flag("--bare-neighbours")
-    val keeps = listOf("clothes", "fire", "shelter", "spears", "skills", "plants", "stores", "goods")
     val keep = (a.string("--keep") ?: "").split(',').filter { it.isNotBlank() }.toSet()
-    require(keep.all { it in KEEPS }) { "--keep: some of $keeps" }
+    require(keep.all { it in KEEPS }) { "--keep: some of $KEEPS" }
     a.done()
 
     val run = FaunaCheckOptions.parse(arrayOf("--world", world, "--replicate", "$replicate")).start()
@@ -89,9 +88,15 @@ fun main(args: Array<String>) {
     val weekly = ArrayList<Triple<Int, DoubleArray, Pair<Double, Map<String, Int>>>>()   // week, tagged alive by biome, (all alive, causes)
     val fedByWeek = DoubleArray(weeks + 1)
     val tallied = listOf(Met.HUNGRY_BANDS_FED_BY_KIN, Met.FOOD_GIVEN, Met.LARDERS_RAIDED, Met.CACHES_ROBBED, Met.BANDS_MET)
+    // The stripped bands' mean skill levels (0..1, by heads), week by week, for the skills the first weeks hang on.
+    val tracked = listOf(Skill.GATHER, Skill.SMALL_GAME, Skill.FISH, Skill.HUNT, Skill.FIRE, Skill.STORE)
+    val levels = Array(weeks + 1) { DoubleArray(tracked.size) }
     val meetings = Array(weeks + 1) { IntArray(tallied.size) }
     for (w in 1..weeks) {
         run.step()
+        val heads = run.groups.groups.filter { it.alive && it.species == people && it.tag >= 0 && it.band != null }
+        val n = heads.sumOf { it.size }.coerceAtLeast(1)
+        for ((i, sk) in tracked.withIndex()) levels[w][i] = heads.sumOf { it.size * it.band!!.skills[sk].toDouble() } / n
         for ((i, m) in tallied.withIndex()) meetings[w][i] = run.groups.stats.meetings[m.key] ?: 0
         val now = DoubleArray(nBiome); var all = 0.0; var fedSum = 0.0
         for (g in run.groups.groups) if (g.alive && g.species == people && (drop == 0 || g.tag >= 0)) {
@@ -116,6 +121,8 @@ fun main(args: Array<String>) {
     println("%-24s %7.0f  %s".format("all (tagged)", start.sum(), marks.joinToString("  ") { m -> "%4.0f%%".format(100.0 * weekly[m - 1].second.sum() / start.sum()) }))
     println("%-24s %7s  %s".format("all alive, tagged or not", "", marks.joinToString("  ") { m -> "%4.0f%%".format(100.0 * weekly[m - 1].third.first / start.sum()) }))
     println("%-24s %7s  %s".format("how well fed", "", marks.joinToString("  ") { m -> "%4.0f%%".format(100.0 * fedByWeek[m]) }))
+    println("%-24s %s".format("skill levels (0..1)", tracked.joinToString("  ") { "%9s".format(it.name.lowercase()) }))
+    for (m in marks) println("%-24s %s".format("  week $m", levels[m].joinToString("  ") { "%9.2f".format(it) }))
     println("whole world's meetings, weeks 1-4 | 5-13 | 14-52 (all bands, not only the stripped)")
     for ((i, m) in tallied.withIndex()) println("%-24s %6d | %6d | %6d".format(m.label, (1..4).sumOf { meetings[it][i] }, (5..13).filter { it <= weeks }.sumOf { meetings[it][i] }, (14..52).filter { it <= weeks }.sumOf { meetings[it][i] }))
     println("deaths of people by cause, weeks 1-4 | 5-13 | 14-52 (heads)")
@@ -139,6 +146,10 @@ fun main(args: Array<String>) {
             f.println("week," + tallied.joinToString(",") { it.label.replace(' ', '_') })
             for (w in 1..weeks) f.println("$w," + meetings[w].joinToString(","))
         }
+        File("$p-skills.csv").printWriter().use { f ->
+            f.println("week," + tracked.joinToString(",") { it.name.lowercase() })
+            for (w in 1..weeks) f.println("$w," + levels[w].joinToString(",") { "%.3f".format(it) })
+        }
         File("$p-bands.csv").printWriter().use { f ->
             f.println("band,biome,size,gone_week")
             for (b in bands) f.println("${b.id},${Biome.entries[b.biome].name.lowercase()},${b.size},${b.gone}")
@@ -146,7 +157,11 @@ fun main(args: Array<String>) {
     }
 }
 
-private val KEEPS = setOf("clothes", "fire", "shelter", "spears", "skills", "plants", "stores", "goods")
+/** --keep names that keep one skill alone (its level and whether it is known). */
+private val SKILL_KEEPS = mapOf("gather" to Skill.GATHER, "smallgame" to Skill.SMALL_GAME, "fish" to Skill.FISH, "hunt" to Skill.HUNT,
+    "store" to Skill.STORE, "cooking" to Skill.ROASTING)
+
+private val KEEPS = setOf("clothes", "fire", "shelter", "spears", "skills", "plants", "stores", "goods") + SKILL_KEEPS.keys
 
 /** What the stripping of [b] (of group [g]) leaves of the things in [keep]: read before the wipe, the returned function puts them back. */
 private fun keptOf(keep: Set<String>, g: inflation.ecology.HexGroup, b: inflation.ecology.Band): () -> Unit {
@@ -161,6 +176,7 @@ private fun keptOf(keep: Set<String>, g: inflation.ecology.HexGroup, b: inflatio
         }
         if ("fire" in keep) { b.fire = fire; b.skills[Skill.FIRE] = skills[Skill.FIRE.ordinal]; b.knowsSkill[Skill.FIRE] = knowsSkill[Skill.FIRE.ordinal] }
         if ("shelter" in keep) b.shelter = shelter
+        for ((name, sk) in SKILL_KEEPS) if (name in keep) { b.skills[sk] = skills[sk.ordinal]; b.knowsSkill[sk] = knowsSkill[sk.ordinal] }
         if ("skills" in keep) { skills.copyInto(b.skills.a); knowsSkill.copyInto(b.knowsSkill.a) }
         if ("plants" in keep) plants.copyInto(b.plants.a)
         if ("stores" in keep) stores.copyInto(g.stores.a)
