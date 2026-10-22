@@ -176,9 +176,12 @@ object HexSnapshot {
      * they weather away while nobody does, and a band building at its camp builds for those of its people the houses there do
      * not shelter. Houses a band may use draw it wherever they are (home pull), and shelter it in what it foresees of a place.
      * A band's houses in a world saved before are raised where they stood.
+     * 4.19: a band plans its week's time ([BandTime.plan]): food, firewood, each chore and its leisure ([LEISURE_SHARE]) ask
+     * for days, shared out when they come to more than the week; each chore works in the days it was given and what one
+     * leaves is free for those after it. Its food need follows how much of the week it worked ([workNeed]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 18
+    const val MODEL_MINOR = 19
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

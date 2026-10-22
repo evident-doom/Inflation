@@ -1,19 +1,59 @@
 package inflation.ecology
 
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class BandTimeTest {
     @Test
-    fun `what each chore took and what is left add up to the time there was`() {
-        val t = BandTime(10f)
-        t.took(Activity.FOOD, 30f)
-        t.spend(Activity.TOOLS, 4f); t.spend(Activity.TOOLS, 1f)
-        t.spendAtMost(Activity.DRYING, 8f)
-        assertEquals(0f, t.left)
-        val census = HashMap<TallyKey, Int>()
-        t.count(census, Activity.FOOD, Activity.TOOLS, Activity.DRYING, Activity.SKINS)
-        t.count(census, Tally.TimeTotal.LEFT, t.left)
-        assertEquals(mapOf("band time:food" to 300, "band time:tools" to 50, "band time:drying" to 50, "band time:skins" to 0, "band time:left" to 0), census.mapKeys { it.key.text })
+    fun `asks that fit the week are given whole`() {
+        val asks = floatArrayOf(3f, 2f, 1f)
+        assertTrue(BandTime.shareOut(asks, floatArrayOf(1f, 1f, 1f), 7f).contentEquals(asks))
+    }
+
+    @Test
+    fun `at equal weights every ask gets the same share of itself, and all the days are given`() {
+        val got = BandTime.shareOut(floatArrayOf(6f, 2f, 4f), floatArrayOf(1f, 1f, 1f), 6f)
+        assertEquals(6f, got.sum(), 1e-3f)
+        for (i in got.indices) assertEquals(0.5f, got[i] / floatArrayOf(6f, 2f, 4f)[i], 1e-3f)
+    }
+
+    @Test
+    fun `the less weighed lose their days first, and none gets more than it asked`() {
+        val asks = floatArrayOf(4f, 4f)
+        val got = BandTime.shareOut(asks, floatArrayOf(4f, 1f), 4f)
+        assertEquals(4f, got.sum(), 1e-3f)
+        assertTrue(got[0] > got[1] && got[0] <= asks[0] && got[1] >= 0f, got.toList().toString())
+    }
+
+    @Test
+    fun `what is held for one is kept from the others till it is released`() {
+        val time = BandTime(10f)
+        val asks = FloatArray(Activity.entries.size)
+        asks[Activity.FOOD.ordinal] = 6f; asks[Activity.LEISURE.ordinal] = 6f
+        time.plan(FloatArray(asks.size), asks)
+        assertEquals(5f, time.leftFor(Activity.FOOD), 1e-3f)
+        assertEquals(0f, time.leftFor(Activity.TOOLS), 1e-3f)
+        time.spend(Activity.FOOD, 3f)
+        time.release(Activity.FOOD)
+        assertEquals(2f, time.leftFor(Activity.TOOLS), 1e-3f)
+        assertTrue(abs(time.left - 7f) < 1e-3f)
+    }
+
+    @Test
+    fun `what a band needs to live through the week comes before the rest`() {
+        val time = BandTime(10f)
+        val needs = FloatArray(Activity.entries.size); val asks = FloatArray(Activity.entries.size)
+        needs[Activity.FOOD.ordinal] = 7f; asks[Activity.LEISURE.ordinal] = 6f; asks[Activity.TOOLS.ordinal] = 3f
+        time.plan(needs, asks)
+        assertEquals(7f, time.leftFor(Activity.FOOD), 1e-3f)
+        assertEquals(1f, time.leftFor(Activity.TOOLS), 1e-3f)
+    }
+
+    @Test
+    fun `a band working as usual needs what it always did, resting less, working more more`() {
+        assertEquals(1f, workNeed(WORK_USUAL), 1e-5f)
+        assertTrue(workNeed(0f) < 1f && workNeed(1f) > 1f)
     }
 }

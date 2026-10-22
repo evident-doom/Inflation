@@ -157,14 +157,58 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         // What the week brings at those rates, the parties working side by side, as far as the band wants: it stops when fed.
         val intake = o.fed[0] / o.spent[0] + o.fed[1] / o.spent[1]
-        val f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
+        // (A band plans its week once it sees what food asks of it: see [planWeek]. It forages no longer than the plan gives it.)
+        if (w.band != null && w.time == null) {
+            val need = max(0f, w.wantAll - w.fed)
+            fun daysFor(kg: Float) = if (intake > 0f) min(days.toFloat(), kg / intake) else 0f
+            planWeek(w, daysFor(need), daysFor(left) - daysFor(need))
+        }
+        val time = w.time
+        // (Short of the week's food, it gives up its leisure to eat: survival first.)
+        if (time != null && intake > 0f && w.fed < w.wantAll)
+            time.borrow(Activity.FOOD, Activity.LEISURE, min(days.toFloat(), (w.wantAll - w.fed) / intake) * w.hands - time.leftFor(Activity.FOOD))
+        var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
+        if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
+        val busy0 = w.busy
         if (pass == 0) w.searched = f
         if (FORAGE_DIAG == w.s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
             "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
         takeFoods(w, o, f)
+        time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
+    if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
+    w.time?.release(Activity.FOOD)
     eatTheWeek(w)
+}
+
+/**
+ * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
+ * wants this week, [storeDays] more to lay by what it aims to keep. What it needs to live through the week comes first
+ * (food for the week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores, its
+ * chores, and its leisure, [LEISURE_SHARE] of the week), shared out when it comes to more than the days left
+ * ([BandTime.plan]). Digging soaks for water, where that is the only water, comes off first. Then it fetches the hearth's
+ * firewood in the days the plan gives it.
+ */
+private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
+    val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
+    val time = BandTime(days * hands.toFloat())
+    // (Digging soaks and drawing their water, see [HexDrinkingWater.mustDig]: counted with the food.)
+    if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) time.spend(Activity.FOOD, HexDrinkingWater.DIG_SHARE * days * hands)
+    val needs = FloatArray(Activity.entries.size)
+    needs[Activity.FOOD.ordinal] = needDays * hands
+    needs[Activity.FIREWOOD.ordinal] = fuelAsk(g, hands)
+    val asks = FloatArray(Activity.entries.size)
+    asks[Activity.FOOD.ordinal] = storeDays * hands
+    asks[Activity.LEISURE.ordinal] = LEISURE_SHARE * days * hands
+    choreAsks(g, b, w.weather.date, asks)
+    time.plan(needs, asks)
+    val fuel = needs[Activity.FIREWOOD.ordinal]
+    w.fuelDays = fetchFuel(g, b, hands, if (fuel > 0f) min(1f, time.leftFor(Activity.FIREWOOD) / fuel) else 1f)
+    time.spend(Activity.FIREWOOD, w.fuelDays * hands)
+    time.release(Activity.FIREWOOD)
+    w.workDays = days - w.fuelDays
+    w.time = time
 }
 
 /**
@@ -183,8 +227,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val hunt = band?.let { b -> huntersShare(b).also { v -> gs.dialUse?.amount(DialSite.HUNTERS_SHARE, b.effort[Food.BIG_GAME.ordinal], v,
         HUNTERS_SHARE.coerceIn(0f, 1f), cut = HUNTERS_SHARE * b.effort[Food.BIG_GAME.ordinal] > 1f) } } ?: 1f
     val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
-    // (Walking costs food, see [walkCost].)
-    val wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
+    // (Walking costs food, see [walkCost]; so does a band's work beyond its usual, and its rest saves food, see [workNeed].)
+    val wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g)) * (band?.let { workNeed(it.workShare) } ?: 1f)
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
@@ -258,9 +302,12 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // (And what it weighs, which grinding, cooking and leaching do not change: see [addFood].)
     val plantKg = FloatArray(Store.entries.size)
     var busy = 0f
-    // A band fetches the hearth's firewood first; it forages in the days left.
-    val fuelDays = if (band != null) gs.fetchFuel(g, band, hands) else 0f
-    val workDays = gs.days - fuelDays
+    // A band fetches the hearth's firewood first and forages in the days left, as far as its week's plan gives them
+    // (see [planWeek]); an animal forages all week.
+    var fuelDays = 0f
+    var workDays = gs.days.toFloat()
+    /** A band's week's time, once planned ([planWeek]). */
+    var time: BandTime? = null
     val spareYoung = band?.holds(Tradition.TABOO_YOUNG) == true
     // The ground its hunters search for game this week, and how much of each place (see [huntGround]).
     val ground = gs.huntGround(g, sweep * g.path.size.coerceAtLeast(1) * sqrt(hunt))
@@ -729,17 +776,15 @@ private fun HexGroups.bookForage(b: Books, band: Band?, meatEaten: Float, rest: 
 
 
 /**
- * [forage]'s end of a band's week with its food: what is left of the week's [got] (kg by [Store]) is kept, spare hands
- * ([hands] of them, [workDays] less the [busy] days foraging) dry fresh meat and fish, the small game's skins are kept,
- * and the stores spoil, what rots going to carrion where the band is.
+ * [forage]'s end of a band's week with its food: what is left of the week's [got] (kg by [Store]) is kept, its hands
+ * dry fresh meat and fish and keep the small game's skins in the days its week gives them ([planWeek]), and the stores
+ * spoil, what rots going to carrion where the band is.
  */
 private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatArray, pelts: Float) {
-    val g = w.g; val s = w.s; val band = checkNotNull(w.band); val weather = w.weather
-    val workDays = w.workDays; val busy = w.busy; val hands = w.hands; val fuelDays = w.fuelDays
+    val g = w.g; val band = checkNotNull(w.band); val weather = w.weather
+    val time = checkNotNull(w.time)
     // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
     for (st in Store.entries) addFood(g.stores, g.storeKgPer, st, got[st.ordinal], gotKg[st.ordinal])
-    // Digging soaks and drawing their water takes time where that is the only water (see [HexDrinkingWater.mustDig]).
-    val spareDays = max(0f, workDays - busy - (if (land.drink.mustDig(g.place, s.dailyTravelKm)) HexDrinkingWater.DIG_SHARE * days else 0f))
     // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
     val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
     val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
@@ -747,24 +792,27 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatA
     val salt = if (band.knowsSkill[Skill.SALTING]) band.goods[Material.SALT] else 0f
     val salting = if (salt > 0f) band.skill(Skill.SALTING) else 0f
     val dryRate = max(max(sun, smoke), salting)
-    // (As much of it as the band chooses to.)
-    // (Fresh food is kept at what it feeds; drying takes its time by what it weighs.)
+    // (As much of it as the band chooses to, in the days its week gives drying. Fresh food is kept at what it feeds;
+    // drying takes its time by what it weighs. What it would have liked to dry is what drying asks of next week's plan.)
     val freshKgPer = g.storeKgPer[Store.FRESH].coerceAtLeast(1e-6f)
-    val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), spareDays * hands * dryRate / DRY_DAYS_PER_KG / freshKgPer)
-    dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], spareDays * hands * dryRate / DRY_DAYS_PER_KG / freshKgPer), cut = band.dryWill > 1f)
+    val dryDays = time.leftFor(Activity.DRYING)
+    val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer)
+    dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer), cut = band.dryWill > 1f)
+    band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * min(1f, band.dryWill) * freshKgPer * DRY_DAYS_PER_KG / dryRate else 0f
     if (dried > 0f) {
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
         g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (salting >= max(sun, smoke)) Skill.SALTING else if (smoke > sun) Skill.SMOKING else Skill.STORE)
     }
-    // What time is left is for making and mending (see [bandWeek]).
-    val time = BandTime(spareDays * hands)
-    time.took(Activity.FIREWOOD, fuelDays * hands); time.took(Activity.FOOD, (workDays - spareDays) * hands)
     time.spendAtMost(Activity.DRYING, if (dried > 0f) dried * freshKgPer * DRY_DAYS_PER_KG / dryRate else 0f)
+    time.release(Activity.DRYING)
+    band.skinAsk = SKIN_DAYS * pelts
     val unskinned = skinSmallGame(band, time, pelts)
-    band.spareDays = time.left
-    time.count(stats.hunting, Tally.TimeTotal.ALL, days * hands.toFloat())
-    time.count(stats.hunting, Activity.FIREWOOD, Activity.FOOD, Activity.DRYING, Activity.SKINS)
+    time.release(Activity.SKINS)
+    // What time is left is for making and mending (see [bandWeek]).
+    band.spareDays = max(0f, time.left)
+    band.week = time
+    time.count(stats.hunting, Tally.TimeTotal.ALL, days * w.hands.toFloat())
     // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
     // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
     val home = if (band.atHome) band.house else 0f
@@ -788,7 +836,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatA
  * caught, in the [time] it has to spare; returns the kg left unskinned, for the scavengers.
  */
 private fun HexGroups.skinSmallGame(b: Band, time: BandTime, pelts: Float): Float {
-    val skinDays = min(time.left, SKIN_DAYS * pelts)
+    val skinDays = min(time.leftFor(Activity.SKINS), SKIN_DAYS * pelts)
     b.goods[Material.HIDE] += skinDays / SKIN_DAYS
     time.spend(Activity.SKINS, skinDays)
     stats.hunting.merge(Tally.hide(Tally.HideSource.SMALL_PELTS), (1000f * skinDays / SKIN_DAYS).roundToInt(), Int::plus)

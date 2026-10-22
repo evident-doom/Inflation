@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.world.Date
+import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 
@@ -76,4 +78,20 @@ private fun HexGroups.raiseSavedHouses() {
         if (b.palisade > 0f) built += Structure(Built.PALISADE, h, -1, g.id, g.adults.toFloat()).also {
             it.built = b.palisade; if (here) it.user = g.id }
     }
+}
+
+/**
+ * The lives a year houses would save for each of [g]'s grown people camped at place [p], whole and sheltering them all,
+ * against none: the deaths of cold and exposure they would avert month by month at the place's usual temperatures
+ * ([Weather.usualTemperature]), by the same rules as the week's deaths ([placeHazards]), with its band's clothes and fire.
+ */
+internal fun HexGroups.houseLivesAYear(g: HexGroup, b: Band, p: Place, weather: Weather): Float {
+    val s = g.species; val fire = b.fire
+    var saved = 0f
+    for (m in 0 until Date.MONTHS_PER_YEAR) {
+        val t = weather.usualTemperature(m, p)
+        fun week(home: Float) = min(0.9f, EXPOSURE * b.exposure(t, fire, home)) + Hazards.cold(s, b.feels(t, fire, home), m)
+        saved += (week(0f) - week(1f)) * Date.DAYS_PER_YEAR / 7f / Date.MONTHS_PER_YEAR
+    }
+    return max(0f, saved)
 }

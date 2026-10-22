@@ -1,35 +1,72 @@
 package inflation.ecology
 
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** The kinds of work that take a band's time, each by its line in the census of band time ([Tally.bandTime]). */
+/** The kinds of work that take a band's time, each by its line in the census of band time ([Tally.bandTime]); and its leisure. */
 enum class Activity(val label: String) {
     FIREWOOD("firewood"), FOOD("food"), DRYING("drying"), SKINS("skins"), SHELTER("shelter"), CUSTOMS("customs"),
     TRAINING("training"), TOOLS("tools"), HOUSES("houses"), ORNAMENTS("ornaments"), SOWING("sowing"), PALISADE("palisade"), MATERIALS("materials"), CACHING("caching"),
+    LEISURE("leisure"),
 }
 
 /**
- * A band's spare time through a stretch of its week, person-days: the chores take from [left] in turn, each as far as
- * it goes, and what each took is kept for the census of band time.
+ * A band's time through its week, person-days. At the start of the week each activity asks for the days it wants
+ * ([plan]), and when the asks come to more than the week the days are shared out among them ([shareOut]): what is held
+ * for an activity is kept from the others till it has had its turn. The chores then take from what is theirs and from
+ * what nobody asked for ([leftFor]), in turn, each as far as it goes; what one did not use is free for those after it
+ * ([release]). What each took is kept for the census of band time.
  */
 class BandTime(left: Float) {
-    /** Person-days still to spare. */
+    /** Person-days in all, as it began. */
+    val total = left
+    /** Person-days still unspent, held or not. */
     var left = left
         private set
     private val spent = FloatArray(Activity.entries.size)
+    private val held = FloatArray(Activity.entries.size)
+    /** What each activity asked for this week, person-days (none before a [plan]). */
+    val asked = FloatArray(Activity.entries.size)
 
-    /** Takes [personDays] for [a]. */
-    fun spend(a: Activity, personDays: Float) { spent[a.ordinal] += personDays; left -= personDays }
+    /** Person-days [a] may take now: what is held for it, and what is held for no one. */
+    fun leftFor(a: Activity) = max(0f, left - held.sum() + held[a.ordinal])
 
-    /** Takes [personDays] for [a], but never below none left. */
-    fun spendAtMost(a: Activity, personDays: Float) { val after = max(0f, left - personDays); spent[a.ordinal] += left - after; left = after }
+    /** Takes [personDays] for [a]: from what is held for it first. */
+    fun spend(a: Activity, personDays: Float) { spent[a.ordinal] += personDays; left -= personDays; held[a.ordinal] = max(0f, held[a.ordinal] - personDays) }
+
+    /** Takes [personDays] for [a], but never more than it may take ([leftFor]). */
+    fun spendAtMost(a: Activity, personDays: Float) = spend(a, min(personDays, leftFor(a)))
 
     /** Counts [personDays] as gone to [a] before this stretch began (the time foraging took, worked out apart). */
     fun took(a: Activity, personDays: Float) { spent[a.ordinal] += personDays }
 
+    /** Moves up to [personDays] of what is held for [from] to [a]: a hungry band gives up its leisure to eat. */
+    fun borrow(a: Activity, from: Activity, personDays: Float) {
+        val d = min(max(0f, personDays), held[from.ordinal])
+        held[from.ordinal] -= d; held[a.ordinal] += d
+    }
+
+    /** What is still held for [a] after its turn is free for the activities after it. */
+    fun release(a: Activity) { held[a.ordinal] = 0f }
+
     /** Sets what is left to no less than none. */
     fun noneBelowZero() { left = max(0f, left) }
+
+    /** Person-days that went to [a] so far. */
+    fun spentOn(a: Activity) = spent[a.ordinal]
+
+    /**
+     * Holds for each activity its share of the time left: first what it [needs] to live through the week (survival first:
+     * food for the week's want, the hearth's firewood), then of the rest its share ([shareOut]) of what else it [asks],
+     * weighed by [weights] (1 each by default).
+     */
+    fun plan(needs: FloatArray, asks: FloatArray, weights: FloatArray? = null) {
+        for (i in asked.indices) asked[i] = needs[i] + asks[i]
+        val first = shareOut(needs, FloatArray(needs.size) { 1f }, max(0f, left))
+        val then = shareOut(asks, weights ?: FloatArray(asks.size) { 1f }, max(0f, left - first.sum()))
+        for (i in held.indices) held[i] = first[i] + then[i]
+    }
 
     /** Adds what went to each of [activities] to [census] (tenths of a day). */
     fun count(census: MutableMap<TallyKey, Int>, vararg activities: Activity) {
@@ -43,4 +80,46 @@ class BandTime(left: Float) {
     fun count(census: MutableMap<TallyKey, Int>, what: Tally.TimeTotal, personDays: Float) {
         census.merge(Tally.bandTime(what), (personDays * 10f).roundToInt(), Int::plus)
     }
+
+    companion object {
+        /**
+         * The days each activity gets of [total] when they [asks] for them, weighed by [weights]: all it asks while the
+         * asks fit; else as if each day went where it is worth most, every activity's next day worth its weight less as
+         * much again for each share of its ask it has had (days = ask x (1 - lambda / weight), the same lambda for all, as
+         * many days as there are). At equal weights each gets the same share of its ask; the less weighed lose theirs first.
+         */
+        fun shareOut(asks: FloatArray, weights: FloatArray, total: Float): FloatArray {
+            val n = asks.size
+            if (asks.sum() <= total) return asks.copyOf()
+            fun given(lambda: Float) = FloatArray(n) { i -> if (weights[i] > 0f) max(0f, asks[i] * (1f - lambda / weights[i])) else 0f }
+            var lo = 0f; var hi = weights.max()
+            repeat(40) { val mid = 0.5f * (lo + hi); if (given(mid).sum() > total) lo = mid else hi = mid }
+            return given(hi)
+        }
+    }
 }
+
+/**
+ * A band's leisure, as a share of its hands' week: Agta foragers had about 30 hours of daylight leisure in a week's 84
+ * daylight hours (Dyble et al. 2019, 359 people in ten camps, sampled 6am to 6pm over two years).
+ */
+const val LEISURE_SHARE = 30f / 84f
+
+/** The share of the week Agta adults worked, out of camp and in it (24 and 20 hours of 84 daylight hours; Dyble et al. 2019). */
+const val WORK_USUAL = 44f / 84f
+
+/**
+ * Energy a day as a multiple of the basal: Hadza men 2.26, women 1.78 (Pontzer et al. 2012), about 2.0 together; and at
+ * rest sitting, 11% above the basal (ibid.).
+ */
+const val ACTIVE_PAL = 2.0f
+const val REST_PAL = 1.1f
+
+/**
+ * A band's food need against its usual, having worked [workShare] of its week: resting costs [REST_PAL] a day, and the
+ * rest of a forager's day's energy ([ACTIVE_PAL]) goes with the work, as much per hour of it, so that a band working as
+ * Agta adults did ([WORK_USUAL]) needs what it always did. An upper bound on what work costs and rest saves: leisure is
+ * not all sitting, and foragers' total energy use is much as sedentary people's (Pontzer et al. 2012), so the body
+ * likely makes up part of a harder week.
+ */
+fun workNeed(workShare: Float) = (REST_PAL + (ACTIVE_PAL - REST_PAL) * workShare / WORK_USUAL) / ACTIVE_PAL
