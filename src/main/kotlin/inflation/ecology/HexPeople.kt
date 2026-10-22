@@ -24,6 +24,7 @@ import inflation.world.Weather
 import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.sqrt
 import kotlin.math.sin
 
 // What makes bands of people more than a pack: skills learned in practice, tools made from what the
@@ -126,16 +127,23 @@ const val MOVE_HOURS = 6f
 internal fun weakShare(g: HexGroup) = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
 
 /**
- * Km [g]'s band covers in a day of moving camp: at the pace of its slowest, its walking children if it has any, held back
- * by its weak ([weakShare]) and by thick cover where it camps.
+ * Km [g]'s band covers in a day of moving camp: at the pace of its slowest, its adults under their loads ([carriedKg],
+ * [loadedKmh]) or its walking children if it has any, held back by its weak ([weakShare]) and by thick cover where it camps.
  */
-internal fun HexGroups.campKmADay(g: HexGroup) = WALK_KMH * MOVE_HOURS * (if (g.young > 0) CHILD_PACE else 1f) * (1f - WEAK_SLOW * weakShare(g)) /
-    (1f + COVER_GOING * land.plants.cover(g.place))
+internal fun HexGroups.campKmADay(g: HexGroup): Float {
+    val b = g.band
+    val adults = if (b != null) loadedKmh(g.species.massKg, carriedKg(g, b)) else WALK_KMH
+    return MOVE_HOURS * min(adults, if (g.young > 0) CHILD_PACE * WALK_KMH else adults) * (1f - WEAK_SLOW * weakShare(g)) /
+        (1f + COVER_GOING * land.plants.cover(g.place))
+}
 
-/** Days [g]'s band takes to move its camp [km], all its people walking: they are not at work. */
-internal fun HexGroups.moveDays(g: HexGroup, km: Float) = km / campKmADay(g)
+/** Days [g]'s band takes to move its camp [km], all its people walking (and its adults back for each load past the first): they are not at work. */
+internal fun HexGroups.moveDays(g: HexGroup, km: Float) = km * (2f * (g.band?.let { carryLoads(it) } ?: 1f) - 1f) / campKmADay(g)
 
-/** What an adult carries when the camp moves, besides children and gear, kg of food. */
+/**
+ * What an adult carries in a load when the camp moves, food and goods together, kg: !Kung women carried about 15 kg
+ * besides a child (Lee 1979, from memory: to check).
+ */
 const val CARRY_KG = 15f
 /** Most that settled life with stores raises births (birth spacing about 4 years to under 3). */
 const val SETTLED_FERTILITY = 0.4f
@@ -884,8 +892,28 @@ private fun leftBehindKg(g: HexGroup, b: Band): Float {
     return Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
 }
 
-/** What [g]'s band can carry, kg: its adults' loads, more with baskets and bags. */
+/** What [g]'s band can carry in one load, kg: its adults' loads, more with baskets and bags. */
 private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
+
+/**
+ * Loads each of [b]'s adults carries on a camp move: above one, they carry a load ahead, go back for the next and so on
+ * (relays), walking the way 2 x loads - 1 times. One for now: how many is a choice the people net is to make.
+ */
+@Suppress("UNUSED_PARAMETER")
+internal fun carryLoads(b: Band) = 1f
+
+/** What [g]'s band [b] carries a walker on a camp move, kg: its food first, then its goods, as far as its loads take them. */
+private fun carriedKg(g: HexGroup, b: Band) = min(g.larder + b.goods.sum(), carryKg(g, b) * carryLoads(b)) / (max(1, g.adults) * carryLoads(b))
+
+/**
+ * Walking pace of an adult carrying [loadKg], km/h: as fast as costs the same effort as walking unloaded ([WALK_KMH]),
+ * by Pandolf et al. (1977) on level ground, for a body of [massKg] (W): 1.5 W + 2 (W + L) (L / W)^2 + 1.5 (W + L) v^2.
+ */
+internal fun loadedKmh(massKg: Float, loadKg: Float): Float {
+    val v0 = WALK_KMH / 3.6f
+    val wl = massKg + loadKg
+    return 3.6f * sqrt(max(0f, (1.5f * massKg * v0 * v0 - 2f * wl * (loadKg / massKg) * (loadKg / massKg)) / (1.5f * wl)))
+}
 
 /**
  * [g]'s band at its camp in place [p] (hex [h]): moving camp caches what it cannot carry and leaves
@@ -923,6 +951,16 @@ private fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weath
                 if (abandoned > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(abandoned))
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
+            // Its goods take what room its loads have left after the food; the rest is left at the old camp, each kind
+            // alike (and goes back to the ground).
+            val goods = b.goods.sum()
+            val room = max(0f, carryKg(g, b) * carryLoads(b) - g.larder)
+            if (goods > room) {
+                val left = 1f - room / goods
+                var rots = 0f
+                for (m in Material.entries) { val x = b.goods[m] * left; b.goods[m] -= x; if (m in ROTS) rots += x }
+                if (rots > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(rots))
+            }
         }
         b.campWeeks = 0
     } else b.campWeeks++

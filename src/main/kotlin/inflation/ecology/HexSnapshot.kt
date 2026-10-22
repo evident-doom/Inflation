@@ -183,9 +183,12 @@ object HexSnapshot {
      * leisure it had for each of them ([VISIT_SHARE]).
      * 4.21: moving camp takes days: all a band's people walk, at its walking children's pace, held back by its weak
      * ([moveDays]); the walk comes off the week first, and a band weighing where to camp counts the days beyond its spare ones.
+     * 4.22: a camp move carries food and goods in one load a walker ([CARRY_KG]): food first, goods in what room is left, the
+     * rest of the goods left at the old camp; adults under their loads walk slower ([loadedKmh]); relays walk the way again
+     * for each load past the first ([carryLoads], one for now).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 21
+    const val MODEL_MINOR = 22
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
