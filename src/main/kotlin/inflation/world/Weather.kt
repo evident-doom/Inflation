@@ -130,6 +130,8 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     val events = ArrayList<ClimateEvent>()
 
     var date = Date(Date.START_DAY.toLong()); private set
+    /** Begins a world started afresh on [day] of the year ([inflation.Tuning.startDay]); a save loaded after carries its own date. */
+    fun begin(day: Int) { date = Date(day.toLong()); lastMonth = day / Date.DAYS_PER_MONTH }
     /** Month (0..11) of the step most recently simulated. */
     var lastMonth = Date.START_DAY / Date.DAYS_PER_MONTH; private set
     /** Mean air temperature over the last step, °C. */

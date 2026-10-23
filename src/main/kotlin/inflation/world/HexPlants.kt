@@ -23,8 +23,17 @@ import kotlin.math.min
 class HexPlants(land: HexLand) : HexLandPart(land) {
     /** Degree-days above 5 °C a place has in a normal year, and so far this year (from the winter solstice). */
     @Transient val annualGdd = FloatArray(n) { p -> (0 until 12).sumOf { m -> (max(0f, hw.placeTemp(Place(p), m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat() }
-    val gdd = FloatArray(n) { p ->
-        (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(Place(p), m) - 5f) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
+    val gdd = FloatArray(n) { p -> degreeDaysBefore(Place(p), 5f) }
+    /** Degree-days above [base] °C a place has had by the day the run starts on ([inflation.Tuning.startDay]), from the winter solstice, at its usual monthly warmth. */
+    private fun degreeDaysBefore(place: Place, base: Float): Float {
+        val start = tuning.startDay
+        var sum = 0.0
+        for (m in 0 until Date.MONTHS_PER_YEAR) {
+            val days = min(Date.DAYS_PER_MONTH, start - m * Date.DAYS_PER_MONTH)
+            if (days <= 0) break
+            sum += (max(0f, hw.placeTemp(place, m) - base) * days).toDouble()
+        }
+        return sum.toFloat()
     }
     val herb = FloatArray(n); val shrub = FloatArray(n); val tree = FloatArray(n)
     val moisture = FloatArray(n) { p -> (mean(p) { world.climate.aridity(it) } / 1.5f).coerceIn(0f, 1f) }
@@ -100,9 +109,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * once a year, on lengthening days, so a sward that sprouts after midsummer stays leafy; one that has begun to run
      * up ripens on. Grazing and fire keep a sward leafy: what is eaten or burnt grows back as new leaf.
      */
-    val grassAge = FloatArray(n) { p ->
-        (0 until Date.START_DAY / Date.DAYS_PER_MONTH).sumOf { m -> (max(0f, hw.placeTemp(Place(p), m)) * Date.DAYS_PER_MONTH).toDouble() }.toFloat()
-    }
+    val grassAge = FloatArray(n) { p -> degreeDaysBefore(Place(p), 0f) }
     /** How ripe the grass of place [p] is, 0..1: leafy at 0, gone to stem and seed at 1 (see [grassAge]). */
     fun maturity(p: Place) = ((grassAge[p] - LEAFY_DD) / (RIPE_DD - LEAFY_DD)).coerceIn(0f, 1f)
     /** How much of the forage in place [p] is fresh, leafy growth, 0..1: the green part of it, less as it ripens. */
