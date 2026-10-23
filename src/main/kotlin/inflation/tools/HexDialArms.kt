@@ -58,7 +58,7 @@ fun main(args: Array<String>) {
     require(stressTop in 0f..1f) { "dialArmStressTop is a share, 0..1" }
     val sim = opts.start()
     if (stressTop > 0f) sim.step() // (The bands' view of themselves is drawn at the start of a week.)
-    fun stress(g: inflation.ecology.HexGroup): Float { val s = g.band!!.state; return if (s.size <= BandInputs.COLD_ODDS) 0f else max(s[BandInputs.COLD_ODDS], 1f - s[BandInputs.FED]).coerceIn(0f, 1f) }
+    fun stress(g: inflation.ecology.HexGroup): Float { val s = g.band?.state ?: return 0f; return if (s.size <= BandInputs.COLD_ODDS) 0f else max(s[BandInputs.COLD_ODDS], 1f - s[BandInputs.FED]).coerceIn(0f, 1f) }
     val everyone = sim.groups.groups.filter { it.alive && it.species.human && it.band != null }
     val humans = if (stressTop > 0f) everyone.sortedByDescending { stress(it) }.take(max(1, (everyone.size * stressTop).toInt())).also { top ->
         println("%d of %d bands under the most stress taken: stress %.3f to %.3f (all bands: mean %.3f, max %.3f)".format(top.size, everyone.size,
