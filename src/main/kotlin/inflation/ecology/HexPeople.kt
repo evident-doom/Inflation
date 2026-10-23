@@ -250,6 +250,9 @@ class Band(kinds: Int) {
     var leanLost = 0f
     /** Of its people's sodium need last week, the share that neither meat, salted meat nor its salt met ([saltFeeds]): what it knows it lacks. */
     var sodiumShort = 0f
+    /** The nearest salt it knows of ([HexGroups.saltKnown]), hex or -1, as reckoned from hex [saltFrom] (-1: not yet). */
+    @Transient var saltAt = -1
+    @Transient var saltFrom = -1
     /**
      * Its perseverance, 0..1 ("sisu"): how far its people keep working when cold and hunger are against them ([Sisu]),
      * at the price of the heat debt and the food it costs. Its lineage's, a little changed at each split.

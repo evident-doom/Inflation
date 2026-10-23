@@ -218,9 +218,10 @@ object HexSnapshot {
      * 4.40: salt hunger: a band eats meat for its sodium first, salted meat counts, and a band short of sodium foresees the
      *   salt lack at places with no salt to be had ([Band.sodiumShort], [saltFeeds]); two band inputs for it; a band short of
      *   sodium is given salt to eat at meetings by one holding more than its own people's year of it ([SALT_BODY_YEAR]).
+     * 4.41: a band short of sodium heads for the nearest salt it knows of, pan or shore ([HexGroups.saltSources]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 40
+    const val MODEL_MINOR = 41
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

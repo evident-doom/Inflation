@@ -506,6 +506,26 @@ class HexGroups(
         }
     }
 
+    /**
+     * Where people get salt to eat: the salt pans and dry lake beds richest in it ([materialSources]) and the shore, where
+     * it dries out of sea spray and pools ([SEA_SALT_A_WEEK]), each one in a square of [SOURCE_KM] at most.
+     */
+    internal val saltSources: IntArray by lazy {
+        val shore = HashMap<Long, Int>()
+        for (h in 0 until hw.size) if (hw.coast[h]) {
+            val (x, y) = hex.centreKm(h); shore.putIfAbsent((x / SOURCE_KM).toLong() * 100_000 + (y / SOURCE_KM).toLong(), h)
+        }
+        (materialSources.getValue(Material.SALT).asList() + shore.values).distinct().sorted().toIntArray()
+    }
+    /** The nearest of the [saltSources] band [b] knows, from hex [here], or -1 if it knows none (kept on the band till it moves on). */
+    internal fun saltKnown(b: Band, here: Hex): Int {
+        if (b.saltFrom == here.i) return b.saltAt
+        var best = -1; var bestKm = Double.MAX_VALUE
+        for (h in saltSources) if (b.knows(h)) { val km = hexKm(here.i, h); if (km < bestKm) { bestKm = km; best = h } }
+        b.saltFrom = here.i; b.saltAt = best
+        return best
+    }
+
     /** Effort and hex packed in one number, ordered by effort (efforts are never negative). */
     private fun Long.withPlace(d: Float, h: Int): Long = (d.toRawBits().toLong() shl 32) or h.toLong()
 
@@ -590,7 +610,7 @@ class HexGroups(
      * appointment, its dead, its houses, raids and the homes of others, gatherings, and country it does not know.
      * (Kept apart from [planInner] so that the planner stays small enough for the JIT to compile.)
      */
-    private fun bandPull(g: HexGroup, b: Band, month: Int, h: Hex, here: Hex, p: Place, keepOff: IntArray?, sensed: IntArray): Float {
+    private fun bandPull(g: HexGroup, b: Band, month: Int, h: Hex, here: Hex, p: Place, keepOff: IntArray?, sensed: IntArray, reach: Float): Float {
         var score = 0f
         // Its appointment draws a band in its month (to the month with sky lore; within a month
         // either way, more weakly, without); its ancestors' places draw it a little always.
@@ -607,6 +627,15 @@ class HexGroups(
         if (!b.raidHex.none) {
             val from = hexKm(here, b.raidHex)
             if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f)
+        }
+        // A band short of sodium heads for the nearest salt it knows of: a week's walk towards it is worth what a week
+        // without it costs (the share of its food that does it no good, [saltFeeds]), as a hungry animal seeks a lick.
+        // (Not where it can get salt already: on the shore or a salt pan, as [saltFeedsAt] has it.)
+        if (b.sodiumShort > 0f && !hw.coast[here.i] && land.salt[g.place] <= 0f) {
+            val salt = saltKnown(b, here)
+            val from = if (salt >= 0) hexKm(here.i, salt) else 0.0
+            if (from > hex.hexKm)
+                score += (1f - saltFeeds(b.sodiumShort, 1f, tuning.saltLack)) * ((from - hexKm(h.i, salt)) / min(from, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
         }
         // A band with food enough to feast others is drawn to where other bands are (gatherings).
         if (peopleSlot >= 0 && b.holds(Tradition.FEASTS))
@@ -1237,7 +1266,7 @@ class HexGroups(
         if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
         // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
         if (s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(peopleSlot, p, h, sensed) / 25f)
-        g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed) }
+        g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed, reach) }
         // A hungry pack gives up ground it has hunted out lately and looks further afield.
         if (g.fed < Thresholds.HUNGRY && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
         return score
