@@ -175,9 +175,12 @@ object Tally {
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt
-     * of a day beyond the bearable, Wh/m², the night's air, °C, its clothes, clo, its fire and its shelter or house, all tenths.
+     * of a day beyond the bearable, Wh/m², the night's air, °C, its clothes, clo, its fire and its shelter or house; whether it
+     * came to a new camp that week, the shelter it aims at ([Band.shelterWill]) and the share of its people's days left spare
+     * ([Band.spareDays]), all tenths.
      */
-    enum class Cold(val label: String) { WEEKS("weeks"), SHORT("debt"), AIR("night air"), CLOTHES("clothes"), FIRE("fire"), SHELTER("shelter") }
+    enum class Cold(val label: String) { WEEKS("weeks"), SHORT("debt"), AIR("night air"), CLOTHES("clothes"), FIRE("fire"), SHELTER("shelter"),
+        MOVED("new camp"), AIM("shelter aim"), SPARE("days spare") }
     /** Bands' tallies by the kind of country they are in. */
     fun bandsIn(country: Biome, what: Bands) = bandsIn(country, what.label)
     fun bandsIn(country: Biome, cold: Cold) = bandsIn(country, "cold ${cold.label}")

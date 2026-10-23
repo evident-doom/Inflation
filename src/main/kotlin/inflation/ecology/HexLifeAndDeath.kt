@@ -356,6 +356,8 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
                 fun add(k: Tally.Cold, v: Float) { stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus) }
                 add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, w.debt); add(Tally.Cold.AIR, air.nightC)
                 add(Tally.Cold.CLOTHES, b.clothesClo()); add(Tally.Cold.FIRE, b.fire); add(Tally.Cold.SHELTER, max(b.shelter, b.homeShelter()))
+                add(Tally.Cold.MOVED, if (b.campWeeks == 0) 1f else 0f); add(Tally.Cold.AIM, b.shelterWill)
+                add(Tally.Cold.SPARE, b.spareDays / max(1f, g.adults * days.toFloat()))
             }
         }
     }
