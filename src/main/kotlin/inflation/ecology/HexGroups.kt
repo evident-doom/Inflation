@@ -39,6 +39,7 @@ import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.sin
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
@@ -1294,6 +1295,9 @@ class HexGroups(
             val venom = venomOdds(s, p, weather)
             val stalked = stalkRate(g, b, p, residentManEaters(p) + (if (h in c.sensed) manEaterKm2[h.i] else 0f))
             adult += venom + stalked; young += venom + YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked
+            // The cold of the weeks it would keep its camp there after this one: it foresees the winter coming ([coldAhead]).
+            val ahead = coldAhead(g, b, p, weather)
+            adult += ahead; young += 1.5f * ahead
             dialUse?.amount(DialSite.CHILDREN_PLAN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked, cut = b.childWatch < 0.25f)
             // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough
             // where people crowd), and the fouling of a camp kept on: weeks camped there go on if it stays, else start afresh.
@@ -1420,6 +1424,26 @@ class HexGroups(
         if (people <= 0f) return 0f
         val left = max(0f, b.spareDays - moveDays(g, km) * forageHands(g))
         return min(b.shelterWill, left / shelterDays(b, people))
+    }
+
+    /**
+     * The share of band [b]'s (group [g]'s) people the cold would kill at place [p] in the weeks it would keep its camp
+     * there after this one ([Band.stayWeeks]): each week at the place's usual temperature for its month (the wind and
+     * the wet as this week's there, as [foreseenSurvival] has them), its fire and house as there ([fireAt], [houseAt]) and
+     * the shelters it aims at up by then. (The weeks it would stay are its own; where it moves on sooner, it foresees too far.)
+     */
+    internal fun coldAhead(g: HexGroup, b: Band, p: Place, weather: Weather): Float {
+        val weeks = b.stayWeeks.roundToInt() - 1
+        if (weeks <= 0) return 0f
+        val fire = fireAt(g, b, p); val home = houseAt(g, p)
+        val shelter = max(b.shelterWill, if (p == g.place) b.shelter else 0f)
+        var dying = 0f; var month = -1; var odds = 0f
+        for (k in 1..weeks) {
+            val m = weather.date.plusDays(k * days).month
+            if (m != month) { month = m; odds = b.warmth(airAt(p, weather, weather.usualTemperature(m, p)), fire, home, days, shelter).odds }
+            dying += odds
+        }
+        return dying
     }
 
     /** How far [g] camped at place [p] would be sheltered by houses there it may use (0 for none worth the name). */
