@@ -201,7 +201,7 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
  * wants this week, [storeDays] more to lay by what it aims to keep. The walk, when it moved camp ([moveDays]), and digging
  * soaks for water, where that is the only water, come off first. Then what it needs to live through the week (food for the
- * week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores and its chores),
+ * week, the hearth's firewood, shelter at a new camp); then the rest of what each activity asks for ([choreAsks]: the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
  * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood in the days the plan gives it.
  */
@@ -219,6 +219,9 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     val asks = FloatArray(Activity.entries.size)
     asks[Activity.FOOD.ordinal] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks)
+    // (Shelter at a new camp is put up first, with the food and the hearth: a night in the open in the cold kills, and a
+    // brush hut takes an hour or so a head, [SHELTER_DAYS]. How much of one it puts up stays its own way, [Band.shelterWill].)
+    needs[Activity.SHELTER.ordinal] = asks[Activity.SHELTER.ordinal]; asks[Activity.SHELTER.ordinal] = 0f
     // (The band weighs the asks against each other by its ways: see [timeWay].)
     time.plan(needs, asks, FloatArray(asks.size) { i -> timeWay(Activity.entries[i])?.let { b.will[it] } ?: 1f })
     b.binding?.let { bind ->
