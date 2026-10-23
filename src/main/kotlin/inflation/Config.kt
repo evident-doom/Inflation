@@ -41,6 +41,7 @@ object Config {
         DIAL_ARM_VALUES("dialArmValues"),
         DIAL_ARM_GROUPS("dialArmGroups"),
         DIAL_ARM_STRESS_TOP("dialArmStressTop"),
+        DIAL_ARM_LEAD_WEEKS("dialArmLeadWeeks"),
         PPO_HIDDEN("ppo.hidden"),
         PPO_RATE("ppo.rate"),
         PPO_RESIDUAL("ppo.residual"),

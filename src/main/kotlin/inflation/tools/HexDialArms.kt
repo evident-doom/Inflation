@@ -27,7 +27,8 @@ import kotlin.random.Random
  * Config keys: dialArmSize (default 100, bands in each arm; fewer if the world has too few bands for them), dialArmWeeks (default 26, the weeks
  * the ways are held and the return covers), dialArmWays (default all; the numbers of the ways, from 0 in the order of the network's outputs,
  * comma-separated), dialArmValues (default 0.5,1.5; multiples of the scaffold's, between 0 and 2), dialArmGroups (default false; true: an arm for each group of ways, each band scrambling the group's ways between the values at random),
- * dialArmStressTop (default 0; a share of the bands, those under the most stress after a first week, from which the arms are dealt, to see whether the ways matter more to them than to all).
+ * dialArmStressTop (default 0; a share of the bands, those under the most stress after a first week, from which the arms are dealt, to see whether the ways matter more to them than to all),
+ * dialArmLeadWeeks (default 0; weeks the world runs on, as the config sets it, before the arms are dealt: to start them in another season).
  *
  * Usage: hex-dial-arms [--world NAME] [--replicate R] [--seed N] [--width KM] [--height KM] [--load FILE]
  */
@@ -56,7 +57,10 @@ fun main(args: Array<String>) {
 
     val stressTop = Config.float(Config.Key.DIAL_ARM_STRESS_TOP, 0f)
     require(stressTop in 0f..1f) { "dialArmStressTop is a share, 0..1" }
+    val lead = Config.int(Config.Key.DIAL_ARM_LEAD_WEEKS, 0)
+    require(lead >= 0) { "dialArmLeadWeeks is 0 or more" }
     val sim = opts.start()
+    repeat(lead) { sim.step() }
     if (stressTop > 0f) sim.step() // (The bands' view of themselves is drawn at the start of a week.)
     fun stress(g: inflation.ecology.HexGroup): Float { val s = g.band?.state ?: return 0f; return if (s.size <= BandInputs.COLD_ODDS) 0f else max(s[BandInputs.COLD_ODDS], 1f - s[BandInputs.FED]).coerceIn(0f, 1f) }
     val everyone = sim.groups.groups.filter { it.alive && it.species.human && it.band != null }
