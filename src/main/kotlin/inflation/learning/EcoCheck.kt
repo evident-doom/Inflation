@@ -60,7 +60,9 @@ class EcoCheck(private val out: File) {
             for ((r, src) in from) copyRoles(src, armDir, listOf(r))
             // The training's own config (its model keys judge the networks as they were trained), with this arm's networks.
             val cfg = File(armDir, "check.properties")
-            val keys = configWith(mapOf(Config.Key.NETS to armDir.absoluteFile.invariantSeparatorsPath, WaysKind.BANDS.configKey to File(armDir, WaysKind.BANDS.file).absoluteFile.invariantSeparatorsPath) +
+            // (The checks meet the usual weather even when the training's worlds are given extra hard years, so that arms trained either way are judged alike.)
+            val keys = configWith(mapOf(Config.Key.WEATHER_STRESS_YEARS to "0", Config.Key.PPO_STRESS_BOOST to "0",
+                Config.Key.NETS to armDir.absoluteFile.invariantSeparatorsPath, WaysKind.BANDS.configKey to File(armDir, WaysKind.BANDS.file).absoluteFile.invariantSeparatorsPath) +
                 // (A hunters' ways network, if the training has one, is the arm's too, not the training config's.)
                 if (File(armDir, WaysKind.HUNTERS.file).exists()) mapOf(WaysKind.HUNTERS.configKey to File(armDir, WaysKind.HUNTERS.file).absoluteFile.invariantSeparatorsPath) else emptyMap())
             cfg.writer().use { keys.store(it, "check arm $name, written by the training's ecosystem check") }
