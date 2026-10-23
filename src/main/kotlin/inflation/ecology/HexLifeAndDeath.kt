@@ -340,6 +340,11 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SODIUM_SHORT), (100f * b.sodiumShort).roundToInt(), Int::plus)
             val saltHere = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_HERE), (100f * saltHere).roundToInt(), Int::plus)
+            val salt = saltKnown(b, Hex(hw.placeHex[g.place]))
+            if (salt >= 0) {
+                stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_KNOWN), 1, Int::plus)
+                stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_KM), hexKm(hw.placeHex[g.place], salt).roundToInt(), Int::plus)
+            }
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsFedDied(fed, cause), k, Int::plus)
         }
         // And, in the weeks the cold ran its people into heat debt through all the cover the band had, what it was and had.

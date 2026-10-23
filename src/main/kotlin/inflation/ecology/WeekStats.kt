@@ -170,6 +170,8 @@ object Tally {
         LARDER_MEAT("larder meat days, 1/10"), LEAN_LOST("lean lost, %"),
         /** Its salt: held, g a person; the share of its sodium need unmet last week, %; and salt to be had where it stands, %. */
         SALT_HELD("salt held, g a person"), SODIUM_SHORT("sodium short, %"), SALT_HERE("salt here, %"),
+        /** The band-weeks it knew of a place to get salt ([HexGroups.saltSources]), and how far the nearest was then, km summed. */
+        SALT_KNOWN("knows salt, band-weeks"), SALT_KM("nearest known salt, km"),
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt
