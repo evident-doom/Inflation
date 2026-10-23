@@ -248,6 +248,8 @@ class Band(kinds: Int) {
     var salted = 0f
     /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
     var leanLost = 0f
+    /** Of its people's sodium need last week, the share that neither meat, salted meat nor its salt met ([saltFeeds]): what it knows it lacks. */
+    var sodiumShort = 0f
     /**
      * Its perseverance, 0..1 ("sisu"): how far its people keep working when cold and hunger are against them ([Sisu]),
      * at the price of the heat debt and the food it costs. Its lineage's, a little changed at each split.
@@ -1842,6 +1844,9 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[x.COLD_FOOD] = min(1f, cold.extra); into[x.COLD_ODDS] = min(1f, 10f * cold.odds)
     into[x.WIND] = min(1f, air.windMs / 10f); into[x.WET] = air.wet
     into[x.FIRE_SHARE] = b.fire; into[x.HOME_SHELTER] = b.homeShelter()
+    // Its salt: the share of its people's sodium it lacked last week, and the salt to be had where it stands (a pan, the shore).
+    into[x.SODIUM_SHORT] = b.sodiumShort
+    into[x.SALT_HERE] = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
 }
 
 /** The beasts of prey a band tells apart: those that take people ([Species.takesPeople], from the catalogue) and those that do not. */
@@ -2141,8 +2146,16 @@ const val TANNED_WEAR = 0.5f
 const val SODIUM_A_PERSON_DAY = 23e-6f
 /** Sodium in a kg of meat or fish, kg: raw deer 51 mg/100 g (USDA SR "game meat, deer, raw"), freshwater fish about 50. */
 const val SODIUM_PER_KG_MEAT = 0.51e-3f
+/**
+ * The share of the food eaten that does a band's people good, [short] of the sodium they [need] (kg each, or both as shares):
+ * wholly without it, [lack] less ([inflation.Tuning.saltLack]). The one rule for the week's meal and for what a band foresees
+ * of a place ([HexGroups.saltFeedsAt]).
+ */
+internal fun saltFeeds(short: Float, need: Float, lack: Float) = if (need > 0f) 1f - lack * (short / need).coerceIn(0f, 1f) else 1f
 /** Sodium's share of salt by weight (Na in NaCl). */
 const val SALT_SODIUM = 0.393f
+/** Salt that holds a person's year of sodium ([SODIUM_A_PERSON_DAY]), kg: some 21 g. */
+const val SALT_BODY_YEAR = SODIUM_A_PERSON_DAY * Date.DAYS_PER_YEAR / SALT_SODIUM
 /** Salt to cure a kilo of meat or fish, kg (how much less salted meat and fish spoil: [inflation.Tuning.saltKeep]). */
 const val SALT_PER_KG = 0.1f
 

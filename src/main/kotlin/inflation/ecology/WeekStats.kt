@@ -164,6 +164,12 @@ object Tally {
         SISU("perseverance, 1/1000"),
         /** The hearth fire fed by the firewood got, and the days spent fetching it, % summed over band-weeks. */
         HEARTH("hearth, %"), FUEL_DAYS("fuel days, %"),
+        /** The larder and the fat a band held at the week's end, days of its food, tenths summed over band-weeks. */
+        LARDER("larder days, 1/10"), FAT("fat days, 1/10"),
+        /** Of the larder, the meat (fresh and dried), days of food, tenths; and the share of the protein eaten that went to waste ([Band.leanLost]), %. */
+        LARDER_MEAT("larder meat days, 1/10"), LEAN_LOST("lean lost, %"),
+        /** Its salt: held, g a person; the share of its sodium need unmet last week, %; and salt to be had where it stands, %. */
+        SALT_HELD("salt held, g a person"), SODIUM_SHORT("sodium short, %"), SALT_HERE("salt here, %"),
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt
@@ -191,6 +197,16 @@ object Tally {
     /** Bands' deaths of [cause] by how they are clad; [bandsCladDied] (clad) starts all of them. */
     fun bandsCladDied(clad: Clad, cause: DeathReason) = TallyKey.raw(bandsCladDied(clad).text + cause.label)
     fun bandsCladDied(clad: Clad) = TallyKey.raw("bands ${clad.label}:$DIED_OF")
+    /** How well a band was fed through the week, its fat drawn on ([HexGroup.fed]): the first bin it falls [below]. */
+    enum class Fed(val label: String, val below: Float) {
+        STARVING("under half", 0.5f), SHORT("half to 0.9", 0.9f), FED("0.9 and over", Float.POSITIVE_INFINITY);
+        companion object { fun of(fed: Float) = entries.firstOrNull { fed < it.below } ?: FED }
+    }
+    /** Bands' tallies by how well they were fed. */
+    fun bandsFed(fed: Fed, what: Bands) = TallyKey.raw("bands fed ${fed.label}:${what.label}")
+    /** Bands' deaths of [cause] by how well they were fed; [bandsFedDied] (fed) starts all of them. */
+    fun bandsFedDied(fed: Fed, cause: DeathReason) = TallyKey.raw(bandsFedDied(fed).text + cause.label)
+    fun bandsFedDied(fed: Fed) = TallyKey.raw("bands fed ${fed.label}:$DIED_OF")
     /** The cause of a death in a [bandsDied] or [bandsCladDied] key. */
     fun diedOf(key: TallyKey) = key.text.substringAfter(DIED_OF)
     private const val DIED_OF = "died of "
