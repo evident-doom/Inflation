@@ -96,7 +96,10 @@ class SchemaTest {
             HexFeatures.SNOW_AHEAD to "snow ahead",
             HexFeatures.STRONGER_HUNTER to "stronger hunter",
             HexFeatures.REMEMBERED_LACKED to "remembered lacked",
-            HexFeatures.TOWARD_LACKED to "toward lacked"
+            HexFeatures.TOWARD_LACKED to "toward lacked",
+            HexFeatures.USUAL_AHEAD to "usual temperature, month 1 ahead",
+            HexFeatures.USUAL_AHEAD + 1 to "usual temperature, month 2 ahead",
+            HexFeatures.USUAL_AHEAD + 2 to "usual temperature, month 3 ahead"
         )
         assertEquals(HexFeatures.SIZE, named.size)
         for ((slot, name) in named) assertEquals(name, Schema.PLACE[slot], "feature slot $slot")

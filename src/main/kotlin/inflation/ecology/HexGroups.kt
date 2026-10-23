@@ -846,6 +846,9 @@ class HexGroups(
         // What the place offers it, as the baseline weighs it: game, and for bands plant food and a safe camp.
         f[Feature.FOOD] = prey / (prey + PREY_HALF)
         f[Feature.CLIMATE] = t.suitsLn / 2f
+        // (What the coming months are usually like there.)
+        for (k in 0 until Feature.LORE_MONTHS)
+            f[Feature.USUAL_AHEAD + k] = weather.usualTemperature((month + k + 1) % Date.MONTHS_PER_YEAR, p) / 20f
         f[Feature.CROWDING] = crowded
         f[Feature.HUNTERS] = hunters / (hunters + 3f)
         f[Feature.DISCOMFORT] = min(2f, t.discomfort + t.drain)
