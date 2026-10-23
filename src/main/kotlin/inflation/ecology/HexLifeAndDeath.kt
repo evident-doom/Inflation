@@ -298,8 +298,8 @@ internal fun adultsDied(g: HexGroup, n: Int, r: Random) {
 internal class Outcome(val carrionKg: Float, val births: Int, val deaths: Int, val causes: List<Died>, val orphans: Int,
     val split: Split?, val youngDied: Int = 0, val leavers: Int = 0)
 
-/** [n] of a group died of [cause] this week. */
-internal data class Died(val cause: DeathReason, val n: Int)
+/** [n] of a group died of [cause] this week, of its young if [young], else of its grown. */
+internal data class Died(val cause: DeathReason, val n: Int, val young: Boolean = false)
 
 /** Whether this is a death to a beast of prey that stalked the band. */
 private fun DeathReason.isTakenBy() = this is ByBeast && how == ByBeast.How.TAKEN_BY
@@ -318,6 +318,8 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause.label}" }.ifEmpty { "none" }) }
     for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
     fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
+    // People's deaths by age apart, for the history: the young (children) and the grown (the elders too).
+    if (s.human) for (d in o.causes) if (d.n > 0) (if (d.young) stats.youngDeaths else stats.adultDeaths).merge(Tally.of(s, d.cause), d.n, Int::plus)
     if (s.human) {
         val c = Biome.entries[biomeOfPlace[g.place]]
         for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsDied(c, cause), k, Int::plus)
@@ -362,6 +364,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
         }
     }
     if (o.orphans > 0) stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), o.orphans, Int::plus)
+    if (s.human && o.orphans > 0) stats.youngDeaths.merge(Tally.of(s, DeathCause.ORPHANED), o.orphans, Int::plus)
     // Children's deaths apart, for the life tables.
     if (s.human && o.youngDied > 0) stats.hunting.merge(Tally.of(s, Tally.OfKind.CHILDREN_DIED), o.youngDied, Int::plus)
 }
@@ -698,20 +701,22 @@ internal fun HexGroups.venomOdds(s: Species, p: Place, weather: Weather) = if (s
 
 /** The week's deaths, [adults] and [young], shared among the [hazards] by how much each weighed for them (drawn from [r]); what is left over is "other". */
 private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int, r: Random): ArrayList<Died> {
-    val died = LinkedHashMap<DeathReason, Int>()
+    val died = ArrayList<Died>()
     for ((n, ofYoung) in listOf(adults to false, young to true)) {
+        val of = LinkedHashMap<DeathReason, Int>()
         var left = n; var weight = 0f
         for (h in hazards) weight += if (ofYoung) h.young else h.adult
         for (h in hazards) {
             if (left <= 0 || weight <= 0f) break
             val w = if (ofYoung) h.young else h.adult
             val k = if (w >= weight) left else binomial(left, w / weight, r)
-            if (k > 0) died.merge(h.cause, k, Int::plus)
+            if (k > 0) of.merge(h.cause, k, Int::plus)
             left -= k; weight -= w
         }
-        if (left > 0) died.merge(DeathCause.OTHER, left, Int::plus)
+        if (left > 0) of.merge(DeathCause.OTHER, left, Int::plus)
+        of.entries.mapTo(died) { Died(it.key, it.value, ofYoung) }
     }
-    return died.entries.mapTo(ArrayList()) { Died(it.key, it.value) }
+    return died
 }
 
 /**

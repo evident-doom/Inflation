@@ -14,7 +14,7 @@ import java.io.File
  * - "biomass": thousand tonnes in each stock of matter the books keep ([HexSim.stocks]), and in the wider pools
  *   they make up (plants, small animals, resident animals, packs and bands); and the fish;
  * - "small life" and "water life": the fields of each, in tonnes or head counts;
- * - "deaths/<kind>": deaths of that kind in the week by cause; "births": young born to residents, packs
+ * - "deaths/<kind>": deaths of that kind in the week by cause (and for people, "adult deaths/" and "young deaths/" apart); "births": young born to residents, packs
  *   and bands; "kills": animals killed by hunters, by prey kind;
  * - "weather": mean temperature, rain, snow lying, droughts under way;
  * - "biome/<biome>": for each kind of country, plants per km² and the head count of each kind.
@@ -34,6 +34,8 @@ class HexHistory {
         private const val BIOMASS = "biomass/"
         private const val FED = "fed/"
         private const val DEATHS = "deaths/"
+        private const val ADULT_DEATHS = "adult deaths/"
+        private const val YOUNG_DEATHS = "young deaths/"
         private const val BIRTHS = "births/"
         private const val KILLS = "kills/"
         private const val FISH_FLOWS = "fish flows/"
@@ -70,6 +72,9 @@ class HexHistory {
         /** The kind a [deaths] key is about, or null for any other key. */
         fun deathsKind(key: String) = if (key.startsWith(DEATHS)) key.split('/')[1] else null
         fun isDeaths(key: String) = key.startsWith(DEATHS)
+        /** Deaths of [kind] of [cause] in the week among its grown (elders too), and among its young: people's, apart. */
+        fun adultDeaths(kind: String, cause: String) = "$ADULT_DEATHS$kind/$cause"
+        fun youngDeaths(kind: String, cause: String) = "$YOUNG_DEATHS$kind/$cause"
         /** Young of [kind] born in the week. */
         fun births(kind: String) = BIRTHS + kind
         /** Animals of [kind] killed by hunters in the week. */
@@ -97,7 +102,7 @@ class HexHistory {
         /** What a [hunters] key measures, or null for any other key. */
         fun huntersOf(key: String) = if (key.startsWith(HUNTERS)) Hunters.entries.firstOrNull { key.endsWith("/" + it.label) } else null
         /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
-        fun isFlow(key: String) = isDeaths(key) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN ||
+        fun isFlow(key: String) = isDeaths(key) || key.startsWith(ADULT_DEATHS) || key.startsWith(YOUNG_DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN ||
             huntersOf(key) == Hunters.KILLS
     }
 
@@ -216,6 +221,8 @@ class HexHistory {
         for ((key, v) in fauna.deaths) deaths.merge(key, v, Double::plus)
         for ((key, v) in groups.stats.deaths) deaths.merge(key, v.toDouble(), Double::plus)
         for ((key, v) in deaths) put(Key.deaths(Tally.kindOf(key), Tally.whatOf(key)), v.toFloat())
+        for ((key, v) in groups.stats.adultDeaths) put(Key.adultDeaths(Tally.kindOf(key), Tally.whatOf(key)), v.toFloat())
+        for ((key, v) in groups.stats.youngDeaths) put(Key.youngDeaths(Tally.kindOf(key), Tally.whatOf(key)), v.toFloat())
         for ((s, v) in groups.stats.kills) put(Key.deaths(s.name, Tally.HUNTED), v.toFloat())
         for ((key, v) in groups.stats.hunting) HuntStep.series(key)?.let { put(it, v / 100f) }
         val births = HashMap<String, Double>()
