@@ -212,9 +212,11 @@ object HexSnapshot {
      * above).
      * 4.34: hunting, tracking and stalking are learned (and forgotten) at about a ninth of the old rate ([HUNTING_PRACTICE]).
      * 4.35: fishing is learned as quickly as snaring and gathering ([Skill.complexity] 0.5, was 1.5).
+     * 4.36: misery costs work: people break off work in the cold to warm up, and hunger past their fat saps them, as far as
+     *   their band's perseverance ([Band.sisu], [Sisu]) does not keep them at it; perseverance carries the heat debt instead.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 35
+    const val MODEL_MINOR = 36
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

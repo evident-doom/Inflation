@@ -12,10 +12,11 @@ import kotlin.math.roundToInt
  * and weeding, fetching materials as collecting wood, crafts, skins and the customs' cleaning and nursing as domestic chores;
  * moving camp as gathering, its walking costed apart ([walkCost]). These pairings are estimates.
  */
-enum class Activity(val label: String, val par: Float) {
-    FIREWOOD("firewood", 4.4f), FOOD("food", 4.1f), DRYING("drying", 2.3f), SKINS("skins", 2.3f), SHELTER("shelter", 4.1f), CUSTOMS("customs", 2.3f),
-    TRAINING("training", 2.3f), TOOLS("tools", 2.3f), HOUSES("houses", 4.1f), ORNAMENTS("ornaments", 2.3f), SOWING("sowing", 4.1f), PALISADE("palisade", 4.1f),
-    MATERIALS("materials", 4.4f), CACHING("caching", 4.1f), MOVING("moving", 4.1f), LEISURE("leisure", 1.45f);
+enum class Activity(val label: String, val par: Float, val where: Workplace) {
+    FIREWOOD("firewood", 4.4f, Workplace.OUT), FOOD("food", 4.1f, Workplace.OUT), DRYING("drying", 2.3f, Workplace.CAMP), SKINS("skins", 2.3f, Workplace.CAMP),
+    SHELTER("shelter", 4.1f, Workplace.OUT), CUSTOMS("customs", 2.3f, Workplace.CAMP), TRAINING("training", 2.3f, Workplace.CAMP), TOOLS("tools", 2.3f, Workplace.CAMP),
+    HOUSES("houses", 4.1f, Workplace.OUT), ORNAMENTS("ornaments", 2.3f, Workplace.CAMP), SOWING("sowing", 4.1f, Workplace.OUT), PALISADE("palisade", 4.1f, Workplace.OUT),
+    MATERIALS("materials", 4.4f, Workplace.OUT), CACHING("caching", 4.1f, Workplace.OUT), MOVING("moving", 4.1f, Workplace.OUT), LEISURE("leisure", 1.45f, Workplace.NONE);
 
     /**
      * The share of a grown person's daily need ([Species.dailyIntakeKg], taken as a day of foraging's) a day of this saves
@@ -33,13 +34,20 @@ enum class Activity(val label: String, val par: Float) {
 }
 
 /**
+ * Where an [Activity] is done: out in the weather ([OUT]: foraging, fetching, building, walking), at camp by the fire or,
+ * at home, in the houses ([CAMP]: crafts, drying, the customs), or it is no work ([NONE]). The cold and hunger slow work
+ * at each as [Band.paceAt] has it.
+ */
+enum class Workplace { OUT, CAMP, NONE }
+
+/**
  * A band's time through its week, person-days. At the start of the week each activity asks for the days it wants
  * ([plan]), and when the asks come to more than the week the days are shared out among them ([shareOut]): what is held
  * for an activity is kept from the others till it has had its turn. The chores then take from what is theirs and from
  * what nobody asked for ([leftFor]), in turn, each as far as it goes; what one did not use is free for those after it
  * ([release]). What each took is kept for the census of band time.
  */
-class BandTime(left: Float) {
+class BandTime(left: Float, private val pace: FloatArray? = null) {
     /** Person-days in all, as it began. */
     val total = left
     /** Person-days still unspent, held or not. */
@@ -57,11 +65,24 @@ class BandTime(left: Float) {
     /** Person-days held for no activity: the week's rest, as planned. */
     val unheld get() = max(0f, left - held.sum())
 
-    /** Person-days [a] may take now: what is held for it, and what is held for no one. */
-    fun leftFor(a: Activity) = max(0f, left - held.sum() + held[a.ordinal])
+    /** How much of a person-day spent at [a] is work this week, the rest lost to the cold and hunger ([Band.paceAt]; 1 when not given). */
+    fun pace(a: Activity) = pace?.get(a.ordinal)?.coerceAtLeast(PACE_LEAST) ?: 1f
 
-    /** Takes [personDays] for [a]: from what is held for it first. */
-    fun spend(a: Activity, personDays: Float) { spent[a.ordinal] += personDays; left -= personDays; held[a.ordinal] = max(0f, held[a.ordinal] - personDays) }
+    /** Person-days lost to the cold and hunger in what was spent so far (see [pace]). */
+    var lost = 0f
+        private set
+
+    /**
+     * Person-days of work [a] may do now: what is held for it, and what is held for no one, at its [pace]. (What each
+     * activity asks, plans and spends is days of work; what the week holds and has left is its people's days.)
+     */
+    fun leftFor(a: Activity) = max(0f, left - held.sum() + held[a.ordinal]) * pace(a)
+
+    /** Takes [personDays] of work for [a]: from what is held for it first. */
+    fun spend(a: Activity, personDays: Float) {
+        val days = personDays / pace(a)
+        spent[a.ordinal] += days; left -= days; lost += days - personDays; held[a.ordinal] = max(0f, held[a.ordinal] - days)
+    }
 
     /** Takes [personDays] for [a], but never more than it may take ([leftFor]). */
     fun spendAtMost(a: Activity, personDays: Float) = spend(a, min(personDays, leftFor(a)))
@@ -75,7 +96,7 @@ class BandTime(left: Float) {
     /** Sets what is left to no less than none. */
     fun noneBelowZero() { left = max(0f, left) }
 
-    /** Person-days that went to [a] so far. */
+    /** Person-days that went to [a] so far, the time lost to the cold and hunger in it included. */
     fun spentOn(a: Activity) = spent[a.ordinal]
 
     /**
@@ -83,8 +104,11 @@ class BandTime(left: Float) {
      * food for the week's want, the hearth's firewood), then of the rest its share ([shareOut]) of what else it [asks],
      * weighed by [weights] (1 each by default).
      */
-    fun plan(needs: FloatArray, asks: FloatArray, weights: FloatArray? = null) {
-        for (i in asked.indices) asked[i] = needs[i] + asks[i]
+    fun plan(needs0: FloatArray, asks0: FloatArray, weights: FloatArray? = null) {
+        for (i in asked.indices) asked[i] = needs0[i] + asks0[i]
+        // (Days of work asked, as people's days at each activity's pace.)
+        val needs = FloatArray(needs0.size) { needs0[it] / pace(Activity.entries[it]) }
+        val asks = FloatArray(asks0.size) { asks0[it] / pace(Activity.entries[it]) }
         val ones = FloatArray(needs.size) { 1f }
         val first = shareOut(needs, ones, max(0f, left))
         short = asks.sum() > max(0f, left - first.sum())
@@ -93,7 +117,7 @@ class BandTime(left: Float) {
         for (i in held.indices) { held[i] = first[i] + then[i]; if (weights == null) heldAtOne[i] = held[i] }
     }
 
-    /** Person-days the [plan] held for [a], and would have held were every weight 1 (for counting the weights' use, [DialUse]). */
+    /** People's days the [plan] held for [a], and would have held were every weight 1 (for counting the weights' use, [DialUse]). */
     fun heldFor(a: Activity) = held[a.ordinal]
     fun heldAtOneFor(a: Activity) = heldAtOne[a.ordinal]
 
@@ -111,6 +135,9 @@ class BandTime(left: Float) {
     }
 
     companion object {
+        /** The least pace reckoned with, so that work that cannot go on asks no end of days (a guard against dividing by none). */
+        const val PACE_LEAST = 0.01f
+
         /**
          * The days each activity gets of [total] when they [asks] for them, weighed by [weights]: all it asks while the
          * asks fit; else as if each day went where it is worth most, every activity's next day worth its weight less as

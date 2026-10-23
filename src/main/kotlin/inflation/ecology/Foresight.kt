@@ -33,7 +33,7 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
         val w = b.warmth(airAt(p, weather, t), b.fire, home, days)
         // (The food it got then, against what keeping warm will take, as [warmthNeed] has it: more food to keep warm is less
         // of the need met.)
-        var fed = b.monthSupply[m] / ((1f + tuning.coldCost * w.extra) * (1f + RAW_COST * (1f - b.fire)))
+        var fed = b.monthSupply[m] / warmthNeed(w, b.fire)
         val paid = min(max(0f, 1f - fed) * days, larder); larder -= paid; fed += paid / days
         val onFat = Hazards.onFat(fed, fat, days); fat = max(0f, fat - (onFat - fed) * days)
         val hunger = Hazards.hunger(s, spent, onFat, days); spent = Hazards.spentAfter(s, spent, onFat, days)
@@ -60,6 +60,9 @@ internal fun HexGroups.foresee(weather: Weather) {
         }
     }
     // (Tallied by the kind of country, against the deaths that come: in order, off the cores.)
-    for (g in groups) if (g.band != null && g.alive)
-        stats.hunting.merge(Tally.bandsIn(Biome.entries[biomeOfPlace[g.place]], Tally.Bands.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
+    for (g in groups) { val b = g.band ?: continue; if (!g.alive) continue
+        val c = Biome.entries[biomeOfPlace[g.place]]
+        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.SISU), (1000f * b.sisu * g.size).roundToInt(), Int::plus)
+    }
 }

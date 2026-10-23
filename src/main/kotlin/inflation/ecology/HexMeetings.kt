@@ -188,8 +188,12 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
  * that; what it forages for does not (it learns how hard its week was only as it goes).
  */
 private fun restedDays(w: ForageWeek, time: BandTime) {
-    var savedDays = (time.unheld + time.heldFor(Activity.FOOD)) * Activity.LEISURE.restSaves
-    for (a in Activity.entries) if (a != Activity.FOOD) savedDays += time.heldFor(a) * a.restSaves
+    // (The working time lost to the cold and hunger, in what was spent and in what is held, is spent idle, as rest: see [Sisu].)
+    var savedDays = (time.unheld + time.heldFor(Activity.FOOD) + time.lost) * Activity.LEISURE.restSaves
+    for (a in Activity.entries) if (a != Activity.FOOD) {
+        val idle = time.heldFor(a) * (1f - time.pace(a))
+        savedDays += (time.heldFor(a) - idle) * a.restSaves + idle * Activity.LEISURE.restSaves
+    }
     w.wantAll -= savedDays * w.s.dailyIntakeKg
 }
 
@@ -203,7 +207,8 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  */
 private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
-    val time = BandTime(days * hands.toFloat())
+    // (Its work goes the slower, the colder and hungrier its people: see [Sisu].)
+    val time = BandTime(days * hands.toFloat(), b.paces())
     // (Digging soaks and drawing their water, see [HexDrinkingWater.mustDig]: counted with the food.)
     if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) time.spend(Activity.FOOD, HexDrinkingWater.DIG_SHARE * days * hands)
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)

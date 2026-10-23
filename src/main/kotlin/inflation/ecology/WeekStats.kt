@@ -160,6 +160,8 @@ object Tally {
         BAND_WEEKS("band-weeks"), PEOPLE_WEEKS("people-weeks"), BORN("born"),
         /** Deaths foreseen a year ahead ([HexGroup.foreseen]): people-weeks times the share foreseen to die, thousandths. */
         FORESEEN("foreseen deaths, 1/1000"),
+        /** Perseverance ([Band.sisu]): people-weeks times the band's, thousandths. */
+        SISU("perseverance, 1/1000"),
         /** The hearth fire fed by the firewood got, and the days spent fetching it, % summed over band-weeks. */
         HEARTH("hearth, %"), FUEL_DAYS("fuel days, %"),
     }
@@ -197,7 +199,7 @@ object Tally {
     fun bandTime(a: Activity) = bandTime(a.label)
     fun bandTime(t: TimeTotal) = bandTime(t.label)
     private fun bandTime(what: String) = TallyKey.raw("band time:$what")
-    enum class TimeTotal(val label: String) { ALL("all"), LEFT("left") }
+    enum class TimeTotal(val label: String) { ALL("all"), LEFT("left"), LOST("lost to cold and hunger") }
 
     /** Where people's hides came from. */
     enum class HideSource(val label: String) { RESIDENTS("residents"), SMALL_PELTS("small pelts") }
