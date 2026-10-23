@@ -175,6 +175,12 @@ const val CAMP_FOULING = 0.02f
 const val HUMAN_THIRST = 0.3f
 /** How much more thirst troubles people on ground they do not know (they look for water where animals and birds lead them). */
 const val STRANGER_THIRST = 2f
+/**
+ * In a lean week a child goes without this much less of its share of the band's shortfall than a grown one: parents feed
+ * their children before themselves (a drive found in every forager society, Hawkes, O'Connell and Blurton Jones on Hadza
+ * sharing, from memory: to check; the size is a guess). The food is only moved, not made: the grown go without the more.
+ */
+const val CHILDREN_FIRST = 0.5f
 /** People's births against the catalogue's rate: long nursing spaces births three and a half to four years apart. */
 const val HUMAN_BIRTHS = 0.8f
 
