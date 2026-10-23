@@ -42,6 +42,9 @@ class WeekStats {
     val meetings = ConcurrentSkipListMap<TallyKey, Int>()
     /** Deaths this week by "kind:cause". */
     val deaths = ConcurrentSkipListMap<TallyKey, Int>()
+    /** People's deaths this week by "kind:cause", the grown (elders too) and the young apart (the two add up to the part of [deaths] that is people's, bar the orphans). */
+    val adultDeaths = ConcurrentSkipListMap<TallyKey, Int>()
+    val youngDeaths = ConcurrentSkipListMap<TallyKey, Int>()
     /** This week's hunting and feeding tallies by kind, as [Tally] keys them: kills of residents, diets, bands' food and time. */
     val hunting = ConcurrentSkipListMap<TallyKey, Int>()
     /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
@@ -57,7 +60,7 @@ class WeekStats {
     fun meeting(what: Met.Of, of: String, n: Int = 1) { meetings.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
 
     /** Starts a new week (the children's ledger runs on until read). */
-    fun clear() { kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
+    fun clear() { kills.clear(); meetings.clear(); deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
 
     private companion object { val BY_NAME = compareBy<Species> { it.name } }
 
