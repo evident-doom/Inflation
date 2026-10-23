@@ -33,6 +33,11 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
     val peopleStart = f("peopleStart", 1f)
     /** The size of the bands people start in, against the usual, the same people in fewer, larger bands (2: half as many bands, twice the size). */
     val peopleBand = f("peopleBand", 1f).also { require(it > 0f) { "t.peopleBand is $it: a band's size is a positive multiple" } }
+    /**
+     * The day of the year a world started afresh begins on, against the spring equinox ([inflation.world.Date.START_DAY], 90, when snow still
+     * lies in the mountains); 0 is the winter solstice, 30 days to a month. A save carries its own date.
+     */
+    val startDay = i("startDay", inflation.world.Date.START_DAY).also { require(it in 0 until inflation.world.Date.DAYS_PER_YEAR) { "t.startDay is $it: a day of the year, 0-359" } }
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

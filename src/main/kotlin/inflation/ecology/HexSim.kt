@@ -29,7 +29,7 @@ class HexSim(
     val cfg = world.config
     val hex = HexMap(world)
     val hw = HexWorld(world, hex)
-    val weather = Weather(hw.weatherPlaces(cfg), cfg)
+    val weather = Weather(hw.weatherPlaces(cfg), cfg).also { it.begin(tuning.startDay) }
     val land = HexLand(hw, cfg.seed, tuning)
     val fauna = HexFauna(hw, land, cfg.daysPerStep)
     val groups = HexGroups(hw, land, fauna, cfg.daysPerStep, cfg.seed, kinds, uniformStart)
