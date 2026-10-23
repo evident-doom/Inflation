@@ -302,6 +302,24 @@ class Census(private val sim: HexSim) {
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsCladDied(c)) }
             "%s %.0f%%: %.3f, %.3f".format(c.label, 100.0 * (lastYear[Tally.bandsClad(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0) / all.coerceAtLeast(1),
                 died.values.sum() / years.coerceAtLeast(1e-9), (died[Tally.bandsCladDied(c, DeathCause.EXPOSURE)] ?: 0) / years.coerceAtLeast(1e-9)) })
+        println("bands by how well fed through the week, their fat drawn on, last year (share of people-weeks; deaths per person a year of hunger, of exposure, of all; larder and fat at the week's end, days): " + Tally.Fed.entries.joinToString(", ") { f ->
+            val pw = (lastYear[Tally.bandsFed(f, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
+            val all = Tally.Fed.entries.sumOf { (lastYear[Tally.bandsFed(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+            val years = (pw / stepsPerYear).coerceAtLeast(1e-9); val bw = (lastYear[Tally.bandsFed(f, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
+            val died = lastYear.filterKeys { it.startsWith(Tally.bandsFedDied(f)) }
+            "%s %.1f%%: %.3f, %.3f, %.3f; %.1f, %.1f".format(f.label, 100 * pw / all, (died[Tally.bandsFedDied(f, DeathCause.HUNGER)] ?: 0) / years,
+                (died[Tally.bandsFedDied(f, DeathCause.EXPOSURE)] ?: 0) / years, died.values.sum() / years,
+                (lastYear[Tally.bandsFed(f, Tally.Bands.LARDER)] ?: 0) / 10.0 / bw, (lastYear[Tally.bandsFed(f, Tally.Bands.FAT)] ?: 0) / 10.0 / bw) })
+        run {
+            // Meat brought in against meat eaten (each at what it feeds): what a kill beyond the band's hunger leaves to spoil.
+            val h = Catalogue.HUMAN
+            fun v(k: TallyKey) = (lastYear[k] ?: 0).toDouble()
+            val brought = cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.MEAT)) + v(Tally.bandsIn(it, Tally.Bands.FISH)) }
+            val eaten = v(Tally.diet(h, Tally.DietPart.MEAT)) + v(Tally.diet(h, Tally.DietPart.SMALL_PREY)) + v(Tally.diet(h, Tally.DietPart.CARRION))
+            val asked = cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.ASKED)) }.coerceAtLeast(1.0)
+            println("bands' food, last year (of food wanted: meat and fish brought in, of it eaten, plants got): %.0f%%, %.0f%%, %.0f%%".format(
+                100 * brought / asked, 100 * eaten / brought.coerceAtLeast(1.0), 100 * cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.PLANTS)) } / asked))
+        }
         println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
             val w = weeks(c).toDouble().coerceAtLeast(1.0)
             "%s %.0f%% / %.0f%%".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.HEARTH)] ?: 0) / w, (lastYear[Tally.bandsIn(c, Tally.Bands.FUEL_DAYS)] ?: 0) / w) })
