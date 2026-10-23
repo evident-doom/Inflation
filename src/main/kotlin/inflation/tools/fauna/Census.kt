@@ -284,15 +284,17 @@ class Census(private val sim: HexSim) {
             val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS) + v(Tally.Bands.FISH)
             "%s %.0f%%: %.0f%%, %.0f/%.0f/%.0f%%".format(c.label, 100 * v(Tally.Bands.BAND_WEEKS) / allWeeks, 100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0),
                 100 * v(Tally.Bands.MEAT) / got.coerceAtLeast(1.0), 100 * v(Tally.Bands.PLANTS) / got.coerceAtLeast(1.0), 100 * v(Tally.Bands.FISH) / got.coerceAtLeast(1.0)) })
-        println("bands by kind of country, last year (births / deaths per person a year; main causes): " + cs.joinToString(", ") { c ->
+        println("bands by kind of country, last year (births / deaths per person a year, foreseen deaths a year ahead as the weeks went, mean perseverance; main causes): " + cs.joinToString(", ") { c ->
             val years = (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() / stepsPerYear
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsDied(c)) }.mapKeys { Tally.diedOf(it.key) }
-            "%s %.3f / %.3f (%s)".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.BORN)] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9),
+            val foreseen = (lastYear[Tally.bandsIn(c, Tally.Bands.FORESEEN)] ?: 0) / 1000.0 / (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
+            val sisu = (lastYear[Tally.bandsIn(c, Tally.Bands.SISU)] ?: 0) / 1000.0 / (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
+            "%s %.3f / %.3f, foreseen %.3f, perseverance %.2f (%s)".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.BORN)] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9), foreseen, sisu,
                 died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
         run {
             val all = (lastYear[Tally.bandTime(Tally.TimeTotal.ALL)] ?: 0).toDouble().coerceAtLeast(1.0)
             println("bands' time, last year (share of their hands' days): " + (Activity.entries.map { it.label to Tally.bandTime(it) } +
-                (Tally.TimeTotal.LEFT.label to Tally.bandTime(Tally.TimeTotal.LEFT))).joinToString(", ") { (label, key) -> "%s %.0f%%".format(label, 100 * (lastYear[key] ?: 0).toDouble() / all) })
+                (Tally.TimeTotal.LEFT.label to Tally.bandTime(Tally.TimeTotal.LEFT)) + (Tally.TimeTotal.LOST.label to Tally.bandTime(Tally.TimeTotal.LOST))).joinToString(", ") { (label, key) -> "%s %.0f%%".format(label, 100 * (lastYear[key] ?: 0).toDouble() / all) })
         }
         println("bands by clothing, last year (clad: a kit of at least half; share of people-weeks; deaths per person a year, of them of exposure): " + Tally.Clad.entries.joinToString(", ") { c ->
             val years = (lastYear[Tally.bandsClad(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() / stepsPerYear
@@ -300,15 +302,39 @@ class Census(private val sim: HexSim) {
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsCladDied(c)) }
             "%s %.0f%%: %.3f, %.3f".format(c.label, 100.0 * (lastYear[Tally.bandsClad(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0) / all.coerceAtLeast(1),
                 died.values.sum() / years.coerceAtLeast(1e-9), (died[Tally.bandsCladDied(c, DeathCause.EXPOSURE)] ?: 0) / years.coerceAtLeast(1e-9)) })
+        println("bands by how well fed through the week, their fat drawn on, last year (share of people-weeks; deaths per person a year of hunger, of exposure, of all; larder, of it meat, and fat at the week's end, days; share of the protein eaten that went to waste; salt held, g a person, sodium short, salt here; share that know of salt, km to the nearest known): " + Tally.Fed.entries.joinToString(", ") { f ->
+            val pw = (lastYear[Tally.bandsFed(f, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
+            val all = Tally.Fed.entries.sumOf { (lastYear[Tally.bandsFed(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+            val years = (pw / stepsPerYear).coerceAtLeast(1e-9); val bw = (lastYear[Tally.bandsFed(f, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
+            val died = lastYear.filterKeys { it.startsWith(Tally.bandsFedDied(f)) }
+            "%s %.1f%%: %.3f, %.3f, %.3f; %.1f, %.1f, %.1f; %.0f%%; %.0f, %.0f%%, %.0f%%; %.0f%%, %.0f".format(f.label, 100 * pw / all, (died[Tally.bandsFedDied(f, DeathCause.HUNGER)] ?: 0) / years,
+                (died[Tally.bandsFedDied(f, DeathCause.EXPOSURE)] ?: 0) / years, died.values.sum() / years,
+                (lastYear[Tally.bandsFed(f, Tally.Bands.LARDER)] ?: 0) / 10.0 / bw, (lastYear[Tally.bandsFed(f, Tally.Bands.LARDER_MEAT)] ?: 0) / 10.0 / bw,
+                (lastYear[Tally.bandsFed(f, Tally.Bands.FAT)] ?: 0) / 10.0 / bw, (lastYear[Tally.bandsFed(f, Tally.Bands.LEAN_LOST)] ?: 0).toDouble() / bw,
+                (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_HELD)] ?: 0).toDouble() / bw, (lastYear[Tally.bandsFed(f, Tally.Bands.SODIUM_SHORT)] ?: 0).toDouble() / bw,
+                (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_HERE)] ?: 0).toDouble() / bw,
+                100.0 * (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_KNOWN)] ?: 0) / bw,
+                (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_KM)] ?: 0).toDouble() / (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_KNOWN)] ?: 0).coerceAtLeast(1)) })
+        run {
+            // Meat brought in against meat eaten (each at what it feeds): what a kill beyond the band's hunger leaves to spoil.
+            val h = Catalogue.HUMAN
+            fun v(k: TallyKey) = (lastYear[k] ?: 0).toDouble()
+            val brought = cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.MEAT)) + v(Tally.bandsIn(it, Tally.Bands.FISH)) }
+            val eaten = v(Tally.diet(h, Tally.DietPart.MEAT)) + v(Tally.diet(h, Tally.DietPart.SMALL_PREY)) + v(Tally.diet(h, Tally.DietPart.CARRION))
+            val asked = cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.ASKED)) }.coerceAtLeast(1.0)
+            println("bands' food, last year (of food wanted: meat and fish brought in, of it eaten, plants got): %.0f%%, %.0f%%, %.0f%%".format(
+                100 * brought / asked, 100 * eaten / brought.coerceAtLeast(1.0), 100 * cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.PLANTS)) } / asked))
+        }
         println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
             val w = weeks(c).toDouble().coerceAtLeast(1.0)
             "%s %.0f%% / %.0f%%".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.HEARTH)] ?: 0) / w, (lastYear[Tally.bandsIn(c, Tally.Bands.FUEL_DAYS)] ?: 0) / w) })
-        println("bands by kind of country, last year, in weeks the cold ran them into heat debt through their cover (share of band-weeks: worst debt Wh/m² beyond the bearable; night air °C, clothes clo, fire, shelter or house): " +
+        println("bands by kind of country, last year, in weeks the cold ran them into heat debt through their cover (share of band-weeks: worst debt Wh/m² beyond the bearable; night air °C, clothes clo, fire, shelter or house; share at a new camp, shelter aimed at, share of days spare): " +
             cs.filter { (lastYear[Tally.bandsIn(it, Tally.Cold.WEEKS)] ?: 0) > 0 }.joinToString(", ") { c ->
                 fun v(k: Tally.Cold) = (lastYear[Tally.bandsIn(c, k)] ?: 0).toDouble()
                 val n = v(Tally.Cold.WEEKS).coerceAtLeast(1.0)
-                "%s %.0f%%: %.0f; %.1f, %.1f, %.1f, %.1f".format(c.label, 10 * 100 * v(Tally.Cold.WEEKS) / (10 * weeks(c)).coerceAtLeast(1) / 10,
-                    v(Tally.Cold.SHORT) / n, v(Tally.Cold.AIR) / n, v(Tally.Cold.CLOTHES) / n, v(Tally.Cold.FIRE) / n, v(Tally.Cold.SHELTER) / n) })
+                "%s %.0f%%: %.0f; %.1f, %.1f, %.1f, %.1f; %.0f%%, %.1f, %.0f%%".format(c.label, 10 * 100 * v(Tally.Cold.WEEKS) / (10 * weeks(c)).coerceAtLeast(1) / 10,
+                    v(Tally.Cold.SHORT) / n, v(Tally.Cold.AIR) / n, v(Tally.Cold.CLOTHES) / n, v(Tally.Cold.FIRE) / n, v(Tally.Cold.SHELTER) / n,
+                    100 * v(Tally.Cold.MOVED) / n, v(Tally.Cold.AIM) / n, 100 * v(Tally.Cold.SPARE) / n) })
     }
 
     /** Islands: land cut off from the largest land by sea; which kinds live there now. */

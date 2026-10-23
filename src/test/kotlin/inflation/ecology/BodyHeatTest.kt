@@ -41,4 +41,47 @@ class BodyHeatTest {
         assertEquals(0.5f, BodyHeat.lethal(BodyHeat.LETHAL_WH_M2), 1e-6f)
         assertTrue(BodyHeat.lethal(100f) < BodyHeat.lethal(200f))
     }
+
+    @Test
+    fun `those who do not persevere break off work to warm up and carry less heat debt, those who do work on`() {
+        // (Cold and wet enough that the work chills them beyond what shivering makes up, while the camp's fire and shelter warm them again.)
+        val raw = air(-5f, windMs = 6f, wet = 0.5f)
+        val c = cover(1f, fire = 1f, shelter = 1f)
+        val on = BodyHeat.week(raw, c, 7, sisu = 1f)
+        val off = BodyHeat.week(raw, c, 7, sisu = 0f)
+        assertEquals(1f, on.pace)
+        assertEquals(BodyHeat.week(raw, c, 7).debt, on.debt)
+        assertTrue(off.pace < 1f && off.pace > 0f, "breaks ${off.pace}")
+        assertTrue(off.debt <= on.debt)
+        assertTrue(BodyHeat.week(raw, c, 7, sisu = 0.5f).pace in off.pace..1f)
+        assertEquals(1f, BodyHeat.week(air(20f), c, 7, sisu = 0f).pace, "no breaks in the warm")
+    }
+
+    @Test
+    fun `hunger saps work only once the fat is spent, the less the more people persevere`() {
+        val people = Catalogue.HUMAN
+        assertEquals(1f, Sisu.hungerPace(people, 0f, 0f))
+        val starving = Hazards.starveDays(people)
+        assertEquals(1f - Sisu.LETHARGY, Sisu.hungerPace(people, starving, 0f), 1e-6f)
+        assertEquals(1f, Sisu.hungerPace(people, starving, 1f))
+        assertTrue(Sisu.hungerPace(people, starving / 2f, 0.5f) in (1f - Sisu.LETHARGY)..1f)
+    }
+
+    @Test
+    fun `perseverance runs in lineages`() {
+        val f = Sisu.founder(7, 1L)
+        assertTrue(f in 0f..1f)
+        assertEquals(f, Sisu.founder(7, 1L))
+        val kids = (100 until 400).map { Sisu.inherit(0.5f, it, 1L) }
+        assertTrue(kids.all { it in 0f..1f })
+        assertTrue(kotlin.math.abs(kids.average() - 0.5) < 0.05, "offshoots keep their parent's, a little changed")
+    }
+
+    @Test
+    fun `in deep cold crafts stop at an open camp but go on in a house by its hearth`() {
+        val deep = air(-15f, windMs = 6f, wet = 0.5f)
+        assertEquals(0f, BodyHeat.week(deep, cover(1f, fire = 1f, shelter = 1f), 7, sisu = 1f).campPace, "numb hands, however they persevere")
+        assertEquals(1f, BodyHeat.week(deep, cover(1f, fire = 1f, shelter = 1f, home = 1f), 7, sisu = 0f).campPace)
+        assertEquals(1f, BodyHeat.week(air(10f), cover(1f, fire = 1f, shelter = 1f), 7, sisu = 0f).campPace)
+    }
 }

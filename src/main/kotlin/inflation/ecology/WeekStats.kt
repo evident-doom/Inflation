@@ -42,6 +42,9 @@ class WeekStats {
     val meetings = ConcurrentSkipListMap<TallyKey, Int>()
     /** Deaths this week by "kind:cause". */
     val deaths = ConcurrentSkipListMap<TallyKey, Int>()
+    /** People's deaths this week by "kind:cause", the grown (elders too) and the young apart (the two add up to the part of [deaths] that is people's, bar the orphans). */
+    val adultDeaths = ConcurrentSkipListMap<TallyKey, Int>()
+    val youngDeaths = ConcurrentSkipListMap<TallyKey, Int>()
     /** This week's hunting and feeding tallies by kind, as [Tally] keys them: kills of residents, diets, bands' food and time. */
     val hunting = ConcurrentSkipListMap<TallyKey, Int>()
     /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
@@ -57,7 +60,7 @@ class WeekStats {
     fun meeting(what: Met.Of, of: String, n: Int = 1) { meetings.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
 
     /** Starts a new week (the children's ledger runs on until read). */
-    fun clear() { kills.clear(); meetings.clear(); deaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
+    fun clear() { kills.clear(); meetings.clear(); deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
 
     private companion object { val BY_NAME = compareBy<Species> { it.name } }
 
@@ -158,14 +161,29 @@ object Tally {
         /** Food wanted, and got of meat (with small game and carrion), plants and fish, kg. */
         ASKED("asked"), MEAT("meat"), PLANTS("plants"), FISH("fish"),
         BAND_WEEKS("band-weeks"), PEOPLE_WEEKS("people-weeks"), BORN("born"),
+        /** Deaths foreseen a year ahead ([HexGroup.foreseen]): people-weeks times the share foreseen to die, thousandths. */
+        FORESEEN("foreseen deaths, 1/1000"),
+        /** Perseverance ([Band.sisu]): people-weeks times the band's, thousandths. */
+        SISU("perseverance, 1/1000"),
         /** The hearth fire fed by the firewood got, and the days spent fetching it, % summed over band-weeks. */
         HEARTH("hearth, %"), FUEL_DAYS("fuel days, %"),
+        /** The larder and the fat a band held at the week's end, days of its food, tenths summed over band-weeks. */
+        LARDER("larder days, 1/10"), FAT("fat days, 1/10"),
+        /** Of the larder, the meat (fresh and dried), days of food, tenths; and the share of the protein eaten that went to waste ([Band.leanLost]), %. */
+        LARDER_MEAT("larder meat days, 1/10"), LEAN_LOST("lean lost, %"),
+        /** Its salt: held, g a person; the share of its sodium need unmet last week, %; and salt to be had where it stands, %. */
+        SALT_HELD("salt held, g a person"), SODIUM_SHORT("sodium short, %"), SALT_HERE("salt here, %"),
+        /** The band-weeks it knew of a place to get salt ([HexGroups.saltSources]), and how far the nearest was then, km summed. */
+        SALT_KNOWN("knows salt, band-weeks"), SALT_KM("nearest known salt, km"),
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt
-     * of a day beyond the bearable, Wh/m², the night's air, °C, its clothes, clo, its fire and its shelter or house, all tenths.
+     * of a day beyond the bearable, Wh/m², the night's air, °C, its clothes, clo, its fire and its shelter or house; whether it
+     * came to a new camp that week, the shelter it aims at ([Band.shelterWill]) and the share of its people's days left spare
+     * ([Band.spareDays]), all tenths.
      */
-    enum class Cold(val label: String) { WEEKS("weeks"), SHORT("debt"), AIR("night air"), CLOTHES("clothes"), FIRE("fire"), SHELTER("shelter") }
+    enum class Cold(val label: String) { WEEKS("weeks"), SHORT("debt"), AIR("night air"), CLOTHES("clothes"), FIRE("fire"), SHELTER("shelter"),
+        MOVED("new camp"), AIM("shelter aim"), SPARE("days spare") }
     /** Bands' tallies by the kind of country they are in. */
     fun bandsIn(country: Biome, what: Bands) = bandsIn(country, what.label)
     fun bandsIn(country: Biome, cold: Cold) = bandsIn(country, "cold ${cold.label}")
@@ -187,6 +205,16 @@ object Tally {
     /** Bands' deaths of [cause] by how they are clad; [bandsCladDied] (clad) starts all of them. */
     fun bandsCladDied(clad: Clad, cause: DeathReason) = TallyKey.raw(bandsCladDied(clad).text + cause.label)
     fun bandsCladDied(clad: Clad) = TallyKey.raw("bands ${clad.label}:$DIED_OF")
+    /** How well a band was fed through the week, its fat drawn on ([HexGroup.fed]): the first bin it falls [below]. */
+    enum class Fed(val label: String, val below: Float) {
+        STARVING("under half", 0.5f), SHORT("half to 0.9", 0.9f), FED("0.9 and over", Float.POSITIVE_INFINITY);
+        companion object { fun of(fed: Float) = entries.firstOrNull { fed < it.below } ?: FED }
+    }
+    /** Bands' tallies by how well they were fed. */
+    fun bandsFed(fed: Fed, what: Bands) = TallyKey.raw("bands fed ${fed.label}:${what.label}")
+    /** Bands' deaths of [cause] by how well they were fed; [bandsFedDied] (fed) starts all of them. */
+    fun bandsFedDied(fed: Fed, cause: DeathReason) = TallyKey.raw(bandsFedDied(fed).text + cause.label)
+    fun bandsFedDied(fed: Fed) = TallyKey.raw("bands fed ${fed.label}:$DIED_OF")
     /** The cause of a death in a [bandsDied] or [bandsCladDied] key. */
     fun diedOf(key: TallyKey) = key.text.substringAfter(DIED_OF)
     private const val DIED_OF = "died of "
@@ -195,7 +223,7 @@ object Tally {
     fun bandTime(a: Activity) = bandTime(a.label)
     fun bandTime(t: TimeTotal) = bandTime(t.label)
     private fun bandTime(what: String) = TallyKey.raw("band time:$what")
-    enum class TimeTotal(val label: String) { ALL("all"), LEFT("left") }
+    enum class TimeTotal(val label: String) { ALL("all"), LEFT("left"), LOST("lost to cold and hunger") }
 
     /** Where people's hides came from. */
     enum class HideSource(val label: String) { RESIDENTS("residents"), SMALL_PELTS("small pelts") }

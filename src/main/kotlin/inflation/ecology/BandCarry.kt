@@ -40,17 +40,17 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.MAX, "skills", "plants", "renown", "grudge")
     rule(OnSplit.COPIED, OnJoin.ANY, "knowsSkill", "knows", "known")
     rule(OnSplit.DRAWN, OnJoin.SUM, "holders")
-    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "weeks", "traditions", "words", "rite", "riteStrength", "knownHomes", "knownLineage")
+    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "weeks", "traditions", "words", "rite", "riteStrength", "knownHomes", "knownLineage")
     // Health.
     rule(OnSplit.COPIED, OnJoin.BLENDED, "sick", "immune", "hurt", "lame")
     rule(OnSplit.FRESH, OnJoin.LOST, "cleaned", "nursed", "beastLoss")
     // People.
     rule(OnSplit.SET, OnJoin.SUM, "lastAdults")
     rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods", "kept")
-    rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "leanLost", "lineage", "inbred")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "leanLost", "sodiumShort", "lineage", "inbred", "sisu")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "homeEarth", "homeGroundC", "palisade", "fire",
-        "houseLives", "houseFood")
+        "houseLives", "houseFood", "foodFrom", "fishPull")
     rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cacheKgPer", "cachePlace", "raid", "unlucky",
         "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dogShare", "dryAsk", "skinAsk", "houseLivesWeek", "houseFoodWeek")
     // Ties.

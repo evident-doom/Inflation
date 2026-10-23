@@ -470,6 +470,17 @@ object HexPpo {
         private var waysRate = 0f
         /** What became of each group's members, to judge each choice by. */
         private val outcomes = Outcomes()
+        /**
+         * Config key `ppo.foreseenShape` (default 1; 0: none): a band's choice is judged also by the change it brought in what its
+         * members could foresee: the share of them foreseen alive a year ahead ([HexGroup.foreseen] of the groups they are in, times
+         * the share of them still alive) at the end of the horizon, less the share foreseen when it chose, times this weight. Added to
+         * the return over the whole horizon, and to its first [Critic.boot] weeks with the share foreseen then (the critic's estimate
+         * from there carries the rest). Shaping by a potential (Ng, Harada and Russell 1999, ICML): the change in a function of the
+         * state, so what is best stays best, while a choice whose harm or good shows only after the horizon (stores, fat, kit for
+         * the winter) is seen sooner. Undiscounted, as the return is a weighted mean, not a discounted sum; so the invariance holds
+         * only roughly here. Deaths within the horizon count both in the return and in the share still alive.
+         */
+        private val shape = Config.float(Config.Key.PPO_FORESEEN_SHAPE, 1f)
         /** Recorded choices waiting to see their group again [Critic.boot] weeks on. */
         private val probes = ConcurrentHashMap<Int, MutableList<Choice>>()
         /** Where each band stood this week before it moved: what its ways draw is judged from. */
@@ -540,7 +551,8 @@ object HexPpo {
                 var sum = 0f; var norm = 0f; var d = 1f
                 val discount = if (c.kind.human) PEOPLE_DISCOUNT else DISCOUNT
                 // (Judged by the fate of the group's own members, so that taking others in is no gain.)
-                val own = outcomes.own(c.groupId, c.week, horizon)
+                val fore = if (c.kind.human && shape != 0f) FloatArray(horizon) else null
+                val own = outcomes.own(c.groupId, c.week, horizon, fore)
                 val boot = Critic.boot(c.kind)
                 var part = 0f; var tail = 0f
                 for (k in 1..horizon) {
@@ -552,6 +564,12 @@ object HexPpo {
                 c.ret = sum / norm
                 c.part = part / norm
                 c.boot = own[boot - 1] / c.size.coerceAtLeast(1).toFloat() * tail / norm
+                if (fore != null) {
+                    // (And by what its members were then foreseen to have a year ahead against what they were when it chose: see [shape].)
+                    val from = outcomes.foreseen(c.groupId, c.week); val n = c.size.coerceAtLeast(1).toFloat()
+                    c.ret += shape * (fore[horizon - 1] / n - from)
+                    c.part += shape * (fore[boot - 1] / n - from)
+                }
                 if (!c.ret.isFinite() || !c.part.isFinite() || !c.boot.isFinite()) { NonFinite.note(c.kind, "return"); continue }
                 out += c
             }

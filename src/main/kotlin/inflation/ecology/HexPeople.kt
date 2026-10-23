@@ -80,6 +80,13 @@ enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerY
 const val CRAFT_FLOOR = 0.3f
 /** How far one week's use closes the gap to mastery. */
 const val PRACTICE = 0.02f
+/**
+ * Hunting, tracking and stalking are learned over years, not weeks: Kaplan et al. 2000 have Hiwi boys at 16% of the adult
+ * return at 10, 50% at 20 and the peak at 30-35, Ache boys at 25% at 20 and the peak in the mid-30s. At complexity 1.5 this is
+ * about 0.0015 of the gap a week: half way in about 9 years of weekly practice, 90% in about 29. A guess between the two
+ * curves (adults relearning plausibly go faster than the boys of the record); Olli's call. Forgetting slows in step.
+ */
+const val HUNTING_PRACTICE = 0.0022f
 /** Raw materials a band carries, kg per adult of each kind. */
 const val GOODS_PER_PERSON = 20f
 /** Hunting success of a band without spears, against one with them; what bows add against fast quarry. */
@@ -110,12 +117,14 @@ const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */
 const val GATHER_SHARE = 0.5f
 /**
- * The insulation of a whole kit of furs and hides sewn by a master, clo (an estimate: no measured clo of skin clothing was
- * found; caribou-skin outfits held skin warmth as well as modern expedition clothing in trials, Climate Research 5: 83-90,
- * 1995, and Hill et al. 2020, Arctic 73(1), and heavy modern cold-weather ensembles run about 3 clo). Bands start with half
- * a kit, sewn by novices: about 1 clo.
+ * The insulation of a whole kit of furs and hides sewn by a master, clo: half of a heavy modern cold-weather ensemble's
+ * about 3 clo, since hides wrapped and sewn by hand leave gaps at the neck, wrists and feet and lack layered underwear,
+ * hoods, mittens and boots (a judgement, Olli 2026-10-22; no measured clo of skin clothing was found: the Inuit's tailored
+ * caribou-skin outfits held skin warmth as well as modern expedition clothing, Climate Research 5: 83-90, 1995, and Hill
+ * et al. 2020, Arctic 73(1), but those are the most refined skin clothing known). Bands start with half a kit, sewn by
+ * novices: about 0.5 clo.
  */
-const val CLOTHES_CLO = 3f
+const val CLOTHES_CLO = 1.5f
 /** Yearly chance a band hits on a tool it does not know, where it has use for it; chance a band that meets one that knows a tool learns it. */
 const val INVENT = 0.002f
 const val TEACH = 0.2f
@@ -166,6 +175,12 @@ const val CAMP_FOULING = 0.02f
 const val HUMAN_THIRST = 0.3f
 /** How much more thirst troubles people on ground they do not know (they look for water where animals and birds lead them). */
 const val STRANGER_THIRST = 2f
+/**
+ * In a lean week a child goes without this much less of its share of the band's shortfall than a grown one: parents feed
+ * their children before themselves (a drive found in every forager society, Hawkes, O'Connell and Blurton Jones on Hadza
+ * sharing, from memory: to check; the size is a guess). The food is only moved, not made: the grown go without the more.
+ */
+const val CHILDREN_FIRST = 0.5f
 /** People's births against the catalogue's rate: long nursing spaces births three and a half to four years apart. */
 const val HUMAN_BIRTHS = 0.8f
 
@@ -192,6 +207,8 @@ class Band(kinds: Int) {
     /** The place it remembers doing best in each month (-1 for none), and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
+    /** The food it got in each month over the last years, as a share of its need before keeping warm ([foresee]). */
+    val monthSupply = FloatArray(12) { 1f }
     /** Share of its people sick with each [Illness] now, and share spared for having had it. */
     val sick = enumFloats<Illness>()
     val immune = enumFloats<Illness> { it.endemic }
@@ -231,6 +248,31 @@ class Band(kinds: Int) {
     var salted = 0f
     /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
     var leanLost = 0f
+    /** Of its people's sodium need last week, the share that neither meat, salted meat nor its salt met ([saltFeeds]): what it knows it lacks. */
+    var sodiumShort = 0f
+    /** The nearest salt it knows of ([HexGroups.saltKnown]), hex or -1, as reckoned from hex [saltFrom] (-1: not yet). */
+    @Transient var saltAt = -1
+    @Transient var saltFrom = -1
+    /**
+     * Its perseverance, 0..1 ("sisu"): how far its people keep working when cold and hunger are against them ([Sisu]),
+     * at the price of the heat debt and the food it costs. Its lineage's, a little changed at each split.
+     */
+    var sisu = 0.5f
+    /**
+     * The share of its working time its people work this week for the cold, out in the weather ([Warmth.pace]) and at their
+     * crafts at camp ([Warmth.campPace]), and for hunger ([Sisu.hungerPace]); set as the week starts.
+     */
+    @Transient var coldPace = 1f
+    @Transient var campPace = 1f
+    @Transient var hungerPace = 1f
+    /** The share of its people's time at work [where] that is work this week ([Sisu]). */
+    fun paceAt(where: Workplace) = when (where) {
+        Workplace.OUT -> coldPace * hungerPace
+        Workplace.CAMP -> campPace * hungerPace
+        Workplace.NONE -> 1f
+    }
+    /** [paceAt] each [Activity]'s workplace, by its ordinal (for [BandTime]). */
+    fun paces() = FloatArray(Activity.entries.size) { paceAt(Activity.entries[it].where) }
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0
@@ -246,6 +288,13 @@ class Band(kinds: Int) {
     /** This week's share of them so far, not yet a person's: lives and kg ([houseWorthWeek]). */
     var houseLivesWeek = 0f
     var houseFoodWeek = 0f
+    /** Its food over about a year by where it came from ([FoodFrom]), kg a person a day (a running mean, [HexGroups.recordFood]). */
+    val foodFrom = FloatArray(FoodFrom.entries.size)
+    /**
+     * Over about a year, how its fishing paid against the least paying food its gatherers took up, as fish's yield a day of
+     * handling over itself and that least yield: above 1/2 fish was worth taking up, 0 no fish in reach ([Offers.pull]).
+     */
+    var fishPull = 0f
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()
@@ -504,7 +553,8 @@ class Band(kinds: Int) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
-        o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply)
+        o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
@@ -587,6 +637,7 @@ class Band(kinds: Int) {
         for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
         for (i in b.kept.indices) a.kept[i] += b.kept[i]
         a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
+        a.sisu += w * (b.sisu - a.sisu)
         for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
     }
 
@@ -635,12 +686,14 @@ class Band(kinds: Int) {
     }
     /**
      * How far a band can practise [s] with the tools it has: a hunter without spear or bow, a fisher
-     * without lines and nets, a cook without tight baskets learns little of the craft (a little, at
-     * best, by watching and making do).
+     * without a fish spear, traps or nets, a snarer without cords or a bow for birds, a cook without
+     * tight baskets learns little of the craft (a little, at best, by watching and making do). (Fish are
+     * speared and trapped in baskets and weirs as well as netted; shellfish want no tools at all.)
      */
     fun toolsFor(s: Skill) = when (s) {
         Skill.HUNT, Skill.STALK -> max(TOOLLESS, max(has(Tool.SPEAR), has(Tool.BOW)))
-        Skill.SMALL_GAME, Skill.FISH -> max(TOOLLESS, has(Tool.NET))
+        Skill.FISH -> max(TOOLLESS, max(has(Tool.NET), max(has(Tool.SPEAR), has(Tool.BASKET))))
+        Skill.SMALL_GAME -> max(TOOLLESS, max(has(Tool.NET), has(Tool.BOW)))
         Skill.STONE_BOILING, Skill.LEACHING -> max(TOOLLESS, has(Tool.BASKET))
         else -> 1f
     }
@@ -690,16 +743,16 @@ class Band(kinds: Int) {
     /** How far houses shelter it where it is: its home's, at home. */
     fun homeShelter() = if (atHome) house else 0f
     /** How much warmer than [t] °C outside its houses keep: by their hearths and the people in them, and the ground's warmth through sunken walls. */
-    fun houseWarmC(t: Float) = HOUSE_C + homeEarth * max(0f, homeGroundC - t)
+    fun houseWarmC(t: Float, fire: Float = 1f) = HOUSE_C * fire + homeEarth * max(0f, homeGroundC - t)
     /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]). */
-    fun cover(t: Float, fire: Float, home: Float) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t))
+    fun cover(t: Float, fire: Float, home: Float, shelter: Float = this.shelter) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t, fire))
     /**
      * Its week of [days] in [air] with a fire of [fire] and houses sheltering it as far as [home], by its people's body heat
      * ([BodyHeat]): the food keeping warm takes, and the deaths of exposure. Fur clothes, robes at night, a fire, a shelter
      * with its bedding or a house keep people alive in deep cold; the naked die of exposure in a night a few degrees above
      * freezing, wet and windy.
      */
-    fun warmth(air: Air, fire: Float, home: Float, days: Int) = BodyHeat.week(air, cover(air.meanC, fire, home), days)
+    fun warmth(air: Air, fire: Float, home: Float, days: Int, shelter: Float = this.shelter) = BodyHeat.week(air, cover(air.meanC, fire, home, shelter), days, sisu)
 
     companion object {
         /**
@@ -730,6 +783,9 @@ class Band(kinds: Int) {
 
 }
 
+/** Where a band's food came from, as [Band.foodFrom] counts it. */
+enum class FoodFrom(val label: String) { PLANTS("plants"), SMALL_GAME("small game"), FISH("fish"), BIG_GAME("big game"), CARRION("carrion") }
+
 /** At any camp a band first puts up brush shelters, quickly (and leaves them when it moves on). */
 private fun putUpShelter(b: Band, people: Float, time: BandTime) {
     if (b.campWeeks == 0) b.shelter = 0f
@@ -746,7 +802,7 @@ private fun putUpShelter(b: Band, people: Float, time: BandTime) {
 }
 
 /** Person-days [b]'s [people] take to put up whole shelters. (A debris hut takes a novice an afternoon, the practised an hour.) */
-private fun shelterDays(b: Band, people: Float) = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
+internal fun shelterDays(b: Band, people: Float) = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
 
 /**
  * What [b] lacks of the shelter it aims at: none stands at a camp it has just come to ([moved]). (Above the default it
@@ -778,7 +834,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val area = land.m2(p)
     // The days its week's plan gives each chore ([planWeek]) go first to caching what it leaves at a camp, then to gathering
     // what it lacks of its materials, then to making and mending; what a chore leaves is free for those after it.
-    val time = b.week ?: BandTime(b.spareDays)
+    val time = b.week ?: BandTime(b.spareDays, b.paces())
     b.week = null
     campAndCache(g, b, p, h, weather, date, time)
     time.release(Activity.CACHING)
@@ -836,6 +892,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.spend(Activity.LEISURE, time.left)
     time.countEach(stats.hunting)
     time.count(stats.hunting, Tally.TimeTotal.LEFT, time.left)
+    time.count(stats.hunting, Tally.TimeTotal.LOST, time.lost)
     // (The wood burnt through the night goes to the air; what went into tools, houses, palisades and ornaments
     // is not kept as matter, and they do not go back to the ground as they wear: a known leak.)
     land.books?.let { bk ->
@@ -1168,7 +1225,10 @@ internal fun hearthShare(cover: Float, perHand: Float) =
  */
 internal fun HexGroups.warmthNeed(s: Species, b: Band?, p: Place, weather: Weather, fire: Float, home: Float, t: Float = weather.temperature[p]) =
     if (b == null) coldNeed(s, t, weather.date.month, tuning)
-    else (1f + tuning.coldCost * b.warmth(airAt(p, weather, t), fire, home, days).extra) * (1f + RAW_COST * (1f - fire))
+    else warmthNeed(b.warmth(airAt(p, weather, t), fire, home, days), fire)
+
+/** A band's need for its week's [w] (its body heat) with a fire of [fire]: see [warmthNeed]. */
+internal fun HexGroups.warmthNeed(w: Warmth, fire: Float) = (1f + tuning.coldCost * w.extra) * (1f + RAW_COST * (1f - fire))
 
 /**
  * The work [b]'s customs ask of it this week, from [time] (person-days) after the firewood: keeping the camp clean
@@ -1395,7 +1455,9 @@ private fun HexGroups.forget(b: Band) {
     val forgetKnowledge = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET_KNOWLEDGE * 0.4f else FORGET_KNOWLEDGE) * b.lapse(Skill.LORE)
     for (s in Skill.entries) {
         val unused = b.weeks - b.lastUsed[s] > 4
-        b.skills[s] *= 1f - (if (!unused) FORGET_HANDS else if (s.knowledge) forgetKnowledge else FORGET_HANDS * 2f)
+        // A skill learned slowly is also lost slowly, or its level would settle far lower (r / (r + forgetting)).
+        val hands = FORGET_HANDS * minOf(1f, s.practice / PRACTICE)
+        b.skills[s] *= 1f - (if (!unused) hands else if (s.knowledge) forgetKnowledge else hands * 2f)
         // A way no one holds and no one has used for years is lost altogether; so is one whose groundwork is lost.
         if (b.knowsSkill[s] && s.losable && b.holders[s] < 0.5f && b.weeks - b.lastUsed[s] > (if (s.knowledge) LOST_KNOWLEDGE_YEARS else LOST_HANDS_YEARS) * stepsPerYear) {
             b.knowsSkill[s] = false; b.skills[s] = 0f; b.holders[s] = 0f
@@ -1785,6 +1847,9 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[x.COLD_FOOD] = min(1f, cold.extra); into[x.COLD_ODDS] = min(1f, 10f * cold.odds)
     into[x.WIND] = min(1f, air.windMs / 10f); into[x.WET] = air.wet
     into[x.FIRE_SHARE] = b.fire; into[x.HOME_SHELTER] = b.homeShelter()
+    // Its salt: the share of its people's sodium it lacked last week, and the salt to be had where it stands (a pan, the shore).
+    into[x.SODIUM_SHORT] = b.sodiumShort
+    into[x.SALT_HERE] = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
 }
 
 /** The beasts of prey a band tells apart: those that take people ([Species.takesPeople], from the catalogue) and those that do not. */
@@ -1900,7 +1965,10 @@ const val CACHE_TAKE = 0.6f
  * Stone and timber for one person's share of a stone-footed house, kg; person-days for one person's share of a brush
  * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a whole brush shelter keeps
  * those in it, by their own warmth, °C (an estimate; what else it does against the cold: [BodyHeat]); how much warmer a house
- * keeps than the air, by its hearth and the people in it (an estimate).
+ * keeps its air than the air outside with its hearth fire kept, °C: 10 °C on the mean over two winters in two reconstructed
+ * Viking Age houses of wattle and daub with a central hearth, the side facing the fire warmer still (Christensen 2013,
+ * "Living Conditions and Indoor Air Quality in a Reconstructed Viking House", EXARC Journal 2013/3). Those beside the
+ * hearth are warmed by it besides, as at a camp ([BodyHeat.FIRE_CAMP_C]).
  */
 const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
@@ -1908,7 +1976,7 @@ const val SHELTER_DAYS = 0.1f
 const val SHELTER_C = 3f
 const val HOUSE_AFTER_YEARS = 0.5f
 const val HOUSE_DECAY = 0.3f
-const val HOUSE_C = 8f
+const val HOUSE_C = 10f
 const val PIT_KEEP = 0.5f
 const val MICE = 0.01f
 const val HOUSE_DEFENCE = 0.5f
@@ -2081,8 +2149,16 @@ const val TANNED_WEAR = 0.5f
 const val SODIUM_A_PERSON_DAY = 23e-6f
 /** Sodium in a kg of meat or fish, kg: raw deer 51 mg/100 g (USDA SR "game meat, deer, raw"), freshwater fish about 50. */
 const val SODIUM_PER_KG_MEAT = 0.51e-3f
+/**
+ * The share of the food eaten that does a band's people good, [short] of the sodium they [need] (kg each, or both as shares):
+ * wholly without it, [lack] less ([inflation.Tuning.saltLack]). The one rule for the week's meal and for what a band foresees
+ * of a place ([HexGroups.saltFeedsAt]).
+ */
+internal fun saltFeeds(short: Float, need: Float, lack: Float) = if (need > 0f) 1f - lack * (short / need).coerceIn(0f, 1f) else 1f
 /** Sodium's share of salt by weight (Na in NaCl). */
 const val SALT_SODIUM = 0.393f
+/** Salt that holds a person's year of sodium ([SODIUM_A_PERSON_DAY]), kg: some 21 g. */
+const val SALT_BODY_YEAR = SODIUM_A_PERSON_DAY * Date.DAYS_PER_YEAR / SALT_SODIUM
 /** Salt to cure a kilo of meat or fish, kg (how much less salted meat and fish spoil: [inflation.Tuning.saltKeep]). */
 const val SALT_PER_KG = 0.1f
 

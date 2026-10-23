@@ -68,7 +68,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     GATHER(Domain.GATHERING, 0.15f),
     SMALL_GAME(Domain.TRAPPING, 0.1f),
     FISH(Domain.FISHING, 0.1f),
-    HUNT(Domain.HUNTING, 0.05f),
+    HUNT(Domain.HUNTING, 0.05f, practice = HUNTING_PRACTICE),
     /** Drying meat and fish in the sun and wind on racks: slow in wet weather. */
     STORE(Domain.KEEPING, 0.3f),
     /** Smoking meat and fish over a slow fire: works in any weather, and keeps longer. Needs fire. */
@@ -109,8 +109,8 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     PIT_HOUSE(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.1f, teach = 0.1f, settled = true),
     /** Walls of mud and straw (pisé, then moulded bricks) where there is clay by water: no stone, half the timber, longer to build. */
     MUDBRICK(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.01f, teach = 0.05f, settled = true),
-    TRACK(Domain.TRACKING, 0.2f, 0.8f),
-    STALK(Domain.STALKING, 0.2f, 0.8f),
+    TRACK(Domain.TRACKING, 0.2f, 0.8f, practice = HUNTING_PRACTICE),
+    STALK(Domain.STALKING, 0.2f, 0.8f, practice = HUNTING_PRACTICE),
     BUTCHER(Domain.BUTCHERY, 0.5f, 0.8f),
     /** Tending kept animals: fewer run off or are lost on the move, more can be kept, and they grow tame faster under practised hands. */
     TENDING(Domain.HERDING, CRAFT_FLOOR, known = false, invent = 0.05f, teach = 0.1f, settled = true, ref = 0.5f),
@@ -144,8 +144,15 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
         SHOWING -> 0.3f
         else -> 0.2f
     }
+    /**
+     * How hard it is to learn: practice closes the gap to mastery the slower the higher. Fishing is among the quick ones:
+     * among the Meriam, children's returns at line and spear fishing show no significant rise with age beyond what comes
+     * of growing, while shellfish collecting, easy to learn, rises with size and strength (Bliege Bird and Bird 2002,
+     * "Constraints of knowing or constraints of growing?", Human Nature 13: 239-267). Hunting is slow besides
+     * ([HUNTING_PRACTICE]).
+     */
     val complexity: Float get() = when (this) {
-        GATHER, FIRE, ROASTING, STORE, SMALL_GAME, MIDWIFERY -> 0.5f
+        GATHER, FIRE, ROASTING, STORE, SMALL_GAME, FISH, MIDWIFERY -> 0.5f
         BLADES, MICROLITHS, MUDBRICK, HERBS, SEALING, PIT_HOUSE -> 3f
         else -> 1.5f
     }

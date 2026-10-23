@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.ADULT_YEARS
 import inflation.ecology.Tally
 import inflation.ecology.ByBeast
 import inflation.ecology.Catalogue
@@ -9,6 +10,7 @@ import inflation.ecology.DeathCause
 import inflation.ecology.WeekStats
 import inflation.ecology.Band
 import inflation.ecology.Built
+import inflation.ecology.FoodFrom
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
@@ -278,7 +280,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             if (hw.placeHex[g.place] == ap.hex.i) apptKept++
         }
         for (g in groups.groups) if (g.alive && g.band != null) {
-            bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2
+            bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2.0
             val h = hw.placeHex[g.place]
             for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
             lastCamp.put(g.id, h)?.let { if (it != h) moves++ }
@@ -302,6 +304,29 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         if (bands.isEmpty()) return
         val bs = bands.map { it.band!! }
         println("     bands: " + skillsAndKit(bands, bs) + houses(bands, bs) + goods(bands, bs) + gatherings(bands, bs))
+        println("     bands by fish within reach of their camp, thirds from least to most: " + fishing(bands))
+    }
+
+    /**
+     * Bands in thirds by the fish within reach of their camps ([HexWater.fishWithin] at full skill, kg a week): the fish, their
+     * skills at fishing, small game and hunting, their nets, where their food came from over about a year ([Band.foodFrom],
+     * kg a person a day), and how fish paid against the least their gatherers took up ([Band.fishPull]). Whether bands where
+     * fish is plenty specialise in it.
+     */
+    private fun fishing(bands: List<HexGroup>): String {
+        val water = sim.groups.fauna.water; val hw = sim.hw
+        val sorted = bands.mapNotNull { g -> g.band?.let { b -> water.fishWithin(hw.placeHex[g.place]) to b } }.sortedBy { it.first }
+        val n = sorted.size
+        return (0 until 3).joinToString(" | ") { k ->
+            val third = sorted.subList(k * n / 3, (k + 1) * n / 3)
+            if (third.isEmpty()) "none" else {
+                fun mean(f: (Band) -> Float) = third.map { f(it.second).toDouble() }.average()
+                "fish %.0f kg/wk: skill fish %.2f, small game %.2f, hunt %.2f, nets %.2f; food a person a day %s; fish pull %.2f".format(
+                    third.map { it.first.toDouble() }.average(), mean { it.skills[Skill.FISH] }, mean { it.skills[Skill.SMALL_GAME] },
+                    mean { it.skills[Skill.HUNT] }, mean { it.kit[Tool.NET] },
+                    FoodFrom.entries.joinToString(", ") { f -> "%s %.2f".format(f.label, mean { it.foodFrom[f.ordinal] }) }, mean { it.fishPull })
+            }
+        }
     }
 
     private fun skillsAndKit(bands: List<HexGroup>, bs: List<Band>): String {
@@ -436,10 +461,10 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 .joinToString(", ") { "%s %.0f%%".format(it.key, 100 * it.value / total) })
         }
         val hex = sim.hex
-        println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | years between births %.1f [3-4] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
+        println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | births a woman over her bearing years %.1f [foragers 3.5-7.9, mean 5.6; Hadza 6.2, !Kung 4.3-4.7] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
             bandHeads / bandWeeks, bandHeads / weeks / sim.land.areaKm2.sum(), moves.toDouble() / bandsSeen,
             walked.values.map { it.size }.average() * hex.areaKm2, 100 * plants / (meat + plants).coerceAtLeast(1.0),
-            (motherWeeks / weeks) / yearly(Tally.BORN).coerceAtLeast(1.0), 100 * Math.pow((1 - childQ).coerceIn(0.0, 1.0), 15.0),
+            ADULT_YEARS * yearly(Tally.BORN) / (motherWeeks / weeks).coerceAtLeast(1.0), 100 * Math.pow((1 - childQ).coerceIn(0.0, 1.0), 15.0),
             1 / adultQ.coerceAtLeast(1e-3), 100 * violent / died.coerceAtLeast(1.0)))
     }
 }

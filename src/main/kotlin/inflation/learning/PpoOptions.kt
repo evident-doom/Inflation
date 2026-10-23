@@ -44,7 +44,7 @@ class Maps(val maps: List<Pair<Long, Double>> = emptyList()) {
 /**
  * HexPpo's command line (see [HexPpo] for the usage), and its learning settings from the config file:
  * `ppo.hidden` (default 48), `ppo.rate` (3e-4), `ppo.residual` (ROLE:X,...; none), `ppo.perKind` (1500),
- * `ppo.peopleChoices` (8), `ppo.criticTimes` (4), `ppo.stressBoost` (0) and `ppo.waysTrainMover` (true).
+ * `ppo.peopleChoices` (8), `ppo.criticTimes` (4), `ppo.stressBoost` (0), `ppo.waysTrainMover` (true) and `ppo.foreseenShape` (1, read by [HexPpo.Player]).
  */
 class PpoOptions(
     val out: File,

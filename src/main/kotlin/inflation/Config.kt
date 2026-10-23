@@ -54,6 +54,7 @@ object Config {
         PPO_KEEP_SIGMA("ppo.keepSigma"),
         PPO_CRITIC_TIMES("ppo.criticTimes"),
         PPO_ADVANTAGE_CLIP("ppo.advantageClip"),
+        PPO_FORESEEN_SHAPE("ppo.foreseenShape"),
         PPO_STRESS_BOOST("ppo.stressBoost"),
         WEATHER_STRESS_YEARS("weather.stressYears"),
         PPO_WAYS_TRAIN_MOVER("ppo.waysTrainMover"),

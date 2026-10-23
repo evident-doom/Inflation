@@ -69,4 +69,16 @@ class BandTimeTest {
         assertEquals(7f, time.leftFor(Activity.FOOD), 1e-3f)
         assertEquals(1f, time.leftFor(Activity.TOOLS), 1e-3f)
     }
+
+    @Test
+    fun `work at half pace takes twice the people's days, the rest lost`() {
+        val pace = FloatArray(Activity.entries.size) { 1f }.also { it[Activity.FOOD.ordinal] = 0.5f }
+        val t = BandTime(10f, pace)
+        assertEquals(5f, t.leftFor(Activity.FOOD), 1e-6f)
+        assertEquals(10f, t.leftFor(Activity.TOOLS), 1e-6f)
+        t.spend(Activity.FOOD, 2f)
+        assertEquals(6f, t.left, 1e-6f)
+        assertEquals(2f, t.lost, 1e-6f)
+        assertEquals(4f, t.spentOn(Activity.FOOD), 1e-6f)
+    }
 }

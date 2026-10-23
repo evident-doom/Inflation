@@ -205,9 +205,25 @@ object HexSnapshot {
      * 4.31: people's cold by their body heat ([BodyHeat], ISO 11079's heat balance) through a day asleep, about camp and at
      * work: night and day, wind, rain, the ground under a sleeper; shelters break the wind, keep the rain off and carry
      * bedding; shivering costs food and the debt past it kills of exposure, in place of the felt-temperature rule.
+     * 4.32: fishing is practised with a fish spear or basket traps as well as nets, snaring with a bow as well as nets
+     * ([Band.toolsFor]); bands keep where their food came from over a year ([Band.foodFrom]) and how fish paid
+     * ([Band.fishPull]), and a band split off keeps its parent's running worths. Clothes half as warm ([CLOTHES_CLO] 1.5).
+     * 4.33: the brown bear takes people a fifth as readily ([Species.takesPeople] 0.4 to 0.08; main's 4.18, merged with the
+     * above).
+     * 4.34: hunting, tracking and stalking are learned (and forgotten) at about a ninth of the old rate ([HUNTING_PRACTICE]).
+     * 4.35: fishing is learned as quickly as snaring and gathering ([Skill.complexity] 0.5, was 1.5).
+     * 4.36: misery costs work: people break off work in the cold to warm up, and hunger past their fat saps them, as far as
+     *   their band's perseverance ([Band.sisu], [Sisu]) does not keep them at it; perseverance carries the heat debt instead.
+     * 4.37-4.39: a mother's fraction drawn, not cut; parents feed children first in a lean week (CHILDREN_FIRST).
+     * 4.40: salt hunger: a band eats meat for its sodium first, salted meat counts, and a band short of sodium foresees the
+     *   salt lack at places with no salt to be had ([Band.sodiumShort], [saltFeeds]); two band inputs for it; a band short of
+     *   sodium is given salt to eat at meetings by one holding more than its own people's year of it ([SALT_BODY_YEAR]).
+     * 4.41: a band short of sodium heads for the nearest salt it knows of, pan or shore ([HexGroups.saltSources]).
+     * 4.42: the salt pull weighs a year of salt against the weeks the walk takes; a band foresees the shelters it would have at
+     *   a place it moves to ([HexGroups.shelterAt]): none where the walk takes the days it had to spare.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 31
+    const val MODEL_MINOR = 42
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
