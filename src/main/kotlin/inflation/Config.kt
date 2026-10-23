@@ -58,6 +58,7 @@ object Config {
         PPO_ADVANTAGE_CLIP("ppo.advantageClip"),
         PPO_FORESEEN_SHAPE("ppo.foreseenShape"),
         PPO_STRESS_BOOST("ppo.stressBoost"),
+        PPO_MAX_SHARE("ppo.maxShare"),
         WEATHER_STRESS_YEARS("weather.stressYears"),
         PPO_WAYS_TRAIN_MOVER("ppo.waysTrainMover"),
         EVOLVE_WAYS_SIGMA("evolveWays.sigma"),
