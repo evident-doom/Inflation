@@ -31,6 +31,8 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
     val settledFertility = f("settledFertility", 1f)
     /** The number of bands people start with, against the usual (a world started afresh; 4, 16, 64: how much more the land could carry than its people start at). */
     val peopleStart = f("peopleStart", 1f)
+    /** The size of the bands people start in, against the usual, the same people in fewer, larger bands (2: half as many bands, twice the size). */
+    val peopleBand = f("peopleBand", 1f).also { require(it > 0f) { "t.peopleBand is $it: a band's size is a positive multiple" } }
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
