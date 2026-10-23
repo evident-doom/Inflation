@@ -216,7 +216,7 @@ object HexSnapshot {
      *   their band's perseverance ([Band.sisu], [Sisu]) does not keep them at it; perseverance carries the heat debt instead.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 38
+    const val MODEL_MINOR = 39
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

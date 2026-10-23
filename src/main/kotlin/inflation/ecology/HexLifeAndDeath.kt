@@ -628,7 +628,10 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed
     fire: Float, home: Float, into: HazardSink) {
     val s = g.species; val b = g.band; val t = weather.temperature[p]
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
-    val hunger = Hazards.hunger(s, g.spent, Hazards.onFat(fed, g.fat, days), days)
+    // (In a band the shortfall is not shared evenly: parents feed their children first, see [CHILDREN_FIRST].)
+    val short = shortfallOfAdults(g, fed)
+    val hunger = Hazards.hunger(s, g.spent, Hazards.onFat(1f - short, g.fat, days), days)
+    val hungerYoung = if (b == null) hunger else Hazards.hunger(s, g.spent, Hazards.onFat(1f - short * (1f - CHILDREN_FIRST), g.fat, days), days)
     // People keep warm as their body heat allows, through their clothes, fire, shelter and houses: past what they can
     // shiver up, they die of exposure. Animals feel the cold through their coats.
     val exposure = b?.warmth(airAt(p, weather), fire, home, days)?.odds ?: 0f
@@ -640,12 +643,23 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed
     val (fireA, floodA, snowA) = fauna.calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
     val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)
-    into.add(DeathCause.HUNGER, hunger, 1.5f * hunger); into.add(DeathCause.COLD, cold, 1.5f * cold)
+    into.add(DeathCause.HUNGER, hunger, 1.5f * hungerYoung); into.add(DeathCause.COLD, cold, 1.5f * cold)
     into.add(DeathCause.HEAT, heat, 1.5f * heat)
     into.add(DeathCause.EXPOSURE, exposure, 1.5f * exposure); into.add(DeathCause.THIRST, thirst, 1.5f * thirst)
     into.add(DeathCause.DISEASE, sick, sick); into.add(DeathCause.OUTBREAK, plague, plague)
     into.add(DeathCause.FIRE, fireA, fireY); into.add(DeathCause.FLOOD, floodA, floodY); into.add(DeathCause.SNOW, snowA, snowY)
     into.add(DeathCause.CROCODILES, 0f, croc); into.add(DeathCause.EAGLES, 0f, eagle)
+}
+
+/**
+ * How much of its need a grown member of [g] goes without when the group as a whole is fed [fed]: in a band, the shortfall
+ * falls on the grown and spares a child [CHILDREN_FIRST] of its share, so the band's food is shared out whole (the grown's
+ * shortfall times the grown, plus the children's times the children, is the band's).
+ */
+private fun shortfallOfAdults(g: HexGroup, fed: Float): Float {
+    val shortfall = 1f - fed
+    if (g.band == null || shortfall <= 0f || g.young == 0) return shortfall
+    return min(1f, shortfall * g.size / (g.adults + g.young * (1f - CHILDREN_FIRST)))
 }
 
 /**
