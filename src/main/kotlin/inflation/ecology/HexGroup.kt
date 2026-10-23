@@ -248,7 +248,13 @@ object HexFeatures {
      * it lacks it (0 with nothing lacked or remembered, or within a hex of it).
      */
     const val TOWARD_LACKED = 58
-    const val SIZE = 59
+    /**
+     * The place's usual temperature in each of the next three months, against 20 °C: what any forager knows of their country
+     * from the seasons past (lore, not a forecast), for a network to learn what the cold to come means ([LORE_MONTHS]).
+     */
+    const val USUAL_AHEAD = 59
+    const val LORE_MONTHS = 3
+    const val SIZE = USUAL_AHEAD + LORE_MONTHS
 
     /**
      * Each feature's name, as a learned network's `.names` file records it (see [inflation.learning.Schema]): set by
@@ -314,5 +320,6 @@ object HexFeatures {
         it[STRONGER_HUNTER] = "stronger hunter"
         it[REMEMBERED_LACKED] = "remembered lacked"
         it[TOWARD_LACKED] = "toward lacked"
+        for (k in 0 until LORE_MONTHS) it[USUAL_AHEAD + k] = "usual temperature, month ${k + 1} ahead"
     }.mapIndexed { k, n -> requireNotNull(n) { "feature $k has no name" } }
 }
