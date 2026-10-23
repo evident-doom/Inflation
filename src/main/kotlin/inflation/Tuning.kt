@@ -29,6 +29,8 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
     /** People's births, and the extra births of settled, well-stocked bands ([inflation.ecology.SETTLED_FERTILITY]), against their present rates. */
     val humanBirths = f("humanBirths", 1f)
     val settledFertility = f("settledFertility", 1f)
+    /** The number of bands people start with, against the usual (a world started afresh; 4, 16, 64: how much more the land could carry than its people start at). */
+    val peopleStart = f("peopleStart", 1f)
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

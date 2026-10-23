@@ -127,7 +127,9 @@ class HexGroups(
             // At the density it settles at over a long run, where one is known.
             val settled = Catalogue.settledPer1000Km2(s)
             val unit = unitSize(s)
-            val count = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()
+            val usual = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()
+            // (People's start can be a multiple of the usual, to find what the land would carry: t.peopleStart.)
+            val count = if (s.human) (usual * tuning.peopleStart).toInt() else usual
             val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s)
             val total = weights.sum()
             repeat(count) {
