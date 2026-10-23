@@ -215,7 +215,8 @@ object HexSnapshot {
      * 4.36: misery costs work: people break off work in the cold to warm up, and hunger past their fat saps them, as far as
      *   their band's perseverance ([Band.sisu], [Sisu]) does not keep them at it; perseverance carries the heat debt instead.
      * 4.37: salt hunger: a band eats meat for its sodium first, salted meat counts, and a band short of sodium foresees the
-     *   salt lack at places with no salt to be had ([Band.sodiumShort], [saltFeeds]); two band inputs for it.
+     *   salt lack at places with no salt to be had ([Band.sodiumShort], [saltFeeds]); two band inputs for it; a band short of
+     *   sodium is given salt to eat at meetings by one holding more than its own people's year of it ([SALT_BODY_YEAR]).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 37
